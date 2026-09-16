@@ -6,18 +6,14 @@ import {GuardianSet, ICoreBridge} from "wormhole-sdk/interfaces/ICoreBridge.sol"
 import {ICustomConsistencyLevel} from "wormhole-sdk/interfaces/ICustomConsistencyLevel.sol";
 import {CustomConsistencyLib} from "wormhole-sdk/libraries/CustomConsistency.sol";
 
-import {AbstractWormholeHookIsm} from "contracts/hooks/wormhole/AbstractWormholeHookIsm.sol";
-import {WormholeExecutorHookIsm} from "contracts/hooks/wormhole/WormholeExecutorHookIsm.sol";
-import {WormholeMessage} from "contracts/libs/WormholeMessage.sol";
 import {WormholeVaaHookIsm} from "contracts/hooks/wormhole/WormholeVaaHookIsm.sol";
+import {WormholeMessage} from "contracts/libs/WormholeMessage.sol";
 import {WormholeConsistencyLevelConfig} from "contracts/hooks/wormhole/libs/CustomConsistencyLevel.sol";
 import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {IInterchainSecurityModule} from "contracts/interfaces/IInterchainSecurityModule.sol";
 import {IEvmCoreBridge} from "contracts/interfaces/wormhole/IEvmCoreBridge.sol";
-import {IWormholeHookIsm, RemoteRouterEnrollment} from "contracts/interfaces/wormhole/IWormholeHookIsm.sol";
 import {Message} from "contracts/libs/Message.sol";
 import {TypeCasts} from "contracts/libs/TypeCasts.sol";
-import {MockExecutorQuoterRouter} from "contracts/mock/MockExecutorQuoterRouter.sol";
 import {TestMailbox} from "contracts/test/TestMailbox.sol";
 import {TestPostDispatchHook} from "contracts/test/TestPostDispatchHook.sol";
 import {TestRecipient} from "contracts/test/TestRecipient.sol";
@@ -37,10 +33,6 @@ import {TestRecipient} from "contracts/test/TestRecipient.sol";
  * own `WormholeOverride` helper performs. Every override is asserted through
  * Core's public getters before it is relied on, so a layout change fails loudly
  * instead of silently weakening the test.
- *
- * The Executor Quoter Router is mocked unless
- * `WORMHOLE_EXECUTOR_QUOTER_ROUTER_ETHEREUM` names a deployed router; Core
- * publication stays real either way.
  */
 contract WormholeHookIsmForkTest is Test {
     using Message for bytes;
@@ -64,7 +56,6 @@ contract WormholeHookIsmForkTest is Test {
     uint8 internal constant CONSISTENCY_FINALIZED = 202;
     uint8 internal constant CONSISTENCY_CUSTOM = 203;
     uint8 internal constant CONSISTENCY_INSTANT = 200;
-    uint128 internal constant CALLBACK_GAS = 300_000;
     uint8 internal constant PRODUCTION_GUARDIAN_COUNT = 19;
     uint8 internal constant PRODUCTION_SIGNATURE_COUNT = 13;
 
@@ -94,7 +85,7 @@ contract WormholeHookIsmForkTest is Test {
         return
             WormholeConsistencyLevelConfig({
                 consistencyLevel: CONSISTENCY_FINALIZED,
-                customConsistencyLevel: address(0),
+                customConsistencyLevelContract: address(0),
                 baseConsistencyLevel: 0,
                 additionalBlocks: 0
             });
@@ -144,7 +135,9 @@ contract WormholeHookIsmForkTest is Test {
         _assertCoreIdentity(CORE_BASE, WH_BASE, 8453);
     }
 
-    function testFork_customFinalityRegistersEmitterWithOfficialCcl() public {
+    function testFork_customConsistencyRegistersEmitterWithOfficialCcl()
+        public
+    {
         vm.selectFork(ethereumFork);
         string[] memory urls = new string[](1);
         urls[0] = "https://vaa.example/getWormholeVaa";
@@ -153,7 +146,7 @@ contract WormholeHookIsmForkTest is Test {
             CORE_ETHEREUM,
             WormholeConsistencyLevelConfig({
                 consistencyLevel: CONSISTENCY_CUSTOM,
-                customConsistencyLevel: CCL_ETHEREUM,
+                customConsistencyLevelContract: CCL_ETHEREUM,
                 baseConsistencyLevel: CONSISTENCY_INSTANT,
                 additionalBlocks: 2
             }),
@@ -165,7 +158,10 @@ contract WormholeHookIsmForkTest is Test {
             2
         );
         assertEq(router.consistencyLevel(), CONSISTENCY_CUSTOM);
-        assertEq(address(router.customConsistencyLevel()), CCL_ETHEREUM);
+        assertEq(
+            address(router.customConsistencyLevelContract()),
+            CCL_ETHEREUM
+        );
         assertEq(
             ICustomConsistencyLevel(CCL_ETHEREUM).getConfiguration(
                 address(router)
@@ -208,7 +204,7 @@ contract WormholeHookIsmForkTest is Test {
             "",
             _buildMessage()
         );
-        assertEq(quoted, coreFee, "direct-VAA quote must be Core fee only");
+        assertEq(quoted, coreFee, "quote must be Core fee only");
 
         bytes memory message = _buildMessage();
         vm.recordLogs();
@@ -246,9 +242,9 @@ contract WormholeHookIsmForkTest is Test {
         );
     }
 
-    // ============ Direct-VAA end to end ============
+    // ============ VAA verification ============
 
-    function testFork_directVaaEndToEnd() public {
+    function testFork_vaaEndToEnd() public {
         (
             WormholeVaaHookIsm originRouter,
             WormholeVaaHookIsm destinationRouter
@@ -295,7 +291,7 @@ contract WormholeHookIsmForkTest is Test {
         assertEq(baseRecipient.lastData(), _body());
     }
 
-    function testFork_directVaaRejectsForeignSignature() public {
+    function testFork_vaaRejectsForeignSignature() public {
         (WormholeVaaHookIsm originRouter, ) = _deployVaaMesh();
 
         vm.selectFork(ethereumFork);
@@ -377,102 +373,6 @@ contract WormholeHookIsmForkTest is Test {
         assertGt(bytes(reason).length, 0);
     }
 
-    // ============ Executor end to end ============
-
-    function testFork_executorCallbackEndToEnd() public {
-        vm.selectFork(baseFork);
-        address baseQuoterRouter = _quoterRouterFor("BASE");
-        WormholeExecutorHookIsm destinationRouter = new WormholeExecutorHookIsm(
-            address(baseMailbox),
-            CORE_BASE,
-            _consistencyLevelConfig(),
-            baseQuoterRouter
-        );
-
-        vm.selectFork(ethereumFork);
-        address ethereumQuoterRouter = _quoterRouterFor("ETHEREUM");
-        WormholeExecutorHookIsm originRouter = new WormholeExecutorHookIsm(
-            address(ethereumMailbox),
-            CORE_ETHEREUM,
-            _consistencyLevelConfig(),
-            ethereumQuoterRouter
-        );
-        originRouter.enrollRemoteRouter(
-            WormholeExecutorHookIsm.ExecutorRemoteRouterEnrollment({
-                remoteRouter: RemoteRouterEnrollment({
-                    domain: HYP_BASE,
-                    router: address(destinationRouter).addressToBytes32(),
-                    wormholeChainId: WH_BASE,
-                    expectedConsistencyLevel: CONSISTENCY_FINALIZED
-                }),
-                quoter: _quoterKey(),
-                callbackGasLimit: CALLBACK_GAS
-            })
-        );
-
-        vm.selectFork(baseFork);
-        destinationRouter.enrollRemoteRouter(
-            WormholeExecutorHookIsm.ExecutorRemoteRouterEnrollment({
-                remoteRouter: RemoteRouterEnrollment({
-                    domain: HYP_ETHEREUM,
-                    router: address(originRouter).addressToBytes32(),
-                    wormholeChainId: WH_ETHEREUM,
-                    expectedConsistencyLevel: CONSISTENCY_FINALIZED
-                }),
-                quoter: _quoterKey(),
-                callbackGasLimit: CALLBACK_GAS
-            })
-        );
-
-        vm.selectFork(ethereumFork);
-        bytes memory message = _buildMessage();
-        uint256 quoted = IPostDispatchHook(address(originRouter)).quoteDispatch(
-            "",
-            message
-        );
-        assertGe(
-            quoted,
-            ICoreBridge(CORE_ETHEREUM).messageFee(),
-            "Executor quote must cover the Core fee"
-        );
-
-        vm.recordLogs();
-        _dispatchFrom(AbstractWormholeHookIsm(address(originRouter)), quoted);
-        (
-            uint64 sequence,
-            uint32 nonce,
-            bytes memory payload,
-            uint8 consistencyLevel
-        ) = _readPublication(address(originRouter));
-
-        vm.selectFork(baseFork);
-        bytes memory encodedVaa = _signProductionVaa(
-            CORE_BASE,
-            VaaFields({
-                timestamp: uint32(block.timestamp),
-                nonce: nonce,
-                emitterChainId: WH_ETHEREUM,
-                emitterAddress: address(originRouter).addressToBytes32(),
-                sequence: sequence,
-                consistencyLevel: consistencyLevel,
-                payload: payload
-            })
-        );
-
-        _executeVaaWithinCallbackGas(destinationRouter, encodedVaa);
-
-        assertEq(
-            destinationRouter.authorizations(HYP_ETHEREUM, message.id()),
-            uint64(_nonce(message)) + 1
-        );
-
-        baseRecipient.setInterchainSecurityModule(address(destinationRouter));
-        baseMailbox.process("", message);
-        assertTrue(baseMailbox.delivered(message.id()));
-    }
-
-    // ============ Fixture helpers ============
-
     function _body() internal pure returns (bytes memory) {
         return bytes("hyperlane over wormhole fork");
     }
@@ -495,7 +395,7 @@ contract WormholeHookIsmForkTest is Test {
     }
 
     function _dispatchFrom(
-        AbstractWormholeHookIsm originRouter,
+        WormholeVaaHookIsm originRouter,
         uint256 value
     ) internal {
         ethereumMailbox.dispatch{value: value}(
@@ -530,9 +430,9 @@ contract WormholeHookIsmForkTest is Test {
             urls
         );
         origin.enrollRemoteRouter(
-            RemoteRouterEnrollment({
-                domain: HYP_BASE,
-                router: address(destination).addressToBytes32(),
+            WormholeVaaHookIsm.RemoteRouterEnrollment({
+                domainId: HYP_BASE,
+                domainIsm: address(destination).addressToBytes32(),
                 wormholeChainId: WH_BASE,
                 expectedConsistencyLevel: CONSISTENCY_FINALIZED
             })
@@ -540,37 +440,13 @@ contract WormholeHookIsmForkTest is Test {
 
         vm.selectFork(baseFork);
         destination.enrollRemoteRouter(
-            RemoteRouterEnrollment({
-                domain: HYP_ETHEREUM,
-                router: address(origin).addressToBytes32(),
+            WormholeVaaHookIsm.RemoteRouterEnrollment({
+                domainId: HYP_ETHEREUM,
+                domainIsm: address(origin).addressToBytes32(),
                 wormholeChainId: WH_ETHEREUM,
                 expectedConsistencyLevel: CONSISTENCY_FINALIZED
             })
         );
-    }
-
-    /// @dev Uses the published Quoter Router when the environment names one,
-    /// otherwise a local mock. Core publication is real either way.
-    function _quoterRouterFor(
-        string memory chain
-    ) internal returns (address router) {
-        router = vm.envOr(
-            string.concat("WORMHOLE_EXECUTOR_QUOTER_ROUTER_", chain),
-            address(0)
-        );
-        if (router != address(0)) {
-            assertGt(
-                router.code.length,
-                0,
-                "configured Quoter Router has no code"
-            );
-            return router;
-        }
-        return address(new MockExecutorQuoterRouter(0.0005 ether));
-    }
-
-    function _quoterKey() internal returns (address) {
-        return vm.envOr("WORMHOLE_EXECUTOR_QUOTER", makeAddr("quoter"));
     }
 
     /// @dev Pulls the publication this router just made out of the recorded logs.
@@ -622,42 +498,8 @@ contract WormholeHookIsmForkTest is Test {
             );
     }
 
-    /// @dev Anyone may deliver; use an account unrelated to the quote.
-    function _executeVaaWithinCallbackGas(
-        WormholeExecutorHookIsm destinationRouter,
-        bytes memory encodedVaa
-    ) internal {
-        address rescuer = makeAddr("rescuer");
-        vm.deal(rescuer, 1 ether);
-        uint256 callbackGasBefore = gasleft();
-        vm.prank(rescuer);
-        destinationRouter.executeVAAv1(encodedVaa);
-        uint256 callbackGasUsed = callbackGasBefore - gasleft();
-        assertLt(
-            callbackGasUsed,
-            CALLBACK_GAS,
-            "callback exceeds the configured gas limit"
-        );
-    }
-
-    /**
-     * @dev Replaces the current Guardian set with the single deterministic test
-     * key, then reads it back through Core's own getters. Core never applies an
-     * expiry to the current set, so no expiry write is needed here.
-     */
-    function _overrideCurrentGuardianSet(
-        address core
-    ) internal returns (uint32 index) {
-        index = ICoreBridge(core).getCurrentGuardianSetIndex();
-        _writeGuardianSet(core, index, guardian, 0);
-
-        GuardianSet memory set = ICoreBridge(core).getGuardianSet(index);
-        assertEq(set.keys.length, 1, "Guardian set override did not apply");
-        assertEq(set.keys[0], guardian, "Guardian key override did not apply");
-    }
-
-    /// @dev Mirrors the current production set size and quorum so callback-gas
-    /// assertions include realistic signature verification costs.
+    /// @dev Mirrors the current production set size and quorum so the test
+    /// exercises realistic signature verification costs.
     function _overrideProductionGuardianSet(
         address core
     ) internal returns (uint32 index, uint256[] memory keys) {

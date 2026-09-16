@@ -3,77 +3,58 @@ pragma solidity ^0.8.19;
 
 import {Test} from "forge-std/Test.sol";
 
-import {WormholeExecutorHookIsm} from "contracts/hooks/wormhole/WormholeExecutorHookIsm.sol";
-import {WormholeMessage} from "contracts/libs/WormholeMessage.sol";
 import {WormholeVaaHookIsm} from "contracts/hooks/wormhole/WormholeVaaHookIsm.sol";
 import {WormholeConsistencyLevelConfig} from "contracts/hooks/wormhole/libs/CustomConsistencyLevel.sol";
 import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
-import {IInterchainSecurityModule} from "contracts/interfaces/IInterchainSecurityModule.sol";
-import {RemoteRouterEnrollment} from "contracts/interfaces/wormhole/IWormholeHookIsm.sol";
+import {WormholeMessage} from "contracts/libs/WormholeMessage.sol";
 import {Message} from "contracts/libs/Message.sol";
 import {TypeCasts} from "contracts/libs/TypeCasts.sol";
-import {MockExecutorQuoterRouter} from "contracts/mock/MockExecutorQuoterRouter.sol";
 import {MockWormholeCore} from "contracts/mock/MockWormholeCore.sol";
 import {TestMailbox} from "contracts/test/TestMailbox.sol";
 import {TestPostDispatchHook} from "contracts/test/TestPostDispatchHook.sol";
 import {TestRecipient} from "contracts/test/TestRecipient.sol";
 
 /**
- * @dev Drives the Executor router with valid and corrupted VAAs, republication
- * attempts, and unrelated route churn. Every action swallows reverts so the
- * fuzzer keeps exploring; the invariants live on the test contract.
+ * @dev Stateful actions for publication, VAA verification, and unrelated route
+ * churn. Reverts are swallowed so invariant runs continue exploring state.
  */
-contract WormholeExecutorHandler is Test {
+contract WormholeVaaHandler is Test {
     using Message for bytes;
     using TypeCasts for address;
 
     uint32 internal constant ORIGIN = 1000;
     uint32 internal constant DESTINATION = 2000;
     uint16 internal constant WH_ORIGIN = 2;
-    uint16 internal constant WH_DESTINATION = 30;
     uint8 internal constant CONSISTENCY = 202;
     uint256 internal constant CORE_FEE = 0.001 ether;
-    uint256 internal constant EXECUTOR_FEE = 0.002 ether;
-    uint128 internal constant CALLBACK_GAS = 300_000;
 
-    TestMailbox internal originMailbox;
-    MockWormholeCore internal originCore;
-    WormholeExecutorHookIsm internal originRouter;
-    WormholeExecutorHookIsm internal destinationRouter;
-    address internal recipient;
-    address internal quoter;
+    TestMailbox internal immutable originMailbox;
+    MockWormholeCore internal immutable originCore;
+    WormholeVaaHookIsm internal immutable originRouter;
+    WormholeVaaHookIsm internal immutable destinationRouter;
+    address internal immutable recipient;
 
-    bytes32[] public messageIds;
-    mapping(bytes32 messageId => uint32 nonce) public nonceOf;
-    mapping(bytes32 messageId => uint64 authorization)
-        public firstAuthorization;
-    bytes32[] public authorizedIds;
-    bytes32[] public crossOriginIds;
-    mapping(bytes32 messageId => uint32 claimedOrigin) public claimedOriginOf;
-
+    bytes[] internal dispatchedMessages;
     uint256 public republishSuccesses;
+    uint256 public invalidVerificationSuccesses;
+    uint256 public validVerificationFailures;
     uint64 public publications;
-    bytes internal latestMessage;
 
     constructor(
-        TestMailbox originMailbox_,
-        MockWormholeCore originCore_,
-        WormholeExecutorHookIsm originRouter_,
-        WormholeExecutorHookIsm destinationRouter_,
-        address recipient_,
-        address quoter_
+        TestMailbox _originMailbox,
+        MockWormholeCore _originCore,
+        WormholeVaaHookIsm _originRouter,
+        WormholeVaaHookIsm _destinationRouter,
+        address _recipient
     ) {
-        originMailbox = originMailbox_;
-        originCore = originCore_;
-        originRouter = originRouter_;
-        destinationRouter = destinationRouter_;
-        recipient = recipient_;
-        quoter = quoter_;
+        originMailbox = _originMailbox;
+        originCore = _originCore;
+        originRouter = _originRouter;
+        destinationRouter = _destinationRouter;
+        recipient = _recipient;
     }
 
     receive() external payable {}
-
-    // ============ Actions ============
 
     function dispatch() external {
         vm.deal(address(this), 10 ether);
@@ -82,8 +63,9 @@ contract WormholeExecutorHandler is Test {
             recipient.addressToBytes32(),
             "invariant"
         );
+
         try
-            originMailbox.dispatch{value: CORE_FEE + EXECUTOR_FEE}(
+            originMailbox.dispatch{value: CORE_FEE}(
                 DESTINATION,
                 recipient.addressToBytes32(),
                 "invariant",
@@ -91,280 +73,115 @@ contract WormholeExecutorHandler is Test {
                 IPostDispatchHook(address(originRouter))
             )
         {
-            bytes32 id = message.id();
-            messageIds.push(id);
-            nonceOf[id] = _nonce(message);
-            latestMessage = message;
+            dispatchedMessages.push(message);
             publications += 1;
         } catch {}
     }
 
-    /// @dev Republishing an already published message must always fail.
     function republishLatest() external {
-        if (latestMessage.length == 0) return;
+        if (dispatchedMessages.length == 0) return;
         vm.deal(address(this), 10 ether);
+
         try
             IPostDispatchHook(address(originRouter)).postDispatch{
-                value: CORE_FEE + EXECUTOR_FEE
-            }("", latestMessage)
+                value: CORE_FEE
+            }("", dispatchedMessages[dispatchedMessages.length - 1])
         {
             republishSuccesses += 1;
         } catch {}
     }
 
-    function authorizeValid(uint256 seed) external {
-        if (messageIds.length == 0) return;
-        uint256 index = seed % messageIds.length;
-        bytes32 id = messageIds[index];
-        bytes memory vaa = _vaa(
-            WH_ORIGIN,
+    function verifyValid(uint256 seed) external {
+        if (dispatchedMessages.length == 0) return;
+        uint256 index = seed % dispatchedMessages.length;
+        bytes memory message = dispatchedMessages[index];
+        bytes memory metadata = _metadata(
+            message,
             address(originRouter).addressToBytes32(),
-            uint64(index),
-            nonceOf[id],
-            CONSISTENCY,
-            0,
-            WormholeMessage.encode(
-                ORIGIN,
-                DESTINATION,
-                address(destinationRouter).addressToBytes32(),
-                id,
-                nonceOf[id]
-            )
+            uint64(index)
         );
-        _tryAuthorize(vaa, id);
-    }
 
-    /// @dev Fuzzes the signed VAA header while the payload stays correct.
-    function authorizeWrongEmitter(
-        uint256 seed,
-        uint16 emitterChainId,
-        bytes32 emitterAddress,
-        uint8 consistencyLevel
-    ) external {
-        if (messageIds.length == 0) return;
-        bytes32 id = messageIds[seed % messageIds.length];
-        _tryAuthorize(
-            _vaa(
-                emitterChainId,
-                emitterAddress,
-                uint64(seed % messageIds.length),
-                nonceOf[id],
-                consistencyLevel,
-                0,
-                _payload(
-                    ORIGIN,
-                    DESTINATION,
-                    address(destinationRouter).addressToBytes32(),
-                    id,
-                    nonceOf[id]
-                )
-            ),
-            id
-        );
-    }
-
-    /// @dev Fuzzes the routing fields of the signed payload.
-    function authorizeWrongPayload(
-        uint256 seed,
-        uint32 originDomain,
-        uint32 destinationDomain,
-        uint32 nonce
-    ) external {
-        if (messageIds.length == 0) return;
-        bytes32 id = messageIds[seed % messageIds.length];
-        _tryAuthorize(
-            _vaa(
-                WH_ORIGIN,
-                address(originRouter).addressToBytes32(),
-                uint64(seed % messageIds.length),
-                nonce,
-                CONSISTENCY,
-                0,
-                _payload(
-                    originDomain,
-                    destinationDomain,
-                    address(destinationRouter).addressToBytes32(),
-                    id,
-                    nonce
-                )
-            ),
-            id
-        );
-    }
-
-    /// @dev Fuzzes the destination-router binding that stops multicast replay.
-    function authorizeWrongDestinationRouter(
-        uint256 seed,
-        bytes32 destinationRouterField
-    ) external {
-        if (messageIds.length == 0) return;
-        bytes32 id = messageIds[seed % messageIds.length];
-        _tryAuthorize(
-            _vaa(
-                WH_ORIGIN,
-                address(originRouter).addressToBytes32(),
-                uint64(seed % messageIds.length),
-                nonceOf[id],
-                CONSISTENCY,
-                0,
-                _payload(
-                    ORIGIN,
-                    DESTINATION,
-                    destinationRouterField,
-                    id,
-                    nonceOf[id]
-                )
-            ),
-            id
-        );
-    }
-
-    /// @dev Authenticates a VAA from ORIGIN whose message ID belongs to a
-    /// Hyperlane message claiming another origin. The callback may authorize
-    /// that ID only inside ORIGIN's namespace.
-    function authorizeMessageClaimingOtherOrigin(
-        uint256 seed,
-        uint32 claimedOrigin
-    ) external {
-        claimedOrigin = uint32(bound(claimedOrigin, 3000, 9000));
-        uint32 nonce = uint32(seed);
-        bytes32 id = keccak256(
-            abi.encodePacked(
-                originMailbox.VERSION(),
-                nonce,
-                claimedOrigin,
-                address(this).addressToBytes32(),
-                DESTINATION,
-                recipient.addressToBytes32(),
-                bytes("invariant")
-            )
-        );
-        uint64 beforeAuthorization = destinationRouter.authorizations(
-            ORIGIN,
-            id
-        );
-        _tryAuthorize(
-            _vaa(
-                WH_ORIGIN,
-                address(originRouter).addressToBytes32(),
-                uint64(seed),
-                nonce,
-                CONSISTENCY,
-                0,
-                _payload(
-                    ORIGIN,
-                    DESTINATION,
-                    address(destinationRouter).addressToBytes32(),
-                    id,
-                    nonce
-                )
-            ),
-            id
-        );
-        if (
-            beforeAuthorization == 0 &&
-            destinationRouter.authorizations(ORIGIN, id) != 0
-        ) {
-            claimedOriginOf[id] = claimedOrigin;
-            crossOriginIds.push(id);
+        try destinationRouter.verify(metadata, message) returns (bool valid) {
+            if (!valid) validVerificationFailures += 1;
+        } catch {
+            validVerificationFailures += 1;
         }
     }
 
-    /// @dev Churns unrelated routes; never touches the enrolled ORIGIN entry.
-    function enrollOther(uint32 domain, uint16 wormholeChainId) external {
-        domain = uint32(bound(domain, 3000, 9000));
-        wormholeChainId = uint16(bound(wormholeChainId, 100, 500));
+    function verifyInvalidEmitter(uint256 seed) external {
+        if (dispatchedMessages.length == 0) return;
+        uint256 index = seed % dispatchedMessages.length;
+        bytes memory message = dispatchedMessages[index];
+        bytes memory metadata = _metadata(
+            message,
+            address(0xdead).addressToBytes32(),
+            uint64(index)
+        );
+
+        try destinationRouter.verify(metadata, message) returns (bool valid) {
+            if (valid) invalidVerificationSuccesses += 1;
+        } catch {}
+    }
+
+    function enrollUnrelatedRoute(uint8 seed) external {
+        uint32 domainId = 3000 + uint32(seed % 16);
+        uint16 wormholeChainId = 100 + uint16(seed % 16);
+        address remoteRouter = address(uint160(uint256(seed) + 1));
+
         try
             destinationRouter.enrollRemoteRouter(
-                WormholeExecutorHookIsm.ExecutorRemoteRouterEnrollment({
-                    remoteRouter: RemoteRouterEnrollment({
-                        domain: domain,
-                        router: address(uint160(uint256(domain) + 1))
-                            .addressToBytes32(),
-                        wormholeChainId: wormholeChainId,
-                        expectedConsistencyLevel: CONSISTENCY
-                    }),
-                    quoter: quoter,
-                    callbackGasLimit: CALLBACK_GAS
+                WormholeVaaHookIsm.RemoteRouterEnrollment({
+                    domainId: domainId,
+                    domainIsm: remoteRouter.addressToBytes32(),
+                    wormholeChainId: wormholeChainId,
+                    expectedConsistencyLevel: CONSISTENCY
                 })
             )
         {} catch {}
     }
 
-    function unenrollOther(uint32 domain) external {
-        domain = uint32(bound(domain, 3000, 9000));
-        try destinationRouter.unenrollRemoteRouter(domain) {} catch {}
+    function unenrollUnrelatedRoute(uint8 seed) external {
+        uint32 domainId = 3000 + uint32(seed % 16);
+        try destinationRouter.unenrollRemoteRouter(domainId) {} catch {}
     }
 
-    // ============ Views for invariants ============
-
-    function messageIdCount() external view returns (uint256) {
-        return messageIds.length;
+    function messageCount() external view returns (uint256) {
+        return dispatchedMessages.length;
     }
 
-    function authorizedIdCount() external view returns (uint256) {
-        return authorizedIds.length;
+    function messageId(uint256 index) external view returns (bytes32) {
+        return dispatchedMessages[index].id();
     }
 
-    function crossOriginIdCount() external view returns (uint256) {
-        return crossOriginIds.length;
-    }
-
-    // ============ Internals ============
-
-    function _tryAuthorize(bytes memory vaa, bytes32 id) internal {
-        try destinationRouter.executeVAAv1(vaa) {
-            uint64 stored = destinationRouter.authorizations(ORIGIN, id);
-            if (stored != 0 && firstAuthorization[id] == 0) {
-                firstAuthorization[id] = stored;
-                authorizedIds.push(id);
-            }
-        } catch {}
-    }
-
-    function _payload(
-        uint32 originDomain,
-        uint32 destinationDomain,
-        bytes32 destinationRouterField,
-        bytes32 messageId,
-        uint32 nonce
-    ) internal pure returns (bytes memory) {
-        return
-            WormholeMessage.encode(
-                originDomain,
-                destinationDomain,
-                destinationRouterField,
-                messageId,
-                nonce
-            );
-    }
-
-    function _vaa(
-        uint16 emitterChainId,
+    function _metadata(
+        bytes memory message,
         bytes32 emitterAddress,
-        uint64 sequence,
-        uint32 nonce,
-        uint8 consistencyLevel,
-        uint32 guardianSetIndex,
-        bytes memory payload
-    ) internal pure returns (bytes memory) {
-        return
-            abi.encode(
-                MockWormholeCore.MockVaa({
-                    emitterChainId: emitterChainId,
-                    emitterAddress: emitterAddress,
-                    sequence: sequence,
-                    nonce: nonce,
-                    consistencyLevel: consistencyLevel,
-                    guardianSetIndex: guardianSetIndex,
-                    payload: payload
-                })
-            );
+        uint64 sequence
+    ) private view returns (bytes memory) {
+        bytes memory payload = WormholeMessage.encode(
+            ORIGIN,
+            DESTINATION,
+            address(destinationRouter).addressToBytes32(),
+            message.id(),
+            _nonce(message)
+        );
+        bytes memory encodedVaa = abi.encode(
+            MockWormholeCore.MockVaa({
+                emitterChainId: WH_ORIGIN,
+                emitterAddress: emitterAddress,
+                sequence: sequence,
+                nonce: _nonce(message),
+                consistencyLevel: CONSISTENCY,
+                guardianSetIndex: 0,
+                payload: payload
+            })
+        );
+        return abi.encode(encodedVaa);
     }
 
-    function _nonce(bytes memory m) internal pure returns (uint32 value) {
+    function _nonce(bytes memory message) private pure returns (uint32 value) {
         assembly {
-            value := shr(224, mload(add(add(m, 32), 1)))
+            value := shr(224, mload(add(add(message, 32), 1)))
         }
     }
 }
@@ -378,187 +195,149 @@ contract WormholeHookIsmTest_Invariants is Test {
     uint16 internal constant WH_DESTINATION = 30;
     uint8 internal constant CONSISTENCY = 202;
     uint256 internal constant CORE_FEE = 0.001 ether;
-    uint256 internal constant EXECUTOR_FEE = 0.002 ether;
-    uint128 internal constant CALLBACK_GAS = 300_000;
 
-    WormholeExecutorHookIsm internal originRouter;
-    WormholeExecutorHookIsm internal destinationRouter;
-    WormholeExecutorHandler internal handler;
+    MockWormholeCore internal originCore;
+    WormholeVaaHookIsm internal originRouter;
+    WormholeVaaHookIsm internal destinationRouter;
+    WormholeVaaHandler internal handler;
 
     function setUp() public {
         TestMailbox originMailbox = new TestMailbox(ORIGIN);
         TestMailbox destinationMailbox = new TestMailbox(DESTINATION);
-        MockWormholeCore originCore = new MockWormholeCore(WH_ORIGIN, CORE_FEE);
+        originCore = new MockWormholeCore(WH_ORIGIN, CORE_FEE);
         MockWormholeCore destinationCore = new MockWormholeCore(
             WH_DESTINATION,
             CORE_FEE
         );
-        MockExecutorQuoterRouter quoterRouter = new MockExecutorQuoterRouter(
-            EXECUTOR_FEE
-        );
         TestPostDispatchHook noopHook = new TestPostDispatchHook();
         TestRecipient recipient = new TestRecipient();
-        address quoter = makeAddr("quoter");
 
         originMailbox.setDefaultHook(address(noopHook));
         originMailbox.setRequiredHook(address(noopHook));
         destinationMailbox.setDefaultHook(address(noopHook));
         destinationMailbox.setRequiredHook(address(noopHook));
-        destinationMailbox.setDefaultIsm(address(noopHook));
 
         WormholeConsistencyLevelConfig
-            memory consistencyLevelConfig = WormholeConsistencyLevelConfig({
+            memory consistencyConfig = WormholeConsistencyLevelConfig({
                 consistencyLevel: CONSISTENCY,
-                customConsistencyLevel: address(0),
+                customConsistencyLevelContract: address(0),
                 baseConsistencyLevel: 0,
                 additionalBlocks: 0
             });
+        string[] memory urls = new string[](1);
+        urls[0] = "https://vaa.example/{data}";
 
-        originRouter = new WormholeExecutorHookIsm(
+        originRouter = new WormholeVaaHookIsm(
             address(originMailbox),
             address(originCore),
-            consistencyLevelConfig,
-            address(quoterRouter)
+            consistencyConfig,
+            urls
         );
-        destinationRouter = new WormholeExecutorHookIsm(
+        destinationRouter = new WormholeVaaHookIsm(
             address(destinationMailbox),
             address(destinationCore),
-            consistencyLevelConfig,
-            address(quoterRouter)
+            consistencyConfig,
+            urls
         );
 
         originRouter.enrollRemoteRouter(
-            WormholeExecutorHookIsm.ExecutorRemoteRouterEnrollment({
-                remoteRouter: RemoteRouterEnrollment({
-                    domain: DESTINATION,
-                    router: address(destinationRouter).addressToBytes32(),
-                    wormholeChainId: WH_DESTINATION,
-                    expectedConsistencyLevel: CONSISTENCY
-                }),
-                quoter: quoter,
-                callbackGasLimit: CALLBACK_GAS
+            WormholeVaaHookIsm.RemoteRouterEnrollment({
+                domainId: DESTINATION,
+                domainIsm: address(destinationRouter).addressToBytes32(),
+                wormholeChainId: WH_DESTINATION,
+                expectedConsistencyLevel: CONSISTENCY
             })
         );
         destinationRouter.enrollRemoteRouter(
-            WormholeExecutorHookIsm.ExecutorRemoteRouterEnrollment({
-                remoteRouter: RemoteRouterEnrollment({
-                    domain: ORIGIN,
-                    router: address(originRouter).addressToBytes32(),
-                    wormholeChainId: WH_ORIGIN,
-                    expectedConsistencyLevel: CONSISTENCY
-                }),
-                quoter: quoter,
-                callbackGasLimit: CALLBACK_GAS
+            WormholeVaaHookIsm.RemoteRouterEnrollment({
+                domainId: ORIGIN,
+                domainIsm: address(originRouter).addressToBytes32(),
+                wormholeChainId: WH_ORIGIN,
+                expectedConsistencyLevel: CONSISTENCY
             })
         );
 
-        handler = new WormholeExecutorHandler(
+        handler = new WormholeVaaHandler(
             originMailbox,
             originCore,
             originRouter,
             destinationRouter,
-            address(recipient),
-            quoter
+            address(recipient)
         );
         destinationRouter.transferOwnership(address(handler));
-
         targetContract(address(handler));
     }
 
-    /// @dev An authorization is written once and never rewritten.
-    function invariant_authorizationNeverChanges() public view {
-        uint256 count = handler.authorizedIdCount();
-        for (uint256 i; i < count; ++i) {
-            bytes32 id = handler.authorizedIds(i);
-            assertEq(
-                destinationRouter.authorizations(ORIGIN, id),
-                handler.firstAuthorization(id),
-                "authorization mutated"
-            );
-        }
-    }
-
-    /// @dev A nonzero authorization always encodes the dispatched Hyperlane
-    /// nonce plus one, so only a VAA carrying that exact message can set it.
-    function invariant_authorizationEncodesDispatchedNonce() public view {
-        uint256 count = handler.messageIdCount();
-        for (uint256 i; i < count; ++i) {
-            bytes32 id = handler.messageIds(i);
-            uint64 stored = destinationRouter.authorizations(ORIGIN, id);
-            if (stored == 0) continue;
-            assertEq(
-                stored,
-                uint64(handler.nonceOf(id)) + 1,
-                "authorization does not match dispatched nonce"
-            );
-        }
-    }
-
-    /// @dev A VAA authenticated as ORIGIN cannot authorize its message ID under
-    /// the origin domain claimed by the corresponding Hyperlane message.
-    function invariant_authorizationIsNamespacedByOrigin() public view {
-        uint256 count = handler.crossOriginIdCount();
-        for (uint256 i; i < count; ++i) {
-            bytes32 id = handler.crossOriginIds(i);
-            uint32 claimedOrigin = handler.claimedOriginOf(id);
-            assertTrue(claimedOrigin != ORIGIN, "cross-origin fixture invalid");
-            assertEq(
-                destinationRouter.authorizations(claimedOrigin, id),
-                0,
-                "authorization escaped its authenticated origin"
-            );
-        }
-    }
-
-    /// @dev One Hyperlane message can be published through Core at most once.
     function invariant_noRepublication() public view {
         assertEq(handler.republishSuccesses(), 0, "message republished");
     }
 
-    /// @dev No Wormhole chain ID is ever claimed by two live Hyperlane domains,
-    /// and the reverse index always agrees with the forward config.
-    function invariant_oneDomainPerWormholeChainId() public view {
+    function invariant_coreSequenceMatchesPublications() public view {
+        assertEq(
+            originCore.nextSequence(address(originRouter)),
+            handler.publications(),
+            "Core sequence diverged"
+        );
+    }
+
+    function invariant_everyRecordedMessageIsPublished() public view {
+        uint256 count = handler.messageCount();
+        for (uint256 i; i < count; ++i) {
+            assertTrue(
+                originRouter.publishedMessages(handler.messageId(i)),
+                "recorded message not published"
+            );
+        }
+    }
+
+    function invariant_invalidEmitterNeverVerifies() public view {
+        assertEq(
+            handler.invalidVerificationSuccesses(),
+            0,
+            "invalid emitter verified"
+        );
+    }
+
+    function invariant_validVaaAlwaysVerifies() public view {
+        assertEq(handler.validVerificationFailures(), 0, "valid VAA rejected");
+    }
+
+    function invariant_reverseIndexMatchesRoutes() public view {
         uint32[] memory domains = destinationRouter.domains();
         for (uint256 i; i < domains.length; ++i) {
             (uint16 wormholeChainId, ) = destinationRouter.remoteRouterConfigs(
                 domains[i]
             );
-            assertTrue(wormholeChainId != 0, "enrolled route without policy");
-            assertEq(
-                destinationRouter.hyperlaneDomainPlusOne(wormholeChainId),
-                uint64(domains[i]) + 1,
-                "reverse index disagrees"
-            );
+            assertTrue(wormholeChainId != 0, "route missing policy");
+
+            (bool enrolled, uint32 domainId) = destinationRouter
+                .wormholeChainEnrollments(wormholeChainId);
+            assertTrue(enrolled, "reverse route missing");
+            assertEq(domainId, domains[i], "reverse route disagrees");
+
             for (uint256 j = i + 1; j < domains.length; ++j) {
-                (uint16 other, ) = destinationRouter.remoteRouterConfigs(
+                (uint16 otherChainId, ) = destinationRouter.remoteRouterConfigs(
                     domains[j]
                 );
-                assertTrue(wormholeChainId != other, "aliased Wormhole ID");
+                assertTrue(
+                    wormholeChainId != otherChainId,
+                    "Wormhole chain ID aliased"
+                );
             }
         }
     }
 
-    /// @dev Guards the invariants above from passing vacuously: the handler's
-    /// happy path must really dispatch and authorize.
-    function test_handlerHappyPathAuthorizes() public {
-        handler.dispatch();
-        assertEq(handler.messageIdCount(), 1);
-
-        handler.authorizeValid(0);
-        assertEq(handler.authorizedIdCount(), 1);
-
-        bytes32 id = handler.messageIds(0);
-        assertEq(
-            destinationRouter.authorizations(ORIGIN, id),
-            uint64(handler.nonceOf(id)) + 1
-        );
-    }
-
-    /// @dev The enrolled origin route is never disturbed by unrelated churn.
     function invariant_originRouteStable() public view {
         assertEq(
             destinationRouter.routers(ORIGIN),
             address(originRouter).addressToBytes32()
         );
+    }
+
+    function test_handlerHappyPath() public {
+        handler.dispatch();
+        assertEq(handler.messageCount(), 1);
+        handler.verifyValid(0);
+        assertEq(handler.validVerificationFailures(), 0);
     }
 }

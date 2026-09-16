@@ -8,7 +8,7 @@ import {IEvmCoreBridge} from "../interfaces/wormhole/IEvmCoreBridge.sol";
 /**
  * @title MockWormholeCore
  * @notice Deterministic stand-in for the Wormhole Core contract.
- * @dev It reproduces Core's publication accounting, fee, sequence, and
+ * @dev It reproduces Core's message-publication accounting, fee, sequence, and
  * verification *interface*, not Guardian cryptography. Real signature checking
  * belongs in fork tests against the official deployments.
  *
@@ -36,11 +36,6 @@ contract MockWormholeCore is IEvmCoreBridge {
     mapping(address emitter => uint64 sequence) public nextSequence;
     mapping(uint32 guardianSetIndex => bool live) public liveGuardianSets;
 
-    /// @dev Test override forcing `publishMessage` to return a sequence other
-    /// than the one `nextSequence` predicted.
-    bool public overrideSequence;
-    uint64 public overriddenSequence;
-
     constructor(uint16 chainId_, uint256 messageFee_) {
         chainId = chainId_;
         evmChainId = block.chainid;
@@ -62,11 +57,6 @@ contract MockWormholeCore is IEvmCoreBridge {
         liveGuardianSets[index] = live;
     }
 
-    function setSequenceOverride(bool enabled, uint64 sequence) external {
-        overrideSequence = enabled;
-        overriddenSequence = sequence;
-    }
-
     function encodeVaa(
         MockVaa memory vaa
     ) external pure returns (bytes memory) {
@@ -83,7 +73,6 @@ contract MockWormholeCore is IEvmCoreBridge {
         require(msg.value == messageFee, "MockWormholeCore: invalid fee");
         sequence = nextSequence[msg.sender];
         nextSequence[msg.sender] = sequence + 1;
-        if (overrideSequence) sequence = overriddenSequence;
         emit LogMessagePublished(
             msg.sender,
             sequence,

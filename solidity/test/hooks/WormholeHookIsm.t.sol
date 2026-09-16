@@ -2,37 +2,27 @@
 pragma solidity ^0.8.19;
 
 import {Test} from "forge-std/Test.sol";
-import {RelayInstructionLib} from "wormhole-sdk/Executor/RelayInstruction.sol";
-import {RequestLib} from "wormhole-sdk/Executor/Request.sol";
 import {CoreBridgeVM, ICoreBridge} from "wormhole-sdk/interfaces/ICoreBridge.sol";
+import {CONSISTENCY_LEVEL_FINALIZED} from "wormhole-sdk/constants/ConsistencyLevel.sol";
 
-import {AbstractWormholeHookIsm} from "contracts/hooks/wormhole/AbstractWormholeHookIsm.sol";
-import {WormholeExecutorHookIsm} from "contracts/hooks/wormhole/WormholeExecutorHookIsm.sol";
-import {WormholeMessage} from "contracts/libs/WormholeMessage.sol";
 import {WormholeVaaHookIsm} from "contracts/hooks/wormhole/WormholeVaaHookIsm.sol";
+import {WormholeMessage} from "contracts/libs/WormholeMessage.sol";
 import {WormholeConsistencyLevelConfig} from "contracts/hooks/wormhole/libs/CustomConsistencyLevel.sol";
 import {StandardHookMetadata} from "contracts/hooks/libs/StandardHookMetadata.sol";
 import {IInterchainSecurityModule} from "contracts/interfaces/IInterchainSecurityModule.sol";
 import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {ICcipReadIsm} from "contracts/interfaces/isms/ICcipReadIsm.sol";
-import {IWormholeHookIsm, RemoteRouterEnrollment} from "contracts/interfaces/wormhole/IWormholeHookIsm.sol";
 import {IWormholeVaaService} from "contracts/interfaces/wormhole/IWormholeVaaService.sol";
 import {Message} from "contracts/libs/Message.sol";
 import {TypeCasts} from "contracts/libs/TypeCasts.sol";
-import {MockExecutorQuoterRouter} from "contracts/mock/MockExecutorQuoterRouter.sol";
 import {MockCustomConsistencyLevel} from "contracts/mock/MockCustomConsistencyLevel.sol";
 import {MockWormholeCore} from "contracts/mock/MockWormholeCore.sol";
-import {TestGasRouter} from "contracts/test/TestGasRouter.sol";
 import {TestMailbox} from "contracts/test/TestMailbox.sol";
 import {TestPostDispatchHook} from "contracts/test/TestPostDispatchHook.sol";
 import {TestRecipient} from "contracts/test/TestRecipient.sol";
 
-/**
- * @dev Shared fixture. Two Hyperlane domains, each with its own Mailbox and its
- * own Wormhole Core, and one combined router per domain. Concrete suites supply
- * the variant.
- */
-abstract contract WormholeHookIsmTestBase is Test {
+/// @dev Two domains, each with a Mailbox, Wormhole Core, and combined hook/ISM.
+contract WormholeHookIsmTest is Test {
     using Message for bytes;
     using TypeCasts for address;
 
@@ -42,22 +32,19 @@ abstract contract WormholeHookIsmTestBase is Test {
     uint16 internal constant WH_DESTINATION = 30;
     uint8 internal constant CONSISTENCY = 202;
     uint256 internal constant CORE_FEE = 0.001 ether;
-    uint128 internal constant CALLBACK_GAS = 300_000;
 
     TestMailbox internal originMailbox;
     TestMailbox internal destinationMailbox;
     MockWormholeCore internal originCore;
     MockWormholeCore internal destinationCore;
-    MockExecutorQuoterRouter internal quoterRouter;
     TestPostDispatchHook internal noopHook;
     TestRecipient internal recipient;
 
-    AbstractWormholeHookIsm internal originRouter;
-    AbstractWormholeHookIsm internal destinationRouter;
+    WormholeVaaHookIsm internal originRouter;
+    WormholeVaaHookIsm internal destinationRouter;
 
     address internal owner = address(this);
     address internal alice = makeAddr("alice");
-    address internal quoter = makeAddr("quoter");
 
     /// @dev Successful publications so far, mirroring the Core sequence.
     uint64 internal dispatchCount;
@@ -67,7 +54,6 @@ abstract contract WormholeHookIsmTestBase is Test {
         destinationMailbox = new TestMailbox(DESTINATION);
         originCore = new MockWormholeCore(WH_ORIGIN, CORE_FEE);
         destinationCore = new MockWormholeCore(WH_DESTINATION, CORE_FEE);
-        quoterRouter = new MockExecutorQuoterRouter(_extraFee());
         noopHook = new TestPostDispatchHook();
         recipient = new TestRecipient();
 
@@ -99,23 +85,6 @@ abstract contract WormholeHookIsmTestBase is Test {
         vm.deal(alice, 100 ether);
     }
 
-    // ============ Variant hooks ============
-
-    function _deployRouter(
-        address mailbox_,
-        address core_
-    ) internal virtual returns (AbstractWormholeHookIsm);
-
-    function _enroll(
-        AbstractWormholeHookIsm router,
-        uint32 domain,
-        address remote,
-        uint16 wormholeChainId
-    ) internal virtual;
-
-    /// @dev Variant fee charged on top of Core's `messageFee()`.
-    function _extraFee() internal pure virtual returns (uint256);
-
     // ============ Helpers ============
 
     function _consistencyLevelConfig()
@@ -126,7 +95,7 @@ abstract contract WormholeHookIsmTestBase is Test {
         return
             WormholeConsistencyLevelConfig({
                 consistencyLevel: CONSISTENCY,
-                customConsistencyLevel: address(0),
+                customConsistencyLevelContract: address(0),
                 baseConsistencyLevel: 0,
                 additionalBlocks: 0
             });
@@ -186,7 +155,7 @@ abstract contract WormholeHookIsmTestBase is Test {
         internal
         returns (bytes memory message, bytes32 messageId)
     {
-        return _dispatch(CORE_FEE + _extraFee());
+        return _dispatch(CORE_FEE);
     }
 
     /// @dev Dispatch with no preceding external call, so `vm.expectRevert`
@@ -202,7 +171,7 @@ abstract contract WormholeHookIsmTestBase is Test {
     }
 
     function _dispatchOnly() internal {
-        _dispatchOnly(CORE_FEE + _extraFee());
+        _dispatchOnly(CORE_FEE);
     }
 
     /// @dev A VAA the destination router should accept for `message`.
@@ -251,52 +220,39 @@ abstract contract WormholeHookIsmTestBase is Test {
             );
     }
 
-    /// @dev Metadata the destination router accepts for `message`.
-    function _ismMetadata(
-        bytes memory message,
-        uint64 sequence
-    ) internal view virtual returns (bytes memory);
-
     function _enrollment(
-        uint32 domain,
+        uint32 domainId,
         address remote,
         uint16 wormholeChainId
-    ) internal pure returns (RemoteRouterEnrollment memory) {
+    ) internal pure returns (WormholeVaaHookIsm.RemoteRouterEnrollment memory) {
         return
-            RemoteRouterEnrollment({
-                domain: domain,
-                router: TypeCasts.addressToBytes32(remote),
+            WormholeVaaHookIsm.RemoteRouterEnrollment({
+                domainId: domainId,
+                domainIsm: TypeCasts.addressToBytes32(remote),
                 wormholeChainId: wormholeChainId,
                 expectedConsistencyLevel: CONSISTENCY
             });
     }
-}
-
-/**
- * @dev Behaviour owned by `AbstractWormholeHookIsm`. Every assertion here must
- * hold for both variants, so the suite is run twice.
- */
-abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
-    using Message for bytes;
-    using TypeCasts for address;
-
     // ============ Construction ============
 
     function test_constructor_readsWormholeIdentity() public view {
-        assertEq(address(originRouter.wormhole()), address(originCore));
+        assertEq(
+            address(originRouter.wormholeCoreBridge()),
+            address(originCore)
+        );
         assertEq(originRouter.wormholeChainId(), WH_ORIGIN);
         assertEq(originRouter.consistencyLevel(), CONSISTENCY);
         assertEq(originRouter.localDomain(), ORIGIN);
     }
 
     function test_constructor_rejectsNonContractCore() public {
-        vm.expectRevert(IWormholeHookIsm.InvalidWormholeCore.selector);
+        vm.expectRevert(WormholeVaaHookIsm.InvalidWormholeCore.selector);
         _deployRouter(address(originMailbox), makeAddr("notACore"));
     }
 
     function test_constructor_rejectsZeroWormholeChainId() public {
         MockWormholeCore zeroCore = new MockWormholeCore(0, CORE_FEE);
-        vm.expectRevert(IWormholeHookIsm.InvalidWormholeChainId.selector);
+        vm.expectRevert(WormholeVaaHookIsm.InvalidWormholeChainId.selector);
         _deployRouter(address(originMailbox), address(zeroCore));
     }
 
@@ -306,7 +262,7 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
             CORE_FEE
         );
         wrongChainCore.setEvmChainId(block.chainid + 1);
-        vm.expectRevert(IWormholeHookIsm.InvalidWormholeEvmChainId.selector);
+        vm.expectRevert(WormholeVaaHookIsm.InvalidWormholeEvmChainId.selector);
         _deployRouter(address(originMailbox), address(wrongChainCore));
     }
 
@@ -358,10 +314,10 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
         );
         assertEq(whId, WH_DESTINATION);
         assertEq(consistency, CONSISTENCY);
-        assertEq(
-            originRouter.hyperlaneDomainPlusOne(WH_DESTINATION),
-            uint64(DESTINATION) + 1
-        );
+        (bool enrolled, uint32 domainId) = originRouter
+            .wormholeChainEnrollments(WH_DESTINATION);
+        assertTrue(enrolled);
+        assertEq(domainId, DESTINATION);
     }
 
     function test_enroll_onlyOwner() public {
@@ -371,35 +327,56 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
     }
 
     function test_enroll_rejectsLocalDomain() public {
-        vm.expectRevert(IWormholeHookIsm.InvalidRemoteDomain.selector);
+        vm.expectRevert(WormholeVaaHookIsm.InvalidRemoteDomain.selector);
         _enroll(originRouter, ORIGIN, makeAddr("remote"), 42);
     }
 
     function test_enroll_rejectsZeroRouter() public {
-        vm.expectRevert(IWormholeHookIsm.InvalidRemoteRouter.selector);
+        vm.expectRevert(WormholeVaaHookIsm.InvalidDomainIsm.selector);
         _enroll(originRouter, 3000, address(0), 42);
     }
 
     function test_enroll_rejectsZeroWormholeChainId() public {
-        vm.expectRevert(IWormholeHookIsm.InvalidWormholeChainId.selector);
+        vm.expectRevert(WormholeVaaHookIsm.InvalidWormholeChainId.selector);
         _enroll(originRouter, 3000, makeAddr("remote"), 0);
     }
 
     function test_enroll_rejectsLocalWormholeChainId() public {
-        vm.expectRevert(IWormholeHookIsm.InvalidRemoteWormholeChainId.selector);
+        vm.expectRevert(
+            WormholeVaaHookIsm.InvalidRemoteWormholeChainId.selector
+        );
         _enroll(originRouter, 3000, makeAddr("remote"), WH_ORIGIN);
     }
 
     function test_enroll_rejectsWormholeChainIdAlias() public {
         vm.expectRevert(
-            IWormholeHookIsm.WormholeChainIdAlreadyEnrolled.selector
+            WormholeVaaHookIsm.WormholeChainIdAlreadyEnrolled.selector
         );
         _enroll(originRouter, 3000, makeAddr("remote"), WH_DESTINATION);
     }
 
+    function test_enroll_domainZeroDoesNotConflictWithUnenrolledSentinel()
+        public
+    {
+        uint16 wormholeChainId = 42;
+        _enroll(originRouter, 0, makeAddr("domainZeroRouter"), wormholeChainId);
+
+        (bool enrolled, uint32 domainId) = originRouter
+            .wormholeChainEnrollments(wormholeChainId);
+        assertTrue(enrolled);
+        assertEq(domainId, 0);
+
+        vm.expectRevert(
+            WormholeVaaHookIsm.WormholeChainIdAlreadyEnrolled.selector
+        );
+        _enroll(originRouter, 3000, makeAddr("otherRouter"), wormholeChainId);
+    }
+
     function test_enroll_rejectsWormholeChainIdChangeInPlace() public {
         vm.expectRevert(
-            IWormholeHookIsm.WormholeChainIdChangeRequiresUnenrollment.selector
+            WormholeVaaHookIsm
+                .WormholeChainIdChangeRequiresUnenrollment
+                .selector
         );
         _enroll(originRouter, DESTINATION, makeAddr("replacement"), 77);
     }
@@ -420,12 +397,14 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
         // Replace the origin router that the destination trusts.
         _enroll(destinationRouter, ORIGIN, makeAddr("newOrigin"), WH_ORIGIN);
 
-        vm.expectRevert(IWormholeHookIsm.WrongEmitterAddress.selector);
-        _authorize(message, metadata);
+        vm.expectRevert(WormholeVaaHookIsm.WrongEmitterAddress.selector);
+        _verify(message, metadata);
     }
 
     function test_baseTwoArgEnrollment_reverts() public {
-        vm.expectRevert(IWormholeHookIsm.RichEnrollmentRequired.selector);
+        vm.expectRevert(
+            WormholeVaaHookIsm.CompleteWormholeEnrollmentRequired.selector
+        );
         originRouter.enrollRemoteRouter(
             3000,
             makeAddr("remote").addressToBytes32()
@@ -437,7 +416,9 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
         bytes32[] memory addresses = new bytes32[](1);
         domains[0] = 3000;
         addresses[0] = makeAddr("remote").addressToBytes32();
-        vm.expectRevert(IWormholeHookIsm.RichEnrollmentRequired.selector);
+        vm.expectRevert(
+            WormholeVaaHookIsm.CompleteWormholeEnrollmentRequired.selector
+        );
         originRouter.enrollRemoteRouters(domains, addresses);
     }
 
@@ -451,11 +432,14 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
 
         (uint16 whId, ) = destinationRouter.remoteRouterConfigs(ORIGIN);
         assertEq(whId, 0);
-        assertEq(destinationRouter.hyperlaneDomainPlusOne(WH_ORIGIN), 0);
+        (bool enrolled, ) = destinationRouter.wormholeChainEnrollments(
+            WH_ORIGIN
+        );
+        assertFalse(enrolled);
 
         // Inbound disabled.
         vm.expectRevert();
-        _authorize(message, metadata);
+        _verify(message, metadata);
 
         // Outbound disabled.
         originRouter.unenrollRemoteRouter(DESTINATION);
@@ -465,7 +449,7 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
 
     function test_unenroll_emitsRouteIdentity() public {
         vm.expectEmit(true, true, false, true, address(originRouter));
-        emit IWormholeHookIsm.WormholeRemoteRouterUnenrolled(
+        emit WormholeVaaHookIsm.WormholeRemoteRouterUnenrolled(
             DESTINATION,
             address(destinationRouter).addressToBytes32(),
             WH_DESTINATION
@@ -491,13 +475,13 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
         domains[1] = secondDomain;
 
         vm.expectEmit(true, true, false, true, address(originRouter));
-        emit IWormholeHookIsm.WormholeRemoteRouterUnenrolled(
+        emit WormholeVaaHookIsm.WormholeRemoteRouterUnenrolled(
             DESTINATION,
             address(destinationRouter).addressToBytes32(),
             WH_DESTINATION
         );
         vm.expectEmit(true, true, false, true, address(originRouter));
-        emit IWormholeHookIsm.WormholeRemoteRouterUnenrolled(
+        emit WormholeVaaHookIsm.WormholeRemoteRouterUnenrolled(
             secondDomain,
             secondDomainIsm,
             secondWormholeChainId
@@ -533,13 +517,13 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
         );
     }
 
-    function test_supportsMetadata_rejectsDestinationValue() public view {
+    function test_supportsMetadata_acceptsDestinationValue() public view {
         bytes memory metadata = StandardHookMetadata.format(
             1 ether,
             0,
             address(this)
         );
-        assertFalse(
+        assertTrue(
             IPostDispatchHook(address(originRouter)).supportsMetadata(metadata)
         );
     }
@@ -549,14 +533,14 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
         assertTrue(hook.supportsMetadata(""));
         assertTrue(
             hook.supportsMetadata(
-                StandardHookMetadata.format(0, CALLBACK_GAS, address(this))
+                StandardHookMetadata.format(0, 300_000, address(this))
             )
         );
     }
 
     // ============ Quote ============
 
-    function test_quoteDispatch_isCoreFeePlusExtraFees() public {
+    function test_quoteDispatch_isCoreFee() public {
         bytes memory message = originMailbox.buildOutboundMessage(
             DESTINATION,
             address(recipient).addressToBytes32(),
@@ -564,7 +548,7 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
         );
         assertEq(
             IPostDispatchHook(address(originRouter)).quoteDispatch("", message),
-            CORE_FEE + _extraFee()
+            CORE_FEE
         );
     }
 
@@ -577,7 +561,7 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
         );
         assertEq(
             IPostDispatchHook(address(originRouter)).quoteDispatch("", message),
-            CORE_FEE * 3 + _extraFee()
+            CORE_FEE * 3
         );
     }
 
@@ -630,7 +614,7 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
         );
 
         vm.expectEmit(true, true, false, true, address(originRouter));
-        emit IWormholeHookIsm.WormholeMessagePublished(
+        emit WormholeVaaHookIsm.WormholeMessagePublished(
             message.id(),
             DESTINATION,
             0,
@@ -645,27 +629,29 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
             address(recipient).addressToBytes32(),
             _body()
         );
-        vm.expectRevert(IWormholeHookIsm.MessageNotDispatched.selector);
-        IPostDispatchHook(address(originRouter)).postDispatch{
-            value: CORE_FEE + _extraFee()
-        }("", message);
+        vm.expectRevert(WormholeVaaHookIsm.MessageNotDispatched.selector);
+        IPostDispatchHook(address(originRouter)).postDispatch{value: CORE_FEE}(
+            "",
+            message
+        );
     }
 
     function test_postDispatch_rejectsRepublication() public {
         (bytes memory message, ) = _dispatch();
         // The message is still `latestDispatchedId`, so only the one-shot guard
         // stops a second publication.
-        vm.expectRevert(IWormholeHookIsm.MessageAlreadyPublished.selector);
-        IPostDispatchHook(address(originRouter)).postDispatch{
-            value: CORE_FEE + _extraFee()
-        }("", message);
+        vm.expectRevert(WormholeVaaHookIsm.MessageAlreadyPublished.selector);
+        IPostDispatchHook(address(originRouter)).postDispatch{value: CORE_FEE}(
+            "",
+            message
+        );
     }
 
     function test_postDispatch_rejectsUnderpayment() public {
-        uint256 required = CORE_FEE + _extraFee();
+        uint256 required = CORE_FEE;
         vm.expectRevert(
             abi.encodeWithSelector(
-                IWormholeHookIsm.InsufficientFee.selector,
+                WormholeVaaHookIsm.InsufficientFee.selector,
                 required,
                 required - 1
             )
@@ -674,12 +660,12 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
     }
 
     function test_postDispatch_underpaymentDoesNotReachCore() public {
-        uint256 required = CORE_FEE + _extraFee();
+        uint256 required = CORE_FEE;
         // Forced balance must not let an underfunded caller publish.
         vm.deal(address(originRouter), 10 ether);
         vm.expectRevert(
             abi.encodeWithSelector(
-                IWormholeHookIsm.InsufficientFee.selector,
+                WormholeVaaHookIsm.InsufficientFee.selector,
                 required,
                 0
             )
@@ -690,7 +676,7 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
 
     function test_postDispatch_refundsOnlyThisCallsExcess() public {
         vm.deal(address(originRouter), 5 ether);
-        uint256 required = CORE_FEE + _extraFee();
+        uint256 required = CORE_FEE;
         uint256 balanceBefore = address(this).balance;
 
         _dispatch(required + 1 ether);
@@ -700,33 +686,25 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
         assertEq(address(originRouter).balance, 5 ether);
     }
 
-    function test_postDispatch_rejectsMismatchedSequence() public {
-        originCore.setSequenceOverride(true, 99);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IWormholeHookIsm.UnexpectedPublishedSequence.selector,
-                uint64(0),
-                uint64(99)
-            )
-        );
-        _dispatchOnly();
-    }
-
     function test_postDispatch_coreFailureRollsBackPublicationState() public {
         bytes memory message = originMailbox.buildOutboundMessage(
             DESTINATION,
             address(recipient).addressToBytes32(),
             _body()
         );
-        originCore.setSequenceOverride(true, 99);
-        vm.expectRevert();
+        vm.mockCallRevert(
+            address(originCore),
+            abi.encodeWithSelector(ICoreBridge.publishMessage.selector),
+            "Core publication failed"
+        );
+        vm.expectRevert("Core publication failed");
         _dispatchOnly();
         assertFalse(originRouter.publishedMessages(message.id()));
     }
 
     function test_handle_isUnsupported() public {
         vm.prank(address(destinationMailbox));
-        vm.expectRevert(IWormholeHookIsm.HyperlaneHandleUnsupported.selector);
+        vm.expectRevert(WormholeVaaHookIsm.HyperlaneHandleUnsupported.selector);
         destinationRouter.handle(
             ORIGIN,
             address(originRouter).addressToBytes32(),
@@ -738,7 +716,7 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
 
     function test_verify_acceptsValidVaa() public {
         (bytes memory message, ) = _dispatch();
-        _authorize(message, _ismMetadata(message, 0));
+        _verify(message, _ismMetadata(message, 0));
         assertTrue(_verify(message, _ismMetadata(message, 0)));
     }
 
@@ -747,11 +725,11 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
         destinationCore.setGuardianSetLive(0, false);
         vm.expectRevert(
             abi.encodeWithSelector(
-                IWormholeHookIsm.InvalidVaa.selector,
+                WormholeVaaHookIsm.InvalidVaa.selector,
                 "guardian set has expired"
             )
         );
-        _authorize(message, _ismMetadata(message, 0));
+        _verify(message, _ismMetadata(message, 0));
     }
 
     function test_verify_rejectsWrongEmitterChainId() public {
@@ -767,8 +745,8 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
                 _payloadFor(message)
             )
         );
-        vm.expectRevert(IWormholeHookIsm.WrongEmitterChainId.selector);
-        _authorize(message, metadata);
+        vm.expectRevert(WormholeVaaHookIsm.WrongEmitterChainId.selector);
+        _verify(message, metadata);
     }
 
     function test_verify_rejectsWrongEmitterAddress() public {
@@ -784,8 +762,8 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
                 _payloadFor(message)
             )
         );
-        vm.expectRevert(IWormholeHookIsm.WrongEmitterAddress.selector);
-        _authorize(message, metadata);
+        vm.expectRevert(WormholeVaaHookIsm.WrongEmitterAddress.selector);
+        _verify(message, metadata);
     }
 
     function test_verify_rejectsWrongConsistencyLevel() public {
@@ -801,8 +779,8 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
                 _payloadFor(message)
             )
         );
-        vm.expectRevert(IWormholeHookIsm.WrongConsistencyLevel.selector);
-        _authorize(message, metadata);
+        vm.expectRevert(WormholeVaaHookIsm.WrongConsistencyLevel.selector);
+        _verify(message, metadata);
     }
 
     function test_verify_rejectsWrongDestinationDomain() public {
@@ -825,8 +803,8 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
                 payload
             )
         );
-        vm.expectRevert(IWormholeHookIsm.WrongDestinationDomain.selector);
-        _authorize(message, metadata);
+        vm.expectRevert(WormholeVaaHookIsm.WrongDestinationDomain.selector);
+        _verify(message, metadata);
     }
 
     function test_verify_rejectsWrongDestinationRouter() public {
@@ -849,8 +827,8 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
                 payload
             )
         );
-        vm.expectRevert(IWormholeHookIsm.WrongDestinationRouter.selector);
-        _authorize(message, metadata);
+        vm.expectRevert(WormholeVaaHookIsm.WrongDestinationRouter.selector);
+        _verify(message, metadata);
     }
 
     function test_verify_rejectsWormholeNonceMismatch() public {
@@ -866,8 +844,8 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
                 _payloadFor(message)
             )
         );
-        vm.expectRevert(IWormholeHookIsm.WormholeNonceMismatch.selector);
-        _authorize(message, metadata);
+        vm.expectRevert(WormholeVaaHookIsm.WormholeNonceMismatch.selector);
+        _verify(message, metadata);
     }
 
     function test_verify_rejectsUnenrolledOriginDomain() public {
@@ -891,7 +869,7 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
             )
         );
         vm.expectRevert();
-        _authorize(message, metadata);
+        _verify(message, metadata);
     }
 
     function test_verify_rejectsWrongPayloadMagic() public {
@@ -920,7 +898,7 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
             )
         );
         vm.expectRevert(WormholeMessage.InvalidPayloadMagic.selector);
-        _authorize(message, metadata);
+        _verify(message, metadata);
     }
 
     function test_verify_rejectsWrongPayloadVersion() public {
@@ -949,7 +927,7 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
             )
         );
         vm.expectRevert(WormholeMessage.InvalidPayloadVersion.selector);
-        _authorize(message, metadata);
+        _verify(message, metadata);
     }
 
     function test_verify_rejectsWrongPayloadLength() public {
@@ -966,13 +944,13 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
             )
         );
         vm.expectRevert(WormholeMessage.InvalidPayloadLength.selector);
-        _authorize(message, metadata);
+        _verify(message, metadata);
     }
 
     function test_verify_rejectsTruncatedVaa() public {
         (bytes memory message, ) = _dispatch();
         vm.expectRevert();
-        _authorize(message, _wrapVaa(hex"0badc0de"));
+        _verify(message, _wrapVaa(hex"0badc0de"));
     }
 
     // ============ Nonce policy ============
@@ -983,23 +961,14 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
         (bytes memory third, ) = _dispatch();
 
         // Deliver third, then first. Second is never delivered.
-        _authorize(third, _ismMetadata(third, 2));
+        _verify(third, _ismMetadata(third, 2));
         assertTrue(_verify(third, _ismMetadata(third, 2)));
 
-        _authorize(first, _ismMetadata(first, 0));
+        _verify(first, _ismMetadata(first, 0));
         assertTrue(_verify(first, _ismMetadata(first, 0)));
 
         assertGt(second.length, 0);
     }
-
-    // ============ Variant plumbing ============
-
-    /// @dev Performs whatever destination-side step the variant needs before
-    /// `verify` can succeed. For the direct-VAA variant this is a no-op.
-    function _authorize(
-        bytes memory message,
-        bytes memory metadata
-    ) internal virtual;
 
     function _verify(
         bytes memory message,
@@ -1011,10 +980,6 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
                 message
             );
     }
-
-    function _wrapVaa(
-        bytes memory encodedVaa
-    ) internal view virtual returns (bytes memory);
 
     function _payloadFor(
         bytes memory message
@@ -1030,406 +995,6 @@ abstract contract WormholeHookIsmSharedTest is WormholeHookIsmTestBase {
     }
 
     receive() external payable {}
-}
-
-// ============================================================================
-// Executor variant
-// ============================================================================
-
-contract WormholeHookIsmTest_Executor is WormholeHookIsmSharedTest {
-    using Message for bytes;
-    using TypeCasts for address;
-
-    function _deployRouter(
-        address mailbox_,
-        address core_
-    ) internal override returns (AbstractWormholeHookIsm) {
-        return
-            new WormholeExecutorHookIsm(
-                mailbox_,
-                core_,
-                _consistencyLevelConfig(),
-                address(quoterRouter)
-            );
-    }
-
-    function _enroll(
-        AbstractWormholeHookIsm router,
-        uint32 domain,
-        address remote,
-        uint16 wormholeChainId
-    ) internal override {
-        WormholeExecutorHookIsm(address(router)).enrollRemoteRouter(
-            WormholeExecutorHookIsm.ExecutorRemoteRouterEnrollment({
-                remoteRouter: _enrollment(domain, remote, wormholeChainId),
-                quoter: quoter,
-                callbackGasLimit: CALLBACK_GAS
-            })
-        );
-    }
-
-    function _extraFee() internal pure override returns (uint256) {
-        return 0.002 ether;
-    }
-
-    /// @dev Hyperlane carries no metadata for this variant.
-    function _ismMetadata(
-        bytes memory,
-        uint64
-    ) internal view override returns (bytes memory) {
-        return "";
-    }
-
-    function _wrapVaa(
-        bytes memory encodedVaa
-    ) internal pure override returns (bytes memory) {
-        return encodedVaa;
-    }
-
-    /// @dev The callback is the authorization step; `metadata` carries the VAA
-    /// only for the negative cases built by the shared suite.
-    function _authorize(
-        bytes memory message,
-        bytes memory metadata
-    ) internal override {
-        bytes memory encodedVaa = metadata.length == 0
-            ? _validVaa(message, _latestSequence())
-            : metadata;
-        WormholeExecutorHookIsm(address(destinationRouter)).executeVAAv1(
-            encodedVaa
-        );
-    }
-
-    /// @dev The shared suite dispatches in order, so the Core sequence of the
-    /// latest publication is one less than the number of publications.
-    function _latestSequence() internal view returns (uint64) {
-        return dispatchCount == 0 ? 0 : dispatchCount - 1;
-    }
-
-    function executorRouter() internal view returns (WormholeExecutorHookIsm) {
-        return WormholeExecutorHookIsm(address(destinationRouter));
-    }
-
-    // ============ Executor configuration ============
-
-    function test_executorConfig_storedOnEnrollment() public view {
-        (address storedQuoter, uint128 gasLimit) = WormholeExecutorHookIsm(
-            address(originRouter)
-        ).executorConfigs(DESTINATION);
-        assertEq(storedQuoter, quoter);
-        assertEq(gasLimit, CALLBACK_GAS);
-    }
-
-    function test_executorConfig_clearedOnUnenrollment() public {
-        originRouter.unenrollRemoteRouter(DESTINATION);
-        (address storedQuoter, uint128 gasLimit) = WormholeExecutorHookIsm(
-            address(originRouter)
-        ).executorConfigs(DESTINATION);
-        assertEq(storedQuoter, address(0));
-        assertEq(gasLimit, 0);
-    }
-
-    function test_enroll_rejectsZeroQuoter() public {
-        vm.expectRevert(WormholeExecutorHookIsm.InvalidExecutorConfig.selector);
-        WormholeExecutorHookIsm(address(originRouter)).enrollRemoteRouter(
-            WormholeExecutorHookIsm.ExecutorRemoteRouterEnrollment({
-                remoteRouter: _enrollment(3000, makeAddr("r"), 42),
-                quoter: address(0),
-                callbackGasLimit: CALLBACK_GAS
-            })
-        );
-    }
-
-    function test_enroll_rejectsZeroCallbackGas() public {
-        vm.expectRevert(WormholeExecutorHookIsm.InvalidExecutorConfig.selector);
-        WormholeExecutorHookIsm(address(originRouter)).enrollRemoteRouter(
-            WormholeExecutorHookIsm.ExecutorRemoteRouterEnrollment({
-                remoteRouter: _enrollment(3000, makeAddr("r"), 42),
-                quoter: quoter,
-                callbackGasLimit: 0
-            })
-        );
-    }
-
-    function test_batchEnroll_revertsEntirelyOnOneInvalidEntry() public {
-        WormholeExecutorHookIsm.ExecutorRemoteRouterEnrollment[]
-            memory enrollments = new WormholeExecutorHookIsm.ExecutorRemoteRouterEnrollment[](
-                2
-            );
-        enrollments[0] = WormholeExecutorHookIsm
-            .ExecutorRemoteRouterEnrollment({
-                remoteRouter: _enrollment(3000, makeAddr("r3"), 42),
-                quoter: quoter,
-                callbackGasLimit: CALLBACK_GAS
-            });
-        enrollments[1] = WormholeExecutorHookIsm
-            .ExecutorRemoteRouterEnrollment({
-                remoteRouter: _enrollment(4000, address(0), 43),
-                quoter: quoter,
-                callbackGasLimit: CALLBACK_GAS
-            });
-
-        vm.expectRevert(IWormholeHookIsm.InvalidRemoteRouter.selector);
-        WormholeExecutorHookIsm(address(originRouter)).enrollRemoteRouters(
-            enrollments
-        );
-        assertEq(originRouter.routers(3000), bytes32(0));
-    }
-
-    function test_moduleType_isNull() public view {
-        assertEq(
-            IInterchainSecurityModule(address(destinationRouter)).moduleType(),
-            uint8(IInterchainSecurityModule.Types.NULL)
-        );
-    }
-
-    // ============ Request encoding ============
-
-    function test_postDispatch_encodesExecutorRequest() public {
-        (bytes memory message, ) = _dispatch();
-
-        MockExecutorQuoterRouter.Request memory request = quoterRouter
-            .lastRequest();
-        assertEq(request.dstChain, WH_DESTINATION);
-        assertEq(
-            request.dstAddr,
-            address(destinationRouter).addressToBytes32()
-        );
-        assertEq(request.refundAddr, address(this));
-        assertEq(request.quoter, quoter);
-        assertEq(
-            request.requestBytes,
-            RequestLib.encodeVaaMultiSigRequest(
-                WH_ORIGIN,
-                address(originRouter).addressToBytes32(),
-                0
-            )
-        );
-        assertEq(
-            request.relayInstructions,
-            RelayInstructionLib.encodeGas(CALLBACK_GAS, 0)
-        );
-        assertEq(request.value, _extraFee());
-        assertGt(message.length, 0);
-    }
-
-    function test_postDispatch_ignoresMetadataGasOverride() public {
-        // Mirrors GasRouter metadata: this is the recipient's `handle` budget,
-        // not the gas required by the Executor's `executeVAAv1` callback.
-        bytes memory metadata = StandardHookMetadata.format(0, 64_000, alice);
-        originMailbox.dispatch{value: CORE_FEE + _extraFee()}(
-            DESTINATION,
-            address(recipient).addressToBytes32(),
-            _body(),
-            metadata,
-            IPostDispatchHook(address(originRouter))
-        );
-
-        MockExecutorQuoterRouter.Request memory request = quoterRouter
-            .lastRequest();
-        assertEq(
-            request.relayInstructions,
-            RelayInstructionLib.encodeGas(CALLBACK_GAS, 0)
-        );
-        assertEq(request.refundAddr, alice);
-    }
-
-    function test_postDispatch_throughGasRouter_usesConfiguredCallbackGas()
-        public
-    {
-        TestGasRouter app = new TestGasRouter(address(originMailbox));
-        app.setHook(address(originRouter));
-        app.enrollRemoteRouter(
-            DESTINATION,
-            address(recipient).addressToBytes32()
-        );
-        app.setDestinationGas(DESTINATION, 64_000);
-
-        bytes memory expectedInstructions = RelayInstructionLib.encodeGas(
-            CALLBACK_GAS,
-            0
-        );
-        // The mock checks both quoteExecution and requestExecution. This proves
-        // quote and payment use the same config-derived instructions.
-        quoterRouter.setExpectedRelayInstructions(expectedInstructions);
-        uint256 fee = app.quoteDispatch(DESTINATION, _body());
-        assertEq(fee, CORE_FEE + _extraFee());
-
-        app.dispatch{value: fee}(DESTINATION, _body());
-
-        MockExecutorQuoterRouter.Request memory request = quoterRouter
-            .lastRequest();
-        assertEq(request.relayInstructions, expectedInstructions);
-        assertEq(request.value, _extraFee());
-    }
-
-    function test_postDispatch_failedExecutorRequestRollsBackPublication()
-        public
-    {
-        bytes memory message = originMailbox.buildOutboundMessage(
-            DESTINATION,
-            address(recipient).addressToBytes32(),
-            _body()
-        );
-        quoterRouter.setRequestReverts(true);
-        vm.expectRevert();
-        _dispatchOnly();
-        assertFalse(originRouter.publishedMessages(message.id()));
-        assertEq(originCore.nextSequence(address(originRouter)), 0);
-    }
-
-    function test_quoteDispatch_revertingQuoterBlocksDispatch() public {
-        quoterRouter.setQuoteReverts(true);
-        vm.expectRevert();
-        _dispatchOnly();
-    }
-
-    // ============ Callback ============
-
-    function test_executeVAAv1_callableByArbitraryAccount() public {
-        (bytes memory message, ) = _dispatch();
-        vm.prank(alice);
-        executorRouter().executeVAAv1(_validVaa(message, 0));
-        assertEq(
-            executorRouter().authorizations(ORIGIN, message.id()),
-            uint64(_nonce(message)) + 1
-        );
-    }
-
-    function test_executeVAAv1_rejectsValue() public {
-        (bytes memory message, ) = _dispatch();
-        vm.expectRevert(
-            WormholeExecutorHookIsm.DestinationValueUnsupported.selector
-        );
-        executorRouter().executeVAAv1{value: 1}(_validVaa(message, 0));
-    }
-
-    function test_executeVAAv1_rejectsDuplicateVaa() public {
-        (bytes memory message, ) = _dispatch();
-        executorRouter().executeVAAv1(_validVaa(message, 0));
-        vm.expectRevert(WormholeExecutorHookIsm.VaaAlreadyConsumed.selector);
-        executorRouter().executeVAAv1(_validVaa(message, 0));
-    }
-
-    function test_executeVAAv1_rejectsSecondVaaForSameMessage() public {
-        (bytes memory message, ) = _dispatch();
-        executorRouter().executeVAAv1(_validVaa(message, 0));
-        // Different sequence => different digest, same message ID.
-        vm.expectRevert(
-            WormholeExecutorHookIsm.MessageAlreadyAuthorized.selector
-        );
-        executorRouter().executeVAAv1(_validVaa(message, 7));
-    }
-
-    function test_authorization_storesNoncePlusOneIncludingZero() public {
-        // A freshly deployed Mailbox starts at nonce 0.
-        (bytes memory message, ) = _dispatch();
-        assertEq(_nonce(message), 0);
-        executorRouter().executeVAAv1(_validVaa(message, 0));
-        assertEq(executorRouter().authorizations(ORIGIN, message.id()), 1);
-    }
-
-    function test_authorization_isNamespacedByAuthenticatedOrigin() public {
-        uint32 claimedOrigin = ORIGIN + 1;
-        uint32 nonce = 0;
-        bytes memory forgedMessage = abi.encodePacked(
-            destinationMailbox.VERSION(),
-            nonce,
-            claimedOrigin,
-            address(this).addressToBytes32(),
-            DESTINATION,
-            address(recipient).addressToBytes32(),
-            _body()
-        );
-
-        // The VAA is authenticated as originating from ORIGIN, but carries the
-        // ID of a Hyperlane message that claims a different origin domain.
-        bytes memory vaa = _vaa(
-            WH_ORIGIN,
-            address(originRouter).addressToBytes32(),
-            0,
-            nonce,
-            CONSISTENCY,
-            0,
-            WormholeMessage.encode(
-                ORIGIN,
-                DESTINATION,
-                address(destinationRouter).addressToBytes32(),
-                forgedMessage.id(),
-                nonce
-            )
-        );
-
-        executorRouter().executeVAAv1(vaa);
-
-        assertEq(
-            executorRouter().authorizations(ORIGIN, forgedMessage.id()),
-            uint64(nonce) + 1
-        );
-        assertEq(
-            executorRouter().authorizations(claimedOrigin, forgedMessage.id()),
-            0
-        );
-        assertFalse(_verify(forgedMessage, ""));
-    }
-
-    function test_verify_falseBeforeCallback() public {
-        (bytes memory message, ) = _dispatch();
-        assertFalse(_verify(message, ""));
-    }
-
-    function test_verify_falseForOtherMessage() public {
-        (bytes memory first, ) = _dispatch();
-        (bytes memory second, ) = _dispatch();
-        executorRouter().executeVAAv1(_validVaa(first, 0));
-        assertFalse(_verify(second, ""));
-    }
-
-    function test_process_failsBeforeCallbackSucceedsAfter() public {
-        (bytes memory message, ) = _dispatch();
-
-        vm.expectRevert("Mailbox: ISM verification failed");
-        destinationMailbox.process("", message);
-
-        executorRouter().executeVAAv1(_validVaa(message, 0));
-        destinationMailbox.process("", message);
-
-        assertTrue(destinationMailbox.delivered(message.id()));
-        assertEq(recipient.lastData(), _body());
-    }
-
-    function test_authorizationRemainsValidAfterRouterUnenrollment() public {
-        (bytes memory message, ) = _dispatch();
-        executorRouter().executeVAAv1(_validVaa(message, 0));
-
-        destinationRouter.unenrollRemoteRouter(ORIGIN);
-
-        // A successful callback is the final Wormhole authorization step.
-        // Unenrollment blocks new callbacks but does not revoke authorization
-        // that was already established under the previous configuration.
-        assertTrue(_verify(message, ""));
-        destinationMailbox.process("", message);
-        assertTrue(destinationMailbox.delivered(message.id()));
-    }
-
-    function test_verify_rejectsWrongLocalDestination() public {
-        bytes memory message = originMailbox.buildOutboundMessage(
-            3000,
-            address(recipient).addressToBytes32(),
-            _body()
-        );
-        vm.expectRevert(IWormholeHookIsm.WrongDestinationDomain.selector);
-        _verify(message, "");
-    }
-}
-
-// ============================================================================
-// Direct-VAA variant
-// ============================================================================
-
-contract WormholeHookIsmTest_DirectVaa is WormholeHookIsmSharedTest {
-    using Message for bytes;
-    using TypeCasts for address;
 
     string internal constant URL = "https://vaa.example/getWormholeVaa";
 
@@ -1441,7 +1006,7 @@ contract WormholeHookIsmTest_DirectVaa is WormholeHookIsmSharedTest {
     function _deployRouter(
         address mailbox_,
         address core_
-    ) internal override returns (AbstractWormholeHookIsm) {
+    ) internal returns (WormholeVaaHookIsm) {
         return
             new WormholeVaaHookIsm(
                 mailbox_,
@@ -1452,40 +1017,28 @@ contract WormholeHookIsmTest_DirectVaa is WormholeHookIsmSharedTest {
     }
 
     function _enroll(
-        AbstractWormholeHookIsm router,
-        uint32 domain,
+        WormholeVaaHookIsm router,
+        uint32 domainId,
         address remote,
         uint16 wormholeChainId
-    ) internal override {
+    ) internal {
         WormholeVaaHookIsm(address(router)).enrollRemoteRouter(
-            _enrollment(domain, remote, wormholeChainId)
+            _enrollment(domainId, remote, wormholeChainId)
         );
-    }
-
-    function _extraFee() internal pure override returns (uint256) {
-        return 0;
     }
 
     function _ismMetadata(
         bytes memory message,
         uint64 sequence
-    ) internal view override returns (bytes memory) {
+    ) internal view returns (bytes memory) {
         return _wrapVaa(_validVaa(message, sequence));
     }
 
     /// @dev Mirrors what `createAbiHandler` returns for `getWormholeVaa`.
     function _wrapVaa(
         bytes memory encodedVaa
-    ) internal pure override returns (bytes memory) {
+    ) internal pure returns (bytes memory) {
         return abi.encode(encodedVaa);
-    }
-
-    /// @dev Verification is atomic; no destination step precedes it.
-    function _authorize(
-        bytes memory message,
-        bytes memory metadata
-    ) internal override {
-        _verify(message, metadata);
     }
 
     function vaaRouter() internal view returns (WormholeVaaHookIsm) {
@@ -1530,7 +1083,7 @@ contract WormholeHookIsmTest_DirectVaa is WormholeHookIsmSharedTest {
         WormholeConsistencyLevelConfig
             memory custom = WormholeConsistencyLevelConfig({
                 consistencyLevel: 203,
-                customConsistencyLevel: address(ccl),
+                customConsistencyLevelContract: address(ccl),
                 baseConsistencyLevel: 200,
                 additionalBlocks: 2
             });
@@ -1546,7 +1099,10 @@ contract WormholeHookIsmTest_DirectVaa is WormholeHookIsmSharedTest {
             abi.encodePacked(uint8(1), uint8(200), uint16(2), bytes28(0))
         );
         assertEq(ccl.getConfiguration(address(router)), expected);
-        assertEq(address(router.customConsistencyLevel()), address(ccl));
+        assertEq(
+            address(router.customConsistencyLevelContract()),
+            address(ccl)
+        );
         assertEq(router.consistencyLevel(), 203);
         assertEq(router.baseConsistencyLevel(), 200);
         assertEq(router.additionalBlocks(), 2);
@@ -1556,12 +1112,12 @@ contract WormholeHookIsmTest_DirectVaa is WormholeHookIsmSharedTest {
         WormholeConsistencyLevelConfig
             memory unsupported = WormholeConsistencyLevelConfig({
                 consistencyLevel: 15,
-                customConsistencyLevel: address(0),
+                customConsistencyLevelContract: address(0),
                 baseConsistencyLevel: 0,
                 additionalBlocks: 0
             });
         vm.expectRevert(
-            IWormholeHookIsm.InvalidCustomConsistencyLevelConfig.selector
+            WormholeVaaHookIsm.InvalidConsistencyLevelConfig.selector
         );
         new WormholeVaaHookIsm(
             address(destinationMailbox),
@@ -1571,21 +1127,123 @@ contract WormholeHookIsmTest_DirectVaa is WormholeHookIsmSharedTest {
         );
     }
 
+    function test_constructor_acceptsSdkFinalizedConsistencyLevel() public {
+        WormholeConsistencyLevelConfig
+            memory finalized = WormholeConsistencyLevelConfig({
+                consistencyLevel: CONSISTENCY_LEVEL_FINALIZED,
+                customConsistencyLevelContract: address(0),
+                baseConsistencyLevel: 0,
+                additionalBlocks: 0
+            });
+
+        WormholeVaaHookIsm router = new WormholeVaaHookIsm(
+            address(destinationMailbox),
+            address(destinationCore),
+            finalized,
+            _urls()
+        );
+
+        assertEq(router.consistencyLevel(), CONSISTENCY_LEVEL_FINALIZED);
+    }
+
+    function test_constructor_acceptsZeroFinalizedConsistencyLevel() public {
+        WormholeConsistencyLevelConfig
+            memory finalized = WormholeConsistencyLevelConfig({
+                consistencyLevel: 0,
+                customConsistencyLevelContract: address(0),
+                baseConsistencyLevel: 0,
+                additionalBlocks: 0
+            });
+
+        WormholeVaaHookIsm router = new WormholeVaaHookIsm(
+            address(destinationMailbox),
+            address(destinationCore),
+            finalized,
+            _urls()
+        );
+
+        assertEq(router.consistencyLevel(), 0);
+    }
+
     function test_constructor_rejectsCustomConsistencyWithoutCcl() public {
         WormholeConsistencyLevelConfig
             memory incomplete = WormholeConsistencyLevelConfig({
                 consistencyLevel: 203,
-                customConsistencyLevel: address(0),
+                customConsistencyLevelContract: address(0),
                 baseConsistencyLevel: 200,
                 additionalBlocks: 2
             });
         vm.expectRevert(
-            IWormholeHookIsm.InvalidCustomConsistencyLevel.selector
+            WormholeVaaHookIsm.InvalidCustomConsistencyLevelContract.selector
         );
         new WormholeVaaHookIsm(
             address(destinationMailbox),
             address(destinationCore),
             incomplete,
+            _urls()
+        );
+    }
+
+    function test_constructor_rejectsCustomConsistencyWithCustomBase() public {
+        MockCustomConsistencyLevel ccl = new MockCustomConsistencyLevel();
+        WormholeConsistencyLevelConfig
+            memory invalid = WormholeConsistencyLevelConfig({
+                consistencyLevel: 203,
+                customConsistencyLevelContract: address(ccl),
+                baseConsistencyLevel: 203,
+                additionalBlocks: 2
+            });
+
+        vm.expectRevert(
+            WormholeVaaHookIsm.InvalidCustomConsistencyLevelConfig.selector
+        );
+        new WormholeVaaHookIsm(
+            address(destinationMailbox),
+            address(destinationCore),
+            invalid,
+            _urls()
+        );
+    }
+
+    function test_constructor_rejectsSdkFinalizedAsCustomBase() public {
+        MockCustomConsistencyLevel ccl = new MockCustomConsistencyLevel();
+        WormholeConsistencyLevelConfig
+            memory invalid = WormholeConsistencyLevelConfig({
+                consistencyLevel: 203,
+                customConsistencyLevelContract: address(ccl),
+                baseConsistencyLevel: CONSISTENCY_LEVEL_FINALIZED,
+                additionalBlocks: 2
+            });
+
+        vm.expectRevert(
+            WormholeVaaHookIsm.InvalidCustomConsistencyLevelConfig.selector
+        );
+        new WormholeVaaHookIsm(
+            address(destinationMailbox),
+            address(destinationCore),
+            invalid,
+            _urls()
+        );
+    }
+
+    function test_constructor_rejectsCustomSettingsForStandardConsistency()
+        public
+    {
+        WormholeConsistencyLevelConfig
+            memory invalid = WormholeConsistencyLevelConfig({
+                consistencyLevel: CONSISTENCY,
+                customConsistencyLevelContract: makeAddr("unusedCcl"),
+                baseConsistencyLevel: 200,
+                additionalBlocks: 2
+            });
+
+        vm.expectRevert(
+            WormholeVaaHookIsm.UnexpectedCustomConsistencyLevelConfig.selector
+        );
+        new WormholeVaaHookIsm(
+            address(destinationMailbox),
+            address(destinationCore),
+            invalid,
             _urls()
         );
     }
@@ -1634,7 +1292,7 @@ contract WormholeHookIsmTest_DirectVaa is WormholeHookIsmSharedTest {
     function test_verify_rejectsMessageIdMismatch() public {
         (bytes memory message, ) = _dispatch();
         (bytes memory other, ) = _dispatch();
-        vm.expectRevert(IWormholeHookIsm.WrongMessageId.selector);
+        vm.expectRevert(WormholeVaaHookIsm.WrongMessageId.selector);
         _verify(other, _ismMetadata(message, 0));
     }
 
@@ -1660,9 +1318,8 @@ contract WormholeHookIsmTest_DirectVaa is WormholeHookIsmSharedTest {
         destinationMailbox.process(metadata, message);
     }
 
-    function test_quote_isCoreFeeOnlyAndNoExecutorCall() public {
+    function test_dispatch_paysCoreFee() public {
         _dispatch();
-        assertEq(quoterRouter.requestCount(), 0);
         assertEq(address(originCore).balance, CORE_FEE);
     }
 }
