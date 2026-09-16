@@ -41,7 +41,8 @@ export class CosmosNativeSigner
     privateKey: string | OfflineSigner,
   ): Promise<CosmosNativeSigner> {
     const rpcUrls = (metadata.rpcUrls ?? []).map((rpc) => rpc.http);
-    assert(rpcUrls.length > 0, `got no rpcUrls`);
+    const [rpcUrl, ...otherRpcUrls] = rpcUrls;
+    assert(rpcUrl, `${CosmosNativeSigner.name} got no rpcUrls`);
     assert(
       rpcUrls.every((rpc) => isUrl(rpc)),
       `invalid rpc urls: ${rpcUrls.join(', ')}`,
@@ -91,7 +92,7 @@ export class CosmosNativeSigner
       );
 
     const signer = await SigningStargateClient.connectWithSigner(
-      rpcUrls[0],
+      rpcUrl,
       wallet,
       {
         aminoTypes: new AminoTypes({
@@ -108,14 +109,15 @@ export class CosmosNativeSigner
       signer.registry.register(proto.type, proto.converter);
     });
 
-    const cometClient = await connectComet(rpcUrls[0]);
-    const account = await wallet.getAccounts();
+    const cometClient = await connectComet(rpcUrl);
+    const [account] = await wallet.getAccounts();
+    assert(account, 'Expected to retrieve at least one account');
 
     return new CosmosNativeSigner(
       cometClient,
       signer,
-      account[0],
-      rpcUrls,
+      account,
+      [rpcUrl, ...otherRpcUrls],
       metadata,
       {
         fee: 2,
@@ -128,7 +130,7 @@ export class CosmosNativeSigner
     cometClient: CometClient,
     signer: SigningStargateClient,
     account: AccountData,
-    rpcUrls: string[],
+    rpcUrls: [string, ...string[]],
     chainMetadata: ChainMetadataForAltVM,
     options: TxOptions,
   ) {
@@ -142,7 +144,7 @@ export class CosmosNativeSigner
     return this.account.address;
   }
 
-  disconnect(): void {
+  override disconnect(): void {
     super.disconnect();
     this.signer.disconnect();
   }

@@ -42,15 +42,14 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
     cosmosSigner = await createSigner('alice');
     signer = cosmosSigner;
 
-    const [rpc, ...otherRpcUrls] = cosmosSigner.getRpcUrls();
-    assert(rpc, 'At least one rpc is required');
+    const rpcUrls = cosmosSigner.getRpcUrls();
 
     mailboxArtifactManager = new CosmosMailboxArtifactManager({
-      rpcUrls: [rpc, ...otherRpcUrls],
+      rpcUrls,
       domainId,
     });
 
-    ismArtifactManager = new CosmosIsmArtifactManager([rpc, ...otherRpcUrls]);
+    ismArtifactManager = new CosmosIsmArtifactManager(rpcUrls);
 
     // Create temp mailbox for hook manager
     const ismWriter = ismArtifactManager.createWriter(
@@ -81,7 +80,7 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
     });
 
     hookArtifactManager = new CosmosHookArtifactManager({
-      rpcUrls: [rpc, ...otherRpcUrls],
+      rpcUrls,
       mailboxAddress: tempMailbox.deployed.address,
       nativeTokenDenom: denom,
     });
@@ -140,7 +139,7 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
       expect(result.deployed.domainId).to.equal(domainId);
       expect(receipts).to.be.an('array').with.length.greaterThan(0);
       receipts.forEach((receipt) => {
-        expect(receipt.code).to.equal(0);
+        expect(receipt['code']).to.equal(0);
       });
 
       const reader = mailboxArtifactManager.createReader('mailbox');
@@ -195,7 +194,7 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
       expect(result.deployed.address).to.be.a('string').and.not.be.empty;
       expect(receipts).to.be.an('array').with.length(1);
       receipts.forEach((receipt) => {
-        expect(receipt.code).to.equal(0);
+        expect(receipt['code']).to.equal(0);
       });
     });
 
@@ -495,12 +494,14 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
         const txs = await writer.update(updatedArtifact);
 
         expect(txs).to.be.an('array').with.length(1);
-        expect(txs[0].typeUrl).to.equal(
+        const [tx] = txs;
+        assert(tx, `Expected a transaction to update ${name}`);
+        expect(tx['typeUrl']).to.equal(
           MessageRegistry.MsgSetMailbox.proto.type,
         );
 
-        const receipt = await signer.sendAndConfirmTransaction(txs[0]);
-        expect(receipt.code).to.equal(0);
+        const receipt = await signer.sendAndConfirmTransaction(tx);
+        expect(receipt['code']).to.equal(0);
 
         const reader = mailboxArtifactManager.createReader('mailbox');
         const readMailbox = await reader.read(deployedMailbox.deployed.address);
