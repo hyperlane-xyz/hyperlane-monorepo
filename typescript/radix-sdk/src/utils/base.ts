@@ -236,10 +236,13 @@ export class RadixBase {
       return BigInt(0);
     }
 
+    const [vault] = fungibleResource.vaults.items;
+    assert(vault, `Expected a vault for resource ${resource}`);
+
     const { decimals } = await this.getMetadata({ resource });
 
     return BigInt(
-      new BigNumber(fungibleResource.vaults.items[0].amount)
+      new BigNumber(vault.amount)
         .times(new BigNumber(10).exponentiatedBy(decimals))
         .toFixed(0),
     );
