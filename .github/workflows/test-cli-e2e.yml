@@ -55,6 +55,7 @@ jobs:
           - warp-apply-delayed-flow-3
           - warp-check-1
           - warp-send
+          - warp-fork
     steps:
       - uses: actions/checkout@v7
         with:
@@ -67,6 +68,9 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
+      - name: Install Arc Anvil
+        if: matrix.test == 'warp-fork'
+        uses: ./.github/actions/install-arc-anvil
       - name: CLI e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:ethereum:e2e
         env:
@@ -152,6 +156,9 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
+      - name: Install Arc Anvil
+        if: matrix.test == 'warp-fork'
+        uses: ./.github/actions/install-arc-anvil
       - name: CLI e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:ethereum:e2e
         env:
