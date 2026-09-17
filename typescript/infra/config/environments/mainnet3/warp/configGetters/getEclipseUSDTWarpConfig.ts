@@ -13,10 +13,9 @@ import { awProxyAdmins } from '../../governance/proxy-admin/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import {
   WARP_FEES_TURNKEY_OWNER,
-  WARP_PAUSER_TURNKEY_OWNER,
   getWarpFeeOwner,
 } from '../../governance/utils.js';
-import { chainOwners } from '../../owners.js';
+import { PAUSER, chainOwners } from '../../owners.js';
 import {
   QUOTE_SIGNER,
   SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
@@ -158,11 +157,11 @@ const getEvmInterchainSecurityModule = (
       type: IsmType.RATE_LIMITED,
       maxCapacity: EVM_ISM_DAILY_MAX_CAPACITY,
       duration: EVM_ISM_RATE_LIMIT_DURATION_SECONDS,
-      owner: WARP_PAUSER_TURNKEY_OWNER,
+      owner: PAUSER,
     },
     {
       type: IsmType.PAUSABLE,
-      owner: WARP_PAUSER_TURNKEY_OWNER,
+      owner: PAUSER,
       paused: false,
     },
     {
