@@ -91,8 +91,8 @@ Every remote hook/ISM route is enrolled atomically with:
 | `expectedConsistencyLevel` | Required consistency level in VAAs from that hook/ISM |
 
 The inherited `Router.routers(domainId)` mapping stores the remote hook/ISM as
-the expected VAA emitter. `remoteRouterConfigs` stores its Wormhole chain ID and
-expected consistency level. Verification requires both parts to match.
+the expected VAA emitter. `remoteRouterConfigs` returns its Wormhole chain ID
+and expected consistency level. Verification requires both parts to match.
 
 A Wormhole chain ID can belong to only one enrolled Hyperlane domain ID. The
 `remoteWormholeChains` reverse lookup records this relationship explicitly,

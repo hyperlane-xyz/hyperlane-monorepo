@@ -14,6 +14,10 @@ import {TestMailbox} from "contracts/test/TestMailbox.sol";
 import {TestPostDispatchHook} from "contracts/test/TestPostDispatchHook.sol";
 import {TestRecipient} from "contracts/test/TestRecipient.sol";
 
+uint32 constant FIRST_UNRELATED_DOMAIN = 3000;
+uint16 constant FIRST_UNRELATED_CHAIN_ID = 100;
+uint8 constant UNRELATED_ROUTE_COUNT = 16;
+
 /**
  * @dev Stateful actions for publication, VAA verification, and unrelated route
  * churn. Reverts are swallowed so invariant runs continue exploring state.
@@ -123,10 +127,16 @@ contract WormholeVaaHandler is Test {
         } catch {}
     }
 
-    function enrollUnrelatedRoute(uint8 seed) external {
-        uint32 domainId = 3000 + uint32(seed % 16);
-        uint16 wormholeChainId = 100 + uint16(seed % 16);
-        address remoteRouter = address(uint160(uint256(seed) + 1));
+    function enrollUnrelatedRoute(
+        uint8 domainSeed,
+        uint8 chainSeed,
+        uint8 routerSeed
+    ) external {
+        uint32 domainId = FIRST_UNRELATED_DOMAIN +
+            uint32(domainSeed % UNRELATED_ROUTE_COUNT);
+        uint16 wormholeChainId = FIRST_UNRELATED_CHAIN_ID +
+            uint16(chainSeed % UNRELATED_ROUTE_COUNT);
+        address remoteRouter = address(uint160(uint256(routerSeed) + 1));
 
         try
             destinationRouter.enrollRemoteRouter(
@@ -141,7 +151,8 @@ contract WormholeVaaHandler is Test {
     }
 
     function unenrollUnrelatedRoute(uint8 seed) external {
-        uint32 domainId = 3000 + uint32(seed % 16);
+        uint32 domainId = FIRST_UNRELATED_DOMAIN +
+            uint32(seed % UNRELATED_ROUTE_COUNT);
         try destinationRouter.unenrollRemoteRouter(domainId) {} catch {}
     }
 
@@ -327,6 +338,31 @@ contract WormholeHookIsmTest_Invariants is Test {
         }
     }
 
+    function invariant_noOrphanReverseRoutes() public view {
+        // Check reverse entries even when their forward route was removed or
+        // reassigned and no longer appears in `domains()`.
+        for (
+            uint16 chainId = FIRST_UNRELATED_CHAIN_ID;
+            chainId < FIRST_UNRELATED_CHAIN_ID + UNRELATED_ROUTE_COUNT;
+            ++chainId
+        ) {
+            (bool assigned, uint32 domainId) = destinationRouter
+                .remoteWormholeChains(chainId);
+            if (!assigned) {
+                continue;
+            }
+
+            (uint16 currentChainId, ) = destinationRouter.remoteRouterConfigs(
+                domainId
+            );
+            assertEq(currentChainId, chainId, "orphan reverse route");
+            assertTrue(
+                destinationRouter.routers(domainId) != bytes32(0),
+                "reverse route missing router"
+            );
+        }
+    }
+
     function invariant_originRouteStable() public view {
         assertEq(
             destinationRouter.routers(ORIGIN),
@@ -339,5 +375,24 @@ contract WormholeHookIsmTest_Invariants is Test {
         assertEq(handler.messageCount(), 1);
         handler.verifyValid(0);
         assertEq(handler.validVerificationFailures(), 0);
+    }
+
+    function test_handlerRotatesAndReusesWormholeChainId() public {
+        handler.enrollUnrelatedRoute(0, 0, 0);
+        handler.enrollUnrelatedRoute(0, 1, 1);
+
+        (bool oldAssigned, ) = destinationRouter.remoteWormholeChains(
+            FIRST_UNRELATED_CHAIN_ID
+        );
+        assertFalse(oldAssigned);
+
+        (bool newAssigned, uint32 domainId) = destinationRouter
+            .remoteWormholeChains(FIRST_UNRELATED_CHAIN_ID + 1);
+        assertTrue(newAssigned);
+        assertEq(domainId, FIRST_UNRELATED_DOMAIN);
+
+        handler.enrollUnrelatedRoute(1, 0, 2);
+        invariant_reverseIndexMatchesRoutes();
+        invariant_noOrphanReverseRoutes();
     }
 }

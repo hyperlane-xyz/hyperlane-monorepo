@@ -443,6 +443,42 @@ contract WormholeHookIsmTest is Test {
         );
     }
 
+    function test_batchEnrollment_rollsBackOnLaterChainIdCollision() public {
+        uint32 newDomain = 3000;
+        uint16 newChainId = 77;
+        WormholeVaaHookIsm.RemoteRouterConfig[]
+            memory configs = new WormholeVaaHookIsm.RemoteRouterConfig[](2);
+        configs[0] = _remoteRouterConfig(
+            newDomain,
+            makeAddr("newRemote"),
+            newChainId
+        );
+        configs[1] = _remoteRouterConfig(
+            4000,
+            makeAddr("conflictingRemote"),
+            WH_DESTINATION
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ReverseMappingLib.ReverseKeyAssignedToAnotherKey.selector,
+                WH_DESTINATION,
+                DESTINATION
+            )
+        );
+        originRouter.enrollRemoteRouters(configs);
+
+        assertEq(originRouter.routers(newDomain), bytes32(0));
+        (uint16 chainId, uint8 consistencyLevel) = originRouter
+            .remoteRouterConfigs(newDomain);
+        assertEq(chainId, 0);
+        assertEq(consistencyLevel, 0);
+
+        (bool assigned, ) = originRouter.remoteWormholeChains(newChainId);
+        assertFalse(assigned);
+        assertEq(originRouter.domains().length, 1);
+    }
+
     function test_reassignment_rejectsVaaFromOldWormholeChain() public {
         (bytes memory message, ) = _dispatch();
         bytes memory metadata = _ismMetadata(message, 0);
@@ -451,6 +487,53 @@ contract WormholeHookIsmTest is Test {
 
         vm.expectRevert(WormholeVaaHookIsm.WrongEmitterChainId.selector);
         _verify(message, metadata);
+    }
+
+    function test_reassignment_acceptsVaaFromNewWormholeChain() public {
+        (bytes memory message, ) = _dispatch();
+        uint16 newChainId = 77;
+        _enroll(destinationRouter, ORIGIN, address(originRouter), newChainId);
+
+        bytes memory encodedVaa = _vaa(
+            newChainId,
+            address(originRouter).addressToBytes32(),
+            0,
+            _nonce(message),
+            CONSISTENCY,
+            0,
+            _payloadFor(message)
+        );
+
+        assertTrue(_verify(message, _wrapVaa(encodedVaa)));
+    }
+
+    function test_enroll_updatesExpectedConsistencyLevel() public {
+        (bytes memory message, ) = _dispatch();
+        bytes memory oldMetadata = _ismMetadata(message, 0);
+
+        uint8 updatedConsistencyLevel = CONSISTENCY - 1;
+        WormholeVaaHookIsm.RemoteRouterConfig
+            memory config = _remoteRouterConfig(
+                ORIGIN,
+                address(originRouter),
+                WH_ORIGIN
+            );
+        config.expectedConsistencyLevel = updatedConsistencyLevel;
+        destinationRouter.enrollRemoteRouter(config);
+
+        vm.expectRevert(WormholeVaaHookIsm.WrongConsistencyLevel.selector);
+        _verify(message, oldMetadata);
+
+        bytes memory updatedVaa = _vaa(
+            WH_ORIGIN,
+            address(originRouter).addressToBytes32(),
+            0,
+            _nonce(message),
+            updatedConsistencyLevel,
+            0,
+            _payloadFor(message)
+        );
+        assertTrue(_verify(message, _wrapVaa(updatedVaa)));
     }
 
     function test_enroll_replacesRouterImmediately() public {
