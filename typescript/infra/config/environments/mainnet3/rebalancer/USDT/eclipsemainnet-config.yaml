@@ -1,9 +1,9 @@
 warpRouteId: USDT/eclipsemainnet
 
-# Baseline image from the Eclipse configuration strand. Replace with the reviewed
-# runtime candidate and its digest before rollout.
+# Runtime candidate built from this branch head (4a5f2346e2) via
+# node-services-docker.yml run 35278665854.
 deployment:
-  imageTag: 66bb044-20260910-030014
+  imageTag: 4a5f234-20260917-214825
   swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key-usdt-eclipse
 
 # Intent TTL is two weeks in memory; it does not survive restart. Source-started
