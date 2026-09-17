@@ -30,7 +30,7 @@ optimizer_runs = 3_599
 
 [[profile.default.additional_compiler_profiles]]
 name = "layerzero-size-optimized"
-optimizer_runs = 2_239
+optimizer_runs = 5_199
 
 [[profile.default.compilation_restrictions]]
 paths = "contracts/token/CrossCollateralRouter.sol"
@@ -38,11 +38,7 @@ optimizer_runs = 3_599
 
 [[profile.default.compilation_restrictions]]
 paths = "contracts/hooks/layerzero/LayerZeroV2CcipReadHookIsm.sol"
-optimizer_runs = 2_239
-
-[[profile.default.compilation_restrictions]]
-paths = "test/hooks/LayerZeroV2HookIsm.t.sol"
-optimizer_runs = 2_239
+optimizer_runs = 5_199
 
 [profile.ci]
 verbosity = 4

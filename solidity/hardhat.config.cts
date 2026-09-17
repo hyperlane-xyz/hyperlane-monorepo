@@ -35,7 +35,7 @@ module.exports = {
           ...rootHardhatConfig.solidity.settings,
           optimizer: {
             ...rootHardhatConfig.solidity.settings.optimizer,
-            runs: 2_239,
+            runs: 5_199,
           },
         },
       },
