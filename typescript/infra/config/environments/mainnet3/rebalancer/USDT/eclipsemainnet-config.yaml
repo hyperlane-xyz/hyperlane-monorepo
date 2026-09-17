@@ -48,16 +48,6 @@ strategy:
             destinationEid: 30101
             sourceOft: '0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92'
             destinationOft: '0x6C96dE32CEa08842dcc4058c14d3aaAD7Fa41dee'
-        plasma:
-          executionType: movableCollateral
-          bridge: '0xE4c1A1E54C232454311cF68610c3885FdD991c0E'
-          bridgeMinAcceptedAmount: 1000
-          statusAdapter:
-            kind: lz_scan
-            sourceEid: 30110
-            destinationEid: 30383
-            sourceOft: '0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92'
-            destinationOft: '0x02ca37966753bDdDf11216B73B16C1dE756A7CF9'
         tron:
           executionType: movableCollateral
           bridge: '0x9323793FB9a071ce5fE839079925c0e39f37170F'
@@ -75,9 +65,6 @@ strategy:
         min: 10000
         target: 15000
         type: absolute
-      override:
-        plasma:
-          externalBridge: swapsxyz
     ethereum:
       executionType: inventory
       externalBridge: debridge
@@ -96,16 +83,6 @@ strategy:
             destinationEid: 30110
             sourceOft: '0x6C96dE32CEa08842dcc4058c14d3aaAD7Fa41dee'
             destinationOft: '0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92'
-        plasma:
-          executionType: movableCollateral
-          bridge: '0x7Bb4fe8f406fB7B22487Fa2e3BCbCb6A38cF29E6'
-          bridgeMinAcceptedAmount: 1000
-          statusAdapter:
-            kind: lz_scan
-            sourceEid: 30101
-            destinationEid: 30383
-            sourceOft: '0x6C96dE32CEa08842dcc4058c14d3aaAD7Fa41dee'
-            destinationOft: '0x02ca37966753bDdDf11216B73B16C1dE756A7CF9'
         tron:
           executionType: movableCollateral
           bridge: '0xC0dA8EF1225145E0b720d8A33471fa6360b7e73B'
@@ -116,40 +93,6 @@ strategy:
             destinationEid: 30420
             sourceOft: '0x1F748c76dE468e9D11bd340fA9D5CBADf315dFB0'
             destinationOft: '0x3a08f76772e200653bb55c2a92998daca62e0e97'
-    plasma:
-      executionType: inventory
-      externalBridge: swapsxyz
-      # Deprecating the plasma leg: drain all collateral off plasma and never
-      # refill it. min=0 keeps plasma's full balance classified as surplus so the
-      # rebalancer sweeps it out; target=0 means plasma is never in deficit so no
-      # rebalance ever routes collateral back in.
-      minAmount:
-        min: 0
-        target: 0
-        type: absolute
-      override:
-        arbitrum:
-          executionType: movableCollateral
-          bridge: '0x93bfFA2231fbA5029997603fb68D9aC08024Baa2'
-          bridgeMinAcceptedAmount: 1000
-          statusAdapter:
-            kind: lz_scan
-            sourceEid: 30383
-            destinationEid: 30110
-            sourceOft: '0x02ca37966753bDdDf11216B73B16C1dE756A7CF9'
-            destinationOft: '0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92'
-        ethereum:
-          executionType: movableCollateral
-          bridge: '0x93bfFA2231fbA5029997603fb68D9aC08024Baa2'
-          bridgeMinAcceptedAmount: 1000
-          statusAdapter:
-            kind: lz_scan
-            sourceEid: 30383
-            destinationEid: 30101
-            sourceOft: '0x02ca37966753bDdDf11216B73B16C1dE756A7CF9'
-            destinationOft: '0x6C96dE32CEa08842dcc4058c14d3aaAD7Fa41dee'
-        tron:
-          enabled: false
     solanamainnet:
       executionType: inventory
       externalBridge: debridge
@@ -157,9 +100,6 @@ strategy:
         min: 10000
         target: 15000
         type: absolute
-      override:
-        plasma:
-          externalBridge: swapsxyz
     tron:
       executionType: inventory
       externalBridge: debridge
@@ -188,6 +128,3 @@ strategy:
             destinationEid: 30101
             sourceOft: '0x3a08f76772e200653bb55c2a92998daca62e0e97'
             destinationOft: '0x1F748c76dE468e9D11bd340fA9D5CBADf315dFB0'
-        plasma:
-          enabled: false
-          externalBridge: swapsxyz
