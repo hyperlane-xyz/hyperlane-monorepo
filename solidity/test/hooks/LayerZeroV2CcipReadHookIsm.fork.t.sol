@@ -258,7 +258,7 @@ contract LayerZeroV2CcipReadHookIsmForkTest is Test {
             "",
             IPostDispatchHook(address(router))
         );
-        assertTrue(router.sentAuthorizations(message.id()));
+        assertTrue(router.publishedAuthorizationPackets(message.id()));
     }
 
     function testProductionEndpointEnrollmentWithoutDefaultReceiveLibrary()
