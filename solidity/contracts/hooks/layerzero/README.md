@@ -299,7 +299,7 @@ does, or enforce an equivalent application/ISM policy.
 
 Origin dispatch and LayerZero send are atomic when the Hook/ISM is in the hook
 tree. A failed quote, send, or refund reverts the Mailbox dispatch and the
-`sentAuthorizations` write. DVN attestation and destination processing occur
+`publishedAuthorizationPackets` write. DVN attestation and destination processing occur
 asynchronously.
 
 Route changes affect in-flight messages by stage:

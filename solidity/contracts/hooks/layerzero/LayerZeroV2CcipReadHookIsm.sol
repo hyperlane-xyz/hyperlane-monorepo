@@ -224,8 +224,9 @@ contract LayerZeroV2CcipReadHookIsm is
 
     /// @dev One-to-one Hyperlane domain and LayerZero endpoint ID assignments.
     ReverseMappingLib.Uint32ReverseMappingStorage private remoteEndpointIds;
-    /// @notice Whether this hook already sent an authorization for a message ID.
-    mapping(bytes32 messageId => bool wasSent) public sentAuthorizations;
+    /// @notice Whether this hook published an authorization packet for a message ID.
+    mapping(bytes32 messageId => bool published)
+        public publishedAuthorizationPackets;
 
     // ============ Constructor ============
 
@@ -547,7 +548,7 @@ contract LayerZeroV2CcipReadHookIsm is
     }
 
     /// @dev Sends one authorization packet for the latest Mailbox dispatch.
-    /// The `sentAuthorizations` write rolls back if quoting, sending, or
+    /// The `publishedAuthorizationPackets` write rolls back if quoting, sending, or
     /// refunding fails.
     function _postDispatch(
         bytes calldata metadata,
@@ -558,11 +559,11 @@ contract LayerZeroV2CcipReadHookIsm is
             revert MessageNotLatestDispatched(messageId);
         }
 
-        if (sentAuthorizations[messageId]) {
+        if (publishedAuthorizationPackets[messageId]) {
             revert LayerZeroAuthorizationAlreadySent(messageId);
         }
 
-        sentAuthorizations[messageId] = true;
+        publishedAuthorizationPackets[messageId] = true;
 
         LayerZeroMessagingParams memory params = _lzNativeFeeQuoteParams(
             message
