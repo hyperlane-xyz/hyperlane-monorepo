@@ -20,6 +20,7 @@ import {ILayerZeroPacketService} from "../../interfaces/layerzero/ILayerZeroPack
 import {LayerZeroMessage} from "../../libs/LayerZeroMessage.sol";
 import {LayerZeroMetadata} from "../../libs/LayerZeroMetadata.sol";
 import {Message} from "../../libs/Message.sol";
+import {ReverseMappingLib} from "../../libs/ReverseMapping.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
@@ -49,6 +50,7 @@ contract LayerZeroV2CcipReadHookIsm is
     using LayerZeroMetadata for bytes;
     using PacketV1Codec for bytes;
     using TypeCasts for address;
+    using ReverseMappingLib for ReverseMappingLib.Uint32ReverseMappingStorage;
 
     // ============ Constants ============
 
@@ -162,18 +164,10 @@ contract LayerZeroV2CcipReadHookIsm is
 
     // ============ Types ============
 
-    /// @notice Enrollment associated with a remote LayerZero endpoint ID.
-    struct LayerZeroEndpointEnrollment {
-        /// @notice Explicit flag so Hyperlane domain ID zero is unambiguous.
-        bool enrolled;
-        /// @notice Hyperlane domain assigned to this LayerZero endpoint ID.
-        uint32 hyperlaneDomainId;
-    }
-
-    /// @notice Complete remote hook/ISM enrollment and LayerZero pathway policy.
+    /// @notice Complete remote hook/ISM configuration and LayerZero pathway policy.
     /// @dev Send settings govern outbound packets to this peer; receive settings
     /// govern inbound packets from it. Both directions are configured locally.
-    struct RemoteRouterEnrollment {
+    struct RemoteRouterConfig {
         /// @notice Hyperlane domain of the remote hook/ISM.
         uint32 domainId;
         /// @notice Remote hook/ISM address encoded as `bytes32`.
@@ -228,12 +222,8 @@ contract LayerZeroV2CcipReadHookIsm is
 
     // ============ Storage ============
 
-    /// @notice Remote LayerZero endpoint ID for each Hyperlane domain.
-    mapping(uint32 domainId => uint32 endpointId) public remoteLzEndpointIds;
-    /// @notice Reverse lookup from a remote LayerZero endpoint ID to its
-    /// enrolled Hyperlane domain, including domain ID zero.
-    mapping(uint32 endpointId => LayerZeroEndpointEnrollment enrollment)
-        public remoteLzEndpoints;
+    /// @dev One-to-one Hyperlane domain and LayerZero endpoint ID assignments.
+    ReverseMappingLib.Uint32ReverseMappingStorage private remoteEndpointIds;
     /// @notice Whether this hook already sent an authorization for a message ID.
     mapping(bytes32 messageId => bool wasSent) public sentAuthorizations;
 
@@ -319,18 +309,38 @@ contract LayerZeroV2CcipReadHookIsm is
 
     // ============ Router ============
 
+    /// @notice Returns the LayerZero endpoint ID assigned to a Hyperlane domain.
+    /// @dev Returns zero if the domain has no LayerZero route.
+    function remoteLzEndpointIds(
+        uint32 domainId
+    ) public view returns (uint32 endpointId) {
+        return remoteEndpointIds.reverseKeyOf(domainId);
+    }
+
+    /// @notice Returns the Hyperlane domain assigned to a LayerZero endpoint ID.
+    /// @dev `enrolled` distinguishes domain ID zero from an unassigned endpoint.
+    function remoteLzEndpoints(
+        uint32 endpointId
+    ) public view returns (bool enrolled, uint32 hyperlaneDomainId) {
+        ReverseMappingLib.ReverseEntry memory entry = remoteEndpointIds.keyOf(
+            endpointId
+        );
+
+        return (entry.assigned, entry.key);
+    }
+
     /// @notice Installs or replaces a route and its LayerZero policy atomically.
     /// @dev Omitted config entries select the library defaults. An abandoned
     /// endpoint ID is blocked, but an unchanged path stays selected.
     function enrollLayerZeroRemoteRouter(
-        RemoteRouterEnrollment calldata newRemoteConfig
+        RemoteRouterConfig calldata newRemoteConfig
     ) external onlyOwner {
         _validateAndEnrollLayerZeroRemoteRouter(newRemoteConfig);
     }
 
     /// @notice Batch version of `enrollLayerZeroRemoteRouter`.
     function enrollLayerZeroRemoteRouters(
-        RemoteRouterEnrollment[] calldata newRemoteConfigs
+        RemoteRouterConfig[] calldata newRemoteConfigs
     ) external onlyOwner {
         for (uint256 i = 0; i < newRemoteConfigs.length; ++i) {
             _validateAndEnrollLayerZeroRemoteRouter(newRemoteConfigs[i]);
@@ -339,9 +349,9 @@ contract LayerZeroV2CcipReadHookIsm is
 
     /// @dev Validates the replacement before changing state.
     function _validateAndEnrollLayerZeroRemoteRouter(
-        RemoteRouterEnrollment calldata newRemoteConfig
+        RemoteRouterConfig calldata newRemoteConfig
     ) internal {
-        _validateLayerZeroEnrollment(newRemoteConfig);
+        _validateRemoteRouterConfig(newRemoteConfig);
         _enrollLayerZeroRemoteRouter(newRemoteConfig);
     }
 
@@ -355,13 +365,13 @@ contract LayerZeroV2CcipReadHookIsm is
     }
 
     /// @dev Writes the complete new policy. If the endpoint ID changes, the
-    /// previous path is blocked and its reverse lookup removed first.
+    /// previous path is blocked before the reverse mapping is reassigned.
     function _enrollLayerZeroRemoteRouter(
-        RemoteRouterEnrollment calldata newRemoteConfig
+        RemoteRouterConfig calldata newRemoteConfig
     ) internal {
-        uint32 previousEndpointId = remoteLzEndpointIds[
+        uint32 previousEndpointId = remoteEndpointIds.reverseKeyOf(
             newRemoteConfig.domainId
-        ];
+        );
         if (
             previousEndpointId != 0 &&
             previousEndpointId != newRemoteConfig.endpointId
@@ -374,7 +384,6 @@ contract LayerZeroV2CcipReadHookIsm is
             ).blockedLibrary();
             _setSendLibrary(previousEndpointId, blockedLibrary);
             _setReceiveLibrary(previousEndpointId, blockedLibrary);
-            delete remoteLzEndpoints[previousEndpointId];
         }
 
         _setSendLibrary(
@@ -403,14 +412,10 @@ contract LayerZeroV2CcipReadHookIsm is
             newRemoteConfig.domainId,
             newRemoteConfig.domainIsm
         );
-        remoteLzEndpointIds[newRemoteConfig.domainId] = newRemoteConfig
-            .endpointId;
-        remoteLzEndpoints[
+        remoteEndpointIds.assign(
+            newRemoteConfig.domainId,
             newRemoteConfig.endpointId
-        ] = LayerZeroEndpointEnrollment({
-            enrolled: true,
-            hyperlaneDomainId: newRemoteConfig.domainId
-        });
+        );
 
         emit LayerZeroRemoteRouterEnrolled(
             newRemoteConfig.domainId,
@@ -420,8 +425,8 @@ contract LayerZeroV2CcipReadHookIsm is
     }
 
     /// @dev Rejects endpoint IDs assigned to another domain and invalid policy.
-    function _validateLayerZeroEnrollment(
-        RemoteRouterEnrollment calldata newRemoteConfig
+    function _validateRemoteRouterConfig(
+        RemoteRouterConfig calldata newRemoteConfig
     ) internal view {
         if (newRemoteConfig.domainId == localDomain) {
             revert InvalidRemoteDomain(newRemoteConfig.domainId);
@@ -438,29 +443,28 @@ contract LayerZeroV2CcipReadHookIsm is
             revert InvalidLayerZeroPeer(newRemoteConfig.domainIsm);
         }
 
-        LayerZeroEndpointEnrollment
-            memory currentEndpointEnrollment = remoteLzEndpoints[
+        ReverseMappingLib.ReverseEntry
+            memory currentEndpoint = remoteEndpointIds.keyOf(
                 newRemoteConfig.endpointId
-            ];
+            );
         if (
-            currentEndpointEnrollment.enrolled &&
-            currentEndpointEnrollment.hyperlaneDomainId !=
-            newRemoteConfig.domainId
+            currentEndpoint.assigned &&
+            currentEndpoint.key != newRemoteConfig.domainId
         ) {
             revert LayerZeroEndpointIdAssignedToAnotherDomain(
                 newRemoteConfig.endpointId,
-                currentEndpointEnrollment.hyperlaneDomainId
+                currentEndpoint.key
             );
         }
 
         _validateRegisteredLibrary(newRemoteConfig.sendLibrary);
         _validateRegisteredLibrary(newRemoteConfig.receiveLibrary);
-        _validateEnrollmentConfigParams(
+        _validateRemoteConfigParams(
             newRemoteConfig.endpointId,
             newRemoteConfig.sendConfig,
             false
         );
-        _validateEnrollmentConfigParams(
+        _validateRemoteConfigParams(
             newRemoteConfig.endpointId,
             newRemoteConfig.receiveConfig,
             true
@@ -471,7 +475,7 @@ contract LayerZeroV2CcipReadHookIsm is
     /// Endpoint library selections and worker config persist independently of
     /// Hyperlane's route, so both must be retired when the route is removed.
     function _unenrollRemoteRouter(uint32 domainId) internal override {
-        uint32 endpointId = remoteLzEndpointIds[domainId];
+        uint32 endpointId = remoteEndpointIds.reverseKeyOf(domainId);
         if (endpointId == 0) {
             revert UnknownLayerZeroRoute(domainId);
         }
@@ -501,8 +505,7 @@ contract LayerZeroV2CcipReadHookIsm is
         _setReceiveLibrary(endpointId, blockedLibrary);
 
         // Free the endpoint ID for another domain and remove the Router peer.
-        delete remoteLzEndpointIds[domainId];
-        delete remoteLzEndpoints[endpointId];
+        remoteEndpointIds.remove(domainId);
         super._unenrollRemoteRouter(domainId);
 
         emit LayerZeroRemoteRouterUnenrolled(domainId, endpointId, domainIsm);
@@ -512,7 +515,7 @@ contract LayerZeroV2CcipReadHookIsm is
     function _mustHaveRemoteEndpointId(
         uint32 domainId
     ) internal view returns (uint32 endpointId) {
-        endpointId = remoteLzEndpointIds[domainId];
+        endpointId = remoteEndpointIds.reverseKeyOf(domainId);
         if (endpointId == 0) {
             revert UnknownLayerZeroRoute(domainId);
         }
@@ -632,7 +635,7 @@ contract LayerZeroV2CcipReadHookIsm is
     }
 
     /// @dev Only ULN302's Executor and DVN config types are supported.
-    function _validateEnrollmentConfigParams(
+    function _validateRemoteConfigParams(
         uint32 endpointId,
         LayerZeroSetConfigParam[] calldata params,
         bool isReceiveConfig
@@ -736,7 +739,7 @@ contract LayerZeroV2CcipReadHookIsm is
         address libraryAddress
     ) internal {
         if (
-            remoteLzEndpoints[endpointId].enrolled &&
+            remoteEndpointIds.keyOf(endpointId).assigned &&
             endpointContract.getSendLibrary(address(this), endpointId) ==
             libraryAddress
         ) {
@@ -758,7 +761,7 @@ contract LayerZeroV2CcipReadHookIsm is
         uint32 endpointId,
         address libraryAddress
     ) internal {
-        if (remoteLzEndpoints[endpointId].enrolled) {
+        if (remoteEndpointIds.keyOf(endpointId).assigned) {
             (address currentLibrary, ) = endpointContract.getReceiveLibrary(
                 address(this),
                 endpointId
@@ -789,14 +792,13 @@ contract LayerZeroV2CcipReadHookIsm is
     function allowInitializePath(
         LayerZeroOrigin calldata origin
     ) external view returns (bool) {
-        LayerZeroEndpointEnrollment memory enrollment = remoteLzEndpoints[
-            origin.srcEid
-        ];
-        if (!enrollment.enrolled) {
+        ReverseMappingLib.ReverseEntry memory remoteEndpoint = remoteEndpointIds
+            .keyOf(origin.srcEid);
+        if (!remoteEndpoint.assigned) {
             return false;
         }
 
-        return routers(enrollment.hyperlaneDomainId) == origin.sender;
+        return routers(remoteEndpoint.key) == origin.sender;
     }
 
     /// @notice Reports whether this OApp requires ordered message execution.

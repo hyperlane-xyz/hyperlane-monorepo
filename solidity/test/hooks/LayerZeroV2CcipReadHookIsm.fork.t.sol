@@ -41,12 +41,7 @@ contract LayerZeroV2CcipReadHookIsmForkTest is Test {
     LayerZeroV2CcipReadHookIsm internal router;
 
     function setUp() public {
-        string memory rpcUrl = vm.envOr("LAYERZERO_FORK_RPC_URL", string(""));
-        if (bytes(rpcUrl).length == 0) {
-            vm.skip(true);
-            return;
-        }
-        vm.createSelectFork(rpcUrl, ETHEREUM_FORK_BLOCK);
+        vm.createSelectFork("mainnet", ETHEREUM_FORK_BLOCK);
 
         assertEq(ENDPOINT.eid(), ETHEREUM_ENDPOINT_ID);
         assertEq(ENDPOINT.nativeToken(), address(0));
@@ -67,7 +62,7 @@ contract LayerZeroV2CcipReadHookIsmForkTest is Test {
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
         router.enrollLayerZeroRemoteRouter(
-            LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment({
+            LayerZeroV2CcipReadHookIsm.RemoteRouterConfig({
                 domainId: ARBITRUM_DOMAIN,
                 domainIsm: address(0xBEEF).addressToBytes32(),
                 endpointId: ARBITRUM_ENDPOINT_ID,
@@ -117,9 +112,9 @@ contract LayerZeroV2CcipReadHookIsmForkTest is Test {
             config: updatedExecutorConfig
         });
 
-        LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment
+        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig
             memory newRemoteConfig = LayerZeroV2CcipReadHookIsm
-                .RemoteRouterEnrollment({
+                .RemoteRouterConfig({
                     domainId: ARBITRUM_DOMAIN,
                     domainIsm: address(0xCAFE).addressToBytes32(),
                     endpointId: ARBITRUM_ENDPOINT_ID,
@@ -194,8 +189,8 @@ contract LayerZeroV2CcipReadHookIsmForkTest is Test {
         });
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
-        LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment
-            memory config = LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment({
+        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig
+            memory config = LayerZeroV2CcipReadHookIsm.RemoteRouterConfig({
                 domainId: ARBITRUM_DOMAIN,
                 domainIsm: address(0xBEEF).addressToBytes32(),
                 endpointId: ARBITRUM_ENDPOINT_ID,
@@ -288,7 +283,7 @@ contract LayerZeroV2CcipReadHookIsmForkTest is Test {
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
         newRouter.enrollLayerZeroRemoteRouter(
-            LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment({
+            LayerZeroV2CcipReadHookIsm.RemoteRouterConfig({
                 domainId: ARBITRUM_DOMAIN,
                 domainIsm: address(0xBEEF).addressToBytes32(),
                 endpointId: ARBITRUM_ENDPOINT_ID,
@@ -308,7 +303,7 @@ contract LayerZeroV2CcipReadHookIsmForkTest is Test {
 
         newRouter.unenrollRemoteRouter(ARBITRUM_DOMAIN);
         newRouter.enrollLayerZeroRemoteRouter(
-            LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment({
+            LayerZeroV2CcipReadHookIsm.RemoteRouterConfig({
                 domainId: ARBITRUM_DOMAIN,
                 domainIsm: address(0xBEEF).addressToBytes32(),
                 endpointId: ARBITRUM_ENDPOINT_ID,
@@ -347,7 +342,7 @@ contract LayerZeroV2CcipReadHookIsmForkTest is Test {
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
         router.enrollLayerZeroRemoteRouter(
-            LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment({
+            LayerZeroV2CcipReadHookIsm.RemoteRouterConfig({
                 domainId: ARBITRUM_DOMAIN,
                 domainIsm: address(0xBEEF).addressToBytes32(),
                 endpointId: ARBITRUM_ENDPOINT_ID,

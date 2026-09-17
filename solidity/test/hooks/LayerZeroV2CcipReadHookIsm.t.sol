@@ -125,7 +125,7 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
         router.enrollLayerZeroRemoteRouter(
-            LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment({
+            LayerZeroV2CcipReadHookIsm.RemoteRouterConfig({
                 domainId: domain,
                 domainIsm: remote.addressToBytes32(),
                 endpointId: endpointId,
@@ -157,15 +157,15 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
         );
     }
 
-    function _defaultEnrollment()
+    function _defaultRemoteRouterConfig()
         internal
         view
-        returns (LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment memory)
+        returns (LayerZeroV2CcipReadHookIsm.RemoteRouterConfig memory)
     {
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
         return
-            LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment({
+            LayerZeroV2CcipReadHookIsm.RemoteRouterConfig({
                 domainId: DESTINATION,
                 domainIsm: address(destinationRouter).addressToBytes32(),
                 endpointId: DESTINATION_ENDPOINT_ID,
@@ -294,8 +294,8 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
     function testUnenrollClearsEndpointPolicyAndReenrollmentStartsClean()
         public
     {
-        LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment
-            memory config = _defaultEnrollment();
+        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig
+            memory config = _defaultRemoteRouterConfig();
         config.sendConfig = new LayerZeroSetConfigParam[](1);
         config.sendConfig[0] = LayerZeroSetConfigParam({
             eid: DESTINATION_ENDPOINT_ID,
@@ -400,8 +400,8 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
     }
 
     function testEnrollmentOverwritesPeerAtomically() public {
-        LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment
-            memory config = _defaultEnrollment();
+        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig
+            memory config = _defaultRemoteRouterConfig();
         config.domainIsm = address(0x1234).addressToBytes32();
         originRouter.enrollLayerZeroRemoteRouter(config);
         assertEq(originRouter.routers(DESTINATION), config.domainIsm);
@@ -412,8 +412,8 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
     }
 
     function testOverwriteWithOmittedConfigRestoresDefaults() public {
-        LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment
-            memory config = _defaultEnrollment();
+        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig
+            memory config = _defaultRemoteRouterConfig();
         config.sendConfig = new LayerZeroSetConfigParam[](1);
         config.sendConfig[0] = LayerZeroSetConfigParam({
             eid: DESTINATION_ENDPOINT_ID,
@@ -462,8 +462,8 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
     }
 
     function testOverwriteBlocksOldEndpointWithoutResettingItsConfig() public {
-        LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment
-            memory config = _defaultEnrollment();
+        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig
+            memory config = _defaultRemoteRouterConfig();
         config.sendConfig = new LayerZeroSetConfigParam[](1);
         config.sendConfig[0] = LayerZeroSetConfigParam({
             eid: DESTINATION_ENDPOINT_ID,
@@ -509,8 +509,8 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
 
     function testOverwriteRollsBackIfOldEndpointBlockingFails() public {
         bytes32 currentPeer = originRouter.routers(DESTINATION);
-        LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment
-            memory config = _defaultEnrollment();
+        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig
+            memory config = _defaultRemoteRouterConfig();
         config.domainIsm = address(0x1234).addressToBytes32();
         config.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
         vm.mockCallRevert(
@@ -597,8 +597,8 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
                 })
             )
         );
-        LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment
-            memory aliasConfig = _defaultEnrollment();
+        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig
+            memory aliasConfig = _defaultRemoteRouterConfig();
         aliasConfig.domainId = SECOND_DESTINATION;
         aliasConfig.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
         vm.expectRevert(
@@ -636,42 +636,68 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
         assertEq(domainId, SECOND_DESTINATION);
     }
 
-    function testEnrollmentValidation() public {
-        LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment
-            memory enrollment = _defaultEnrollment();
+    function testEndpointIdCanBeReusedAfterRouteMoves() public {
+        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig
+            memory remoteConfig = _defaultRemoteRouterConfig();
+        remoteConfig.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
+        originRouter.enrollLayerZeroRemoteRouter(remoteConfig);
 
-        enrollment.domainId = ORIGIN;
+        remoteConfig.domainId = SECOND_DESTINATION;
+        remoteConfig.domainIsm = address(0xBEEF).addressToBytes32();
+        remoteConfig.endpointId = DESTINATION_ENDPOINT_ID;
+        originRouter.enrollLayerZeroRemoteRouter(remoteConfig);
+
+        assertEq(
+            originRouter.remoteLzEndpointIds(DESTINATION),
+            SECOND_DESTINATION_ENDPOINT_ID
+        );
+        assertEq(
+            originRouter.remoteLzEndpointIds(SECOND_DESTINATION),
+            DESTINATION_ENDPOINT_ID
+        );
+        (bool enrolled, uint32 domainId) = originRouter.remoteLzEndpoints(
+            DESTINATION_ENDPOINT_ID
+        );
+        assertTrue(enrolled);
+        assertEq(domainId, SECOND_DESTINATION);
+    }
+
+    function testEnrollmentValidation() public {
+        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig
+            memory remoteConfig = _defaultRemoteRouterConfig();
+
+        remoteConfig.domainId = ORIGIN;
         vm.expectRevert(
             abi.encodeWithSelector(
                 LayerZeroV2CcipReadHookIsm.InvalidRemoteDomain.selector,
                 ORIGIN
             )
         );
-        originRouter.enrollLayerZeroRemoteRouter(enrollment);
+        originRouter.enrollLayerZeroRemoteRouter(remoteConfig);
 
-        enrollment = _defaultEnrollment();
-        enrollment.endpointId = ORIGIN_ENDPOINT_ID;
+        remoteConfig = _defaultRemoteRouterConfig();
+        remoteConfig.endpointId = ORIGIN_ENDPOINT_ID;
         vm.expectRevert(
             abi.encodeWithSelector(
                 LayerZeroV2CcipReadHookIsm.InvalidRemoteEndpointId.selector,
                 ORIGIN_ENDPOINT_ID
             )
         );
-        originRouter.enrollLayerZeroRemoteRouter(enrollment);
+        originRouter.enrollLayerZeroRemoteRouter(remoteConfig);
 
-        enrollment = _defaultEnrollment();
-        enrollment.domainIsm = bytes32(0);
+        remoteConfig = _defaultRemoteRouterConfig();
+        remoteConfig.domainIsm = bytes32(0);
         vm.expectRevert(
             abi.encodeWithSelector(
                 LayerZeroV2CcipReadHookIsm.InvalidLayerZeroPeer.selector,
                 bytes32(0)
             )
         );
-        originRouter.enrollLayerZeroRemoteRouter(enrollment);
+        originRouter.enrollLayerZeroRemoteRouter(remoteConfig);
 
-        enrollment = _defaultEnrollment();
-        enrollment.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
-        originRouter.enrollLayerZeroRemoteRouter(enrollment);
+        remoteConfig = _defaultRemoteRouterConfig();
+        remoteConfig.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
+        originRouter.enrollLayerZeroRemoteRouter(remoteConfig);
         assertEq(
             originRouter.remoteLzEndpointIds(DESTINATION),
             SECOND_DESTINATION_ENDPOINT_ID
@@ -681,10 +707,10 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
         );
         assertFalse(oldEndpointEnrolled);
 
-        enrollment = _defaultEnrollment();
-        enrollment.domainId = SECOND_DESTINATION;
-        enrollment.domainIsm = address(0xBEEF).addressToBytes32();
-        enrollment.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
+        remoteConfig = _defaultRemoteRouterConfig();
+        remoteConfig.domainId = SECOND_DESTINATION;
+        remoteConfig.domainIsm = address(0xBEEF).addressToBytes32();
+        remoteConfig.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
         vm.expectRevert(
             abi.encodeWithSelector(
                 LayerZeroV2CcipReadHookIsm
@@ -694,12 +720,12 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
                 DESTINATION
             )
         );
-        originRouter.enrollLayerZeroRemoteRouter(enrollment);
+        originRouter.enrollLayerZeroRemoteRouter(remoteConfig);
 
         originRouter.unenrollRemoteRouter(DESTINATION);
-        enrollment = _defaultEnrollment();
-        enrollment.receiveConfig = new LayerZeroSetConfigParam[](1);
-        enrollment.receiveConfig[0] = LayerZeroSetConfigParam({
+        remoteConfig = _defaultRemoteRouterConfig();
+        remoteConfig.receiveConfig = new LayerZeroSetConfigParam[](1);
+        remoteConfig.receiveConfig[0] = LayerZeroSetConfigParam({
             eid: DESTINATION_ENDPOINT_ID,
             configType: 1,
             config: hex""
@@ -710,15 +736,15 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
                 1
             )
         );
-        originRouter.enrollLayerZeroRemoteRouter(enrollment);
+        originRouter.enrollLayerZeroRemoteRouter(remoteConfig);
     }
 
     function testEnrollsExplicitReceiveLibraryWithoutEndpointDefault() public {
-        LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment
-            memory enrollment = _defaultEnrollment();
-        enrollment.domainId = SECOND_DESTINATION;
-        enrollment.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
-        enrollment.domainIsm = address(0xBEEF).addressToBytes32();
+        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig
+            memory remoteConfig = _defaultRemoteRouterConfig();
+        remoteConfig.domainId = SECOND_DESTINATION;
+        remoteConfig.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
+        remoteConfig.domainIsm = address(0xBEEF).addressToBytes32();
 
         assertEq(
             originEndpoint.defaultReceiveLibraries(
@@ -726,7 +752,7 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
             ),
             address(0)
         );
-        originRouter.enrollLayerZeroRemoteRouter(enrollment);
+        originRouter.enrollLayerZeroRemoteRouter(remoteConfig);
 
         (address receiveLibrary, bool isDefault) = originEndpoint
             .getReceiveLibrary(
@@ -743,7 +769,7 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
         destinationRouter.unenrollRemoteRouter(ORIGIN);
         destinationRouter.enrollLayerZeroRemoteRouter(
-            LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment({
+            LayerZeroV2CcipReadHookIsm.RemoteRouterConfig({
                 domainId: ORIGIN,
                 domainIsm: nonEvmPeer,
                 endpointId: ORIGIN_ENDPOINT_ID,
@@ -791,9 +817,9 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
             LayerZeroV2CcipReadHookIsm.WrongPacketGuid.selector
         );
 
-        LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment
+        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig
             memory newRemoteConfig = LayerZeroV2CcipReadHookIsm
-                .RemoteRouterEnrollment({
+                .RemoteRouterConfig({
                     domainId: ORIGIN,
                     domainIsm: bytes32(uint256(1) << 255),
                     endpointId: ORIGIN_ENDPOINT_ID,
@@ -841,8 +867,8 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
 
     function testNonEvmPeerCanBeUpdatedAndSentTo() public {
         bytes32 nonEvmPeer = bytes32(type(uint256).max);
-        LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment
-            memory newRemoteConfig = _defaultEnrollment();
+        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig
+            memory newRemoteConfig = _defaultRemoteRouterConfig();
         newRemoteConfig.domainIsm = nonEvmPeer;
         originRouter.unenrollRemoteRouter(DESTINATION);
         originRouter.enrollLayerZeroRemoteRouter(newRemoteConfig);
@@ -955,7 +981,7 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
         originRouter.unenrollRemoteRouter(DESTINATION);
         originRouter.enrollLayerZeroRemoteRouter(
-            LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment({
+            LayerZeroV2CcipReadHookIsm.RemoteRouterConfig({
                 domainId: DESTINATION,
                 domainIsm: address(destinationRouter).addressToBytes32(),
                 endpointId: DESTINATION_ENDPOINT_ID,
@@ -995,8 +1021,8 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
             configType: 2,
             config: hex"abcd"
         });
-        LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment
-            memory newRemoteConfig = _defaultEnrollment();
+        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig
+            memory newRemoteConfig = _defaultRemoteRouterConfig();
         newRemoteConfig.domainIsm = newRouter;
         newRemoteConfig.sendConfig = sendConfig;
         newRemoteConfig.receiveConfig = receiveConfig;
@@ -1053,8 +1079,8 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
                 ORIGIN_ENDPOINT_ID
             )
         );
-        LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment
-            memory newRemoteConfig = _defaultEnrollment();
+        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig
+            memory newRemoteConfig = _defaultRemoteRouterConfig();
         newRemoteConfig.domainId = SECOND_DESTINATION;
         newRemoteConfig.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
         newRemoteConfig.domainIsm = address(0x1234).addressToBytes32();
@@ -1073,13 +1099,13 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
         );
         originRouter.unenrollRemoteRouter(DESTINATION);
         originRouter.unenrollRemoteRouter(SECOND_DESTINATION);
-        LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment[]
-            memory newRemoteConfigs = new LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment[](
+        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig[]
+            memory newRemoteConfigs = new LayerZeroV2CcipReadHookIsm.RemoteRouterConfig[](
                 2
             );
-        newRemoteConfigs[0] = _defaultEnrollment();
+        newRemoteConfigs[0] = _defaultRemoteRouterConfig();
         newRemoteConfigs[0].domainIsm = address(0x1234).addressToBytes32();
-        newRemoteConfigs[1] = _defaultEnrollment();
+        newRemoteConfigs[1] = _defaultRemoteRouterConfig();
         newRemoteConfigs[1].domainId = SECOND_DESTINATION;
         newRemoteConfigs[1].endpointId = SECOND_DESTINATION_ENDPOINT_ID;
         newRemoteConfigs[1].domainIsm = address(0x5678).addressToBytes32();
@@ -1105,13 +1131,13 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
         );
         originRouter.unenrollRemoteRouter(DESTINATION);
         originRouter.unenrollRemoteRouter(SECOND_DESTINATION);
-        LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment[]
-            memory newRemoteConfigs = new LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment[](
+        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig[]
+            memory newRemoteConfigs = new LayerZeroV2CcipReadHookIsm.RemoteRouterConfig[](
                 2
             );
-        newRemoteConfigs[0] = _defaultEnrollment();
+        newRemoteConfigs[0] = _defaultRemoteRouterConfig();
         newRemoteConfigs[0].domainIsm = address(0x1234).addressToBytes32();
-        newRemoteConfigs[1] = _defaultEnrollment();
+        newRemoteConfigs[1] = _defaultRemoteRouterConfig();
         newRemoteConfigs[1].domainId = SECOND_DESTINATION;
         newRemoteConfigs[1].endpointId = SECOND_DESTINATION_ENDPOINT_ID;
         newRemoteConfigs[1].domainIsm = bytes32(0);
@@ -1130,7 +1156,7 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
     function testConfigurationIsOwnerGated() public {
         vm.prank(address(0xBEEF));
         vm.expectRevert("Ownable: caller is not the owner");
-        originRouter.enrollLayerZeroRemoteRouter(_defaultEnrollment());
+        originRouter.enrollLayerZeroRemoteRouter(_defaultRemoteRouterConfig());
     }
 
     function testAtomicEnrollmentRollsBackIncompleteRoute() public {
@@ -1149,7 +1175,7 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
         router.enrollLayerZeroRemoteRouter(
-            LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment({
+            LayerZeroV2CcipReadHookIsm.RemoteRouterConfig({
                 domainId: DESTINATION,
                 domainIsm: address(destinationRouter).addressToBytes32(),
                 endpointId: DESTINATION_ENDPOINT_ID,
@@ -1294,7 +1320,7 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
         destinationRouter.enrollLayerZeroRemoteRouter(
-            LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment({
+            LayerZeroV2CcipReadHookIsm.RemoteRouterConfig({
                 domainId: ORIGIN,
                 domainIsm: address(originRouter).addressToBytes32(),
                 endpointId: ORIGIN_ENDPOINT_ID,
@@ -1935,11 +1961,11 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
     function testPullBatchEnrollmentAndOffchainLookup() public {
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
-        LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment[]
-            memory enrollments = new LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment[](
+        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig[]
+            memory remoteConfigs = new LayerZeroV2CcipReadHookIsm.RemoteRouterConfig[](
                 1
             );
-        enrollments[0] = LayerZeroV2CcipReadHookIsm.RemoteRouterEnrollment({
+        remoteConfigs[0] = LayerZeroV2CcipReadHookIsm.RemoteRouterConfig({
             domainId: SECOND_DESTINATION,
             domainIsm: address(0xBEEF).addressToBytes32(),
             endpointId: SECOND_DESTINATION_ENDPOINT_ID,
@@ -1949,7 +1975,7 @@ contract LayerZeroV2CcipReadHookIsmTest is Test {
             receiveConfig: emptyConfig
         });
         LayerZeroV2CcipReadHookIsm(address(originRouter))
-            .enrollLayerZeroRemoteRouters(enrollments);
+            .enrollLayerZeroRemoteRouters(remoteConfigs);
         assertEq(
             originRouter.routers(SECOND_DESTINATION),
             address(0xBEEF).addressToBytes32()
