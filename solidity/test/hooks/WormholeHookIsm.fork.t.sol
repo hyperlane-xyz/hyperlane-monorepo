@@ -430,7 +430,7 @@ contract WormholeHookIsmForkTest is Test {
             urls
         );
         origin.enrollRemoteRouter(
-            WormholeVaaHookIsm.RemoteRouterEnrollment({
+            WormholeVaaHookIsm.RemoteRouterConfig({
                 domainId: HYP_BASE,
                 domainIsm: address(destination).addressToBytes32(),
                 wormholeChainId: WH_BASE,
@@ -440,7 +440,7 @@ contract WormholeHookIsmForkTest is Test {
 
         vm.selectFork(baseFork);
         destination.enrollRemoteRouter(
-            WormholeVaaHookIsm.RemoteRouterEnrollment({
+            WormholeVaaHookIsm.RemoteRouterConfig({
                 domainId: HYP_ETHEREUM,
                 domainIsm: address(origin).addressToBytes32(),
                 wormholeChainId: WH_ETHEREUM,

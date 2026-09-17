@@ -59,9 +59,18 @@ library WormholeMessage {
     function decode(
         bytes memory payload
     ) internal pure returns (Message memory m) {
-        if (payload.length != ENCODED_LENGTH) revert InvalidPayloadLength();
+        if (payload.length != ENCODED_LENGTH) {
+            revert InvalidPayloadLength();
+        }
+
         m = abi.decode(payload, (Message));
-        if (m.magic != MAGIC) revert InvalidPayloadMagic();
-        if (m.version != VERSION) revert InvalidPayloadVersion();
+
+        if (m.magic != MAGIC) {
+            revert InvalidPayloadMagic();
+        }
+
+        if (m.version != VERSION) {
+            revert InvalidPayloadVersion();
+        }
     }
 }

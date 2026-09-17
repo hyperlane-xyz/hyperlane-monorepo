@@ -27,6 +27,7 @@ import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {IEvmCoreBridge} from "../../interfaces/wormhole/IEvmCoreBridge.sol";
 import {IWormholeVaaService} from "../../interfaces/wormhole/IWormholeVaaService.sol";
 import {Message} from "../../libs/Message.sol";
+import {ReverseMappingLib} from "../../libs/ReverseMapping.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {WormholeMessage} from "../../libs/WormholeMessage.sol";
 import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
@@ -53,6 +54,7 @@ contract WormholeVaaHookIsm is
     using StandardHookMetadata for bytes;
     using TypeCasts for address;
     using TypeCasts for bytes32;
+    using ReverseMappingLib for ReverseMappingLib.Uint16ReverseMappingStorage;
 
     // ============ Errors ============
 
@@ -61,8 +63,6 @@ contract WormholeVaaHookIsm is
     error InvalidDomainIsm();
     error InvalidWormholeChainId();
     error InvalidRemoteWormholeChainId();
-    error WormholeChainIdAlreadyEnrolled();
-    error WormholeChainIdChangeRequiresUnenrollment();
     error CompleteWormholeEnrollmentRequired();
     error InvalidWormholeCore();
     error InvalidWormholeEvmChainId();
@@ -114,10 +114,10 @@ contract WormholeVaaHookIsm is
 
     // ============ Types ============
 
-    /// @notice Complete remote hook/ISM enrollment input.
+    /// @notice Complete configuration for a remote hook/ISM route.
     /// @dev The hook/ISM address, Wormhole chain ID, and expected consistency
     /// level are installed atomically.
-    struct RemoteRouterEnrollment {
+    struct RemoteRouterConfig {
         /// @notice Hyperlane domain of the remote hook/ISM.
         uint32 domainId;
         /// @notice Remote hook/ISM address encoded as `bytes32`.
@@ -126,25 +126,6 @@ contract WormholeVaaHookIsm is
         uint16 wormholeChainId;
         /// @notice Consistency level required in VAAs from the remote hook/ISM.
         uint8 expectedConsistencyLevel;
-    }
-
-    /// @notice Wormhole authentication settings for one Hyperlane domain ID.
-    /// @dev The corresponding emitter address is stored by `Router.routers`.
-    struct RemoteRouterConfig {
-        /// @notice Wormhole chain from which the remote VAA must originate.
-        uint16 wormholeChainId;
-        /// @notice Consistency level required in VAAs from the remote hook/ISM.
-        uint8 expectedConsistencyLevel;
-    }
-
-    /// @notice Reverse lookup from a Wormhole chain to its Hyperlane domain ID.
-    /// @dev The explicit flag allows Hyperlane domain ID zero without sentinel
-    /// arithmetic.
-    struct WormholeChainEnrollment {
-        /// @notice Whether this Wormhole chain ID is assigned to a domain.
-        bool enrolled;
-        /// @notice Hyperlane domain assigned to this Wormhole chain ID.
-        uint32 hyperlaneDomainId;
     }
 
     // ============ Immutables ============
@@ -173,16 +154,13 @@ contract WormholeVaaHookIsm is
 
     // ============ Storage ============
 
-    /// @notice Wormhole chain ID and expected VAA consistency level for each
-    /// Hyperlane domain ID.
-    /// @dev Together with the emitter address in `Router.routers`, this binds a
-    /// VAA to exactly one enrolled remote hook/ISM and its expected consistency level.
-    mapping(uint32 domainId => RemoteRouterConfig config)
-        public remoteRouterConfigs;
+    /// @notice One-to-one mapping between Hyperlane domains and Wormhole chains.
+    ReverseMappingLib.Uint16ReverseMappingStorage private remoteChainIds;
 
-    /// @notice Enrollment for each Wormhole chain ID.
-    mapping(uint16 wormholeChainId => WormholeChainEnrollment enrollment)
-        public wormholeChainEnrollments;
+    /// @notice Expected VAA consistency level for each Hyperlane domain.
+    /// @dev A route is valid only when `Router.routers` and `remoteChainIds`
+    /// also contain that domain.
+    mapping(uint32 domainId => uint8 level) private expectedConsistencyLevels;
 
     /// @notice Whether each Hyperlane message ID has been published through
     /// Wormhole Core by this contract.
@@ -206,7 +184,9 @@ contract WormholeVaaHookIsm is
         }
 
         wormholeChainId = wormholeCoreBridge.chainId();
-        if (wormholeChainId == 0) revert InvalidWormholeChainId();
+        if (wormholeChainId == 0) {
+            revert InvalidWormholeChainId();
+        }
 
         _validateAndConfigureConsistencyLevel(_consistencyLevelConfig);
         consistencyLevel = _consistencyLevelConfig.consistencyLevel;
@@ -252,31 +232,58 @@ contract WormholeVaaHookIsm is
         if (wormholeMessage.originDomain != message.origin()) {
             revert WrongOriginDomain();
         }
+
         if (wormholeMessage.destinationDomain != message.destination()) {
             revert WrongDestinationDomain();
         }
+
         if (wormholeMessage.messageId != message.id()) {
             revert WrongMessageId();
         }
+
         if (wormholeMessage.nonce != message.nonce()) {
             revert HyperlaneNonceMismatch();
         }
+
         return true;
     }
 
     // ============ Router ============
 
+    /// @notice Returns the Wormhole chain ID and expected consistency level
+    /// for a Hyperlane domain, or zero values if it is not enrolled.
+    function remoteRouterConfigs(
+        uint32 domainId
+    ) public view returns (uint16 remoteWormholeChainId, uint8 expectedLevel) {
+        return (
+            remoteChainIds.reverseKeyOf(domainId),
+            expectedConsistencyLevels[domainId]
+        );
+    }
+
+    /// @notice Returns the Hyperlane domain assigned to a Wormhole chain ID.
+    /// @dev `enrolled` distinguishes domain ID zero from an unassigned chain.
+    function remoteWormholeChains(
+        uint16 remoteWormholeChainId
+    ) public view returns (bool enrolled, uint32 hyperlaneDomainId) {
+        ReverseMappingLib.ReverseEntry memory entry = remoteChainIds.keyOf(
+            remoteWormholeChainId
+        );
+
+        return (entry.assigned, entry.key);
+    }
+
     /// @notice Enrolls a remote hook/ISM address, Wormhole chain ID, and
     /// expected VAA consistency level.
     function enrollRemoteRouter(
-        RemoteRouterEnrollment calldata newRemoteConfig
+        RemoteRouterConfig calldata newRemoteConfig
     ) external onlyOwner {
         _enrollWormholeRemoteRouter(newRemoteConfig);
     }
 
     /// @notice Batch version of `enrollRemoteRouter`.
     function enrollRemoteRouters(
-        RemoteRouterEnrollment[] calldata newRemoteConfigs
+        RemoteRouterConfig[] calldata newRemoteConfigs
     ) external onlyOwner {
         for (uint256 i; i < newRemoteConfigs.length; ++i) {
             _enrollWormholeRemoteRouter(newRemoteConfigs[i]);
@@ -286,55 +293,34 @@ contract WormholeVaaHookIsm is
     /// @dev Installs the remote hook/ISM address in `Router` together with its
     /// Wormhole chain ID and expected VAA consistency level.
     function _enrollWormholeRemoteRouter(
-        RemoteRouterEnrollment calldata newRemoteConfig
+        RemoteRouterConfig calldata newRemoteConfig
     ) internal {
         uint32 domainId = newRemoteConfig.domainId;
         bytes32 domainIsm = newRemoteConfig.domainIsm;
 
-        if (domainId == localDomain) revert InvalidRemoteDomain();
+        if (domainId == localDomain) {
+            revert InvalidRemoteDomain();
+        }
+
         // TypeCasts rejects non-canonical bytes32 values that do not fit address.
         if (domainIsm.bytes32ToAddress() == address(0)) {
             revert InvalidDomainIsm();
         }
-        if (newRemoteConfig.wormholeChainId == 0)
+
+        if (newRemoteConfig.wormholeChainId == 0) {
             revert InvalidWormholeChainId();
+        }
+
         if (newRemoteConfig.wormholeChainId == wormholeChainId) {
             revert InvalidRemoteWormholeChainId();
         }
 
-        WormholeChainEnrollment
-            memory currentChainEnrollment = wormholeChainEnrollments[
-                newRemoteConfig.wormholeChainId
-            ];
-        if (
-            currentChainEnrollment.enrolled &&
-            currentChainEnrollment.hyperlaneDomainId != domainId
-        ) {
-            revert WormholeChainIdAlreadyEnrolled();
-        }
-
-        RemoteRouterConfig memory currentRemoteConfig = remoteRouterConfigs[
-            domainId
-        ];
-        if (
-            routers(domainId) != bytes32(0) &&
-            currentRemoteConfig.wormholeChainId !=
-            newRemoteConfig.wormholeChainId
-        ) {
-            revert WormholeChainIdChangeRequiresUnenrollment();
-        }
-
+        // `assign` rejects another domain's chain ID and releases this
+        // domain's previous chain ID when it changes.
+        remoteChainIds.assign(domainId, newRemoteConfig.wormholeChainId);
         Router._enrollRemoteRouter(domainId, domainIsm);
-        remoteRouterConfigs[domainId] = RemoteRouterConfig({
-            wormholeChainId: newRemoteConfig.wormholeChainId,
-            expectedConsistencyLevel: newRemoteConfig.expectedConsistencyLevel
-        });
-        wormholeChainEnrollments[
-            newRemoteConfig.wormholeChainId
-        ] = WormholeChainEnrollment({
-            enrolled: true,
-            hyperlaneDomainId: domainId
-        });
+        expectedConsistencyLevels[domainId] = newRemoteConfig
+            .expectedConsistencyLevel;
 
         emit WormholeRemoteRouterEnrolled(
             domainId,
@@ -350,20 +336,19 @@ contract WormholeVaaHookIsm is
         revert CompleteWormholeEnrollmentRequired();
     }
 
-    /// @dev Deletes the Wormhole-chain reverse lookup and domain configuration
-    /// before removing the remote hook/ISM from `Router`.
+    /// @dev Removes both chain-ID directions and the consistency policy before
+    /// removing the remote hook/ISM from `Router`.
     function _unenrollRemoteRouter(uint32 domainId) internal override {
         bytes32 domainIsm = _mustHaveRemoteRouter(domainId);
-        RemoteRouterConfig memory config = remoteRouterConfigs[domainId];
+        uint16 remoteWormholeChainId = remoteChainIds.remove(domainId);
 
-        delete wormholeChainEnrollments[config.wormholeChainId];
-        delete remoteRouterConfigs[domainId];
+        delete expectedConsistencyLevels[domainId];
         Router._unenrollRemoteRouter(domainId);
 
         emit WormholeRemoteRouterUnenrolled(
             domainId,
             domainIsm,
-            config.wormholeChainId
+            remoteWormholeChainId
         );
     }
 
@@ -381,6 +366,7 @@ contract WormholeVaaHookIsm is
         bytes calldata message
     ) internal view override returns (uint256) {
         _mustHaveRemoteRouter(message.destination());
+
         return wormholeCoreBridge.messageFee();
     }
 
@@ -390,11 +376,18 @@ contract WormholeVaaHookIsm is
         bytes calldata message
     ) internal override {
         bytes32 messageId = message.id();
-        if (!_isLatestDispatched(messageId)) revert MessageNotDispatched();
-        if (publishedMessages[messageId]) revert MessageAlreadyPublished();
+        if (!_isLatestDispatched(messageId)) {
+            revert MessageNotDispatched();
+        }
+
+        if (publishedMessages[messageId]) {
+            revert MessageAlreadyPublished();
+        }
 
         uint256 coreFee = _quoteDispatch(metadata, message);
-        if (msg.value < coreFee) revert InsufficientFee(coreFee, msg.value);
+        if (msg.value < coreFee) {
+            revert InsufficientFee(coreFee, msg.value);
+        }
 
         // Effect before the Core call; a later failure reverts this write.
         publishedMessages[messageId] = true;
@@ -444,18 +437,22 @@ contract WormholeVaaHookIsm is
         bool valid;
         string memory reason;
         (vaa, valid, reason) = wormholeCoreBridge.parseAndVerifyVM(encodedVaa);
-        if (!valid) revert InvalidVaa(reason);
+        if (!valid) {
+            revert InvalidVaa(reason);
+        }
 
         wormholeMessage = WormholeMessage.decode(vaa.payload);
         if (wormholeMessage.destinationDomain != localDomain) {
             revert WrongDestinationDomain();
         }
+
         if (
             wormholeMessage.destinationRouter !=
             address(this).addressToBytes32()
         ) {
             revert WrongDestinationRouter();
         }
+
         if (vaa.nonce != wormholeMessage.nonce) {
             revert WormholeNonceMismatch();
         }
@@ -480,15 +477,20 @@ contract WormholeVaaHookIsm is
         bytes32 emitterAddress
     ) internal view returns (uint8) {
         bytes32 expectedEmitter = _mustHaveRemoteRouter(originDomain);
-        RemoteRouterConfig memory config = remoteRouterConfigs[originDomain];
+        (
+            uint16 expectedWormholeChainId,
+            uint8 expectedConsistencyLevel
+        ) = remoteRouterConfigs(originDomain);
 
-        if (emitterChainId != config.wormholeChainId) {
+        if (emitterChainId != expectedWormholeChainId) {
             revert WrongEmitterChainId();
         }
+
         if (emitterAddress != expectedEmitter) {
             revert WrongEmitterAddress();
         }
-        return config.expectedConsistencyLevel;
+
+        return expectedConsistencyLevel;
     }
 
     // ============ AbstractCcipReadIsm ============
@@ -507,17 +509,23 @@ contract WormholeVaaHookIsm is
     function _decodeCcipReadResponse(
         bytes calldata metadata
     ) internal pure returns (bytes memory encodedVaa) {
-        if (metadata.length < 64) revert InvalidMetadata();
+        if (metadata.length < 64) {
+            revert InvalidMetadata();
+        }
 
         uint256 offset;
         assembly {
             offset := calldataload(metadata.offset)
         }
-        if (offset != 32) revert InvalidMetadata();
+        if (offset != 32) {
+            revert InvalidMetadata();
+        }
 
         encodedVaa = abi.decode(metadata, (bytes));
         uint256 paddedVaaLength = (encodedVaa.length + 31) & ~uint256(31);
-        if (metadata.length != 64 + paddedVaaLength) revert InvalidMetadata();
+        if (metadata.length != 64 + paddedVaaLength) {
+            revert InvalidMetadata();
+        }
     }
 
     // ============ Consistency level configuration ============

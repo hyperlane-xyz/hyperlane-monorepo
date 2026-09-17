@@ -7,6 +7,7 @@ import {CONSISTENCY_LEVEL_FINALIZED} from "wormhole-sdk/constants/ConsistencyLev
 
 import {WormholeVaaHookIsm} from "contracts/hooks/wormhole/WormholeVaaHookIsm.sol";
 import {WormholeMessage} from "contracts/libs/WormholeMessage.sol";
+import {ReverseMappingLib} from "contracts/libs/ReverseMapping.sol";
 import {WormholeConsistencyLevelConfig} from "contracts/hooks/wormhole/libs/CustomConsistencyLevel.sol";
 import {StandardHookMetadata} from "contracts/hooks/libs/StandardHookMetadata.sol";
 import {IInterchainSecurityModule} from "contracts/interfaces/IInterchainSecurityModule.sol";
@@ -220,13 +221,13 @@ contract WormholeHookIsmTest is Test {
             );
     }
 
-    function _enrollment(
+    function _remoteRouterConfig(
         uint32 domainId,
         address remote,
         uint16 wormholeChainId
-    ) internal pure returns (WormholeVaaHookIsm.RemoteRouterEnrollment memory) {
+    ) internal pure returns (WormholeVaaHookIsm.RemoteRouterConfig memory) {
         return
-            WormholeVaaHookIsm.RemoteRouterEnrollment({
+            WormholeVaaHookIsm.RemoteRouterConfig({
                 domainId: domainId,
                 domainIsm: TypeCasts.addressToBytes32(remote),
                 wormholeChainId: wormholeChainId,
@@ -314,8 +315,9 @@ contract WormholeHookIsmTest is Test {
         );
         assertEq(whId, WH_DESTINATION);
         assertEq(consistency, CONSISTENCY);
-        (bool enrolled, uint32 domainId) = originRouter
-            .wormholeChainEnrollments(WH_DESTINATION);
+        (bool enrolled, uint32 domainId) = originRouter.remoteWormholeChains(
+            WH_DESTINATION
+        );
         assertTrue(enrolled);
         assertEq(domainId, DESTINATION);
     }
@@ -350,7 +352,11 @@ contract WormholeHookIsmTest is Test {
 
     function test_enroll_rejectsWormholeChainIdAlias() public {
         vm.expectRevert(
-            WormholeVaaHookIsm.WormholeChainIdAlreadyEnrolled.selector
+            abi.encodeWithSelector(
+                ReverseMappingLib.ReverseKeyAssignedToAnotherKey.selector,
+                WH_DESTINATION,
+                DESTINATION
+            )
         );
         _enroll(originRouter, 3000, makeAddr("remote"), WH_DESTINATION);
     }
@@ -361,24 +367,90 @@ contract WormholeHookIsmTest is Test {
         uint16 wormholeChainId = 42;
         _enroll(originRouter, 0, makeAddr("domainZeroRouter"), wormholeChainId);
 
-        (bool enrolled, uint32 domainId) = originRouter
-            .wormholeChainEnrollments(wormholeChainId);
+        (bool enrolled, uint32 domainId) = originRouter.remoteWormholeChains(
+            wormholeChainId
+        );
         assertTrue(enrolled);
         assertEq(domainId, 0);
 
         vm.expectRevert(
-            WormholeVaaHookIsm.WormholeChainIdAlreadyEnrolled.selector
+            abi.encodeWithSelector(
+                ReverseMappingLib.ReverseKeyAssignedToAnotherKey.selector,
+                wormholeChainId,
+                0
+            )
         );
         _enroll(originRouter, 3000, makeAddr("otherRouter"), wormholeChainId);
     }
 
-    function test_enroll_rejectsWormholeChainIdChangeInPlace() public {
-        vm.expectRevert(
-            WormholeVaaHookIsm
-                .WormholeChainIdChangeRequiresUnenrollment
-                .selector
+    function test_enroll_reassignsWormholeChainIdInPlace() public {
+        address replacement = makeAddr("replacement");
+        uint16 newChainId = 77;
+        _enroll(originRouter, DESTINATION, replacement, newChainId);
+
+        assertEq(
+            originRouter.routers(DESTINATION),
+            replacement.addressToBytes32()
         );
-        _enroll(originRouter, DESTINATION, makeAddr("replacement"), 77);
+        (uint16 chainId, uint8 level) = originRouter.remoteRouterConfigs(
+            DESTINATION
+        );
+        assertEq(chainId, newChainId);
+        assertEq(level, CONSISTENCY);
+
+        (bool oldAssigned, ) = originRouter.remoteWormholeChains(
+            WH_DESTINATION
+        );
+        assertFalse(oldAssigned);
+        (bool newAssigned, uint32 domainId) = originRouter.remoteWormholeChains(
+            newChainId
+        );
+        assertTrue(newAssigned);
+        assertEq(domainId, DESTINATION);
+
+        _enroll(originRouter, 3000, makeAddr("otherRemote"), WH_DESTINATION);
+    }
+
+    function test_enroll_rejectsReassignmentToOccupiedChainId() public {
+        uint32 otherDomain = 3000;
+        uint16 occupiedChainId = 77;
+        _enroll(
+            originRouter,
+            otherDomain,
+            makeAddr("otherRemote"),
+            occupiedChainId
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ReverseMappingLib.ReverseKeyAssignedToAnotherKey.selector,
+                occupiedChainId,
+                otherDomain
+            )
+        );
+        _enroll(
+            originRouter,
+            DESTINATION,
+            makeAddr("replacement"),
+            occupiedChainId
+        );
+
+        (uint16 chainId, ) = originRouter.remoteRouterConfigs(DESTINATION);
+        assertEq(chainId, WH_DESTINATION);
+        assertEq(
+            originRouter.routers(DESTINATION),
+            address(destinationRouter).addressToBytes32()
+        );
+    }
+
+    function test_reassignment_rejectsVaaFromOldWormholeChain() public {
+        (bytes memory message, ) = _dispatch();
+        bytes memory metadata = _ismMetadata(message, 0);
+
+        _enroll(destinationRouter, ORIGIN, address(originRouter), 77);
+
+        vm.expectRevert(WormholeVaaHookIsm.WrongEmitterChainId.selector);
+        _verify(message, metadata);
     }
 
     function test_enroll_replacesRouterImmediately() public {
@@ -432,9 +504,7 @@ contract WormholeHookIsmTest is Test {
 
         (uint16 whId, ) = destinationRouter.remoteRouterConfigs(ORIGIN);
         assertEq(whId, 0);
-        (bool enrolled, ) = destinationRouter.wormholeChainEnrollments(
-            WH_ORIGIN
-        );
+        (bool enrolled, ) = destinationRouter.remoteWormholeChains(WH_ORIGIN);
         assertFalse(enrolled);
 
         // Inbound disabled.
@@ -1023,7 +1093,7 @@ contract WormholeHookIsmTest is Test {
         uint16 wormholeChainId
     ) internal {
         WormholeVaaHookIsm(address(router)).enrollRemoteRouter(
-            _enrollment(domainId, remote, wormholeChainId)
+            _remoteRouterConfig(domainId, remote, wormholeChainId)
         );
     }
 

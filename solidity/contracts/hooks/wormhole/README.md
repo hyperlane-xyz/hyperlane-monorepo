@@ -95,16 +95,16 @@ the expected VAA emitter. `remoteRouterConfigs` stores its Wormhole chain ID and
 expected consistency level. Verification requires both parts to match.
 
 A Wormhole chain ID can belong to only one enrolled Hyperlane domain ID. The
-`wormholeChainEnrollments` reverse lookup records this relationship explicitly,
+`remoteWormholeChains` reverse lookup records this relationship explicitly,
 including Hyperlane domain ID zero.
 
-Changing a route's hook/ISM address or expected consistency level is allowed in
-place. The change takes effect immediately, so VAAs issued under the previous
-route configuration become invalid. Operators should account for in-flight
-messages before updating or unenrolling a route. Changing its Wormhole chain ID
-requires unenrollment first so both sides of the reverse index remain
-consistent. The inherited address-only enrollment methods revert because they
-cannot install a complete Wormhole policy.
+Changing a route's hook/ISM address, expected consistency level, or Wormhole
+chain ID is allowed in place. A new chain ID must not belong to another route;
+the previous chain ID becomes available for reuse. Changes take effect
+immediately, so VAAs issued under the previous route configuration may become
+invalid. Operators should account for in-flight messages before updating or
+unenrolling a route. The inherited address-only enrollment methods revert
+because they cannot install a complete Wormhole policy.
 
 Enrollment and unenrollment are owner-only. They immediately change which
 future VAAs the ISM accepts. Applications sharing one deployment therefore also

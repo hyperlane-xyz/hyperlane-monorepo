@@ -130,7 +130,7 @@ contract WormholeVaaHandler is Test {
 
         try
             destinationRouter.enrollRemoteRouter(
-                WormholeVaaHookIsm.RemoteRouterEnrollment({
+                WormholeVaaHookIsm.RemoteRouterConfig({
                     domainId: domainId,
                     domainIsm: remoteRouter.addressToBytes32(),
                     wormholeChainId: wormholeChainId,
@@ -241,7 +241,7 @@ contract WormholeHookIsmTest_Invariants is Test {
         );
 
         originRouter.enrollRemoteRouter(
-            WormholeVaaHookIsm.RemoteRouterEnrollment({
+            WormholeVaaHookIsm.RemoteRouterConfig({
                 domainId: DESTINATION,
                 domainIsm: address(destinationRouter).addressToBytes32(),
                 wormholeChainId: WH_DESTINATION,
@@ -249,7 +249,7 @@ contract WormholeHookIsmTest_Invariants is Test {
             })
         );
         destinationRouter.enrollRemoteRouter(
-            WormholeVaaHookIsm.RemoteRouterEnrollment({
+            WormholeVaaHookIsm.RemoteRouterConfig({
                 domainId: ORIGIN,
                 domainIsm: address(originRouter).addressToBytes32(),
                 wormholeChainId: WH_ORIGIN,
@@ -311,7 +311,7 @@ contract WormholeHookIsmTest_Invariants is Test {
             assertTrue(wormholeChainId != 0, "route missing policy");
 
             (bool enrolled, uint32 domainId) = destinationRouter
-                .wormholeChainEnrollments(wormholeChainId);
+                .remoteWormholeChains(wormholeChainId);
             assertTrue(enrolled, "reverse route missing");
             assertEq(domainId, domains[i], "reverse route disagrees");
 
