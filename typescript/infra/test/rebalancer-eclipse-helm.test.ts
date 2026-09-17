@@ -70,7 +70,7 @@ describe('USDT Eclipse production manifest', () => {
       { secretRef: { name: secret.spec.target.name } },
     ]);
     expect(container.image).to.equal(
-      'ghcr.io/hyperlane-xyz/hyperlane-node-services:3329eda-20260828-115558',
+      'ghcr.io/hyperlane-xyz/hyperlane-node-services:66bb044-20260910-030014',
     );
     expect(container.env).to.deep.include({
       name: 'MONITOR_ONLY',
@@ -99,8 +99,8 @@ describe('USDT Eclipse production manifest', () => {
       },
     });
     expect(runtime.strategy.chains.plasma.minAmount).to.deep.equal({
-      min: 10000,
-      target: 15000,
+      min: 0,
+      target: 0,
       type: 'absolute',
     });
     expect(
