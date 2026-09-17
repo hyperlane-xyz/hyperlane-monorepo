@@ -5,11 +5,43 @@ import {Test} from "forge-std/Test.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import {OffchainQuotedLinearFee} from "../../contracts/token/fees/OffchainQuotedLinearFee.sol";
+import {LinearFee} from "../../contracts/token/fees/LinearFee.sol";
 import {FeeQuoteContext, FeeQuoteData} from "../../contracts/token/fees/OffchainQuotedLinearFee.sol";
 import {AbstractOffchainQuoter} from "../../contracts/libs/AbstractOffchainQuoter.sol";
 import {SignedQuote} from "../../contracts/interfaces/IOffchainQuoter.sol";
 import {FeeType} from "../../contracts/token/fees/BaseFee.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
+
+// Submits a transient quote and consumes it (exact-in + bracketing forward
+// quotes) within a single top-level call, mirroring the production flow where a
+// router submits and consumes a transient quote in the same transaction. Needed
+// because transient storage does not survive across separate top-level calls.
+contract ExactInHarness {
+    OffchainQuotedLinearFee public immutable quoter;
+
+    constructor(OffchainQuotedLinearFee _quoter) {
+        quoter = _quoter;
+    }
+
+    function submitAndExactIn(
+        SignedQuote calldata sq,
+        bytes calldata sig,
+        uint32 destination,
+        bytes32 recipient,
+        uint256 maxSpend
+    ) external returns (uint256 amount, uint256 feeAt, uint256 feeAtPlus1) {
+        quoter.submitQuote(sq, sig);
+        amount = quoter.quoteTransferRemoteFrom(
+            destination,
+            recipient,
+            maxSpend
+        );
+        feeAt = quoter
+        .quoteTransferRemote(destination, recipient, amount)[0].amount;
+        feeAtPlus1 = quoter
+        .quoteTransferRemote(destination, recipient, amount + 1)[0].amount;
+    }
+}
 
 contract OffchainQuotedLinearFeeTest is Test {
     OffchainQuotedLinearFee quotedFee;
@@ -769,6 +801,160 @@ contract OffchainQuotedLinearFeeTest is Test {
             result[0].amount,
             _computeFee(IMMUTABLE_MAX_FEE, IMMUTABLE_HALF_AMOUNT, AMOUNT)
         );
+    }
+
+    // ============ Exact-In (quoteTransferRemoteFrom) ============
+
+    // The active curve is amount-independent (wildcard/standing/immutable), so
+    // the forward quote at any amount uses the same params. Assert the exact-in
+    // result is the maximum amount whose amount + fee fits the budget.
+    function _assertExactInMaximal(
+        uint32 dest,
+        bytes32 recipient,
+        uint256 maxSpend
+    ) internal view {
+        uint256 amount = quotedFee.quoteTransferRemoteFrom(
+            dest,
+            recipient,
+            maxSpend
+        );
+        assertLe(amount, maxSpend, "amount exceeds budget");
+        uint256 fee = quotedFee
+        .quoteTransferRemote(dest, recipient, amount)[0].amount;
+        assertLe(amount + fee, maxSpend, "charge over budget");
+        uint256 up = amount + 1;
+        uint256 feeUp = quotedFee
+        .quoteTransferRemote(dest, recipient, up)[0].amount;
+        assertGt(up + feeUp, maxSpend, "not maximal");
+    }
+
+    function test_exactIn_immutableFallback() public view {
+        // No quotes → immutable LinearFee inverse.
+        _assertExactInMaximal(DEST, RECIPIENT, 5 ether);
+    }
+
+    // Transient quotes only live for the duration of a single transaction, so
+    // submit + exact-in query + bracketing forward quotes must all execute in one
+    // top-level call. An ExactInHarness reproduces the production flow where a
+    // router submits the transient quote and consumes it in the same tx.
+    function test_exactIn_transientWildcard() public {
+        uint48 now_ = uint48(block.timestamp);
+        SignedQuote memory sq = SignedQuote({
+            context: _quoteContext(DEST, RECIPIENT, WILDCARD_AMOUNT),
+            data: _encodeFeeData(MAX_FEE, HALF_AMOUNT),
+            issuedAt: now_,
+            expiry: now_, // transient
+            salt: bytes32(0),
+            submitter: address(0)
+        });
+
+        ExactInHarness harness = new ExactInHarness(quotedFee);
+        (uint256 amount, uint256 feeAt, uint256 feeAtPlus1) = harness
+            .submitAndExactIn(sq, _signQuote(sq), DEST, RECIPIENT, 5 ether);
+
+        // Maximal: amount + fee(amount) fits budget, but (amount+1) does not.
+        assertLe(amount, 5 ether, "amount exceeds budget");
+        assertLe(amount + feeAt, 5 ether, "charge over budget");
+        assertGt(amount + 1 + feeAtPlus1, 5 ether, "not maximal");
+
+        // Active curve is the transient one (MAX_FEE), not immutable
+        // (IMMUTABLE_MAX_FEE). Capped region: fee == MAX_FEE.
+        assertEq(amount, 5 ether - MAX_FEE);
+    }
+
+    function test_exactIn_standingSpecific() public {
+        uint48 now_ = uint48(block.timestamp);
+        _submitStanding(
+            DEST,
+            RECIPIENT,
+            WILDCARD_AMOUNT,
+            MAX_FEE,
+            HALF_AMOUNT,
+            now_,
+            now_ + 3600
+        );
+        _assertExactInMaximal(DEST, RECIPIENT, 0.2 ether);
+        _assertExactInMaximal(DEST, RECIPIENT, 5 ether);
+    }
+
+    function test_exactIn_standingWildcards() public {
+        uint48 now_ = uint48(block.timestamp);
+        bytes32 wildcardRecipient = bytes32(type(uint256).max);
+        _submitStanding(
+            DEST,
+            wildcardRecipient,
+            WILDCARD_AMOUNT,
+            MAX_FEE,
+            HALF_AMOUNT,
+            now_,
+            now_ + 3600
+        );
+        // Recipient wildcard resolves for any recipient on DEST.
+        _assertExactInMaximal(DEST, bytes32(uint256(0xCAFE)), 3 ether);
+    }
+
+    // A point (non-wildcard-amount) transient quote does not define a curve to
+    // invert, so exact-in must ignore it and use the immutable fallback.
+    function test_exactIn_transientPointIgnored() public {
+        _submitTransient(DEST, RECIPIENT, AMOUNT, MAX_FEE, HALF_AMOUNT);
+
+        LinearFee ref = new LinearFee(
+            FEE_TOKEN,
+            IMMUTABLE_MAX_FEE,
+            IMMUTABLE_HALF_AMOUNT,
+            signer
+        );
+        uint256 expected = ref.quoteTransferRemoteFrom(
+            DEST,
+            RECIPIENT,
+            5 ether
+        );
+        uint256 actual = quotedFee.quoteTransferRemoteFrom(
+            DEST,
+            RECIPIENT,
+            5 ether
+        );
+        assertEq(actual, expected);
+    }
+
+    function test_exactIn_expiredStanding_fallsToImmutable() public {
+        uint48 now_ = uint48(block.timestamp);
+        _submitStanding(
+            DEST,
+            RECIPIENT,
+            WILDCARD_AMOUNT,
+            MAX_FEE,
+            HALF_AMOUNT,
+            now_,
+            now_ + 1
+        );
+        vm.warp(now_ + 2);
+
+        LinearFee ref = new LinearFee(
+            FEE_TOKEN,
+            IMMUTABLE_MAX_FEE,
+            IMMUTABLE_HALF_AMOUNT,
+            signer
+        );
+        assertEq(
+            quotedFee.quoteTransferRemoteFrom(DEST, RECIPIENT, 5 ether),
+            ref.quoteTransferRemoteFrom(DEST, RECIPIENT, 5 ether)
+        );
+    }
+
+    function testFuzz_exactIn_standingRoundTrip(uint256 maxSpend) public {
+        maxSpend = bound(maxSpend, 0, 1e30);
+        uint48 now_ = uint48(block.timestamp);
+        _submitStanding(
+            DEST,
+            RECIPIENT,
+            WILDCARD_AMOUNT,
+            MAX_FEE,
+            HALF_AMOUNT,
+            now_,
+            now_ + 3600
+        );
+        _assertExactInMaximal(DEST, RECIPIENT, maxSpend);
     }
 }
 
