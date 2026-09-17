@@ -338,6 +338,78 @@ contract WormholeHookIsmTest is Test {
         _enroll(originRouter, 3000, address(0), 42);
     }
 
+    function test_enroll_preservesFullWidthRouterInPublishedPayload() public {
+        bytes32 remoteRouter = bytes32((uint256(1) << 255) | uint256(0xBEEF));
+        WormholeVaaHookIsm.RemoteRouterConfig
+            memory config = _remoteRouterConfig(
+                DESTINATION,
+                address(destinationRouter),
+                WH_DESTINATION
+            );
+        config.domainIsm = remoteRouter;
+        originRouter.enrollRemoteRouter(config);
+
+        assertEq(originRouter.routers(DESTINATION), remoteRouter);
+
+        bytes memory message = originMailbox.buildOutboundMessage(
+            DESTINATION,
+            address(recipient).addressToBytes32(),
+            _body()
+        );
+        vm.expectEmit(true, false, false, true, address(originCore));
+        emit ICoreBridge.LogMessagePublished(
+            address(originRouter),
+            0,
+            _nonce(message),
+            WormholeMessage.encode(
+                ORIGIN,
+                DESTINATION,
+                remoteRouter,
+                message.id(),
+                _nonce(message)
+            ),
+            CONSISTENCY
+        );
+        _dispatch();
+    }
+
+    function test_verify_acceptsFullWidthEmitter() public {
+        bytes32 remoteEmitter = bytes32((uint256(1) << 255) | uint256(0xBEEF));
+        WormholeVaaHookIsm.RemoteRouterConfig
+            memory config = _remoteRouterConfig(
+                ORIGIN,
+                address(originRouter),
+                WH_ORIGIN
+            );
+        config.domainIsm = remoteEmitter;
+        destinationRouter.enrollRemoteRouter(config);
+
+        (bytes memory message, ) = _dispatch();
+        bytes memory encodedVaa = _vaa(
+            WH_ORIGIN,
+            remoteEmitter,
+            0,
+            _nonce(message),
+            CONSISTENCY,
+            0,
+            _payloadFor(message)
+        );
+        assertTrue(_verify(message, _wrapVaa(encodedVaa)));
+
+        // The low 160 bits alone must not authenticate the enrolled emitter.
+        bytes memory truncatedEmitterVaa = _vaa(
+            WH_ORIGIN,
+            bytes32(uint256(0xBEEF)),
+            0,
+            _nonce(message),
+            CONSISTENCY,
+            0,
+            _payloadFor(message)
+        );
+        vm.expectRevert(WormholeVaaHookIsm.WrongEmitterAddress.selector);
+        _verify(message, _wrapVaa(truncatedEmitterVaa));
+    }
+
     function test_enroll_rejectsZeroWormholeChainId() public {
         vm.expectRevert(WormholeVaaHookIsm.InvalidWormholeChainId.selector);
         _enroll(originRouter, 3000, makeAddr("remote"), 0);

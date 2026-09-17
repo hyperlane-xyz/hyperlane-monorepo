@@ -53,7 +53,6 @@ contract WormholeVaaHookIsm is
     using Message for bytes;
     using StandardHookMetadata for bytes;
     using TypeCasts for address;
-    using TypeCasts for bytes32;
     using ReverseMappingLib for ReverseMappingLib.Uint16ReverseMappingStorage;
 
     // ============ Errors ============
@@ -302,8 +301,8 @@ contract WormholeVaaHookIsm is
             revert InvalidRemoteDomain();
         }
 
-        // TypeCasts rejects non-canonical bytes32 values that do not fit address.
-        if (domainIsm.bytes32ToAddress() == address(0)) {
+        // Wormhole emitter identities can use the full 32 bytes on non-EVM chains.
+        if (domainIsm == bytes32(0)) {
             revert InvalidDomainIsm();
         }
 
