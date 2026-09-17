@@ -9,7 +9,9 @@ import { AleoNetworkId, toAleoNetworkId } from '../utils/types.js';
 import { AleoProvider as RuntimeAleoProvider } from './provider.js';
 
 export class AleoProvider extends RuntimeAleoProvider {
-  static async connect(metadata: ChainMetadataForAltVM): Promise<AleoProvider> {
+  static override async connect(
+    metadata: ChainMetadataForAltVM,
+  ): Promise<AleoProvider> {
     const rpcUrls = (metadata.rpcUrls ?? []).map((rpc) => rpc.http);
     return new AleoProvider(rpcUrls, metadata.chainId, metadata);
   }

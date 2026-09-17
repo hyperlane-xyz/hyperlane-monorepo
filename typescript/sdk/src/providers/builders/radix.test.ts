@@ -47,6 +47,7 @@ describe('createLazyRadixProvider', () => {
         expect(options).to.deep.equal({
           rpcUrls: ['https://rpc.example'],
           networkId: 1,
+          gatewayUrls: undefined,
           chainMetadata: metadata,
         });
         constructionCount++;

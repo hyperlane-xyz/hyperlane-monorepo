@@ -59,7 +59,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     WarpExtension;
   private readonly registry: Registry;
   private readonly cometClient: CometClient;
-  private readonly rpcUrls: string[];
+  private readonly rpcUrls: [string, ...string[]];
   protected readonly chainMetadata: ChainMetadataForAltVM;
   private readonly stargateClients = new StargateClientCache(1);
 
@@ -67,15 +67,20 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     metadata: ChainMetadataForAltVM,
   ): Promise<CosmosNativeProvider> {
     const rpcUrls = (metadata.rpcUrls ?? []).map((rpc) => rpc.http);
-    assert(rpcUrls.length > 0, `got no rpcUrls`);
+    const [rpcUrl, ...otherRpcUrls] = rpcUrls;
+    assert(rpcUrl, `${CosmosNativeProvider.name} got no rpcUrls`);
 
-    const client = await connectComet(rpcUrls[0]);
-    return new CosmosNativeProvider(client, rpcUrls, metadata);
+    const client = await connectComet(rpcUrl);
+    return new CosmosNativeProvider(
+      client,
+      [rpcUrl, ...otherRpcUrls],
+      metadata,
+    );
   }
 
   protected constructor(
     cometClient: CometClient,
-    rpcUrls: string[],
+    rpcUrls: [string, ...string[]],
     chainMetadata: ChainMetadataForAltVM,
   ) {
     this.query = QueryClient.withExtensions(
@@ -121,7 +126,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     return status.syncInfo.latestBlockHeight > 0;
   }
 
-  getRpcUrls(): string[] {
+  getRpcUrls(): [string, ...string[]] {
     return this.rpcUrls;
   }
 

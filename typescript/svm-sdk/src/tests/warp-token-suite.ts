@@ -4,6 +4,7 @@ import { it } from 'mocha';
 
 import type { ArtifactWriter } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { supportsFeeConfig } from '../version/version-query.js';
 import type {
@@ -53,7 +54,7 @@ export function defineWarpTokenTests(
   ): Promise<void> {
     const { signer } = getContext();
     for (const tx of txs) {
-      await signer.send({ instructions: tx.instructions });
+      await signer.send({ instructions: tx['instructions'] });
     }
   }
 
@@ -224,14 +225,18 @@ export function defineWarpTokenTests(
   it('should unenroll routers', async () => {
     const { writer, makeConfig } = getContext();
     const current = await writer.read(deployedProgramId);
+    const remoteRouter = current.config.remoteRouters[1];
+    const destinationGas = current.config.destinationGas[1];
+    assert(remoteRouter, 'expected domain 1 remote router');
+    assert(destinationGas, 'expected domain 1 destination gas');
 
     const updateTxs = await writer.update({
       ...current,
       config: makeConfig({
         hook: current.config.hook,
         interchainSecurityModule: current.config.interchainSecurityModule,
-        remoteRouters: { 1: current.config.remoteRouters[1] },
-        destinationGas: { 1: current.config.destinationGas[1] },
+        remoteRouters: { 1: remoteRouter },
+        destinationGas: { 1: destinationGas },
       }),
     });
 
@@ -293,7 +298,7 @@ export function defineWarpTokenTests(
     expect(updateTxs.length).to.be.greaterThan(0);
 
     for (const tx of updateTxs) {
-      await newOwnerSigner.send({ instructions: tx.instructions });
+      await newOwnerSigner.send({ instructions: tx['instructions'] });
     }
 
     const updated = await writer.read(deployedWithIgpAndIsmId);

@@ -425,11 +425,12 @@ export abstract class HyperlaneAppGovernor<
       accountConfig = {
         origin,
         owner: remoteOwner,
-        ...(legacyIcaChainRouters[chain]
+        ...(legacyIcaChainRouters[chain] &&
+        (eqAddress(account.address, awIcasLegacy[chain]) ||
+          eqAddress(account.address, regularIcasLegacy[chain]))
           ? {
               localRouter: legacyEthIcaRouter,
-              routerOverride:
-                legacyIcaChainRouters[chain].interchainAccountRouter,
+              routerOverride: legacyIcaChainRouters[chain],
             }
           : {}),
       };

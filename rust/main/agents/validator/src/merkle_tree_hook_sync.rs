@@ -899,10 +899,7 @@ mod tests {
     };
     use prometheus::IntGauge;
     use tempfile::TempDir;
-    use tokio::{
-        net::TcpListener,
-        time::{interval, Instant},
-    };
+    use tokio::{net::TcpListener, time::interval};
     use tokio_tungstenite::{accept_async, tungstenite::Message};
 
     use super::*;
@@ -1028,7 +1025,7 @@ mod tests {
                     .remove("allowReplay");
             }
         }
-        Message::Text(ack.to_string())
+        Message::Text(ack.to_string().into())
     }
 
     #[test]
@@ -1225,7 +1222,7 @@ mod tests {
                 .send(Message::Text(format!(
                     r#"{{"type":"event","data":{{"block_number":12,"domain":1,"leaf_index":0,"merkle_tree_hook":"{hook}","message_id":"{:#x}"}},"domain":1,"eventType":"merkle_tree_insertion","sequence":"0"}}"#,
                     H256::from_low_u64_be(4)
-                )))
+                ).into()))
                 .await
                 .expect("send event before acknowledgement");
         });
@@ -1633,28 +1630,28 @@ mod tests {
             socket
                 .send(Message::Text(format!(
                     r#"{{"type":"event","data":{{"block_number":12,"domain":1,"leaf_index":1,"merkle_tree_hook":"{hook}","message_id":"{first_message_id}"}},"domain":1,"eventType":"merkle_tree_insertion","sequence":"1"}}"#
-                )))
+                ).into()))
                 .await
                 .expect("send backfill event");
             continue_rx.await.expect("continue backfill");
             socket
                 .send(Message::Text(format!(
                     r#"{{"type":"event","data":{{"block_number":13,"domain":1,"leaf_index":2,"merkle_tree_hook":"{hook}","message_id":"{second_message_id}"}},"domain":1,"eventType":"merkle_tree_insertion","sequence":"2"}}"#
-                )))
+                ).into()))
                 .await
                 .expect("send final backfill event");
             caught_up_rx.await.expect("send caught-up marker");
             socket
                 .send(Message::Text(format!(
                     r#"{{"type":"caught_up","address":"{hook}","domain":1,"eventType":"merkle_tree_insertion","sequence":"1"}}"#
-                )))
+                ).into()))
                 .await
                 .expect("send caught-up marker");
             live_rx.await.expect("send live event");
             socket
                 .send(Message::Text(format!(
                     r#"{{"type":"event","data":{{"block_number":14,"domain":1,"leaf_index":3,"merkle_tree_hook":"{hook}","message_id":"{third_message_id}"}},"domain":1,"eventType":"merkle_tree_insertion","sequence":"3"}}"#
-                )))
+                ).into()))
                 .await
                 .expect("send live event");
             pending::<()>().await;
@@ -1863,7 +1860,7 @@ mod tests {
             socket
                 .send(Message::Text(format!(
                     r#"{{"type":"caught_up","address":"{hook}","domain":1,"eventType":"merkle_tree_insertion","sequence":"0"}}"#
-                )))
+                ).into()))
                 .await
                 .expect("send caught-up message");
             pending::<()>().await;
@@ -1957,7 +1954,7 @@ mod tests {
             socket
                 .send(Message::Text(format!(
                     r#"{{"type":"caught_up","address":"{hook_address}","domain":1,"eventType":"merkle_tree_insertion","sequence":"0"}}"#
-                )))
+                ).into()))
                 .await
                 .expect("send caught-up message");
             rollback_rx.await.expect("roll back on-chain count");
@@ -2076,14 +2073,14 @@ mod tests {
             socket
                 .send(Message::Text(format!(
                     r#"{{"type":"caught_up","address":"{hook_address}","domain":1,"eventType":"merkle_tree_insertion","sequence":"0"}}"#
-                )))
+                ).into()))
                 .await
                 .expect("send caught-up message");
             advance_rx.await.expect("advance on-chain count");
             server_count.store(2, Ordering::SeqCst);
             let duplicate = Message::Text(format!(
                 r#"{{"type":"caught_up","address":"{hook_address}","domain":1,"eventType":"merkle_tree_insertion","sequence":"0"}}"#
-            ));
+            ).into());
             let mut markers = interval(Duration::from_millis(1));
             loop {
                 markers.tick().await;
@@ -2194,7 +2191,7 @@ mod tests {
             socket
                 .send(Message::Text(format!(
                     r#"{{"type":"caught_up","address":"{hook_address}","domain":1,"eventType":"merkle_tree_insertion","sequence":"0"}}"#
-                )))
+                ).into()))
                 .await
                 .expect("send caught-up message");
             retreat_rx.await.expect("retreat on-chain count");
@@ -2307,7 +2304,7 @@ mod tests {
             socket
                 .send(Message::Text(format!(
                     r#"{{"type":"caught_up","address":"{hook_address}","domain":1,"eventType":"merkle_tree_insertion","sequence":"0"}}"#
-                )))
+                ).into()))
                 .await
                 .expect("send caught-up message");
             advance_rx.await.expect("advance on-chain count");

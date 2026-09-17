@@ -68,7 +68,9 @@ export async function callViewFunction(
 export function parseAleoUint(raw: string): bigint {
   const match = raw.match(/^(\d+)/);
   assert(match, `Expected numeric Aleo literal, got: ${raw}`);
-  return BigInt(match[1]);
+  const [, digits] = match;
+  assert(digits, `Expected numeric Aleo literal, got: ${raw}`);
+  return BigInt(digits);
 }
 
 function parseAleoIdentifier(raw: string): string {

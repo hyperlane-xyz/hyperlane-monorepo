@@ -13,7 +13,7 @@ import {
   type IsmType,
   type RawIsmArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import { LazyAsync } from '@hyperlane-xyz/utils';
+import { LazyAsync, assert } from '@hyperlane-xyz/utils';
 
 import { type CosmosNativeSigner } from '../clients/signer.js';
 import { setupInterchainSecurityExtension } from '../hyperlane/interchain_security/query.js';
@@ -44,8 +44,13 @@ import { CosmosTestIsmReader, CosmosTestIsmWriter } from './test-ism.js';
  */
 export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
   private readonly query = new LazyAsync(() => this.createQuery());
+  private readonly rpcUrl: string;
 
-  constructor(private readonly rpcUrls: string[]) {}
+  constructor(rpcUrls: string[]) {
+    const [rpcUrl] = rpcUrls;
+    assert(rpcUrl, `${CosmosIsmArtifactManager.name} got no rpcUrls`);
+    this.rpcUrl = rpcUrl;
+  }
 
   /**
    * Lazy initialization - creates query client on first use.
@@ -59,7 +64,7 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
    * Creates a Cosmos query client with ISM extension.
    */
   private async createQuery(): Promise<CosmosIsmQueryClient> {
-    const cometClient = await connectComet(this.rpcUrls[0]);
+    const cometClient = await connectComet(this.rpcUrl);
     return QueryClient.withExtensions(
       cometClient,
       setupInterchainSecurityExtension,

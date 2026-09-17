@@ -161,7 +161,10 @@ export async function getComponentOwner(
     `Expected holders of resource ${ownerResource} to be one, found ${resourceHolders.length} holders instead ${resourceHolders.join(', ')}`,
   );
 
-  return resourceHolders[0];
+  const [resourceHolder] = resourceHolders;
+  assert(resourceHolder, `Expected a holder of resource ${ownerResource}`);
+
+  return resourceHolder;
 }
 
 /**

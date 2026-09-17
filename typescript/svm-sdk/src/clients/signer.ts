@@ -24,7 +24,7 @@ export class SvmSigner extends BaseSvmSigner {
 
   private constructor(
     rpc: SvmRpc,
-    rpcUrls: string[],
+    rpcUrls: [string, ...string[]],
     chainMetadata: ChainMetadataForAltVM,
     signer: TransactionSigningSigner,
   ) {

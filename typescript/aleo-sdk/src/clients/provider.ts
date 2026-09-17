@@ -117,7 +117,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     return latestBlockHeight > 0;
   }
 
-  getRpcUrls(): string[] {
+  getRpcUrls(): [string, ...string[]] {
     return this.rpcUrls;
   }
 
@@ -129,7 +129,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     let aleoAddress = req.address;
 
     if (aleoAddress.includes('/')) {
-      aleoAddress = req.address.split('/')[1];
+      const [, address] = req.address.split('/');
+      assert(address, `Invalid Aleo address: ${req.address}`);
+      aleoAddress = address;
     }
 
     if (req.denom && req.denom !== 'credits' && req.denom !== '0field') {
@@ -695,10 +697,10 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       `total quote ${total_quote} is bigger than max fee ${req.maxFee.amount}`,
     );
 
-    for (let i = 0; i < quotes.length; i++) {
+    quotes.forEach((quote, i) => {
       creditAllowance[i] =
-        `{spender:${quotes[i].spender},amount:${quotes[i].quote}u64}`;
-    }
+        `{spender:${quote.spender},amount:${quote.quote}u64}`;
+    });
 
     const mailboxValue = `{
       default_hook:${mailbox.defaultHook ? fromAleoAddress(mailbox.defaultHook).address : ALEO_NULL_ADDRESS},

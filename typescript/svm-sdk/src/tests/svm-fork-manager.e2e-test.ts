@@ -106,7 +106,9 @@ describe('SvmForkManager fork replay e2e', function () {
 
     await manager.applyForkConfig({ transactions: [printable] });
 
-    const forkRpc = createRpc(manager.getForkedChainMetadata().rpcUrls[0].http);
+    const [forkRpcUrl] = manager.getForkedChainMetadata().rpcUrls;
+    assert(forkRpcUrl, 'fork metadata missing RPC URL');
+    const forkRpc = createRpc(forkRpcUrl.http);
     const forkAfter = await fetchMultisigIsmAccessControl(forkRpc, programId);
     assert(forkAfter, 'access control PDA missing on fork');
     expect(forkAfter.owner).to.equal(newOwner);
