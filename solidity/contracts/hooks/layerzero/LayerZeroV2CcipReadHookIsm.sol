@@ -965,9 +965,12 @@ contract LayerZeroV2CcipReadHookIsm is
         }
     }
 
-    /// @dev Attempts Endpoint cleanup with bounded gas. `clear` scans from the
-    /// lazy inbound nonce through this packet's nonce; a long verified backlog
-    /// can exhaust the budget. Failure must not block Hyperlane delivery.
+    /// @dev Attempts Endpoint cleanup with bounded gas. `clear` calls `_clearPayload`,
+    /// which scans from the lazy inbound nonce through this packet's nonce:
+    /// https://github.com/LayerZero-Labs/LayerZero-v2/blob/9c741e7f9790639537b1710a203bcdfd73b0b9ac/packages/layerzero-v2/evm/protocol/contracts/EndpointV2.sol#L211-L215
+    /// https://github.com/LayerZero-Labs/LayerZero-v2/blob/9c741e7f9790639537b1710a203bcdfd73b0b9ac/packages/layerzero-v2/evm/protocol/contracts/MessagingChannel.sol#L129-L141
+    /// A long verified backlog can exhaust the budget. Failure must not block
+    /// Hyperlane delivery.
     function _tryClearPacket(
         PacketContext memory context,
         bytes32 messageId
