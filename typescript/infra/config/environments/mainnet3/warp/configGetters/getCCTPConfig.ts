@@ -14,7 +14,7 @@ import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awIcasLegacy } from '../../governance/ica/_awLegacy.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
-import { DEPLOYER } from '../../owners.js';
+import { HAGGIS_DEPLOYER } from '../../owners.js';
 import {
   FAST_FINALITY_THRESHOLD,
   FAST_TRANSFER_FEE_BPS,
@@ -35,7 +35,7 @@ const CONTRACT_VERSION_FAST = '11.2.0';
 
 type CctpVersion = 'V1' | 'V2';
 // production routes are owned by the AW ICAs/Safes; staging routes are owned by
-// the deployer key so they can be iterated on without governance.
+// the Haggis deployer key so they can be iterated on without governance.
 type CctpEnvironment = 'production' | 'staging';
 
 // Route membership is declared explicitly and decoupled from the address maps
@@ -79,7 +79,7 @@ const getOwner = (
   environment: CctpEnvironment,
 ): string | undefined => {
   if (environment === 'staging') {
-    return DEPLOYER;
+    return HAGGIS_DEPLOYER;
   }
   // TODO: restore after V1 route has been updated
   return version === 'V1' ? v1Owners[chain] : (awIcas[chain] ?? awSafes[chain]);
