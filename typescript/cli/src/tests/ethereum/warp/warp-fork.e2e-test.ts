@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { type BigNumber, Wallet, ethers } from 'ethers';
+import { type ProcessPromise } from 'zx';
 
 import { type ERC20Test } from '@hyperlane-xyz/core';
 import {
@@ -16,6 +17,7 @@ import { type Address, assert, retryAsync } from '@hyperlane-xyz/utils';
 
 import { writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
+import { hyperlaneForkRaw } from '../commands/fork.js';
 import { deployToken } from '../commands/helpers.js';
 import {
   hyperlaneWarpCheckRaw,
@@ -29,6 +31,7 @@ import {
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
+  E2E_TEST_CONFIGS_PATH,
   TEMP_PATH,
   getCombinedWarpRoutePath,
 } from '../consts.js';
@@ -41,9 +44,16 @@ const HAPPY_REGISTRY_PORT = HAPPY_FORK_PORT - 10;
 const REPLAY_FORK_PORT = 8547;
 const REPLAY_REGISTRY_PORT = REPLAY_FORK_PORT - 10;
 
+const ARC_FORK_PORT = 8549;
+const ARC_REGISTRY_PORT = ARC_FORK_PORT - 10;
+const ARC_USDC = '0x3600000000000000000000000000000000000000';
+const ARC_FORK_REGISTRY_PATH = `${E2E_TEST_CONFIGS_PATH}/fork`;
+
 const ERC20_ABI = [
   'function balanceOf(address) view returns (uint256)',
   'function transfer(address to, uint256 amount) returns (bool)',
+  'function approve(address spender, uint256 amount) returns (bool)',
+  'function transferFrom(address from, address to, uint256 amount) returns (bool)',
 ];
 
 function getRpcHttpFromMetadata(meta: unknown): string {
@@ -70,6 +80,7 @@ function getRpcHttpFromMetadata(meta: unknown): string {
 async function waitForForkedRegistry(
   registryPort: number,
   chainName: string,
+  attempts = 30,
 ): Promise<string> {
   const res = await retryAsync(
     async () => {
@@ -79,7 +90,7 @@ async function waitForForkedRegistry(
       assert(response.ok, 'forked registry server not ready');
       return response;
     },
-    30,
+    attempts,
     1000,
   );
 
@@ -95,6 +106,7 @@ describe('hyperlane warp fork e2e tests', async function () {
   let tokenSymbol: string;
   let warpRouteId: string;
   let ownerAddress: Address;
+  let forkProcess: ProcessPromise | undefined;
 
   before(async function () {
     [chain2Addresses, chain3Addresses] = await Promise.all([
@@ -106,6 +118,19 @@ describe('hyperlane warp fork e2e tests', async function () {
     tokenSymbol = await token.symbol();
     ownerAddress = new Wallet(ANVIL_KEY).address;
     warpRouteId = createWarpRouteConfigId(tokenSymbol, CHAIN_NAME_3);
+  });
+
+  afterEach(async () => {
+    const process = forkProcess;
+    forkProcess = undefined;
+    if (!process) return;
+
+    try {
+      if (process.output === null) await process.kill('SIGINT');
+    } catch (error) {
+      if (process.output === null) throw error;
+    }
+    await process;
   });
 
   // The global e2e beforeEach hook (e2e-test.setup.ts) wipes
@@ -137,31 +162,22 @@ describe('hyperlane warp fork e2e tests', async function () {
   it('serves a forked registry that passes warp check with no violations', async function () {
     await deployWarpRoute();
 
-    const forkProcess = hyperlaneWarpForkRaw({
+    forkProcess = hyperlaneWarpForkRaw({
       warpRouteId,
       port: HAPPY_FORK_PORT,
     }).nothrow();
 
-    try {
-      await waitForForkedRegistry(HAPPY_REGISTRY_PORT, CHAIN_NAME_2);
+    await waitForForkedRegistry(HAPPY_REGISTRY_PORT, CHAIN_NAME_2);
 
-      const output = await hyperlaneWarpCheckRaw({
-        warpRouteId,
-        registry: `${LOCAL_HOST}:${HAPPY_REGISTRY_PORT}`,
-      })
-        .stdio('pipe')
-        .nothrow();
+    const output = await hyperlaneWarpCheckRaw({
+      warpRouteId,
+      registry: `${LOCAL_HOST}:${HAPPY_REGISTRY_PORT}`,
+    })
+      .stdio('pipe')
+      .nothrow();
 
-      expect(output.exitCode).to.equal(0);
-      expect(output.text()).to.include('No violations found');
-    } finally {
-      try {
-        await forkProcess.kill('SIGINT');
-        await forkProcess;
-      } catch {
-        // Process may have already exited, which is fine
-      }
-    }
+    expect(output.exitCode).to.equal(0);
+    expect(output.text()).to.include('No violations found');
   });
 
   it('replays an impersonated collateral transfer against the fork', async function () {
@@ -206,43 +222,120 @@ describe('hyperlane warp fork e2e tests', async function () {
     const beforeRecipient: BigNumber = await token.balanceOf(recipient);
     expect(beforeRecipient.isZero()).to.be.true;
 
-    const forkProcess = hyperlaneWarpForkRaw({
+    forkProcess = hyperlaneWarpForkRaw({
       warpRouteId,
       port: REPLAY_FORK_PORT,
       forkConfigPath,
     }).nothrow();
 
-    try {
-      const forkRpcUrl = await waitForForkedRegistry(
-        REPLAY_REGISTRY_PORT,
-        CHAIN_NAME_2,
-      );
+    const forkRpcUrl = await waitForForkedRegistry(
+      REPLAY_REGISTRY_PORT,
+      CHAIN_NAME_2,
+    );
 
-      const forkProvider = new ethers.providers.JsonRpcProvider(forkRpcUrl);
-      const forkedToken = new ethers.Contract(
-        token.address,
-        ERC20_ABI,
-        forkProvider,
-      );
+    const forkProvider = new ethers.providers.JsonRpcProvider(forkRpcUrl);
+    const forkedToken = new ethers.Contract(
+      token.address,
+      ERC20_ABI,
+      forkProvider,
+    );
 
-      const afterDeployer: BigNumber = await forkedToken.balanceOf(
-        ANVIL_DEPLOYER_ADDRESS,
-      );
-      const afterRecipient: BigNumber = await forkedToken.balanceOf(recipient);
+    const afterDeployer: BigNumber = await forkedToken.balanceOf(
+      ANVIL_DEPLOYER_ADDRESS,
+    );
+    const afterRecipient: BigNumber = await forkedToken.balanceOf(recipient);
 
-      expect(afterDeployer.toString()).to.equal(
-        beforeDeployer.sub(amount).toString(),
+    expect(afterDeployer.toString()).to.equal(
+      beforeDeployer.sub(amount).toString(),
+    );
+    expect(afterRecipient.toString()).to.equal(
+      beforeRecipient.add(amount).toString(),
+    );
+  });
+
+  it('replays native-USDC transfer and transferFrom on an Arc fork', async function () {
+    const transferRecipient = Wallet.createRandom().address;
+    const transferFromRecipient = Wallet.createRandom().address;
+    const sender = ANVIL_DEPLOYER_ADDRESS;
+    const spender = Wallet.createRandom().address;
+    const amount = ethers.utils.parseUnits('1', 6);
+    const forkConfigPath = `${TEMP_PATH}/warp-fork-arc-replay-config.yaml`;
+
+    const usdcInterface = new ethers.utils.Interface(ERC20_ABI);
+    const transferCalldata = usdcInterface.encodeFunctionData('transfer', [
+      transferRecipient,
+      amount,
+    ]);
+    const approveCalldata = usdcInterface.encodeFunctionData('approve', [
+      spender,
+      amount,
+    ]);
+    const transferFromCalldata = usdcInterface.encodeFunctionData(
+      'transferFrom',
+      [sender, transferFromRecipient, amount],
+    );
+    writeYamlOrJson(forkConfigPath, {
+      arc: {
+        impersonateAccounts: [sender, spender],
+        transactions: [
+          {
+            type: TransactionConfigType.RAW_TRANSACTION,
+            transactions: [
+              {
+                annotation: 'Arc native-USDC transfer',
+                from: sender,
+                to: ARC_USDC,
+                data: {
+                  type: TransactionDataType.RAW_CALLDATA,
+                  calldata: transferCalldata,
+                },
+              },
+              {
+                annotation: 'Approve Arc native-USDC spender',
+                from: sender,
+                to: ARC_USDC,
+                data: {
+                  type: TransactionDataType.RAW_CALLDATA,
+                  calldata: approveCalldata,
+                },
+              },
+              {
+                annotation: 'Arc native-USDC transferFrom',
+                from: spender,
+                to: ARC_USDC,
+                data: {
+                  type: TransactionDataType.RAW_CALLDATA,
+                  calldata: transferFromCalldata,
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    forkProcess = hyperlaneForkRaw({
+      registry: ARC_FORK_REGISTRY_PATH,
+      forkConfigPath,
+      port: ARC_FORK_PORT,
+    }).nothrow();
+
+    const forkRpcUrl = await waitForForkedRegistry(
+      ARC_REGISTRY_PORT,
+      'arc',
+      60,
+    );
+    const forkProvider = new ethers.providers.JsonRpcProvider(forkRpcUrl);
+    expect((await forkProvider.getNetwork()).chainId).to.equal(5042);
+    expect((await forkProvider.send('anvil_nodeInfo', [])).network).to.equal(
+      'arc',
+    );
+
+    const forkedUsdc = new ethers.Contract(ARC_USDC, ERC20_ABI, forkProvider);
+    for (const recipient of [transferRecipient, transferFromRecipient]) {
+      expect((await forkedUsdc.balanceOf(recipient)).toString()).to.equal(
+        amount.toString(),
       );
-      expect(afterRecipient.toString()).to.equal(
-        beforeRecipient.add(amount).toString(),
-      );
-    } finally {
-      try {
-        await forkProcess.kill('SIGINT');
-        await forkProcess;
-      } catch {
-        // Process may have already exited, which is fine
-      }
     }
   });
 });

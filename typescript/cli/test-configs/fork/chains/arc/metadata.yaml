@@ -1,0 +1,9 @@
+chainId: 5042
+domainId: 5042
+name: arc
+protocol: ethereum
+rpcUrls:
+  - http: https://rpc.mainnet.arc.io
+blocks:
+  confirmations: 1
+  estimateBlockTime: 1
