@@ -59,6 +59,7 @@ pub struct CoreMetrics {
 
     announced: IntGaugeVec,
     backfill_complete: IntGaugeVec,
+    validator_merkle_tree_leaf_count: IntGaugeVec,
     reached_initial_consistency: IntGaugeVec,
 
     // metadata building metrics
@@ -247,6 +248,16 @@ impl CoreMetrics {
             registry
         )?;
 
+        let validator_merkle_tree_leaf_count = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("validator_merkle_tree_leaf_count"),
+                "Validator progress: leaves rebuilt for verification or historical_reconstruction, or checkpoints confirmed published for historical_publication",
+                const_labels_ref
+            ),
+            &["chain", "phase"],
+            registry
+        )?;
+
         let reached_initial_consistency = register_int_gauge_vec_with_registry!(
             opts!(
                 namespaced!("reached_initial_consistency"),
@@ -384,6 +395,7 @@ impl CoreMetrics {
 
             announced,
             backfill_complete,
+            validator_merkle_tree_leaf_count,
             reached_initial_consistency,
 
             metadata_build_count,
@@ -605,6 +617,12 @@ impl CoreMetrics {
     /// - `chain`: Chain the operation was submitted to.
     pub fn backfill_complete(&self) -> IntGaugeVec {
         self.backfill_complete.clone()
+    }
+
+    /// Validator progress by chain and phase: reconstructed leaves for `verification`
+    /// or `historical_reconstruction`, confirmed published checkpoints for `historical_publication`.
+    pub fn validator_merkle_tree_leaf_count(&self) -> IntGaugeVec {
+        self.validator_merkle_tree_leaf_count.clone()
     }
 
     /// Whether the validator has ever synced to the tip of the chain.

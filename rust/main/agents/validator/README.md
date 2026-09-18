@@ -41,6 +41,39 @@ anything in the batch. It signs only through the lowest verified index. For
 example, matching roots at indices 100, 102, and 103 authorize signing through 100:
 the higher roots commit to that same prefix of insertion history.
 
+The first verified batch logs `Initial lightweight backfill verified: local roots
+match every RPC endpoint`, including the common verified index, root, endpoint
+count, and elapsed time. Historical signing and uploads complete separately and
+log `Initial lightweight historical checkpoint publication complete` with the
+index through which all checkpoints have been published. Both messages appear
+once per run after their respective first batch completes.
+
+`hyperlane_validator_merkle_tree_leaf_count{chain="base",phase="verification"}`
+reports the number of leaves reconstructed for RPC root verification, during both
+initial sync and ongoing operation. This count can advance before roots are verified.
+`phase="historical_reconstruction"` tracks the historical worker's separate replay
+of cached database insertions to rebuild older checkpoints before signing. It
+updates after each insertion, exposing the work between the first root-verification
+success log and historical uploads. It does not download the insertions again.
+`phase="historical_publication"` counts checkpoints confirmed published by the
+historical worker. It starts with the restored snapshot's published prefix, then
+increments after each successful checkpoint write or confirmation that a matching
+checkpoint already exists. It also counts each target already published by the
+live worker. Reconstructing older checkpoints and failed upload attempts do not
+advance publication progress.
+
+On a fresh start all three counts begin at zero; a restored snapshot initializes
+them to its leaf count. Once publication catches up to a
+verified target, its count equals that target's index plus one. Checkpoints upload
+newest first, so intermediate publication counts are not a contiguous index.
+None of these counts represents block height or the tree's fixed depth. Use
+`hyperlane_latest_checkpoint` and `hyperlane_backfill_complete` for publication
+milestones.
+
+```sh
+curl -s localhost:9090/metrics | grep '^hyperlane_validator_merkle_tree_leaf_count{'
+```
+
 Checkpoint responses are held while missing websocket insertions arrive. Every 30
 seconds, all endpoints are sampled again so a transiently incorrect ahead checkpoint
 cannot block recovery forever, even while websocket insertions keep arriving.

@@ -1559,6 +1559,80 @@ async fn backfill_restores_validated_snapshot_and_replays_tail() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn backfill_progress_counts_published_checkpoints_not_reconstruction_or_retries() {
+    let (domain, insertions, existing, target, _) = three_leaf_snapshot_fixture();
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let existing = signer.sign(existing).await.unwrap();
+    let metrics = dummy_metrics();
+    metrics.merkle_tree_leaf_count.set(99);
+
+    let observed = metrics.clone();
+    let mut db = MockDb::new();
+    db.expect_retrieve_merkle_tree_insertion_by_leaf_index()
+        .times(3)
+        .returning(move |index| {
+            assert_eq!(observed.backfill_merkle_tree_leaf_count.get(), 0);
+            assert_eq!(
+                observed.historical_reconstruction_leaf_count.get(),
+                i64::from(*index)
+            );
+            Ok(Some(insertions[*index as usize]))
+        });
+    let ready = Arc::new(AtomicBool::new(false));
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let ready_for_write = ready.clone();
+    let observed_attempts = attempts.clone();
+    let mut syncer = MockCheckpointSyncer::new();
+    syncer
+        .expect_fetch_checkpoint()
+        .returning(move |index| Ok((index == 1).then(|| existing.clone())));
+    syncer
+        .expect_write_checkpoint()
+        .returning(move |checkpoint| {
+            assert_ne!(
+                checkpoint.value.index, 1,
+                "existing checkpoint is not rewritten"
+            );
+            if checkpoint.value.index == 0 {
+                observed_attempts.fetch_add(1, Ordering::SeqCst);
+                if !ready_for_write.load(Ordering::SeqCst) {
+                    return Err(eyre::eyre!("historical storage unavailable"));
+                }
+            }
+            Ok(())
+        });
+    syncer
+        .expect_update_latest_index()
+        .with(mockall::predicate::eq(2))
+        .once()
+        .returning(|_| Ok(()));
+    syncer
+        .expect_write_merkle_snapshot()
+        .withf(|snapshot| snapshot.index == 2)
+        .once()
+        .returning(|_| Ok(()));
+
+    let mut submitter = snapshot_test_submitter(domain, signer, syncer, db);
+    submitter.metrics = metrics.clone();
+    let task =
+        tokio::spawn(submitter.backfill_checkpoint_submitter(target, IncrementalMerkle::default()));
+    for _ in 0..40 {
+        tokio::time::advance(Duration::from_secs(1)).await;
+        tokio::task::yield_now().await;
+    }
+    assert!(attempts.load(Ordering::SeqCst) > 1);
+    assert!(!task.is_finished());
+    assert_eq!(metrics.backfill_merkle_tree_leaf_count.get(), 2);
+    assert_eq!(metrics.merkle_tree_leaf_count.get(), 99);
+    assert_eq!(metrics.historical_reconstruction_leaf_count.get(), 3);
+
+    ready.store(true, Ordering::SeqCst);
+    task.await.unwrap();
+    assert_eq!(metrics.backfill_merkle_tree_leaf_count.get(), 3);
+    assert_eq!(metrics.merkle_tree_leaf_count.get(), 99);
+}
+
+#[tokio::test(start_paused = true)]
 async fn backfill_restores_snapshot_at_target_without_replay() {
     let (domain, _, checkpoint_at_snapshot, _, snapshot) = three_leaf_snapshot_fixture();
     let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
@@ -1585,6 +1659,7 @@ async fn backfill_restores_snapshot_at_target_without_replay() {
         .returning(|_| Ok(()));
 
     let submitter = snapshot_test_submitter(domain, signer, checkpoint_syncer, db);
+    let metrics = submitter.metrics.clone();
     let restored = submitter
         .restored_snapshot_tree(target.index)
         .await
@@ -1592,6 +1667,9 @@ async fn backfill_restores_snapshot_at_target_without_replay() {
     submitter
         .backfill_checkpoint_submitter(target, restored)
         .await;
+    assert_eq!(metrics.backfill_merkle_tree_leaf_count.get(), 2);
+    assert_eq!(metrics.merkle_tree_leaf_count.get(), 0);
+    assert_eq!(metrics.historical_reconstruction_leaf_count.get(), 2);
 }
 
 #[tokio::test(start_paused = true)]
@@ -2192,6 +2270,101 @@ fn lightweight_test_submitter(
     submitter
 }
 
+#[tokio::test]
+async fn lightweight_tree_progress_tracks_unverified_replay_and_live_updates() {
+    let available = Arc::new(AtomicUsize::new(3));
+    let submitter = lightweight_test_submitter(
+        available.clone(),
+        Arc::new(std::sync::Mutex::new(Vec::new())),
+    );
+    let checkpoints = lightweight_checkpoints(6);
+    let mut tree = LightweightTree::new(IncrementalMerkle::default());
+    assert_eq!(submitter.metrics.merkle_tree_leaf_count.get(), 0);
+    assert!(matches!(
+        submitter
+            .verify_lightweight_batch(&mut tree, &checkpoints[4..5])
+            .await,
+        LightweightBatch::WaitingForInsertions
+    ));
+    assert_eq!(submitter.metrics.merkle_tree_leaf_count.get(), 3);
+    assert_eq!(
+        tree.committed.count(),
+        0,
+        "reconstruction is not verification"
+    );
+
+    available.store(5, Ordering::SeqCst);
+    assert!(matches!(
+        submitter
+            .verify_lightweight_batch(&mut tree, &[checkpoints[1].clone(), checkpoints[4].clone()])
+            .await,
+        LightweightBatch::Verified { .. }
+    ));
+    assert_eq!(submitter.metrics.merkle_tree_leaf_count.get(), 5);
+    assert_eq!(tree.committed.count(), 2, "slowest endpoint bounds signing");
+
+    available.store(6, Ordering::SeqCst);
+    assert!(matches!(
+        submitter
+            .verify_lightweight_batch(&mut tree, &checkpoints[5..6])
+            .await,
+        LightweightBatch::Verified { .. }
+    ));
+    assert_eq!(submitter.metrics.merkle_tree_leaf_count.get(), 6);
+    assert_eq!(tree.committed.count(), 6);
+    assert_eq!(submitter.metrics.backfill_merkle_tree_leaf_count.get(), 0);
+}
+
+#[tokio::test]
+async fn merkle_reconstruction_exposes_progress_before_completion() {
+    let count = 513;
+    let checkpoints = lightweight_checkpoints(count);
+    let target = checkpoints.last().expect("checkpoint fixture");
+    let submitter = lightweight_test_submitter(
+        Arc::new(AtomicUsize::new(count as usize)),
+        Arc::new(std::sync::Mutex::new(Vec::new())),
+    );
+    for (lightweight, historical) in [(false, false), (true, false), (false, true)] {
+        let mut submitter = submitter.clone();
+        submitter.metrics.merkle_tree_leaf_count.set(0);
+        let progress = if historical {
+            submitter.start_historical_publication(&IncrementalMerkle::default());
+            &submitter.metrics.historical_reconstruction_leaf_count
+        } else {
+            &submitter.metrics.merkle_tree_leaf_count
+        };
+        let ((), ()) = tokio::join!(
+            biased;
+            async {
+                if lightweight {
+                    let mut tree = LightweightTree::new(IncrementalMerkle::default());
+                    assert!(matches!(
+                        submitter.verify_lightweight_batch(&mut tree, std::slice::from_ref(target)).await,
+                        LightweightBatch::Verified { .. }
+                    ));
+                    assert_eq!(tree.committed.root(), target.root);
+                } else {
+                    let mut tree = IncrementalMerkle::default();
+                    let queue = submitter.verified_checkpoints(&mut tree, target).await;
+                    assert_eq!(queue.len(), count as usize);
+                    assert_eq!(tree.root(), target.root);
+                }
+            },
+            async {
+                // This task must run while reconstruction is still in progress,
+                // just as the metrics server and socket heartbeat tasks must.
+                let observed = progress.get();
+                assert!(observed > 0 && observed < i64::from(count));
+                assert_eq!(submitter.metrics.backfill_merkle_tree_leaf_count.get(), 0);
+            }
+        );
+        assert_eq!(progress.get(), i64::from(count));
+        if historical {
+            assert_eq!(submitter.metrics.merkle_tree_leaf_count.get(), 0);
+        }
+    }
+}
+
 #[tokio::test(start_paused = true)]
 async fn lightweight_different_indices_sign_only_the_common_verified_prefix() {
     let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -2615,6 +2788,7 @@ async fn lightweight_later_history_stalls_do_not_block_live_signing_or_skip_snap
     let available = Arc::new(AtomicUsize::new(1));
     let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
     let mut submitter = lightweight_test_submitter(available.clone(), signed.clone());
+    let metrics = submitter.metrics.clone();
     let history_ready = Arc::new(AtomicBool::new(false));
     let durable = Arc::new(std::sync::Mutex::new(std::collections::BTreeMap::<
         u32,
@@ -2684,6 +2858,8 @@ async fn lightweight_later_history_stalls_do_not_block_live_signing_or_skip_snap
         assert_eq!(*snapshots.lock().unwrap(), vec![0]);
     }
     assert_eq!(*signed.lock().unwrap(), vec![0, 2, 3, 5]);
+    assert_eq!(metrics.merkle_tree_leaf_count.get(), 6);
+    assert_eq!(metrics.backfill_merkle_tree_leaf_count.get(), 2);
     history_ready.store(true, Ordering::SeqCst);
     for _ in 0..40 {
         tokio::time::advance(Duration::from_secs(1)).await;
@@ -2695,6 +2871,8 @@ async fn lightweight_later_history_stalls_do_not_block_live_signing_or_skip_snap
     );
     assert_eq!(*latest.lock().unwrap(), vec![0, 2, 3, 5]);
     assert_eq!(*snapshots.lock().unwrap(), vec![0, 2, 5]);
+    assert_eq!(metrics.merkle_tree_leaf_count.get(), 6);
+    assert_eq!(metrics.backfill_merkle_tree_leaf_count.get(), 6);
     assert!(!task.is_finished());
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());

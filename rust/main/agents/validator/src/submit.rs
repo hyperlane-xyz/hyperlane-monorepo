@@ -35,6 +35,8 @@ const REORG_STATUS_WRITE_TIMEOUT: Duration = Duration::from_secs(20);
 
 const CHECKPOINT_SUBMISSION_CHUNK_INTERVAL: Duration = Duration::from_millis(100);
 
+const MERKLE_REPLAY_YIELD_INTERVAL: usize = 256;
+
 // All queued checkpoints share the hook address and domain of the final verified
 // checkpoint. Retain only the fields that vary until that correctness gate passes.
 struct QueuedCheckpoint {
@@ -90,13 +92,14 @@ impl LightweightTree {
         });
     }
 
-    fn commit(&mut self, index: u32) -> Vec<QueuedCheckpoint> {
+    async fn commit(&mut self, index: u32) -> Vec<QueuedCheckpoint> {
         let count = (index as usize)
             .saturating_add(1)
             .saturating_sub(self.committed.count());
         let checkpoints: Vec<_> = self.pending.drain(..count).collect();
         for checkpoint in &checkpoints {
             self.committed.ingest(checkpoint.message_id);
+            yield_during_merkle_replay(self.committed.count()).await;
         }
         checkpoints
     }
@@ -127,6 +130,7 @@ pub(crate) struct ValidatorSubmitter {
     readiness: Arc<ValidatorReadiness>,
     checkpoint_wake: Option<Arc<Notify>>,
     rpc_recovery: Option<MerkleTreeRpcRecovery>,
+    historical_publication: bool,
 }
 
 impl ValidatorSubmitter {
@@ -162,6 +166,7 @@ impl ValidatorSubmitter {
             readiness,
             checkpoint_wake: None,
             rpc_recovery: None,
+            historical_publication: false,
         }
     }
 
@@ -207,10 +212,11 @@ impl ValidatorSubmitter {
     /// Submits signed checkpoints from index 0 until the target checkpoint (inclusive).
     /// Runs idly forever once the target checkpoint is reached to avoid exiting the task.
     pub(crate) async fn backfill_checkpoint_submitter(
-        self,
+        mut self,
         target_checkpoint: CheckpointAtBlock,
         mut tree: IncrementalMerkle,
     ) {
+        self.start_historical_publication(&tree);
         self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint)
             .await;
 
@@ -259,6 +265,9 @@ impl ValidatorSubmitter {
         reader: Arc<LightweightCheckpointReader>,
         restored_tree: IncrementalMerkle,
     ) {
+        let started = Instant::now();
+        let mut initial_verification_complete = false;
+        self.record_tree_progress(&restored_tree).await;
         let (history_target, history_targets) = watch::channel(None);
         let mut history = tokio::task::JoinSet::new();
         history.spawn(
@@ -331,6 +340,17 @@ impl ValidatorSubmitter {
                     checkpoint,
                     mut queue,
                 } => {
+                    if !initial_verification_complete {
+                        info!(
+                            domain = checkpoint.mailbox_domain,
+                            verified_index = checkpoint.index,
+                            root = ?checkpoint.root,
+                            rpc_endpoints = samples.as_ref().expect("verified checkpoint samples").len(),
+                            elapsed = ?started.elapsed(),
+                            "Initial lightweight backfill verified: local roots match every RPC endpoint"
+                        );
+                        initial_verification_complete = true;
+                    }
                     samples = None;
                     if let Some(latest) = queue.pop() {
                         // Only the newest checkpoint gates live progress. Older
@@ -357,18 +377,31 @@ impl ValidatorSubmitter {
     /// Coalesce newer targets while retrying old uploads. There is one worker
     /// and one pending target, regardless of how long checkpoint storage stalls.
     async fn lightweight_history_submitter(
-        self,
+        mut self,
         mut tree: IncrementalMerkle,
         mut targets: watch::Receiver<Option<CheckpointAtBlock>>,
     ) {
+        self.start_historical_publication(&tree);
+        let started = Instant::now();
+        let mut initial_publication_complete = false;
         while targets.changed().await.is_ok() {
             let target = targets
                 .borrow_and_update()
                 .clone()
                 .expect("verified target");
+            if !initial_publication_complete {
+                info!(
+                    domain = target.mailbox_domain,
+                    reconstructed_leaf_count = tree.count(),
+                    target_leaf_count = u64::from(target.index).saturating_add(1),
+                    "Reconstructing historical checkpoints from cached insertions before publication"
+                );
+            }
             let mut queue = self.verified_checkpoints(&mut tree, &target).await;
             // The live submitter published this target before notifying us.
-            queue.pop();
+            if queue.pop().is_some() {
+                self.metrics.backfill_merkle_tree_leaf_count.inc();
+            }
             self.submit_checkpoints(
                 queue
                     .into_iter()
@@ -380,6 +413,16 @@ impl ValidatorSubmitter {
             // is durable. Never snapshot the main loop's newer committed tree.
             self.persist_lightweight_snapshot(&tree).await;
             self.metrics.backfill_complete.set(1);
+            if !initial_publication_complete {
+                info!(
+                    domain = target.mailbox_domain,
+                    through_index = target.index,
+                    root = ?tree.root(),
+                    elapsed = ?started.elapsed(),
+                    "Initial lightweight historical checkpoint publication complete"
+                );
+                initial_publication_complete = true;
+            }
         }
     }
 
@@ -402,6 +445,7 @@ impl ValidatorSubmitter {
         tree: &mut LightweightTree,
         checkpoints: &[CheckpointAtBlock],
     ) -> LightweightBatch {
+        self.record_tree_progress(&tree.accumulated).await;
         let target = checkpoints
             .iter()
             .min_by_key(|checkpoint| checkpoint.index)
@@ -430,6 +474,7 @@ impl ValidatorSubmitter {
                 break;
             };
             tree.ingest(insertion.message_id());
+            self.record_tree_progress(&tree.accumulated).await;
         }
         let mut missing = false;
         for observed in checkpoints {
@@ -449,7 +494,7 @@ impl ValidatorSubmitter {
             .mark_operation_ready("lightweight_websocket_insertions");
         self.readiness
             .mark_operation_ready("lightweight_checkpoint_progress");
-        let queue = tree.commit(target.index);
+        let queue = tree.commit(target.index).await;
         LightweightBatch::Verified {
             checkpoint: target.clone(),
             queue,
@@ -458,6 +503,7 @@ impl ValidatorSubmitter {
 
     /// Submits signed checkpoints indefinitely, starting from the `tree`.
     pub(crate) async fn checkpoint_submitter(mut self, mut tree: IncrementalMerkle) {
+        self.record_tree_progress(&tree).await;
         // How often to log checkpoint info - once every minute
         let checkpoint_info_log_period = Duration::from_secs(60);
         // The instant in which we last logged checkpoint info, if at all
@@ -550,6 +596,7 @@ impl ValidatorSubmitter {
         tree: &mut IncrementalMerkle,
         correctness_checkpoint: &CheckpointAtBlock,
     ) -> Vec<QueuedCheckpoint> {
+        self.record_tree_progress(tree).await;
         let start = Instant::now();
         // This should never be called with a tree that is ahead of the correctness checkpoint.
         assert!(
@@ -613,6 +660,7 @@ impl ValidatorSubmitter {
                 index: tree.index(),
                 message_id,
             });
+            self.record_tree_progress(tree).await;
         }
 
         if let (Some(recovery), Some(verified_tree)) = (&self.rpc_recovery, verified_tree) {
@@ -647,6 +695,7 @@ impl ValidatorSubmitter {
                     }
                 };
                 *tree = verified_tree;
+                self.record_tree_progress(tree).await;
                 checkpoint_queue.clear();
                 for (insertion, _) in &leaves {
                     let message_id = insertion.inner().message_id();
@@ -656,6 +705,7 @@ impl ValidatorSubmitter {
                         index: tree.index(),
                         message_id,
                     });
+                    self.record_tree_progress(tree).await;
                 }
                 // Only repair durable rows after the recovered batch passes the
                 // same checkpoint gate. Persistent disagreement still halts below.
@@ -706,6 +756,27 @@ impl ValidatorSubmitter {
             );
         }
         checkpoint_queue
+    }
+
+    fn start_historical_publication(&mut self, tree: &IncrementalMerkle) {
+        self.historical_publication = true;
+        // Restored snapshots cover checkpoints already published by this worker.
+        self.metrics
+            .backfill_merkle_tree_leaf_count
+            .set(i64::try_from(tree.count()).expect("Merkle leaf count fits in i64"));
+        self.metrics
+            .historical_reconstruction_leaf_count
+            .set(i64::try_from(tree.count()).expect("Merkle leaf count fits in i64"));
+    }
+
+    async fn record_tree_progress(&self, tree: &IncrementalMerkle) {
+        let metric = if self.historical_publication {
+            &self.metrics.historical_reconstruction_leaf_count
+        } else {
+            &self.metrics.merkle_tree_leaf_count
+        };
+        metric.set(i64::try_from(tree.count()).expect("Merkle leaf count fits in i64"));
+        yield_during_merkle_replay(tree.count()).await;
     }
 
     async fn verify_checkpoint(
@@ -1038,6 +1109,11 @@ impl ValidatorSubmitter {
                         })
                     })
                     .await;
+                    // Count each checkpoint once, after a successful write or confirmation
+                    // that the matching checkpoint already exists, never on failed attempts.
+                    if self_clone.historical_publication {
+                        self_clone.metrics.backfill_merkle_tree_leaf_count.inc();
+                    }
                     // Lower checkpoints may still be retrying. The latest index is an upper
                     // bound, not a claim that every historical checkpoint has been uploaded.
                     if let Some(index) = latest_index {
@@ -1074,6 +1150,14 @@ impl ValidatorSubmitter {
     }
 }
 
+// Reconstruction is CPU-bound and reads RocksDB synchronously. Yield so socket
+// heartbeats and metrics scrapes can run while millions of cached leaves replay.
+async fn yield_during_merkle_replay(count: usize) {
+    if count > 0 && count.is_multiple_of(MERKLE_REPLAY_YIELD_INTERVAL) {
+        tokio::task::yield_now().await;
+    }
+}
+
 /// Returns whether the tree exceeds the checkpoint.
 fn tree_exceeds_checkpoint(checkpoint: &Checkpoint, tree: &IncrementalMerkle) -> bool {
     // tree.index() will panic if the tree is empty, so we use tree.count() instead
@@ -1083,6 +1167,9 @@ fn tree_exceeds_checkpoint(checkpoint: &Checkpoint, tree: &IncrementalMerkle) ->
 
 #[derive(Clone)]
 pub(crate) struct ValidatorSubmitterMetrics {
+    merkle_tree_leaf_count: IntGauge,
+    historical_reconstruction_leaf_count: IntGauge,
+    backfill_merkle_tree_leaf_count: IntGauge,
     latest_checkpoint_observed: IntGauge,
     latest_checkpoint_processed: IntGauge,
     backfill_complete: IntGauge,
@@ -1093,6 +1180,15 @@ impl ValidatorSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, mailbox_chain: &HyperlaneDomain) -> Self {
         let chain_name = mailbox_chain.name();
         Self {
+            merkle_tree_leaf_count: metrics
+                .validator_merkle_tree_leaf_count()
+                .with_label_values(&[chain_name, "verification"]),
+            historical_reconstruction_leaf_count: metrics
+                .validator_merkle_tree_leaf_count()
+                .with_label_values(&[chain_name, "historical_reconstruction"]),
+            backfill_merkle_tree_leaf_count: metrics
+                .validator_merkle_tree_leaf_count()
+                .with_label_values(&[chain_name, "historical_publication"]),
             latest_checkpoint_observed: metrics
                 .latest_checkpoint()
                 .with_label_values(&["validator_observed", chain_name]),
