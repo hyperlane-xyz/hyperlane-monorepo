@@ -1,5 +1,18 @@
 # @hyperlane-xyz/radix-sdk
 
+## 45.0.0
+
+### Patch Changes
+
+- 9488623: The Radix SDK was migrated to the stricter shared TypeScript configuration.
+- Updated dependencies [ee50f43]
+- Updated dependencies [12678bc]
+- Updated dependencies [9a59116]
+- Updated dependencies [4ad4577]
+- Updated dependencies [f64f992]
+  - @hyperlane-xyz/provider-sdk@10.1.0
+  - @hyperlane-xyz/utils@45.0.0
+
 ## 44.0.2
 
 ### Patch Changes
