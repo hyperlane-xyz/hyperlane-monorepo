@@ -22,10 +22,14 @@ not cast additional root-check votes. Public RPCs are allowed automatically.
 The validator trusts the websocket for ordered insertion history and uses replay
 and live events exclusively for indexing. No RPC indexer or log recovery is built.
 Startup restores a structurally validated snapshot authenticated by the validator's
-own signed checkpoint, then replays the remaining local/websocket insertions. Without
-a valid snapshot, reconstruction starts at insertion zero. Historical checkpoint
-uploads run separately from live signing; snapshots advance only after all covered
-checkpoints are published. Startup does not seed the tree from an RPC frontier or
+own signed checkpoint before starting the websocket, then replays the remaining
+local/websocket insertions. This also skips historical replay on a fresh local DB. Without
+a valid snapshot, reconstruction starts at insertion zero, including when switching
+back to normal mode with a previously skipped prefix. Replay and backfill use the
+same authenticated startup snapshot in both modes. Historical checkpoint uploads
+from every lightweight batch run in one background worker, coalescing newer targets
+while uploads retry; snapshots advance only after all covered checkpoints are
+published. Startup does not seed the tree from an RPC frontier or
 call `tree()` / `tree_at_block()`. Some protocols derive checkpoint reads from account
 data that also contains the tree frontier; that data does not initialize our tree.
 
@@ -48,7 +52,8 @@ cached across retries. No signatures are produced from partially verified batche
 
 No idle count/root polling or websocket RPC freshness probes run once caught up.
 Pending insertions are retried at the configured interval until every endpoint's
-confirmed checkpoint advances. Each endpoint receives one checkpoint-method read
+confirmed checkpoint advances. Websocket notifications cannot bypass this RPC
+interval, including on errors. Each endpoint receives one checkpoint-method read
 per attempt, shared by a batch of insertions. Wire call counts depend on the adapter:
 Ethereum with numeric confirmations uses one block-number read plus one contract
 read **per endpoint**; a finality-tag read uses one contract read per endpoint.
@@ -65,5 +70,9 @@ uses one latest-checkpoint method read, without a preceding count read. During
 recovery only, checkpoints without a block height use the indexer's finalized
 height as the log scan boundary; recovered leaves must still match the captured root.
 
-The separate additional RPC pool has been removed. Move any endpoints previously
-configured there into `rpcUrls` or `customRpcUrls` if they should still be checked.
+The separate additional RPC pool remains removed. Both modes reject obsolete
+`additionalQuorumRpcUrls` / `customAdditionalQuorumRpcUrls` settings, including empty
+values, instead of silently ignoring them. Move their endpoints into `rpcUrls` or
+`customRpcUrls` and remove the obsolete settings. Custom URL overrides replace the
+registry list, so include every intended endpoint. Normal mode uses its configured
+`rpcConsensusType`; lightweight mode checks every endpoint independently.

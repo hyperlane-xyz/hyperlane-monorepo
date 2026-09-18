@@ -373,28 +373,19 @@ impl MerkleTreeHookWebSocketSync {
         }
     }
 
-    /// Returns the first missing leaf, using the on-chain tree count to initialize the cursor.
-    pub(crate) fn next_sequence(&self, hint: u32) -> Result<u32> {
-        let stored: Option<u32> = self.db.retrieve_value_by_key(NEXT_SEQUENCE_KEY, &false)?;
-        match stored {
-            Some(sequence) => self.next_sequence_from(sequence),
-            None => self.initialize_sequence(hint),
-        }
-    }
-
-    fn initialize_sequence(&self, high: u32) -> Result<u32> {
-        // RPC backfills may be sparse, so scan until the first gap once during migration.
-        let mut sequence = 0;
-        while sequence < high
-            && self
-                .db
-                .retrieve_merkle_tree_insertion_by_leaf_index(&sequence)?
-                .is_some()
-        {
-            sequence = sequence.checked_add(1).expect("sequence is below high");
-        }
-        self.persist_next_sequence(sequence)?;
-        Ok(sequence)
+    /// A signed snapshot authenticates all earlier leaves, even on a fresh DB.
+    /// Recompute the cursor from that floor so losing/rejecting a snapshot also
+    /// replays any historical leaves skipped by a previous snapshot restore.
+    pub(crate) fn next_sequence_after_snapshot(&self, verified_count: u32) -> Result<u32> {
+        let mut cursor = self
+            .cursor_state
+            .lock()
+            .map_err(|_| eyre!("Merkle tree cursor lock poisoned"))?;
+        self.db
+            .store_value_by_key(NEXT_SEQUENCE_KEY, &false, &verified_count)?;
+        *cursor = Some(verified_count);
+        drop(cursor);
+        self.next_sequence_from(verified_count)
     }
 
     fn next_sequence_from(&self, mut sequence: u32) -> Result<u32> {
@@ -1224,6 +1215,43 @@ mod tests {
     }
 
     #[test]
+    fn lightweight_snapshot_cursor_skips_history_and_replays_missing_tail() {
+        let (sync, _temp_dir) = test_sync();
+        let snapshot_count = 1_000_000;
+        let next = sync
+            .next_sequence_after_snapshot(snapshot_count)
+            .expect("snapshot cursor");
+        assert_eq!(next, snapshot_count);
+        let subscription = serde_json::to_value(sync.subscription(next)).expect("subscription");
+        assert_eq!(
+            subscription["streams"][0]["cursors"][0]["afterSequence"],
+            "999999"
+        );
+        sync.db
+            .store_tree_insertion(&MerkleTreeInsertion::new(next, H256::zero()), 10)
+            .expect("cache next leaf");
+        sync.db
+            .store_tree_insertion(&MerkleTreeInsertion::new(next + 2, H256::zero()), 12)
+            .expect("cache sparse suffix");
+        assert_eq!(
+            sync.next_sequence_after_snapshot(snapshot_count)
+                .expect("resume snapshot tail"),
+            next + 1
+        );
+        // A missing/rejected snapshot must replay history even if the old cursor skipped it.
+        assert_eq!(
+            sync.next_sequence_after_snapshot(0)
+                .expect("rebuild without snapshot"),
+            0
+        );
+        assert_eq!(
+            sync.next_sequence_after_snapshot(0)
+                .expect("persisted rewind"),
+            0
+        );
+    }
+
+    #[test]
     fn subscribes_after_last_contiguous_leaf() {
         let (sync, _temp_dir) = test_sync();
         sync.db
@@ -1233,11 +1261,18 @@ mod tests {
             .store_tree_insertion(&MerkleTreeInsertion::new(2, H256::from_low_u64_be(5)), 12)
             .expect("store insertion after gap");
 
-        assert_eq!(sync.next_sequence(3).expect("next sequence"), 0);
+        assert_eq!(
+            sync.next_sequence_after_snapshot(0).expect("next sequence"),
+            0
+        );
         sync.db
             .store_tree_insertion(&MerkleTreeInsertion::new(0, H256::from_low_u64_be(3)), 10)
             .expect("fill insertion gap");
-        assert_eq!(sync.next_sequence(3).expect("cached next sequence"), 3);
+        assert_eq!(
+            sync.next_sequence_after_snapshot(0)
+                .expect("cached next sequence"),
+            3
+        );
         let subscription: serde_json::Value =
             serde_json::to_value(sync.subscription(3)).expect("subscription JSON");
         assert_eq!(
@@ -1249,7 +1284,9 @@ mod tests {
     #[tokio::test]
     async fn checkpoints_next_sequence_and_recovers_uncheckpointed_tail() {
         let (sync, _temp_dir) = test_sync();
-        let mut next_sequence = sync.next_sequence(0).expect("initialize sequence");
+        let mut next_sequence = sync
+            .next_sequence_after_snapshot(0)
+            .expect("initialize sequence");
 
         for sequence in 0_u32..257 {
             let event = EventMessage {
@@ -1278,7 +1315,11 @@ mod tests {
             .expect("retrieve persisted sequence");
         assert_eq!(persisted, Some(256));
         assert_eq!(next_sequence, 257);
-        assert_eq!(sync.next_sequence(0).expect("recover sequence"), 257);
+        assert_eq!(
+            sync.next_sequence_after_snapshot(0)
+                .expect("recover sequence"),
+            257
+        );
     }
 
     #[tokio::test]
@@ -1331,9 +1372,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn rpc_fallback_writes_keep_restart_recovery_bounded() {
+    async fn rpc_fallback_writes_preserve_monotonic_cursor_progress() {
         let (sync, _temp_dir) = test_sync();
-        assert_eq!(sync.next_sequence(0).expect("initialize sequence"), 0);
+        assert_eq!(
+            sync.next_sequence_after_snapshot(0)
+                .expect("initialize sequence"),
+            0
+        );
         let store = CheckpointingMerkleTreeStore::new(sync.db.clone(), sync.cursor_state.clone());
         let leaves: Vec<_> = (0_u32..600)
             .map(|sequence| {
@@ -1362,7 +1407,11 @@ mod tests {
             .retrieve_value_by_key(NEXT_SEQUENCE_KEY, &false)
             .expect("retrieve fallback cursor");
         assert_eq!(persisted, Some(512));
-        assert_eq!(sync.next_sequence(0).expect("recover fallback tail"), 600);
+        assert_eq!(
+            sync.next_sequence_after_snapshot(0)
+                .expect("recover fallback tail"),
+            600
+        );
         sync.persist_next_sequence(700)
             .expect("advance shared cursor");
         sync.persist_next_sequence(600)

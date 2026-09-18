@@ -5,7 +5,10 @@ use std::vec;
 
 use futures::future::join_all;
 use prometheus::IntGauge;
-use tokio::{sync::Notify, time::sleep};
+use tokio::{
+    sync::{watch, Notify},
+    time::sleep,
+};
 use tracing::{debug, error, info, warn};
 
 use hyperlane_base::db::HyperlaneDb;
@@ -203,11 +206,11 @@ impl ValidatorSubmitter {
 
     /// Submits signed checkpoints from index 0 until the target checkpoint (inclusive).
     /// Runs idly forever once the target checkpoint is reached to avoid exiting the task.
-    pub(crate) async fn backfill_checkpoint_submitter(self, target_checkpoint: CheckpointAtBlock) {
-        let mut tree = self
-            .restored_snapshot_tree(target_checkpoint.index)
-            .await
-            .unwrap_or_default();
+    pub(crate) async fn backfill_checkpoint_submitter(
+        self,
+        target_checkpoint: CheckpointAtBlock,
+        mut tree: IncrementalMerkle,
+    ) {
         self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint)
             .await;
 
@@ -239,28 +242,38 @@ impl ValidatorSubmitter {
         self.metrics.backfill_complete.set(1);
     }
 
-    /// Restore our signed snapshot, then authenticate websocket insertions against
-    /// every endpoint. Historical publication cannot block new verified messages.
-    pub(crate) async fn lightweight_checkpoint_submitter(
-        self,
-        reader: Arc<LightweightCheckpointReader>,
-    ) {
+    /// Authenticate the replay frontier before starting websocket indexing.
+    pub(crate) async fn restore_lightweight_tree(&self) -> IncrementalMerkle {
         let restored = self.restored_snapshot_tree(u32::MAX).await;
         if restored.is_some() {
             self.readiness.mark_operation_ready("lightweight_snapshot");
             self.metrics.backfill_complete.set(1);
         }
-        let mut tree = LightweightTree::new(restored.unwrap_or_default());
+        restored.unwrap_or_default()
+    }
+
+    /// Authenticate websocket insertions against every endpoint. Historical
+    /// publication cannot block new verified messages.
+    pub(crate) async fn lightweight_checkpoint_submitter(
+        self,
+        reader: Arc<LightweightCheckpointReader>,
+        restored_tree: IncrementalMerkle,
+    ) {
+        let (history_target, history_targets) = watch::channel(None);
+        let mut history = tokio::task::JoinSet::new();
+        history.spawn(
+            self.clone()
+                .lightweight_history_submitter(restored_tree.clone(), history_targets),
+        );
+        let mut tree = LightweightTree::new(restored_tree);
         let mut samples: Option<Vec<CheckpointAtBlock>> = None;
         let mut sampled_at = tokio::time::Instant::now();
-        let mut history = tokio::task::JoinSet::new();
-        let mut first_batch = true;
+        let mut next_rpc_attempt = sampled_at;
         loop {
-            // JoinSet aborts outstanding historical publication if this task exits.
-            while let Some(result) = history.try_join_next() {
+            // The single worker is cancelled when the signing task exits.
+            if let Some(result) = history.try_join_next() {
                 result.expect("Historical checkpoint publication failed");
-                self.metrics.backfill_complete.set(1);
-                self.persist_lightweight_snapshot(&tree.committed).await;
+                panic!("Historical checkpoint publication stopped unexpectedly");
             }
             let next_index =
                 u32::try_from(tree.committed.count()).expect("Merkle leaf count fits in u32");
@@ -275,7 +288,14 @@ impl ValidatorSubmitter {
                 continue;
             }
             if samples.is_none() || sampled_at.elapsed() >= LIGHTWEIGHT_SAMPLE_REFRESH_INTERVAL {
-                match reader.checkpoints(&self.reorg_period).await {
+                // Notifications may wake insertion processing immediately, but may
+                // never accelerate checkpoint reads, including after RPC errors.
+                tokio::time::sleep_until(next_rpc_attempt).await;
+                let result = reader.checkpoints(&self.reorg_period).await;
+                next_rpc_attempt = tokio::time::Instant::now()
+                    .checked_add(self.interval)
+                    .expect("checkpoint interval fits in Instant");
+                match result {
                     Ok(checkpoints) => {
                         self.readiness
                             .mark_operation_ready("lightweight_checkpoint_reads");
@@ -297,7 +317,6 @@ impl ValidatorSubmitter {
                         self.readiness
                             .mark_operation_blocked("lightweight_checkpoint_reads");
                         warn!(?err, "Waiting for every lightweight checkpoint endpoint");
-                        self.wait_for_checkpoint_check().await;
                         continue;
                     }
                 }
@@ -313,50 +332,54 @@ impl ValidatorSubmitter {
                     mut queue,
                 } => {
                     samples = None;
-                    let advanced = !queue.is_empty();
-                    if first_batch && !queue.is_empty() {
-                        first_batch = false;
-                        // Publish the newest checkpoint immediately, then fill older
-                        // indices independently while the main loop follows new events.
-                        let latest = queue.pop().expect("nonempty verified batch");
+                    if let Some(latest) = queue.pop() {
+                        // Only the newest checkpoint gates live progress. Older
+                        // indices are reconstructed by one worker from the DB.
+                        drop(queue);
                         self.sign_and_submit_checkpoints(std::iter::once(
                             latest.into_checkpoint(checkpoint.checkpoint),
                         ))
                         .await;
-                        if !queue.is_empty() {
-                            let submitter = self.clone();
-                            history.spawn(async move {
-                                submitter
-                                    .submit_checkpoints(
-                                        queue.into_iter().map(|queued| {
-                                            queued.into_checkpoint(checkpoint.checkpoint)
-                                        }),
-                                        false,
-                                    )
-                                    .await;
-                            });
-                        }
-                    } else {
-                        self.sign_and_submit_checkpoints(
-                            queue
-                                .into_iter()
-                                .map(|queued| queued.into_checkpoint(checkpoint.checkpoint)),
-                        )
-                        .await;
+                        history_target
+                            .send(Some(checkpoint.clone()))
+                            .expect("Historical checkpoint worker is running");
                     }
                     self.metrics
                         .latest_checkpoint_processed
                         .set(i64::from(checkpoint.index));
                     self.metrics.reached_initial_consistency.set(1);
-                    // A snapshot may skip history on restart only after all its
-                    // checkpoints have been published, including background history.
-                    if advanced && history.is_empty() {
-                        self.metrics.backfill_complete.set(1);
-                        self.persist_lightweight_snapshot(&tree.committed).await;
-                    }
                 }
             }
             self.wait_for_checkpoint_check().await;
+        }
+    }
+
+    /// Coalesce newer targets while retrying old uploads. There is one worker
+    /// and one pending target, regardless of how long checkpoint storage stalls.
+    async fn lightweight_history_submitter(
+        self,
+        mut tree: IncrementalMerkle,
+        mut targets: watch::Receiver<Option<CheckpointAtBlock>>,
+    ) {
+        while targets.changed().await.is_ok() {
+            let target = targets
+                .borrow_and_update()
+                .clone()
+                .expect("verified target");
+            let mut queue = self.verified_checkpoints(&mut tree, &target).await;
+            // The live submitter published this target before notifying us.
+            queue.pop();
+            self.submit_checkpoints(
+                queue
+                    .into_iter()
+                    .map(|queued| queued.into_checkpoint(target.checkpoint)),
+                false,
+            )
+            .await;
+            // Only this worker writes snapshots, after every covered checkpoint
+            // is durable. Never snapshot the main loop's newer committed tree.
+            self.persist_lightweight_snapshot(&tree).await;
+            self.metrics.backfill_complete.set(1);
         }
     }
 
@@ -510,6 +533,23 @@ impl ValidatorSubmitter {
         tree: &mut IncrementalMerkle,
         correctness_checkpoint: &CheckpointAtBlock,
     ) {
+        let queue = self
+            .verified_checkpoints(tree, correctness_checkpoint)
+            .await;
+        self.sign_and_submit_checkpoints(
+            queue
+                .into_iter()
+                .map(|queued| queued.into_checkpoint(correctness_checkpoint.checkpoint)),
+        )
+        .await;
+    }
+
+    /// Reconstruct a complete prefix and verify it before exposing checkpoints to signing.
+    async fn verified_checkpoints(
+        &self,
+        tree: &mut IncrementalMerkle,
+        correctness_checkpoint: &CheckpointAtBlock,
+    ) -> Vec<QueuedCheckpoint> {
         let start = Instant::now();
         // This should never be called with a tree that is ahead of the correctness checkpoint.
         assert!(
@@ -650,8 +690,12 @@ impl ValidatorSubmitter {
 
         let checkpoint = self.checkpoint(root, tree.index());
 
-        self.verify_checkpoint(checkpoint, correctness_checkpoint, true)
-            .await;
+        self.verify_checkpoint(
+            checkpoint,
+            correctness_checkpoint,
+            self.reorg_reporter.is_some(),
+        )
+        .await;
 
         if !checkpoint_queue.is_empty() {
             info!(
@@ -660,18 +704,8 @@ impl ValidatorSubmitter {
                 elapsed = ?start.elapsed(),
                 "Checkpoint submitter reached correctness checkpoint"
             );
-            self.sign_and_submit_checkpoints(
-                checkpoint_queue
-                    .into_iter()
-                    .map(move |queued| queued.into_checkpoint(checkpoint)),
-            )
-            .await;
-
-            info!(
-                index = checkpoint.index,
-                "Signed all queued checkpoints until index"
-            );
         }
+        checkpoint_queue
     }
 
     async fn verify_checkpoint(
@@ -736,7 +770,10 @@ impl ValidatorSubmitter {
     }
 
     /// Restores a snapshot after validating it against the signed checkpoint.
-    async fn restored_snapshot_tree(&self, target_index: u32) -> Option<IncrementalMerkle> {
+    pub(crate) async fn restored_snapshot_tree(
+        &self,
+        target_index: u32,
+    ) -> Option<IncrementalMerkle> {
         let snapshot = match self.checkpoint_syncer.read_merkle_snapshot().await {
             Ok(Some(snapshot)) => snapshot,
             Ok(None) => return None,

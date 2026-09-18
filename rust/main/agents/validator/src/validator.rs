@@ -26,10 +26,11 @@ use hyperlane_base::{
     SequencedDataContractSync,
 };
 use hyperlane_core::{
-    rpc_clients::RPC_RETRY_SLEEP_DURATION, Announcement, ChainResult, CheckpointAtBlock,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt,
-    IncrementalMerkleAtBlock, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
-    ValidatorAnnounce, ValidatorAnnounceSubmission, H256, U256,
+    accumulator::incremental::IncrementalMerkle, rpc_clients::RPC_RETRY_SLEEP_DURATION,
+    Announcement, ChainResult, CheckpointAtBlock, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, IncrementalMerkleAtBlock, MerkleTreeHook,
+    MerkleTreeInsertion, ReorgPeriod, TxOutcome, ValidatorAnnounce, ValidatorAnnounceSubmission,
+    H256, U256,
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
 use hyperlane_metric::{
@@ -679,12 +680,12 @@ impl BaseAgent for Validator {
         // announce the validator after spawning the signer task
         self.announce().await.expect("Failed to announce validator");
 
-        // Lightweight startup replays websocket insertions from zero. No RPC tree
-        // frontier is trusted before every endpoint's checkpoint is verified.
+        let submitter = self.checkpoint_submitter();
+        // Authenticate the snapshot before choosing the websocket replay cursor.
         let tip_tree = if self.lightweight_reader.is_some() {
             self.readiness.mark_waiting_for_first_message();
             IncrementalMerkleAtBlock {
-                tree: Default::default(),
+                tree: submitter.restore_lightweight_tree().await,
                 block_height: None,
             }
         } else {
@@ -697,6 +698,16 @@ impl BaseAgent for Validator {
             .await
         };
 
+        let backfill_tree = if self.lightweight_reader.is_some() {
+            tip_tree.tree.clone()
+        } else {
+            submitter
+                .restored_snapshot_tree(tip_tree.index())
+                .await
+                .unwrap_or_default()
+        };
+        let replay_from = u32::try_from(backfill_tree.count()).expect("snapshot count fits in u32");
+
         let merkle_tree_hook_sync = match self
             .try_n_times_to_run_merkle_tree_hook_sync(
                 CURSOR_INSTANTIATION_ATTEMPTS,
@@ -704,6 +715,7 @@ impl BaseAgent for Validator {
                     .count()
                     .try_into()
                     .expect("Merkle tree leaf count must fit in u32"),
+                replay_from,
             )
             .await
         {
@@ -714,7 +726,10 @@ impl BaseAgent for Validator {
             }
         };
         tasks.push(merkle_tree_hook_sync);
-        for checkpoint_sync_task in self.run_checkpoint_submitters(tip_tree).await {
+        for checkpoint_sync_task in self
+            .run_checkpoint_submitters(submitter, tip_tree, backfill_tree)
+            .await
+        {
             tasks.push(checkpoint_sync_task);
         }
 
@@ -733,9 +748,13 @@ impl Validator {
         &self,
         attempts: usize,
         next_sequence_hint: u32,
+        replay_from: u32,
     ) -> eyre::Result<JoinHandle<()>> {
         for i in 0..attempts {
-            let task = match self.run_merkle_tree_hook_sync(next_sequence_hint).await {
+            let task = match self
+                .run_merkle_tree_hook_sync(next_sequence_hint, replay_from)
+                .await
+            {
                 Ok(s) => s,
                 Err(err) => {
                     error!(
@@ -763,6 +782,7 @@ impl Validator {
     async fn run_merkle_tree_hook_sync(
         &self,
         next_sequence_hint: u32,
+        replay_from: u32,
     ) -> eyre::Result<JoinHandle<()>> {
         let origin = self.origin_chain.name().to_string();
         match &self.merkle_tree_hook_sync {
@@ -799,7 +819,7 @@ impl Validator {
                 let websocket = websocket.clone();
                 let cursor_sync = websocket.clone();
                 let next_sequence = tokio::task::spawn_blocking(move || {
-                    cursor_sync.next_sequence(next_sequence_hint)
+                    cursor_sync.next_sequence_after_snapshot(replay_from)
                 })
                 .await
                 .context("Finding the next Merkle tree insertion sequence")??;
@@ -825,11 +845,8 @@ impl Validator {
         }
     }
 
-    async fn run_checkpoint_submitters(
-        &self,
-        tip_tree: IncrementalMerkleAtBlock,
-    ) -> Vec<JoinHandle<()>> {
-        let mut submitter = ValidatorSubmitter::new(
+    fn checkpoint_submitter(&self) -> ValidatorSubmitter {
+        ValidatorSubmitter::new(
             self.interval,
             self.reorg_period.clone(),
             self.merkle_tree_hook.clone(),
@@ -842,15 +859,22 @@ impl Validator {
             self.reorg_reporter.clone(),
             Arc::clone(&self.readiness),
         )
-        .with_checkpoint_wake(self.checkpoint_wake.clone());
+        .with_checkpoint_wake(self.checkpoint_wake.clone())
+    }
 
+    async fn run_checkpoint_submitters(
+        &self,
+        mut submitter: ValidatorSubmitter,
+        tip_tree: IncrementalMerkleAtBlock,
+        backfill_tree: IncrementalMerkle,
+    ) -> Vec<JoinHandle<()>> {
         if let Some(reader) = &self.lightweight_reader {
             let reader = reader.clone();
             return vec![tokio::spawn(
                 async move {
                     with_rpc_operation(
                         RpcOperation::ValidatorCheckpoint,
-                        submitter.lightweight_checkpoint_submitter(reader),
+                        submitter.lightweight_checkpoint_submitter(reader, tip_tree.tree),
                     )
                     .await
                 }
@@ -885,7 +909,8 @@ impl Validator {
             async move {
                 with_rpc_operation(
                     RpcOperation::ValidatorCheckpoint,
-                    backfill_submitter.backfill_checkpoint_submitter(backfill_target),
+                    backfill_submitter
+                        .backfill_checkpoint_submitter(backfill_target, backfill_tree),
                 )
                 .await
             }

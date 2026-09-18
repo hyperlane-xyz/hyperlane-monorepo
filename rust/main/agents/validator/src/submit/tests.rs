@@ -1549,7 +1549,13 @@ async fn backfill_restores_validated_snapshot_and_replays_tail() {
         .returning(|_| Ok(()));
 
     let submitter = snapshot_test_submitter(domain, signer, checkpoint_syncer, db);
-    submitter.backfill_checkpoint_submitter(target).await;
+    let restored = submitter
+        .restored_snapshot_tree(target.index)
+        .await
+        .unwrap_or_default();
+    submitter
+        .backfill_checkpoint_submitter(target, restored)
+        .await;
 }
 
 #[tokio::test(start_paused = true)]
@@ -1579,7 +1585,13 @@ async fn backfill_restores_snapshot_at_target_without_replay() {
         .returning(|_| Ok(()));
 
     let submitter = snapshot_test_submitter(domain, signer, checkpoint_syncer, db);
-    submitter.backfill_checkpoint_submitter(target).await;
+    let restored = submitter
+        .restored_snapshot_tree(target.index)
+        .await
+        .unwrap_or_default();
+    submitter
+        .backfill_checkpoint_submitter(target, restored)
+        .await;
 }
 
 #[tokio::test(start_paused = true)]
@@ -1631,7 +1643,95 @@ async fn assert_backfill_rebuilds_tree(snapshot: Result<Option<MerkleTreeSnapsho
 
     let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
     let submitter = snapshot_test_submitter(domain, signer, checkpoint_syncer, db);
-    submitter.backfill_checkpoint_submitter(target).await;
+    let restored = submitter
+        .restored_snapshot_tree(target.index)
+        .await
+        .unwrap_or_default();
+    submitter
+        .backfill_checkpoint_submitter(target, restored)
+        .await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn normal_backfill_replays_skipped_history_after_snapshot_loss() {
+    use hyperlane_base::db::{HyperlaneRocksDB, DB};
+
+    use crate::merkle_tree_hook_sync::MerkleTreeHookWebSocketSync;
+
+    for corrupt in [false, true] {
+        let (domain, insertions, _, target, mut snapshot) = three_leaf_snapshot_fixture();
+        let directory = tempfile::tempdir().expect("test database");
+        let db = HyperlaneRocksDB::new(
+            &domain,
+            DB::from_path(directory.path()).expect("test database"),
+        );
+        let websocket = MerkleTreeHookWebSocketSync::new(
+            db.clone(),
+            domain.id(),
+            H256::zero(),
+            "ws://localhost:8080".parse().expect("test URL"),
+            IntGauge::new("websocket", "test").expect("test gauge"),
+            IntGauge::new("fallback", "test").expect("test gauge"),
+            Arc::new(Notify::new()),
+        );
+        // A previous lightweight run skipped the prefix covered by its snapshot.
+        assert_eq!(websocket.next_sequence_after_snapshot(2).unwrap(), 2);
+        db.store_tree_insertion(&insertions[2], 1).unwrap();
+        assert_eq!(websocket.next_sequence_after_snapshot(2).unwrap(), 3);
+
+        snapshot.root = H256::repeat_byte(0xff);
+        let mut syncer = MockCheckpointSyncer::new();
+        syncer
+            .expect_read_merkle_snapshot()
+            .once()
+            .return_once(move || Ok(corrupt.then_some(snapshot)));
+        syncer
+            .expect_fetch_checkpoint()
+            .times(3)
+            .returning(|_| Ok(None));
+        let published = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let observed = published.clone();
+        syncer
+            .expect_write_checkpoint()
+            .times(3)
+            .returning(move |signed| {
+                observed.lock().unwrap().push(signed.value.index);
+                Ok(())
+            });
+        syncer
+            .expect_update_latest_index()
+            .with(mockall::predicate::eq(2))
+            .once()
+            .returning(|_| Ok(()));
+        syncer
+            .expect_write_merkle_snapshot()
+            .withf(|snapshot| snapshot.index == 2)
+            .once()
+            .returning(|_| Ok(()));
+        let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+        let mut submitter = snapshot_test_submitter(domain, signer, syncer, MockDb::new());
+        submitter.db = Arc::new(db.clone());
+
+        // Normal-mode startup shares this single restore with replay and backfill.
+        let tree = submitter
+            .restored_snapshot_tree(target.index)
+            .await
+            .unwrap_or_default();
+        let replay_from = websocket
+            .next_sequence_after_snapshot(tree.count() as u32)
+            .unwrap();
+        assert_eq!(
+            replay_from, 0,
+            "must ignore the old cursor after snapshot loss"
+        );
+        for insertion in &insertions[replay_from as usize..2] {
+            db.store_tree_insertion(insertion, 1).unwrap();
+        }
+        submitter.backfill_checkpoint_submitter(target, tree).await;
+        let mut indices = published.lock().unwrap().clone();
+        indices.sort_unstable();
+        assert_eq!(indices, vec![0, 1, 2]);
+    }
 }
 
 #[tokio::test]
@@ -2237,7 +2337,7 @@ async fn lightweight_batches_insertions_with_one_checkpoint_read_and_no_idle_rpc
         .return_once(move |_| Ok(checkpoint));
     let reader =
         Arc::new(LightweightCheckpointReader::new(vec![Arc::new(hook)]).expect("endpoint"));
-    let task = tokio::spawn(submitter.lightweight_checkpoint_submitter(reader));
+    let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
     for _ in 0..10 {
         tokio::time::advance(Duration::from_secs(1)).await;
         tokio::task::yield_now().await;
@@ -2259,7 +2359,7 @@ async fn lightweight_empty_chain_waits_without_any_rpc_calls() {
         LightweightCheckpointReader::new(vec![Arc::new(MockMerkleTreeHook::new())])
             .expect("endpoint"),
     );
-    let task = tokio::spawn(submitter.lightweight_checkpoint_submitter(reader));
+    let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
     for _ in 0..5 {
         tokio::time::advance(Duration::from_secs(1)).await;
         tokio::task::yield_now().await;
@@ -2315,7 +2415,7 @@ async fn lightweight_refreshes_ahead_checkpoint_when_websocket_progress_stalls()
             Ok(checkpoints[index].clone())
         });
     let reader = Arc::new(LightweightCheckpointReader::new(vec![Arc::new(hook)]).unwrap());
-    let task = tokio::spawn(submitter.lightweight_checkpoint_submitter(reader));
+    let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
     for _ in 0..5 {
         tokio::time::advance(Duration::from_secs(1)).await;
         tokio::task::yield_now().await;
@@ -2424,7 +2524,7 @@ async fn lightweight_restores_signed_snapshot_without_republishing_history() {
         .once()
         .return_once(move |_| Ok(target));
     let reader = Arc::new(LightweightCheckpointReader::new(vec![Arc::new(hook)]).unwrap());
-    let task = tokio::spawn(submitter.lightweight_checkpoint_submitter(reader));
+    let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
     for _ in 0..10 {
         tokio::time::advance(Duration::from_secs(1)).await;
         tokio::task::yield_now().await;
@@ -2468,7 +2568,6 @@ async fn lightweight_live_signing_continues_while_history_uploads_retry() {
     let stored = snapshots.clone();
     syncer
         .expect_write_merkle_snapshot()
-        .once()
         .returning(move |snapshot| {
             stored.lock().unwrap().push(snapshot.index);
             Ok(())
@@ -2481,7 +2580,7 @@ async fn lightweight_live_signing_continues_while_history_uploads_retry() {
         .times(2)
         .returning(move |_| Ok(checkpoints[indexed.load(Ordering::SeqCst) - 1].clone()));
     let reader = Arc::new(LightweightCheckpointReader::new(vec![Arc::new(hook)]).unwrap());
-    let task = tokio::spawn(submitter.lightweight_checkpoint_submitter(reader));
+    let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
     for _ in 0..10 {
         tokio::time::advance(Duration::from_secs(1)).await;
         tokio::task::yield_now().await;
@@ -2505,7 +2604,97 @@ async fn lightweight_live_signing_continues_while_history_uploads_retry() {
     let mut all_signed = signed.lock().unwrap().clone();
     all_signed.sort_unstable();
     assert_eq!(all_signed, vec![0, 1, 2, 3]);
-    assert_eq!(*snapshots.lock().unwrap(), vec![3]);
+    assert_eq!(*snapshots.lock().unwrap(), vec![2, 3]);
+    assert!(!task.is_finished());
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
+}
+
+#[tokio::test(start_paused = true)]
+async fn lightweight_later_history_stalls_do_not_block_live_signing_or_skip_snapshots() {
+    let available = Arc::new(AtomicUsize::new(1));
+    let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let mut submitter = lightweight_test_submitter(available.clone(), signed.clone());
+    let history_ready = Arc::new(AtomicBool::new(false));
+    let durable = Arc::new(std::sync::Mutex::new(std::collections::BTreeMap::<
+        u32,
+        SignedCheckpointWithMessageId,
+    >::new()));
+    let mut syncer = MockCheckpointSyncer::new();
+    syncer
+        .expect_read_merkle_snapshot()
+        .once()
+        .returning(|| Ok(None));
+    let stored = durable.clone();
+    syncer
+        .expect_fetch_checkpoint()
+        .returning(move |index| Ok(stored.lock().unwrap().get(&index).cloned()));
+    let stored = durable.clone();
+    let ready = history_ready.clone();
+    let observed = signed.clone();
+    syncer
+        .expect_write_checkpoint()
+        .returning(move |checkpoint| {
+            let index = checkpoint.value.index;
+            if index == 1 && !ready.load(Ordering::SeqCst) {
+                return Err(eyre::eyre!("historical object unavailable"));
+            }
+            assert!(stored
+                .lock()
+                .unwrap()
+                .insert(index, checkpoint.clone())
+                .is_none());
+            observed.lock().unwrap().push(index);
+            Ok(())
+        });
+    let latest = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let observed = latest.clone();
+    syncer.expect_update_latest_index().returning(move |index| {
+        observed.lock().unwrap().push(index);
+        Ok(())
+    });
+    let snapshots = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let observed = snapshots.clone();
+    let stored = durable.clone();
+    syncer
+        .expect_write_merkle_snapshot()
+        .returning(move |snapshot| {
+            let stored = stored.lock().unwrap();
+            assert!((0..=snapshot.index).all(|index| stored.contains_key(&index)));
+            observed.lock().unwrap().push(snapshot.index);
+            Ok(())
+        });
+    submitter.checkpoint_syncer = Arc::new(syncer);
+    let checkpoints = lightweight_checkpoints(6);
+    let indexed = available.clone();
+    let mut hook = MockMerkleTreeHook::new();
+    hook.expect_latest_checkpoint()
+        .times(4)
+        .returning(move |_| Ok(checkpoints[indexed.load(Ordering::SeqCst) - 1].clone()));
+    let reader = Arc::new(LightweightCheckpointReader::new(vec![Arc::new(hook)]).unwrap());
+    let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
+    // Complete the first batch, then stall history in the second while two more arrive.
+    for count in [1, 3, 4, 6] {
+        available.store(count, Ordering::SeqCst);
+        for _ in 0..10 {
+            tokio::time::advance(Duration::from_secs(1)).await;
+            tokio::task::yield_now().await;
+        }
+        assert!(durable.lock().unwrap().contains_key(&(count as u32 - 1)));
+        assert_eq!(*snapshots.lock().unwrap(), vec![0]);
+    }
+    assert_eq!(*signed.lock().unwrap(), vec![0, 2, 3, 5]);
+    history_ready.store(true, Ordering::SeqCst);
+    for _ in 0..40 {
+        tokio::time::advance(Duration::from_secs(1)).await;
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(
+        durable.lock().unwrap().keys().copied().collect::<Vec<_>>(),
+        vec![0, 1, 2, 3, 4, 5]
+    );
+    assert_eq!(*latest.lock().unwrap(), vec![0, 2, 3, 5]);
+    assert_eq!(*snapshots.lock().unwrap(), vec![0, 2, 5]);
     assert!(!task.is_finished());
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
@@ -2530,7 +2719,7 @@ async fn lightweight_refreshes_ahead_checkpoint_during_continuous_websocket_prog
         Ok(checkpoints[index].clone())
     });
     let reader = Arc::new(LightweightCheckpointReader::new(vec![Arc::new(hook)]).unwrap());
-    let task = tokio::spawn(submitter.lightweight_checkpoint_submitter(reader));
+    let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
     tokio::task::yield_now().await;
     for count in 2..=51 {
         // Progress every second must not extend the captured sample's lifetime.
@@ -2567,7 +2756,7 @@ async fn lightweight_refresh_preserves_reachable_targets_during_slow_replay() {
         Ok(checkpoints[indexed.load(Ordering::SeqCst) + 44].clone())
     });
     let reader = Arc::new(LightweightCheckpointReader::new(vec![Arc::new(hook)]).unwrap());
-    let task = tokio::spawn(submitter.lightweight_checkpoint_submitter(reader));
+    let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
     tokio::task::yield_now().await;
     for count in 2..=61 {
         available.store(count, Ordering::SeqCst);
@@ -2585,4 +2774,60 @@ async fn lightweight_refresh_preserves_reachable_targets_during_slow_replay() {
     assert!(!task.is_finished());
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
+}
+
+// Mirror production startup: authenticate once, then pass that same tree to signing.
+async fn start_lightweight_submitter(
+    submitter: ValidatorSubmitter,
+    reader: Arc<LightweightCheckpointReader>,
+) {
+    let tree = submitter.restore_lightweight_tree().await;
+    submitter
+        .lightweight_checkpoint_submitter(reader, tree)
+        .await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn lightweight_websocket_wakes_cannot_accelerate_rpc_retries() {
+    for failing in [false, true] {
+        let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let wake = Arc::new(Notify::new());
+        let available = Arc::new(AtomicUsize::new(2));
+        let submitter = lightweight_test_submitter(available, signed.clone())
+            .with_checkpoint_wake(Some(wake.clone()));
+        let reads = Arc::new(AtomicUsize::new(0));
+        let calls = reads.clone();
+        let checkpoint = lightweight_checkpoints(1).pop().expect("test fixture");
+        let mut hook = MockMerkleTreeHook::new();
+        hook.expect_latest_checkpoint().returning(move |_| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            if failing {
+                Err(hyperlane_core::ChainCommunicationError::from_other_str(
+                    "rate limited",
+                ))
+            } else {
+                Ok(checkpoint.clone()) // Confirmed chain tip has not advanced.
+            }
+        });
+        let reader =
+            Arc::new(LightweightCheckpointReader::new(vec![Arc::new(hook)]).expect("test fixture"));
+        let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
+        tokio::task::yield_now().await;
+        let started = tokio::time::Instant::now();
+        for _ in 0..100 {
+            wake.notify_one();
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(started.elapsed(), Duration::ZERO);
+        assert_eq!(reads.load(Ordering::SeqCst), 1);
+        tokio::time::advance(Duration::from_secs(1)).await;
+        tokio::task::yield_now().await;
+        assert_eq!(reads.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            *signed.lock().expect("test fixture"),
+            if failing { vec![] } else { vec![0] }
+        );
+        task.abort();
+        assert!(task.await.expect_err("cancelled loop").is_cancelled());
+    }
 }

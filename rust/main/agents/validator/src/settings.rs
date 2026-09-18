@@ -263,6 +263,14 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             ));
         }
 
+        for removed in ["additionalQuorumRpcUrls", "customAdditionalQuorumRpcUrls"] {
+            if chain.chain(&mut err).get_opt_key(removed).end().is_some() {
+                err.push(cwp.add("chains").add(origin_chain_name).add(&removed.to_ascii_lowercase()), eyre!(
+                    "{removed} was removed; move its endpoints into rpcUrls/customRpcUrls and remove the obsolete setting. Normal mode uses rpcConsensusType; lightweight mode checks every endpoint"
+                ));
+            }
+        }
+
         cfg_unwrap_all!(cwp, err: [base, origin_chain, validator, checkpoint_syncer]);
 
         let mut base: Settings = base;
@@ -638,6 +646,36 @@ mod test {
                 "merkletreehook": "0x0000000000000000000000000000000000000004"
             }}
         })
+    }
+
+    #[test]
+    fn removed_quorum_settings_require_migration_in_both_modes() {
+        for lightweight in [false, true] {
+            for (key, value) in [
+                (
+                    "additionalquorumrpcurls",
+                    serde_json::json!([{"http": "https://quorum.example"}]),
+                ),
+                ("additionalquorumrpcurls", serde_json::json!([])),
+                (
+                    "customadditionalquorumrpcurls",
+                    serde_json::json!("https://quorum.example"),
+                ),
+                ("customadditionalquorumrpcurls", serde_json::json!("")),
+            ] {
+                let mut raw = lightweight_settings_fixture();
+                raw["lightweight"] = Value::Bool(lightweight);
+                raw["chains"]["test"][key] = value;
+                let error = ValidatorSettings::from_config_filtered(
+                    RawValidatorSettings(raw),
+                    &ConfigPath::default(),
+                    (),
+                    "validator",
+                )
+                .expect_err("obsolete quorum configuration must not be silently ignored");
+                assert!(error.to_string().contains("was removed"));
+            }
+        }
     }
 
     #[test]

@@ -318,6 +318,26 @@ describe('ValidatorAgentConfigSchema lightweight mode', () => {
     }
   });
 
+  it('rejects removed quorum settings in both modes', () => {
+    for (const lightweight of [false, true]) {
+      for (const removed of [
+        { additionalQuorumRpcUrls: [{ http: 'https://quorum.example' }] },
+        { additionalQuorumRpcUrls: [] },
+        { customAdditionalQuorumRpcUrls: 'https://quorum.example' },
+        { customAdditionalQuorumRpcUrls: '' },
+      ]) {
+        expect(
+          ValidatorAgentConfigSchema.safeParse({
+            ...config,
+            lightweight,
+            websocketUrl: 'wss://scraper.example',
+            chains: { test: { ...config.chains.test, ...removed } },
+          }).success,
+        ).to.be.false;
+      }
+    }
+  });
+
   it('accepts lightweight indexing for every supported protocol', () => {
     for (const protocol of [
       ProtocolType.Ethereum,

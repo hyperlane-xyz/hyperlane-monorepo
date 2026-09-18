@@ -262,6 +262,18 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
       .describe(
         'Specify a comma separated list of custom RPC URLs to use for this chain. If not specified, the default RPC urls will be used.',
       ),
+    additionalQuorumRpcUrls: z
+      .never()
+      .optional()
+      .describe(
+        'Removed. Move endpoints into rpcUrls/customRpcUrls and remove this setting.',
+      ),
+    customAdditionalQuorumRpcUrls: z
+      .never()
+      .optional()
+      .describe(
+        'Removed. Move endpoints into rpcUrls/customRpcUrls and remove this setting.',
+      ),
     rpcConsensusType: z
       .enum(RpcConsensusType)
       .describe('The consensus type to use when multiple RPCs are configured.')
