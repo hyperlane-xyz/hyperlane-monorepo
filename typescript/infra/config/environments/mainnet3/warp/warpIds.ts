@@ -77,6 +77,8 @@ export enum WarpRouteIds {
   MainnetCCTPV1 = 'USDC/mainnet-cctp',
   MainnetCCTPV2Fast = 'USDC/mainnet-cctp-v2-fast',
   MainnetCCTPV2Standard = 'USDC/mainnet-cctp-v2-standard',
+  MainnetCCTPV2StandardStaging = 'USDC/mainnet-cctp-v2-standard-staging',
+  MainnetCCTPV2FastStaging = 'USDC/mainnet-cctp-v2-fast-staging',
   TestnetCCTPV1 = 'USDC/testnet-cctp',
 
   // HYPER routes
