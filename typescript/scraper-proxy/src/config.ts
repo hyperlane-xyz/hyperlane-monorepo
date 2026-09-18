@@ -30,11 +30,6 @@ const ConfigSchema = z.object({
     .int()
     .min(1_000)
     .default(1_800_000),
-  EVENT_STREAM_HISTORY_MAX_ROWS: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .default(1_000_000),
   EVENT_STREAM_MAX_AGENT_CLIENTS: z.coerce
     .number()
     .int()

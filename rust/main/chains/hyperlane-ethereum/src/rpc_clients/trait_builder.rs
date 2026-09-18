@@ -416,6 +416,8 @@ fn get_reqwest_client(url: &Url) -> ChainResult<Client> {
     let (headers, _) =
         parse_custom_rpc_headers(url).map_err(ChainCommunicationError::from_other)?;
     let client = Client::builder()
+        // Avoid platform TLS negotiation failures (notably Secure Transport on macOS).
+        .use_rustls_tls()
         .timeout(HTTP_CLIENT_TIMEOUT)
         .default_headers(headers)
         .build()
