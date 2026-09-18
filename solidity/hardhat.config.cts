@@ -29,7 +29,7 @@ module.exports = {
           },
         },
       },
-      'contracts/hooks/layerzero/LayerZeroV2CcipReadHookIsm.sol': {
+      'contracts/hooks/layerzero/LayerZeroV2OffchainLookupHookIsm.sol': {
         ...rootHardhatConfig.solidity,
         settings: {
           ...rootHardhatConfig.solidity.settings,

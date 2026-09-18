@@ -3,14 +3,14 @@ pragma solidity ^0.8.20;
 
 import {Test, StdStorage, stdStorage} from "forge-std/Test.sol";
 
-import {ILayerZeroEndpointV2} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroEndpointV2.sol";
+import {ILayerZeroEndpointV2, Origin as LayerZeroOrigin} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroEndpointV2.sol";
 import {SetConfigParam as LayerZeroSetConfigParam} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/IMessageLibManager.sol";
 import {MessageLibManager} from "@layerzerolabs/lz-evm-protocol-v2/contracts/MessageLibManager.sol";
 import {GUID} from "@layerzerolabs/lz-evm-protocol-v2/contracts/libs/GUID.sol";
 import {IReceiveUlnE2} from "@layerzerolabs/lz-evm-messagelib-v2/contracts/uln/interfaces/IReceiveUlnE2.sol";
 import {ReceiveUlnBase} from "@layerzerolabs/lz-evm-messagelib-v2/contracts/uln/ReceiveUlnBase.sol";
 import {UlnConfig} from "@layerzerolabs/lz-evm-messagelib-v2/contracts/uln/UlnBase.sol";
-import {LayerZeroV2CcipReadHookIsm} from "contracts/hooks/layerzero/LayerZeroV2CcipReadHookIsm.sol";
+import {LayerZeroV2OffchainLookupHookIsm} from "contracts/hooks/layerzero/LayerZeroV2OffchainLookupHookIsm.sol";
 import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {LayerZeroMessage} from "contracts/libs/LayerZeroMessage.sol";
 import {Message} from "contracts/libs/Message.sol";
@@ -19,7 +19,7 @@ import {TestMailbox} from "contracts/test/TestMailbox.sol";
 import {TestPostDispatchHook} from "contracts/test/TestPostDispatchHook.sol";
 import {TestRecipient} from "contracts/test/TestRecipient.sol";
 
-contract LayerZeroV2CcipReadHookIsmForkTest is Test {
+contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
     using Message for bytes;
     using TypeCasts for address;
     using stdStorage for StdStorage;
@@ -38,7 +38,7 @@ contract LayerZeroV2CcipReadHookIsmForkTest is Test {
         0xc02Ab410f0734EFa3F14628780e6e695156024C2;
 
     TestMailbox internal mailbox;
-    LayerZeroV2CcipReadHookIsm internal router;
+    LayerZeroV2OffchainLookupHookIsm internal router;
 
     function setUp() public {
         vm.createSelectFork("mainnet", ETHEREUM_FORK_BLOCK);
@@ -54,7 +54,7 @@ contract LayerZeroV2CcipReadHookIsmForkTest is Test {
         mailbox.setRequiredHook(address(noopHook));
         string[] memory urls = new string[](1);
         urls[0] = "https://example.com/layerzero";
-        router = new LayerZeroV2CcipReadHookIsm(
+        router = new LayerZeroV2OffchainLookupHookIsm(
             address(mailbox),
             address(ENDPOINT),
             urls
@@ -62,7 +62,7 @@ contract LayerZeroV2CcipReadHookIsmForkTest is Test {
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
         router.enrollLayerZeroRemoteRouter(
-            LayerZeroV2CcipReadHookIsm.RemoteRouterConfig({
+            LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
                 domainId: ARBITRUM_DOMAIN,
                 domainIsm: address(0xBEEF).addressToBytes32(),
                 endpointId: ARBITRUM_ENDPOINT_ID,
@@ -112,8 +112,8 @@ contract LayerZeroV2CcipReadHookIsmForkTest is Test {
             config: updatedExecutorConfig
         });
 
-        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig
-            memory newRemoteConfig = LayerZeroV2CcipReadHookIsm
+        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig
+            memory newRemoteConfig = LayerZeroV2OffchainLookupHookIsm
                 .RemoteRouterConfig({
                     domainId: ARBITRUM_DOMAIN,
                     domainIsm: address(0xCAFE).addressToBytes32(),
@@ -189,16 +189,17 @@ contract LayerZeroV2CcipReadHookIsmForkTest is Test {
         });
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
-        LayerZeroV2CcipReadHookIsm.RemoteRouterConfig
-            memory config = LayerZeroV2CcipReadHookIsm.RemoteRouterConfig({
-                domainId: ARBITRUM_DOMAIN,
-                domainIsm: address(0xBEEF).addressToBytes32(),
-                endpointId: ARBITRUM_ENDPOINT_ID,
-                sendLibrary: SEND_ULN_302,
-                receiveLibrary: RECEIVE_ULN_302,
-                sendConfig: sendConfig,
-                receiveConfig: emptyConfig
-            });
+        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig
+            memory config = LayerZeroV2OffchainLookupHookIsm
+                .RemoteRouterConfig({
+                    domainId: ARBITRUM_DOMAIN,
+                    domainIsm: address(0xBEEF).addressToBytes32(),
+                    endpointId: ARBITRUM_ENDPOINT_ID,
+                    sendLibrary: SEND_ULN_302,
+                    receiveLibrary: RECEIVE_ULN_302,
+                    sendConfig: sendConfig,
+                    receiveConfig: emptyConfig
+                });
         router.unenrollRemoteRouter(ARBITRUM_DOMAIN);
         router.enrollLayerZeroRemoteRouter(config);
 
@@ -242,7 +243,7 @@ contract LayerZeroV2CcipReadHookIsmForkTest is Test {
         );
     }
 
-    function testProductionEndpointCcipReadDispatch() public {
+    function testProductionEndpointOffchainLookupDispatch() public {
         bytes memory message = mailbox.buildOutboundMessage(
             ARBITRUM_DOMAIN,
             address(0x1234).addressToBytes32(),
@@ -275,15 +276,15 @@ contract LayerZeroV2CcipReadHookIsmForkTest is Test {
 
         string[] memory urls = new string[](1);
         urls[0] = "https://example.com/layerzero";
-        LayerZeroV2CcipReadHookIsm newRouter = new LayerZeroV2CcipReadHookIsm(
-            address(mailbox),
-            address(ENDPOINT),
-            urls
-        );
+        LayerZeroV2OffchainLookupHookIsm newRouter = new LayerZeroV2OffchainLookupHookIsm(
+                address(mailbox),
+                address(ENDPOINT),
+                urls
+            );
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
         newRouter.enrollLayerZeroRemoteRouter(
-            LayerZeroV2CcipReadHookIsm.RemoteRouterConfig({
+            LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
                 domainId: ARBITRUM_DOMAIN,
                 domainIsm: address(0xBEEF).addressToBytes32(),
                 endpointId: ARBITRUM_ENDPOINT_ID,
@@ -303,7 +304,7 @@ contract LayerZeroV2CcipReadHookIsmForkTest is Test {
 
         newRouter.unenrollRemoteRouter(ARBITRUM_DOMAIN);
         newRouter.enrollLayerZeroRemoteRouter(
-            LayerZeroV2CcipReadHookIsm.RemoteRouterConfig({
+            LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
                 domainId: ARBITRUM_DOMAIN,
                 domainIsm: address(0xBEEF).addressToBytes32(),
                 endpointId: ARBITRUM_ENDPOINT_ID,
@@ -342,7 +343,7 @@ contract LayerZeroV2CcipReadHookIsmForkTest is Test {
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
         router.enrollLayerZeroRemoteRouter(
-            LayerZeroV2CcipReadHookIsm.RemoteRouterConfig({
+            LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
                 domainId: ARBITRUM_DOMAIN,
                 domainIsm: address(0xBEEF).addressToBytes32(),
                 endpointId: ARBITRUM_ENDPOINT_ID,
@@ -401,6 +402,53 @@ contract LayerZeroV2CcipReadHookIsmForkTest is Test {
                 ARBITRUM_ENDPOINT_ID,
                 remoteSender,
                 nonce
+            ),
+            bytes32(0)
+        );
+    }
+
+    function testProductionEndpointSinglePacketClearFitsBudget() public {
+        bytes32 remoteSender = address(0xBEEF).addressToBytes32();
+        LayerZeroOrigin memory origin = LayerZeroOrigin({
+            srcEid: ARBITRUM_ENDPOINT_ID,
+            sender: remoteSender,
+            nonce: 1
+        });
+        bytes32 guid = GUID.generate(
+            origin.nonce,
+            origin.srcEid,
+            address(0xBEEF),
+            ETHEREUM_ENDPOINT_ID,
+            address(router).addressToBytes32()
+        );
+        bytes memory payload = LayerZeroMessage.encode(
+            ARBITRUM_DOMAIN,
+            ETHEREUM_DOMAIN,
+            bytes32(uint256(1))
+        );
+
+        // Isolate the production Endpoint's clear cost from DVN verification.
+        vm.prank(RECEIVE_ULN_302);
+        ENDPOINT.verify(
+            origin,
+            address(router),
+            keccak256(abi.encodePacked(guid, payload))
+        );
+
+        vm.startPrank(address(router));
+        uint256 gasBefore = gasleft();
+        ENDPOINT.clear(address(router), origin, guid, payload);
+        uint256 clearGasUsed = gasBefore - gasleft();
+        vm.stopPrank();
+
+        emit log_named_uint("Endpoint.clear single-packet gas", clearGasUsed);
+        assertLt(clearGasUsed, 100_000);
+        assertEq(
+            ENDPOINT.inboundPayloadHash(
+                address(router),
+                ARBITRUM_ENDPOINT_ID,
+                remoteSender,
+                origin.nonce
             ),
             bytes32(0)
         );
