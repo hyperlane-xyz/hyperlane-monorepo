@@ -80,6 +80,7 @@ const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 const MESSAGE_DB_LOADER_INIT_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 const CHAIN_BUILD_ATTEMPTS: usize = 5;
 const CHAIN_BUILD_RETRY_INTERVAL: Duration = Duration::from_secs(3);
+const CHAIN_BUILD_RETRY_BUDGET: Duration = Duration::from_secs(15);
 const ADVANCED_LOG_META: bool = false;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -1493,9 +1494,8 @@ impl Relayer {
             .expect("spawning tokio task from Builder is infallible")
     }
 
-    /// Retries chain construction so a transient RPC failure at startup does not permanently
-    /// drop the chain and latch its `hyperlane_critical_error` gauge until a restart. A chain
-    /// that stays unbuildable past the retry budget still surfaces the critical error.
+    /// Retries transient chain construction failures without multiplying the initial attempt's
+    /// RPC timeout budget. The first attempt is unchanged; subsequent attempts share one deadline.
     async fn build_chain_with_retries<T, E, F, Fut>(
         domain: &HyperlaneDomain,
         role: &str,
@@ -1506,24 +1506,43 @@ impl Relayer {
         F: FnMut() -> Fut,
         Fut: std::future::Future<Output = Result<T, E>>,
     {
-        let mut attempt = 1;
-        loop {
-            match build().await {
-                Ok(value) => return Ok(value),
-                Err(err) if attempt < CHAIN_BUILD_ATTEMPTS => {
+        let mut last_error = match build().await {
+            Ok(value) => return Ok(value),
+            Err(err) => err,
+        };
+        let Some(deadline) = tokio::time::Instant::now().checked_add(CHAIN_BUILD_RETRY_BUDGET)
+        else {
+            return Err(last_error);
+        };
+
+        for attempt in 2..=CHAIN_BUILD_ATTEMPTS {
+            warn!(
+                domain = domain.name(),
+                role,
+                attempt,
+                err = ?last_error,
+                "Retrying chain construction after failure"
+            );
+            let retry = async {
+                tokio::time::sleep(CHAIN_BUILD_RETRY_INTERVAL).await;
+                build().await
+            };
+            match tokio::time::timeout_at(deadline, retry).await {
+                Ok(Ok(value)) => return Ok(value),
+                Ok(Err(err)) => last_error = err,
+                Err(_) => {
                     warn!(
                         domain = domain.name(),
                         role,
                         attempt,
-                        ?err,
-                        "Retrying chain construction after failure"
+                        err = ?last_error,
+                        "Chain construction retry budget exhausted"
                     );
-                    attempt = attempt.saturating_add(1);
-                    tokio::time::sleep(CHAIN_BUILD_RETRY_INTERVAL).await;
+                    return Err(last_error);
                 }
-                Err(err) => return Err(err),
             }
         }
+        Err(last_error)
     }
 
     async fn build_origins(
@@ -1608,10 +1627,22 @@ impl Relayer {
             .chains
             .iter()
             .map(|(domain, chain)| async {
-                let result = Self::build_chain_with_retries(domain, "destination", || {
-                    factory.create(domain.clone(), chain.clone(), dispatcher_metrics.clone())
-                })
-                .await;
+                let result = match chain.validate_mailbox_config() {
+                    Ok(()) => {
+                        Self::build_chain_with_retries(domain, "destination", || {
+                            factory.create(
+                                domain.clone(),
+                                chain.clone(),
+                                dispatcher_metrics.clone(),
+                            )
+                        })
+                        .await
+                    }
+                    Err(err) => Err(FactoryError::InvalidConfiguration(
+                        domain.to_string(),
+                        err.to_string(),
+                    )),
+                };
                 (domain.clone(), result)
             })
             .collect();

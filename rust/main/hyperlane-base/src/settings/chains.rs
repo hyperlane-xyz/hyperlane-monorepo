@@ -385,10 +385,8 @@ impl ChainConf {
         .context(ctx)
     }
 
-    /// Try to convert the chain setting into a Mailbox contract
-    pub async fn build_mailbox(&self, metrics: &CoreMetrics) -> Result<Box<dyn Mailbox>> {
-        let ctx = "Building mailbox";
-
+    /// Validate mailbox configuration before constructing providers or signers.
+    pub fn validate_mailbox_config(&self) -> Result<()> {
         if self.identity.is_some()
             && self.connection.protocol() != HyperlaneDomainProtocol::Sealevel
         {
@@ -398,6 +396,14 @@ impl ChainConf {
                 self.connection.protocol()
             ));
         }
+
+        Ok(())
+    }
+
+    /// Try to convert the chain setting into a Mailbox contract
+    pub async fn build_mailbox(&self, metrics: &CoreMetrics) -> Result<Box<dyn Mailbox>> {
+        let ctx = "Building mailbox";
+        self.validate_mailbox_config()?;
 
         let locator = self.locator(self.addresses.mailbox);
 
