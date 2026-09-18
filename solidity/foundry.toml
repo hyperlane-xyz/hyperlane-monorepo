@@ -37,7 +37,7 @@ paths = "contracts/token/CrossCollateralRouter.sol"
 optimizer_runs = 3_599
 
 [[profile.default.compilation_restrictions]]
-paths = "contracts/hooks/layerzero/LayerZeroV2CcipReadHookIsm.sol"
+paths = "contracts/hooks/layerzero/LayerZeroV2OffchainLookupHookIsm.sol"
 optimizer_runs = 5_199
 
 [profile.ci]
