@@ -78,6 +78,9 @@ mod origin;
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 const MESSAGE_DB_LOADER_INIT_RETRY_INTERVAL: Duration = Duration::from_secs(5);
+const CHAIN_BUILD_ATTEMPTS: usize = 5;
+const CHAIN_BUILD_RETRY_INTERVAL: Duration = Duration::from_secs(3);
+const CHAIN_BUILD_RETRY_BUDGET: Duration = Duration::from_secs(15);
 const ADVANCED_LOG_META: bool = false;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -1491,6 +1494,57 @@ impl Relayer {
             .expect("spawning tokio task from Builder is infallible")
     }
 
+    /// Retries transient chain construction failures without multiplying the initial attempt's
+    /// RPC timeout budget. The first attempt is unchanged; subsequent attempts share one deadline.
+    async fn build_chain_with_retries<T, E, F, Fut>(
+        domain: &HyperlaneDomain,
+        role: &str,
+        mut build: F,
+    ) -> Result<T, E>
+    where
+        E: Debug,
+        F: FnMut() -> Fut,
+        Fut: std::future::Future<Output = Result<T, E>>,
+    {
+        let mut last_error = match build().await {
+            Ok(value) => return Ok(value),
+            Err(err) => err,
+        };
+        let Some(deadline) = tokio::time::Instant::now().checked_add(CHAIN_BUILD_RETRY_BUDGET)
+        else {
+            return Err(last_error);
+        };
+
+        for attempt in 2..=CHAIN_BUILD_ATTEMPTS {
+            warn!(
+                domain = domain.name(),
+                role,
+                attempt,
+                err = ?last_error,
+                "Retrying chain construction after failure"
+            );
+            let retry = async {
+                tokio::time::sleep(CHAIN_BUILD_RETRY_INTERVAL).await;
+                build().await
+            };
+            match tokio::time::timeout_at(deadline, retry).await {
+                Ok(Ok(value)) => return Ok(value),
+                Ok(Err(err)) => last_error = err,
+                Err(_) => {
+                    warn!(
+                        domain = domain.name(),
+                        role,
+                        attempt,
+                        err = ?last_error,
+                        "Chain construction retry budget exhausted"
+                    );
+                    return Err(last_error);
+                }
+            }
+        }
+        Err(last_error)
+    }
+
     async fn build_origins(
         settings: &RelayerSettings,
         db: DB,
@@ -1514,16 +1568,15 @@ impl Relayer {
             .chains
             .iter()
             .map(|(domain, chain)| async {
-                (
-                    domain.clone(),
-                    factory
-                        .create(
-                            domain.clone(),
-                            chain,
-                            settings.gas_payment_enforcement.clone(),
-                        )
-                        .await,
-                )
+                let result = Self::build_chain_with_retries(domain, "origin", || {
+                    factory.create(
+                        domain.clone(),
+                        chain,
+                        settings.gas_payment_enforcement.clone(),
+                    )
+                })
+                .await;
+                (domain.clone(), result)
             })
             .collect();
         let results = futures::future::join_all(origin_futures).await;
@@ -1574,12 +1627,23 @@ impl Relayer {
             .chains
             .iter()
             .map(|(domain, chain)| async {
-                (
-                    domain.clone(),
-                    factory
-                        .create(domain.clone(), chain.clone(), dispatcher_metrics.clone())
-                        .await,
-                )
+                let result = match chain.validate_mailbox_config() {
+                    Ok(()) => {
+                        Self::build_chain_with_retries(domain, "destination", || {
+                            factory.create(
+                                domain.clone(),
+                                chain.clone(),
+                                dispatcher_metrics.clone(),
+                            )
+                        })
+                        .await
+                    }
+                    Err(err) => Err(FactoryError::InvalidConfiguration(
+                        domain.to_string(),
+                        err.to_string(),
+                    )),
+                };
+                (domain.clone(), result)
             })
             .collect();
         let results = futures::future::join_all(destination_futures).await;

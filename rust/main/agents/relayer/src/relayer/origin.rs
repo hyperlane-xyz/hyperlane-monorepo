@@ -112,13 +112,6 @@ impl Factory for OriginFactory {
     ) -> Result<Origin, FactoryError> {
         let db = HyperlaneRocksDB::new(&domain, self.db.clone());
 
-        let validator_announce = {
-            let start_entity_init = Instant::now();
-            let res = self.init_validator_announce(chain_conf, &domain).await?;
-            self.measure(&domain, "validator_announce", start_entity_init.elapsed());
-            res
-        };
-
         // need one of these per origin chain due to the database scoping even though
         // the config itself is the same
         // TODO: maybe use a global one moving forward?
@@ -176,6 +169,15 @@ impl Factory for OriginFactory {
                 "merkle_tree_hook_sync",
                 start_entity_init.elapsed(),
             );
+            res
+        };
+
+        // Signed Ethereum providers start a background gas escalator. Build this last
+        // so a later indexer failure or timeout cannot discard its owning origin.
+        let validator_announce = {
+            let start_entity_init = Instant::now();
+            let res = self.init_validator_announce(chain_conf, &domain).await?;
+            self.measure(&domain, "validator_announce", start_entity_init.elapsed());
             res
         };
 
