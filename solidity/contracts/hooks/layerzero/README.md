@@ -13,12 +13,12 @@ can share one deployment when they accept its owner, peer set, LayerZero
 libraries, DVN configuration, and operational blast radius. Separate
 deployments provide independent policy and ownership.
 
-[`LayerZeroV2CcipReadHookIsm`](./LayerZeroV2CcipReadHookIsm.sol) verifies a
+[`LayerZeroV2OffchainLookupHookIsm`](./LayerZeroV2OffchainLookupHookIsm.sol) verifies a
 LayerZero packet during `Mailbox.process`. Its ISM metadata ABI-encodes
 `(address receiveLibrary, bytes encodedPacket)`.
 
 The Hyperlane delivery transaction can commit a packet after the configured
-DVNs attest. Verification requires a CCIP-read packet service, but does not
+DVNs attest. Verification requires an offchain lookup packet service, but does not
 wait for LayerZero Executor delivery. The Hyperlane relayer cannot replace the
 DVNs' attestations.
 
@@ -42,10 +42,12 @@ For a message from A to B:
    endpoint ID. Once those requirements are met, anyone can call the receive
    library's `commitVerification`; it records the packet's payload hash in B's
    Endpoint.
-3. Normally an Executor later clears the packet and calls the receiving OApp.
-   Here, the Hyperlane relayer instead supplies the packet during
-   `Mailbox.process`. The ISM checks the exact packet and commits verification
-   if needed. Executor delivery is not required for Hyperlane processing.
+3. A configured Executor normally submits the verified packet to
+   `Endpoint.lzReceive`, but the Endpoint does not restrict that call to the
+   configured Executor; anyone can submit it. Here, the Hyperlane relayer
+   instead supplies the packet during `Mailbox.process`. The ISM checks the exact
+   packet and commits verification if needed. Executor delivery is not
+   required for Hyperlane processing.
 
 Selecting a library and setting its configuration are different Endpoint
 operations. A library address chooses the implementation for this OApp and
@@ -121,10 +123,10 @@ hook was omitted from a dispatch, while the message remains the latest
 dispatch. Normal integrations should invoke the hook atomically during
 dispatch instead of depending on this timing-sensitive recovery path.
 
-## CCIP-read verification
+## Offchain lookup verification
 
 The ISM obtains the exact encoded LayerZero packet through EIP-3668
-CCIP-read. A compatible service implements
+offchain lookup. A compatible service implements
 `getLayerZeroPacket(bytes hyperlaneMessage)` and returns the ABI encoding of:
 
 ```solidity
@@ -138,9 +140,9 @@ bytes, malformed packet encoding, and mismatches in every authenticated field.
 ```mermaid
 sequenceDiagram
     participant Relayer
-    participant Service as CCIP-read packet service
+    participant Service as Offchain lookup packet service
     participant Mailbox
-    participant Ism as CCIP-read Hook/ISM
+    participant Ism as Offchain lookup Hook/ISM
     participant Library as Receive library
     participant Endpoint
     participant Recipient
@@ -161,10 +163,15 @@ sequenceDiagram
     Mailbox->>Recipient: handle(message)
 ```
 
-If the Endpoint already stores the exact payload hash, verification uses that
-committed state without checking whether the metadata's nonzero receive-library
-address is still valid. This preserves packets committed before a
-receive-library rotation. A different stored hash reverts with
+The Endpoint may already hold a packet's DVN-verified payload hash before
+Hyperlane delivery. In that case, `verify` compares the stored hash with this
+packet's hash and does not call the receive library again. A packet committed
+before a receive-library rotation therefore remains valid even if its old
+library is no longer selected. ULN302 deletes the DVN attestations used for a
+commitment, so a second `commitVerification` call without fresh attestations
+reverts. Checking the stored hash avoids that call. If the Endpoint has no
+hash, `verify` requires the metadata-supplied receive library to be currently
+valid and asks it to commit verification. A different stored hash reverts with
 `ConflictingPayloadHash`.
 
 The hook sends a one-gas `lzReceive` option because standard LayerZero
@@ -287,7 +294,7 @@ non-EVM address bytes.
 | Hook/ISM owner | Select peers, endpoint IDs, libraries, DVNs, confirmations, and Executor policy |
 | Hyperlane Mailbox | Supplies the canonical message and final replay protection |
 | Application configuration | Ensures this hook runs on dispatch and this ISM participates in delivery policy |
-| Executor, CCIP-read service, and Hyperlane relayer | Transport data and transactions; can delay or omit work but cannot satisfy packet checks with different data |
+| Executor, offchain lookup service, and Hyperlane relayer | Transport data and transactions; can delay or omit work but cannot satisfy packet checks with different data |
 
 A matching LayerZero packet proves that the enrolled remote Hook/ISM sent an
 authorization for the exact Hyperlane message ID. It does not prove that the
@@ -316,16 +323,21 @@ directions, and restores the selected libraries' configuration to defaults.
 
 ## Pull packet cleanup and LayerZero nonces
 
-LayerZero assigns a `uint64` nonce per source/destination OApp channel. The
-contract opts out of application-level ordered execution by returning zero from
-`nextNonce`, but the Endpoint still records payload hashes and maintains a lazy
-inbound nonce.
+LayerZero assigns a `uint64` nonce per source/destination OApp channel.
+Returning zero from `nextNonce` opts out of application-level ordered execution;
+it does not disable Endpoint nonce accounting. To advance its lazy inbound
+nonce, `Endpoint.clear` checks that every intervening nonce has a verified
+payload hash. This prevents a clear from skipping an unverified packet, even
+though packets can be verified and executed out of order.
 
-After pull verification succeeds, the ISM calls `Endpoint.clear` with a fixed
-100,000-gas budget. Cleanup is optimistic: failure emits
+After pull verification succeeds, the ISM calls `Endpoint.clear` with a
+100,000-gas safety budget. This is our cap, not a LayerZero requirement: a
+single-packet clear used 26,610 gas on the production Endpoint at Ethereum fork
+block 25,878,200. The [fork test](../../../test/hooks/LayerZeroV2OffchainLookupHookIsm.fork.t.sol)
+checks it fits the cap. A longer verified backlog can require more gas, so
+cleanup is optimistic: failure emits
 `LayerZeroPayloadClearFailed` and does not block the Hyperlane message. This
-prevents an unbounded Endpoint scan across a long contiguous set of committed
-nonces from exhausting `Mailbox.process` gas.
+limits the gas a nonce scan can add to `Mailbox.process`.
 
 `verify` may clear the packet it just authenticated before Mailbox delivery.
 It never clears an earlier, undelivered packet merely to advance a LayerZero
@@ -370,7 +382,7 @@ not consulted and is not authenticated event data.
   Endpoint support.
 - Non-EVM peers require a compatible remote Hook/ISM implementation.
 - Only native-fee Endpoints are supported.
-- The ISM requires a CCIP-read-compatible relayer and packet service.
+- The ISM requires an offchain-lookup-compatible relayer and packet service.
 - The contract does not fund Hyperlane relaying; configure an IGP or other
   delivery mechanism separately when needed.
 - `Router.handle` is unsupported because LayerZero transports authorization,

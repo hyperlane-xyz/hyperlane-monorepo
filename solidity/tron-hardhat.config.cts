@@ -106,7 +106,7 @@ module.exports = {
             },
         ],
         overrides: {
-            "contracts/hooks/layerzero/LayerZeroV2CcipReadHookIsm.sol": {
+            "contracts/hooks/layerzero/LayerZeroV2OffchainLookupHookIsm.sol": {
                 ...rootHardhatConfig.solidity,
                 version: "0.8.24",
                 settings: {

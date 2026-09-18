@@ -27,9 +27,9 @@ import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
 import {LayerZeroConfigTypeLib} from "./libs/LayerZeroConfigType.sol";
 
 /**
- * @title LayerZeroV2CcipReadHookIsm
+ * @title LayerZeroV2OffchainLookupHookIsm
  * @notice Combined Hyperlane hook and ISM that authenticates messages against
- * LayerZero V2 DVN-verified packets obtained through Hyperlane's CCIP-read flow.
+ * LayerZero V2 DVN-verified packets obtained through offchain lookup.
  * @dev The origin hook sends a LayerZero packet committing to the Hyperlane
  * message ID. On the destination, `verify` checks the packet against the
  * enrolled peer and commits DVN verification through the receive library if
@@ -38,7 +38,7 @@ import {LayerZeroConfigTypeLib} from "./libs/LayerZeroConfigType.sol";
  */
 // `Router` already provides enumerable remote-domain storage.
 // solhint-disable-next-line hyperlane/enumerable-domain-mapping
-contract LayerZeroV2CcipReadHookIsm is
+contract LayerZeroV2OffchainLookupHookIsm is
     Router,
     AbstractPostDispatchHook,
     AbstractCcipReadIsm,
@@ -63,6 +63,9 @@ contract LayerZeroV2CcipReadHookIsm is
     bytes22 internal constant PULL_EXECUTOR_OPTIONS =
         hex"00030100110100000000000000000000000000000001";
 
+    // Optional Endpoint.clear gas cap. 100k exceeds the 26,610 gas measured
+    // for a single-packet clear in the Ethereum fork test (block 25,878,200),
+    // while bounding cleanup work when a long nonce backlog accumulates.
     uint256 internal constant CLEAR_GAS_LIMIT = 100_000;
     uint256 internal constant PACKET_MESSAGE_OFFSET = 113;
     uint8 internal constant PACKET_VERSION = 1;
@@ -92,7 +95,6 @@ contract LayerZeroV2CcipReadHookIsm is
 
     error UnauthorizedCaller(address caller);
     error MessageNotBeingProcessed(bytes32 messageId);
-    error WrongHyperlaneDestination(uint32 destination);
     error WrongPacketSourceEndpointId(uint32 actual, uint32 expected);
     error WrongPacketSender(bytes32 actual, bytes32 expected);
     error WrongPacketDestinationEndpointId(uint32 actual, uint32 expected);
@@ -280,20 +282,22 @@ contract LayerZeroV2CcipReadHookIsm is
         bytes calldata message
     ) external override returns (bool) {
         bytes32 messageId = Message.id(message);
+        // The Mailbox records the processing block before invoking its ISM.
+        // Require that record to be current before accepting packet metadata.
         if (!_isProcessing(messageId)) {
             revert MessageNotBeingProcessed(messageId);
         }
 
-        if (Message.destination(message) != localDomain) {
-            revert WrongHyperlaneDestination(Message.destination(message));
-        }
-
+        // Offchain metadata is untrusted. Bind its packet to the enrolled
+        // source, this receiver, and the exact Hyperlane message ID.
         PacketContext memory context = _validatePacket(
             metadata,
             message,
             messageId
         );
 
+        // A matching Endpoint payload hash proves prior verification;
+        // otherwise the receive library checks DVN attestations and commits it.
         _commitPacketVerification(context);
         emit LayerZeroPayloadVerified(
             messageId,
@@ -303,6 +307,8 @@ contract LayerZeroV2CcipReadHookIsm is
             context.nonce
         );
 
+        // Keep the Endpoint's payload/nonce backlog short when affordable;
+        // packet authentication above is sufficient for Hyperlane delivery.
         _tryClearPacket(context, messageId);
 
         return true;
@@ -536,8 +542,14 @@ contract LayerZeroV2CcipReadHookIsm is
         bytes calldata,
         bytes calldata message
     ) internal view override returns (uint256) {
+        return _quoteLzNativeFee(_lzNativeFeeQuoteParams(message));
+    }
+
+    function _quoteLzNativeFee(
+        LayerZeroMessagingParams memory params
+    ) internal view returns (uint256) {
         LayerZeroMessagingFee memory fee = endpointContract.quote(
-            _lzNativeFeeQuoteParams(message),
+            params,
             address(this)
         );
         if (fee.lzTokenFee != 0) {
@@ -568,23 +580,17 @@ contract LayerZeroV2CcipReadHookIsm is
         LayerZeroMessagingParams memory params = _lzNativeFeeQuoteParams(
             message
         );
-        LayerZeroMessagingFee memory fee = endpointContract.quote(
-            params,
-            address(this)
-        );
-        if (fee.lzTokenFee != 0) {
-            revert UnsupportedLayerZeroTokenFee(fee.lzTokenFee);
-        }
+        uint256 nativeFee = _quoteLzNativeFee(params);
 
-        if (msg.value < fee.nativeFee) {
-            revert InsufficientLayerZeroFee(fee.nativeFee, msg.value);
+        if (msg.value < nativeFee) {
+            revert InsufficientLayerZeroFee(nativeFee, msg.value);
         }
 
         address refundAddress = metadata.refundAddress(
             Message.senderAddress(message)
         );
         LayerZeroMessagingReceipt memory receipt = endpointContract.send{
-            value: fee.nativeFee
+            value: nativeFee
         }(params, refundAddress);
 
         emit LayerZeroAuthorizationSent(
@@ -593,10 +599,10 @@ contract LayerZeroV2CcipReadHookIsm is
             params.dstEid,
             receipt.guid,
             receipt.nonce,
-            fee.nativeFee
+            nativeFee
         );
 
-        _refund(metadata, message, msg.value - fee.nativeFee);
+        _refund(metadata, message, msg.value - nativeFee);
     }
 
     /// @dev Builds the same message-ID commitment and one-gas Executor option
@@ -925,6 +931,9 @@ contract LayerZeroV2CcipReadHookIsm is
     /// @dev A matching stored payload hash proves prior verification without
     /// consuming the packet. Otherwise the receive library checks the DVNs'
     /// recorded attestations and commits the hash to the Endpoint.
+    /// ULN302 deletes those attestations on commitment, so calling
+    /// `commitVerification` again without fresh attestations reverts:
+    /// https://github.com/LayerZero-Labs/LayerZero-v2/blob/9c741e7f9790639537b1710a203bcdfd73b0b9ac/packages/layerzero-v2/evm/messagelib/contracts/uln/ReceiveUlnBase.sol#L59-L75
     /// Only the uncommitted path uses the metadata-supplied library address.
     function _commitPacketVerification(PacketContext memory context) internal {
         bytes32 currentPayloadHash = endpointContract.inboundPayloadHash(
@@ -1007,7 +1016,7 @@ contract LayerZeroV2CcipReadHookIsm is
     // ============ AbstractCcipReadIsm ============
 
     /// @dev Requests the packet for a Hyperlane message from the configured
-    /// CCIP-read service. The response is untrusted until `verify` checks it.
+    /// offchain lookup service. The response is untrusted until `verify` checks it.
     function _offchainLookupCalldata(
         bytes calldata message
     ) internal pure override returns (bytes memory) {
