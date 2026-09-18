@@ -200,16 +200,24 @@ contract WormholeHookIsmForkTest is Test {
 
         vm.selectFork(ethereumFork);
         uint256 coreFee = ICoreBridge(CORE_ETHEREUM).messageFee();
-        uint256 quoted = IPostDispatchHook(address(originRouter)).quoteDispatch(
-            "",
-            _buildMessage()
-        );
-        assertEq(quoted, coreFee, "quote must be Core fee only");
-
         bytes memory message = _buildMessage();
-        vm.recordLogs();
-        _dispatchFrom(originRouter, quoted);
+        assertEq(
+            IPostDispatchHook(address(originRouter)).quoteDispatch("", message),
+            coreFee,
+            "quote must be Core fee only"
+        );
 
+        vm.recordLogs();
+        _dispatchFrom(originRouter, coreFee);
+
+        _assertPublication(originRouter, destinationRouter, message);
+    }
+
+    function _assertPublication(
+        WormholeVaaHookIsm originRouter,
+        WormholeVaaHookIsm destinationRouter,
+        bytes memory message
+    ) internal {
         (
             uint64 sequence,
             uint32 nonce,
