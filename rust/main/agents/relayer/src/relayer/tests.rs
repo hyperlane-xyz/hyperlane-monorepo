@@ -807,3 +807,50 @@ async fn gas_payment_rpc_fallback_stops_restarts_and_survives_monitor_exit() {
     let _ = task.await;
     assert!(!running.load(Ordering::SeqCst));
 }
+
+#[tokio::test(start_paused = true)]
+async fn build_chain_with_retries_recovers_from_transient_failures() {
+    use std::sync::atomic::AtomicUsize;
+
+    let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let calls_inner = calls.clone();
+
+    let result: Result<u32, String> = Relayer::build_chain_with_retries(&domain, "origin", || {
+        let calls_inner = calls_inner.clone();
+        async move {
+            let attempt = calls_inner.fetch_add(1, Ordering::SeqCst) + 1;
+            if attempt < 3 {
+                Err(format!("transient failure {attempt}"))
+            } else {
+                Ok(42)
+            }
+        }
+    })
+    .await;
+
+    assert_eq!(result, Ok(42));
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
+}
+
+#[tokio::test(start_paused = true)]
+async fn build_chain_with_retries_surfaces_persistent_failure() {
+    use std::sync::atomic::AtomicUsize;
+
+    let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let calls_inner = calls.clone();
+
+    let result: Result<u32, String> =
+        Relayer::build_chain_with_retries(&domain, "destination", || {
+            let calls_inner = calls_inner.clone();
+            async move {
+                calls_inner.fetch_add(1, Ordering::SeqCst);
+                Err::<u32, String>("persistent failure".to_string())
+            }
+        })
+        .await;
+
+    assert!(result.is_err());
+    assert_eq!(calls.load(Ordering::SeqCst), super::CHAIN_BUILD_ATTEMPTS);
+}

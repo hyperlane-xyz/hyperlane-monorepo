@@ -78,6 +78,8 @@ mod origin;
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 const MESSAGE_DB_LOADER_INIT_RETRY_INTERVAL: Duration = Duration::from_secs(5);
+const CHAIN_BUILD_ATTEMPTS: usize = 5;
+const CHAIN_BUILD_RETRY_INTERVAL: Duration = Duration::from_secs(3);
 const ADVANCED_LOG_META: bool = false;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -1491,6 +1493,39 @@ impl Relayer {
             .expect("spawning tokio task from Builder is infallible")
     }
 
+    /// Retries chain construction so a transient RPC failure at startup does not permanently
+    /// drop the chain and latch its `hyperlane_critical_error` gauge until a restart. A chain
+    /// that stays unbuildable past the retry budget still surfaces the critical error.
+    async fn build_chain_with_retries<T, E, F, Fut>(
+        domain: &HyperlaneDomain,
+        role: &str,
+        mut build: F,
+    ) -> Result<T, E>
+    where
+        E: Debug,
+        F: FnMut() -> Fut,
+        Fut: std::future::Future<Output = Result<T, E>>,
+    {
+        let mut attempt = 1;
+        loop {
+            match build().await {
+                Ok(value) => return Ok(value),
+                Err(err) if attempt < CHAIN_BUILD_ATTEMPTS => {
+                    warn!(
+                        domain = domain.name(),
+                        role,
+                        attempt,
+                        ?err,
+                        "Retrying chain construction after failure"
+                    );
+                    attempt = attempt.saturating_add(1);
+                    tokio::time::sleep(CHAIN_BUILD_RETRY_INTERVAL).await;
+                }
+                Err(err) => return Err(err),
+            }
+        }
+    }
+
     async fn build_origins(
         settings: &RelayerSettings,
         db: DB,
@@ -1514,16 +1549,15 @@ impl Relayer {
             .chains
             .iter()
             .map(|(domain, chain)| async {
-                (
-                    domain.clone(),
-                    factory
-                        .create(
-                            domain.clone(),
-                            chain,
-                            settings.gas_payment_enforcement.clone(),
-                        )
-                        .await,
-                )
+                let result = Self::build_chain_with_retries(domain, "origin", || {
+                    factory.create(
+                        domain.clone(),
+                        chain,
+                        settings.gas_payment_enforcement.clone(),
+                    )
+                })
+                .await;
+                (domain.clone(), result)
             })
             .collect();
         let results = futures::future::join_all(origin_futures).await;
@@ -1574,12 +1608,11 @@ impl Relayer {
             .chains
             .iter()
             .map(|(domain, chain)| async {
-                (
-                    domain.clone(),
-                    factory
-                        .create(domain.clone(), chain.clone(), dispatcher_metrics.clone())
-                        .await,
-                )
+                let result = Self::build_chain_with_retries(domain, "destination", || {
+                    factory.create(domain.clone(), chain.clone(), dispatcher_metrics.clone())
+                })
+                .await;
+                (domain.clone(), result)
             })
             .collect();
         let results = futures::future::join_all(destination_futures).await;
