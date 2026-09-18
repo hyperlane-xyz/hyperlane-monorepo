@@ -138,16 +138,15 @@ contract WormholeVaaHandler is Test {
             uint16(chainSeed % UNRELATED_ROUTE_COUNT);
         address remoteRouter = address(uint160(uint256(routerSeed) + 1));
 
-        try
-            destinationRouter.enrollRemoteRouter(
-                WormholeVaaHookIsm.RemoteRouterConfig({
-                    domainId: domainId,
-                    domainIsm: remoteRouter.addressToBytes32(),
-                    wormholeChainId: wormholeChainId,
-                    expectedConsistencyLevel: CONSISTENCY
-                })
-            )
-        {} catch {}
+        WormholeVaaHookIsm.RemoteRouterConfig[]
+            memory configs = new WormholeVaaHookIsm.RemoteRouterConfig[](1);
+        configs[0] = WormholeVaaHookIsm.RemoteRouterConfig({
+            domainId: domainId,
+            domainIsm: remoteRouter.addressToBytes32(),
+            wormholeChainId: wormholeChainId,
+            expectedConsistencyLevel: CONSISTENCY
+        });
+        try destinationRouter.enrollRemoteRouters(configs) {} catch {}
     }
 
     function unenrollUnrelatedRoute(uint8 seed) external {
@@ -170,11 +169,8 @@ contract WormholeVaaHandler is Test {
         uint64 sequence
     ) private view returns (bytes memory) {
         bytes memory payload = WormholeMessage.encode(
-            ORIGIN,
-            DESTINATION,
             address(destinationRouter).addressToBytes32(),
-            message.id(),
-            _nonce(message)
+            message.id()
         );
         bytes memory encodedVaa = abi.encode(
             MockWormholeCore.MockVaa({
@@ -232,7 +228,7 @@ contract WormholeHookIsmTest_Invariants is Test {
             memory consistencyConfig = WormholeConsistencyLevelConfig({
                 consistencyLevel: CONSISTENCY,
                 customConsistencyLevelContract: address(0),
-                baseConsistencyLevel: 0,
+                customBaseConsistencyLevel: 0,
                 additionalBlocks: 0
             });
         string[] memory urls = new string[](1);
@@ -251,22 +247,23 @@ contract WormholeHookIsmTest_Invariants is Test {
             urls
         );
 
-        originRouter.enrollRemoteRouter(
-            WormholeVaaHookIsm.RemoteRouterConfig({
-                domainId: DESTINATION,
-                domainIsm: address(destinationRouter).addressToBytes32(),
-                wormholeChainId: WH_DESTINATION,
-                expectedConsistencyLevel: CONSISTENCY
-            })
-        );
-        destinationRouter.enrollRemoteRouter(
-            WormholeVaaHookIsm.RemoteRouterConfig({
-                domainId: ORIGIN,
-                domainIsm: address(originRouter).addressToBytes32(),
-                wormholeChainId: WH_ORIGIN,
-                expectedConsistencyLevel: CONSISTENCY
-            })
-        );
+        WormholeVaaHookIsm.RemoteRouterConfig[]
+            memory configs = new WormholeVaaHookIsm.RemoteRouterConfig[](1);
+        configs[0] = WormholeVaaHookIsm.RemoteRouterConfig({
+            domainId: DESTINATION,
+            domainIsm: address(destinationRouter).addressToBytes32(),
+            wormholeChainId: WH_DESTINATION,
+            expectedConsistencyLevel: CONSISTENCY
+        });
+        originRouter.enrollRemoteRouters(configs);
+
+        configs[0] = WormholeVaaHookIsm.RemoteRouterConfig({
+            domainId: ORIGIN,
+            domainIsm: address(originRouter).addressToBytes32(),
+            wormholeChainId: WH_ORIGIN,
+            expectedConsistencyLevel: CONSISTENCY
+        });
+        destinationRouter.enrollRemoteRouters(configs);
 
         handler = new WormholeVaaHandler(
             originMailbox,
@@ -322,7 +319,7 @@ contract WormholeHookIsmTest_Invariants is Test {
             assertTrue(wormholeChainId != 0, "route missing policy");
 
             (bool enrolled, uint32 domainId) = destinationRouter
-                .remoteWormholeChains(wormholeChainId);
+                .domainIdForRemoteWormholeChainId(wormholeChainId);
             assertTrue(enrolled, "reverse route missing");
             assertEq(domainId, domains[i], "reverse route disagrees");
 
@@ -347,7 +344,7 @@ contract WormholeHookIsmTest_Invariants is Test {
             ++chainId
         ) {
             (bool assigned, uint32 domainId) = destinationRouter
-                .remoteWormholeChains(chainId);
+                .domainIdForRemoteWormholeChainId(chainId);
             if (!assigned) {
                 continue;
             }
@@ -381,13 +378,12 @@ contract WormholeHookIsmTest_Invariants is Test {
         handler.enrollUnrelatedRoute(0, 0, 0);
         handler.enrollUnrelatedRoute(0, 1, 1);
 
-        (bool oldAssigned, ) = destinationRouter.remoteWormholeChains(
-            FIRST_UNRELATED_CHAIN_ID
-        );
+        (bool oldAssigned, ) = destinationRouter
+            .domainIdForRemoteWormholeChainId(FIRST_UNRELATED_CHAIN_ID);
         assertFalse(oldAssigned);
 
         (bool newAssigned, uint32 domainId) = destinationRouter
-            .remoteWormholeChains(FIRST_UNRELATED_CHAIN_ID + 1);
+            .domainIdForRemoteWormholeChainId(FIRST_UNRELATED_CHAIN_ID + 1);
         assertTrue(newAssigned);
         assertEq(domainId, FIRST_UNRELATED_DOMAIN);
 

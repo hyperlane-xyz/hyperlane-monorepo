@@ -39,9 +39,9 @@ import {CustomConsistencyLevelLib, WormholeConsistencyLevelConfig} from "./libs/
  * @notice Combined Hyperlane hook and ISM that authenticates messages through
  * Wormhole Guardian-signed VAAs supplied using Hyperlane's CCIP-read flow.
  * @dev The origin hook publishes a Wormhole message committing to the
- * Hyperlane message ID, origin and destination domains, destination hook/ISM,
- * and nonce. On the destination, `verify` authenticates the resulting VAA and
- * compares that commitment with the Hyperlane message being processed.
+ * Hyperlane message ID and destination hook/ISM. On the destination, `verify`
+ * authenticates the resulting VAA and compares that commitment with the
+ * Hyperlane message being processed.
  */
 // `Router` already provides enumerable remote-domain storage.
 // solhint-disable-next-line hyperlane/enumerable-domain-mapping
@@ -73,15 +73,13 @@ contract WormholeVaaHookIsm is
     error MessageAlreadyPublished();
     error InsufficientFee(uint256 required, uint256 provided);
     error InvalidVaa(string reason);
-    error WrongOriginDomain();
     error WrongDestinationDomain();
-    error WrongDestinationRouter();
+    error WrongDestinationHookIsm();
     error WrongConsistencyLevel();
     error WrongEmitterChainId();
     error WrongEmitterAddress();
     error WrongMessageId();
     error WormholeNonceMismatch();
-    error HyperlaneNonceMismatch();
     error HyperlaneHandleUnsupported();
 
     // ============ Events ============
@@ -135,20 +133,22 @@ contract WormholeVaaHookIsm is
     /// @notice Wormhole chain ID of this chain, read from Core.
     uint16 public immutable wormholeChainId;
 
-    /// @notice Consistency level used when publishing Hyperlane message
-    /// commitments through the local Wormhole Core contract.
+    /// @notice Wormhole consistency level for Hyperlane commitments published
+    /// by this hook.
+    /// @dev For a custom policy, this is `CustomConsistencyLevelLib.CUSTOM`.
     uint8 public immutable consistencyLevel;
 
-    /// @notice Wormhole CCL contract used when `consistencyLevel == 203`.
-    /// @dev `address(0)` for non-custom consistency levels.
+    /// @notice Wormhole Custom Consistency Level (CCL) contract for this hook.
+    /// @dev Zero address when a standard consistency level is used.
     ICustomConsistencyLevel public immutable customConsistencyLevelContract;
 
-    /// @notice Guardian consistency sentinel underlying the custom level.
-    /// @dev `0` for non-custom consistency levels.
-    uint8 public immutable baseConsistencyLevel;
+    /// @notice Starting Wormhole consistency level for a custom policy.
+    /// @dev Guardians wait `additionalBlocks` after reaching this level.
+    /// Zero when the publication uses a standard consistency level.
+    uint8 public immutable customBaseConsistencyLevel;
 
-    /// @notice Number of blocks Guardians wait after the custom base level.
-    /// @dev `0` for non-custom consistency levels.
+    /// @notice Extra blocks Guardians wait after `customBaseConsistencyLevel`.
+    /// @dev Zero when a standard consistency level is used.
     uint16 public immutable additionalBlocks;
 
     // ============ Storage ============
@@ -192,7 +192,8 @@ contract WormholeVaaHookIsm is
         customConsistencyLevelContract = ICustomConsistencyLevel(
             _consistencyLevelConfig.customConsistencyLevelContract
         );
-        baseConsistencyLevel = _consistencyLevelConfig.baseConsistencyLevel;
+        customBaseConsistencyLevel = _consistencyLevelConfig
+            .customBaseConsistencyLevel;
         additionalBlocks = _consistencyLevelConfig.additionalBlocks;
 
         // MailboxClient's constructor made the deployer the owner.
@@ -224,27 +225,8 @@ contract WormholeVaaHookIsm is
         bytes calldata message
     ) external view override returns (bool) {
         bytes memory encodedVaa = _decodeCcipReadResponse(metadata);
-        WormholeMessage.Message memory wormholeMessage = _verifyAndDecodeVaa(
-            encodedVaa
-        );
 
-        if (wormholeMessage.originDomain != message.origin()) {
-            revert WrongOriginDomain();
-        }
-
-        if (wormholeMessage.destinationDomain != message.destination()) {
-            revert WrongDestinationDomain();
-        }
-
-        if (wormholeMessage.messageId != message.id()) {
-            revert WrongMessageId();
-        }
-
-        if (wormholeMessage.nonce != message.nonce()) {
-            revert HyperlaneNonceMismatch();
-        }
-
-        return true;
+        return _verifyVaaForMessage(encodedVaa, message);
     }
 
     // ============ Router ============
@@ -262,7 +244,7 @@ contract WormholeVaaHookIsm is
 
     /// @notice Returns the Hyperlane domain assigned to a Wormhole chain ID.
     /// @dev `enrolled` distinguishes domain ID zero from an unassigned chain.
-    function remoteWormholeChains(
+    function domainIdForRemoteWormholeChainId(
         uint16 remoteWormholeChainId
     ) public view returns (bool enrolled, uint32 hyperlaneDomainId) {
         ReverseMappingLib.ReverseEntry memory entry = remoteChainIds.keyOf(
@@ -272,15 +254,8 @@ contract WormholeVaaHookIsm is
         return (entry.assigned, entry.key);
     }
 
-    /// @notice Enrolls a remote hook/ISM address, Wormhole chain ID, and
-    /// expected VAA consistency level.
-    function enrollRemoteRouter(
-        RemoteRouterConfig calldata newRemoteConfig
-    ) external onlyOwner {
-        _enrollWormholeRemoteRouter(newRemoteConfig);
-    }
-
-    /// @notice Batch version of `enrollRemoteRouter`.
+    /// @notice Enrolls remote hook/ISM addresses, Wormhole chain IDs, and
+    /// expected VAA consistency levels atomically.
     function enrollRemoteRouters(
         RemoteRouterConfig[] calldata newRemoteConfigs
     ) external onlyOwner {
@@ -413,11 +388,8 @@ contract WormholeVaaHookIsm is
             wormholeCoreBridge.publishMessage{value: coreFee}(
                 message.nonce(),
                 WormholeMessage.encode(
-                    localDomain,
-                    destination,
                     _mustHaveRemoteRouter(destination),
-                    messageId,
-                    message.nonce()
+                    messageId
                 ),
                 consistencyLevel
             );
@@ -427,69 +399,66 @@ contract WormholeVaaHookIsm is
 
     /**
      * @dev Verifies Guardian signatures through Core, then binds the VAA to
-     * this destination and an enrolled remote hook/ISM.
+     * the Hyperlane message, this destination, and an enrolled remote hook/ISM.
      */
-    function _verifyAndDecodeVaa(
-        bytes memory encodedVaa
-    ) internal view returns (WormholeMessage.Message memory wormholeMessage) {
+    function _verifyVaaForMessage(
+        bytes memory encodedVaa,
+        bytes calldata message
+    ) internal view returns (bool) {
         CoreBridgeVM memory vaa;
         bool valid;
         string memory reason;
+        // Wormhole Core verifies without consuming the VAA:
+        // https://github.com/wormhole-foundation/wormhole/blob/2df4000c5bd228e5ce3a3d87f0475837071587f9/ethereum/contracts/Messages.sol#L15-L20
+        // The Mailbox prevents repeat delivery of the committed message ID.
         (vaa, valid, reason) = wormholeCoreBridge.parseAndVerifyVM(encodedVaa);
         if (!valid) {
             revert InvalidVaa(reason);
         }
 
-        wormholeMessage = WormholeMessage.decode(vaa.payload);
-        if (wormholeMessage.destinationDomain != localDomain) {
+        WormholeMessage.Message memory wormholeMessage = WormholeMessage.decode(
+            vaa.payload
+        );
+        if (wormholeMessage.messageId != message.id()) {
+            revert WrongMessageId();
+        }
+
+        if (message.destination() != localDomain) {
             revert WrongDestinationDomain();
         }
 
         if (
-            wormholeMessage.destinationRouter !=
+            wormholeMessage.destinationHookIsm !=
             address(this).addressToBytes32()
         ) {
-            revert WrongDestinationRouter();
+            revert WrongDestinationHookIsm();
         }
 
-        if (vaa.nonce != wormholeMessage.nonce) {
+        if (vaa.nonce != message.nonce()) {
             revert WormholeNonceMismatch();
         }
 
-        uint8 expectedConsistencyLevel = _authenticateRemoteRouter(
-            wormholeMessage.originDomain,
-            vaa.emitterChainId,
-            vaa.emitterAddress
-        );
-        if (vaa.consistencyLevel != expectedConsistencyLevel) {
-            revert WrongConsistencyLevel();
-        }
-    }
-
-    /**
-     * @dev Authenticates all three parts of a remote route: its Hyperlane
-     * domain ID, Wormhole chain ID, and emitter address.
-     */
-    function _authenticateRemoteRouter(
-        uint32 originDomain,
-        uint16 emitterChainId,
-        bytes32 emitterAddress
-    ) internal view returns (uint8) {
+        // Bind the VAA emitter to the route enrolled for its origin domain.
+        uint32 originDomain = message.origin();
         bytes32 expectedEmitter = _mustHaveRemoteRouter(originDomain);
         (
             uint16 expectedWormholeChainId,
             uint8 expectedConsistencyLevel
         ) = remoteRouterConfigs(originDomain);
 
-        if (emitterChainId != expectedWormholeChainId) {
+        if (vaa.emitterChainId != expectedWormholeChainId) {
             revert WrongEmitterChainId();
         }
 
-        if (emitterAddress != expectedEmitter) {
+        if (vaa.emitterAddress != expectedEmitter) {
             revert WrongEmitterAddress();
         }
 
-        return expectedConsistencyLevel;
+        if (vaa.consistencyLevel != expectedConsistencyLevel) {
+            revert WrongConsistencyLevel();
+        }
+
+        return true;
     }
 
     // ============ AbstractCcipReadIsm ============
@@ -547,7 +516,7 @@ contract WormholeVaaHookIsm is
             );
         bytes32 encodedConfig = CustomConsistencyLib
             .encodeAdditionalBlocksConfig(
-                config.baseConsistencyLevel,
+                config.customBaseConsistencyLevel,
                 config.additionalBlocks
             );
 
@@ -577,7 +546,7 @@ contract WormholeVaaHookIsm is
             // sentinels as custom base levels.
             if (
                 !CustomConsistencyLevelLib.isAllowedCustomBaseConsistencyLevel(
-                    config.baseConsistencyLevel
+                    config.customBaseConsistencyLevel
                 )
             ) {
                 revert InvalidCustomConsistencyLevelConfig();
@@ -588,7 +557,7 @@ contract WormholeVaaHookIsm is
         // A non-custom level must not carry unused custom-level settings.
         if (
             config.customConsistencyLevelContract != address(0) ||
-            config.baseConsistencyLevel != 0 ||
+            config.customBaseConsistencyLevel != 0 ||
             config.additionalBlocks != 0
         ) {
             revert UnexpectedCustomConsistencyLevelConfig();

@@ -42,10 +42,9 @@ unsigned, or mismatched VAAs fail onchain verification.
 The Wormhole payload commits to:
 
 - a Hyperlane/Wormhole protocol identifier and version;
-- Hyperlane origin and destination domains;
 - the destination `WormholeVaaHookIsm` address;
-- the complete Hyperlane message ID; and
-- the Hyperlane nonce.
+- the complete Hyperlane message ID, which commits to the origin, destination,
+  nonce, sender, recipient, and body.
 
 The encoding is defined in
 [`WormholeMessage.sol`](../../libs/WormholeMessage.sol).
@@ -60,14 +59,15 @@ require earlier nonces or Wormhole sequences to have been delivered.
 `verify` accepts a VAA only when all of the following hold:
 
 - Wormhole Core validates its Guardian signatures and Guardian set;
-- the payload targets the local Hyperlane domain ID and this contract;
-- the VAA nonce equals the nonce committed in the payload;
-- the claimed Hyperlane origin has an enrolled remote hook/ISM;
+- the Hyperlane message targets the local domain and the payload targets this
+  contract;
+- the VAA nonce equals the Hyperlane message nonce;
+- the Hyperlane message origin has an enrolled remote hook/ISM;
 - the VAA emitter chain equals that route's Wormhole chain ID;
 - the VAA emitter address equals the enrolled remote hook/ISM address;
 - the VAA consistency level equals the route's expected level; and
-- the payload's origin, destination, message ID, and nonce equal the Hyperlane
-  message passed to `verify`.
+- the payload message ID equals the ID of the Hyperlane message passed to
+  `verify`.
 
 The destination Mailbox provides message replay protection. The ISM therefore
 does not consume the VAA or maintain destination authorization state.
@@ -81,7 +81,8 @@ in `handle`, or enforce an equivalent application or ISM policy.
 
 ## Remote enrollment
 
-Every remote hook/ISM route is enrolled atomically with:
+The owner enrolls one or more remote hook/ISM routes with
+`enrollRemoteRouters`. Each route includes:
 
 | Field                      | Purpose                                               |
 | -------------------------- | ----------------------------------------------------- |
@@ -95,7 +96,7 @@ the expected VAA emitter. `remoteRouterConfigs` returns its Wormhole chain ID
 and expected consistency level. Verification requires both parts to match.
 
 A Wormhole chain ID can belong to only one enrolled Hyperlane domain ID. The
-`remoteWormholeChains` reverse lookup records this relationship explicitly,
+`domainIdForRemoteWormholeChainId` records this reverse lookup explicitly,
 including Hyperlane domain ID zero.
 
 Changing a route's hook/ISM address, expected consistency level, or Wormhole
@@ -136,8 +137,8 @@ Custom consistency uses Wormhole's Custom Consistency Level (CCL) contract. The
 constructor receives:
 
 - `customConsistencyLevelContract`: the local CCL contract address;
-- `baseConsistencyLevel`: the underlying standard EVM consistency level; and
-- `additionalBlocks`: the extra blocks to wait.
+- `customBaseConsistencyLevel`: the standard level Guardians wait for first; and
+- `additionalBlocks`: the extra blocks they wait after reaching that level.
 
 The deployer must verify that the supplied address is the official CCL contract
 for the source chain.

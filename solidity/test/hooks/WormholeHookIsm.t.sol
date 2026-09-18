@@ -97,7 +97,7 @@ contract WormholeHookIsmTest is Test {
             WormholeConsistencyLevelConfig({
                 consistencyLevel: CONSISTENCY,
                 customConsistencyLevelContract: address(0),
-                baseConsistencyLevel: 0,
+                customBaseConsistencyLevel: 0,
                 additionalBlocks: 0
             });
     }
@@ -119,12 +119,15 @@ contract WormholeHookIsmTest is Test {
         return _readUint32(m, 1);
     }
 
-    function _origin(bytes memory m) internal pure returns (uint32) {
-        return _readUint32(m, 5);
-    }
-
-    function _destination(bytes memory m) internal pure returns (uint32) {
-        return _readUint32(m, 41);
+    function _setOrigin(
+        bytes memory message,
+        uint32 originDomain
+    ) internal pure {
+        // The packed origin follows the one-byte version and four-byte nonce.
+        bytes memory encodedOrigin = abi.encodePacked(originDomain);
+        for (uint256 i; i < encodedOrigin.length; ++i) {
+            message[5 + i] = encodedOrigin[i];
+        }
     }
 
     function _body() internal pure returns (bytes memory) {
@@ -189,11 +192,8 @@ contract WormholeHookIsmTest is Test {
                 CONSISTENCY,
                 0,
                 WormholeMessage.encode(
-                    _origin(message),
-                    _destination(message),
                     address(destinationRouter).addressToBytes32(),
-                    message.id(),
-                    _nonce(message)
+                    message.id()
                 )
             );
     }
@@ -315,9 +315,8 @@ contract WormholeHookIsmTest is Test {
         );
         assertEq(whId, WH_DESTINATION);
         assertEq(consistency, CONSISTENCY);
-        (bool enrolled, uint32 domainId) = originRouter.remoteWormholeChains(
-            WH_DESTINATION
-        );
+        (bool enrolled, uint32 domainId) = originRouter
+            .domainIdForRemoteWormholeChainId(WH_DESTINATION);
         assertTrue(enrolled);
         assertEq(domainId, DESTINATION);
     }
@@ -347,7 +346,7 @@ contract WormholeHookIsmTest is Test {
                 WH_DESTINATION
             );
         config.domainIsm = remoteRouter;
-        originRouter.enrollRemoteRouter(config);
+        _enrollConfig(originRouter, config);
 
         assertEq(originRouter.routers(DESTINATION), remoteRouter);
 
@@ -361,13 +360,7 @@ contract WormholeHookIsmTest is Test {
             address(originRouter),
             0,
             _nonce(message),
-            WormholeMessage.encode(
-                ORIGIN,
-                DESTINATION,
-                remoteRouter,
-                message.id(),
-                _nonce(message)
-            ),
+            WormholeMessage.encode(remoteRouter, message.id()),
             CONSISTENCY
         );
         _dispatch();
@@ -382,7 +375,7 @@ contract WormholeHookIsmTest is Test {
                 WH_ORIGIN
             );
         config.domainIsm = remoteEmitter;
-        destinationRouter.enrollRemoteRouter(config);
+        _enrollConfig(destinationRouter, config);
 
         (bytes memory message, ) = _dispatch();
         bytes memory encodedVaa = _vaa(
@@ -439,9 +432,8 @@ contract WormholeHookIsmTest is Test {
         uint16 wormholeChainId = 42;
         _enroll(originRouter, 0, makeAddr("domainZeroRouter"), wormholeChainId);
 
-        (bool enrolled, uint32 domainId) = originRouter.remoteWormholeChains(
-            wormholeChainId
-        );
+        (bool enrolled, uint32 domainId) = originRouter
+            .domainIdForRemoteWormholeChainId(wormholeChainId);
         assertTrue(enrolled);
         assertEq(domainId, 0);
 
@@ -470,13 +462,12 @@ contract WormholeHookIsmTest is Test {
         assertEq(chainId, newChainId);
         assertEq(level, CONSISTENCY);
 
-        (bool oldAssigned, ) = originRouter.remoteWormholeChains(
+        (bool oldAssigned, ) = originRouter.domainIdForRemoteWormholeChainId(
             WH_DESTINATION
         );
         assertFalse(oldAssigned);
-        (bool newAssigned, uint32 domainId) = originRouter.remoteWormholeChains(
-            newChainId
-        );
+        (bool newAssigned, uint32 domainId) = originRouter
+            .domainIdForRemoteWormholeChainId(newChainId);
         assertTrue(newAssigned);
         assertEq(domainId, DESTINATION);
 
@@ -546,7 +537,9 @@ contract WormholeHookIsmTest is Test {
         assertEq(chainId, 0);
         assertEq(consistencyLevel, 0);
 
-        (bool assigned, ) = originRouter.remoteWormholeChains(newChainId);
+        (bool assigned, ) = originRouter.domainIdForRemoteWormholeChainId(
+            newChainId
+        );
         assertFalse(assigned);
         assertEq(originRouter.domains().length, 1);
     }
@@ -591,7 +584,7 @@ contract WormholeHookIsmTest is Test {
                 WH_ORIGIN
             );
         config.expectedConsistencyLevel = updatedConsistencyLevel;
-        destinationRouter.enrollRemoteRouter(config);
+        _enrollConfig(destinationRouter, config);
 
         vm.expectRevert(WormholeVaaHookIsm.WrongConsistencyLevel.selector);
         _verify(message, oldMetadata);
@@ -659,7 +652,9 @@ contract WormholeHookIsmTest is Test {
 
         (uint16 whId, ) = destinationRouter.remoteRouterConfigs(ORIGIN);
         assertEq(whId, 0);
-        (bool enrolled, ) = destinationRouter.remoteWormholeChains(WH_ORIGIN);
+        (bool enrolled, ) = destinationRouter.domainIdForRemoteWormholeChainId(
+            WH_ORIGIN
+        );
         assertFalse(enrolled);
 
         // Inbound disabled.
@@ -809,11 +804,8 @@ contract WormholeHookIsmTest is Test {
             _body()
         );
         bytes memory expectedPayload = WormholeMessage.encode(
-            ORIGIN,
-            DESTINATION,
             address(destinationRouter).addressToBytes32(),
-            message.id(),
-            _nonce(message)
+            message.id()
         );
 
         vm.expectEmit(true, false, false, true, address(originCore));
@@ -1009,37 +1001,20 @@ contract WormholeHookIsmTest is Test {
     }
 
     function test_verify_rejectsWrongDestinationDomain() public {
-        (bytes memory message, ) = _dispatch();
-        bytes memory payload = WormholeMessage.encode(
-            ORIGIN,
+        bytes memory message = originMailbox.buildOutboundMessage(
             DESTINATION + 1,
-            address(destinationRouter).addressToBytes32(),
-            message.id(),
-            _nonce(message)
-        );
-        bytes memory metadata = _wrapVaa(
-            _vaa(
-                WH_ORIGIN,
-                address(originRouter).addressToBytes32(),
-                0,
-                _nonce(message),
-                CONSISTENCY,
-                0,
-                payload
-            )
+            address(recipient).addressToBytes32(),
+            _body()
         );
         vm.expectRevert(WormholeVaaHookIsm.WrongDestinationDomain.selector);
-        _verify(message, metadata);
+        _verify(message, _wrapVaa(_validVaa(message, 0)));
     }
 
-    function test_verify_rejectsWrongDestinationRouter() public {
+    function test_verify_rejectsWrongDestinationHookIsm() public {
         (bytes memory message, ) = _dispatch();
         bytes memory payload = WormholeMessage.encode(
-            ORIGIN,
-            DESTINATION,
             makeAddr("otherRouter").addressToBytes32(),
-            message.id(),
-            _nonce(message)
+            message.id()
         );
         bytes memory metadata = _wrapVaa(
             _vaa(
@@ -1052,7 +1027,7 @@ contract WormholeHookIsmTest is Test {
                 payload
             )
         );
-        vm.expectRevert(WormholeVaaHookIsm.WrongDestinationRouter.selector);
+        vm.expectRevert(WormholeVaaHookIsm.WrongDestinationHookIsm.selector);
         _verify(message, metadata);
     }
 
@@ -1075,26 +1050,18 @@ contract WormholeHookIsmTest is Test {
 
     function test_verify_rejectsUnenrolledOriginDomain() public {
         (bytes memory message, ) = _dispatch();
-        bytes memory payload = WormholeMessage.encode(
-            4321,
-            DESTINATION,
-            address(destinationRouter).addressToBytes32(),
-            message.id(),
-            _nonce(message)
-        );
-        bytes memory metadata = _wrapVaa(
-            _vaa(
-                WH_ORIGIN,
-                address(originRouter).addressToBytes32(),
-                0,
-                _nonce(message),
-                CONSISTENCY,
-                0,
-                payload
-            )
-        );
+        _setOrigin(message, 4321);
         vm.expectRevert();
-        _verify(message, metadata);
+        _verify(message, _wrapVaa(_validVaa(message, 0)));
+    }
+
+    function test_verify_rejectsEmitterForDifferentEnrolledOrigin() public {
+        _enroll(destinationRouter, 4321, makeAddr("otherOrigin"), 42);
+        (bytes memory message, ) = _dispatch();
+        _setOrigin(message, 4321);
+
+        vm.expectRevert(WormholeVaaHookIsm.WrongEmitterChainId.selector);
+        _verify(message, _wrapVaa(_validVaa(message, 0)));
     }
 
     function test_verify_rejectsWrongPayloadMagic() public {
@@ -1103,12 +1070,9 @@ contract WormholeHookIsmTest is Test {
             WormholeMessage.Message({
                 magic: bytes4("XXXX"),
                 version: WormholeMessage.VERSION,
-                originDomain: ORIGIN,
-                destinationDomain: DESTINATION,
-                destinationRouter: address(destinationRouter)
+                destinationHookIsm: address(destinationRouter)
                     .addressToBytes32(),
-                messageId: message.id(),
-                nonce: _nonce(message)
+                messageId: message.id()
             })
         );
         bytes memory metadata = _wrapVaa(
@@ -1132,12 +1096,9 @@ contract WormholeHookIsmTest is Test {
             WormholeMessage.Message({
                 magic: WormholeMessage.MAGIC,
                 version: WormholeMessage.VERSION + 1,
-                originDomain: ORIGIN,
-                destinationDomain: DESTINATION,
-                destinationRouter: address(destinationRouter)
+                destinationHookIsm: address(destinationRouter)
                     .addressToBytes32(),
-                messageId: message.id(),
-                nonce: _nonce(message)
+                messageId: message.id()
             })
         );
         bytes memory metadata = _wrapVaa(
@@ -1211,11 +1172,8 @@ contract WormholeHookIsmTest is Test {
     ) internal view returns (bytes memory) {
         return
             WormholeMessage.encode(
-                _origin(message),
-                _destination(message),
                 address(destinationRouter).addressToBytes32(),
-                message.id(),
-                _nonce(message)
+                message.id()
             );
     }
 
@@ -1247,9 +1205,20 @@ contract WormholeHookIsmTest is Test {
         address remote,
         uint16 wormholeChainId
     ) internal {
-        WormholeVaaHookIsm(address(router)).enrollRemoteRouter(
+        _enrollConfig(
+            router,
             _remoteRouterConfig(domainId, remote, wormholeChainId)
         );
+    }
+
+    function _enrollConfig(
+        WormholeVaaHookIsm router,
+        WormholeVaaHookIsm.RemoteRouterConfig memory config
+    ) internal {
+        WormholeVaaHookIsm.RemoteRouterConfig[]
+            memory configs = new WormholeVaaHookIsm.RemoteRouterConfig[](1);
+        configs[0] = config;
+        router.enrollRemoteRouters(configs);
     }
 
     function _ismMetadata(
@@ -1309,7 +1278,7 @@ contract WormholeHookIsmTest is Test {
             memory custom = WormholeConsistencyLevelConfig({
                 consistencyLevel: 203,
                 customConsistencyLevelContract: address(ccl),
-                baseConsistencyLevel: 200,
+                customBaseConsistencyLevel: 200,
                 additionalBlocks: 2
             });
 
@@ -1329,7 +1298,7 @@ contract WormholeHookIsmTest is Test {
             address(ccl)
         );
         assertEq(router.consistencyLevel(), 203);
-        assertEq(router.baseConsistencyLevel(), 200);
+        assertEq(router.customBaseConsistencyLevel(), 200);
         assertEq(router.additionalBlocks(), 2);
     }
 
@@ -1338,7 +1307,7 @@ contract WormholeHookIsmTest is Test {
             memory unsupported = WormholeConsistencyLevelConfig({
                 consistencyLevel: 15,
                 customConsistencyLevelContract: address(0),
-                baseConsistencyLevel: 0,
+                customBaseConsistencyLevel: 0,
                 additionalBlocks: 0
             });
         vm.expectRevert(
@@ -1357,7 +1326,7 @@ contract WormholeHookIsmTest is Test {
             memory finalized = WormholeConsistencyLevelConfig({
                 consistencyLevel: CONSISTENCY_LEVEL_FINALIZED,
                 customConsistencyLevelContract: address(0),
-                baseConsistencyLevel: 0,
+                customBaseConsistencyLevel: 0,
                 additionalBlocks: 0
             });
 
@@ -1376,7 +1345,7 @@ contract WormholeHookIsmTest is Test {
             memory finalized = WormholeConsistencyLevelConfig({
                 consistencyLevel: 0,
                 customConsistencyLevelContract: address(0),
-                baseConsistencyLevel: 0,
+                customBaseConsistencyLevel: 0,
                 additionalBlocks: 0
             });
 
@@ -1395,7 +1364,7 @@ contract WormholeHookIsmTest is Test {
             memory incomplete = WormholeConsistencyLevelConfig({
                 consistencyLevel: 203,
                 customConsistencyLevelContract: address(0),
-                baseConsistencyLevel: 200,
+                customBaseConsistencyLevel: 200,
                 additionalBlocks: 2
             });
         vm.expectRevert(
@@ -1415,7 +1384,7 @@ contract WormholeHookIsmTest is Test {
             memory invalid = WormholeConsistencyLevelConfig({
                 consistencyLevel: 203,
                 customConsistencyLevelContract: address(ccl),
-                baseConsistencyLevel: 203,
+                customBaseConsistencyLevel: 203,
                 additionalBlocks: 2
             });
 
@@ -1436,7 +1405,7 @@ contract WormholeHookIsmTest is Test {
             memory invalid = WormholeConsistencyLevelConfig({
                 consistencyLevel: 203,
                 customConsistencyLevelContract: address(ccl),
-                baseConsistencyLevel: CONSISTENCY_LEVEL_FINALIZED,
+                customBaseConsistencyLevel: CONSISTENCY_LEVEL_FINALIZED,
                 additionalBlocks: 2
             });
 
@@ -1458,7 +1427,7 @@ contract WormholeHookIsmTest is Test {
             memory invalid = WormholeConsistencyLevelConfig({
                 consistencyLevel: CONSISTENCY,
                 customConsistencyLevelContract: makeAddr("unusedCcl"),
-                baseConsistencyLevel: 200,
+                customBaseConsistencyLevel: 200,
                 additionalBlocks: 2
             });
 
@@ -1556,28 +1525,19 @@ contract WormholeHookIsmTest is Test {
 contract WormholeHookIsmTest_Payload is Test {
     function test_payload_encodedLength() public pure {
         bytes memory payload = WormholeMessage.encode(
-            1,
-            2,
             bytes32(uint256(3)),
-            bytes32(uint256(4)),
-            5
+            bytes32(uint256(4))
         );
         assertEq(payload.length, WormholeMessage.ENCODED_LENGTH);
     }
 
     function testFuzz_payload_roundTrip(
-        uint32 originDomain,
-        uint32 destinationDomain,
-        bytes32 destinationRouter,
-        bytes32 messageId,
-        uint32 nonce
+        bytes32 destinationHookIsm,
+        bytes32 messageId
     ) public pure {
         bytes memory payload = WormholeMessage.encode(
-            originDomain,
-            destinationDomain,
-            destinationRouter,
-            messageId,
-            nonce
+            destinationHookIsm,
+            messageId
         );
         WormholeMessage.Message memory decoded = WormholeMessage.decode(
             payload
@@ -1585,11 +1545,8 @@ contract WormholeHookIsmTest_Payload is Test {
 
         assertEq(decoded.magic, WormholeMessage.MAGIC);
         assertEq(decoded.version, WormholeMessage.VERSION);
-        assertEq(decoded.originDomain, originDomain);
-        assertEq(decoded.destinationDomain, destinationDomain);
-        assertEq(decoded.destinationRouter, destinationRouter);
+        assertEq(decoded.destinationHookIsm, destinationHookIsm);
         assertEq(decoded.messageId, messageId);
-        assertEq(decoded.nonce, nonce);
     }
 
     function testFuzz_payload_rejectsWrongLength(uint8 extra) public {

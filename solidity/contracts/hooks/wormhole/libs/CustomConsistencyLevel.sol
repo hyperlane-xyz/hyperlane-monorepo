@@ -4,24 +4,21 @@ pragma solidity >=0.8.19;
 import {CONSISTENCY_LEVEL_CUSTOM, CONSISTENCY_LEVEL_FINALIZED, CONSISTENCY_LEVEL_INSTANT, CONSISTENCY_LEVEL_SAFE} from "wormhole-sdk/constants/ConsistencyLevel.sol";
 
 /**
- * @notice Inputs for a Wormhole EVM consistency level and optional custom handling.
- * @dev `customConsistencyLevelContract` is the official per-chain CCL
- * contract. `baseConsistencyLevel` must be one of the consistency levels
- * recognized by Wormhole's Guardian CCL implementation.
+ * @notice Wormhole publication level and, when custom, its Guardian policy.
+ * @dev Custom policies start at `customBaseConsistencyLevel`, then wait
+ * `additionalBlocks`. The other custom fields must be zero for standard levels.
  */
 struct WormholeConsistencyLevelConfig {
-    /// @notice Consistency level used when publishing the Hyperlane message
-    /// commitment through Wormhole Core.
+    /// @notice Level used to publish a Hyperlane commitment through Wormhole Core.
     uint8 consistencyLevel;
     /// @notice Official CCL contract on this chain.
     /// @dev Must be `address(0)` unless `consistencyLevel` is `CUSTOM`.
     address customConsistencyLevelContract;
-    /// @notice Guardian consistency sentinel that must be reached before
-    /// `additionalBlocks` starts counting.
+    /// @notice Level Guardians reach before waiting `additionalBlocks`.
     /// @dev Must be `0` unless `consistencyLevel` is `CUSTOM`.
-    uint8 baseConsistencyLevel;
+    uint8 customBaseConsistencyLevel;
     /// @notice Number of blocks Guardians wait after reaching
-    /// `baseConsistencyLevel`.
+    /// `customBaseConsistencyLevel`.
     /// @dev Must be `0` unless `consistencyLevel` is `CUSTOM`.
     uint16 additionalBlocks;
 }
@@ -60,7 +57,7 @@ library CustomConsistencyLevelLib {
             isAllowedCustomBaseConsistencyLevel(level);
     }
 
-    /// @notice Whether `level` may be assigned to `baseConsistencyLevel`.
+    /// @notice Whether `level` may be assigned to `customBaseConsistencyLevel` or not.
     /// @dev Guardian CCL only accepts sentinels 200, 201, and 202 here. The SDK
     /// finalized value 1 and another custom level are intentionally excluded.
     function isAllowedCustomBaseConsistencyLevel(

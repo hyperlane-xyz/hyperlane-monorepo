@@ -5,8 +5,8 @@ pragma solidity >=0.8.19;
  * @title WormholeMessage
  * @notice Fixed-size payload published through Wormhole Core for a Hyperlane
  * message.
- * @dev All seven fields have fixed-size types, so the ABI-encoded payload has
- * a fixed length.
+ * @dev All four fields have fixed-size types, so the ABI-encoded payload has
+ * a fixed length. `messageId` commits to all Hyperlane message fields.
  */
 library WormholeMessage {
     // ============ Errors ============
@@ -19,39 +19,30 @@ library WormholeMessage {
 
     bytes4 internal constant MAGIC = bytes4(keccak256("HYPERLANE_WORMHOLE"));
     uint8 internal constant VERSION = 1;
-    uint256 internal constant ENCODED_LENGTH = 32 * 7;
+    uint256 internal constant ENCODED_LENGTH = 32 * 4;
 
     // ============ Types ============
 
     struct Message {
         bytes4 magic;
         uint8 version;
-        uint32 originDomain;
-        uint32 destinationDomain;
-        bytes32 destinationRouter;
+        bytes32 destinationHookIsm;
         bytes32 messageId;
-        uint32 nonce;
     }
 
     // ============ Functions ============
 
     function encode(
-        uint32 originDomain,
-        uint32 destinationDomain,
-        bytes32 destinationRouter,
-        bytes32 messageId,
-        uint32 nonce
+        bytes32 destinationHookIsm,
+        bytes32 messageId
     ) internal pure returns (bytes memory) {
         return
             abi.encode(
                 Message({
                     magic: MAGIC,
                     version: VERSION,
-                    originDomain: originDomain,
-                    destinationDomain: destinationDomain,
-                    destinationRouter: destinationRouter,
-                    messageId: messageId,
-                    nonce: nonce
+                    destinationHookIsm: destinationHookIsm,
+                    messageId: messageId
                 })
             );
     }

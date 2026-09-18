@@ -86,7 +86,7 @@ contract WormholeHookIsmForkTest is Test {
             WormholeConsistencyLevelConfig({
                 consistencyLevel: CONSISTENCY_FINALIZED,
                 customConsistencyLevelContract: address(0),
-                baseConsistencyLevel: 0,
+                customBaseConsistencyLevel: 0,
                 additionalBlocks: 0
             });
     }
@@ -147,7 +147,7 @@ contract WormholeHookIsmForkTest is Test {
             WormholeConsistencyLevelConfig({
                 consistencyLevel: CONSISTENCY_CUSTOM,
                 customConsistencyLevelContract: CCL_ETHEREUM,
-                baseConsistencyLevel: CONSISTENCY_INSTANT,
+                customBaseConsistencyLevel: CONSISTENCY_INSTANT,
                 additionalBlocks: 2
             }),
             urls
@@ -226,11 +226,8 @@ contract WormholeHookIsmForkTest is Test {
         assertEq(
             payload,
             WormholeMessage.encode(
-                HYP_ETHEREUM,
-                HYP_BASE,
                 address(destinationRouter).addressToBytes32(),
-                message.id(),
-                _nonce(message)
+                message.id()
             ),
             "unexpected published payload"
         );
@@ -429,24 +426,24 @@ contract WormholeHookIsmForkTest is Test {
             _consistencyLevelConfig(),
             urls
         );
-        origin.enrollRemoteRouter(
-            WormholeVaaHookIsm.RemoteRouterConfig({
-                domainId: HYP_BASE,
-                domainIsm: address(destination).addressToBytes32(),
-                wormholeChainId: WH_BASE,
-                expectedConsistencyLevel: CONSISTENCY_FINALIZED
-            })
-        );
+        WormholeVaaHookIsm.RemoteRouterConfig[]
+            memory configs = new WormholeVaaHookIsm.RemoteRouterConfig[](1);
+        configs[0] = WormholeVaaHookIsm.RemoteRouterConfig({
+            domainId: HYP_BASE,
+            domainIsm: address(destination).addressToBytes32(),
+            wormholeChainId: WH_BASE,
+            expectedConsistencyLevel: CONSISTENCY_FINALIZED
+        });
+        origin.enrollRemoteRouters(configs);
 
         vm.selectFork(baseFork);
-        destination.enrollRemoteRouter(
-            WormholeVaaHookIsm.RemoteRouterConfig({
-                domainId: HYP_ETHEREUM,
-                domainIsm: address(origin).addressToBytes32(),
-                wormholeChainId: WH_ETHEREUM,
-                expectedConsistencyLevel: CONSISTENCY_FINALIZED
-            })
-        );
+        configs[0] = WormholeVaaHookIsm.RemoteRouterConfig({
+            domainId: HYP_ETHEREUM,
+            domainIsm: address(origin).addressToBytes32(),
+            wormholeChainId: WH_ETHEREUM,
+            expectedConsistencyLevel: CONSISTENCY_FINALIZED
+        });
+        destination.enrollRemoteRouters(configs);
     }
 
     /// @dev Pulls the publication this router just made out of the recorded logs.
