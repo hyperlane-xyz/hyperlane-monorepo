@@ -5307,7 +5307,7 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://rpc.arc.io"
+          "http": "https://rpc.mainnet.arc.io"
         }
       ],
       "technicalStack": "other",
@@ -5338,6 +5338,10 @@
       "validatorAnnounce": "0x145566181A18E23bB6a8A3eC6D87765542A7F754",
       "index": {
         "from": 18435650
+      },
+      "transactionOverrides": {
+        "maxFeePerGas": 60000000000,
+        "maxPriorityFeePerGas": 2000000000
       }
     }
   },
