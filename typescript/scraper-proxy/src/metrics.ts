@@ -22,7 +22,6 @@ export type WebSocketMetricsSnapshot = {
   limits: {
     agentConnections: number;
     catchUpMs: number;
-    catchUpRows: number;
     clientMessagesPerMinute: number;
     concurrentCatchUps: number;
     explorerPendingBytes: number;
@@ -324,11 +323,6 @@ snapshotGauge(
   'websocket_catch_up_concurrency_limit',
   'Maximum concurrent historical WebSocket catch-ups.',
   (gauge, snapshot) => gauge.set(snapshot.limits.concurrentCatchUps),
-);
-snapshotGauge(
-  'websocket_catch_up_row_limit',
-  'Maximum rows delivered by one historical WebSocket catch-up.',
-  (gauge, snapshot) => gauge.set(snapshot.limits.catchUpRows),
 );
 snapshotGauge(
   'websocket_max_catch_up_rows',

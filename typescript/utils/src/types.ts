@@ -148,8 +148,6 @@ export type ValidatorMetadata = {
    * historical blob can be in either shape -- narrow before use, e.g. via
    * `validatorMetadataRpcUrlHash`. */
   rpcs?: Array<string | ValidatorMetadataRpcEntry>;
-  /** The `additionalQuorumRpcUrls` set, reported separately from `rpcs`. */
-  additional_quorum_rpcs?: ValidatorMetadataRpcEntry[];
   allows_public_rpcs?: boolean;
 };
 

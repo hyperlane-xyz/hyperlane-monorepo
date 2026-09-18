@@ -28,7 +28,7 @@ itertools.workspace = true
 k256 = { workspace = true, features = ["pem"] }
 num.workspace = true
 num-traits.workspace = true
-reqwest.workspace = true
+reqwest = { workspace = true, features = ["rustls-tls-native-roots"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

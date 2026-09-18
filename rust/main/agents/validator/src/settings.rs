@@ -58,15 +58,15 @@ pub struct ValidatorSettings {
     /// via `interval`, or via `chains.<originChainName>.index.interval` if
     /// `interval` is unset.
     pub interval: Duration,
-    /// Preferred Merkle tree insertion source; local RPC indexing is used while unavailable.
+    /// Merkle tree insertion source for replay and live events. Leaves are verified
+    /// against on-chain checkpoints before signing, without per-leaf RPC log reads.
+    /// Outside lightweight mode, RPC indexing is used on stream failure or checkpoint mismatch.
     pub websocket_url: Option<url::Url>,
+    /// Trusted websocket indexing; every state-read endpoint verifies the signed history.
+    /// Disables all RPC log indexing and batch recovery. `leightweigt` is an alias.
+    pub lightweight: bool,
     /// A list of RPCs that the validator uses
     pub rpcs: Vec<RpcConfig>,
-    /// Additional RPCs that vote together with `rpcs` (2/3 majority, combined) on the
-    /// merkle tree hook's safety-critical reads. Empty disables quorum verification
-    /// entirely. Intended for *additional* public RPCs only — `rpcs` already votes in the
-    /// same group, so there's no need to duplicate its (typically private) entries here.
-    pub additional_quorum_rpcs: Vec<RpcConfig>,
     /// If the validator oped into public RPCs
     pub allow_public_rpcs: bool,
     /// Test-only: skips on-chain self-announce. Never use in production.
@@ -83,11 +83,12 @@ impl_loadable_from_settings!(Validator, RawValidatorSettings -> ValidatorSetting
 
 impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
     fn from_config_filtered(
-        raw: RawValidatorSettings,
+        mut raw: RawValidatorSettings,
         cwp: &ConfigPath,
         _filter: (),
         agent_name: &str,
     ) -> ConfigResult<Self> {
+        let lightweight = parse_lightweight_flag(&mut raw.0, cwp)?;
         let curr_dir = std::env::current_dir().map_err(|err| {
             let mut config_err = ConfigParsingError::default();
             config_err.push(cwp.clone(), eyre::eyre!(err.to_string()));
@@ -108,7 +109,8 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .chain(&mut err)
             .get_opt_key("allowPublicRpcs")
             .parse_bool()
-            .unwrap_or(false);
+            .unwrap_or(false)
+            || lightweight;
 
         let skip_announce = p
             .chain(&mut err)
@@ -235,30 +237,39 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
                 );
             }
         }
+        if lightweight && websocket_url.is_none() {
+            err.push(
+                cwp.add("websocketurl"),
+                eyre!("websocketUrl is required in lightweight mode"),
+            );
+        }
 
         let mut rpcs = get_rpc_urls(&chain, "rpcUrls", "customRpcUrls", &mut err);
-        // this is only relevant for cosmos
-        rpcs.extend(get_rpc_urls(&chain, "grpcUrls", "customGrpcUrls", &mut err));
-        // tron wallet urls
-        rpcs.extend(get_rpc_urls(
-            &chain,
-            "walletUrls",
-            "customWalletUrls",
-            &mut err,
-        ));
-        rpcs.extend(get_rpc_urls(
-            &chain,
-            "walletSolidityUrls",
-            "customWalletSolidityUrls",
-            &mut err,
-        ));
+        if !lightweight {
+            // this is only relevant for cosmos
+            rpcs.extend(get_rpc_urls(&chain, "grpcUrls", "customGrpcUrls", &mut err));
+            // tron wallet urls
+            rpcs.extend(get_rpc_urls(
+                &chain,
+                "walletUrls",
+                "customWalletUrls",
+                &mut err,
+            ));
+            rpcs.extend(get_rpc_urls(
+                &chain,
+                "walletSolidityUrls",
+                "customWalletSolidityUrls",
+                &mut err,
+            ));
+        }
 
-        let additional_quorum_rpcs = get_rpc_urls(
-            &chain,
-            "additionalQuorumRpcUrls",
-            "customAdditionalQuorumRpcUrls",
-            &mut err,
-        );
+        for removed in ["additionalQuorumRpcUrls", "customAdditionalQuorumRpcUrls"] {
+            if chain.chain(&mut err).get_opt_key(removed).end().is_some() {
+                err.push(cwp.add("chains").add(origin_chain_name).add(&removed.to_ascii_lowercase()), eyre!(
+                    "{removed} was removed; move its endpoints into rpcUrls/customRpcUrls and remove the obsolete setting. Normal mode uses rpcConsensusType; lightweight mode checks every endpoint"
+                ));
+            }
+        }
 
         cfg_unwrap_all!(cwp, err: [base, origin_chain, validator, checkpoint_syncer]);
 
@@ -283,13 +294,44 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             reorg_period,
             interval,
             websocket_url,
+            lightweight,
             rpcs,
-            additional_quorum_rpcs,
             allow_public_rpcs,
             skip_announce,
             max_sign_concurrency,
         })
     }
+}
+
+/// Accept both spellings and bare CLI flags without changing RPC selection.
+fn parse_lightweight_flag(raw: &mut Value, cwp: &ConfigPath) -> ConfigResult<bool> {
+    for key in ["lightweight", "leightweigt"] {
+        if raw.get(key).and_then(Value::as_str) == Some("") {
+            // The shared argument loader represents a bare --flag as an empty string.
+            raw[key] = Value::Bool(true);
+        }
+    }
+    let mut err = ConfigParsingError::default();
+    let parser = ValueParser::new(cwp.clone(), raw);
+    let lightweight = parser
+        .chain(&mut err)
+        .get_opt_key("lightweight")
+        .parse_bool()
+        .end();
+    let alias = parser
+        .chain(&mut err)
+        .get_opt_key("leightweigt")
+        .parse_bool()
+        .end();
+    if let (Some(lightweight), Some(alias)) = (lightweight, alias) {
+        if lightweight != alias {
+            err.push(
+                cwp.clone(),
+                eyre!("lightweight and leightweigt must agree when both are set"),
+            );
+        }
+    }
+    err.into_result(lightweight.or(alias).unwrap_or(false))
 }
 
 fn parse_max_sign_concurrency(
@@ -584,68 +626,174 @@ mod test {
         assert!(!parsed[1].public);
     }
 
-    #[test]
-    fn test_get_rpc_urls_additional_quorum_keys() {
-        let rpcs = r#"
-            {
-                "additionalquorumrpcurls": [
-                    {
-                        "http": "http://quorum-a.example",
-                        "public": true
-                    }
+    fn lightweight_settings_fixture() -> Value {
+        serde_json::json!({
+            "lightweight": true,
+            "originchainname": "test",
+            "websocketurl": "wss://scraper.example/events",
+            "validator": {"type": "hexKey", "key": format!("0x{}", "11".repeat(32))},
+            "checkpointsyncer": {"type": "localStorage", "path": "/tmp/lightweight-checkpoints"},
+            "chains": {"test": {
+                "name": "test", "domainid": 1337, "chainid": 1337, "protocol": "ethereum",
+                "rpcurls": [
+                    {"http": "https://public.example", "public": true},
+                    {"http": "https://private.example", "public": false}
                 ],
-                "customadditionalquorumrpcurls": "http://quorum-b.example,http://quorum-c.example"
-            }
-        "#;
-        let rpcs = serde_json::from_str(rpcs).unwrap();
-        let mut err = ConfigParsingError::default();
-        let value_parser = ValueParser::new(ConfigPath::default(), &rpcs);
-        let parsed = get_rpc_urls(
-            &value_parser,
-            "additionalQuorumRpcUrls",
-            "customAdditionalQuorumRpcUrls",
-            &mut err,
-        );
-
-        // customAdditionalQuorumRpcUrls overrides additionalQuorumRpcUrls, same as
-        // customRpcUrls does for rpcUrls.
-        assert_eq!(parsed.len(), 2);
-        assert_eq!(parsed[0].url, "http://quorum-b.example");
-        assert!(!parsed[0].public);
-        assert_eq!(parsed[1].url, "http://quorum-c.example");
-        assert!(!parsed[1].public);
+                "customrpcurls": "https://private-override.example",
+                "mailbox": "0x0000000000000000000000000000000000000001",
+                "interchaingaspaymaster": "0x0000000000000000000000000000000000000002",
+                "validatorannounce": "0x0000000000000000000000000000000000000003",
+                "merkletreehook": "0x0000000000000000000000000000000000000004"
+            }}
+        })
     }
 
-    /// Regression test: an empty `customAdditionalQuorumRpcUrls` override (e.g. an env
-    /// var explicitly set to `""` to disable the additional quorum pool) must produce
-    /// zero entries, not a single bogus empty-string `RpcConfig` that would later fail
-    /// `Url::parse` and crash validator startup instead of just disabling the feature.
     #[test]
-    fn test_get_rpc_urls_empty_override_disables_pool() {
-        let rpcs = r#"
-            {
-                "additionalquorumrpcurls": [
-                    {
-                        "http": "http://quorum-a.example",
-                        "public": true
-                    }
-                ],
-                "customadditionalquorumrpcurls": ""
+    fn removed_quorum_settings_require_migration_in_both_modes() {
+        for lightweight in [false, true] {
+            for (key, value) in [
+                (
+                    "additionalquorumrpcurls",
+                    serde_json::json!([{"http": "https://quorum.example"}]),
+                ),
+                ("additionalquorumrpcurls", serde_json::json!([])),
+                (
+                    "customadditionalquorumrpcurls",
+                    serde_json::json!("https://quorum.example"),
+                ),
+                ("customadditionalquorumrpcurls", serde_json::json!("")),
+            ] {
+                let mut raw = lightweight_settings_fixture();
+                raw["lightweight"] = Value::Bool(lightweight);
+                raw["chains"]["test"][key] = value;
+                let error = ValidatorSettings::from_config_filtered(
+                    RawValidatorSettings(raw),
+                    &ConfigPath::default(),
+                    (),
+                    "validator",
+                )
+                .expect_err("obsolete quorum configuration must not be silently ignored");
+                assert!(error.to_string().contains("was removed"));
             }
-        "#;
-        let rpcs = serde_json::from_str(rpcs).unwrap();
-        let mut err = ConfigParsingError::default();
-        let value_parser = ValueParser::new(ConfigPath::default(), &rpcs);
-        let parsed = get_rpc_urls(
-            &value_parser,
-            "additionalQuorumRpcUrls",
-            "customAdditionalQuorumRpcUrls",
-            &mut err,
-        );
+        }
+    }
 
-        assert!(
-            parsed.is_empty(),
-            "an empty override string must disable the pool entirely, got {parsed:?}"
+    #[test]
+    fn lightweight_accepts_bare_flags_and_preserves_rpc_overrides() {
+        for flag in ["lightweight", "leightweigt"] {
+            let mut raw = lightweight_settings_fixture();
+            raw.as_object_mut()
+                .expect("config object")
+                .remove("lightweight");
+            raw[flag] = Value::String(String::new());
+            let chains = raw["chains"].clone();
+            assert!(parse_lightweight_flag(&mut raw, &ConfigPath::default()).expect("bare flag"));
+            assert_eq!(raw["chains"], chains);
+            let settings = ValidatorSettings::from_config_filtered(
+                RawValidatorSettings(raw),
+                &ConfigPath::default(),
+                (),
+                "validator",
+            )
+            .expect("valid lightweight configuration");
+            assert!(settings.lightweight);
+            assert!(settings.allow_public_rpcs);
+            assert_eq!(settings.rpcs.len(), 1);
+            assert_eq!(settings.rpcs[0].url, "https://private-override.example");
+            assert!(!settings.rpcs[0].public);
+            let hyperlane_base::settings::ChainConnectionConf::Ethereum(connection) =
+                &settings.base.chains[&settings.origin_chain].connection
+            else {
+                panic!("expected EVM connection");
+            };
+            assert_eq!(
+                connection.rpc_urls(),
+                vec![url::Url::parse("https://private-override.example").expect("RPC URL")]
+            );
+        }
+    }
+
+    #[test]
+    fn lightweight_accepts_non_evm_validator_configuration() {
+        let mut raw = lightweight_settings_fixture();
+        raw["chains"]["test"]["protocol"] = Value::String("sealevel".into());
+        let settings = ValidatorSettings::from_config_filtered(
+            RawValidatorSettings(raw),
+            &ConfigPath::default(),
+            (),
+            "validator",
+        )
+        .expect("non-EVM lightweight validator");
+        assert!(settings.lightweight);
+        assert_eq!(
+            settings.origin_chain.domain_protocol(),
+            HyperlaneDomainProtocol::Sealevel
         );
+    }
+
+    #[test]
+    fn lightweight_keeps_all_rpc_urls_even_with_single_consensus() {
+        for consensus in ["single", "fallback", "quorum"] {
+            let mut raw = lightweight_settings_fixture();
+            raw["chains"]["test"]
+                .as_object_mut()
+                .expect("chain object")
+                .remove("customrpcurls");
+            raw["chains"]["test"]["rpcconsensustype"] = consensus.into();
+            let settings = ValidatorSettings::from_config_filtered(
+                RawValidatorSettings(raw),
+                &ConfigPath::default(),
+                (),
+                "validator",
+            )
+            .expect("lightweight configuration");
+            assert_eq!(settings.rpcs.len(), 2);
+            assert!(settings.rpcs[0].public);
+            assert!(!settings.rpcs[1].public);
+        }
+    }
+
+    #[test]
+    fn lightweight_requires_websocket_and_defaults_off() {
+        let mut raw = lightweight_settings_fixture();
+        raw.as_object_mut()
+            .expect("config object")
+            .remove("websocketurl");
+        let error = ValidatorSettings::from_config_filtered(
+            RawValidatorSettings(raw.clone()),
+            &ConfigPath::default(),
+            (),
+            "validator",
+        )
+        .expect_err("websocket required");
+        assert!(error.to_string().contains("websocketUrl is required"));
+        raw.as_object_mut()
+            .expect("config object")
+            .remove("lightweight");
+        let settings = ValidatorSettings::from_config_filtered(
+            RawValidatorSettings(raw),
+            &ConfigPath::default(),
+            (),
+            "validator",
+        )
+        .expect("classic configuration");
+        assert!(!settings.lightweight);
+        assert!(!settings.allow_public_rpcs);
+    }
+
+    #[test]
+    fn lightweight_rejects_invalid_or_conflicting_flags() {
+        for mut raw in [
+            serde_json::json!({"lightweight": "invalid"}),
+            serde_json::json!({"lightweight": true, "leightweigt": false}),
+        ] {
+            assert!(parse_lightweight_flag(&mut raw, &ConfigPath::default()).is_err());
+        }
+        for mut raw in [
+            serde_json::json!({}),
+            serde_json::json!({"lightweight": false}),
+        ] {
+            assert!(!parse_lightweight_flag(&mut raw, &ConfigPath::default()).expect("disabled"));
+        }
     }
 }

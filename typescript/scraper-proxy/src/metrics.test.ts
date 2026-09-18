@@ -30,7 +30,6 @@ void it('serves current usage and limits from /metrics', async () => {
     limits: {
       agentConnections: 100,
       catchUpMs: 60_000,
-      catchUpRows: 1_000,
       clientMessagesPerMinute: 30,
       concurrentCatchUps: 5,
       explorerPendingBytes: 16_777_216,

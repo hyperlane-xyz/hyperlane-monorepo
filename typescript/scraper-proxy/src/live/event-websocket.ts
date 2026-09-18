@@ -109,7 +109,6 @@ type Limits = {
   maxAgentClients: number;
   maxBufferedBytes: number;
   maxCatchUpMs: number;
-  maxCatchUpRows: number;
   maxConcurrentCatchUps: number;
   maxExplorerClients: number;
   maxTotalBufferedBytes: number;
@@ -207,7 +206,6 @@ export class EventWebSocketServer {
       maxAgentClients: config.EVENT_STREAM_MAX_AGENT_CLIENTS,
       maxBufferedBytes: config.EVENT_STREAM_MAX_BUFFERED_BYTES,
       maxCatchUpMs: config.EVENT_STREAM_HISTORY_MAX_MS,
-      maxCatchUpRows: config.EVENT_STREAM_HISTORY_MAX_ROWS,
       maxConcurrentCatchUps: config.EVENT_STREAM_HISTORY_MAX_CONCURRENT,
       maxExplorerClients: MAX_EXPLORER_CLIENTS,
       maxTotalBufferedBytes: config.EVENT_STREAM_MAX_TOTAL_BUFFERED_BYTES,
@@ -343,7 +341,6 @@ export class EventWebSocketServer {
       limits: {
         agentConnections: this.limits.maxAgentClients,
         catchUpMs: this.limits.maxCatchUpMs,
-        catchUpRows: this.limits.maxCatchUpRows,
         clientMessagesPerMinute: MAX_CLIENT_MESSAGES,
         concurrentCatchUps: this.limits.maxConcurrentCatchUps,
         explorerPendingBytes: MAX_EXPLORER_PENDING_BYTES,
@@ -933,11 +930,6 @@ export class EventWebSocketServer {
   }
 
   private assertCatchUpBudget(subscription: Subscription): void {
-    if (subscription.catchUpRows > this.limits.maxCatchUpRows) {
-      throw new Error(
-        `Historical streaming row limit exceeded (${this.limits.maxCatchUpRows})`,
-      );
-    }
     if (Date.now() - subscription.catchUpStartedAt > this.limits.maxCatchUpMs) {
       throw new Error(
         `Historical streaming time limit exceeded (${this.limits.maxCatchUpMs}ms)`,
