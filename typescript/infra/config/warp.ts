@@ -20,6 +20,7 @@ import { getAleoUSDCWarpConfig } from './environments/mainnet3/warp/configGetter
 import {
   getCCTPV1StrategyConfig,
   getCCTPV1WarpConfig,
+  getCCTPV2FastStagingWarpConfig,
   getCCTPV2FastWarpConfig,
   getCCTPV2StandardStagingWarpConfig,
   getCCTPV2StandardWarpConfig,
@@ -127,6 +128,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.MainnetCCTPV2Standard]: getCCTPV2StandardWarpConfig,
   [WarpRouteIds.MainnetCCTPV2StandardStaging]:
     getCCTPV2StandardStagingWarpConfig,
+  [WarpRouteIds.MainnetCCTPV2FastStaging]: getCCTPV2FastStagingWarpConfig,
   [WarpRouteIds.MitosisMITO]: getMitosisMITOWarpConfig,
   [WarpRouteIds.PulsechainUSDC]: getPulsechainUSDCWarpConfig,
   [WarpRouteIds.ElectroneumUSDC]: getElectroneumUSDCWarpConfig,

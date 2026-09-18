@@ -179,6 +179,14 @@ export const getCCTPV2StandardStagingWarpConfig = async (
   return getCCTPV2WarpConfig(routerConfig, 'standard', 'staging');
 };
 
+export const getCCTPV2FastStagingWarpConfig = async (
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
+  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+  _warpRouteId: string,
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  return getCCTPV2WarpConfig(routerConfig, 'fast', 'staging');
+};
+
 const safeChain = 'ethereum';
 const icaOwner = awSafes[safeChain];
 const safeSubmitter: SubmitterMetadata = {
