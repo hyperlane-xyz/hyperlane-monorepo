@@ -9,6 +9,7 @@ import type { ProviderBuilderFn } from './types.js';
 
 interface RadixProviderOptions {
   rpcUrls: string[];
+  gatewayUrls?: string[];
   networkId: number;
   chainMetadata: ChainMetadata;
 }
@@ -67,6 +68,7 @@ export function createLazyRadixProvider(
         new RadixProvider({
           rpcUrls: urls,
           networkId,
+          gatewayUrls: metadata.gatewayUrls?.map(({ http }) => http),
           chainMetadata: metadata,
         }),
     ),

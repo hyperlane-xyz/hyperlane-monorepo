@@ -177,11 +177,15 @@ describe('Radix Warp Tokens (e2e)', function () {
         // Verify
         const reader = artifactManager.createReader(type);
         const readToken = await reader.read(deployedToken.deployed.address);
+        const domain1Router = readToken.config.remoteRouters[DOMAIN_1];
+        const domain2Router = readToken.config.remoteRouters[DOMAIN_2];
+        assert(domain1Router, `Missing remote router for domain ${DOMAIN_1}`);
+        assert(domain2Router, `Missing remote router for domain ${DOMAIN_2}`);
 
-        expect(readToken.config.remoteRouters[DOMAIN_1].address).to.equal(
+        expect(domain1Router.address).to.equal(
           '0xc2c6885c3c9e16064d86ce46b7a1ac57888a1e60b2ce88d2504347d3418399c4',
         );
-        expect(readToken.config.remoteRouters[DOMAIN_2].address).to.equal(
+        expect(domain2Router.address).to.equal(
           '0x1aac830e4d71000c25149af643b5a18c7a907e2d36147d8b57c5847b03ea5528',
         );
         expect(readToken.config.destinationGas[DOMAIN_1]).to.equal('100000');
@@ -289,13 +293,10 @@ describe('Radix Warp Tokens (e2e)', function () {
 
         // Verify gas changed
         const readToken2 = await reader.read(deployedToken.deployed.address);
+        const domain1Router = readToken2.config.remoteRouters[DOMAIN_1];
+        assert(domain1Router, `Missing remote router for domain ${DOMAIN_1}`);
         expect(readToken2.config.destinationGas[DOMAIN_1]).to.equal('200000');
-        expect(
-          eqAddressRadix(
-            readToken2.config.remoteRouters[DOMAIN_1].address,
-            routerAddress,
-          ),
-        ).to.be.true;
+        expect(eqAddressRadix(domain1Router.address, routerAddress)).to.be.true;
       });
 
       it('should transfer ownership via update (ownership last)', async () => {
@@ -340,6 +341,7 @@ describe('Radix Warp Tokens (e2e)', function () {
 
         // Verify ownership transfer is the LAST transaction
         const lastTx = txs[txs.length - 1];
+        assert(lastTx, 'Expected at least one update transaction');
         expect(lastTx.annotation).to.include('owner');
 
         // Execute all transactions
@@ -350,8 +352,10 @@ describe('Radix Warp Tokens (e2e)', function () {
         // Verify router enrollment, ISM, AND ownership transfer succeeded
         const reader = artifactManager.createReader(type);
         const readToken = await reader.read(deployedToken.deployed.address);
+        const domain1Router = readToken.config.remoteRouters[DOMAIN_1];
+        assert(domain1Router, `Missing remote router for domain ${DOMAIN_1}`);
 
-        expect(readToken.config.remoteRouters[DOMAIN_1].address).to.equal(
+        expect(domain1Router.address).to.equal(
           '0xc2c6885c3c9e16064d86ce46b7a1ac57888a1e60b2ce88d2504347d3418399c4',
         );
 
@@ -743,7 +747,7 @@ describe('Radix Warp Tokens (e2e)', function () {
 
         for (const tx of updateTxs) {
           const manifestString = await transactionManifestToString(
-            tx.manifest,
+            tx['manifest'],
             networkId,
           );
 

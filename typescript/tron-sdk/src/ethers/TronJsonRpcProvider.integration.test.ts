@@ -36,7 +36,9 @@ describe('TronJsonRpcProvider Integration Tests', function () {
     provider = new TronJsonRpcProvider(`${host}/jsonrpc`, TEST_CHAIN.chainId);
 
     const tronWeb = new TronWeb({ fullHost: host });
-    const base58 = tronWeb.address.fromPrivateKey(node.privateKeys[0]);
+    const privateKey = node.privateKeys[0];
+    assert(privateKey, 'TRE did not expose a funded private key');
+    const base58 = tronWeb.address.fromPrivateKey(privateKey);
     assert(base58, 'TRE did not expose a funded account');
     // TronWeb hex is 41-prefixed; the provider is fed the 0x form production uses.
     fundedAddress = ensure0x(strip0x(tronWeb.address.toHex(base58)).slice(2));

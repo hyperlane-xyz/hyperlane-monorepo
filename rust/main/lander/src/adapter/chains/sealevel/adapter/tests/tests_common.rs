@@ -26,7 +26,7 @@ use hyperlane_base::settings::{ChainConf, RawChainConf};
 use hyperlane_core::{ChainResult, H512};
 use hyperlane_sealevel::{
     fallback::SubmitSealevelRpc, PriorityFeeOracle, SealevelKeypair, SealevelProviderForLander,
-    SealevelTxCostEstimate, SealevelTxType, TransactionSubmitter,
+    SealevelTransactionFormat, SealevelTxCostEstimate, SealevelTxType, TransactionSubmitter,
 };
 
 use crate::payload::FullPayload;
@@ -111,7 +111,7 @@ mock! {
             payer: &'a SealevelKeypair,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             sign: bool,
-            alt_address: Option<Pubkey>,
+            alt_addresses: &SealevelTransactionFormat,
             additional_signers: &'a [&'a SealevelKeypair],
         ) -> ChainResult<SealevelTxType>;
 
@@ -121,7 +121,7 @@ mock! {
             payer: &SealevelKeypair,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
-            alt_address: Option<Pubkey>,
+            alt_addresses: &SealevelTransactionFormat,
         ) -> ChainResult<SealevelTxCostEstimate>;
 
         async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTxType)
@@ -367,7 +367,7 @@ pub fn instruction() -> SealevelInstruction {
 pub fn payload() -> FullPayload {
     let process_payload = hyperlane_sealevel::SealevelProcessPayload {
         instruction: instruction(),
-        alt_address: None,
+        alt_addresses: SealevelTransactionFormat::Legacy,
     };
     let data = serde_json::to_vec(&process_payload).unwrap();
 
@@ -378,7 +378,7 @@ pub fn payload() -> FullPayload {
 }
 
 pub fn precursor() -> SealevelTxPrecursor {
-    SealevelTxPrecursor::new(instruction(), None, estimate())
+    SealevelTxPrecursor::new(instruction(), SealevelTransactionFormat::Legacy, estimate())
 }
 
 pub fn transaction() -> Transaction {

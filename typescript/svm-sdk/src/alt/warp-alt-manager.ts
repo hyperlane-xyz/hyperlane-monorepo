@@ -73,6 +73,7 @@ export class SvmWarpAltManager {
       native: () =>
         new SvmNativeTokenAltWriter(
           this.chainName,
+          this.rpc,
           this.altWriter,
           existingCoreAlt,
         ),
@@ -86,6 +87,7 @@ export class SvmWarpAltManager {
       synthetic: () =>
         new SvmSyntheticTokenAltWriter(
           this.chainName,
+          this.rpc,
           this.altWriter,
           existingCoreAlt,
         ),
@@ -112,11 +114,9 @@ export function createWarpAltManager(
   chainMetadata: ChainMetadataForAltVM,
   signer: SvmSigner,
 ): SvmWarpAltManager {
-  assert(
-    chainMetadata.rpcUrls && chainMetadata.rpcUrls.length > 0,
-    'At least one RPC URL is required',
-  );
-  const rpc = createRpc(chainMetadata.rpcUrls[0].http);
+  const [rpcUrl] = chainMetadata.rpcUrls ?? [];
+  assert(rpcUrl, 'At least one RPC URL is required');
+  const rpc = createRpc(rpcUrl.http);
   const altWriter = new SvmAddressLookupTableWriter(rpc, signer);
   return new SvmWarpAltManager(chainMetadata.name, rpc, altWriter);
 }
@@ -153,7 +153,8 @@ export class SvmWarpAltReader {
     const readers: {
       [K in WarpType]: () => SvmTokenAltReader<WarpArtifactConfigs[K]>;
     } = {
-      native: () => new SvmNativeTokenAltReader(this.chainName, this.altReader),
+      native: () =>
+        new SvmNativeTokenAltReader(this.chainName, this.rpc, this.altReader),
       collateral: () =>
         new SvmCollateralTokenAltReader(
           this.chainName,
@@ -161,7 +162,11 @@ export class SvmWarpAltReader {
           this.altReader,
         ),
       synthetic: () =>
-        new SvmSyntheticTokenAltReader(this.chainName, this.altReader),
+        new SvmSyntheticTokenAltReader(
+          this.chainName,
+          this.rpc,
+          this.altReader,
+        ),
       crossCollateral: () =>
         new SvmCrossCollateralTokenAltReader(
           this.chainName,
@@ -181,11 +186,9 @@ export class SvmWarpAltReader {
 export function createWarpAltReader(
   chainMetadata: ChainMetadataForAltVM,
 ): SvmWarpAltReader {
-  assert(
-    chainMetadata.rpcUrls && chainMetadata.rpcUrls.length > 0,
-    'At least one RPC URL is required',
-  );
-  const rpc = createRpc(chainMetadata.rpcUrls[0].http);
+  const [rpcUrl] = chainMetadata.rpcUrls ?? [];
+  assert(rpcUrl, 'At least one RPC URL is required');
+  const rpc = createRpc(rpcUrl.http);
   return new SvmWarpAltReader(
     chainMetadata.name,
     rpc,

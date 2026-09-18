@@ -21,12 +21,15 @@ const historyHook = '\\xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
 const pacedHook = '\\xffffffffffffffffffffffffffffffffffffffff';
 const gasPaymaster = '\\x1111111111111111111111111111111111111111';
 const msgId = `\\x${'01'.repeat(32)}`;
-const msgBody = 'x'.repeat(300);
+const msgBody = 'é🚀'.repeat(50);
 const rows = new Map([
   ['1', row(hookB)],
   ['2', row(hookA)],
 ]);
+const deliveryRows = new Map<string, Record<string, unknown>>();
+const dispatchRows = new Map<string, Record<string, unknown>>();
 const gasPaymentRows = new Map<string, Record<string, unknown>>();
+const databaseDomainFilters: unknown[] = [];
 let notify: (channel: string, payload?: string) => void;
 const explorerBatchSizes: number[] = [];
 let explorerQuery = '';
@@ -44,6 +47,7 @@ const db: EventDatabase = {
   },
   async queryLive<T>(sql, values = []) {
     if (sql.includes('"gas_payment_stream_head"')) {
+      databaseDomainFilters.push(values[0]);
       const durable = [...gasPaymentRows.entries()].filter(
         ([, payment]) =>
           payment.domain === values[0] &&
@@ -64,7 +68,8 @@ const db: EventDatabase = {
         },
       ]);
     }
-    if (sql.includes('MIN('))
+    if (sql.includes('MIN(')) {
+      databaseDomainFilters.push(values[0]);
       return queryRows<T>([
         values[1] === emptyHook
           ? { first: '0', last: '-1' }
@@ -76,6 +81,7 @@ const db: EventDatabase = {
                 ? { first: '0', last: '1' }
                 : { first: '0', last: '0' },
       ]);
+    }
     if (sql.includes('"message_view"')) {
       explorerQuery = sql;
       explorerQueryCount++;
@@ -94,6 +100,7 @@ const db: EventDatabase = {
       );
     }
     if (sql.includes('ORDER BY "leaf_index"')) {
+      databaseDomainFilters.push(values[0]);
       if (values[1] === budgetHook)
         return queryRows<T>([
           row(budgetHook, 0),
@@ -103,13 +110,14 @@ const db: EventDatabase = {
       if (values[1] === historyHook) return queryRows<T>([row(historyHook, 5)]);
       if (values[1] === pacedHook)
         return queryRows<T>([row(pacedHook, 0), row(pacedHook, 1)]);
-      return queryRows<T>([row(hookA, 0)]);
+      return queryRows<T>([{ ...row(hookA, 0), domain: values[0] }]);
     }
     if (
       !sql.includes('notification_id') &&
       sql.includes('ORDER BY "event_row"."id"') &&
       sql.includes('"gas_payment"')
     ) {
+      databaseDomainFilters.push(values[0]);
       const after = BigInt(String(values[2]));
       const through = BigInt(String(values[3]));
       return queryRows<T>(
@@ -134,6 +142,7 @@ const db: EventDatabase = {
       !sql.includes('notification_id') &&
       sql.includes('FROM "gas_payment_stream_cursor"')
     ) {
+      databaseDomainFilters.push(values[0]);
       if (omitMappedGasPaymentRows) return [];
       const after = BigInt(String(values[2]));
       const through = BigInt(String(values[3]));
@@ -161,9 +170,13 @@ const db: EventDatabase = {
     ids.forEach((id) => notifiedIds.add(id));
     return queryRows<T>(
       ids.flatMap((id) => {
-        const event = sql.includes('"gas_payment"')
-          ? gasPaymentRows.get(id)
-          : rows.get(id);
+        const event = sql.includes('"raw_message_dispatch"')
+          ? dispatchRows.get(id)
+          : sql.includes('"delivered_message"')
+            ? deliveryRows.get(id)
+            : sql.includes('"gas_payment"')
+              ? gasPaymentRows.get(id)
+              : rows.get(id);
         return event
           ? [
               {
@@ -239,6 +252,230 @@ void it('keeps agent capacity independent from Explorer capacity', async () => {
       ({ readyState }) => readyState === WebSocket.CLOSED,
     ),
   );
+});
+
+void it('normalizes legacy signed domains on the agent wire', async () => {
+  const signedDomain = -846_819_108;
+  const unsignedDomain = 3_448_148_188;
+  const ids = {
+    delivery: '9002',
+    dispatch: '9001',
+    gas_payment: '9003',
+    merkle_tree_insertion: '9004',
+  } as const;
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: Object.keys(ids).map((eventType) => ({
+          domains: [unsignedDomain],
+          eventType,
+        })),
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'subscribed');
+
+    dispatchRows.set(ids.dispatch, {
+      destination_domain: signedDomain,
+      id: ids.dispatch,
+      msg_body: '\\x',
+      msg_id: msgId,
+      nonce: 1,
+      origin_block_hash: `\\x${'02'.repeat(32)}`,
+      origin_block_height: '1',
+      origin_domain: signedDomain,
+      origin_mailbox: hookA,
+      origin_tx_hash: `\\x${'03'.repeat(64)}`,
+      recipient: hookB,
+      sender: hookA,
+      time_created: new Date(0).toISOString(),
+    });
+    deliveryRows.set(ids.delivery, {
+      destination_mailbox: hookB,
+      destination_tx_id: `\\x${'04'.repeat(32)}`,
+      domain: signedDomain,
+      msg_id: msgId,
+      sequence: '1',
+      time_created: new Date(0).toISOString(),
+    });
+    gasPaymentRows.set(ids.gas_payment, {
+      ...gasPaymentRow(ids.gas_payment, '1'),
+      destination: signedDomain,
+      domain: signedDomain,
+      origin: signedDomain,
+    });
+    rows.set(ids.merkle_tree_insertion, {
+      ...row(hookA),
+      domain: signedDomain,
+    });
+
+    for (const [index, [eventType, id]] of Object.entries(ids).entries()) {
+      notify(
+        'scraper_event',
+        JSON.stringify({ domain: signedDomain, eventType, id }),
+      );
+      await waitUntil(
+        () =>
+          messages.filter(({ type }) => type === 'event').length === index + 1,
+      );
+    }
+
+    const event = (eventType: string) => {
+      const message = messages.find(
+        (item) => item.type === 'event' && item.eventType === eventType,
+      );
+      assert(message);
+      assert.equal(message.domain, unsignedDomain);
+      return record(message.data);
+    };
+    assert.deepEqual(
+      {
+        destination_domain: event('dispatch').destination_domain,
+        origin_domain: event('dispatch').origin_domain,
+      },
+      { destination_domain: unsignedDomain, origin_domain: unsignedDomain },
+    );
+    assert.equal(event('delivery').domain, unsignedDomain);
+    assert.deepEqual(
+      {
+        destination: event('gas_payment').destination,
+        domain: event('gas_payment').domain,
+        origin: event('gas_payment').origin,
+      },
+      {
+        destination: unsignedDomain,
+        domain: unsignedDomain,
+        origin: unsignedDomain,
+      },
+    );
+    assert.equal(event('merkle_tree_insertion').domain, unsignedDomain);
+  } finally {
+    deliveryRows.delete(ids.delivery);
+    dispatchRows.delete(ids.dispatch);
+    gasPaymentRows.delete(ids.gas_payment);
+    rows.delete(ids.merkle_tree_insertion);
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('queries high domains using the legacy signed representation', async () => {
+  const signedDomain = -846_819_108;
+  const unsignedDomain = 3_448_148_188;
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  databaseDomainFilters.length = 0;
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [
+          {
+            cursors: [
+              {
+                address: hookA,
+                afterSequence: '-1',
+                domain: unsignedDomain,
+              },
+            ],
+            eventType: 'merkle_tree_insertion',
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'caught_up');
+
+    assert.deepEqual(databaseDomainFilters, [signedDomain, signedDomain]);
+    const event = messages.find(({ type }) => type === 'event');
+    assert(event);
+    assert.equal(event.domain, unsignedDomain);
+    assert.equal(record(event.data).domain, unsignedDomain);
+  } finally {
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    databaseDomainFilters.length = 0;
+  }
+});
+
+void it('queries high gas payment domains using the legacy signed representation', async () => {
+  const signedDomain = -846_819_108;
+  const unsignedDomain = 3_448_148_188;
+  gasPaymentRows.clear();
+  databaseDomainFilters.length = 0;
+  gasPaymentRows.set('10', {
+    ...gasPaymentRow('10', null),
+    destination: signedDomain,
+    domain: signedDomain,
+    origin: signedDomain,
+  });
+  gasPaymentRows.set('30', {
+    ...gasPaymentRow('30', null, '11'),
+    destination: signedDomain,
+    domain: signedDomain,
+    origin: signedDomain,
+  });
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [
+          {
+            cursors: [
+              {
+                address: gasPaymaster,
+                afterStreamCursor: '0',
+                domain: unsignedDomain,
+              },
+            ],
+            eventType: 'gas_payment',
+            streamCursorVersion: 3,
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'caught_up');
+
+    assert.deepEqual(databaseDomainFilters, [
+      signedDomain,
+      signedDomain,
+      signedDomain,
+    ]);
+    const events = messages.filter(({ type }) => type === 'event');
+    assert.equal(events.length, 2);
+    for (const event of events) {
+      assert.equal(event.domain, unsignedDomain);
+      assert.deepEqual(
+        {
+          destination: record(event.data).destination,
+          domain: record(event.data).domain,
+          origin: record(event.data).origin,
+        },
+        {
+          destination: unsignedDomain,
+          domain: unsignedDomain,
+          origin: unsignedDomain,
+        },
+      );
+    }
+  } finally {
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    gasPaymentRows.clear();
+    databaseDomainFilters.length = 0;
+  }
 });
 
 void it('accepts fleet-sized agent subscriptions without raising the Explorer payload limit', async () => {
@@ -626,6 +863,135 @@ void it('drains live events arriving while the pending buffer is sent', async (c
   assert.deepEqual(eventSequences(messages), ['0', '1', '2', '3']);
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
+});
+
+void it('checks each cursor before sharing a live agent frame', async () => {
+  const sockets = [new WebSocket(url), new WebSocket(url)];
+  const received = sockets.map((socket) => {
+    const messages: Record<string, unknown>[] = [];
+    socket.on('message', (data, isBinary) => {
+      assert.equal(isBinary, false);
+      messages.push(parseRecord(rawData(data)));
+    });
+    return messages;
+  });
+  try {
+    await Promise.all(received.map((messages) => waitFor(messages, 'ready')));
+    for (const [index, socket] of sockets.entries()) {
+      socket.send(
+        JSON.stringify({
+          type: 'subscribe',
+          streams: [
+            {
+              eventType: 'merkle_tree_insertion',
+              ...(index === 0
+                ? {}
+                : {
+                    cursors: [
+                      { address: hookA, afterSequence: '0', domain: 1 },
+                    ],
+                  }),
+            },
+          ],
+        }),
+      );
+    }
+    await Promise.all(
+      received.map((messages) => waitFor(messages, 'subscribed')),
+    );
+    await waitFor(received[1], 'caught_up');
+    rows.set('8100', row(hookA, 1));
+    notify('scraper_event', notification('8100'));
+    await Promise.all(
+      received.map((messages) =>
+        waitUntil(() => eventSequences(messages).length === 1),
+      ),
+    );
+    assert.deepEqual(eventSequences(received[0]), ['1']);
+    assert.deepEqual(eventSequences(received[1]), ['1']);
+    notify('scraper_event', notification('8100'));
+    await waitUntil(() => eventSequences(received[0]).length === 2);
+    assert.deepEqual(eventSequences(received[1]), ['1']);
+    rows.set('8101', row(hookA, 3));
+    const closed = new Promise<number>((resolve) =>
+      sockets[1].once('close', resolve),
+    );
+    notify('scraper_event', notification('8101'));
+    assert.equal(await closed, 1013);
+    await waitUntil(() => eventSequences(received[0]).length === 3);
+    assert.deepEqual(eventSequences(received[0]), ['1', '1', '3']);
+  } finally {
+    rows.delete('8100');
+    rows.delete('8101');
+    for (const socket of sockets) socket.terminate();
+    await waitUntil(() => events.metricsSnapshot().connections.agent === 0);
+  }
+});
+
+void it('keeps gas cursor boundaries specific to each subscriber', async () => {
+  gasPaymentRows.clear();
+  const payment = {
+    destination: 2,
+    id: '14',
+    domain: 1,
+    interchain_gas_paymaster: gasPaymaster,
+    origin: 1,
+  };
+  gasPaymentRows.set('14', payment);
+  const sockets = [new WebSocket(url), new WebSocket(url)];
+  const received = sockets.map((socket) => {
+    const messages: Record<string, unknown>[] = [];
+    socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+    return messages;
+  });
+  try {
+    await Promise.all(received.map((messages) => waitFor(messages, 'ready')));
+    for (const [index, socket] of sockets.entries()) {
+      socket.send(
+        JSON.stringify({
+          type: 'subscribe',
+          streams: [
+            {
+              eventType: 'gas_payment',
+              ...(index === 0
+                ? {}
+                : {
+                    streamCursorVersion: 3,
+                    cursors: [
+                      {
+                        address: gasPaymaster,
+                        afterStreamCursor: '14',
+                        domain: 1,
+                      },
+                    ],
+                  }),
+            },
+          ],
+        }),
+      );
+    }
+    await Promise.all(
+      received.map((messages) => waitFor(messages, 'subscribed')),
+    );
+    await waitFor(received[1], 'caught_up');
+    gasPaymentRows.set('30', {
+      ...payment,
+      id: '30',
+      scraper_stream_cursor: '15',
+    });
+    notify('scraper_event', gasPaymentNotification('30'));
+    const [legacy, cursored] = await Promise.all(
+      received.map((messages) => waitFor(messages, 'event')),
+    );
+    assert.equal(legacy.streamCursor, '15');
+    assert.equal(cursored.streamCursor, '15');
+    assert.equal(legacy.legacyMaxStreamCursor, undefined);
+    assert.equal(cursored.legacyMaxStreamCursor, '14');
+  } finally {
+    gasPaymentRows.clear();
+    for (const socket of sockets) socket.terminate();
+    await waitUntil(() => events.metricsSnapshot().connections.agent === 0);
+  }
 });
 
 void it('accepts a legacy non-cursored live gas payment subscription', async () => {
@@ -1821,6 +2187,69 @@ void it('releases a peer-closed Explorer queue immediately', async (context) => 
   for (const complete of completions.splice(0)) complete();
 });
 
+void it('broadcasts UTF-8 text with byte-accurate queue accounting', async (context) => {
+  const sockets = [new WebSocket(messagesUrl), new WebSocket(messagesUrl)];
+  const received = sockets.map((socket) => {
+    const messages: Record<string, unknown>[] = [];
+    socket.on('message', (data, isBinary) => {
+      assert.equal(isBinary, false);
+      messages.push(parseRecord(rawData(data)));
+    });
+    return messages;
+  });
+  await Promise.all(received.map((messages) => waitFor(messages, 'ready')));
+  const completions = delayServerSendCompletions(context);
+  const messageIds = ['06', '07'].map((byte) => `\\x${byte.repeat(32)}`);
+  const expected = messageIds.map((messageId) => ({
+    data: {
+      id: '42',
+      is_delivered: false,
+      msg_body: msgBody,
+      msg_id: messageId,
+      origin_domain_id: 1,
+    },
+    type: 'message_upsert',
+  }));
+  const firstText = JSON.stringify(expected[0]);
+  const firstBytes = Buffer.byteLength(firstText);
+  assert(firstBytes > firstText.length);
+
+  try {
+    for (const messageId of messageIds) {
+      notify(
+        'scraper_explorer_event',
+        JSON.stringify({ messageId: messageId.slice(2) }),
+      );
+    }
+    await waitUntil(() => completions.length === 2);
+    assert.equal(events.metricsSnapshot().outboundPendingBytes, 2 * firstBytes);
+    assert.equal(events.metricsSnapshot().explorerPendingMessages, 2);
+    assert.equal(
+      events.metricsSnapshot().explorerPendingBytes,
+      2 * Buffer.byteLength(JSON.stringify(expected[1])),
+    );
+    for (const complete of completions.splice(0)) complete();
+    await waitUntil(() => completions.length === 2);
+    for (const messages of received) {
+      await waitUntil(
+        () =>
+          messages.filter(({ type }) => type === 'message_upsert').length === 2,
+      );
+      assert.deepEqual(
+        messages.filter(({ type }) => type === 'message_upsert'),
+        expected,
+      );
+    }
+    for (const complete of completions.splice(0)) complete();
+    assert.equal(events.metricsSnapshot().outboundPendingBytes, 0);
+    assert.equal(events.metricsSnapshot().explorerPendingBytes, 0);
+  } finally {
+    for (const complete of completions.splice(0)) complete();
+    for (const socket of sockets) socket.terminate();
+    await waitUntil(() => events.metricsSnapshot().connections.messages === 0);
+  }
+});
+
 void it('reports an active send failure once', async (context) => {
   const socket = new WebSocket(messagesUrl);
   const messages: Record<string, unknown>[] = [];
@@ -2049,7 +2478,10 @@ function delayServerSendCompletions(
     ): void {
       const completion =
         typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
-      const message = typeof data === 'string' ? parseRecord(data) : undefined;
+      const message =
+        typeof data === 'string' || Buffer.isBuffer(data)
+          ? parseRecord(data.toString())
+          : undefined;
       const delay =
         completion &&
         (message?.type === 'event' ||
@@ -2088,7 +2520,10 @@ function delayFirstExplorerSocket(context: TestContext): Array<() => void> {
     ): void {
       const completion =
         typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
-      const message = typeof data === 'string' ? parseRecord(data) : undefined;
+      const message =
+        typeof data === 'string' || Buffer.isBuffer(data)
+          ? parseRecord(data.toString())
+          : undefined;
       if (
         !selectedDelayedSocket &&
         completion &&

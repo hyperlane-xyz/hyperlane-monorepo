@@ -30,6 +30,7 @@ import {
   CORE_ADDRESSES_PATH_BY_PROTOCOL,
   CORE_READ_CONFIG_PATH_BY_PROTOCOL,
   CROSS_CHAIN_CORE_CONFIG_PATH_BY_PROTOCOL,
+  CROSS_CHAIN_E2E_TEST_TIMEOUT,
   DEFAULT_E2E_TEST_TIMEOUT,
   HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
@@ -94,6 +95,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
   let evmNodeInstance: StartedTestContainer;
 
   before(async function () {
+    // Container startup and both core deployments share this hook's budget.
+    this.timeout(CROSS_CHAIN_E2E_TEST_TIMEOUT);
+
     [cosmosNodeInstance, evmNodeInstance] = await Promise.all([
       runCosmosNode(TEST_CHAIN_METADATA_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1),
       runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2),

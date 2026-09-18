@@ -28,6 +28,7 @@ import {
 } from './signers/regular.js';
 import { warpFeesSigners, warpFeesThreshold } from './signers/warpFees.js';
 import { awTimelocks } from './timelock/aw.js';
+import { irregularTimelocks } from './timelock/irregular.js';
 import { regularTimelocks } from './timelock/regular.js';
 
 export function getGovernanceTimelocks(governanceType: GovernanceType) {
@@ -39,7 +40,7 @@ export function getGovernanceTimelocks(governanceType: GovernanceType) {
     case GovernanceType.WarpFees:
       return {};
     case GovernanceType.Irregular:
-      return {};
+      return irregularTimelocks;
     case GovernanceType.OUSDT:
       return {};
     default:

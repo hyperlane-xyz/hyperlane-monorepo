@@ -10,11 +10,11 @@ import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
 
 import {
-  KNOWN_ETHEREUM_TIMELOCK_CONTRACT,
-  TestChainName,
-  ethereumTestChain,
-  test1,
-} from '../../consts/testChains.js';
+  EXPLORER_API_URL,
+  explorerLogsResponse,
+  explorerResultResponse,
+} from '../../block-explorer/testFixtures.js';
+import { TestChainName, test1 } from '../../consts/testChains.js';
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { randomAddress, randomInt } from '../../test/testUtils.js';
@@ -421,27 +421,89 @@ describe('EvmEventLogsReader', () => {
       await deployTestErc20();
 
       multiProvider = new MultiProvider({
-        ethereum: ethereumTestChain,
+        [TestChainName.test1]: {
+          ...test1,
+          blockExplorers: [
+            {
+              name: 'Test explorer',
+              url: EXPLORER_API_URL,
+              apiUrl: EXPLORER_API_URL,
+              family: ExplorerFamily.Routescan,
+            },
+          ],
+        },
       });
+      multiProvider.setProvider(TestChainName.test1, providerChainTest1);
       reader = EvmEventLogsReader.fromConfig(
         {
-          chain: ethereumTestChain.name,
+          chain: TestChainName.test1,
         },
         multiProvider,
       );
     });
 
     it('should get the expected number of events when fromBlock is not provided', async () => {
+      await (await testContract.mint(1)).wait();
+      const toBlock = await providerChainTest1.getBlockNumber();
+      const logs = await providerChainTest1.getLogs({
+        address: testContract.address,
+        fromBlock: deploymentBlockNumber,
+        toBlock,
+        topics: [transferTopic],
+      });
+      const rpcLogs = sinon
+        .stub(providerChainTest1, 'getLogs')
+        .rejects(new Error('Explorer tests must not fall back to RPC logs'));
+      const fetchStub = sinon
+        .stub(globalThis, 'fetch')
+        .callsFake(async (input) => {
+          const url = new URL(
+            input instanceof Request ? input.url : input.toString(),
+          );
+          expect(url.origin + url.pathname).to.equal(EXPLORER_API_URL);
+          if (url.searchParams.get('action') === 'getcontractcreation') {
+            expect(url.searchParams.get('contractaddresses')).to.equal(
+              testContract.address,
+            );
+            return explorerResultResponse({
+              contractAddress: testContract.address,
+              contractCreator: contractOwner.address,
+              txHash: testContract.deployTransaction.hash,
+              blockNumber: deploymentBlockNumber,
+            });
+          }
+          expect(url.searchParams.get('action')).to.equal('getLogs');
+          expect(url.searchParams.get('address')).to.equal(
+            testContract.address,
+          );
+          expect(url.searchParams.get('topic0')).to.equal(transferTopic);
+          expect(url.searchParams.get('fromBlock')).to.equal(
+            String(deploymentBlockNumber),
+          );
+          expect(url.searchParams.get('toBlock')).to.equal(String(toBlock));
+          return explorerLogsResponse(
+            logs.map((log) => ({
+              ...log,
+              blockNumber: ethers.utils.hexValue(log.blockNumber),
+              logIndex: ethers.utils.hexValue(log.logIndex),
+              transactionIndex: ethers.utils.hexValue(log.transactionIndex),
+            })),
+          );
+        });
       const res = await reader.getLogsByTopic({
-        contractAddress: KNOWN_ETHEREUM_TIMELOCK_CONTRACT,
-        // CallExecuted signature
-        eventTopic:
-          '0xc2617efa69bab66782fa219543714338489c4e9e178271560a91b82c3f612b58',
+        contractAddress: testContract.address,
+        eventTopic: transferTopic,
         // Omitting from block to test getting contract deployment block from explorer
-        toBlock: 15_000_000,
+        toBlock,
       });
 
-      expect(res.length).to.equal(17);
+      expect(res).to.have.length(2);
+      expect(res.map((log) => log.transactionHash)).to.deep.equal(
+        logs.map((log) => log.transactionHash),
+      );
+      expect(res[0].blockNumber).to.equal(deploymentBlockNumber);
+      expect(fetchStub.callCount).to.equal(2);
+      expect(rpcLogs.called).to.be.false;
     });
   });
 

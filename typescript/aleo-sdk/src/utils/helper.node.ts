@@ -38,7 +38,8 @@ function readFileOverride(
     match,
     `Could not find program declaration in override file ${filePath}`,
   );
-  const id = match[1];
+  const [, id] = match;
+  assert(id, `Program declaration has no id in override file ${filePath}`);
   try {
     Program.fromString(content);
   } catch (e) {

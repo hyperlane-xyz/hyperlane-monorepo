@@ -22,7 +22,7 @@ export function createAleoProviderClass(
     expectedNetwork === AleoNetworkId.MAINNET ? 'Mainnet' : 'Testnet';
 
   return class AleoProvider extends RuntimeAleoProvider {
-    static async connect(metadata: ChainMetadataForAltVM) {
+    static override async connect(metadata: ChainMetadataForAltVM) {
       const rpcUrls = (metadata.rpcUrls ?? []).map((rpc) => rpc.http);
       return new AleoProvider(rpcUrls, metadata.chainId, metadata);
     }

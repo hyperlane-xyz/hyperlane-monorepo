@@ -10,6 +10,9 @@ version.workspace = true
 [dependencies]
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["float"] }
+hyperlane-sealevel-composite-ism = { path = "../../../sealevel/programs/ism/composite-ism", features = ["no-entrypoint"] }
+hyperlane-sealevel-interchain-security-module-interface = { path = "../../../sealevel/libraries/interchain-security-module-interface" }
+multisig-ism = { path = "../../../sealevel/libraries/multisig-ism" }
 hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
 hyperlane-radix = { path = "../../chains/hyperlane-radix" }
 hyperlane-starknet = { path = "../../chains/hyperlane-starknet" }
@@ -41,6 +44,7 @@ scrypto = { workspace = true }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+solana-sdk.workspace = true
 starknet.workspace = true
 tempfile.workspace = true
 tokio.workspace = true

@@ -74,6 +74,18 @@ export class IsmReader implements ArtifactReader<
       return this.expandRoutingIsm({ artifactState, config, deployed });
     }
 
+    if (config.type === AltVM.IsmType.AGGREGATION) {
+      const modules: DeployedIsmArtifact[] = [];
+      for (const module of config.modules) {
+        modules.push(
+          isArtifactDeployed(module)
+            ? module
+            : await this.read(module.deployed.address),
+        );
+      }
+      return { artifactState, config: { ...config, modules }, deployed };
+    }
+
     // For non-routing ISMs, the raw and expanded configs are identical
     return {
       artifactState,

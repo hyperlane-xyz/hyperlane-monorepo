@@ -98,7 +98,7 @@ export class TronWallet extends Wallet {
    * Override connect to preserve TronWallet type.
    * Base Wallet.connect() returns a plain Wallet, losing Tron behavior.
    */
-  connect(_provider: providers.Provider): TronWallet {
+  override connect(_provider: providers.Provider): TronWallet {
     return new TronWallet(this.privateKey, this.originalTronUrl);
   }
 
@@ -110,11 +110,13 @@ export class TronWallet extends Wallet {
   }
 
   /** Tron doesn't use nonces */
-  async getTransactionCount(_blockTag?: providers.BlockTag): Promise<number> {
+  override async getTransactionCount(
+    _blockTag?: providers.BlockTag,
+  ): Promise<number> {
     return 0;
   }
 
-  async sendTransaction(
+  override async sendTransaction(
     transaction: providers.TransactionRequest,
   ): Promise<TronTransactionResponse> {
     // Populate transaction (estimates gas and gas price if not set)

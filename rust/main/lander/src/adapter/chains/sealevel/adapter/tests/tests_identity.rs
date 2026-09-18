@@ -3,7 +3,8 @@ use std::sync::{Arc, Mutex};
 use solana_sdk::{instruction::AccountMeta, pubkey::Pubkey, signature::Keypair, signer::Signer};
 
 use hyperlane_sealevel::{
-    SealevelKeypair, SealevelProcessPayload, SealevelTxCostEstimate, SealevelTxType,
+    SealevelKeypair, SealevelProcessPayload, SealevelTransactionFormat, SealevelTxCostEstimate,
+    SealevelTxType,
 };
 
 use crate::{adapter::AdaptsChain, payload::FullPayload};
@@ -128,14 +129,15 @@ fn payload_and_precursor_with_identity_signer(
 
     let process_payload = SealevelProcessPayload {
         instruction: instruction.clone(),
-        alt_address: None,
+        alt_addresses: SealevelTransactionFormat::Legacy,
     };
     let data = serde_json::to_vec(&process_payload).unwrap();
     let full_payload = FullPayload {
         data,
         ..Default::default()
     };
-    let precursor = SealevelTxPrecursor::new(instruction, None, estimate());
+    let precursor =
+        SealevelTxPrecursor::new(instruction, SealevelTransactionFormat::Legacy, estimate());
     (full_payload, precursor)
 }
 

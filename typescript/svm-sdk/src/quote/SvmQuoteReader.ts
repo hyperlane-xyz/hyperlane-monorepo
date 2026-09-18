@@ -10,7 +10,7 @@ import {
   type WarpQuoteScope,
   enumerateWarpQuoteCandidates,
 } from '@hyperlane-xyz/provider-sdk/quote';
-import { chunk, fromHexString } from '@hyperlane-xyz/utils';
+import { assert, chunk, fromHexString } from '@hyperlane-xyz/utils';
 
 import { decodeStandingQuotePda } from '../accounts/fee.js';
 import { FeeStrategyKind } from '../fee/types.js';
@@ -83,19 +83,25 @@ export class SvmQuoteReader implements IRawWarpQuoteReader {
 
     const entries: StandingWarpQuoteEntry[] = [];
     for (let i = 0; i < addressChunks.length; i++) {
+      const addressChunk = addressChunks[i];
+      const seedChunk = seedChunks[i];
+      assert(addressChunk && seedChunk, `Missing quote chunk at index ${i}`);
       const response = await this.rpc
-        .getMultipleAccounts(addressChunks[i], { encoding: 'base64' })
+        .getMultipleAccounts(addressChunk, { encoding: 'base64' })
         .send();
 
-      for (let j = 0; j < seedChunks[i].length; j++) {
+      for (let j = 0; j < seedChunk.length; j++) {
         const acct = response.value[j];
         if (!acct) continue;
+        const encodedData = acct.data[0];
+        assert(encodedData, `Missing account data at quote index ${j}`);
         const decoded = decodeStandingQuotePda(
-          Uint8Array.from(Buffer.from(acct.data[0], 'base64')),
+          Uint8Array.from(Buffer.from(encodedData, 'base64')),
         );
         if (!decoded) continue;
 
-        const seed = seedChunks[i][j];
+        const seed: PdaSeed | undefined = seedChunk[j];
+        assert(seed, `Missing quote seed at index ${j}`);
         for (const [recipient, entry] of decoded.quotes) {
           if (entry.feeData.kind !== FeeStrategyKind.Linear) continue;
           entries.push({

@@ -228,7 +228,7 @@ mod tests {
                 .expect("subscribe");
             server.next().await.expect("request").expect("read request");
             let domain = if matching { 1 } else { 2 };
-            server.send(Message::Text(format!(r#"{{"type":"subscribed","streams":[{{"domains":[{domain}],"eventType":"merkle_tree_insertion"}}]}}"#))).await.expect("ack");
+            server.send(Message::Text(format!(r#"{{"type":"subscribed","streams":[{{"domains":[{domain}],"eventType":"merkle_tree_insertion"}}]}}"#).into())).await.expect("ack");
             let result = session
                 .next::<Value>(false, || stream::empty().boxed())
                 .await;

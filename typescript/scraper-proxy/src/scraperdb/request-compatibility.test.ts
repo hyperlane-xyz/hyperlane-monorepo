@@ -32,6 +32,31 @@ void describe('GraphQL request compatibility', () => {
     assert.match(query, /\$used: String = "\)"/);
     assert.doesNotMatch(query, /unused/);
   });
+
+  void it('is idempotent across generated variable subsets', () => {
+    for (let size = 1; size <= 200; size++) {
+      const definitions = Array.from(
+        { length: size },
+        (_, index) => `$v${index}: Int`,
+      );
+      const used = Array.from({ length: size }, (_, index) => index).filter(
+        (index) => (index * 31 + size) % 5 === 0,
+      );
+      const argumentsSource = used
+        .map((index) => `a${index}: domain(limit: $v${index}) { id }`)
+        .join(' ');
+      const query = `query Generated(${definitions.join(', ')}) { ${argumentsSource || 'domain { id }'} }`;
+      const once = stripUnusedVariableDefinitions(query);
+      assert.equal(stripUnusedVariableDefinitions(once), once);
+      for (let index = 0; index < size; index++) {
+        assert.equal(
+          once.includes(`$v${index}: Int`),
+          used.includes(index),
+          `variable v${index}`,
+        );
+      }
+    }
+  });
 });
 
 void describe('query normalization cache', () => {

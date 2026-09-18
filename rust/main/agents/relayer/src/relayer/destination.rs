@@ -40,6 +40,8 @@ pub enum FactoryError {
     MailboxCreationFailed(String, String),
     #[error("Failed to create destination for domain {0} due to missing configuration")]
     MissingConfiguration(String),
+    #[error("Invalid destination configuration for domain {0}: {1}")]
+    InvalidConfiguration(String, String),
 }
 
 pub trait Factory {

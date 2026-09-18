@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import express, { Express } from 'express';
+import Fastify from 'fastify';
 import { pino } from 'pino';
 import request from 'supertest';
 import type { Address, Hex } from 'viem';
@@ -12,9 +12,10 @@ import {
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 
 import { ZERO_ADDRESS } from '../../src/constants.js';
+import type { FeeQuotingApp } from '../../src/http.js';
 import { createApiKeyAuth } from '../../src/middleware/apiKeyAuth.js';
 import { createErrorHandler } from '../../src/middleware/errorHandler.js';
-import { createQuoteRouter } from '../../src/routes/quote.js';
+import { registerQuoteRoutes } from '../../src/routes/quote.js';
 import { EvmQuoteService } from '../../src/services/evmQuoteService.js';
 import { QuoteService } from '../../src/services/quoteService.js';
 
@@ -36,7 +37,7 @@ const SALT =
 const WARP_PARAMS = `origin=ethereum&router=${ROUTER}&destination=42161&salt=${SALT}&recipient=${RECIPIENT}`;
 const ICA_PARAMS = `origin=ethereum&router=${ROUTER}&destination=42161&salt=${SALT}`;
 
-function createTestApp(): Express {
+async function createTestApp(): Promise<FeeQuotingApp> {
   const logger = pino({ level: 'silent' });
   const derivedConfig = {
     hook: {
@@ -89,30 +90,33 @@ function createTestApp(): Express {
     logger,
   });
 
-  const app = express();
-  app.use(express.json());
-  app.use(
-    '/quote',
-    createApiKeyAuth(new Set([TEST_API_KEY]), pino({ level: 'silent' })),
-    createQuoteRouter(quoteService),
+  const app = Fastify({ loggerInstance: logger });
+  registerQuoteRoutes(
+    app,
+    quoteService,
+    createApiKeyAuth(new Set([TEST_API_KEY]), logger),
   );
-  app.use(createErrorHandler(pino({ level: 'silent' })));
+  app.setErrorHandler(createErrorHandler(logger));
+  await app.ready();
   return app;
 }
 
 describe('Quote Routes', () => {
-  let app: Express;
-  beforeEach(() => {
-    app = createTestApp();
+  let app: FeeQuotingApp;
+  beforeEach(async () => {
+    app = await createTestApp();
   });
+  afterEach(() => app.close());
 
   it('returns 401 without API key', async () => {
-    await request(app).get(`/quote/transferRemote?${WARP_PARAMS}`).expect(401);
+    await request(app.server)
+      .get(`/quote/transferRemote?${WARP_PARAMS}`)
+      .expect(401);
   });
 
   describe('GET /quote/transferRemote', () => {
     it('returns warp fee + IGP quotes', async () => {
-      const res = await request(app)
+      const res = await request(app.server)
         .get(`/quote/transferRemote?${WARP_PARAMS}`)
         .set('Authorization', `Bearer ${TEST_API_KEY}`)
         .expect(200);
@@ -121,7 +125,7 @@ describe('Quote Routes', () => {
 
     it('returns 400 without salt', async () => {
       const params = `origin=ethereum&router=${ROUTER}&destination=42161&recipient=${RECIPIENT}`;
-      await request(app)
+      await request(app.server)
         .get(`/quote/transferRemote?${params}`)
         .set('Authorization', `Bearer ${TEST_API_KEY}`)
         .expect(400);
@@ -129,7 +133,7 @@ describe('Quote Routes', () => {
 
     it('returns 400 for unknown origin', async () => {
       const params = `origin=unknown&router=${ROUTER}&destination=42161&salt=${SALT}&recipient=${RECIPIENT}`;
-      const res = await request(app)
+      const res = await request(app.server)
         .get(`/quote/transferRemote?${params}`)
         .set('Authorization', `Bearer ${TEST_API_KEY}`)
         .expect(400);
@@ -139,7 +143,7 @@ describe('Quote Routes', () => {
 
   describe('GET /quote/callRemoteWithOverrides', () => {
     it('returns IGP quote only', async () => {
-      const res = await request(app)
+      const res = await request(app.server)
         .get(`/quote/callRemoteWithOverrides?${ICA_PARAMS}`)
         .set('Authorization', `Bearer ${TEST_API_KEY}`)
         .expect(200);

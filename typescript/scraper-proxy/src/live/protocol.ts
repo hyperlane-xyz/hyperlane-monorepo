@@ -82,15 +82,14 @@ export function parseEventNotification(
   } catch {
     throw new Error('Invalid scraper event notification JSON');
   }
-  if (
-    !isRecord(value) ||
-    !isEventType(value.eventType) ||
-    !isDomain(value.domain)
-  ) {
+  if (!isRecord(value) || !isEventType(value.eventType)) {
     throw new Error('Invalid scraper event notification');
   }
   return {
-    domain: value.domain,
+    domain: parseDatabaseDomain(
+      value.domain,
+      'Invalid scraper event notification',
+    ),
     eventType: value.eventType,
     id: parseId(value.id),
   };
@@ -128,6 +127,20 @@ export function isDomain(value: unknown): value is number {
     value >= 0 &&
     value <= 0xffff_ffff
   );
+}
+
+export function parseDatabaseDomain(value: unknown, error: string): number {
+  const stored =
+    typeof value === 'string' && /^-?\d+$/.test(value) ? Number(value) : value;
+  if (
+    typeof stored !== 'number' ||
+    !Number.isInteger(stored) ||
+    stored < -0x8000_0000 ||
+    stored > 0xffff_ffff
+  ) {
+    throw new Error(error);
+  }
+  return stored < 0 ? stored + 0x1_0000_0000 : stored;
 }
 
 export function normalizeAddress(value: string): string {
