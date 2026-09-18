@@ -29,7 +29,7 @@ type UpdateHookParams = {
   ccipContractCache?: CCIPContractCache;
   contractVerifier?: ContractVerifier;
   rateLimitedSender?: Address;
-  opaqueHybridAddresses?: Address[];
+  opaqueCombinedHookIsmAddresses?: Address[];
 };
 
 export async function getEvmHookUpdateTransactions(
@@ -51,7 +51,7 @@ export async function getEvmHookUpdateTransactions(
     ccipContractCache,
     contractVerifier,
     rateLimitedSender,
-    opaqueHybridAddresses,
+    opaqueCombinedHookIsmAddresses,
   } = updateHookParams;
 
   const hookModule = new EvmHookModule(
@@ -83,7 +83,7 @@ export async function getEvmHookUpdateTransactions(
   );
   const updateTransactions = await hookModule.update(
     deepCopy(expectedConfig),
-    opaqueHybridAddresses,
+    opaqueCombinedHookIsmAddresses,
   );
   const { deployedHook: newHookAddress } = hookModule.serialize();
 
