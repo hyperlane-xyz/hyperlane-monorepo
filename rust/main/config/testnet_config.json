@@ -13,7 +13,7 @@
       ],
       "blocks": {
         "confirmations": 1,
-        "estimateBlockTime": 3,
+        "estimateBlockTime": 0.25,
         "reorgPeriod": 0
       },
       "chainId": 421614,
@@ -156,7 +156,7 @@
       ],
       "blocks": {
         "confirmations": 1,
-        "estimateBlockTime": 3,
+        "estimateBlockTime": 0.45,
         "reorgPeriod": 9
       },
       "chainId": 97,
@@ -405,7 +405,7 @@
       ],
       "blocks": {
         "confirmations": 5,
-        "estimateBlockTime": 2,
+        "estimateBlockTime": 1,
         "reorgPeriod": 10
       },
       "chainId": 80002,
@@ -659,7 +659,7 @@
       ],
       "blocks": {
         "confirmations": 1,
-        "estimateBlockTime": 2,
+        "estimateBlockTime": 1,
         "reorgPeriod": 5
       },
       "chainId": 998,
@@ -1416,7 +1416,7 @@
       ],
       "blocks": {
         "confirmations": 1,
-        "estimateBlockTime": 1,
+        "estimateBlockTime": 0.1,
         "reorgPeriod": 1
       },
       "chainId": 50312,
