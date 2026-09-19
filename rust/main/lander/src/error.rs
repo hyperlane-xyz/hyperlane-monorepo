@@ -16,7 +16,7 @@ pub enum LanderError {
     TxDropped(TransactionDropReason),
     #[error("The transaction hash was not found: {0}")]
     TxHashNotFound(String),
-    #[error("Transaction reached gas limit, won't be resubmitted")]
+    #[error("Transaction reached the current gas price cap")]
     TxGasCapReached,
     #[error("Failed to send over a channel {0}")]
     ChannelSendFailure(#[from] Box<tokio::sync::mpsc::error::SendError<Transaction>>),
