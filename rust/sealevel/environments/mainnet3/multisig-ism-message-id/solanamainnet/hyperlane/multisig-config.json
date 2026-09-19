@@ -46,6 +46,14 @@
       "0xde6c50c3e49852dd9fe0388166ebc1ba39ad8505"
     ]
   },
+  "arc": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
+      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
+    ]
+  },
   "avalanche": {
     "type": "messageIdMultisigIsm",
     "threshold": 3,
@@ -129,7 +137,7 @@
   },
   "celo": {
     "type": "messageIdMultisigIsm",
-    "threshold": 4,
+    "threshold": 3,
     "validators": [
       "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
       "0x033e391e9fc57a7b5dd6c91b69be9a1ed11c4986",
@@ -364,7 +372,7 @@
   },
   "metal": {
     "type": "messageIdMultisigIsm",
-    "threshold": 4,
+    "threshold": 3,
     "validators": [
       "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
       "0xaba06266f47e3ef554d218b879bd86114a8dabd4",
@@ -406,7 +414,7 @@
   },
   "mode": {
     "type": "messageIdMultisigIsm",
-    "threshold": 4,
+    "threshold": 3,
     "validators": [
       "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
       "0x0d4c1394a255568ec0ecd11795b28d1bda183ca4",
@@ -449,7 +457,7 @@
   },
   "optimism": {
     "type": "messageIdMultisigIsm",
-    "threshold": 4,
+    "threshold": 3,
     "validators": [
       "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
       "0x0d4c1394a255568ec0ecd11795b28d1bda183ca4",
@@ -536,7 +544,7 @@
   },
   "soneium": {
     "type": "messageIdMultisigIsm",
-    "threshold": 4,
+    "threshold": 3,
     "validators": [
       "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
       "0x8d2f8ebd61d055d58768cf3b07cb2fb565d87716",
@@ -645,13 +653,13 @@
     "threshold": 2,
     "validators": [
       "0x6d113ae51bfea7b63a8828f97e9dce393b25c189",
-      "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
-      "0x1f87c368f8e05a85ef9126d984a980a20930cb9c"
+      "0xa3f93fe365bf99f431d8fde740b140615e24f99b",
+      "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"
     ]
   },
   "worldchain": {
     "type": "messageIdMultisigIsm",
-    "threshold": 4,
+    "threshold": 3,
     "validators": [
       "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
       "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
