@@ -97,7 +97,9 @@ export class TokenBalanceReader {
 
   async getBalance(token: Token, owner: string): Promise<bigint> {
     const entry = this.entry(token);
-    const adapter = (entry.token ??= token.getAdapter(this.multiProvider));
+    const adapter = token.isHypToken()
+      ? (entry.hyp ??= token.getHypAdapter(this.multiProvider))
+      : (entry.token ??= token.getAdapter(this.multiProvider));
     if (
       token.standard === TokenStandard.EvmHypCollateral &&
       adapter instanceof EvmHypCollateralAdapter

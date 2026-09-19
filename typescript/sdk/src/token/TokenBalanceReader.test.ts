@@ -175,6 +175,8 @@ describe('TokenBalanceReader', () => {
       return uint(9n);
     });
     expect(await reader.getBridgedSupply(t)).to.equal(9n);
+    expect(await reader.getBalance(t, address(2))).to.equal(9n);
+    expect(metadataReads).to.equal(1);
     clock.tick(5 * 60_000);
     expect(await reader.getBridgedSupply(t)).to.equal(9n);
     expect(metadataReads).to.equal(1);
