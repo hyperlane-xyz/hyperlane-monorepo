@@ -70,6 +70,22 @@ export class PriceGetter extends CoinGeckoTokenPriceGetter {
     return this.getCoingeckoPrice(coinGeckoId);
   }
 
+  async prefetchMissing(coingeckoIds: readonly string[]): Promise<void> {
+    const missingIds = [...new Set(coingeckoIds)].filter(
+      (id) => this.getCachedTokenPrice(id) === undefined,
+    );
+    if (missingIds.length === 0) return;
+
+    await this.prefetchTokenPrices(missingIds);
+  }
+
+  tryGetCachedTokenPrice(token: Token): number | undefined {
+    const coinGeckoId = token.coinGeckoId;
+    if (!coinGeckoId) return undefined;
+
+    return this.getCachedTokenPrice(coinGeckoId);
+  }
+
   async getCoingeckoPrice(coingeckoId: string): Promise<number | undefined> {
     const pending = this.pendingPrices.get(coingeckoId);
     if (pending) return pending;
