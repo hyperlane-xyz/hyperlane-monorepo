@@ -1000,14 +1000,14 @@ contract WormholeHookIsmTest is Test {
         _verify(message, metadata);
     }
 
-    function test_verify_rejectsWrongDestinationDomain() public {
+    function test_process_rejectsWrongDestinationBeforeVerification() public {
         bytes memory message = originMailbox.buildOutboundMessage(
             DESTINATION + 1,
             address(recipient).addressToBytes32(),
             _body()
         );
-        vm.expectRevert(WormholeVaaHookIsm.WrongDestinationDomain.selector);
-        _verify(message, _wrapVaa(_validVaa(message, 0)));
+        vm.expectRevert("Mailbox: unexpected destination");
+        destinationMailbox.process(_wrapVaa(_validVaa(message, 0)), message);
     }
 
     function test_verify_rejectsWrongDestinationHookIsm() public {

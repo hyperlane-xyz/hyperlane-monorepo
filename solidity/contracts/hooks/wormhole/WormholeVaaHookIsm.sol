@@ -73,7 +73,6 @@ contract WormholeVaaHookIsm is
     error MessageAlreadyPublished();
     error InsufficientFee(uint256 required, uint256 provided);
     error InvalidVaa(string reason);
-    error WrongDestinationDomain();
     error WrongDestinationHookIsm();
     error WrongConsistencyLevel();
     error WrongEmitterChainId();
@@ -399,7 +398,7 @@ contract WormholeVaaHookIsm is
 
     /**
      * @dev Verifies Guardian signatures through Core, then binds the VAA to
-     * the Hyperlane message, this destination, and an enrolled remote hook/ISM.
+     * the Hyperlane message, this hook/ISM, and an enrolled remote hook/ISM.
      */
     function _verifyVaaForMessage(
         bytes memory encodedVaa,
@@ -421,10 +420,6 @@ contract WormholeVaaHookIsm is
         );
         if (wormholeMessage.messageId != message.id()) {
             revert WrongMessageId();
-        }
-
-        if (message.destination() != localDomain) {
-            revert WrongDestinationDomain();
         }
 
         if (

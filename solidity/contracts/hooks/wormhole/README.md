@@ -59,8 +59,7 @@ require earlier nonces or Wormhole sequences to have been delivered.
 `verify` accepts a VAA only when all of the following hold:
 
 - Wormhole Core validates its Guardian signatures and Guardian set;
-- the Hyperlane message targets the local domain and the payload targets this
-  contract;
+- the VAA payload targets this contract;
 - the VAA nonce equals the Hyperlane message nonce;
 - the Hyperlane message origin has an enrolled remote hook/ISM;
 - the VAA emitter chain equals that route's Wormhole chain ID;
@@ -68,6 +67,9 @@ require earlier nonces or Wormhole sequences to have been delivered.
 - the VAA consistency level equals the route's expected level; and
 - the payload message ID equals the ID of the Hyperlane message passed to
   `verify`.
+
+`Mailbox.process` rejects messages for another destination before calling the
+ISM.
 
 The destination Mailbox provides message replay protection. The ISM therefore
 does not consume the VAA or maintain destination authorization state.
