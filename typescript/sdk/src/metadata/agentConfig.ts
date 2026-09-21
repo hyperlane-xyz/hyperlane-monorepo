@@ -820,7 +820,7 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
     .boolean()
     .optional()
     .describe(
-      'Uses trusted websocket indexing and verifies every state-read endpoint against local roots by message index. Signs through the lowest verified index. Disables RPC indexing fallback and halts on a root mismatch.',
+      'Uses trusted websocket indexing and requires at least two thirds of configured state-read endpoints to match local roots. Signs through the highest index supported by that majority, independently of rpcConsensusType. Disables RPC indexing fallback; insufficient agreement pauses signing.',
     ),
   leightweigt: z.boolean().optional().describe('Alias for lightweight.'),
   websocketUrl: z

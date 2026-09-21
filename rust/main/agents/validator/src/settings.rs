@@ -62,7 +62,7 @@ pub struct ValidatorSettings {
     /// against on-chain checkpoints before signing, without per-leaf RPC log reads.
     /// Outside lightweight mode, RPC indexing is used on stream failure or checkpoint mismatch.
     pub websocket_url: Option<url::Url>,
-    /// Trusted websocket indexing; every state-read endpoint verifies the signed history.
+    /// Websocket indexing; two thirds of state-read endpoints must authenticate the signed history.
     /// Disables all RPC log indexing and batch recovery. `leightweigt` is an alias.
     pub lightweight: bool,
     /// A list of RPCs that the validator uses
@@ -266,7 +266,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         for removed in ["additionalQuorumRpcUrls", "customAdditionalQuorumRpcUrls"] {
             if chain.chain(&mut err).get_opt_key(removed).end().is_some() {
                 err.push(cwp.add("chains").add(origin_chain_name).add(&removed.to_ascii_lowercase()), eyre!(
-                    "{removed} was removed; move its endpoints into rpcUrls/customRpcUrls and remove the obsolete setting. Normal mode uses rpcConsensusType; lightweight mode checks every endpoint"
+                    "{removed} was removed; move its endpoints into rpcUrls/customRpcUrls and remove the obsolete setting. Normal mode uses rpcConsensusType; lightweight mode requires two-thirds checkpoint agreement"
                 ));
             }
         }

@@ -24,7 +24,7 @@ use hyperlane_core::{
 };
 use hyperlane_ethereum::{Signers, SingletonSignerHandle};
 
-use crate::lightweight::LightweightCheckpointReader;
+use crate::lightweight::{required_agreement, LightweightCheckpointReader};
 use crate::merkle_tree_hook_sync::MerkleTreeRpcRecovery;
 use crate::reorg_reporter::ReorgReporter;
 use crate::server::ValidatorReadiness;
@@ -59,7 +59,7 @@ impl QueuedCheckpoint {
 }
 
 // Keep the accumulated suffix across RPC retries. The committed frontier only
-// advances after every endpoint has authenticated the common insertion history.
+// advances after two thirds of configured endpoints authenticate the insertion history.
 struct LightweightTree {
     committed: IncrementalMerkle,
     accumulated: IncrementalMerkle,
@@ -258,7 +258,7 @@ impl ValidatorSubmitter {
         restored.unwrap_or_default()
     }
 
-    /// Authenticate websocket insertions against every endpoint. Historical
+    /// Authenticate websocket insertions against two thirds of configured endpoints. Historical
     /// publication cannot block new verified messages.
     pub(crate) async fn lightweight_checkpoint_submitter(
         self,
@@ -275,7 +275,7 @@ impl ValidatorSubmitter {
                 .lightweight_history_submitter(restored_tree.clone(), history_targets),
         );
         let mut tree = LightweightTree::new(restored_tree);
-        let mut samples: Option<Vec<CheckpointAtBlock>> = None;
+        let mut samples: Option<Vec<Option<CheckpointAtBlock>>> = None;
         let mut sampled_at = tokio::time::Instant::now();
         let mut next_rpc_attempt = sampled_at;
         loop {
@@ -309,11 +309,20 @@ impl ValidatorSubmitter {
                         self.readiness
                             .mark_operation_ready("lightweight_checkpoint_reads");
                         if let Some(previous) = &mut samples {
-                            // Preserve reachable targets during slow replay instead of
-                            // chasing the moving chain tip. Accept corrections that
-                            // retreat from an incorrectly ahead sample.
+                            // Preserve valid or not-yet-replayed targets rather than
+                            // chasing the moving tip. Never retain a known conflict
+                            // when a later checkpoint could restore agreement.
                             for (old, new) in previous.iter_mut().zip(checkpoints) {
-                                if new.index <= old.index {
+                                let preserve = match (&*old, &new) {
+                                    (Some(old), Some(new)) if new.index > old.index => {
+                                        !tree_exceeds_checkpoint(old, &tree.committed)
+                                            && tree.root_at(old.index).is_none_or(|root| {
+                                                self.checkpoint(root, old.index) == old.checkpoint
+                                            })
+                                    }
+                                    _ => false,
+                                };
+                                if !preserve {
                                     *old = new;
                                 }
                             }
@@ -325,7 +334,10 @@ impl ValidatorSubmitter {
                     Err(err) => {
                         self.readiness
                             .mark_operation_blocked("lightweight_checkpoint_reads");
-                        warn!(?err, "Waiting for every lightweight checkpoint endpoint");
+                        warn!(
+                            ?err,
+                            "Waiting for two-thirds lightweight checkpoint responses"
+                        );
                         continue;
                     }
                 }
@@ -347,7 +359,7 @@ impl ValidatorSubmitter {
                             root = ?checkpoint.root,
                             rpc_endpoints = samples.as_ref().expect("verified checkpoint samples").len(),
                             elapsed = ?started.elapsed(),
-                            "Initial lightweight backfill verified: local roots match every RPC endpoint"
+                            "Initial lightweight backfill verified: local roots match a two-thirds RPC majority"
                         );
                         initial_verification_complete = true;
                     }
@@ -443,26 +455,20 @@ impl ValidatorSubmitter {
     async fn verify_lightweight_batch(
         &self,
         tree: &mut LightweightTree,
-        checkpoints: &[CheckpointAtBlock],
+        checkpoints: &[Option<CheckpointAtBlock>],
     ) -> LightweightBatch {
         self.record_tree_progress(&tree.accumulated).await;
-        let target = checkpoints
+        let required = required_agreement(checkpoints.len());
+        let Some(max_index) = checkpoints
             .iter()
-            .min_by_key(|checkpoint| checkpoint.index)
-            .expect("nonempty checkpoint pool");
-        self.metrics.set_latest_checkpoint_observed(target);
-        if tree_exceeds_checkpoint(target, &tree.committed) {
-            self.readiness
-                .mark_operation_ready("lightweight_websocket_insertions");
+            .flatten()
+            .map(|checkpoint| checkpoint.index)
+            .max()
+        else {
             self.readiness
                 .mark_operation_blocked("lightweight_checkpoint_progress");
             return LightweightBatch::WaitingForRpc;
-        }
-        let max_index = checkpoints
-            .iter()
-            .map(|checkpoint| checkpoint.index)
-            .max()
-            .expect("nonempty checkpoint pool");
+        };
         while tree.accumulated.count() <= max_index as usize {
             let index =
                 u32::try_from(tree.accumulated.count()).expect("Merkle leaf count fits in u32");
@@ -476,20 +482,48 @@ impl ValidatorSubmitter {
             tree.ingest(insertion.message_id());
             self.record_tree_progress(&tree.accumulated).await;
         }
-        let mut missing = false;
-        for observed in checkpoints {
+        let mut matching = Vec::new();
+        let mut missing: usize = 0;
+        for (endpoint_index, observed) in checkpoints.iter().enumerate() {
+            let Some(observed) = observed else { continue };
+            if tree_exceeds_checkpoint(observed, &tree.committed) {
+                continue;
+            }
             if let Some(root) = tree.root_at(observed.index) {
-                self.verify_checkpoint(self.checkpoint(root, observed.index), observed, false)
-                    .await;
+                if self.checkpoint(root, observed.index) == observed.checkpoint {
+                    matching.push(observed);
+                } else {
+                    warn!(
+                        endpoint_index,
+                        index = observed.index,
+                        "Lightweight RPC checkpoint does not match local history"
+                    );
+                }
             } else {
-                missing = true;
+                missing = missing.saturating_add(1);
             }
         }
-        if missing {
+        if matching.len() < required {
             self.readiness
-                .mark_operation_blocked("lightweight_websocket_insertions");
-            return LightweightBatch::WaitingForInsertions;
+                .mark_operation_blocked("lightweight_checkpoint_progress");
+            if matching.len().saturating_add(missing) >= required {
+                self.readiness
+                    .mark_operation_blocked("lightweight_websocket_insertions");
+                return LightweightBatch::WaitingForInsertions;
+            }
+            self.readiness
+                .mark_operation_ready("lightweight_websocket_insertions");
+            warn!(
+                matching = matching.len(),
+                required, "Waiting for two-thirds RPC agreement with local history"
+            );
+            return LightweightBatch::WaitingForRpc;
         }
+        // A matching later root authenticates every earlier insertion. The
+        // required-th highest matching index is therefore the signing boundary.
+        matching.sort_unstable_by_key(|checkpoint| std::cmp::Reverse(checkpoint.index));
+        let target = matching[required.saturating_sub(1)];
+        self.metrics.set_latest_checkpoint_observed(target);
         self.readiness
             .mark_operation_ready("lightweight_websocket_insertions");
         self.readiness
@@ -802,7 +836,7 @@ impl ValidatorSubmitter {
                 "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until you receive support."
             );
 
-            // Lightweight mode already captured every endpoint's response. Extra
+            // Lightweight mode uses its own endpoint verification. Extra
             // diagnostic RPC reads can retry forever or ignore historical heights.
             if report_rpc {
                 if let Some(height) = correctness_checkpoint.block_height {

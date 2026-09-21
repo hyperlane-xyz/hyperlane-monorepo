@@ -2,7 +2,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use futures_util::future::try_join_all;
+use futures_util::future::join_all;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, CheckpointAtBlock, MerkleTreeHook, ReorgPeriod,
 };
@@ -10,7 +10,18 @@ use tokio::time::timeout;
 
 const RPC_TIMEOUT: Duration = Duration::from_secs(20);
 
-/// Every configured state-read endpoint participates; no quorum or fallback pool.
+/// Required matching endpoints, fixed to ceil(2N/3) of the configured pool.
+pub(crate) fn required_agreement(endpoint_count: usize) -> usize {
+    assert!(
+        endpoint_count > 0,
+        "checkpoint endpoint pool must not be empty"
+    );
+    endpoint_count
+        .checked_sub(endpoint_count / 3)
+        .expect("a third of the endpoint count cannot exceed the total")
+}
+
+/// Every configured state-read endpoint participates in a fixed two-thirds vote.
 #[derive(Debug)]
 pub(crate) struct LightweightCheckpointReader {
     hooks: Vec<Arc<dyn MerkleTreeHook>>,
@@ -26,34 +37,42 @@ impl LightweightCheckpointReader {
         Ok(Self { hooks })
     }
 
-    /// Each adapter applies its existing confirmation/finality policy. Heights and
-    /// indices may differ: the submitter verifies every root against the same local
-    /// insertion history before signing through the lowest returned index.
+    /// Preserve one slot per configured endpoint, including failures, so retries
+    /// cannot shrink the voting denominator or mix up endpoint identities.
+    /// Each adapter applies its existing confirmation/finality policy.
     pub(crate) async fn checkpoints(
         &self,
         period: &ReorgPeriod,
-    ) -> ChainResult<Vec<CheckpointAtBlock>> {
-        try_join_all(
-            self.hooks
-                .iter()
-                .enumerate()
-                .map(|(endpoint_index, hook)| async move {
-                    let checkpoint = timeout(RPC_TIMEOUT, hook.latest_checkpoint(period))
-                        .await
-                        .map_err(|_| {
-                            ChainCommunicationError::from_other_str(
-                                "Lightweight checkpoint RPC timed out",
-                            )
-                        })??;
-                    tracing::debug!(
-                        endpoint_index,
-                        ?checkpoint,
-                        "Read lightweight endpoint checkpoint"
-                    );
-                    Ok(checkpoint)
-                }),
-        )
-        .await
+    ) -> ChainResult<Vec<Option<CheckpointAtBlock>>> {
+        let checkpoints = join_all(self.hooks.iter().enumerate().map(
+            |(endpoint_index, hook)| async move {
+                match timeout(RPC_TIMEOUT, hook.latest_checkpoint(period)).await {
+                    Ok(Ok(checkpoint)) => {
+                        tracing::debug!(
+                            endpoint_index,
+                            ?checkpoint,
+                            "Read lightweight endpoint checkpoint"
+                        );
+                        Some(checkpoint)
+                    }
+                    Ok(Err(_)) => {
+                        tracing::warn!(endpoint_index, "Lightweight checkpoint RPC failed");
+                        None
+                    }
+                    Err(_) => {
+                        tracing::warn!(endpoint_index, "Lightweight checkpoint RPC timed out");
+                        None
+                    }
+                }
+            },
+        ))
+        .await;
+        if checkpoints.iter().flatten().count() < required_agreement(self.hooks.len()) {
+            return Err(ChainCommunicationError::from_other_str(
+                "Insufficient lightweight checkpoint responses for two-thirds agreement",
+            ));
+        }
+        Ok(checkpoints)
     }
 }
 
@@ -76,6 +95,65 @@ mod tests {
         }
     }
 
+    #[test]
+    fn threshold_rounds_up_two_thirds() {
+        for (endpoints, required) in [(1, 1), (2, 2), (3, 2), (4, 3), (5, 4), (6, 4), (7, 5)] {
+            assert_eq!(required_agreement(endpoints), required);
+        }
+    }
+
+    #[tokio::test]
+    async fn failed_endpoints_keep_their_slots_and_the_original_threshold() {
+        for failed in [1, 2] {
+            let hooks = (0..4)
+                .map(|index| {
+                    let mut hook = MockMerkleTreeHook::new();
+                    hook.expect_latest_checkpoint()
+                        .once()
+                        .return_once(move |_| {
+                            if index < failed {
+                                Err(ChainCommunicationError::from_other_str("unavailable"))
+                            } else {
+                                Ok(checkpoint(index))
+                            }
+                        });
+                    Arc::new(hook) as Arc<dyn MerkleTreeHook>
+                })
+                .collect();
+            let reader = LightweightCheckpointReader::new(hooks).expect("endpoints");
+            let result = reader.checkpoints(&ReorgPeriod::None).await;
+            if failed == 1 {
+                let checkpoints = result.expect("three of four responses");
+                assert_eq!(checkpoints.len(), 4);
+                assert!(checkpoints[0].is_none());
+                assert_eq!(checkpoints[1].as_ref().expect("second endpoint").index, 1);
+            } else {
+                assert!(result.is_err(), "two of four must not become two of two");
+            }
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn stalled_minority_is_bounded_and_does_not_block_agreement() {
+        let mut hooks: Vec<Arc<dyn MerkleTreeHook>> = vec![Arc::new(StalledHook)];
+        for index in 0..2 {
+            let mut hook = MockMerkleTreeHook::new();
+            hook.expect_latest_checkpoint()
+                .once()
+                .return_once(move |_| Ok(checkpoint(index)));
+            hooks.push(Arc::new(hook));
+        }
+        let reader = LightweightCheckpointReader::new(hooks).expect("endpoints");
+        let started = tokio::time::Instant::now();
+        let checkpoints = reader
+            .checkpoints(&ReorgPeriod::None)
+            .await
+            .expect("two of three");
+        assert_eq!(started.elapsed(), RPC_TIMEOUT);
+        assert_eq!(checkpoints.len(), 3);
+        assert!(checkpoints[0].is_none());
+    }
+
     #[tokio::test]
     async fn reads_each_endpoint_once_with_its_own_finality_state() {
         for period in [
@@ -96,7 +174,11 @@ mod tests {
             let reader = LightweightCheckpointReader::new(hooks).expect("endpoints");
             let checkpoints = reader.checkpoints(&period).await.expect("checkpoints");
             assert_eq!(
-                checkpoints.iter().map(|c| c.index).collect::<Vec<_>>(),
+                checkpoints
+                    .iter()
+                    .flatten()
+                    .map(|c| c.index)
+                    .collect::<Vec<_>>(),
                 vec![0, 1, 2]
             );
         }

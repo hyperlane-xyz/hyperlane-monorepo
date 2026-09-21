@@ -2282,7 +2282,7 @@ async fn lightweight_tree_progress_tracks_unverified_replay_and_live_updates() {
     assert_eq!(submitter.metrics.merkle_tree_leaf_count.get(), 0);
     assert!(matches!(
         submitter
-            .verify_lightweight_batch(&mut tree, &checkpoints[4..5])
+            .verify_lightweight_batch(&mut tree, &[Some(checkpoints[4].clone())])
             .await,
         LightweightBatch::WaitingForInsertions
     ));
@@ -2296,7 +2296,10 @@ async fn lightweight_tree_progress_tracks_unverified_replay_and_live_updates() {
     available.store(5, Ordering::SeqCst);
     assert!(matches!(
         submitter
-            .verify_lightweight_batch(&mut tree, &[checkpoints[1].clone(), checkpoints[4].clone()])
+            .verify_lightweight_batch(
+                &mut tree,
+                &[Some(checkpoints[1].clone()), Some(checkpoints[4].clone())]
+            )
             .await,
         LightweightBatch::Verified { .. }
     ));
@@ -2306,7 +2309,7 @@ async fn lightweight_tree_progress_tracks_unverified_replay_and_live_updates() {
     available.store(6, Ordering::SeqCst);
     assert!(matches!(
         submitter
-            .verify_lightweight_batch(&mut tree, &checkpoints[5..6])
+            .verify_lightweight_batch(&mut tree, &[Some(checkpoints[5].clone())])
             .await,
         LightweightBatch::Verified { .. }
     ));
@@ -2339,7 +2342,7 @@ async fn merkle_reconstruction_exposes_progress_before_completion() {
                 if lightweight {
                     let mut tree = LightweightTree::new(IncrementalMerkle::default());
                     assert!(matches!(
-                        submitter.verify_lightweight_batch(&mut tree, std::slice::from_ref(target)).await,
+                        submitter.verify_lightweight_batch(&mut tree, &[Some(target.clone())]).await,
                         LightweightBatch::Verified { .. }
                     ));
                     assert_eq!(tree.committed.root(), target.root);
@@ -2366,7 +2369,7 @@ async fn merkle_reconstruction_exposes_progress_before_completion() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn lightweight_different_indices_sign_only_the_common_verified_prefix() {
+async fn lightweight_different_indices_sign_through_two_thirds_supported_prefix() {
     let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
     let submitter = lightweight_test_submitter(Arc::new(AtomicUsize::new(5)), signed.clone());
     let checkpoints = lightweight_checkpoints(5);
@@ -2395,47 +2398,135 @@ async fn lightweight_different_indices_sign_only_the_common_verified_prefix() {
             ],
         )
         .await;
-    assert_eq!(tree.root(), checkpoints[1].root);
-    assert_eq!(*signed.lock().unwrap(), vec![0, 1]);
+    assert_eq!(tree.root(), checkpoints[3].root);
+    assert_eq!(*signed.lock().unwrap(), vec![0, 3, 2, 1]);
 }
 
-#[tokio::test(start_paused = true)]
-async fn lightweight_bad_ahead_endpoint_exits_before_signing_even_the_matching_prefix() {
+#[tokio::test]
+async fn lightweight_minority_cannot_veto_but_split_cannot_authorize_signing() {
     for mismatch in ["root", "domain", "hook"] {
-        let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
-        let mut submitter =
-            lightweight_test_submitter(Arc::new(AtomicUsize::new(3)), signed.clone());
-        let checkpoints = lightweight_checkpoints(3);
-        let mut bad = checkpoints[2].clone();
+        let checkpoints = lightweight_checkpoints(5);
+        let mut bad = checkpoints[4].clone();
         match mismatch {
             "root" => bad.checkpoint.root = H256::zero(),
             "domain" => bad.checkpoint.mailbox_domain = 999,
             _ => bad.checkpoint.merkle_tree_hook_address = H256::from_low_u64_be(999),
         }
-        // No checkpoint reads, signatures or latest-index publication are allowed.
-        let mut syncer = MockCheckpointSyncer::new();
-        syncer
-            .expect_write_reorg_status()
-            .once()
-            .returning(|_| Ok(()));
-        submitter.checkpoint_syncer = Arc::new(syncer);
-        let task = tokio::spawn(async move {
-            let mut tree = IncrementalMerkle::default();
-            submitter
-                .submit_lightweight_batch(
+        for minority in [
+            Some(bad.clone()),
+            None,
+            Some(lightweight_checkpoints(10).pop().expect("ahead checkpoint")),
+        ] {
+            let submitter = lightweight_test_submitter(
+                Arc::new(AtomicUsize::new(5)),
+                Arc::new(std::sync::Mutex::new(Vec::new())),
+            );
+            let mut tree = LightweightTree::new(IncrementalMerkle::default());
+            let batch = submitter
+                .verify_lightweight_batch(
                     &mut tree,
-                    vec![checkpoints[0].clone(), checkpoints[1].clone(), bad],
+                    &[
+                        Some(checkpoints[1].clone()),
+                        minority,
+                        Some(checkpoints[3].clone()),
+                        Some(checkpoints[4].clone()),
+                    ],
                 )
                 .await;
-        });
-        let panic = task.await.expect_err("invalid checkpoint must terminate");
-        let payload = panic.into_panic();
-        assert!(payload
-            .downcast_ref::<String>()
-            .expect("panic message")
-            .contains("Incorrect tree root"));
-        assert!(signed.lock().unwrap().is_empty());
+            let LightweightBatch::Verified { checkpoint, queue } = batch else {
+                panic!("three matching endpoints must authorize signing");
+            };
+            assert_eq!(checkpoint.index, 1);
+            assert_eq!(queue.len(), 2);
+            assert!(!submitter.readiness.snapshot().signing_blocked);
+        }
+
+        let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let submitter = lightweight_test_submitter(Arc::new(AtomicUsize::new(5)), signed.clone());
+        let mut tree = IncrementalMerkle::default();
+        submitter
+            .submit_lightweight_batch(
+                &mut tree,
+                vec![
+                    checkpoints[3].clone(),
+                    checkpoints[4].clone(),
+                    bad.clone(),
+                    bad,
+                ],
+            )
+            .await;
+        assert!(signed.lock().expect("signatures").is_empty());
+        assert_eq!(tree.count(), 0);
+        assert!(submitter.readiness.snapshot().signing_blocked);
     }
+}
+
+#[tokio::test]
+async fn lightweight_failed_endpoints_do_not_reduce_threshold() {
+    let submitter = lightweight_test_submitter(
+        Arc::new(AtomicUsize::new(5)),
+        Arc::new(std::sync::Mutex::new(Vec::new())),
+    );
+    let checkpoints = lightweight_checkpoints(5);
+    let mut tree = LightweightTree::new(IncrementalMerkle::default());
+    assert!(matches!(
+        submitter
+            .verify_lightweight_batch(
+                &mut tree,
+                &[
+                    Some(checkpoints[3].clone()),
+                    None,
+                    Some(checkpoints[4].clone()),
+                    None,
+                ]
+            )
+            .await,
+        LightweightBatch::WaitingForRpc
+    ));
+    assert_eq!(tree.committed.count(), 0);
+    assert!(matches!(
+        submitter
+            .verify_lightweight_batch(
+                &mut tree,
+                &[
+                    Some(checkpoints[3].clone()),
+                    Some(checkpoints[2].clone()),
+                    Some(checkpoints[4].clone()),
+                    None,
+                ]
+            )
+            .await,
+        LightweightBatch::Verified { .. }
+    ));
+    assert_eq!(tree.committed.index(), 2);
+}
+
+#[tokio::test]
+async fn lightweight_lagging_minority_does_not_block_progress() {
+    let submitter = lightweight_test_submitter(
+        Arc::new(AtomicUsize::new(5)),
+        Arc::new(std::sync::Mutex::new(Vec::new())),
+    );
+    let checkpoints = lightweight_checkpoints(5);
+    let mut tree = LightweightTree::new(IncrementalMerkle::default());
+    submitter
+        .verify_lightweight_batch(&mut tree, &[Some(checkpoints[2].clone())])
+        .await;
+    let batch = submitter
+        .verify_lightweight_batch(
+            &mut tree,
+            &[
+                Some(checkpoints[0].clone()),
+                Some(checkpoints[3].clone()),
+                Some(checkpoints[4].clone()),
+            ],
+        )
+        .await;
+    let LightweightBatch::Verified { checkpoint, .. } = batch else {
+        panic!("two matching endpoints must advance past a lagging minority");
+    };
+    assert_eq!(checkpoint.index, 3);
+    assert_eq!(tree.committed.index(), 3);
 }
 
 #[tokio::test(start_paused = true)]
@@ -2549,6 +2640,7 @@ impl ValidatorSubmitter {
         signed_tree: &mut IncrementalMerkle,
         checkpoints: Vec<CheckpointAtBlock>,
     ) {
+        let checkpoints: Vec<_> = checkpoints.into_iter().map(Some).collect();
         let mut tree = LightweightTree::new(signed_tree.clone());
         loop {
             match self.verify_lightweight_batch(&mut tree, &checkpoints).await {
@@ -2567,6 +2659,51 @@ impl ValidatorSubmitter {
             }
         }
     }
+}
+
+#[tokio::test(start_paused = true)]
+async fn lightweight_refresh_replaces_a_conflicting_checkpoint_even_when_rpc_advances() {
+    let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let submitter = lightweight_test_submitter(Arc::new(AtomicUsize::new(3)), signed.clone());
+    let mut hooks: Vec<Arc<dyn MerkleTreeHook>> = Vec::new();
+    for endpoint in 0..3 {
+        let checkpoints = lightweight_checkpoints(11);
+        let mut calls = 0_u32;
+        let mut hook = MockMerkleTreeHook::new();
+        hook.expect_latest_checkpoint().returning(move |_| {
+            calls = calls.saturating_add(1);
+            let checkpoint = match (endpoint, calls) {
+                (0, 1) => {
+                    let mut bad = checkpoints[1].clone();
+                    bad.checkpoint.root = H256::zero();
+                    bad
+                }
+                (1, 1) => checkpoints[0].clone(),
+                (2, _) => checkpoints[10].clone(), // Minority remains ahead of replay.
+                _ => checkpoints[2].clone(),
+            };
+            Ok(checkpoint)
+        });
+        hooks.push(Arc::new(hook));
+    }
+    let reader = Arc::new(LightweightCheckpointReader::new(hooks).expect("endpoints"));
+    let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
+    for _ in 0..5 {
+        tokio::time::advance(Duration::from_secs(1)).await;
+        tokio::task::yield_now().await;
+    }
+    assert!(signed.lock().expect("signatures").is_empty());
+    for _ in 0..40 {
+        tokio::time::advance(Duration::from_secs(1)).await;
+        tokio::task::yield_now().await;
+    }
+    let published = signed.lock().expect("signatures").clone();
+    task.abort();
+    assert!(task.await.expect_err("cancelled loop").is_cancelled());
+    assert!(
+        published.contains(&2),
+        "recovered majority must replace the conflicting sample"
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -2632,7 +2769,10 @@ async fn lightweight_retains_verified_suffix_across_provider_retries() {
         let batch = submitter
             .verify_lightweight_batch(
                 &mut tree,
-                &[checkpoints[slow_index].clone(), checkpoints[4].clone()],
+                &[
+                    Some(checkpoints[slow_index].clone()),
+                    Some(checkpoints[4].clone()),
+                ],
             )
             .await;
         let LightweightBatch::Verified { queue, .. } = batch else {

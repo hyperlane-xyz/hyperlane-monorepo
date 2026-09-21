@@ -16,6 +16,8 @@ one public or private state-read endpoint using the chain's existing fields:
 
 The corresponding `custom...Urls` overrides retain their replacement semantics.
 Every distinct state-read endpoint participates, regardless of `rpcConsensusType`.
+Lightweight mode requires a fixed `ceil(2N/3)` matching endpoints out of the
+configured pool (2 of 3, 3 of 4, 4 of 5). Failed endpoints never reduce this threshold.
 Other protocol endpoints remain available for announcements and metrics; they do
 not cast additional root-check votes. Public RPCs are allowed automatically.
 
@@ -35,16 +37,27 @@ data that also contains the tree frontier; that data does not initialize our tre
 
 Each verification batch requests the latest checkpoint from every endpoint using
 that protocol's existing confirmation/finality policy. Endpoints may return
-different message indices. The validator reconstructs the local tree through each
-returned index and verifies every root, hook address, and domain before signing
-anything in the batch. It signs only through the lowest verified index. For
-example, matching roots at indices 100, 102, and 103 authorize signing through 100:
-the higher roots commit to that same prefix of insertion history.
+different message indices. The validator compares each checkpoint's root, hook
+address, and domain against its local insertion history at that index.
+
+A matching later root authenticates the entire earlier prefix. The validator signs
+through the highest index supported by at least two thirds of the configured
+endpoints: the required-th highest matching index. For example, matching checkpoints
+at indices 100, 102, 103, and 104 authorize signing through 102 (three of four votes).
+Missing a polling window does not lose historical checkpoints: replay reconstructs
+the intermediate roots, which can be signed after a later root authenticates them.
+Historical block-height queries are not required.
+
+Unavailable, conflicting, or behind-frontier endpoints do not count as matching
+votes. A minority cannot veto a sufficient matching majority. Without enough
+matching votes, signing pauses and retries; a 2–2 split with four endpoints cannot
+authorize signing. Missing websocket insertions are awaited when they could supply
+enough matching votes.
 
 The first verified batch logs `Initial lightweight backfill verified: local roots
-match every RPC endpoint`, including the common verified index, root, endpoint
-count, and elapsed time. Historical signing and uploads complete separately and
-log `Initial lightweight historical checkpoint publication complete` with the
+match a two-thirds RPC majority`, including the verified index, root, configured
+endpoint count, and elapsed time. Historical signing and uploads complete separately
+and log `Initial lightweight historical checkpoint publication complete` with the
 index through which all checkpoints have been published. Both messages appear
 once per run after their respective first batch completes.
 
@@ -75,37 +88,35 @@ curl -s localhost:9090/metrics | grep '^hyperlane_validator_merkle_tree_leaf_cou
 ```
 
 Checkpoint responses are held while missing websocket insertions arrive. Every 30
-seconds, all endpoints are sampled again so a transiently incorrect ahead checkpoint
-cannot block recovery forever, even while websocket insertions keep arriving.
-Advancing responses keep the previous target for slow replay; responses at the same
-or an earlier index replace that endpoint's sample. Only the
-common signed frontier advances. A provider behind that frontier pauses advancement
-until it catches up. Pending insertions and roots beyond the common frontier remain
-cached across retries. No signatures are produced from partially verified batches.
+seconds, endpoints are sampled again so an ahead checkpoint cannot block recovery
+forever. Advancing responses keep a previous valid or not-yet-replayed target for
+slow replay, but replace known conflicts. Responses at the same or an earlier index
+also replace that endpoint's sample. Failed endpoints lose
+their sample on a successful batch refresh. Endpoint slots remain stable across
+refreshes, so samples cannot be reassigned to another endpoint. Pending insertions
+and roots beyond the signed frontier remain cached across retries.
 
 No idle count/root polling or websocket RPC freshness probes run once caught up.
-Pending insertions are retried at the configured interval until every endpoint's
-confirmed checkpoint advances. Websocket notifications cannot bypass this RPC
-interval, including on errors. Each endpoint receives one checkpoint-method read
-per attempt, shared by a batch of insertions. Wire call counts depend on the adapter:
-Ethereum with numeric confirmations uses one block-number read plus one contract
-read **per endpoint**; a finality-tag read uses one contract read per endpoint.
-Single-endpoint fallback providers skip redundant background block-height probes.
-Announcements and metrics retain their own RPC calls.
+Pending insertions are retried at the configured interval. Websocket notifications
+cannot bypass this RPC interval, including on errors. Each endpoint receives one
+checkpoint-method read per attempt, shared by a batch of insertions, with a 20-second
+timeout per endpoint. The batch waits for all reads to finish or time out, then
+checks whether enough responses succeeded. A stalled minority can therefore delay
+a batch by up to 20 seconds but cannot prevent an otherwise sufficient majority.
+Wire call counts depend on the protocol adapter. Announcements and metrics retain
+their own RPC calls.
 
-Websocket failures trigger reconnection without indexing fallback. RPC errors and
-timeouts block signing and are retried without dropping endpoints. A reconstructed
-root or checkpoint identity mismatch reports reorg status and terminates the
-validator with a failing exit before signing the batch. A difference in provider
-indices alone is not a mismatch. Normal mode retains RPC indexing fallback and
-batch recovery using its configured `rpcConsensusType`. Normal checkpoint polling
-uses one latest-checkpoint method read, without a preceding count read. During
-recovery only, checkpoints without a block height use the indexer's finalized
-height as the log scan boundary; recovered leaves must still match the captured root.
+Websocket failures trigger reconnection without indexing fallback. Insufficient
+responses or matching roots block signing until a later successful verification.
+Normal mode retains its existing configured `rpcConsensusType`, root-mismatch
+handling, RPC indexing fallback, and batch recovery. Normal checkpoint polling uses
+one latest-checkpoint method read, without a preceding count read. During recovery
+only, checkpoints without a block height use the indexer's finalized height as the
+log scan boundary; recovered leaves must still match the captured root.
 
 The separate additional RPC pool remains removed. Both modes reject obsolete
 `additionalQuorumRpcUrls` / `customAdditionalQuorumRpcUrls` settings, including empty
 values, instead of silently ignoring them. Move their endpoints into `rpcUrls` or
 `customRpcUrls` and remove the obsolete settings. Custom URL overrides replace the
 registry list, so include every intended endpoint. Normal mode uses its configured
-`rpcConsensusType`; lightweight mode checks every endpoint independently.
+`rpcConsensusType`; lightweight mode uses the fixed two-thirds checkpoint vote described above.
