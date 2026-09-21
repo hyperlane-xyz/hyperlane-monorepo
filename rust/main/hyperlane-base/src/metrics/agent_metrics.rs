@@ -357,6 +357,12 @@ impl ChainSpecificMetricsUpdater {
         })
     }
 
+    /// Disable periodic wallet balance reads while retaining chain metrics.
+    pub fn without_wallet_balance(mut self) -> Self {
+        self.conf.address = None;
+        self
+    }
+
     async fn update_agent_metrics(&self) {
         let Some(wallet_addr) = self.conf.address.clone() else {
             return;

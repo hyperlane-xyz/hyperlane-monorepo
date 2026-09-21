@@ -218,6 +218,11 @@ where
         priority: &PrioritizedProviderInner,
         provider: &T,
     ) -> ChainResult<()> {
+        // With one endpoint there is nothing to reprioritize. Do not add a
+        // health-probe RPC (or fail a successful read because that probe stalls).
+        if self.len() == 1 {
+            return Ok(());
+        }
         if Instant::now()
             .duration_since(priority.last_block_height.1)
             .le(&self.max_block_time)
@@ -886,11 +891,29 @@ pub mod test {
     }
 
     #[tokio::test]
+    async fn single_endpoint_does_not_probe_height_after_successful_reads() {
+        let provider = ProviderMock::default();
+        let fallback: FallbackProvider<ProviderMock, ProviderMock> = FallbackProvider::builder()
+            .add_provider(provider.clone())
+            .with_max_block_time(Duration::ZERO)
+            .build();
+        let result = fallback
+            .call(|provider| Box::pin(async move { provider.get_block_number().await }))
+            .await;
+        assert!(result.is_ok());
+        assert_eq!(
+            provider.block_height_requests(),
+            1,
+            "only the requested read, no implicit health probe"
+        );
+    }
+
+    #[tokio::test]
     async fn test_concurrent_stale_snapshots_share_block_height_probe() {
         let provider = ProviderMock::new(Some(Duration::from_millis(50)));
         let fallback_provider: FallbackProvider<ProviderMock, ProviderMock> =
             FallbackProvider::builder()
-                .add_provider(provider.clone())
+                .add_providers([provider.clone(), ProviderMock::default()])
                 .with_max_block_time(Duration::from_secs(60))
                 .build();
 
@@ -965,7 +988,7 @@ pub mod test {
         let provider = ProviderMock::new(Some(Duration::from_secs(5)));
         let fallback_provider: FallbackProvider<ProviderMock, ProviderMock> =
             FallbackProvider::builder()
-                .add_provider(provider.clone())
+                .add_providers([provider.clone(), ProviderMock::default()])
                 .with_max_block_time(Duration::from_secs(60))
                 .with_call_timeout(Duration::from_millis(10))
                 .build();

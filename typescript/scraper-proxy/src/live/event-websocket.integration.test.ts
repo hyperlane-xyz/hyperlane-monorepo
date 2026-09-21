@@ -16,7 +16,7 @@ import { rawData } from './websocket-data.js';
 const hookA = '\\xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const hookB = '\\xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const emptyHook = '\\xcccccccccccccccccccccccccccccccccccccccc';
-const budgetHook = '\\xdddddddddddddddddddddddddddddddddddddddd';
+const replayHook = '\\xdddddddddddddddddddddddddddddddddddddddd';
 const historyHook = '\\xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
 const pacedHook = '\\xffffffffffffffffffffffffffffffffffffffff';
 const gasPaymaster = '\\x1111111111111111111111111111111111111111';
@@ -73,7 +73,7 @@ const db: EventDatabase = {
       return queryRows<T>([
         values[1] === emptyHook
           ? { first: '0', last: '-1' }
-          : values[1] === budgetHook
+          : values[1] === replayHook
             ? { first: '0', last: '2' }
             : values[1] === historyHook
               ? { first: '5', last: '5' }
@@ -101,12 +101,13 @@ const db: EventDatabase = {
     }
     if (sql.includes('ORDER BY "leaf_index"')) {
       databaseDomainFilters.push(values[0]);
-      if (values[1] === budgetHook)
-        return queryRows<T>([
-          row(budgetHook, 0),
-          row(budgetHook, 1),
-          row(budgetHook, 2),
-        ]);
+      if (values[1] === replayHook)
+        return queryRows<T>(
+          [0, 1, 2]
+            .filter((index) => BigInt(index) > BigInt(String(values[2])))
+            .slice(0, 2)
+            .map((index) => row(replayHook, index)),
+        );
       if (values[1] === historyHook) return queryRows<T>([row(historyHook, 5)]);
       if (values[1] === pacedHook)
         return queryRows<T>([row(pacedHook, 0), row(pacedHook, 1)]);
@@ -201,7 +202,6 @@ before(async () => {
   const { EventWebSocketServer } = await import('./event-websocket.js');
   events = new EventWebSocketServer(db, {
     maxAgentClients: 2,
-    maxCatchUpRows: 2,
     maxConcurrentCatchUps: 1,
     maxExplorerClients: 8,
     maxTotalBufferedBytes: 1_024,
@@ -625,7 +625,7 @@ void it('limits Explorer connections to five per IP and releases capacity', asyn
   );
 });
 
-void it('enforces the historical replay row budget', async () => {
+void it('completes historical replay across pages without a total row budget', async () => {
   const socket = new WebSocket(url);
   const messages: Record<string, unknown>[] = [];
   socket.on('message', (data) => {
@@ -637,7 +637,7 @@ void it('enforces the historical replay row budget', async () => {
           streams: [
             {
               cursors: [
-                { address: budgetHook, afterSequence: '-1', domain: 1 },
+                { address: replayHook, afterSequence: '-1', domain: 1 },
               ],
               eventType: 'merkle_tree_insertion',
             },
@@ -647,8 +647,13 @@ void it('enforces the historical replay row budget', async () => {
       );
     }
   });
-  const message = await waitFor(messages, 'error');
-  assert.equal(message.error, 'Failed to catch up merkle_tree_insertion');
+  const message = await waitFor(messages, 'caught_up');
+  assert.equal(message.sequence, '2');
+  assert.deepEqual(eventSequences(messages), ['0', '1', '2']);
+  assert.equal(
+    messages.some(({ type }) => type === 'error'),
+    false,
+  );
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
 });
@@ -1018,7 +1023,7 @@ void it('accepts a legacy non-cursored live gas payment subscription', async () 
   await new Promise<void>((resolve) => socket.once('close', resolve));
 });
 
-void it('bounds gas payment stream cursor replay', async () => {
+void it('completes gas payment stream cursor replay without a total row budget', async () => {
   gasPaymentRows.clear();
   gasPaymentRows.set('10', gasPaymentRow('10', '100'));
   gasPaymentRows.set('20', gasPaymentRow('20', '200'));
@@ -1050,9 +1055,13 @@ void it('bounds gas payment stream cursor replay', async () => {
     }
   });
 
-  const error = await waitFor(messages, 'error');
-  assert.equal(error.error, 'Failed to catch up gas_payment');
-  assert.deepEqual(eventStreamCursors(messages), []);
+  const caughtUp = await waitFor(messages, 'caught_up');
+  assert.equal(caughtUp.streamCursor, '30');
+  assert.deepEqual(eventStreamCursors(messages), ['10', '20', '30']);
+  assert.equal(
+    messages.some(({ type }) => type === 'error'),
+    false,
+  );
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
   gasPaymentRows.clear();
@@ -1469,7 +1478,6 @@ void it('enforces the catch-up deadline while pending rows replenish', async (co
   const { EventWebSocketServer } = await import('./event-websocket.js');
   const deadlineEvents = new EventWebSocketServer(deadlineDb, {
     maxCatchUpMs: 10,
-    maxCatchUpRows: 10,
   });
   await new Promise<void>((resolve) =>
     deadlineHttp.listen(0, '127.0.0.1', resolve),
@@ -2463,7 +2471,7 @@ function delayServerSendCompletions(
   context: TestContext,
 ): Array<(error?: Error) => void> {
   const completions: Array<(error?: Error) => void> = [];
-  // oxlint-disable-next-line typescript/unbound-method -- called with the socket receiver below.
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- invoked with the socket receiver via .call below.
   const originalSend = WebSocket.prototype.send;
   context.mock.method(
     WebSocket.prototype,
@@ -2505,7 +2513,7 @@ function delayFirstExplorerSocket(context: TestContext): Array<() => void> {
   const completions: Array<() => void> = [];
   const delayedSockets = new WeakSet<WebSocket>();
   let selectedDelayedSocket = false;
-  // oxlint-disable-next-line typescript/unbound-method -- called with the socket receiver below.
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- invoked with the socket receiver via .call below.
   const originalSend = WebSocket.prototype.send;
   context.mock.method(
     WebSocket.prototype,

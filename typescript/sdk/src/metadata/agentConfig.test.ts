@@ -7,6 +7,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 
 import {
   AgentChainMetadataSchema,
+  AgentSignerKeyType,
   RelayerAgentConfigSchema,
   RpcConsensusType,
   ValidatorAgentConfigSchema,
@@ -179,68 +180,6 @@ describe('RelayerAgentConfigSchema feeToken gate', () => {
         }),
       ).success,
     ).to.be.true;
-  });
-});
-
-describe('AgentChainMetadataSchema additionalQuorumRpcUrls', () => {
-  const baseChainMetadata = {
-    name: 'legacy',
-    domainId: 1000,
-    chainId: 1000,
-    protocol: ProtocolType.Ethereum,
-    rpcUrls: [{ http: 'http://localhost:8545' }],
-    mailbox: '0x0000000000000000000000000000000000000001',
-    interchainGasPaymaster: '0x0000000000000000000000000000000000000002',
-    validatorAnnounce: '0x0000000000000000000000000000000000000003',
-    merkleTreeHook: '0x0000000000000000000000000000000000000004',
-  };
-
-  it('parses and preserves a configured additionalQuorumRpcUrls array', () => {
-    const additionalQuorumRpcUrls = [
-      { http: 'http://quorum-a.example' },
-      { http: 'http://quorum-b.example' },
-    ];
-    const result = AgentChainMetadataSchema.safeParse({
-      ...baseChainMetadata,
-      additionalQuorumRpcUrls,
-    });
-    expect(result.success).to.be.true;
-    if (result.success) {
-      expect(result.data.additionalQuorumRpcUrls).to.deep.equal(
-        additionalQuorumRpcUrls,
-      );
-    }
-  });
-
-  it('leaves additionalQuorumRpcUrls unset when not configured', () => {
-    const result = AgentChainMetadataSchema.safeParse(baseChainMetadata);
-    expect(result.success).to.be.true;
-    if (result.success) {
-      expect(result.data.additionalQuorumRpcUrls).to.be.undefined;
-    }
-  });
-
-  it('parses and preserves a configured customAdditionalQuorumRpcUrls override string', () => {
-    const customAdditionalQuorumRpcUrls =
-      'http://quorum-a.example,http://quorum-b.example';
-    const result = AgentChainMetadataSchema.safeParse({
-      ...baseChainMetadata,
-      customAdditionalQuorumRpcUrls,
-    });
-    expect(result.success).to.be.true;
-    if (result.success) {
-      expect(result.data.customAdditionalQuorumRpcUrls).to.equal(
-        customAdditionalQuorumRpcUrls,
-      );
-    }
-  });
-
-  it('leaves customAdditionalQuorumRpcUrls unset when not configured', () => {
-    const result = AgentChainMetadataSchema.safeParse(baseChainMetadata);
-    expect(result.success).to.be.true;
-    if (result.success) {
-      expect(result.data.customAdditionalQuorumRpcUrls).to.be.undefined;
-    }
   });
 });
 
@@ -428,5 +367,139 @@ describe('Agent config', () => {
     expect(result.chains[TestChainName.test1].merkleTreeHook).to.equal(
       '0xmerkle',
     );
+  });
+});
+
+describe('ValidatorAgentConfigSchema lightweight mode', () => {
+  const config = {
+    originChainName: 'test',
+    validator: { key: `0x${'11'.repeat(32)}` },
+    checkpointSyncer: { type: 'localStorage', path: '/tmp/checkpoints' },
+    chains: {
+      test: {
+        name: 'test',
+        domainId: 1337,
+        chainId: 1337,
+        protocol: ProtocolType.Ethereum,
+        rpcUrls: [
+          { http: 'https://rpc-a.example' },
+          { http: 'https://rpc-b.example' },
+          { http: 'https://rpc-c.example' },
+        ],
+        mailbox: '0x0000000000000000000000000000000000000001',
+        interchainGasPaymaster: '0x0000000000000000000000000000000000000002',
+        validatorAnnounce: '0x0000000000000000000000000000000000000003',
+        merkleTreeHook: '0x0000000000000000000000000000000000000004',
+      },
+    },
+  };
+
+  it('accepts normal quorum and majority for every supported protocol', () => {
+    for (const protocol of Object.values(ProtocolType)) {
+      for (const rpcConsensusType of [
+        RpcConsensusType.Quorum,
+        RpcConsensusType.Majority,
+      ]) {
+        const result = ValidatorAgentConfigSchema.safeParse({
+          ...config,
+          lightweight: false,
+          chains: {
+            test: { ...config.chains.test, protocol, rpcConsensusType },
+          },
+        });
+        expect(
+          result.success,
+          `${protocol}/${rpcConsensusType}: ${result.error?.message}`,
+        ).to.be.true;
+      }
+    }
+  });
+
+  it('requires a websocket URL with either spelling', () => {
+    for (const flag of ['lightweight', 'leightweigt']) {
+      expect(
+        ValidatorAgentConfigSchema.safeParse({ ...config, [flag]: true })
+          .success,
+      ).to.be.false;
+      expect(
+        ValidatorAgentConfigSchema.safeParse({
+          ...config,
+          [flag]: true,
+          websocketUrl: 'wss://scraper.example/events',
+        }).success,
+      ).to.be.true;
+    }
+  });
+
+  it('rejects removed quorum settings in both modes', () => {
+    for (const lightweight of [false, true]) {
+      for (const removed of [
+        { additionalQuorumRpcUrls: [{ http: 'https://quorum.example' }] },
+        { additionalQuorumRpcUrls: [] },
+        { customAdditionalQuorumRpcUrls: 'https://quorum.example' },
+        { customAdditionalQuorumRpcUrls: '' },
+      ]) {
+        expect(
+          ValidatorAgentConfigSchema.safeParse({
+            ...config,
+            lightweight,
+            websocketUrl: 'wss://scraper.example',
+            chains: { test: { ...config.chains.test, ...removed } },
+          }).success,
+        ).to.be.false;
+      }
+    }
+  });
+
+  it('accepts lightweight indexing for every supported protocol', () => {
+    for (const protocol of [
+      ProtocolType.Ethereum,
+      ProtocolType.Sealevel,
+      ProtocolType.Cosmos,
+      ProtocolType.CosmosNative,
+      ProtocolType.Starknet,
+      ProtocolType.Radix,
+      ProtocolType.Aleo,
+      ProtocolType.Tron,
+    ]) {
+      const result = ValidatorAgentConfigSchema.safeParse({
+        ...config,
+        lightweight: true,
+        websocketUrl: 'wss://scraper.example/events',
+        chains: {
+          test: {
+            ...config.chains.test,
+            protocol,
+            ...(protocol === ProtocolType.Cosmos ||
+            protocol === ProtocolType.CosmosNative
+              ? {
+                  signer: {
+                    type: AgentSignerKeyType.Cosmos,
+                    prefix: 'test',
+                    key: `0x${'11'.repeat(32)}`,
+                  },
+                  canonicalAsset: 'utest',
+                  gasPrice: { denom: 'utest', amount: '0.025' },
+                  contractAddressBytes: 32,
+                }
+              : {}),
+          },
+        },
+      });
+      expect(result.success, `${protocol}: ${result.error?.message}`).to.be
+        .true;
+    }
+  });
+
+  it('rejects conflicting aliases and defaults to classic behavior', () => {
+    expect(ValidatorAgentConfigSchema.safeParse(config).success).to.be.true;
+    expect(
+      ValidatorAgentConfigSchema.safeParse({
+        ...config,
+        lightweight: true,
+        leightweigt: false,
+        websocketUrl: 'wss://scraper.example/events',
+      }).success,
+    ).to.be.false;
   });
 });
