@@ -3790,3 +3790,127 @@ async fn consensus_signs_before_stalled_minority_but_waits_for_deciding_vote() {
         assert!(task.await.unwrap_err().is_cancelled());
     }
 }
+
+#[derive(Debug)]
+struct ReplayTriggeredCheckpointHook {
+    ready: Arc<Notify>,
+    index: Arc<AtomicUsize>,
+    checkpoints: Vec<CheckpointAtBlock>,
+}
+impl HyperlaneChain for ReplayTriggeredCheckpointHook {
+    fn domain(&self) -> &HyperlaneDomain {
+        unreachable!()
+    }
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        unreachable!()
+    }
+}
+impl HyperlaneContract for ReplayTriggeredCheckpointHook {
+    fn address(&self) -> H256 {
+        unreachable!()
+    }
+}
+#[async_trait]
+impl MerkleTreeHook for ReplayTriggeredCheckpointHook {
+    async fn tree(&self, _: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
+        unreachable!()
+    }
+    async fn count(&self, _: &ReorgPeriod) -> ChainResult<u32> {
+        unreachable!()
+    }
+    async fn latest_checkpoint_at_block(&self, _: u64) -> ChainResult<CheckpointAtBlock> {
+        unreachable!()
+    }
+    async fn latest_checkpoint(&self, _: &ReorgPeriod) -> ChainResult<CheckpointAtBlock> {
+        self.ready.notified().await;
+        Ok(self.checkpoints[self.index.load(Ordering::SeqCst)].clone())
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn consensus_loop_consumes_ready_and_mid_replay_votes_before_minority_tail() {
+    for during_replay in [false, true] {
+        let checkpoints = lightweight_checkpoints(1000);
+        let frontier = Arc::new(AtomicUsize::new(100));
+        let ready = Arc::new(Notify::new());
+        let mut hooks: Vec<Arc<dyn MerkleTreeHook>> = Vec::new();
+        for slot in 0..3 {
+            if slot == 2 && during_replay {
+                hooks.push(Arc::new(ReplayTriggeredCheckpointHook {
+                    ready: ready.clone(),
+                    index: frontier.clone(),
+                    checkpoints: checkpoints.clone(),
+                }));
+            } else {
+                let mut hook = MockMerkleTreeHook::new();
+                let checkpoints = checkpoints.clone();
+                let frontier = frontier.clone();
+                hook.expect_latest_checkpoint().returning(move |_| {
+                    Ok(checkpoints[if slot == 0 {
+                        999
+                    } else {
+                        frontier.load(Ordering::SeqCst)
+                    }]
+                    .clone())
+                });
+                hooks.push(Arc::new(hook));
+            }
+        }
+        let reader = Arc::new(CheckpointReader::new(CheckpointConsensus::Majority, hooks).unwrap());
+        let reads = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let observed = reads.clone();
+        let mut db = MockDb::new();
+        db.expect_retrieve_merkle_tree_insertion_by_leaf_index()
+            .returning(move |index| {
+                observed.lock().unwrap().push(*index);
+                if *index >= 200 {
+                    ready.notify_one();
+                }
+                Ok(Some(MerkleTreeInsertion::new(
+                    *index,
+                    H256::from_low_u64_be(u64::from(*index) + 1),
+                )))
+            });
+        let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let mut submitter =
+            lightweight_test_submitter(Arc::new(AtomicUsize::new(1000)), signed.clone());
+        submitter.db = Arc::new(db);
+        // Exercise normal-mode polling without the lightmode idle insertion probe.
+        let (recovery, _dir) = rpc_recovery_fixture(MockRecoveryIndexer::new());
+        submitter = submitter.with_rpc_recovery(recovery);
+        let mut committed = IncrementalMerkle::default();
+        for index in 0..100 {
+            committed.ingest(H256::from_low_u64_be(index + 1));
+        }
+        let task = tokio::spawn(submitter.consensus_checkpoint_submitter(reader, committed));
+        for target in [100, 101] {
+            frontier.store(target, Ordering::SeqCst);
+            for _ in 0..20 {
+                for _ in 0..20 {
+                    tokio::task::yield_now().await;
+                }
+                if signed.lock().unwrap().contains(&(target as u32)) {
+                    break;
+                }
+                tokio::time::advance(Duration::from_secs(1)).await;
+            }
+            assert!(
+                signed.lock().unwrap().contains(&(target as u32)),
+                "failed to sign {target}"
+            );
+        }
+        task.abort();
+        assert!(task.await.unwrap_err().is_cancelled());
+        let reads = reads.lock().unwrap();
+        if during_replay {
+            assert!(
+                reads.iter().all(|index| *index < 400),
+                "replay must consume the deciding vote at the next bounded step: {reads:?}"
+            );
+        } else {
+            // Two live reads plus at most two historical-worker reads, never 900+899.
+            assert!(reads.len() <= 4, "unnecessary replay reads: {reads:?}");
+            assert!(reads.iter().all(|index| [100, 101].contains(index)));
+        }
+    }
+}

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 
-use futures::{future::join_all, StreamExt};
+use futures::{future::join_all, FutureExt, StreamExt};
 use prometheus::IntGauge;
 use tokio::{
     sync::{watch, Notify},
@@ -333,34 +333,73 @@ impl ValidatorSubmitter {
                 let mut responses = reader.checkpoint_stream(&self.reorg_period);
                 let mut received = vec![None; reader.endpoint_count()];
                 let mut verified = None;
-                while let Some((slot, checkpoint)) = responses.next().await {
-                    let old = samples.as_ref().and_then(|samples| samples[slot].as_ref());
-                    received[slot] = match (old, checkpoint) {
-                        (Some(old), Some(new))
-                            if new.index > old.index
-                                && !tree_exceeds_checkpoint(old, &tree.committed)
-                                && tree.root_at(old.index).is_none_or(|root| {
-                                    self.checkpoint(root, old.index) == old.checkpoint
-                                }) =>
-                        {
-                            Some(old.clone())
-                        }
-                        (_, new) => new,
+                let merge_response =
+                    |tree: &CheckpointTree,
+                     received: &mut [Option<CheckpointAtBlock>],
+                     slot: usize,
+                     checkpoint: Option<CheckpointAtBlock>| {
+                        let old = samples.as_ref().and_then(|samples| samples[slot].as_ref());
+                        received[slot] = match (old, checkpoint) {
+                            (Some(old), Some(new))
+                                if new.index > old.index
+                                    && !tree_exceeds_checkpoint(old, &tree.committed)
+                                    && tree.root_at(old.index).is_none_or(|root| {
+                                        self.checkpoint(root, old.index) == old.checkpoint
+                                    }) =>
+                            {
+                                Some(old.clone())
+                            }
+                            (_, new) => new,
+                        };
                     };
+                let mut responses_done = false;
+                loop {
+                    // Drain ready votes before replaying a potentially distant sample.
+                    while !responses_done {
+                        match responses.next().now_or_never() {
+                            Some(Some((slot, checkpoint))) => {
+                                merge_response(&tree, &mut received, slot, checkpoint);
+                            }
+                            Some(None) => responses_done = true,
+                            None => break,
+                        }
+                    }
                     if received.iter().flatten().count()
                         >= reader.consensus.required(received.len())
                     {
-                        let batch = self.verify_checkpoint_batch(&mut tree, &received).await;
-                        if matches!(
-                            batch,
-                            CheckpointBatch::Verified {
-                                latest: Some(_),
-                                ..
+                        match self
+                            .verify_checkpoint_batch_step(
+                                &mut tree,
+                                &received,
+                                MERKLE_REPLAY_YIELD_INTERVAL,
+                            )
+                            .await
+                        {
+                            Some(
+                                batch @ CheckpointBatch::Verified {
+                                    latest: Some(_), ..
+                                },
+                            ) => {
+                                verified = Some(batch);
+                                break;
                             }
-                        ) {
-                            verified = Some(batch);
-                            break;
+                            None => {
+                                // Keep replay progress, but let pending RPCs run and consume
+                                // their responses before the next bounded replay step.
+                                tokio::task::yield_now().await;
+                                continue;
+                            }
+                            Some(_) => {}
                         }
+                    }
+                    if responses_done {
+                        break;
+                    }
+                    match responses.next().await {
+                        Some((slot, checkpoint)) => {
+                            merge_response(&tree, &mut received, slot, checkpoint)
+                        }
+                        None => responses_done = true,
                     }
                 }
                 next_rpc_attempt = tokio::time::Instant::now()
@@ -496,6 +535,19 @@ impl ValidatorSubmitter {
         tree: &mut CheckpointTree,
         checkpoints: &[Option<CheckpointAtBlock>],
     ) -> CheckpointBatch {
+        self.verify_checkpoint_batch_step(tree, checkpoints, usize::MAX)
+            .await
+            .expect("unbounded replay completes")
+    }
+
+    /// None means more cached leaves remain; callers may incorporate newly arrived
+    /// votes before continuing. Tree frontiers survive between bounded steps.
+    async fn verify_checkpoint_batch_step(
+        &self,
+        tree: &mut CheckpointTree,
+        checkpoints: &[Option<CheckpointAtBlock>],
+        limit: usize,
+    ) -> Option<CheckpointBatch> {
         if tree.committed.count() > 0 {
             let local = self.checkpoint(tree.committed.root(), tree.committed.index());
             let required = self.checkpoint_consensus.required(checkpoints.len());
@@ -527,9 +579,16 @@ impl ValidatorSubmitter {
         let Some(max_index) = indices.last().copied() else {
             self.readiness
                 .mark_operation_blocked("checkpoint_consensus_progress");
-            return CheckpointBatch::WaitingForRpc;
+            return Some(CheckpointBatch::WaitingForRpc);
         };
+        if self.replay_cannot_improve_vote(tree, checkpoints) {
+            return Some(self.evaluate_checkpoint_batch(tree, checkpoints));
+        }
+        let stop_count = tree.accumulated.count().saturating_add(limit);
         while tree.accumulated.count() <= max_index as usize {
+            if tree.accumulated.count() >= stop_count {
+                return None;
+            }
             let index =
                 u32::try_from(tree.accumulated.count()).expect("Merkle leaf count fits in u32");
             let Some(insertion) = self
@@ -545,7 +604,7 @@ impl ValidatorSubmitter {
                 break;
             }
         }
-        self.evaluate_checkpoint_batch(tree, checkpoints)
+        Some(self.evaluate_checkpoint_batch(tree, checkpoints))
     }
 
     fn replay_cannot_improve_vote(
