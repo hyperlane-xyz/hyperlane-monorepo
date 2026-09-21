@@ -93,8 +93,10 @@ forever. Advancing responses keep a previous valid or not-yet-replayed target fo
 slow replay, but replace known conflicts. Responses at the same or an earlier index
 also replace that endpoint's sample. Failed endpoints lose
 their sample on a successful batch refresh. Endpoint slots remain stable across
-refreshes, so samples cannot be reassigned to another endpoint. Pending insertions
-and roots beyond the signed frontier remain cached across retries.
+refreshes, so samples cannot be reassigned to another endpoint. Replay retains tree
+frontiers only at sampled indices, bounded by endpoint count. If a later sample
+requests an uncached intermediate index, replay resumes from the committed tree
+using stored insertions. Roots are calculated only at sampled indices.
 
 No idle count/root polling or websocket RPC freshness probes run once caught up.
 Pending insertions are retried at the configured interval. Websocket notifications
@@ -112,7 +114,10 @@ Normal mode retains its existing configured `rpcConsensusType`, root-mismatch
 handling, RPC indexing fallback, and batch recovery. Normal checkpoint polling uses
 one latest-checkpoint method read, without a preceding count read. During recovery
 only, checkpoints without a block height use the indexer's finalized height as the
-log scan boundary; recovered leaves must still match the captured root.
+log scan boundary. Scans begin at the last verified block when available, otherwise
+at the configured indexing start (including relative offsets). Failed ranges are
+retried without discarding completed ranges; recovered leaves must still match the
+captured root.
 
 The separate additional RPC pool remains removed. Both modes reject obsolete
 `additionalQuorumRpcUrls` / `customAdditionalQuorumRpcUrls` settings, including empty

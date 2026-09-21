@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
@@ -58,12 +58,12 @@ impl QueuedCheckpoint {
     }
 }
 
-// Keep the accumulated suffix across RPC retries. The committed frontier only
-// advances after two thirds of configured endpoints authenticate the insertion history.
+// Keep frontiers only at sampled endpoint indices. Historical publication replays
+// the DB separately, so live verification must not retain a per-message queue.
 struct LightweightTree {
     committed: IncrementalMerkle,
     accumulated: IncrementalMerkle,
-    pending: VecDeque<QueuedCheckpoint>,
+    sampled: BTreeMap<u32, (IncrementalMerkle, H256)>,
 }
 
 impl LightweightTree {
@@ -71,7 +71,22 @@ impl LightweightTree {
         Self {
             accumulated: tree.clone(),
             committed: tree,
-            pending: VecDeque::new(),
+            sampled: BTreeMap::new(),
+        }
+    }
+
+    fn prepare_samples(&mut self, indices: &BTreeSet<u32>) {
+        self.sampled.retain(|index, _| indices.contains(index));
+        // A refreshed endpoint can retreat to an index we did not capture.
+        // Reconstruct it from the last committed frontier, using cached DB leaves.
+        if indices.iter().any(|index| {
+            usize::try_from(*index).expect("leaf index fits in usize") >= self.committed.count()
+                && usize::try_from(*index).expect("leaf index fits in usize")
+                    < self.accumulated.count()
+                && !self.sampled.contains_key(index)
+        }) {
+            self.accumulated = self.committed.clone();
+            self.sampled.clear();
         }
     }
 
@@ -79,29 +94,35 @@ impl LightweightTree {
         if self.committed.count() > 0 && index == self.committed.index() {
             return Some(self.committed.root());
         }
-        let offset = (index as usize).checked_sub(self.committed.count())?;
-        self.pending.get(offset).map(|checkpoint| checkpoint.root)
+        self.sampled.get(&index).map(|(tree, _)| tree.root())
     }
 
-    fn ingest(&mut self, message_id: H256) {
+    fn ingest(&mut self, message_id: H256, capture: bool) {
         self.accumulated.ingest(message_id);
-        self.pending.push_back(QueuedCheckpoint {
-            root: self.accumulated.root(),
-            index: self.accumulated.index(),
-            message_id,
-        });
+        if capture {
+            self.sampled.insert(
+                self.accumulated.index(),
+                (self.accumulated.clone(), message_id),
+            );
+        }
     }
 
-    async fn commit(&mut self, index: u32) -> Vec<QueuedCheckpoint> {
-        let count = (index as usize)
-            .saturating_add(1)
-            .saturating_sub(self.committed.count());
-        let checkpoints: Vec<_> = self.pending.drain(..count).collect();
-        for checkpoint in &checkpoints {
-            self.committed.ingest(checkpoint.message_id);
-            yield_during_merkle_replay(self.committed.count()).await;
+    fn commit(&mut self, index: u32) -> Option<QueuedCheckpoint> {
+        if self.committed.count() > 0 && self.committed.index() == index {
+            return None;
         }
-        checkpoints
+        let (tree, message_id) = self
+            .sampled
+            .remove(&index)
+            .expect("verified sampled frontier");
+        let latest = QueuedCheckpoint {
+            root: tree.root(),
+            index,
+            message_id,
+        };
+        self.committed = tree;
+        self.sampled.retain(|sample_index, _| *sample_index > index);
+        Some(latest)
     }
 }
 
@@ -110,7 +131,7 @@ enum LightweightBatch {
     WaitingForRpc,
     Verified {
         checkpoint: CheckpointAtBlock,
-        queue: Vec<QueuedCheckpoint>,
+        latest: Option<QueuedCheckpoint>,
     },
 }
 
@@ -348,10 +369,7 @@ impl ValidatorSubmitter {
             match batch {
                 LightweightBatch::WaitingForInsertions => {}
                 LightweightBatch::WaitingForRpc => samples = None,
-                LightweightBatch::Verified {
-                    checkpoint,
-                    mut queue,
-                } => {
+                LightweightBatch::Verified { checkpoint, latest } => {
                     if !initial_verification_complete {
                         info!(
                             domain = checkpoint.mailbox_domain,
@@ -364,10 +382,8 @@ impl ValidatorSubmitter {
                         initial_verification_complete = true;
                     }
                     samples = None;
-                    if let Some(latest) = queue.pop() {
-                        // Only the newest checkpoint gates live progress. Older
-                        // indices are reconstructed by one worker from the DB.
-                        drop(queue);
+                    if let Some(latest) = latest {
+                        // Older indices are reconstructed by one worker from the DB.
                         self.sign_and_submit_checkpoints(std::iter::once(
                             latest.into_checkpoint(checkpoint.checkpoint),
                         ))
@@ -459,12 +475,13 @@ impl ValidatorSubmitter {
     ) -> LightweightBatch {
         self.record_tree_progress(&tree.accumulated).await;
         let required = required_agreement(checkpoints.len());
-        let Some(max_index) = checkpoints
+        let indices: BTreeSet<_> = checkpoints
             .iter()
             .flatten()
             .map(|checkpoint| checkpoint.index)
-            .max()
-        else {
+            .collect();
+        tree.prepare_samples(&indices);
+        let Some(max_index) = indices.last().copied() else {
             self.readiness
                 .mark_operation_blocked("lightweight_checkpoint_progress");
             return LightweightBatch::WaitingForRpc;
@@ -479,7 +496,7 @@ impl ValidatorSubmitter {
             else {
                 break;
             };
-            tree.ingest(insertion.message_id());
+            tree.ingest(insertion.message_id(), indices.contains(&index));
             self.record_tree_progress(&tree.accumulated).await;
         }
         let mut matching = Vec::new();
@@ -528,10 +545,10 @@ impl ValidatorSubmitter {
             .mark_operation_ready("lightweight_websocket_insertions");
         self.readiness
             .mark_operation_ready("lightweight_checkpoint_progress");
-        let queue = tree.commit(target.index).await;
+        let latest = tree.commit(target.index);
         LightweightBatch::Verified {
             checkpoint: target.clone(),
-            queue,
+            latest,
         }
     }
 
@@ -592,7 +609,9 @@ impl ValidatorSubmitter {
             self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &latest_checkpoint)
                 .await;
             if let Some(recovery) = &mut self.rpc_recovery {
-                recovery.from_block = latest_checkpoint.block_height;
+                if let Some(height) = latest_checkpoint.block_height {
+                    recovery.from_block = Some(height);
+                }
             }
 
             self.metrics

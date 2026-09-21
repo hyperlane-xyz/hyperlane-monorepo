@@ -7,6 +7,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 
 import {
   AgentChainMetadataSchema,
+  AgentSignerKeyType,
   RelayerAgentConfigSchema,
   RpcConsensusType,
   ValidatorAgentConfigSchema,
@@ -444,7 +445,25 @@ describe('ValidatorAgentConfigSchema lightweight mode', () => {
         ...config,
         lightweight: true,
         websocketUrl: 'wss://scraper.example/events',
-        chains: { test: { ...config.chains.test, protocol } },
+        chains: {
+          test: {
+            ...config.chains.test,
+            protocol,
+            ...(protocol === ProtocolType.Cosmos ||
+            protocol === ProtocolType.CosmosNative
+              ? {
+                  signer: {
+                    type: AgentSignerKeyType.Cosmos,
+                    prefix: 'test',
+                    key: `0x${'11'.repeat(32)}`,
+                  },
+                  canonicalAsset: 'utest',
+                  gasPrice: { denom: 'utest', amount: '0.025' },
+                  contractAddressBytes: 32,
+                }
+              : {}),
+          },
+        },
       });
       expect(result.success, `${protocol}: ${result.error?.message}`).to.be
         .true;

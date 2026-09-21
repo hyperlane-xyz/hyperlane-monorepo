@@ -1036,7 +1036,7 @@ const fastPath: RootAgentConfig = {
     resources: fastPathRelayerResources,
   },
   validators: {
-    rpcConsensusType: RpcConsensusType.Fallback,
+    rpcConsensusType: RpcConsensusType.Quorum,
     // Use RPC indexing until the scraper proxy supports fastpath streaming.
     docker: {
       repo: DockerImageRepos.AGENT,

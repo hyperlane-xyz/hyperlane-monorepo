@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import { RpcConsensusType } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../config/contexts.js';
+import { agents } from '../config/environments/mainnet3/agent.js';
 import { Role } from '../src/roles.js';
 import type { RootAgentConfig } from '../src/config/agent/agent.js';
 import { CheckpointSyncerType } from '../src/config/agent/validator.js';
@@ -10,6 +11,12 @@ import { CheckpointSyncerType } from '../src/config/agent/validator.js';
 import { ValidatorHelmManager } from '../src/agents/index.js';
 
 describe('ValidatorHelmManager', () => {
+  it('keeps FastPath on normal quorum verification', () => {
+    expect(agents[Contexts.FastPath].validators?.rpcConsensusType).to.equal(
+      RpcConsensusType.Quorum,
+    );
+    expect(agents[Contexts.FastPath].validators?.websocketUrl).to.be.undefined;
+  });
   it('renders validator reorg period into the origin chain config', async () => {
     const config: RootAgentConfig = {
       runEnv: 'testnet4',

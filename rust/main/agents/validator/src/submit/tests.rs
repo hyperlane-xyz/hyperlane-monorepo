@@ -2105,6 +2105,66 @@ async fn websocket_batches_only_fetch_rpc_logs_on_root_mismatch() {
     }
 }
 
+#[tokio::test(start_paused = true)]
+async fn tag_recovery_honors_configured_start_and_retries_only_failed_range() {
+    for configured_start in [999_990, -10] {
+        let (_, insertions, _, mut target, _) = three_leaf_snapshot_fixture();
+        target.block_height = None;
+        let mut indexer = MockRecoveryIndexer::new();
+        indexer
+            .expect_get_finalized_block_number()
+            .once()
+            .returning(|| Ok(1_000_000));
+        let attempts = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let observed = attempts.clone();
+        let leaves = insertions.clone();
+        indexer
+            .expect_fetch_logs_in_range()
+            .times(4)
+            .returning(move |range| {
+                let mut attempts = observed.lock().expect("attempts");
+                attempts.push(range.clone());
+                if attempts.len() == 2 {
+                    return Err(hyperlane_core::ChainCommunicationError::from_other_str(
+                        "temporary failure",
+                    ));
+                }
+                let index = if *range.start() == 999_990 {
+                    0
+                } else if *range.start() == 999_995 {
+                    1
+                } else {
+                    2
+                };
+                Ok(vec![(
+                    leaves[index].into(),
+                    hyperlane_core::LogMeta {
+                        block_number: u64::from(*range.start()),
+                        ..Default::default()
+                    },
+                )])
+            });
+        let (mut recovery, _directory) = rpc_recovery_fixture(indexer);
+        recovery.from_block = None;
+        recovery.index_settings.from = configured_start;
+        recovery.index_settings.chunk_size = 5;
+        let recovered = recovery
+            .fetch_insertions(0, &target)
+            .await
+            .expect("recovered batch");
+        assert_eq!(recovered.len(), 3);
+        assert_eq!(
+            *attempts.lock().expect("attempts"),
+            vec![
+                999_990..=999_994,
+                999_995..=999_999,
+                999_995..=999_999,
+                1_000_000..=1_000_000
+            ]
+        );
+    }
+}
+
 #[tokio::test]
 async fn rpc_recovery_rejects_incomplete_batch() {
     let (_, _, _, mut target, _) = three_leaf_snapshot_fixture();
@@ -2270,6 +2330,33 @@ fn lightweight_test_submitter(
     submitter
 }
 
+#[test]
+fn lightweight_large_replay_retains_only_sampled_frontiers() {
+    let started = Instant::now();
+    let mut tree = LightweightTree::new(IncrementalMerkle::default());
+    let indices = BTreeSet::from([0, 500_000, 999_999]);
+    tree.prepare_samples(&indices);
+    for index in 0..1_000_000_u32 {
+        tree.ingest(
+            H256::from_low_u64_be(u64::from(index)),
+            indices.contains(&index),
+        );
+    }
+    assert_eq!(tree.sampled.len(), 3);
+    let expected = tree.accumulated.root();
+    let latest = tree.commit(999_999).expect("latest checkpoint");
+    assert_eq!(latest.root, expected);
+    assert_eq!(tree.committed.root(), expected);
+    assert!(
+        tree.sampled.is_empty(),
+        "no replay-sized allocation survives commit"
+    );
+    eprintln!(
+        "Replayed one million insertions with three retained frontiers in {:?}",
+        started.elapsed()
+    );
+}
+
 #[tokio::test]
 async fn lightweight_tree_progress_tracks_unverified_replay_and_live_updates() {
     let available = Arc::new(AtomicUsize::new(3));
@@ -2433,11 +2520,11 @@ async fn lightweight_minority_cannot_veto_but_split_cannot_authorize_signing() {
                     ],
                 )
                 .await;
-            let LightweightBatch::Verified { checkpoint, queue } = batch else {
+            let LightweightBatch::Verified { checkpoint, latest } = batch else {
                 panic!("three matching endpoints must authorize signing");
             };
             assert_eq!(checkpoint.index, 1);
-            assert_eq!(queue.len(), 2);
+            assert_eq!(latest.expect("new checkpoint").index, 1);
             assert!(!submitter.readiness.snapshot().signing_blocked);
         }
 
@@ -2646,7 +2733,8 @@ impl ValidatorSubmitter {
             match self.verify_lightweight_batch(&mut tree, &checkpoints).await {
                 LightweightBatch::WaitingForInsertions => self.wait_for_checkpoint_check().await,
                 LightweightBatch::WaitingForRpc => return,
-                LightweightBatch::Verified { checkpoint, queue } => {
+                LightweightBatch::Verified { checkpoint, .. } => {
+                    let queue = self.verified_checkpoints(signed_tree, &checkpoint).await;
                     self.sign_and_submit_checkpoints(
                         queue
                             .into_iter()
@@ -2744,17 +2832,16 @@ async fn lightweight_refreshes_ahead_checkpoint_when_websocket_progress_stalls()
 }
 
 #[tokio::test]
-async fn lightweight_retains_verified_suffix_across_provider_retries() {
+async fn lightweight_reconstructs_unsampled_indices_without_retaining_history() {
     let mut submitter = lightweight_test_submitter(
         Arc::new(AtomicUsize::new(5)),
         Arc::new(std::sync::Mutex::new(Vec::new())),
     );
     let mut db = MockDb::new();
-    // Each insertion is fetched once, including the fast provider's suffix.
+    // Unsampled intermediate indices may be replayed from the committed frontier.
     for index in 0..5 {
         db.expect_retrieve_merkle_tree_insertion_by_leaf_index()
             .with(mockall::predicate::eq(index))
-            .once()
             .returning(move |_| {
                 Ok(Some(MerkleTreeInsertion::new(
                     index,
@@ -2775,14 +2862,14 @@ async fn lightweight_retains_verified_suffix_across_provider_retries() {
                 ],
             )
             .await;
-        let LightweightBatch::Verified { queue, .. } = batch else {
+        let LightweightBatch::Verified { latest, .. } = batch else {
             panic!("verified batch");
         };
-        assert_eq!(queue.len(), expected_queue);
+        assert_eq!(latest.is_some(), expected_queue > 0);
         assert_eq!(tree.committed.index(), slow_index as u32);
         assert_eq!(tree.committed.root(), checkpoints[slow_index].root);
     }
-    assert!(tree.pending.is_empty());
+    assert!(tree.sampled.is_empty());
 }
 
 #[tokio::test(start_paused = true)]

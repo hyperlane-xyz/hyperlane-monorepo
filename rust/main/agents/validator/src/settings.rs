@@ -245,23 +245,21 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         }
 
         let mut rpcs = get_rpc_urls(&chain, "rpcUrls", "customRpcUrls", &mut err);
-        if !lightweight {
-            // this is only relevant for cosmos
-            rpcs.extend(get_rpc_urls(&chain, "grpcUrls", "customGrpcUrls", &mut err));
-            // tron wallet urls
-            rpcs.extend(get_rpc_urls(
-                &chain,
-                "walletUrls",
-                "customWalletUrls",
-                &mut err,
-            ));
-            rpcs.extend(get_rpc_urls(
-                &chain,
-                "walletSolidityUrls",
-                "customWalletSolidityUrls",
-                &mut err,
-            ));
-        }
+        // this is only relevant for cosmos
+        rpcs.extend(get_rpc_urls(&chain, "grpcUrls", "customGrpcUrls", &mut err));
+        // tron wallet urls
+        rpcs.extend(get_rpc_urls(
+            &chain,
+            "walletUrls",
+            "customWalletUrls",
+            &mut err,
+        ));
+        rpcs.extend(get_rpc_urls(
+            &chain,
+            "walletSolidityUrls",
+            "customWalletSolidityUrls",
+            &mut err,
+        ));
 
         for removed in ["additionalQuorumRpcUrls", "customAdditionalQuorumRpcUrls"] {
             if chain.chain(&mut err).get_opt_key(removed).end().is_some() {
@@ -750,6 +748,67 @@ mod test {
             assert_eq!(settings.rpcs.len(), 2);
             assert!(settings.rpcs[0].public);
             assert!(!settings.rpcs[1].public);
+        }
+    }
+
+    #[test]
+    fn metadata_includes_cosmos_and_tron_state_read_transports() {
+        use crate::validator::ValidatorMetadata;
+        use hyperlane_base::MetadataFromSettings;
+
+        for protocol in ["cosmos", "cosmosnative", "tron"] {
+            for lightweight in [false, true] {
+                let mut raw = lightweight_settings_fixture();
+                raw["lightweight"] = lightweight.into();
+                let chain = &mut raw["chains"]["test"];
+                chain["protocol"] = protocol.into();
+                chain["chainid"] = if protocol.starts_with("cosmos") {
+                    "test-1"
+                } else {
+                    "1337"
+                }
+                .into();
+                chain["bech32prefix"] = "test".into();
+                chain["gasprice"] = serde_json::json!({"denom": "utest", "amount": "0.1"});
+                chain["contractaddressbytes"] = 32.into();
+                chain["grpcurls"] = serde_json::json!([{"http": "https://grpc-registry.example"}]);
+                chain["customgrpcurls"] = "https://grpc-private.example".into();
+                chain["walleturls"] = serde_json::json!([{"http": "https://wallet.example"}]);
+                chain["walletsolidityurls"] =
+                    serde_json::json!([{"http": "https://solid-registry.example"}]);
+                chain["customwalletsolidityurls"] = "https://solid-private.example".into();
+                let settings = ValidatorSettings::from_config_filtered(
+                    RawValidatorSettings(raw),
+                    &ConfigPath::default(),
+                    (),
+                    "validator",
+                )
+                .expect("valid transport configuration");
+                let metadata = serde_json::to_value(ValidatorMetadata::build_metadata(&settings))
+                    .expect("serialized metadata");
+                let hashes: Vec<_> = metadata["rpcs"]
+                    .as_array()
+                    .expect("RPC metadata")
+                    .iter()
+                    .map(|entry| entry["url_hash"].clone())
+                    .collect();
+                for url in [
+                    "https://private-override.example",
+                    "https://grpc-private.example",
+                    "https://wallet.example",
+                    "https://solid-private.example",
+                ] {
+                    let expected = serde_json::to_value(hyperlane_core::H256::from(
+                        ethers::utils::keccak256(url),
+                    ))
+                    .expect("hash");
+                    assert!(
+                        hashes.contains(&expected),
+                        "{protocol}, lightweight={lightweight}: missing transport"
+                    );
+                }
+                assert_eq!(hashes.len(), 4);
+            }
         }
     }
 

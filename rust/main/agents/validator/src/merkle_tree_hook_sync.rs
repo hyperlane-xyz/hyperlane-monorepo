@@ -84,8 +84,18 @@ impl MerkleTreeRpcRecovery {
                     .context("Resolving RPC recovery height timed out")??
                     .context("RPC indexer did not return a finalized height")?,
                 };
+                let configured_start = if self.index_settings.from < 0 {
+                    i64::from(end)
+                        .saturating_add(self.index_settings.from)
+                        .max(0)
+                } else {
+                    self.index_settings.from
+                };
                 (
-                    self.from_block.map(u32::try_from).transpose()?.unwrap_or(0),
+                    self.from_block
+                        .map(u32::try_from)
+                        .transpose()?
+                        .unwrap_or(u32::try_from(configured_start)?),
                     end,
                 )
             }
@@ -96,15 +106,27 @@ impl MerkleTreeRpcRecovery {
             let batch_end = start
                 .saturating_add(self.index_settings.chunk_size.saturating_sub(1))
                 .min(end);
-            let logs = timeout(
-                RPC_PROBE_TIMEOUT,
-                with_rpc_operation(
-                    RpcOperation::ContractSync,
-                    self.sync.fetch_logs_in_range(start..=batch_end),
-                ),
-            )
-            .await
-            .context("RPC fallback checkpoint recovery timed out")??;
+            // Retry only the failed range; completed ranges and recovered leaves
+            // remain in memory until this captured checkpoint is verified.
+            let logs = loop {
+                let result = timeout(
+                    RPC_PROBE_TIMEOUT,
+                    with_rpc_operation(
+                        RpcOperation::ContractSync,
+                        self.sync.fetch_logs_in_range(start..=batch_end),
+                    ),
+                )
+                .await
+                .context("RPC fallback checkpoint recovery timed out")
+                .and_then(|result| result.map_err(Into::into));
+                match result {
+                    Ok(logs) => break logs,
+                    Err(error) => {
+                        warn!(?error, start, batch_end, "Retrying RPC recovery range");
+                        sleep(hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION).await;
+                    }
+                }
+            };
             for (insertion, meta) in logs {
                 let index = insertion.inner().index();
                 if index >= first_sequence && index <= checkpoint.index {
