@@ -1594,12 +1594,14 @@ mod tests {
             Url::parse("http://quorum-b.example").unwrap(),
             Url::parse("http://quorum-c.example").unwrap(),
         ];
-        let metrics = CoreMetrics::new(
-            "validator-test-ethereum-quorum-hooks",
-            9091,
-            Registry::new(),
-        )
-        .unwrap();
+        let metrics = Arc::new(
+            CoreMetrics::new(
+                "validator-test-ethereum-quorum-hooks",
+                9091,
+                Registry::new(),
+            )
+            .unwrap(),
+        );
 
         let hooks = build_validator_per_url_hooks(
             &chain_conf,
@@ -1614,6 +1616,127 @@ mod tests {
         assert_eq!(hooks.len(), 3);
         let labels: Vec<&str> = hooks.iter().map(|(label, _)| label.as_str()).collect();
         assert_eq!(labels, vec!["rpcUrls[0]", "rpcUrls[1]", "rpcUrls[2]"]);
+    }
+
+    #[tokio::test]
+    async fn unavailable_or_stalled_ws_does_not_veto_pool_initialization() {
+        use futures_util::StreamExt;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use tokio::io::AsyncWriteExt;
+        for stalled in [false, true] {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let attempts = Arc::new(AtomicUsize::new(0));
+            let observed = attempts.clone();
+            let server = tokio::spawn(async move {
+                let mut sockets = Vec::new();
+                loop {
+                    let (mut socket, _) = listener.accept().await.unwrap();
+                    observed.fetch_add(1, Ordering::SeqCst);
+                    if stalled {
+                        sockets.push(socket);
+                    } else {
+                        socket
+                            .write_all(
+                                b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n",
+                            )
+                            .await
+                            .unwrap();
+                    }
+                }
+            });
+            let chain = dummy_ethereum_chain_conf(vec![]);
+            let urls = vec![
+                Url::parse("https://a.example").unwrap(),
+                Url::parse("https://b.example").unwrap(),
+                Url::parse(&format!("ws://{address}")).unwrap(),
+            ];
+            let metrics = Arc::new(CoreMetrics::new("ws-test", 0, Registry::new()).unwrap());
+            let hooks = tokio::time::timeout(
+                Duration::from_secs(1),
+                build_validator_per_url_hooks(&chain, "rpcUrls", RpcRole::Primary, &urls, &metrics),
+            )
+            .await
+            .unwrap()
+            .unwrap();
+            assert_eq!(hooks.len(), 3);
+            assert_eq!(
+                attempts.load(Ordering::SeqCst),
+                0,
+                "construction does not connect"
+            );
+            let ws = hooks[2].1.clone();
+            for _ in 0..2 {
+                let result = tokio::time::timeout(
+                    Duration::from_millis(100),
+                    ws.latest_checkpoint(&ReorgPeriod::None),
+                )
+                .await;
+                if stalled {
+                    assert!(result.is_err());
+                } else {
+                    assert!(result.unwrap().is_err());
+                }
+            }
+            assert_eq!(
+                attempts.load(Ordering::SeqCst),
+                2,
+                "failed or cancelled initialization retries"
+            );
+            let mut voters: Vec<Arc<dyn MerkleTreeHook>> = Vec::new();
+            for _ in 0..2 {
+                let mut hook = MockMerkleTreeHook::new();
+                hook.expect_latest_checkpoint().once().returning(|_| {
+                    Ok(CheckpointAtBlock {
+                        checkpoint: hyperlane_core::Checkpoint {
+                            merkle_tree_hook_address: H256::zero(),
+                            mailbox_domain: 1337,
+                            root: H256::zero(),
+                            index: 0,
+                        },
+                        block_height: None,
+                    })
+                });
+                voters.push(Arc::new(hook));
+            }
+            voters.push(ws);
+            let reader = CheckpointReader::new(
+                crate::checkpoint_consensus::CheckpointConsensus::Majority,
+                voters,
+            )
+            .unwrap();
+            assert_eq!(reader.endpoint_count(), 3);
+            assert_eq!(reader.consensus.required(reader.endpoint_count()), 2);
+            let period = ReorgPeriod::None;
+            let mut stream = reader.checkpoint_stream(&period);
+            for _ in 0..2 {
+                let (slot, checkpoint) =
+                    tokio::time::timeout(Duration::from_secs(1), stream.next())
+                        .await
+                        .unwrap()
+                        .unwrap();
+                assert!(slot < 2);
+                assert!(checkpoint.is_some());
+            }
+            server.abort();
+            assert!(server.await.unwrap_err().is_cancelled());
+        }
+    }
+
+    #[tokio::test]
+    async fn malformed_rpc_endpoint_is_fatal_before_initialization() {
+        let chain = dummy_ethereum_chain_conf(vec![]);
+        let metrics = Arc::new(CoreMetrics::new("invalid-rpc-test", 0, Registry::new()).unwrap());
+        let urls = vec![Url::parse("file:///invalid").unwrap()];
+        assert!(build_validator_per_url_hooks(
+            &chain,
+            "rpcUrls",
+            RpcRole::Primary,
+            &urls,
+            &metrics
+        )
+        .await
+        .is_err());
     }
 
     #[tokio::test(start_paused = true)]

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 
-use futures::future::join_all;
+use futures::{future::join_all, StreamExt};
 use prometheus::IntGauge;
 use tokio::{
     sync::{watch, Notify},
@@ -25,7 +25,7 @@ use hyperlane_core::{
 use hyperlane_ethereum::{Signers, SingletonSignerHandle};
 
 use crate::checkpoint_consensus::{CheckpointConsensus, CheckpointReader};
-use crate::merkle_tree_hook_sync::MerkleTreeRpcRecovery;
+use crate::merkle_tree_hook_sync::{MerkleTreeRpcRecovery, RecoveryProgress};
 use crate::reorg_reporter::ReorgReporter;
 use crate::server::ValidatorReadiness;
 
@@ -153,6 +153,7 @@ pub(crate) struct ValidatorSubmitter {
     readiness: Arc<ValidatorReadiness>,
     checkpoint_wake: Option<Arc<Notify>>,
     rpc_recovery: Option<MerkleTreeRpcRecovery>,
+    recovery_progress: Arc<tokio::sync::Mutex<RecoveryProgress>>,
     historical_publication: bool,
     checkpoint_consensus: CheckpointConsensus,
 }
@@ -190,6 +191,7 @@ impl ValidatorSubmitter {
             readiness,
             checkpoint_wake: None,
             rpc_recovery: None,
+            recovery_progress: Arc::default(),
             historical_publication: false,
             checkpoint_consensus: CheckpointConsensus::Majority,
         }
@@ -304,6 +306,7 @@ impl ValidatorSubmitter {
         let mut samples: Option<Vec<Option<CheckpointAtBlock>>> = None;
         let mut sampled_at = tokio::time::Instant::now();
         let mut next_rpc_attempt = sampled_at;
+        let mut sampled_batch = None;
         loop {
             // The single worker is cancelled when the signing task exits.
             if let Some(result) = history.try_join_next() {
@@ -327,47 +330,58 @@ impl ValidatorSubmitter {
                 // Notifications may wake insertion processing immediately, but may
                 // never accelerate checkpoint reads, including after RPC errors.
                 tokio::time::sleep_until(next_rpc_attempt).await;
-                let result = reader.checkpoints(&self.reorg_period).await;
+                let mut responses = reader.checkpoint_stream(&self.reorg_period);
+                let mut received = vec![None; reader.endpoint_count()];
+                let mut verified = None;
+                while let Some((slot, checkpoint)) = responses.next().await {
+                    let old = samples.as_ref().and_then(|samples| samples[slot].as_ref());
+                    received[slot] = match (old, checkpoint) {
+                        (Some(old), Some(new))
+                            if new.index > old.index
+                                && !tree_exceeds_checkpoint(old, &tree.committed)
+                                && tree.root_at(old.index).is_none_or(|root| {
+                                    self.checkpoint(root, old.index) == old.checkpoint
+                                }) =>
+                        {
+                            Some(old.clone())
+                        }
+                        (_, new) => new,
+                    };
+                    if received.iter().flatten().count()
+                        >= reader.consensus.required(received.len())
+                    {
+                        let batch = self.verify_checkpoint_batch(&mut tree, &received).await;
+                        if matches!(
+                            batch,
+                            CheckpointBatch::Verified {
+                                latest: Some(_),
+                                ..
+                            }
+                        ) {
+                            verified = Some(batch);
+                            break;
+                        }
+                    }
+                }
                 next_rpc_attempt = tokio::time::Instant::now()
                     .checked_add(self.interval)
                     .expect("checkpoint interval fits in Instant");
-                match result {
-                    Ok(checkpoints) => {
-                        self.readiness
-                            .mark_operation_ready("checkpoint_consensus_reads");
-                        if let Some(previous) = &mut samples {
-                            // Preserve valid or not-yet-replayed targets rather than
-                            // chasing the moving tip. Never retain a known conflict
-                            // when a later checkpoint could restore agreement.
-                            for (old, new) in previous.iter_mut().zip(checkpoints) {
-                                let preserve = match (&*old, &new) {
-                                    (Some(old), Some(new)) if new.index > old.index => {
-                                        !tree_exceeds_checkpoint(old, &tree.committed)
-                                            && tree.root_at(old.index).is_none_or(|root| {
-                                                self.checkpoint(root, old.index) == old.checkpoint
-                                            })
-                                    }
-                                    _ => false,
-                                };
-                                if !preserve {
-                                    *old = new;
-                                }
-                            }
-                        } else {
-                            samples = Some(checkpoints);
-                        }
-                        sampled_at = tokio::time::Instant::now();
-                    }
-                    Err(err) => {
-                        self.readiness
-                            .mark_operation_blocked("checkpoint_consensus_reads");
-                        warn!(?err, "Waiting for configured checkpoint agreement");
-                        continue;
-                    }
+                if received.iter().flatten().count() < reader.consensus.required(received.len()) {
+                    self.readiness
+                        .mark_operation_blocked("checkpoint_consensus_reads");
+                    continue;
                 }
+                self.readiness
+                    .mark_operation_ready("checkpoint_consensus_reads");
+                samples = Some(received);
+                sampled_at = tokio::time::Instant::now();
+                sampled_batch = verified;
             }
             let checkpoints = samples.as_ref().expect("checkpoint samples");
-            let mut batch = self.verify_checkpoint_batch(&mut tree, checkpoints).await;
+            let mut batch = match sampled_batch.take() {
+                Some(batch) => batch,
+                None => self.verify_checkpoint_batch(&mut tree, checkpoints).await,
+            };
             if matches!(batch, CheckpointBatch::WaitingForRpc) {
                 if let Some(recovered) = self.recover_checkpoint_batch(&mut tree, checkpoints).await
                 {
@@ -482,6 +496,27 @@ impl ValidatorSubmitter {
         tree: &mut CheckpointTree,
         checkpoints: &[Option<CheckpointAtBlock>],
     ) -> CheckpointBatch {
+        if tree.committed.count() > 0 {
+            let local = self.checkpoint(tree.committed.root(), tree.committed.index());
+            let required = self.checkpoint_consensus.required(checkpoints.len());
+            for observed in checkpoints.iter().flatten() {
+                if observed.index == local.index
+                    && observed.mailbox_domain == local.mailbox_domain
+                    && observed.merkle_tree_hook_address == local.merkle_tree_hook_address
+                    && observed.root != local.root
+                    && checkpoints
+                        .iter()
+                        .flatten()
+                        .filter(|other| other.checkpoint == observed.checkpoint)
+                        .count()
+                        >= required
+                {
+                    // The vote authenticates a conflicting committed root. Persist the
+                    // relayer safety flag before halting; extra diagnostic RPCs must not delay it.
+                    self.verify_checkpoint(local, observed, false).await;
+                }
+            }
+        }
         self.record_tree_progress(&tree.accumulated).await;
         let indices: BTreeSet<_> = checkpoints
             .iter()
@@ -506,8 +541,43 @@ impl ValidatorSubmitter {
             };
             tree.ingest(insertion.message_id(), indices.contains(&index));
             self.record_tree_progress(&tree.accumulated).await;
+            if indices.contains(&index) && self.replay_cannot_improve_vote(tree, checkpoints) {
+                break;
+            }
         }
         self.evaluate_checkpoint_batch(tree, checkpoints)
+    }
+
+    fn replay_cannot_improve_vote(
+        &self,
+        tree: &CheckpointTree,
+        checkpoints: &[Option<CheckpointAtBlock>],
+    ) -> bool {
+        let required = self.checkpoint_consensus.required(checkpoints.len());
+        let mut matching = Vec::new();
+        let mut possible = Vec::new();
+        for checkpoint in checkpoints.iter().flatten() {
+            if tree_exceeds_checkpoint(checkpoint, &tree.committed) {
+                continue;
+            }
+            match tree.root_at(checkpoint.index) {
+                Some(root) if self.checkpoint(root, checkpoint.index) == checkpoint.checkpoint => {
+                    matching.push(checkpoint.index);
+                    possible.push(checkpoint.index);
+                }
+                None => possible.push(checkpoint.index),
+                _ => {}
+            }
+        }
+        if matching.len() < required {
+            return false;
+        }
+        matching.sort_unstable_by(|a, b| b.cmp(a));
+        possible.sort_unstable_by(|a, b| b.cmp(a));
+        let position = required
+            .checked_sub(1)
+            .expect("nonempty endpoint threshold");
+        matching[position] == possible[position]
     }
 
     fn evaluate_checkpoint_batch(
@@ -592,9 +662,10 @@ impl ValidatorSubmitter {
         target.block_height = None;
         self.readiness.mark_operation_blocked("checkpoint_recovery");
         let first = u32::try_from(tree.committed.count()).expect("leaf count fits in u32");
+        let mut progress = self.recovery_progress.lock().await;
         let leaves = match tokio::time::timeout(
             CHECKPOINT_RECOVERY_TIMEOUT,
-            recovery.fetch_insertions(first, &target),
+            recovery.fetch_insertions_with_progress(first, &target, &mut progress),
         )
         .await
         {
@@ -604,6 +675,7 @@ impl ValidatorSubmitter {
                     ?err,
                     "Consensus checkpoint recovery failed; signing remains blocked"
                 );
+                *progress = RecoveryProgress::default();
                 return None;
             }
             Err(_) => {
@@ -611,6 +683,7 @@ impl ValidatorSubmitter {
                 return None;
             }
         };
+        *progress = RecoveryProgress::default();
         let indices: BTreeSet<_> = checkpoints.iter().flatten().map(|c| c.index).collect();
         let mut recovered = CheckpointTree::new(tree.committed.clone());
         for (insertion, _) in &leaves {

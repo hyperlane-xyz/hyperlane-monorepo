@@ -13,16 +13,18 @@ import { CheckpointSyncerType } from '../src/config/agent/validator.js';
 import { ValidatorHelmManager } from '../src/agents/index.js';
 
 describe('ValidatorHelmManager', () => {
-  it('uses majority for every configured validator context', () => {
+  it('defers deployed majority until compatible images are pinned', () => {
     for (const config of [
       ...Object.values(agents),
       ...Object.values(testnetAgents),
-      ...Object.values(localAgents),
     ]) {
       expect(
         config.validators?.rpcConsensusType,
         `${config.runEnv}/${config.context}`,
-      ).to.equal('majority');
+      ).to.equal('quorum');
+    }
+    for (const config of Object.values(localAgents)) {
+      expect(config.validators?.rpcConsensusType).to.equal('majority');
     }
     expect(agents[Contexts.FastPath].validators?.websocketUrl).to.be.undefined;
   });

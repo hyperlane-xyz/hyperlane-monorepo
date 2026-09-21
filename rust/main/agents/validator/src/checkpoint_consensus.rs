@@ -2,7 +2,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use futures_util::future::join_all;
+use futures_util::{stream::BoxStream, StreamExt};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, CheckpointAtBlock, MerkleTreeHook, ReorgPeriod,
 };
@@ -57,13 +57,34 @@ impl CheckpointReader {
     /// Preserve one slot per configured endpoint, including failures, so retries
     /// cannot shrink the voting denominator or mix up endpoint identities.
     /// Each adapter applies its existing confirmation/finality policy.
+    #[cfg(test)]
     pub(crate) async fn checkpoints(
         &self,
         period: &ReorgPeriod,
     ) -> ChainResult<Vec<Option<CheckpointAtBlock>>> {
-        let checkpoints = join_all(self.hooks.iter().enumerate().map(
-            |(endpoint_index, hook)| async move {
-                match timeout(RPC_TIMEOUT, hook.latest_checkpoint(period)).await {
+        let mut checkpoints = vec![None; self.hooks.len()];
+        let mut stream = self.checkpoint_stream(period);
+        while let Some((slot, checkpoint)) = stream.next().await {
+            checkpoints[slot] = checkpoint;
+        }
+        if checkpoints.iter().flatten().count() < self.consensus.required(self.hooks.len()) {
+            return Err(ChainCommunicationError::from_other_str(
+                "Insufficient checkpoint responses for configured agreement",
+            ));
+        }
+        Ok(checkpoints)
+    }
+    pub(crate) fn endpoint_count(&self) -> usize {
+        self.hooks.len()
+    }
+
+    pub(crate) fn checkpoint_stream<'a>(
+        &'a self,
+        period: &'a ReorgPeriod,
+    ) -> BoxStream<'a, (usize, Option<CheckpointAtBlock>)> {
+        futures_util::stream::iter(self.hooks.iter().enumerate().map(
+            move |(endpoint_index, hook)| async move {
+                let checkpoint = match timeout(RPC_TIMEOUT, hook.latest_checkpoint(period)).await {
                     Ok(Ok(checkpoint)) => {
                         tracing::debug!(
                             endpoint_index,
@@ -80,16 +101,12 @@ impl CheckpointReader {
                         tracing::warn!(endpoint_index, "Consensus checkpoint RPC timed out");
                         None
                     }
-                }
+                };
+                (endpoint_index, checkpoint)
             },
         ))
-        .await;
-        if checkpoints.iter().flatten().count() < self.consensus.required(self.hooks.len()) {
-            return Err(ChainCommunicationError::from_other_str(
-                "Insufficient checkpoint responses for configured agreement",
-            ));
-        }
-        Ok(checkpoints)
+        .buffer_unordered(self.hooks.len())
+        .boxed()
     }
 }
 

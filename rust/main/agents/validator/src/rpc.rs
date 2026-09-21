@@ -98,15 +98,101 @@ pub(crate) async fn build_validator_per_url_hooks(
     label_prefix: &str,
     role: RpcRole,
     urls: &[Url],
-    metrics: &CoreMetrics,
+    metrics: &Arc<CoreMetrics>,
 ) -> ChainResult<Vec<(String, Arc<dyn MerkleTreeHook>)>> {
     let hooks = try_join_all(urls.iter().cloned().enumerate().map(|(i, url)| async move {
-        chain_conf_for_read_url(origin_chain_conf, url, role)
-            .build_merkle_tree_hook(metrics)
-            .await
-            .map(|hook| (format!("{label_prefix}[{i}]"), Arc::from(hook)))
+        if !matches!(url.scheme(), "http" | "https" | "ws" | "wss") || url.host_str().is_none() {
+            return Err(hyperlane_core::ChainCommunicationError::from_other_str(
+                "Invalid state-read endpoint URL",
+            ));
+        }
+        let deferred = matches!(
+            &origin_chain_conf.connection,
+            ChainConnectionConf::Ethereum(_)
+        ) && matches!(url.scheme(), "ws" | "wss");
+        let chain = chain_conf_for_read_url(origin_chain_conf, url, role);
+        let hook: Arc<dyn MerkleTreeHook> = if deferred {
+            Arc::new(DeferredWsHook {
+                chain,
+                metrics: metrics.clone(),
+                hook: tokio::sync::OnceCell::new(),
+            })
+        } else {
+            Arc::from(chain.build_merkle_tree_hook(metrics).await?)
+        };
+        Ok((format!("{label_prefix}[{i}]"), hook))
     }))
     .await?;
 
     Ok(hooks)
+}
+
+/// Defer only the network handshake. URL/configuration validation still happens
+/// when building the pool. Failed initialization is retried on the next read and
+/// shares the checkpoint reader's deadline and voting slot.
+struct DeferredWsHook {
+    chain: ChainConf,
+    metrics: Arc<CoreMetrics>,
+    hook: tokio::sync::OnceCell<Box<dyn MerkleTreeHook>>,
+}
+
+impl std::fmt::Debug for DeferredWsHook {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DeferredWsHook").finish_non_exhaustive()
+    }
+}
+
+impl DeferredWsHook {
+    async fn get(&self) -> ChainResult<&dyn MerkleTreeHook> {
+        self.hook
+            .get_or_try_init(|| async {
+                self.chain
+                    .build_merkle_tree_hook(&self.metrics)
+                    .await
+                    .map_err(hyperlane_core::ChainCommunicationError::from)
+            })
+            .await
+            .map(|hook| hook.as_ref())
+    }
+}
+
+impl hyperlane_core::HyperlaneChain for DeferredWsHook {
+    fn domain(&self) -> &hyperlane_core::HyperlaneDomain {
+        &self.chain.domain
+    }
+    fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
+        self.hook
+            .get()
+            .expect("initialize the WebSocket hook before accessing its provider")
+            .provider()
+    }
+}
+impl hyperlane_core::HyperlaneContract for DeferredWsHook {
+    fn address(&self) -> hyperlane_core::H256 {
+        self.chain.addresses.merkle_tree_hook
+    }
+}
+#[async_trait::async_trait]
+impl MerkleTreeHook for DeferredWsHook {
+    async fn tree(
+        &self,
+        period: &hyperlane_core::ReorgPeriod,
+    ) -> ChainResult<hyperlane_core::IncrementalMerkleAtBlock> {
+        self.get().await?.tree(period).await
+    }
+    async fn count(&self, period: &hyperlane_core::ReorgPeriod) -> ChainResult<u32> {
+        self.get().await?.count(period).await
+    }
+    async fn latest_checkpoint(
+        &self,
+        period: &hyperlane_core::ReorgPeriod,
+    ) -> ChainResult<hyperlane_core::CheckpointAtBlock> {
+        self.get().await?.latest_checkpoint(period).await
+    }
+    async fn latest_checkpoint_at_block(
+        &self,
+        height: u64,
+    ) -> ChainResult<hyperlane_core::CheckpointAtBlock> {
+        self.get().await?.latest_checkpoint_at_block(height).await
+    }
 }

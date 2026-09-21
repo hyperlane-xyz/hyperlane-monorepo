@@ -56,12 +56,27 @@ pub(crate) struct MerkleTreeRpcRecovery {
     pub(crate) from_block: Option<u64>,
 }
 
+/// In-memory scan state survives cancellation at the resampling deadline.
+#[derive(Default)]
+pub(crate) struct RecoveryProgress {
+    first_sequence: Option<u32>,
+    next: Option<u32>,
+    leaves: BTreeMap<u32, (Indexed<MerkleTreeInsertion>, LogMeta)>,
+}
+
 impl MerkleTreeRpcRecovery {
     pub(crate) async fn fetch_insertions(
         &self,
         first_sequence: u32,
         checkpoint: &hyperlane_core::CheckpointAtBlock,
     ) -> Result<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
+        let leaves = self
+            .fetch_insertions_with_progress(
+                first_sequence,
+                checkpoint,
+                &mut RecoveryProgress::default(),
+            )
+            .await?;
         let expected_count = u64::from(
             checkpoint
                 .index
@@ -69,6 +84,24 @@ impl MerkleTreeRpcRecovery {
                 .context("RPC recovery range starts after its target checkpoint")?,
         )
         .saturating_add(1);
+        if u64::try_from(leaves.len())? != expected_count {
+            bail!("RPC fallback did not return every insertion in the unverified batch");
+        }
+        Ok(leaves)
+    }
+
+    pub(crate) async fn fetch_insertions_with_progress(
+        &self,
+        first_sequence: u32,
+        checkpoint: &hyperlane_core::CheckpointAtBlock,
+        progress: &mut RecoveryProgress,
+    ) -> Result<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
+        if progress.first_sequence != Some(first_sequence) {
+            *progress = RecoveryProgress {
+                first_sequence: Some(first_sequence),
+                ..Default::default()
+            };
+        }
         let (mut start, end) = match self.index_settings.mode {
             IndexMode::Block => {
                 // Tag-based checkpoint reads may not return a height. Resolve a
@@ -101,7 +134,7 @@ impl MerkleTreeRpcRecovery {
             }
             IndexMode::Sequence => (first_sequence, checkpoint.index),
         };
-        let mut leaves = BTreeMap::new();
+        start = progress.next.unwrap_or(start);
         while start <= end {
             let batch_end = start
                 .saturating_add(self.index_settings.chunk_size.saturating_sub(1))
@@ -129,25 +162,33 @@ impl MerkleTreeRpcRecovery {
             };
             for (insertion, meta) in logs {
                 let index = insertion.inner().index();
-                if index >= first_sequence && index <= checkpoint.index {
-                    if let Some((existing, _)) = leaves.insert(index, (insertion, meta)) {
+                if index >= first_sequence {
+                    if let Some((existing, _)) = progress.leaves.insert(index, (insertion, meta)) {
                         if existing != insertion {
                             bail!("RPC fallback returned conflicting leaves at index {index}");
                         }
                     }
                 }
             }
+            progress.next = batch_end.checked_add(1);
             if batch_end == end {
                 break;
             }
-            start = batch_end
-                .checked_add(1)
-                .expect("batch end is below the target");
+            start = progress.next.expect("batch end is below the target");
         }
-        if u64::try_from(leaves.len())? != expected_count {
-            bail!("RPC fallback did not return every insertion in the unverified batch");
-        }
-        Ok(leaves.into_values().collect())
+        // Return the available contiguous prefix. A minority may advertise leaves
+        // that do not exist; only the caller's endpoint vote can authorize repair.
+        let mut next = first_sequence;
+        Ok(progress
+            .leaves
+            .range(first_sequence..=checkpoint.index)
+            .take_while(|(index, _)| {
+                let contiguous = **index == next;
+                next = next.saturating_add(1);
+                contiguous
+            })
+            .map(|(_, leaf)| leaf.clone())
+            .collect())
     }
 
     pub(crate) fn store_verified_insertions(

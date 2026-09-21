@@ -25,7 +25,15 @@ RPC recovery may fetch replacement insertions, but it repairs storage and permit
 signing only through the prefix authenticated by the configured checkpoint vote.
 Recovery ignores endpoint-supplied block metadata, uses the configured indexing
 start and the indexer's finalized boundary, and resamples after a recovery attempt
-exceeds 120 seconds. No historical root query or common block height is required.
+exceeds 120 seconds while retaining completed ranges and recovered leaves. A shorter
+contiguous recovery prefix can be accepted if the endpoint vote authenticates it.
+A threshold-confirmed conflict at the committed index writes the reorg flag and
+halts, rather than repairing already-signed history. No historical root query or
+common block height is required.
+
+Deployed mainnet/testnet configs remain explicitly on `quorum` until their pinned
+validator images are upgraded to a build supporting `majority`. The new binary
+and local development validators default to `majority`.
 
 ## Lightweight indexing
 
@@ -54,8 +62,9 @@ The validator trusts the websocket for ordered insertion history and uses replay
 and live events exclusively for indexing. No RPC indexer or log recovery is built.
 Startup restores a structurally validated snapshot authenticated by the validator's
 own signed checkpoint before starting the websocket, then replays the remaining
-local/websocket insertions. This also skips historical replay on a fresh local DB. Without
-a valid snapshot, reconstruction starts at insertion zero, including when switching
+local/websocket insertions. A fresh local DB skips historical replay only when a
+valid authenticated snapshot is restored. Without one, reconstruction starts at
+insertion zero, including when switching
 back to normal mode with a previously skipped prefix. Replay and backfill use the
 same authenticated startup snapshot in both modes. Historical checkpoint uploads
 from every consensus-verified batch run in one background worker, coalescing newer targets
@@ -132,9 +141,11 @@ run once caught up.
 Pending insertions are retried at the configured interval. Websocket notifications
 cannot bypass this RPC interval, including on errors. Each endpoint receives one
 checkpoint-method read per attempt, shared by a batch of insertions, with a 20-second
-timeout per endpoint. The batch waits for all reads to finish or time out, then
-checks whether enough responses succeeded. A stalled minority can therefore delay
-a batch by up to 20 seconds but cannot prevent an otherwise sufficient majority.
+timeout per endpoint, including deferred WebSocket connection setup. Responses
+are verified progressively: signing advances as soon as enough roots match local
+history, without waiting for a stalled minority. Unavailable WebSocket endpoints
+retain their voting slots and retry initialization on subsequent reads. Without
+a matching threshold, reads remain bounded by the deadline.
 Wire call counts depend on the protocol adapter. Announcements and metrics retain
 their own RPC calls.
 
