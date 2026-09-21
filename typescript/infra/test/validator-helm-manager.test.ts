@@ -13,7 +13,7 @@ import { CheckpointSyncerType } from '../src/config/agent/validator.js';
 import { ValidatorHelmManager } from '../src/agents/index.js';
 
 describe('ValidatorHelmManager', () => {
-  it('defers deployed majority until compatible images are pinned', () => {
+  it('uses majority in every configured validator context', () => {
     for (const config of [
       ...Object.values(agents),
       ...Object.values(testnetAgents),
@@ -21,7 +21,7 @@ describe('ValidatorHelmManager', () => {
       expect(
         config.validators?.rpcConsensusType,
         `${config.runEnv}/${config.context}`,
-      ).to.equal('quorum');
+      ).to.equal('majority');
     }
     for (const config of Object.values(localAgents)) {
       expect(config.validators?.rpcConsensusType).to.equal('majority');

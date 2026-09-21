@@ -830,8 +830,7 @@ const hyperlane: RootAgentConfig = {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.validator,
     },
-    // Switch to Majority together with validator images containing its parser.
-    rpcConsensusType: RpcConsensusType.Quorum,
+    rpcConsensusType: RpcConsensusType.Majority,
     websocketUrl: scraperWebsocketUrl,
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -905,8 +904,7 @@ const releaseCandidate: RootAgentConfig = {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.validatorRC,
     },
-    // Switch to Majority together with validator images containing its parser.
-    rpcConsensusType: RpcConsensusType.Quorum,
+    rpcConsensusType: RpcConsensusType.Majority,
     websocketUrl: scraperWebsocketUrl,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,
@@ -1038,8 +1036,7 @@ const fastPath: RootAgentConfig = {
     resources: fastPathRelayerResources,
   },
   validators: {
-    // Switch to Majority together with validator images containing its parser.
-    rpcConsensusType: RpcConsensusType.Quorum,
+    rpcConsensusType: RpcConsensusType.Majority,
     // Use RPC indexing until the scraper proxy supports fastpath streaming.
     docker: {
       repo: DockerImageRepos.AGENT,

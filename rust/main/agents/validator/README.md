@@ -31,9 +31,9 @@ A threshold-confirmed conflict at the committed index writes the reorg flag and
 halts, rather than repairing already-signed history. No historical root query or
 common block height is required.
 
-Deployed mainnet/testnet configs remain explicitly on `quorum` until their pinned
-validator images are upgraded to a build supporting `majority`. The new binary
-and local development validators default to `majority`.
+Mainnet/testnet configs explicitly select `majority` and pin validator images
+containing its parser. The binary and local development validators also default
+to `majority`.
 
 ## Lightweight indexing
 
