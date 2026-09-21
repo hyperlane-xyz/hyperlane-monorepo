@@ -11,7 +11,7 @@ use hyperlane_base::agent_main;
 
 use crate::validator::Validator;
 
-mod lightweight;
+mod checkpoint_consensus;
 mod merkle_tree_hook_sync;
 mod reorg_reporter;
 mod rpc;

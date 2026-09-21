@@ -26,6 +26,7 @@ export enum RpcConsensusType {
   Single = 'single',
   Fallback = 'fallback',
   Quorum = 'quorum',
+  Majority = 'majority',
 }
 
 export enum AgentLogLevel {
@@ -292,7 +293,9 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
       ),
     rpcConsensusType: z
       .enum(RpcConsensusType)
-      .describe('The consensus type to use when multiple RPCs are configured.')
+      .describe(
+        'RPC consensus policy. Validators default to majority for ceil(2N/3), with optional quorum for ceil(N/2) matching checkpoint histories across protocols. Majority is validator-only. Lightweight validators always require ceil(2N/3).',
+      )
       .optional(),
     fallbackHedgeDelayMillis: ZNzUint.optional().describe(
       'For fallback RPC consensus, start one speculative immutable read on the next provider after this delay. Unset disables hedging.',

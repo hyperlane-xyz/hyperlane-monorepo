@@ -23,6 +23,8 @@ use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::checkpoint_consensus::CheckpointConsensus;
+
 const DEFAULT_MAX_SIGN_CONCURRENCY: usize = 50;
 // Bounds per-batch allocation and in-flight signing work while leaving ample
 // headroom above the operational default. Keep in sync with the SDK schema.
@@ -65,6 +67,8 @@ pub struct ValidatorSettings {
     /// Websocket indexing; two thirds of state-read endpoints must authenticate the signed history.
     /// Disables all RPC log indexing and batch recovery. `leightweigt` is an alias.
     pub lightweight: bool,
+    /// Root verification policy; single/fallback retain the classic signing path.
+    pub(crate) checkpoint_consensus: Option<CheckpointConsensus>,
     /// A list of RPCs that the validator uses
     pub rpcs: Vec<RpcConfig>,
     /// If the validator oped into public RPCs
@@ -120,7 +124,50 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
 
         let origin_chain_name_set = origin_chain_name.map(|s| HashSet::from([s]));
 
-        let base: Option<Settings> = p
+        let consensus_name = origin_chain_name
+            .and_then(|name| {
+                p.chain(&mut err)
+                    .get_key("chains")
+                    .get_key(name)
+                    .get_opt_key("rpcConsensusType")
+                    .parse_string()
+                    .end()
+            })
+            .unwrap_or("majority");
+        let configured_consensus = match consensus_name {
+            "quorum" => Some(CheckpointConsensus::Quorum),
+            "majority" => Some(CheckpointConsensus::Majority),
+            "single" | "fallback" => None,
+            _ => {
+                err.push(
+                    cwp.clone(),
+                    eyre!("Unknown rpcConsensusType: {consensus_name}"),
+                );
+                None
+            }
+        };
+        let checkpoint_consensus = if lightweight {
+            Some(CheckpointConsensus::Majority)
+        } else {
+            configured_consensus
+        };
+        // Quorum/majority vote on checkpoint history in the validator, not on raw
+        // JSON responses. Indexing and auxiliary reads use ordinary fallback.
+        // Normalize only the base parser's copy, preserving the configured endpoint metadata.
+        let mut base_raw = raw.0.clone();
+        if configured_consensus.is_some() {
+            if let Some(name) = origin_chain_name {
+                if let Some(chain) = base_raw
+                    .get_mut("chains")
+                    .and_then(|chains| chains.get_mut(name.to_ascii_lowercase()))
+                    .and_then(Value::as_object_mut)
+                {
+                    chain.insert("rpcconsensustype".into(), "fallback".into());
+                }
+            }
+        }
+        let base_parser = ValueParser::new(cwp.clone(), &base_raw);
+        let base: Option<Settings> = base_parser
             .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
                 origin_chain_name_set.as_ref(),
                 "Expected valid base agent configuration",
@@ -293,6 +340,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             interval,
             websocket_url,
             lightweight,
+            checkpoint_consensus,
             rpcs,
             allow_public_rpcs,
             skip_announce,
@@ -647,6 +695,93 @@ mod test {
     }
 
     #[test]
+    fn checkpoint_consensus_is_protocol_independent_and_lightweight_stays_majority() {
+        for protocol in [
+            "ethereum",
+            "sealevel",
+            "cosmos",
+            "cosmosnative",
+            "starknet",
+            "radix",
+            "tron",
+            #[cfg(feature = "aleo")]
+            "aleo",
+        ] {
+            for (mode, expected) in [
+                ("quorum", Some(CheckpointConsensus::Quorum)),
+                ("majority", Some(CheckpointConsensus::Majority)),
+                ("single", None),
+                ("fallback", None),
+            ] {
+                for lightweight in [false, true] {
+                    let mut raw = lightweight_settings_fixture();
+                    raw["lightweight"] = lightweight.into();
+                    let chain = &mut raw["chains"]["test"];
+                    chain["protocol"] = protocol.into();
+                    chain["rpcconsensustype"] = mode.into();
+                    chain["chainid"] = if protocol.starts_with("cosmos") {
+                        "test-1"
+                    } else {
+                        "1337"
+                    }
+                    .into();
+                    chain["grpcurls"] = serde_json::json!([{"http":"https://grpc-a.example"},{"http":"https://grpc-b.example"}]);
+                    chain["walleturls"] = serde_json::json!([{"http":"https://wallet.example"}]);
+                    chain["walletsolidityurls"] = serde_json::json!([{"http":"https://solid-a.example"},{"http":"https://solid-b.example"}]);
+                    chain["gatewayurls"] = serde_json::json!([{"http":"https://gateway.example"}]);
+                    chain["bech32prefix"] = "test".into();
+                    chain["gasprice"] = serde_json::json!({"denom":"utest","amount":"0.1"});
+                    chain["contractaddressbytes"] = 32.into();
+                    chain["networkname"] = "mainnet".into();
+                    chain["nativetoken"] = serde_json::json!({"denom":"0x0000000000000000000000000000000000000005","decimals":18,"symbol":"TEST"});
+                    chain["mailboxprogram"] = "mailbox.aleo".into();
+                    chain["hookmanagerprogram"] = "hooks.aleo".into();
+                    chain["ismmanagerprogram"] = "isms.aleo".into();
+                    chain["validatorannounceprogram"] = "announce.aleo".into();
+                    let settings = ValidatorSettings::from_config_filtered(
+                        RawValidatorSettings(raw),
+                        &ConfigPath::default(),
+                        (),
+                        "validator",
+                    )
+                    .unwrap_or_else(|err| panic!("{protocol}/{mode}/{lightweight}: {err}"));
+                    assert_eq!(
+                        settings.checkpoint_consensus,
+                        if lightweight {
+                            Some(CheckpointConsensus::Majority)
+                        } else {
+                            expected
+                        }
+                    );
+                    if expected.is_some() {
+                        if let hyperlane_base::settings::ChainConnectionConf::Ethereum(conn) =
+                            &settings.chains[&settings.origin_chain].connection
+                        {
+                            assert!(matches!(
+                                conn.rpc_connection,
+                                hyperlane_ethereum::RpcConnectionConf::HttpFallback { .. }
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        let mut raw = lightweight_settings_fixture();
+        raw["lightweight"] = false.into();
+        let settings = ValidatorSettings::from_config_filtered(
+            RawValidatorSettings(raw),
+            &ConfigPath::default(),
+            (),
+            "validator",
+        )
+        .unwrap();
+        assert_eq!(
+            settings.checkpoint_consensus,
+            Some(CheckpointConsensus::Majority)
+        );
+    }
+
+    #[test]
     fn removed_quorum_settings_require_migration_in_both_modes() {
         for lightweight in [false, true] {
             for (key, value) in [
@@ -731,7 +866,7 @@ mod test {
 
     #[test]
     fn lightweight_keeps_all_rpc_urls_even_with_single_consensus() {
-        for consensus in ["single", "fallback", "quorum"] {
+        for consensus in ["single", "fallback", "quorum", "majority"] {
             let mut raw = lightweight_settings_fixture();
             raw["chains"]["test"]
                 .as_object_mut()

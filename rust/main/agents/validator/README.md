@@ -1,4 +1,33 @@
-# Lightweight validators
+# Validator checkpoint consensus
+
+For validators, `chains.<origin>.rpcConsensusType` selects the signing policy:
+
+| Mode | Required matching state-read endpoints | Verification |
+| --- | --- | --- |
+| `single` / `fallback` | Existing provider behavior | Classic checkpoint verification |
+| `quorum` | `ceil(N/2)` | Match each endpoint's root against local history at its own leaf index |
+| `majority` (default) | `ceil(2N/3)` | Same history verification, higher threshold |
+
+`majority` is a validator setting, not a raw-response consensus option for relayers
+or scrapers. Normal `quorum` and `majority` use the same protocol-independent
+checkpoint verifier as lightweight mode. Lightmode always uses `majority`, even if
+another `rpcConsensusType` is configured. Quorum retains its previous threshold:
+with four endpoints a 2–2 split can authorize the locally matching history; majority
+requires three matching endpoints. With two endpoints, quorum needs one and
+majority needs both. Exact duplicate URLs are counted once.
+
+For normal quorum/majority, indexing and auxiliary RPC calls use fallback transport;
+only the explicit history vote authorizes signatures. Startup reconstructs the tree
+from indexed leaves or a snapshot authenticated by this validator's signed
+checkpoint, never an unverified RPC frontier. RPC indexing, WebSocket freshness
+checks, and idle checkpoint polling remain enabled. If a local batch disagrees,
+RPC recovery may fetch replacement insertions, but it repairs storage and permits
+signing only through the prefix authenticated by the configured checkpoint vote.
+Recovery ignores endpoint-supplied block metadata, uses the configured indexing
+start and the indexer's finalized boundary, and resamples after a recovery attempt
+exceeds 120 seconds. No historical root query or common block height is required.
+
+## Lightweight indexing
 
 Enable `--lightweight` (alias: `--leightweigt`) with `--websocketUrl wss://...`.
 Explicit boolean values and configuration-file fields are also supported.
@@ -29,7 +58,7 @@ local/websocket insertions. This also skips historical replay on a fresh local D
 a valid snapshot, reconstruction starts at insertion zero, including when switching
 back to normal mode with a previously skipped prefix. Replay and backfill use the
 same authenticated startup snapshot in both modes. Historical checkpoint uploads
-from every lightweight batch run in one background worker, coalescing newer targets
+from every consensus-verified batch run in one background worker, coalescing newer targets
 while uploads retry; snapshots advance only after all covered checkpoints are
 published. Startup does not seed the tree from an RPC frontier or
 call `tree()` / `tree_at_block()`. Some protocols derive checkpoint reads from account
@@ -54,10 +83,10 @@ matching votes, signing pauses and retries; a 2–2 split with four endpoints ca
 authorize signing. Missing websocket insertions are awaited when they could supply
 enough matching votes.
 
-The first verified batch logs `Initial lightweight backfill verified: local roots
-match a two-thirds RPC majority`, including the verified index, root, configured
+The first verified batch logs `Initial consensus backfill verified: local roots
+match the configured RPC threshold`, including the verified index, root, configured
 endpoint count, and elapsed time. Historical signing and uploads complete separately
-and log `Initial lightweight historical checkpoint publication complete` with the
+and log `Initial historical checkpoint publication complete` with the
 index through which all checkpoints have been published. Both messages appear
 once per run after their respective first batch completes.
 
@@ -98,7 +127,8 @@ frontiers only at sampled indices, bounded by endpoint count. If a later sample
 requests an uncached intermediate index, replay resumes from the committed tree
 using stored insertions. Roots are calculated only at sampled indices.
 
-No idle count/root polling or websocket RPC freshness probes run once caught up.
+In lightweight mode, no idle count/root polling or websocket RPC freshness probes
+run once caught up.
 Pending insertions are retried at the configured interval. Websocket notifications
 cannot bypass this RPC interval, including on errors. Each endpoint receives one
 checkpoint-method read per attempt, shared by a batch of insertions, with a 20-second
@@ -110,14 +140,9 @@ their own RPC calls.
 
 Websocket failures trigger reconnection without indexing fallback. Insufficient
 responses or matching roots block signing until a later successful verification.
-Normal mode retains its existing configured `rpcConsensusType`, root-mismatch
-handling, RPC indexing fallback, and batch recovery. Normal checkpoint polling uses
-one latest-checkpoint method read, without a preceding count read. During recovery
-only, checkpoints without a block height use the indexer's finalized height as the
-log scan boundary. Scans begin at the last verified block when available, otherwise
-at the configured indexing start (including relative offsets). Failed ranges are
-retried without discarding completed ranges; recovered leaves must still match the
-captured root.
+Normal `single`/`fallback` retain classic checkpoint verification and recovery.
+Normal `quorum`/`majority` use the shared verifier and recovery policy described
+above, while preserving RPC indexing fallback and idle polling.
 
 The separate additional RPC pool remains removed. Both modes reject obsolete
 `additionalQuorumRpcUrls` / `customAdditionalQuorumRpcUrls` settings, including empty

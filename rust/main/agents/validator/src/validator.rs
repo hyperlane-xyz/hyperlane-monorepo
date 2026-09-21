@@ -38,7 +38,7 @@ use hyperlane_metric::{
     rpc_operation::{with_rpc_operation, RpcOperation},
 };
 
-use crate::lightweight::LightweightCheckpointReader;
+use crate::checkpoint_consensus::CheckpointReader;
 use crate::merkle_tree_hook_sync::{
     merkle_tree_cursor_state, CheckpointingMerkleTreeStore, MerkleTreeHookWebSocketSync,
     MerkleTreeRpcRecovery,
@@ -348,7 +348,7 @@ pub struct Validator {
     max_sign_concurrency: usize,
     reorg_reporter: Option<Arc<dyn ReorgReporter>>,
     skip_announce: bool,
-    lightweight_reader: Option<Arc<LightweightCheckpointReader>>,
+    checkpoint_reader: Option<Arc<CheckpointReader>>,
 }
 
 /// Metadata for `validator`
@@ -470,10 +470,10 @@ impl BaseAgent for Validator {
         });
 
         let origin_chain_conf = core.settings.chain_setup(&settings.origin_chain)?.clone();
-        let (raw_merkle_tree_hook, lightweight_reader): (
+        let (raw_merkle_tree_hook, checkpoint_reader): (
             Arc<dyn MerkleTreeHook>,
-            Option<Arc<LightweightCheckpointReader>>,
-        ) = if settings.lightweight {
+            Option<Arc<CheckpointReader>>,
+        ) = if let Some(consensus) = settings.checkpoint_consensus {
             let rpc_urls = settings
                 .rpcs
                 .iter()
@@ -493,10 +493,19 @@ impl BaseAgent for Validator {
             let hooks: Vec<Arc<dyn MerkleTreeHook>> =
                 hooks.into_iter().map(|(_, hook)| hook).collect();
             let first = hooks.first().cloned().ok_or_else(|| {
-                eyre!("Lightweight mode requires at least one state-read endpoint")
+                eyre!("Checkpoint consensus requires at least one state-read endpoint")
             })?;
-            let reader = Arc::new(LightweightCheckpointReader::new(hooks)?);
-            (first, Some(reader))
+            let reader = Arc::new(CheckpointReader::new(consensus, hooks)?);
+            let hook = if settings.lightweight {
+                first
+            } else {
+                Arc::from(
+                    settings
+                        .build_merkle_tree_hook(&settings.origin_chain, &metrics)
+                        .await?,
+                )
+            };
+            (hook, Some(reader))
         } else {
             (
                 settings
@@ -607,7 +616,7 @@ impl BaseAgent for Validator {
             max_sign_concurrency: settings.max_sign_concurrency,
             reorg_reporter,
             skip_announce: settings.skip_announce,
-            lightweight_reader,
+            checkpoint_reader,
         })
     }
 
@@ -682,10 +691,10 @@ impl BaseAgent for Validator {
 
         let submitter = self.checkpoint_submitter();
         // Authenticate the snapshot before choosing the websocket replay cursor.
-        let tip_tree = if self.lightweight_reader.is_some() {
+        let tip_tree = if self.checkpoint_reader.is_some() {
             self.readiness.mark_waiting_for_first_message();
             IncrementalMerkleAtBlock {
-                tree: submitter.restore_lightweight_tree().await,
+                tree: submitter.restore_consensus_tree().await,
                 block_height: None,
             }
         } else {
@@ -698,7 +707,7 @@ impl BaseAgent for Validator {
             .await
         };
 
-        let backfill_tree = if self.lightweight_reader.is_some() {
+        let backfill_tree = if self.checkpoint_reader.is_some() {
             tip_tree.tree.clone()
         } else {
             submitter
@@ -868,17 +877,30 @@ impl Validator {
         tip_tree: IncrementalMerkleAtBlock,
         backfill_tree: IncrementalMerkle,
     ) -> Vec<JoinHandle<()>> {
-        if let Some(reader) = &self.lightweight_reader {
+        if let Some(reader) = &self.checkpoint_reader {
+            let sync = match &self.merkle_tree_hook_sync {
+                MerkleTreeHookSync::Rpc(sync) => Some(sync.clone()),
+                MerkleTreeHookSync::WebSocket { fallback, .. } => fallback.clone(),
+            };
+            if let Some(sync) = sync {
+                submitter = submitter.with_rpc_recovery(MerkleTreeRpcRecovery {
+                    sync,
+                    db: self.db.clone(),
+                    index_settings: self.origin_chain_conf.index_settings(),
+                    // Endpoint block metadata is not authenticated by a root vote.
+                    from_block: None,
+                });
+            }
             let reader = reader.clone();
             return vec![tokio::spawn(
                 async move {
                     with_rpc_operation(
                         RpcOperation::ValidatorCheckpoint,
-                        submitter.lightweight_checkpoint_submitter(reader, tip_tree.tree),
+                        submitter.consensus_checkpoint_submitter(reader, tip_tree.tree),
                     )
                     .await
                 }
-                .instrument(info_span!("LightweightCheckpointSubmitter")),
+                .instrument(info_span!("ConsensusCheckpointSubmitter")),
             )];
         }
 

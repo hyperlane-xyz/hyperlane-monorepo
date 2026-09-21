@@ -184,8 +184,8 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
   }
 
   rpcConsensusType(chain: ChainName): RpcConsensusType {
-    // Non-Ethereum chains only support Single
-    if (!isEthereumProtocolChain(chain)) {
+    // Validators implement quorum/majority over checkpoint histories on every VM.
+    if (this.role !== Role.Validator && !isEthereumProtocolChain(chain)) {
       return RpcConsensusType.Single;
     }
 

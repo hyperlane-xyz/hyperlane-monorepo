@@ -4,6 +4,8 @@ import { RpcConsensusType } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../config/contexts.js';
 import { agents } from '../config/environments/mainnet3/agent.js';
+import { agents as testnetAgents } from '../config/environments/testnet4/agent.js';
+import { agents as localAgents } from '../config/environments/test/agent.js';
 import { Role } from '../src/roles.js';
 import type { RootAgentConfig } from '../src/config/agent/agent.js';
 import { CheckpointSyncerType } from '../src/config/agent/validator.js';
@@ -11,12 +13,49 @@ import { CheckpointSyncerType } from '../src/config/agent/validator.js';
 import { ValidatorHelmManager } from '../src/agents/index.js';
 
 describe('ValidatorHelmManager', () => {
-  it('keeps FastPath on normal quorum verification', () => {
-    expect(agents[Contexts.FastPath].validators?.rpcConsensusType).to.equal(
-      RpcConsensusType.Quorum,
-    );
+  it('uses majority for every configured validator context', () => {
+    for (const config of [
+      ...Object.values(agents),
+      ...Object.values(testnetAgents),
+      ...Object.values(localAgents),
+    ]) {
+      expect(
+        config.validators?.rpcConsensusType,
+        `${config.runEnv}/${config.context}`,
+      ).to.equal('majority');
+    }
     expect(agents[Contexts.FastPath].validators?.websocketUrl).to.be.undefined;
   });
+
+  it('preserves validator quorum and majority on AltVMs', () => {
+    for (const rpcConsensusType of [
+      RpcConsensusType.Quorum,
+      RpcConsensusType.Majority,
+    ]) {
+      const base = agents[Contexts.Hyperlane];
+      if (!base.validators) throw new Error('Expected validator configuration');
+      const manager = new ValidatorHelmManager(
+        {
+          ...base,
+          validators: { ...base.validators, rpcConsensusType },
+        },
+        'solanamainnet',
+      );
+      for (const chain of [
+        'solanamainnet',
+        'celestia',
+        'tron',
+        'starknet',
+        'radix',
+        'aleo',
+      ]) {
+        expect(manager.rpcConsensusType(chain), chain).to.equal(
+          rpcConsensusType,
+        );
+      }
+    }
+  });
+
   it('renders validator reorg period into the origin chain config', async () => {
     const config: RootAgentConfig = {
       runEnv: 'testnet4',

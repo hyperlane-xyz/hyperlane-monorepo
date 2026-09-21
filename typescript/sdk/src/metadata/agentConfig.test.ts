@@ -394,6 +394,27 @@ describe('ValidatorAgentConfigSchema lightweight mode', () => {
     },
   };
 
+  it('accepts normal quorum and majority for every supported protocol', () => {
+    for (const protocol of Object.values(ProtocolType)) {
+      for (const rpcConsensusType of [
+        RpcConsensusType.Quorum,
+        RpcConsensusType.Majority,
+      ]) {
+        const result = ValidatorAgentConfigSchema.safeParse({
+          ...config,
+          lightweight: false,
+          chains: {
+            test: { ...config.chains.test, protocol, rpcConsensusType },
+          },
+        });
+        expect(
+          result.success,
+          `${protocol}/${rpcConsensusType}: ${result.error?.message}`,
+        ).to.be.true;
+      }
+    }
+  });
+
   it('requires a websocket URL with either spelling', () => {
     for (const flag of ['lightweight', 'leightweigt']) {
       expect(

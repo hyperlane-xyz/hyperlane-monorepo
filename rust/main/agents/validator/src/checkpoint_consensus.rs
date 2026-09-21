@@ -1,4 +1,4 @@
-//! Independent finality-aware checkpoint reads for trusted websocket indexing.
+//! Independent finality-aware checkpoint reads for every validator indexing mode.
 
 use std::{sync::Arc, time::Duration};
 
@@ -10,31 +10,48 @@ use tokio::time::timeout;
 
 const RPC_TIMEOUT: Duration = Duration::from_secs(20);
 
-/// Required matching endpoints, fixed to ceil(2N/3) of the configured pool.
-pub(crate) fn required_agreement(endpoint_count: usize) -> usize {
-    assert!(
-        endpoint_count > 0,
-        "checkpoint endpoint pool must not be empty"
-    );
-    endpoint_count
-        .checked_sub(endpoint_count / 3)
-        .expect("a third of the endpoint count cannot exceed the total")
+/// Validator checkpoint agreement, independent of the protocol's RPC transport.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CheckpointConsensus {
+    /// Existing ethers quorum threshold: ceil(N/2), including ties for even pools.
+    Quorum,
+    /// At least two thirds of the configured endpoint pool.
+    Majority,
 }
 
-/// Every configured state-read endpoint participates in a fixed two-thirds vote.
+impl CheckpointConsensus {
+    pub(crate) fn required(self, endpoint_count: usize) -> usize {
+        assert!(
+            endpoint_count > 0,
+            "checkpoint endpoint pool must not be empty"
+        );
+        match self {
+            Self::Quorum => endpoint_count.div_ceil(2),
+            Self::Majority => endpoint_count
+                .checked_sub(endpoint_count / 3)
+                .expect("a third cannot exceed the endpoint count"),
+        }
+    }
+}
+
+/// Every configured state-read endpoint keeps a slot in the checkpoint vote.
 #[derive(Debug)]
-pub(crate) struct LightweightCheckpointReader {
+pub(crate) struct CheckpointReader {
     hooks: Vec<Arc<dyn MerkleTreeHook>>,
+    pub(crate) consensus: CheckpointConsensus,
 }
 
-impl LightweightCheckpointReader {
-    pub(crate) fn new(hooks: Vec<Arc<dyn MerkleTreeHook>>) -> ChainResult<Self> {
+impl CheckpointReader {
+    pub(crate) fn new(
+        consensus: CheckpointConsensus,
+        hooks: Vec<Arc<dyn MerkleTreeHook>>,
+    ) -> ChainResult<Self> {
         if hooks.is_empty() {
             return Err(ChainCommunicationError::from_other_str(
-                "Lightweight mode requires at least one state-read endpoint",
+                "Checkpoint consensus requires at least one state-read endpoint",
             ));
         }
-        Ok(Self { hooks })
+        Ok(Self { hooks, consensus })
     }
 
     /// Preserve one slot per configured endpoint, including failures, so retries
@@ -51,25 +68,25 @@ impl LightweightCheckpointReader {
                         tracing::debug!(
                             endpoint_index,
                             ?checkpoint,
-                            "Read lightweight endpoint checkpoint"
+                            "Read consensus endpoint checkpoint"
                         );
                         Some(checkpoint)
                     }
                     Ok(Err(_)) => {
-                        tracing::warn!(endpoint_index, "Lightweight checkpoint RPC failed");
+                        tracing::warn!(endpoint_index, "Consensus checkpoint RPC failed");
                         None
                     }
                     Err(_) => {
-                        tracing::warn!(endpoint_index, "Lightweight checkpoint RPC timed out");
+                        tracing::warn!(endpoint_index, "Consensus checkpoint RPC timed out");
                         None
                     }
                 }
             },
         ))
         .await;
-        if checkpoints.iter().flatten().count() < required_agreement(self.hooks.len()) {
+        if checkpoints.iter().flatten().count() < self.consensus.required(self.hooks.len()) {
             return Err(ChainCommunicationError::from_other_str(
-                "Insufficient lightweight checkpoint responses for two-thirds agreement",
+                "Insufficient checkpoint responses for configured agreement",
             ));
         }
         Ok(checkpoints)
@@ -98,7 +115,14 @@ mod tests {
     #[test]
     fn threshold_rounds_up_two_thirds() {
         for (endpoints, required) in [(1, 1), (2, 2), (3, 2), (4, 3), (5, 4), (6, 4), (7, 5)] {
-            assert_eq!(required_agreement(endpoints), required);
+            assert_eq!(CheckpointConsensus::Majority.required(endpoints), required);
+        }
+    }
+
+    #[test]
+    fn quorum_preserves_existing_half_threshold() {
+        for (endpoints, required) in [(1, 1), (2, 1), (3, 2), (4, 2), (5, 3), (6, 3), (7, 4)] {
+            assert_eq!(CheckpointConsensus::Quorum.required(endpoints), required);
         }
     }
 
@@ -120,7 +144,8 @@ mod tests {
                     Arc::new(hook) as Arc<dyn MerkleTreeHook>
                 })
                 .collect();
-            let reader = LightweightCheckpointReader::new(hooks).expect("endpoints");
+            let reader =
+                CheckpointReader::new(CheckpointConsensus::Majority, hooks).expect("endpoints");
             let result = reader.checkpoints(&ReorgPeriod::None).await;
             if failed == 1 {
                 let checkpoints = result.expect("three of four responses");
@@ -143,7 +168,8 @@ mod tests {
                 .return_once(move |_| Ok(checkpoint(index)));
             hooks.push(Arc::new(hook));
         }
-        let reader = LightweightCheckpointReader::new(hooks).expect("endpoints");
+        let reader =
+            CheckpointReader::new(CheckpointConsensus::Majority, hooks).expect("endpoints");
         let started = tokio::time::Instant::now();
         let checkpoints = reader
             .checkpoints(&ReorgPeriod::None)
@@ -171,7 +197,8 @@ mod tests {
                     Arc::new(hook) as Arc<dyn MerkleTreeHook>
                 })
                 .collect();
-            let reader = LightweightCheckpointReader::new(hooks).expect("endpoints");
+            let reader =
+                CheckpointReader::new(CheckpointConsensus::Majority, hooks).expect("endpoints");
             let checkpoints = reader.checkpoints(&period).await.expect("checkpoints");
             assert_eq!(
                 checkpoints
@@ -203,8 +230,11 @@ mod tests {
             .once()
             .in_sequence(&mut sequence)
             .return_once(|_| Ok(checkpoint(1)));
-        let reader = LightweightCheckpointReader::new(vec![Arc::new(first), Arc::new(other)])
-            .expect("endpoints");
+        let reader = CheckpointReader::new(
+            CheckpointConsensus::Majority,
+            vec![Arc::new(first), Arc::new(other)],
+        )
+        .expect("endpoints");
         assert!(reader.checkpoints(&ReorgPeriod::None).await.is_err());
         assert_eq!(
             reader
@@ -219,7 +249,8 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn stalled_endpoint_times_out() {
         let reader =
-            LightweightCheckpointReader::new(vec![Arc::new(StalledHook)]).expect("endpoint");
+            CheckpointReader::new(CheckpointConsensus::Majority, vec![Arc::new(StalledHook)])
+                .expect("endpoint");
         let started = tokio::time::Instant::now();
         assert!(reader.checkpoints(&ReorgPeriod::None).await.is_err());
         assert_eq!(started.elapsed(), RPC_TIMEOUT);
@@ -261,6 +292,6 @@ mod tests {
 
     #[test]
     fn empty_pool_is_rejected() {
-        assert!(LightweightCheckpointReader::new(vec![]).is_err());
+        assert!(CheckpointReader::new(CheckpointConsensus::Majority, vec![]).is_err());
     }
 }
