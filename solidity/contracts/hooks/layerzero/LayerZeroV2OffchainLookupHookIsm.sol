@@ -326,7 +326,7 @@ contract LayerZeroV2OffchainLookupHookIsm is
 
     /// @notice Returns the Hyperlane domain assigned to a LayerZero endpoint ID.
     /// @dev `enrolled` distinguishes domain ID zero from an unassigned endpoint.
-    function remoteLzEndpoints(
+    function domainIdForRemoteLayerZeroEndpointId(
         uint32 endpointId
     ) public view returns (bool enrolled, uint32 hyperlaneDomainId) {
         ReverseMappingLib.ReverseEntry memory entry = remoteEndpointIds.keyOf(
@@ -336,34 +336,20 @@ contract LayerZeroV2OffchainLookupHookIsm is
         return (entry.assigned, entry.key);
     }
 
-    /// @notice Installs or replaces a route and its LayerZero policy atomically.
+    /// @notice Installs or replaces remote routes and their LayerZero policies atomically.
     /// @dev Omitted config entries select the library defaults. An abandoned
     /// endpoint ID is blocked, but an unchanged path stays selected.
-    function enrollLayerZeroRemoteRouter(
-        RemoteRouterConfig calldata newRemoteConfig
-    ) external onlyOwner {
-        _validateAndEnrollLayerZeroRemoteRouter(newRemoteConfig);
-    }
-
-    /// @notice Batch version of `enrollLayerZeroRemoteRouter`.
-    function enrollLayerZeroRemoteRouters(
+    function enrollRemoteRouters(
         RemoteRouterConfig[] calldata newRemoteConfigs
     ) external onlyOwner {
         for (uint256 i = 0; i < newRemoteConfigs.length; ++i) {
-            _validateAndEnrollLayerZeroRemoteRouter(newRemoteConfigs[i]);
+            _validateRemoteRouterConfig(newRemoteConfigs[i]);
+            _enrollLayerZeroRemoteRouter(newRemoteConfigs[i]);
         }
     }
 
-    /// @dev Validates the replacement before changing state.
-    function _validateAndEnrollLayerZeroRemoteRouter(
-        RemoteRouterConfig calldata newRemoteConfig
-    ) internal {
-        _validateRemoteRouterConfig(newRemoteConfig);
-        _enrollLayerZeroRemoteRouter(newRemoteConfig);
-    }
-
     /// @dev Prevents inherited partial enrollment. LayerZero routes must use
-    /// this contract's enrollment functions to configure the Endpoint too.
+    /// this contract's enrollment function to configure the Endpoint too.
     function _enrollRemoteRouter(
         uint32 domainId,
         bytes32
@@ -841,17 +827,21 @@ contract LayerZeroV2OffchainLookupHookIsm is
 
     // ============ Packet verification ============
 
-    /// @dev Binds the encoded packet to this Hyperlane message, the enrolled
-    /// source hook/ISM, both Endpoint IDs, and the destination hook/ISM.
+    /// @dev Metadata is untrusted. Bind its packet to the enrolled LayerZero
+    /// path and the exact Hyperlane message before using it for verification.
     function _validatePacket(
         bytes calldata metadata,
         bytes calldata hyperlaneMessage,
         bytes32 messageId
     ) internal view returns (PacketContext memory context) {
         bytes calldata lzPacket;
+        // The supplied receive library is only a hint; the Endpoint checks it
+        // later if this packet still needs a verification commitment.
         (context.receiveLibrary, lzPacket) = metadata.decode();
         _validatePacketEncoding(lzPacket);
 
+        // The endpoint ID identifies the origin chain; the sender must be its
+        // enrolled hook/ISM. Both must match the Hyperlane message's origin.
         context.originDomain = Message.origin(hyperlaneMessage);
         uint32 expectedSourceEndpointId = _mustHaveRemoteEndpointId(
             context.originDomain
@@ -870,6 +860,8 @@ contract LayerZeroV2OffchainLookupHookIsm is
             revert WrongPacketSender(context.sender, expectedSender);
         }
 
+        // Reject packets for another LayerZero endpoint or another OApp on
+        // this endpoint, even if their source path and payload match.
         uint32 destinationEndpointId = lzPacket.dstEid();
         if (destinationEndpointId != localEndpointId) {
             revert WrongPacketDestinationEndpointId(
@@ -884,6 +876,8 @@ contract LayerZeroV2OffchainLookupHookIsm is
             revert WrongPacketReceiver(packetReceiver, expectedReceiver);
         }
 
+        // The versioned LayerZero payload commits to both Hyperlane domains
+        // and the ID of the entire Hyperlane message, not just its body.
         context.message = LayerZeroMessage.encode(
             context.originDomain,
             localDomain,
@@ -895,7 +889,8 @@ contract LayerZeroV2OffchainLookupHookIsm is
 
         context.nonce = lzPacket.nonce();
         context.guid = lzPacket.guid();
-        // GUID.generate accepts an EVM address and would truncate non-EVM peers.
+        // The GUID is part of the payload hash. Recompute it from the checked
+        // path and nonce; GUID.generate would truncate non-EVM peer bytes.
         bytes32 expectedGuid = keccak256(
             abi.encodePacked(
                 context.nonce,
@@ -909,6 +904,7 @@ contract LayerZeroV2OffchainLookupHookIsm is
             revert WrongPacketGuid(context.guid, expectedGuid);
         }
 
+        // ULN commitment uses the packet header and hash of GUID + message.
         context.payloadHash = lzPacket.payloadHash();
         context.header = lzPacket.header();
     }

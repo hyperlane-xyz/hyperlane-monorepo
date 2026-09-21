@@ -116,6 +116,18 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
             new LayerZeroV2OffchainLookupHookIsm(mailbox, endpoint, lookupUrls);
     }
 
+    function _enrollSingleRoute(
+        LayerZeroV2OffchainLookupHookIsm router,
+        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig memory config
+    ) internal {
+        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig[]
+            memory configs = new LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig[](
+                1
+            );
+        configs[0] = config;
+        router.enrollRemoteRouters(configs);
+    }
+
     function _configure(
         LayerZeroV2OffchainLookupHookIsm router,
         MockLayerZeroReceiveUln uln,
@@ -125,7 +137,8 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
     ) internal {
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
-        router.enrollLayerZeroRemoteRouter(
+        _enrollSingleRoute(
+            router,
             LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
                 domainId: domain,
                 domainIsm: remote.addressToBytes32(),
@@ -279,9 +292,8 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         assertEq(originRouter.routers(DESTINATION), bytes32(0));
         uint32 endpointId = originRouter.remoteLzEndpointIds(DESTINATION);
         assertEq(endpointId, 0);
-        (bool enrolled, uint32 domainId) = originRouter.remoteLzEndpoints(
-            DESTINATION_ENDPOINT_ID
-        );
+        (bool enrolled, uint32 domainId) = originRouter
+            .domainIdForRemoteLayerZeroEndpointId(DESTINATION_ENDPOINT_ID);
         assertFalse(enrolled);
         assertEq(domainId, 0);
 
@@ -312,7 +324,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
             config: hex"abcd"
         });
         originRouter.unenrollRemoteRouter(DESTINATION);
-        originRouter.enrollLayerZeroRemoteRouter(config);
+        _enrollSingleRoute(originRouter, config);
 
         originRouter.unenrollRemoteRouter(DESTINATION);
         address blockedLibrary = originEndpoint.blockedLibrary();
@@ -364,7 +376,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
 
         config.sendConfig = new LayerZeroSetConfigParam[](0);
         config.receiveConfig = new LayerZeroSetConfigParam[](0);
-        originRouter.enrollLayerZeroRemoteRouter(config);
+        _enrollSingleRoute(originRouter, config);
         assertEq(
             originEndpoint.getSendLibrary(
                 address(originRouter),
@@ -406,7 +418,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig
             memory config = _defaultRemoteRouterConfig();
         config.domainIsm = address(0x1234).addressToBytes32();
-        originRouter.enrollLayerZeroRemoteRouter(config);
+        _enrollSingleRoute(originRouter, config);
         assertEq(originRouter.routers(DESTINATION), config.domainIsm);
         assertEq(
             originRouter.remoteLzEndpointIds(DESTINATION),
@@ -429,11 +441,11 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
             configType: 2,
             config: hex"abcd"
         });
-        originRouter.enrollLayerZeroRemoteRouter(config);
+        _enrollSingleRoute(originRouter, config);
 
         config.sendConfig = new LayerZeroSetConfigParam[](0);
         config.receiveConfig = new LayerZeroSetConfigParam[](0);
-        originRouter.enrollLayerZeroRemoteRouter(config);
+        _enrollSingleRoute(originRouter, config);
 
         assertEq(
             originEndpoint.getConfig(
@@ -473,11 +485,11 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
             configType: 1,
             config: hex"1234"
         });
-        originRouter.enrollLayerZeroRemoteRouter(config);
+        _enrollSingleRoute(originRouter, config);
 
         config.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
         config.sendConfig = new LayerZeroSetConfigParam[](0);
-        originRouter.enrollLayerZeroRemoteRouter(config);
+        _enrollSingleRoute(originRouter, config);
 
         assertEq(
             originEndpoint.getSendLibrary(
@@ -491,9 +503,8 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
             DESTINATION_ENDPOINT_ID
         );
         assertEq(oldReceiveLibrary, originEndpoint.blockedLibrary());
-        (bool oldEndpointEnrolled, ) = originRouter.remoteLzEndpoints(
-            DESTINATION_ENDPOINT_ID
-        );
+        (bool oldEndpointEnrolled, ) = originRouter
+            .domainIdForRemoteLayerZeroEndpointId(DESTINATION_ENDPOINT_ID);
         assertFalse(oldEndpointEnrolled);
         assertEq(
             originRouter.remoteLzEndpointIds(DESTINATION),
@@ -530,7 +541,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
             )
         );
         vm.expectRevert(MockLayerZeroEndpointV2.Unauthorized.selector);
-        originRouter.enrollLayerZeroRemoteRouter(config);
+        _enrollSingleRoute(originRouter, config);
 
         assertEq(originRouter.routers(DESTINATION), currentPeer);
         assertEq(
@@ -538,12 +549,13 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
             DESTINATION_ENDPOINT_ID
         );
         (bool oldEndpointEnrolled, uint32 oldDomainId) = originRouter
-            .remoteLzEndpoints(DESTINATION_ENDPOINT_ID);
+            .domainIdForRemoteLayerZeroEndpointId(DESTINATION_ENDPOINT_ID);
         assertTrue(oldEndpointEnrolled);
         assertEq(oldDomainId, DESTINATION);
-        (bool newEndpointEnrolled, ) = originRouter.remoteLzEndpoints(
-            SECOND_DESTINATION_ENDPOINT_ID
-        );
+        (bool newEndpointEnrolled, ) = originRouter
+            .domainIdForRemoteLayerZeroEndpointId(
+                SECOND_DESTINATION_ENDPOINT_ID
+            );
         assertFalse(newEndpointEnrolled);
         assertEq(
             originEndpoint.sendLibraries(
@@ -586,9 +598,10 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
             address(destinationRouter)
         );
 
-        (bool enrolled, uint32 domainId) = originRouter.remoteLzEndpoints(
-            SECOND_DESTINATION_ENDPOINT_ID
-        );
+        (bool enrolled, uint32 domainId) = originRouter
+            .domainIdForRemoteLayerZeroEndpointId(
+                SECOND_DESTINATION_ENDPOINT_ID
+            );
         assertTrue(enrolled);
         assertEq(domainId, 0);
         assertTrue(
@@ -613,12 +626,13 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
                 0
             )
         );
-        originRouter.enrollLayerZeroRemoteRouter(aliasConfig);
+        _enrollSingleRoute(originRouter, aliasConfig);
 
         originRouter.unenrollRemoteRouter(0);
-        (enrolled, domainId) = originRouter.remoteLzEndpoints(
-            SECOND_DESTINATION_ENDPOINT_ID
-        );
+        (enrolled, domainId) = originRouter
+            .domainIdForRemoteLayerZeroEndpointId(
+                SECOND_DESTINATION_ENDPOINT_ID
+            );
         assertFalse(enrolled);
         assertEq(domainId, 0);
         assertFalse(
@@ -631,10 +645,11 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
             )
         );
 
-        originRouter.enrollLayerZeroRemoteRouter(aliasConfig);
-        (enrolled, domainId) = originRouter.remoteLzEndpoints(
-            SECOND_DESTINATION_ENDPOINT_ID
-        );
+        _enrollSingleRoute(originRouter, aliasConfig);
+        (enrolled, domainId) = originRouter
+            .domainIdForRemoteLayerZeroEndpointId(
+                SECOND_DESTINATION_ENDPOINT_ID
+            );
         assertTrue(enrolled);
         assertEq(domainId, SECOND_DESTINATION);
     }
@@ -643,12 +658,12 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig
             memory remoteConfig = _defaultRemoteRouterConfig();
         remoteConfig.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
-        originRouter.enrollLayerZeroRemoteRouter(remoteConfig);
+        _enrollSingleRoute(originRouter, remoteConfig);
 
         remoteConfig.domainId = SECOND_DESTINATION;
         remoteConfig.domainIsm = address(0xBEEF).addressToBytes32();
         remoteConfig.endpointId = DESTINATION_ENDPOINT_ID;
-        originRouter.enrollLayerZeroRemoteRouter(remoteConfig);
+        _enrollSingleRoute(originRouter, remoteConfig);
 
         assertEq(
             originRouter.remoteLzEndpointIds(DESTINATION),
@@ -658,9 +673,8 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
             originRouter.remoteLzEndpointIds(SECOND_DESTINATION),
             DESTINATION_ENDPOINT_ID
         );
-        (bool enrolled, uint32 domainId) = originRouter.remoteLzEndpoints(
-            DESTINATION_ENDPOINT_ID
-        );
+        (bool enrolled, uint32 domainId) = originRouter
+            .domainIdForRemoteLayerZeroEndpointId(DESTINATION_ENDPOINT_ID);
         assertTrue(enrolled);
         assertEq(domainId, SECOND_DESTINATION);
     }
@@ -676,7 +690,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
                 ORIGIN
             )
         );
-        originRouter.enrollLayerZeroRemoteRouter(remoteConfig);
+        _enrollSingleRoute(originRouter, remoteConfig);
 
         remoteConfig = _defaultRemoteRouterConfig();
         remoteConfig.endpointId = ORIGIN_ENDPOINT_ID;
@@ -688,7 +702,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
                 ORIGIN_ENDPOINT_ID
             )
         );
-        originRouter.enrollLayerZeroRemoteRouter(remoteConfig);
+        _enrollSingleRoute(originRouter, remoteConfig);
 
         remoteConfig = _defaultRemoteRouterConfig();
         remoteConfig.domainIsm = bytes32(0);
@@ -698,18 +712,17 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
                 bytes32(0)
             )
         );
-        originRouter.enrollLayerZeroRemoteRouter(remoteConfig);
+        _enrollSingleRoute(originRouter, remoteConfig);
 
         remoteConfig = _defaultRemoteRouterConfig();
         remoteConfig.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
-        originRouter.enrollLayerZeroRemoteRouter(remoteConfig);
+        _enrollSingleRoute(originRouter, remoteConfig);
         assertEq(
             originRouter.remoteLzEndpointIds(DESTINATION),
             SECOND_DESTINATION_ENDPOINT_ID
         );
-        (bool oldEndpointEnrolled, ) = originRouter.remoteLzEndpoints(
-            DESTINATION_ENDPOINT_ID
-        );
+        (bool oldEndpointEnrolled, ) = originRouter
+            .domainIdForRemoteLayerZeroEndpointId(DESTINATION_ENDPOINT_ID);
         assertFalse(oldEndpointEnrolled);
 
         remoteConfig = _defaultRemoteRouterConfig();
@@ -725,7 +738,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
                 DESTINATION
             )
         );
-        originRouter.enrollLayerZeroRemoteRouter(remoteConfig);
+        _enrollSingleRoute(originRouter, remoteConfig);
 
         originRouter.unenrollRemoteRouter(DESTINATION);
         remoteConfig = _defaultRemoteRouterConfig();
@@ -743,7 +756,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
                 1
             )
         );
-        originRouter.enrollLayerZeroRemoteRouter(remoteConfig);
+        _enrollSingleRoute(originRouter, remoteConfig);
     }
 
     function testEnrollsExplicitReceiveLibraryWithoutEndpointDefault() public {
@@ -759,7 +772,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
             ),
             address(0)
         );
-        originRouter.enrollLayerZeroRemoteRouter(remoteConfig);
+        _enrollSingleRoute(originRouter, remoteConfig);
 
         (address receiveLibrary, bool isDefault) = originEndpoint
             .getReceiveLibrary(
@@ -775,7 +788,8 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
         destinationRouter.unenrollRemoteRouter(ORIGIN);
-        destinationRouter.enrollLayerZeroRemoteRouter(
+        _enrollSingleRoute(
+            destinationRouter,
             LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
                 domainId: ORIGIN,
                 domainIsm: nonEvmPeer,
@@ -836,7 +850,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
                     receiveConfig: emptyConfig
                 });
         destinationRouter.unenrollRemoteRouter(ORIGIN);
-        destinationRouter.enrollLayerZeroRemoteRouter(newRemoteConfig);
+        _enrollSingleRoute(destinationRouter, newRemoteConfig);
         _expectPacketRevert(
             message,
             packet,
@@ -844,7 +858,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         );
         newRemoteConfig.domainIsm = nonEvmPeer;
         destinationRouter.unenrollRemoteRouter(ORIGIN);
-        destinationRouter.enrollLayerZeroRemoteRouter(newRemoteConfig);
+        _enrollSingleRoute(destinationRouter, newRemoteConfig);
 
         destinationMailbox.process(
             abi.encode(address(destinationUln), packet),
@@ -878,7 +892,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
             memory newRemoteConfig = _defaultRemoteRouterConfig();
         newRemoteConfig.domainIsm = nonEvmPeer;
         originRouter.unenrollRemoteRouter(DESTINATION);
-        originRouter.enrollLayerZeroRemoteRouter(newRemoteConfig);
+        _enrollSingleRoute(originRouter, newRemoteConfig);
         assertEq(originRouter.routers(DESTINATION), nonEvmPeer);
         _dispatch();
         assertEq(
@@ -991,7 +1005,8 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
         originRouter.unenrollRemoteRouter(DESTINATION);
-        originRouter.enrollLayerZeroRemoteRouter(
+        _enrollSingleRoute(
+            originRouter,
             LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
                 domainId: DESTINATION,
                 domainIsm: address(destinationRouter).addressToBytes32(),
@@ -1038,7 +1053,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         newRemoteConfig.sendConfig = sendConfig;
         newRemoteConfig.receiveConfig = receiveConfig;
         originRouter.unenrollRemoteRouter(DESTINATION);
-        originRouter.enrollLayerZeroRemoteRouter(newRemoteConfig);
+        _enrollSingleRoute(originRouter, newRemoteConfig);
 
         assertEq(originRouter.routers(DESTINATION), newRouter);
         assertEq(
@@ -1096,7 +1111,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         newRemoteConfig.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
         newRemoteConfig.domainIsm = address(0x1234).addressToBytes32();
         newRemoteConfig.sendConfig = sendConfig;
-        originRouter.enrollLayerZeroRemoteRouter(newRemoteConfig);
+        _enrollSingleRoute(originRouter, newRemoteConfig);
         assertEq(originRouter.routers(DESTINATION), currentRouter);
     }
 
@@ -1121,7 +1136,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         newRemoteConfigs[1].endpointId = SECOND_DESTINATION_ENDPOINT_ID;
         newRemoteConfigs[1].domainIsm = address(0x5678).addressToBytes32();
 
-        originRouter.enrollLayerZeroRemoteRouters(newRemoteConfigs);
+        originRouter.enrollRemoteRouters(newRemoteConfigs);
         assertEq(
             originRouter.routers(DESTINATION),
             address(0x1234).addressToBytes32()
@@ -1159,7 +1174,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
                 bytes32(0)
             )
         );
-        originRouter.enrollLayerZeroRemoteRouters(newRemoteConfigs);
+        originRouter.enrollRemoteRouters(newRemoteConfigs);
         assertEq(originRouter.routers(DESTINATION), bytes32(0));
         assertEq(originRouter.routers(SECOND_DESTINATION), bytes32(0));
     }
@@ -1167,7 +1182,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
     function testConfigurationIsOwnerGated() public {
         vm.prank(address(0xBEEF));
         vm.expectRevert("Ownable: caller is not the owner");
-        originRouter.enrollLayerZeroRemoteRouter(_defaultRemoteRouterConfig());
+        _enrollSingleRoute(originRouter, _defaultRemoteRouterConfig());
     }
 
     function testAtomicEnrollmentRollsBackIncompleteRoute() public {
@@ -1185,7 +1200,8 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         );
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
-        router.enrollLayerZeroRemoteRouter(
+        _enrollSingleRoute(
+            router,
             LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
                 domainId: DESTINATION,
                 domainIsm: address(destinationRouter).addressToBytes32(),
@@ -1330,7 +1346,8 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         destinationEndpoint.registerMockLibrary(address(replacement));
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
-        destinationRouter.enrollLayerZeroRemoteRouter(
+        _enrollSingleRoute(
+            destinationRouter,
             LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
                 domainId: ORIGIN,
                 domainIsm: address(originRouter).addressToBytes32(),
@@ -1990,7 +2007,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
             receiveConfig: emptyConfig
         });
         LayerZeroV2OffchainLookupHookIsm(address(originRouter))
-            .enrollLayerZeroRemoteRouters(remoteConfigs);
+            .enrollRemoteRouters(remoteConfigs);
         assertEq(
             originRouter.routers(SECOND_DESTINATION),
             address(0xBEEF).addressToBytes32()
