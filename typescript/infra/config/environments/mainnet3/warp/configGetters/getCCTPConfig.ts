@@ -28,10 +28,27 @@ import {
 
 const SERVICE_URL = 'https://offchain-lookup.services.hyperlane.xyz';
 
-// Contract version for CCTP V2 standard routes
-const CONTRACT_VERSION_STANDARD = '11.2.0';
-// Contract version for CCTP V2 fast routes - includes updated fee config
-const CONTRACT_VERSION_FAST = '11.2.0';
+// The original CCTP V2 production legs were deployed at core 11.2.0. Legs added
+// afterwards, and every staging leg (staging is redeployed freely), track the
+// current core version. Pinning the wrong version makes `warp check`/`warp
+// apply` fail: the getter must report the version actually on-chain.
+const CONTRACT_VERSION_LEGACY = '11.2.0';
+const CONTRACT_VERSION_LATEST = '12.1.0';
+
+// Production legs deployed at the latest core version rather than 11.2.0.
+const LATEST_VERSION_PRODUCTION_CHAINS = new Set<ChainName>(['arc']);
+
+const getContractVersion = (
+  chain: ChainName,
+  environment: CctpEnvironment,
+): string => {
+  if (environment === 'staging') {
+    return CONTRACT_VERSION_LATEST;
+  }
+  return LATEST_VERSION_PRODUCTION_CHAINS.has(chain)
+    ? CONTRACT_VERSION_LATEST
+    : CONTRACT_VERSION_LEGACY;
+};
 
 type CctpVersion = 'V1' | 'V2';
 // production routes are owned by the AW ICAs/Safes; staging routes are owned by
@@ -168,8 +185,7 @@ const getCCTPV2WarpConfig = (
 
     return {
       ...config,
-      contractVersion:
-        mode === 'fast' ? CONTRACT_VERSION_FAST : CONTRACT_VERSION_STANDARD,
+      contractVersion: getContractVersion(chain, environment),
       maxFeeBps,
       minFinalityThreshold,
     };
@@ -217,10 +233,15 @@ const safeSubmitter: SubmitterMetadata = {
 };
 
 const icaChainsLegacy = Object.keys(awIcasLegacy);
-// A V2 leg is submitted through the ethereum Safe's ICA unless its declared
-// owner is the chain's own native Safe (only the ethereum home leg).
+// A V2 leg is submitted through the ethereum Safe's ICA unless it is routed
+// directly through a native Safe. The ethereum home leg is Safe-owned. optimism
+// is still owned on-chain by its native AW Safe, so its enroll/unenroll and the
+// transferOwnership(-> ICA) must be signed by that Safe; routing it directly
+// lets the ownership migration land in the same batch.
+const v2NativeSafeChains = new Set<ChainName>(['optimism']);
 const icaChainsV2 = Object.keys(v2Owners).filter(
-  (chain) => v2Owners[chain] !== awSafes[chain],
+  (chain) =>
+    v2Owners[chain] !== awSafes[chain] && !v2NativeSafeChains.has(chain),
 );
 
 const getCCTPStrategyConfig = (
