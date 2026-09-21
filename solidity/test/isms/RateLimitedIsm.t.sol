@@ -37,12 +37,12 @@ contract RateLimitedIsmTest is Test {
         testRecipient.setInterchainSecurityModule(address(rateLimitedIsm));
     }
 
-    function testRateLimitedIsm_revertsIDeliveredFalse(
+    function testRateLimitedIsm_revertsIfNotProcessing(
         uint256 _amount
     ) external {
         bytes memory _message = _encodeTestMessage(_amount);
         vm.prank(address(localMailbox));
-        vm.expectRevert("InvalidDeliveredMessage");
+        vm.expectRevert("InvalidProcessingMessage");
         rateLimitedIsm.verify(bytes(""), _message);
     }
 
@@ -70,8 +70,47 @@ contract RateLimitedIsmTest is Test {
         vm.prank(address(localMailbox));
         localMailbox.process(bytes(""), encodedMessage);
 
+        assertTrue(rateLimitedIsm.messageValidated(keccak256(encodedMessage)));
+        uint256 filledLevelBefore = rateLimitedIsm.calculateCurrentLevel();
         vm.expectRevert("MessageAlreadyValidated");
+        vm.prank(makeAddr("attacker"));
         rateLimitedIsm.verify(bytes(""), encodedMessage);
+        assertEq(rateLimitedIsm.calculateCurrentLevel(), filledLevelBefore);
+    }
+
+    function test_previouslyDeliveredMessageCannotDrainNewLimiter() external {
+        uint256 filledLevel = rateLimitedIsm.calculateCurrentLevel();
+        bytes memory oldMessage = _encodeTestMessage(filledLevel);
+        localMailbox.process(bytes(""), oldMessage);
+        assertEq(rateLimitedIsm.calculateCurrentLevel(), 0);
+        vm.roll(block.number + 1);
+
+        RateLimitedIsm newIsm = new RateLimitedIsm(
+            address(localMailbox),
+            MAX_CAPACITY,
+            DURATION,
+            address(testRecipient)
+        );
+        testRecipient.setInterchainSecurityModule(address(newIsm));
+        uint256 filledLevelBefore = newIsm.calculateCurrentLevel();
+        assertEq(filledLevelBefore, filledLevel);
+
+        vm.expectRevert("InvalidProcessingMessage");
+        vm.prank(makeAddr("attacker"));
+        newIsm.verify(bytes(""), oldMessage);
+        assertEq(newIsm.calculateCurrentLevel(), filledLevelBefore);
+
+        bytes memory freshMessage = MessageUtils.formatMessage(
+            uint8(3),
+            uint32(2),
+            ORIGIN,
+            WARP_ROUTE_ADDR.addressToBytes32(),
+            ORIGIN,
+            address(testRecipient).addressToBytes32(),
+            TokenMessage.format(bytes32(""), 1, bytes(""))
+        );
+        localMailbox.process(bytes(""), freshMessage);
+        assertEq(newIsm.calculateCurrentLevel(), filledLevelBefore - 1);
     }
 
     function test_verifyOnlyRecipient(uint128 _amount) external {
