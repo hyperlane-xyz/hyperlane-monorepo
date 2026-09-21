@@ -61,7 +61,8 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
         );
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
-        router.enrollLayerZeroRemoteRouter(
+        _enrollSingleRoute(
+            router,
             LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
                 domainId: ARBITRUM_DOMAIN,
                 domainIsm: address(0xBEEF).addressToBytes32(),
@@ -72,6 +73,18 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
                 receiveConfig: emptyConfig
             })
         );
+    }
+
+    function _enrollSingleRoute(
+        LayerZeroV2OffchainLookupHookIsm targetRouter,
+        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig memory config
+    ) internal {
+        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig[]
+            memory configs = new LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig[](
+                1
+            );
+        configs[0] = config;
+        targetRouter.enrollRemoteRouters(configs);
     }
 
     function testProductionEndpointReplacementAndQuote() public {
@@ -123,7 +136,7 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
                     sendConfig: sendConfig,
                     receiveConfig: emptyConfig
                 });
-        router.enrollLayerZeroRemoteRouter(newRemoteConfig);
+        _enrollSingleRoute(router, newRemoteConfig);
 
         assertEq(
             ENDPOINT.getConfig(
@@ -144,7 +157,7 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
         assertEq(timeoutExpiry, 0);
 
         newRemoteConfig.sendConfig = emptyConfig;
-        router.enrollLayerZeroRemoteRouter(newRemoteConfig);
+        _enrollSingleRoute(router, newRemoteConfig);
         assertEq(
             ENDPOINT.getConfig(
                 address(router),
@@ -201,7 +214,7 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
                     receiveConfig: emptyConfig
                 });
         router.unenrollRemoteRouter(ARBITRUM_DOMAIN);
-        router.enrollLayerZeroRemoteRouter(config);
+        _enrollSingleRoute(router, config);
 
         router.unenrollRemoteRouter(ARBITRUM_DOMAIN);
         address blockedLibrary = MessageLibManager(address(ENDPOINT))
@@ -231,7 +244,7 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
         );
 
         config.sendConfig = emptyConfig;
-        router.enrollLayerZeroRemoteRouter(config);
+        _enrollSingleRoute(router, config);
         assertEq(
             ENDPOINT.getConfig(
                 address(router),
@@ -283,7 +296,8 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
             );
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
-        newRouter.enrollLayerZeroRemoteRouter(
+        _enrollSingleRoute(
+            newRouter,
             LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
                 domainId: ARBITRUM_DOMAIN,
                 domainIsm: address(0xBEEF).addressToBytes32(),
@@ -303,7 +317,8 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
         assertFalse(isDefault);
 
         newRouter.unenrollRemoteRouter(ARBITRUM_DOMAIN);
-        newRouter.enrollLayerZeroRemoteRouter(
+        _enrollSingleRoute(
+            newRouter,
             LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
                 domainId: ARBITRUM_DOMAIN,
                 domainIsm: address(0xBEEF).addressToBytes32(),
@@ -342,7 +357,8 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
         });
         LayerZeroSetConfigParam[]
             memory emptyConfig = new LayerZeroSetConfigParam[](0);
-        router.enrollLayerZeroRemoteRouter(
+        _enrollSingleRoute(
+            router,
             LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
                 domainId: ARBITRUM_DOMAIN,
                 domainIsm: address(0xBEEF).addressToBytes32(),
