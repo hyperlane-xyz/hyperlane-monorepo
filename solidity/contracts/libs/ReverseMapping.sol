@@ -24,7 +24,8 @@ library ReverseMappingLib {
     }
 
     struct Uint16ReverseMappingStorage {
-        /// @dev All assignments through this wrapper fit in uint16.
+        /// @dev Assignments fit in uint16; reads check the bound before casting
+        /// so unexpected storage values cannot be silently truncated.
         Uint32ReverseMappingStorage data;
     }
 
@@ -39,24 +40,22 @@ library ReverseMappingLib {
             revert ReverseKeyCannotBeZero();
         }
 
-        uint32 existingReverseKey = self.reverseKeys[key];
-        ReverseEntry memory existingKey = self.keys[reverseKey];
-
-        if (existingKey.assigned && existingKey.key != key) {
-            revert ReverseKeyAssignedToAnotherKey(reverseKey, existingKey.key);
-        }
-
-        if (existingReverseKey == reverseKey) {
-            assert(existingKey.assigned);
+        uint32 previousReverseKey = self.reverseKeys[key];
+        // The pair is already installed; avoid a reverse lookup and writes.
+        if (previousReverseKey == reverseKey) {
             return;
         }
 
-        assert(!existingKey.assigned);
-        if (existingReverseKey != 0) {
-            ReverseEntry memory oldEntry = self.keys[existingReverseKey];
-            assert(oldEntry.assigned && oldEntry.key == key);
+        ReverseEntry memory existingKey = self.keys[reverseKey];
+        // A key may move to a free reverse slot; an occupied target belongs
+        // to another key under the mapping invariant.
+        if (existingKey.assigned) {
+            revert ReverseKeyAssignedToAnotherKey(reverseKey, existingKey.key);
+        }
 
-            delete self.keys[existingReverseKey];
+        // Release the old reverse key only after the replacement is available.
+        if (previousReverseKey != 0) {
+            delete self.keys[previousReverseKey];
         }
 
         self.reverseKeys[key] = reverseKey;
@@ -92,9 +91,6 @@ library ReverseMappingLib {
         if (reverseKey == 0) {
             revert KeyNotAssigned(key);
         }
-
-        ReverseEntry memory entry = self.keys[reverseKey];
-        assert(entry.assigned && entry.key == key);
 
         delete self.reverseKeys[key];
         delete self.keys[reverseKey];

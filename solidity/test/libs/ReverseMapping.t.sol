@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
+import {stdError} from "forge-std/StdError.sol";
 
 import {ReverseMappingLib} from "contracts/libs/ReverseMapping.sol";
 
@@ -22,6 +23,10 @@ contract ReverseMappingHarness {
 
     function reverseKeyOf16(uint32 key) external view returns (uint16) {
         return routes16.reverseKeyOf(key);
+    }
+
+    function assignOutOfRangeReverseKey16(uint32 key) external {
+        routes16.data.assign(key, uint32(type(uint16).max) + 1);
     }
 
     function keyOf16(
@@ -220,6 +225,26 @@ contract ReverseMappingTest is Test {
         (bool assigned, uint32 key) = routes.keyOf16(1);
         assertTrue(assigned);
         assertEq(key, 42);
+    }
+
+    function testUint16ReadRejectsOutOfRangeAssignment() public {
+        routes.assign16(42, 1);
+        routes.assignOutOfRangeReverseKey16(42);
+
+        vm.expectRevert(stdError.assertionError);
+        routes.reverseKeyOf16(42);
+    }
+
+    function testUint16RemoveRejectsOutOfRangeAssignment() public {
+        routes.assign16(42, 1);
+        routes.assignOutOfRangeReverseKey16(42);
+
+        vm.expectRevert(stdError.assertionError);
+        routes.remove16(42);
+
+        // The failed removal must not erase the out-of-range assignment.
+        vm.expectRevert(stdError.assertionError);
+        routes.reverseKeyOf16(42);
     }
 
     function testUint16RejectsZeroReverseKeyWithoutChanges() public {
