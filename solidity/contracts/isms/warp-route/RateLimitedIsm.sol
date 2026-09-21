@@ -59,6 +59,8 @@ contract RateLimitedIsm is
         validateMessageOnce(_message)
         returns (bool)
     {
+        // Current-block delivery and validateMessageOnce prevent replay across
+        // blocks and repeated consumption by this ISM.
         require(_isProcessing(_message.id()), "InvalidProcessingMessage");
 
         uint256 newAmount = _message.body().amount();

@@ -78,7 +78,9 @@ contract RateLimitedIsmTest is Test {
         assertEq(rateLimitedIsm.calculateCurrentLevel(), filledLevelBefore);
     }
 
-    function test_previouslyDeliveredMessageCannotDrainNewLimiter() external {
+    function test_previouslyDeliveredMessageCannotConsumeNewLimiterCapacity()
+        external
+    {
         uint256 filledLevel = rateLimitedIsm.calculateCurrentLevel();
         bytes memory oldMessage = _encodeTestMessage(filledLevel);
         localMailbox.process(bytes(""), oldMessage);
