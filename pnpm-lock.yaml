@@ -155,9 +155,6 @@ catalogs:
     '@google-cloud/pino-logging-gcp-config':
       specifier: ^1.3.5
       version: 1.3.5
-    '@hyperlane-xyz/registry':
-      specifier: 26.1.0
-      version: 26.1.0
     '@inquirer/prompts':
       specifier: 3.3.2
       version: 3.3.2
@@ -709,7 +706,7 @@ importers:
         specifier: workspace:*
         version: link:../metrics
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -842,7 +839,7 @@ importers:
         specifier: workspace:*
         version: link:../rebalancer
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/relayer':
         specifier: workspace:*
@@ -1166,7 +1163,7 @@ importers:
         specifier: workspace:*
         version: link:../provider-sdk
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -1303,7 +1300,7 @@ importers:
         specifier: workspace:*
         version: link:../../solidity
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -1415,7 +1412,7 @@ importers:
         specifier: 'catalog:'
         version: 1.3.5(supports-color@8.1.1)
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -1560,7 +1557,7 @@ importers:
         specifier: workspace:*
         version: link:../rebalancer
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/relayer':
         specifier: workspace:*
@@ -1774,7 +1771,7 @@ importers:
         specifier: workspace:*
         version: link:../metrics
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -2024,7 +2021,7 @@ importers:
         specifier: workspace:*
         version: link:../provider-sdk
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -2142,7 +2139,7 @@ importers:
         specifier: workspace:*
         version: link:../rebalancer
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -2212,7 +2209,7 @@ importers:
         specifier: workspace:*
         version: link:../metrics
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -2700,7 +2697,7 @@ importers:
         specifier: workspace:*
         version: link:../provider-sdk
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/utils':
         specifier: workspace:*
@@ -2860,7 +2857,7 @@ importers:
         specifier: workspace:*
         version: link:../metrics
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
@@ -3060,7 +3057,7 @@ importers:
         specifier: ^11.13.0
         version: 11.14.1(@emotion/react@11.14.0(@types/react@18.3.27)(react@18.3.1)(supports-color@8.1.1))(@types/react@18.3.27)(react@18.3.1)(supports-color@8.1.1)
       '@hyperlane-xyz/registry':
-        specifier: 'catalog:'
+        specifier: 26.1.0
         version: 26.1.0
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
