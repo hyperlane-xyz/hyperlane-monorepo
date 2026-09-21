@@ -73,12 +73,25 @@ const v1Owners: Record<ChainName, string> = {
   unichain: awIcasLegacy['unichain'],
 };
 
-// Optimism's v2 ICA exists on-chain and already owns the USDC/eclipsemainnet
-// optimism leg, but is intentionally left commented out of the shared awIcas map
-// in governance/ica/aw.ts. Pin it in-file so the V2 CCTP routes own their
-// optimism leg via that ICA without flipping the global entry.
-const cctpV2IcaOverrides: ChainMap<string> = {
+// Ownership is declared explicitly per leg. Every V2 leg is owned by its AW
+// ICA except the ethereum home Safe. optimism's v2 ICA is intentionally left
+// commented out of the shared awIcas map (governance/ica/aw.ts) but already
+// owns the USDC/eclipsemainnet optimism leg, so it is pinned literally here.
+const v2Owners: Record<ChainName, string> = {
+  ethereum: awSafes['ethereum'],
   optimism: '0x1E2afA8d1B841c53eDe9474D188Cd4FcfEd40dDC',
+  arbitrum: awIcas['arbitrum'],
+  avalanche: awIcas['avalanche'],
+  base: awIcas['base'],
+  polygon: awIcas['polygon'],
+  unichain: awIcas['unichain'],
+  linea: awIcas['linea'],
+  sonic: awIcas['sonic'],
+  worldchain: awIcas['worldchain'],
+  sei: awIcas['sei'],
+  hyperevm: awIcas['hyperevm'],
+  ink: awIcas['ink'],
+  arc: awIcas['arc'],
 };
 
 const getOwner = (
@@ -90,9 +103,7 @@ const getOwner = (
     return HAGGIS_DEPLOYER;
   }
   // TODO: restore after V1 route has been updated
-  return version === 'V1'
-    ? v1Owners[chain]
-    : (awIcas[chain] ?? cctpV2IcaOverrides[chain] ?? awSafes[chain]);
+  return version === 'V1' ? v1Owners[chain] : v2Owners[chain];
 };
 
 const getCCTPWarpConfig = (
@@ -206,10 +217,11 @@ const safeSubmitter: SubmitterMetadata = {
 };
 
 const icaChainsLegacy = Object.keys(awIcasLegacy);
-const icaChainsV2 = [
-  ...Object.keys(awIcas),
-  ...Object.keys(cctpV2IcaOverrides),
-];
+// A V2 leg is submitted through the ethereum Safe's ICA unless its declared
+// owner is the chain's own native Safe (only the ethereum home leg).
+const icaChainsV2 = Object.keys(v2Owners).filter(
+  (chain) => v2Owners[chain] !== awSafes[chain],
+);
 
 const getCCTPStrategyConfig = (
   version: CctpVersion = 'V1',
