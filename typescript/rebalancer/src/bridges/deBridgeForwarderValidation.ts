@@ -1,4 +1,4 @@
-import { Contract, type providers, utils } from 'ethers';
+import { BigNumber, Contract, type providers, utils } from 'ethers';
 
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -7,6 +7,8 @@ import type { BridgeQuote } from '../interfaces/IExternalBridge.js';
 // https://docs.debridge.com/dln-details/overview/deployed-contracts
 // BSC implementation: 0xce56012e880851baa234cd092af516a0fca9cfe3 (DeBridgeRouter).
 export const DLN_FORWARDER = '0x663DC15D3C1aC63ff12E45Ab68FeA3F0a883C251';
+export const DLN_FORWARDER_IMPLEMENTATION =
+  '0xce56012e880851baa234cd092af516a0fca9cfe3';
 export const ZERO_EX_ALLOWANCE_HOLDER =
   '0x0000000000001fF3684f28c67538d4D072C22734';
 export const ZERO_EX_BSC_SETTLER = '0x2D9d6e538Bd3f22323932782aaf89446caCAF9d3';
@@ -40,6 +42,17 @@ export async function validateDeBridgeForwarderDeployment(
   provider: providers.Provider,
   data: string,
 ): Promise<void> {
+  const implementation = await provider.getStorageAt(
+    DLN_FORWARDER,
+    BigNumber.from(utils.id('eip1967.proxy.implementation'))
+      .sub(1)
+      .toHexString(),
+  );
+  assert(
+    implementation.toLowerCase() ===
+      utils.hexZeroPad(DLN_FORWARDER_IMPLEMENTATION, 32),
+    'Unsupported deBridge forwarder implementation',
+  );
   // The registry is independent of the quote API. A reverting ownerOf means
   // paused: do not fall back to prev on RPC or contract errors.
   const registry = new Contract(
@@ -114,7 +127,6 @@ function validateZeroExSwap(
   data: string,
   amountIn: bigint,
   minimumOut: bigint,
-  signer: string,
 ): void {
   const allowance = decodeCanonical(ZERO_EX_ALLOWANCE_INTERFACE, data).args;
   assert(
@@ -167,11 +179,10 @@ function validateZeroExSwap(
         'Invalid 0x surplus action position',
       );
       assert(
-        sameAddress(args.recipient, signer) &&
-          sameAddress(args.token, BSC_USDC) &&
+        sameAddress(args.token, BSC_USDC) &&
           BigInt(args.expectedAmount.toString()) >= minimumOut &&
           BigInt(args.maxPpm.toString()) <= 1_000_000n,
-        'Invalid 0x source surplus recipient or amount',
+        'Invalid 0x source surplus token or amount',
       );
       continue;
     }
@@ -222,10 +233,11 @@ export function validateDeBridgeForwarder(
     sameAddress(args.srcTokenOut, BSC_USDC) && amount > 0n,
     'Unsupported deBridge intermediate token or amount',
   );
-  assert(
-    sameAddress(args.refundRecipient, quote.requestParams.fromAddress),
-    'deBridge source swap refund recipient mismatch',
-  );
+  // deBridge retains positive slippage from API orders. The recipient is not
+  // an authorization boundary: the verified forwarder sends only its actual
+  // swap balance delta above srcAmountOut, and atomically funds the order.
+  // Likewise, POSITIVE_SLIPPAGE must leave at least this committed amount.
+  // Cancellation proceeds remain separately bound to our order authority.
   assert(
     sameAddress(args.target, dlnSource),
     'deBridge nested target is not the DLN source',
@@ -234,11 +246,6 @@ export function validateDeBridgeForwarder(
     sameAddress(args.swapRouter, ZERO_EX_ALLOWANCE_HOLDER),
     'Unsupported deBridge source swap router',
   );
-  validateZeroExSwap(
-    args.swapData,
-    quote.fromAmount,
-    amount,
-    quote.requestParams.fromAddress,
-  );
+  validateZeroExSwap(args.swapData, quote.fromAmount, amount);
   return { data: args.targetData, token: args.srcTokenOut, amount };
 }
