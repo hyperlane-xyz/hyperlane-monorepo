@@ -4143,49 +4143,6 @@ async fn authenticated_snapshot_cannot_authorize_a_conflicting_canonical_tail() 
     assert!(submitter.readiness.snapshot().signing_blocked);
 }
 
-#[test]
-#[ignore = "Local replay CPU benchmark; run with --ignored --nocapture"]
-fn benchmark_snapshot_replay_cpu() {
-    use std::time::Instant;
-    const LEAVES: u32 = 100_000;
-    const TAIL: u32 = 1_000;
-    fn replay(tree: &mut IncrementalMerkle, first: u32, end: u32) {
-        for index in first..end {
-            tree.ingest(H256::from_low_u64_be(u64::from(index)));
-            std::hint::black_box(tree.root());
-        }
-    }
-    let mut fixture = IncrementalMerkle::default();
-    replay(&mut fixture, 0, LEAVES - TAIL);
-    let stale = serde_json::to_vec(&MerkleTreeSnapshot::capture(&fixture).unwrap()).unwrap();
-    replay(&mut fixture, LEAVES - TAIL, LEAVES);
-    let current = serde_json::to_vec(&MerkleTreeSnapshot::capture(&fixture).unwrap()).unwrap();
-    let expected_root = fixture.root();
-    for (name, snapshot, first) in [
-        ("cold", None, 0),
-        ("current", Some(&current), LEAVES),
-        ("tail_1000", Some(&stale), LEAVES - TAIL),
-    ] {
-        let started = Instant::now();
-        let mut tree = snapshot
-            .map(|bytes| {
-                serde_json::from_slice::<MerkleTreeSnapshot>(bytes)
-                    .unwrap()
-                    .restore()
-                    .unwrap()
-            })
-            .unwrap_or_default();
-        replay(&mut tree, first, LEAVES);
-        assert_eq!(tree.root(), expected_root);
-        println!(
-            "{name}: leaves={LEAVES} replayed={} elapsed={:?} snapshot_bytes={}",
-            LEAVES - first,
-            started.elapsed(),
-            snapshot.map_or(0, |bytes| bytes.len())
-        );
-    }
-}
-
 #[tokio::test]
 async fn future_authenticated_snapshot_waits_for_canonical_rpc_progress() {
     let (domain, _, checkpoint, mut target, snapshot) = three_leaf_snapshot_fixture();
