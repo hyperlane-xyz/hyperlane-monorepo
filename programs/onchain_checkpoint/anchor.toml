@@ -1,0 +1,8 @@
+[programs.localnet]
+onchain_checkpoint = "YourProgramId"
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
+
+[workspace]
