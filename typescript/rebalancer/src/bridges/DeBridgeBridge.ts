@@ -1,9 +1,11 @@
 import {
   Connection,
   Keypair,
+  PublicKey,
   TransactionMessage,
   VersionedTransaction,
 } from '@solana/web3.js';
+import { getAssociatedTokenAddressSync, getMint } from '@solana/spl-token';
 import { ethers } from 'ethers';
 import type { Logger } from 'pino';
 import { v4 as uuidv4 } from 'uuid';
@@ -13,7 +15,10 @@ import {
   type ChainMetadata,
   submitEvmLikeTransaction,
 } from '@hyperlane-xyz/sdk';
-import { TronWallet } from '@hyperlane-xyz/tron-sdk/runtime';
+import {
+  TronJsonRpcProvider,
+  TronWallet,
+} from '@hyperlane-xyz/tron-sdk/runtime';
 import {
   ProtocolType,
   TransactionSubmission,
@@ -35,9 +40,18 @@ import {
   validateDeBridgeForwarderDeployment,
 } from './deBridgeForwarderValidation.js';
 import {
+  DLN_EVM_SOURCE,
+  DLN_TRON_SOURCE,
+  DLN_SOLANA_SOURCE,
   validateDeBridgeEvmTransaction,
   validateDeBridgeSolanaInstructions,
 } from './deBridgeValidation.js';
+import {
+  type DlnOrder,
+  dlnSolanaEvents,
+  evmDlnOrder,
+  solanaCreatedOrder,
+} from './deBridgeSettlement.js';
 import { parseSolanaPrivateKey } from '../utils/solanaKeyParser.js';
 import { approveErc20IfNeeded } from './erc20Approve.js';
 import {
@@ -58,6 +72,8 @@ import {
 } from './deBridgeUtils.js';
 
 const REQUEST_TIMEOUT_MS = 30_000;
+const MAX_TRANSACTION_AGE_MS = 30_000;
+const MAX_PREPARATION_ATTEMPTS = 3;
 const MAX_RETRIES = 3;
 const BASE_BACKOFF_MS = 1_000;
 const DEFAULT_MAX_FEE_PERCENT = 10;
@@ -200,6 +216,50 @@ export class DeBridgeBridge implements IExternalBridge {
     privateKeys: Partial<Record<ProtocolType, string>>,
     options?: BridgeExecutionOptions,
   ): Promise<BridgeTransferResult> {
+    const sourceChain = hyperlaneChainIdToDebridge(
+      quote.requestParams.fromChain,
+    );
+    const protocol = this.getProtocol(sourceChain);
+    const privateKey = privateKeys[protocol];
+    assert(privateKey, `Missing private key for ${protocol} chain`);
+    this.deriveAndValidateSender(
+      protocol,
+      privateKey,
+      quote.requestParams.fromAddress,
+      sourceChain,
+    );
+    for (let attempt = 0; attempt < MAX_PREPARATION_ATTEMPTS; attempt++) {
+      const prepared = await this.prepare(quote);
+      const result =
+        protocol === ProtocolType.Sealevel
+          ? await this.executeSolana(
+              privateKey,
+              prepared.response,
+              quote,
+              options,
+              prepared.preparedAt,
+            )
+          : await this.executeEvmLike(
+              protocol,
+              privateKey,
+              prepared.response,
+              quote,
+              options,
+              prepared.preparedAt,
+            );
+      if (result) return result;
+      // Only preparation/approval occurred. A submission error never reaches
+      // this retry: TransactionSubmission retains the exposed source identity.
+    }
+    throw new Error(
+      'deBridge transaction expired repeatedly during preparation',
+    );
+  }
+
+  /** Fetch and validate an executable unsigned order without keys or approvals. */
+  async prepare(
+    quote: BridgeQuote,
+  ): Promise<{ response: DeBridgeCreateTxResponse; preparedAt: number }> {
     assert(quote.tool === DEBRIDGE_TOOL, 'Quote was not created by deBridge');
     assert(quote.fromAmount > 0n, 'Quote fromAmount must be positive');
     assert(quote.toAmountMin > 0n, 'Quote toAmountMin must be positive');
@@ -219,14 +279,8 @@ export class DeBridgeBridge implements IExternalBridge {
 
     const srcDebridgeChainId = hyperlaneChainIdToDebridge(params.fromChain);
     const dstDebridgeChainId = hyperlaneChainIdToDebridge(params.toChain);
-    const sourceProtocol = this.getProtocol(srcDebridgeChainId);
-    const sourcePrivateKey = privateKeys[sourceProtocol];
-    assert(sourcePrivateKey, `Missing private key for ${sourceProtocol} chain`);
     assert(params.toAddress, 'toAddress is required for deBridge execution');
-
-    const senderAddress = this.deriveAndValidateSender(
-      sourceProtocol,
-      sourcePrivateKey,
+    const senderAddress = formatAddressForDebridge(
       params.fromAddress,
       srcDebridgeChainId,
     );
@@ -253,7 +307,6 @@ export class DeBridgeBridge implements IExternalBridge {
       dstChainTokenOutRecipient: recipientAddress,
       senderAddress,
       srcChainOrderAuthorityAddress: senderAddress,
-      srcChainRefundAddress: senderAddress,
       srcAllowedCancelBeneficiary: senderAddress,
       dstChainOrderAuthorityAddress: recipientAddress,
       prependOperatingExpenses: 'false',
@@ -270,6 +323,7 @@ export class DeBridgeBridge implements IExternalBridge {
       'Creating deBridge order transaction',
     );
 
+    const preparedAt = Date.now();
     const response = await this.fetchWithRetry(createTxUrl);
     const body: unknown = await response.json();
     const createTx = parseDeBridgeCreateTxResponse(body);
@@ -279,29 +333,142 @@ export class DeBridgeBridge implements IExternalBridge {
     });
     this.assertFeeWithinLimit(createTx, params.fromChain, params.toChain);
 
-    switch (sourceProtocol) {
-      case ProtocolType.Ethereum:
-      case ProtocolType.Tron:
-        return this.executeEvmLike(
-          sourceProtocol,
-          sourcePrivateKey,
-          createTx,
-          quote,
-          options,
+    await this.validatePreparedOrder(quote, createTx);
+    assert(
+      Date.now() - preparedAt < MAX_TRANSACTION_AGE_MS,
+      'deBridge transaction expired during preparation',
+    );
+    return { response: createTx, preparedAt };
+  }
+
+  private getEvmProvider(chainId: number): ethers.providers.JsonRpcProvider {
+    return this.getProtocol(hyperlaneChainIdToDebridge(chainId)) ===
+      ProtocolType.Tron
+      ? new TronJsonRpcProvider(this.getRpcUrl(chainId))
+      : new ethers.providers.StaticJsonRpcProvider(
+          this.getRpcUrl(chainId),
+          chainId,
         );
-      case ProtocolType.Sealevel:
-        return this.executeSolana(sourcePrivateKey, createTx, quote, options);
-      default: {
-        const exhaustiveProtocol: never = sourceProtocol;
-        throw new Error(`Unsupported source protocol: ${exhaustiveProtocol}`);
-      }
+  }
+
+  private async tokenDecimals(chainId: number, token: string): Promise<number> {
+    const protocol = this.getProtocol(hyperlaneChainIdToDebridge(chainId));
+    if (protocol === ProtocolType.Sealevel) {
+      return (
+        await getMint(
+          new Connection(this.getRpcUrl(chainId)),
+          new PublicKey(token),
+        )
+      ).decimals;
     }
+    const address = this.getEvmLikeAddress(token, protocol);
+    if (address === ethers.constants.AddressZero) {
+      const decimals =
+        this.chainMetadataByChainId.get(chainId)?.nativeToken?.decimals;
+      assert(
+        decimals !== undefined,
+        `Missing native token decimals for chain ${chainId}`,
+      );
+      return decimals;
+    }
+    return new ethers.Contract(
+      address,
+      ['function decimals() view returns(uint8)'],
+      this.getEvmProvider(chainId),
+    ).decimals();
+  }
+
+  private async validatePreparedOrder(
+    quote: BridgeQuote,
+    response: DeBridgeCreateTxResponse,
+  ): Promise<void> {
+    const { fromChain, toChain, fromToken, toToken, fromAddress } =
+      quote.requestParams;
+    const protocol = this.getProtocol(hyperlaneChainIdToDebridge(fromChain));
+    if (protocol === ProtocolType.Sealevel) {
+      await this.validateSolanaTransaction(quote, response);
+    } else {
+      assert(response.tx.to, 'deBridge create-tx response is missing tx.to');
+      validateDeBridgeEvmTransaction(quote, response.tx.to, response.tx.data);
+      const provider = this.getEvmProvider(fromChain);
+      if (response.tx.to.toLowerCase() === DLN_FORWARDER.toLowerCase())
+        await validateDeBridgeForwarderDeployment(provider, response.tx.data);
+      const source =
+        protocol === ProtocolType.Tron ? DLN_TRON_SOURCE : DLN_EVM_SOURCE;
+      const fee: ethers.BigNumber = await new ethers.Contract(
+        source,
+        ['function globalFixedNativeFee() view returns(uint88)'],
+        provider,
+      ).globalFixedNativeFee();
+      const native =
+        this.getEvmLikeAddress(fromToken, protocol) ===
+        ethers.constants.AddressZero;
+      assert(
+        BigInt(response.fixFee) === BigInt(fee.toString()),
+        'deBridge fixed fee does not match source contract',
+      );
+      assert(
+        response.tx.value !== undefined &&
+          BigInt(response.tx.value) ===
+            BigInt(fee.toString()) + (native ? quote.fromAmount : 0n),
+        'deBridge transaction value does not match expected contract fee and input',
+      );
+    }
+    const [sourceDecimals, destinationDecimals] = await Promise.all([
+      this.tokenDecimals(fromChain, fromToken),
+      this.tokenDecimals(toChain, toToken),
+    ]);
+    assert(
+      response.estimation.srcChainTokenIn.decimals === sourceDecimals &&
+        response.estimation.dstChainTokenOut.decimals === destinationDecimals,
+      'deBridge token decimals do not match chain data',
+    );
+    this.assertFeeWithinLimit(response, fromChain, toChain);
+    this.logger.debug(
+      { fromChain, toChain, sender: fromAddress },
+      'Validated unsigned deBridge order',
+    );
+  }
+
+  private async validateSolanaTransaction(
+    quote: BridgeQuote,
+    response: DeBridgeCreateTxResponse,
+  ): Promise<VersionedTransaction> {
+    const transaction = VersionedTransaction.deserialize(
+      Buffer.from(response.tx.data.slice(2), 'hex'),
+    );
+    const signer = new PublicKey(quote.requestParams.fromAddress);
+    assert(
+      transaction.message.header.numRequiredSignatures === 1,
+      'deBridge Solana transaction must require exactly one signer',
+    );
+    assert(
+      transaction.message.staticAccountKeys[0]?.equals(signer),
+      'deBridge Solana transaction signer does not match inventory signer',
+    );
+    const connection = new Connection(
+      this.getRpcUrl(quote.requestParams.fromChain),
+    );
+    const addressLookupTableAccounts = await Promise.all(
+      transaction.message.addressTableLookups.map(async (lookup) => {
+        const { value } = await connection.getAddressLookupTable(
+          lookup.accountKey,
+        );
+        assert(value, 'deBridge Solana address lookup table was not found');
+        return value;
+      }),
+    );
+    const { instructions } = TransactionMessage.decompile(transaction.message, {
+      addressLookupTableAccounts,
+    });
+    validateDeBridgeSolanaInstructions(quote, signer, instructions);
+    return transaction;
   }
 
   async getStatus(
     txHash: string,
-    _fromChain: number,
-    _toChain: number,
+    fromChain: number,
+    toChain: number,
     transferId?: string,
   ): Promise<BridgeTransferStatus> {
     assert(
@@ -332,16 +499,28 @@ export class DeBridgeBridge implements IExternalBridge {
         return { status: 'pending', substatus: data.status };
       case 'Fulfilled':
       case 'SentUnlock':
-      case 'ClaimedUnlock':
-        return {
-          status: 'complete',
-          receivingTxHash:
-            data.fulfilledDstEventMetadata?.transactionHash?.stringValue ?? '',
-          receivedAmount: BigInt(
-            data.fulfilledDstEventMetadata?.receivedAmount?.bigIntegerValue ??
-              '0',
-          ),
-        };
+      case 'ClaimedUnlock': {
+        const receivingTxHash =
+          data.fulfilledDstEventMetadata?.transactionHash?.stringValue;
+        if (!receivingTxHash)
+          return {
+            status: 'pending',
+            substatus: 'Missing destination transaction',
+          };
+        const receivedAmount = await this.verifySettlement(
+          txHash,
+          fromChain,
+          receivingTxHash,
+          toChain,
+          transferId,
+        );
+        if (receivedAmount === undefined)
+          return {
+            status: 'pending',
+            substatus: 'Awaiting verified source and destination finality',
+          };
+        return { status: 'complete', receivingTxHash, receivedAmount };
+      }
       case 'OrderCancelled':
       case 'SentOrderCancel':
       case 'ClaimedOrderCancel':
@@ -353,13 +532,177 @@ export class DeBridgeBridge implements IExternalBridge {
     }
   }
 
+  private async finalizedReceipt(
+    chainId: number,
+    hash: string,
+  ): Promise<ethers.providers.TransactionReceipt | undefined> {
+    const provider = this.getEvmProvider(chainId);
+    const normalized = hash.startsWith('0x') ? hash : `0x${hash}`;
+    assert(
+      /^0x[0-9a-fA-F]{64}$/.test(normalized),
+      'Invalid DLN settlement transaction hash',
+    );
+    const receipt = await provider.getTransactionReceipt(normalized);
+    if (!receipt || receipt.status !== 1) return undefined;
+    const blocks = this.chainMetadataByChainId.get(chainId)?.blocks;
+    const confirmations = Math.max(
+      blocks?.confirmations ?? 1,
+      typeof blocks?.reorgPeriod === 'number' ? blocks.reorgPeriod : 1,
+    );
+    if (receipt.confirmations < confirmations) return undefined;
+    if (provider instanceof TronJsonRpcProvider) {
+      if (receipt.blockNumber > (await provider.getFinalizedBlockNumber()))
+        return undefined;
+    } else if (typeof blocks?.reorgPeriod === 'string') {
+      const block = await provider.getBlock(blocks.reorgPeriod);
+      if (!block || receipt.blockNumber > block.number) return undefined;
+    }
+    return receipt;
+  }
+
+  private async verifySettlement(
+    sourceHash: string,
+    fromChain: number,
+    destinationHash: string,
+    toChain: number,
+    orderId: string,
+  ): Promise<bigint | undefined> {
+    const sourceProtocol = this.getProtocol(
+      hyperlaneChainIdToDebridge(fromChain),
+    );
+    let order: DlnOrder;
+    if (sourceProtocol === ProtocolType.Sealevel) {
+      const tx = await new Connection(this.getRpcUrl(fromChain)).getTransaction(
+        sourceHash,
+        { commitment: 'finalized', maxSupportedTransactionVersion: 0 },
+      );
+      if (!tx?.meta || tx.meta.err) return undefined;
+      assert(tx.meta.logMessages, 'Missing DLN Solana source logs');
+      order = solanaCreatedOrder(
+        tx.meta.logMessages,
+        DLN_SOLANA_SOURCE.toBase58(),
+        orderId,
+      );
+    } else {
+      const receipt = await this.finalizedReceipt(fromChain, sourceHash);
+      if (!receipt) return undefined;
+      order = evmDlnOrder(
+        receipt.logs,
+        sourceProtocol === ProtocolType.Tron ? DLN_TRON_SOURCE : DLN_EVM_SOURCE,
+        'CreatedOrder',
+        orderId,
+      );
+    }
+    assert(
+      order.giveChainId === BigInt(hyperlaneChainIdToDebridge(fromChain)) &&
+        order.takeChainId === BigInt(hyperlaneChainIdToDebridge(toChain)),
+      'DLN settlement route mismatch',
+    );
+    assert(order.takeAmount > 0n, 'DLN settlement amount must be positive');
+    const destinationProtocol = this.getProtocol(
+      hyperlaneChainIdToDebridge(toChain),
+    );
+    if (destinationProtocol === ProtocolType.Sealevel) {
+      const tx = await new Connection(this.getRpcUrl(toChain)).getTransaction(
+        destinationHash,
+        { commitment: 'finalized', maxSupportedTransactionVersion: 0 },
+      );
+      if (!tx?.meta || tx.meta.err) return undefined;
+      assert(tx.meta.logMessages, 'Missing DLN Solana destination logs');
+      const events = dlnSolanaEvents(
+        tx.meta.logMessages,
+        'dst5MGcFPoBeREFAA5E3tU5ij8m5uVYwkzkSAbsLbNo',
+        'Fulfilled',
+      );
+      assert(
+        events.filter(
+          (data) =>
+            data.length === 64 &&
+            ethers.utils.hexlify(data.subarray(0, 32)) ===
+              orderId.toLowerCase(),
+        ).length === 1,
+        'DLN destination order ID mismatch',
+      );
+      const mint = new PublicKey(ethers.utils.arrayify(order.takeTokenAddress));
+      const recipient = new PublicKey(ethers.utils.arrayify(order.receiverDst));
+      const account = getAssociatedTokenAddressSync(mint, recipient);
+      const keys = tx.transaction.message.getAccountKeys({
+        accountKeysFromLookups: tx.meta.loadedAddresses,
+      });
+      const balance = (balances: typeof tx.meta.postTokenBalances) => {
+        const match = balances?.find(
+          (b) =>
+            b.mint === mint.toBase58() &&
+            keys.get(b.accountIndex)?.equals(account),
+        );
+        return match ? BigInt(match.uiTokenAmount.amount) : 0n;
+      };
+      assert(
+        balance(tx.meta.postTokenBalances) -
+          balance(tx.meta.preTokenBalances) >=
+          order.takeAmount,
+        'DLN destination received less than the committed amount',
+      );
+    } else {
+      const receipt = await this.finalizedReceipt(toChain, destinationHash);
+      if (!receipt) return undefined;
+      const destination =
+        destinationProtocol === ProtocolType.Tron
+          ? ethers.utils.hexlify(
+              addressToBytesTron('TXCbCdoHjg28g36X5jnWTP88mRzx54RqXp'),
+            )
+          : '0xE7351Fd770A37282b91D153Ee690B63579D6dd7f';
+      evmDlnOrder(receipt.logs, destination, 'FulfilledOrder', orderId);
+      if (order.takeTokenAddress === ethers.constants.AddressZero) {
+        // FulfilledOrder contains the original amount even after an authorized
+        // take-amount reduction. Native payouts have no ERC20 credit event.
+        const patch: ethers.BigNumber = await new ethers.Contract(
+          destination,
+          ['function takePatches(bytes32) view returns(uint256)'],
+          this.getEvmProvider(toChain),
+        ).takePatches(orderId, { blockTag: receipt.blockNumber });
+        assert(patch.isZero(), 'DLN native destination amount was reduced');
+      } else {
+        const recipient = ethers.utils
+          .hexZeroPad(order.receiverDst, 32)
+          .toLowerCase();
+        const received = receipt.logs
+          .filter(
+            (log) =>
+              log.address.toLowerCase() ===
+                order.takeTokenAddress.toLowerCase() &&
+              log.topics.length === 3 &&
+              log.topics[0] ===
+                ethers.utils.id('Transfer(address,address,uint256)'),
+          )
+          .reduce(
+            (amount, log) =>
+              amount +
+              (log.topics[2].toLowerCase() === recipient
+                ? BigInt(log.data)
+                : 0n) -
+              (log.topics[1].toLowerCase() === recipient
+                ? BigInt(log.data)
+                : 0n),
+            0n,
+          );
+        assert(
+          received >= order.takeAmount,
+          'DLN destination received less than the committed amount',
+        );
+      }
+    }
+    return order.takeAmount;
+  }
+
   private async executeEvmLike(
     protocol: ProtocolType.Ethereum | ProtocolType.Tron,
     privateKey: string,
     createTx: DeBridgeCreateTxResponse,
     quote: BridgeQuote,
-    options?: BridgeExecutionOptions,
-  ): Promise<BridgeTransferResult> {
+    options: BridgeExecutionOptions | undefined,
+    preparedAt: number,
+  ): Promise<BridgeTransferResult | undefined> {
     const { tx, fixFee, orderId } = createTx;
     assert(tx.to, 'deBridge create-tx response is missing tx.to');
     assert(tx.value, 'deBridge create-tx response is missing tx.value');
@@ -392,11 +735,6 @@ export class DeBridgeBridge implements IExternalBridge {
       `deBridge transaction value ${tx.value} does not match expected ${expectedValue}`,
     );
 
-    validateDeBridgeEvmTransaction(quote, tx.to, tx.data);
-    if (tx.to.toLowerCase() === DLN_FORWARDER.toLowerCase()) {
-      await validateDeBridgeForwarderDeployment(wallet.provider, tx.data);
-    }
-
     if (!isNativeToken) {
       await approveErc20IfNeeded(
         wallet,
@@ -407,6 +745,10 @@ export class DeBridgeBridge implements IExternalBridge {
         { onApproval: options?.onApproval },
       );
     }
+
+    if (Date.now() - preparedAt >= MAX_TRANSACTION_AGE_MS) return undefined;
+    await this.validatePreparedOrder(quote, createTx);
+    if (Date.now() - preparedAt >= MAX_TRANSACTION_AGE_MS) return undefined;
 
     this.logger.info(
       {
@@ -440,38 +782,17 @@ export class DeBridgeBridge implements IExternalBridge {
     privateKey: string,
     createTx: DeBridgeCreateTxResponse,
     quote: BridgeQuote,
-    options?: BridgeExecutionOptions,
-  ): Promise<BridgeTransferResult> {
+    options: BridgeExecutionOptions | undefined,
+    preparedAt: number,
+  ): Promise<BridgeTransferResult | undefined> {
     const keypair = Keypair.fromSecretKey(parseSolanaPrivateKey(privateKey));
-    const serialized = Buffer.from(createTx.tx.data.slice(2), 'hex');
-    const transaction = VersionedTransaction.deserialize(serialized);
-    assert(
-      transaction.message.header.numRequiredSignatures === 1,
-      'deBridge Solana transaction must require exactly one signer',
-    );
-    assert(
-      transaction.message.staticAccountKeys[0]?.equals(keypair.publicKey),
-      'deBridge Solana transaction signer does not match inventory signer',
-    );
-
+    const transaction = await this.validateSolanaTransaction(quote, createTx);
     const connection = new Connection(
       this.getRpcUrl(quote.requestParams.fromChain),
     );
-    const addressLookupTableAccounts = await Promise.all(
-      transaction.message.addressTableLookups.map(async (lookup) => {
-        const { value } = await connection.getAddressLookupTable(
-          lookup.accountKey,
-        );
-        assert(value, 'deBridge Solana address lookup table was not found');
-        return value;
-      }),
-    );
-    const { instructions } = TransactionMessage.decompile(transaction.message, {
-      addressLookupTableAccounts,
-    });
-    validateDeBridgeSolanaInstructions(quote, keypair.publicKey, instructions);
     const { blockhash } = await connection.getLatestBlockhash();
     transaction.message.recentBlockhash = blockhash;
+    if (Date.now() - preparedAt >= MAX_TRANSACTION_AGE_MS) return undefined;
     transaction.sign([keypair]);
 
     await options?.onTransferId?.(createTx.orderId);
