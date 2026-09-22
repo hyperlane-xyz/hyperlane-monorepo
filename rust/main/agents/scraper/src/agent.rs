@@ -1111,6 +1111,9 @@ impl Scraper {
         index_settings: IndexSettings,
     ) -> eyre::Result<JoinHandle<()>> {
         let label = "message_delivery";
+        let store = store
+            .with_event_watermark::<Delivery>(&index_settings)
+            .await?;
         let sync = self
             .as_ref()
             .settings
@@ -1154,6 +1157,9 @@ impl Scraper {
         tx_id_receiver: Option<MpscReceiver<IndexingNotification>>,
     ) -> eyre::Result<JoinHandle<()>> {
         let label = "gas_payment";
+        let store = store
+            .with_event_watermark::<InterchainGasPayment>(&index_settings)
+            .await?;
         let sync = self
             .as_ref()
             .settings

@@ -251,8 +251,9 @@ where
         range: RangeInclusive<u32>,
     ) -> Result<()> {
         self.update_metrics().await;
-        // Store a relatively conservative view of the high watermark, which should allow a single watermark to be
-        // safely shared across multiple cursors, so long as they are running sufficiently in sync
+        // Keep a conservative replay range for this cursor. The durable store
+        // must scope its watermark to this event: another worker can lag by
+        // arbitrarily many ranges, so a shared maximum is not a safe checkpoint.
         self.store
             .store_high_watermark(u32::max(
                 self.sync_state.start_block,
