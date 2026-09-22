@@ -1,14 +1,16 @@
 use std::{
+    collections::HashMap,
     fs,
     io::ErrorKind,
     path::Path,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc,
     },
 };
 
 use super::error::DbError;
+use parking_lot::RwLock;
 use rocksdb::{Direction, IteratorMode, Options, WriteBatch, WriteBatchIterator, DB as Rocks};
 use tracing::info;
 
@@ -83,12 +85,50 @@ fn remove_archived_wal_files(db_path: &Path) -> Result<()> {
 
 #[derive(Debug, Clone)]
 /// A KV Store
-pub struct DB(Arc<Rocks>);
+pub struct DB(Arc<Rocks>, Arc<RwLock<PrefixGenerations>>);
+
+// Stored on the shared DB so independent TypedDB/domain handles invalidate the
+// same pending-index empty-result cache. No state survives a database reopen.
+type PrefixGenerations = HashMap<Vec<u8>, Arc<AtomicU64>>;
+
+struct BatchKeys(Vec<Vec<u8>>);
+impl WriteBatchIterator for BatchKeys {
+    fn put(&mut self, key: &[u8], _value: &[u8]) {
+        self.0.push(key.to_vec());
+    }
+    fn delete(&mut self, key: &[u8]) {
+        self.0.push(key.to_vec());
+    }
+}
+
+struct ChangedPrefixes<'a> {
+    generations: &'a PrefixGenerations,
+    changed: Vec<Arc<AtomicU64>>,
+}
+impl ChangedPrefixes<'_> {
+    fn record(&mut self, key: &[u8]) {
+        for (prefix, generation) in self.generations {
+            if key.starts_with(prefix) && !self.changed.iter().any(|g| Arc::ptr_eq(g, generation)) {
+                self.changed.push(generation.clone());
+            }
+        }
+    }
+}
+impl WriteBatchIterator for ChangedPrefixes<'_> {
+    fn put(&mut self, key: &[u8], _value: &[u8]) {
+        self.record(key);
+    }
+    fn delete(&mut self, key: &[u8]) {
+        self.record(key);
+    }
+}
 
 /// A set of writes committed atomically to RocksDB.
 pub struct DbBatch {
     db: DB,
     writes: WriteBatch,
+    deleted_ranges: Vec<(Vec<u8>, Vec<u8>)>,
+    changed_keys: Vec<Vec<u8>>,
 }
 
 struct PrefixWriteDetector<'a> {
@@ -153,7 +193,7 @@ impl WriteBatchIterator for PendingIndexWriteDetector<'_> {
 
 impl From<Rocks> for DB {
     fn from(rocks: Rocks) -> Self {
-        Self(Arc::new(rocks))
+        Self(Arc::new(rocks), Default::default())
     }
 }
 
@@ -243,7 +283,14 @@ impl DB {
 
     /// Store a value in the DB
     pub fn store(&self, key: &[u8], value: &[u8]) -> Result<()> {
-        Ok(self.0.put(key, value)?)
+        let generations = self.1.read();
+        self.0.put(key, value)?;
+        for (prefix, generation) in generations.iter() {
+            if key.starts_with(prefix) {
+                generation.fetch_add(1, Ordering::Release);
+            }
+        }
+        Ok(())
     }
 
     /// Atomically store multiple key-value pairs in the DB.
@@ -252,7 +299,7 @@ impl DB {
         for (key, value) in entries {
             batch.put(key, value);
         }
-        Ok(self.0.write(batch)?)
+        self.commit_batch(batch, &[], &[])
     }
 
     /// Atomically store and delete multiple keys.
@@ -268,7 +315,7 @@ impl DB {
         for key in deletions {
             batch.delete(key);
         }
-        Ok(self.0.write(batch)?)
+        self.commit_batch(batch, &[], &[])
     }
 
     pub(crate) fn retrieve_at_or_after(&self, key: &[u8]) -> Result<Option<(Vec<u8>, Vec<u8>)>> {
@@ -325,7 +372,14 @@ impl DB {
 
     /// Delete a value from the DB
     pub fn delete(&self, key: &[u8]) -> Result<()> {
-        Ok(self.0.delete(key)?)
+        let generations = self.1.read();
+        self.0.delete(key)?;
+        for (prefix, generation) in generations.iter() {
+            if key.starts_with(prefix) {
+                generation.fetch_add(1, Ordering::Release);
+            }
+        }
+        Ok(())
     }
 
     /// Retrieve all values stored under a key prefix.
@@ -456,11 +510,57 @@ impl DB {
         Ok(false)
     }
 
+    pub(crate) fn watch_prefix(&self, prefix: Vec<u8>) -> Arc<AtomicU64> {
+        self.1.write().entry(prefix).or_default().clone()
+    }
+
+    fn commit_batch(
+        &self,
+        writes: WriteBatch,
+        deleted_ranges: &[(Vec<u8>, Vec<u8>)],
+        changed_keys: &[Vec<u8>],
+    ) -> Result<()> {
+        // Registration and commit/publication are ordered, including batches
+        // assembled before a reader subscribed.
+        let generations = self.1.read();
+        if generations.is_empty() {
+            return Ok(self.0.write(writes)?);
+        }
+        let mut changes = ChangedPrefixes {
+            generations: &generations,
+            changed: Vec::new(),
+        };
+        if deleted_ranges.is_empty() {
+            writes.iterate(&mut changes);
+        } else {
+            for key in changed_keys {
+                changes.record(key);
+            }
+        }
+        for (start, end) in deleted_ranges {
+            for (prefix, generation) in generations.iter() {
+                if ((prefix.as_slice() >= start.as_slice() && prefix.as_slice() < end.as_slice())
+                    || start.starts_with(prefix))
+                    && !changes.changed.iter().any(|g| Arc::ptr_eq(g, generation))
+                {
+                    changes.changed.push(generation.clone());
+                }
+            }
+        }
+        self.0.write(writes)?;
+        for generation in changes.changed {
+            generation.fetch_add(1, Ordering::Release);
+        }
+        Ok(())
+    }
+
     /// Start an atomic write batch.
     pub fn batch(&self) -> DbBatch {
         DbBatch {
             db: self.clone(),
             writes: WriteBatch::default(),
+            deleted_ranges: Vec::new(),
+            changed_keys: Vec::new(),
         }
     }
 }
@@ -469,21 +569,36 @@ impl DbBatch {
     /// Store a raw key/value pair in this batch.
     pub fn store(&mut self, key: &[u8], value: &[u8]) {
         self.writes.put(key, value);
+        if !self.deleted_ranges.is_empty() {
+            self.changed_keys.push(key.to_vec());
+        }
     }
 
     /// Delete a raw key in this batch.
     pub fn delete(&mut self, key: &[u8]) {
         self.writes.delete(key);
+        if !self.deleted_ranges.is_empty() {
+            self.changed_keys.push(key.to_vec());
+        }
     }
 
     /// Delete a raw key range in this batch.
     pub fn delete_range(&mut self, start: &[u8], end: &[u8]) {
+        if self.deleted_ranges.is_empty() {
+            // The RocksDB iterator cannot traverse range tombstones. Copy keys
+            // only for these uncommon batches, before adding the first range.
+            let mut keys = BatchKeys(Vec::new());
+            self.writes.iterate(&mut keys);
+            self.changed_keys = keys.0;
+        }
         self.writes.delete_range(start, end);
+        self.deleted_ranges.push((start.to_vec(), end.to_vec()));
     }
 
     /// Atomically commit this batch.
     pub fn commit(self) -> Result<()> {
-        Ok(self.db.0.write(self.writes)?)
+        self.db
+            .commit_batch(self.writes, &self.deleted_ranges, &self.changed_keys)
     }
 }
 
