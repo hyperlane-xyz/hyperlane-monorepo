@@ -66,3 +66,35 @@ fn concurrent_final_vm_clones_release_process() {
         );
     }
 }
+
+#[test]
+fn abandoned_blocking_initializer_releases_process() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("test runtime");
+    let process = runtime.block_on(async {
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let initializer = tokio::task::spawn_blocking(move || {
+            let vm = new_vm::<MainnetV0>();
+            started_tx
+                .send(Arc::downgrade(vm.process()))
+                .expect("initializer observed");
+            release_rx.recv().expect("release initializer");
+            vm
+        });
+        let process = started_rx.await.expect("VM initialized");
+        // Cancelling the OnceCell initializer drops its JoinHandle while the
+        // blocking task keeps running. Its unpublished VM must still be freed.
+        drop(initializer);
+        release_tx.send(()).expect("finish abandoned initializer");
+        process
+    });
+    // Runtime shutdown waits for blocking tasks, avoiding sleep-based checks.
+    drop(runtime);
+    assert!(
+        process.upgrade().is_none(),
+        "abandoned initialization retained a VM"
+    );
+}

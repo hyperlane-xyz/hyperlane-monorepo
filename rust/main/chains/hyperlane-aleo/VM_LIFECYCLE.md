@@ -21,12 +21,21 @@ queued operations can still check their execution thread during shutdown.
 Public VM methods, clone behavior, network isolation, and per-provider program
 caches are preserved. Dropping the final VM now waits for queued sequential
 operations, as the original destructor intended. Hyperlane uses these VMs for
-authorization and proving, not ledger finalization, so its queue is normally idle.
+authorization and proving, not ledger finalization. Those private VM cells never
+call `add_next_block` or `atomic_speculate`, the only queue entrypoints. Their
+workers therefore have no queued ledger work to drain, including when a final
+provider is dropped on a Tokio worker during shutdown.
 
 The lazy per-network cells from #9671 remain: initialization runs on Tokio's
 blocking pool, read-only providers create no VMs,
 and provider clones share only their initialized execution network. This patch
 also releases initialized VMs when their final provider is dropped.
+
+Cancelling first use drops the initialization task's JoinHandle. An already
+started blocking initialization still finishes, and its unpublished VM is
+released by the lifecycle fix. A later caller may repeat the CPU work; the
+regression suite checks that abandoning a running initializer releases its
+Process once the blocking task completes.
 
 ## Validation
 
