@@ -46,6 +46,7 @@ interface PendingMessage {
  */
 export class MockInfrastructureController {
   private pendingMessages: PendingMessage[] = [];
+  private readonly observedMessages = new Set<string>();
   private isRunning = false;
   private processLoopPromise?: Promise<void>;
 
@@ -107,6 +108,29 @@ export class MockInfrastructureController {
     this.processLoopPromise = this.processLoop();
   }
 
+  /** Register confirmed user dispatches without waiting for event polling. */
+  async observeReceipt(
+    origin: string,
+    receipt: ethers.providers.TransactionReceipt,
+  ): Promise<void> {
+    const mailbox = this.core.getContracts(origin).mailbox;
+    const topic = mailbox.interface.getEventTopic('Dispatch');
+    for (const log of receipt.logs) {
+      if (
+        log.address.toLowerCase() !== mailbox.address.toLowerCase() ||
+        log.topics[0] !== topic
+      )
+        continue;
+      const { args } = mailbox.interface.parseLog(log);
+      await this.onDispatch(
+        origin,
+        args.sender,
+        args.destination,
+        args.message,
+      );
+    }
+  }
+
   /**
    * Handle a Dispatch event
    */
@@ -149,6 +173,8 @@ export class MockInfrastructureController {
 
     // Compute real messageId
     const messageId = ethers.utils.keccak256(message);
+    if (this.observedMessages.has(messageId)) return;
+    this.observedMessages.add(messageId);
 
     const body = '0x' + message.slice(2 + MESSAGE_BODY_OFFSET * 2);
     let amount = 0n;

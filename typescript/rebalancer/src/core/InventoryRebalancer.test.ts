@@ -14,7 +14,11 @@ import {
   WarpTxCategory,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { assert, ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  ProtocolType,
+  TransactionSubmissionError,
+} from '@hyperlane-xyz/utils';
 
 import { ExternalBridgeType } from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
@@ -82,6 +86,7 @@ describe('InventoryRebalancer E2E', () => {
       getInflightInventoryMovements: Sinon.stub(),
       getPartiallyFulfilledInventoryIntents: Sinon.stub(),
       createRebalanceAction: Sinon.stub(),
+      updateRebalanceActionExecution: Sinon.stub(),
       completeRebalanceAction: Sinon.stub(),
       failRebalanceAction: Sinon.stub(),
       logStoreContents: Sinon.stub(),
@@ -89,6 +94,17 @@ describe('InventoryRebalancer E2E', () => {
 
     // Default: No active (partial) inventory intents
     actionTracker.getPartiallyFulfilledInventoryIntents.resolves([]);
+    actionTracker.createRebalanceAction.resolves({
+      id: 'action-1',
+      status: 'in_progress',
+      type: 'inventory_movement',
+      intentId: 'intent-1',
+      origin: 1,
+      destination: 2,
+      amount: 1n,
+      createdAt: 1,
+      updatedAt: 1,
+    });
 
     bridge = {
       bridgeId: 'lifi',
@@ -377,7 +393,13 @@ describe('InventoryRebalancer E2E', () => {
       expect(actionParams.intentId).to.equal('intent-1');
       expect(actionParams.type).to.equal('inventory_deposit');
       expect(actionParams.amount).to.equal(10000000000n);
-      expect(actionParams.txHash).to.equal('0xTransferRemoteTxHash');
+      expect(actionParams.txHash).to.be.undefined;
+      expect(
+        actionTracker.updateRebalanceActionExecution.calledWith(
+          'action-1',
+          Sinon.match({ txHash: '0xTransferRemoteTxHash' }),
+        ),
+      ).to.be.true;
     });
 
     it('executes transferRemote with correct parameters (swapped direction)', async () => {
@@ -451,8 +473,12 @@ describe('InventoryRebalancer E2E', () => {
       expect(sendAndConfirmStub.firstCall.args[0]).to.equal(SOLANA_CHAIN);
       expect(multiProvider.sendTransaction.called).to.be.false;
 
-      const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
-      expect(actionParams.txHash).to.equal('0xSolanaTxHash');
+      expect(
+        actionTracker.updateRebalanceActionExecution.calledWith(
+          'action-1',
+          Sinon.match({ txHash: '0xSolanaTxHash' }),
+        ),
+      ).to.be.true;
     });
 
     it('denormalizes inventory execution amounts but records canonical deposit amount', async () => {
@@ -525,7 +551,7 @@ describe('InventoryRebalancer E2E', () => {
           data: '0xTransferRemoteData',
           value: 1000000n,
         },
-        { waitConfirmations: 2 },
+        { waitConfirmations: 2, enableBlockhashResubmit: false },
       ),
     ).to.be.true;
   });
@@ -778,9 +804,13 @@ describe('InventoryRebalancer E2E', () => {
       const actionParams =
         actionTracker.createRebalanceAction.firstCall.args[0];
       expect(actionParams.type).to.equal('inventory_movement');
-      expect(actionParams.externalBridgeTransferId).to.equal(
-        'provider-transfer-id',
-      );
+      expect(actionParams.externalBridgeTransferId).to.be.undefined;
+      expect(
+        actionTracker.updateRebalanceActionExecution.calledWith(
+          'action-1',
+          Sinon.match({ externalBridgeTransferId: 'provider-transfer-id' }),
+        ),
+      ).to.be.true;
     });
 
     it('returns failure for unrelated fee-aware probe errors', async () => {
@@ -1036,13 +1066,25 @@ describe('InventoryRebalancer E2E', () => {
         [SOLANA_CHAIN]: 10000000000n,
         [ARBITRUM_CHAIN]: 0n,
       });
-      multiProvider.sendTransaction.rejects(new Error('Transaction failed'));
+      multiProvider.sendTransaction.rejects(
+        new TransactionSubmissionError(
+          new Error('Transaction failed'),
+          'unknown',
+        ),
+      );
 
       const results = await inventoryRebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
       expect(results[0].error).to.include('Transaction failed');
+      expect(
+        actionTracker.createRebalanceAction.calledBefore(
+          multiProvider.sendTransaction,
+        ),
+      ).to.be.true;
+      expect(actionTracker.updateRebalanceActionExecution.called).to.be.true;
+      expect(actionTracker.failRebalanceAction.called).to.be.false;
     });
 
     it('handles missing token for chain', async () => {
@@ -2274,6 +2316,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].error).to.include('LiFi API timeout');
       expect(bridge.quote.callCount).to.equal(2);
       expect(bridge.execute.called).to.be.false;
+      expect(actionTracker.createRebalanceAction.called).to.be.false;
     });
 
     it('preserves non-Error rejection reasons from parallel bridge execution', async () => {
@@ -2500,6 +2543,13 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
       expect(results[0].error).to.include('All inventory movements failed');
+      expect(
+        actionTracker.createRebalanceAction.firstCall.calledBefore(
+          bridge.execute.firstCall,
+        ),
+      ).to.be.true;
+      expect(actionTracker.updateRebalanceActionExecution.called).to.be.true;
+      expect(actionTracker.failRebalanceAction.called).to.be.false;
     });
   });
 

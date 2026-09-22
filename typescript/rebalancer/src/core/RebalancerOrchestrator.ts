@@ -85,7 +85,9 @@ export class RebalancerOrchestrator {
       );
     }
 
-    await this.syncActionTracker(event.confirmedBlockTags);
+    const requiresFreshBalances = await this.syncActionTracker(
+      event.confirmedBlockTags,
+    );
 
     const rawBalances = getRawBalances(
       getStrategyChainNames(this.rebalancerConfig.strategyConfig),
@@ -102,6 +104,18 @@ export class RebalancerOrchestrator {
       },
       'Router balances',
     );
+
+    if (requiresFreshBalances) {
+      this.logger.info(
+        'Waiting for a fresh balance snapshot after settlement changes or an incomplete tracker sync',
+      );
+      return {
+        balances: rawBalances,
+        proposedRoutes: [],
+        executedCount: 0,
+        failedCount: 0,
+      };
+    }
 
     // Get inflight context for strategy decision-making
     const inflightContext = await this.getInflightContext();
@@ -153,27 +167,45 @@ export class RebalancerOrchestrator {
    */
   private async syncActionTracker(
     confirmedBlockTags?: ConfirmedBlockTags,
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
+      const before = await this.actionTracker.getInProgressActions();
+      let completedMovements = 0;
       await Promise.all([
         this.actionTracker.syncTransfers(confirmedBlockTags),
-        this.actionTracker.syncRebalanceIntents(),
         this.actionTracker.syncRebalanceActions(confirmedBlockTags),
       ]);
 
       // Sync inventory movement actions via external bridge API
       if (this.externalBridgeRegistry) {
-        await this.actionTracker.syncInventoryMovementActions(
-          this.externalBridgeRegistry,
-        );
+        const { completed } =
+          await this.actionTracker.syncInventoryMovementActions(
+            this.externalBridgeRegistry,
+          );
+        completedMovements = completed;
       }
 
+      // Settle actions before expiring intents so source-started sends cannot be
+      // released by TTL while their latest delivery state is still being fetched.
+      await this.actionTracker.syncRebalanceIntents();
+
       await this.actionTracker.logStoreContents();
+      const after = new Set(
+        (await this.actionTracker.getInProgressActions()).map(
+          (action) => action.id,
+        ),
+      );
+      // The supplied monitor event was sampled before this sync. Settlement can
+      // change balances after that snapshot; never replace those credits with a second movement.
+      return (
+        completedMovements > 0 || before.some((action) => !after.has(action.id))
+      );
     } catch (error) {
       this.logger.warn(
         { error },
-        'ActionTracker sync failed, using stale data',
+        'ActionTracker sync failed; execution deferred',
       );
+      return true;
     }
   }
 
