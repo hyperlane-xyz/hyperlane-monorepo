@@ -190,6 +190,16 @@ fn configuration_is_explicit_and_accepts_flat_loader_values() {
     }
 }
 
+// Later migrations may follow near-head; both rollback tests must reach it.
+fn near_head_rollback_steps() -> Result<u32> {
+    let migrations = migration::Migrator::migrations();
+    let position = migrations
+        .iter()
+        .position(|migration| migration.name() == "m20260922_000014_near_head")
+        .expect("near-head migration");
+    Ok(u32::try_from(migrations.len() - position)?)
+}
+
 #[tokio::test]
 async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
@@ -226,9 +236,14 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
             .is_err(),
         "Provisional events must not notify legacy consumers"
     );
+    let rollback_error = migration::Migrator::down(&store.db, Some(near_head_rollback_steps()?))
+        .await
+        .expect_err("Rollback must not expose provisional rows");
     assert!(
-        migration::Migrator::down(&store.db, Some(1)).await.is_err(),
-        "Rollback must not expose provisional rows"
+        rollback_error
+            .to_string()
+            .contains("Drain or repair near-head history before rollback"),
+        "Unexpected rollback error: {rollback_error}"
     );
     assert_eq!(count(&store, "gas_payment_stream_cursor").await?, 0);
     assert_eq!(count(&store, "total_gas_payment").await?, 0);
@@ -484,7 +499,7 @@ async fn header_cleanup_preserves_enrichment_and_bounds_deletes() -> Result<()> 
     assert_eq!(store.prune_headers(next).await?.1, 106);
     assert_eq!(store.prune_headers(0).await?.1, 0);
     assert!(store.hash(1110).await?.is_some());
-    migration::Migrator::down(&store.db, Some(1)).await?;
+    migration::Migrator::down(&store.db, Some(near_head_rollback_steps()?)).await?;
     migration::Migrator::up(&store.db, None).await?;
     Ok(())
 }
