@@ -1,10 +1,10 @@
 warpRouteId: oUSDT/production
 
-# Baseline image until the reviewed runtime stack has landed and its candidate
-# has been built. Replace both image references before the production rollout.
+# Candidate built from dc0ef47a78 via node-services-docker.yml run 35720770825.
+# Provider, collateral and settlement gates still apply before rollout.
 deployment:
-  imageTag: db28a86-20260826-203943
-  imageDigest: sha256:e23d1898a479d8f9b17b70d589a88ee71f5fbd147614a9381cd6bab99171e9ab
+  imageTag: dc0ef47-20260922-111927
+  imageDigest: sha256:98ca73b0065c4be4f60246dc8f39d975558151e932a59ad18d662996b0f75d68
   swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key-ousdt
   registryCommit: 0b7518b88967309b0ca30827ec418852873bdc7e
 
