@@ -7,7 +7,6 @@ import {
   ZERO_EX_SETTLER_INTERFACE,
   ZERO_EX_ACTION_INTERFACE,
 } from '../deBridgeForwarderValidation.js';
-import { DLN_SOURCE_INTERFACE } from '../deBridgeValidation.js';
 import fixture from './debridge-bsc-forwarder.json' with { type: 'json' };
 
 export { fixture };
@@ -67,17 +66,9 @@ export function withSignerSurplus(signer = fixture.fromAddress): string {
   });
 }
 
-/** Constructed positive case: signer surplus and an unrestricted nested order. */
+/** The captured, unmodified provider payload is the positive semantic fixture. */
 export function supportedForwarderData(): string {
-  return changeCall(DLN_FORWARDER_INTERFACE, withSignerSurplus(), (outer) => {
-    const args = [...outer];
-    args[9] = changeCall(DLN_SOURCE_INTERFACE, outer.targetData, (order) => {
-      const next = [...order];
-      next[0] = { ...order.order, allowedTakerDst: '0x' };
-      return next;
-    });
-    return args;
-  });
+  return fixture.tx.data;
 }
 
 export function fixtureQuote(): BridgeQuote {

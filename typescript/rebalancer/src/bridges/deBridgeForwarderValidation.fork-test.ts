@@ -178,7 +178,10 @@ describe('deBridge source swap on a local BSC fork', function () {
     expect(order.takeChainId.toNumber()).to.equal(fixture.toChain);
     expect(order.takeAmount.gte(quote.toAmountMin)).to.equal(true);
     expect(order.receiverDst).to.equal(fixture.fromAddress.toLowerCase());
-    expect(order.allowedTakerDst).to.equal('0x');
+    expect(order.allowedTakerDst).to.equal(
+      DLN_SOURCE_INTERFACE.parseTransaction({ data: outer.targetData }).args
+        .order.allowedTakerDst,
+    );
   });
 
   it('reverts without a source debit when the outer intermediate minimum cannot be met', async () => {
