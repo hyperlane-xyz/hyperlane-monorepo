@@ -32,21 +32,34 @@ chain cannot silently change its cutover or contracts.
   end checkpoint commit atomically, including when the range has no events.
 - Each returned log must match its block header. The previous indexed boundary
   and the range end are checked again before commit; changed forks are retried.
-  Like the legacy range indexers, this relies on the RPC serving complete,
-  coherent range results. These checks cannot prove the absence of omitted logs
-  from an inconsistent provider.
+  Dispatch nonces and Merkle leaf indexes must exactly cover the counts read
+  from their contracts at both boundary hashes. Missing first, middle, tail, or
+  entire sequences reject the range without advancing progress, including after
+  restart. Delivery and gas events have no sequence counters, so their completeness
+  still depends on the RPC returning all matching logs.
 - Polling uses `index.interval`, with the legacy range cursor's 30-second default.
   An unchanged head costs one RPC call and no log query. Catch-up ranges run
   without an idle delay. Confirmation wakes on progress and drains eligible
   batches without waiting for another poll. `safe`/`finalized` tag checks use the
   same timer rather than a new one-second RPC polling loop.
-- A reorg rolls back to the newest retained checkpoint on the canonical chain,
+- Inserts use batches of at most 1,000 rows per table in the same atomic
+  transaction. A failed batch rolls back both events and progress.
+- A lagging RPC head pauses ingestion and publication without deleting the
+  retained suffix. A reorg rolls back to the newest retained checkpoint on the canonical chain,
   then replays the range. Confirmation stores its exact boundary header even
   when that height was an empty block inside a range.
 - Confirmation requires a healthy head observation less than 30 seconds old and
   cannot pass indexed progress. Advancing the observed head can confirm existing
   events even if the next log fetch fails. Long in-flight RPC calls can expire the
   observation lease; confirmation then waits for a fresh observation.
+- Startup probes the configured finality tag. Ingestion and confirmation failures
+  independently contribute to the chain critical-error metric; successful head
+  reads cannot clear a confirmation failure. Ingestion pauses on confirmation
+  errors. A stalled boundary limits the provisional suffix to 10,000 blocks plus
+  the configured numeric reorg depth; reaching the limit raises a critical error.
+  `scraper_head.healthy` describes the head-observation lease, not overall worker
+  health. Compare the `indexed_height` metric's `near_head` series with the
+  confirmed event series to observe confirmation lag.
 - Unpublished forks are deleted and reindexed. Existing block, transaction,
   message and leaf uniqueness constraints are unchanged. Fork occurrences are not
   archived. A reorg crossing confirmed history persists a halt and raises the
@@ -58,10 +71,11 @@ chain cannot silently change its cutover or contracts.
   confirmed dispatches every 30 seconds, rather than the legacy five-minute
   fallback cadence. Legacy chains retain their existing reconciliation schedule.
 - Confirmation does not wait for receipt enrichment. Gas/delivery transaction
-  metadata is filled in by the existing dispatch reconciler, one bounded page
+  metadata is filled in by an independent receipt loop, one bounded page
   per event type per cycle. Failed/timed-out pages advance their scan cursor so
   later pages are attempted; missing receipts are retried on the next sweep.
-  Each gas/delivery page has a 30-second timeout. Existing
+  Each gas/delivery page has a 30-second timeout. Completed receipts are linked
+  even when a neighboring receipt times out. Existing
   nullable transaction relations remain nullable until enrichment succeeds.
 - The confirmation worker scans at most 1,000 old block headers per cycle and
   deletes unreferenced candidates in a separate transaction. An in-memory cursor
@@ -78,13 +92,26 @@ chain cannot silently change its cutover or contracts.
 
 For a caught-up unchanged head: one header request per poll. For a normal new
 range containing events in `B` distinct blocks: at most `B + 6` header requests
-and one combined log request, independent of the number of empty blocks in the
+and one combined log request plus four contract-count reads, independent of the number of empty blocks in the
 range. Numeric confirmation needs up to two header reads when it advances;
-finality tags also require a tag read. Receipt enrichment and retries are extra.
+finality tags also require a tag read while provisional progress exists. Count
+reads require hash-pinned `eth_call` support; an empty pre-deployment result also
+requires `eth_getCode` to distinguish an absent contract from a malformed reply. Receipt enrichment and retries are extra.
 The legacy path used up to four event range queries plus its separate tip and
 receipt/header lookups. Costs are comparable in structure, not guaranteed equal:
 chain activity, polling configuration, confirmation batches, and RPC retries
 still determine the actual total. This has not been benchmarked in production.
+
+## Validation fixture
+
+The `incomplete_sequences_retry_after_restart_and_dense_ranges_batch_atomically`
+test covers 2,004 events across multiple insert batches, incomplete sequence
+retries, and atomic rollback on a duplicate in a later batch. This fixture uses
+seven insert statements instead of 2,006 individual event/header inserts.
+One local PostgreSQL 16 Docker run with an unoptimized Rust test build measured
+54 ms ingestion and 36 ms maximum concurrent confirmation-row lock acquisition,
+including the database round trip. These are fixture observations, not production
+throughput estimates or a before/after latency benchmark.
 
 ## Rollout
 
@@ -93,8 +120,8 @@ still determine the actual total. This has not been benchmarked in production.
    measure index creation on a database clone and allow a maintenance window.
 2. Verify a common completed cutover for the four legacy streams. Configure
    `nearHead`, then start the scraper and matching proxy.
-3. Check `scraper_head` for healthy, advancing `indexed_height` and
-   `confirmed_height`, and check the existing consumer streams.
+3. Check `scraper_head` for advancing `indexed_height` and `confirmed_height`,
+   verify the chain critical-error metric is clear, and check consumer streams.
 
 SELECT grants on existing event tables are copied to the confirmed views. External
 SQL consumers wanting the old visibility must use `confirmed_raw_message_dispatch`,

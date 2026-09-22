@@ -70,6 +70,15 @@ impl Chain {
 
 #[async_trait]
 impl Source for Chain {
+    async fn counts(&self, hash: H256) -> Result<[u32; 2]> {
+        let headers = self.headers.lock().unwrap();
+        let header = headers
+            .values()
+            .find(|h| h.hash == hash)
+            .ok_or_else(|| eyre::eyre!("Unknown fork"))?;
+        Ok([u32::from(header.height >= 2); 2])
+    }
+
     async fn header(&self, block: BlockNumber) -> Result<Header> {
         self.header_calls.fetch_add(1, Ordering::Relaxed);
         let headers = self.headers.lock().unwrap();
@@ -514,6 +523,13 @@ async fn ranges_use_sparse_headers_and_reject_fork_changes() -> Result<()> {
     // Confirmation materializes an exact boundary inside an otherwise empty gap.
     confirm(&chain, &store, &ReorgPeriod::from_blocks(950)).await?;
     assert!(store.hash(50).await?.is_some());
+    // A lagging provider above the confirmed frontier must also preserve the suffix.
+    chain.fork(900, 900, 0);
+    assert!(observe(&chain, &store).await.is_err());
+    assert_eq!(store.state().await?.unwrap().indexed, 1000);
+    assert!(store.hash(1000).await?.is_some());
+    chain.fork(1000, 900, 0);
+    observe(&chain, &store).await?;
     chain.fork(1000, 60, 1);
     let state = observe(&chain, &store).await?;
     assert_eq!(state.indexed, 50); // Roll back to a retained, confirmed checkpoint.
@@ -533,4 +549,277 @@ async fn ranges_use_sparse_headers_and_reject_fork_changes() -> Result<()> {
     assert!(observe(&chain, &store).await.is_err());
     assert!(store.state().await?.unwrap().halted);
     Ok(())
+}
+
+struct DenseChain {
+    chain: Chain,
+    omitted: Mutex<Option<(usize, u32)>>,
+}
+
+#[async_trait]
+impl Source for DenseChain {
+    async fn header(&self, number: BlockNumber) -> Result<Header> {
+        self.chain.header(number).await
+    }
+
+    async fn counts(&self, hash: H256) -> Result<[u32; 2]> {
+        Ok(self.chain.counts(hash).await?.map(|count| count * 1001))
+    }
+
+    async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
+        let mut events = Vec::new();
+        for event in self.chain.events(from, through).await? {
+            let stream = match event.data {
+                EventData::Dispatch(_) => 0,
+                EventData::Insertion { .. } => 1,
+                _ => {
+                    events.push(event);
+                    continue;
+                }
+            };
+            for index in 0..1001 {
+                if *self.omitted.lock().unwrap() == Some((stream, index)) {
+                    continue;
+                }
+                let mut event = event.clone();
+                match &mut event.data {
+                    EventData::Dispatch(message) => message.nonce = index,
+                    EventData::Insertion {
+                        index: leaf,
+                        message_id,
+                    } => {
+                        *leaf = index;
+                        *message_id = H256::from_low_u64_be(u64::from(index));
+                    }
+                    _ => unreachable!(),
+                }
+                events.push(event);
+            }
+        }
+        for (position, event) in events.iter_mut().enumerate() {
+            event.log_index = u64::try_from(position)?;
+        }
+        Ok(events)
+    }
+}
+
+#[tokio::test]
+async fn incomplete_sequences_retry_after_restart_and_dense_ranges_batch_atomically() -> Result<()>
+{
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let url = format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    );
+    let db = Database::connect(&url).await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let source = DenseChain {
+        chain: Chain::new(3),
+        omitted: Mutex::new(None),
+    };
+    let anchor = source.header(0u64.into()).await?;
+    store.initialize(&anchor, &contracts()).await?;
+    for stream in 0..2 {
+        for missing in [0, 500, 1000] {
+            *source.omitted.lock().unwrap() = Some((stream, missing));
+            let state = observe(&source, &store).await?;
+            assert!(ingest(&source, &store, &state, 1000).await.is_err());
+            assert_eq!(store.state().await?.unwrap().indexed, 0);
+            assert_eq!(count(&store, "raw_message_dispatch").await?, 0);
+            assert_eq!(
+                confirm(&source, &store, &ReorgPeriod::from_blocks(0)).await?,
+                [0; 4]
+            );
+            store.initialize(&anchor, &contracts()).await?;
+        }
+    }
+    *source.omitted.lock().unwrap() = None;
+    let state = observe(&source, &store).await?;
+    let events = source.events(1, 3).await?;
+    // A late duplicate in the second insert chunk rolls back the entire range.
+    let header = source.header(2u64.into()).await?;
+    let mut invalid = events.clone();
+    invalid.push(events[0].clone());
+    assert!(store
+        .append(&state, &[(header.clone(), invalid)])
+        .await
+        .is_err());
+    assert_eq!(store.state().await?.unwrap().indexed, 0);
+    assert_eq!(count(&store, "raw_message_dispatch").await?, 0);
+    assert_eq!(count(&store, "block").await?, 1);
+    let probe = Database::connect(&url).await?;
+    let done = AtomicBool::new(false);
+    let (ingestion, lock_probe) = tokio::join!(
+        async {
+            let start = std::time::Instant::now();
+            let result = ingest(&source, &store, &state, 1000).await;
+            done.store(true, Ordering::Relaxed);
+            (result, start.elapsed())
+        },
+        async {
+            let mut longest = Duration::ZERO;
+            while !done.load(Ordering::Relaxed) {
+                let tx = probe.begin().await?;
+                let start = std::time::Instant::now();
+                tx.query_one(Statement::from_string(
+                    DbBackend::Postgres,
+                    "SELECT domain FROM scraper_head WHERE domain=1 FOR UPDATE",
+                ))
+                .await?;
+                longest = longest.max(start.elapsed());
+                tx.rollback().await?;
+            }
+            Ok::<_, eyre::Report>(longest)
+        },
+    );
+    ingestion.0?;
+    eprintln!("2,004-event fixture: ingestion {:?}, max confirmation row-lock acquisition (including round trip) {:?}", ingestion.1, lock_probe?);
+    assert_eq!(count(&store, "raw_message_dispatch").await?, 1001);
+    assert_eq!(count(&store, "merkle_tree_insertion").await?, 1001);
+    assert_eq!(
+        confirm(&source, &store, &ReorgPeriod::from_blocks(0)).await?,
+        [1001, 1, 1, 1001]
+    );
+    // Fully published progress needs no finality-tag RPC, even if tags are unavailable.
+    *source.chain.fail_tag.lock().unwrap() = true;
+    source.chain.header_calls.store(0, Ordering::Relaxed);
+    assert_eq!(
+        confirm(&source, &store, &ReorgPeriod::Tag("finalized".into())).await?,
+        [0; 4]
+    );
+    assert_eq!(source.chain.header_calls.load(Ordering::Relaxed), 0);
+    let index = store
+        .db
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT indexdef FROM pg_indexes WHERE indexname='gas_payment_block_log'",
+        ))
+        .await?
+        .unwrap();
+    assert!(index
+        .try_get::<String>("", "indexdef")?
+        .contains("WHERE (block_hash IS NOT NULL)"));
+    Ok(())
+}
+
+#[derive(Clone, Debug)]
+struct HungReceiptProvider {
+    domain: hyperlane_core::HyperlaneDomain,
+    calls: Arc<AtomicUsize>,
+}
+
+impl hyperlane_core::HyperlaneChain for HungReceiptProvider {
+    fn domain(&self) -> &hyperlane_core::HyperlaneDomain {
+        &self.domain
+    }
+    fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
+        Box::new(self.clone())
+    }
+}
+
+#[async_trait]
+impl hyperlane_core::HyperlaneProvider for HungReceiptProvider {
+    async fn get_block_by_height(
+        &self,
+        _: u64,
+    ) -> hyperlane_core::ChainResult<hyperlane_core::BlockInfo> {
+        panic!("block already cached")
+    }
+    async fn get_txn_by_hash(
+        &self,
+        _: &hyperlane_core::H512,
+    ) -> hyperlane_core::ChainResult<hyperlane_core::TxnInfo> {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        std::future::pending().await
+    }
+    async fn is_contract(&self, _: &hyperlane_core::H256) -> hyperlane_core::ChainResult<bool> {
+        panic!("unexpected RPC")
+    }
+    async fn get_balance(&self, _: String) -> hyperlane_core::ChainResult<hyperlane_core::U256> {
+        panic!("unexpected RPC")
+    }
+    async fn get_chain_metrics(
+        &self,
+    ) -> hyperlane_core::ChainResult<Option<hyperlane_core::ChainInfo>> {
+        panic!("unexpected RPC")
+    }
+}
+
+#[tokio::test]
+async fn receipt_timeouts_do_not_starve_cached_neighbors_across_sweeps() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let url = format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    );
+    let db = Database::connect(&url).await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let chain = Chain::new(3);
+    store
+        .initialize(&chain.header(0u64.into()).await?, &contracts())
+        .await?;
+    let state = observe(&chain, &store).await?;
+    let mut events = chain.events(1, 3).await?;
+    let mut poison = events
+        .iter()
+        .find(|e| matches!(e.data, EventData::Gas { .. }))
+        .unwrap()
+        .clone();
+    poison.log_index = 99;
+    poison.tx_hash = H256::repeat_byte(99);
+    events.push(poison);
+    store
+        .append(&state, &[(chain.header(2u64.into()).await?, events)])
+        .await?;
+    confirm(&chain, &store, &ReorgPeriod::from_blocks(0)).await?;
+    store
+        .db
+        .execute_unprepared(
+            r#"
+        INSERT INTO "transaction"(hash,block_id,gas_limit,nonce,sender,gas_used,cumulative_gas_used)
+        SELECT g.transaction_hash,b.id,0,0,decode(repeat('11',20),'hex'),0,0
+        FROM gas_payment g JOIN block b ON b.hash=g.block_hash WHERE g.log_index<>99;
+    "#,
+        )
+        .await?;
+    let calls = Arc::new(AtomicUsize::new(0));
+    let domain = hyperlane_core::KnownHyperlaneDomain::Ethereum.into();
+    let legacy = HyperlaneDbStore::new(
+        crate::db::ScraperDb::with_connection(Database::connect(&url).await?),
+        domain,
+        hyperlane_base::settings::CoreContractAddresses::default(),
+        Arc::new(HungReceiptProvider {
+            domain: hyperlane_core::KnownHyperlaneDomain::Ethereum.into(),
+            calls: calls.clone(),
+        }),
+        &hyperlane_base::settings::IndexSettings::default(),
+        None,
+    )
+    .await?;
+    let mut cursors = [0; 2];
+    for sweep in 1..=2 {
+        // Reintroduce an unlinked healthy neighbor on each wrap.
+        store
+            .db
+            .execute_unprepared("UPDATE gas_payment SET tx_id=NULL WHERE log_index<>99")
+            .await?;
+        enrich_with_timeout(&legacy, &mut cursors, Duration::from_millis(200)).await;
+        assert_eq!(calls.load(Ordering::Relaxed), sweep);
+        assert_eq!(store.unenriched("gas_payment", 0).await?.len(), 1);
+        assert!(store.unenriched("delivered_message", 0).await?.is_empty());
+        // Exhausted page resets the cursor, making the poison page eligible again.
+        enrich_with_timeout(&legacy, &mut cursors, Duration::from_millis(200)).await;
+        assert_eq!(cursors, [0; 2]);
+    }
+    Ok(())
+}
+
+#[test]
+fn missing_entire_sequences_and_regressing_counts_are_rejected() {
+    assert!(validate_sequences(&[], [4, 5], [4, 5]).is_ok());
+    assert!(validate_sequences(&[], [4, 5], [5, 5]).is_err());
+    assert!(validate_sequences(&[], [4, 5], [4, 6]).is_err());
+    assert!(validate_sequences(&[], [4, 5], [3, 5]).is_err());
 }

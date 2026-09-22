@@ -12,7 +12,7 @@ ALTER TABLE gas_payment ADD COLUMN confirmed boolean NOT NULL DEFAULT true,
 ALTER TABLE merkle_tree_insertion ADD COLUMN confirmed boolean NOT NULL DEFAULT true,
   ADD COLUMN block_hash bytea, ADD COLUMN transaction_hash bytea,
   ADD COLUMN transaction_index bigint, ADD COLUMN log_index bigint;
-CREATE UNIQUE INDEX gas_payment_block_log ON gas_payment(domain,block_hash,log_index);
+CREATE UNIQUE INDEX gas_payment_block_log ON gas_payment(domain,block_hash,log_index) WHERE block_hash IS NOT NULL;
 CREATE INDEX raw_dispatch_block_height ON raw_message_dispatch(origin_domain,origin_block_height);
 CREATE INDEX delivery_block_height ON delivered_message(domain,block_number);
 CREATE INDEX gas_payment_unconfirmed ON gas_payment(domain,block_number) WHERE NOT confirmed;
