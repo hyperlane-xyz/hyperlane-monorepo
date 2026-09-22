@@ -81,6 +81,8 @@ impl LoadableFromDb for TransactionDbLoader {
 
 #[cfg(test)]
 mod tests {
+    use std::time::{Duration, Instant};
+
     use hyperlane_base::db::{HyperlaneRocksDB, DB};
     use hyperlane_core::KnownHyperlaneDomain;
     use tokio::sync::mpsc;
@@ -91,7 +93,7 @@ mod tests {
 
     use super::*;
 
-    async fn recover_transactions(statuses: &[Option<TransactionStatus>]) {
+    async fn recover_transactions(statuses: &[Option<TransactionStatus>]) -> Duration {
         let directory = tempfile::tempdir().unwrap();
         let domain = KnownHyperlaneDomain::Arbitrum.into();
         let db = HyperlaneRocksDB::new(&domain, DB::from_path(directory.path()).unwrap());
@@ -126,13 +128,15 @@ mod tests {
         )
         .into_iterator()
         .await;
+        let started = Instant::now();
         tokio::time::timeout(
-            std::time::Duration::from_secs(5),
+            Duration::from_secs(60),
             iterator.load_from_db(DispatcherMetrics::dummy_instance()),
         )
         .await
         .expect("recovery should finish")
         .unwrap();
+        let elapsed = started.elapsed();
 
         expected_inclusion.reverse();
         expected_finality.reverse();
@@ -146,6 +150,7 @@ mod tests {
         }
         assert_eq!(actual_inclusion, expected_inclusion);
         assert_eq!(actual_finality, expected_finality);
+        elapsed
     }
 
     #[tokio::test]
@@ -172,5 +177,19 @@ mod tests {
     async fn restart_finishes_with_no_active_transactions() {
         recover_transactions(&[]).await;
         recover_transactions(&[Some(TransactionStatus::Finalized)]).await;
+    }
+
+    #[tokio::test]
+    #[ignore = "manual terminal-history restart benchmark"]
+    async fn benchmark_terminal_history_recovery() {
+        for terminal_count in [10_000, 100_000] {
+            let mut statuses = vec![Some(TransactionStatus::Finalized); terminal_count + 1];
+            statuses[0] = Some(TransactionStatus::PendingInclusion);
+            let elapsed = recover_transactions(&statuses).await;
+            println!(
+                "{terminal_count} terminal transactions plus one oldest pending: recovered 1/1 in {} ms (database population/reopen excluded)",
+                elapsed.as_millis(),
+            );
+        }
     }
 }
