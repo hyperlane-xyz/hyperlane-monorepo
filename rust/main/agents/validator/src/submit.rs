@@ -40,6 +40,8 @@ const CHECKPOINT_RECOVERY_TIMEOUT: Duration = Duration::from_secs(120);
 
 const REORG_STATUS_WRITE_TIMEOUT: Duration = Duration::from_secs(20);
 
+const REORG_REPORT_TIMEOUT: Duration = Duration::from_secs(20);
+
 const CHECKPOINT_SUBMISSION_CHUNK_INTERVAL: Duration = Duration::from_millis(100);
 
 const MERKLE_REPLAY_YIELD_INTERVAL: usize = 256;
@@ -1130,39 +1132,45 @@ impl ValidatorSubmitter {
                 "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until you receive support."
             );
 
-            // Lightweight mode uses its own endpoint verification. Extra
-            // diagnostic RPC reads can retry forever or ignore historical heights.
-            if report_rpc {
-                if let Some(height) = correctness_checkpoint.block_height {
-                    self.reorg_reporter
-                        .as_ref()
-                        .expect("normal-mode reorg reporter")
-                        .report_at_block(height)
-                        .await;
-                } else {
-                    info!("Blockchain does not support block height, reporting with reorg period");
-                    self.reorg_reporter
-                        .as_ref()
-                        .expect("normal-mode reorg reporter")
-                        .report_with_reorg_period(&self.reorg_period)
-                        .await;
-                }
+            // Persist the restart guard before best-effort diagnostics: an RPC can
+            // stall or retry indefinitely when the requested block was pruned.
+            let mut panic_message = "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until you receive support.".to_owned();
+            let result = tokio::time::timeout(
+                REORG_STATUS_WRITE_TIMEOUT,
+                self.checkpoint_syncer.write_reorg_status(&reorg_event),
+            )
+            .await
+            .unwrap_or_else(|_| Err(eyre::eyre!("Timed out writing reorg status")));
+            if let Err(err) = result {
+                error!(?err, "Failed to persist reorg status; validator will halt, but checkpoint storage has no confirmed restart guard");
+                panic_message.push_str(&format!(
+                    " Reorg status couldn't be written to checkpoint storage: {err}"
+                ));
             }
 
-            let mut panic_message = "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until you receive support.".to_owned();
-            let write_status = self.checkpoint_syncer.write_reorg_status(&reorg_event);
-            let result = if report_rpc {
-                write_status.await
-            } else {
-                match tokio::time::timeout(REORG_STATUS_WRITE_TIMEOUT, write_status).await {
-                    Ok(result) => result,
-                    Err(_) => Err(eyre::eyre!("Timed out writing lightweight reorg status")),
+            // Lightweight/consensus mode uses its own endpoint verification.
+            // Bound the whole report, including optional diagnostic storage writes.
+            if report_rpc {
+                let report = async {
+                    let reporter = self
+                        .reorg_reporter
+                        .as_ref()
+                        .expect("normal-mode reorg reporter");
+                    if let Some(height) = correctness_checkpoint.block_height {
+                        reporter.report_at_block(height).await;
+                    } else {
+                        info!(
+                            "Blockchain does not support block height, reporting with reorg period"
+                        );
+                        reporter.report_with_reorg_period(&self.reorg_period).await;
+                    }
+                };
+                if tokio::time::timeout(REORG_REPORT_TIMEOUT, report)
+                    .await
+                    .is_err()
+                {
+                    warn!("Timed out collecting reorg diagnostics; halting validator");
                 }
-            };
-            if let Err(e) = result {
-                panic_message.push_str(&format!(
-                    " Reorg troubleshooting details couldn't be written to checkpoint storage: {e}"
-                ));
             }
             panic!("{panic_message}");
         }

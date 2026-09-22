@@ -1211,6 +1211,159 @@ async fn reorg_is_detected_and_persisted_to_checkpoint_storage() {
         .await;
 }
 
+#[derive(Debug)]
+struct StalledReorgReporter {
+    status_written: Arc<AtomicBool>,
+}
+
+#[async_trait]
+impl ReorgReporter for StalledReorgReporter {
+    async fn report_at_block(&self, _height: u64) {
+        assert!(self.status_written.load(Ordering::SeqCst));
+        std::future::pending().await
+    }
+
+    async fn report_with_reorg_period(&self, _reorg_period: &ReorgPeriod) {
+        assert!(self.status_written.load(Ordering::SeqCst));
+        std::future::pending().await
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn reorg_status_precedes_stalled_diagnostics_and_signing_halts() {
+    for block_height in [Some(42), None] {
+        let (domain, insertions, _, mut target, _) = three_leaf_snapshot_fixture();
+        target.block_height = block_height;
+        target.checkpoint.root = H256::repeat_byte(99);
+        let mut db = MockDb::new();
+        db.expect_retrieve_merkle_tree_insertion_by_leaf_index()
+            .returning(move |index| Ok(Some(insertions[*index as usize])));
+
+        // No signed checkpoint or latest index may be read or written.
+        let status_written = Arc::new(AtomicBool::new(false));
+        let written = status_written.clone();
+        let mut syncer = MockCheckpointSyncer::new();
+        syncer
+            .expect_write_reorg_status()
+            .once()
+            .returning(move |_| {
+                written.store(true, Ordering::SeqCst);
+                Ok(())
+            });
+        let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+        let mut submitter = snapshot_test_submitter(domain, signer, syncer, db);
+        submitter.reorg_reporter = Some(Arc::new(StalledReorgReporter {
+            status_written: status_written.clone(),
+        }));
+        let mut tree = IncrementalMerkle::default();
+        let start = tokio::time::Instant::now();
+        let panic = tokio::time::timeout(
+            REORG_REPORT_TIMEOUT + Duration::from_secs(1),
+            std::panic::AssertUnwindSafe(
+                submitter.submit_checkpoints_until_correctness_checkpoint(&mut tree, &target),
+            )
+            .catch_unwind(),
+        )
+        .await
+        .expect("stalled diagnostics must not prevent termination")
+        .expect_err("a conflicting root must halt signing");
+        assert!(status_written.load(Ordering::SeqCst));
+        assert!(panic
+            .downcast_ref::<String>()
+            .expect("reorg panic contains a formatted diagnostic")
+            .contains("Incorrect tree root"));
+        assert_eq!(start.elapsed(), REORG_REPORT_TIMEOUT);
+    }
+}
+
+#[derive(Debug)]
+struct StalledReorgSyncer;
+
+#[async_trait]
+impl CheckpointSyncer for StalledReorgSyncer {
+    async fn latest_index(&self) -> Result<Option<u32>> {
+        panic!("unexpected checkpoint read")
+    }
+    async fn write_latest_index(&self, _index: u32) -> Result<()> {
+        panic!("unexpected checkpoint publication")
+    }
+    async fn fetch_checkpoint(&self, _index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
+        panic!("unexpected checkpoint read")
+    }
+    async fn write_checkpoint(&self, _checkpoint: &SignedCheckpointWithMessageId) -> Result<()> {
+        panic!("unexpected checkpoint publication")
+    }
+    async fn write_metadata(&self, _metadata: &str) -> Result<()> {
+        panic!("unexpected metadata write")
+    }
+    async fn write_announcement(&self, _announcement: &SignedAnnouncement) -> Result<()> {
+        panic!("unexpected announcement write")
+    }
+    fn announcement_location(&self) -> String {
+        panic!("unexpected announcement location")
+    }
+    async fn write_reorg_status(&self, _event: &ReorgEvent) -> Result<()> {
+        std::future::pending().await
+    }
+    async fn reorg_status(&self) -> Result<ReorgEventResponse> {
+        panic!("unexpected reorg status read")
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn reorg_status_failure_or_timeout_still_halts_signing() {
+    for report_rpc in [false, true] {
+        for stall_write in [false, true] {
+            let mut submitter = dummy_submitter(Duration::from_secs(1));
+            if stall_write {
+                submitter.checkpoint_syncer = Arc::new(StalledReorgSyncer);
+            } else {
+                let mut syncer = MockCheckpointSyncer::new();
+                syncer
+                    .expect_write_reorg_status()
+                    .once()
+                    .returning(|_| Err(eyre::eyre!("checkpoint storage unavailable")));
+                submitter.checkpoint_syncer = Arc::new(syncer);
+            }
+            let mut reporter = MockReorgReporter::new();
+            reporter
+                .expect_report_at_block()
+                .times(usize::from(report_rpc))
+                .returning(|_| ());
+            submitter.reorg_reporter = Some(Arc::new(reporter));
+            let (_, _, _, target, _) = three_leaf_snapshot_fixture();
+            let target = CheckpointAtBlock {
+                block_height: Some(42),
+                ..target
+            };
+            let checkpoint = Checkpoint {
+                root: H256::repeat_byte(99),
+                ..target.checkpoint
+            };
+            let panic = tokio::time::timeout(
+                REORG_STATUS_WRITE_TIMEOUT + Duration::from_secs(1),
+                std::panic::AssertUnwindSafe(
+                    submitter.verify_checkpoint(checkpoint, &target, report_rpc),
+                )
+                .catch_unwind(),
+            )
+            .await
+            .expect("stalled storage must not prevent termination")
+            .expect_err("a conflicting root must halt signing");
+            let message = panic
+                .downcast_ref::<String>()
+                .expect("reorg panic contains a formatted diagnostic");
+            assert!(message.contains("Incorrect tree root"));
+            assert!(message.contains("couldn't be written to checkpoint storage"));
+            assert!(message.contains(if stall_write {
+                "Timed out writing reorg status"
+            } else {
+                "checkpoint storage unavailable"
+            }));
+        }
+    }
+}
+
 #[tokio::test]
 #[tracing_test::traced_test]
 async fn sign_and_submit_checkpoint_same_signature() {
