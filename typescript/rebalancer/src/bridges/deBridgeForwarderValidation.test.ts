@@ -5,6 +5,7 @@ import sinon from 'sinon';
 import {
   DLN_FORWARDER,
   DLN_FORWARDER_INTERFACE,
+  DLN_FORWARDER_IMPLEMENTATION,
   ZERO_EX_ALLOWANCE_INTERFACE,
   ZERO_EX_ACTION_INTERFACE,
   ZERO_EX_BSC_SETTLER,
@@ -27,6 +28,11 @@ const ATTACKER = '0x0000000000000000000000000000000000001234';
 
 describe('deBridge strictlySwapAndCall validation', () => {
   const valid = () => supportedForwarderData();
+  beforeEach(() => {
+    sinon
+      .stub(providers.StaticJsonRpcProvider.prototype, 'getStorageAt')
+      .resolves(utils.hexZeroPad(DLN_FORWARDER_IMPLEMENTATION, 32));
+  });
   afterEach(() => sinon.restore());
   const check = (data: string) =>
     validateDeBridgeEvmTransaction(fixtureQuote(), DLN_FORWARDER, data);
@@ -53,16 +59,36 @@ describe('deBridge strictlySwapAndCall validation', () => {
       return next;
     });
 
-  it('validates a constructed signer-surplus, unrestricted-order variant of the captured 0x/Pancake path', () => {
+  it('validates the unmodified provider quote, including both surplus recipients and the restricted taker', () => {
     expect(() => check(valid())).not.to.throw();
   });
 
-  it('rejects the unmodified provider fixture that redirects source surplus', () => {
-    expect(() => check(fixture.tx.data)).to.throw('refund recipient');
+  it('rejects an upgraded forwarder before querying the swap registry', async () => {
+    const provider = new providers.StaticJsonRpcProvider(
+      'http://localhost:1',
+      56,
+    );
+    const storage = provider.getStorageAt as sinon.SinonStub;
+    storage.resolves(utils.hexZeroPad(ATTACKER, 32));
+    const call = sinon.stub(provider, 'call');
+    let error: unknown;
+    try {
+      await validateDeBridgeForwarderDeployment(provider, valid());
+    } catch (caught) {
+      error = caught;
+    }
+    expect((error as Error).message).to.include(
+      'Unsupported deBridge forwarder implementation',
+    );
+    expect(call.called).to.equal(false);
   });
 
-  it('still rejects the captured restricted taker after correcting surplus recipients', () => {
-    expect(() => check(withSignerSurplus())).to.throw('restricted takers');
+  it('accepts a different outer surplus recipient without weakening order funding', () => {
+    expect(() => check(outer(valid(), 7, ATTACKER))).not.to.throw();
+  });
+
+  it('also accepts signer surplus without requiring the order to be unrestricted', () => {
+    expect(() => check(withSignerSurplus())).not.to.throw();
   });
 
   for (const previous of [false, true]) {
@@ -158,7 +184,6 @@ describe('deBridge strictlySwapAndCall validation', () => {
     ['arbitrary swap router', 3, ATTACKER],
     ['wrong intermediate token', 5, ATTACKER],
     ['empty intermediate order', 6, 0],
-    ['attacker surplus recipient', 7, ATTACKER],
     ['arbitrary nested target', 8, ATTACKER],
   ] as const) {
     it(`rejects ${name}`, () =>
@@ -183,7 +208,7 @@ describe('deBridge strictlySwapAndCall validation', () => {
     ['givePatchAuthoritySrc', ATTACKER],
     ['orderAuthorityAddressDst', ATTACKER],
     ['allowedCancelBeneficiarySrc', ATTACKER],
-    ['allowedTakerDst', ATTACKER],
+    ['allowedTakerDst', '0x1234'],
     ['externalCall', '0x1234'],
   ] as const) {
     it(`rejects nested order ${field} mismatch`, () => {
@@ -317,7 +342,7 @@ describe('deBridge strictlySwapAndCall validation', () => {
     }
   });
 
-  it('rejects source surplus theft inside the nested Settler', () => {
+  it('accepts a provider-selected inner surplus recipient', () => {
     expect(() =>
       check(
         action(valid(), 3, (args) => {
@@ -326,7 +351,41 @@ describe('deBridge strictlySwapAndCall validation', () => {
           return next;
         }),
       ),
-    ).to.throw('surplus');
+    ).not.to.throw();
+  });
+
+  it('rejects surplus transfers that can consume committed order funding or unrelated tokens', () => {
+    const committed = DLN_FORWARDER_INTERFACE.parseTransaction({
+      data: valid(),
+    }).args.srcAmountOut;
+    for (const [index, value] of [
+      [1, ATTACKER],
+      [2, committed.sub(1)],
+      [3, 1_000_001],
+    ] as const) {
+      expect(() =>
+        check(
+          action(valid(), 3, (args) => {
+            const next = [...args];
+            next[index] = value;
+            return next;
+          }),
+        ),
+      ).to.throw('surplus');
+    }
+  });
+
+  it('allows the validated destination authority to choose a cancellation beneficiary', () => {
+    const data = changeCall(DLN_FORWARDER_INTERFACE, valid(), (args) => {
+      const next = [...args];
+      next[9] = changeCall(DLN_SOURCE_INTERFACE, args.targetData, (order) => {
+        const inner = [...order];
+        inner[0] = { ...order.order, allowedCancelBeneficiarySrc: '0x' };
+        return inner;
+      });
+      return next;
+    });
+    expect(() => check(data)).not.to.throw();
   });
 
   it('rejects non-canonical wrapper, nested order and inner swap calldata', () => {

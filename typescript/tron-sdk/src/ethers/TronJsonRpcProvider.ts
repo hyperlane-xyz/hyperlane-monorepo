@@ -1,7 +1,7 @@
 import { BigNumber, providers, utils } from 'ethers';
 import { TronWeb } from 'tronweb';
 
-import { ensure0x, isNullish, retryAsync } from '@hyperlane-xyz/utils';
+import { assert, ensure0x, isNullish, retryAsync } from '@hyperlane-xyz/utils';
 
 import { buildTronTriggerRequest, toTronHex } from '../utils/index.js';
 import { stripCustomRpcHeaders, toHttpApiUrl } from './urlUtils.js';
@@ -144,6 +144,27 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
       fullHost: toHttpApiUrl(host),
       headers,
     });
+  }
+
+  /** Read the solidified head; a latest full-node block is not finality. */
+  async getFinalizedBlockNumber(): Promise<number> {
+    const response: unknown = await this.tronWeb.solidityNode.request(
+      'walletsolidity/getnowblock',
+      {},
+      'post',
+    );
+    assert(
+      isRecord(response) && isRecord(response.block_header),
+      'Missing Tron finalized block header',
+    );
+    const raw = response.block_header.raw_data;
+    assert(isRecord(raw), 'Missing Tron finalized block data');
+    const number = raw.number;
+    assert(
+      typeof number === 'number' && Number.isSafeInteger(number) && number >= 0,
+      'Invalid Tron finalized block number',
+    );
+    return number;
   }
 
   /**

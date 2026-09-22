@@ -38,7 +38,10 @@ interface AccountResponse {
   type?: string;
 }
 
-type StubResponse = ConstantCallResponse | AccountResponse;
+type StubResponse =
+  | ConstantCallResponse
+  | AccountResponse
+  | { block_header?: { raw_data?: { number?: unknown } } };
 
 // Deliberately looser than TronWeb's optimistic `request<T>` declaration: the
 // transport can answer with no body at all, and the provider guards for it.
@@ -58,6 +61,7 @@ interface TronWebStub {
   fullNode: {
     request: RequestImpl;
   };
+  solidityNode: { request: RequestImpl };
 }
 
 // Shared real TronWeb for the pure helpers (address/utf8 conversion) that the
@@ -88,6 +92,7 @@ function stubFullNodeRequest(
     },
     toUtf8: (hex: string) => realTronWeb.toUtf8(hex),
     fullNode: { request },
+    solidityNode: { request },
   };
   // CAST: inject the minimal fullNode double into the provider's private
   // `tronWeb` field.
@@ -120,6 +125,40 @@ type SendImpl = (method: string, params: unknown[]) => Promise<unknown>;
 function stubSend(provider: TronJsonRpcProvider, impl: SendImpl): void {
   provider.send = impl;
 }
+
+describe('TronJsonRpcProvider finalized block', () => {
+  it('uses the solidity endpoint and returns the solidified height', async () => {
+    const provider = makeProvider();
+    const captured: Captured = { calls: 0 };
+    stubFullNode(
+      provider,
+      { block_header: { raw_data: { number: 123 } } },
+      captured,
+    );
+    expect(await provider.getFinalizedBlockNumber()).to.equal(123);
+    expect(captured.value?.url).to.equal('walletsolidity/getnowblock');
+  });
+
+  it('rejects missing or malformed finality and propagates transport failures', async () => {
+    for (const response of [
+      {},
+      { block_header: {} },
+      { block_header: { raw_data: { number: '123' } } },
+      { block_header: { raw_data: { number: -1 } } },
+    ]) {
+      const provider = makeProvider();
+      stubFullNode(provider, response);
+      await expect(provider.getFinalizedBlockNumber()).to.be.rejected;
+    }
+    const provider = makeProvider();
+    stubFullNodeRequest(provider, async () => {
+      throw new Error('finality RPC timeout');
+    });
+    await expect(provider.getFinalizedBlockNumber()).to.be.rejectedWith(
+      'finality RPC timeout',
+    );
+  });
+});
 
 // Raw node/transport error as it leaves ethers' `send`, BEFORE `checkError`
 // wraps it. Routing these through the real provider (rather than hand-building

@@ -52,6 +52,20 @@ export function deBridgeAddressBytes(address: string, chainId: number): string {
   return utils.getAddress(address).toLowerCase();
 }
 
+/** API orders may restrict fulfillment to a provider-designated solver. */
+function validateAllowedTaker(taker: string, destinationChain: number): void {
+  if (taker === '0x') return;
+  const size =
+    hyperlaneChainIdToDebridge(destinationChain) === DEBRIDGE_SOLANA_CHAIN_ID
+      ? 32
+      : 20;
+  assert(
+    utils.isHexString(taker, size) &&
+      utils.arrayify(taker).some((byte) => byte !== 0),
+    'Invalid DLN destination taker address',
+  );
+}
+
 /** Direct orders and explicitly decoded source-swap wrappers are supported. */
 export function validateDeBridgeEvmTransaction(
   quote: BridgeQuote,
@@ -127,9 +141,10 @@ export function validateDeBridgeEvmTransaction(
       order.allowedCancelBeneficiarySrc.toLowerCase() === sender.toLowerCase(),
     'deBridge order refund beneficiary mismatch',
   );
+  validateAllowedTaker(order.allowedTakerDst, toChain);
   assert(
-    order.allowedTakerDst === '0x' && order.externalCall === '0x',
-    'deBridge restricted takers and external calls are unsupported',
+    order.externalCall === '0x',
+    'deBridge external calls are unsupported',
   );
   assert(
     decoded.args.affiliateFee === '0x' && decoded.args.permitEnvelope === '0x',
@@ -287,10 +302,9 @@ export function validateDeBridgeSolanaInstructions(
       utils.hexlify(reader.vector()) === recipient,
       'DLN Solana destination authority mismatch',
     );
-    assert(
-      reader.option(() => reader.vector()) === undefined,
-      'DLN Solana restricted takers are unsupported',
-    );
+    const taker = reader.option(() => reader.vector());
+    if (taker)
+      validateAllowedTaker(utils.hexlify(taker), quote.requestParams.toChain);
     assert(
       reader.option(() => reader.bytes(40)) === undefined,
       'DLN Solana affiliate fees are unsupported',
