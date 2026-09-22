@@ -35,12 +35,17 @@ chain cannot silently change its cutover or contracts.
   Dispatch nonces and Merkle leaf indexes must exactly cover the counts read
   from their contracts at both boundary hashes. Missing first, middle, tail, or
   entire sequences reject the range without advancing progress, including after
-  restart. Delivery and gas events have no sequence counters, so their completeness
+  restart. Independent count calls run concurrently with log fetching. The last
+  successfully committed end counts are reused only for the same boundary hash;
+  restart or changed ancestry causes a fresh read. Delivery and gas events have no sequence counters, so their completeness
   still depends on the RPC returning all matching logs.
 - Polling uses `index.interval`, with the legacy range cursor's 30-second default.
   An unchanged head costs one RPC call and no log query. Catch-up ranges run
   without an idle delay. Confirmation wakes on progress and drains eligible
-  batches without waiting for another poll. `safe`/`finalized` tag checks use the
+  batches without waiting for another poll. Publication targets 1,000 events per
+  transaction rather than 100 blocks, allowing empty spans to advance together.
+  A block containing more than 1,000 events publishes as one indivisible batch;
+  the event budget is therefore soft. `safe`/`finalized` tag checks use the
   same timer rather than a new one-second RPC polling loop.
 - Inserts use batches of at most 1,000 rows per table in the same atomic
   transaction. A failed batch rolls back both events and progress.
@@ -52,7 +57,10 @@ chain cannot silently change its cutover or contracts.
   cannot pass indexed progress. Advancing the observed head can confirm existing
   events even if the next log fetch fails. Long in-flight RPC calls can expire the
   observation lease; confirmation then waits for a fresh observation.
-- Startup probes the configured finality tag. Ingestion and confirmation failures
+- Startup probes the configured finality tag and hash-pinned contract-count calls
+  before persisting a first-time cutover. On restart it probes the canonical block
+  at the retained indexed height, allowing the observation loop to repair an
+  orphaned stored tip without requiring old cutover state. Ingestion and confirmation failures
   independently contribute to the chain critical-error metric; successful head
   reads cannot clear a confirmation failure. Ingestion pauses on confirmation
   errors. A stalled boundary limits the provisional suffix to 10,000 blocks plus
@@ -71,14 +79,24 @@ chain cannot silently change its cutover or contracts.
   confirmed dispatches every 30 seconds, rather than the legacy five-minute
   fallback cadence. Legacy chains retain their existing reconciliation schedule.
 - Confirmation does not wait for receipt enrichment. Gas/delivery transaction
-  metadata is filled in by an independent receipt loop, one bounded page
-  per event type per cycle. Failed/timed-out pages advance their scan cursor so
-  later pages are attempted; missing receipts are retried on the next sweep.
-  Each gas/delivery page has a 30-second timeout. Completed receipts are linked
-  even when a neighboring receipt times out. Existing
-  nullable transaction relations remain nullable until enrichment succeeds.
-- The confirmation worker scans at most 1,000 old block headers per cycle and
-  deletes unreferenced candidates in a separate transaction. An in-memory cursor
+  metadata is filled in by independent gas and delivery loops. Each page contains
+  at most 100 event rows; healthy full pages drain immediately with a scheduler
+  yield, while short, exhausted or failed pages wait for the polling interval.
+  Failed/timed-out pages advance their scan cursor so later pages are attempted;
+  missing receipts are retried on the next sweep. Cache lookups are batched per
+  page, and at most eight missing receipts per stream (16 per domain) are fetched
+  concurrently. The two streams can briefly fetch the same uncached transaction;
+  uniqueness constraints and the linker handle concurrent inserts.
+  Fetching and linking each have a separate 30-second timeout. Completed receipts
+  are linked even when a neighboring receipt times out. Existing nullable
+  transaction relations remain nullable until enrichment succeeds. The
+  `hyperlane_scraper_receipt_oldest_pending_seconds{chain,event_type}` gauge tracks
+  age since creation of the oldest pending row by ID, including time it spent
+  provisional. It is sampled independently once per poll and returns zero when
+  the stream has no pending rows.
+- An independent maintenance loop scans at most 1,000 old block headers per poll
+  and deletes unreferenced candidates in a separate transaction. Confirmation
+  does not await cleanup, including during catch-up. An in-memory cursor
   advances past retained headers and wraps for another sweep. It retains the cutover anchor, confirmed
   boundary, retained unconfirmed checkpoints, transaction references, raw-dispatch headers,
   and headers needed by pending gas/delivery enrichment. Event records are not
@@ -92,8 +110,10 @@ chain cannot silently change its cutover or contracts.
 
 For a caught-up unchanged head: one header request per poll. For a normal new
 range containing events in `B` distinct blocks: at most `B + 6` header requests
-and one combined log request plus four contract-count reads, independent of the number of empty blocks in the
-range. Numeric confirmation needs up to two header reads when it advances;
+and one combined log request plus two new contract-count reads on consecutive
+committed ranges, independent of the number of empty blocks in the range. The
+first range after startup or a changed boundary hash requires four count reads;
+startup capability probes are additional. Numeric confirmation needs up to two header reads when it advances;
 finality tags also require a tag read while provisional progress exists. Count
 reads require hash-pinned `eth_call` support; an empty pre-deployment result also
 requires `eth_getCode` to distinguish an absent contract from a malformed reply. Receipt enrichment and retries are extra.
@@ -112,6 +132,15 @@ One local PostgreSQL 16 Docker run with an unoptimized Rust test build measured
 54 ms ingestion and 36 ms maximum concurrent confirmation-row lock acquisition,
 including the database round trip. These are fixture observations, not production
 throughput estimates or a before/after latency benchmark.
+
+The follow-up `confirmation_budget_preserves_blocks_and_measures_gas_dense_publication`
+fixture covers 3,002 gas payments and mixed event types, verifies cursor ordering
+across publication commits, and reports publication time, progress-lock acquisition
+and cluster WAL delta. Those timings include the existing per-payment cursor and
+notification triggers; they are local observations, not production estimates.
+Worker regressions exercise failing/stationary finality tags and recovery through
+the actual loops. Receipt tests drain multiple pages while the other event stream
+hangs, and verify uncached successful receipts survive a neighboring timeout.
 
 ## Rollout
 

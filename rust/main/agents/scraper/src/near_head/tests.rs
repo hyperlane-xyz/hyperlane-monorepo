@@ -3,7 +3,7 @@
 use std::{
     collections::BTreeMap,
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Mutex,
     },
 };
@@ -681,6 +681,13 @@ async fn incomplete_sequences_retry_after_restart_and_dense_ranges_batch_atomica
         confirm(&source, &store, &ReorgPeriod::from_blocks(0)).await?,
         [1001, 1, 1, 1001]
     );
+    // The oversized event block publishes atomically; drain its empty trailing span.
+    assert_eq!(store.state().await?.unwrap().confirmed, 2);
+    assert_eq!(
+        confirm(&source, &store, &ReorgPeriod::from_blocks(0)).await?,
+        [0; 4]
+    );
+    assert_eq!(store.state().await?.unwrap().confirmed, 3);
     // Fully published progress needs no finality-tag RPC, even if tags are unavailable.
     *source.chain.fail_tag.lock().unwrap() = true;
     source.chain.header_calls.store(0, Ordering::Relaxed);
@@ -822,4 +829,126 @@ fn missing_entire_sequences_and_regressing_counts_are_rejected() {
     assert!(validate_sequences(&[], [4, 5], [5, 5]).is_err());
     assert!(validate_sequences(&[], [4, 5], [4, 6]).is_err());
     assert!(validate_sequences(&[], [4, 5], [3, 5]).is_err());
+}
+
+struct CountedChain {
+    chain: Chain,
+    calls: Mutex<Vec<H256>>,
+    unavailable: Mutex<Option<H256>>,
+}
+
+#[async_trait]
+impl Source for CountedChain {
+    async fn header(&self, block: BlockNumber) -> Result<Header> {
+        self.chain.header(block).await
+    }
+    async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
+        self.chain.events(from, through).await
+    }
+    async fn counts(&self, hash: H256) -> Result<[u32; 2]> {
+        self.calls.lock().unwrap().push(hash);
+        ensure!(
+            *self.unavailable.lock().unwrap() != Some(hash),
+            "State unavailable"
+        );
+        self.chain.counts(hash).await
+    }
+}
+
+#[tokio::test]
+async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let source = CountedChain {
+        chain: Chain::new(3),
+        calls: Mutex::new(vec![]),
+        unavailable: Mutex::new(None),
+    };
+    let anchor = source.header(0u64.into()).await?;
+    // Unsupported state/tag reads must not leave a new mode persisted.
+    *source.unavailable.lock().unwrap() = Some(anchor.hash);
+    assert!(prepare(
+        &source,
+        &store,
+        &anchor,
+        &contracts(),
+        &ReorgPeriod::from_blocks(0)
+    )
+    .await
+    .is_err());
+    assert!(store.state().await?.is_none());
+    *source.unavailable.lock().unwrap() = None;
+    *source.chain.fail_tag.lock().unwrap() = true;
+    assert!(prepare(
+        &source,
+        &store,
+        &anchor,
+        &contracts(),
+        &ReorgPeriod::Tag("safe".into())
+    )
+    .await
+    .is_err());
+    assert!(store.state().await?.is_none());
+    *source.chain.fail_tag.lock().unwrap() = false;
+    prepare(
+        &source,
+        &store,
+        &anchor,
+        &contracts(),
+        &ReorgPeriod::from_blocks(0),
+    )
+    .await?;
+    source.calls.lock().unwrap().clear();
+    let mut cache = None;
+    for expected_calls in [2, 3] {
+        let state = observe(&source, &store).await?;
+        ingest_cached(&source, &store, &state, 1, &mut cache).await?;
+        assert_eq!(source.calls.lock().unwrap().len(), expected_calls);
+    }
+    // Restart preflight uses the retained boundary, even if old anchor state is pruned.
+    *source.unavailable.lock().unwrap() = Some(anchor.hash);
+    prepare(
+        &source,
+        &store,
+        &anchor,
+        &contracts(),
+        &ReorgPeriod::from_blocks(0),
+    )
+    .await?;
+    source.calls.lock().unwrap().clear();
+    source.chain.fork(3, 1, 10);
+    // Orphaned persisted hashes must not prevent startup from reaching rollback.
+    prepare(
+        &source,
+        &store,
+        &anchor,
+        &contracts(),
+        &ReorgPeriod::from_blocks(0),
+    )
+    .await?;
+    source.calls.lock().unwrap().clear();
+    let state = observe(&source, &store).await?;
+    assert_eq!(state.indexed, 1);
+    ingest_cached(&source, &store, &state, 1, &mut cache).await?;
+    assert_eq!(source.calls.lock().unwrap().len(), 2);
+    // A failed range cannot publish cached counts for an uncommitted boundary.
+    let committed = cache;
+    *source.chain.fail_logs.lock().unwrap() = true;
+    let state = observe(&source, &store).await?;
+    assert!(ingest_cached(&source, &store, &state, 1, &mut cache)
+        .await
+        .is_err());
+    assert_eq!(cache, committed);
+    *source.chain.fail_logs.lock().unwrap() = false;
+    source.calls.lock().unwrap().clear();
+    let state = observe(&source, &store).await?;
+    ingest_cached(&source, &store, &state, 1, &mut None).await?;
+    assert_eq!(source.calls.lock().unwrap().len(), 2);
+    Ok(())
 }
