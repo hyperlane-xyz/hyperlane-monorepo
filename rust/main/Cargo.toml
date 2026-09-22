@@ -224,13 +224,13 @@ hyperlane-cosmos-rs = "0.1.4"
 cosmwasm-schema = "2.2.0"
 
 # v4.8.1 plus the sequential-worker lifecycle fix; see chains/hyperlane-aleo/VM_LIFECYCLE.md.
-snarkvm = { git = "https://github.com/paulbalaji/snarkVM.git", rev = "c8403e6f22fa5c379b2b2faef9fd4c0cc075694f", features = [
+snarkvm = { git = "https://github.com/hyperlane-xyz/snarkVM.git", rev = "9bf48e7c97cd464d92198d429cf87b3bf5bded44", features = [
   "async",
   "test_targets",
   "test_consensus_heights",
 ] }
-snarkvm-algorithms = { git = "https://github.com/paulbalaji/snarkVM.git", rev = "c8403e6f22fa5c379b2b2faef9fd4c0cc075694f" }
-snarkvm-console-account = { git = "https://github.com/paulbalaji/snarkVM.git", rev = "c8403e6f22fa5c379b2b2faef9fd4c0cc075694f" }
+snarkvm-algorithms = { git = "https://github.com/hyperlane-xyz/snarkVM.git", rev = "9bf48e7c97cd464d92198d429cf87b3bf5bded44" }
+snarkvm-console-account = { git = "https://github.com/hyperlane-xyz/snarkVM.git", rev = "9bf48e7c97cd464d92198d429cf87b3bf5bded44" }
 aleo-std = { version = "1.0.3" }
 aleo-std-storage = { version = "1.0.3" }
 
