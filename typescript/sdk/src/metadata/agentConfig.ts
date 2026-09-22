@@ -741,6 +741,18 @@ export const ScraperAgentConfigSchema = AgentConfigSchema.extend({
   chainsToScrape: CommaSeparatedChainList.describe(
     'Comma separated list of chain names to scrape',
   ),
+  nearHead: z
+    .record(
+      z
+        .string()
+        .regex(/^(0|[1-9]\d*)$/)
+        .refine((value) => Number(value) <= 0xffffffff),
+      z.object({ fromBlock: z.number().int().min(1).max(0xffffffff) }).strict(),
+    )
+    .optional()
+    .describe(
+      'Opt-in EVM head ingestion by domain; fromBlock follows completed legacy history.',
+    ),
   ccrRouters: z
     .record(z.string(), z.record(z.string(), z.string()))
     .optional()

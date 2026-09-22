@@ -6,6 +6,7 @@ export interface TableConfig {
   columnSet: ReadonlySet<string>;
   columns: readonly string[];
   primaryKey?: string;
+  relation?: string;
 }
 
 export const tables: Record<TableName, TableConfig> = {
@@ -96,14 +97,20 @@ export const tables: Record<TableName, TableConfig> = {
       'time_created',
     ],
     'id',
+    'confirmed_raw_message_dispatch',
   ),
 };
 
-function table(columns: readonly string[], primaryKey?: string): TableConfig {
+function table(
+  columns: readonly string[],
+  primaryKey?: string,
+  relation?: string,
+): TableConfig {
   return {
     columns,
     columnSet: new Set(columns),
     primaryKey,
+    relation,
   };
 }
 
