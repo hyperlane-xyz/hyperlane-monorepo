@@ -1,9 +1,10 @@
 warpRouteId: USDT/eclipsemainnet
 
-# Runtime candidate built from this branch head (4a5f2346e2) via
-# node-services-docker.yml run 35278665854.
+# Candidate built from ac1965729d via node-services-docker.yml run 35720770347.
+# Provider and settlement gates still apply before rollout.
 deployment:
-  imageTag: 4a5f234-20260917-214825
+  imageTag: ac19657-20260922-111930
+  imageDigest: sha256:4ffd97ce53aaac89e3c062dbac498bac49ef7948769cd9af4c1645995fe18fda
   registryCommit: 182e1be0c2df41b6e423b4934390daff1b6a72f9
   swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key-usdt-eclipse
 
