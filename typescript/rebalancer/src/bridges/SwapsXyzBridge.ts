@@ -46,6 +46,8 @@ const REVERSE_QUOTE_HEADROOM_BPS = 30n;
 const BPS_DENOMINATOR = 10_000n;
 const ERC20_DECIMALS_ABI = ['function decimals() view returns (uint8)'];
 const REGISTER_TX_RETRY_DELAY_MS = 2_000;
+const MAX_TRANSACTION_AGE_MS = 30_000;
+const MAX_PREPARATION_ATTEMPTS = 3;
 const UNSAFE_SOURCE_TOKEN_SELECTORS = new Set([
   '095ea7b3', // approve(address,uint256)
   '23b872dd', // transferFrom(address,address,uint256)
@@ -503,9 +505,73 @@ export class SwapsXyzBridge implements IExternalBridge {
       'SwapsXyzBridge.execute signer does not match quote fromAddress',
     );
 
-    const fresh = await this.client.getAction(
+    for (let attempt = 0; attempt < MAX_PREPARATION_ATTEMPTS; attempt++) {
+      const { response: fresh, preparedAt } = await this.prepare(quote);
+      assert(isEvmTx(fresh.tx), 'SwapsXyzBridge.execute requires an EVM tx');
+      if (fresh.requiresTokenApproval) {
+        await approveErc20IfNeeded(
+          signer,
+          quote.requestParams.fromToken,
+          fresh.tx.to,
+          BigInt((fresh.amountInMax ?? fresh.amountIn).amount),
+          this.logger,
+          {
+            contractFactory: this.config.erc20ContractFactory,
+            onApproval: options?.onApproval,
+          },
+        );
+      }
+
+      if (Date.now() - preparedAt >= MAX_TRANSACTION_AGE_MS) continue;
+      await this.validatePreparedEvmOrder(quote, fresh);
+      if (Date.now() - preparedAt >= MAX_TRANSACTION_AGE_MS) continue;
+      await options?.onTransferId?.(fresh.txId);
+      const txResponse = await submitEvmLikeTransaction(
+        signer,
+        {
+          to: fresh.tx.to,
+          data: fresh.tx.data,
+          value: fresh.tx.value ? BigNumber.from(fresh.tx.value) : undefined,
+        },
+        options,
+      );
+      // Source-action tracking takes priority over waiting here: once a
+      // source transaction is broadcast, receipt/status failures must not cause
+      // the planner to send the same movement again.
+      void this.registerIfRequired(fresh, txResponse.hash);
+      return {
+        txHash: txResponse.hash,
+        fromChain,
+        toChain,
+        transferId: fresh.txId,
+      };
+    }
+    throw new Error(
+      'swaps.xyz transaction expired repeatedly during preparation',
+    );
+  }
+
+  /** Validate a fresh unsigned EVM payload without keys, approvals or signing. */
+  async prepare(
+    quote: BridgeQuote,
+  ): Promise<{ response: SwapsXyzActionResponse; preparedAt: number }> {
+    this.validateQuoteParams(quote.requestParams);
+    const preparedAt = Date.now();
+    const response = await this.client.getAction(
       this.buildActionRequest(quote.requestParams),
     );
+    await this.validatePreparedEvmOrder(quote, response);
+    assert(
+      Date.now() - preparedAt < MAX_TRANSACTION_AGE_MS,
+      'swaps.xyz transaction expired during preparation',
+    );
+    return { response, preparedAt };
+  }
+
+  private async validatePreparedEvmOrder(
+    quote: BridgeQuote,
+    fresh: SwapsXyzActionResponse,
+  ): Promise<void> {
     assert(isEvmTx(fresh.tx), 'SwapsXyzBridge.execute requires an EVM tx');
     this.validateActionResponse(fresh, quote, 'evm');
     await validateSwapsEvmPayload(
@@ -515,41 +581,6 @@ export class SwapsXyzBridge implements IExternalBridge {
       this.config.maxQuoteLossBps ??
         this.getSlippageBps(quote.requestParams.slippage),
     );
-
-    if (fresh.requiresTokenApproval) {
-      await approveErc20IfNeeded(
-        signer,
-        quote.requestParams.fromToken,
-        fresh.tx.to,
-        BigInt((fresh.amountInMax ?? fresh.amountIn).amount),
-        this.logger,
-        {
-          contractFactory: this.config.erc20ContractFactory,
-          onApproval: options?.onApproval,
-        },
-      );
-    }
-
-    await options?.onTransferId?.(fresh.txId);
-    const txResponse = await submitEvmLikeTransaction(
-      signer,
-      {
-        to: fresh.tx.to,
-        data: fresh.tx.data,
-        value: fresh.tx.value ? BigNumber.from(fresh.tx.value) : undefined,
-      },
-      options,
-    );
-    // Source-action tracking takes priority over waiting here: once a
-    // source transaction is broadcast, receipt/status failures must not cause
-    // the planner to send the same movement again.
-    void this.registerIfRequired(fresh, txResponse.hash);
-    return {
-      txHash: txResponse.hash,
-      fromChain,
-      toChain,
-      transferId: fresh.txId,
-    };
   }
 
   private validateActionResponse(

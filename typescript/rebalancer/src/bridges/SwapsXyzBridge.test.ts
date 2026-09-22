@@ -609,6 +609,69 @@ describe('SwapsXyzBridge reverse quote fallback', () => {
 });
 
 describe('SwapsXyzBridge.execute', () => {
+  it('prepares unsigned payloads without approvals or a private key', async () => {
+    const harness = createExecuteHarness(
+      actionResponse({ requiresTokenApproval: true }),
+    );
+    const call = sinon.stub(harness.provider, 'call');
+    const prepared = await harness.bridge.prepare(bridgeQuote());
+    expect(prepared.response.txId).to.equal('tx-1');
+    expect(harness.sendTransactionStub.called).to.equal(false);
+    expect(call.called).to.equal(false);
+  });
+
+  for (const worse of [false, true]) {
+    it(`refreshes after a slow approval and ${worse ? 'rejects a worse quote' : 'submits only the refreshed payload'}`, async () => {
+      const clock = sinon.useFakeTimers({ toFake: ['Date'] });
+      const harness = createExecuteHarness();
+      harness.getActionStub
+        .onFirstCall()
+        .resolves(actionResponse({ requiresTokenApproval: true }));
+      harness.getActionStub.onSecondCall().resolves(
+        actionResponse({
+          txId: 'refreshed',
+          ...(worse ? { amountOutMin: { amount: '1' } } : {}),
+        }),
+      );
+      sinon
+        .stub(harness.provider, 'call')
+        .resolves(utils.defaultAbiCoder.encode(['uint256'], [0]));
+      harness.sendTransactionStub.onFirstCall().callsFake(async () => {
+        clock.tick(31_000);
+        return transactionResponse('0xapproval');
+      });
+      const execution = harness.bridge.execute(bridgeQuote(), {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      });
+      if (worse) {
+        expect((await captureError(execution)).message).to.include(
+          'below accepted minimum',
+        );
+        expect(harness.sendTransactionStub.callCount).to.equal(1);
+      } else {
+        expect((await execution).transferId).to.equal('refreshed');
+        expect(harness.sendTransactionStub.callCount).to.equal(2);
+      }
+      expect(harness.getActionStub.callCount).to.equal(2);
+    });
+  }
+
+  it('does not refresh or submit again after a lost broadcast response', async () => {
+    const harness = createExecuteHarness();
+    harness.sendTransactionStub.rejects(new Error('lost broadcast response'));
+    expect(
+      (
+        await captureError(
+          harness.bridge.execute(bridgeQuote(), {
+            [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+          }),
+        )
+      ).message,
+    ).to.include('lost broadcast response');
+    expect(harness.getActionStub.callCount).to.equal(1);
+    expect(harness.sendTransactionStub.callCount).to.equal(1);
+  });
+
   afterEach(() => sinon.restore());
 
   it('throws before re-quoting when source metadata is missing', async () => {
