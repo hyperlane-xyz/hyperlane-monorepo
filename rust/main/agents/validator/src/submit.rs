@@ -1141,23 +1141,7 @@ impl ValidatorSubmitter {
             // Persist the restart guard before best-effort diagnostics: an RPC can
             // stall or retry indefinitely when the requested block was pruned.
             let panic_message = "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until you receive support.";
-            loop {
-                let result = tokio::time::timeout(
-                    REORG_STATUS_WRITE_TIMEOUT,
-                    self.checkpoint_syncer.write_reorg_status(&reorg_event),
-                )
-                .await
-                .unwrap_or_else(|_| Err(eyre::eyre!("Timed out writing reorg status")));
-                match result {
-                    Ok(()) => break,
-                    Err(err) => {
-                        error!(?err, "Failed to persist reorg status; signing remains halted while retrying. Do NOT restart: checkpoint storage has no confirmed restart guard");
-                        // Do not crashloop without a durable guard: startup could
-                        // otherwise observe an absent flag and resume signing.
-                        sleep(REORG_STATUS_RETRY_INTERVAL).await;
-                    }
-                }
-            }
+            self.persist_reorg_guard(&reorg_event).await;
 
             // Lightweight/consensus mode uses its own endpoint verification.
             // Bound the whole report, including optional diagnostic storage writes.
@@ -1184,6 +1168,26 @@ impl ValidatorSubmitter {
                 }
             }
             panic!("{panic_message}");
+        }
+    }
+
+    /// Stay halted until a durable guard prevents unprotected restarts.
+    async fn persist_reorg_guard(&self, reorg_event: &ReorgEvent) {
+        loop {
+            let result = tokio::time::timeout(
+                REORG_STATUS_WRITE_TIMEOUT,
+                self.checkpoint_syncer.write_reorg_status(reorg_event),
+            )
+            .await
+            .unwrap_or_else(|_| Err(eyre::eyre!("Timed out writing reorg status")));
+            match result {
+                Ok(()) => return,
+                Err(err) => {
+                    error!(?err, "Failed to persist reorg status; signing remains halted while retrying. Do NOT restart: checkpoint storage has no confirmed restart guard");
+                    // A restart without a durable guard could resume signing.
+                    sleep(REORG_STATUS_RETRY_INTERVAL).await;
+                }
+            }
         }
     }
 
@@ -1324,6 +1328,32 @@ impl ValidatorSubmitter {
             if existing_signer == signer && existing.value == checkpoint {
                 debug!(index = checkpoint.index, "Checkpoint already submitted");
                 return Ok(false);
+            } else if existing_signer == signer
+                && existing.value.index == checkpoint.index
+                && existing.value.mailbox_domain == checkpoint.mailbox_domain
+                && existing.value.merkle_tree_hook_address == checkpoint.merkle_tree_hook_address
+            {
+                // A restart can replay a different finalized history without a restored
+                // frontier (GCS has no snapshots). Never sign a second value for an
+                // index we already signed, even if current RPCs agree with that value.
+                self.reorg_halt.send_replace(true);
+                self.readiness.mark_operation_blocked("checkpoint_reorg");
+                let reorg_event = ReorgEvent::new(
+                    existing.value.root,
+                    checkpoint.root,
+                    checkpoint.index,
+                    chrono::Utc::now().timestamp() as u64,
+                    self.reorg_period.clone(),
+                );
+                error!(
+                    existing_checkpoint = ?existing.value,
+                    proposed_checkpoint = ?checkpoint,
+                    "Refusing to overwrite a conflicting checkpoint signed by this validator"
+                );
+                self.persist_reorg_guard(&reorg_event).await;
+                panic!(
+                    "Conflicting checkpoint already signed by this validator; publication halted"
+                );
             } else {
                 warn!(
                     index = checkpoint.index,

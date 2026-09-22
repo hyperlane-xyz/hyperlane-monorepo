@@ -117,8 +117,10 @@ impl CheckpointSyncer for LocalStorage {
     }
 
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
-        let Ok(data) = tokio::fs::read(self.checkpoint_file_path(index)).await else {
-            return Ok(None);
+        let data = match tokio::fs::read(self.checkpoint_file_path(index)).await {
+            Ok(data) => data,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(err) => return Err(err.into()),
         };
         let checkpoint = serde_json::from_slice(&data)?;
         Ok(Some(checkpoint))
@@ -210,6 +212,34 @@ mod tests {
     use hyperlane_core::{accumulator::incremental::IncrementalMerkle, H256};
 
     use super::*;
+
+    #[tokio::test]
+    async fn checkpoint_read_failure_is_not_treated_as_absence() {
+        let directory = tempfile::tempdir().expect("temporary checkpoint directory");
+        let storage =
+            LocalStorage::new(directory.path().to_owned(), None).expect("local checkpoint storage");
+        assert_eq!(
+            storage
+                .fetch_checkpoint(7)
+                .await
+                .expect("missing checkpoint"),
+            None
+        );
+
+        // A directory at the object path produces a real read error even when
+        // tests run as a user whose permissions bypass read-only file fixtures.
+        tokio::fs::create_dir(storage.checkpoint_file_path(7))
+            .await
+            .unwrap();
+        assert!(storage.fetch_checkpoint(7).await.is_err());
+        tokio::fs::remove_dir(storage.checkpoint_file_path(7))
+            .await
+            .unwrap();
+        tokio::fs::write(storage.checkpoint_file_path(7), b"invalid checkpoint")
+            .await
+            .unwrap();
+        assert!(storage.fetch_checkpoint(7).await.is_err());
+    }
 
     #[tokio::test]
     async fn merkle_snapshot_reads_are_bounded_before_decoding() {
