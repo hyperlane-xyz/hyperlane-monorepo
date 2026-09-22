@@ -358,6 +358,8 @@ async fn notifications_observe_committed_cursor_mappings_and_exclude_rollbacks()
 #[tokio::test]
 async fn concurrent_multi_stream_batches_lock_heads_in_the_same_order() -> Result<()> {
     let (_postgres, db, _) = database(None).await?;
+    // SeaORM's mock feature disables DatabaseConnection::Clone in workspace tests.
+    let db = std::sync::Arc::new(db);
     let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(8));
     let mut tasks = Vec::new();
     for writer in 0..8 {
@@ -381,7 +383,7 @@ async fn concurrent_multi_stream_batches_lock_heads_in_the_same_order() -> Resul
     }
     assert_eq!(
         scalar(
-            &db,
+            db.as_ref(),
             "SELECT count(*) AS value FROM gas_payment_stream_head WHERE last_cursor=400"
         )
         .await?,
@@ -389,7 +391,7 @@ async fn concurrent_multi_stream_batches_lock_heads_in_the_same_order() -> Resul
     );
     assert_eq!(
         scalar(
-            &db,
+            db.as_ref(),
             "SELECT count(*) AS value FROM gas_payment_stream_cursor"
         )
         .await?,
@@ -397,7 +399,7 @@ async fn concurrent_multi_stream_batches_lock_heads_in_the_same_order() -> Resul
     );
     assert_eq!(
         scalar(
-            &db,
+            db.as_ref(),
             "SELECT min(stream_cursor) AS value FROM gas_payment_stream_cursor"
         )
         .await?,

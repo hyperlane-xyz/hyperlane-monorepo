@@ -8,12 +8,13 @@ LOCK TABLE gas_payment IN SHARE ROW EXCLUSIVE MODE;
 -- roll back both reservations and mappings. NOTIFY is delivered after commit,
 -- when these statement-trigger mappings are visible to subscribers.
 -- Separate static queries avoid replanning dynamic SQL for every small batch.
+-- Each pending CTE is used twice, so it is materialized without PG12-only syntax.
 CREATE FUNCTION assign_inserted_gas_payment_stream_cursors() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM new_payments WHERE confirmed) THEN
     RETURN NULL;
   END IF;
-  WITH pending AS MATERIALIZED (SELECT id,domain,interchain_gas_paymaster FROM new_payments WHERE confirmed),
+  WITH pending AS (SELECT id,domain,interchain_gas_paymaster FROM new_payments WHERE confirmed),
   allocations AS (
     INSERT INTO gas_payment_stream_head AS head
       (domain,interchain_gas_paymaster,legacy_max_id,last_cursor)
@@ -44,7 +45,7 @@ BEGIN
      OR NOT EXISTS (SELECT 1 FROM new_payments WHERE confirmed) THEN
     RETURN NULL;
   END IF;
-  WITH pending AS MATERIALIZED (SELECT n.id,n.domain,n.interchain_gas_paymaster FROM new_payments n
+  WITH pending AS (SELECT n.id,n.domain,n.interchain_gas_paymaster FROM new_payments n
     JOIN old_payments o USING(id) WHERE n.confirmed AND NOT o.confirmed),
   allocations AS (
     INSERT INTO gas_payment_stream_head AS head
