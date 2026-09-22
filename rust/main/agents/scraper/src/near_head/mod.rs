@@ -2,7 +2,11 @@
 mod source;
 mod store;
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+    time::Duration,
+};
 
 use ethers::types::{BlockNumber, H160};
 use eyre::{ensure, Result};
@@ -50,7 +54,7 @@ pub async fn ensure_legacy_mode(legacy: &HyperlaneDbStore) -> Result<()> {
     Ok(())
 }
 
-/// Replace the four EVM log indexers with one hash-pinned ingestion worker.
+/// Replace the four EVM log indexers with one range ingestion worker.
 pub async fn spawn(
     conf: &ChainConf,
     config: &Config,
@@ -93,6 +97,13 @@ pub async fn spawn(
     let anchor = source.header(u64::from(anchor_height).into()).await?;
     store.initialize(&anchor, &contracts).await?;
     let period = conf.reorg_period.clone();
+    ensure!(conf.index.chunk_size > 0, "index.chunk must be positive");
+    let chunk_size = u64::from(conf.index.chunk_size);
+    // Match the legacy range cursor's near-tip refresh cadence.
+    let poll_interval = conf
+        .index
+        .configured_interval
+        .unwrap_or(Duration::from_secs(30));
     // Fail before spawning when the legacy policy is not supported by the RPC.
     if let ReorgPeriod::Tag(tag) = &period {
         ensure!(
@@ -114,7 +125,7 @@ pub async fn spawn(
                             }
                         };
                         confirmation_wake.notify_one();
-                        let more = ingest(source.as_ref(), &store, &state).await?;
+                        let more = ingest(source.as_ref(), &store, &state, chunk_size).await?;
                         confirmation_wake.notify_one();
                         Ok::<_, eyre::Report>(more)
                     }
@@ -129,14 +140,20 @@ pub async fn spawn(
                             "Near-head ingestion paused; retrying"
                         ),
                     }
-                    sleep(Duration::from_secs(5)).await;
+                    sleep(poll_interval).await;
                 }
             },
             async {
+                let mut last_confirmed = 0;
                 loop {
                     let result = async {
                         let counts = confirm(source.as_ref(), &store, &period).await?;
                         if let Some(state) = store.state().await? {
+                            // Drain confirmation backlogs without waiting another poll interval.
+                            if state.confirmed > last_confirmed && state.confirmed < state.indexed {
+                                confirmation_wake.notify_one();
+                            }
+                            last_confirmed = state.confirmed;
                             for (label, count) in [
                                 "raw_message_dispatch",
                                 "message_delivery",
@@ -183,7 +200,7 @@ pub async fn spawn(
                     }
                     tokio::select! {
                         _ = confirmation_wake.notified() => {},
-                        _ = sleep(Duration::from_secs(1)) => {},
+                        _ = sleep(poll_interval) => {},
                     }
                 }
             },
@@ -207,12 +224,16 @@ async fn observe(source: &dyn Source, store: &Store) -> Result<State> {
         store.pause(false).await?;
         eyre::bail!("RPC head is behind confirmed history; waiting for a current observation");
     }
-    let mut height = state.indexed.min(head.height);
+    let mut height = store.checkpoint(state.indexed.min(head.height)).await?;
     if head.height < state.indexed {
         store.pause(false).await?;
     }
     let ancestor = loop {
-        let header = source.header(height.into()).await?;
+        let header = if height == head.height {
+            head.clone()
+        } else {
+            source.header(height.into()).await?
+        };
         if store.hash(height).await? == Some(header.hash) {
             break header;
         }
@@ -221,11 +242,17 @@ async fn observe(source: &dyn Source, store: &Store) -> Result<State> {
             height > state.confirmed,
             "Reorg crossed published history; operator repair required"
         );
-        height = height
-            .checked_sub(1)
-            .ok_or_else(|| eyre::eyre!("Missing common ancestor"))?;
+        height = store
+            .checkpoint(
+                height
+                    .checked_sub(1)
+                    .ok_or_else(|| eyre::eyre!("Missing common ancestor"))?,
+            )
+            .await?;
     };
-    verify(source, &head).await?;
+    if ancestor.hash != head.hash {
+        verify(source, &head).await?;
+    }
     store.observe(&state, &ancestor, &head).await?;
     store
         .state()
@@ -233,23 +260,52 @@ async fn observe(source: &dyn Source, store: &Store) -> Result<State> {
         .ok_or_else(|| eyre::eyre!("Missing observed state"))
 }
 
-async fn ingest(source: &dyn Source, store: &Store, state: &State) -> Result<bool> {
+async fn ingest(
+    source: &dyn Source,
+    store: &Store,
+    state: &State,
+    chunk_size: u64,
+) -> Result<bool> {
+    ensure!(chunk_size > 0, "Empty indexing range");
     if state.indexed == state.head {
         return Ok(false);
     }
-    let end = state.head.min(state.indexed.saturating_add(32));
-    let blocks: Vec<_> = stream::iter(state.indexed.saturating_add(1)..=end)
-        .map(|height| async move {
-            let header = source.header(height.into()).await?;
-            let events = source.events(&header).await?;
-            Ok::<_, eyre::Report>((header, events))
+    let end = state.head.min(state.indexed.saturating_add(chunk_size));
+    let boundary = source.header(end.into()).await?;
+    let mut by_block = BTreeMap::<u64, Vec<source::Event>>::new();
+    for event in source.events(state.indexed.saturating_add(1), end).await? {
+        ensure!(
+            event.block_number > state.indexed && event.block_number <= end,
+            "Event outside requested range"
+        );
+        by_block.entry(event.block_number).or_default().push(event);
+    }
+    // Empty ranges still advance, using only their end header as a checkpoint.
+    by_block.entry(end).or_default();
+    let blocks: Vec<_> = stream::iter(by_block)
+        .map(|(height, events)| {
+            let boundary = &boundary;
+            async move {
+                let header = if height == end {
+                    boundary.clone()
+                } else {
+                    source.header(height.into()).await?
+                };
+                ensure!(
+                    events.iter().all(|event| event.block_hash == header.hash),
+                    "Range contains logs from another fork"
+                );
+                Ok::<_, eyre::Report>((header, events))
+            }
         })
         .buffered(8)
         .try_collect()
         .await?;
-    if let Some((last, _)) = blocks.last() {
-        verify(source, last).await?;
-    }
+    ensure!(
+        source.header(state.indexed.into()).await?.hash == state.hash,
+        "Indexed boundary changed during range fetch"
+    );
+    verify(source, &boundary).await?;
     store.append(state, &blocks).await?;
     Ok(end < state.head)
 }
@@ -268,40 +324,52 @@ async fn confirm(source: &dyn Source, store: &Store, period: &ReorgPeriod) -> Re
         .await?
         .ok_or_else(|| eyre::eyre!("Missing head state"))?;
     ensure!(!state.halted, "Confirmed history requires operator repair");
-    let through = match period {
-        ReorgPeriod::None => state.head,
-        ReorgPeriod::Blocks(depth) => state.head.saturating_sub(u64::from(depth.get())),
-        ReorgPeriod::Tag(tag) if tag == "latest" => state.head,
-        ReorgPeriod::Tag(tag) => {
-            let tagged = source
+    let tagged = match period {
+        ReorgPeriod::Tag(tag) if tag != "latest" => Some(
+            source
                 .header(tag.parse().map_err(eyre::Report::msg)?)
-                .await?;
-            ensure!(
-                tagged.height <= state.head,
-                "Confirmation tag is ahead of the observed head"
-            );
-            // Older confirmed headers may already have been pruned.
-            if tagged.height <= state.confirmed {
-                return Ok([0; 4]);
-            }
-            let boundary = if tagged.height <= state.indexed {
-                tagged
-            } else {
-                source.header(state.indexed.into()).await?
-            };
-            ensure!(
-                store.hash(boundary.height).await? == Some(boundary.hash),
-                "Confirmation tag is on another fork"
-            );
-            boundary.height
-        }
+                .await?,
+        ),
+        _ => None,
+    };
+    let through = match period {
+        ReorgPeriod::Blocks(depth) => state.head.saturating_sub(u64::from(depth.get())),
+        _ => tagged
+            .as_ref()
+            .map(|header| header.height)
+            .unwrap_or(state.head),
+    };
+    ensure!(
+        through <= state.head,
+        "Confirmation tag is ahead of the observed head"
+    );
+    let through = through
+        .min(state.indexed)
+        .min(state.confirmed.saturating_add(100));
+    if through <= state.confirmed {
+        return Ok([0; 4]);
     }
-    .min(state.indexed)
-    .min(state.confirmed.saturating_add(100));
-    if through > state.confirmed {
-        return store.confirm(&state, through).await;
+    let boundary = match tagged {
+        Some(header) if header.height == through => header,
+        _ => source.header(through.into()).await?,
+    };
+    if let Some(hash) = store.hash(through).await? {
+        ensure!(
+            hash == boundary.hash,
+            "Confirmation boundary is on another fork"
+        );
     }
-    Ok([0; 4])
+    // A sparse boundary must be checked against the indexed range's canonical tip.
+    let indexed_hash = if through == state.indexed {
+        boundary.hash
+    } else {
+        source.header(state.indexed.into()).await?.hash
+    };
+    ensure!(
+        indexed_hash == state.hash,
+        "Indexed fork changed before confirmation"
+    );
+    store.confirm(&state, &boundary).await
 }
 
 /// One bounded page per event type, scheduled by the existing dispatch reconciler.

@@ -26,13 +26,23 @@ chain cannot silently change its cutover or contracts.
 
 ## Behavior
 
-- One RPC log query per block covers the four contracts/events, pinned to the
-  block hash. Empty blocks also advance the durable indexed height. Headers and
-  events commit atomically in contiguous batches of at most 32 blocks.
-- The head is polled every five seconds when caught up or after an ingestion
-  error. Catch-up batches run without an idle delay. Confirmation runs separately,
-  wakes on progress, and retries every second. `safe`/`finalized` tag errors pause
-  confirmation without stopping log ingestion.
+- One combined RPC log query covers all four event types over a block range,
+  using the existing `index.chunk` limit. Headers are fetched only for blocks
+  containing events and range boundaries, not every empty block. Events and the
+  end checkpoint commit atomically, including when the range has no events.
+- Each returned log must match its block header. The previous indexed boundary
+  and the range end are checked again before commit; changed forks are retried.
+  Like the legacy range indexers, this relies on the RPC serving complete,
+  coherent range results. These checks cannot prove the absence of omitted logs
+  from an inconsistent provider.
+- Polling uses `index.interval`, with the legacy range cursor's 30-second default.
+  An unchanged head costs one RPC call and no log query. Catch-up ranges run
+  without an idle delay. Confirmation wakes on progress and drains eligible
+  batches without waiting for another poll. `safe`/`finalized` tag checks use the
+  same timer rather than a new one-second RPC polling loop.
+- A reorg rolls back to the newest retained checkpoint on the canonical chain,
+  then replays the range. Confirmation stores its exact boundary header even
+  when that height was an empty block inside a range.
 - Confirmation requires a healthy head observation less than 30 seconds old and
   cannot pass indexed progress. Advancing the observed head can confirm existing
   events even if the next log fetch fails. Long in-flight RPC calls can expire the
@@ -50,13 +60,25 @@ chain cannot silently change its cutover or contracts.
   nullable transaction relations remain nullable until enrichment succeeds.
 - The confirmation worker prunes up to 1,000 old, unreferenced block headers per
   cycle, in a separate transaction. It retains the cutover anchor, confirmed
-  boundary, all unconfirmed headers, transaction references, raw-dispatch headers,
+  boundary, retained unconfirmed checkpoints, transaction references, raw-dispatch headers,
   and headers needed by pending gas/delivery enrichment. Event records are not
   deleted by cleanup. Halted chains are not pruned. Historical headers from before
   the cutover are left intact; retained event/transaction history still grows.
 - Block/log/transaction positions are recorded for future custom-period consumers.
   Adding those consumers still requires a reorg-aware cursor/reset protocol; the
   current legacy protocol must not be pointed directly at provisional data.
+
+## RPC cost
+
+For a caught-up unchanged head: one header request per poll. For a normal new
+range containing events in `B` distinct blocks: at most `B + 6` header requests
+and one combined log request, independent of the number of empty blocks in the
+range. Numeric confirmation needs up to two header reads when it advances;
+finality tags also require a tag read. Receipt enrichment and retries are extra.
+The legacy path used up to four event range queries plus its separate tip and
+receipt/header lookups. Costs are comparable in structure, not guaranteed equal:
+chain activity, polling configuration, confirmation batches, and RPC retries
+still determine the actual total. This has not been benchmarked in production.
 
 ## Rollout
 

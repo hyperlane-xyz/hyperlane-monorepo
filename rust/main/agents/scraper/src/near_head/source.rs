@@ -22,6 +22,8 @@ pub(super) struct Header {
 
 #[derive(Clone, Debug)]
 pub(super) struct Event {
+    pub block_number: u64,
+    pub block_hash: H256,
     pub address: H160,
     pub tx_hash: H256,
     pub tx_index: u64,
@@ -55,7 +57,7 @@ pub(super) struct Contracts {
 #[async_trait]
 pub(super) trait Source: Send + Sync {
     async fn header(&self, block: BlockNumber) -> Result<Header>;
-    async fn events(&self, header: &Header) -> Result<Vec<Event>>;
+    async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>>;
 }
 
 pub(super) struct SourceBuilder {
@@ -114,10 +116,11 @@ impl<M: Middleware + 'static> Source for EvmSource<M> {
         })
     }
 
-    async fn events(&self, header: &Header) -> Result<Vec<Event>> {
-        // EIP-234 blockHash pinning is required: range queries can silently mix forks.
+    async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
+        ensure!(from <= through, "Invalid event range");
         let filter = Filter::new()
-            .at_block_hash(header.hash)
+            .from_block(from)
+            .to_block(through)
             .address(vec![
                 self.contracts.mailbox,
                 self.contracts.hook,
@@ -133,8 +136,10 @@ impl<M: Middleware + 'static> Source for EvmSource<M> {
         let mut events = Vec::new();
         for log in logs {
             ensure!(
-                log.block_hash == Some(header.hash)
-                    && log.block_number.map(|v| v.as_u64()) == Some(header.height)
+                log.block_hash.is_some()
+                    && log
+                        .block_number
+                        .is_some_and(|height| (from..=through).contains(&height.as_u64()))
                     && !log.removed.unwrap_or(false),
                 "RPC returned an event from a different block"
             );
@@ -142,11 +147,12 @@ impl<M: Middleware + 'static> Source for EvmSource<M> {
                 events.push(event);
             }
         }
-        events.sort_by_key(|event| event.log_index);
+        events.sort_by_key(|event| (event.block_number, event.log_index));
         ensure!(
             events
                 .windows(2)
-                .all(|pair| pair[0].log_index != pair[1].log_index),
+                .all(|pair| (pair[0].block_number, pair[0].log_index)
+                    != (pair[1].block_number, pair[1].log_index)),
             "Duplicate event position"
         );
         Ok(events)
@@ -196,6 +202,11 @@ fn decode(contracts: &Contracts, domain: u32, log: Log) -> Result<Option<Event>>
     let log_index = log.log_index.ok_or_else(|| eyre!("Missing log index"))?;
     ensure!(log_index <= i64::MAX.into(), "Log index too large");
     Ok(Some(Event {
+        block_number: log
+            .block_number
+            .ok_or_else(|| eyre!("Missing block number"))?
+            .as_u64(),
+        block_hash: log.block_hash.ok_or_else(|| eyre!("Missing block hash"))?,
         data,
         address: log.address,
         tx_hash: log
@@ -254,19 +265,23 @@ mod tests {
             ..Default::default()
         };
         rpc.push::<Vec<Log>, _>(vec![log.clone()])?;
-        let events = source.events(&header).await?;
+        let events = source.events(header.height, header.height + 100).await?;
         assert_eq!(events.len(), 1);
         assert!(
             matches!(&events[0].data, EventData::Gas { destination: 42161, gas, payment, .. } if gas == "123" && payment == "456")
         );
         rpc.assert_request("eth_getLogs", serde_json::json!([{
-            "blockHash": header.hash,
+            "fromBlock": "0xa", "toBlock": "0x6e",
             "address": [contracts.mailbox, contracts.hook, contracts.paymaster],
             "topics": [[DispatchFilter::signature(), ProcessIdFilter::signature(), InsertedIntoTreeFilter::signature(), GasPaymentFilter::signature()]]
         }]))?;
         for invalid in [
             Log {
-                block_hash: Some(header.parent),
+                block_number: Some(9.into()),
+                ..log.clone()
+            },
+            Log {
+                block_hash: None,
                 ..log.clone()
             },
             Log {
@@ -279,10 +294,32 @@ mod tests {
             },
         ] {
             rpc.push::<Vec<Log>, _>(vec![invalid])?;
-            assert!(source.events(&header).await.is_err());
+            assert!(source
+                .events(header.height, header.height + 100)
+                .await
+                .is_err());
         }
+        // Log indexes are unique within a block, not across the whole range.
+        rpc.push::<Vec<Log>, _>(vec![
+            log.clone(),
+            Log {
+                block_number: Some(11.into()),
+                block_hash: Some(header.parent),
+                ..log.clone()
+            },
+        ])?;
+        assert_eq!(
+            source
+                .events(header.height, header.height + 100)
+                .await?
+                .len(),
+            2
+        );
         rpc.push::<Vec<Log>, _>(vec![log.clone(), log])?;
-        assert!(source.events(&header).await.is_err());
+        assert!(source
+            .events(header.height, header.height + 100)
+            .await
+            .is_err());
         Ok(())
     }
 }

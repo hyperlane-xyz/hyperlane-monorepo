@@ -114,6 +114,15 @@ impl Store {
             .transpose()
     }
 
+    /// A range may contain empty blocks whose headers were never fetched.
+    pub async fn checkpoint(&self, through: u64) -> Result<u64> {
+        let row = self.db.query_one(sql(
+            "SELECT height FROM block WHERE domain=$1 AND height<=$2 ORDER BY height DESC LIMIT 1",
+            vec![self.domain(), number(through)?],
+        )).await?.ok_or_else(|| eyre::eyre!("Missing retained checkpoint"))?;
+        Ok(u64::try_from(row.try_get::<i64>("", "height")?)?)
+    }
+
     pub async fn pause(&self, halt: bool) -> Result<()> {
         self.db
             .execute(sql(
@@ -178,11 +187,17 @@ impl Store {
         let mut height = expected.indexed;
         for (header, events) in blocks {
             ensure!(
-                header.parent == previous && header.height.checked_sub(1) == Some(height),
-                "Noncontiguous event batch"
+                header.height > height
+                    && header.height <= expected.head
+                    && (header.height.checked_sub(1) != Some(height) || header.parent == previous),
+                "Invalid range checkpoint order"
             );
             insert_block(&tx, signed(self.domain), header).await?;
             for event in events {
+                ensure!(
+                    event.block_number == header.height && event.block_hash == header.hash,
+                    "Event disagrees with block header"
+                );
                 insert_event(&tx, signed(self.domain), header, event).await?;
             }
             previous = header.hash;
@@ -197,7 +212,8 @@ impl Store {
         Ok(())
     }
 
-    pub async fn confirm(&self, expected: &State, through: u64) -> Result<[u64; 4]> {
+    pub async fn confirm(&self, expected: &State, boundary: &Header) -> Result<[u64; 4]> {
+        let through = boundary.height;
         let tx = self.db.begin().await?;
         let row = tx.query_one(sql(
             "SELECT head_height,confirmed_height,healthy AND NOT halted AND updated_at>clock_timestamp()-interval '30 seconds' AS ready FROM scraper_head WHERE domain=$1 FOR UPDATE",
@@ -228,6 +244,8 @@ impl Store {
         if i64::try_from(through)? <= after {
             return Ok([0; 4]);
         }
+        // Retain an exact rollback boundary even when it was an empty range block.
+        insert_block(&tx, signed(self.domain), boundary).await?;
         let mut counts = [0; 4];
         for (index, (table, domain, height)) in EVENTS.iter().enumerate() {
             counts[index] = tx.execute(sql(format!("UPDATE {table} SET confirmed=true WHERE {domain}=$1 AND {height}>$2 AND {height}<=$3 AND NOT confirmed"), vec![self.domain(), after.into(), number(through)?])).await?.rows_affected();
