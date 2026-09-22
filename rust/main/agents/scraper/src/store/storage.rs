@@ -395,9 +395,9 @@ where
     }
 }
 
-/// Check completeness after persisting all available siblings. Returning an
-/// error keeps the cursor on this range while idempotent retries can continue
-/// to expose resolvable events, even if one required transaction remains missing.
+/// Check required enrichment to keep incomplete ranges retryable. Delivery and
+/// payment stores persist available siblings first. CCR checks before writes
+/// because its synthetic nonce allocation depends on insertion order.
 /// Zero-tx Cosmos block events retain their existing unsupported handling; the
 /// zero/zero Sealevel sentinel is persisted with a NULL transaction relation.
 pub(crate) fn ensure_event_enrichment_complete<'a>(
@@ -407,7 +407,7 @@ pub(crate) fn ensure_event_enrichment_complete<'a>(
     for meta in log_meta {
         eyre::ensure!(
             meta.transaction_id.is_zero() || txns.contains_key(&meta.transaction_id),
-            "Incomplete event enrichment at block {} ({:?}), transaction {:?}; available siblings persisted, retrying range",
+            "Incomplete event enrichment at block {} ({:?}), transaction {:?}; retrying range",
             meta.block_number,
             meta.block_hash,
             meta.transaction_id,

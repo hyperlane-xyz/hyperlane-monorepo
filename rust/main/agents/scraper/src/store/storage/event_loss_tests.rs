@@ -442,10 +442,7 @@ async fn repeated_rpc_misses_do_not_withhold_resolvable_siblings() -> Result<()>
     migration::Migrator::up(&connection, None).await?;
     let db = ScraperDb::with_connection(connection);
     let failure = Arc::new(AtomicU8::new(6));
-    for (i, event) in [Event::Delivery, Event::Payment, Event::Ccr]
-        .into_iter()
-        .enumerate()
-    {
+    for (i, event) in [Event::Delivery, Event::Payment].into_iter().enumerate() {
         let before = event.count(&db).await?;
         let store = build_store(db.clone(), failure.clone()).await?;
         let n = 600 + (i as u64 * 2);
@@ -466,6 +463,53 @@ async fn repeated_rpc_misses_do_not_withhold_resolvable_siblings() -> Result<()>
         event.persist(&store, &logs).await?;
         assert_eq!(event.count(&db).await?, before + 2);
         failure.store(6, Ordering::SeqCst);
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn missing_earlier_ccr_transaction_preserves_nonce_order_after_recovery() -> Result<()> {
+    let postgres = Postgres::default().start().await?;
+    let port = postgres.get_host_port_ipv4(5432).await?;
+    let connection = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{port}/postgres"
+    ))
+    .await?;
+    migration::Migrator::up(&connection, None).await?;
+    let db = ScraperDb::with_connection(connection);
+    let failure = Arc::new(AtomicU8::new(6));
+    let logs = [meta(600), meta(601)];
+    let store = build_store(db.clone(), failure.clone()).await?;
+    // The earlier transaction is unavailable; the later sibling must not
+    // consume nonce 0 while the range is held for retry.
+    for _ in 0..3 {
+        assert!(Event::Ccr.persist(&store, &logs).await.is_err());
+        assert_eq!(Event::Ccr.count(&db).await?, 0);
+    }
+    drop(store);
+    failure.store(0, Ordering::SeqCst);
+    let restarted = build_store(db.clone(), failure).await?;
+    for _ in 0..2 {
+        Event::Ccr.persist(&restarted, &logs).await?;
+        let rows = db
+            .clone_connection()
+            .query_all(Statement::from_string(
+                DatabaseBackend::Postgres,
+                "SELECT m.nonce, b.height FROM message m
+                 JOIN \"transaction\" t ON m.origin_tx_id = t.id
+                 JOIN block b ON t.block_id = b.id ORDER BY m.nonce",
+            ))
+            .await?;
+        let nonces_and_heights = rows
+            .iter()
+            .map(|row| {
+                Ok((
+                    row.try_get::<i32>("", "nonce")?,
+                    row.try_get::<i64>("", "height")?,
+                ))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        assert_eq!(nonces_and_heights, vec![(0, 600), (1, 601)]);
     }
     Ok(())
 }

@@ -20,8 +20,10 @@ impl HyperlaneLogStore<SameChainCcrSwap> for HyperlaneDbStore {
             .await?
             .collect();
 
-        // Persist resolvable siblings before rejecting an incomplete range.
-        // Retries are idempotent by the transaction/log-derived synthetic ID.
+        // CCR assigns synthetic nonces in insertion order. Reject incomplete
+        // enrichment before writing any swaps, so a later resolved sibling
+        // cannot claim an earlier nonce than a missing swap on retry.
+        ensure_event_enrichment_complete(&txns, swaps.iter().map(|r| &r.1))?;
         let storable: Vec<_> = swaps
             .iter()
             .filter_map(|(swap, meta)| {
@@ -46,7 +48,6 @@ impl HyperlaneLogStore<SameChainCcrSwap> for HyperlaneDbStore {
             .db
             .store_ccr_swaps_as_messages(self.domain.id(), &storable)
             .await?;
-        ensure_event_enrichment_complete(&txns, swaps.iter().map(|r| &r.1))?;
         Ok(stored as u32)
     }
 }
