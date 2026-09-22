@@ -147,9 +147,13 @@ async fn get_vm<N: Network>(
     cell: &OnceCell<VM<N, ConsensusMemory<N>>>,
 ) -> ChainResult<&VM<N, ConsensusMemory<N>>> {
     cell.get_or_try_init(|| async {
-        let store =
-            ConsensusStore::open(StorageMode::Production).map_err(HyperlaneAleoError::from)?;
-        VM::from(store).map_err(|err| HyperlaneAleoError::from(err).into())
+        tokio::task::spawn_blocking(|| {
+            let store =
+                ConsensusStore::open(StorageMode::Production).map_err(HyperlaneAleoError::from)?;
+            VM::from(store).map_err(|err| HyperlaneAleoError::from(err).into())
+        })
+        .await
+        .map_err(|err| HyperlaneAleoError::Other(format!("VM initialization task failed: {err}")))?
     })
     .await
 }
@@ -864,6 +868,47 @@ mod vm_lifecycle_tests {
         assert!(provider.mainnet_vm.get().is_none());
         assert!(provider.testnet_vm.get().is_none());
         assert!(provider.canary_vm.get().is_none());
+    }
+
+    #[test]
+    fn first_use_waits_for_blocking_pool_and_shares_initialized_vm() {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .max_blocking_threads(1)
+            .build()
+            .expect("test runtime")
+            .block_on(async {
+                // Occupy the sole blocking thread so initialization cannot complete
+                // until both callers have yielded back to this runtime thread.
+                let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+                let (release_tx, release_rx) = std::sync::mpsc::channel();
+                let blocker = tokio::task::spawn_blocking(move || {
+                    let _ = started_tx.send(());
+                    let _ = release_rx.recv();
+                });
+                started_rx.await.expect("blocking task started");
+                let client = MockHttpClient::new(PathBuf::new());
+                let provider = AleoProvider::with_client(client, domain(), 0, None);
+                let clone = provider.clone();
+                let first = get_vm(&provider.mainnet_vm);
+                let second = get_vm(&clone.mainnet_vm);
+                tokio::pin!(first, second);
+                let first_pending = futures::poll!(first.as_mut()).is_pending();
+                let second_pending = futures::poll!(second.as_mut()).is_pending();
+                let uninitialized = provider.mainnet_vm.get().is_none();
+                // Release before asserting so a failed assertion cannot strand
+                // the blocking task during runtime shutdown.
+                release_tx.send(()).expect("release blocking task");
+                assert!(first_pending && second_pending && uninitialized);
+                let (first, second) = tokio::join!(first, second);
+                assert!(std::ptr::eq(
+                    first.expect("initialized VM"),
+                    second.expect("shared VM")
+                ));
+                assert!(provider.testnet_vm.get().is_none());
+                assert!(provider.canary_vm.get().is_none());
+                blocker.await.expect("blocking task finished");
+            });
     }
 
     #[tokio::test]
