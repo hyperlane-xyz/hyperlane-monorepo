@@ -3,6 +3,7 @@ import {
   type IToken,
   type TokenAmount,
 } from '@hyperlane-xyz/sdk';
+import type { Address } from '@hyperlane-xyz/utils';
 
 import {
   type InventoryRoute,
@@ -57,4 +58,10 @@ export type PreparedTransaction = {
   >;
   route: MovableCollateralRoute & { intentId: string };
   originTokenAmount: PreparedOriginTokenAmount;
+  /** Collateral-denominated bridge fee excess pulled from the rebalancer. */
+  collateralFeeApproval?: {
+    token: Address;
+    spender: Address;
+    amount: bigint;
+  };
 };
