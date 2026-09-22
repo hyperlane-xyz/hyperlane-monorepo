@@ -90,7 +90,7 @@ impl Store {
             );
             insert_block(&tx, signed(self.domain), anchor).await?;
             tx.execute(sql(
-                "INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,head_hash,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster) VALUES($1,$2,$2,$3,$2,$3,$2,$4,$5,$6)",
+                "INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster) VALUES($1,$2,$2,$3,$2,$2,$4,$5,$6)",
                 vec![self.domain(), number(anchor.height)?, bytes(anchor.hash), contracts.mailbox.as_bytes().to_vec().into(), contracts.hook.as_bytes().to_vec().into(), contracts.paymaster.as_bytes().to_vec().into()],
             )).await?;
         }
@@ -163,7 +163,7 @@ impl Store {
             ))
             .await?;
         }
-        tx.execute(sql("UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3,head_height=$4,head_hash=$5,healthy=true,updated_at=clock_timestamp() WHERE domain=$1", vec![self.domain(), number(ancestor.height)?, bytes(ancestor.hash), number(head.height)?, bytes(head.hash)])).await?;
+        tx.execute(sql("UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3,head_height=$4,healthy=true,updated_at=clock_timestamp() WHERE domain=$1", vec![self.domain(), number(ancestor.height)?, bytes(ancestor.hash), number(head.height)?])).await?;
         tx.commit().await?;
         Ok(())
     }
@@ -261,12 +261,15 @@ impl Store {
 
     /// Keep the rollback boundary and headers needed by existing/pending enrichment.
     /// Raw dispatch headers are retained even before a message/transaction exists.
-    pub async fn prune_headers(&self) -> Result<u64> {
-        Ok(self.db.execute(sql(r#"
-            DELETE FROM block WHERE id IN (
-                SELECT b.id FROM block b JOIN scraper_head h ON h.domain=b.domain
+    pub async fn prune_headers(&self, after: u64) -> Result<(u64, u64)> {
+        let row = self.db.query_one(sql(r#"
+            WITH candidates AS MATERIALIZED (
+                SELECT b.id,b.height FROM block b JOIN scraper_head h ON h.domain=b.domain
                 WHERE b.domain=$1 AND NOT h.halted
-                  AND b.height>h.start_height AND b.height<h.confirmed_height
+                  AND b.height>greatest(h.start_height,$2) AND b.height<h.confirmed_height
+                ORDER BY b.height LIMIT 1000 FOR UPDATE OF b SKIP LOCKED
+            ), removed AS (
+                DELETE FROM block b USING candidates c WHERE b.id=c.id
                   AND NOT EXISTS (SELECT 1 FROM "transaction" t WHERE t.block_id=b.id)
                   AND NOT EXISTS (SELECT 1 FROM raw_message_dispatch r
                       WHERE r.origin_domain=b.domain AND r.origin_block_height=b.height)
@@ -274,9 +277,15 @@ impl Store {
                       WHERE d.domain=b.domain AND d.block_number=b.height AND d.destination_tx_id IS NULL)
                   AND NOT EXISTS (SELECT 1 FROM gas_payment g
                       WHERE g.domain=b.domain AND g.block_hash=b.hash AND g.tx_id IS NULL)
-                ORDER BY b.height LIMIT 1000 FOR UPDATE OF b SKIP LOCKED
+                RETURNING b.id
             )
-        "#, vec![self.domain()])).await?.rows_affected())
+            SELECT coalesce((SELECT max(height) FROM candidates),0) AS next,
+                   (SELECT count(*) FROM removed) AS deleted
+        "#, vec![self.domain(), number(after)?])).await?.ok_or_else(|| eyre::eyre!("Missing cleanup result"))?;
+        Ok((
+            u64::try_from(row.try_get::<i64>("", "next")?)?,
+            u64::try_from(row.try_get::<i64>("", "deleted")?)?,
+        ))
     }
 
     /// Keyset batches avoid one permanently unavailable receipt starving later rows.
@@ -320,7 +329,7 @@ fn transaction_column(table: &str) -> Result<&'static str> {
 }
 
 async fn insert_block<C: ConnectionTrait>(db: &C, domain: i32, h: &Header) -> Result<()> {
-    db.execute(sql("INSERT INTO block(domain,hash,height,parent_hash,timestamp) VALUES($1,$2,$3,$4,to_timestamp($5::bigint) AT TIME ZONE 'UTC') ON CONFLICT(hash) DO UPDATE SET parent_hash=excluded.parent_hash", vec![domain.into(), bytes(h.hash), number(h.height)?, bytes(h.parent), number(h.timestamp)?])).await?;
+    db.execute(sql("INSERT INTO block(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC') ON CONFLICT(hash) DO NOTHING", vec![domain.into(), bytes(h.hash), number(h.height)?, number(h.timestamp)?])).await?;
     Ok(())
 }
 

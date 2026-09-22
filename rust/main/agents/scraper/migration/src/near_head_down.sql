@@ -27,7 +27,6 @@ DROP INDEX raw_dispatch_block_height;
 DROP INDEX gas_payment_block_log;
 DROP INDEX delivery_unenriched;
 DROP INDEX gas_payment_unenriched;
-ALTER TABLE block DROP COLUMN parent_hash;
 ALTER TABLE raw_message_dispatch DROP COLUMN confirmed, DROP COLUMN log_index, DROP COLUMN transaction_index, DROP COLUMN message_version;
 ALTER TABLE delivered_message DROP COLUMN confirmed, DROP COLUMN block_hash, DROP COLUMN block_number, DROP COLUMN transaction_hash, DROP COLUMN transaction_index, DROP COLUMN log_index;
 ALTER TABLE gas_payment DROP COLUMN confirmed, DROP COLUMN block_hash, DROP COLUMN block_number, DROP COLUMN transaction_hash, DROP COLUMN transaction_index;

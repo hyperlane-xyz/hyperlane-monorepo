@@ -1,7 +1,6 @@
 -- Add metadata in place. Existing writers/rows remain confirmed by default;
 -- existing uniqueness constraints, IDs, and transaction identities are preserved.
 SET LOCAL lock_timeout = '5s';
-ALTER TABLE block ADD COLUMN parent_hash bytea;
 ALTER TABLE raw_message_dispatch ADD COLUMN confirmed boolean NOT NULL DEFAULT true,
   ADD COLUMN log_index bigint, ADD COLUMN transaction_index bigint, ADD COLUMN message_version smallint;
 ALTER TABLE delivered_message ADD COLUMN confirmed boolean NOT NULL DEFAULT true,
@@ -27,7 +26,6 @@ CREATE TABLE scraper_head (
   indexed_height bigint NOT NULL,
   indexed_hash bytea NOT NULL,
   head_height bigint NOT NULL,
-  head_hash bytea NOT NULL,
   confirmed_height bigint NOT NULL,
   mailbox bytea NOT NULL,
   merkle_tree_hook bytea NOT NULL,

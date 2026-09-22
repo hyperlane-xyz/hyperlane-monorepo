@@ -16,6 +16,7 @@ use hyperlane_base::{
     ChainMetrics, ContractSyncMetrics, CoreMetrics,
 };
 use hyperlane_core::{ContractLocator, ReorgPeriod};
+use itertools::Itertools;
 use serde::Deserialize;
 use tokio::{sync::Notify, task::JoinHandle, time::sleep};
 use tracing::warn;
@@ -52,6 +53,19 @@ pub async fn ensure_legacy_mode(legacy: &HyperlaneDbStore) -> Result<()> {
     };
     ensure!(store.state().await?.is_none(), "nearHead was disabled with retained state; drain and clear scraper_head before restarting legacy indexers");
     Ok(())
+}
+
+/// Keep auxiliary writers out of the provisional suffix, including after a halt.
+pub async fn confirmed_height(db: &crate::db::ScraperDb, domain: u32) -> Result<u32> {
+    let state = Store {
+        db: db.clone_connection(),
+        domain,
+    }
+    .state()
+    .await?
+    .ok_or_else(|| eyre::eyre!("Missing near-head progress"))?;
+    ensure!(!state.halted, "Confirmed history requires operator repair");
+    Ok(u32::try_from(state.confirmed)?)
 }
 
 /// Replace the four EVM log indexers with one range ingestion worker.
@@ -145,6 +159,7 @@ pub async fn spawn(
             },
             async {
                 let mut last_confirmed = 0;
+                let mut prune_after = 0;
                 loop {
                     let result = async {
                         let counts = confirm(source.as_ref(), &store, &period).await?;
@@ -191,12 +206,13 @@ pub async fn spawn(
                         );
                     }
                     // Separate transaction: cleanup failures must not roll back publication.
-                    if let Err(error) = store.prune_headers().await {
-                        warn!(
+                    match store.prune_headers(prune_after).await {
+                        Ok((next, _)) => prune_after = next,
+                        Err(error) => warn!(
                             domain = store.domain,
                             ?error,
                             "Block header cleanup failed; retrying"
-                        );
+                        ),
                     }
                     tokio::select! {
                         _ = confirmation_wake.notified() => {},
@@ -389,13 +405,17 @@ pub async fn enrich(legacy: &HyperlaneDbStore, cursors: &mut [i64; 2]) {
             *after = rows.last().map(|(id, _)| *id).unwrap_or(0);
             if !rows.is_empty() {
                 // Persist each receipt as it completes, retaining progress on timeout.
-                stream::iter(rows.iter().map(Ok::<_, eyre::Report>))
-                    .try_for_each_concurrent(8, |(_, meta)| async move {
-                        let _transactions =
-                            legacy.ensure_blocks_and_txns(std::iter::once(meta)).await?;
-                        Ok(())
-                    })
-                    .await?;
+                stream::iter(
+                    rows.iter()
+                        .unique_by(|(_, meta)| meta.transaction_id)
+                        .map(Ok::<_, eyre::Report>),
+                )
+                .try_for_each_concurrent(8, |(_, meta)| async move {
+                    let _transactions =
+                        legacy.ensure_blocks_and_txns(std::iter::once(meta)).await?;
+                    Ok(())
+                })
+                .await?;
                 store.enrich(table, start, *after).await?;
             }
             Ok::<_, eyre::Report>(())
