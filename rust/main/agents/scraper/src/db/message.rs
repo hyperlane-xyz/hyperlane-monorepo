@@ -184,7 +184,9 @@ impl ScraperDb {
         trace!(?models, "Writing delivered messages to database");
 
         if models.len() <= Self::STORE_DELIVERY_CHUNK_SIZE {
-            delivery_insert_query(models).exec(&self.0).await?;
+            delivery_insert_query(models)
+                .exec_without_returning(&self.0)
+                .await?;
         } else {
             self.0
                 .transaction::<_, (), DbErr>(|txn| {
@@ -195,7 +197,9 @@ impl ScraperDb {
                                 .by_ref()
                                 .take(Self::STORE_DELIVERY_CHUNK_SIZE)
                                 .collect();
-                            delivery_insert_query(chunk).exec(txn).await?;
+                            delivery_insert_query(chunk)
+                                .exec_without_returning(txn)
+                                .await?;
                         }
                         Ok(())
                     })
@@ -410,9 +414,18 @@ fn delivery_insert_query(
                     )),
                 ),
             )
+            // Replays with no new transaction metadata must not rewrite the
+            // row or emit another Explorer notification. PostgreSQL still
+            // locks the conflict row before evaluating this condition.
+            .action_and_where(Expr::cust(
+                "excluded.destination_tx_id IS NOT NULL AND \"delivered_message\".destination_tx_id IS DISTINCT FROM excluded.destination_tx_id",
+            ))
             .to_owned(),
     )
 }
+
+#[cfg(test)]
+mod delivery_replays;
 
 #[cfg(test)]
 mod tests {
