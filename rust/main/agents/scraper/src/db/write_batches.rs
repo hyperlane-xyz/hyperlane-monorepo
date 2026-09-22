@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 
 use migration::MigratorTrait;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, Database, DatabaseBackend, EntityTrait, MockDatabase,
-    MockExecResult, PaginatorTrait, QueryFilter, Value,
+    sqlx::postgres::PgListener, ColumnTrait, ConnectionTrait, Database, DatabaseBackend,
+    EntityTrait, MockDatabase, MockExecResult, PaginatorTrait, QueryFilter, Value,
 };
 use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
@@ -346,6 +346,163 @@ pub(super) async fn seed_transaction(db: &ScraperDb, index: u64) -> eyre::Result
     )
     .await?;
     Ok(db.get_txn_ids([&tx_hash].into_iter()).await?[&tx_hash])
+}
+
+async fn explorer_notifications(db: &ScraperDb, listener: &mut PgListener) -> eyre::Result<usize> {
+    // PostgreSQL delivers notifications in commit order. A separate channel
+    // provides a deterministic barrier after the writes, without a quiet-period sleep.
+    db.0.execute_unprepared("SELECT pg_notify('replay_test_barrier', 'ready')")
+        .await?;
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        let mut count = 0_usize;
+        loop {
+            let notification = listener.recv().await?;
+            if notification.channel() == "replay_test_barrier" {
+                return Ok(count);
+            }
+            assert_eq!(notification.channel(), "scraper_explorer_event");
+            count = count.saturating_add(1);
+        }
+    })
+    .await?
+}
+
+#[tokio::test]
+async fn unchanged_replays_preserve_rows_and_do_not_notify_explorer() -> eyre::Result<()> {
+    let postgres = Postgres::default().start().await?;
+    let port = postgres.get_host_port_ipv4(5432).await?;
+    let url = format!("postgresql://postgres:postgres@127.0.0.1:{port}/postgres");
+    let connection = Database::connect(&url).await?;
+    migration::Migrator::up(&connection, None).await?;
+    let db = ScraperDb::with_connection(connection);
+    let original_tx = seed_transaction(&db, 0).await?;
+    let replacement_tx = seed_transaction(&db, 1).await?;
+    let mut listener = PgListener::connect(&url).await?;
+    listener.listen("scraper_explorer_event").await?;
+    listener.listen("replay_test_barrier").await?;
+    let meta = LogMeta::default();
+    let address = H256::from_low_u64_be(1);
+    let mut payments = payments(1);
+    db.store_payments(
+        DOMAIN,
+        &address,
+        &payment_rows(&payments, &meta, Some(original_tx)),
+    )
+    .await?;
+    db.store_deliveries(
+        DOMAIN,
+        address,
+        deliveries(1, &meta).map(|mut row| {
+            row.txn_id = Some(original_tx);
+            row
+        }),
+    )
+    .await?;
+    assert_eq!(explorer_notifications(&db, &mut listener).await?, 2);
+    let payment_before = gas_payment::Entity::find()
+        .one(&db.0)
+        .await?
+        .expect("stored event row");
+    let delivery_before = delivered_message::Entity::find()
+        .one(&db.0)
+        .await?
+        .expect("stored event row");
+
+    for _ in 0..2 {
+        assert_eq!(
+            db.store_payments(
+                DOMAIN,
+                &address,
+                &payment_rows(&payments, &meta, Some(original_tx))
+            )
+            .await?,
+            0
+        );
+        assert_eq!(
+            db.store_deliveries(
+                DOMAIN,
+                address,
+                deliveries(1, &meta).map(|mut row| {
+                    row.txn_id = Some(original_tx);
+                    row
+                })
+            )
+            .await?,
+            0
+        );
+        // A later unresolved replay must not clear a resolved transaction.
+        assert_eq!(
+            db.store_deliveries(DOMAIN, address, deliveries(1, &meta))
+                .await?,
+            0
+        );
+        assert_eq!(explorer_notifications(&db, &mut listener).await?, 0);
+        assert_eq!(
+            gas_payment::Entity::find()
+                .one(&db.0)
+                .await?
+                .expect("stored event row"),
+            payment_before
+        );
+        assert_eq!(
+            delivered_message::Entity::find()
+                .one(&db.0)
+                .await?
+                .expect("stored event row"),
+            delivery_before
+        );
+    }
+
+    // Real content changes, including a NULL sequence transition, still update.
+    payments[0].payment = U256::from(2000);
+    let mut rows = payment_rows(&payments, &meta, Some(original_tx));
+    rows[0].sequence = None;
+    db.store_payments(DOMAIN, &address, &rows).await?;
+    assert_eq!(explorer_notifications(&db, &mut listener).await?, 1);
+    let changed = gas_payment::Entity::find()
+        .one(&db.0)
+        .await?
+        .expect("stored event row");
+    assert_eq!(changed.id, payment_before.id);
+    assert_eq!(changed.sequence, None);
+    assert_eq!(
+        changed.payment,
+        crate::conversions::u256_to_decimal(U256::from(2000))
+    );
+    db.store_payments(DOMAIN, &address, &rows).await?;
+    assert_eq!(explorer_notifications(&db, &mut listener).await?, 0);
+
+    // A reorg can change the delivery transaction; payment transaction IDs are
+    // part of their identity, so a new transaction remains a separate event.
+    db.store_deliveries(
+        DOMAIN,
+        address,
+        deliveries(1, &meta).map(|mut row| {
+            row.txn_id = Some(replacement_tx);
+            row
+        }),
+    )
+    .await?;
+    assert_eq!(
+        db.store_payments(
+            DOMAIN,
+            &address,
+            &payment_rows(&payments, &meta, Some(replacement_tx))
+        )
+        .await?,
+        1
+    );
+    assert_eq!(explorer_notifications(&db, &mut listener).await?, 2);
+    assert_eq!(
+        delivered_message::Entity::find()
+            .one(&db.0)
+            .await?
+            .expect("stored event row")
+            .destination_tx_id,
+        Some(replacement_tx)
+    );
+    assert_eq!(gas_payment::Entity::find().count(&db.0).await?, 2);
+    Ok(())
 }
 
 #[tokio::test]

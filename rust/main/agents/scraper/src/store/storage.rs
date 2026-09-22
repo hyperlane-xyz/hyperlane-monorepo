@@ -419,7 +419,7 @@ where
     }
     /// Stores the block number high watermark
     async fn store_high_watermark(&self, block_number: u32) -> Result<()> {
-        self.cursor.update(block_number.into()).await;
+        self.cursor.update(block_number.into()).await?;
         Ok(())
     }
 }

@@ -12,6 +12,11 @@ restart during backfill. The existing cursor table and uniqueness constraint are
 sufficient; there is no SQL schema migration. Existing legacy, CCR, and backward
 cursor rows are retained.
 
+The first checkpoint beyond the restored start is written immediately on every
+startup; later writes retain the ten-second throttle. A failed write propagates
+to the sync cursor and retries the same range, including when the in-memory
+height already advanced. The cursor's conservative range overlap still applies.
+
 Sequence-aware Sealevel, Radix, and Aleo paths keep their existing sequence and
 backward cursor behavior. In particular, relative sequence starts remain intact.
 Relative starts on block-indexed chains still mean an offset from the current
@@ -24,7 +29,8 @@ advanced does not rewind that checkpoint.
 
 The following snapshot combines the running mainnet scraper's configuration and
 runtime index overrides with read-only replica queries of legacy cursor rows on
-2026-09-22 (row timestamps around 14:05 UTC). No production state was changed.
+2026-09-22 (row timestamps around 14:05 UTC). These six chains are a sample, not
+the complete set of affected domains. No production state was changed.
 
 | Chain    | Configured start | Legacy cursor | Blocks through cursor, inclusive | Chunk setting | Range fetches per stream | Both streams |
 | -------- | ---------------: | ------------: | -------------------------------: | ------------: | -----------------------: | -----------: |
@@ -43,7 +49,10 @@ runtime override of 1,000.
 These counts are range fetches, **not total RPC requests, provider billing, or a
 completion-time estimate**. Tip reads, pagination, retries, chain progress during
 replay, transaction enrichment, and SQL reads/writes add work. Existing event
-writes are idempotent, but replaying them still consumes database capacity.
+writes skip unchanged delivery/payment conflict updates, preserving creation
+timestamps and suppressing redundant Explorer notifications. Real content or
+transaction changes still update. Replays still consume RPC, SQL read, conflict
+check, and transaction capacity.
 
 ## Rollout gate and staged backfill
 
@@ -74,6 +83,11 @@ large Arbitrum and Base ranges make that a material rollout decision.
    representative historical delivery/payment rows, including any known gaps,
    before adding more domains. Passing a height alone does not prove that an
    RPC endpoint returned every historical event.
+
+Store/enrichment failures retry every five seconds and can leave process liveness
+healthy. The RPC fetch retry metric does not count these failures. During backfill,
+watch each event cursor for staleness and the warning
+`Skipping cursor update because logs failed to store` alongside RPC metrics.
 
 Restarting an old binary uses the retained legacy cursor and reintroduces the
 shared-watermark behavior. Preserve the new rows for a subsequent forward
