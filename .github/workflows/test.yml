@@ -130,26 +130,10 @@ jobs:
           job_name: 'Lint Prettier'
           result: ${{ needs.lint-prettier-run.result }}
 
-  set-base-sha:
-    runs-on: ubuntu-latest
+  change-detection:
     outputs:
       base_sha: ${{ steps.determine-sha.outputs.base_sha }}
       current_sha: ${{ steps.determine-sha.outputs.current_sha }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          # Full history needed to compute merge-base for PRs
-          fetch-depth: 0
-
-      - name: Determine BASE_SHA
-        id: determine-sha
-        uses: ./.github/actions/determine-base-sha
-
-  change-detection:
-    needs: [set-base-sha]
-    outputs:
       skip_ts: ${{ steps.decide.outputs.skip_ts }}
       run_lint_prettier: ${{ steps.decide.outputs.run_lint_prettier }}
       run_cli_e2e: ${{ steps.decide.outputs.run_cli_e2e }}
@@ -162,12 +146,16 @@ jobs:
       has_relayer: ${{ steps.decide.outputs.has_relayer }}
       has_rebalancer: ${{ steps.decide.outputs.has_rebalancer }}
       has_svm: ${{ steps.decide.outputs.has_svm }}
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+
+      - name: Determine BASE_SHA
+        id: determine-sha
+        uses: ./.github/actions/determine-base-sha
 
       - name: Check CI context
         id: context
@@ -180,8 +168,8 @@ jobs:
         id: check-skip-ts
         uses: ./.github/actions/check-path-changes
         with:
-          base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
-          head_sha: ${{ needs.set-base-sha.outputs.current_sha }}
+          base_sha: ${{ steps.determine-sha.outputs.base_sha }}
+          head_sha: ${{ steps.determine-sha.outputs.current_sha }}
           path_pattern: '(rust/|\.github/|typescript/Dockerfile|typescript/docker-entrypoint\.sh)'
           path_pattern_only: 'true'
 
@@ -189,15 +177,15 @@ jobs:
         id: check-github
         uses: ./.github/actions/check-path-changes
         with:
-          base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
-          head_sha: ${{ needs.set-base-sha.outputs.current_sha }}
+          base_sha: ${{ steps.determine-sha.outputs.base_sha }}
+          head_sha: ${{ steps.determine-sha.outputs.current_sha }}
           path_pattern: '\.github/'
 
       - name: Categorize changes for CLI e2e and VM detection
         id: check-vm
         run: |
-          BASE_SHA="${{ needs.set-base-sha.outputs.base_sha }}"
-          HEAD_SHA="${{ needs.set-base-sha.outputs.current_sha }}"
+          BASE_SHA="${{ steps.determine-sha.outputs.base_sha }}"
+          HEAD_SHA="${{ steps.determine-sha.outputs.current_sha }}"
 
           if ! CHANGED_FILES=$(git diff --name-only "$BASE_SHA"..."$HEAD_SHA" 2>/dev/null); then
             # Can't determine changes — run everything
@@ -356,7 +344,7 @@ jobs:
 
   infra-test:
     runs-on: depot-ubuntu-24.04
-    needs: [set-base-sha, change-detection]
+    needs: [change-detection]
     if: needs.change-detection.outputs.skip_ts != 'true'
     env:
       GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
@@ -381,10 +369,10 @@ jobs:
 
       - name: Check for balance/config changes
         run: |
-          if git diff ${{ needs.set-base-sha.outputs.base_sha }}...${{ needs.set-base-sha.outputs.current_sha }} --name-only | grep -qE '^typescript/infra/config/environments/mainnet3/balances|^.registryrc$'; then
+          if git diff ${{ needs.change-detection.outputs.base_sha }}...${{ needs.change-detection.outputs.current_sha }} --name-only | grep -qE '^typescript/infra/config/environments/mainnet3/balances|^.registryrc$'; then
             echo "BALANCE_CHANGES=true" >> $GITHUB_ENV
           fi
-          if git diff ${{ needs.set-base-sha.outputs.base_sha }}...${{ needs.set-base-sha.outputs.current_sha }} --name-only | grep -qE '^typescript/infra/|^.registryrc$'; then
+          if git diff ${{ needs.change-detection.outputs.base_sha }}...${{ needs.change-detection.outputs.current_sha }} --name-only | grep -qE '^typescript/infra/|^.registryrc$'; then
             echo "WARP_CONFIG_CHANGES=true" >> $GITHUB_ENV
           fi
 
@@ -498,12 +486,8 @@ jobs:
       base_ref: ${{ github.base_ref }}
 
   coverage-tests:
-    needs: [set-base-sha]
     uses: ./.github/workflows/test-coverage.yml
     secrets: inherit
-    with:
-      base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
-      current_sha: ${{ needs.set-base-sha.outputs.current_sha }}
 
   agent-configs:
     runs-on: depot-ubuntu-24.04
