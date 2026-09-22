@@ -139,35 +139,6 @@ impl HyperlaneDbStore {
         Ok(complete)
     }
 
-    /// Enrich events which have no durable raw-event reconciliation path.
-    /// A missing required transaction must fail the batch before any event is
-    /// written, so the sync loop cannot advance its cursor past that event.
-    ///
-    /// Zero transaction hashes are intentional for the Sealevel fallback and
-    /// Cosmos block-level events. Keep their existing handling: zero/zero metas
-    /// are stored with a NULL relation; Cosmos block-level events remain omitted
-    /// until storage supports a block-backed identity (especially for payments).
-    pub(crate) async fn ensure_event_transactions<'a>(
-        &self,
-        log_meta: impl Iterator<Item = &'a LogMeta>,
-    ) -> Result<HashMap<H512, i64>> {
-        let log_meta: Vec<_> = log_meta.collect();
-        let txns: HashMap<_, _> = self
-            .ensure_blocks_and_txns(log_meta.iter().copied())
-            .await?
-            .collect();
-        for meta in log_meta {
-            eyre::ensure!(
-                meta.transaction_id.is_zero() || txns.contains_key(&meta.transaction_id),
-                "Incomplete event enrichment at block {} ({:?}), transaction {:?}; retrying range",
-                meta.block_number,
-                meta.block_hash,
-                meta.transaction_id,
-            );
-        }
-        Ok(txns)
-    }
-
     /// Takes a list of txn and block hashes and ensure they are all in the
     /// database. If any are not it will fetch the data and insert them.
     ///
@@ -422,6 +393,27 @@ where
         self.cursor.update(block_number.into()).await;
         Ok(())
     }
+}
+
+/// Check completeness after persisting all available siblings. Returning an
+/// error keeps the cursor on this range while idempotent retries can continue
+/// to expose resolvable events, even if one required transaction remains missing.
+/// Zero-tx Cosmos block events retain their existing unsupported handling; the
+/// zero/zero Sealevel sentinel is persisted with a NULL transaction relation.
+pub(crate) fn ensure_event_enrichment_complete<'a>(
+    txns: &HashMap<H512, i64>,
+    log_meta: impl Iterator<Item = &'a LogMeta>,
+) -> Result<()> {
+    for meta in log_meta {
+        eyre::ensure!(
+            meta.transaction_id.is_zero() || txns.contains_key(&meta.transaction_id),
+            "Incomplete event enrichment at block {} ({:?}), transaction {:?}; available siblings persisted, retrying range",
+            meta.block_number,
+            meta.block_hash,
+            meta.transaction_id,
+        );
+    }
+    Ok(())
 }
 
 /// Resolves the database transaction id for a log's meta.

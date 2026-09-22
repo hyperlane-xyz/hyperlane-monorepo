@@ -7,7 +7,7 @@ use tracing::{debug, warn};
 use hyperlane_core::{HyperlaneLogStore, Indexed, LogMeta, SameChainCcrSwap, H512};
 
 use crate::db::StorableCcrSwap;
-use crate::store::storage::HyperlaneDbStore;
+use crate::store::storage::{ensure_event_enrichment_complete, HyperlaneDbStore};
 
 #[async_trait]
 impl HyperlaneLogStore<SameChainCcrSwap> for HyperlaneDbStore {
@@ -16,12 +16,12 @@ impl HyperlaneLogStore<SameChainCcrSwap> for HyperlaneDbStore {
             return Ok(0);
         }
         let txns: HashMap<H512, i64> = self
-            .ensure_event_transactions(swaps.iter().map(|r| &r.1))
-            .await?;
+            .ensure_blocks_and_txns(swaps.iter().map(|r| &r.1))
+            .await?
+            .collect();
 
-        // Required transaction enrichment has been checked for the whole batch
-        // before any event write. Zero transaction hashes retain the existing
-        // unsupported-event behavior; CCR indexers emit real transaction hashes.
+        // Persist resolvable siblings before rejecting an incomplete range.
+        // Retries are idempotent by the transaction/log-derived synthetic ID.
         let storable: Vec<_> = swaps
             .iter()
             .filter_map(|(swap, meta)| {
@@ -29,7 +29,7 @@ impl HyperlaneLogStore<SameChainCcrSwap> for HyperlaneDbStore {
                 if txn.is_none() {
                     warn!(
                         tx_hash = ?meta.transaction_id,
-                        "skipping CCR swap without transaction metadata"
+                        "deferring CCR swap without transaction metadata"
                     );
                 }
                 txn.map(|t| StorableCcrSwap {
@@ -46,6 +46,7 @@ impl HyperlaneLogStore<SameChainCcrSwap> for HyperlaneDbStore {
             .db
             .store_ccr_swaps_as_messages(self.domain.id(), &storable)
             .await?;
+        ensure_event_enrichment_complete(&txns, swaps.iter().map(|r| &r.1))?;
         Ok(stored as u32)
     }
 }

@@ -56,7 +56,7 @@ impl HyperlaneProvider for Provider {
 
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
         let failure = self.failure.load(Ordering::SeqCst);
-        if failure == 2 {
+        if failure == 2 || (failure == 6 && hash.as_bytes()[63] & 1 == 0) {
             return Err(ChainCommunicationError::from_other_str(
                 "transaction unavailable",
             ));
@@ -263,8 +263,10 @@ async fn intentional_zero_transaction_metadata_keeps_existing_handling() -> Resu
         ..svm.clone()
     };
     let txns = store
-        .ensure_event_transactions([&svm, &cosmos].into_iter())
-        .await?;
+        .ensure_blocks_and_txns([&svm, &cosmos].into_iter())
+        .await?
+        .collect();
+    ensure_event_enrichment_complete(&txns, [&svm, &cosmos].into_iter())?;
     assert!(txns.is_empty());
     assert_eq!(txn_id_for_meta(&txns, &svm), Some(None));
     // Cosmos block-level events still lack a safe payment identity in the SQL
@@ -358,7 +360,7 @@ async fn contract_sync_does_not_checkpoint_failed_enrichment_and_retries_after_r
     .await?;
     migration::Migrator::up(&connection, None).await?;
     let db = ScraperDb::with_connection(connection);
-    let failure = Arc::new(AtomicU8::new(1));
+    let failure = Arc::new(AtomicU8::new(6));
     let logs = [meta(100), meta(101)]
         .into_iter()
         .map(|meta| (Indexed::new(meta.block_hash), meta))
@@ -402,7 +404,11 @@ async fn contract_sync_does_not_checkpoint_failed_enrichment_and_retries_after_r
         if fails {
             assert!(updates.try_recv().is_err());
             assert_eq!(checkpoint.height().await, 0);
-            assert_eq!(Event::Delivery.count(&db).await?, 0);
+            assert_eq!(
+                Event::Delivery.count(&db).await?,
+                1,
+                "resolvable sibling is visible while the cursor is held"
+            );
         } else {
             assert_eq!(
                 timeout(Duration::from_secs(30), updates.recv()).await?,
@@ -421,6 +427,45 @@ async fn contract_sync_does_not_checkpoint_failed_enrichment_and_retries_after_r
         task.abort();
         let _ = task.await;
         failure.store(0, Ordering::SeqCst);
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn repeated_rpc_misses_do_not_withhold_resolvable_siblings() -> Result<()> {
+    let postgres = Postgres::default().start().await?;
+    let port = postgres.get_host_port_ipv4(5432).await?;
+    let connection = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{port}/postgres"
+    ))
+    .await?;
+    migration::Migrator::up(&connection, None).await?;
+    let db = ScraperDb::with_connection(connection);
+    let failure = Arc::new(AtomicU8::new(6));
+    for (i, event) in [Event::Delivery, Event::Payment, Event::Ccr]
+        .into_iter()
+        .enumerate()
+    {
+        let before = event.count(&db).await?;
+        let store = build_store(db.clone(), failure.clone()).await?;
+        let n = 600 + (i as u64 * 2);
+        let logs = [meta(n), meta(n + 1)];
+        // Mode 6 repeatedly refuses the even transaction. Both events begin
+        // absent; each failed attempt must expose the odd sibling exactly once.
+        for _ in 0..3 {
+            assert!(event.persist(&store, &logs).await.is_err());
+            assert_eq!(
+                event.count(&db).await?,
+                before + 1,
+                "{event:?} sibling must persist despite a repeated RPC miss"
+            );
+        }
+        failure.store(0, Ordering::SeqCst);
+        event.persist(&store, &logs).await?;
+        assert_eq!(event.count(&db).await?, before + 2);
+        event.persist(&store, &logs).await?;
+        assert_eq!(event.count(&db).await?, before + 2);
+        failure.store(6, Ordering::SeqCst);
     }
     Ok(())
 }

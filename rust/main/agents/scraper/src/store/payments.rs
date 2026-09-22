@@ -11,7 +11,7 @@ use hyperlane_core::{
 };
 
 use crate::db::StorablePayment;
-use crate::store::storage::{txn_id_for_meta, HyperlaneDbStore};
+use crate::store::storage::{ensure_event_enrichment_complete, txn_id_for_meta, HyperlaneDbStore};
 
 #[async_trait]
 impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneDbStore {
@@ -19,7 +19,8 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneDbStore {
     /// Payments whose transaction could not be resolved on-chain (zero block
     /// and transaction hashes, e.g. Sealevel basic log meta fallback) are
     /// stored with a NULL transaction relation. Failed required transaction
-    /// enrichment rejects the batch so the cursor retries the range.
+    /// enrichment returns an error after storing available siblings, so the
+    /// cursor retries the range without withholding resolvable events.
     async fn store_logs(
         &self,
         payments: &[(Indexed<InterchainGasPayment>, LogMeta)],
@@ -28,8 +29,9 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneDbStore {
             return Ok(0);
         }
         let txns: HashMap<H512, i64> = self
-            .ensure_event_transactions(payments.iter().map(|r| &r.1))
-            .await?;
+            .ensure_blocks_and_txns(payments.iter().map(|r| &r.1))
+            .await?
+            .collect();
         let storable = payments
             .iter()
             .filter_map(|(payment, meta)| {
@@ -65,6 +67,7 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneDbStore {
                 &storable,
             )
             .await?;
+        ensure_event_enrichment_complete(&txns, payments.iter().map(|r| &r.1))?;
         Ok(stored as u32)
     }
 }
