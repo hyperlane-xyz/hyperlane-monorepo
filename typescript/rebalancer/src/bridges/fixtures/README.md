@@ -2,31 +2,42 @@
 
 `debridge-bsc-forwarder.json` is an unsigned BSC USDT → Ethereum USDT
 `create-tx` response captured on 2026-09-15. It preserves the provider payload.
-The validator **rejects this original response**: surplus goes to provider-selected
-addresses and the nested order restricts its taker. Requesting
-`srcChainRefundAddress` did not change the surplus recipient in a fresh response.
+The semantic validator accepts the original payload, including provider-selected
+surplus recipients and its designated solver. `supportedForwarderData()` returns
+that unmodified calldata. The captured deadline is historical: accepting its
+semantics does not make it executable today.
 
-`supportedForwarderData()` constructs a positive test case by returning surplus
-to the inventory signer and removing the restricted taker. Production code never
-rewrites these fields. This fixture proves support for the decoded path, not that
-deBridge will currently quote that path with our required recipients and policy.
 Another observed response selected router `0xB44446b0c8E56988c34f7Ff73Ae904982b5FdDA5`;
 that router remains unsupported.
 
 ## Supported path and trust boundaries
 
 1. Known BSC forwarder, exact requested USDT input, empty permit, USDC intermediate,
-   signer refund, and known DLN source target.
+   pinned forwarder implementation, and known DLN source target.
 2. Known 0x AllowanceHolder and pinned Settler; registry must identify that Settler
    as current or previous. A paused registry, expired funding deadline (checked
    against the latest source block) or RPC error blocks approval.
 3. Exact source funding; single-hop Pancake Infinity USDT → USDC fills with no
-   hooks, unrelated assets, arbitrary calls, or third-party recipients. Optional
-   positive slippage goes to the signer.
+   hooks, unrelated assets or arbitrary calls. Optional positive slippage may go
+   to the provider-selected recipient, but only above the committed intermediate
+   amount, with a maximum of 1,000,000 ppm. The outer surplus recipient may also
+   be provider-selected; it receives only output remaining after order funding.
 4. Nested DLN order preserves the intermediate input, destination token/chain,
    minimum output, recipient and authorities. Existing restrictions on affiliate
-   fees, permits, restricted takers and external calls still apply.
+   fees, permits and external calls still apply. A nonempty designated solver
+   must have the destination protocol's address length. Cancellation authority
+   remains bound to the inventory recipient; an explicit cancellation beneficiary
+   must be the source signer.
 5. Canonical encoding at each ABI boundary; exact approval only after validation.
+   Native fees and token decimals are checked against chain data, independently
+   of API estimates. Preparation expires after 30 seconds; execution refreshes a
+   stale payload after approval, within the original accepted limits. An error
+   after source submission never triggers this preparation retry.
+6. An API fulfillment status only identifies a candidate destination transaction.
+   Completion requires finalized source and destination evidence for the same
+   rehashed order ID, route, recipient, token and committed amount. ERC20/SPL
+   credits must cover the commitment; native payouts must have no take-amount
+   reduction. Missing finality remains pending; inconsistent evidence fails closed.
 
 The forwarder checks its actual intermediate balance increase against the outer
 minimum before creating the order, in the same transaction. The inner aggregator
@@ -55,8 +66,8 @@ pnpm exec mocha --import=tsx src/bridges/deBridgeForwarderValidation.test.ts src
 ```
 
 Mutation tests cover nested field changes, arbitrary calls, permits, hooks,
-redirected surplus, allowance mismatches, noncanonical encoding and retired/paused
-deployments. Adapter tests assert rejection before approval/submission and exact
+surplus amount bounds, allowance mismatches, noncanonical encoding and upgraded,
+retired or paused deployments. Adapter tests assert rejection before approval/submission and exact
 approval to the validated forwarder. Existing direct-order tests remain in place.
 
 The separate fork test requires a disposable local Anvil and BSC RPC serving the
@@ -79,6 +90,29 @@ Before enabling execution, require an unmodified fresh provider response that
 passes validation, a passing fork execution, and separate source-to-destination
 settlement verification. Unit success alone does not satisfy those gates.
 
-Verified on 2026-09-15: rebalancer TypeScript build, lint (three existing warnings),
-497 unit tests, and both constructed-fixture fork tests at BSC block 122011359.
 The rollback test also checks the forwarder's `NotEnoughSrcFundsIn` revert data.
+
+## Unsigned production preflight
+
+`quote()` is an estimate. `prepare(quote)` fetches and validates an executable
+payload using the same preparation path as `execute()`, without private keys,
+approvals or submission. Monitor-only startup does not call this path.
+
+```sh
+pnpm exec tsx src/scripts/preflightDeBridge.ts \
+  --request request.json --metadata chains.json --output unsigned.json \
+  --max-fee-percent 2.5
+```
+
+Use the route's actual configured fee limit, signer addresses and chain metadata.
+`request.json` contains `fromChain`, `toChain`, `fromToken`, `toToken`,
+`fromAddress`, `toAddress` and a decimal-string `fromAmount` in source base units.
+`chains.json` is a chain-name-to-metadata map with working RPC URLs. The output
+contains the accepted quote and unmodified unsigned response, excluding metadata.
+The command refuses to overwrite an existing artifact. The result is not a
+simulation, a broadcast or proof of destination settlement.
+
+A passing historical fixture does not establish current provider readiness.
+Unknown router variants, Jupiter source swaps and opaque Relay payloads remain
+unsupported. Require fresh unmodified quotes for every required production path;
+an inaccessible API or unsupported response blocks that path's rollout.
