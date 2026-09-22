@@ -779,7 +779,9 @@ export class SwapsXyzBridge implements IExternalBridge {
     const response = await this.client.getAction(
       this.buildActionRequest(quote.requestParams),
     );
-    await this.validatePreparedEvmOrder(quote, response);
+    if (metadata?.protocol === ProtocolType.Tron)
+      this.validatePreparedTronOrder(quote, response);
+    else await this.validatePreparedEvmOrder(quote, response);
     assert(
       Date.now() - preparedAt < MAX_TRANSACTION_AGE_MS,
       'swaps.xyz transaction expired during preparation',
@@ -977,9 +979,95 @@ export class SwapsXyzBridge implements IExternalBridge {
       'SwapsXyzBridge.execute Tron signer does not match quote fromAddress',
     );
 
-    const fresh = await this.client.getAction(
-      this.buildActionRequest(quote.requestParams),
+    for (let attempt = 0; attempt < MAX_PREPARATION_ATTEMPTS; attempt++) {
+      const { response: fresh, preparedAt } = await this.prepare(quote);
+      const freshTx = fresh.tx;
+      assert(isTronTx(freshTx), 'SwapsXyzBridge.execute requires a Tron tx');
+      const transactionTo = this.tronAddressToEvm(freshTx.to);
+      const sourceToken = this.tronAddressToEvm(quote.requestParams.fromToken);
+      let txResponse: providers.TransactionResponse;
+      if (freshTx.toExtra === null) {
+        await options?.onTransferId?.(fresh.txId);
+        assert(
+          !fresh.requiresTokenApproval,
+          'SwapsXyzBridge.execute direct Tron transfers must not require token approval',
+        );
+        const transferAmount = BigNumber.from(freshTx.value);
+        if (
+          this.addressesEqual(
+            quote.requestParams.fromToken,
+            NATIVE_TOKEN_ADDRESS,
+            fromChain,
+          )
+        ) {
+          txResponse = await submitEvmLikeTransaction(
+            signer,
+            {
+              to: transactionTo,
+              value: transferAmount,
+            },
+            options,
+          );
+        } else {
+          txResponse = await submitEvmLikeTransaction(
+            signer,
+            {
+              to: sourceToken,
+              data: ERC20_TRANSFER_INTERFACE.encodeFunctionData('transfer', [
+                transactionTo,
+                transferAmount,
+              ]),
+              value: 0,
+            },
+            options,
+          );
+        }
+      } else {
+        if (fresh.requiresTokenApproval) {
+          await approveErc20IfNeeded(
+            signer,
+            sourceToken,
+            transactionTo,
+            BigInt((fresh.amountInMax ?? fresh.amountIn).amount),
+            this.logger,
+            {
+              contractFactory: this.config.erc20ContractFactory,
+              onApproval: options?.onApproval,
+            },
+          );
+        }
+
+        if (Date.now() - preparedAt >= MAX_TRANSACTION_AGE_MS) continue;
+        this.validatePreparedTronOrder(quote, fresh);
+        await options?.onTransferId?.(fresh.txId);
+        txResponse = await submitEvmLikeTransaction(
+          signer,
+          {
+            to: transactionTo,
+            data: ensure0x(freshTx.toExtra),
+            value: BigNumber.from(freshTx.value),
+          },
+          options,
+        );
+      }
+      const txHash = ensure0x(txResponse.hash);
+      void this.registerIfRequired(fresh, txHash);
+      return {
+        txHash,
+        fromChain,
+        toChain,
+        transferId: fresh.txId,
+      };
+    }
+    throw new Error(
+      'swaps.xyz transaction expired repeatedly during preparation',
     );
+  }
+
+  private validatePreparedTronOrder(
+    quote: BridgeQuote,
+    fresh: SwapsXyzActionResponse,
+  ): void {
     const freshTx = fresh.tx;
     assert(isTronTx(freshTx), 'SwapsXyzBridge.execute requires a Tron tx');
     assert(
@@ -988,83 +1076,13 @@ export class SwapsXyzBridge implements IExternalBridge {
     );
     this.validateActionResponse(fresh, quote, 'alt-vm');
 
-    const transactionTo = this.tronAddressToEvm(freshTx.to);
-    const sourceToken = this.tronAddressToEvm(quote.requestParams.fromToken);
-    let txResponse: providers.TransactionResponse;
-    await options?.onTransferId?.(fresh.txId);
-    if (freshTx.toExtra === null) {
-      assert(
-        !fresh.requiresTokenApproval,
-        'SwapsXyzBridge.execute direct Tron transfers must not require token approval',
-      );
-      const transferAmount = BigNumber.from(freshTx.value);
-      if (
-        this.addressesEqual(
-          quote.requestParams.fromToken,
-          NATIVE_TOKEN_ADDRESS,
-          fromChain,
-        )
-      ) {
-        txResponse = await submitEvmLikeTransaction(
-          signer,
-          {
-            to: transactionTo,
-            value: transferAmount,
-          },
-          options,
-        );
-      } else {
-        txResponse = await submitEvmLikeTransaction(
-          signer,
-          {
-            to: sourceToken,
-            data: ERC20_TRANSFER_INTERFACE.encodeFunctionData('transfer', [
-              transactionTo,
-              transferAmount,
-            ]),
-            value: 0,
-          },
-          options,
-        );
-      }
-    } else {
+    if (freshTx.toExtra !== null) {
       validateDeBridgeEvmTransaction(
         { ...quote, fromAmount: BigInt(fresh.amountIn.amount) },
-        transactionTo,
+        this.tronAddressToEvm(freshTx.to),
         ensure0x(freshTx.toExtra),
       );
-      if (fresh.requiresTokenApproval) {
-        await approveErc20IfNeeded(
-          signer,
-          sourceToken,
-          transactionTo,
-          BigInt((fresh.amountInMax ?? fresh.amountIn).amount),
-          this.logger,
-          {
-            contractFactory: this.config.erc20ContractFactory,
-            onApproval: options?.onApproval,
-          },
-        );
-      }
-
-      txResponse = await submitEvmLikeTransaction(
-        signer,
-        {
-          to: transactionTo,
-          data: ensure0x(freshTx.toExtra),
-          value: BigNumber.from(freshTx.value),
-        },
-        options,
-      );
     }
-    const txHash = ensure0x(txResponse.hash);
-    void this.registerIfRequired(fresh, txHash);
-    return {
-      txHash,
-      fromChain,
-      toChain,
-      transferId: fresh.txId,
-    };
   }
 
   private async resolveAddressLookupTables(

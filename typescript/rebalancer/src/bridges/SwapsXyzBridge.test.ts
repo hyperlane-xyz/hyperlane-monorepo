@@ -1294,6 +1294,14 @@ describe('SwapsXyzBridge.execute', () => {
     expect(getActionStub.callCount).to.equal(0);
   });
 
+  it('prepares a Tron payload without keys or source submission', async () => {
+    const harness = createTronExecuteHarness();
+    await harness.bridge.prepare(tronBridgeQuote());
+    expect(harness.getActionStub.callCount).to.equal(1);
+    expect(harness.sendTransactionStub.called).to.equal(false);
+    expect(harness.registerTxsStub.called).to.equal(false);
+  });
+
   it('throws before re-quoting when the Tron private key is missing', async () => {
     const client = createClient();
     const getActionStub = sinon.stub(client, 'getAction');
@@ -1491,71 +1499,84 @@ describe('SwapsXyzBridge.execute', () => {
     }
   });
 
-  it('resets and approves the exact Tron token input', async () => {
-    const harness = createTronExecuteHarness(
-      tronActionResponse({ requiresTokenApproval: true }),
-    );
-    const allowanceStub = sinon
-      .stub<[string, string], Promise<BigNumber>>()
-      .resolves(BigNumber.from('2000000'));
-    const approveStub = sinon.stub<
-      [string, BigNumberish],
-      Promise<providers.TransactionResponse>
-    >();
-    approveStub
-      .onFirstCall()
-      .resolves(transactionResponse(`0x${'cd'.repeat(32)}`));
-    approveStub
-      .onSecondCall()
-      .resolves(transactionResponse(`0x${'ef'.repeat(32)}`));
+  for (const slow of [false, true]) {
+    it(`resets and approves the exact Tron input${slow ? ', refreshing after a slow approval' : ''}`, async () => {
+      let now = 0;
+      sinon.stub(Date, 'now').callsFake(() => now);
+      const harness = createTronExecuteHarness(
+        tronActionResponse({ requiresTokenApproval: true }),
+      );
+      const allowanceStub = sinon
+        .stub<[string, string], Promise<BigNumber>>()
+        .resolves(BigNumber.from('2000000'));
+      const approveStub = sinon.stub<
+        [string, BigNumberish],
+        Promise<providers.TransactionResponse>
+      >();
+      approveStub
+        .onFirstCall()
+        .resolves(transactionResponse(`0x${'cd'.repeat(32)}`));
+      approveStub.onSecondCall().callsFake(async () => {
+        if (slow) now += 31_000;
+        return transactionResponse(`0x${'ef'.repeat(32)}`);
+      });
+      harness.getActionStub.onSecondCall().resolves(
+        tronActionResponse({
+          requiresTokenApproval: false,
+          txId: 'refreshed',
+        }),
+      );
 
-    class TronApprovalContract extends Contract {
-      constructor() {
-        const signer = new VoidSigner(SENDER, harness.wallet.provider);
-        super(
-          TRON_TOKEN_HEX,
-          ['function approve(address spender,uint256 amount) returns (bool)'],
-          signer,
-        );
-        sinon.stub(signer, 'sendTransaction').callsFake(async (request) => {
-          const [spender, amount] = this.interface.decodeFunctionData(
-            'approve',
-            (await request.data) ?? '0x',
+      class TronApprovalContract extends Contract {
+        constructor() {
+          const signer = new VoidSigner(SENDER, harness.wallet.provider);
+          super(
+            TRON_TOKEN_HEX,
+            ['function approve(address spender,uint256 amount) returns (bool)'],
+            signer,
           );
+          sinon.stub(signer, 'sendTransaction').callsFake(async (request) => {
+            const [spender, amount] = this.interface.decodeFunctionData(
+              'approve',
+              (await request.data) ?? '0x',
+            );
+            return approveStub(spender, amount);
+          });
+        }
+        allowance(owner: string, spender: string): Promise<BigNumber> {
+          return allowanceStub(owner, spender);
+        }
+        approve(
+          spender: string,
+          amount: BigNumberish,
+        ): Promise<providers.TransactionResponse> {
           return approveStub(spender, amount);
-        });
+        }
       }
-      allowance(owner: string, spender: string): Promise<BigNumber> {
-        return allowanceStub(owner, spender);
-      }
-      approve(
-        spender: string,
-        amount: BigNumberish,
-      ): Promise<providers.TransactionResponse> {
-        return approveStub(spender, amount);
-      }
-    }
 
-    const contractFactory = sinon
-      .stub<[string, string[], Signer], Contract>()
-      .returns(new TronApprovalContract());
-    const bridge = createBridge(harness.client, {
-      tronWalletFactory: () => harness.wallet,
-      erc20ContractFactory: contractFactory,
-      registerTxRetryDelayMs: 1,
+      const contractFactory = sinon
+        .stub<[string, string[], Signer], Contract>()
+        .returns(new TronApprovalContract());
+      const bridge = createBridge(harness.client, {
+        tronWalletFactory: () => harness.wallet,
+        erc20ContractFactory: contractFactory,
+        registerTxRetryDelayMs: 1,
+      });
+
+      await bridge.execute(tronBridgeQuote(), {
+        [ProtocolType.Tron]: TEST_PRIVATE_KEY,
+      });
+
+      expect(contractFactory.firstCall.args[0]).to.equal(TRON_TOKEN_HEX);
+      expect(approveStub.callCount).to.equal(2);
+      expect(harness.getActionStub.callCount).to.equal(slow ? 2 : 1);
+      expect(harness.sendTransactionStub.callCount).to.equal(1);
+      expect(BigNumber.from(approveStub.firstCall.args[1]).isZero()).to.be.true;
+      expect(
+        BigNumber.from(approveStub.secondCall.args[1]).toString(),
+      ).to.equal('1000000');
     });
-
-    await bridge.execute(tronBridgeQuote(), {
-      [ProtocolType.Tron]: TEST_PRIVATE_KEY,
-    });
-
-    expect(contractFactory.firstCall.args[0]).to.equal(TRON_TOKEN_HEX);
-    expect(approveStub.callCount).to.equal(2);
-    expect(BigNumber.from(approveStub.firstCall.args[1]).isZero()).to.be.true;
-    expect(BigNumber.from(approveStub.secondCall.args[1]).toString()).to.equal(
-      '1000000',
-    );
-  });
+  }
 
   it('throws before re-quoting when the signer does not match fromAddress', async () => {
     const client = createClient();
