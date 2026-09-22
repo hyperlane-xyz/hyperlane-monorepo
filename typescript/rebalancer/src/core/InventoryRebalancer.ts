@@ -213,6 +213,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    */
   private consumedInventory: Map<ChainName, bigint> = new Map();
 
+  private readonly bridgeTokenAddresses = new Map<string, Promise<string>>();
+
   constructor(
     config: InventoryRebalancerConfig,
     actionTracker: IActionTracker,
@@ -417,6 +419,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     routes: InventoryRoute[],
   ): Promise<InventoryExecutionResult[]> {
     this.consumedInventory.clear();
+    this.bridgeTokenAddresses.clear();
 
     // 1. Check for existing in_progress intent
     const activeIntent = await this.getActiveInventoryIntent();
@@ -1327,6 +1330,33 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     );
   }
 
+  /** Share lockbox RPC reads across capacity quotes and execution in one cycle. */
+  private resolveBridgeTokenAddress(
+    token: Token,
+    externalBridgeType: ExternalBridgeType,
+  ): Promise<string> {
+    const key = JSON.stringify([
+      token.chainName,
+      token.addressOrDenom,
+      token.standard,
+      externalBridgeType,
+    ]);
+    let address = this.bridgeTokenAddresses.get(key);
+    if (!address) {
+      address = getExternalBridgeTokenAddress(
+        token,
+        this.warpCore.multiProvider,
+        externalBridgeType,
+        this.getNativeTokenAddress.bind(this),
+      ).catch((error: unknown) => {
+        this.bridgeTokenAddresses.delete(key);
+        throw error;
+      });
+      this.bridgeTokenAddresses.set(key, address);
+    }
+    return address;
+  }
+
   /**
    * Calculate the bridge capacity from a source chain in destination-local units.
    * Uses LiFi quotes to conservatively estimate the destination output available
@@ -1346,22 +1376,20 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     assert(sourceToken, `No token found for source chain: ${sourceChain}`);
     assert(targetToken, `No token found for target chain: ${targetChain}`);
 
-    // Convert HypNative token addresses to the external bridge's native token representation
-    const fromTokenAddress = getExternalBridgeTokenAddress(
-      sourceToken,
-      externalBridgeType,
-      this.getNativeTokenAddress.bind(this),
-    );
-    const toTokenAddress = getExternalBridgeTokenAddress(
-      targetToken,
-      externalBridgeType,
-      this.getNativeTokenAddress.bind(this),
-    );
-
-    const sourceChainId = Number(this.multiProvider.getChainId(sourceChain));
-    const targetChainId = Number(this.multiProvider.getChainId(targetChain));
-
     try {
+      // Resolve the actual asset used by the external bridge.
+      const fromTokenAddress = await this.resolveBridgeTokenAddress(
+        sourceToken,
+        externalBridgeType,
+      );
+      const toTokenAddress = await this.resolveBridgeTokenAddress(
+        targetToken,
+        externalBridgeType,
+      );
+
+      const sourceChainId = Number(this.multiProvider.getChainId(sourceChain));
+      const targetChainId = Number(this.multiProvider.getChainId(targetChain));
+
       const externalBridge = this.getExternalBridge(externalBridgeType);
       const initialQuote = await externalBridge.quote({
         fromChain: sourceChainId,
@@ -1479,36 +1507,32 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       };
     }
 
-    // Get chain IDs for the external bridge (not domain IDs)
-    // Convert to number since getChainId can return string | number
-    const sourceChainId = Number(this.multiProvider.getChainId(sourceChain));
-    const targetChainId = Number(this.multiProvider.getChainId(targetChain));
-
-    // Convert HypNative token addresses to the external bridge's native token representation
-    // For HypNative tokens, addressOrDenom is the warp route contract, not the native token
-    const fromTokenAddress = getExternalBridgeTokenAddress(
-      sourceToken,
-      externalBridgeType,
-      this.getNativeTokenAddress.bind(this),
-    );
-
-    const toTokenAddress = getExternalBridgeTokenAddress(
-      targetToken,
-      externalBridgeType,
-      this.getNativeTokenAddress.bind(this),
-    );
-
-    this.logger.debug(
-      {
-        sourceTokenStandard: sourceToken.standard,
-        targetTokenStandard: targetToken.standard,
-        fromTokenAddress,
-        toTokenAddress,
-      },
-      'Resolved token addresses for LiFi bridge',
-    );
-
     try {
+      // Get chain IDs for the external bridge (not domain IDs).
+      const sourceChainId = Number(this.multiProvider.getChainId(sourceChain));
+      const targetChainId = Number(this.multiProvider.getChainId(targetChain));
+
+      // Resolve the actual asset used by the external bridge.
+      const fromTokenAddress = await this.resolveBridgeTokenAddress(
+        sourceToken,
+        externalBridgeType,
+      );
+
+      const toTokenAddress = await this.resolveBridgeTokenAddress(
+        targetToken,
+        externalBridgeType,
+      );
+
+      this.logger.debug(
+        {
+          sourceTokenStandard: sourceToken.standard,
+          targetTokenStandard: targetToken.standard,
+          fromTokenAddress,
+          toTokenAddress,
+        },
+        'Resolved token addresses for LiFi bridge',
+      );
+
       const externalBridge = this.getExternalBridge(externalBridgeType);
       const fromAddress = this.getInventorySignerAddress(sourceChain);
       const toAddress = this.getInventorySignerAddress(targetChain);
