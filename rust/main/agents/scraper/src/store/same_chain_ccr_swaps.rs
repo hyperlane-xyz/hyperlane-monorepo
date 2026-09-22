@@ -16,14 +16,12 @@ impl HyperlaneLogStore<SameChainCcrSwap> for HyperlaneDbStore {
             return Ok(0);
         }
         let txns: HashMap<H512, i64> = self
-            .ensure_blocks_and_txns(swaps.iter().map(|r| &r.1))
-            .await?
-            .collect();
+            .ensure_event_transactions(swaps.iter().map(|r| &r.1))
+            .await?;
 
-        // filter_map mirrors the dispatch/payment store_logs pattern: if
-        // ensure_blocks_and_txns silently dropped a txn (transient RPC fetch
-        // failure), skip the swap rather than returning Err and stalling the
-        // indexer in a tight retry loop for the same block range.
+        // Required transaction enrichment has been checked for the whole batch
+        // before any event write. Zero transaction hashes retain the existing
+        // unsupported-event behavior; CCR indexers emit real transaction hashes.
         let storable: Vec<_> = swaps
             .iter()
             .filter_map(|(swap, meta)| {
@@ -31,7 +29,7 @@ impl HyperlaneLogStore<SameChainCcrSwap> for HyperlaneDbStore {
                 if txn.is_none() {
                     warn!(
                         tx_hash = ?meta.transaction_id,
-                        "skipping CCR swap: txn not found in enriched map (transient RPC miss?)"
+                        "skipping CCR swap without transaction metadata"
                     );
                 }
                 txn.map(|t| StorableCcrSwap {

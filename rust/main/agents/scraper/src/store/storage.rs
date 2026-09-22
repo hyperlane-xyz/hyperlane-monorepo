@@ -139,6 +139,35 @@ impl HyperlaneDbStore {
         Ok(complete)
     }
 
+    /// Enrich events which have no durable raw-event reconciliation path.
+    /// A missing required transaction must fail the batch before any event is
+    /// written, so the sync loop cannot advance its cursor past that event.
+    ///
+    /// Zero transaction hashes are intentional for the Sealevel fallback and
+    /// Cosmos block-level events. Keep their existing handling: zero/zero metas
+    /// are stored with a NULL relation; Cosmos block-level events remain omitted
+    /// until storage supports a block-backed identity (especially for payments).
+    pub(crate) async fn ensure_event_transactions<'a>(
+        &self,
+        log_meta: impl Iterator<Item = &'a LogMeta>,
+    ) -> Result<HashMap<H512, i64>> {
+        let log_meta: Vec<_> = log_meta.collect();
+        let txns: HashMap<_, _> = self
+            .ensure_blocks_and_txns(log_meta.iter().copied())
+            .await?
+            .collect();
+        for meta in log_meta {
+            eyre::ensure!(
+                meta.transaction_id.is_zero() || txns.contains_key(&meta.transaction_id),
+                "Incomplete event enrichment at block {} ({:?}), transaction {:?}; retrying range",
+                meta.block_number,
+                meta.block_hash,
+                meta.transaction_id,
+            );
+        }
+        Ok(txns)
+    }
+
     /// Takes a list of txn and block hashes and ensure they are all in the
     /// database. If any are not it will fetch the data and insert them.
     ///
@@ -229,6 +258,10 @@ impl HyperlaneDbStore {
                         continue;
                     }
                 };
+                if info.hash != **hash {
+                    warn!(requested_hash = ?hash, returned_hash = ?info.hash, "transaction enrichment returned a different hash");
+                    continue;
+                }
                 hashes_to_insert.push(*hash);
                 txns_to_insert.push(StorableTxn {
                     info,
@@ -323,6 +356,12 @@ impl HyperlaneDbStore {
                         continue;
                     }
                 };
+                // A mismatched response can occupy the unique (domain, height)
+                // key and prevent a later retry from inserting the correct block.
+                if info.hash != *hash || info.number != block_height {
+                    warn!(requested_hash = ?hash, requested_height = block_height, returned_block = ?info, "block enrichment returned a different block");
+                    continue;
+                }
                 let block_id = stored_id.insert(-1);
                 block_infos.push(info);
                 blocks_to_insert.push((hash, block_id));
@@ -392,8 +431,9 @@ where
 ///   meaning the indexer could not resolve the on-chain transaction (e.g. the
 ///   Sealevel basic log meta fallback); the event must still be persisted with
 ///   a NULL transaction relation so it remains retrievable by sequence.
-/// - `None` when the transaction could not be fetched; the event is skipped
-///   and retried later.
+/// - `None` when enrichment is incomplete. Only callers with a durable raw
+///   event for reconciliation may skip a required nonzero transaction; other
+///   callers must return an error. Zero-tx Cosmos block events remain unsupported.
 pub(crate) fn txn_id_for_meta(txns: &HashMap<H512, i64>, meta: &LogMeta) -> Option<Option<i64>> {
     if meta.transaction_id.is_zero() && meta.block_hash.is_zero() {
         Some(None)
@@ -471,3 +511,6 @@ mod block_tests;
 
 #[cfg(test)]
 mod returning_tests;
+
+#[cfg(test)]
+mod event_loss_tests;

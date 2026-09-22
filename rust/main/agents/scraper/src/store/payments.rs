@@ -18,8 +18,8 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneDbStore {
     /// Store interchain gas payments into the database.
     /// Payments whose transaction could not be resolved on-chain (zero block
     /// and transaction hashes, e.g. Sealevel basic log meta fallback) are
-    /// stored with a NULL transaction relation; other unavailable transactions
-    /// are skipped (and retried later).
+    /// stored with a NULL transaction relation. Failed required transaction
+    /// enrichment rejects the batch so the cursor retries the range.
     async fn store_logs(
         &self,
         payments: &[(Indexed<InterchainGasPayment>, LogMeta)],
@@ -28,9 +28,8 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneDbStore {
             return Ok(0);
         }
         let txns: HashMap<H512, i64> = self
-            .ensure_blocks_and_txns(payments.iter().map(|r| &r.1))
-            .await?
-            .collect();
+            .ensure_event_transactions(payments.iter().map(|r| &r.1))
+            .await?;
         let storable = payments
             .iter()
             .filter_map(|(payment, meta)| {

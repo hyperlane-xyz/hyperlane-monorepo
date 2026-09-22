@@ -15,16 +15,15 @@ impl HyperlaneLogStore<Delivery> for HyperlaneDbStore {
     /// Store delivered message ids from the destination mailbox into the database.
     /// Deliveries whose transaction could not be resolved on-chain (zero block
     /// and transaction hashes, e.g. Sealevel basic log meta fallback) are
-    /// stored with a NULL transaction relation; other unavailable transactions
-    /// are skipped (and retried later).
+    /// stored with a NULL transaction relation. Failed required transaction
+    /// enrichment rejects the batch so the cursor retries the range.
     async fn store_logs(&self, deliveries: &[(Indexed<Delivery>, LogMeta)]) -> Result<u32> {
         if deliveries.is_empty() {
             return Ok(0);
         }
         let txns: HashMap<H512, i64> = self
-            .ensure_blocks_and_txns(deliveries.iter().map(|r| &r.1))
-            .await?
-            .collect();
+            .ensure_event_transactions(deliveries.iter().map(|r| &r.1))
+            .await?;
         let storable = deliveries
             .iter()
             .filter_map(|(message_id, meta)| {
