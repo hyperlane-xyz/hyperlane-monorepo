@@ -4,14 +4,15 @@ Both `oUSDT/production` and `USDT/eclipsemainnet` require provider-path validati
 
 ## Supported transaction forms
 
-| Adapter / form                              | Validation before signing                                                                                                                                                                                                                                                                                                   |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| deBridge direct EVM/Tron DLN order          | Documented source contract, canonical create-order calldata, source token/input, destination chain/token/minimum/recipient, source and destination authority, cancellation beneficiary. Hooks, restricted takers, affiliate fees and permits are rejected.                                                                  |
-| deBridge direct Solana DLN order            | Resolved instruction accounts, one supported create-order instruction, source ATA, signer, order fields and bounded compute fees. Other programs and instruction forms are rejected.                                                                                                                                        |
-| swaps.xyz EVM direct DLN                    | The same independent DLN order decoder, in addition to accepted/fresh response consistency and input limits.                                                                                                                                                                                                                |
-| swaps.xyz EVM UTB → Mayan Forwarder → Swift | Entire nested operation decoded: no source swap, same source/fee token, bounded total debit, signer refunds, known nested contracts, no permits/hooks, destination order and minimum output, deadline, and bounded cancellation/refund fees. A captured unsigned Arbitrum → Ethereum USDT response is a regression fixture. |
-| swaps.xyz Solana direct DLN                 | Unsigned simulation plus independent DLN instruction validation before signing. Owner, delegate and close-authority accounts are protected. Native SOL input is explicitly unsupported.                                                                                                                                     |
-| swaps.xyz direct Tron deposit               | Existing provider-managed deposit-address flow, including fresh address rotation and amount limits. The deposit address remains a provider trust assumption; the token transfer itself does not encode an independently verifiable destination route.                                                                       |
+| Adapter / form                                                 | Validation before signing                                                                                                                                                                                                                                                                                                   |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| deBridge direct EVM/Tron DLN order                             | Documented source contract, canonical create-order calldata, source token/input, destination chain/token/minimum/recipient, source and destination authority, cancellation beneficiary. Designated solvers are accepted with protocol-correct addresses. Hooks, affiliate fees and permits are rejected.                    |
+| deBridge BSC strictlySwapAndCall → 0x → Pancake Infinity → DLN | Pinned forwarder and Settler deployments, exact source funding, decoded swap actions and intermediate asset, atomic order funding, bounded provider-retained surplus, and the same nested DLN destination commitments. See the [fixture documentation](../src/bridges/fixtures/README.md).                                  |
+| deBridge direct Solana DLN order                               | Resolved instruction accounts, one supported create-order instruction, source ATA, signer, order fields and bounded compute fees. Other programs and instruction forms are rejected.                                                                                                                                        |
+| swaps.xyz EVM direct DLN                                       | The same independent DLN order decoder, in addition to accepted/fresh response consistency and input limits.                                                                                                                                                                                                                |
+| swaps.xyz EVM UTB → Mayan Forwarder → Swift                    | Entire nested operation decoded: no source swap, same source/fee token, bounded total debit, signer refunds, known nested contracts, no permits/hooks, destination order and minimum output, deadline, and bounded cancellation/refund fees. A captured unsigned Arbitrum → Ethereum USDT response is a regression fixture. |
+| swaps.xyz Solana direct DLN                                    | Unsigned simulation plus independent DLN instruction validation before signing. Owner, delegate and close-authority accounts are protected. Native SOL input is explicitly unsupported.                                                                                                                                     |
+| swaps.xyz direct Tron deposit                                  | Existing provider-managed deposit-address flow, including fresh address rotation and amount limits. The deposit address remains a provider trust assumption; the token transfer itself does not encode an independently verifiable destination route.                                                                       |
 
 Contract and ABI/IDL references are pinned in `deBridgeValidation.ts` and `swapsPayloadValidation.ts`. An API bridge label or agreement between two API responses is not transaction authorization. Unknown call graphs fail explicitly before approval or primary signing; configurations are not silently rewritten to remove those paths.
 
@@ -19,12 +20,31 @@ Contract and ABI/IDL references are pinned in `deBridgeValidation.ts` and `swaps
 
 The following unsigned requests exposed gaps during the 14 September 2026 review. These are execution-readiness blockers, not successful live execution tests:
 
-- deBridge BSC → Ethereum selected `strictlySwapAndCall` on the cross-chain forwarder. Its intermediate swap, nested order and surplus refund need a complete supported decoder; direct-order validation rejects it.
+- deBridge BSC → Ethereum selected `strictlySwapAndCall` on the cross-chain forwarder. The captured 0x/Pancake Infinity variant now passes semantic validation with its original surplus recipients and designated solver. Historical fork execution and atomic rollback pass, but a fresh quote and live settlement remain required. Another observed router, `0xB44446b0c8E56988c34f7Ff73Ae904982b5FdDA5`, remains unsupported.
 - deBridge Solana → Ethereum selected Jupiter v6 followed by a DLN order. Its swap route and resulting intermediate-token flow need validation; direct-order validation rejects Jupiter.
 - swaps.xyz Ethereum → Arbitrum selected a UTB/Relay call with an opaque request ID. Its independent destination commitment has not been established; it is rejected.
-- Other configured swaps.xyz deposit-address and Solana/Plasma forms have not been validated by this coverage. The configured Celo → Arbitrum quote probe returned `NO_AVAILABLE_ROUTE`.
+- Other configured swaps.xyz deposit-address and Solana forms have not been validated by this coverage. The configured Celo → Arbitrum quote probe returned `NO_AVAILABLE_ROUTE`. The Eclipse strand subsequently removed Plasma; preserve that strand's current configuration.
 
-Keep both production strands blocked until all required configured provider paths have secure positive fixtures and execution checks. Do not loosen validators, force transfers, or disable paths to satisfy this gate. The configuration images remain baseline references until a reviewed candidate is built and promoted.
+Evaluate each production strand independently. Its required configured provider paths need secure positive fixtures and execution checks before promotion. Do not loosen validators, force transfers, or disable paths to satisfy this gate. An inaccessible provider API blocks fresh-quote validation; successful GCP authentication does not establish provider access. Configuration images remain baseline references until a candidate is built and pinned.
+
+## Unsigned preparation and settlement
+
+`DeBridgeBridge.prepare(quote)` and `SwapsXyzBridge.prepare(quote)` share unsigned
+validation with their execution paths. They need no private keys and perform no
+approvals or broadcasts. Swaps Solana preparation includes simulation. Estimates
+from `quote()` and monitor-only startup are insufficient readiness evidence.
+Preparation expires after 30 seconds. EVM/Tron execution can refresh after slow
+approvals within the original limits; source-submission errors never enter that
+refresh loop. Unknown call graphs remain rejected.
+
+deBridge preparation checks fixed native fees and token decimals against chain
+data. API fulfillment claims require matching finalized source and destination
+order evidence, rehashed IDs and committed token credit. Tron uses the solidified
+head. Wrong evidence and unavailable finality never release source reservations.
+
+The two instances retain the shared EVM/Tron inventory wallet by operator choice.
+Their process-local reservations do not coordinate with each other; deployment
+does not introduce a wallet migration or a cross-instance coordinator.
 
 ## Submission and restart contract
 
