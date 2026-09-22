@@ -88,6 +88,8 @@ Store/enrichment failures retry every five seconds and can leave process livenes
 healthy. The RPC fetch retry metric does not count these failures. During backfill,
 watch each event cursor for staleness and the warning
 `Skipping cursor update because logs failed to store` alongside RPC metrics.
+Cursor/checkpoint update failures also wait five seconds before retrying and log
+`Error updating cursor`; they do not increment the RPC fetch retry metric.
 
 Restarting an old binary uses the retained legacy cursor and reintroduces the
 shared-watermark behavior. Preserve the new rows for a subsequent forward
