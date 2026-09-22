@@ -223,13 +223,14 @@ hyperlane-cosmos-rs = "0.1.4"
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"
 
-snarkvm = { git = "https://github.com/ProvableHQ/snarkVM.git", tag = "v4.8.1", features = [
+# v4.8.1 plus the sequential-worker lifecycle fix; see chains/hyperlane-aleo/VM_LIFECYCLE.md.
+snarkvm = { git = "https://github.com/paulbalaji/snarkVM.git", rev = "c8403e6f22fa5c379b2b2faef9fd4c0cc075694f", features = [
   "async",
   "test_targets",
   "test_consensus_heights",
 ] }
-snarkvm-algorithms = { git = "https://github.com/ProvableHQ/snarkVM.git", tag = "v4.8.1" }
-snarkvm-console-account = { git = "https://github.com/ProvableHQ/snarkVM.git", tag = "v4.8.1" }
+snarkvm-algorithms = { git = "https://github.com/paulbalaji/snarkVM.git", rev = "c8403e6f22fa5c379b2b2faef9fd4c0cc075694f" }
+snarkvm-console-account = { git = "https://github.com/paulbalaji/snarkVM.git", rev = "c8403e6f22fa5c379b2b2faef9fd4c0cc075694f" }
 aleo-std = { version = "1.0.3" }
 aleo-std-storage = { version = "1.0.3" }
 
