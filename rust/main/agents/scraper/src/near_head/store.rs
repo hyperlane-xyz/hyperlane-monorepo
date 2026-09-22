@@ -217,6 +217,37 @@ impl Store {
         Ok(())
     }
 
+    /// Bound publication by event work, while allowing empty spans to advance at once.
+    /// A single block can exceed the budget: its events must publish atomically.
+    pub async fn confirmation_boundary(&self, after: u64, through: u64) -> Result<u64> {
+        ensure!(after <= through, "Confirmation range regressed");
+        // Each branch returns at most 1,001 rows via its domain/height range.
+        // The gas/merkle indexes additionally exclude already-confirmed history.
+        // Limit before UNION so the merge sorts at most 4,004 event heights;
+        // counting the entire eligible backlog would defeat this work budget.
+        let branches = EVENTS.iter().map(|(table, domain, height)| {
+            format!("(SELECT {height} AS height FROM {table} WHERE {domain}=$1 AND {height}>$2 AND {height}<=$3 AND NOT confirmed ORDER BY {height} LIMIT 1001)")
+        }).collect::<Vec<_>>().join(" UNION ALL ");
+        let row = self
+            .db
+            .query_one(sql(
+                format!(
+                    r#"
+            WITH events AS (
+                SELECT height FROM ({branches}) AS candidates ORDER BY height LIMIT 1001
+            )
+            SELECT CASE WHEN count(*)<=1000 THEN $3
+                WHEN min(height)=max(height) THEN max(height)
+                ELSE max(height)-1 END AS boundary FROM events
+        "#
+                ),
+                vec![self.domain(), number(after)?, number(through)?],
+            ))
+            .await?
+            .ok_or_else(|| eyre::eyre!("Missing confirmation boundary"))?;
+        Ok(u64::try_from(row.try_get::<i64>("", "boundary")?)?)
+    }
+
     pub async fn confirm(&self, expected: &State, boundary: &Header) -> Result<[u64; 4]> {
         let through = boundary.height;
         let tx = self.db.begin().await?;
@@ -409,3 +440,6 @@ async fn insert_batch<C: ConnectionTrait>(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

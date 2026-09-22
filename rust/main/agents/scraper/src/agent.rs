@@ -358,6 +358,7 @@ pub struct Scraper {
     chain_metrics: ChainMetrics,
     runtime_metrics: RuntimeMetrics,
     raw_dispatch_unenriched_max_age: IntGaugeVec,
+    receipt_oldest_pending_seconds: prometheus::GaugeVec,
     raw_dispatch_reconciliation_metrics: RawDispatchReconciliationMetrics,
 }
 
@@ -398,6 +399,11 @@ impl BaseAgent for Scraper {
             )
             .expect("failed to register raw dispatch reconciliation age metric");
         let raw_dispatch_reconciliation_metrics = RawDispatchReconciliationMetrics::new(&metrics);
+        let receipt_oldest_pending_seconds = metrics.new_gauge(
+            "scraper_receipt_oldest_pending_seconds",
+            "Age since creation of the oldest pending receipt event by ID, in seconds",
+            &["chain", "event_type"],
+        )?;
 
         let scrapers = Self::build_chain_scrapers(
             &settings,
@@ -420,6 +426,7 @@ impl BaseAgent for Scraper {
             chain_metrics,
             runtime_metrics,
             raw_dispatch_unenriched_max_age,
+            receipt_oldest_pending_seconds,
             raw_dispatch_reconciliation_metrics,
         })
     }
@@ -535,6 +542,7 @@ impl Scraper {
                     self.core_metrics.clone(),
                     self.chain_metrics.clone(),
                     self.contract_sync_metrics.clone(),
+                    self.receipt_oldest_pending_seconds.clone(),
                 )
                 .await?,
             );

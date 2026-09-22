@@ -7,6 +7,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use eyre::Result;
+use futures::{stream, StreamExt};
 use prometheus::IntCounterVec;
 use tracing::{trace, warn};
 
@@ -68,6 +69,65 @@ impl HyperlaneDbStore {
     /// Get the stored events metric for incrementing when raw messages are stored.
     pub fn stored_events_metric(&self) -> Option<&IntCounterVec> {
         self.stored_events_metric.as_ref()
+    }
+
+    /// Enrich a confirmed near-head page whose block headers are already retained.
+    /// Look up the page's cache entries together, then persist missing receipts
+    /// independently so one failed or timed-out fetch cannot discard successes.
+    pub(crate) async fn ensure_transactions_for_known_blocks(
+        &self,
+        log_meta: impl Iterator<Item = &LogMeta>,
+    ) -> Result<bool> {
+        let requested: HashMap<_, _> = log_meta
+            .map(|meta| (meta.transaction_id, meta.block_hash))
+            .collect();
+        if requested.is_empty() {
+            return Ok(true);
+        }
+        let (blocks, existing) = tokio::try_join!(
+            self.db.get_block_basic(requested.values()),
+            self.db.get_txn_ids(requested.keys()),
+        )?;
+        let blocks: HashMap<_, _> = blocks.into_iter().map(|b| (b.hash, b.id)).collect();
+        eyre::ensure!(
+            requested.values().all(|hash| blocks.contains_key(hash)),
+            "Confirmed receipt page is missing retained block headers"
+        );
+        let missing = requested
+            .into_iter()
+            .filter(|(hash, _)| !existing.contains_key(hash));
+        let mut results = stream::iter(missing)
+            .map(|(hash, block_hash)| {
+                let blocks = &blocks;
+                async move {
+                    let result = async {
+                        let block_id = *blocks
+                            .get(&block_hash)
+                            .ok_or_else(|| eyre::eyre!("Missing retained block"))?;
+                        let info = self.provider.get_txn_by_hash(&hash).await?;
+                        self.db
+                            .store_txns(std::iter::once(StorableTxn { info, block_id }))
+                            .await?;
+                        Ok::<_, eyre::Report>(())
+                    }
+                    .await;
+                    if let Err(error) = &result {
+                        warn!(
+                            domain = self.domain.id(),
+                            ?hash,
+                            ?error,
+                            "Receipt unavailable; retrying"
+                        );
+                    }
+                    result.is_ok()
+                }
+            })
+            .buffer_unordered(8);
+        let mut complete = true;
+        while let Some(success) = results.next().await {
+            complete &= success;
+        }
+        Ok(complete)
     }
 
     /// Takes a list of txn and block hashes and ensure they are all in the

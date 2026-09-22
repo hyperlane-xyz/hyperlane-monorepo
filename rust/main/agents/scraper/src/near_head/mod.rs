@@ -1,13 +1,12 @@
 //! Store EVM logs once, at the head; expose them to legacy readers after confirmation.
+mod enrichment;
+mod runtime;
 mod source;
 mod store;
 
 use std::{
     collections::{BTreeMap, HashMap},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+    sync::Arc,
     time::Duration,
 };
 
@@ -19,10 +18,8 @@ use hyperlane_base::{
     ChainMetrics, ContractSyncMetrics, CoreMetrics,
 };
 use hyperlane_core::{ContractLocator, ReorgPeriod};
-use itertools::Itertools;
 use serde::Deserialize;
-use tokio::{sync::Notify, task::JoinHandle, time::sleep};
-use tracing::warn;
+use tokio::task::JoinHandle;
 
 use crate::store::HyperlaneDbStore;
 use source::{Contracts, Header, Source, SourceBuilder};
@@ -79,6 +76,7 @@ pub async fn spawn(
     metrics: Arc<CoreMetrics>,
     chain_metrics: ChainMetrics,
     sync_metrics: Arc<ContractSyncMetrics>,
+    receipt_age: prometheus::GaugeVec,
 ) -> Result<JoinHandle<()>> {
     let ChainConnectionConf::Ethereum(connection) = &conf.connection else {
         eyre::bail!("nearHead requires an EVM chain");
@@ -112,7 +110,6 @@ pub async fn spawn(
         .ok_or_else(|| eyre::eyre!("nearHead fromBlock must be positive"))?;
     store.pause(false).await?;
     let anchor = source.header(u64::from(anchor_height).into()).await?;
-    store.initialize(&anchor, &contracts).await?;
     let period = conf.reorg_period.clone();
     ensure!(conf.index.chunk_size > 0, "index.chunk must be positive");
     let chunk_size = u64::from(conf.index.chunk_size);
@@ -121,8 +118,34 @@ pub async fn spawn(
         .index
         .configured_interval
         .unwrap_or(Duration::from_secs(30));
-    // Fail before spawning when the legacy policy is not supported by the RPC.
-    if let ReorgPeriod::Tag(tag) = &period {
+    prepare(source.as_ref(), &store, &anchor, &contracts, &period).await?;
+    let worker = runtime::Worker {
+        source,
+        store,
+        domain: legacy.domain.clone(),
+        period,
+        chunk_size,
+        poll_interval,
+        chain_metrics,
+        sync_metrics,
+    };
+    Ok(tokio::spawn(async move {
+        tokio::join!(
+            worker.run(),
+            enrichment::run(&legacy, poll_interval, &receipt_age)
+        );
+    }))
+}
+
+async fn prepare(
+    source: &dyn Source,
+    store: &Store,
+    anchor: &Header,
+    contracts: &Contracts,
+    period: &ReorgPeriod,
+) -> Result<()> {
+    // Fail before persisting a first-time cutover if required RPC methods fail.
+    if let ReorgPeriod::Tag(tag) = period {
         ensure!(
             matches!(tag.as_str(), "safe" | "finalized" | "latest"),
             "Unsupported reorgPeriod tag"
@@ -131,152 +154,16 @@ pub async fn spawn(
             .header(tag.parse().map_err(eyre::Report::msg)?)
             .await?;
     }
-    Ok(tokio::spawn(async move {
-        let confirmation_wake = Notify::new();
-        let ingestion_failed = AtomicBool::new(false);
-        let confirmation_failed = AtomicBool::new(false);
-        tokio::join!(
-            async {
-                loop {
-                    let result = async {
-                        let state = match observe(source.as_ref(), &store).await {
-                            Ok(state) => state,
-                            Err(error) => {
-                                store.pause(false).await?;
-                                return Err(error);
-                            }
-                        };
-                        confirmation_wake.notify_one();
-                        sync_metrics
-                            .indexed_height
-                            .with_label_values(&["near_head", legacy.domain.name()])
-                            .set(i64::try_from(state.indexed)?);
-                        if confirmation_failed.load(Ordering::Relaxed) {
-                            return Ok(false);
-                        }
-                        // Bound provisional storage even if a valid finality tag stops advancing.
-                        let depth = match &period {
-                            ReorgPeriod::Blocks(depth) => u64::from(depth.get()),
-                            _ => 0,
-                        };
-                        let observed_head = state.head;
-                        let mut bounded = state;
-                        bounded.head = bounded.head.min(
-                            bounded
-                                .confirmed
-                                .saturating_add(depth)
-                                .saturating_add(10_000),
-                        );
-                        ensure!(
-                            bounded.indexed < bounded.head || bounded.head == observed_head,
-                            "Confirmation backlog reached its provisional block limit"
-                        );
-                        if bounded.indexed >= bounded.head {
-                            return Ok(false);
-                        }
-                        let more = ingest(source.as_ref(), &store, &bounded, chunk_size).await?;
-                        confirmation_wake.notify_one();
-                        Ok::<_, eyre::Report>(more)
-                    }
-                    .await;
-                    ingestion_failed.store(result.is_err(), Ordering::Relaxed);
-                    chain_metrics.set_critical_error(
-                        legacy.domain.name(),
-                        result.is_err() || confirmation_failed.load(Ordering::Relaxed),
-                    );
-                    match result {
-                        Ok(true) => continue,
-                        Ok(false) => {}
-                        Err(error) => warn!(
-                            domain = store.domain,
-                            ?error,
-                            "Near-head ingestion paused; retrying"
-                        ),
-                    }
-                    sleep(poll_interval).await;
-                }
-            },
-            async {
-                let mut last_confirmed = 0;
-                let mut prune_after = 0;
-                loop {
-                    let result = async {
-                        let counts = confirm(source.as_ref(), &store, &period).await?;
-                        if let Some(state) = store.state().await? {
-                            // Drain confirmation backlogs without waiting another poll interval.
-                            if state.confirmed > last_confirmed && state.confirmed < state.indexed {
-                                confirmation_wake.notify_one();
-                            }
-                            last_confirmed = state.confirmed;
-                            sync_metrics
-                                .indexed_height
-                                .with_label_values(&["near_head", legacy.domain.name()])
-                                .set(i64::try_from(state.indexed)?);
-                            for (label, count) in [
-                                "raw_message_dispatch",
-                                "message_delivery",
-                                "gas_payment",
-                                "merkle_tree_insertion",
-                            ]
-                            .into_iter()
-                            .zip(counts)
-                            {
-                                sync_metrics
-                                    .stored_events
-                                    .with_label_values(&[label, legacy.domain.name()])
-                                    .inc_by(count);
-                            }
-                            for label in [
-                                "message_dispatch",
-                                "message_delivery",
-                                "gas_payment",
-                                "merkle_tree_insertion",
-                            ] {
-                                sync_metrics
-                                    .indexed_height
-                                    .with_label_values(&[label, legacy.domain.name()])
-                                    .set(i64::try_from(state.confirmed)?);
-                            }
-                        }
-                        Ok::<_, eyre::Report>(())
-                    }
-                    .await;
-                    confirmation_failed.store(result.is_err(), Ordering::Relaxed);
-                    chain_metrics.set_critical_error(
-                        legacy.domain.name(),
-                        result.is_err() || ingestion_failed.load(Ordering::Relaxed),
-                    );
-                    if let Err(error) = result {
-                        warn!(
-                            domain = store.domain,
-                            ?error,
-                            "Near-head confirmation paused; retrying"
-                        );
-                    }
-                    // Separate transaction: cleanup failures must not roll back publication.
-                    match store.prune_headers(prune_after).await {
-                        Ok((next, _)) => prune_after = next,
-                        Err(error) => warn!(
-                            domain = store.domain,
-                            ?error,
-                            "Block header cleanup failed; retrying"
-                        ),
-                    }
-                    tokio::select! {
-                        _ = confirmation_wake.notified() => {},
-                        _ = sleep(poll_interval) => {},
-                    }
-                }
-            },
-            async {
-                let mut cursors = [0; 2];
-                loop {
-                    enrich(&legacy, &mut cursors).await;
-                    sleep(poll_interval).await;
-                }
-            },
-        );
-    }))
+    // Check the actual retained boundary on restart, not historical cutover state.
+    let hash = match store.state().await? {
+        // The retained hash may be orphaned; probe the current fork and let observe
+        // reconcile retained history after startup.
+        Some(state) => source.header(state.indexed.into()).await?.hash,
+        None => anchor.hash,
+    };
+    source.counts(hash).await?;
+    store.initialize(anchor, contracts).await?;
+    Ok(())
 }
 
 async fn observe(source: &dyn Source, store: &Store) -> Result<State> {
@@ -328,11 +215,22 @@ async fn observe(source: &dyn Source, store: &Store) -> Result<State> {
         .ok_or_else(|| eyre::eyre!("Missing observed state"))
 }
 
+#[cfg(test)]
 async fn ingest(
     source: &dyn Source,
     store: &Store,
     state: &State,
     chunk_size: u64,
+) -> Result<bool> {
+    ingest_cached(source, store, state, chunk_size, &mut None).await
+}
+
+async fn ingest_cached(
+    source: &dyn Source,
+    store: &Store,
+    state: &State,
+    chunk_size: u64,
+    count_cache: &mut Option<(ethers::types::H256, [u32; 2])>,
 ) -> Result<bool> {
     ensure!(chunk_size > 0, "Empty indexing range");
     if state.indexed == state.head {
@@ -341,9 +239,18 @@ async fn ingest(
     let end = state.head.min(state.indexed.saturating_add(chunk_size));
     let boundary = source.header(end.into()).await?;
     let mut by_block = BTreeMap::<u64, Vec<source::Event>>::new();
-    let events = source.events(state.indexed.saturating_add(1), end).await?;
-    let start_counts = source.counts(state.hash).await?;
-    let end_counts = source.counts(boundary.hash).await?;
+    let cached = count_cache.filter(|(hash, _)| *hash == state.hash);
+    let start_counts = async {
+        match cached {
+            Some((_, counts)) => Ok(counts),
+            None => source.counts(state.hash).await,
+        }
+    };
+    let (events, start_counts, end_counts) = tokio::try_join!(
+        source.events(state.indexed.saturating_add(1), end),
+        start_counts,
+        source.counts(boundary.hash),
+    )?;
     validate_sequences(&events, start_counts, end_counts)?;
     for event in events {
         ensure!(
@@ -379,6 +286,7 @@ async fn ingest(
     );
     verify(source, &boundary).await?;
     store.append(state, &blocks).await?;
+    *count_cache = Some((boundary.hash, end_counts));
     Ok(end < state.head)
 }
 
@@ -434,9 +342,12 @@ async fn confirm(source: &dyn Source, store: &Store, period: &ReorgPeriod) -> Re
         through <= state.head,
         "Confirmation tag is ahead of the observed head"
     );
-    let through = through
-        .min(state.indexed)
-        .min(state.confirmed.saturating_add(100));
+    if through <= state.confirmed {
+        return Ok([0; 4]);
+    }
+    let through = store
+        .confirmation_boundary(state.confirmed, through.min(state.indexed))
+        .await?;
     if through <= state.confirmed {
         return Ok([0; 4]);
     }
@@ -463,69 +374,8 @@ async fn confirm(source: &dyn Source, store: &Store, period: &ReorgPeriod) -> Re
     store.confirm(&state, &boundary).await
 }
 
-/// Independent bounded receipt pages; slow receipts never delay dispatch discovery.
-/// Advance before RPC work so unavailable receipts cannot starve later pages.
-async fn enrich(legacy: &HyperlaneDbStore, cursors: &mut [i64; 2]) {
-    enrich_with_timeout(legacy, cursors, Duration::from_secs(30)).await;
-}
-
-async fn enrich_with_timeout(
-    legacy: &HyperlaneDbStore,
-    cursors: &mut [i64; 2],
-    deadline: Duration,
-) {
-    let store = Store {
-        db: legacy.db.clone_connection(),
-        domain: legacy.domain.id(),
-    };
-    for (table, after) in ["delivered_message", "gas_payment"]
-        .into_iter()
-        .zip(cursors)
-    {
-        let start = *after;
-        let result = tokio::time::timeout(deadline, async {
-            let rows = store.unenriched(table, *after).await?;
-            *after = rows.last().map(|(id, _)| *id).unwrap_or(0);
-            if !rows.is_empty() {
-                // Persist each receipt as it completes, retaining progress on timeout.
-                stream::iter(rows.iter().unique_by(|(_, meta)| meta.transaction_id))
-                    .for_each_concurrent(8, |(_, meta)| async move {
-                        if let Err(error) =
-                            legacy.ensure_blocks_and_txns(std::iter::once(meta)).await
-                        {
-                            warn!(
-                                domain = store.domain,
-                                ?error,
-                                "Receipt unavailable; retrying"
-                            );
-                        }
-                    })
-                    .await;
-            }
-            Ok::<_, eyre::Report>(())
-        })
-        .await;
-        // Link cached successes even when another receipt failed or timed out.
-        if *after > start {
-            if let Err(error) = store.enrich(table, start, *after).await {
-                warn!(
-                    domain = store.domain,
-                    table,
-                    ?error,
-                    "Receipt linking failed; retrying"
-                );
-            }
-        }
-        if !matches!(result, Ok(Ok(()))) {
-            warn!(
-                domain = store.domain,
-                table,
-                ?result,
-                "Confirmed event enrichment failed; retrying"
-            );
-        }
-    }
-}
+#[cfg(test)]
+use enrichment::enrich_with_timeout;
 
 #[cfg(test)]
 mod tests;
