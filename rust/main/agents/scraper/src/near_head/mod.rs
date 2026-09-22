@@ -4,7 +4,10 @@ mod store;
 
 use std::{
     collections::{BTreeMap, HashMap},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     time::Duration,
 };
 
@@ -124,9 +127,14 @@ pub async fn spawn(
             matches!(tag.as_str(), "safe" | "finalized" | "latest"),
             "Unsupported reorgPeriod tag"
         );
+        source
+            .header(tag.parse().map_err(eyre::Report::msg)?)
+            .await?;
     }
     Ok(tokio::spawn(async move {
         let confirmation_wake = Notify::new();
+        let ingestion_failed = AtomicBool::new(false);
+        let confirmation_failed = AtomicBool::new(false);
         tokio::join!(
             async {
                 loop {
@@ -139,12 +147,43 @@ pub async fn spawn(
                             }
                         };
                         confirmation_wake.notify_one();
-                        let more = ingest(source.as_ref(), &store, &state, chunk_size).await?;
+                        sync_metrics
+                            .indexed_height
+                            .with_label_values(&["near_head", legacy.domain.name()])
+                            .set(i64::try_from(state.indexed)?);
+                        if confirmation_failed.load(Ordering::Relaxed) {
+                            return Ok(false);
+                        }
+                        // Bound provisional storage even if a valid finality tag stops advancing.
+                        let depth = match &period {
+                            ReorgPeriod::Blocks(depth) => u64::from(depth.get()),
+                            _ => 0,
+                        };
+                        let observed_head = state.head;
+                        let mut bounded = state;
+                        bounded.head = bounded.head.min(
+                            bounded
+                                .confirmed
+                                .saturating_add(depth)
+                                .saturating_add(10_000),
+                        );
+                        ensure!(
+                            bounded.indexed < bounded.head || bounded.head == observed_head,
+                            "Confirmation backlog reached its provisional block limit"
+                        );
+                        if bounded.indexed >= bounded.head {
+                            return Ok(false);
+                        }
+                        let more = ingest(source.as_ref(), &store, &bounded, chunk_size).await?;
                         confirmation_wake.notify_one();
                         Ok::<_, eyre::Report>(more)
                     }
                     .await;
-                    chain_metrics.set_critical_error(legacy.domain.name(), result.is_err());
+                    ingestion_failed.store(result.is_err(), Ordering::Relaxed);
+                    chain_metrics.set_critical_error(
+                        legacy.domain.name(),
+                        result.is_err() || confirmation_failed.load(Ordering::Relaxed),
+                    );
                     match result {
                         Ok(true) => continue,
                         Ok(false) => {}
@@ -169,6 +208,10 @@ pub async fn spawn(
                                 confirmation_wake.notify_one();
                             }
                             last_confirmed = state.confirmed;
+                            sync_metrics
+                                .indexed_height
+                                .with_label_values(&["near_head", legacy.domain.name()])
+                                .set(i64::try_from(state.indexed)?);
                             for (label, count) in [
                                 "raw_message_dispatch",
                                 "message_delivery",
@@ -198,6 +241,11 @@ pub async fn spawn(
                         Ok::<_, eyre::Report>(())
                     }
                     .await;
+                    confirmation_failed.store(result.is_err(), Ordering::Relaxed);
+                    chain_metrics.set_critical_error(
+                        legacy.domain.name(),
+                        result.is_err() || ingestion_failed.load(Ordering::Relaxed),
+                    );
                     if let Err(error) = result {
                         warn!(
                             domain = store.domain,
@@ -220,6 +268,13 @@ pub async fn spawn(
                     }
                 }
             },
+            async {
+                let mut cursors = [0; 2];
+                loop {
+                    enrich(&legacy, &mut cursors).await;
+                    sleep(poll_interval).await;
+                }
+            },
         );
     }))
 }
@@ -234,16 +289,13 @@ async fn observe(source: &dyn Source, store: &Store) -> Result<State> {
         "Reorg crossed published history; operator repair required"
     );
     let head = source.header(BlockNumber::Latest).await?;
-    if head.height < state.confirmed {
+    if head.height < state.indexed {
         // A lagging RPC can report an older head without disproving our stored
         // chain. Pause until it catches up; only a hash mismatch proves a reorg.
         store.pause(false).await?;
-        eyre::bail!("RPC head is behind confirmed history; waiting for a current observation");
+        eyre::bail!("RPC head is behind indexed history; waiting for a current observation");
     }
     let mut height = store.checkpoint(state.indexed.min(head.height)).await?;
-    if head.height < state.indexed {
-        store.pause(false).await?;
-    }
     let ancestor = loop {
         let header = if height == head.height {
             head.clone()
@@ -289,7 +341,11 @@ async fn ingest(
     let end = state.head.min(state.indexed.saturating_add(chunk_size));
     let boundary = source.header(end.into()).await?;
     let mut by_block = BTreeMap::<u64, Vec<source::Event>>::new();
-    for event in source.events(state.indexed.saturating_add(1), end).await? {
+    let events = source.events(state.indexed.saturating_add(1), end).await?;
+    let start_counts = source.counts(state.hash).await?;
+    let end_counts = source.counts(boundary.hash).await?;
+    validate_sequences(&events, start_counts, end_counts)?;
+    for event in events {
         ensure!(
             event.block_number > state.indexed && event.block_number <= end,
             "Event outside requested range"
@@ -326,6 +382,22 @@ async fn ingest(
     Ok(end < state.head)
 }
 
+fn validate_sequences(events: &[source::Event], mut next: [u32; 2], end: [u32; 2]) -> Result<()> {
+    for event in events {
+        let (stream, index) = match &event.data {
+            source::EventData::Dispatch(message) => (0, message.nonce),
+            source::EventData::Insertion { index, .. } => (1, *index),
+            _ => continue,
+        };
+        ensure!(index == next[stream], "Missing or unordered event sequence");
+        next[stream] = index
+            .checked_add(1)
+            .ok_or_else(|| eyre::eyre!("Event sequence overflow"))?;
+    }
+    ensure!(next == end, "Incomplete event range");
+    Ok(())
+}
+
 async fn verify(source: &dyn Source, header: &Header) -> Result<()> {
     ensure!(
         source.header(header.height.into()).await?.hash == header.hash,
@@ -340,6 +412,9 @@ async fn confirm(source: &dyn Source, store: &Store, period: &ReorgPeriod) -> Re
         .await?
         .ok_or_else(|| eyre::eyre!("Missing head state"))?;
     ensure!(!state.halted, "Confirmed history requires operator repair");
+    if state.indexed == state.confirmed {
+        return Ok([0; 4]);
+    }
     let tagged = match period {
         ReorgPeriod::Tag(tag) if tag != "latest" => Some(
             source
@@ -388,9 +463,17 @@ async fn confirm(source: &dyn Source, store: &Store, period: &ReorgPeriod) -> Re
     store.confirm(&state, &boundary).await
 }
 
-/// One bounded page per event type, scheduled by the existing dispatch reconciler.
+/// Independent bounded receipt pages; slow receipts never delay dispatch discovery.
 /// Advance before RPC work so unavailable receipts cannot starve later pages.
-pub async fn enrich(legacy: &HyperlaneDbStore, cursors: &mut [i64; 2]) {
+async fn enrich(legacy: &HyperlaneDbStore, cursors: &mut [i64; 2]) {
+    enrich_with_timeout(legacy, cursors, Duration::from_secs(30)).await;
+}
+
+async fn enrich_with_timeout(
+    legacy: &HyperlaneDbStore,
+    cursors: &mut [i64; 2],
+    deadline: Duration,
+) {
     let store = Store {
         db: legacy.db.clone_connection(),
         domain: legacy.domain.id(),
@@ -399,28 +482,40 @@ pub async fn enrich(legacy: &HyperlaneDbStore, cursors: &mut [i64; 2]) {
         .into_iter()
         .zip(cursors)
     {
-        let result = tokio::time::timeout(Duration::from_secs(30), async {
+        let start = *after;
+        let result = tokio::time::timeout(deadline, async {
             let rows = store.unenriched(table, *after).await?;
-            let start = *after;
             *after = rows.last().map(|(id, _)| *id).unwrap_or(0);
             if !rows.is_empty() {
                 // Persist each receipt as it completes, retaining progress on timeout.
-                stream::iter(
-                    rows.iter()
-                        .unique_by(|(_, meta)| meta.transaction_id)
-                        .map(Ok::<_, eyre::Report>),
-                )
-                .try_for_each_concurrent(8, |(_, meta)| async move {
-                    let _transactions =
-                        legacy.ensure_blocks_and_txns(std::iter::once(meta)).await?;
-                    Ok(())
-                })
-                .await?;
-                store.enrich(table, start, *after).await?;
+                stream::iter(rows.iter().unique_by(|(_, meta)| meta.transaction_id))
+                    .for_each_concurrent(8, |(_, meta)| async move {
+                        if let Err(error) =
+                            legacy.ensure_blocks_and_txns(std::iter::once(meta)).await
+                        {
+                            warn!(
+                                domain = store.domain,
+                                ?error,
+                                "Receipt unavailable; retrying"
+                            );
+                        }
+                    })
+                    .await;
             }
             Ok::<_, eyre::Report>(())
         })
         .await;
+        // Link cached successes even when another receipt failed or timed out.
+        if *after > start {
+            if let Err(error) = store.enrich(table, start, *after).await {
+                warn!(
+                    domain = store.domain,
+                    table,
+                    ?error,
+                    "Receipt linking failed; retrying"
+                );
+            }
+        }
         if !matches!(result, Ok(Ok(()))) {
             warn!(
                 domain = store.domain,

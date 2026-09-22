@@ -3,7 +3,7 @@ use ethers::{
     abi::RawLog,
     contract::EthEvent,
     providers::Middleware,
-    types::{BlockId, BlockNumber, Filter, Log, H160, H256},
+    types::{BlockId, BlockNumber, Filter, Log, TransactionRequest, H160, H256, U256},
 };
 use eyre::{ensure, eyre, Result};
 use hyperlane_core::{ContractLocator, Decode, HyperlaneMessage};
@@ -58,6 +58,8 @@ pub(super) struct Contracts {
 pub(super) trait Source: Send + Sync {
     async fn header(&self, block: BlockNumber) -> Result<Header>;
     async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>>;
+    /// Dispatch nonce and Merkle count, pinned to the range boundary fork.
+    async fn counts(&self, hash: H256) -> Result<[u32; 2]>;
 }
 
 pub(super) struct SourceBuilder {
@@ -114,6 +116,40 @@ impl<M: Middleware + 'static> Source for EvmSource<M> {
             hash: block.hash.ok_or_else(|| eyre!("Missing block hash"))?,
             parent: block.parent_hash,
         })
+    }
+
+    async fn counts(&self, hash: H256) -> Result<[u32; 2]> {
+        let mut counts = [0; 2];
+        for ((address, signature), count) in [
+            (self.contracts.mailbox, "nonce()"),
+            (self.contracts.hook, "count()"),
+        ]
+        .into_iter()
+        .zip(&mut counts)
+        {
+            let call = TransactionRequest::new()
+                .to(address)
+                .data(ethers::utils::id(signature)[..4].to_vec())
+                .into();
+            let result = self.provider.call(&call, Some(BlockId::Hash(hash))).await?;
+            if result.is_empty()
+                && self
+                    .provider
+                    .get_code(address, Some(BlockId::Hash(hash)))
+                    .await?
+                    .is_empty()
+            {
+                continue; // The range may start before the contract was deployed.
+            }
+            ensure!(result.len() == 32, "Invalid contract sequence count");
+            let value = U256::from_big_endian(&result);
+            ensure!(
+                value <= U256::from(u32::MAX),
+                "Contract sequence count overflow"
+            );
+            *count = value.as_u32();
+        }
+        Ok(counts)
     }
 
     async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
@@ -228,6 +264,50 @@ mod tests {
     };
 
     use super::*;
+
+    #[tokio::test]
+    async fn sequence_counts_are_hash_pinned_and_reject_malformed_contract_replies() -> Result<()> {
+        use ethers::types::Bytes;
+        let (provider, rpc) = Provider::mocked();
+        let source = EvmSource {
+            provider,
+            contracts: Contracts {
+                mailbox: H160::repeat_byte(1),
+                hook: H160::repeat_byte(2),
+                paymaster: H160::repeat_byte(3),
+            },
+            domain: 1,
+        };
+        let hash = H256::repeat_byte(4);
+        let encoded = |value: u32| Bytes::from(encode(&[Token::Uint(value.into())]));
+        rpc.push::<Bytes, _>(encoded(7))?;
+        rpc.push::<Bytes, _>(encoded(9))?;
+        assert_eq!(source.counts(hash).await?, [9, 7]);
+        for (address, signature) in [
+            (source.contracts.mailbox, "nonce()"),
+            (source.contracts.hook, "count()"),
+        ] {
+            let call: ethers::types::transaction::eip2718::TypedTransaction =
+                TransactionRequest::new()
+                    .to(address)
+                    .data(ethers::utils::id(signature)[..4].to_vec())
+                    .into();
+            rpc.assert_request("eth_call", (call, BlockId::Hash(hash)))?;
+        }
+        // Empty results only mean zero before deployment, never for existing code.
+        rpc.push::<Bytes, _>(Bytes::from(vec![1]))?;
+        rpc.push::<Bytes, _>(Bytes::default())?;
+        assert!(source.counts(hash).await.is_err());
+        rpc.push::<Bytes, _>(encoded(0))?;
+        rpc.push::<Bytes, _>(Bytes::default())?;
+        rpc.push::<Bytes, _>(Bytes::default())?;
+        assert_eq!(source.counts(hash).await?, [0, 0]);
+        rpc.push::<Bytes, _>(Bytes::from(encode(&[Token::Uint(
+            U256::from(u32::MAX) + 1,
+        )])))?;
+        assert!(source.counts(hash).await.is_err());
+        Ok(())
+    }
 
     #[tokio::test]
     async fn gas_logs_require_the_requested_occurrence_and_unique_positions() -> Result<()> {

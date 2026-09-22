@@ -753,7 +753,6 @@ impl Scraper {
                 let max_age_metric =
                     raw_dispatch_unenriched_max_age.with_label_values(&[&domain_name]);
                 let mut retry_backoff = RawDispatchRetryBackoff::default();
-                let mut event_cursors = [0; 2];
 
                 update_liveness_metric(&liveness_metric);
                 sleep_with_liveness(
@@ -802,9 +801,6 @@ impl Scraper {
                 }
 
                 loop {
-                    if near_head {
-                        crate::near_head::enrich(&store, &mut event_cursors).await;
-                    }
                     update_liveness_metric(&liveness_metric);
                     let now = Instant::now();
                     if schedule.global_not_before > now {

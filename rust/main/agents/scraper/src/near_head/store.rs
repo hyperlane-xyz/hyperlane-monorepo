@@ -169,6 +169,28 @@ impl Store {
     }
 
     pub async fn append(&self, expected: &State, blocks: &[(Header, Vec<Event>)]) -> Result<()> {
+        let mut previous = expected.hash;
+        let mut height = expected.indexed;
+        let mut batches = std::collections::BTreeMap::<&str, Vec<Vec<Value>>>::new();
+        for (header, events) in blocks {
+            ensure!(
+                header.height > height
+                    && header.height <= expected.head
+                    && (header.height.checked_sub(1) != Some(height) || header.parent == previous),
+                "Invalid range checkpoint order"
+            );
+            batches.entry("INSERT INTO block(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC')").or_default().push(vec![self.domain(), bytes(header.hash), number(header.height)?, number(header.timestamp)?]);
+            for event in events {
+                ensure!(
+                    event.block_number == header.height && event.block_hash == header.hash,
+                    "Event disagrees with block header"
+                );
+                let (query, values) = event_row(signed(self.domain), header, event)?;
+                batches.entry(query).or_default().push(values);
+            }
+            previous = header.hash;
+            height = header.height;
+        }
         let tx = self.db.begin().await?;
         let row = tx
             .query_one(sql(
@@ -183,25 +205,8 @@ impl Store {
                 && row.try_get::<Vec<u8>>("", "indexed_hash")? == expected.hash.as_bytes(),
             "Head changed during log fetch"
         );
-        let mut previous = expected.hash;
-        let mut height = expected.indexed;
-        for (header, events) in blocks {
-            ensure!(
-                header.height > height
-                    && header.height <= expected.head
-                    && (header.height.checked_sub(1) != Some(height) || header.parent == previous),
-                "Invalid range checkpoint order"
-            );
-            insert_block(&tx, signed(self.domain), header).await?;
-            for event in events {
-                ensure!(
-                    event.block_number == header.height && event.block_hash == header.hash,
-                    "Event disagrees with block header"
-                );
-                insert_event(&tx, signed(self.domain), header, event).await?;
-            }
-            previous = header.hash;
-            height = header.height;
+        for (query, rows) in batches {
+            insert_batch(&tx, query, &rows).await?;
         }
         tx.execute(sql(
             "UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3 WHERE domain=$1",
@@ -333,12 +338,7 @@ async fn insert_block<C: ConnectionTrait>(db: &C, domain: i32, h: &Header) -> Re
     Ok(())
 }
 
-async fn insert_event<C: ConnectionTrait>(
-    db: &C,
-    domain: i32,
-    h: &Header,
-    e: &Event,
-) -> Result<()> {
+fn event_row(domain: i32, h: &Header, e: &Event) -> Result<(&'static str, Vec<Value>)> {
     let address = e.address.as_bytes().to_vec();
     let meta = vec![
         domain.into(),
@@ -367,7 +367,45 @@ async fn insert_event<C: ConnectionTrait>(
             vec![bytes(*message_id), signed(*destination).into(), gas.clone().into(), payment.clone().into()],
         ),
     };
-    db.execute(sql(query, meta.into_iter().chain(extra).collect()))
+    Ok((query, meta.into_iter().chain(extra).collect()))
+}
+
+// At most 14,000 parameters per statement, below PostgreSQL's 65,535 limit.
+async fn insert_batch<C: ConnectionTrait>(
+    db: &C,
+    template: &str,
+    rows: &[Vec<Value>],
+) -> Result<()> {
+    let (prefix, tuple) = template
+        .split_once(" VALUES")
+        .ok_or_else(|| eyre::eyre!("Invalid insert template"))?;
+    for chunk in rows.chunks(1000) {
+        let mut values = Vec::new();
+        let mut tuples = Vec::new();
+        for row in chunk {
+            let mut parts = tuple.split('$');
+            let mut shifted = parts.next().unwrap_or_default().to_owned();
+            for part in parts {
+                let digits = part.bytes().take_while(u8::is_ascii_digit).count();
+                let index = part[..digits]
+                    .parse::<usize>()?
+                    .checked_add(values.len())
+                    .ok_or_else(|| eyre::eyre!("Parameter index overflow"))?;
+                shifted.push_str(&format!("${index}{}", &part[digits..]));
+            }
+            tuples.push(shifted);
+            values.extend(row.iter().cloned());
+        }
+        let conflict = if prefix.starts_with("INSERT INTO block(") {
+            " ON CONFLICT(hash) DO NOTHING"
+        } else {
+            ""
+        };
+        db.execute(sql(
+            format!("{prefix} VALUES{}{conflict}", tuples.join(",")),
+            values,
+        ))
         .await?;
+    }
     Ok(())
 }
