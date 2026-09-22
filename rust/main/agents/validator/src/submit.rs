@@ -32,6 +32,8 @@ use crate::merkle_tree_hook_sync::{MerkleTreeRpcRecovery, RecoveryProgress};
 use crate::reorg_reporter::ReorgReporter;
 use crate::server::ValidatorReadiness;
 
+const IDLE_CHECKPOINT_AUDIT_INTERVAL: Duration = Duration::from_secs(60);
+
 const CHECKPOINT_SAMPLE_REFRESH_INTERVAL: Duration = Duration::from_secs(30);
 
 const CHECKPOINT_RECOVERY_TIMEOUT: Duration = Duration::from_secs(120);
@@ -323,6 +325,7 @@ impl ValidatorSubmitter {
         let mut sampled_at = tokio::time::Instant::now();
         let mut next_rpc_attempt = sampled_at;
         let mut sampled_batch = None;
+        let mut last_rpc_audit = tokio::time::Instant::now();
         loop {
             // The single worker is cancelled when the signing task exits.
             if let Some(result) = history.try_join_next() {
@@ -331,7 +334,12 @@ impl ValidatorSubmitter {
             }
             let next_index =
                 u32::try_from(tree.committed.count()).expect("Merkle leaf count fits in u32");
+            // Count/progress probes cannot detect a same-count reorg. Retain a
+            // bounded authenticated root audit even while the stream is healthy.
+            let idle_audit_due = tree.committed.count() > 0
+                && last_rpc_audit.elapsed() >= IDLE_CHECKPOINT_AUDIT_INTERVAL;
             if (self.rpc_recovery.is_none() || self.websocket_is_healthy())
+                && !idle_audit_due
                 && samples.is_none()
                 && self
                     .db
@@ -418,7 +426,8 @@ impl ValidatorSubmitter {
                         None => responses_done = true,
                     }
                 }
-                next_rpc_attempt = tokio::time::Instant::now()
+                last_rpc_audit = tokio::time::Instant::now();
+                next_rpc_attempt = last_rpc_audit
                     .checked_add(self.interval)
                     .expect("checkpoint interval fits in Instant");
                 if received.iter().flatten().count() < reader.consensus.required(received.len()) {
@@ -815,10 +824,12 @@ impl ValidatorSubmitter {
         };
 
         let mut next_rpc_attempt = tokio::time::Instant::now();
+        let mut last_rpc_audit = next_rpc_attempt;
         loop {
             // A healthy stream wakes us for new insertions. Keep RPC verification
             // pending until those insertions reach the configured reorg depth.
             if self.websocket_is_healthy()
+                && last_rpc_audit.elapsed() < IDLE_CHECKPOINT_AUDIT_INTERVAL
                 && self
                     .db
                     .retrieve_merkle_tree_insertion_by_leaf_index(
@@ -840,7 +851,8 @@ impl ValidatorSubmitter {
             })
             .await;
 
-            next_rpc_attempt = tokio::time::Instant::now()
+            last_rpc_audit = tokio::time::Instant::now();
+            next_rpc_attempt = last_rpc_audit
                 .checked_add(self.interval)
                 .expect("checkpoint interval fits in Instant");
 

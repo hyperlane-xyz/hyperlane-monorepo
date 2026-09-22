@@ -7,6 +7,7 @@ pub use error::decode_revert_reason;
 mod dynamic_tag_quorum;
 mod error;
 mod fallback;
+mod http;
 mod provider;
 mod rate_limit;
 mod retrying;

@@ -95,7 +95,7 @@ fn is_block_hash(value: &Value) -> bool {
 /// `eth_sendRawTransaction` while fallback strategy is used for all the other RPC methods.
 pub struct EthereumFallbackProvider<C, B> {
     /// Fallback provider
-    pub provider: FallbackProvider<C, B>,
+    provider: FallbackProvider<C, B>,
     /// If enabled and eth_getTransactionReceipt returns Ok(Value::null())
     /// we will try other providers and see if another provider returns something
     /// non-null
@@ -353,7 +353,7 @@ where
             };
             let response = match attempt.response {
                 AttemptResponse::Rpc(response) => {
-                    if response.is_err() {
+                    if response.is_err() && !self.cooldowns[attempt.priority.index].active() {
                         self.handle_failed_provider(&attempt.priority).await;
                     }
                     categorize_client_response(&attempt.provider_host, method, response)
@@ -606,7 +606,7 @@ where
                 if !self.cooldowns[priority.index].active() {
                     let _ = self.handle_stalled_provider(priority, provider).await;
                 }
-                if resp.is_err() {
+                if resp.is_err() && !self.cooldowns[priority.index].active() {
                     self.handle_failed_provider(priority).await;
                 }
                 tracing::trace!(
@@ -670,7 +670,7 @@ where
                 if !self.cooldowns[priority.index].active() {
                     let _ = self.handle_stalled_provider(&priority, provider).await;
                 }
-                if resp.is_err() {
+                if resp.is_err() && !self.cooldowns[priority.index].active() {
                     self.handle_failed_provider(&priority).await;
                 }
                 tracing::debug!(
@@ -725,6 +725,14 @@ where
 
         if result.as_ref().err().is_some_and(is_rate_limited) {
             cooldown.penalize();
+            if let Some(priority) = self
+                .take_priorities_snapshot()
+                .await
+                .into_iter()
+                .find(|priority| priority.index == provider_index)
+            {
+                self.handle_failed_provider(&priority).await;
+            }
         }
         (provider_host, result)
     }

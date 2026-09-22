@@ -3481,7 +3481,7 @@ async fn normal_websocket_consensus_stops_idle_reads_and_resumes_on_failure() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn consensus_reports_threshold_conflict_at_committed_index_and_halts() {
+async fn healthy_websocket_idle_audit_detects_same_count_consensus_reorg() {
     for policy in [CheckpointConsensus::Quorum, CheckpointConsensus::Majority] {
         let mut committed = IncrementalMerkle::default();
         committed.ingest(H256::from_low_u64_be(1));
@@ -3512,8 +3512,16 @@ async fn consensus_reports_threshold_conflict_at_committed_index_and_halts() {
             lightweight_test_submitter(Arc::new(AtomicUsize::new(1)), Arc::default());
         submitter.checkpoint_syncer = Arc::new(syncer);
         let (recovery, _dir) = rpc_recovery_fixture(MockRecoveryIndexer::new());
-        submitter = submitter.with_rpc_recovery(recovery);
+        submitter = submitter
+            .with_rpc_recovery(recovery)
+            .with_websocket_health(Some(Arc::new(AtomicBool::new(true))));
         let task = tokio::spawn(submitter.consensus_checkpoint_submitter(reader, committed));
+        tokio::task::yield_now().await;
+        tokio::time::advance(Duration::from_secs(59)).await;
+        tokio::task::yield_now().await;
+        assert!(!task.is_finished());
+        assert!(!recorded.load(Ordering::SeqCst));
+        tokio::time::advance(Duration::from_secs(2)).await;
         assert!(task.await.unwrap_err().is_panic());
         assert!(recorded.load(Ordering::SeqCst));
     }
@@ -3981,4 +3989,47 @@ async fn single_checkpoint_websocket_skips_idle_reads_and_verifies_pending_inser
     assert!(!task.is_finished());
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
+}
+
+#[tokio::test(start_paused = true)]
+async fn healthy_websocket_idle_audit_detects_same_count_single_provider_reorg() {
+    let mut submitter = lightweight_test_submitter(Arc::new(AtomicUsize::new(1)), Arc::default())
+        .with_websocket_health(Some(Arc::new(AtomicBool::new(true))));
+    let mut reporter = MockReorgReporter::new();
+    reporter
+        .expect_report_with_reorg_period()
+        .once()
+        .return_once(|_| {});
+    submitter.reorg_reporter = Some(Arc::new(reporter));
+    let mut committed = IncrementalMerkle::default();
+    committed.ingest(H256::from_low_u64_be(1));
+    let mut conflicting = lightweight_checkpoints(1).pop().unwrap();
+    conflicting.checkpoint.root = H256::from_low_u64_be(999);
+    let mut hook = MockMerkleTreeHook::new();
+    hook.expect_domain().return_const(dummy_domain(0, "test"));
+    hook.expect_address().return_const(H256::zero());
+    hook.expect_latest_checkpoint()
+        .once()
+        .return_once(move |_| Ok(conflicting));
+    submitter.merkle_tree_hook = Arc::new(hook);
+    let recorded = Arc::new(AtomicBool::new(false));
+    let observed = recorded.clone();
+    let mut syncer = MockCheckpointSyncer::new();
+    syncer
+        .expect_write_reorg_status()
+        .once()
+        .returning(move |_| {
+            observed.store(true, Ordering::SeqCst);
+            Ok(())
+        });
+    submitter.checkpoint_syncer = Arc::new(syncer);
+    let task = tokio::spawn(submitter.checkpoint_submitter(committed));
+    tokio::task::yield_now().await;
+    tokio::time::advance(Duration::from_secs(59)).await;
+    tokio::task::yield_now().await;
+    assert!(!task.is_finished());
+    assert!(!recorded.load(Ordering::SeqCst));
+    tokio::time::advance(Duration::from_secs(2)).await;
+    assert!(task.await.unwrap_err().is_panic());
+    assert!(recorded.load(Ordering::SeqCst));
 }

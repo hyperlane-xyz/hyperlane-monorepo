@@ -26,10 +26,19 @@ impl RateLimitCooldown {
         );
     }
     pub(super) async fn wait(&self) {
+        let mut waited = false;
         loop {
             let until = *self.0.lock().expect("rate limit cooldown lock poisoned");
             match until {
-                Some(until) if until > Instant::now() => sleep_until(until).await,
+                Some(until) if until > Instant::now() => {
+                    sleep_until(until).await;
+                    waited = true;
+                }
+                _ if waited => {
+                    let jitter = Duration::from_millis(rand::thread_rng().gen_range(1..=1_000));
+                    tokio::time::sleep(jitter).await;
+                    waited = false;
+                }
                 _ => return,
             }
         }
@@ -51,7 +60,12 @@ pub(super) fn is_rate_limited(error: &HttpClientError) -> bool {
         }
         HttpClientError::SerdeJson { text, .. } => rate_limit_message(text),
         HttpClientError::JsonRpcError(error) => {
-            error.code == 429 || rate_limit_message(&error.message)
+            // Contract execution errors are request-local, even when the revert
+            // reason mentions an application's own rate limit.
+            error.code == 429
+                || (error.code != 3
+                    && !error.message.to_ascii_lowercase().contains("revert")
+                    && rate_limit_message(&error.message))
         }
     }
 }
@@ -65,6 +79,26 @@ fn rate_limit_message(message: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test(start_paused = true)]
+    async fn waiting_requests_add_jitter_after_shared_deadline() {
+        let cooldown = RateLimitCooldown::default();
+        cooldown.penalize();
+        let deadline = cooldown.0.lock().unwrap().unwrap();
+        let mut waiters = Vec::new();
+        for _ in 0..8 {
+            let cooldown = cooldown.clone();
+            waiters.push(tokio::spawn(async move { cooldown.wait().await }));
+        }
+        tokio::task::yield_now().await;
+        tokio::time::advance(deadline.duration_since(Instant::now())).await;
+        tokio::task::yield_now().await;
+        assert!(waiters.iter().all(|waiter| !waiter.is_finished()));
+        tokio::time::advance(Duration::from_secs(1)).await;
+        for waiter in waiters {
+            waiter.await.unwrap();
+        }
+    }
 
     #[tokio::test(start_paused = true)]
     async fn cooldown_survives_cancelled_wait_and_is_shared() {

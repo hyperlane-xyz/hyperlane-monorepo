@@ -25,6 +25,9 @@ pub async fn call_and_retry_n_times<T>(
         match f().await {
             Ok(res) => return Ok(res),
             Err(err) => {
+                if retry_number == n.saturating_sub(1) {
+                    return Err(err);
+                }
                 warn!(retries=retry_number, error=?err, "Retrying call");
                 let delay = rpc_retry_sleep_duration.unwrap_or_else(|| {
                     let exponent = u32::try_from(retry_number.saturating_sub(1).min(5))
@@ -91,5 +94,26 @@ mod tests {
                 }
             }
         }
+    }
+    #[tokio::test(start_paused = true)]
+    async fn bounded_startup_retries_exhaust_without_a_final_sleep() {
+        let start = Instant::now();
+        let mut attempts = 0;
+        let result: ChainResult<()> = call_and_retry_n_times(
+            || {
+                attempts += 1;
+                Box::pin(async {
+                    Err(ChainCommunicationError::from_other_str(
+                        "cursor unavailable",
+                    ))
+                })
+            },
+            10,
+            Some(RPC_RETRY_SLEEP_DURATION),
+        )
+        .await;
+        assert!(result.is_err());
+        assert_eq!(attempts, 9);
+        assert_eq!(start.elapsed(), Duration::from_secs(16));
     }
 }

@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
+use super::http::StatusAwareHttp;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use ethers::middleware::gas_escalator::{
@@ -11,8 +12,8 @@ use ethers::middleware::gas_oracle::{
     GasCategory, GasOracle, GasOracleMiddleware, Polygon, ProviderOracle,
 };
 use ethers::prelude::{
-    Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, SignerMiddleware,
-    Ws, WsClientError,
+    JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, SignerMiddleware, Ws,
+    WsClientError,
 };
 use ethers::types::Address;
 use ethers_signers::Signer;
@@ -164,7 +165,7 @@ pub trait BuildableWithProvider {
                 let fallback_provider = builder.build();
                 let ethereum_fallback_provider = EthereumFallbackProvider::<
                     _,
-                    JsonRpcBlockGetter<PrometheusJsonRpcClient<Http>>,
+                    JsonRpcBlockGetter<PrometheusJsonRpcClient<StatusAwareHttp>>,
                 >::new(
                     fallback_provider,
                     conn.consider_null_transaction_receipt,
@@ -400,11 +401,11 @@ where
 }
 
 /// Builds a new HTTP provider with the given URL.
-fn build_http_provider(url: Url) -> ChainResult<Http> {
+fn build_http_provider(url: Url) -> ChainResult<StatusAwareHttp> {
     // Cache by the original URL so clients with different credentials stay isolated.
     let client = get_reqwest_client(&url)?;
     let (_, url) = parse_custom_rpc_headers(&url).map_err(ChainCommunicationError::from_other)?;
-    Ok(Http::new_with_client(url, client))
+    Ok(StatusAwareHttp::new(url, client))
 }
 
 /// Gets a cached reqwest client for the given URL, or builds a new one if it doesn't exist.

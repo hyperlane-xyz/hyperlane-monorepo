@@ -948,7 +948,8 @@ impl Relayer {
                 })
             },
             CURSOR_INSTANTIATION_ATTEMPTS,
-            None,
+            // Bound startup failure reporting independently of background RPC backoff.
+            Some(hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION),
         )
         .await
     }

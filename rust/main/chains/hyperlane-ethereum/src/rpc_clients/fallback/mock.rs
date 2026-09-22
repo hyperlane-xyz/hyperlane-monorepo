@@ -34,6 +34,7 @@ pub enum MockReadResponse {
     Success(u64),
     RetryableError,
     RateLimitError,
+    RateLimitRevert,
     NonRetryableError,
 }
 
@@ -152,6 +153,11 @@ impl JsonRpcClient for EthereumProviderMock {
                         "data": null,
                     }))
                     .unwrap(),
+                )),
+                Some(MockReadResponse::RateLimitRevert) => Err(HttpClientError::JsonRpcError(
+                    serde_json::from_value(serde_json::json!({
+                        "code": 3, "message": "execution reverted: rate limit exceeded", "data": "0x1234"
+                    })).unwrap()
                 )),
                 Some(MockReadResponse::RateLimitError) => Err(super::RateLimitCooldown::error()),
                 Some(MockReadResponse::RetryableError) | None => dummy_error_return_value(),

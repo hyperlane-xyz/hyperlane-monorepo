@@ -1087,8 +1087,31 @@ async fn all_rate_limited_endpoints_do_not_retry_http_in_later_rounds() {
         .build();
     let provider = EthereumFallbackProvider::new(fallback, false);
     assert!(provider.chain_id_test_call().await.is_err());
+    assert_eq!(
+        provider.take_priorities_snapshot().await[0].last_failed_count,
+        1
+    );
     assert!(provider.chain_id_test_call().await.is_err());
+    assert_eq!(
+        provider.take_priorities_snapshot().await[0].last_failed_count,
+        1
+    );
     assert_eq!(limited.responses.immutable_read.lock().unwrap().len(), 1);
     tokio::time::advance(Duration::from_secs(26)).await;
+    assert_eq!(provider.chain_id_test_call().await.unwrap(), 11);
+}
+
+#[tokio::test(start_paused = true)]
+async fn application_rate_limit_revert_does_not_cool_unrelated_requests() {
+    let endpoint = EthereumProviderMock::new(None);
+    push_read_response(&endpoint, MockReadResponse::RateLimitRevert);
+    push_read_response(&endpoint, MockReadResponse::Success(11));
+    let provider = EthereumFallbackProvider::new(
+        FallbackProviderBuilder::default()
+            .add_provider(endpoint)
+            .build(),
+        false,
+    );
+    assert!(provider.immutable_call_test_call().await.is_err());
     assert_eq!(provider.chain_id_test_call().await.unwrap(), 11);
 }
