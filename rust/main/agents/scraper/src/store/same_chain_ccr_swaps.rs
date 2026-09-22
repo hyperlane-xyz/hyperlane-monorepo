@@ -31,7 +31,7 @@ impl HyperlaneLogStore<SameChainCcrSwap> for HyperlaneDbStore {
                 if txn.is_none() {
                     warn!(
                         tx_hash = ?meta.transaction_id,
-                        "deferring CCR swap without transaction metadata"
+                        "skipping unsupported CCR swap with zero transaction hash"
                     );
                 }
                 txn.map(|t| StorableCcrSwap {
