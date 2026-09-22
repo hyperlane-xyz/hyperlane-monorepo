@@ -9,7 +9,11 @@ import {
   type Hex,
 } from 'viem';
 
-import { assert } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  convertToProtocolAddress,
+  ProtocolType,
+} from '@hyperlane-xyz/utils';
 
 import type { EthJsonRpcBlockParameterTag } from '../metadata/chainMetadataTypes.js';
 import type { MultiProviderAdapter } from '../providers/MultiProviderAdapter.js';
@@ -131,7 +135,9 @@ export class TokenBalanceReader {
       encodeFunctionData({
         abi: erc20Abi,
         functionName: 'balanceOf',
-        args: [getAddress(owner)],
+        args: [
+          getAddress(convertToProtocolAddress(owner, ProtocolType.Ethereum)),
+        ],
       }),
       'balanceOf',
       blockTag,
@@ -208,31 +214,28 @@ export class TokenBalanceReader {
     reads: Read[],
     blockTag: BlockTag,
   ): Promise<void> {
+    if (reads.length < 3) {
+      await this.readDirect(provider, reads, blockTag);
+      return;
+    }
+
+    // Probe at the requested block, which may predate Multicall deployment.
+    // If the probe fails, direct token calls can still succeed.
+    let code: string;
     try {
-      // Probe at the same block: historical reads may predate Multicall deployment.
-      // A missing contract is a supported direct-read path, not an RPC-error fallback.
-      const batch =
-        reads.length >= 3 &&
-        (await provider.getCode(MULTICALL3, blockTag)) !== '0x';
-      if (!batch) {
-        await Promise.all(
-          reads.map(async (read) => {
-            try {
-              const result = await provider.call(
-                { to: read.target, data: read.data },
-                blockTag,
-              );
-              assert(isHex(result), 'Invalid token read response');
-              read.resolve(result);
-            } catch (error) {
-              read.reject(error);
-            }
-          }),
-        );
-        return;
-      }
-      for (let offset = 0; offset < reads.length; offset += MAX_BATCH_SIZE) {
-        const chunk = reads.slice(offset, offset + MAX_BATCH_SIZE);
+      code = await provider.getCode(MULTICALL3, blockTag);
+    } catch {
+      await this.readDirect(provider, reads, blockTag);
+      return;
+    }
+    if (code === '0x') {
+      await this.readDirect(provider, reads, blockTag);
+      return;
+    }
+
+    for (let offset = 0; offset < reads.length; offset += MAX_BATCH_SIZE) {
+      const chunk = reads.slice(offset, offset + MAX_BATCH_SIZE);
+      try {
         const data = encodeFunctionData({
           abi: multicall3Abi,
           functionName: 'aggregate3',
@@ -268,9 +271,32 @@ export class TokenBalanceReader {
               ),
             );
         }
+      } catch {
+        // Aggregate RPC failures (including call-gas caps) need not affect
+        // individual token reads. Only retry the failed chunk.
+        await this.readDirect(provider, chunk, blockTag);
       }
-    } catch (error) {
-      for (const read of reads) read.reject(error);
     }
+  }
+
+  private async readDirect(
+    provider: providers.Provider,
+    reads: Read[],
+    blockTag: BlockTag,
+  ): Promise<void> {
+    await Promise.all(
+      reads.map(async (read) => {
+        try {
+          const result = await provider.call(
+            { to: read.target, data: read.data },
+            blockTag,
+          );
+          assert(isHex(result), 'Invalid token read response');
+          read.resolve(result);
+        } catch (error) {
+          read.reject(error);
+        }
+      }),
+    );
   }
 }

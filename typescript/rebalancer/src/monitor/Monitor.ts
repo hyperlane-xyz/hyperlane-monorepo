@@ -120,6 +120,9 @@ export class Monitor implements IMonitor {
             confirmedBlockTags,
           };
 
+          // Multicall only combines simultaneous reads on the same chain and
+          // block tag. One-token-per-chain routes still benefit from adapter
+          // reuse, but do not reduce balance calls through batching.
           const tokenResults = await Promise.allSettled(
             this.warpCore.tokens.map(async (token) => ({
               token,

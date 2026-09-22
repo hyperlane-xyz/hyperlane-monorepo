@@ -5,10 +5,15 @@ import {
   decodeFunctionData,
   encodeAbiParameters,
   encodeFunctionResult,
+  erc20Abi,
   isHex,
   multicall3Abi,
 } from 'viem';
-import { assert } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  convertToProtocolAddress,
+  ProtocolType,
+} from '@hyperlane-xyz/utils';
 import { test1, test2 } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
@@ -99,6 +104,19 @@ describe('TokenBalanceReader', () => {
     expect(call.callCount).to.equal(4);
   });
 
+  it('normalizes a Tron owner before encoding an EVM balance read', async () => {
+    const { reader, call } = setup();
+    const owner = address(10);
+    const tronOwner = convertToProtocolAddress(owner, ProtocolType.Tron);
+    expect(await reader.getBalance(token(1), tronOwner)).to.equal(7n);
+    const data = await call.firstCall.args[0].data;
+    assert(isHex(data), 'Expected balance calldata');
+    const decoded = decodeFunctionData({ abi: erc20Abi, data });
+    expect(decoded.functionName).to.equal('balanceOf');
+    assert(decoded.args?.[0], 'Expected owner argument');
+    expect(decoded.args[0].toLowerCase()).to.equal(owner);
+  });
+
   it('uses direct calls when the requested block predates Multicall', async () => {
     const { reader, call, code } = setup();
     code.resolves('0x');
@@ -134,17 +152,38 @@ describe('TokenBalanceReader', () => {
     expect(results[2]).to.deep.equal({ status: 'fulfilled', value: 5n });
   });
 
-  it('propagates RPC errors and clears the queue for the next cycle', async () => {
+  it('retries direct token calls after a failed Multicall probe', async () => {
     const { reader, call, code } = setup();
     code.rejects(new Error('RPC unavailable'));
+    expect(
+      await Promise.all(
+        [1, 2, 3].map((i) => reader.getBridgedSupply(token(i))),
+      ),
+    ).to.deep.equal([7n, 7n, 7n]);
+    expect(call.callCount).to.equal(3);
+  });
+
+  it('retries a failed aggregate directly and isolates token call errors', async () => {
+    const { reader, call } = setup();
+    call.callsFake(async (tx) => {
+      const data = await tx.data;
+      assert(isHex(data), 'Expected calldata');
+      if (data.startsWith('0x82ad56cb')) throw new Error('Batch gas limit');
+      if (tx.to === address(2)) throw new Error('Token RPC error');
+      return uint(7n);
+    });
     const results = await Promise.allSettled(
       [1, 2, 3].map((i) => reader.getBridgedSupply(token(i))),
     );
-    expect(results.every((r) => r.status === 'rejected')).to.equal(true);
-    expect(call.callCount).to.equal(0);
-    code.resolves('0x1234');
+    expect(results.map((r) => r.status)).to.deep.equal([
+      'fulfilled',
+      'rejected',
+      'fulfilled',
+    ]);
+    expect(call.callCount).to.equal(4);
+    call.resolves(uint(8n));
     await reader.getBridgedSupply(token(1));
-    expect(call.callCount).to.equal(1);
+    expect(call.callCount).to.equal(5);
   });
 
   it('bounds large batches', async () => {
