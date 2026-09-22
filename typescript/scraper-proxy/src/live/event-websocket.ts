@@ -134,28 +134,28 @@ function stream(
 
 const STREAMS: Record<EventType, Stream> = {
   dispatch: stream(
-    'raw_message_dispatch',
+    'confirmed_raw_message_dispatch',
     'origin_domain',
     tables.raw_message_dispatch.columns,
     'origin_mailbox',
     'nonce',
   ),
   delivery: stream(
-    'delivered_message',
+    'confirmed_delivered_message',
     'domain',
     'time_created msg_id domain destination_mailbox destination_tx_id sequence'.split(
       ' ',
     ),
   ),
   gas_payment: stream(
-    'gas_payment',
+    'confirmed_gas_payment',
     'domain',
     'id time_created domain msg_id payment gas_amount tx_id log_index origin destination interchain_gas_paymaster sequence'.split(
       ' ',
     ),
   ),
   merkle_tree_insertion: stream(
-    'merkle_tree_insertion',
+    'confirmed_merkle_tree_insertion',
     'domain',
     'domain merkle_tree_hook leaf_index message_id block_number'.split(' '),
     'merkle_tree_hook',
@@ -1520,9 +1520,9 @@ function columns(stream: Stream, relation?: string): string {
 export function gasPaymentColumns(stream: Stream): string {
   return [
     columns(stream, 'event_row'),
-    `${q(GAS_PAYMENT_TRANSACTION)}.${q('hash')} AS ${q('origin_tx_hash')}`,
-    `${q(GAS_PAYMENT_BLOCK)}.${q('hash')} AS ${q('origin_block_hash')}`,
-    `${q(GAS_PAYMENT_BLOCK)}.${q('height')} AS ${q('origin_block_height')}`,
+    `COALESCE(${q('event_row')}.${q('transaction_hash')}, ${q(GAS_PAYMENT_TRANSACTION)}.${q('hash')}) AS ${q('origin_tx_hash')}`,
+    `COALESCE(${q('event_row')}.${q('block_hash')}, ${q(GAS_PAYMENT_BLOCK)}.${q('hash')}) AS ${q('origin_block_hash')}`,
+    `COALESCE(${q('event_row')}.${q('block_number')}, ${q(GAS_PAYMENT_BLOCK)}.${q('height')}) AS ${q('origin_block_height')}`,
   ].join(', ');
 }
 

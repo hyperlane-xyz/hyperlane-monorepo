@@ -524,53 +524,68 @@ impl Scraper {
         let domain = scraper.domain.clone();
 
         let mut tasks = Vec::with_capacity(2);
-        let (message_indexer, maybe_broadcaster) = self
-            .build_message_indexer(
-                domain.clone(),
-                self.core_metrics.clone(),
-                self.contract_sync_metrics.clone(),
-                store.clone(),
-                index_settings.clone(),
-            )
-            .await?;
-        tasks.push(message_indexer);
-
-        let delivery_indexer = self
-            .build_delivery_indexer(
-                domain.clone(),
-                self.core_metrics.clone(),
-                self.contract_sync_metrics.clone(),
-                store.clone(),
-                index_settings.clone(),
-            )
-            .await?;
-        tasks.push(delivery_indexer);
-
-        let gas_payment_indexer = self
-            .build_interchain_gas_payment_indexer(
-                domain.clone(),
-                self.core_metrics.clone(),
-                self.contract_sync_metrics.clone(),
-                store.clone(),
-                index_settings.clone(),
-                BroadcastMpscSender::<IndexingNotification>::map_get_receiver(
-                    maybe_broadcaster.as_ref(),
+        if let Some(config) = self.settings.near_head.get(&domain.id()) {
+            tasks.push(
+                crate::near_head::spawn(
+                    self.settings.chain_setup(&domain)?,
+                    config,
+                    store.clone(),
+                    self.core_metrics.clone(),
+                    self.chain_metrics.clone(),
+                    self.contract_sync_metrics.clone(),
                 )
-                .await,
-            )
-            .await?;
-        tasks.push(gas_payment_indexer);
+                .await?,
+            );
+        } else {
+            crate::near_head::ensure_legacy_mode(&store).await?;
+            let (message_indexer, maybe_broadcaster) = self
+                .build_message_indexer(
+                    domain.clone(),
+                    self.core_metrics.clone(),
+                    self.contract_sync_metrics.clone(),
+                    store.clone(),
+                    index_settings.clone(),
+                )
+                .await?;
+            tasks.push(message_indexer);
 
-        tasks.push(
-            self.build_merkle_tree_insertion_indexer(
-                domain.clone(),
-                self.core_metrics.clone(),
-                self.contract_sync_metrics.clone(),
-                store.clone(),
-                index_settings.clone(),
-            )
-            .await?,
-        );
+            let delivery_indexer = self
+                .build_delivery_indexer(
+                    domain.clone(),
+                    self.core_metrics.clone(),
+                    self.contract_sync_metrics.clone(),
+                    store.clone(),
+                    index_settings.clone(),
+                )
+                .await?;
+            tasks.push(delivery_indexer);
+
+            let gas_payment_indexer = self
+                .build_interchain_gas_payment_indexer(
+                    domain.clone(),
+                    self.core_metrics.clone(),
+                    self.contract_sync_metrics.clone(),
+                    store.clone(),
+                    index_settings.clone(),
+                    BroadcastMpscSender::<IndexingNotification>::map_get_receiver(
+                        maybe_broadcaster.as_ref(),
+                    )
+                    .await,
+                )
+                .await?;
+            tasks.push(gas_payment_indexer);
+
+            tasks.push(
+                self.build_merkle_tree_insertion_indexer(
+                    domain.clone(),
+                    self.core_metrics.clone(),
+                    self.contract_sync_metrics.clone(),
+                    store.clone(),
+                    index_settings.clone(),
+                )
+                .await?,
+            );
+        }
 
         tasks.push(self.build_raw_dispatch_reconciler(
             domain.clone(),
@@ -720,6 +735,7 @@ impl Scraper {
         reconciliation_metrics: RawDispatchReconciliationMetrics,
         store: HyperlaneDbStore,
     ) -> JoinHandle<()> {
+        let near_head = self.settings.near_head.contains_key(&domain.id());
         let domain_name = domain.name().to_owned();
         let span_domain_name = domain_name.clone();
         tokio::spawn(
@@ -735,6 +751,7 @@ impl Scraper {
                 let max_age_metric =
                     raw_dispatch_unenriched_max_age.with_label_values(&[&domain_name]);
                 let mut retry_backoff = RawDispatchRetryBackoff::default();
+                let mut event_cursors = [0; 2];
 
                 update_liveness_metric(&liveness_metric);
                 sleep_with_liveness(
@@ -775,6 +792,9 @@ impl Scraper {
                 );
 
                 loop {
+                    if near_head {
+                        crate::near_head::enrich(&store, &mut event_cursors).await;
+                    }
                     update_liveness_metric(&liveness_metric);
                     let now = Instant::now();
                     if schedule.global_not_before > now {
@@ -1042,7 +1062,14 @@ impl Scraper {
                     let discovery_delay = schedule.discovery_delay(now);
                     let sweep_delay = schedule.full_sweep_delay(now);
                     sleep_with_liveness(
-                        retry_delay.min(discovery_delay).min(sweep_delay),
+                        retry_delay
+                            .min(discovery_delay)
+                            .min(sweep_delay)
+                            .min(if near_head {
+                                Duration::from_secs(30)
+                            } else {
+                                Duration::MAX
+                            }),
                         &liveness_metric,
                     )
                     .await;
@@ -1652,6 +1679,7 @@ mod test {
             .collect();
 
         ScraperSettings {
+            near_head: HashMap::new(),
             base: Settings {
                 domains,
                 chains,

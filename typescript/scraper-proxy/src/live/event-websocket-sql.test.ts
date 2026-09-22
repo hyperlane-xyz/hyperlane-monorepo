@@ -7,7 +7,7 @@ const { gasPaymentColumns, gasPaymentMetadataJoins } =
   await import('./event-websocket.js');
 
 void describe('gas payment SQL helpers', () => {
-  void it('qualifies payment columns and aliases transaction and block metadata', () => {
+  void it('uses recorded log metadata before receipt enrichment and preserves legacy aliases', () => {
     assert.equal(
       gasPaymentColumns({
         columns: ['id', 'tx_id', 'payment'],
@@ -16,9 +16,9 @@ void describe('gas payment SQL helpers', () => {
         table: 'gas_payment',
       }),
       '"event_row"."id", "event_row"."tx_id", "event_row"."payment", ' +
-        '"event_transaction"."hash" AS "origin_tx_hash", ' +
-        '"event_block"."hash" AS "origin_block_hash", ' +
-        '"event_block"."height" AS "origin_block_height"',
+        'COALESCE("event_row"."transaction_hash", "event_transaction"."hash") AS "origin_tx_hash", ' +
+        'COALESCE("event_row"."block_hash", "event_block"."hash") AS "origin_block_hash", ' +
+        'COALESCE("event_row"."block_number", "event_block"."height") AS "origin_block_height"',
     );
   });
 

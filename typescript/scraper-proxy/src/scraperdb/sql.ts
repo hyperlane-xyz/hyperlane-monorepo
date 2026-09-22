@@ -57,7 +57,7 @@ export function buildSelect(table: TableName, args: SelectArgs = {}): Sql {
     cursorWhere(table, args.cursor, values),
   ].filter(Boolean);
   return {
-    sql: `SELECT ${distinct(table, args.distinct_on)}${columns(table, args.columns)} FROM ${q(table)}${filters.length ? ` WHERE ${filters.join(' AND ')}` : ''}${orderBy(table, args.order_by, args.cursor)}${limit(args.limit ?? args.batch_size ?? MAX.limit, values)}${offset(args.offset, values)}`,
+    sql: `SELECT ${distinct(table, args.distinct_on)}${columns(table, args.columns)} FROM ${q(tables[table].relation ?? table)}${filters.length ? ` WHERE ${filters.join(' AND ')}` : ''}${orderBy(table, args.order_by, args.cursor)}${limit(args.limit ?? args.batch_size ?? MAX.limit, values)}${offset(args.offset, values)}`,
     values,
   };
 }
@@ -82,7 +82,7 @@ export function buildCount(
       ? ''
       : limit(args.limit ?? args.batch_size, values);
   const offsetClause = offset(args.offset, values);
-  const source = `${q(table)}${whereClause}`;
+  const source = `${q(tables[table].relation ?? table)}${whereClause}`;
   const expression = countExpression(countColumns, count.distinct ?? false);
   return {
     sql:
@@ -108,7 +108,7 @@ export function buildByPk(
   const primaryKey = tables[table].primaryKey;
   assert(primaryKey, `${table} does not expose a primary-key query`);
   return {
-    sql: `SELECT ${columns(table, selected)} FROM ${q(table)} WHERE ${q(primaryKey)} = $1 LIMIT 1`,
+    sql: `SELECT ${columns(table, selected)} FROM ${q(tables[table].relation ?? table)} WHERE ${q(primaryKey)} = $1 LIMIT 1`,
     values: [id],
   };
 }
