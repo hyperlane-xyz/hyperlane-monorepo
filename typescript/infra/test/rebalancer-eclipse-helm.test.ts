@@ -15,7 +15,9 @@ describe('USDT Eclipse production manifest', () => {
         'config/environments/mainnet3/rebalancer/USDT/eclipsemainnet-config.yaml',
       ),
     );
-    const registryCommit = 'a'.repeat(40);
+    const registryCommit = loaded.deployment.registryCommit;
+    expect(registryCommit).to.equal('182e1be0c2df41b6e423b4934390daff1b6a72f9');
+    if (!registryCommit) throw new Error('Missing Eclipse registry pin');
     const chains = [
       'arbitrum',
       'bsc',
@@ -70,7 +72,9 @@ describe('USDT Eclipse production manifest', () => {
       { secretRef: { name: secret.spec.target.name } },
     ]);
     expect(container.image).to.equal(
-      'ghcr.io/hyperlane-xyz/hyperlane-node-services:66bb044-20260910-030014',
+      loaded.deployment.imageDigest
+        ? `ghcr.io/hyperlane-xyz/hyperlane-node-services@${loaded.deployment.imageDigest}`
+        : `ghcr.io/hyperlane-xyz/hyperlane-node-services:${loaded.deployment.imageTag}`,
     );
     expect(container.env).to.deep.include({
       name: 'MONITOR_ONLY',
@@ -98,11 +102,14 @@ describe('USDT Eclipse production manifest', () => {
         maxSolanaNativeSpendLamports: 10000000,
       },
     });
-    expect(runtime.strategy.chains.plasma.minAmount).to.deep.equal({
-      min: 0,
-      target: 0,
-      type: 'absolute',
-    });
+    expect(runtime.strategy.chains).not.to.have.property('plasma');
+    expect(
+      Object.keys(runtime.strategy.chains).reduce(
+        (total, chain) =>
+          total + runtime.strategy.chains[chain].minAmount.target,
+        0,
+      ),
+    ).to.equal(90000);
     expect(
       runtime.strategy.chains.arbitrum.override.tron.statusAdapter.sourceEid,
     ).to.equal(30110);
