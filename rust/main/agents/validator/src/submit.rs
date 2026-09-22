@@ -40,6 +40,8 @@ const CHECKPOINT_RECOVERY_TIMEOUT: Duration = Duration::from_secs(120);
 
 const REORG_STATUS_WRITE_TIMEOUT: Duration = Duration::from_secs(20);
 
+const REORG_STATUS_RETRY_INTERVAL: Duration = Duration::from_secs(5);
+
 const REORG_REPORT_TIMEOUT: Duration = Duration::from_secs(20);
 
 const CHECKPOINT_SUBMISSION_CHUNK_INTERVAL: Duration = Duration::from_millis(100);
@@ -158,6 +160,7 @@ pub(crate) struct ValidatorSubmitter {
     max_sign_concurrency: usize,
     reorg_reporter: Option<Arc<dyn ReorgReporter>>,
     readiness: Arc<ValidatorReadiness>,
+    reorg_halt: watch::Sender<bool>,
     checkpoint_wake: Option<Arc<Notify>>,
     websocket_healthy: Option<Arc<AtomicBool>>,
     rpc_recovery: Option<MerkleTreeRpcRecovery>,
@@ -197,6 +200,7 @@ impl ValidatorSubmitter {
             max_sign_concurrency,
             reorg_reporter,
             readiness,
+            reorg_halt: watch::channel(false).0,
             checkpoint_wake: None,
             websocket_healthy: None,
             rpc_recovery: None,
@@ -270,8 +274,7 @@ impl ValidatorSubmitter {
         match MerkleTreeSnapshot::capture(&tree) {
             Ok(snapshot) => {
                 if let Err(err) = self
-                    .checkpoint_syncer
-                    .write_merkle_snapshot(&snapshot)
+                    .unless_reorg(self.checkpoint_syncer.write_merkle_snapshot(&snapshot))
                     .await
                 {
                     warn!(
@@ -545,11 +548,12 @@ impl ValidatorSubmitter {
 
     async fn persist_consensus_snapshot(&self, tree: &IncrementalMerkle) {
         let snapshot = MerkleTreeSnapshot::capture(tree).expect("verified nonempty tree");
-        match tokio::time::timeout(
-            REORG_STATUS_WRITE_TIMEOUT,
-            self.checkpoint_syncer.write_merkle_snapshot(&snapshot),
-        )
-        .await
+        match self
+            .unless_reorg(tokio::time::timeout(
+                REORG_STATUS_WRITE_TIMEOUT,
+                self.checkpoint_syncer.write_merkle_snapshot(&snapshot),
+            ))
+            .await
         {
             Ok(Ok(())) => {}
             Ok(Err(err)) => warn!(?err, "Failed to persist consensus snapshot"),
@@ -1118,6 +1122,8 @@ impl ValidatorSubmitter {
         // If the tree's checkpoint doesn't match the correctness checkpoint, something went wrong
         // and we bail loudly.
         if checkpoint != correctness_checkpoint.checkpoint {
+            self.reorg_halt.send_replace(true);
+            self.readiness.mark_operation_blocked("checkpoint_reorg");
             let reorg_event = ReorgEvent::new(
                 checkpoint.root,
                 correctness_checkpoint.root,
@@ -1134,18 +1140,23 @@ impl ValidatorSubmitter {
 
             // Persist the restart guard before best-effort diagnostics: an RPC can
             // stall or retry indefinitely when the requested block was pruned.
-            let mut panic_message = "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until you receive support.".to_owned();
-            let result = tokio::time::timeout(
-                REORG_STATUS_WRITE_TIMEOUT,
-                self.checkpoint_syncer.write_reorg_status(&reorg_event),
-            )
-            .await
-            .unwrap_or_else(|_| Err(eyre::eyre!("Timed out writing reorg status")));
-            if let Err(err) = result {
-                error!(?err, "Failed to persist reorg status; validator will halt, but checkpoint storage has no confirmed restart guard");
-                panic_message.push_str(&format!(
-                    " Reorg status couldn't be written to checkpoint storage: {err}"
-                ));
+            let panic_message = "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until you receive support.";
+            loop {
+                let result = tokio::time::timeout(
+                    REORG_STATUS_WRITE_TIMEOUT,
+                    self.checkpoint_syncer.write_reorg_status(&reorg_event),
+                )
+                .await
+                .unwrap_or_else(|_| Err(eyre::eyre!("Timed out writing reorg status")));
+                match result {
+                    Ok(()) => break,
+                    Err(err) => {
+                        error!(?err, "Failed to persist reorg status; signing remains halted while retrying. Do NOT restart: checkpoint storage has no confirmed restart guard");
+                        // Do not crashloop without a durable guard: startup could
+                        // otherwise observe an absent flag and resume signing.
+                        sleep(REORG_STATUS_RETRY_INTERVAL).await;
+                    }
+                }
             }
 
             // Lightweight/consensus mode uses its own endpoint verification.
@@ -1246,6 +1257,20 @@ impl ValidatorSubmitter {
         }
     }
 
+    // Every cloned live/historical submitter shares this irreversible halt.
+    // Drop pending signing/publication futures on reorg, then stay halted until
+    // the detecting worker persists the guard and terminates the process.
+    async fn unless_reorg<T>(&self, action: impl std::future::Future<Output = T>) -> T {
+        let mut halted = self.reorg_halt.subscribe();
+        tokio::select! {
+            biased;
+            _ = async {
+                let _ = halted.wait_for(|halted| *halted).await;
+            } => std::future::pending().await,
+            result = action => result,
+        }
+    }
+
     async fn sign_checkpoint(
         &self,
         checkpoint: CheckpointWithMessageId,
@@ -1253,7 +1278,7 @@ impl ValidatorSubmitter {
         let signer_retries = 5;
 
         for i in 0..signer_retries {
-            match self.signer.sign(checkpoint).await {
+            match self.unless_reorg(self.signer.sign(checkpoint)).await {
                 Ok(signed_checkpoint) => return Ok(signed_checkpoint),
                 Err(err) => {
                     tracing::warn!(
@@ -1275,7 +1300,9 @@ impl ValidatorSubmitter {
         );
 
         // Now try the singleton signer as a last resort
-        Ok(self.singleton_signer.sign(checkpoint).await?)
+        Ok(self
+            .unless_reorg(self.singleton_signer.sign(checkpoint))
+            .await?)
     }
 
     async fn sign_and_submit_checkpoint(
@@ -1284,8 +1311,7 @@ impl ValidatorSubmitter {
     ) -> ChainResult<bool> {
         let start = Instant::now();
         let existing = self
-            .checkpoint_syncer
-            .fetch_checkpoint(checkpoint.index)
+            .unless_reorg(self.checkpoint_syncer.fetch_checkpoint(checkpoint.index))
             .await?;
         tracing::trace!(
             elapsed=?start.elapsed(),
@@ -1318,8 +1344,7 @@ impl ValidatorSubmitter {
         );
 
         let start = Instant::now();
-        self.checkpoint_syncer
-            .write_checkpoint(&signed_checkpoint)
+        self.unless_reorg(self.checkpoint_syncer.write_checkpoint(&signed_checkpoint))
             .await?;
         tracing::trace!(
             elapsed=?start.elapsed(),
@@ -1336,8 +1361,7 @@ impl ValidatorSubmitter {
             Box::pin(async move {
                 let start = Instant::now();
                 let result = self_clone
-                    .checkpoint_syncer
-                    .update_latest_index(index)
+                    .unless_reorg(self_clone.checkpoint_syncer.update_latest_index(index))
                     .await;
                 match result {
                     Ok(()) => self_clone

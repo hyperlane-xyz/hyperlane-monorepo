@@ -1277,21 +1277,55 @@ async fn reorg_status_precedes_stalled_diagnostics_and_signing_halts() {
 }
 
 #[derive(Debug)]
-struct StalledReorgSyncer;
+struct RetryingReorgSyncer {
+    attempts: Arc<AtomicUsize>,
+    stall_write: bool,
+    succeed_after: Option<usize>,
+    publication: Option<Arc<BlockedPublication>>,
+}
+
+#[derive(Debug, Default)]
+struct BlockedPublication {
+    started: Notify,
+    release: Notify,
+    cancelled: Notify,
+    completed: AtomicBool,
+}
+
+struct PublicationDrop(Arc<BlockedPublication>);
+
+impl Drop for PublicationDrop {
+    fn drop(&mut self) {
+        self.0.cancelled.notify_one();
+    }
+}
+
+impl RetryingReorgSyncer {
+    async fn publish(&self) -> Result<()> {
+        let publication = self.publication.as_ref().expect("unexpected publication");
+        let _drop = PublicationDrop(publication.clone());
+        publication.started.notify_one();
+        publication.release.notified().await;
+        publication.completed.store(true, Ordering::SeqCst);
+        Ok(())
+    }
+}
 
 #[async_trait]
-impl CheckpointSyncer for StalledReorgSyncer {
+impl CheckpointSyncer for RetryingReorgSyncer {
     async fn latest_index(&self) -> Result<Option<u32>> {
-        panic!("unexpected checkpoint read")
+        assert!(self.publication.is_some(), "unexpected checkpoint read");
+        Ok(None)
     }
     async fn write_latest_index(&self, _index: u32) -> Result<()> {
-        panic!("unexpected checkpoint publication")
+        self.publish().await
     }
     async fn fetch_checkpoint(&self, _index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
-        panic!("unexpected checkpoint read")
+        assert!(self.publication.is_some(), "unexpected checkpoint read");
+        Ok(None)
     }
     async fn write_checkpoint(&self, _checkpoint: &SignedCheckpointWithMessageId) -> Result<()> {
-        panic!("unexpected checkpoint publication")
+        self.publish().await
     }
     async fn write_metadata(&self, _metadata: &str) -> Result<()> {
         panic!("unexpected metadata write")
@@ -1303,7 +1337,18 @@ impl CheckpointSyncer for StalledReorgSyncer {
         panic!("unexpected announcement location")
     }
     async fn write_reorg_status(&self, _event: &ReorgEvent) -> Result<()> {
-        std::future::pending().await
+        let attempt = self.attempts.fetch_add(1, Ordering::SeqCst);
+        if self
+            .succeed_after
+            .is_some_and(|failures| attempt >= failures)
+        {
+            return Ok(());
+        }
+        if self.stall_write {
+            std::future::pending().await
+        } else {
+            Err(eyre::eyre!("checkpoint storage unavailable"))
+        }
     }
     async fn reorg_status(&self) -> Result<ReorgEventResponse> {
         panic!("unexpected reorg status read")
@@ -1311,26 +1356,100 @@ impl CheckpointSyncer for StalledReorgSyncer {
 }
 
 #[tokio::test(start_paused = true)]
-async fn reorg_status_failure_or_timeout_still_halts_signing() {
+async fn reorg_status_failure_blocks_readiness_without_unguarded_restart() {
     for report_rpc in [false, true] {
         for stall_write in [false, true] {
             let mut submitter = dummy_submitter(Duration::from_secs(1));
-            if stall_write {
-                submitter.checkpoint_syncer = Arc::new(StalledReorgSyncer);
-            } else {
-                let mut syncer = MockCheckpointSyncer::new();
-                syncer
-                    .expect_write_reorg_status()
-                    .once()
-                    .returning(|_| Err(eyre::eyre!("checkpoint storage unavailable")));
-                submitter.checkpoint_syncer = Arc::new(syncer);
-            }
+            let attempts = Arc::new(AtomicUsize::new(0));
+            submitter.checkpoint_syncer = Arc::new(RetryingReorgSyncer {
+                attempts: attempts.clone(),
+                stall_write,
+                succeed_after: None,
+                publication: None,
+            });
+            // Neither diagnostics nor checkpoint publication may run without a guard.
+            let readiness = submitter.readiness.clone();
+            readiness.mark_operation_ready("initial_checkpoint");
+            let (_, _, _, target, _) = three_leaf_snapshot_fixture();
+            let checkpoint = Checkpoint {
+                root: H256::repeat_byte(99),
+                ..target.checkpoint
+            };
+            let sibling = Arc::new(submitter.clone());
+            let task = tokio::spawn(async move {
+                submitter
+                    .verify_checkpoint(checkpoint, &target, report_rpc)
+                    .await;
+            });
+            tokio::task::yield_now().await;
+            assert_eq!(
+                readiness.snapshot().state,
+                ValidatorReadinessState::SigningBlocked
+            );
+            assert_eq!(
+                readiness.snapshot().blocked_operations,
+                vec!["checkpoint_reorg"]
+            );
+            let checkpoint = CheckpointWithMessageId {
+                checkpoint,
+                message_id: H256::zero(),
+            };
+            // All live/history/consensus workers clone the same signing and publication gate.
+            assert!(tokio::time::timeout(
+                Duration::from_millis(1),
+                sibling.sign_checkpoint(checkpoint)
+            )
+            .await
+            .is_err());
+            assert!(tokio::time::timeout(
+                Duration::from_millis(1),
+                sibling.sign_and_submit_checkpoint(checkpoint)
+            )
+            .await
+            .is_err());
+            assert!(tokio::time::timeout(
+                Duration::from_millis(1),
+                sibling.publish_latest_checkpoint_index(checkpoint.index)
+            )
+            .await
+            .is_err());
+            // Multiple timed-out/error attempts must remain halted in this process.
+            tokio::time::sleep(Duration::from_secs(61)).await;
+            assert!(
+                !task.is_finished(),
+                "must not restart without a persisted guard"
+            );
+            assert!(attempts.load(Ordering::SeqCst) >= 3);
+            assert!(readiness.snapshot().signing_blocked);
+            task.abort();
+            assert!(task
+                .await
+                .expect_err("abort halted test task")
+                .is_cancelled());
+        }
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn reorg_status_retries_until_guard_is_persisted_then_exits() {
+    for report_rpc in [false, true] {
+        for stall_write in [false, true] {
+            let mut submitter = dummy_submitter(Duration::from_secs(1));
+            let attempts = Arc::new(AtomicUsize::new(0));
+            submitter.checkpoint_syncer = Arc::new(RetryingReorgSyncer {
+                attempts: attempts.clone(),
+                stall_write,
+                succeed_after: Some(2),
+                publication: None,
+            });
             let mut reporter = MockReorgReporter::new();
+            let observed_attempts = attempts.clone();
             reporter
                 .expect_report_at_block()
                 .times(usize::from(report_rpc))
-                .returning(|_| ());
+                .returning(move |_| assert_eq!(observed_attempts.load(Ordering::SeqCst), 3));
             submitter.reorg_reporter = Some(Arc::new(reporter));
+            let readiness = submitter.readiness.clone();
             let (_, _, _, target, _) = three_leaf_snapshot_fixture();
             let target = CheckpointAtBlock {
                 block_height: Some(42),
@@ -1341,27 +1460,136 @@ async fn reorg_status_failure_or_timeout_still_halts_signing() {
                 ..target.checkpoint
             };
             let panic = tokio::time::timeout(
-                REORG_STATUS_WRITE_TIMEOUT + Duration::from_secs(1),
+                Duration::from_secs(51),
                 std::panic::AssertUnwindSafe(
                     submitter.verify_checkpoint(checkpoint, &target, report_rpc),
                 )
                 .catch_unwind(),
             )
             .await
-            .expect("stalled storage must not prevent termination")
-            .expect_err("a conflicting root must halt signing");
-            let message = panic
+            .expect("guard persistence permits a bounded exit")
+            .expect_err("conflicting root must never resume signing");
+            assert!(panic
                 .downcast_ref::<String>()
-                .expect("reorg panic contains a formatted diagnostic");
-            assert!(message.contains("Incorrect tree root"));
-            assert!(message.contains("couldn't be written to checkpoint storage"));
-            assert!(message.contains(if stall_write {
-                "Timed out writing reorg status"
-            } else {
-                "checkpoint storage unavailable"
-            }));
+                .expect("reorg diagnostic")
+                .contains("Incorrect tree root"));
+            assert_eq!(attempts.load(Ordering::SeqCst), 3);
+            assert!(readiness.snapshot().signing_blocked);
         }
     }
+}
+
+#[tokio::test(start_paused = true)]
+async fn reorg_cancels_sibling_publication_already_waiting_on_storage() {
+    for latest_index in [false, true] {
+        let mut submitter = dummy_submitter(Duration::from_secs(1));
+        let publication = Arc::new(BlockedPublication::default());
+        submitter.checkpoint_syncer = Arc::new(RetryingReorgSyncer {
+            attempts: Arc::new(AtomicUsize::new(0)),
+            stall_write: true,
+            succeed_after: None,
+            publication: Some(publication.clone()),
+        });
+        let sibling = Arc::new(submitter.clone());
+        let (_, _, checkpoint, target, _) = three_leaf_snapshot_fixture();
+        let publisher = tokio::spawn(async move {
+            if latest_index {
+                sibling
+                    .publish_latest_checkpoint_index(checkpoint.index)
+                    .await;
+            } else {
+                sibling
+                    .sign_and_submit_checkpoint(checkpoint)
+                    .await
+                    .expect("checkpoint publication");
+            }
+        });
+        publication.started.notified().await;
+        let conflicting = Checkpoint {
+            root: H256::repeat_byte(99),
+            ..target.checkpoint
+        };
+        let detector = tokio::spawn(async move {
+            submitter
+                .verify_checkpoint(conflicting, &target, false)
+                .await;
+        });
+        tokio::time::timeout(Duration::from_secs(1), publication.cancelled.notified())
+            .await
+            .expect("reorg must drop the pending publication future");
+        publication.release.notify_one();
+        tokio::task::yield_now().await;
+        assert!(!publication.completed.load(Ordering::SeqCst));
+        assert!(!publisher.is_finished(), "sibling publication stays halted");
+        assert!(
+            !detector.is_finished(),
+            "guard storage is still unavailable"
+        );
+        publisher.abort();
+        detector.abort();
+        assert!(publisher
+            .await
+            .expect_err("abort halted publisher")
+            .is_cancelled());
+        assert!(detector
+            .await
+            .expect_err("abort halted detector")
+            .is_cancelled());
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn reorg_closes_queued_singleton_signing_callbacks() {
+    let mut submitter = dummy_submitter(Duration::from_secs(1));
+    let (tx, mut queue) = mpsc::unbounded_channel();
+    submitter.singleton_signer = SingletonSignerHandle::new(H160::zero(), tx);
+    submitter.checkpoint_syncer = Arc::new(RetryingReorgSyncer {
+        attempts: Arc::new(AtomicUsize::new(0)),
+        stall_write: true,
+        succeed_after: None,
+        publication: None,
+    });
+    let (_, _, checkpoint, target, _) = three_leaf_snapshot_fixture();
+    let mut waiters = Vec::new();
+    for _ in 0..2 {
+        let sibling = submitter.clone();
+        waiters.push(tokio::spawn(async move {
+            // Exercise the actual singleton fallback gate with queued requests.
+            sibling
+                .unless_reorg(sibling.singleton_signer.sign(checkpoint))
+                .await
+        }));
+    }
+    let (_, mut first) = queue.recv().await.expect("first queued fallback");
+    let (_, mut second) = queue.recv().await.expect("second queued fallback");
+    let conflicting = Checkpoint {
+        root: H256::repeat_byte(99),
+        ..target.checkpoint
+    };
+    let detector = tokio::spawn(async move {
+        submitter
+            .verify_checkpoint(conflicting, &target, false)
+            .await;
+    });
+    tokio::time::timeout(Duration::from_secs(1), async {
+        first.closed().await;
+        second.closed().await;
+    })
+    .await
+    .expect("reorg must close queued singleton response receivers");
+    for waiter in waiters {
+        assert!(!waiter.is_finished(), "fallback caller remains halted");
+        waiter.abort();
+        assert!(waiter
+            .await
+            .expect_err("abort halted fallback")
+            .is_cancelled());
+    }
+    detector.abort();
+    assert!(detector
+        .await
+        .expect_err("abort halted detector")
+        .is_cancelled());
 }
 
 #[tokio::test]

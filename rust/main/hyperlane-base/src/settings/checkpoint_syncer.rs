@@ -2,9 +2,8 @@ use std::{env, path::PathBuf};
 
 use aws_config::Region;
 use core::str::FromStr;
-use eyre::{eyre, Report, Result};
+use eyre::{eyre, Context, Report, Result};
 use prometheus::IntGauge;
-use tracing::error;
 use ya_gcp::{AuthFlow, ServiceAccountAuth};
 
 use hyperlane_core::{ChainCommunicationError, ReorgEventResponse};
@@ -129,18 +128,12 @@ impl CheckpointSyncerConf {
     ) -> Result<Box<dyn CheckpointSyncer>, CheckpointSyncerBuildError> {
         let syncer: Box<dyn CheckpointSyncer> = self.build(latest_index_gauge).await?;
 
-        match syncer.reorg_status().await {
-            Ok(event) => {
-                if event.exists {
-                    return Err(CheckpointSyncerBuildError::ReorgFlag(event));
-                }
-            }
-            Err(err) => {
-                error!(
-                    ?err,
-                    "Failed to read reorg status. Assuming no reorg occurred."
-                );
-            }
+        let event = syncer
+            .reorg_status()
+            .await
+            .wrap_err("Failed to read reorg status; refusing to initialize checkpoint syncer")?;
+        if event.exists {
+            return Err(CheckpointSyncerBuildError::ReorgFlag(event));
         }
         Ok(syncer)
     }
@@ -289,6 +282,35 @@ mod test {
             }
             _ => panic!("Expected a reorg event error"),
         }
+    }
+
+    #[tokio::test]
+    async fn unreadable_reorg_status_prevents_startup() {
+        use super::*;
+
+        let directory = tempfile::tempdir().expect("checkpoint directory");
+        let conf = CheckpointSyncerConf::LocalStorage {
+            path: directory.path().to_owned(),
+        };
+        // An actually missing flag permits first startup.
+        conf.build_and_validate(None)
+            .await
+            .expect("missing reorg flag");
+        // A directory at the flag path deterministically produces a read error,
+        // including when the test runs as root (unlike mode-bit permission tests).
+        std::fs::create_dir(directory.path().join("reorg_flag.json"))
+            .expect("unreadable flag fixture");
+        let error = conf
+            .build_and_validate(None)
+            .await
+            .expect_err("read errors must fail closed");
+        assert!(matches!(error, CheckpointSyncerBuildError::Other(_)));
+        assert!(error.to_string().contains("Failed to read reorg status"));
+        std::fs::remove_dir(directory.path().join("reorg_flag.json"))
+            .expect("repair unreadable flag fixture");
+        conf.build_and_validate(None)
+            .await
+            .expect("startup can retry after status becomes readable");
     }
 
     #[test]
