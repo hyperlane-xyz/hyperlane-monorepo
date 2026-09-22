@@ -129,16 +129,17 @@ async fn collect_response(response: Response<Body>) -> Result<Response<Bytes>> {
     while let Some(chunk) = body.data().await {
         let chunk = chunk?;
         ensure!(
-            chunk.len() < MAX_CHECKPOINT_OBJECT_SIZE - bytes.len(),
+            chunk.len() < MAX_CHECKPOINT_OBJECT_SIZE.saturating_sub(bytes.len()),
             "GCS response exceeds checkpoint object limit of {} bytes",
             MAX_CHECKPOINT_OBJECT_SIZE
         );
-        if bytes.len() + chunk.len() > bytes.capacity() {
+        if chunk.len() > bytes.capacity().saturating_sub(bytes.len()) {
             // Grow geometrically for tiny chunks without exceeding the byte cap.
-            let additional = chunk
-                .len()
-                .max(bytes.capacity())
-                .min(MAX_CHECKPOINT_OBJECT_SIZE - 1 - bytes.len());
+            let additional = chunk.len().max(bytes.capacity()).min(
+                MAX_CHECKPOINT_OBJECT_SIZE
+                    .saturating_sub(bytes.len())
+                    .saturating_sub(1),
+            );
             bytes.reserve_exact(additional);
         }
         bytes.extend_from_slice(&chunk);

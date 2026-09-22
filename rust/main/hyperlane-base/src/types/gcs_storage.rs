@@ -155,7 +155,7 @@ impl GcsStorageClient {
             }
             Err(e) => {
                 error!("Failed to upload to '{}': {:?}", object_name, e);
-                Err(e.into())
+                Err(e)
             }
         }
     }
