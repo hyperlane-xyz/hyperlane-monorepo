@@ -1,0 +1,85 @@
+warpRouteId: oUSDT/production
+
+# Candidate built from dc0ef47a78 via node-services-docker.yml run 35720770825.
+# Provider, collateral and settlement gates still apply before rollout.
+deployment:
+  imageTag: dc0ef47-20260922-111927
+  imageDigest: sha256:98ca73b0065c4be4f60246dc8f39d975558151e932a59ad18d662996b0f75d68
+  swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key-ousdt
+  registryCommit: 0b7518b88967309b0ca30827ec418852873bdc7e
+
+# Intent TTL is two weeks in memory; it does not survive restart. Source-started
+# or ambiguous submissions remain reserved for the process lifetime, including
+# after TTL expiry. Reconcile transactions before restarting; never infer that
+# an ambiguous source submission is safe to retry from elapsed time alone.
+intentTTL: 1209600
+
+inventorySigners:
+  ethereum: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
+  tron: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
+
+externalBridges:
+  lifi:
+    integrator: rebalancer
+  swapsxyz:
+    defaultSlippage: 0.005
+    maxQuoteLossBps: 250
+
+strategy:
+  rebalanceStrategy: minAmount
+  chains:
+    arbitrum:
+      executionType: inventory
+      externalBridge: swapsxyz
+      minAmount:
+        min: 1000
+        target: 3000
+        type: absolute
+      override:
+        celo:
+          externalBridge: lifi
+        tron:
+          executionType: movableCollateral
+          bridge: '0x9323793FB9a071ce5fE839079925c0e39f37170F'
+          bridgeMinAcceptedAmount: 1000
+          statusAdapter:
+            kind: lz_scan
+            sourceEid: 30110
+            destinationEid: 30420
+            sourceOft: '0x77652D5aba086137b595875263FC200182919B92'
+            destinationOft: '0x3a08f76772e200653bb55c2a92998daca62e0e97'
+    celo:
+      executionType: inventory
+      externalBridge: swapsxyz
+      minAmount:
+        min: 1000
+        target: 3000
+        type: absolute
+    ethereum:
+      executionType: inventory
+      externalBridge: swapsxyz
+      minAmount:
+        min: 640000
+        target: 650000
+        type: absolute
+      override:
+        celo:
+          externalBridge: lifi
+    tron:
+      executionType: inventory
+      externalBridge: swapsxyz
+      minAmount:
+        min: 1000
+        target: 3000
+        type: absolute
+      override:
+        arbitrum:
+          executionType: movableCollateral
+          bridge: '0x43Bb7C9C64a05af94d67B52883a60756950058D7'
+          bridgeMinAcceptedAmount: 1000
+          statusAdapter:
+            kind: lz_scan
+            sourceEid: 30420
+            destinationEid: 30110
+            sourceOft: '0x3a08f76772e200653bb55c2a92998daca62e0e97'
+            destinationOft: '0x77652D5aba086137b595875263FC200182919B92'
