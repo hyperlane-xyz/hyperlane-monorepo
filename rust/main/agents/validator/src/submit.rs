@@ -1,5 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use std::time::{Duration, Instant};
 use std::vec;
 
@@ -152,6 +155,7 @@ pub(crate) struct ValidatorSubmitter {
     reorg_reporter: Option<Arc<dyn ReorgReporter>>,
     readiness: Arc<ValidatorReadiness>,
     checkpoint_wake: Option<Arc<Notify>>,
+    websocket_healthy: Option<Arc<AtomicBool>>,
     rpc_recovery: Option<MerkleTreeRpcRecovery>,
     recovery_progress: Arc<tokio::sync::Mutex<RecoveryProgress>>,
     historical_publication: bool,
@@ -190,6 +194,7 @@ impl ValidatorSubmitter {
             reorg_reporter,
             readiness,
             checkpoint_wake: None,
+            websocket_healthy: None,
             rpc_recovery: None,
             recovery_progress: Arc::default(),
             historical_publication: false,
@@ -200,6 +205,17 @@ impl ValidatorSubmitter {
     pub(crate) fn with_checkpoint_wake(mut self, checkpoint_wake: Option<Arc<Notify>>) -> Self {
         self.checkpoint_wake = checkpoint_wake;
         self
+    }
+
+    pub(crate) fn with_websocket_health(mut self, health: Option<Arc<AtomicBool>>) -> Self {
+        self.websocket_healthy = health;
+        self
+    }
+
+    fn websocket_is_healthy(&self) -> bool {
+        self.websocket_healthy
+            .as_ref()
+            .is_some_and(|health| health.load(Ordering::Acquire))
     }
 
     pub(crate) fn with_rpc_recovery(mut self, recovery: MerkleTreeRpcRecovery) -> Self {
@@ -315,7 +331,7 @@ impl ValidatorSubmitter {
             }
             let next_index =
                 u32::try_from(tree.committed.count()).expect("Merkle leaf count fits in u32");
-            if self.rpc_recovery.is_none()
+            if (self.rpc_recovery.is_none() || self.websocket_is_healthy())
                 && samples.is_none()
                 && self
                     .db
@@ -798,7 +814,24 @@ impl ValidatorSubmitter {
             true
         };
 
+        let mut next_rpc_attempt = tokio::time::Instant::now();
         loop {
+            // A healthy stream wakes us for new insertions. Keep RPC verification
+            // pending until those insertions reach the configured reorg depth.
+            if self.websocket_is_healthy()
+                && self
+                    .db
+                    .retrieve_merkle_tree_insertion_by_leaf_index(
+                        &u32::try_from(tree.count()).expect("Merkle leaf count fits in u32"),
+                    )
+                    .expect("Failed to fetch merkle tree insertion")
+                    .is_none()
+            {
+                self.wait_for_checkpoint_check().await;
+                continue;
+            }
+            // WebSocket notifications may wake pending work, but cannot accelerate RPC reads.
+            tokio::time::sleep_until(next_rpc_attempt).await;
             // Lag by reorg period because this is our correctness checkpoint.
             let latest_checkpoint = call_and_retry_indefinitely(|| {
                 let merkle_tree_hook = self.merkle_tree_hook.clone();
@@ -806,6 +839,10 @@ impl ValidatorSubmitter {
                 Box::pin(async move { merkle_tree_hook.latest_checkpoint(&reorg_period).await })
             })
             .await;
+
+            next_rpc_attempt = tokio::time::Instant::now()
+                .checked_add(self.interval)
+                .expect("checkpoint interval fits in Instant");
 
             self.metrics
                 .set_latest_checkpoint_observed(&latest_checkpoint);

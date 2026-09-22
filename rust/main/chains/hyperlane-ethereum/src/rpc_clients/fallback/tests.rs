@@ -1056,3 +1056,39 @@ async fn test_fallback_tx_receipt_all_null() {
         "Expected AllProvidersFailed error"
     );
 }
+
+#[tokio::test(start_paused = true)]
+async fn rate_limit_cooldown_skips_endpoint_across_calls_and_recovers() {
+    let limited = EthereumProviderMock::new(None);
+    let healthy = EthereumProviderMock::new(None);
+    push_read_response(&limited, MockReadResponse::RateLimitError);
+    push_read_response(&limited, MockReadResponse::Success(11));
+    push_read_response(&healthy, MockReadResponse::Success(22));
+    push_read_response(&healthy, MockReadResponse::Success(22));
+    let fallback = FallbackProviderBuilder::default()
+        .add_provider(limited.clone())
+        .add_provider(healthy)
+        .build();
+    let provider = EthereumFallbackProvider::new(fallback, false);
+    assert_eq!(provider.chain_id_test_call().await.unwrap(), 22);
+    assert_eq!(provider.chain_id_test_call().await.unwrap(), 22);
+    assert_eq!(limited.responses.immutable_read.lock().unwrap().len(), 1);
+    tokio::time::advance(Duration::from_secs(26)).await;
+    assert_eq!(provider.chain_id_test_call().await.unwrap(), 11);
+}
+
+#[tokio::test(start_paused = true)]
+async fn all_rate_limited_endpoints_do_not_retry_http_in_later_rounds() {
+    let limited = EthereumProviderMock::new(None);
+    push_read_response(&limited, MockReadResponse::RateLimitError);
+    push_read_response(&limited, MockReadResponse::Success(11));
+    let fallback = FallbackProviderBuilder::default()
+        .add_provider(limited.clone())
+        .build();
+    let provider = EthereumFallbackProvider::new(fallback, false);
+    assert!(provider.chain_id_test_call().await.is_err());
+    assert!(provider.chain_id_test_call().await.is_err());
+    assert_eq!(limited.responses.immutable_read.lock().unwrap().len(), 1);
+    tokio::time::advance(Duration::from_secs(26)).await;
+    assert_eq!(provider.chain_id_test_call().await.unwrap(), 11);
+}

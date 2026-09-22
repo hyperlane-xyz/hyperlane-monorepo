@@ -33,6 +33,7 @@ pub struct EthereumProviderMockResponses {
 pub enum MockReadResponse {
     Success(u64),
     RetryableError,
+    RateLimitError,
     NonRetryableError,
 }
 
@@ -152,6 +153,7 @@ impl JsonRpcClient for EthereumProviderMock {
                     }))
                     .unwrap(),
                 )),
+                Some(MockReadResponse::RateLimitError) => Err(super::RateLimitCooldown::error()),
                 Some(MockReadResponse::RetryableError) | None => dummy_error_return_value(),
             };
         }
