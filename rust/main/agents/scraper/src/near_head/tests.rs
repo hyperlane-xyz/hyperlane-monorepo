@@ -340,7 +340,7 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
         .unwrap();
     assert_eq!(row.try_get::<i64>("", "n")?, 1);
 
-    assert_eq!(store.prune_headers().await?, 1);
+    assert_eq!(store.prune_headers(0).await?.1, 1);
     assert!(store.hash(1).await?.is_none());
     assert!(store.hash(0).await?.is_some()); // Cutover anchor.
     assert!(store.hash(2).await?.is_some()); // Confirmed boundary.
@@ -364,6 +364,8 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
             .is_err()
     );
     assert_eq!(store.state().await?.unwrap().confirmed, 2);
+    let auxiliary_db = crate::db::ScraperDb::with_connection(Database::connect(&url).await?);
+    assert_eq!(confirmed_height(&auxiliary_db, store.domain).await?, 2);
 
     // A lower head must invalidate a previously computed confirmation boundary
     // even when the indexed tip is unchanged.
@@ -388,6 +390,7 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     chain.fork(3, 1, 2);
     assert!(observe(&chain, &store).await.is_err());
     assert!(store.state().await?.unwrap().halted);
+    assert!(confirmed_height(&auxiliary_db, store.domain).await.is_err());
     store.initialize(&anchor, &contracts()).await?;
     assert!(observe(&chain, &store).await.is_err());
     assert_eq!(count(&store, "confirmed_gas_payment").await?, 1);
@@ -436,7 +439,7 @@ async fn header_cleanup_preserves_enrichment_and_bounds_deletes() -> Result<()> 
         FROM gas_payment g JOIN block b ON b.domain=g.domain AND b.height=g.block_number;
         UPDATE gas_payment SET tx_id=(SELECT id FROM "transaction" WHERE hash=gas_payment.transaction_hash);
     "#).await?;
-    assert_eq!(store.prune_headers().await?, 3); // Empty blocks 1, 6, 7.
+    assert_eq!(store.prune_headers(0).await?.1, 3); // Empty blocks 1, 6, 7.
     enrichment.commit().await?;
     for height in [0, 2, 3, 4, 5, 8, 9, 10] {
         assert!(
@@ -444,7 +447,7 @@ async fn header_cleanup_preserves_enrichment_and_bounds_deletes() -> Result<()> 
             "Missing retained block {height}"
         );
     }
-    assert_eq!(store.prune_headers().await?, 0);
+    assert_eq!(store.prune_headers(0).await?.1, 0);
     // A lagging finality tag can point to a header already pruned; no new release.
     chain.fork(1, 1, 0);
     assert_eq!(
@@ -465,12 +468,12 @@ async fn header_cleanup_preserves_enrichment_and_bounds_deletes() -> Result<()> 
         INSERT INTO block(domain,height,hash,timestamp)
         SELECT 1,h,decode(lpad(to_hex(h+10000),64,'0'),'hex'),now() FROM generate_series(11,1110) AS h;
         UPDATE scraper_head SET head_height=1110,indexed_height=1110,confirmed_height=1110,
-            head_hash=(SELECT hash FROM block WHERE domain=1 AND height=1110),
             indexed_hash=(SELECT hash FROM block WHERE domain=1 AND height=1110);
     "#).await?;
-    assert_eq!(store.prune_headers().await?, 1000);
-    assert_eq!(store.prune_headers().await?, 102);
-    assert_eq!(store.prune_headers().await?, 0);
+    let (next, deleted) = store.prune_headers(0).await?;
+    assert_eq!(deleted, 996); // 1,000 candidates, including four retained headers.
+    assert_eq!(store.prune_headers(next).await?.1, 106);
+    assert_eq!(store.prune_headers(0).await?.1, 0);
     assert!(store.hash(1110).await?.is_some());
     migration::Migrator::down(&store.db, Some(1)).await?;
     migration::Migrator::up(&store.db, None).await?;

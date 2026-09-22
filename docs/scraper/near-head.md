@@ -52,14 +52,20 @@ chain cannot silently change its cutover or contracts.
   archived. A reorg crossing confirmed history persists a halt and raises the
   chain critical-error metric; recovery requires operator repair. This version
   cannot retract anything already consumed by a legacy client.
+- The CCR indexer is capped at the near-head confirmed frontier and stops on a
+  persistent halt, preventing auxiliary writes into the provisional suffix.
+- Near-head dispatch reconciliation starts immediately and discovers newly
+  confirmed dispatches every 30 seconds, rather than the legacy five-minute
+  fallback cadence. Legacy chains retain their existing reconciliation schedule.
 - Confirmation does not wait for receipt enrichment. Gas/delivery transaction
   metadata is filled in by the existing dispatch reconciler, one bounded page
   per event type per cycle. Failed/timed-out pages advance their scan cursor so
   later pages are attempted; missing receipts are retried on the next sweep.
   Each gas/delivery page has a 30-second timeout. Existing
   nullable transaction relations remain nullable until enrichment succeeds.
-- The confirmation worker prunes up to 1,000 old, unreferenced block headers per
-  cycle, in a separate transaction. It retains the cutover anchor, confirmed
+- The confirmation worker scans at most 1,000 old block headers per cycle and
+  deletes unreferenced candidates in a separate transaction. An in-memory cursor
+  advances past retained headers and wraps for another sweep. It retains the cutover anchor, confirmed
   boundary, retained unconfirmed checkpoints, transaction references, raw-dispatch headers,
   and headers needed by pending gas/delivery enrichment. Event records are not
   deleted by cleanup. Halted chains are not pruned. Historical headers from before
