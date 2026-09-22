@@ -33,6 +33,8 @@ pub struct ScraperSettings {
     #[deref_mut]
     pub base: Settings,
 
+    /// Optional disposable near-head overlays, keyed by domain.
+    pub tip: HashMap<u32, crate::tip::Config>,
     pub db: String,
     pub chains_to_scrape: Vec<HyperlaneDomain>,
     /// Per-domain CCR contract → underlying ERC20 token mapping.
@@ -80,19 +82,20 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
             .end()
             .map(|v| v.to_owned());
 
-        let chains_to_scrape = if let (Some(base), Some(chains)) = (&base, chains_names_to_scrape) {
-            chains
-                .into_iter()
-                .filter_map(|chain| {
-                    base.lookup_domain(chain)
-                        .context("Missing configuration for a chain in `chainsToScrape`")
-                        .into_config_result(|| cwp.add("chains_to_scrape"))
-                        .take_config_err(&mut err)
-                })
-                .collect()
-        } else {
-            Default::default()
-        };
+        let chains_to_scrape: Vec<HyperlaneDomain> =
+            if let (Some(base), Some(chains)) = (&base, chains_names_to_scrape) {
+                chains
+                    .into_iter()
+                    .filter_map(|chain| {
+                        base.lookup_domain(chain)
+                            .context("Missing configuration for a chain in `chainsToScrape`")
+                            .into_config_result(|| cwp.add("chains_to_scrape"))
+                            .take_config_err(&mut err)
+                    })
+                    .collect()
+            } else {
+                Default::default()
+            };
 
         // Parse optional ccrRouters: { "domainId": { "routerAddr": "tokenAddr" } }
         let raw_ccr_routers = p
@@ -137,13 +140,43 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
             ccr_routers.insert(domain_id, domain_routers);
         }
 
+        let tip = p
+            .chain(&mut err)
+            .get_opt_key("tip")
+            .parse_value::<HashMap<u32, crate::tip::Config>>("parsing tip")
+            .end()
+            .unwrap_or_default();
         cfg_unwrap_all!(&p.cwp, err: [base, db]);
+        for (domain, config) in &tip {
+            let validation = (|| -> eyre::Result<()> {
+                eyre::ensure!(
+                    config.window_blocks > 0,
+                    "tip windowBlocks must be positive"
+                );
+                let chain = chains_to_scrape
+                    .iter()
+                    .find(|chain| chain.id() == *domain)
+                    .ok_or_else(|| eyre::eyre!("tip domain must be in chainsToScrape"))?;
+                eyre::ensure!(
+                    matches!(
+                        base.chain_setup(chain)?.connection,
+                        hyperlane_base::settings::ChainConnectionConf::Ethereum(_)
+                    ),
+                    "tip requires an EVM chain"
+                );
+                Ok(())
+            })();
+            validation
+                .into_config_result(|| cwp.add("tip"))
+                .take_config_err(&mut err);
+        }
 
         err.into_result(Self {
             base,
             db,
             chains_to_scrape,
             ccr_routers,
+            tip,
         })
     }
 }

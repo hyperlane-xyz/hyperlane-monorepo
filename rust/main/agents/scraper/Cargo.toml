@@ -30,6 +30,7 @@ tracing.workspace = true
 
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["agent"] }
+hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 migration = { path = "migration" }
 
 [dev-dependencies]

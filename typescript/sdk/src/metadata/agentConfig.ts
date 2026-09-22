@@ -737,6 +737,22 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
 export type RelayerConfig = z.infer<typeof RelayerAgentConfigSchema>;
 
 export const ScraperAgentConfigSchema = AgentConfigSchema.extend({
+  tip: z
+    .record(
+      z
+        .string()
+        .regex(/^(0|[1-9]\d*)$/)
+        .refine((domain) => Number(domain) <= 4294967295),
+      z
+        .object({
+          windowBlocks: z.number().int().positive().max(4294967295),
+        })
+        .strict(),
+    )
+    .optional()
+    .describe(
+      'Disposable EVM near-head observations, keyed by domain; canonical indexing remains unchanged.',
+    ),
   db: z.string().min(1).describe('Database connection string'),
   chainsToScrape: CommaSeparatedChainList.describe(
     'Comma separated list of chain names to scrape',

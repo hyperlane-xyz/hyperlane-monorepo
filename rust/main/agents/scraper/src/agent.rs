@@ -479,6 +479,39 @@ impl BaseAgent for Scraper {
                     continue;
                 }
             };
+            if let Some(config) = self.settings.tip.get(&scraper.domain.id()) {
+                let conf = chain_conf.clone();
+                let config = config.clone();
+                let db = scraper.store.db.clone();
+                let metrics = self.core_metrics.clone();
+                tasks.push(tokio::spawn(async move {
+                    loop {
+                        let result = async {
+                            let task = tokio::time::timeout(
+                                Duration::from_secs(120),
+                                crate::tip::spawn(
+                                    &conf,
+                                    &config,
+                                    db.clone_connection(),
+                                    metrics.clone(),
+                                ),
+                            )
+                            .await??;
+                            task.await?;
+                            Ok::<_, eyre::Report>(())
+                        }
+                        .await;
+                        if let Err(error) = result {
+                            tracing::error!(
+                                ?error,
+                                domain = conf.domain.id(),
+                                "Disposable tip overlay stopped; retrying"
+                            );
+                        }
+                        sleep(Duration::from_secs(30)).await;
+                    }
+                }));
+            }
             tasks.push(scraper_task);
             tasks.push(metrics_updater.spawn());
         }
@@ -1661,6 +1694,7 @@ mod test {
             db: String::new(),
             chains_to_scrape: vec![],
             ccr_routers: HashMap::new(),
+            tip: HashMap::new(),
         }
     }
 

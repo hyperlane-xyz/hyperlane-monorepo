@@ -25,6 +25,7 @@ mod date_time;
 mod db;
 mod settings;
 mod store;
+mod tip;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {

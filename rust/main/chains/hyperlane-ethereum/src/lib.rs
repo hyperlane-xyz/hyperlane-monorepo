@@ -32,3 +32,12 @@ fn extract_fn_map(abi: &'static Lazy<abi::Abi>) -> HashMap<Vec<u8>, &'static str
         .map(|f| (f.selector().to_vec(), f.name.as_str()))
         .collect()
 }
+
+/// ABI event decoders for scraper tip ingestion.
+pub mod event_filters {
+    pub use crate::interfaces::{
+        i_interchain_gas_paymaster::GasPaymentFilter,
+        mailbox::{DispatchFilter, ProcessIdFilter},
+        merkle_tree_hook::InsertedIntoTreeFilter,
+    };
+}

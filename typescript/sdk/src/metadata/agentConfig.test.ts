@@ -10,6 +10,7 @@ import {
   AgentSignerKeyType,
   RelayerAgentConfigSchema,
   RpcConsensusType,
+  ScraperAgentConfigSchema,
   ValidatorAgentConfigSchema,
   buildAgentConfig,
 } from './agentConfig.js';
@@ -500,6 +501,29 @@ describe('ValidatorAgentConfigSchema lightweight mode', () => {
         leightweigt: false,
         websocketUrl: 'wss://scraper.example/events',
       }).success,
+    ).to.be.false;
+  });
+});
+
+describe('ScraperAgentConfigSchema tip', () => {
+  const schema = ScraperAgentConfigSchema.shape.tip;
+
+  it('accepts bounded opt-in domain windows', () => {
+    expect(schema.safeParse(undefined).success).to.be.true;
+    expect(schema.safeParse({ '42161': { windowBlocks: 256 } }).success).to.be
+      .true;
+  });
+
+  it('rejects invalid domains and unbounded windows', () => {
+    for (const domain of ['-1', '01', '4294967296']) {
+      expect(schema.safeParse({ [domain]: { windowBlocks: 256 } }).success).to
+        .be.false;
+    }
+    for (const windowBlocks of [0, -1, 1.5, 4294967296]) {
+      expect(schema.safeParse({ '1': { windowBlocks } }).success).to.be.false;
+    }
+    expect(
+      schema.safeParse({ '1': { windowBlocks: 256, extra: true } }).success,
     ).to.be.false;
   });
 });
