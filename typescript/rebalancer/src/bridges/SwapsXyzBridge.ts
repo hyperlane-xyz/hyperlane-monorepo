@@ -693,11 +693,19 @@ export class SwapsXyzBridge implements IExternalBridge {
     );
   }
 
-  /** Validate a fresh unsigned EVM payload without keys, approvals or signing. */
+  /** Validate a fresh unsigned payload without keys, approvals or signing. */
   async prepare(
     quote: BridgeQuote,
   ): Promise<{ response: SwapsXyzActionResponse; preparedAt: number }> {
     this.validateQuoteParams(quote.requestParams);
+    const metadata = this.chainMetadataByChainId.get(
+      quote.requestParams.fromChain,
+    );
+    if (metadata?.protocol === ProtocolType.Sealevel) {
+      const rpcUrl = metadata.rpcUrls[0]?.http;
+      assert(rpcUrl, 'Missing Solana RPC for unsigned preparation');
+      return this.prepareSolana(quote, rpcUrl);
+    }
     const preparedAt = Date.now();
     const response = await this.client.getAction(
       this.buildActionRequest(quote.requestParams),
@@ -743,6 +751,41 @@ export class SwapsXyzBridge implements IExternalBridge {
       'SwapsXyzBridge.execute Solana signer does not match quote fromAddress',
     );
 
+    const { response: fresh, transaction } = await this.prepareSolana(
+      quote,
+      rpcUrl,
+    );
+    const connection = this.solanaConnectionFactory(rpcUrl);
+    await options?.onTransferId?.(fresh.txId);
+    transaction.sign([keypair]);
+    const signature = await new TransactionSubmission(options).submit(
+      () =>
+        connection.sendRawTransaction(transaction.serialize(), {
+          skipPreflight: false,
+          maxRetries: 5,
+        }),
+      (signature) => signature,
+      bufferToBase58(Buffer.from(transaction.signatures[0])),
+    );
+    void this.registerIfRequired(fresh, signature);
+    return {
+      txHash: signature,
+      fromChain,
+      toChain,
+      transferId: fresh.txId,
+    };
+  }
+
+  private async prepareSolana(
+    quote: BridgeQuote,
+    rpcUrl: string,
+  ): Promise<{
+    response: SwapsXyzActionResponse;
+    preparedAt: number;
+    transaction: VersionedTransaction;
+  }> {
+    const preparedAt = Date.now();
+    const signer = new PublicKey(quote.requestParams.fromAddress);
     const fresh = await this.client.getAction(
       this.buildActionRequest(quote.requestParams),
     );
@@ -757,13 +800,13 @@ export class SwapsXyzBridge implements IExternalBridge {
       'SwapsXyzBridge.execute Solana transaction must require exactly one signer',
     );
     assert(
-      transaction.message.staticAccountKeys[0]?.equals(keypair.publicKey),
+      transaction.message.staticAccountKeys[0]?.equals(signer),
       'SwapsXyzBridge.execute Solana payer does not match inventory signer',
     );
     if (fresh.tx.payer !== undefined) {
       assert(
-        fresh.tx.payer === keypair.publicKey.toBase58(),
-        `SwapsXyzBridge.execute Solana payer ${fresh.tx.payer} does not match signer ${keypair.publicKey.toBase58()}`,
+        fresh.tx.payer === signer.toBase58(),
+        `SwapsXyzBridge.execute Solana payer ${fresh.tx.payer} does not match signer ${signer.toBase58()}`,
       );
     }
 
@@ -780,7 +823,7 @@ export class SwapsXyzBridge implements IExternalBridge {
       .flat()
       .filter((_, index) => transaction.message.isAccountWritable(index));
     assert(
-      writableKeys.some((key) => key.equals(keypair.publicKey)),
+      writableKeys.some((key) => key.equals(signer)),
       'SwapsXyzBridge.execute Solana payer must be writable',
     );
 
@@ -822,7 +865,7 @@ export class SwapsXyzBridge implements IExternalBridge {
     this.validateSolanaAccountEffects(
       quote,
       fresh,
-      keypair.publicKey,
+      signer,
       writableKeys,
       preAccounts.value,
       simulation.value.accounts,
@@ -831,29 +874,16 @@ export class SwapsXyzBridge implements IExternalBridge {
 
     validateDeBridgeSolanaInstructions(
       { ...quote, fromAmount: BigInt(fresh.amountIn.amount) },
-      keypair.publicKey,
+      signer,
       TransactionMessage.decompile(transaction.message, {
         addressLookupTableAccounts: addressLookupTables,
       }).instructions,
     );
-    await options?.onTransferId?.(fresh.txId);
-    transaction.sign([keypair]);
-    const signature = await new TransactionSubmission(options).submit(
-      () =>
-        connection.sendRawTransaction(transaction.serialize(), {
-          skipPreflight: false,
-          maxRetries: 5,
-        }),
-      (signature) => signature,
-      bufferToBase58(Buffer.from(transaction.signatures[0])),
+    assert(
+      Date.now() - preparedAt < MAX_TRANSACTION_AGE_MS,
+      'swaps.xyz transaction expired during preparation',
     );
-    void this.registerIfRequired(fresh, signature);
-    return {
-      txHash: signature,
-      fromChain,
-      toChain,
-      transferId: fresh.txId,
-    };
+    return { response: fresh, preparedAt, transaction };
   }
 
   private async resolveAddressLookupTables(

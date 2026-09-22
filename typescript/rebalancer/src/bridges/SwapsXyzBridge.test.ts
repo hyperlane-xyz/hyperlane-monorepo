@@ -1627,6 +1627,32 @@ describe('SwapsXyzBridge.execute', () => {
 describe('SwapsXyzBridge.execute Solana', () => {
   afterEach(() => sinon.restore());
 
+  it('shares unsigned simulation and payload validation with preflight', async () => {
+    const harness = createSolanaExecuteHarness();
+    const sign = sinon.spy(VersionedTransaction.prototype, 'sign');
+    await harness.bridge.prepare(solanaQuote());
+    expect(harness.simulateTransactionStub.callCount).to.equal(1);
+    expect(sign.called).to.equal(false);
+    expect(harness.sendRawTransactionStub.called).to.equal(false);
+  });
+
+  it('rejects a payload that expired during Solana preparation before signing', async () => {
+    const harness = createSolanaExecuteHarness();
+    const sign = sinon.spy(VersionedTransaction.prototype, 'sign');
+    sinon.stub(Date, 'now').onFirstCall().returns(0).returns(31_000);
+    expect(
+      (
+        await captureError(
+          harness.bridge.execute(solanaQuote(), {
+            [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+          }),
+        )
+      ).message,
+    ).to.include('expired during preparation');
+    expect(sign.called).to.equal(false);
+    expect(harness.sendRawTransactionStub.called).to.equal(false);
+  });
+
   it('rejects a direct attacker transfer with the expected debit before signing', async () => {
     const instruction = createTransferInstruction(
       SOLANA_SOURCE_ACCOUNT,
