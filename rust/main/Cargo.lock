@@ -6305,6 +6305,7 @@ dependencies = [
  "google-cloud-kms-v1",
  "hex 0.4.3",
  "hyper 0.14.30",
+ "hyper-rustls 0.24.2",
  "hyperlane-aleo",
  "hyperlane-core",
  "hyperlane-cosmos",
@@ -6349,6 +6350,7 @@ dependencies = [
  "walkdir",
  "warp",
  "ya-gcp",
+ "yup-oauth2",
 ]
 
 [[package]]
