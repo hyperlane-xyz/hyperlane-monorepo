@@ -6,12 +6,13 @@
 # -------- Base Image with Tools --------
 # Base image containing all necessary build tools and dependencies
 FROM rust:1.88.0 AS base
+# sccache 0.18 requires Rust 1.91; keep this compatible with the base image.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends musl-tools clang mold && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     rustup target add x86_64-unknown-linux-musl && \
-    cargo install --locked sccache
+    cargo install --locked --version 0.17.0 sccache
 
 # Configure sccache for faster builds
 # https://github.com/mozilla/sccache
