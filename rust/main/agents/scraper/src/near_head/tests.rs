@@ -177,19 +177,6 @@ async fn count(store: &Store, relation: &str) -> Result<i64> {
         .try_get("", "n")?)
 }
 
-#[test]
-fn configuration_is_explicit_and_accepts_flat_loader_values() {
-    let config: Config = serde_json::from_value(serde_json::json!({ "fromblock": "10" })).unwrap();
-    assert_eq!(config.from_block, 10);
-    for invalid in [
-        serde_json::json!({}),
-        serde_json::json!({"fromBlock": -1}),
-        serde_json::json!({"fromBlock": 1, "reorgPeriod": 0}),
-    ] {
-        assert!(serde_json::from_value::<Config>(invalid).is_err());
-    }
-}
-
 #[tokio::test]
 async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
@@ -950,5 +937,80 @@ async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Resul
     let state = observe(&source, &store).await?;
     ingest_cached(&source, &store, &state, 1, &mut None).await?;
     assert_eq!(source.calls.lock().unwrap().len(), 2);
+    Ok(())
+}
+
+#[tokio::test]
+async fn automatic_cutover_uses_stored_history_and_reuses_saved_boundary() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    migration::indexes::create_indexes(&db).await?;
+    let store = Store { db, domain: 1 };
+    // Empty databases start from configured index.from (or block 1 for from=0).
+    assert_eq!(store.anchor_height(10).await?, 9);
+    assert_eq!(store.anchor_height(0).await?, 0);
+    let chain = Chain::new(50);
+    let header = chain.header(10u64.into()).await?;
+    store
+        .db
+        .execute(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "INSERT INTO block(domain,hash,height,timestamp) VALUES(1,$1,10,now())",
+            [header.hash.as_bytes().to_vec().into()],
+        ))
+        .await?;
+    // The shared cursor is deliberately ahead, and another domain has newer history.
+    store.db.execute_unprepared("INSERT INTO cursor(domain,event_type,height,time_created) VALUES(1,'',1000,now()); INSERT INTO block(domain,hash,height,timestamp) VALUES(42161,decode(repeat('09',32),'hex'),100,now())").await?;
+    assert_eq!(store.anchor_height(1).await?, 10);
+    store.db.execute_unprepared("INSERT INTO raw_message_dispatch(msg_id,origin_tx_hash,origin_block_hash,origin_block_height,nonce,origin_domain,destination_domain,sender,recipient,origin_mailbox) VALUES(decode(repeat('03',32),'hex'),decode(repeat('04',32),'hex'),decode(repeat('05',32),'hex'),20,0,1,1,decode(repeat('01',20),'hex'),decode(repeat('02',20),'hex'),decode(repeat('01',20),'hex'))").await?;
+    assert_eq!(store.anchor_height(1).await?, 20);
+    // Legacy Merkle events need not have a corresponding block-table row.
+    store.db.execute_unprepared("INSERT INTO merkle_tree_insertion(domain,merkle_tree_hook,leaf_index,message_id,block_number) VALUES(1,decode(repeat('01',20),'hex'),0,decode(repeat('06',32),'hex'),30)").await?;
+    let anchor = store.anchor_height(1).await?;
+    assert_eq!(anchor, 30);
+    // First-start overlap validation still catches a writer racing selection.
+    store
+        .db
+        .execute_unprepared("UPDATE merkle_tree_insertion SET block_number=31 WHERE domain=1")
+        .await?;
+    assert!(store
+        .initialize(&chain.header(anchor.into()).await?, &contracts())
+        .await
+        .is_err());
+    assert!(store.state().await?.is_none());
+    store
+        .db
+        .execute_unprepared("UPDATE merkle_tree_insertion SET block_number=30 WHERE domain=1")
+        .await?;
+    prepare(
+        &chain,
+        &store,
+        &chain.header(anchor.into()).await?,
+        &contracts(),
+        &ReorgPeriod::None,
+    )
+    .await?;
+    // Restart must not choose a new boundary from newer history or a changed default.
+    store
+        .db
+        .execute_unprepared(
+            "UPDATE raw_message_dispatch SET origin_block_height=40 WHERE origin_domain=1",
+        )
+        .await?;
+    assert_eq!(store.anchor_height(100).await?, 30);
+    prepare(
+        &chain,
+        &store,
+        &chain.header(30u64.into()).await?,
+        &contracts(),
+        &ReorgPeriod::None,
+    )
+    .await?;
+    assert_eq!(count(&store, "scraper_head").await?, 1);
     Ok(())
 }

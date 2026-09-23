@@ -4,11 +4,7 @@ mod runtime;
 mod source;
 mod store;
 
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use ethers::types::{BlockNumber, H160};
 use eyre::{ensure, Result};
@@ -18,32 +14,11 @@ use hyperlane_base::{
     ChainMetrics, ContractSyncMetrics, CoreMetrics,
 };
 use hyperlane_core::{ContractLocator, ReorgPeriod};
-use serde::Deserialize;
 use tokio::task::JoinHandle;
 
 use crate::store::HyperlaneDbStore;
 use source::{Contracts, Header, Source, SourceBuilder};
 use store::{State, Store};
-
-/// Opt-in chains. Other protocols and chains keep their existing indexers.
-pub type Configs = HashMap<u32, Config>;
-
-/// Explicit completed legacy boundary; no historical rows are reinterpreted.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct Config {
-    /// First new block to index; all four legacy streams must be complete before it.
-    #[serde(alias = "fromblock", deserialize_with = "config_u32")]
-    pub from_block: u32,
-}
-
-fn config_u32<'de, D: serde::Deserializer<'de>>(
-    deserializer: D,
-) -> std::result::Result<u32, D::Error> {
-    hyperlane_core::config::StrOrInt::deserialize(deserializer)?
-        .try_into()
-        .map_err(serde::de::Error::custom)
-}
 
 /// Prevent accidental fallback to legacy writers while provisional state exists.
 pub async fn ensure_legacy_mode(legacy: &HyperlaneDbStore) -> Result<()> {
@@ -51,7 +26,7 @@ pub async fn ensure_legacy_mode(legacy: &HyperlaneDbStore) -> Result<()> {
         db: legacy.db.clone_connection(),
         domain: legacy.domain.id(),
     };
-    ensure!(store.state().await?.is_none(), "nearHead was disabled with retained state; drain and clear scraper_head before restarting legacy indexers");
+    ensure!(store.state().await?.is_none(), "Cannot use legacy indexers with retained near-head state; drain and clear scraper_head before switching protocols");
     Ok(())
 }
 
@@ -71,7 +46,6 @@ pub async fn confirmed_height(db: &crate::db::ScraperDb, domain: u32) -> Result<
 /// Replace the four EVM log indexers with one range ingestion worker.
 pub async fn spawn(
     conf: &ChainConf,
-    config: &Config,
     legacy: HyperlaneDbStore,
     metrics: Arc<CoreMetrics>,
     chain_metrics: ChainMetrics,
@@ -104,12 +78,9 @@ pub async fn spawn(
         db: legacy.db.clone_connection(),
         domain: conf.domain.id(),
     };
-    let anchor_height = config
-        .from_block
-        .checked_sub(1)
-        .ok_or_else(|| eyre::eyre!("nearHead fromBlock must be positive"))?;
+    let anchor_height = store.anchor_height(u32::try_from(conf.index.from)?).await?;
     store.pause(false).await?;
-    let anchor = source.header(u64::from(anchor_height).into()).await?;
+    let anchor = source.header(anchor_height.into()).await?;
     let period = conf.reorg_period.clone();
     ensure!(conf.index.chunk_size > 0, "index.chunk must be positive");
     let chunk_size = u64::from(conf.index.chunk_size);

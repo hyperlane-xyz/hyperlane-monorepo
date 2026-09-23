@@ -61,6 +61,53 @@ impl Store {
         })).transpose()
     }
 
+    /// Trust existing history on a first automatic start. The shared legacy cursor
+    /// is not used: it can lag already stored events or lead a slower stream.
+    /// Stop other writers before initializing; initialize rechecks for overlap.
+    pub async fn anchor_height(&self, index_from: u32) -> Result<u64> {
+        if let Some(row) = self
+            .db
+            .query_one(sql(
+                "SELECT start_height FROM scraper_head WHERE domain=$1",
+                vec![self.domain()],
+            ))
+            .await?
+        {
+            return Ok(u64::try_from(row.try_get::<i64>("", "start_height")?)?);
+        }
+        // Scalar backward index seeks, including the full Merkle height index
+        // installed by init-db. Do not scan historical events to find the tip.
+        let row = self
+            .db
+            .query_one(sql(
+                r#"
+            SELECT greatest($2,
+                coalesce((SELECT height FROM block WHERE domain=$1 ORDER BY height DESC LIMIT 1),0),
+                coalesce((SELECT origin_block_height FROM raw_message_dispatch
+                    WHERE origin_domain=$1 ORDER BY origin_block_height DESC LIMIT 1),0),
+                coalesce((SELECT block_number FROM merkle_tree_insertion
+                    WHERE domain=$1 ORDER BY block_number DESC LIMIT 1),0)) AS height
+        "#,
+                vec![
+                    self.domain(),
+                    i64::from(index_from.saturating_sub(1)).into(),
+                ],
+            ))
+            .await?
+            .ok_or_else(|| eyre::eyre!("Missing automatic cutover height"))?;
+        let height = u64::try_from(row.try_get::<i64>("", "height")?)?;
+        ensure!(
+            height < u64::from(u32::MAX),
+            "Automatic cutover exceeds supported block range"
+        );
+        tracing::info!(
+            domain = self.domain,
+            anchor_height = height,
+            "Selected near-head cutover from database; trusting existing history"
+        );
+        Ok(height)
+    }
+
     pub async fn initialize(&self, anchor: &Header, contracts: &Contracts) -> Result<()> {
         let tx = self.db.begin().await?;
         tx.execute(sql(
@@ -76,7 +123,7 @@ impl Store {
                     && row.try_get::<Vec<u8>>("", "merkle_tree_hook")? == contracts.hook.as_bytes()
                     && row.try_get::<Vec<u8>>("", "interchain_gas_paymaster")?
                         == contracts.paymaster.as_bytes(),
-                "nearHead configuration changed; explicit cutover required"
+                "Near-head boundary or contracts changed; restore the original configuration"
             );
         } else {
             // Cut over after legacy history, never reinterpret already-published rows.
@@ -86,7 +133,7 @@ impl Store {
             )).await?.ok_or_else(|| eyre::eyre!("Missing cutover check"))?;
             ensure!(
                 !existing.try_get::<bool>("", "overlaps")?,
-                "nearHead fromBlock overlaps legacy history; use a completed cutover boundary"
+                "Legacy history advanced past the selected cutover; stop other writers and retry"
             );
             insert_block(&tx, signed(self.domain), anchor).await?;
             tx.execute(sql(

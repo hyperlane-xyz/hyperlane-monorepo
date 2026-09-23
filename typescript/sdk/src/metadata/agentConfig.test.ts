@@ -10,7 +10,6 @@ import {
   AgentSignerKeyType,
   RelayerAgentConfigSchema,
   RpcConsensusType,
-  ScraperAgentConfigSchema,
   ValidatorAgentConfigSchema,
   buildAgentConfig,
 } from './agentConfig.js';
@@ -405,7 +404,11 @@ describe('ValidatorAgentConfigSchema lightweight mode', () => {
           ...config,
           lightweight: false,
           chains: {
-            test: { ...config.chains.test, protocol, rpcConsensusType },
+            test: {
+              ...config.chains.test,
+              protocol,
+              rpcConsensusType,
+            },
           },
         });
         expect(
@@ -502,30 +505,5 @@ describe('ValidatorAgentConfigSchema lightweight mode', () => {
         websocketUrl: 'wss://scraper.example/events',
       }).success,
     ).to.be.false;
-  });
-});
-
-describe('ScraperAgentConfigSchema nearHead', () => {
-  const schema = ScraperAgentConfigSchema.shape.nearHead;
-  it('is opt-in and requires an explicit cutover block', () => {
-    expect(schema.parse(undefined)).to.equal(undefined);
-    expect(schema.parse({ '42161': { fromBlock: 100 } })).to.deep.equal({
-      '42161': { fromBlock: 100 },
-    });
-  });
-  it('rejects invalid domains, blocks, and unknown settings', () => {
-    for (const domain of ['arbitrum', '-1', '01', '4294967296']) {
-      expect(schema.safeParse({ [domain]: { fromBlock: 1 } }).success).to.be
-        .false;
-    }
-    for (const config of [
-      {},
-      { fromBlock: 0 },
-      { fromBlock: -1 },
-      { fromBlock: 4294967296 },
-      { fromBlock: 1, reorgPeriod: 0 },
-    ]) {
-      expect(schema.safeParse({ '1': config }).success).to.be.false;
-    }
   });
 });

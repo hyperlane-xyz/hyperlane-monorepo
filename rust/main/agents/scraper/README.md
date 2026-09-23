@@ -11,7 +11,7 @@ docker stop scraper
 docker rm -v scraper
 ```
 
-To init the database, run from `rust` dir
+To initialize or upgrade the database, run from `rust/main` with `DATABASE_URL` set
 
 ```bash
 cargo run --package migration --bin init-db
@@ -25,18 +25,15 @@ references newly-added columns. The raw message dispatch reconciler depends on
 raw dispatch inserts fail closed and stalls the message cursor until the column
 exists.
 
-After running migrations and before deploying the scraper binary, create the
-large raw-dispatch indexes concurrently:
+`init-db` applies pending schema migrations, commits them, then builds and verifies
+all separately managed indexes concurrently (raw-dispatch reconciliation,
+raw-dispatch native sequence, delivery scope, and Merkle block height). No
+additional index command is needed. Existing matching indexes are retained.
+Invalid or differently defined indexes fail explicitly and require repair before
+retrying. If index creation fails, schema migrations remain committed; rerunning
+`init-db` retries index setup.
 
-```bash
-cargo run --package migration --bin create-raw-dispatch-reconciliation-index
-cargo run --package migration --bin create-raw-dispatch-native-sequence-index
-```
-
-These independently managed indexes are not removed by migration rollback.
-
-Then run `EXPLAIN` on the reconciliation query and confirm it uses
-`raw_message_dispatch_reconciliation_idx`.
+The indexes are not removed by migration rollback.
 
 For rollback, stop or roll back scraper binaries that reference a new column
 before dropping that column.

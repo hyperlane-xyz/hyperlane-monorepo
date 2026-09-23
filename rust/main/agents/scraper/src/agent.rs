@@ -9,8 +9,9 @@ use async_trait::async_trait;
 use derive_more::AsRef;
 use futures::{future::try_join_all, FutureExt};
 use hyperlane_core::{
-    rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, IndexMode, InterchainGasPayment, MerkleTreeInsertion, SameChainCcrSwap,
+    rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneDomainProtocol,
+    HyperlaneLogStore, HyperlaneMessage, IndexMode, InterchainGasPayment, MerkleTreeInsertion,
+    SameChainCcrSwap,
 };
 use prometheus::{HistogramVec, IntCounterVec, IntGauge, IntGaugeVec};
 use tokio::{
@@ -533,11 +534,10 @@ impl Scraper {
         let domain = scraper.domain.clone();
 
         let mut tasks = Vec::with_capacity(2);
-        if let Some(config) = self.settings.near_head.get(&domain.id()) {
+        if domain.domain_protocol() == HyperlaneDomainProtocol::Ethereum {
             tasks.push(
                 crate::near_head::spawn(
                     self.settings.chain_setup(&domain)?,
-                    config,
                     store.clone(),
                     self.core_metrics.clone(),
                     self.chain_metrics.clone(),
@@ -745,7 +745,7 @@ impl Scraper {
         reconciliation_metrics: RawDispatchReconciliationMetrics,
         store: HyperlaneDbStore,
     ) -> JoinHandle<()> {
-        let near_head = self.settings.near_head.contains_key(&domain.id());
+        let near_head = domain.domain_protocol() == HyperlaneDomainProtocol::Ethereum;
         let domain_name = domain.name().to_owned();
         let span_domain_name = domain_name.clone();
         tokio::spawn(
@@ -1224,7 +1224,7 @@ impl Scraper {
             _ => return Ok(None),
         };
 
-        let near_head = self.settings.near_head.contains_key(&domain.id());
+        let near_head = domain.domain_protocol() == HyperlaneDomainProtocol::Ethereum;
         let ccr_to_erc20 = ccr_router_map.clone();
         let local_domain = domain.id();
 
@@ -1712,7 +1712,6 @@ mod test {
             .collect();
 
         ScraperSettings {
-            near_head: HashMap::new(),
             base: Settings {
                 domains,
                 chains,

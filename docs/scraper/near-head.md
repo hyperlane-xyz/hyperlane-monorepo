@@ -1,28 +1,38 @@
 # Near-head scraper ingestion
 
-`nearHead` opts individual EVM chains into indexing dispatch, delivery, gas-payment
-and Merkle-insertion events at the current head. Each event is stored once in its
-existing table, initially with `confirmed=false`. Block headers remain in `block`;
-`scraper_head` contains only per-chain progress and health, not event payloads.
+The scraper indexes dispatch, delivery, gas-payment and Merkle-insertion events
+at the current head by default on all selected EVM chains. Each event is stored
+once in its existing table, initially with `confirmed=false`. Block headers remain
+in `block`; `scraper_head` contains only per-chain progress and health, not event
+payloads.
 
 The scraper flips `confirmed` after the chain's existing `reorgPeriod`. Legacy
 websocket notifications and gas-payment cursors are created on that transition.
 The proxy and Explorer query confirmed views, preserving their configured delay.
 There is no new endpoint or subscriber-selected delay in this change.
 
-```json
-{
-  "nearHead": {
-    "42161": { "fromBlock": 123456 }
-  }
-}
-```
+Select chains with `chainsToScrape` as before. No `nearHead` setting or per-chain
+`fromBlock` values are needed. Non-EVM chains retain their existing indexers.
+The old `HYP_NEARHEAD` and `HYP_NEARHEAD_<DOMAIN>_FROMBLOCK` variables are no longer
+used and can be removed.
 
-`fromBlock` is an explicit cutover: every legacy event indexer must already be
-complete through its predecessor, and no legacy data may extend beyond it. The
-example height is illustrative. The setting must name an EVM domain included in
-`chainsToScrape`. Other domains retain their existing indexers. An initialized
-chain cannot silently change its cutover or contracts.
+On first start the scraper **trusts existing database history**. For each domain,
+it starts after the greatest stored height in `block`, `raw_message_dispatch`,
+and `merkle_tree_insertion`, never earlier than the chain's configured
+`index.from`. This preserves any pre-existing gaps; it does not verify or backfill
+legacy history. The shared legacy cursor is deliberately ignored because it
+can lag stored rows or lead a slower event stream. An empty DB starts at
+`index.from` (block 1 when `index.from` is 0).
+
+Stop other scraper writers before the first handoff. Startup selects the boundary
+using indexed lookups, probes the RPC, rechecks that no later legacy rows exist,
+and persists the boundary in `scraper_head`. If a legacy writer advances past the
+selected boundary meanwhile, startup fails; stop the writer and retry. Run
+`init-db` before startup to install the full Merkle height index as well as the
+schema and other concurrent indexes.
+
+Restarts load the saved boundary and resume indexed progress. They do not
+reselect it or repeat the historical overlap check. Contract changes are rejected.
 
 ## Behavior
 
@@ -147,9 +157,11 @@ hangs, and verify uncached successful receipts survive a neighboring timeout.
 1. Stop scraper writers and the proxy. Apply the migration before deploying the
    matching binaries. The migration adds columns and indexes to existing tables;
    measure index creation on a database clone and allow a maintenance window.
-2. Verify a common completed cutover for the four legacy streams. Configure
-   `nearHead`, then start the scraper and matching proxy.
-3. Check `scraper_head` for advancing `indexed_height` and `confirmed_height`,
+2. Run `cargo run --release -p migration --bin init-db` with `DATABASE_URL` set.
+   It applies schema migrations, then builds and verifies concurrent indexes.
+3. Start the scraper and matching proxy. Automatic cutover selection trusts the
+   cloned history; historical gaps must be repaired separately if needed.
+4. Check `scraper_head` for advancing `indexed_height` and `confirmed_height`,
    verify the chain critical-error metric is clear, and check consumer streams.
 
 SELECT grants on existing event tables are copied to the confirmed views. External
@@ -158,7 +170,7 @@ SQL consumers wanting the old visibility must use `confirmed_raw_message_dispatc
 `confirmed_merkle_tree_insertion`. `message_view` and `total_gas_payment` retain
 both their names and output columns. Raw event tables now include provisional rows.
 
-To disable near-head indexing or roll back, stop writers and drain all provisional
+To roll back to a legacy scraper, stop writers and drain all provisional
 history first (or explicitly repair/discard it). Clear that domain's `scraper_head`
 row only after reconciling its progress with the legacy indexers. The down migration
 refuses to remove confirmation filtering while provisional or halted history
