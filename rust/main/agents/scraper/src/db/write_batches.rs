@@ -92,11 +92,13 @@ async fn empty_event_writes_do_not_access_database() {
 async fn delivery_batches_bound_binds_and_preserve_small_fast_path() {
     for count in [1, 12_000] {
         let chunks = if count == 1 { 1 } else { 2 };
-        let mut results = vec![result("max_id", 0)];
-        results.extend((0..chunks).map(|_| result("id", 1)));
-        results.push(result("num_items", i64::from(count)));
+        let results = vec![result("max_id", 0), result("num_items", i64::from(count))];
         let db = ScraperDb::with_connection(
             MockDatabase::new(DatabaseBackend::Postgres)
+                .append_exec_results((0..chunks).map(|_| MockExecResult {
+                    last_insert_id: 0,
+                    rows_affected: 1,
+                }))
                 .append_query_results(results)
                 .into_connection(),
         );
@@ -306,7 +308,7 @@ async fn duplicate_keys_across_chunks_are_rejected() {
     assert!(log.is_empty());
 }
 
-async fn seed_transaction(db: &ScraperDb, index: u64) -> eyre::Result<i64> {
+pub(super) async fn seed_transaction(db: &ScraperDb, index: u64) -> eyre::Result<i64> {
     let hash = H256::from_low_u64_be(55);
     db.store_blocks(
         DOMAIN,
@@ -364,6 +366,8 @@ async fn bulk_events_replay_and_rollback_failed_tail_in_postgres() -> eyre::Resu
             .await?,
         12_000
     );
+    // Both INSERT chunks have no changed rows on replay. This must still
+    // commit successfully when the conflict predicate skips every UPDATE.
     assert_eq!(
         db.store_deliveries(DOMAIN, address, deliveries(12_000, &meta))
             .await?,

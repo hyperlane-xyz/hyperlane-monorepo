@@ -43,13 +43,16 @@ async fn ccr_presence_preserves_states_and_command_counts() {
             });
         }
         if presence != Some(true) {
-            // Delivery upsert still uses scoped MAX(id) lookup, INSERT, and
-            // COUNT accounting.
+            // Delivery upsert uses scoped MAX(id) and COUNT queries, with a
+            // separate execution result for its INSERT without RETURNING.
             query_results.extend([
                 result("max_id", Value::BigInt(Some(0))),
-                result("id", Value::BigInt(Some(1))),
                 result("num_items", Value::BigInt(Some(1))),
             ]);
+            exec_results.push(MockExecResult {
+                last_insert_id: 0,
+                rows_affected: 1,
+            });
         }
         let db = ScraperDb::with_connection(
             MockDatabase::new(DatabaseBackend::Postgres)
