@@ -13,8 +13,7 @@ on:
     types: [created]
 
 env:
-  CLAUDE_OPUS_MODEL: claude-opus-4-8
-  CLAUDE_SONNET_MODEL: claude-sonnet-4-6
+  CLAUDE_OPUS_MODEL: claude-opus-5-5
 
 concurrency:
   group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}
@@ -274,4 +273,4 @@ jobs:
           prompt: 'When you have specific code feedback on changed lines, use /inline-pr-comments to deliver it as a consolidated GitHub review with inline comments.'
           track_progress: true
           use_sticky_comment: false
-          claude_args: '--model ${{ env.CLAUDE_SONNET_MODEL }}'
+          claude_args: '--model ${{ env.CLAUDE_OPUS_MODEL }}'
