@@ -61,6 +61,35 @@ impl Store {
         })).transpose()
     }
 
+    /// Only empty domains can start automatically. Neither stored maxima nor the
+    /// shared legacy cursor prove that all four streams completed a cutover.
+    pub async fn anchor_height(&self, index_from: u32) -> Result<u64> {
+        if let Some(row) = self
+            .db
+            .query_one(sql(
+                "SELECT start_height FROM scraper_head WHERE domain=$1",
+                vec![self.domain()],
+            ))
+            .await?
+        {
+            return Ok(u64::try_from(row.try_get::<i64>("", "start_height")?)?);
+        }
+        self.ensure_empty_history(&self.db).await?;
+        Ok(u64::from(index_from.saturating_sub(1)))
+    }
+
+    async fn ensure_empty_history<C: ConnectionTrait>(&self, db: &C) -> Result<()> {
+        let row = db.query_one(sql(
+            "SELECT EXISTS(SELECT 1 FROM block WHERE domain=$1) OR EXISTS(SELECT 1 FROM raw_message_dispatch WHERE origin_domain=$1) OR EXISTS(SELECT 1 FROM delivered_message WHERE domain=$1) OR EXISTS(SELECT 1 FROM gas_payment WHERE domain=$1) OR EXISTS(SELECT 1 FROM merkle_tree_insertion WHERE domain=$1) AS has_history",
+            vec![self.domain()],
+        )).await?.ok_or_else(|| eyre::eyre!("Missing legacy history check"))?;
+        ensure!(
+            !row.try_get::<bool>("", "has_history")?,
+            "Existing legacy history requires a verified cutover for all four event streams; stop legacy writers and follow docs/scraper/near-head.md before initializing scraper_head"
+        );
+        Ok(())
+    }
+
     pub async fn initialize(&self, anchor: &Header, contracts: &Contracts) -> Result<()> {
         let tx = self.db.begin().await?;
         tx.execute(sql(
@@ -76,18 +105,12 @@ impl Store {
                     && row.try_get::<Vec<u8>>("", "merkle_tree_hook")? == contracts.hook.as_bytes()
                     && row.try_get::<Vec<u8>>("", "interchain_gas_paymaster")?
                         == contracts.paymaster.as_bytes(),
-                "nearHead configuration changed; explicit cutover required"
+                "Near-head boundary or contracts changed; restore the original configuration"
             );
         } else {
-            // Cut over after legacy history, never reinterpret already-published rows.
-            let existing = tx.query_one(sql(
-                "SELECT EXISTS(SELECT 1 FROM block WHERE domain=$1 AND height>$2) OR EXISTS(SELECT 1 FROM raw_message_dispatch WHERE origin_domain=$1 AND origin_block_height>$2) OR EXISTS(SELECT 1 FROM merkle_tree_insertion WHERE domain=$1 AND block_number>$2) AS overlaps",
-                vec![self.domain(), number(anchor.height)?],
-            )).await?.ok_or_else(|| eyre::eyre!("Missing cutover check"))?;
-            ensure!(
-                !existing.try_get::<bool>("", "overlaps")?,
-                "nearHead fromBlock overlaps legacy history; use a completed cutover boundary"
-            );
+            // Recheck after RPC preflight: another writer may have stored history
+            // since anchor selection. Existing domains require operator cutover.
+            self.ensure_empty_history(&tx).await?;
             insert_block(&tx, signed(self.domain), anchor).await?;
             tx.execute(sql(
                 "INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster) VALUES($1,$2,$2,$3,$2,$2,$4,$5,$6)",
@@ -215,6 +238,37 @@ impl Store {
         .await?;
         tx.commit().await?;
         Ok(())
+    }
+
+    /// Bound publication by event work, while allowing empty spans to advance at once.
+    /// A single block can exceed the budget: its events must publish atomically.
+    pub async fn confirmation_boundary(&self, after: u64, through: u64) -> Result<u64> {
+        ensure!(after <= through, "Confirmation range regressed");
+        // Each branch returns at most 1,001 rows via its domain/height range.
+        // The gas/merkle indexes additionally exclude already-confirmed history.
+        // Limit before UNION so the merge sorts at most 4,004 event heights;
+        // counting the entire eligible backlog would defeat this work budget.
+        let branches = EVENTS.iter().map(|(table, domain, height)| {
+            format!("(SELECT {height} AS height FROM {table} WHERE {domain}=$1 AND {height}>$2 AND {height}<=$3 AND NOT confirmed ORDER BY {height} LIMIT 1001)")
+        }).collect::<Vec<_>>().join(" UNION ALL ");
+        let row = self
+            .db
+            .query_one(sql(
+                format!(
+                    r#"
+            WITH events AS (
+                SELECT height FROM ({branches}) AS candidates ORDER BY height LIMIT 1001
+            )
+            SELECT CASE WHEN count(*)<=1000 THEN $3
+                WHEN min(height)=max(height) THEN max(height)
+                ELSE max(height)-1 END AS boundary FROM events
+        "#
+                ),
+                vec![self.domain(), number(after)?, number(through)?],
+            ))
+            .await?
+            .ok_or_else(|| eyre::eyre!("Missing confirmation boundary"))?;
+        Ok(u64::try_from(row.try_get::<i64>("", "boundary")?)?)
     }
 
     pub async fn confirm(&self, expected: &State, boundary: &Header) -> Result<[u64; 4]> {
@@ -409,3 +463,6 @@ async fn insert_batch<C: ConnectionTrait>(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

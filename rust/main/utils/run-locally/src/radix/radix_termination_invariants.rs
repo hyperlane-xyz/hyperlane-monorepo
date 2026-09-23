@@ -58,7 +58,7 @@ pub fn radix_termination_invariants_met(
         delivered_messages_scraped_expected: messages_expected,
     };
 
-    if !scraper_termination_invariants_met(scraper_params)? {
+    if !scraper_termination_invariants_met(scraper_params, &[crate::SCRAPER_METRICS_PORT])? {
         return Ok(false);
     }
 

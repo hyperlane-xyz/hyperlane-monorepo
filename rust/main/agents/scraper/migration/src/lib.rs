@@ -2,6 +2,8 @@
 
 extern crate core;
 
+pub mod indexes;
+
 pub use sea_orm_migration::prelude::*;
 
 mod l20230309_types;

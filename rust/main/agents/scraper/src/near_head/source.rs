@@ -92,6 +92,32 @@ struct EvmSource<M> {
     domain: u32,
 }
 
+impl<M: Middleware + 'static> EvmSource<M> {
+    async fn count(&self, address: H160, signature: &str, hash: H256) -> Result<u32> {
+        let call = TransactionRequest::new()
+            .to(address)
+            .data(ethers::utils::id(signature)[..4].to_vec())
+            .into();
+        let result = self.provider.call(&call, Some(BlockId::Hash(hash))).await?;
+        if result.is_empty()
+            && self
+                .provider
+                .get_code(address, Some(BlockId::Hash(hash)))
+                .await?
+                .is_empty()
+        {
+            return Ok(0); // The range may start before the contract was deployed.
+        }
+        ensure!(result.len() == 32, "Invalid contract sequence count");
+        let value = U256::from_big_endian(&result);
+        ensure!(
+            value <= U256::from(u32::MAX),
+            "Contract sequence count overflow"
+        );
+        Ok(value.as_u32())
+    }
+}
+
 #[async_trait]
 impl<M: Middleware + 'static> Source for EvmSource<M> {
     async fn header(&self, number: BlockNumber) -> Result<Header> {
@@ -119,37 +145,11 @@ impl<M: Middleware + 'static> Source for EvmSource<M> {
     }
 
     async fn counts(&self, hash: H256) -> Result<[u32; 2]> {
-        let mut counts = [0; 2];
-        for ((address, signature), count) in [
-            (self.contracts.mailbox, "nonce()"),
-            (self.contracts.hook, "count()"),
-        ]
-        .into_iter()
-        .zip(&mut counts)
-        {
-            let call = TransactionRequest::new()
-                .to(address)
-                .data(ethers::utils::id(signature)[..4].to_vec())
-                .into();
-            let result = self.provider.call(&call, Some(BlockId::Hash(hash))).await?;
-            if result.is_empty()
-                && self
-                    .provider
-                    .get_code(address, Some(BlockId::Hash(hash)))
-                    .await?
-                    .is_empty()
-            {
-                continue; // The range may start before the contract was deployed.
-            }
-            ensure!(result.len() == 32, "Invalid contract sequence count");
-            let value = U256::from_big_endian(&result);
-            ensure!(
-                value <= U256::from(u32::MAX),
-                "Contract sequence count overflow"
-            );
-            *count = value.as_u32();
-        }
-        Ok(counts)
+        let (dispatches, insertions) = tokio::try_join!(
+            self.count(self.contracts.mailbox, "nonce()", hash),
+            self.count(self.contracts.hook, "count()", hash),
+        )?;
+        Ok([dispatches, insertions])
     }
 
     async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
@@ -264,6 +264,64 @@ mod tests {
     };
 
     use super::*;
+
+    #[derive(Debug)]
+    struct ConcurrentCounts {
+        inner: Provider<ethers::providers::MockProvider>,
+        started: tokio::sync::Barrier,
+        hash: H256,
+    }
+
+    #[async_trait]
+    impl Middleware for ConcurrentCounts {
+        type Error = ethers::providers::ProviderError;
+        type Provider = ethers::providers::MockProvider;
+        type Inner = Provider<Self::Provider>;
+
+        fn inner(&self) -> &Self::Inner {
+            &self.inner
+        }
+
+        async fn call(
+            &self,
+            tx: &ethers::types::transaction::eip2718::TypedTransaction,
+            block: Option<BlockId>,
+        ) -> std::result::Result<ethers::types::Bytes, Self::Error> {
+            assert_eq!(block, Some(BlockId::Hash(self.hash)));
+            // Neither reply is available until both independent requests start.
+            self.started.wait().await;
+            let count: u32 = if tx.to() == Some(&H160::repeat_byte(1).into()) {
+                9
+            } else {
+                7
+            };
+            Ok(encode(&[Token::Uint(count.into())]).into())
+        }
+    }
+
+    #[tokio::test]
+    async fn sequence_count_requests_run_concurrently() -> Result<()> {
+        let (inner, _) = Provider::mocked();
+        let hash = H256::repeat_byte(4);
+        let source = EvmSource {
+            provider: ConcurrentCounts {
+                inner,
+                started: tokio::sync::Barrier::new(2),
+                hash,
+            },
+            contracts: Contracts {
+                mailbox: H160::repeat_byte(1),
+                hook: H160::repeat_byte(2),
+                paymaster: H160::repeat_byte(3),
+            },
+            domain: 1,
+        };
+        assert_eq!(
+            tokio::time::timeout(std::time::Duration::from_secs(1), source.counts(hash)).await??,
+            [9, 7]
+        );
+        Ok(())
+    }
 
     #[tokio::test]
     async fn sequence_counts_are_hash_pinned_and_reject_malformed_contract_replies() -> Result<()> {

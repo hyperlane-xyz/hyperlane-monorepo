@@ -3,7 +3,7 @@
 use std::{
     collections::BTreeMap,
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Mutex,
     },
 };
@@ -159,6 +159,26 @@ fn contracts() -> Contracts {
     }
 }
 
+/// Model the explicit operator acknowledgement used by legacy cutover fixtures.
+async fn seed_verified_cutover(store: &Store, anchor: &Header) -> Result<()> {
+    let tx = store.db.begin().await?;
+    let contracts = contracts();
+    let domain = i32::from_ne_bytes(store.domain.to_ne_bytes());
+    let height = i64::try_from(anchor.height)?;
+    tx.execute(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "INSERT INTO block(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC')",
+        [domain.into(), anchor.hash.as_bytes().to_vec().into(), height.into(), i64::try_from(anchor.timestamp)?.into()],
+    )).await?;
+    tx.execute(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster) VALUES($1,$2,$2,$3,$2,$2,$4,$5,$6)",
+        [domain.into(), height.into(), anchor.hash.as_bytes().to_vec().into(), contracts.mailbox.as_bytes().to_vec().into(), contracts.hook.as_bytes().to_vec().into(), contracts.paymaster.as_bytes().to_vec().into()],
+    )).await?;
+    tx.commit().await?;
+    Ok(())
+}
+
 async fn ingest_head(chain: &Chain, store: &Store) -> Result<()> {
     let state = observe(chain, store).await?;
     ingest(chain, store, &state, 1000).await?;
@@ -177,19 +197,6 @@ async fn count(store: &Store, relation: &str) -> Result<i64> {
         .try_get("", "n")?)
 }
 
-#[test]
-fn configuration_is_explicit_and_accepts_flat_loader_values() {
-    let config: Config = serde_json::from_value(serde_json::json!({ "fromblock": "10" })).unwrap();
-    assert_eq!(config.from_block, 10);
-    for invalid in [
-        serde_json::json!({}),
-        serde_json::json!({"fromBlock": -1}),
-        serde_json::json!({"fromBlock": 1, "reorgPeriod": 0}),
-    ] {
-        assert!(serde_json::from_value::<Config>(invalid).is_err());
-    }
-}
-
 #[tokio::test]
 async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
@@ -201,14 +208,30 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     // Seed a legacy row before the migration. Existing IDs, visibility and
     // notifications must survive the additive schema change.
     migration::Migrator::up(&db, Some(14)).await?;
-    db.execute_unprepared("INSERT INTO merkle_tree_insertion(domain,merkle_tree_hook,leaf_index,message_id,block_number) VALUES(1,decode(repeat('09',20),'hex'),0,decode(repeat('09',32),'hex'),0)").await?;
+    db.execute_unprepared("CREATE ROLE scraper_notification_reader; GRANT SELECT ON raw_message_dispatch TO scraper_notification_reader; INSERT INTO merkle_tree_insertion(domain,merkle_tree_hook,leaf_index,message_id,block_number) VALUES(1,decode(repeat('09',20),'hex'),0,decode(repeat('09',32),'hex'),0)").await?;
     migration::Migrator::up(&db, None).await?;
+    let permission = db
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT has_table_privilege('scraper_notification_reader','scraper_head','SELECT') AS head,has_table_privilege('scraper_notification_reader','confirmed_raw_message_dispatch','SELECT') AS events",
+        ))
+        .await?
+        .unwrap();
+    assert!(permission.try_get::<bool>("", "head")?);
+    assert!(permission.try_get::<bool>("", "events")?);
     let mut listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
     listener.listen("scraper_event").await?;
+    let mut provisional_listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
+    provisional_listener
+        .listen("scraper_event_provisional")
+        .await?;
+    let mut head_listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
+    head_listener.listen("scraper_head").await?;
     let store = Store { db, domain: 1 };
     assert_eq!(count(&store, "confirmed_merkle_tree_insertion").await?, 1);
     let chain = Chain::new(3);
     let anchor = chain.header(0u64.into()).await?;
+    seed_verified_cutover(&store, &anchor).await?;
     store.initialize(&anchor, &contracts()).await?;
     ingest_head(&chain, &store).await?;
     assert_eq!(
@@ -219,6 +242,36 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     for table in ["raw_message_dispatch", "delivered_message", "gas_payment"] {
         assert_eq!(count(&store, table).await?, 1);
         assert_eq!(count(&store, &format!("confirmed_{table}")).await?, 0);
+    }
+    let mut provisional_event_types = std::collections::HashSet::new();
+    for _ in 0..4 {
+        let notice =
+            tokio::time::timeout(Duration::from_secs(2), provisional_listener.recv()).await??;
+        let event: serde_json::Value = serde_json::from_str(notice.payload())?;
+        assert_eq!(event["domain"], 1);
+        provisional_event_types.insert(event["eventType"].as_str().unwrap().to_owned());
+    }
+    assert_eq!(
+        provisional_event_types,
+        [
+            "dispatch",
+            "delivery",
+            "gas_payment",
+            "merkle_tree_insertion"
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
+    );
+    for (expected_kind, expected_height) in
+        [("initialized", "0"), ("progress", "0"), ("progress", "3")]
+    {
+        let notice = tokio::time::timeout(Duration::from_secs(2), head_listener.recv()).await??;
+        let head: serde_json::Value = serde_json::from_str(notice.payload())?;
+        assert_eq!(head["kind"], expected_kind);
+        assert_eq!(head["domain"], 1);
+        assert_eq!(head["indexedHeight"], expected_height);
+        assert_eq!(head["indexedHash"].as_str().unwrap().len(), 64);
     }
     assert!(
         tokio::time::timeout(Duration::from_millis(50), listener.recv())
@@ -243,6 +296,23 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     ingest_head(&chain, &store).await?;
     for table in ["raw_message_dispatch", "delivered_message", "gas_payment"] {
         assert_eq!(count(&store, table).await?, 1);
+    }
+    let mut rollback = None;
+    for _ in 0..3 {
+        let notice = tokio::time::timeout(Duration::from_secs(2), head_listener.recv()).await??;
+        let head: serde_json::Value = serde_json::from_str(notice.payload())?;
+        if head["kind"] == "rollback" {
+            rollback = Some(head);
+        }
+    }
+    let rollback = rollback.expect("reorg must publish its rollback boundary");
+    assert_eq!(rollback["previousIndexedHeight"], "3");
+    assert_eq!(rollback["indexedHeight"], "1");
+    for _ in 0..4 {
+        let notice =
+            tokio::time::timeout(Duration::from_secs(2), provisional_listener.recv()).await??;
+        let event: serde_json::Value = serde_json::from_str(notice.payload())?;
+        assert_eq!(event["domain"], 1);
     }
     assert!(
         store
@@ -681,6 +751,13 @@ async fn incomplete_sequences_retry_after_restart_and_dense_ranges_batch_atomica
         confirm(&source, &store, &ReorgPeriod::from_blocks(0)).await?,
         [1001, 1, 1, 1001]
     );
+    // The oversized event block publishes atomically; drain its empty trailing span.
+    assert_eq!(store.state().await?.unwrap().confirmed, 2);
+    assert_eq!(
+        confirm(&source, &store, &ReorgPeriod::from_blocks(0)).await?,
+        [0; 4]
+    );
+    assert_eq!(store.state().await?.unwrap().confirmed, 3);
     // Fully published progress needs no finality-tag RPC, even if tags are unavailable.
     *source.chain.fail_tag.lock().unwrap() = true;
     source.chain.header_calls.store(0, Ordering::Relaxed);
@@ -822,4 +899,194 @@ fn missing_entire_sequences_and_regressing_counts_are_rejected() {
     assert!(validate_sequences(&[], [4, 5], [5, 5]).is_err());
     assert!(validate_sequences(&[], [4, 5], [4, 6]).is_err());
     assert!(validate_sequences(&[], [4, 5], [3, 5]).is_err());
+}
+
+struct CountedChain {
+    chain: Chain,
+    calls: Mutex<Vec<H256>>,
+    unavailable: Mutex<Option<H256>>,
+}
+
+#[async_trait]
+impl Source for CountedChain {
+    async fn header(&self, block: BlockNumber) -> Result<Header> {
+        self.chain.header(block).await
+    }
+    async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
+        self.chain.events(from, through).await
+    }
+    async fn counts(&self, hash: H256) -> Result<[u32; 2]> {
+        self.calls.lock().unwrap().push(hash);
+        ensure!(
+            *self.unavailable.lock().unwrap() != Some(hash),
+            "State unavailable"
+        );
+        self.chain.counts(hash).await
+    }
+}
+
+#[tokio::test]
+async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let source = CountedChain {
+        chain: Chain::new(3),
+        calls: Mutex::new(vec![]),
+        unavailable: Mutex::new(None),
+    };
+    let anchor = source.header(0u64.into()).await?;
+    // Unsupported state/tag reads must not leave a new mode persisted.
+    *source.unavailable.lock().unwrap() = Some(anchor.hash);
+    assert!(prepare(
+        &source,
+        &store,
+        &anchor,
+        &contracts(),
+        &ReorgPeriod::from_blocks(0)
+    )
+    .await
+    .is_err());
+    assert!(store.state().await?.is_none());
+    *source.unavailable.lock().unwrap() = None;
+    *source.chain.fail_tag.lock().unwrap() = true;
+    assert!(prepare(
+        &source,
+        &store,
+        &anchor,
+        &contracts(),
+        &ReorgPeriod::Tag("safe".into())
+    )
+    .await
+    .is_err());
+    assert!(store.state().await?.is_none());
+    *source.chain.fail_tag.lock().unwrap() = false;
+    prepare(
+        &source,
+        &store,
+        &anchor,
+        &contracts(),
+        &ReorgPeriod::from_blocks(0),
+    )
+    .await?;
+    source.calls.lock().unwrap().clear();
+    let mut cache = None;
+    for expected_calls in [2, 3] {
+        let state = observe(&source, &store).await?;
+        ingest_cached(&source, &store, &state, 1, &mut cache).await?;
+        assert_eq!(source.calls.lock().unwrap().len(), expected_calls);
+    }
+    // Restart preflight uses the retained boundary, even if old anchor state is pruned.
+    *source.unavailable.lock().unwrap() = Some(anchor.hash);
+    prepare(
+        &source,
+        &store,
+        &anchor,
+        &contracts(),
+        &ReorgPeriod::from_blocks(0),
+    )
+    .await?;
+    source.calls.lock().unwrap().clear();
+    source.chain.fork(3, 1, 10);
+    // Orphaned persisted hashes must not prevent startup from reaching rollback.
+    prepare(
+        &source,
+        &store,
+        &anchor,
+        &contracts(),
+        &ReorgPeriod::from_blocks(0),
+    )
+    .await?;
+    source.calls.lock().unwrap().clear();
+    let state = observe(&source, &store).await?;
+    assert_eq!(state.indexed, 1);
+    ingest_cached(&source, &store, &state, 1, &mut cache).await?;
+    assert_eq!(source.calls.lock().unwrap().len(), 2);
+    // A failed range cannot publish cached counts for an uncommitted boundary.
+    let committed = cache;
+    *source.chain.fail_logs.lock().unwrap() = true;
+    let state = observe(&source, &store).await?;
+    assert!(ingest_cached(&source, &store, &state, 1, &mut cache)
+        .await
+        .is_err());
+    assert_eq!(cache, committed);
+    *source.chain.fail_logs.lock().unwrap() = false;
+    source.calls.lock().unwrap().clear();
+    let state = observe(&source, &store).await?;
+    ingest_cached(&source, &store, &state, 1, &mut None).await?;
+    assert_eq!(source.calls.lock().unwrap().len(), 2);
+    Ok(())
+}
+
+#[tokio::test]
+async fn automatic_cutover_rejects_partial_legacy_history_and_reuses_verified_boundary(
+) -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    migration::indexes::create_indexes(&db).await?;
+    let store = Store { db, domain: 1 };
+    // Empty databases start from configured index.from (or block 1 for from=0).
+    assert_eq!(store.anchor_height(10).await?, 9);
+    assert_eq!(store.anchor_height(0).await?, 0);
+    let chain = Chain::new(50);
+    let header = chain.header(10u64.into()).await?;
+    store
+        .db
+        .execute(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "INSERT INTO block(domain,hash,height,timestamp) VALUES(1,$1,10,now())",
+            [header.hash.as_bytes().to_vec().into()],
+        ))
+        .await?;
+    // The shared cursor is deliberately ahead, and another domain has newer history.
+    store.db.execute_unprepared("INSERT INTO cursor(domain,event_type,height,time_created) VALUES(1,'',1000,now()); INSERT INTO block(domain,hash,height,timestamp) VALUES(42161,decode(repeat('09',32),'hex'),100,now())").await?;
+    assert!(store.anchor_height(1).await.is_err());
+    store.db.execute_unprepared("INSERT INTO raw_message_dispatch(msg_id,origin_tx_hash,origin_block_hash,origin_block_height,nonce,origin_domain,destination_domain,sender,recipient,origin_mailbox) VALUES(decode(repeat('03',32),'hex'),decode(repeat('04',32),'hex'),decode(repeat('05',32),'hex'),20,0,1,1,decode(repeat('01',20),'hex'),decode(repeat('02',20),'hex'),decode(repeat('01',20),'hex'))").await?;
+    assert!(store.anchor_height(1).await.is_err());
+    // Legacy Merkle events need not have a corresponding block-table row.
+    store.db.execute_unprepared("INSERT INTO merkle_tree_insertion(domain,merkle_tree_hook,leaf_index,message_id,block_number) VALUES(1,decode(repeat('01',20),'hex'),0,decode(repeat('06',32),'hex'),30)").await?;
+    // Dispatch/Merkle maxima and the shared cursor cannot prove the slower
+    // gas/delivery streams completed any of these heights.
+    assert!(store.anchor_height(1).await.is_err());
+    assert!(store.state().await?.is_none());
+    // First-start initialization also refuses history appearing after an empty
+    // anchor selection, even if its height is below the proposed boundary.
+    assert!(store
+        .initialize(&chain.header(30u64.into()).await?, &contracts())
+        .await
+        .is_err());
+    assert!(store.state().await?.is_none());
+    // An operator-verified cutover explicitly seeds the saved boundary. This
+    // fixture models that acknowledgement, not proof of historical completeness.
+    let anchor = chain.header(30u64.into()).await?;
+    seed_verified_cutover(&store, &anchor).await?;
+    prepare(&chain, &store, &anchor, &contracts(), &ReorgPeriod::None).await?;
+    // Restart must not choose a new boundary from newer history or a changed default.
+    store
+        .db
+        .execute_unprepared(
+            "UPDATE raw_message_dispatch SET origin_block_height=40 WHERE origin_domain=1",
+        )
+        .await?;
+    assert_eq!(store.anchor_height(100).await?, 30);
+    prepare(
+        &chain,
+        &store,
+        &chain.header(30u64.into()).await?,
+        &contracts(),
+        &ReorgPeriod::None,
+    )
+    .await?;
+    assert_eq!(count(&store, "scraper_head").await?, 1);
+    Ok(())
 }

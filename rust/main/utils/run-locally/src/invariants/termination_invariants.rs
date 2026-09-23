@@ -10,7 +10,7 @@ use crate::config::Config;
 use crate::logging::log;
 use crate::metrics::agent_balance_sum;
 use crate::utils::get_matching_lines;
-use crate::{fetch_metric, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT};
+use crate::{fetch_metric, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT};
 
 #[derive(Clone)]
 pub struct RelayerTerminationInvariantParams<'a> {
@@ -229,6 +229,7 @@ pub struct ScraperTerminationInvariantParams {
 /// returns true if invariants are met
 pub fn scraper_termination_invariants_met(
     params: ScraperTerminationInvariantParams,
+    metrics_ports: &[&str],
 ) -> eyre::Result<bool> {
     let ScraperTerminationInvariantParams {
         gas_payment_events_count,
@@ -238,13 +239,17 @@ pub fn scraper_termination_invariants_met(
 
     log!("Checking scraper termination invariants");
 
-    let dispatched_messages_scraped = fetch_metric(
-        SCRAPER_METRICS_PORT,
-        "hyperlane_contract_sync_stored_events",
-        &hashmap! {"data_type" => "message_dispatch"},
-    )?
-    .iter()
-    .sum::<u32>();
+    let stored_events = |data_type| -> eyre::Result<u32> {
+        metrics_ports.iter().try_fold(0, |total, port| {
+            let events: Vec<u32> = fetch_metric(
+                port,
+                "hyperlane_contract_sync_stored_events",
+                &hashmap! {"data_type" => data_type},
+            )?;
+            Ok(total + events.iter().sum::<u32>())
+        })
+    };
+    let dispatched_messages_scraped = stored_events("message_dispatch")?;
     if dispatched_messages_scraped != total_messages_dispatched {
         log!(
             "Scraper has scraped {} dispatched messages, expected {}",
@@ -255,13 +260,7 @@ pub fn scraper_termination_invariants_met(
     }
 
     // Check raw message dispatches (stored without RPC dependencies for CCTP availability)
-    let raw_dispatches_scraped = fetch_metric(
-        SCRAPER_METRICS_PORT,
-        "hyperlane_contract_sync_stored_events",
-        &hashmap! {"data_type" => "raw_message_dispatch"},
-    )?
-    .iter()
-    .sum::<u32>();
+    let raw_dispatches_scraped = stored_events("raw_message_dispatch")?;
     if raw_dispatches_scraped != total_messages_dispatched {
         log!(
             "Scraper has scraped {} raw message dispatches, expected {}",
@@ -271,13 +270,7 @@ pub fn scraper_termination_invariants_met(
         return Ok(false);
     }
 
-    let gas_payments_scraped = fetch_metric(
-        SCRAPER_METRICS_PORT,
-        "hyperlane_contract_sync_stored_events",
-        &hashmap! {"data_type" => "gas_payment"},
-    )?
-    .iter()
-    .sum::<u32>();
+    let gas_payments_scraped = stored_events("gas_payment")?;
     if gas_payments_scraped != gas_payment_events_count {
         log!(
             "Scraper has scraped {} gas payments, expected {}",
@@ -287,13 +280,7 @@ pub fn scraper_termination_invariants_met(
         return Ok(false);
     }
 
-    let delivered_messages_scraped = fetch_metric(
-        SCRAPER_METRICS_PORT,
-        "hyperlane_contract_sync_stored_events",
-        &hashmap! {"data_type" => "message_delivery"},
-    )?
-    .iter()
-    .sum::<u32>();
+    let delivered_messages_scraped = stored_events("message_delivery")?;
     if delivered_messages_scraped != delivered_messages_scraped_expected {
         log!(
             "Scraper has scraped {} delivered messages, expected {}",
@@ -304,6 +291,63 @@ pub fn scraper_termination_invariants_met(
     }
 
     Ok(true)
+}
+
+#[cfg(test)]
+mod scraper_tests {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::thread;
+    use std::time::Duration;
+
+    use super::{scraper_termination_invariants_met, ScraperTerminationInvariantParams};
+
+    #[test]
+    fn scraper_counts_cover_single_and_multiple_processes() {
+        for counts in [vec![(2, 3, 1)], vec![(2, 3, 1), (5, 7, 4), (11, 13, 9)]] {
+            let mut ports = Vec::new();
+            let mut servers = Vec::new();
+            for &(dispatches, gas_payments, deliveries) in &counts {
+                let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+                ports.push(listener.local_addr().unwrap().port().to_string());
+                servers.push(thread::spawn(move || {
+                    let body = [
+                        ("message_dispatch", dispatches),
+                        ("raw_message_dispatch", dispatches),
+                        ("gas_payment", gas_payments),
+                        ("message_delivery", deliveries),
+                    ]
+                    .into_iter()
+                    .map(|(kind, count)| {
+                        format!("hyperlane_contract_sync_stored_events{{data_type=\"{kind}\"}} {count}\n")
+                    })
+                    .collect::<String>();
+                    for _ in 0..4 {
+                        let (mut stream, _) = listener.accept().unwrap();
+                        stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+                        let mut request = [0; 1024];
+                        assert!(stream.read(&mut request).unwrap() > 0);
+                        write!(
+                            stream,
+                            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                            body.len(),
+                        )
+                        .unwrap();
+                    }
+                }));
+            }
+            let params = ScraperTerminationInvariantParams {
+                total_messages_dispatched: counts.iter().map(|counts| counts.0).sum(),
+                gas_payment_events_count: counts.iter().map(|counts| counts.1).sum(),
+                delivered_messages_scraped_expected: counts.iter().map(|counts| counts.2).sum(),
+            };
+            let ports: Vec<_> = ports.iter().map(String::as_str).collect();
+            assert!(scraper_termination_invariants_met(params, &ports).unwrap());
+            for server in servers {
+                server.join().unwrap();
+            }
+        }
+    }
 }
 
 pub fn relayer_balance_check(starting_relayer_balance: f64) -> eyre::Result<bool> {

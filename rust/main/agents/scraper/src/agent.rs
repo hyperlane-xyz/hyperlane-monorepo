@@ -9,8 +9,9 @@ use async_trait::async_trait;
 use derive_more::AsRef;
 use futures::{future::try_join_all, FutureExt};
 use hyperlane_core::{
-    rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, IndexMode, InterchainGasPayment, MerkleTreeInsertion, SameChainCcrSwap,
+    rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneDomainProtocol,
+    HyperlaneLogStore, HyperlaneMessage, IndexMode, InterchainGasPayment, MerkleTreeInsertion,
+    SameChainCcrSwap,
 };
 use prometheus::{HistogramVec, IntCounterVec, IntGauge, IntGaugeVec};
 use tokio::{
@@ -358,6 +359,7 @@ pub struct Scraper {
     chain_metrics: ChainMetrics,
     runtime_metrics: RuntimeMetrics,
     raw_dispatch_unenriched_max_age: IntGaugeVec,
+    receipt_oldest_pending_seconds: prometheus::GaugeVec,
     raw_dispatch_reconciliation_metrics: RawDispatchReconciliationMetrics,
 }
 
@@ -398,6 +400,11 @@ impl BaseAgent for Scraper {
             )
             .expect("failed to register raw dispatch reconciliation age metric");
         let raw_dispatch_reconciliation_metrics = RawDispatchReconciliationMetrics::new(&metrics);
+        let receipt_oldest_pending_seconds = metrics.new_gauge(
+            "scraper_receipt_oldest_pending_seconds",
+            "Age since creation of the oldest pending receipt event by ID, in seconds",
+            &["chain", "event_type"],
+        )?;
 
         let scrapers = Self::build_chain_scrapers(
             &settings,
@@ -420,6 +427,7 @@ impl BaseAgent for Scraper {
             chain_metrics,
             runtime_metrics,
             raw_dispatch_unenriched_max_age,
+            receipt_oldest_pending_seconds,
             raw_dispatch_reconciliation_metrics,
         })
     }
@@ -526,15 +534,15 @@ impl Scraper {
         let domain = scraper.domain.clone();
 
         let mut tasks = Vec::with_capacity(2);
-        if let Some(config) = self.settings.near_head.get(&domain.id()) {
+        if domain.domain_protocol() == HyperlaneDomainProtocol::Ethereum {
             tasks.push(
                 crate::near_head::spawn(
                     self.settings.chain_setup(&domain)?,
-                    config,
                     store.clone(),
                     self.core_metrics.clone(),
                     self.chain_metrics.clone(),
                     self.contract_sync_metrics.clone(),
+                    self.receipt_oldest_pending_seconds.clone(),
                 )
                 .await?,
             );
@@ -737,7 +745,7 @@ impl Scraper {
         reconciliation_metrics: RawDispatchReconciliationMetrics,
         store: HyperlaneDbStore,
     ) -> JoinHandle<()> {
-        let near_head = self.settings.near_head.contains_key(&domain.id());
+        let near_head = domain.domain_protocol() == HyperlaneDomainProtocol::Ethereum;
         let domain_name = domain.name().to_owned();
         let span_domain_name = domain_name.clone();
         tokio::spawn(
@@ -1216,7 +1224,7 @@ impl Scraper {
             _ => return Ok(None),
         };
 
-        let near_head = self.settings.near_head.contains_key(&domain.id());
+        let near_head = domain.domain_protocol() == HyperlaneDomainProtocol::Ethereum;
         let ccr_to_erc20 = ccr_router_map.clone();
         let local_domain = domain.id();
 
@@ -1704,7 +1712,6 @@ mod test {
             .collect();
 
         ScraperSettings {
-            near_head: HashMap::new(),
             base: Settings {
                 domains,
                 chains,
