@@ -60,6 +60,7 @@ impl ScraperDb {
         origin_mailbox: Vec<u8>,
     ) -> Result<i64> {
         let result = raw_message_dispatch::Entity::find()
+            .filter(sea_orm::sea_query::Expr::cust("confirmed"))
             .select_only()
             .column_as(raw_message_dispatch::Column::Id.max(), "max_id")
             .filter(raw_message_dispatch::Column::OriginDomain.eq(origin_domain))
@@ -87,6 +88,7 @@ impl ScraperDb {
         origin_mailbox: &H256,
     ) -> Result<i64> {
         let result = raw_message_dispatch::Entity::find()
+            .filter(sea_orm::sea_query::Expr::cust("confirmed"))
             .select_only()
             .column_as(raw_message_dispatch::Column::Id.max(), "max_id")
             .filter(raw_message_dispatch::Column::OriginDomain.eq(origin_domain))
@@ -111,6 +113,7 @@ impl ScraperDb {
         prev_id: i64,
     ) -> Result<u64> {
         Ok(raw_message_dispatch::Entity::find()
+            .filter(sea_orm::sea_query::Expr::cust("confirmed"))
             .filter(raw_message_dispatch::Column::OriginDomain.eq(origin_domain))
             .filter(raw_message_dispatch::Column::OriginMailbox.eq(origin_mailbox))
             .filter(raw_message_dispatch::Column::Id.gt(prev_id))
@@ -208,7 +211,7 @@ impl ScraperDb {
                 self.0.get_database_backend(),
                 r#"
                 SELECT raw_message_dispatch.*
-                FROM raw_message_dispatch
+                FROM confirmed_raw_message_dispatch AS raw_message_dispatch
                 LEFT JOIN "message"
                   ON "message".origin = raw_message_dispatch.origin_domain
                  AND "message".origin_mailbox = raw_message_dispatch.origin_mailbox
@@ -256,7 +259,7 @@ impl ScraperDb {
                 self.0.get_database_backend(),
                 r#"
                 SELECT raw_message_dispatch.*
-                FROM raw_message_dispatch
+                FROM confirmed_raw_message_dispatch AS raw_message_dispatch
                 LEFT JOIN "message"
                   ON "message".origin = raw_message_dispatch.origin_domain
                  AND "message".origin_mailbox = raw_message_dispatch.origin_mailbox
@@ -292,6 +295,7 @@ impl ScraperDb {
     ) -> Result<Option<raw_message_dispatch::Model>> {
         let msg_id = h256_to_bytes(message_id);
         Ok(raw_message_dispatch::Entity::find()
+            .filter(sea_orm::sea_query::Expr::cust("confirmed"))
             .filter(raw_message_dispatch::Column::MsgId.eq(msg_id))
             .one(&self.0)
             .await?)

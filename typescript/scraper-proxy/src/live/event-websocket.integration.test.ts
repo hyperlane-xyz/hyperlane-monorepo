@@ -116,7 +116,7 @@ const db: EventDatabase = {
     if (
       !sql.includes('notification_id') &&
       sql.includes('ORDER BY "event_row"."id"') &&
-      sql.includes('"gas_payment"')
+      sql.includes('"confirmed_gas_payment"')
     ) {
       databaseDomainFilters.push(values[0]);
       const after = BigInt(String(values[2]));
@@ -171,11 +171,11 @@ const db: EventDatabase = {
     ids.forEach((id) => notifiedIds.add(id));
     return queryRows<T>(
       ids.flatMap((id) => {
-        const event = sql.includes('"raw_message_dispatch"')
+        const event = sql.includes('"confirmed_raw_message_dispatch"')
           ? dispatchRows.get(id)
-          : sql.includes('"delivered_message"')
+          : sql.includes('"confirmed_delivered_message"')
             ? deliveryRows.get(id)
-            : sql.includes('"gas_payment"')
+            : sql.includes('"confirmed_gas_payment"')
               ? gasPaymentRows.get(id)
               : rows.get(id);
         return event

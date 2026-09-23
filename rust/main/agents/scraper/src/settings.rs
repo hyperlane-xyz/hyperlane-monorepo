@@ -34,6 +34,8 @@ pub struct ScraperSettings {
     pub base: Settings,
 
     pub db: String,
+    /// Optional EVM head ingestion, keyed by domain.
+    pub near_head: crate::near_head::Configs,
     pub chains_to_scrape: Vec<HyperlaneDomain>,
     /// Per-domain CCR contract → underlying ERC20 token mapping.
     /// Domain ID → { router_address → token_address }.
@@ -89,7 +91,7 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
                         .into_config_result(|| cwp.add("chains_to_scrape"))
                         .take_config_err(&mut err)
                 })
-                .collect()
+                .collect::<Vec<HyperlaneDomain>>()
         } else {
             Default::default()
         };
@@ -137,13 +139,40 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
             ccr_routers.insert(domain_id, domain_routers);
         }
 
+        let near_head = p
+            .chain(&mut err)
+            .get_opt_key("nearHead")
+            .parse_value::<crate::near_head::Configs>("parsing nearHead")
+            .end()
+            .unwrap_or_default();
         cfg_unwrap_all!(&p.cwp, err: [base, db]);
+        for (domain, config) in &near_head {
+            let validation = (|| -> eyre::Result<()> {
+                eyre::ensure!(config.from_block > 0, "nearHead fromBlock must be positive");
+                let chain = chains_to_scrape
+                    .iter()
+                    .find(|chain| chain.id() == *domain)
+                    .ok_or_else(|| eyre::eyre!("nearHead domain must be in chainsToScrape"))?;
+                eyre::ensure!(
+                    matches!(
+                        base.chain_setup(chain)?.connection,
+                        hyperlane_base::settings::ChainConnectionConf::Ethereum(_)
+                    ),
+                    "nearHead requires an EVM chain"
+                );
+                Ok(())
+            })();
+            validation
+                .into_config_result(|| cwp.add("nearHead"))
+                .take_config_err(&mut err);
+        }
 
         err.into_result(Self {
             base,
             db,
             chains_to_scrape,
             ccr_routers,
+            near_head,
         })
     }
 }

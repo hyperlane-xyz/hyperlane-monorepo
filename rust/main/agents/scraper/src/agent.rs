@@ -186,6 +186,7 @@ fn raw_dispatch_scan_slot_available(
 #[derive(Debug)]
 struct RawDispatchReconciliationSchedule {
     discovery_watermark: i64,
+    discovery_interval: Duration,
     discovery_scan: Option<RawDispatchScan>,
     full_sweep: Option<RawDispatchScan>,
     next_discovery_at: Instant,
@@ -198,6 +199,7 @@ impl RawDispatchReconciliationSchedule {
     fn new(discovery_watermark: i64, now: Instant, global_not_before: Instant) -> Self {
         Self {
             discovery_watermark,
+            discovery_interval: RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP,
             discovery_scan: None,
             full_sweep: None,
             next_discovery_at: instant_after(now, RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP),
@@ -235,7 +237,7 @@ impl RawDispatchReconciliationSchedule {
         debug_assert!(self.discovery_slot_available());
         self.discovery_scan = RawDispatchScan::new(self.discovery_watermark, frontier, now);
         if self.discovery_scan.is_none() {
-            self.next_discovery_at = instant_after(now, RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP);
+            self.next_discovery_at = instant_after(now, self.discovery_interval);
         }
     }
 
@@ -255,7 +257,7 @@ impl RawDispatchReconciliationSchedule {
         if scan.complete_page(result, now) {
             self.discovery_watermark = self.discovery_watermark.max(scan.through_id);
             self.discovery_scan = None;
-            self.next_discovery_at = instant_after(now, RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP);
+            self.next_discovery_at = instant_after(now, self.discovery_interval);
         } else {
             self.discovery_scan = Some(scan);
         }
@@ -524,53 +526,68 @@ impl Scraper {
         let domain = scraper.domain.clone();
 
         let mut tasks = Vec::with_capacity(2);
-        let (message_indexer, maybe_broadcaster) = self
-            .build_message_indexer(
-                domain.clone(),
-                self.core_metrics.clone(),
-                self.contract_sync_metrics.clone(),
-                store.clone(),
-                index_settings.clone(),
-            )
-            .await?;
-        tasks.push(message_indexer);
-
-        let delivery_indexer = self
-            .build_delivery_indexer(
-                domain.clone(),
-                self.core_metrics.clone(),
-                self.contract_sync_metrics.clone(),
-                store.clone(),
-                index_settings.clone(),
-            )
-            .await?;
-        tasks.push(delivery_indexer);
-
-        let gas_payment_indexer = self
-            .build_interchain_gas_payment_indexer(
-                domain.clone(),
-                self.core_metrics.clone(),
-                self.contract_sync_metrics.clone(),
-                store.clone(),
-                index_settings.clone(),
-                BroadcastMpscSender::<IndexingNotification>::map_get_receiver(
-                    maybe_broadcaster.as_ref(),
+        if let Some(config) = self.settings.near_head.get(&domain.id()) {
+            tasks.push(
+                crate::near_head::spawn(
+                    self.settings.chain_setup(&domain)?,
+                    config,
+                    store.clone(),
+                    self.core_metrics.clone(),
+                    self.chain_metrics.clone(),
+                    self.contract_sync_metrics.clone(),
                 )
-                .await,
-            )
-            .await?;
-        tasks.push(gas_payment_indexer);
+                .await?,
+            );
+        } else {
+            crate::near_head::ensure_legacy_mode(&store).await?;
+            let (message_indexer, maybe_broadcaster) = self
+                .build_message_indexer(
+                    domain.clone(),
+                    self.core_metrics.clone(),
+                    self.contract_sync_metrics.clone(),
+                    store.clone(),
+                    index_settings.clone(),
+                )
+                .await?;
+            tasks.push(message_indexer);
 
-        tasks.push(
-            self.build_merkle_tree_insertion_indexer(
-                domain.clone(),
-                self.core_metrics.clone(),
-                self.contract_sync_metrics.clone(),
-                store.clone(),
-                index_settings.clone(),
-            )
-            .await?,
-        );
+            let delivery_indexer = self
+                .build_delivery_indexer(
+                    domain.clone(),
+                    self.core_metrics.clone(),
+                    self.contract_sync_metrics.clone(),
+                    store.clone(),
+                    index_settings.clone(),
+                )
+                .await?;
+            tasks.push(delivery_indexer);
+
+            let gas_payment_indexer = self
+                .build_interchain_gas_payment_indexer(
+                    domain.clone(),
+                    self.core_metrics.clone(),
+                    self.contract_sync_metrics.clone(),
+                    store.clone(),
+                    index_settings.clone(),
+                    BroadcastMpscSender::<IndexingNotification>::map_get_receiver(
+                        maybe_broadcaster.as_ref(),
+                    )
+                    .await,
+                )
+                .await?;
+            tasks.push(gas_payment_indexer);
+
+            tasks.push(
+                self.build_merkle_tree_insertion_indexer(
+                    domain.clone(),
+                    self.core_metrics.clone(),
+                    self.contract_sync_metrics.clone(),
+                    store.clone(),
+                    index_settings.clone(),
+                )
+                .await?,
+            );
+        }
 
         tasks.push(self.build_raw_dispatch_reconciler(
             domain.clone(),
@@ -720,6 +737,7 @@ impl Scraper {
         reconciliation_metrics: RawDispatchReconciliationMetrics,
         store: HyperlaneDbStore,
     ) -> JoinHandle<()> {
+        let near_head = self.settings.near_head.contains_key(&domain.id());
         let domain_name = domain.name().to_owned();
         let span_domain_name = domain_name.clone();
         tokio::spawn(
@@ -738,7 +756,11 @@ impl Scraper {
 
                 update_liveness_metric(&liveness_metric);
                 sleep_with_liveness(
-                    raw_dispatch_reconciliation_initial_delay(domain.id()),
+                    if near_head {
+                        Duration::ZERO
+                    } else {
+                        raw_dispatch_reconciliation_initial_delay(domain.id())
+                    },
                     &liveness_metric,
                 )
                 .await;
@@ -773,6 +795,10 @@ impl Scraper {
                     now,
                     global_not_before,
                 );
+                if near_head {
+                    schedule.discovery_interval = Duration::from_secs(30);
+                    schedule.next_discovery_at = now;
+                }
 
                 loop {
                     update_liveness_metric(&liveness_metric);
@@ -1042,7 +1068,14 @@ impl Scraper {
                     let discovery_delay = schedule.discovery_delay(now);
                     let sweep_delay = schedule.full_sweep_delay(now);
                     sleep_with_liveness(
-                        retry_delay.min(discovery_delay).min(sweep_delay),
+                        retry_delay
+                            .min(discovery_delay)
+                            .min(sweep_delay)
+                            .min(if near_head {
+                                Duration::from_secs(30)
+                            } else {
+                                Duration::MAX
+                            }),
                         &liveness_metric,
                     )
                     .await;
@@ -1183,6 +1216,7 @@ impl Scraper {
             _ => return Ok(None),
         };
 
+        let near_head = self.settings.near_head.contains_key(&domain.id());
         let ccr_to_erc20 = ccr_router_map.clone();
         let local_domain = domain.id();
 
@@ -1216,7 +1250,12 @@ impl Scraper {
                 let mut from_block = ccr_cursor.height().await as u32;
 
                 loop {
-                    let tip = match indexer.get_finalized_block_number().await {
+                    let tip = match async {
+                        let tip = indexer.get_finalized_block_number().await?;
+                        Ok::<_, eyre::Report>(if near_head {
+                            tip.min(crate::near_head::confirmed_height(&store.db, local_domain).await?)
+                        } else { tip })
+                    }.await {
                         Ok(tip) => tip,
                         Err(err) => {
                             warn!(?err, "Failed to get finalized block number for CCR indexer");
@@ -1401,6 +1440,19 @@ mod test {
         assert!(raw_dispatch_scan_slot_available(None, None));
         assert!(!raw_dispatch_scan_slot_available(active_scan, None));
         assert!(!raw_dispatch_scan_slot_available(None, active_scan));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn near_head_discovery_keeps_its_short_interval_after_empty_and_complete_pages() {
+        let now = Instant::now();
+        let mut schedule = RawDispatchReconciliationSchedule::new(0, now, now);
+        schedule.discovery_interval = Duration::from_secs(30);
+        schedule.start_discovery(0, now);
+        assert_eq!(schedule.discovery_delay(now), Duration::from_secs(30));
+        schedule.start_discovery(10, now);
+        let scan = schedule.discovery_scan.unwrap();
+        schedule.complete_discovery_page(scan, &RawDispatchReconciliationResult::default(), now);
+        assert_eq!(schedule.discovery_delay(now), Duration::from_secs(30));
     }
 
     #[tokio::test(start_paused = true)]
@@ -1652,6 +1704,7 @@ mod test {
             .collect();
 
         ScraperSettings {
+            near_head: HashMap::new(),
             base: Settings {
                 domains,
                 chains,

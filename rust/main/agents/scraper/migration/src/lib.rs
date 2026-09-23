@@ -22,6 +22,8 @@ mod m20260819_000011_nullable_event_tx_ids;
 mod m20260819_000012_notify_scraper_events;
 mod m20260830_000013_gas_payment_stream_cursor;
 
+mod m20260922_000014_near_head;
+
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -46,6 +48,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260819_000011_nullable_event_tx_ids::Migration),
             Box::new(m20260819_000012_notify_scraper_events::Migration),
             Box::new(m20260830_000013_gas_payment_stream_cursor::Migration),
+            Box::new(m20260922_000014_near_head::Migration),
         ]
     }
 }

@@ -83,6 +83,7 @@ impl ScraperDb {
         leaf_index: u32,
     ) -> Result<Option<(MerkleTreeInsertion, u64)>> {
         let row = merkle_tree_insertion::Entity::find()
+            .filter(sea_orm::sea_query::Expr::cust("confirmed"))
             .select_only()
             .columns([
                 merkle_tree_insertion::Column::LeafIndex,
