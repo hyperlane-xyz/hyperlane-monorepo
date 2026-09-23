@@ -5,6 +5,7 @@ import {
   type RawWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
+  assert,
   eqAddressAleo,
   eqOptionalAddress,
   isNullish,
@@ -86,6 +87,7 @@ export function getCreateSyntheticTokenTx(
   name: string,
   denom: string,
   decimals: number,
+  remoteDecimals = decimals,
 ): AleoTransaction {
   return {
     programName: tokenProgramId,
@@ -97,9 +99,35 @@ export function getCreateSyntheticTokenTx(
       `${stringToU128(name).toString()}u128`,
       `${stringToU128(denom).toString()}u128`,
       `${decimals}u8`,
-      `${decimals}u8`,
+      `${remoteDecimals}u8`,
     ],
   };
+}
+
+/** Derives Aleo's remote decimals from the configured power-of-ten scale. */
+export function scaleToRemoteDecimals(
+  localDecimals: number,
+  scale = 1,
+): number {
+  const exponent = Math.round(Math.log10(scale));
+  assert(
+    Number.isFinite(scale) && scale > 0 && Number(`1e${exponent}`) === scale,
+    `scale must be a positive power of 10, got ${scale}`,
+  );
+  assert(
+    Math.abs(exponent) <= 18,
+    'Aleo local and remote decimals must differ by at most 18',
+  );
+  const remoteDecimals = localDecimals + exponent;
+  assert(
+    Number.isInteger(localDecimals) &&
+      localDecimals >= 0 &&
+      localDecimals <= 255 &&
+      remoteDecimals >= 0 &&
+      remoteDecimals <= 255,
+    `Aleo local and remote decimals must be integers in [0, 255], got ${localDecimals} and ${remoteDecimals}`,
+  );
+  return remoteDecimals;
 }
 
 /**
