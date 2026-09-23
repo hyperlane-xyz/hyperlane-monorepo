@@ -61,9 +61,8 @@ impl Store {
         })).transpose()
     }
 
-    /// Trust existing history on a first automatic start. The shared legacy cursor
-    /// is not used: it can lag already stored events or lead a slower stream.
-    /// Stop other writers before initializing; initialize rechecks for overlap.
+    /// Only empty domains can start automatically. Neither stored maxima nor the
+    /// shared legacy cursor prove that all four streams completed a cutover.
     pub async fn anchor_height(&self, index_from: u32) -> Result<u64> {
         if let Some(row) = self
             .db
@@ -75,37 +74,20 @@ impl Store {
         {
             return Ok(u64::try_from(row.try_get::<i64>("", "start_height")?)?);
         }
-        // Scalar backward index seeks, including the full Merkle height index
-        // installed by init-db. Do not scan historical events to find the tip.
-        let row = self
-            .db
-            .query_one(sql(
-                r#"
-            SELECT greatest($2,
-                coalesce((SELECT height FROM block WHERE domain=$1 ORDER BY height DESC LIMIT 1),0),
-                coalesce((SELECT origin_block_height FROM raw_message_dispatch
-                    WHERE origin_domain=$1 ORDER BY origin_block_height DESC LIMIT 1),0),
-                coalesce((SELECT block_number FROM merkle_tree_insertion
-                    WHERE domain=$1 ORDER BY block_number DESC LIMIT 1),0)) AS height
-        "#,
-                vec![
-                    self.domain(),
-                    i64::from(index_from.saturating_sub(1)).into(),
-                ],
-            ))
-            .await?
-            .ok_or_else(|| eyre::eyre!("Missing automatic cutover height"))?;
-        let height = u64::try_from(row.try_get::<i64>("", "height")?)?;
+        self.ensure_empty_history(&self.db).await?;
+        Ok(u64::from(index_from.saturating_sub(1)))
+    }
+
+    async fn ensure_empty_history<C: ConnectionTrait>(&self, db: &C) -> Result<()> {
+        let row = db.query_one(sql(
+            "SELECT EXISTS(SELECT 1 FROM block WHERE domain=$1) OR EXISTS(SELECT 1 FROM raw_message_dispatch WHERE origin_domain=$1) OR EXISTS(SELECT 1 FROM delivered_message WHERE domain=$1) OR EXISTS(SELECT 1 FROM gas_payment WHERE domain=$1) OR EXISTS(SELECT 1 FROM merkle_tree_insertion WHERE domain=$1) AS has_history",
+            vec![self.domain()],
+        )).await?.ok_or_else(|| eyre::eyre!("Missing legacy history check"))?;
         ensure!(
-            height < u64::from(u32::MAX),
-            "Automatic cutover exceeds supported block range"
+            !row.try_get::<bool>("", "has_history")?,
+            "Existing legacy history requires a verified cutover for all four event streams; stop legacy writers and follow docs/scraper/near-head.md before initializing scraper_head"
         );
-        tracing::info!(
-            domain = self.domain,
-            anchor_height = height,
-            "Selected near-head cutover from database; trusting existing history"
-        );
-        Ok(height)
+        Ok(())
     }
 
     pub async fn initialize(&self, anchor: &Header, contracts: &Contracts) -> Result<()> {
@@ -126,15 +108,9 @@ impl Store {
                 "Near-head boundary or contracts changed; restore the original configuration"
             );
         } else {
-            // Cut over after legacy history, never reinterpret already-published rows.
-            let existing = tx.query_one(sql(
-                "SELECT EXISTS(SELECT 1 FROM block WHERE domain=$1 AND height>$2) OR EXISTS(SELECT 1 FROM raw_message_dispatch WHERE origin_domain=$1 AND origin_block_height>$2) OR EXISTS(SELECT 1 FROM merkle_tree_insertion WHERE domain=$1 AND block_number>$2) AS overlaps",
-                vec![self.domain(), number(anchor.height)?],
-            )).await?.ok_or_else(|| eyre::eyre!("Missing cutover check"))?;
-            ensure!(
-                !existing.try_get::<bool>("", "overlaps")?,
-                "Legacy history advanced past the selected cutover; stop other writers and retry"
-            );
+            // Recheck after RPC preflight: another writer may have stored history
+            // since anchor selection. Existing domains require operator cutover.
+            self.ensure_empty_history(&tx).await?;
             insert_block(&tx, signed(self.domain), anchor).await?;
             tx.execute(sql(
                 "INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster) VALUES($1,$2,$2,$3,$2,$2,$4,$5,$6)",

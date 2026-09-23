@@ -93,7 +93,7 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
-    if !scraper_termination_invariants_met(params)? {
+    if !scraper_termination_invariants_met(params, &[crate::SCRAPER_METRICS_PORT])? {
         log!("Scraper termination invariants not met");
         return Ok(false);
     }

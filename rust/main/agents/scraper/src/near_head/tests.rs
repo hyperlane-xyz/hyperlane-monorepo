@@ -159,6 +159,26 @@ fn contracts() -> Contracts {
     }
 }
 
+/// Model the explicit operator acknowledgement used by legacy cutover fixtures.
+async fn seed_verified_cutover(store: &Store, anchor: &Header) -> Result<()> {
+    let tx = store.db.begin().await?;
+    let contracts = contracts();
+    let domain = i32::from_ne_bytes(store.domain.to_ne_bytes());
+    let height = i64::try_from(anchor.height)?;
+    tx.execute(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "INSERT INTO block(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC')",
+        [domain.into(), anchor.hash.as_bytes().to_vec().into(), height.into(), i64::try_from(anchor.timestamp)?.into()],
+    )).await?;
+    tx.execute(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster) VALUES($1,$2,$2,$3,$2,$2,$4,$5,$6)",
+        [domain.into(), height.into(), anchor.hash.as_bytes().to_vec().into(), contracts.mailbox.as_bytes().to_vec().into(), contracts.hook.as_bytes().to_vec().into(), contracts.paymaster.as_bytes().to_vec().into()],
+    )).await?;
+    tx.commit().await?;
+    Ok(())
+}
+
 async fn ingest_head(chain: &Chain, store: &Store) -> Result<()> {
     let state = observe(chain, store).await?;
     ingest(chain, store, &state, 1000).await?;
@@ -211,6 +231,7 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     assert_eq!(count(&store, "confirmed_merkle_tree_insertion").await?, 1);
     let chain = Chain::new(3);
     let anchor = chain.header(0u64.into()).await?;
+    seed_verified_cutover(&store, &anchor).await?;
     store.initialize(&anchor, &contracts()).await?;
     ingest_head(&chain, &store).await?;
     assert_eq!(
@@ -1003,7 +1024,8 @@ async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Resul
 }
 
 #[tokio::test]
-async fn automatic_cutover_uses_stored_history_and_reuses_saved_boundary() -> Result<()> {
+async fn automatic_cutover_rejects_partial_legacy_history_and_reuses_verified_boundary(
+) -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let db = Database::connect(format!(
         "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
@@ -1028,35 +1050,27 @@ async fn automatic_cutover_uses_stored_history_and_reuses_saved_boundary() -> Re
         .await?;
     // The shared cursor is deliberately ahead, and another domain has newer history.
     store.db.execute_unprepared("INSERT INTO cursor(domain,event_type,height,time_created) VALUES(1,'',1000,now()); INSERT INTO block(domain,hash,height,timestamp) VALUES(42161,decode(repeat('09',32),'hex'),100,now())").await?;
-    assert_eq!(store.anchor_height(1).await?, 10);
+    assert!(store.anchor_height(1).await.is_err());
     store.db.execute_unprepared("INSERT INTO raw_message_dispatch(msg_id,origin_tx_hash,origin_block_hash,origin_block_height,nonce,origin_domain,destination_domain,sender,recipient,origin_mailbox) VALUES(decode(repeat('03',32),'hex'),decode(repeat('04',32),'hex'),decode(repeat('05',32),'hex'),20,0,1,1,decode(repeat('01',20),'hex'),decode(repeat('02',20),'hex'),decode(repeat('01',20),'hex'))").await?;
-    assert_eq!(store.anchor_height(1).await?, 20);
+    assert!(store.anchor_height(1).await.is_err());
     // Legacy Merkle events need not have a corresponding block-table row.
     store.db.execute_unprepared("INSERT INTO merkle_tree_insertion(domain,merkle_tree_hook,leaf_index,message_id,block_number) VALUES(1,decode(repeat('01',20),'hex'),0,decode(repeat('06',32),'hex'),30)").await?;
-    let anchor = store.anchor_height(1).await?;
-    assert_eq!(anchor, 30);
-    // First-start overlap validation still catches a writer racing selection.
-    store
-        .db
-        .execute_unprepared("UPDATE merkle_tree_insertion SET block_number=31 WHERE domain=1")
-        .await?;
+    // Dispatch/Merkle maxima and the shared cursor cannot prove the slower
+    // gas/delivery streams completed any of these heights.
+    assert!(store.anchor_height(1).await.is_err());
+    assert!(store.state().await?.is_none());
+    // First-start initialization also refuses history appearing after an empty
+    // anchor selection, even if its height is below the proposed boundary.
     assert!(store
-        .initialize(&chain.header(anchor.into()).await?, &contracts())
+        .initialize(&chain.header(30u64.into()).await?, &contracts())
         .await
         .is_err());
     assert!(store.state().await?.is_none());
-    store
-        .db
-        .execute_unprepared("UPDATE merkle_tree_insertion SET block_number=30 WHERE domain=1")
-        .await?;
-    prepare(
-        &chain,
-        &store,
-        &chain.header(anchor.into()).await?,
-        &contracts(),
-        &ReorgPeriod::None,
-    )
-    .await?;
+    // An operator-verified cutover explicitly seeds the saved boundary. This
+    // fixture models that acknowledgement, not proof of historical completeness.
+    let anchor = chain.header(30u64.into()).await?;
+    seed_verified_cutover(&store, &anchor).await?;
+    prepare(&chain, &store, &anchor, &contracts(), &ReorgPeriod::None).await?;
     // Restart must not choose a new boundary from newer history or a changed default.
     store
         .db

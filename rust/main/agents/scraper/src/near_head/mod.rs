@@ -125,11 +125,11 @@ async fn prepare(
             .header(tag.parse().map_err(eyre::Report::msg)?)
             .await?;
     }
-    // Check the actual retained boundary on restart, not historical cutover state.
+    // Capability checks must not require an RPC that is caught up to our saved
+    // indexed height. The observation loop waits for lagging providers and
+    // checks retained ancestry before publishing anything.
     let hash = match store.state().await? {
-        // The retained hash may be orphaned; probe the current fork and let observe
-        // reconcile retained history after startup.
-        Some(state) => source.header(state.indexed.into()).await?.hash,
+        Some(_) => source.header(BlockNumber::Latest).await?.hash,
         None => anchor.hash,
     };
     source.counts(hash).await?;

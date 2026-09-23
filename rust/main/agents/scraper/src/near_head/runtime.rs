@@ -166,10 +166,10 @@ impl Worker {
                             "Near-head confirmation paused; retrying"
                         );
                     }
-                    tokio::select! {
-                        _ = confirmation_wake.notified() => {},
-                        _ = sleep(*poll_interval) => {},
-                    }
+                    // Observe refreshes the lease before waking publication. A
+                    // timer-only wake can race the next observation at the lease
+                    // boundary and mark a healthy chain critical.
+                    confirmation_wake.notified().await;
                 }
             },
             async {

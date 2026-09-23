@@ -25,23 +25,16 @@ Select chains with `chainsToScrape` as before. No `nearHead` setting or per-chai
 The old `HYP_NEARHEAD` and `HYP_NEARHEAD_<DOMAIN>_FROMBLOCK` variables are no longer
 used and can be removed.
 
-On first start the scraper **trusts existing database history**. For each domain,
-it starts after the greatest stored height in `block`, `raw_message_dispatch`,
-and `merkle_tree_insertion`, never earlier than the chain's configured
-`index.from`. This preserves any pre-existing gaps; it does not verify or backfill
-legacy history. The shared legacy cursor is deliberately ignored because it
-can lag stored rows or lead a slower event stream. An empty DB starts at
-`index.from` (block 1 when `index.from` is 0).
+An empty domain starts automatically at `index.from` (block 1 when `index.from`
+is 0). A domain with existing block or event rows and no `scraper_head` state
+fails closed. Neither the greatest stored height nor the shared legacy cursor
+proves that all four legacy streams completed that height: choosing either can
+skip a slower gas-payment or delivery backlog.
 
-Stop other scraper writers before the first handoff. Startup selects the boundary
-using indexed lookups, probes the RPC, rechecks that no later legacy rows exist,
-and persists the boundary in `scraper_head`. If a legacy writer advances past the
-selected boundary meanwhile, startup fails; stop the writer and retry. Run
-`init-db` before startup to install the full Merkle height index as well as the
-schema and other concurrent indexes.
-
-Restarts load the saved boundary and resume indexed progress. They do not
-reselect it or repeat the historical overlap check. Contract changes are rejected.
+Existing domains require the verified cutover below. Startup rechecks that an
+automatically initialized domain is still empty after RPC preflight. Restarts
+load the saved boundary and resume indexed progress; they do not select a new
+boundary from stored maxima. Contract changes are rejected.
 
 ## Behavior
 
@@ -77,9 +70,9 @@ reselect it or repeat the historical overlap check. Contract changes are rejecte
   events even if the next log fetch fails. Long in-flight RPC calls can expire the
   observation lease; confirmation then waits for a fresh observation.
 - Startup probes the configured finality tag and hash-pinned contract-count calls
-  before persisting a first-time cutover. On restart it probes the canonical block
-  at the retained indexed height, allowing the observation loop to repair an
-  orphaned stored tip without requiring old cutover state. Ingestion and confirmation failures
+  before persisting a first-time cutover. On restart it probes the provider's
+  latest canonical block. Observation waits for providers behind saved progress
+  and reconciles retained ancestry before publication. Ingestion and confirmation failures
   independently contribute to the chain critical-error metric; successful head
   reads cannot clear a confirmation failure. Ingestion pauses on confirmation
   errors. A stalled boundary limits the provisional suffix to 10,000 blocks plus
@@ -166,15 +159,115 @@ hangs, and verify uncached successful receipts survive a neighboring timeout.
 
 ## Rollout
 
-1. Stop scraper writers and the proxy. Apply the migration before deploying the
-   matching binaries. The migration adds columns and indexes to existing tables;
-   measure index creation on a database clone and allow a maintenance window.
-2. Run `cargo run --release -p migration --bin init-db` with `DATABASE_URL` set.
-   It applies schema migrations, then builds and verifies concurrent indexes.
-3. Start the scraper and matching proxy. Automatic cutover selection trusts the
-   cloned history; historical gaps must be repaired separately if needed.
+1. Before stopping the legacy scraper, verify every selected EVM provider supports
+   its configured finality tag, when used, and block-hash-pinned `eth_call`
+   for the mailbox nonce and Merkle hook count. Empty predeployment results also
+   require block-hash-pinned `eth_getCode`. Check the actual configured endpoints
+   and historical boundary state. Fleet capability has not been established by
+   the local tests. There is no legacy opt-out after this hard cutover.
+2. Stop scraper writers and the proxy. Apply the migration before deploying the
+   matching binaries. Measure index creation on a database clone and allow a
+   maintenance window. Run `cargo run --release -p migration --bin init-db` with
+   `DATABASE_URL` set to apply migrations and verify concurrent indexes.
+3. For each existing EVM domain, complete the verified cutover below. Empty
+   domains need no seed. Start the scraper and matching proxy only afterwards.
 4. Check `scraper_head` for advancing `indexed_height` and `confirmed_height`,
    verify the chain critical-error metric is clear, and check consumer streams.
+
+### Verified legacy cutover
+
+There is no automatic completeness proof in the legacy database. Before seeding
+state, verify dispatch, delivery, gas-payment and Merkle-insertion indexing have
+all completed through the same finalized height `H`, with no pending range/retry
+at or below it. A shared cursor, the latest stored event, or an idle stream is not
+that proof. If necessary, drain legacy indexing against a source whose configured
+confirmation frontier is fixed at `H`; after stopping it, compare the four
+configured contracts' RPC logs through `H` with stored occurrences and repair
+missing events. Dispatch nonce and
+Merkle count checks supplement that comparison; they cannot establish delivery
+or gas-payment completeness. If completeness cannot be verified, do not seed the
+row. Resume the legacy deployment and finish the audit/backfill first.
+
+Record the verification evidence, canonical hash and timestamp of `H`, and the
+configured mailbox, Merkle hook and gas-paymaster addresses. `H` must be at least
+`index.from - 1` and at or above every stored block/event for the domain. All
+writers must remain stopped. The following `psql` transaction records this
+operator-verified boundary; its overlap checks do **not** prove completeness.
+Supply `domain` as the stored `domain.id` integer (unsigned IDs above `2^31-1`
+are stored minus `2^32`), `height`, `timestamp` as Unix seconds, and `block_hash`,
+`mailbox`, `hook`, `paymaster` as hex without `0x`, using `psql -v name=value`.
+
+```sql
+\set ON_ERROR_STOP on
+BEGIN;
+CREATE TEMP TABLE verified_cutover (
+  domain integer NOT NULL,
+  height bigint NOT NULL CHECK (height BETWEEN 0 AND 4294967294),
+  timestamp bigint NOT NULL CHECK (timestamp >= 0),
+  hash bytea NOT NULL CHECK (octet_length(hash) = 32),
+  mailbox bytea NOT NULL CHECK (octet_length(mailbox) = 20),
+  hook bytea NOT NULL CHECK (octet_length(hook) = 20),
+  paymaster bytea NOT NULL CHECK (octet_length(paymaster) = 20)
+) ON COMMIT DROP;
+INSERT INTO verified_cutover VALUES (
+  :'domain'::integer, :'height'::bigint, :'timestamp'::bigint,
+  decode(:'block_hash','hex'), decode(:'mailbox','hex'),
+  decode(:'hook','hex'), decode(:'paymaster','hex')
+);
+SELECT pg_advisory_xact_lock(domain::bigint & 4294967295)
+FROM verified_cutover;
+LOCK TABLE block, raw_message_dispatch, delivered_message, gas_payment,
+  merkle_tree_insertion, scraper_head IN SHARE ROW EXCLUSIVE MODE;
+DO $$
+DECLARE c verified_cutover%ROWTYPE;
+BEGIN
+  SELECT * INTO STRICT c FROM verified_cutover;
+  IF EXISTS (SELECT 1 FROM scraper_head WHERE domain=c.domain) THEN
+    RAISE EXCEPTION 'Saved near-head state already exists; do not reseed it';
+  END IF;
+  IF EXISTS (SELECT 1 FROM block WHERE domain=c.domain AND height>c.height)
+    OR EXISTS (SELECT 1 FROM raw_message_dispatch
+               WHERE origin_domain=c.domain AND (origin_block_height>c.height OR NOT confirmed))
+    OR EXISTS (SELECT 1 FROM merkle_tree_insertion
+               WHERE domain=c.domain AND (block_number>c.height OR NOT confirmed))
+    OR EXISTS (SELECT 1 FROM delivered_message
+               WHERE domain=c.domain AND (block_number>c.height OR NOT confirmed))
+    OR EXISTS (SELECT 1 FROM gas_payment
+               WHERE domain=c.domain AND (block_number>c.height OR NOT confirmed))
+  THEN
+    RAISE EXCEPTION 'History overlaps the cutover or contains provisional rows';
+  END IF;
+  IF EXISTS (SELECT 1 FROM block WHERE domain=c.domain
+             AND height=c.height AND hash<>c.hash)
+    OR EXISTS (SELECT 1 FROM block WHERE hash=c.hash
+               AND (domain<>c.domain OR height<>c.height))
+  THEN
+    RAISE EXCEPTION 'Cutover hash disagrees with stored block identity';
+  END IF;
+  INSERT INTO block(domain,hash,height,timestamp)
+    VALUES(c.domain,c.hash,c.height,to_timestamp(c.timestamp) AT TIME ZONE 'UTC')
+    ON CONFLICT(hash) DO NOTHING;
+  INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,
+                          head_height,confirmed_height,mailbox,merkle_tree_hook,
+                          interchain_gas_paymaster)
+    VALUES(c.domain,c.height,c.height,c.hash,c.height,c.height,
+           c.mailbox,c.hook,c.paymaster);
+END $$;
+COMMIT;
+SELECT domain,start_height,encode(indexed_hash,'hex') AS block_hash,
+       encode(mailbox,'hex') AS mailbox,encode(merkle_tree_hook,'hex') AS hook,
+       encode(interchain_gas_paymaster,'hex') AS paymaster,healthy
+FROM scraper_head WHERE domain=:'domain'::integer;
+```
+
+Compare this readback with the recorded inputs and a fresh RPC lookup of block
+`H`. Do not start the new scraper if its canonical hash changed; keep writers
+stopped and repair/reverify the boundary first.
+
+The seeded state starts unhealthy. Startup validates the configured contracts
+and required RPC methods; the observation loop must establish a fresh canonical
+head before publication. If a writer or audit changes history before handoff,
+repeat verification rather than moving the saved boundary forwards.
 
 SELECT grants on existing event tables are copied to the confirmed views. External
 SQL consumers wanting the old visibility must use `confirmed_raw_message_dispatch`,

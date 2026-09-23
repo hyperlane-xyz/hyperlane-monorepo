@@ -211,6 +211,42 @@ async fn stationary_finality_tag_bounds_ingestion_then_resumes() -> Result<()> {
 }
 
 #[tokio::test]
+async fn restart_waits_for_an_rpc_behind_saved_progress() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(5, false));
+    let worker = worker(db, chain.clone()).await?;
+    let state = crate::near_head::observe(&chain, &worker.store).await?;
+    crate::near_head::ingest(&chain, &worker.store, &state, 20_000).await?;
+    assert_eq!(worker.store.state().await?.unwrap().indexed, 5);
+
+    chain.head.store(3, Ordering::SeqCst);
+    let anchor = chain.header(0u64.into()).await?;
+    super::super::prepare(
+        worker.source.as_ref(),
+        &worker.store,
+        &anchor,
+        &Contracts {
+            mailbox: H160::repeat_byte(1),
+            hook: H160::repeat_byte(2),
+            paymaster: H160::repeat_byte(3),
+        },
+        &worker.period,
+    )
+    .await?;
+    assert!(crate::near_head::observe(&chain, &worker.store)
+        .await
+        .is_err());
+    chain.head.store(5, Ordering::SeqCst);
+    crate::near_head::observe(&chain, &worker.store).await?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn blocked_cleanup_does_not_delay_publication() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let url = format!(
