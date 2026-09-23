@@ -8,6 +8,7 @@ describe('module registry', () => {
       'callCommitments',
       'cctp',
       'opstack',
+      'wormhole',
     ]);
     expect(moduleRegistry.unknown).to.equal(undefined);
   });
@@ -16,6 +17,7 @@ describe('module registry', () => {
     ['callCommitments', 'SERVER_BASE_URL'],
     ['cctp', 'HYPERLANE_EXPLORER_URL'],
     ['opstack', 'HYPERLANE_EXPLORER_API'],
+    ['wormhole', 'HYPERLANE_EXPLORER_URL'],
   ] as const) {
     it(`loads ${name} and preserves required configuration validation`, async function () {
       if (name === 'callCommitments') this.timeout(10_000);

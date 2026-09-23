@@ -6,7 +6,10 @@
     "./tests/**/cctpMessageMatcher.test.ts",
     "./tests/**/CCTPService.test.ts",
     "./tests/**/AttestationPending.test.ts",
-    "./tests/**/moduleRegistry.test.ts"
+    "./tests/**/moduleRegistry.test.ts",
+    "./tests/**/WormholeVaaService.test.ts",
+    "./tests/**/WormholeVaaFetcher.test.ts",
+    "./tests/**/wormholeVaaMatcher.test.ts"
   ],
   "exit": true
 }

@@ -85,6 +85,8 @@ import { MAX_GAS_OVERHEAD, TokenType, gasOverhead } from '../token/config.js';
 import { HypERC20Factories, hypERC20factories } from '../token/contracts.js';
 import { HypERC20Deployer, HypERC721Deployer } from '../token/deploy.js';
 import {
+  derivedHookAddress,
+  derivedIsmAddress,
   HypTokenRouterConfig,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
@@ -102,6 +104,7 @@ import {
   resolveDelayedFlowRemoteIsms,
   setRateLimitedIsmRecipient,
 } from '../utils/ism.js';
+import { findWormholeHooks, findWormholeIsms } from '../wormhole/config.js';
 
 import { HyperlaneProxyFactoryDeployer } from './HyperlaneProxyFactoryDeployer.js';
 import {
@@ -2004,6 +2007,10 @@ export async function enrollCrossChainRouters(
 
           const actualConfig = await evmWarpModule.read();
           const targetOwner = resolvedConfigMap[currentChain].owner;
+          const hasWormholeHook =
+            findWormholeHooks(actualConfig.hook).length > 0;
+          const hasWormholeIsm =
+            findWormholeIsms(actualConfig.interchainSecurityModule).length > 0;
           const expectedConfig: HypTokenRouterConfig = {
             ...actualConfig,
             owner: targetOwner,
@@ -2011,16 +2018,18 @@ export async function enrollCrossChainRouters(
             // the deployer until this final pass. Describe their common target
             // owner on both config surfaces so EvmWarpModule can transfer them
             // together after enrollment.
-            interchainSecurityModule:
-              typeof actualConfig.interchainSecurityModule === 'object' &&
-              actualConfig.interchainSecurityModule
+            interchainSecurityModule: hasWormholeIsm
+              ? derivedIsmAddress(actualConfig)
+              : typeof actualConfig.interchainSecurityModule === 'object' &&
+                  actualConfig.interchainSecurityModule
                 ? mapHybridIsmNodes(
                     actualConfig.interchainSecurityModule,
                     (node) => ({ ...node, owner: targetOwner }),
                   )
                 : actualConfig.interchainSecurityModule,
-            hook:
-              typeof actualConfig.hook === 'object' && actualConfig.hook
+            hook: hasWormholeHook
+              ? derivedHookAddress(actualConfig)
+              : typeof actualConfig.hook === 'object' && actualConfig.hook
                 ? mapHybridHookNodes(actualConfig.hook, (node) => ({
                     ...node,
                     owner: targetOwner,
