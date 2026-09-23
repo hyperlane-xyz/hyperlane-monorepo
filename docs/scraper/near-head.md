@@ -11,6 +11,15 @@ websocket notifications and gas-payment cursors are created on that transition.
 The proxy and Explorer query confirmed views, preserving their configured delay.
 There is no new endpoint or subscriber-selected delay in this change.
 
+The migration also installs a future proxy notification contract without changing
+the current proxy's behavior. `scraper_event_provisional` announces provisional
+event inserts using the same `eventType`, `id`, and unsigned `domain` fields as
+`scraper_event`. `scraper_head` announces initialized, progress, status, and
+rollback boundaries, including the indexed hash and previous indexed height.
+Both channels are transactional PostgreSQL notifications. A rollback emits one
+head boundary rather than one notification for every deleted event. Notifications
+are wake-up hints; reconnect and catch-up must read the persisted rows and head.
+
 Select chains with `chainsToScrape` as before. No `nearHead` setting or per-chain
 `fromBlock` values are needed. Non-EVM chains retain their existing indexers.
 The old `HYP_NEARHEAD` and `HYP_NEARHEAD_<DOMAIN>_FROMBLOCK` variables are no longer
@@ -113,8 +122,11 @@ reselect it or repeat the historical overlap check. Contract changes are rejecte
   deleted by cleanup. Halted chains are not pruned. Historical headers from before
   the cutover are left intact; retained event/transaction history still grows.
 - Block/log/transaction positions are recorded for future custom-period consumers.
-  Adding those consumers still requires a reorg-aware cursor/reset protocol; the
-  current legacy protocol must not be pointed directly at provisional data.
+  No further database schema is required for block-count confirmation periods.
+  Adding those consumers still requires a reorg-aware cursor/reset protocol that
+  carries the event block hash; the current legacy protocol must not be pointed
+  directly at provisional data. Subscriber cursors belong to the proxy/client,
+  not this shared database.
 
 ## RPC cost
 
@@ -169,6 +181,7 @@ SQL consumers wanting the old visibility must use `confirmed_raw_message_dispatc
 `confirmed_delivered_message`, `confirmed_gas_payment`, or
 `confirmed_merkle_tree_insertion`. `message_view` and `total_gas_payment` retain
 both their names and output columns. Raw event tables now include provisional rows.
+Roles with `SELECT` on any event table also receive `SELECT` on `scraper_head`.
 
 To roll back to a legacy scraper, stop writers and drain all provisional
 history first (or explicitly repair/discard it). Clear that domain's `scraper_head`

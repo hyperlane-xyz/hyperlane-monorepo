@@ -188,10 +188,25 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     // Seed a legacy row before the migration. Existing IDs, visibility and
     // notifications must survive the additive schema change.
     migration::Migrator::up(&db, Some(14)).await?;
-    db.execute_unprepared("INSERT INTO merkle_tree_insertion(domain,merkle_tree_hook,leaf_index,message_id,block_number) VALUES(1,decode(repeat('09',20),'hex'),0,decode(repeat('09',32),'hex'),0)").await?;
+    db.execute_unprepared("CREATE ROLE scraper_notification_reader; GRANT SELECT ON raw_message_dispatch TO scraper_notification_reader; INSERT INTO merkle_tree_insertion(domain,merkle_tree_hook,leaf_index,message_id,block_number) VALUES(1,decode(repeat('09',20),'hex'),0,decode(repeat('09',32),'hex'),0)").await?;
     migration::Migrator::up(&db, None).await?;
+    let permission = db
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT has_table_privilege('scraper_notification_reader','scraper_head','SELECT') AS head,has_table_privilege('scraper_notification_reader','confirmed_raw_message_dispatch','SELECT') AS events",
+        ))
+        .await?
+        .unwrap();
+    assert!(permission.try_get::<bool>("", "head")?);
+    assert!(permission.try_get::<bool>("", "events")?);
     let mut listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
     listener.listen("scraper_event").await?;
+    let mut provisional_listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
+    provisional_listener
+        .listen("scraper_event_provisional")
+        .await?;
+    let mut head_listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
+    head_listener.listen("scraper_head").await?;
     let store = Store { db, domain: 1 };
     assert_eq!(count(&store, "confirmed_merkle_tree_insertion").await?, 1);
     let chain = Chain::new(3);
@@ -206,6 +221,36 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     for table in ["raw_message_dispatch", "delivered_message", "gas_payment"] {
         assert_eq!(count(&store, table).await?, 1);
         assert_eq!(count(&store, &format!("confirmed_{table}")).await?, 0);
+    }
+    let mut provisional_event_types = std::collections::HashSet::new();
+    for _ in 0..4 {
+        let notice =
+            tokio::time::timeout(Duration::from_secs(2), provisional_listener.recv()).await??;
+        let event: serde_json::Value = serde_json::from_str(notice.payload())?;
+        assert_eq!(event["domain"], 1);
+        provisional_event_types.insert(event["eventType"].as_str().unwrap().to_owned());
+    }
+    assert_eq!(
+        provisional_event_types,
+        [
+            "dispatch",
+            "delivery",
+            "gas_payment",
+            "merkle_tree_insertion"
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
+    );
+    for (expected_kind, expected_height) in
+        [("initialized", "0"), ("progress", "0"), ("progress", "3")]
+    {
+        let notice = tokio::time::timeout(Duration::from_secs(2), head_listener.recv()).await??;
+        let head: serde_json::Value = serde_json::from_str(notice.payload())?;
+        assert_eq!(head["kind"], expected_kind);
+        assert_eq!(head["domain"], 1);
+        assert_eq!(head["indexedHeight"], expected_height);
+        assert_eq!(head["indexedHash"].as_str().unwrap().len(), 64);
     }
     assert!(
         tokio::time::timeout(Duration::from_millis(50), listener.recv())
@@ -230,6 +275,23 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     ingest_head(&chain, &store).await?;
     for table in ["raw_message_dispatch", "delivered_message", "gas_payment"] {
         assert_eq!(count(&store, table).await?, 1);
+    }
+    let mut rollback = None;
+    for _ in 0..3 {
+        let notice = tokio::time::timeout(Duration::from_secs(2), head_listener.recv()).await??;
+        let head: serde_json::Value = serde_json::from_str(notice.payload())?;
+        if head["kind"] == "rollback" {
+            rollback = Some(head);
+        }
+    }
+    let rollback = rollback.expect("reorg must publish its rollback boundary");
+    assert_eq!(rollback["previousIndexedHeight"], "3");
+    assert_eq!(rollback["indexedHeight"], "1");
+    for _ in 0..4 {
+        let notice =
+            tokio::time::timeout(Duration::from_secs(2), provisional_listener.recv()).await??;
+        let event: serde_json::Value = serde_json::from_str(notice.payload())?;
+        assert_eq!(event["domain"], 1);
     }
     assert!(
         store

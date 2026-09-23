@@ -62,6 +62,64 @@ BEGIN
     'domain',((to_jsonb(NEW)->>TG_ARGV[1])::bigint & 4294967295))::text);
   RETURN NEW;
 END $$;
+
+-- Future custom-confirmation consumers need to see provisional inserts without
+-- changing the confirmed-only channel consumed by the current proxy. Reorgs do
+-- not emit one notification per deleted row; scraper_head publishes one atomic
+-- rollback boundary instead.
+CREATE OR REPLACE FUNCTION notify_scraper_provisional_event() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM pg_notify('scraper_event_provisional',json_build_object(
+    'eventType',TG_ARGV[0],
+    'id',NEW.id::text,
+    'domain',((to_jsonb(NEW)->>TG_ARGV[1])::bigint & 4294967295)
+  )::text);
+  RETURN NEW;
+END $$;
+
+-- A head notification wakes delayed streams even when newly eligible blocks
+-- contain no events. The indexed hash and previous boundary let a future proxy
+-- validate durable cursors and reset a stream after a rollback.
+CREATE OR REPLACE FUNCTION notify_scraper_head() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  change_kind text;
+BEGIN
+  change_kind := CASE
+    WHEN TG_OP='INSERT' THEN 'initialized'
+    WHEN NEW.indexed_height < OLD.indexed_height THEN 'rollback'
+    WHEN NEW.indexed_height IS DISTINCT FROM OLD.indexed_height
+      OR NEW.head_height IS DISTINCT FROM OLD.head_height
+      OR NEW.confirmed_height IS DISTINCT FROM OLD.confirmed_height THEN 'progress'
+    ELSE 'status'
+  END;
+  PERFORM pg_notify('scraper_head',json_build_object(
+    'kind',change_kind,
+    'domain',(NEW.domain::bigint & 4294967295),
+    'startHeight',NEW.start_height::text,
+    'indexedHeight',NEW.indexed_height::text,
+    'indexedHash',encode(NEW.indexed_hash,'hex'),
+    'headHeight',NEW.head_height::text,
+    'confirmedHeight',NEW.confirmed_height::text,
+    'previousIndexedHeight',CASE WHEN TG_OP='UPDATE' THEN OLD.indexed_height::text END,
+    'healthy',NEW.healthy,
+    'halted',NEW.halted
+  )::text);
+  RETURN NEW;
+END $$;
+
+CREATE TRIGGER scraper_head_insert_notify AFTER INSERT ON scraper_head
+ FOR EACH ROW EXECUTE FUNCTION notify_scraper_head();
+CREATE TRIGGER scraper_head_update_notify
+ AFTER UPDATE OF indexed_height,indexed_hash,head_height,confirmed_height,healthy,halted ON scraper_head
+ FOR EACH ROW WHEN (
+   OLD.indexed_height IS DISTINCT FROM NEW.indexed_height
+   OR OLD.indexed_hash IS DISTINCT FROM NEW.indexed_hash
+   OR OLD.head_height IS DISTINCT FROM NEW.head_height
+   OR OLD.confirmed_height IS DISTINCT FROM NEW.confirmed_height
+   OR OLD.healthy IS DISTINCT FROM NEW.healthy
+   OR OLD.halted IS DISTINCT FROM NEW.halted
+ ) EXECUTE FUNCTION notify_scraper_head();
+
 -- message has no provisional rows; gas and delivery do.
 CREATE OR REPLACE FUNCTION notify_scraper_explorer_event() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -89,6 +147,8 @@ DO $$ DECLARE item record; BEGIN
     EXECUTE format('DROP TRIGGER scraper_event_notify ON %I',item.relation);
     EXECUTE format('CREATE TRIGGER scraper_event_notify AFTER INSERT OR UPDATE OF confirmed ON %I FOR EACH ROW EXECUTE FUNCTION notify_scraper_event(%L,%L)',
       item.relation,item.event_type,item.domain_column);
+    EXECUTE format('CREATE TRIGGER scraper_provisional_event_notify AFTER INSERT ON %I FOR EACH ROW WHEN (NOT NEW.confirmed) EXECUTE FUNCTION notify_scraper_provisional_event(%L,%L)',
+      item.relation,item.event_type,item.domain_column);
   END LOOP;
   FOR item IN
     SELECT c.relname,a.grantee,a.is_grantable FROM pg_class c
@@ -97,6 +157,20 @@ DO $$ DECLARE item record; BEGIN
       AND a.privilege_type='SELECT'
   LOOP
     EXECUTE format('GRANT SELECT ON %I TO %s%s','confirmed_'||item.relname,
+      CASE WHEN item.grantee=0 THEN 'PUBLIC' ELSE quote_ident(pg_get_userbyid(item.grantee)) END,
+      CASE WHEN item.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END);
+  END LOOP;
+  -- A custom-delay reader needs the canonical frontier in addition to event
+  -- rows. Copy access from any event table instead of assuming the proxy uses
+  -- the migration owner.
+  FOR item IN
+    SELECT a.grantee,bool_or(a.is_grantable) AS is_grantable FROM pg_class c
+    CROSS JOIN LATERAL aclexplode(coalesce(c.relacl,acldefault('r',c.relowner))) a
+    WHERE c.oid IN ('raw_message_dispatch'::regclass,'delivered_message'::regclass,'gas_payment'::regclass,'merkle_tree_insertion'::regclass)
+      AND a.privilege_type='SELECT'
+    GROUP BY a.grantee
+  LOOP
+    EXECUTE format('GRANT SELECT ON scraper_head TO %s%s',
       CASE WHEN item.grantee=0 THEN 'PUBLIC' ELSE quote_ident(pg_get_userbyid(item.grantee)) END,
       CASE WHEN item.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END);
   END LOOP;
