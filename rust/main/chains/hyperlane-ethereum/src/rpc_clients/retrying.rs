@@ -1,8 +1,10 @@
 use std::{fmt::Debug, str::FromStr, time::Duration};
 
+use super::rate_limit::RateLimitCooldown;
+
 use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
 use async_trait::async_trait;
-use ethers::providers::{Http, JsonRpcClient, ProviderError};
+use ethers::providers::{HttpClientError, JsonRpcClient, ProviderError};
 use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClient;
 use hyperlane_metric::prometheus_metric::PrometheusConfigExt;
 use serde::{de::DeserializeOwned, Serialize};
@@ -17,6 +19,7 @@ pub struct RetryingProvider<P> {
     max_requests: u32,
     base_retry_ms: u64,
     inner: P,
+    cooldown: RateLimitCooldown,
 }
 
 impl<P> RetryingProvider<P> {
@@ -24,6 +27,7 @@ impl<P> RetryingProvider<P> {
     pub fn new(inner: P, max_requests: Option<u32>, base_retry_ms: Option<u64>) -> Self {
         Self {
             inner,
+            cooldown: RateLimitCooldown::default(),
             max_requests: max_requests.unwrap_or(6),
             base_retry_ms: base_retry_ms.unwrap_or(50),
         }
@@ -91,6 +95,7 @@ where
         let mut last_err = None;
         let mut i: u32 = 1;
         loop {
+            self.cooldown.wait().await;
             let mut rate_limited = false;
             let backoff_ms = self
                 .base_retry_ms
@@ -119,6 +124,7 @@ where
                 HandleMethod::RateLimitedRetry(e) => {
                     last_err = Some(e);
                     rate_limited = true;
+                    self.cooldown.penalize();
                 }
             }
 
@@ -169,8 +175,11 @@ where
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-impl JsonRpcClient for RetryingProvider<PrometheusJsonRpcClient<Http>> {
-    type Error = RetryingProviderError<PrometheusJsonRpcClient<Http>>;
+impl<P> JsonRpcClient for RetryingProvider<PrometheusJsonRpcClient<P>>
+where
+    P: JsonRpcClient<Error = HttpClientError> + 'static,
+{
+    type Error = RetryingProviderError<PrometheusJsonRpcClient<P>>;
 
     #[instrument(skip(self), fields(provider_host = %self.inner.node_host(), chain_name = %self.inner.chain_name()))]
     async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
@@ -209,5 +218,32 @@ where
 
     fn from_str(src: &str) -> Result<Self, Self::Err> {
         Ok(Self::new(src.parse()?, None, None))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethers::providers::MockProvider;
+
+    #[tokio::test(start_paused = true)]
+    async fn last_rate_limited_attempt_cools_down_subsequent_calls() {
+        let mock = MockProvider::new();
+        let provider = RetryingProvider::new(mock.clone(), Some(1), None);
+        let call = || {
+            provider.request_with_retry::<_, u64>("eth_chainId", (), |result, _, _| match result {
+                Ok(value) => HandleMethod::Accept(value),
+                Err(error) => HandleMethod::RateLimitedRetry(error),
+            })
+        };
+        assert!(call().await.is_err());
+        assert!(tokio::time::timeout(Duration::from_secs(1), call())
+            .await
+            .is_err());
+        mock.assert_request("eth_chainId", ()).unwrap();
+        assert!(mock.assert_request("eth_chainId", ()).is_err());
+        tokio::time::advance(Duration::from_secs(25)).await;
+        assert!(call().await.is_err());
+        mock.assert_request("eth_chainId", ()).unwrap();
     }
 }

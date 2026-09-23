@@ -22,6 +22,7 @@ use ethers_prometheus::json_rpc_client::JsonRpcBlockGetter;
 use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider, PrioritizedProviderInner};
 use hyperlane_metric::prometheus_metric::{PrometheusClientMetrics, PrometheusConfigExt};
 
+use super::rate_limit::{is_rate_limited, RateLimitCooldown};
 use crate::config::FallbackHedgeConfig;
 use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
 
@@ -94,11 +95,12 @@ fn is_block_hash(value: &Value) -> bool {
 /// `eth_sendRawTransaction` while fallback strategy is used for all the other RPC methods.
 pub struct EthereumFallbackProvider<C, B> {
     /// Fallback provider
-    pub provider: FallbackProvider<C, B>,
+    provider: FallbackProvider<C, B>,
     /// If enabled and eth_getTransactionReceipt returns Ok(Value::null())
     /// we will try other providers and see if another provider returns something
     /// non-null
     pub consider_null_transaction_receipt: bool,
+    cooldowns: Vec<RateLimitCooldown>,
     hedge_config: Option<FallbackHedgeConfig>,
     hedge_metrics: Option<PrometheusClientMetrics>,
 }
@@ -106,8 +108,12 @@ pub struct EthereumFallbackProvider<C, B> {
 impl<C, B> EthereumFallbackProvider<C, B> {
     /// Create an Ethereum fallback provider with hedging disabled.
     pub fn new(provider: FallbackProvider<C, B>, consider_null_transaction_receipt: bool) -> Self {
+        let cooldowns = (0..provider.len())
+            .map(|_| RateLimitCooldown::default())
+            .collect();
         Self {
             provider,
+            cooldowns,
             consider_null_transaction_receipt,
             hedge_config: None,
             hedge_metrics: None,
@@ -347,7 +353,7 @@ where
             };
             let response = match attempt.response {
                 AttemptResponse::Rpc(response) => {
-                    if response.is_err() {
+                    if response.is_err() && !self.cooldowns[attempt.priority.index].active() {
                         self.handle_failed_provider(&attempt.priority).await;
                     }
                     categorize_client_response(&attempt.provider_host, method, response)
@@ -474,14 +480,18 @@ where
             let provider_host = provider.node_host().to_owned();
             let response = match timeout(
                 attempt_timeout,
-                Self::provider_request(provider, method, params),
+                self.provider_request(priority.index, method, params),
             )
             .await
             {
                 Ok((_, response)) => {
                     let fallback = self.provider.clone();
+                    let cooldown = self.cooldowns[priority.index].clone();
                     let provider = provider.clone();
                     let _probe = tokio::spawn(async move {
+                        if cooldown.active() {
+                            return;
+                        }
                         if let Err(error) =
                             fallback.handle_stalled_provider(&priority, &provider).await
                         {
@@ -591,10 +601,12 @@ where
             let priorities_snapshot = self.take_priorities_snapshot().await;
             for (idx, priority) in priorities_snapshot.iter().enumerate() {
                 let provider = &self.inner.providers[priority.index];
-                let fut = Self::provider_request(provider, method, &params);
+                let fut = self.provider_request(priority.index, method, &params);
                 let (provider_host, resp) = fut.await;
-                let _ = self.handle_stalled_provider(priority, provider).await;
-                if resp.is_err() {
+                if !self.cooldowns[priority.index].active() {
+                    let _ = self.handle_stalled_provider(priority, provider).await;
+                }
+                if resp.is_err() && !self.cooldowns[priority.index].active() {
                     self.handle_failed_provider(priority).await;
                 }
                 tracing::trace!(
@@ -653,10 +665,12 @@ where
             let mut retry_priorities = Vec::with_capacity(priorities.len());
             for (idx, priority) in priorities.into_iter().enumerate() {
                 let provider = &self.inner.providers[priority.index];
-                let fut = Self::provider_request(provider, method, &params);
+                let fut = self.provider_request(priority.index, method, &params);
                 let (provider_host, resp) = fut.await;
-                let _ = self.handle_stalled_provider(&priority, provider).await;
-                if resp.is_err() {
+                if !self.cooldowns[priority.index].active() {
+                    let _ = self.handle_stalled_provider(&priority, provider).await;
+                }
+                if resp.is_err() && !self.cooldowns[priority.index].active() {
                     self.handle_failed_provider(&priority).await;
                 }
                 tracing::debug!(
@@ -693,16 +707,33 @@ where
     }
 
     async fn provider_request<'a>(
-        provider: &'a C,
+        &'a self,
+        provider_index: usize,
         method: &'a str,
         params: &'a Value,
     ) -> (String, Result<Value, HttpClientError>) {
+        let provider = &self.inner.providers[provider_index];
         let provider_host = provider.node_host().to_owned();
+        let cooldown = &self.cooldowns[provider_index];
+        if cooldown.active() {
+            return (provider_host, Err(RateLimitCooldown::error()));
+        }
         let result = match params {
             Value::Null => provider.request(method, ()).await,
             _ => provider.request(method, params).await,
         };
 
+        if result.as_ref().err().is_some_and(is_rate_limited) {
+            cooldown.penalize();
+            if let Some(priority) = self
+                .take_priorities_snapshot()
+                .await
+                .into_iter()
+                .find(|priority| priority.index == provider_index)
+            {
+                self.handle_failed_provider(&priority).await;
+            }
+        }
         (provider_host, result)
     }
 
@@ -716,7 +747,8 @@ where
         self.inner
             .providers
             .iter()
-            .for_each(|p| unordered.push(Self::provider_request(p, method, params)));
+            .enumerate()
+            .for_each(|(index, _)| unordered.push(self.provider_request(index, method, params)));
         unordered
     }
 }

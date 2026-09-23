@@ -29,6 +29,7 @@ eyre.workspace = true
 fixed-hash.workspace = true
 futures = { workspace = true, optional = true }
 getrandom.workspace = true
+rand.workspace = true
 hex.workspace = true
 regex = { workspace = true, optional = true }
 itertools.workspace = true
@@ -54,7 +55,7 @@ uuid = { workspace = true, features = ["v4", "serde"] }
 hyperlane-application = { path = "../applications/hyperlane-application" }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt", "time"] }
+tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 
 [features]
 default = ["strum"]

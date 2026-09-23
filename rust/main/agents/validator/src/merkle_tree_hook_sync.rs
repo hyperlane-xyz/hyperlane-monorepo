@@ -1,6 +1,9 @@
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     time::Duration,
 };
 
@@ -383,12 +386,22 @@ pub(crate) struct MerkleTreeHookWebSocketSync {
     merkle_tree_hook: H256,
     url: Url,
     websocket_active: IntGauge,
+    websocket_healthy: Arc<AtomicBool>,
     fallback_active: IntGauge,
     cursor_state: MerkleTreeCursorState,
     checkpoint_wake: Arc<Notify>,
 }
 
 impl MerkleTreeHookWebSocketSync {
+    pub(crate) fn health(&self) -> Arc<AtomicBool> {
+        self.websocket_healthy.clone()
+    }
+
+    fn set_healthy(&self, healthy: bool) {
+        self.websocket_healthy.store(healthy, Ordering::Release);
+        self.websocket_active.set(i64::from(healthy));
+    }
+
     #[cfg(test)]
     pub(crate) fn new(
         db: HyperlaneRocksDB,
@@ -430,6 +443,7 @@ impl MerkleTreeHookWebSocketSync {
             merkle_tree_hook,
             url,
             websocket_active,
+            websocket_healthy: Arc::new(AtomicBool::new(false)),
             fallback_active,
             cursor_state,
             checkpoint_wake,
@@ -526,7 +540,7 @@ impl MerkleTreeHookWebSocketSync {
                     &dependencies,
                 )
                 .await;
-            self.websocket_active.set(0);
+            self.set_healthy(false);
             if fallback.is_none() {
                 fallback = start_fallback();
                 if fallback.is_some() {
@@ -570,7 +584,7 @@ impl MerkleTreeHookWebSocketSync {
                     let probe = stream_count_probe(dependencies);
                     socket.start_cutover(self.domain, async move { (sequence, probe.await) });
                 } else {
-                    self.websocket_active.set(1);
+                    self.set_healthy(true);
                     activated = true;
                 }
             }
@@ -750,7 +764,7 @@ impl MerkleTreeHookWebSocketSync {
         }
         *cutover_target = None;
         self.stop_fallback(fallback).await;
-        self.websocket_active.set(1);
+        self.set_healthy(true);
         Ok(true)
     }
 

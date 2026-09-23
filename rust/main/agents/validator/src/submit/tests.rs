@@ -1893,10 +1893,9 @@ async fn latest_index_publication_reuses_submitter_handles_across_retries() {
     let submitter = Arc::new(submitter);
     let start = tokio::time::Instant::now();
     submitter.publish_latest_checkpoint_index(8).await;
-    assert_eq!(
-        start.elapsed(),
-        hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION
-    );
+    let base_delay = hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION;
+    assert!(start.elapsed() >= base_delay);
+    assert!(start.elapsed() <= base_delay.mul_f64(1.25));
     assert_eq!(attempts.load(Ordering::SeqCst), 2);
     assert_eq!(Arc::strong_count(&submitter), 1);
     assert_eq!(readiness.snapshot().state, ValidatorReadinessState::Ready);
@@ -3428,7 +3427,7 @@ async fn normal_consensus_recovery_requires_votes_before_repairing_or_signing() 
 }
 
 #[tokio::test(start_paused = true)]
-async fn normal_consensus_retains_idle_checkpoint_polling() {
+async fn normal_websocket_consensus_stops_idle_reads_and_resumes_on_failure() {
     let calls = Arc::new(AtomicUsize::new(0));
     let observed = calls.clone();
     let checkpoint = lightweight_checkpoints(1).pop().unwrap();
@@ -3440,26 +3439,49 @@ async fn normal_consensus_retains_idle_checkpoint_polling() {
     let reader =
         Arc::new(CheckpointReader::new(CheckpointConsensus::Quorum, vec![Arc::new(hook)]).unwrap());
     let (recovery, _directory) = rpc_recovery_fixture(MockRecoveryIndexer::new());
+    let healthy = Arc::new(AtomicBool::new(true));
     let submitter = lightweight_test_submitter(
         Arc::new(AtomicUsize::new(1)),
         Arc::new(std::sync::Mutex::new(Vec::new())),
     )
-    .with_rpc_recovery(recovery);
+    .with_rpc_recovery(recovery)
+    .with_websocket_health(Some(healthy.clone()));
     let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
+    for _ in 0..10 {
+        tokio::time::advance(Duration::from_secs(1)).await;
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "healthy stream stays idle after signing"
+    );
+    healthy.store(false, Ordering::Release);
     for _ in 0..10 {
         tokio::time::advance(Duration::from_secs(1)).await;
         tokio::task::yield_now().await;
     }
     assert!(
         calls.load(Ordering::SeqCst) > 1,
-        "normal mode polls even after signing the only insertion"
+        "failed stream resumes polling"
+    );
+    healthy.store(true, Ordering::Release);
+    let before = calls.load(Ordering::SeqCst);
+    for _ in 0..10 {
+        tokio::time::advance(Duration::from_secs(1)).await;
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        before,
+        "recovered stream stops polling"
     );
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
 }
 
 #[tokio::test(start_paused = true)]
-async fn consensus_reports_threshold_conflict_at_committed_index_and_halts() {
+async fn healthy_websocket_idle_audit_detects_same_count_consensus_reorg() {
     for policy in [CheckpointConsensus::Quorum, CheckpointConsensus::Majority] {
         let mut committed = IncrementalMerkle::default();
         committed.ingest(H256::from_low_u64_be(1));
@@ -3490,8 +3512,16 @@ async fn consensus_reports_threshold_conflict_at_committed_index_and_halts() {
             lightweight_test_submitter(Arc::new(AtomicUsize::new(1)), Arc::default());
         submitter.checkpoint_syncer = Arc::new(syncer);
         let (recovery, _dir) = rpc_recovery_fixture(MockRecoveryIndexer::new());
-        submitter = submitter.with_rpc_recovery(recovery);
+        submitter = submitter
+            .with_rpc_recovery(recovery)
+            .with_websocket_health(Some(Arc::new(AtomicBool::new(true))));
         let task = tokio::spawn(submitter.consensus_checkpoint_submitter(reader, committed));
+        tokio::task::yield_now().await;
+        tokio::time::advance(Duration::from_secs(59)).await;
+        tokio::task::yield_now().await;
+        assert!(!task.is_finished());
+        assert!(!recorded.load(Ordering::SeqCst));
+        tokio::time::advance(Duration::from_secs(2)).await;
         assert!(task.await.unwrap_err().is_panic());
         assert!(recorded.load(Ordering::SeqCst));
     }
@@ -3913,4 +3943,93 @@ async fn consensus_loop_consumes_ready_and_mid_replay_votes_before_minority_tail
             assert!(reads.iter().all(|index| [100, 101].contains(index)));
         }
     }
+}
+
+#[tokio::test(start_paused = true)]
+async fn single_checkpoint_websocket_skips_idle_reads_and_verifies_pending_insertions() {
+    let available = Arc::new(AtomicUsize::new(1));
+    let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let wake = Arc::new(Notify::new());
+    let mut submitter = lightweight_test_submitter(available.clone(), signed.clone())
+        .with_websocket_health(Some(Arc::new(AtomicBool::new(true))))
+        .with_checkpoint_wake(Some(wake.clone()));
+    let checkpoints = lightweight_checkpoints(2);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = calls.clone();
+    let mut hook = MockMerkleTreeHook::new();
+    hook.expect_domain().return_const(dummy_domain(0, "test"));
+    hook.expect_address().return_const(H256::zero());
+    hook.expect_latest_checkpoint()
+        .times(2)
+        .returning(move |_| {
+            let call = observed.fetch_add(1, Ordering::SeqCst);
+            Ok(checkpoints[call].clone())
+        });
+    submitter.merkle_tree_hook = Arc::new(hook);
+    let mut tree = IncrementalMerkle::default();
+    tree.ingest(H256::from_low_u64_be(1));
+    let task = tokio::spawn(submitter.checkpoint_submitter(tree));
+    for _ in 0..10 {
+        tokio::time::advance(Duration::from_secs(1)).await;
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    available.store(2, Ordering::SeqCst);
+    wake.notify_one();
+    for _ in 0..10 {
+        tokio::time::advance(Duration::from_secs(1)).await;
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        2,
+        "pending leaf retries until finality, then goes idle"
+    );
+    assert_eq!(*signed.lock().unwrap(), vec![1]);
+    assert!(!task.is_finished());
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
+}
+
+#[tokio::test(start_paused = true)]
+async fn healthy_websocket_idle_audit_detects_same_count_single_provider_reorg() {
+    let mut submitter = lightweight_test_submitter(Arc::new(AtomicUsize::new(1)), Arc::default())
+        .with_websocket_health(Some(Arc::new(AtomicBool::new(true))));
+    let mut reporter = MockReorgReporter::new();
+    reporter
+        .expect_report_with_reorg_period()
+        .once()
+        .return_once(|_| {});
+    submitter.reorg_reporter = Some(Arc::new(reporter));
+    let mut committed = IncrementalMerkle::default();
+    committed.ingest(H256::from_low_u64_be(1));
+    let mut conflicting = lightweight_checkpoints(1).pop().unwrap();
+    conflicting.checkpoint.root = H256::from_low_u64_be(999);
+    let mut hook = MockMerkleTreeHook::new();
+    hook.expect_domain().return_const(dummy_domain(0, "test"));
+    hook.expect_address().return_const(H256::zero());
+    hook.expect_latest_checkpoint()
+        .once()
+        .return_once(move |_| Ok(conflicting));
+    submitter.merkle_tree_hook = Arc::new(hook);
+    let recorded = Arc::new(AtomicBool::new(false));
+    let observed = recorded.clone();
+    let mut syncer = MockCheckpointSyncer::new();
+    syncer
+        .expect_write_reorg_status()
+        .once()
+        .returning(move |_| {
+            observed.store(true, Ordering::SeqCst);
+            Ok(())
+        });
+    submitter.checkpoint_syncer = Arc::new(syncer);
+    let task = tokio::spawn(submitter.checkpoint_submitter(committed));
+    tokio::task::yield_now().await;
+    tokio::time::advance(Duration::from_secs(59)).await;
+    tokio::task::yield_now().await;
+    assert!(!task.is_finished());
+    assert!(!recorded.load(Ordering::SeqCst));
+    tokio::time::advance(Duration::from_secs(2)).await;
+    assert!(task.await.unwrap_err().is_panic());
+    assert!(recorded.load(Ordering::SeqCst));
 }
