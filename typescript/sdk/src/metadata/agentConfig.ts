@@ -810,6 +810,31 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
           ),
       })
       .describe('A checkpoint syncer that uses Google Cloud Storage'),
+    z
+      .object({
+        type: z.literal('onchain'),
+        chainName: z
+          .string()
+          .min(1)
+          .describe(
+            'Name of the chain where checkpoint storage contract is deployed',
+          ),
+        contractAddress: z
+          .string()
+          .min(1)
+          .describe('Address of the OnchainCheckpointStorage contract'),
+        validatorAddress: z
+          .string()
+          .min(1)
+          .optional()
+          .describe('Validator address'),
+        rpcUrl: z
+          .string()
+          .min(1)
+          .optional()
+          .describe('Custom RPC URL for querying the contract'),
+      })
+      .describe('A checkpoint syncer that reads and writes on-chain'),
   ]),
   interval: ZNzUint.optional().describe(
     'How long to wait between checking for new checkpoints in seconds. Defaults to 2s, falling back to the origin chain’s index.interval if set and this is unset.',

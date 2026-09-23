@@ -540,6 +540,52 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
                 use_application_default,
             })
         }
+        Some("onchain") => {
+            let chain_name = syncer
+                .chain(&mut err)
+                .get_key("chainName")
+                .parse_string()
+                .end()
+                .map(str::to_owned);
+            let contract_address = syncer
+                .chain(&mut err)
+                .get_key("contractAddress")
+                .parse_string()
+                .end()
+                .and_then(|s| {
+                    hyperlane_base::settings::parse_address_h256(s)
+                        .map_err(|e| {
+                            err.push(syncer.cwp.clone(), eyre!("Expected contract address: {e}"))
+                        })
+                        .ok()
+                });
+            let validator_address = syncer
+                .chain(&mut err)
+                .get_opt_key("validatorAddress")
+                .parse_string()
+                .end()
+                .and_then(|s| {
+                    hyperlane_base::settings::parse_address_h256(s)
+                        .map_err(|e| {
+                            err.push(syncer.cwp.clone(), eyre!("Expected validator address: {e}"))
+                        })
+                        .ok()
+                });
+            let rpc_url = syncer
+                .chain(&mut err)
+                .get_opt_key("rpcUrl")
+                .parse_string()
+                .end()
+                .map(str::to_owned);
+
+            cfg_unwrap_all!(&syncer.cwp, err: [chain_name, contract_address]);
+            err.into_result(CheckpointSyncerConf::Onchain {
+                chain_name,
+                contract_address,
+                validator_address,
+                rpc_url,
+            })
+        }
         Some(_) => Err(eyre!("Unknown checkpoint syncer type"))
             .into_config_result(|| (&syncer.cwp).add("type")),
         None => Err(err),
@@ -988,6 +1034,48 @@ mod test {
             serde_json::json!({"lightweight": false}),
         ] {
             assert!(!parse_lightweight_flag(&mut raw, &ConfigPath::default()).expect("disabled"));
+        }
+    }
+
+    #[test]
+    fn test_parse_checkpoint_syncer_onchain() {
+        use hyperlane_core::H256;
+        use std::str::FromStr;
+
+        let json = serde_json::json!({
+            "type": "onchain",
+            "chainname": "ethereum",
+            "contractaddress": "0x1234567890123456789012345678901234567890",
+            "validatoraddress": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"
+        });
+        let cwp = ConfigPath::default();
+        let parser = ValueParser::new(cwp, &json);
+        let syncer = parse_checkpoint_syncer(parser).expect("successful onchain parse");
+        match syncer {
+            CheckpointSyncerConf::Onchain {
+                chain_name,
+                contract_address,
+                validator_address,
+                rpc_url,
+            } => {
+                assert_eq!(chain_name, "ethereum");
+                assert_eq!(
+                    contract_address,
+                    H256::from(
+                        ethers::types::H160::from_str("0x1234567890123456789012345678901234567890")
+                            .unwrap()
+                    )
+                );
+                assert_eq!(
+                    validator_address,
+                    Some(H256::from(
+                        ethers::types::H160::from_str("0xabcdefabcdefabcdefabcdefabcdefabcdefabcd")
+                            .unwrap()
+                    ))
+                );
+                assert_eq!(rpc_url, None);
+            }
+            _ => panic!("expected onchain checkpoint syncer"),
         }
     }
 }

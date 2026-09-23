@@ -7,11 +7,11 @@ use prometheus::IntGauge;
 use tracing::error;
 use ya_gcp::{AuthFlow, ServiceAccountAuth};
 
-use hyperlane_core::{ChainCommunicationError, ReorgEventResponse};
+use hyperlane_core::{ChainCommunicationError, ReorgEventResponse, H160, H256};
 
 use crate::{
-    CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, S3Storage, GCS_SERVICE_ACCOUNT_KEY,
-    GCS_USER_SECRET,
+    CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, OnchainStorage, S3Storage,
+    GCS_SERVICE_ACCOUNT_KEY, GCS_USER_SECRET,
 };
 
 /// Checkpoint Syncer types
@@ -45,6 +45,17 @@ pub enum CheckpointSyncerConf {
         /// Use ambient Application Default Credentials (e.g. GKE Workload
         /// Identity) instead of a key file or user secrets.
         use_application_default: bool,
+    },
+    /// An onchain checkpoint syncer
+    Onchain {
+        /// Chain name (e.g. "ethereum")
+        chain_name: String,
+        /// Contract address of OnchainCheckpointStorage
+        contract_address: H256,
+        /// Validator address
+        validator_address: Option<H256>,
+        /// Optional custom RPC URL
+        rpc_url: Option<String>,
     },
 }
 
@@ -116,12 +127,74 @@ impl FromStr for CheckpointSyncerConf {
                     }),
                 }
             }
+            "onchain" => {
+                let parts: Vec<&str> = suffix.split('/').filter(|s| !s.is_empty()).collect();
+                let (chain_name, contract_address, validator_address) = match parts.as_slice() {
+                    [chain, contract] => {
+                        let contract = parse_address_h256(contract)?;
+                        (*chain, contract, None)
+                    }
+                    [chain, contract, validator] => {
+                        let contract = parse_address_h256(contract)?;
+                        let validator = parse_address_h256(validator)?;
+                        (*chain, contract, Some(validator))
+                    }
+                    _ => {
+                        return Err(eyre!(
+                            "Error parsing onchain storage location; expected onchain://chainName/contractAddress ({suffix})"
+                        ));
+                    }
+                };
+                let rpc_url = env::var(format!(
+                    "HYPERLANE_CHAINS_{}_CUSTOMRPCS",
+                    chain_name.to_uppercase()
+                ))
+                .or_else(|_| env::var(format!("{}_RPC_URL", chain_name.to_uppercase())))
+                .ok();
+                Ok(CheckpointSyncerConf::Onchain {
+                    chain_name: chain_name.to_owned(),
+                    contract_address,
+                    validator_address,
+                    rpc_url,
+                })
+            }
             _ => Err(eyre!("Unknown storage location prefix `{prefix}`")),
         }
     }
 }
 
+/// Parse an address string into an H256 (supports 20-byte or 32-byte hex addresses)
+pub fn parse_address_h256(s: &str) -> Result<H256> {
+    let s_clean = s.strip_prefix("0x").unwrap_or(s);
+    if s_clean.len() == 40 {
+        let h160 = H160::from_str(s_clean)?;
+        Ok(H256::from(h160))
+    } else if s_clean.len() == 64 {
+        Ok(H256::from_str(s_clean)?)
+    } else {
+        Err(eyre!("Invalid address length for {s}"))
+    }
+}
+
 impl CheckpointSyncerConf {
+    /// Return a clone of this configuration with the validator address bound
+    pub fn with_validator(&self, validator: H256) -> Self {
+        match self {
+            Self::Onchain {
+                chain_name,
+                contract_address,
+                rpc_url,
+                ..
+            } => Self::Onchain {
+                chain_name: chain_name.clone(),
+                contract_address: *contract_address,
+                validator_address: Some(validator),
+                rpc_url: rpc_url.clone(),
+            },
+            other => other.clone(),
+        }
+    }
+
     /// Turn conf info a Checkpoint Syncer
     pub async fn build_and_validate(
         &self,
@@ -188,6 +261,18 @@ impl CheckpointSyncerConf {
                         .await?,
                 )
             }
+            CheckpointSyncerConf::Onchain {
+                chain_name,
+                contract_address,
+                validator_address,
+                rpc_url,
+            } => Box::new(OnchainStorage::new(
+                chain_name.clone(),
+                *contract_address,
+                *validator_address,
+                rpc_url.clone(),
+                latest_index_gauge,
+            )),
         })
     }
 }
@@ -196,7 +281,7 @@ impl CheckpointSyncerConf {
 mod test {
     use std::{fs::File, io::Write};
 
-    use hyperlane_core::{ReorgEvent, ReorgPeriod, H256};
+    use hyperlane_core::{ReorgEvent, ReorgPeriod};
 
     #[tokio::test]
     async fn test_build_and_validate() {
@@ -307,5 +392,46 @@ mod test {
             }
             _ => panic!("Expected S3 checkpoint syncer"),
         }
+    }
+
+    #[test]
+    fn test_parse_onchain_storage_location() {
+        use super::*;
+        let contract = "0x1234567890123456789012345678901234567890";
+        let conf =
+            CheckpointSyncerConf::from_str(&format!("onchain://ethereum/{contract}")).unwrap();
+        match conf {
+            CheckpointSyncerConf::Onchain {
+                chain_name,
+                contract_address,
+                validator_address,
+                rpc_url: _,
+            } => {
+                assert_eq!(chain_name, "ethereum");
+                assert_eq!(contract_address, parse_address_h256(contract).unwrap());
+                assert_eq!(validator_address, None);
+            }
+            _ => panic!("Expected onchain checkpoint syncer"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_onchain_build_and_validate() {
+        use super::*;
+        let contract = "0x1111111111111111111111111111111111111111";
+        let validator = "0x2222222222222222222222222222222222222222";
+        let conf =
+            CheckpointSyncerConf::from_str(&format!("onchain://polygon/{contract}/{validator}"))
+                .unwrap();
+        let syncer = conf.build_and_validate(None).await.unwrap();
+        assert_eq!(
+            syncer.announcement_location(),
+            format!(
+                "onchain://polygon/0x{:x}",
+                parse_address_h256(contract).unwrap()
+            )
+        );
+        let latest = syncer.latest_index().await.unwrap();
+        assert_eq!(latest, None);
     }
 }
