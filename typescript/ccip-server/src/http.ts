@@ -15,6 +15,10 @@ export const CCIP_ROUTER_OPTIONS = {
   ignoreTrailingSlash: true,
   maxParamLength: MAX_CCIP_PARAMETER_LENGTH,
 } as const;
+// GCE ingress reuses idle backend connections for up to 600s. Outlive that so
+// the load balancer never reuses a socket the server already closed, and low
+// traffic probes don't pay a fresh TCP handshake to the pod on every request.
+export const CCIP_KEEP_ALIVE_TIMEOUT_MS = 620_000;
 
 export type CcipApp = FastifyInstance<
   Server,
