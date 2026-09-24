@@ -196,6 +196,69 @@ contract OffchainQuotedLinearFee is AbstractOffchainQuoter, LinearFee {
         return _singleQuote(_computeLinearFee(maxFee, halfAmount, _amount));
     }
 
+    // ============ IExactInFee ============
+
+    // Resolve the active linear params via the same cascade as the forward
+    // quote, then invert the capped-linear curve for the given spend budget.
+    // The transient quote is only usable when its amount is wildcard: a point
+    // (specific-amount) transient quote does not define a curve to invert.
+    function _maxAmountForSpend(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _maxSpend
+    ) internal view override returns (uint256) {
+        (uint256 maxFee_, uint256 halfAmount_) = _resolveLinearParams(
+            _destination,
+            _recipient
+        );
+        return _invertCappedLinear(maxFee_, halfAmount_, _maxSpend);
+    }
+
+    // Mirror of the quoteTransferRemote resolution cascade, returning the linear
+    // params (maxFee, halfAmount) of the winning quote instead of a fee.
+    function _resolveLinearParams(
+        uint32 _destination,
+        bytes32 _recipient
+    ) private view returns (uint256 maxFee_, uint256 halfAmount_) {
+        // 1. Transient quote — only when amount is wildcard (curve, not point).
+        if (TRANSIENT_QUOTED_SLOT.loadBool()) {
+            uint32 dest = TRANSIENT_DESTINATION_SLOT.loadUint32();
+            bytes32 recipient = TRANSIENT_RECIPIENT_SLOT.loadBytes32();
+            uint256 amount = TRANSIENT_AMOUNT_SLOT.loadUint256();
+            if (
+                (dest == WILDCARD_DEST || dest == _destination) &&
+                (recipient == WILDCARD_RECIPIENT || recipient == _recipient) &&
+                amount == WILDCARD_AMOUNT
+            ) {
+                return (
+                    TRANSIENT_MAX_FEE_SLOT.loadUint256(),
+                    TRANSIENT_HALF_AMOUNT_SLOT.loadUint256()
+                );
+            }
+        }
+
+        // 2. Specific: destination + recipient
+        StoredQuote storage sq = quotes[_destination][_recipient];
+        if (sq.expiry > 0 && uint48(block.timestamp) <= sq.expiry) {
+            return (sq.maxFee, sq.halfAmount);
+        }
+
+        // 3. Destination-only
+        sq = quotes[_destination][WILDCARD_RECIPIENT];
+        if (sq.expiry > 0 && uint48(block.timestamp) <= sq.expiry) {
+            return (sq.maxFee, sq.halfAmount);
+        }
+
+        // 4. Recipient-only
+        sq = quotes[WILDCARD_DEST][_recipient];
+        if (sq.expiry > 0 && uint48(block.timestamp) <= sq.expiry) {
+            return (sq.maxFee, sq.halfAmount);
+        }
+
+        // 5. Immutable LinearFee fallback
+        return (maxFee, halfAmount);
+    }
+
     // ============ Internal ============
 
     // Destination, recipient, and amount each support wildcard (type max).
