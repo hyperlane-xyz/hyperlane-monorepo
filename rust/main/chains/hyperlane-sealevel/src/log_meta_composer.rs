@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, future::Future};
 
 use solana_sdk::{clock::Slot, pubkey::Pubkey};
 use solana_transaction_status::{
@@ -8,9 +8,9 @@ use solana_transaction_status::{
 };
 use tracing::warn;
 
-use hyperlane_core::{LogMeta, H512, U256};
+use hyperlane_core::{ChainResult, LogMeta, H512, U256};
 
-use crate::error::HyperlaneSealevelError;
+use crate::error::{is_get_block_unresolvable_after_retries, HyperlaneSealevelError};
 use crate::utils::{decode_h256, decode_h512, from_base58};
 
 #[derive(Debug)]
@@ -83,6 +83,48 @@ impl LogMetaComposer {
         };
 
         Ok(log_meta)
+    }
+
+    /// Resolves log meta from the block at the PDA's recorded slot, retrying the
+    /// previous slot when that block contains no matching transaction.
+    ///
+    /// Some SVM runtimes (e.g. Solaxy) record a PDA slot one ahead of the block
+    /// containing the creating transaction. The search still requires a
+    /// transaction invoking this program on the unique PDA with the specified
+    /// instruction, so a match in the previous block is the same event.
+    ///
+    /// The outer result carries RPC errors from fetching the previous block. If
+    /// that block is unavailable or skipped, the original error is returned.
+    pub async fn log_meta_at_or_before<F, Fut>(
+        &self,
+        block: UiConfirmedBlock,
+        log_index: U256,
+        pda_pubkey: &Pubkey,
+        pda_slot: &Slot,
+        get_block: F,
+    ) -> ChainResult<Result<LogMeta, HyperlaneSealevelError>>
+    where
+        F: FnOnce(Slot) -> Fut,
+        Fut: Future<Output = ChainResult<UiConfirmedBlock>>,
+    {
+        let err = match self.log_meta(block, log_index, pda_pubkey, pda_slot) {
+            Err(err @ HyperlaneSealevelError::NoTransactions(_)) => err,
+            result => return Ok(result),
+        };
+        let Some(previous_slot) = pda_slot.checked_sub(1) else {
+            return Ok(Err(err));
+        };
+        let previous_block = match get_block(previous_slot).await {
+            Ok(block) => block,
+            Err(get_block_err) if is_get_block_unresolvable_after_retries(&get_block_err) => {
+                return Ok(Err(err));
+            }
+            Err(get_block_err) => return Err(get_block_err),
+        };
+        match self.log_meta(previous_block, log_index, pda_pubkey, &previous_slot) {
+            Err(HyperlaneSealevelError::NoTransactions(_)) => Ok(Err(err)),
+            result => Ok(result),
+        }
     }
 }
 
