@@ -24,6 +24,7 @@ pub(super) struct Worker {
 
 /// A completed cycle: whether to run again at once, and whether ingestion failed
 /// while existing work still published.
+#[derive(Debug)]
 pub(super) struct CycleOutcome {
     pub more: bool,
     pub ingestion_failed: bool,
