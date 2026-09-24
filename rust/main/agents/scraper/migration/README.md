@@ -8,7 +8,8 @@ cargo run --release -p migration --bin init-db
 
 This single command applies pending transactional migrations, then creates and
 verifies the raw-dispatch reconciliation, raw-dispatch native-sequence, delivery
-scope, and Merkle block-height indexes concurrently. It works for both empty and
+scope, Merkle block-height, and gas payment paymaster-scope indexes
+concurrently. It works for both empty and
 existing DBs. Reruns retain matching valid indexes and reject invalid or
 conflicting definitions. If index setup fails, the schema migrations stay
 committed; repair the reported index and rerun the same command. Concurrent
