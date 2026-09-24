@@ -68,6 +68,8 @@ const GAS_PAYMENT_STREAM_HEAD = 'gas_payment_stream_head';
 const STREAM_CURSOR_COLUMN = 'scraper_stream_cursor';
 const GAS_PAYMENT_TRANSACTION = 'event_transaction';
 const GAS_PAYMENT_BLOCK = 'event_block';
+const FRONTIER_ID = 'frontier_id';
+const FRONTIER_HEIGHT = 'frontier_height';
 
 type Row = Record<string, unknown>;
 type NotifiedRow = Row & { notification_id: number | string };
@@ -120,9 +122,12 @@ type SerializedMessage = Buffer;
 type HeadRange = { after: bigint; through: bigint };
 export type EventDatabase = Pick<DbService, 'listen' | 'queryLive'>;
 
-class PartialHeadPublicationError extends Error {
-  constructor(readonly original: unknown) {
-    super(`frontier publication partially completed: ${formatError(original)}`);
+class HeadPublicationError extends Error {
+  constructor(
+    readonly original: unknown,
+    readonly partialAgent: boolean,
+  ) {
+    super(`frontier publication failed: ${formatError(original)}`);
   }
 }
 
@@ -1085,21 +1090,8 @@ export class EventWebSocketServer {
         });
         this.scheduleHeadDrain();
       } else if (channel === EXPLORER_CHANNEL) {
-        if (!this.explorerClients.size) return;
         const messageId = parseExplorerNotification(payload).messageId;
-        if (
-          !this.explorerNotifications.has(messageId) &&
-          this.explorerNotifications.size >= MAX_PENDING_NOTIFICATIONS
-        ) {
-          websocketSendFailures.inc({ reason: 'notification_queue_limit' });
-          websocketNotificationQueueOverflows.inc({ route: 'messages' });
-          this.failExplorerStream(
-            new Error('Explorer notification queue limit exceeded'),
-          );
-          return;
-        }
-        this.explorerNotifications.add(messageId);
-        this.scheduleExplorerDrain();
+        this.queueExplorerNotification(messageId);
       } else {
         const notification = parseEventNotification(payload);
         if (!this.hasSubscriber(notification)) return;
@@ -1165,6 +1157,23 @@ export class EventWebSocketServer {
     }
   }
 
+  private queueExplorerNotification(messageId: string): void {
+    if (!this.explorerClients.size) return;
+    if (
+      !this.explorerNotifications.has(messageId) &&
+      this.explorerNotifications.size >= MAX_PENDING_NOTIFICATIONS
+    ) {
+      websocketSendFailures.inc({ reason: 'notification_queue_limit' });
+      websocketNotificationQueueOverflows.inc({ route: 'messages' });
+      this.failExplorerStream(
+        new Error('Explorer notification queue limit exceeded'),
+      );
+      return;
+    }
+    this.explorerNotifications.add(messageId);
+    this.scheduleExplorerDrain();
+  }
+
   private async drainAgentNotifications(): Promise<void> {
     if (this.drainingAgentNotifications) return;
     this.drainingAgentNotifications = true;
@@ -1200,11 +1209,18 @@ export class EventWebSocketServer {
           await this.publishHeadRange(domain, range);
           this.headFailures.delete(domain);
         } catch (error) {
-          if (error instanceof PartialHeadPublicationError) {
-            this.logger.error(error.message);
-            this.failAgentStream(error.original);
-            this.failExplorerStream(error.original);
-            return;
+          const failure =
+            error instanceof HeadPublicationError
+              ? error
+              : new HeadPublicationError(error, false);
+          if (failure.partialAgent) {
+            this.logger.error(failure.message);
+            this.failAgentDomain(domain, failure.original);
+            if (this.explorerClients.size)
+              this.failExplorerStream(failure.original);
+            this.headRanges.delete(domain);
+            this.headFailures.delete(domain);
+            continue;
           }
           const failures = (this.headFailures.get(domain) ?? 0) + 1;
           this.headFailures.set(domain, failures);
@@ -1212,9 +1228,11 @@ export class EventWebSocketServer {
             `frontier publication failed for domain ${domain} (${failures}/${MAX_HEAD_PUBLICATION_FAILURES}): ${formatError(error)}`,
           );
           if (failures >= MAX_HEAD_PUBLICATION_FAILURES) {
-            this.failAgentStream(error);
-            this.failExplorerStream(error);
-            return;
+            this.failAgentDomain(domain, failure.original);
+            if (this.explorerClients.size)
+              this.failExplorerStream(failure.original);
+            this.headRanges.delete(domain);
+            this.headFailures.delete(domain);
           }
           continue;
         }
@@ -1239,42 +1257,40 @@ export class EventWebSocketServer {
     domain: number,
     { after, through }: HeadRange,
   ): Promise<void> {
-    let published = false;
-    try {
-      for (const eventType of EVENT_TYPES) {
-        const agentInterested = this.hasSubscriber({
-          domain,
-          eventType,
-          id: 0n,
-        });
-        const explorerInterested =
-          this.explorerClients.size > 0 &&
-          (eventType === 'delivery' || eventType === 'gas_payment');
-        if (!agentInterested && !explorerInterested) continue;
-        const stream = STREAMS[eventType];
-        const height =
-          eventType === 'dispatch' ? 'origin_block_height' : 'block_number';
-        const gasPaymentCursor =
-          eventType === 'gas_payment'
-            ? ` LEFT JOIN ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} ON ${q('event_cursor')}.${q('gas_payment_id')} = ${q('event_row')}.${q('id')}`
-            : '';
-        const gasPaymentMetadata =
-          eventType === 'gas_payment'
-            ? gasPaymentMetadataJoins('LEFT JOIN')
-            : '';
-        const eventProjection =
-          eventType === 'gas_payment'
-            ? gasPaymentColumns(stream)
-            : columns(stream, 'event_row');
-        const cursorProjection =
-          eventType === 'gas_payment'
-            ? `, ${gasPaymentCursorExpression()} AS ${q(STREAM_CURSOR_COLUMN)}`
-            : '';
-        let cursorHeight = after;
-        let cursorId = 0n;
+    let agentPublished = false;
+    for (const eventType of EVENT_TYPES) {
+      const agentInterested = this.hasSubscriber({
+        domain,
+        eventType,
+        id: 0n,
+      });
+      const explorerInterested =
+        this.explorerClients.size > 0 &&
+        (eventType === 'delivery' || eventType === 'gas_payment');
+      if (!agentInterested && !explorerInterested) continue;
+      const stream = STREAMS[eventType];
+      const height =
+        eventType === 'dispatch' ? 'origin_block_height' : 'block_number';
+      const gasPaymentCursor =
+        eventType === 'gas_payment'
+          ? ` LEFT JOIN ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} ON ${q('event_cursor')}.${q('gas_payment_id')} = ${q('event_row')}.${q('id')}`
+          : '';
+      const gasPaymentMetadata =
+        eventType === 'gas_payment' ? gasPaymentMetadataJoins('LEFT JOIN') : '';
+      const eventProjection =
+        eventType === 'gas_payment'
+          ? gasPaymentColumns(stream)
+          : columns(stream, 'event_row');
+      const cursorProjection =
+        eventType === 'gas_payment'
+          ? `, ${q('event_cursor')}.${q('stream_cursor')} AS ${q(STREAM_CURSOR_COLUMN)}`
+          : '';
+      let cursorHeight = after;
+      let cursorId = 0n;
+      try {
         while (true) {
           const rows = await this.db.queryLive<Row>(
-            `SELECT ${eventProjection}${cursorProjection} FROM ${q(stream.table)} AS ${q('event_row')}${gasPaymentMetadata}${gasPaymentCursor} WHERE ${q('event_row')}.${q(stream.domain)}=$1 AND ${q('event_row')}.${q(height)}>$2::bigint AND ${q('event_row')}.${q(height)}<=$3::bigint AND (${q('event_row')}.${q(height)}>$4::bigint OR (${q('event_row')}.${q(height)}=$4::bigint AND ${q('event_row')}.${q('id')}>$5::bigint)) ORDER BY ${q('event_row')}.${q(height)}, ${q('event_row')}.${q('id')} LIMIT $6`,
+            `SELECT ${eventProjection}${cursorProjection}, ${q('event_row')}.${q('id')} AS ${q(FRONTIER_ID)}, ${q('event_row')}.${q(height)} AS ${q(FRONTIER_HEIGHT)} FROM (SELECT * FROM ${q(stream.table)} AS ${q('frontier_row')} WHERE ${q('frontier_row')}.${q(stream.domain)}=$1 AND ${q('frontier_row')}.${q(height)}>$2::bigint AND ${q('frontier_row')}.${q(height)}<=$3::bigint AND (${q('frontier_row')}.${q(height)}>$4::bigint OR (${q('frontier_row')}.${q(height)}=$4::bigint AND ${q('frontier_row')}.${q('id')}>$5::bigint)) ORDER BY ${q('frontier_row')}.${q(height)}, ${q('frontier_row')}.${q('id')} LIMIT $6) AS ${q('event_row')}${gasPaymentMetadata}${gasPaymentCursor} ORDER BY ${q('event_row')}.${q(height)}, ${q('event_row')}.${q('id')}`,
             [
               storedDomain(domain),
               after.toString(),
@@ -1286,36 +1302,31 @@ export class EventWebSocketServer {
           );
           if (!rows.length) break;
           const lastByHeight = rows.at(-1)!;
-          const nextHeight = parseId(lastByHeight[height]);
-          const nextId = parseId(lastByHeight.id);
-          rows.sort((a, b) => compareRows(eventType, a, b));
+          const nextHeight = parseId(lastByHeight[FRONTIER_HEIGHT]);
+          const nextId = parseId(lastByHeight[FRONTIER_ID]);
+          const events = rows.map(
+            ({ [FRONTIER_ID]: _id, [FRONTIER_HEIGHT]: _height, ...event }) =>
+              event,
+          );
+          events.sort((a, b) => compareRows(eventType, a, b));
           if (agentInterested) {
-            published = true;
-            rows.forEach((row) => this.publish(eventType, row));
+            agentPublished = true;
+            events.forEach((row) => this.publish(eventType, row));
           }
           if (explorerInterested && this.explorerClients.size) {
-            const messageIds = new Set<string>();
-            rows.forEach((row) => {
+            events.forEach((row) => {
               const messageId = row.msg_id ?? row.message_id;
-              if (typeof messageId === 'string') messageIds.add(messageId);
+              if (typeof messageId === 'string')
+                this.queueExplorerNotification(messageId);
             });
-            if (messageIds.size) {
-              try {
-                published = true;
-                await this.publishExplorer([...messageIds]);
-              } catch (error) {
-                this.failExplorerStream(error);
-              }
-            }
           }
           cursorHeight = nextHeight;
           cursorId = nextId;
           if (rows.length < config.EVENT_STREAM_BATCH_SIZE) break;
         }
+      } catch (error) {
+        throw new HeadPublicationError(error, agentPublished);
       }
-    } catch (error) {
-      if (published) throw new PartialHeadPublicationError(error);
-      throw error;
     }
   }
 
@@ -1335,6 +1346,7 @@ export class EventWebSocketServer {
       }
     } finally {
       this.drainingExplorerNotifications = false;
+      if (this.explorerNotifications.size) this.scheduleExplorerDrain();
     }
   }
 
@@ -1485,6 +1497,22 @@ export class EventWebSocketServer {
   private failAgentStream(error: unknown): void {
     this.logger.error(`agent event stream failed: ${formatError(error)}`);
     this.closeAgentClients('Event stream read failed');
+  }
+
+  private failAgentDomain(domain: number, error: unknown): void {
+    this.logger.error(
+      `agent event stream failed for domain ${domain}: ${formatError(error)}`,
+    );
+    for (const [socket, client] of this.clients) {
+      if (
+        [...client.subscriptions.values()].some((subscription) =>
+          matchesDomain(subscription, domain),
+        )
+      ) {
+        this.disconnect(socket);
+        socket.close(1013, 'Event stream read failed');
+      }
+    }
   }
 
   private failExplorerStream(error: unknown): void {

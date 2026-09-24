@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use eyre::Result;
 use futures::{stream, StreamExt};
 use prometheus::IntCounterVec;
+use tokio::sync::Semaphore;
 use tracing::{trace, warn};
 
 use hyperlane_base::settings::{CoreContractAddresses, IndexSettings};
@@ -77,6 +78,8 @@ impl HyperlaneDbStore {
     pub(crate) async fn ensure_transactions_for_known_blocks(
         &self,
         log_meta: impl Iterator<Item = &LogMeta>,
+        rpc_permits: &Semaphore,
+        db_permits: &Semaphore,
     ) -> Result<bool> {
         let requested: HashMap<_, _> = log_meta
             .map(|meta| (meta.transaction_id, meta.block_hash))
@@ -84,10 +87,10 @@ impl HyperlaneDbStore {
         if requested.is_empty() {
             return Ok(true);
         }
-        let (blocks, existing) = tokio::try_join!(
-            self.db.get_block_basic(requested.values()),
-            self.db.get_txn_ids(requested.keys()),
-        )?;
+        let db_permit = db_permits.acquire().await?;
+        let blocks = self.db.get_block_basic(requested.values()).await?;
+        let existing = self.db.get_txn_ids(requested.keys()).await?;
+        drop(db_permit);
         let blocks: HashMap<_, _> = blocks.into_iter().map(|b| (b.hash, b.id)).collect();
         eyre::ensure!(
             requested.values().all(|hash| blocks.contains_key(hash)),
@@ -104,7 +107,10 @@ impl HyperlaneDbStore {
                         let block_id = *blocks
                             .get(&block_hash)
                             .ok_or_else(|| eyre::eyre!("Missing retained block"))?;
+                        let rpc_permit = rpc_permits.acquire().await?;
                         let info = self.provider.get_txn_by_hash(&hash).await?;
+                        drop(rpc_permit);
+                        let _db_permit = db_permits.acquire().await?;
                         self.db
                             .store_txns(std::iter::once(StorableTxn { info, block_id }))
                             .await?;

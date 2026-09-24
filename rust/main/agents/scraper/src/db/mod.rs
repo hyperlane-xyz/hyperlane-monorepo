@@ -79,6 +79,10 @@ impl ScraperDb {
             }
         }
     }
+
+    pub async fn verify_frontier_indexes(&self) -> Result<()> {
+        migration::indexes::verify_frontier_indexes(&self.0).await
+    }
 }
 
 pub(super) fn confirmed_event(table: &str, domain: &str, height: &str) -> SimpleExpr {

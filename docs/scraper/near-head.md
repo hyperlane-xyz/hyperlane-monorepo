@@ -108,8 +108,9 @@ boundary from stored maxima. Contract changes are rejected.
   yield, while short, exhausted or failed pages wait for the polling interval.
   Failed/timed-out pages advance their scan cursor so later pages are attempted;
   missing receipts are retried on the next sweep. Cache lookups are batched per
-  page, and at most eight missing receipts per stream (16 per domain) are fetched
-  concurrently. The two streams can briefly fetch the same uncached transaction;
+  page, and at most 16 missing receipts are fetched concurrently across all domains.
+  Database work uses a separate five-permit limit, and no database permit is held
+  while an RPC is pending. The two streams can briefly fetch the same uncached transaction;
   uniqueness constraints and the linker handle concurrent inserts.
   Fetching and linking each have a separate 30-second timeout. Completed receipts
   are linked even when a neighboring receipt times out. Existing nullable
@@ -183,7 +184,9 @@ hangs, and verify uncached successful receipts survive a neighboring timeout.
    Measure index creation on a database clone and allow a
    maintenance window. Run `cargo run --release -p migration --bin init-db` with
    `DATABASE_URL` set for the `postgres` role, which owns the existing tables and
-   migration history, to apply migrations and verify concurrent indexes. Use the
+   migration history, to apply migrations, verify every concurrent index, and run
+   `ANALYZE` on the event tables. Do not start a scraper unless `init-db` reaches
+   both index verification and `ANALYZE`; rerun it after any interrupted build. Use the
    migration binary built from this PR for both upgrades and rollbacks; older
    binaries do not know checkpoint migration 15. After stopping writers, wait at
    least 90 seconds before migrating so the migration's activity gate can pass.
@@ -372,10 +375,14 @@ both their names and output columns. Raw event tables now include provisional ro
 Roles with `SELECT` on any event table also receive `SELECT` on `scraper_head`.
 
 To roll back to the previous near-head scraper image from this version, stop every
-scraper deployment sharing the database and run
+scraper deployment sharing the database and pause proxy reads during a maintenance
+window, then run
 `cargo run --release -p migration --bin down 1`. This restores the transitional
-`confirmed` columns without rewriting historical confirmed rows. Then deploy the
-previous scraper image. Never start it before the down migration.
+`confirmed` columns without rewriting historical confirmed rows. The transactional
+down migration takes access-exclusive table locks while rebuilding the old partial
+indexes, so production-scale tables can block reads and replica replay for tens of
+seconds. Then deploy the previous scraper image. Never start it before the down
+migration.
 
 To return to legacy indexers, stop every scraper writer, drain or explicitly
 repair/discard provisional and halted history, then run

@@ -52,11 +52,7 @@ const EVENT_STREAM_SCHEMA_QUERY = `
         'SELECT'
       ),
       false
-    ) AS cursor_readable,
-    COALESCE(
-      has_table_privilege(current_user, to_regclass('scraper_head'), 'SELECT'),
-      false
-    ) AS scraper_head_readable
+    ) AS cursor_readable
 `;
 
 [1114, 1186].forEach((oid) =>
@@ -81,7 +77,6 @@ type EventStreamSchema = {
   legacy_boundary_exists: boolean;
   range_index_exists: boolean;
   scraper_head_exists: boolean;
-  scraper_head_readable: boolean;
 };
 const EVENT_STREAM_SCHEMA_CHECKS: readonly (keyof EventStreamSchema)[] = [
   'cursor_exists',
@@ -92,7 +87,6 @@ const EVENT_STREAM_SCHEMA_CHECKS: readonly (keyof EventStreamSchema)[] = [
   'legacy_boundary_exists',
   'range_index_exists',
   'scraper_head_exists',
-  'scraper_head_readable',
 ];
 
 export class DbService implements ScraperDbDatabase {

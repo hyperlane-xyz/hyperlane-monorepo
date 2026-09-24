@@ -15,8 +15,10 @@ use super::store::Store;
 
 const PAGE_SIZE: usize = 100;
 const RECEIPT_TIMEOUT: Duration = Duration::from_secs(30);
-const RECEIPT_CONCURRENCY: usize = 16;
-static RECEIPT_PERMITS: Semaphore = Semaphore::const_new(RECEIPT_CONCURRENCY);
+const RECEIPT_RPC_CONCURRENCY: usize = 16;
+const RECEIPT_DB_CONCURRENCY: usize = 5;
+static RECEIPT_RPC_PERMITS: Semaphore = Semaphore::const_new(RECEIPT_RPC_CONCURRENCY);
+static RECEIPT_DB_PERMITS: Semaphore = Semaphore::const_new(RECEIPT_DB_CONCURRENCY);
 
 /// Drain healthy full pages immediately; back off on failures and between sweeps.
 /// Independent stream loops keep a slow delivery receipt from delaying gas work.
@@ -64,6 +66,7 @@ async fn update_pending_age(
         ("delivered_message", "destination_tx_id", "delivery"),
         ("gas_payment", "tx_id", "gas_payment"),
     ] {
+        let _db_permit = RECEIPT_DB_PERMITS.acquire().await?;
         let row = legacy
             .db
             .clone_connection()
@@ -104,12 +107,7 @@ async fn run_stream(legacy: &HyperlaneDbStore, table: &str, poll_interval: Durat
     };
     sleep(Duration::from_millis(stagger)).await;
     loop {
-        let more = {
-            let Ok(_permit) = RECEIPT_PERMITS.acquire().await else {
-                return;
-            };
-            enrich_page(legacy, table, &mut after, RECEIPT_TIMEOUT).await
-        };
+        let more = enrich_page(legacy, table, &mut after, RECEIPT_TIMEOUT).await;
         if more {
             // Each turn is bounded to one page. Let other worker tasks run even
             // when a large cache-only backlog never needs to wait for an RPC.
@@ -133,10 +131,16 @@ async fn enrich_page(
     };
     let start = *after;
     let result = timeout(deadline, async {
+        let db_permit = RECEIPT_DB_PERMITS.acquire().await?;
         let rows = store.unenriched(table, start).await?;
+        drop(db_permit);
         *after = rows.last().map(|(id, _)| *id).unwrap_or(0);
         let complete = legacy
-            .ensure_transactions_for_known_blocks(rows.iter().map(|(_, meta)| meta))
+            .ensure_transactions_for_known_blocks(
+                rows.iter().map(|(_, meta)| meta),
+                &RECEIPT_RPC_PERMITS,
+                &RECEIPT_DB_PERMITS,
+            )
             .await?;
         Ok::<_, eyre::Report>(complete && rows.len() == PAGE_SIZE)
     })
@@ -145,7 +149,11 @@ async fn enrich_page(
     // Persisted successes are linked even when another receipt timed out. Keep
     // this separate from fetch cancellation, but bound its own database wait.
     let linked = if *after > start {
-        let result = timeout(deadline, store.enrich(table, start, *after)).await;
+        let result = timeout(deadline, async {
+            let _db_permit = RECEIPT_DB_PERMITS.acquire().await?;
+            store.enrich(table, start, *after).await
+        })
+        .await;
         if !matches!(result, Ok(Ok(()))) {
             warn!(
                 domain = store.domain,
