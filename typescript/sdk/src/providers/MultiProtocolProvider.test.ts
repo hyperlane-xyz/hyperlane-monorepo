@@ -1,4 +1,6 @@
 import { expect } from 'chai';
+import { BigNumber, providers as EthersV5Providers } from 'ethers';
+import sinon from 'sinon';
 import { Provider as ZKSyncProvider } from 'zksync-ethers';
 
 import { TestChainName, test1 } from '../consts/testChains.js';
@@ -81,6 +83,52 @@ describe('MultiProtocolProvider', () => {
       const provider =
         defaultProviderBuilderMap[ProviderType.GnosisTxBuilder](test1);
       expect(provider.type).to.equal(ProviderType.GnosisTxBuilder);
+    });
+
+    it('forwards EVM fallback options through the adapter', async () => {
+      const sandbox = sinon.createSandbox();
+      try {
+        const adapter = new MultiProviderAdapter({ test1 });
+        const provider = new EthersV5Providers.JsonRpcProvider();
+        sandbox.stub(provider, 'send').rejects(
+          Object.assign(new Error('processing response error'), {
+            code: 'SERVER_ERROR',
+            body: JSON.stringify({
+              error: {
+                code: -32602,
+                message: 'too many arguments, want at most 2',
+              },
+            }),
+          }),
+        );
+        sandbox.stub(provider, 'getFeeData').resolves({
+          gasPrice: BigNumber.from(2),
+          lastBaseFeePerGas: null,
+          maxFeePerGas: null,
+          maxPriorityFeePerGas: null,
+        });
+        adapter.setProvider('test1', {
+          type: ProviderType.EthersV5,
+          provider,
+        });
+
+        const estimate = await adapter.estimateTransactionFee({
+          chainNameOrId: 'test1',
+          transaction: {
+            type: ProviderType.EthersV5,
+            transaction: {
+              to: '0x0000000000000000000000000000000000000001',
+            },
+          },
+          sender: '0x0000000000000000000000000000000000000001',
+          ignoreSenderBalance: true,
+          fallbackGasUnits: 25_000n,
+        });
+
+        expect(estimate.gasUnits).to.equal(25_000n);
+      } finally {
+        sandbox.restore();
+      }
     });
   });
 });
