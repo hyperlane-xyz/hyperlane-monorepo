@@ -26,7 +26,7 @@ use crate::db::{
     HyperlaneDb,
 };
 
-use super::{DbError, TypedDB, DB};
+use super::{DbError, GasPaymentSequenceConflict, TypedDB, DB};
 
 // these keys MUST not be given multiple uses in case multiple agents are
 // started with the same database and domain.
@@ -472,14 +472,15 @@ impl HyperlaneRocksDB {
                     return Ok(false);
                 }
                 (None, None) => {}
-                (Some(_), _) => {
-                    return Err(DbError::Other(format!(
-                        "Gas payment sequence {sequence} conflicts with stored payment"
-                    )));
-                }
-                (None, Some(_)) => {
-                    return Err(DbError::Other(format!(
-                        "Gas payment sequence {sequence} has block metadata without a payment"
+                (stored, stored_block) => {
+                    return Err(DbError::GasPaymentSequenceConflict(Box::new(
+                        GasPaymentSequenceConflict {
+                            sequence,
+                            stored,
+                            stored_block,
+                            incoming: payment,
+                            incoming_block: log_meta.block_number,
+                        },
                     )));
                 }
             }

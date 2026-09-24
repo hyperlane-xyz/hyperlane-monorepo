@@ -18,7 +18,7 @@ use futures_util::{
 };
 use hyperlane_base::{
     broadcast::{BroadcastMpscSender, IndexingNotification},
-    db::{DbResult, HyperlaneDb, HyperlaneRocksDB},
+    db::{DbError, DbResult, HyperlaneDb, HyperlaneRocksDB},
     scraper_websocket::{
         format_address as scraper_address, reconnect_after, validate_cutover_freshness,
         EventMessage, GasPaymentCursor as GasPaymentSubscriptionCursor, MerkleEventData,
@@ -751,6 +751,13 @@ struct InvalidGasPaymentRow(eyre::Report);
 
 fn invalid_gas_payment_row(err: eyre::Report) -> eyre::Report {
     InvalidGasPaymentRow(err).into()
+}
+
+fn is_gas_payment_sequence_conflict(err: &eyre::Report) -> bool {
+    matches!(
+        err.downcast_ref::<DbError>(),
+        Some(DbError::GasPaymentSequenceConflict(_))
+    )
 }
 
 #[derive(Debug, Default)]
@@ -2159,12 +2166,21 @@ impl ScraperWebSocketMonitor {
                                 let input = validated
                                     .gas_payment
                                     .context("Validated gas payment has no input")?;
-                                source.store_gas_payment(&input)?;
-                                state.persist_gas_payment_cursor(
-                                    domain,
-                                    input.cursor,
-                                    |cursor| source.store_gas_payment_cursor(cursor),
-                                )?;
+                                match source.store_gas_payment(&input) {
+                                    Ok(()) => state.persist_gas_payment_cursor(
+                                        domain,
+                                        input.cursor,
+                                        |cursor| source.store_gas_payment_cursor(cursor),
+                                    )?,
+                                    // The row disagrees with this origin's RPC-indexed history.
+                                    // Nothing was written; storage failures still close the stream.
+                                    Err(err) if is_gas_payment_sequence_conflict(&err) => {
+                                        self.record(domain, event_type, "conflict");
+                                        gas_payment_unusable.insert(domain);
+                                        self.contain_rejected_gas_payment(domain, &err);
+                                    }
+                                    Err(err) => return Err(err),
+                                }
                             }
                         }
                         Err(err)
@@ -2173,7 +2189,7 @@ impl ScraperWebSocketMonitor {
                         {
                             self.record(domain, event_type, "invalid");
                             gas_payment_unusable.insert(domain);
-                            self.contain_invalid_gas_payment(domain, &err);
+                            self.contain_rejected_gas_payment(domain, &err);
                         }
                         Err(err) => {
                             let result = if err.downcast_ref::<StreamGap>().is_some() {
@@ -2368,7 +2384,7 @@ impl ScraperWebSocketMonitor {
 
     /// Fall back to RPC for one origin's gas payments until it replays cleanly.
     /// Nothing is persisted, and the durable cursor stays before the bad row.
-    fn contain_invalid_gas_payment(&self, domain: u32, err: &eyre::Report) {
+    fn contain_rejected_gas_payment(&self, domain: u32, err: &eyre::Report) {
         let source = self
             .sources
             .get(&domain)
@@ -2384,7 +2400,7 @@ impl ScraperWebSocketMonitor {
             chain = source.chain,
             domain,
             ?err,
-            "Invalid scraper gas payment row; keeping RPC gas payment indexing for this origin"
+            "Rejected scraper gas payment row; keeping RPC gas payment indexing for this origin"
         );
     }
 
@@ -3510,6 +3526,181 @@ mod tests {
                     .stream_cursor,
                 cursor,
                 "poisoned cursor stays before the invalid row"
+            );
+        }
+        client.abort();
+        let _ = client.await;
+        server.abort();
+        let _ = server.await;
+    }
+
+    #[test]
+    fn only_sequence_conflicts_are_contained_storage_errors() {
+        let conflict = DbError::GasPaymentSequenceConflict(Box::new(
+            hyperlane_base::db::GasPaymentSequenceConflict {
+                sequence: 1,
+                stored: None,
+                stored_block: Some(10),
+                incoming: InterchainGasPayment {
+                    message_id: H256::zero(),
+                    destination: 6,
+                    payment: U256::one(),
+                    gas_amount: U256::one(),
+                },
+                incoming_block: 11,
+            },
+        ));
+        let stored: DbResult<()> = Err(conflict);
+        let stored = stored
+            .context("Storing scraper gas payment")
+            .expect_err("conflict");
+        assert!(is_gas_payment_sequence_conflict(&stored));
+        let failed: DbResult<()> = Err(DbError::Other("disk".to_owned()));
+        let failed = failed
+            .context("Storing scraper gas payment")
+            .expect_err("failure");
+        assert!(!is_gas_payment_sequence_conflict(&failed));
+    }
+
+    #[tokio::test]
+    async fn stored_gas_sequence_conflict_falls_back_only_for_its_origin() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
+        let url =
+            Url::parse(&format!("ws://{}", listener.local_addr().expect("address"))).expect("URL");
+        let metrics = CoreMetrics::new("gas-conflict", 0, Registry::new()).expect("metrics");
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new_with_authority(
+                url,
+                sources_for(&[5, 9]).into_values().collect(),
+                &metrics,
+                true,
+            )
+            .expect("monitor"),
+        );
+        // Origin 5's own RPC indexer stored a different payment for sequence 0.
+        let rpc_payment = InterchainGasPayment {
+            message_id: H256::from_low_u64_be(7),
+            destination: 6,
+            payment: U256::from(999),
+            gas_amount: U256::from(50000),
+        };
+        let conflicted = &monitor.sources[&5];
+        conflicted
+            .cursor_db
+            .store_gas_payment_by_sequence(&0, &rpc_payment)
+            .expect("store RPC payment");
+        conflicted
+            .cursor_db
+            .store_gas_payment_block_by_sequence(&0, &100)
+            .expect("store RPC block");
+        let poisoned = monitor.gas_payment_authority_receiver(5).expect("receiver");
+        let healthy = monitor.gas_payment_authority_receiver(9).expect("receiver");
+        let (release, released) = oneshot::channel();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.expect("connection");
+            let mut socket = accept_async(stream).await.expect("WebSocket");
+            socket
+                .send(Message::Text(
+                    serde_json::json!({"type":"ready","streamCursorVersions":{"gas_payment":3}})
+                        .to_string()
+                        .into(),
+                ))
+                .await
+                .expect("ready");
+            let request = socket.next().await.expect("request").expect("frame");
+            let request: serde_json::Value =
+                serde_json::from_str(request.to_text().expect("text")).expect("JSON");
+            socket.send(Message::Text(serde_json::json!({"type":"subscribed","streams":proxy_subscription_response(&request)}).to_string().into())).await.expect("ack");
+            released.await.expect("release events");
+            let mut sequenced = gas_payment_event_for(5, 2, 10);
+            sequenced.data["sequence"] = serde_json::json!("0");
+            for event in [
+                gas_payment_event_for(9, 1, 10),
+                gas_payment_event_for(5, 1, 10),
+                sequenced,
+                gas_payment_event_for(5, 3, 10),
+                gas_payment_event_for(9, 2, 10),
+            ] {
+                socket
+                    .send(Message::Text(wire_event(event).to_string().into()))
+                    .await
+                    .expect("replayed row");
+            }
+            socket
+                .send(gas_payment_caught_up(9, 2, 10))
+                .await
+                .expect("healthy origin caught up");
+            socket
+                .send(gas_payment_caught_up(5, 3, 10))
+                .await
+                .expect("conflicted origin caught up");
+            let _ = socket.next().await;
+        });
+        let task_monitor = monitor.clone();
+        let client = tokio::spawn(async move {
+            let mut state =
+                StreamState::load_gas_payment(&task_monitor.sources).expect("replay baseline");
+            task_monitor.stream_once(&mut state).await
+        });
+        timeout(Duration::from_secs(5), async {
+            while monitor.active.with_label_values(&["test-9"]).get() != 1 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("subscription timeout");
+        // Sequenced readiness is exercised elsewhere; isolate the gas gate.
+        for source in monitor.sources.values() {
+            for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
+                let labels = [source.chain.as_str(), kind.label()];
+                monitor.caught_up.with_label_values(&labels).set(1);
+                monitor.parity_ready.with_label_values(&labels).set(1);
+            }
+        }
+        release.send(()).expect("release");
+        let dropped =
+            monitor
+                .events
+                .with_label_values(&["test-5", GAS_PAYMENT_EVENT_TYPE, "dropped"]);
+        timeout(Duration::from_secs(5), async {
+            while dropped.get() < 2 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("later row and caught-up marker dropped");
+        assert!(!client.is_finished(), "conflict must not close the stream");
+        assert_eq!(
+            monitor
+                .events
+                .with_label_values(&["test-5", GAS_PAYMENT_EVENT_TYPE, "conflict"])
+                .get(),
+            1
+        );
+        assert!(!*poisoned.borrow(), "conflicted origin keeps gas RPC");
+        assert!(*healthy.borrow(), "healthy origin gains gas authority");
+        let healthy_source = &monitor.sources[&9];
+        assert!(!monitor.base_source_authority_ready(conflicted));
+        assert!(monitor.base_source_authority_ready(healthy_source));
+        assert_eq!(
+            conflicted
+                .cursor_db
+                .retrieve_gas_payment_by_sequence(&0)
+                .expect("read sequence"),
+            Some(rpc_payment),
+            "RPC-indexed payment is untouched"
+        );
+        for (source, degraded, cursor) in [(conflicted, 1, 1), (healthy_source, 0, 2)] {
+            let labels = [source.chain.as_str(), GAS_PAYMENT_EVENT_TYPE];
+            assert_eq!(monitor.degraded.with_label_values(&labels).get(), degraded);
+            assert_eq!(
+                source
+                    .gas_payment_cursor()
+                    .expect("cursor")
+                    .expect("cursor persisted")
+                    .stream_cursor,
+                cursor,
+                "conflicted cursor stays before the rejected row"
             );
         }
         client.abort();
