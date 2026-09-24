@@ -742,6 +742,17 @@ struct StreamGap {
     received: u64,
 }
 
+/// A gas payment row whose projected content cannot be trusted. Unlike envelope
+/// or cursor errors, it does not prove the stream is broken: only its origin
+/// falls back to RPC, and replay retries it from the durable cursor.
+#[derive(Debug, thiserror::Error)]
+#[error("{0:#}")]
+struct InvalidGasPaymentRow(eyre::Report);
+
+fn invalid_gas_payment_row(err: eyre::Report) -> eyre::Report {
+    InvalidGasPaymentRow(err).into()
+}
+
 #[derive(Debug, Default)]
 struct StreamState {
     cursors: HashMap<(u32, EventKind), StreamCursor>,
@@ -1011,8 +1022,9 @@ impl StreamState {
             .context("Gas payment event omitted row ID")?
             .parse::<u64>()
             .context("Invalid gas payment row ID")?;
-        let data: GasPaymentEventData =
-            serde_json::from_value(event.data).context("Invalid gas payment event payload")?;
+        let data: GasPaymentEventData = serde_json::from_value(event.data)
+            .context("Invalid gas payment event payload")
+            .map_err(invalid_gas_payment_row)?;
         if data
             .id
             .parse::<u64>()
@@ -1039,57 +1051,16 @@ impl StreamState {
         if parse_address(&data.interchain_gas_paymaster)? != source.interchain_gas_paymaster {
             bail!("Gas payment event paymaster does not match configured paymaster");
         }
-        let message_id = parse_h256(&data.msg_id, "gas payment message ID")?;
-        let payment = U256::from_dec_str(&data.payment).context("Invalid gas payment amount")?;
-        let gas_amount =
-            U256::from_dec_str(&data.gas_amount).context("Invalid gas payment gas amount")?;
-        let log_index =
-            U256::from_dec_str(&data.log_index).context("Invalid gas payment log index")?;
-        let sequence = data
-            .sequence
-            .as_deref()
-            .map(|sequence| {
-                sequence
-                    .parse::<u32>()
-                    .context("Invalid gas payment sequence")
-            })
-            .transpose()?;
-        let (block_hash, block_number, transaction_id) = match (
-            data.tx_id.as_deref(),
-            data.origin_block_hash.as_deref(),
-            data.origin_block_height.as_deref(),
-            data.origin_tx_hash.as_deref(),
-        ) {
-            // Near-head rows carry log metadata before receipt enrichment links `tx_id`.
-            (tx_id, Some(block_hash), Some(block_number), Some(transaction_id)) => {
-                tx_id
-                    .map(str::parse::<u64>)
-                    .transpose()
-                    .context("Invalid gas payment transaction row ID")?;
-                (
-                    parse_h256(block_hash, "gas payment block hash")?,
-                    block_number
-                        .parse::<u64>()
-                        .context("Invalid gas payment block height")?,
-                    parse_h512(transaction_id)?,
-                )
-            }
-            (None, None, None, None) => {
-                let sequence = sequence.context(
-                    "Gas payment without transaction metadata omitted its native sequence",
-                )?;
-                if log_index != U256::from(sequence) {
-                    bail!("Gas payment fallback log index does not match its native sequence");
-                }
-                // Basic Sealevel RPC metadata retains the real slot, but the
-                // proxy's NULL transaction join cannot recover it. Keep RPC authoritative.
-                bail!("Gas payment without resolved transaction metadata omitted its canonical block height");
-            }
-            _ => bail!("Gas payment transaction metadata was only partially resolved"),
-        };
-        if data.time_created.is_empty() {
-            bail!("Gas payment event omitted creation time");
-        }
+        let GasPaymentRow {
+            block_hash,
+            block_number,
+            gas_amount,
+            log_index,
+            message_id,
+            payment,
+            sequence,
+            transaction_id,
+        } = data.decode_row().map_err(invalid_gas_payment_row)?;
         let encoded = serde_json::to_vec(&data).context("Encoding gas payment fingerprint")?;
         let fingerprint = event_fingerprint(&[
             b"gas_payment",
@@ -1421,18 +1392,20 @@ type FreshnessProbe = (
     Result<(bool, Option<u32>, Option<u32>, Option<u32>, Option<u32>)>,
 );
 /// Restore gas RPC even if the connection task is cancelled or panics.
-struct GasPaymentConnectionGuard<'a>(&'a watch::Sender<bool>);
+struct GasPaymentConnectionGuard<'a>(&'a HashMap<u32, watch::Sender<bool>>);
 
 impl Drop for GasPaymentConnectionGuard<'_> {
     fn drop(&mut self) {
-        self.0.send_if_modified(|active| {
-            if *active {
-                *active = false;
-                true
-            } else {
-                false
-            }
-        });
+        for authority in self.0.values() {
+            authority.send_if_modified(|active| {
+                if *active {
+                    *active = false;
+                    true
+                } else {
+                    false
+                }
+            });
+        }
     }
 }
 
@@ -1465,8 +1438,9 @@ pub(crate) struct ScraperWebSocketMonitor {
     parity_unhealthy: Arc<parking_lot::Mutex<std::collections::HashSet<(u32, EventKind)>>>,
     parity_warned_at: Arc<parking_lot::Mutex<Option<Instant>>>,
     gas_payment_enabled: AtomicBool,
-    gas_payment_authority: watch::Sender<bool>,
-    gas_payment_recovery_required: AtomicBool,
+    gas_payment_authority: HashMap<u32, watch::Sender<bool>>,
+    /// Origins whose gas replay has not been validated since a failed stream or invalid row.
+    gas_payment_recovery_required: parking_lot::Mutex<HashSet<u32>>,
     sources: HashMap<u32, ScraperSource>,
     url: Url,
 }
@@ -1622,16 +1596,26 @@ impl ScraperWebSocketMonitor {
             parity_unhealthy: Arc::new(parking_lot::Mutex::new(parity_unhealthy)),
             parity_warned_at: Arc::new(parking_lot::Mutex::new(None)),
             gas_payment_enabled: AtomicBool::new(false),
-            gas_payment_authority: watch::channel(false).0,
-            gas_payment_recovery_required: AtomicBool::new(false),
+            gas_payment_authority: sources
+                .keys()
+                .map(|domain| (*domain, watch::channel(false).0))
+                .collect(),
+            gas_payment_recovery_required: parking_lot::Mutex::default(),
             sources,
             url,
         })
     }
 
-    pub(crate) fn gas_payment_authority_receiver(&self) -> Option<watch::Receiver<bool>> {
-        self.authority_enabled
-            .then(|| self.gas_payment_authority.subscribe())
+    pub(crate) fn gas_payment_authority_receiver(
+        &self,
+        domain: u32,
+    ) -> Option<watch::Receiver<bool>> {
+        self.authority_enabled.then(|| {
+            self.gas_payment_authority
+                .get(&domain)
+                .expect("gas payment authority requested for unknown scraper source")
+                .subscribe()
+        })
     }
 
     pub(crate) fn authority_receiver(&self, domain: u32) -> Option<ScraperAuthorityReceiver> {
@@ -2076,7 +2060,8 @@ impl ScraperWebSocketMonitor {
             // Preserve RPC work across retries of a row that cannot be persisted.
             // An ACK alone does not demonstrate that replay has recovered.
             self.gas_payment_recovery_required
-                .store(true, Ordering::Release);
+                .lock()
+                .extend(self.sources.keys().copied());
         }
         result
     }
@@ -2091,6 +2076,8 @@ impl ScraperWebSocketMonitor {
         let mut socket = ScraperSession::connect(&self.url, StreamTimeouts::default()).await?;
         let mut caught_up = HashMap::new();
         let mut gas_payment_caught_up = HashSet::new();
+        // Origins whose gas stream hit an invalid row on this connection.
+        let mut gas_payment_unusable = HashSet::new();
         let mut subscribed = false;
         loop {
             for source in self.sources.values() {
@@ -2152,6 +2139,10 @@ impl ScraperWebSocketMonitor {
                     if is_gas_payment && !self.gas_payment_enabled.load(Ordering::Relaxed) {
                         bail!("Received gas payment event without negotiated cursor support");
                     }
+                    if is_gas_payment && gas_payment_unusable.contains(&domain) {
+                        self.record(domain, event_type, "dropped");
+                        continue;
+                    }
                     match state.validate(event, &self.sources) {
                         Ok(validated) => {
                             let result = match validated.sequence_result {
@@ -2186,6 +2177,14 @@ impl ScraperWebSocketMonitor {
                                 )?;
                             }
                         }
+                        Err(err)
+                            if is_gas_payment
+                                && err.downcast_ref::<InvalidGasPaymentRow>().is_some() =>
+                        {
+                            self.record(domain, event_type, "invalid");
+                            gas_payment_unusable.insert(domain);
+                            self.contain_invalid_gas_payment(domain, &err);
+                        }
                         Err(err) => {
                             let result = if err.downcast_ref::<StreamGap>().is_some() {
                                 "gap"
@@ -2210,6 +2209,11 @@ impl ScraperWebSocketMonitor {
                         if !self.gas_payment_enabled.load(Ordering::Relaxed) {
                             bail!("Received gas payment caught-up marker without negotiated cursor support");
                         }
+                        // The marker covers rows this connection dropped.
+                        if gas_payment_unusable.contains(&domain) {
+                            self.record(domain, GAS_PAYMENT_EVENT_TYPE, "dropped");
+                            continue;
+                        }
                         let source = self.sources.get(&domain).with_context(|| {
                             format!("Unexpected scraper caught-up domain {domain}")
                         })?;
@@ -2229,11 +2233,8 @@ impl ScraperWebSocketMonitor {
                         }
                         self.set_source_caught_up(source, EventKind::GasPayment, true);
                         self.record(domain, GAS_PAYMENT_EVENT_TYPE, "caught_up");
-                        if subscribed && gas_payment_caught_up.len() == self.sources.len() {
-                            self.gas_payment_recovery_required
-                                .store(false, Ordering::Release);
-                            self.set_active(true);
-                        }
+                        self.gas_payment_recovery_required.lock().remove(&domain);
+                        self.refresh_gas_payment_authority(domain, subscribed);
                         continue;
                     }
                     if row_id.is_some() || stream_cursor.is_some() {
@@ -2335,26 +2336,59 @@ impl ScraperWebSocketMonitor {
     }
 
     fn set_active(&self, active: bool) {
-        // After a failed stream, keep RPC recovery running until every origin
-        // validates its gas replay. Sequenced freshness/parity remain independent.
-        self.gas_payment_authority.send_if_modified(|current| {
-            let desired = active
-                && self.authority_enabled
-                && self.gas_payment_enabled.load(Ordering::Acquire)
-                && !self.gas_payment_recovery_required.load(Ordering::Acquire);
-            if *current == desired {
-                false
-            } else {
-                *current = desired;
-                true
-            }
-        });
+        for domain in self.sources.keys().copied() {
+            self.refresh_gas_payment_authority(domain, active);
+        }
         let value = i64::from(active);
         for source in self.sources.values() {
             self.active
                 .with_label_values(&[source.chain.as_str()])
                 .set(value);
         }
+    }
+
+    fn refresh_gas_payment_authority(&self, domain: u32, active: bool) {
+        // After a failed stream or invalid row, keep this origin's RPC recovery
+        // running until it validates its gas replay. Sequenced freshness/parity
+        // remain independent.
+        let desired = active
+            && self.authority_enabled
+            && self.gas_payment_enabled.load(Ordering::Acquire)
+            && !self.gas_payment_recovery_required.lock().contains(&domain);
+        self.gas_payment_authority
+            .get(&domain)
+            .expect("validated scraper source must have gas payment authority")
+            .send_if_modified(|current| {
+                if *current == desired {
+                    false
+                } else {
+                    *current = desired;
+                    true
+                }
+            });
+    }
+
+    /// Fall back to RPC for one origin's gas payments until it replays cleanly.
+    /// Nothing is persisted, and the durable cursor stays before the bad row.
+    fn contain_invalid_gas_payment(&self, domain: u32, err: &eyre::Report) {
+        let source = self
+            .sources
+            .get(&domain)
+            .expect("validated scraper source must exist");
+        self.gas_payment_recovery_required.lock().insert(domain);
+        self.refresh_gas_payment_authority(domain, false);
+        self.set_source_caught_up(source, EventKind::GasPayment, false);
+        self.degraded
+            .with_label_values(&[source.chain.as_str(), GAS_PAYMENT_EVENT_TYPE])
+            .set(1);
+        self.deactivate_source_authority(domain);
+        // At most once per origin per connection: later rows are dropped unread.
+        warn!(
+            chain = source.chain,
+            domain,
+            ?err,
+            "Invalid scraper gas payment row; keeping RPC gas payment indexing for this origin"
+        );
     }
 
     #[cfg(test)]
@@ -3063,6 +3097,84 @@ struct GasPaymentEventData {
     tx_id: Option<String>,
 }
 
+struct GasPaymentRow {
+    block_hash: H256,
+    block_number: u64,
+    gas_amount: U256,
+    log_index: U256,
+    message_id: H256,
+    payment: U256,
+    sequence: Option<u32>,
+    transaction_id: H512,
+}
+
+impl GasPaymentEventData {
+    /// Decode the projected row content. Envelope and cursor checks stay with the caller.
+    fn decode_row(&self) -> Result<GasPaymentRow> {
+        let message_id = parse_h256(&self.msg_id, "gas payment message ID")?;
+        let payment = U256::from_dec_str(&self.payment).context("Invalid gas payment amount")?;
+        let gas_amount =
+            U256::from_dec_str(&self.gas_amount).context("Invalid gas payment gas amount")?;
+        let log_index =
+            U256::from_dec_str(&self.log_index).context("Invalid gas payment log index")?;
+        let sequence = self
+            .sequence
+            .as_deref()
+            .map(|sequence| {
+                sequence
+                    .parse::<u32>()
+                    .context("Invalid gas payment sequence")
+            })
+            .transpose()?;
+        let (block_hash, block_number, transaction_id) = match (
+            self.tx_id.as_deref(),
+            self.origin_block_hash.as_deref(),
+            self.origin_block_height.as_deref(),
+            self.origin_tx_hash.as_deref(),
+        ) {
+            // Near-head rows carry log metadata before receipt enrichment links `tx_id`.
+            (tx_id, Some(block_hash), Some(block_number), Some(transaction_id)) => {
+                tx_id
+                    .map(str::parse::<u64>)
+                    .transpose()
+                    .context("Invalid gas payment transaction row ID")?;
+                (
+                    parse_h256(block_hash, "gas payment block hash")?,
+                    block_number
+                        .parse::<u64>()
+                        .context("Invalid gas payment block height")?,
+                    parse_h512(transaction_id)?,
+                )
+            }
+            (None, None, None, None) => {
+                let sequence = sequence.context(
+                    "Gas payment without transaction metadata omitted its native sequence",
+                )?;
+                if log_index != U256::from(sequence) {
+                    bail!("Gas payment fallback log index does not match its native sequence");
+                }
+                // Basic Sealevel RPC metadata retains the real slot, but the
+                // proxy's NULL transaction join cannot recover it. Keep RPC authoritative.
+                bail!("Gas payment without resolved transaction metadata omitted its canonical block height");
+            }
+            _ => bail!("Gas payment transaction metadata was only partially resolved"),
+        };
+        if self.time_created.is_empty() {
+            bail!("Gas payment event omitted creation time");
+        }
+        Ok(GasPaymentRow {
+            block_hash,
+            block_number,
+            gas_amount,
+            log_index,
+            message_id,
+            payment,
+            sequence,
+            transaction_id,
+        })
+    }
+}
+
 fn parse_address(value: &str) -> Result<H256> {
     bytes_to_address(parse_hex(value)?).context("Invalid scraper event address")
 }
@@ -3129,7 +3241,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn trusted_gas_payment_wire_replay_closes_on_invalid_payment() {
+    async fn trusted_gas_payment_wire_replay_closes_on_stream_integrity_error() {
         let fixture = fixture();
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
         let url =
@@ -3145,7 +3257,7 @@ mod tests {
             .expect("monitor"),
         );
         let mut authority = monitor
-            .gas_payment_authority_receiver()
+            .gas_payment_authority_receiver(5)
             .expect("gas receiver");
         let (release, released) = oneshot::channel();
         let server = tokio::spawn(async move {
@@ -3174,8 +3286,9 @@ mod tests {
                 ))
                 .await
                 .expect("historical payment");
+            // Envelope disagreement means the proxy stream itself is broken.
             let mut invalid = gas_payment_event(2);
-            invalid.data["origin_tx_hash"] = serde_json::Value::Null;
+            invalid.data["id"] = serde_json::json!("3");
             socket
                 .send(Message::Text(wire_event(invalid).to_string().into()))
                 .await
@@ -3219,6 +3332,174 @@ mod tests {
             .expect("server task");
     }
 
+    fn gas_payment_event_for(
+        domain: u32,
+        row_id: u64,
+        legacy_max_stream_cursor: u64,
+    ) -> EventMessage<serde_json::Value> {
+        let mut event = gas_payment_event_with_boundary(row_id, legacy_max_stream_cursor);
+        event.domain = domain;
+        event.data["domain"] = serde_json::json!(domain);
+        event.data["origin"] = serde_json::json!(domain);
+        event
+    }
+
+    fn unresolved_gas_payment(
+        mut event: EventMessage<serde_json::Value>,
+    ) -> EventMessage<serde_json::Value> {
+        for field in [
+            "tx_id",
+            "origin_block_hash",
+            "origin_block_height",
+            "origin_tx_hash",
+        ] {
+            event.data[field] = serde_json::Value::Null;
+        }
+        event
+    }
+
+    fn gas_payment_caught_up(domain: u32, stream_cursor: u64, legacy_max: u64) -> Message {
+        Message::Text(
+            serde_json::json!({
+                "type": "caught_up", "eventType": GAS_PAYMENT_EVENT_TYPE,
+                "domain": domain, "address": scraper_address(H256::from_low_u64_be(3)),
+                "streamCursor": stream_cursor.to_string(),
+                "legacyMaxStreamCursor": legacy_max.to_string(),
+            })
+            .to_string()
+            .into(),
+        )
+    }
+
+    #[tokio::test]
+    async fn invalid_legacy_gas_payment_row_falls_back_only_for_its_origin() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
+        let url =
+            Url::parse(&format!("ws://{}", listener.local_addr().expect("address"))).expect("URL");
+        let metrics = CoreMetrics::new("gas-contain", 0, Registry::new()).expect("metrics");
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new_with_authority(
+                url,
+                sources_for(&[5, 9]).into_values().collect(),
+                &metrics,
+                true,
+            )
+            .expect("monitor"),
+        );
+        let poisoned = monitor.gas_payment_authority_receiver(5).expect("receiver");
+        let mut healthy = monitor.gas_payment_authority_receiver(9).expect("receiver");
+        let (release, released) = oneshot::channel();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.expect("connection");
+            let mut socket = accept_async(stream).await.expect("WebSocket");
+            socket
+                .send(Message::Text(
+                    serde_json::json!({"type":"ready","streamCursorVersions":{"gas_payment":3}})
+                        .to_string()
+                        .into(),
+                ))
+                .await
+                .expect("ready");
+            let request = socket.next().await.expect("request").expect("frame");
+            let request: serde_json::Value =
+                serde_json::from_str(request.to_text().expect("text")).expect("JSON");
+            socket.send(Message::Text(serde_json::json!({"type":"subscribed","streams":proxy_subscription_response(&request)}).to_string().into())).await.expect("ack");
+            released.await.expect("release events");
+            // Interleaved legacy replay: rows at or below the boundary may skip cursors.
+            for event in [
+                gas_payment_event_for(9, 1, 10),
+                gas_payment_event_for(5, 1, 10),
+                unresolved_gas_payment(gas_payment_event_for(5, 2, 10)),
+                gas_payment_event_for(5, 3, 10),
+                gas_payment_event_for(9, 2, 10),
+            ] {
+                socket
+                    .send(Message::Text(wire_event(event).to_string().into()))
+                    .await
+                    .expect("replayed row");
+            }
+            socket
+                .send(gas_payment_caught_up(9, 2, 10))
+                .await
+                .expect("healthy origin caught up");
+            socket
+                .send(gas_payment_caught_up(5, 3, 10))
+                .await
+                .expect("poisoned origin caught up");
+            let _ = socket.next().await;
+        });
+        let task_monitor = monitor.clone();
+        let client = tokio::spawn(async move {
+            let mut state =
+                StreamState::load_gas_payment(&task_monitor.sources).expect("replay baseline");
+            task_monitor.stream_once(&mut state).await
+        });
+        timeout(Duration::from_secs(5), healthy.changed())
+            .await
+            .expect("subscription timeout")
+            .expect("confirmed");
+        assert!(*poisoned.borrow() && *healthy.borrow());
+        // Sequenced readiness is exercised elsewhere; isolate the gas gate.
+        for source in monitor.sources.values() {
+            for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
+                let labels = [source.chain.as_str(), kind.label()];
+                monitor.caught_up.with_label_values(&labels).set(1);
+                monitor.parity_ready.with_label_values(&labels).set(1);
+            }
+        }
+        release.send(()).expect("release");
+        let dropped =
+            monitor
+                .events
+                .with_label_values(&["test-5", GAS_PAYMENT_EVENT_TYPE, "dropped"]);
+        timeout(Duration::from_secs(5), async {
+            while dropped.get() < 2 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("later row and caught-up marker dropped");
+        assert!(
+            !client.is_finished(),
+            "invalid row must not close the stream"
+        );
+        assert_eq!(
+            monitor
+                .events
+                .with_label_values(&["test-5", GAS_PAYMENT_EVENT_TYPE, "invalid"])
+                .get(),
+            1
+        );
+        assert!(!*poisoned.borrow(), "poisoned origin restores gas RPC");
+        assert!(*healthy.borrow(), "healthy origin keeps gas authority");
+        let [poisoned_source, healthy_source] = [5, 9].map(|domain| &monitor.sources[&domain]);
+        assert!(!monitor.base_source_authority_ready(poisoned_source));
+        assert!(monitor.base_source_authority_ready(healthy_source));
+        for (source, degraded, caught_up, cursor) in
+            [(poisoned_source, 1, 0, 1), (healthy_source, 0, 1, 2)]
+        {
+            let labels = [source.chain.as_str(), GAS_PAYMENT_EVENT_TYPE];
+            assert_eq!(monitor.degraded.with_label_values(&labels).get(), degraded);
+            assert_eq!(
+                monitor.caught_up.with_label_values(&labels).get(),
+                caught_up
+            );
+            assert_eq!(
+                source
+                    .gas_payment_cursor()
+                    .expect("cursor")
+                    .expect("cursor persisted")
+                    .stream_cursor,
+                cursor,
+                "poisoned cursor stays before the invalid row"
+            );
+        }
+        client.abort();
+        let _ = client.await;
+        server.abort();
+        let _ = server.await;
+    }
+
     #[tokio::test]
     async fn repeated_invalid_gas_replays_preserve_rpc_batch_until_recovery() {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
@@ -3234,62 +3515,65 @@ mod tests {
             )
             .expect("monitor"),
         );
+        let poisoned = monitor.gas_payment_authority_receiver(5).expect("receiver");
+        let healthy = monitor.gas_payment_authority_receiver(9).expect("receiver");
         let (ready, mut connections) = tokio::sync::mpsc::unbounded_channel();
-        let server =
-            tokio::spawn(async move {
-                for cycle in 0..4 {
-                    let (stream, _) = listener.accept().await.expect("connection");
-                    let mut socket = accept_async(stream).await.expect("WebSocket");
-                    socket
-                        .send(Message::Text(
-                            serde_json::json!({
-                                "type": "ready", "streamCursorVersions": {"gas_payment": 3},
-                            })
-                            .to_string()
-                            .into(),
-                        ))
-                        .await
-                        .expect("ready");
-                    let request = socket.next().await.expect("request").expect("frame");
-                    let request: serde_json::Value =
-                        serde_json::from_str(request.to_text().expect("text")).expect("JSON");
-                    socket.send(Message::Text(serde_json::json!({
-                    "type": "subscribed", "streams": proxy_subscription_response(&request),
-                }).to_string().into())).await.expect("ACK");
-                    // A healthy peer's replay must not cancel global RPC recovery.
-                    socket
-                        .send(Message::Text(
-                            serde_json::json!({
-                                "type": "caught_up", "eventType": GAS_PAYMENT_EVENT_TYPE,
-                                "domain": 9, "address": scraper_address(H256::from_low_u64_be(3)),
-                                "streamCursor": "0", "legacyMaxStreamCursor": "0",
-                            })
-                            .to_string()
-                            .into(),
-                        ))
-                        .await
-                        .expect("healthy peer caught up");
-                    let (release, released) = oneshot::channel();
-                    ready.send(release).expect("connection notification");
-                    released.await.expect("release row");
-                    let mut row = gas_payment_event(1);
-                    if cycle < 3 {
-                        row.data["origin_tx_hash"] = serde_json::Value::Null;
-                    }
-                    socket
-                        .send(Message::Text(wire_event(row).to_string().into()))
-                        .await
-                        .expect("replayed row");
-                    if cycle == 3 {
-                        socket.send(Message::Text(serde_json::json!({
-                        "type": "caught_up", "eventType": GAS_PAYMENT_EVENT_TYPE,
-                        "domain": 5, "address": scraper_address(H256::from_low_u64_be(3)),
-                        "streamCursor": "1", "legacyMaxStreamCursor": "0",
-                    }).to_string().into())).await.expect("recovered origin caught up");
-                    }
-                    let _ = socket.next().await;
+        let server = tokio::spawn(async move {
+            for cycle in 0..4 {
+                let (stream, _) = listener.accept().await.expect("connection");
+                let mut socket = accept_async(stream).await.expect("WebSocket");
+                socket
+                    .send(Message::Text(
+                        serde_json::json!({
+                            "type": "ready", "streamCursorVersions": {"gas_payment": 3},
+                        })
+                        .to_string()
+                        .into(),
+                    ))
+                    .await
+                    .expect("ready");
+                let request = socket.next().await.expect("request").expect("frame");
+                let request: serde_json::Value =
+                    serde_json::from_str(request.to_text().expect("text")).expect("JSON");
+                socket
+                    .send(Message::Text(
+                        serde_json::json!({
+                            "type": "subscribed", "streams": proxy_subscription_response(&request),
+                        })
+                        .to_string()
+                        .into(),
+                    ))
+                    .await
+                    .expect("ACK");
+                // A healthy peer reclaims only its own gas authority.
+                socket
+                    .send(gas_payment_caught_up(9, 0, 0))
+                    .await
+                    .expect("healthy peer caught up");
+                let (release, released) = oneshot::channel();
+                ready.send(release).expect("connection notification");
+                released.await.expect("release row");
+                let row = if cycle < 3 {
+                    unresolved_gas_payment(gas_payment_event(1))
+                } else {
+                    gas_payment_event(1)
+                };
+                socket
+                    .send(Message::Text(wire_event(row).to_string().into()))
+                    .await
+                    .expect("replayed row");
+                if cycle < 3 {
+                    // The relayer keeps the socket; a proxy restart forces replay.
+                    socket.close(None).await.expect("close");
+                    continue;
                 }
-            });
+                socket
+                    .send(gas_payment_caught_up(5, 1, 0))
+                    .await
+                    .expect("recovered origin caught up");
+                let _ = socket.next().await;
+            }
+        });
         let starts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let committed = Arc::new(AtomicBool::new(false));
         let mut rpc_task = None;
@@ -3308,26 +3592,21 @@ mod tests {
                 .expect("connection timeout")
                 .expect("connection");
             timeout(Duration::from_secs(5), async {
-                while monitor
-                    .caught_up
-                    .with_label_values(&["test-9", GAS_PAYMENT_EVENT_TYPE])
-                    .get()
-                    != 1
-                {
+                while !*healthy.borrow() {
                     tokio::task::yield_now().await;
                 }
             })
             .await
             .expect("healthy replay processed");
             assert_eq!(
-                *monitor.gas_payment_authority.borrow(),
+                *poisoned.borrow(),
                 cycle == 0,
                 "ACK and healthy peer must not interrupt recovery"
             );
             release.send(()).expect("release row");
             if cycle == 3 {
                 timeout(Duration::from_secs(5), async {
-                    while !*monitor.gas_payment_authority.borrow() {
+                    while !*poisoned.borrow() {
                         tokio::task::yield_now().await;
                     }
                 })
@@ -3342,11 +3621,10 @@ mod tests {
                 let _ = client.await;
                 break;
             }
-            let (result, next_state) = timeout(Duration::from_secs(5), client)
+            let (_, next_state) = timeout(Duration::from_secs(5), client)
                 .await
-                .expect("invalid row timeout")
+                .expect("closed connection timeout")
                 .expect("client");
-            assert!(result.is_err());
             state = next_state;
             assert_eq!(
                 state.gas_payment_resume_cursor(5),
@@ -3357,7 +3635,7 @@ mod tests {
                 let starts = starts.clone();
                 let committed = committed.clone();
                 rpc_task = Some(tokio::spawn(crate::relayer::run_gas_payment_fallback(
-                    monitor.gas_payment_authority_receiver(),
+                    monitor.gas_payment_authority_receiver(5),
                     || {},
                     move || {
                         let starts = starts.clone();
@@ -3393,7 +3671,7 @@ mod tests {
         )
         .expect("monitor");
         let mut receiver = monitor
-            .gas_payment_authority_receiver()
+            .gas_payment_authority_receiver(5)
             .expect("gas receiver");
         monitor.set_active(true);
         assert!(!*receiver.borrow(), "unnegotiated gas stream keeps RPC");
