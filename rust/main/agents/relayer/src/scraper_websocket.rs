@@ -1060,9 +1060,11 @@ impl StreamState {
             data.origin_block_height.as_deref(),
             data.origin_tx_hash.as_deref(),
         ) {
-            (Some(tx_id), Some(block_hash), Some(block_number), Some(transaction_id)) => {
+            // Near-head rows carry log metadata before receipt enrichment links `tx_id`.
+            (tx_id, Some(block_hash), Some(block_number), Some(transaction_id)) => {
                 tx_id
-                    .parse::<u64>()
+                    .map(str::parse::<u64>)
+                    .transpose()
                     .context("Invalid gas payment transaction row ID")?;
                 (
                     parse_h256(block_hash, "gas payment block hash")?,
@@ -3173,7 +3175,7 @@ mod tests {
                 .await
                 .expect("historical payment");
             let mut invalid = gas_payment_event(2);
-            invalid.data["tx_id"] = serde_json::Value::Null;
+            invalid.data["origin_tx_hash"] = serde_json::Value::Null;
             socket
                 .send(Message::Text(wire_event(invalid).to_string().into()))
                 .await
@@ -3272,7 +3274,7 @@ mod tests {
                     released.await.expect("release row");
                     let mut row = gas_payment_event(1);
                     if cycle < 3 {
-                        row.data["tx_id"] = serde_json::Value::Null;
+                        row.data["origin_tx_hash"] = serde_json::Value::Null;
                     }
                     socket
                         .send(Message::Text(wire_event(row).to_string().into()))
@@ -6933,6 +6935,21 @@ mod tests {
     }
 
     #[test]
+    fn accepts_gas_payment_before_receipt_enrichment() {
+        let meta = |event| {
+            StreamState::default()
+                .validate(event, &sources())
+                .expect("gas payment must validate")
+                .gas_payment
+                .expect("gas payment input")
+                .meta
+        };
+        let mut unenriched = gas_payment_event(1);
+        unenriched.data["tx_id"] = serde_json::Value::Null;
+        assert_eq!(meta(unenriched), meta(gas_payment_event(1)));
+    }
+
+    #[test]
     fn rejects_invalid_gas_payment_projection() {
         let mut wrong_paymaster = gas_payment_event(10);
         wrong_paymaster.data["interchain_gas_paymaster"] =
@@ -6943,13 +6960,18 @@ mod tests {
             .to_string()
             .contains("configured paymaster"));
 
-        let mut unresolved = gas_payment_event(10);
-        unresolved.data["tx_id"] = serde_json::Value::Null;
-        assert!(StreamState::default()
-            .validate(unresolved, &sources())
-            .expect_err("partial transaction metadata must reject")
-            .to_string()
-            .contains("only partially resolved"));
+        for field in ["origin_tx_hash", "origin_block_hash", "origin_block_height"] {
+            for tx_id in [serde_json::json!("42"), serde_json::Value::Null] {
+                let mut partial = gas_payment_event(10);
+                partial.data["tx_id"] = tx_id;
+                partial.data[field] = serde_json::Value::Null;
+                assert!(StreamState::default()
+                    .validate(partial, &sources())
+                    .expect_err("partial log metadata must reject")
+                    .to_string()
+                    .contains("only partially resolved"));
+            }
+        }
 
         let mut mismatched_fallback = gas_payment_event(10);
         mismatched_fallback.data["tx_id"] = serde_json::Value::Null;
