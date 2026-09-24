@@ -34,6 +34,14 @@ pub const MERKLE_BLOCK_HEIGHT: ScraperIndex = ScraperIndex {
     predicate: None,
 };
 
+/// Ordered range scans for the proxy's legacy gas payment replay.
+pub const GAS_PAYMENT_SCOPE: ScraperIndex = ScraperIndex {
+    name: "gas_payment_domain_paymaster_id_idx",
+    table: "gas_payment",
+    keys: &["domain", "interchain_gas_paymaster", "id"],
+    predicate: None,
+};
+
 /// Run after transactional migrations have committed. Concurrent index creation
 /// cannot run inside the SeaORM migration transaction.
 pub async fn create_indexes(db: &DatabaseConnection) -> eyre::Result<()> {
@@ -42,6 +50,7 @@ pub async fn create_indexes(db: &DatabaseConnection) -> eyre::Result<()> {
         RAW_DISPATCH_NATIVE_SEQUENCE,
         DELIVERY_SCOPE,
         MERKLE_BLOCK_HEIGHT,
+        GAS_PAYMENT_SCOPE,
     ] {
         create_index(db, index).await?;
     }

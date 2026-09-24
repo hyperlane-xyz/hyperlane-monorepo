@@ -39,6 +39,7 @@ let explorerQueryGate: Promise<void> | undefined;
 let notificationQueryError: Error | undefined;
 let omitMappedGasPaymentRows = false;
 const notifiedIds = new Set<string>();
+const gasReplayQueries: string[] = [];
 
 const db: EventDatabase = {
   async listen(_channels, handler) {
@@ -119,6 +120,7 @@ const db: EventDatabase = {
       sql.includes('"confirmed_gas_payment"')
     ) {
       databaseDomainFilters.push(values[0]);
+      gasReplayQueries.push(sql);
       const after = BigInt(String(values[2]));
       const through = BigInt(String(values[3]));
       return queryRows<T>(
@@ -144,6 +146,7 @@ const db: EventDatabase = {
       sql.includes('FROM "gas_payment_stream_cursor"')
     ) {
       databaseDomainFilters.push(values[0]);
+      gasReplayQueries.push(sql);
       if (omitMappedGasPaymentRows) return [];
       const after = BigInt(String(values[2]));
       const through = BigInt(String(values[3]));
@@ -1062,6 +1065,58 @@ void it('completes gas payment stream cursor replay without a total row budget',
     messages.some(({ type }) => type === 'error'),
     false,
   );
+  socket.close();
+  await new Promise<void>((resolve) => socket.once('close', resolve));
+  gasPaymentRows.clear();
+});
+
+void it('limits gas payment replay batches before joining metadata', async () => {
+  gasPaymentRows.clear();
+  gasReplayQueries.length = 0;
+  gasPaymentRows.set('10', gasPaymentRow('10', '100'));
+  gasPaymentRows.set('30', gasPaymentRow('30', '300', '11'));
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [
+                {
+                  address: gasPaymaster,
+                  afterStreamCursor: '0',
+                  domain: 1,
+                },
+              ],
+              eventType: 'gas_payment',
+              streamCursorVersion: 3,
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+
+  const caughtUp = await waitFor(messages, 'caught_up');
+  assert.equal(caughtUp.streamCursor, '11');
+  assert.deepEqual(eventStreamCursors(messages), ['10', '11']);
+  const legacy = gasReplayQueries.find((sql) =>
+    sql.includes('ORDER BY "event_row"."id"'),
+  );
+  const mapped = gasReplayQueries.find((sql) =>
+    sql.includes('FROM "gas_payment_stream_cursor"'),
+  );
+  for (const sql of [legacy, mapped]) {
+    assert.ok(sql);
+    const limit = sql.indexOf('LIMIT $5)');
+    assert.ok(limit > 0, sql);
+    assert.ok(limit < sql.indexOf('LEFT JOIN "transaction"'), sql);
+  }
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
   gasPaymentRows.clear();

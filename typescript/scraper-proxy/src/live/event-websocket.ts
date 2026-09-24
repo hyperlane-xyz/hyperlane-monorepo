@@ -979,8 +979,10 @@ export class EventWebSocketServer {
     through: bigint,
   ): Promise<Row[]> {
     const stream = STREAMS.gas_payment;
+    // Limit payments before joining metadata; joining first enriches every
+    // remaining row in the range before the planner applies the batch limit.
     return this.db.queryLive<Row>(
-      `SELECT ${gasPaymentColumns(stream)}, ${q('event_row')}.${q('id')} AS ${q(STREAM_CURSOR_COLUMN)} FROM ${q(stream.table)} AS ${q('event_row')}${gasPaymentMetadataJoins('LEFT JOIN')} WHERE ${q('event_row')}.${q(stream.domain)} = $1 AND ${q('event_row')}.${q('interchain_gas_paymaster')} = $2::bytea AND ${q('event_row')}.${q('id')} > $3::bigint AND ${q('event_row')}.${q('id')} <= $4::bigint ORDER BY ${q('event_row')}.${q('id')} ASC LIMIT $5`,
+      `SELECT ${gasPaymentColumns(stream)}, ${q('event_row')}.${q('id')} AS ${q(STREAM_CURSOR_COLUMN)} FROM (SELECT * FROM ${q(stream.table)} WHERE ${q(stream.domain)} = $1 AND ${q('interchain_gas_paymaster')} = $2::bytea AND ${q('id')} > $3::bigint AND ${q('id')} <= $4::bigint ORDER BY ${q('id')} ASC LIMIT $5) AS ${q('event_row')}${gasPaymentMetadataJoins('LEFT JOIN')} ORDER BY ${q('event_row')}.${q('id')} ASC`,
       [
         storedDomain(cursor.domain),
         cursor.address,
@@ -997,8 +999,10 @@ export class EventWebSocketServer {
     through: bigint,
   ): Promise<Row[]> {
     const stream = STREAMS.gas_payment;
+    // Cursors are only assigned to confirmed payments, so limiting cursors
+    // before the joins cannot drop rows that the confirmed view would filter.
     return this.db.queryLive<Row>(
-      `SELECT ${gasPaymentColumns(stream)}, ${q('event_cursor')}.${q('stream_cursor')} AS ${q(STREAM_CURSOR_COLUMN)} FROM ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} INNER JOIN ${q(stream.table)} AS ${q('event_row')} ON ${q('event_row')}.${q('id')} = ${q('event_cursor')}.${q('gas_payment_id')}${gasPaymentMetadataJoins('LEFT JOIN')} WHERE ${q('event_cursor')}.${q('domain')} = $1 AND ${q('event_cursor')}.${q('interchain_gas_paymaster')} = $2::bytea AND ${q('event_cursor')}.${q('stream_cursor')} > $3::bigint AND ${q('event_cursor')}.${q('stream_cursor')} <= $4::bigint ORDER BY ${q('event_cursor')}.${q('stream_cursor')} ASC LIMIT $5`,
+      `SELECT ${gasPaymentColumns(stream)}, ${q('event_cursor')}.${q('stream_cursor')} AS ${q(STREAM_CURSOR_COLUMN)} FROM (SELECT ${q('gas_payment_id')}, ${q('stream_cursor')} FROM ${q(GAS_PAYMENT_STREAM_CURSOR)} WHERE ${q('domain')} = $1 AND ${q('interchain_gas_paymaster')} = $2::bytea AND ${q('stream_cursor')} > $3::bigint AND ${q('stream_cursor')} <= $4::bigint ORDER BY ${q('stream_cursor')} ASC LIMIT $5) AS ${q('event_cursor')} INNER JOIN ${q(stream.table)} AS ${q('event_row')} ON ${q('event_row')}.${q('id')} = ${q('event_cursor')}.${q('gas_payment_id')}${gasPaymentMetadataJoins('LEFT JOIN')} ORDER BY ${q('event_cursor')}.${q('stream_cursor')} ASC`,
       [
         storedDomain(cursor.domain),
         cursor.address,

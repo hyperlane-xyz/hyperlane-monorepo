@@ -8,7 +8,8 @@ cargo run --release -p migration --bin init-db
 
 This single command applies pending transactional migrations, then creates and
 verifies the raw-dispatch reconciliation, raw-dispatch native-sequence, delivery
-scope, and Merkle block-height indexes concurrently. It works for both empty and
+scope, Merkle block-height, and gas payment paymaster-scope indexes
+concurrently. It works for both empty and
 existing DBs. Reruns retain matching valid indexes and reject invalid or
 conflicting definitions. If index setup fails, the schema migrations stay
 committed; repair the reported index and rerun the same command. Concurrent
@@ -58,7 +59,18 @@ From `rust/main`, with `DATABASE_URL` set to the intended database:
 cargo run --release -p migration --bin create-event-scope-indexes
 ```
 
-`init-db` runs this automatically after SeaORM migrations commit: PostgreSQL
+The scraper-proxy's legacy gas payment replay pages one paymaster's rows by ID.
+Without a matching index, PostgreSQL can combine the domain and paymaster indexes
+and sort every remaining row in the range for each page:
+
+- `gas_payment_domain_paymaster_id_idx`:
+  `gas_payment(domain, interchain_gas_paymaster, id)`
+
+```sh
+cargo run --release -p migration --bin create-gas-payment-scope-index
+```
+
+`init-db` runs these automatically after SeaORM migrations commit: PostgreSQL
 forbids `CREATE INDEX CONCURRENTLY` inside a transaction. The binary retains
 existing indexes and verifies that each index is a valid, ready, nonpartial
 B-tree with the expected table and keys. Reruns accept a matching valid index. If
