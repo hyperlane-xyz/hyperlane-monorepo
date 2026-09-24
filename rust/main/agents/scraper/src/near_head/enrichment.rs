@@ -16,6 +16,7 @@ use super::store::Store;
 const PAGE_SIZE: usize = 100;
 const RECEIPT_TIMEOUT: Duration = Duration::from_secs(30);
 const RECEIPT_RPC_CONCURRENCY: usize = 16;
+const RECEIPT_RPC_DOMAIN_CONCURRENCY: usize = 4;
 const RECEIPT_DB_CONCURRENCY: usize = 5;
 static RECEIPT_RPC_PERMITS: Semaphore = Semaphore::const_new(RECEIPT_RPC_CONCURRENCY);
 static RECEIPT_DB_PERMITS: Semaphore = Semaphore::const_new(RECEIPT_DB_CONCURRENCY);
@@ -27,9 +28,15 @@ pub(super) async fn run(
     poll_interval: Duration,
     oldest_pending_seconds: &GaugeVec,
 ) {
+    let domain_rpc_permits = Semaphore::new(RECEIPT_RPC_DOMAIN_CONCURRENCY);
     tokio::join!(
-        run_stream(legacy, "delivered_message", poll_interval),
-        run_stream(legacy, "gas_payment", poll_interval),
+        run_stream(
+            legacy,
+            "delivered_message",
+            poll_interval,
+            &domain_rpc_permits
+        ),
+        run_stream(legacy, "gas_payment", poll_interval, &domain_rpc_permits),
         monitor_backlog(legacy, poll_interval, oldest_pending_seconds),
     );
 }
@@ -89,7 +96,12 @@ async fn update_pending_age(
     Ok(())
 }
 
-async fn run_stream(legacy: &HyperlaneDbStore, table: &str, poll_interval: Duration) {
+async fn run_stream(
+    legacy: &HyperlaneDbStore,
+    table: &str,
+    poll_interval: Duration,
+    domain_rpc_permits: &Semaphore,
+) {
     let mut after = 0;
     let salt = if table == "gas_payment" { 1 } else { 0 };
     let stagger_period = u64::try_from(poll_interval.as_millis())
@@ -107,7 +119,14 @@ async fn run_stream(legacy: &HyperlaneDbStore, table: &str, poll_interval: Durat
     };
     sleep(Duration::from_millis(stagger)).await;
     loop {
-        let more = enrich_page(legacy, table, &mut after, RECEIPT_TIMEOUT).await;
+        let more = enrich_page(
+            legacy,
+            table,
+            &mut after,
+            RECEIPT_TIMEOUT,
+            domain_rpc_permits,
+        )
+        .await;
         if more {
             // Each turn is bounded to one page. Let other worker tasks run even
             // when a large cache-only backlog never needs to wait for an RPC.
@@ -124,6 +143,7 @@ async fn enrich_page(
     table: &str,
     after: &mut i64,
     deadline: Duration,
+    domain_rpc_permits: &Semaphore,
 ) -> bool {
     let store = Store {
         db: legacy.db.clone_connection(),
@@ -139,6 +159,7 @@ async fn enrich_page(
             .ensure_transactions_for_known_blocks(
                 rows.iter().map(|(_, meta)| meta),
                 &RECEIPT_RPC_PERMITS,
+                domain_rpc_permits,
                 &RECEIPT_DB_PERMITS,
             )
             .await?;
@@ -186,11 +207,12 @@ pub(super) async fn enrich_with_timeout(
     cursors: &mut [i64; 2],
     deadline: Duration,
 ) {
+    let domain_rpc_permits = Semaphore::new(RECEIPT_RPC_DOMAIN_CONCURRENCY);
     for (table, after) in ["delivered_message", "gas_payment"]
         .into_iter()
         .zip(cursors)
     {
-        enrich_page(legacy, table, after, deadline).await;
+        enrich_page(legacy, table, after, deadline, &domain_rpc_permits).await;
     }
 }
 

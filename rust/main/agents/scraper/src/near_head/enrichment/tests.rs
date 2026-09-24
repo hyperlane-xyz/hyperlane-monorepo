@@ -174,12 +174,14 @@ async fn cached_backlog_drains_while_other_stream_receipt_is_pending() -> Result
     // A timed-out page advances its cursor, then an exhausted page wraps without
     // asking for immediate catch-up. Retrying poison rows therefore waits.
     let mut after = 0;
+    let domain_rpc_permits = Semaphore::new(RECEIPT_RPC_DOMAIN_CONCURRENCY);
     assert!(
         !enrich_page(
             &legacy,
             "delivered_message",
             &mut after,
-            Duration::from_millis(50)
+            Duration::from_millis(50),
+            &domain_rpc_permits,
         )
         .await
     );
@@ -189,7 +191,8 @@ async fn cached_backlog_drains_while_other_stream_receipt_is_pending() -> Result
             &legacy,
             "delivered_message",
             &mut after,
-            Duration::from_millis(50)
+            Duration::from_millis(50),
+            &domain_rpc_permits,
         )
         .await
     );
@@ -209,7 +212,8 @@ async fn cached_backlog_drains_while_other_stream_receipt_is_pending() -> Result
             &legacy,
             "delivered_message",
             &mut after,
-            Duration::from_millis(200)
+            Duration::from_millis(200),
+            &domain_rpc_permits,
         )
         .await
     );

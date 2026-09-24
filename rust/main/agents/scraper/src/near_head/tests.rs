@@ -15,6 +15,7 @@ use migration::MigratorTrait;
 use sea_orm::{ConnectionTrait, Database, DbBackend, Statement, TransactionTrait};
 use testcontainers::{runners::AsyncRunner, ImageExt};
 use testcontainers_modules::postgres::Postgres;
+use tokio::time::timeout;
 
 use super::*;
 use source::{Event, EventData};
@@ -312,11 +313,11 @@ async fn checkpoint_migration_rejects_a_missing_indexed_boundary() -> Result<()>
 #[tokio::test]
 async fn frontier_migration_preserves_legacy_null_heights_and_rolls_back() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
-    let db = Database::connect(format!(
+    let url = format!(
         "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
         postgres.get_host_port_ipv4(5432).await?
-    ))
-    .await?;
+    );
+    let db = Database::connect(&url).await?;
     migration::Migrator::up(&db, None).await?;
     migration::Migrator::down(&db, Some(1)).await?;
     db.execute_unprepared(
@@ -348,6 +349,8 @@ async fn frontier_migration_preserves_legacy_null_heights_and_rolls_back() -> Re
             1
         );
     }
+    let mut head_listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
+    head_listener.listen("scraper_head").await?;
     migration::Migrator::down(&db, Some(1)).await?;
     for relation in ["delivered_message", "gas_payment"] {
         let row = db
@@ -359,6 +362,13 @@ async fn frontier_migration_preserves_legacy_null_heights_and_rolls_back() -> Re
             .unwrap();
         assert!(row.try_get::<bool>("", "confirmed")?);
     }
+    db.execute_unprepared("UPDATE scraper_head SET healthy=NOT healthy")
+        .await?;
+    let payload = timeout(Duration::from_secs(1), head_listener.recv())
+        .await??
+        .payload()
+        .to_owned();
+    assert!(!payload.contains("previousConfirmedHeight"));
     Ok(())
 }
 

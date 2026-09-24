@@ -31,7 +31,7 @@ DROP FUNCTION notify_scraper_provisional_event();
 
 ALTER TABLE scraper_head ADD COLUMN writer_id text,
   ADD COLUMN writer_lease_until timestamptz;
-CREATE STATISTICS gas_payment_domain_paymaster_dependencies (dependencies)
+CREATE STATISTICS IF NOT EXISTS gas_payment_domain_paymaster_dependencies (dependencies)
  ON domain,interchain_gas_paymaster FROM gas_payment;
 
 CREATE VIEW confirmed_raw_message_dispatch AS

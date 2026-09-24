@@ -339,10 +339,24 @@ impl Store {
             return Ok([0; 4]);
         }
         let after = i64::try_from(expected.confirmed)?;
+        let count_projection = EVENTS
+            .iter()
+            .map(|(table, domain, height)| {
+                format!("(SELECT count(*) FROM {table} WHERE {domain}=$1 AND {height}>$2 AND {height}<=$3) AS {table}")
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let count_row = self
+            .db
+            .query_one(sql(
+                format!("SELECT {count_projection}"),
+                vec![self.domain(), after.into(), number(through)?],
+            ))
+            .await?
+            .ok_or_else(|| eyre::eyre!("Missing confirmation counts"))?;
         let mut counts = [0; 4];
-        for (index, (table, domain, height)) in EVENTS.iter().enumerate() {
-            let count = self.db.query_one(sql(format!("SELECT count(*) AS count FROM {table} WHERE {domain}=$1 AND {height}>$2 AND {height}<=$3"), vec![self.domain(), after.into(), number(through)?])).await?.ok_or_else(|| eyre::eyre!("Missing confirmation count"))?;
-            counts[index] = u64::try_from(count.try_get::<i64>("", "count")?)?;
+        for (index, (table, _, _)) in EVENTS.iter().enumerate() {
+            counts[index] = u64::try_from(count_row.try_get::<i64>("", table)?)?;
         }
 
         let tx = self.db.begin().await?;

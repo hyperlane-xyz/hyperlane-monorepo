@@ -126,6 +126,7 @@ class HeadPublicationError extends Error {
   constructor(
     readonly original: unknown,
     readonly partialAgent: boolean,
+    readonly explorerAffected: boolean,
   ) {
     super(`frontier publication failed: ${formatError(original)}`);
   }
@@ -1100,7 +1101,9 @@ export class EventWebSocketServer {
           !this.notifications.has(key) &&
           this.notifications.size >= MAX_PENDING_NOTIFICATIONS
         ) {
-          websocketSendFailures.inc({ reason: 'notification_queue_limit' });
+          websocketSendFailures.inc({
+            reason: 'notification_queue_limit',
+          });
           websocketNotificationQueueOverflows.inc({ route: 'agent' });
           this.failAgentStream(
             new Error('Agent notification queue limit exceeded'),
@@ -1212,11 +1215,11 @@ export class EventWebSocketServer {
           const failure =
             error instanceof HeadPublicationError
               ? error
-              : new HeadPublicationError(error, false);
+              : new HeadPublicationError(error, false, false);
           if (failure.partialAgent) {
             this.logger.error(failure.message);
             this.failAgentDomain(domain, failure.original);
-            if (this.explorerClients.size)
+            if (failure.explorerAffected && this.explorerClients.size)
               this.failExplorerStream(failure.original);
             this.headRanges.delete(domain);
             this.headFailures.delete(domain);
@@ -1229,7 +1232,7 @@ export class EventWebSocketServer {
           );
           if (failures >= MAX_HEAD_PUBLICATION_FAILURES) {
             this.failAgentDomain(domain, failure.original);
-            if (this.explorerClients.size)
+            if (failure.explorerAffected && this.explorerClients.size)
               this.failExplorerStream(failure.original);
             this.headRanges.delete(domain);
             this.headFailures.delete(domain);
@@ -1249,7 +1252,10 @@ export class EventWebSocketServer {
       }
     } finally {
       this.drainingHeadNotifications = false;
-      if (this.headRanges.size) this.scheduleHeadDrain(LISTENER_RETRY_MS);
+      if (this.headRanges.size)
+        this.scheduleHeadDrain(
+          this.headFailures.size ? LISTENER_RETRY_MS : NOTIFICATION_BATCH_MS,
+        );
     }
   }
 
@@ -1258,6 +1264,7 @@ export class EventWebSocketServer {
     { after, through }: HeadRange,
   ): Promise<void> {
     let agentPublished = false;
+    let explorerPending = this.explorerClients.size > 0;
     for (const eventType of EVENT_TYPES) {
       const agentInterested = this.hasSubscriber({
         domain,
@@ -1325,8 +1332,9 @@ export class EventWebSocketServer {
           if (rows.length < config.EVENT_STREAM_BATCH_SIZE) break;
         }
       } catch (error) {
-        throw new HeadPublicationError(error, agentPublished);
+        throw new HeadPublicationError(error, agentPublished, explorerPending);
       }
+      if (eventType === 'gas_payment') explorerPending = false;
     }
   }
 

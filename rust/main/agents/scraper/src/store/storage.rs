@@ -79,6 +79,7 @@ impl HyperlaneDbStore {
         &self,
         log_meta: impl Iterator<Item = &LogMeta>,
         rpc_permits: &Semaphore,
+        domain_rpc_permits: &Semaphore,
         db_permits: &Semaphore,
     ) -> Result<bool> {
         let requested: HashMap<_, _> = log_meta
@@ -107,9 +108,11 @@ impl HyperlaneDbStore {
                         let block_id = *blocks
                             .get(&block_hash)
                             .ok_or_else(|| eyre::eyre!("Missing retained block"))?;
+                        let domain_rpc_permit = domain_rpc_permits.acquire().await?;
                         let rpc_permit = rpc_permits.acquire().await?;
                         let info = self.provider.get_txn_by_hash(&hash).await?;
                         drop(rpc_permit);
+                        drop(domain_rpc_permit);
                         let _db_permit = db_permits.acquire().await?;
                         self.db
                             .store_txns(std::iter::once(StorableTxn { info, block_id }))

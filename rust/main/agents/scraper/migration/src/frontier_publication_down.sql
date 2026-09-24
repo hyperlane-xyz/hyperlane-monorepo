@@ -23,14 +23,26 @@ ALTER TABLE raw_message_dispatch ADD COLUMN confirmed boolean NOT NULL DEFAULT t
 ALTER TABLE delivered_message ADD COLUMN confirmed boolean NOT NULL DEFAULT true;
 ALTER TABLE gas_payment ADD COLUMN confirmed boolean NOT NULL DEFAULT true;
 ALTER TABLE merkle_tree_insertion ADD COLUMN confirmed boolean NOT NULL DEFAULT true;
-UPDATE raw_message_dispatch e SET confirmed=false FROM scraper_head h
- WHERE h.domain=e.origin_domain AND e.origin_block_height>h.confirmed_height;
-UPDATE delivered_message e SET confirmed=false FROM scraper_head h
- WHERE h.domain=e.domain AND e.block_number>h.confirmed_height;
-UPDATE gas_payment e SET confirmed=false FROM scraper_head h
- WHERE h.domain=e.domain AND e.block_number>h.confirmed_height;
-UPDATE merkle_tree_insertion e SET confirmed=false FROM scraper_head h
- WHERE h.domain=e.domain AND e.block_number>h.confirmed_height;
+UPDATE raw_message_dispatch e SET confirmed=false
+FROM scraper_head h CROSS JOIN LATERAL (
+  SELECT id FROM raw_message_dispatch pending
+  WHERE pending.origin_domain=h.domain AND pending.origin_block_height>h.confirmed_height OFFSET 0
+) provisional WHERE e.id=provisional.id;
+UPDATE delivered_message e SET confirmed=false
+FROM scraper_head h CROSS JOIN LATERAL (
+  SELECT id FROM delivered_message pending
+  WHERE pending.domain=h.domain AND pending.block_number>h.confirmed_height OFFSET 0
+) provisional WHERE e.id=provisional.id;
+UPDATE gas_payment e SET confirmed=false
+FROM scraper_head h CROSS JOIN LATERAL (
+  SELECT id FROM gas_payment pending
+  WHERE pending.domain=h.domain AND pending.block_number>h.confirmed_height OFFSET 0
+) provisional WHERE e.id=provisional.id;
+UPDATE merkle_tree_insertion e SET confirmed=false
+FROM scraper_head h CROSS JOIN LATERAL (
+  SELECT id FROM merkle_tree_insertion pending
+  WHERE pending.domain=h.domain AND pending.block_number>h.confirmed_height OFFSET 0
+) provisional WHERE e.id=provisional.id;
 
 CREATE INDEX gas_payment_unconfirmed ON gas_payment(domain,block_number) WHERE NOT confirmed;
 CREATE INDEX merkle_insertion_unconfirmed ON merkle_tree_insertion(domain,block_number) WHERE NOT confirmed;
@@ -98,6 +110,27 @@ CREATE TRIGGER gas_payment_stream_cursor_assign AFTER INSERT ON gas_payment
  FOR EACH ROW WHEN (NEW.confirmed) EXECUTE FUNCTION assign_gas_payment_stream_cursor();
 CREATE TRIGGER gas_payment_stream_cursor_confirm AFTER UPDATE OF confirmed ON gas_payment
  FOR EACH ROW WHEN (NEW.confirmed AND NOT OLD.confirmed) EXECUTE FUNCTION assign_gas_payment_stream_cursor();
+
+-- Restore migration 14's payload. Without previousConfirmedHeight, the new
+-- proxy ignores this channel and consumes the restored per-row notifications.
+CREATE OR REPLACE FUNCTION notify_scraper_head() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE change_kind text;
+BEGIN
+  change_kind := CASE WHEN TG_OP='INSERT' THEN 'initialized'
+    WHEN NEW.indexed_height<OLD.indexed_height THEN 'rollback'
+    WHEN NEW.indexed_height IS DISTINCT FROM OLD.indexed_height
+      OR NEW.head_height IS DISTINCT FROM OLD.head_height
+      OR NEW.confirmed_height IS DISTINCT FROM OLD.confirmed_height THEN 'progress'
+    ELSE 'status' END;
+  PERFORM pg_notify('scraper_head',json_build_object(
+    'kind',change_kind,'domain',(NEW.domain::bigint & 4294967295),
+    'startHeight',NEW.start_height::text,'indexedHeight',NEW.indexed_height::text,
+    'indexedHash',encode(NEW.indexed_hash,'hex'),'headHeight',NEW.head_height::text,
+    'confirmedHeight',NEW.confirmed_height::text,
+    'previousIndexedHeight',CASE WHEN TG_OP='UPDATE' THEN OLD.indexed_height::text END,
+    'healthy',NEW.healthy,'halted',NEW.halted)::text);
+  RETURN NEW;
+END $$;
 
 DROP FUNCTION assign_confirmed_gas_payment_cursors(integer,bigint,bigint);
 DROP STATISTICS gas_payment_domain_paymaster_dependencies;
