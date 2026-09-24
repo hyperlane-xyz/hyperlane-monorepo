@@ -230,8 +230,11 @@ WHERE NOT EXISTS (
 ```
 
 This must return no rows. Do not start any old scraper image after migration.
-The scraper database can be shared across environments; stopping one deployment
-does not stop another deployment's writers.
+
+The scraper database can be shared across environments: testnet4 and mainnet3
+both use `explorer4` on `pgsql-message-explorer-0`. Stopping one environment's
+writers does not stop the other's. Table locks, long scans and catch-up load
+taken for one environment also stall the other.
 
 If startup reports that checkpoints are out of sync, stop every writer and repair
 only after checking the saved head against the canonical chain. Save the following
@@ -276,20 +279,65 @@ Merkle count checks supplement that comparison; they cannot establish delivery
 or gas-payment completeness. If completeness cannot be verified, do not seed the
 row. Resume the legacy deployment and finish the audit/backfill first.
 
+#### Stop writers
+
+Scale every scraper sharing the database to zero (rollout step 2) and confirm no
+writer remains, both in the cluster and in the database:
+
+```bash
+kubectl --context <cluster> -n <env> scale statefulset omniscient-scraper-hyperlane-agent-scraper3 --replicas=0
+kubectl --context <cluster> -n <env> get pods | grep scraper3   # expect none
+```
+
+```sql
+SELECT pid, application_name, state, query_start FROM pg_stat_activity
+WHERE usename IN ('<scraper role>', ...);   -- expect no rows
+```
+
+Always pass an explicit kube context. On a shared database, repeat for every
+environment and check every scraper role.
+
+#### Choose `H`
+
+`H` must be at or below the lowest completed height across all four streams and
+at or above every stored block/event for the domain. The maximum stored height
+alone is not that bound. Dispatch and Merkle insertions are sequence-aware and
+store events in order, but delivery and gas payments use range watermarks. Both
+write the same `cursor` row (`event_type=''`), which keeps the higher of the two.
+That row is therefore an upper bound for the slower stream, not proof.
+
+- If stored rows extend above the `''` cursor, for example dispatches from a
+  faster sequence-aware indexer, the slower of delivery and gas payment may be
+  missing events in `(cursor, H]`. Compare delivery and gas-payment RPC logs over
+  that range with stored rows and repair them before seeding at `H`.
+- If the cursor is above every stored row, any `H` in `[max stored height,
+cursor]` avoids overlap. Near-head re-scans `(H, head]`. Picking `H` close to
+  the cursor avoids re-scanning a long empty range; audit delivery and gas logs
+  over `(max stored height, H]` first.
+
+Quiet chains can look stale by their latest stored event while the legacy
+cursor is current; somniatestnet had no stored event for 50 days but a cursor
+from the same morning. Seed those near the cursor rather than at the last event.
+For a domain that really is far behind, starting near the head instead of
+backfilling leaves a permanent dispatch and Merkle sequence gap. Relayer and
+validator streams detect the gap and stay on RPC for that chain, and the Explorer
+lacks that history. Only accept this for chains without stream consumers. Otherwise
+backfill off-peak, after checking database headroom, particularly on a shared
+database.
+
 Record the verification evidence, canonical hash and timestamp of `H`, and the
 configured mailbox, Merkle hook and gas-paymaster addresses. `H` must be at least
-`index.from - 1` and at or above every stored block/event for the domain. All
-writers must remain stopped. The following `psql` transaction records this
-operator-verified boundary; its overlap checks do **not** prove completeness.
-Supply `domain` as the stored `domain.id` integer (unsigned IDs above `2^31-1`
-are stored minus `2^32`), `height`, `timestamp` as Unix seconds, and `block_hash`,
-`mailbox`, `hook`, `paymaster` as hex without `0x`, using `psql -v name=value`.
+`index.from - 1`. All writers must remain stopped.
 
-Run the expensive overlap checks outside the seed transaction after all writers
-are stopped. Every maximum must be NULL or at most `H`:
+#### Check overlap
+
+Run these read-only checks before seeding, outside any transaction or lock. They
+do **not** prove completeness. `saved_state` must be NULL and every `*_max` NULL
+or at most `H`:
 
 ```sql
 SELECT
+  (SELECT 1 FROM scraper_head WHERE domain=:'domain'::integer) AS saved_state,
   (SELECT max(height) FROM block WHERE domain=:'domain'::integer) AS block_max,
   (SELECT max(origin_block_height) FROM raw_message_dispatch WHERE origin_domain=:'domain'::integer) AS dispatch_max,
   (SELECT max(block_number) FROM merkle_tree_insertion WHERE domain=:'domain'::integer) AS merkle_max,
@@ -297,8 +345,23 @@ SELECT
   (SELECT max(block_number) FROM gas_payment WHERE domain=:'domain'::integer) AS gas_max;
 ```
 
-The seed uses only the per-domain advisory lock and repeats cheap indexed checks.
-Do not add a table lock: it would stall every environment sharing the database.
+Legacy delivery and gas rows may have a NULL `block_number`, so their heights
+are also bounded by `block_max`.
+
+Use `max()` rather than `EXISTS (... > H)` for heights. With no matching rows,
+PostgreSQL can plan the `EXISTS` form as a full sequential scan: on production
+`merkle_tree_insertion` (about 12M rows) it exceeded 15s. The `max()` form reads
+one entry of the `(domain, height)` index.
+
+#### Seed
+
+With writers provably stopped, seed under the per-domain advisory lock only. Do
+not add `LOCK TABLE`. A table lock blocks every environment writing to a shared
+database for the whole transaction. Only cheap indexed checks are repeated
+here. Supply `domain` as the stored `domain.id` integer (unsigned IDs above
+`2^31-1` are stored minus `2^32`), `height`, `timestamp` as Unix seconds, and
+`block_hash`, `mailbox`, `hook`, `paymaster` as hex without `0x`, using
+`psql -v name=value`.
 
 ```sql
 \set ON_ERROR_STOP on
@@ -366,6 +429,9 @@ The seeded state starts unhealthy. Startup validates the configured contracts
 and required RPC methods; the observation loop must establish a fresh canonical
 head before publication. If a writer or audit changes history before handoff,
 repeat verification rather than moving the saved boundary forwards.
+
+On a shared database, check its headroom before starting the scraper. Every
+seeded domain starts catching up from its `H` at once.
 
 SELECT grants on existing event tables are copied to the confirmed views. External
 SQL consumers wanting the old visibility must use `confirmed_raw_message_dispatch`,
