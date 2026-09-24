@@ -14,6 +14,8 @@ use testcontainers_modules::postgres::Postgres;
 
 use super::*;
 
+const LEASE: Duration = Duration::from_secs(60);
+
 fn header(height: u64) -> Header {
     Header {
         height,
@@ -143,7 +145,7 @@ async fn confirmation_budget_preserves_blocks_and_measures_gas_dense_publication
         let (publication, lock_probe) = tokio::join!(
             async {
                 let start = Instant::now();
-                let result = store.confirm(&state, &header(through)).await;
+                let result = store.confirm(&state, &header(through), LEASE).await;
                 done.store(true, Ordering::Relaxed);
                 (result, start.elapsed())
             },
@@ -208,6 +210,6 @@ async fn confirmation_budget_preserves_blocks_and_measures_gas_dense_publication
         ]
     );
     let state = store.state().await?.unwrap();
-    assert_eq!(store.confirm(&state, &header(10_000)).await?, [0; 4]);
+    assert_eq!(store.confirm(&state, &header(10_000), LEASE).await?, [0; 4]);
     Ok(())
 }

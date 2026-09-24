@@ -13,7 +13,21 @@ use hyperlane_core::{HyperlaneDomain, ReorgPeriod};
 use tokio::{sync::Notify, time::sleep};
 use tracing::warn;
 
-use super::{confirm, ingest_cached, observe, source::Source, store::Store};
+use super::{
+    confirm_leased, confirmation_lease, ingest_cached, observe, source::Source, store::Store,
+};
+
+/// Retained headers are rescanned on every sweep; rest between completed sweeps.
+const PRUNE_SWEEP_INTERVAL: Duration = Duration::from_secs(600);
+
+/// A zero cursor means the sweep found no candidates and wrapped.
+fn prune_delay(next: u64, poll_interval: Duration) -> Duration {
+    if next == 0 {
+        PRUNE_SWEEP_INTERVAL.max(poll_interval)
+    } else {
+        poll_interval
+    }
+}
 
 pub(super) struct Worker {
     pub source: Box<dyn Source>,
@@ -114,7 +128,13 @@ impl Worker {
                 let mut last_confirmed = 0;
                 loop {
                     let result = async {
-                        let counts = confirm(source.as_ref(), store, period).await?;
+                        let counts = confirm_leased(
+                            source.as_ref(),
+                            store,
+                            period,
+                            confirmation_lease(*poll_interval),
+                        )
+                        .await?;
                         if let Some(state) = store.state().await? {
                             // Drain confirmation backlogs without waiting another poll interval.
                             if state.confirmed > last_confirmed && state.confirmed < state.indexed {
@@ -176,15 +196,21 @@ impl Worker {
                 let mut prune_after = 0;
                 loop {
                     // Maintenance is paced independently, including during catch-up.
-                    match store.prune_headers(prune_after).await {
-                        Ok((next, _)) => prune_after = next,
-                        Err(error) => warn!(
-                            domain = store.domain,
-                            ?error,
-                            "Block header cleanup failed; retrying"
-                        ),
-                    }
-                    sleep(*poll_interval).await;
+                    let delay = match store.prune_headers(prune_after).await {
+                        Ok((next, _)) => {
+                            prune_after = next;
+                            prune_delay(next, *poll_interval)
+                        }
+                        Err(error) => {
+                            warn!(
+                                domain = store.domain,
+                                ?error,
+                                "Block header cleanup failed; retrying"
+                            );
+                            *poll_interval
+                        }
+                    };
+                    sleep(delay).await;
                 }
             },
         );

@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use ethers::types::H256;
 use eyre::{ensure, Result};
 use hyperlane_core::{address_to_bytes, LogMeta};
@@ -296,12 +298,17 @@ impl Store {
         Ok(u64::try_from(row.try_get::<i64>("", "boundary")?)?)
     }
 
-    pub async fn confirm(&self, expected: &State, boundary: &Header) -> Result<[u64; 4]> {
+    pub async fn confirm(
+        &self,
+        expected: &State,
+        boundary: &Header,
+        lease: Duration,
+    ) -> Result<[u64; 4]> {
         let through = boundary.height;
         let tx = self.db.begin().await?;
         let row = tx.query_one(sql(
-            "SELECT head_height,confirmed_height,healthy AND NOT halted AND updated_at>clock_timestamp()-interval '30 seconds' AS ready FROM scraper_head WHERE domain=$1 FOR UPDATE",
-            vec![self.domain()],
+            "SELECT head_height,confirmed_height,healthy AND NOT halted AND updated_at>clock_timestamp()-make_interval(secs=>$2) AS ready FROM scraper_head WHERE domain=$1 FOR UPDATE",
+            vec![self.domain(), lease.as_secs_f64().into()],
         )).await?.ok_or_else(|| eyre::eyre!("Missing head state"))?;
         // Read ancestry in a fresh statement after acquiring the state lock. A
         // subquery in the locking SELECT could use a snapshot from before a
