@@ -1439,8 +1439,6 @@ pub(crate) struct ScraperWebSocketMonitor {
     parity_warned_at: Arc<parking_lot::Mutex<Option<Instant>>>,
     gas_payment_enabled: AtomicBool,
     gas_payment_authority: HashMap<u32, watch::Sender<bool>>,
-    /// Origins whose gas replay has not been validated since a failed stream or invalid row.
-    gas_payment_recovery_required: parking_lot::Mutex<HashSet<u32>>,
     sources: HashMap<u32, ScraperSource>,
     url: Url,
 }
@@ -1600,7 +1598,6 @@ impl ScraperWebSocketMonitor {
                 .keys()
                 .map(|domain| (*domain, watch::channel(false).0))
                 .collect(),
-            gas_payment_recovery_required: parking_lot::Mutex::default(),
             sources,
             url,
         })
@@ -2056,13 +2053,6 @@ impl ScraperWebSocketMonitor {
             .stream_inner(state, plan, gas_payment_cursors, &mut staged_parity)
             .await;
         self.abandon_staged_parity(&mut staged_parity);
-        if result.is_err() {
-            // Preserve RPC work across retries of a row that cannot be persisted.
-            // An ACK alone does not demonstrate that replay has recovered.
-            self.gas_payment_recovery_required
-                .lock()
-                .extend(self.sources.keys().copied());
-        }
         result
     }
 
@@ -2233,7 +2223,6 @@ impl ScraperWebSocketMonitor {
                         }
                         self.set_source_caught_up(source, EventKind::GasPayment, true);
                         self.record(domain, GAS_PAYMENT_EVENT_TYPE, "caught_up");
-                        self.gas_payment_recovery_required.lock().remove(&domain);
                         self.refresh_gas_payment_authority(domain, subscribed);
                         continue;
                     }
@@ -2348,13 +2337,22 @@ impl ScraperWebSocketMonitor {
     }
 
     fn refresh_gas_payment_authority(&self, domain: u32, active: bool) {
-        // After a failed stream or invalid row, keep this origin's RPC recovery
-        // running until it validates its gas replay. Sequenced freshness/parity
-        // remain independent.
+        // Keep RPC gas indexing running until this connection's replay for the
+        // origin reaches caught-up, so one of them always covers new payments.
+        // An ACK alone does not show how long replay will take: a reset cursor
+        // can replay millions of rows. Sequenced freshness/parity remain independent.
+        let source = self
+            .sources
+            .get(&domain)
+            .expect("validated scraper source must exist");
         let desired = active
             && self.authority_enabled
             && self.gas_payment_enabled.load(Ordering::Acquire)
-            && !self.gas_payment_recovery_required.lock().contains(&domain);
+            && self
+                .caught_up
+                .with_label_values(&[source.chain.as_str(), GAS_PAYMENT_EVENT_TYPE])
+                .get()
+                == 1;
         self.gas_payment_authority
             .get(&domain)
             .expect("validated scraper source must have gas payment authority")
@@ -2375,9 +2373,8 @@ impl ScraperWebSocketMonitor {
             .sources
             .get(&domain)
             .expect("validated scraper source must exist");
-        self.gas_payment_recovery_required.lock().insert(domain);
-        self.refresh_gas_payment_authority(domain, false);
         self.set_source_caught_up(source, EventKind::GasPayment, false);
+        self.refresh_gas_payment_authority(domain, false);
         self.degraded
             .with_label_values(&[source.chain.as_str(), GAS_PAYMENT_EVENT_TYPE])
             .set(1);
@@ -3260,6 +3257,7 @@ mod tests {
             .gas_payment_authority_receiver(5)
             .expect("gas receiver");
         let (release, released) = oneshot::channel();
+        let (release_invalid, released_invalid) = oneshot::channel();
         let server = tokio::spawn(async move {
             let (stream, _) = listener.accept().await.expect("connection");
             let mut socket = accept_async(stream).await.expect("WebSocket");
@@ -3286,6 +3284,11 @@ mod tests {
                 ))
                 .await
                 .expect("historical payment");
+            socket
+                .send(gas_payment_caught_up(5, 1, 0))
+                .await
+                .expect("caught up");
+            released_invalid.await.expect("release invalid payment");
             // Envelope disagreement means the proxy stream itself is broken.
             let mut invalid = gas_payment_event(2);
             invalid.data["id"] = serde_json::json!("3");
@@ -3301,16 +3304,25 @@ mod tests {
                 StreamState::load_gas_payment(&task_monitor.sources).expect("replay baseline");
             task_monitor.stream_once(&mut state).await
         });
+        timeout(Duration::from_secs(5), async {
+            while monitor.active.with_label_values(&["test"]).get() != 1 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("subscription timeout");
+        assert!(!*authority.borrow(), "ACK alone keeps gas RPC");
+        release.send(()).expect("release");
         timeout(Duration::from_secs(5), authority.changed())
             .await
-            .expect("subscription timeout")
+            .expect("caught-up timeout")
             .expect("confirmed");
         assert!(*authority.borrow());
         assert!(
             !monitor.base_authority_ready(),
             "gas must not wait for sequenced readiness"
         );
-        release.send(()).expect("release");
+        release_invalid.send(()).expect("release invalid");
         assert!(timeout(Duration::from_secs(5), client)
             .await
             .expect("stream timeout")
@@ -3387,7 +3399,7 @@ mod tests {
             .expect("monitor"),
         );
         let poisoned = monitor.gas_payment_authority_receiver(5).expect("receiver");
-        let mut healthy = monitor.gas_payment_authority_receiver(9).expect("receiver");
+        let healthy = monitor.gas_payment_authority_receiver(9).expect("receiver");
         let (release, released) = oneshot::channel();
         let server = tokio::spawn(async move {
             let (stream, _) = listener.accept().await.expect("connection");
@@ -3434,11 +3446,17 @@ mod tests {
                 StreamState::load_gas_payment(&task_monitor.sources).expect("replay baseline");
             task_monitor.stream_once(&mut state).await
         });
-        timeout(Duration::from_secs(5), healthy.changed())
-            .await
-            .expect("subscription timeout")
-            .expect("confirmed");
-        assert!(*poisoned.borrow() && *healthy.borrow());
+        timeout(Duration::from_secs(5), async {
+            while monitor.active.with_label_values(&["test-9"]).get() != 1 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("subscription timeout");
+        assert!(
+            !*poisoned.borrow() && !*healthy.borrow(),
+            "replaying origins keep gas RPC"
+        );
         // Sequenced readiness is exercised elsewhere; isolate the gas gate.
         for source in monitor.sources.values() {
             for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
@@ -3598,9 +3616,8 @@ mod tests {
             })
             .await
             .expect("healthy replay processed");
-            assert_eq!(
-                *poisoned.borrow(),
-                cycle == 0,
+            assert!(
+                !*poisoned.borrow(),
                 "ACK and healthy peer must not interrupt recovery"
             );
             release.send(()).expect("release row");
@@ -3660,6 +3677,180 @@ mod tests {
             .expect("server");
     }
 
+    #[tokio::test]
+    async fn fresh_gas_cursor_keeps_rpc_until_long_replay_catches_up() {
+        const ROWS: u64 = 200;
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
+        let url =
+            Url::parse(&format!("ws://{}", listener.local_addr().expect("address"))).expect("URL");
+        let metrics = CoreMetrics::new("gas-handoff", 0, Registry::new()).expect("metrics");
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new_with_authority(
+                url,
+                sources().into_values().collect(),
+                &metrics,
+                true,
+            )
+            .expect("monitor"),
+        );
+        let caught_up = monitor
+            .caught_up
+            .with_label_values(&["test-5", GAS_PAYMENT_EVENT_TYPE]);
+        // Invariant: RPC gas indexing runs or the stream is caught up. Record
+        // the stream state whenever the RPC indexer stops.
+        struct RpcRunning {
+            running: Arc<AtomicBool>,
+            caught_up_at_stop: Arc<std::sync::Mutex<Vec<i64>>>,
+            caught_up: prometheus::IntGauge,
+        }
+        impl Drop for RpcRunning {
+            fn drop(&mut self) {
+                self.running.store(false, Ordering::Release);
+                self.caught_up_at_stop
+                    .lock()
+                    .expect("stop log")
+                    .push(self.caught_up.get());
+            }
+        }
+        let running = Arc::new(AtomicBool::new(false));
+        let caught_up_at_stop = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let starts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let rpc_task = {
+            let (running, caught_up_at_stop, starts) =
+                (running.clone(), caught_up_at_stop.clone(), starts.clone());
+            let caught_up = caught_up.clone();
+            tokio::spawn(crate::relayer::run_gas_payment_fallback(
+                monitor.gas_payment_authority_receiver(5),
+                || {},
+                move || {
+                    let guard = RpcRunning {
+                        running: running.clone(),
+                        caught_up_at_stop: caught_up_at_stop.clone(),
+                        caught_up: caught_up.clone(),
+                    };
+                    running.store(true, Ordering::Release);
+                    starts.fetch_add(1, Ordering::AcqRel);
+                    async move {
+                        let _guard = guard;
+                        std::future::pending::<()>().await;
+                    }
+                },
+            ))
+        };
+        let (release, released) = oneshot::channel();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.expect("connection");
+            let mut socket = accept_async(stream).await.expect("WebSocket");
+            socket
+                .send(Message::Text(
+                    serde_json::json!({"type":"ready","streamCursorVersions":{"gas_payment":3}})
+                        .to_string()
+                        .into(),
+                ))
+                .await
+                .expect("ready");
+            let request = socket.next().await.expect("request").expect("frame");
+            let request: serde_json::Value =
+                serde_json::from_str(request.to_text().expect("text")).expect("JSON");
+            // No durable cursor: the proxy replays legacy history from zero.
+            assert_eq!(
+                request["streams"][2]["cursors"][0]["afterStreamCursor"],
+                "0"
+            );
+            socket.send(Message::Text(serde_json::json!({"type":"subscribed","streams":proxy_subscription_response(&request)}).to_string().into())).await.expect("ack");
+            for row in 1..=ROWS / 2 {
+                socket
+                    .send(Message::Text(
+                        wire_event(gas_payment_event_for(5, row, ROWS))
+                            .to_string()
+                            .into(),
+                    ))
+                    .await
+                    .expect("replayed row");
+            }
+            released.await.expect("release remaining replay");
+            for row in ROWS / 2 + 1..=ROWS {
+                socket
+                    .send(Message::Text(
+                        wire_event(gas_payment_event_for(5, row, ROWS))
+                            .to_string()
+                            .into(),
+                    ))
+                    .await
+                    .expect("replayed row");
+            }
+            socket
+                .send(gas_payment_caught_up(5, ROWS, ROWS))
+                .await
+                .expect("caught up");
+            let _ = socket.next().await;
+        });
+        let mut authority = monitor.gas_payment_authority_receiver(5).expect("receiver");
+        let task_monitor = monitor.clone();
+        let client = tokio::spawn(async move {
+            let mut state =
+                StreamState::load_gas_payment(&task_monitor.sources).expect("replay baseline");
+            task_monitor.stream_once(&mut state).await
+        });
+        let accepted =
+            monitor
+                .events
+                .with_label_values(&["test-5", GAS_PAYMENT_EVENT_TYPE, "accepted"]);
+        timeout(Duration::from_secs(5), async {
+            while accepted.get() < ROWS / 2 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("first half replayed");
+        assert!(!*authority.borrow(), "mid-replay keeps gas authority off");
+        assert!(running.load(Ordering::Acquire), "mid-replay keeps gas RPC");
+        assert_eq!(caught_up.get(), 0);
+        release.send(()).expect("release");
+        timeout(Duration::from_secs(5), authority.wait_for(|active| *active))
+            .await
+            .expect("handoff timeout")
+            .expect("receiver open");
+        timeout(Duration::from_secs(5), async {
+            while running.load(Ordering::Acquire) {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("RPC paused after caught-up");
+        assert_eq!(
+            starts.load(Ordering::Acquire),
+            1,
+            "RPC ran once, until handoff"
+        );
+        assert_eq!(
+            *caught_up_at_stop.lock().expect("stop log"),
+            vec![1],
+            "RPC stopped only once the stream was caught up"
+        );
+        assert_eq!(
+            monitor.sources[&5]
+                .gas_payment_cursor()
+                .expect("cursor")
+                .expect("cursor persisted")
+                .stream_cursor,
+            ROWS
+        );
+        client.abort();
+        let _ = client.await;
+        timeout(Duration::from_secs(5), async {
+            while !running.load(Ordering::Acquire) {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("disconnect restarts gas RPC");
+        rpc_task.abort();
+        let _ = rpc_task.await;
+        server.abort();
+        let _ = server.await;
+    }
+
     #[test]
     fn gas_payment_authority_depends_only_on_the_usable_connection() {
         let metrics = CoreMetrics::new("gas-authority", 9090, Registry::new()).expect("metrics");
@@ -3677,9 +3868,13 @@ mod tests {
         assert!(!*receiver.borrow(), "unnegotiated gas stream keeps RPC");
         monitor.gas_payment_enabled.store(true, Ordering::Release);
         monitor.set_active(true);
+        assert!(!*receiver.borrow(), "ACK alone keeps gas RPC until replay");
+        let source = &monitor.sources[&5];
+        monitor.set_source_caught_up(source, EventKind::GasPayment, true);
+        monitor.set_active(true);
         assert!(
             *receiver.borrow(),
-            "confirmation pauses gas RPC before caught-up/parity"
+            "gas replay caught-up pauses gas RPC before sequenced caught-up/parity"
         );
         monitor.deactivate_source_authority(5);
         assert!(
@@ -3689,8 +3884,16 @@ mod tests {
         let guard = GasPaymentConnectionGuard(&monitor.gas_payment_authority);
         drop(guard);
         assert!(!*receiver.borrow(), "cancelled connection restores gas RPC");
+        // A new connection starts before its replay reaches caught-up.
+        monitor.set_source_caught_up(source, EventKind::GasPayment, false);
         monitor.set_active(true);
-        assert!(*receiver.borrow(), "reconnect pauses gas RPC again");
+        assert!(!*receiver.borrow(), "reconnect keeps gas RPC until replay");
+        monitor.set_source_caught_up(source, EventKind::GasPayment, true);
+        monitor.set_active(true);
+        assert!(
+            *receiver.borrow(),
+            "replayed reconnect pauses gas RPC again"
+        );
         monitor.set_active(false);
         assert!(!*receiver.borrow(), "disconnect restores gas RPC");
         receiver.borrow_and_update();
