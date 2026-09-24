@@ -18,6 +18,7 @@ use testcontainers_modules::postgres::Postgres;
 
 use super::*;
 use source::{Event, EventData};
+use store::PRUNE_HEADERS_SQL;
 
 struct Chain {
     headers: Mutex<BTreeMap<u64, Header>>,
@@ -208,7 +209,7 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     // Seed a legacy row before the migration. Existing IDs, visibility and
     // notifications must survive the additive schema change.
     migration::Migrator::up(&db, Some(14)).await?;
-    db.execute_unprepared("CREATE ROLE scraper_notification_reader; GRANT SELECT ON raw_message_dispatch TO scraper_notification_reader; INSERT INTO merkle_tree_insertion(domain,merkle_tree_hook,leaf_index,message_id,block_number) VALUES(1,decode(repeat('09',20),'hex'),0,decode(repeat('09',32),'hex'),0)").await?;
+    db.execute_unprepared("CREATE ROLE scraper_notification_reader; CREATE ROLE scraper_writer; GRANT SELECT ON raw_message_dispatch TO scraper_notification_reader; GRANT SELECT,INSERT,UPDATE ON block,raw_message_dispatch,delivered_message,gas_payment,merkle_tree_insertion TO scraper_writer; INSERT INTO merkle_tree_insertion(domain,merkle_tree_hook,leaf_index,message_id,block_number) VALUES(1,decode(repeat('09',20),'hex'),0,decode(repeat('09',32),'hex'),0)").await?;
     migration::Migrator::up(&db, None).await?;
     let permission = db
         .query_one(Statement::from_string(
@@ -219,6 +220,16 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
         .unwrap();
     assert!(permission.try_get::<bool>("", "head")?);
     assert!(permission.try_get::<bool>("", "events")?);
+    let writer_permission = db
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT has_table_privilege('scraper_writer','scraper_head','INSERT') AS head_insert,has_table_privilege('scraper_writer','scraper_head','UPDATE') AS head_update,has_table_privilege('scraper_writer','block','DELETE') AS block_delete,has_table_privilege('scraper_writer','raw_message_dispatch','DELETE') AS event_delete",
+        ))
+        .await?
+        .unwrap();
+    for privilege in ["head_insert", "head_update", "block_delete", "event_delete"] {
+        assert!(writer_permission.try_get::<bool>("", privilege)?);
+    }
     let mut listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
     listener.listen("scraper_event").await?;
     let mut provisional_listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
@@ -503,6 +514,26 @@ async fn header_cleanup_preserves_enrichment_and_bounds_deletes() -> Result<()> 
     "#,
         )
         .await?;
+    let plan_tx = store.db.begin().await?;
+    plan_tx
+        .execute_unprepared("SET LOCAL enable_seqscan=off")
+        .await?;
+    let plan = plan_tx
+        .query_all(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            format!("EXPLAIN (COSTS OFF) {PRUNE_HEADERS_SQL}"),
+            [1i32.into(), 0i64.into()],
+        ))
+        .await?
+        .into_iter()
+        .map(|row| row.try_get::<String>("", "QUERY PLAN"))
+        .collect::<std::result::Result<Vec<_>, _>>()?
+        .join("\n");
+    assert!(
+        plan.contains("Index Cond: ((domain = 1) AND (height >") && plan.contains("AND (height <"),
+        "cleanup must use both height bounds in the block index:\n{plan}"
+    );
+    plan_tx.rollback().await?;
     // Separate pending event types to exercise each retention condition.
     store.db.execute_unprepared(r#"
         UPDATE gas_payment SET block_number=3, block_hash=(SELECT hash FROM block WHERE domain=1 AND height=3);
