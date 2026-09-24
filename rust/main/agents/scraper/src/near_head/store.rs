@@ -43,6 +43,31 @@ const EVENTS: [(&str, &str, &str); 4] = [
     ("merkle_tree_insertion", "domain", "block_number"),
 ];
 
+pub(super) const PRUNE_HEADERS_SQL: &str = r#"
+    WITH state AS MATERIALIZED (
+        SELECT start_height,confirmed_height,halted
+        FROM scraper_head WHERE domain=$1
+    ), candidates AS MATERIALIZED (
+        SELECT b.id,b.height FROM block b
+        WHERE b.domain=$1 AND NOT (SELECT halted FROM state)
+          AND b.height>greatest((SELECT start_height FROM state),$2)
+          AND b.height<(SELECT confirmed_height FROM state)
+        ORDER BY b.height LIMIT 1000 FOR UPDATE OF b SKIP LOCKED
+    ), removed AS (
+        DELETE FROM block b USING candidates c WHERE b.id=c.id
+          AND NOT EXISTS (SELECT 1 FROM "transaction" t WHERE t.block_id=b.id)
+          AND NOT EXISTS (SELECT 1 FROM raw_message_dispatch r
+              WHERE r.origin_domain=b.domain AND r.origin_block_height=b.height)
+          AND NOT EXISTS (SELECT 1 FROM delivered_message d
+              WHERE d.domain=b.domain AND d.block_number=b.height AND d.destination_tx_id IS NULL)
+          AND NOT EXISTS (SELECT 1 FROM gas_payment g
+              WHERE g.domain=b.domain AND g.block_hash=b.hash AND g.tx_id IS NULL)
+        RETURNING b.id
+    )
+    SELECT coalesce((SELECT max(height) FROM candidates),0) AS next,
+           (SELECT count(*) FROM removed) AS deleted
+"#;
+
 impl Store {
     fn domain(&self) -> Value {
         signed(self.domain).into()
@@ -321,26 +346,11 @@ impl Store {
     /// Keep the rollback boundary and headers needed by existing/pending enrichment.
     /// Raw dispatch headers are retained even before a message/transaction exists.
     pub async fn prune_headers(&self, after: u64) -> Result<(u64, u64)> {
-        let row = self.db.query_one(sql(r#"
-            WITH candidates AS MATERIALIZED (
-                SELECT b.id,b.height FROM block b JOIN scraper_head h ON h.domain=b.domain
-                WHERE b.domain=$1 AND NOT h.halted
-                  AND b.height>greatest(h.start_height,$2) AND b.height<h.confirmed_height
-                ORDER BY b.height LIMIT 1000 FOR UPDATE OF b SKIP LOCKED
-            ), removed AS (
-                DELETE FROM block b USING candidates c WHERE b.id=c.id
-                  AND NOT EXISTS (SELECT 1 FROM "transaction" t WHERE t.block_id=b.id)
-                  AND NOT EXISTS (SELECT 1 FROM raw_message_dispatch r
-                      WHERE r.origin_domain=b.domain AND r.origin_block_height=b.height)
-                  AND NOT EXISTS (SELECT 1 FROM delivered_message d
-                      WHERE d.domain=b.domain AND d.block_number=b.height AND d.destination_tx_id IS NULL)
-                  AND NOT EXISTS (SELECT 1 FROM gas_payment g
-                      WHERE g.domain=b.domain AND g.block_hash=b.hash AND g.tx_id IS NULL)
-                RETURNING b.id
-            )
-            SELECT coalesce((SELECT max(height) FROM candidates),0) AS next,
-                   (SELECT count(*) FROM removed) AS deleted
-        "#, vec![self.domain(), number(after)?])).await?.ok_or_else(|| eyre::eyre!("Missing cleanup result"))?;
+        let row = self
+            .db
+            .query_one(sql(PRUNE_HEADERS_SQL, vec![self.domain(), number(after)?]))
+            .await?
+            .ok_or_else(|| eyre::eyre!("Missing cleanup result"))?;
         Ok((
             u64::try_from(row.try_get::<i64>("", "next")?)?,
             u64::try_from(row.try_get::<i64>("", "deleted")?)?,
