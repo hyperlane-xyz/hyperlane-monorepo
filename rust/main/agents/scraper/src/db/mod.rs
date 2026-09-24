@@ -85,9 +85,10 @@ impl ScraperDb {
     }
 }
 
+/// Grouped explicitly so the `OR` can never bind across filters combined with `AND`.
 pub(super) fn confirmed_event(table: &str, domain: &str, height: &str) -> SimpleExpr {
     Expr::cust(format!(
-        "{table}.{height} IS NULL OR {table}.{height}<=COALESCE((SELECT h.confirmed_height FROM scraper_head h WHERE h.domain={table}.{domain}),9223372036854775807)"
+        "({table}.{height} IS NULL OR {table}.{height}<=COALESCE((SELECT h.confirmed_height FROM scraper_head h WHERE h.domain={table}.{domain}),9223372036854775807))"
     ))
 }
 
@@ -112,3 +113,31 @@ mod sequence_reads;
 
 #[cfg(test)]
 mod dispatch_transactions;
+
+#[cfg(test)]
+mod confirmed_event_tests {
+    use sea_orm::{ColumnTrait, DbBackend, EntityTrait, QueryFilter, QueryTrait};
+
+    use super::{confirmed_event, generated::delivered_message};
+
+    #[test]
+    fn confirmed_event_stays_grouped_with_other_filters() {
+        let sql = delivered_message::Entity::find()
+            .filter(confirmed_event(
+                "delivered_message",
+                "domain",
+                "block_number",
+            ))
+            .filter(delivered_message::Column::Domain.eq(1))
+            .build(DbBackend::Postgres)
+            .to_string();
+        assert!(
+            sql.contains("(delivered_message.block_number IS NULL OR "),
+            "confirmation predicate must be grouped: {sql}"
+        );
+        assert!(
+            !sql.contains("WHERE delivered_message.block_number IS NULL OR"),
+            "confirmation predicate must not leak outside its group: {sql}"
+        );
+    }
+}

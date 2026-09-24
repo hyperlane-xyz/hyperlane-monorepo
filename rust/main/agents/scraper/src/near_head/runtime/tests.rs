@@ -158,10 +158,10 @@ async fn newly_ingested_events_publish_immediately_and_full_pages_keep_draining(
     let worker = worker(db, chain).await?;
     let mut cache = None;
 
-    assert!(worker.cycle(&mut cache).await?);
+    assert!(worker.cycle(&mut cache).await?.more);
     let first = worker.store.state().await?.unwrap();
     assert_eq!((first.indexed, first.confirmed), (2, 1));
-    assert!(!worker.cycle(&mut cache).await?);
+    assert!(!worker.cycle(&mut cache).await?.more);
     assert_eq!(worker.store.state().await?.unwrap().confirmed, 2);
     Ok(())
 }
@@ -188,10 +188,76 @@ async fn ingestion_errors_do_not_block_existing_publication() -> Result<()> {
     chain.head.store(3, Ordering::SeqCst);
     chain.tag.store(2, Ordering::SeqCst);
     chain.fail_events.store(true, Ordering::SeqCst);
-    assert!(worker.cycle(&mut cache).await.is_err());
+    // A limited page keeps draining and reports the ingestion failure.
+    let outcome = worker.cycle(&mut cache).await?;
+    assert!(outcome.more && outcome.ingestion_failed);
     assert_eq!(worker.store.state().await?.unwrap().confirmed, 1);
+    // Once the backlog is drained the ingestion error surfaces.
     assert!(worker.cycle(&mut cache).await.is_err());
     assert_eq!(worker.store.state().await?.unwrap().confirmed, 2);
+    Ok(())
+}
+
+#[tokio::test]
+async fn backlog_drains_without_polls_while_ingestion_fails_then_recovers() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(2, false));
+    chain.events.lock().unwrap().extend(
+        (0..999)
+            .map(|index| gas_event(1, index))
+            .chain((999..1500).map(|index| gas_event(2, index))),
+    );
+    let worker = worker(db, chain.clone()).await?;
+    worker.cycle(&mut None).await?;
+    assert_eq!(worker.store.state().await?.unwrap().confirmed, 0);
+
+    // A poll interval far beyond the test timeout: draining both pages proves
+    // the limited page did not wait for a poll.
+    let worker = Arc::new(Worker {
+        poll_interval: Duration::from_secs(3_600),
+        ..Arc::into_inner(worker).expect("sole worker handle")
+    });
+    chain.head.store(3, Ordering::SeqCst);
+    chain.tag.store(2, Ordering::SeqCst);
+    chain.fail_events.store(true, Ordering::SeqCst);
+    let task = tokio::spawn({
+        let worker = worker.clone();
+        async move { worker.run_cycles().await }
+    });
+    wait_for(&worker, |state| {
+        state.confirmed == 2 && critical(&worker) == 1
+    })
+    .await?;
+    task.abort();
+    assert!(task
+        .await
+        .expect_err("worker runs until aborted")
+        .is_cancelled());
+
+    // Critical clears once ingestion recovers.
+    let worker = Arc::new(Worker {
+        poll_interval: Duration::from_millis(20),
+        ..Arc::into_inner(worker).expect("sole worker handle")
+    });
+    chain.fail_events.store(false, Ordering::SeqCst);
+    let task = tokio::spawn({
+        let worker = worker.clone();
+        async move { worker.run_cycles().await }
+    });
+    wait_for(&worker, |state| {
+        state.indexed == 3 && critical(&worker) == 0
+    })
+    .await?;
+    task.abort();
+    assert!(task
+        .await
+        .expect_err("worker runs until aborted")
+        .is_cancelled());
     Ok(())
 }
 

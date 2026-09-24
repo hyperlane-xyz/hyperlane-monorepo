@@ -380,9 +380,10 @@ window, then run
 `cargo run --release -p migration --bin down 1`. This restores the transitional
 `confirmed` columns without rewriting historical confirmed rows. The transactional
 down migration takes access-exclusive table locks while rebuilding the old partial
-indexes, so production-scale tables can block reads and replica replay for tens of
-seconds. Then deploy the previous scraper image. Never start it before the down
-migration.
+indexes, so production-scale tables block reads and replica replay: about 35-50s
+cold on explorer4 (15-25s with parallel workers), during which Explorer queries on
+the replica stall too. Then deploy the previous scraper image. Never start it
+before the down migration.
 
 To return to legacy indexers, stop every scraper writer, drain or explicitly
 repair/discard provisional and halted history, then run

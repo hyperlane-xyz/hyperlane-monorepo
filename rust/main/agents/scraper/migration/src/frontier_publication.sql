@@ -62,26 +62,30 @@ DO $$ DECLARE item record; BEGIN
   END LOOP;
 END $$;
 
--- Legacy domains have no scraper_head row and still publish on insert.
+-- Legacy domains have no scraper_head row and still publish on insert. Rows
+-- without a height (legacy writers such as CCR deliveries on near-head domains)
+-- are visible at once and never enter a frontier range, so they publish too.
 CREATE OR REPLACE FUNCTION notify_scraper_event() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM scraper_head h WHERE h.domain=(to_jsonb(NEW)->>TG_ARGV[1])::integer) THEN RETURN NEW; END IF;
+  IF (to_jsonb(NEW)->>TG_ARGV[2]) IS NOT NULL
+     AND EXISTS (SELECT 1 FROM scraper_head h WHERE h.domain=(to_jsonb(NEW)->>TG_ARGV[1])::integer)
+  THEN RETURN NEW; END IF;
   PERFORM pg_notify('scraper_event',json_build_object('eventType',TG_ARGV[0],'id',NEW.id::text,
     'domain',((to_jsonb(NEW)->>TG_ARGV[1])::bigint & 4294967295))::text);
   RETURN NEW;
 END $$;
 CREATE TRIGGER scraper_event_notify AFTER INSERT ON raw_message_dispatch
- FOR EACH ROW EXECUTE FUNCTION notify_scraper_event('dispatch','origin_domain');
+ FOR EACH ROW EXECUTE FUNCTION notify_scraper_event('dispatch','origin_domain','origin_block_height');
 CREATE TRIGGER scraper_event_notify AFTER INSERT ON delivered_message
- FOR EACH ROW EXECUTE FUNCTION notify_scraper_event('delivery','domain');
+ FOR EACH ROW EXECUTE FUNCTION notify_scraper_event('delivery','domain','block_number');
 CREATE TRIGGER scraper_event_notify AFTER INSERT ON gas_payment
- FOR EACH ROW EXECUTE FUNCTION notify_scraper_event('gas_payment','domain');
+ FOR EACH ROW EXECUTE FUNCTION notify_scraper_event('gas_payment','domain','block_number');
 CREATE TRIGGER scraper_event_notify AFTER INSERT ON merkle_tree_insertion
- FOR EACH ROW EXECUTE FUNCTION notify_scraper_event('merkle_tree_insertion','domain');
+ FOR EACH ROW EXECUTE FUNCTION notify_scraper_event('merkle_tree_insertion','domain','block_number');
 
 CREATE OR REPLACE FUNCTION notify_scraper_explorer_event() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  IF EXISTS (
+  IF (to_jsonb(NEW)->>'block_number') IS NOT NULL AND EXISTS (
     SELECT 1 FROM scraper_head h
     WHERE h.domain=(to_jsonb(NEW)->>'domain')::integer
       AND (TG_OP='INSERT' OR (to_jsonb(NEW)->>'block_number')::bigint>h.confirmed_height)
@@ -91,11 +95,14 @@ BEGIN
 END $$;
 
 -- Legacy inserts allocate immediately. Near-head rows allocate in a range just
--- before their frontier becomes visible.
+-- before their frontier becomes visible; rows without a height never enter a
+-- frontier range, so they allocate immediately like legacy rows.
 CREATE OR REPLACE FUNCTION assign_gas_payment_stream_cursor() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE assigned_cursor bigint;
 BEGIN
-  IF EXISTS (SELECT 1 FROM scraper_head h WHERE h.domain=NEW.domain) THEN RETURN NEW; END IF;
+  IF NEW.block_number IS NOT NULL
+     AND EXISTS (SELECT 1 FROM scraper_head h WHERE h.domain=NEW.domain)
+  THEN RETURN NEW; END IF;
   INSERT INTO gas_payment_stream_head(domain,interchain_gas_paymaster,legacy_max_id,last_cursor)
     VALUES(NEW.domain,NEW.interchain_gas_paymaster,0,0) ON CONFLICT DO NOTHING;
   UPDATE gas_payment_stream_head SET last_cursor=last_cursor+1

@@ -23,26 +23,26 @@ ALTER TABLE raw_message_dispatch ADD COLUMN confirmed boolean NOT NULL DEFAULT t
 ALTER TABLE delivered_message ADD COLUMN confirmed boolean NOT NULL DEFAULT true;
 ALTER TABLE gas_payment ADD COLUMN confirmed boolean NOT NULL DEFAULT true;
 ALTER TABLE merkle_tree_insertion ADD COLUMN confirmed boolean NOT NULL DEFAULT true;
-UPDATE raw_message_dispatch e SET confirmed=false
-FROM scraper_head h CROSS JOIN LATERAL (
-  SELECT id FROM raw_message_dispatch pending
-  WHERE pending.origin_domain=h.domain AND pending.origin_block_height>h.confirmed_height OFFSET 0
-) provisional WHERE e.id=provisional.id;
-UPDATE delivered_message e SET confirmed=false
-FROM scraper_head h CROSS JOIN LATERAL (
-  SELECT id FROM delivered_message pending
-  WHERE pending.domain=h.domain AND pending.block_number>h.confirmed_height OFFSET 0
-) provisional WHERE e.id=provisional.id;
-UPDATE gas_payment e SET confirmed=false
-FROM scraper_head h CROSS JOIN LATERAL (
-  SELECT id FROM gas_payment pending
-  WHERE pending.domain=h.domain AND pending.block_number>h.confirmed_height OFFSET 0
-) provisional WHERE e.id=provisional.id;
-UPDATE merkle_tree_insertion e SET confirmed=false
-FROM scraper_head h CROSS JOIN LATERAL (
-  SELECT id FROM merkle_tree_insertion pending
-  WHERE pending.domain=h.domain AND pending.block_number>h.confirmed_height OFFSET 0
-) provisional WHERE e.id=provisional.id;
+UPDATE raw_message_dispatch SET confirmed=false WHERE id=ANY(ARRAY(
+  SELECT pending.id FROM scraper_head h CROSS JOIN LATERAL (
+    SELECT id FROM raw_message_dispatch p WHERE p.origin_domain=h.domain AND p.origin_block_height>h.confirmed_height
+  ) pending
+));
+UPDATE delivered_message SET confirmed=false WHERE id=ANY(ARRAY(
+  SELECT pending.id FROM scraper_head h CROSS JOIN LATERAL (
+    SELECT id FROM delivered_message p WHERE p.domain=h.domain AND p.block_number>h.confirmed_height
+  ) pending
+));
+UPDATE gas_payment SET confirmed=false WHERE id=ANY(ARRAY(
+  SELECT pending.id FROM scraper_head h CROSS JOIN LATERAL (
+    SELECT id FROM gas_payment p WHERE p.domain=h.domain AND p.block_number>h.confirmed_height
+  ) pending
+));
+UPDATE merkle_tree_insertion SET confirmed=false WHERE id=ANY(ARRAY(
+  SELECT pending.id FROM scraper_head h CROSS JOIN LATERAL (
+    SELECT id FROM merkle_tree_insertion p WHERE p.domain=h.domain AND p.block_number>h.confirmed_height
+  ) pending
+));
 
 CREATE INDEX gas_payment_unconfirmed ON gas_payment(domain,block_number) WHERE NOT confirmed;
 CREATE INDEX merkle_insertion_unconfirmed ON merkle_tree_insertion(domain,block_number) WHERE NOT confirmed;
