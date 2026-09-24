@@ -78,7 +78,7 @@ describe('InventoryRebalancer E2E', () => {
       completeRebalanceIntent: Sinon.stub(),
       cancelRebalanceIntent: Sinon.stub(),
       failRebalanceIntent: Sinon.stub(),
-      getActionsByType: Sinon.stub(),
+      getActionsByType: Sinon.stub().resolves([]),
       getInflightInventoryMovements: Sinon.stub(),
       getPartiallyFulfilledInventoryIntents: Sinon.stub(),
       createRebalanceAction: Sinon.stub(),
@@ -363,6 +363,7 @@ describe('InventoryRebalancer E2E', () => {
     });
 
     it('uses IMultiProtocolSigner path for solana transfer txs', async () => {
+      const clock = Sinon.useFakeTimers();
       const route = createTestRoute({ amount: 5000000000n });
       createTestIntent({ amount: 5000000000n });
 
@@ -390,10 +391,20 @@ describe('InventoryRebalancer E2E', () => {
         'sendAndConfirmInventoryTx',
       ).resolves({ txHash: '0xSolanaTxHash' });
 
+      const expectedMessageId =
+        '0x1111111111111111111111111111111111111111111111111111111111111111';
+      const getTransaction = Sinon.stub();
+      getTransaction.onCall(0).resolves(null);
+      getTransaction.onCall(1).resolves(null);
+      getTransaction.resolves({
+        meta: {
+          logMessages: [
+            `Program log: Dispatched message to 1, ID ${expectedMessageId}`,
+          ],
+        },
+      });
       warpCore.multiProvider.getSolanaWeb3Provider = Sinon.stub().returns({
-        getTransaction: Sinon.stub().resolves({
-          meta: { logMessages: [] },
-        }),
+        getTransaction,
       });
 
       multiProvider.sendTransaction.resetHistory();
@@ -405,7 +416,9 @@ describe('InventoryRebalancer E2E', () => {
         },
       ]);
 
-      const results = await inventoryRebalancer.rebalance([route]);
+      const resultPromise = inventoryRebalancer.rebalance([route]);
+      await clock.tickAsync(6_000);
+      const results = await resultPromise;
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
@@ -415,6 +428,17 @@ describe('InventoryRebalancer E2E', () => {
 
       const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
       expect(actionParams.txHash).to.equal('0xSolanaTxHash');
+      expect(actionParams.messageId).to.equal(expectedMessageId);
+      expect(getTransaction.callCount).to.equal(3);
+
+      getTransaction.reset();
+      getTransaction.resolves({ meta: { logMessages: [] } });
+      const failureResults = await inventoryRebalancer.rebalance([route]);
+
+      expect(failureResults).to.have.lengthOf(1);
+      expect(getTransaction.calledOnce).to.be.true;
+      expect(actionTracker.createRebalanceAction.lastCall.args[0].messageId).to
+        .be.undefined;
     });
 
     it('denormalizes inventory execution amounts but records canonical deposit amount', async () => {
