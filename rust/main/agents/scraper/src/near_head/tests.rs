@@ -229,6 +229,10 @@ async fn checkpoint_migration_backfills_an_existing_frontier() -> Result<()> {
     assert_eq!(store.checkpoint(7).await?, 7);
     assert_eq!(store.hash(7).await?, Some(H256::repeat_byte(7)));
     assert_eq!(store.hash(8).await?, Some(H256::repeat_byte(8)));
+    store
+        .db
+        .execute_unprepared("DELETE FROM block WHERE domain=1 AND height=8")
+        .await?;
     migration::Migrator::down(&store.db, Some(1)).await?;
     let restored = store
         .db
@@ -615,6 +619,35 @@ async fn confirmation_bounds_temporary_checkpoints_without_scanning_blocks() -> 
     assert_eq!(count(&store, "scraper_checkpoint").await?, 1);
     assert_eq!(store.checkpoint(10).await?, 10);
     assert_eq!(count(&store, "block").await?, blocks);
+    Ok(())
+}
+
+#[tokio::test]
+async fn append_refreshes_the_confirmation_lease_after_a_slow_fetch() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let chain = Chain::new(1);
+    store
+        .initialize(&chain.header(0u64.into()).await?, &contracts())
+        .await?;
+    let observed = observe(&chain, &store).await?;
+    store
+        .db
+        .execute_unprepared(
+            "UPDATE scraper_head SET updated_at=clock_timestamp()-interval '61 seconds'",
+        )
+        .await?;
+    store
+        .append(&observed, &[(chain.header(1u64.into()).await?, vec![])])
+        .await?;
+    assert_eq!(confirm(&chain, &store, &ReorgPeriod::None).await?, [0; 4]);
+    assert_eq!(store.state().await?.unwrap().confirmed, 1);
     Ok(())
 }
 
@@ -1193,6 +1226,15 @@ async fn automatic_cutover_rejects_partial_legacy_history_and_reuses_verified_bo
         .expect_err("restart must reject stale checkpoint state");
     assert!(error.to_string().contains("checkpoints are out of sync"));
     store.db.execute_unprepared("INSERT INTO scraper_checkpoint(domain,height,hash,timestamp) VALUES(1,30,decode(repeat('00',31) || '1f','hex'),to_timestamp(1) AT TIME ZONE 'UTC')").await?;
+    store.db.execute_unprepared("INSERT INTO scraper_checkpoint(domain,height,hash,timestamp) VALUES(1,31,decode(repeat('00',31) || '20','hex'),to_timestamp(1) AT TIME ZONE 'UTC')").await?;
+    let error = prepare(&chain, &store, &anchor, &contracts(), &ReorgPeriod::None)
+        .await
+        .expect_err("restart must reject checkpoints above indexed progress");
+    assert!(error.to_string().contains("checkpoints are out of sync"));
+    store
+        .db
+        .execute_unprepared("DELETE FROM scraper_checkpoint WHERE domain=1 AND height=31")
+        .await?;
     // Restart must not choose a new boundary from newer history or a changed default.
     store
         .db

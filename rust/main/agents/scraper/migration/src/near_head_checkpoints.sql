@@ -1,6 +1,8 @@
 -- Keep temporary reorg checkpoints out of the permanent Explorer block table.
 -- The table contains the current confirmed boundary and the sparse unconfirmed
 -- suffix only, so advancing confirmation can prune it with one indexed delete.
+SET LOCAL lock_timeout='5s';
+
 CREATE TABLE scraper_checkpoint (
   domain integer NOT NULL REFERENCES domain(id),
   height bigint NOT NULL,
@@ -9,9 +11,9 @@ CREATE TABLE scraper_checkpoint (
   PRIMARY KEY(domain,height)
 );
 
--- Every scraper deployment sharing this database must be stopped. The lock
--- fails quickly if an old near-head writer is still advancing scraper_head.
-SET LOCAL lock_timeout='5s';
+-- Every scraper deployment sharing this database must be stopped. This lock
+-- makes the copy internally consistent, but cannot prevent an old writer from
+-- resuming after commit; startup validation rejects incompatible later writes.
 LOCK TABLE scraper_head IN EXCLUSIVE MODE;
 
 -- Preserve the live reorg window while the old scraper is stopped. Drive the

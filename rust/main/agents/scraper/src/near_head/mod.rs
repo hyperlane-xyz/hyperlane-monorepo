@@ -129,8 +129,8 @@ async fn prepare(
     // indexed height. The observation loop waits for lagging providers and
     // checks retained ancestry before publishing anything.
     let hash = match store.state().await? {
-        Some(state) => {
-            store.validate_checkpoints(&state).await?;
+        Some(_) => {
+            store.validate_checkpoints().await?;
             source.header(BlockNumber::Latest).await?.hash
         }
         None => anchor.hash,

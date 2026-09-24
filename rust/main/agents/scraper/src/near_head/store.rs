@@ -131,14 +131,15 @@ impl Store {
         Ok(())
     }
 
-    pub async fn validate_checkpoints(&self, state: &State) -> Result<()> {
+    pub async fn validate_checkpoints(&self) -> Result<()> {
         let row = self.db.query_one(sql(
-            "SELECT EXISTS(SELECT 1 FROM scraper_checkpoint WHERE domain=$1 AND height=$2) AS confirmed_exists, EXISTS(SELECT 1 FROM scraper_checkpoint WHERE domain=$1 AND height=$3 AND hash=$4) AS indexed_matches",
-            vec![self.domain(), number(state.confirmed)?, number(state.indexed)?, bytes(state.hash)],
+            "SELECT EXISTS(SELECT 1 FROM scraper_checkpoint c WHERE c.domain=h.domain AND c.height=h.confirmed_height) AS confirmed_exists, EXISTS(SELECT 1 FROM scraper_checkpoint c WHERE c.domain=h.domain AND c.height=h.indexed_height AND c.hash=h.indexed_hash) AS indexed_matches, NOT EXISTS(SELECT 1 FROM scraper_checkpoint c WHERE c.domain=h.domain AND c.height>h.indexed_height) AS no_stale_suffix FROM scraper_head h WHERE h.domain=$1",
+            vec![self.domain()],
         )).await?.ok_or_else(|| eyre::eyre!("Missing checkpoint validation"))?;
         ensure!(
             row.try_get::<bool>("", "confirmed_exists")?
-                && row.try_get::<bool>("", "indexed_matches")?,
+                && row.try_get::<bool>("", "indexed_matches")?
+                && row.try_get::<bool>("", "no_stale_suffix")?,
             "Near-head checkpoints are out of sync; stop old scraper writers and repair scraper_checkpoint before restarting"
         );
         Ok(())
@@ -264,7 +265,7 @@ impl Store {
             insert_batch(&tx, query, &rows).await?;
         }
         tx.execute(sql(
-            "UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3 WHERE domain=$1",
+            "UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3,updated_at=clock_timestamp() WHERE domain=$1",
             vec![self.domain(), number(height)?, bytes(previous)],
         ))
         .await?;
@@ -454,8 +455,6 @@ async fn insert_batch<C: ConnectionTrait>(
         }
         let conflict = if prefix.starts_with("INSERT INTO block(") {
             " ON CONFLICT(hash) DO NOTHING"
-        } else if prefix.starts_with("INSERT INTO scraper_checkpoint(") {
-            " ON CONFLICT(domain,height) DO NOTHING"
         } else {
             ""
         };

@@ -72,10 +72,11 @@ boundary from stored maxima. Contract changes are rejected.
   observed head. A finality tag read after the observation may be newer than it;
   confirmation then stops at the observed head. The lease only proves a recent
   healthy observation: confirmation still rechecks ancestry against the RPC, and
-  an older head only lowers the boundary. Advancing the observed head can confirm
-  existing events even if the next log fetch fails. Long in-flight RPC calls or
-  database waits can expire the lease; confirmation then waits for a fresh
-  observation. Observation, confirmation, and ingestion execute sequentially
+  an older head only lowers the boundary. Each cycle observes, ingests, then
+  confirms, so newly ingested events can publish immediately. Committing ingestion
+  refreshes the observation lease after long RPC calls. An ingestion failure is
+  logged before existing eligible history publishes; page-limited publication
+  drains before the error pauses the loop. The three phases execute sequentially
   for each chain, so they do not compete for that chain's progress-row lock.
 - Startup probes the configured finality tag and hash-pinned contract-count calls
   before persisting a first-time cutover. On restart it probes the provider's
@@ -86,7 +87,8 @@ boundary from stored maxima. Contract changes are rejected.
   history from publishing. A confirmation error marks the chain critical and
   pauses the combined cycle. A stalled boundary limits the provisional suffix to
   10,000 blocks plus the configured numeric reorg depth; at the limit the worker
-  continues confirmation without extending the provisional suffix.
+  continues confirmation without extending the provisional suffix and raises
+  the chain critical-error metric until confirmation opens room again.
   `scraper_head.healthy` describes the head-observation lease, not overall worker
   health. Compare the `indexed_height` metric's `near_head` series with the
   confirmed event series to observe confirmation lag.
@@ -172,9 +174,12 @@ hangs, and verify uncached successful receipts survive a neighboring timeout.
    require block-hash-pinned `eth_getCode`. Check the actual configured endpoints
    and historical boundary state. Fleet capability has not been established by
    the local tests. There is no legacy opt-out after this hard cutover.
-2. Stop **all** scraper deployments that share the database and the proxy. For
-   `explorer4`, this means both mainnet3 and testnet4. Apply the migration before deploying the
-   matching binaries. Measure index creation on a database clone and allow a
+2. Build this scraper and migration, and prepare the scraper image-tag update for
+   every environment sharing the database. Stop **all** such scraper deployments.
+   For `explorer4`, this means both mainnet3 and testnet4. Apply the migration
+   before deploying the matching binaries. Land the image-tag update before or
+   with the migration so a routine deployment cannot restart an old writer.
+   Measure index creation on a database clone and allow a
    maintenance window. Run `cargo run --release -p migration --bin init-db` with
    `DATABASE_URL` set to apply migrations and verify concurrent indexes.
 3. For each existing EVM domain, complete the verified cutover below. Empty
@@ -201,6 +206,34 @@ This must return no rows. After migration, run the same check against
 `scraper_checkpoint`. Do not start any old scraper image after migration.
 The scraper database can be shared across environments; stopping one deployment
 does not stop another deployment's writers.
+
+If startup reports that checkpoints are out of sync, stop every writer and repair
+only after checking the saved head against the canonical chain. This rebuilds one
+domain's retained range from the old writer's `block` checkpoints and fails on
+conflicting rows:
+
+```sql
+BEGIN;
+SET LOCAL lock_timeout='5s';
+LOCK TABLE scraper_head IN EXCLUSIVE MODE;
+DELETE FROM scraper_checkpoint c
+USING scraper_head h
+WHERE c.domain=h.domain AND c.domain=:'domain'::integer;
+INSERT INTO scraper_checkpoint(domain,height,hash,timestamp)
+SELECT b.domain,b.height,b.hash,b.timestamp
+FROM scraper_head h CROSS JOIN LATERAL (
+  SELECT domain,height,hash,timestamp FROM block b
+  WHERE b.domain=h.domain AND b.height>=h.confirmed_height
+    AND b.height<=h.indexed_height
+  OFFSET 0
+) b
+WHERE h.domain=:'domain'::integer;
+COMMIT;
+```
+
+Repeat the post-migration boundary check before restarting. If `block` lacks the
+full retained range or its indexed hash differs, restore or reseed from a separately
+verified canonical boundary instead of using this repair.
 
 ### Verified legacy cutover
 
@@ -319,9 +352,16 @@ SQL consumers wanting the old visibility must use `confirmed_raw_message_dispatc
 both their names and output columns. Raw event tables now include provisional rows.
 Roles with `SELECT` on any event table also receive `SELECT` on `scraper_head`.
 
-To roll back to the previous scraper image, stop every scraper deployment sharing
-the database and drain all provisional history first (or explicitly repair/discard
-it). Run `cargo run --release -p migration --bin down 1`; this restores retained
-checkpoints to `block`. Then deploy the old scraper and matching proxy images.
-Never start the old scraper before the down migration. The down migration refuses
-to remove confirmation filtering while provisional or halted history exists.
+To roll back to the previous near-head scraper image, stop every scraper deployment
+sharing the database and run `cargo run --release -p migration --bin down 1`.
+This restores retained checkpoints to `block`; no provisional drain is required
+because that image understands provisional rows. Then deploy the previous scraper
+image. Never start it before the down migration.
+
+To return to legacy indexers, stop every scraper writer, drain or explicitly
+repair/discard provisional and halted history, then run
+`cargo run --release -p migration --bin down 2`. The second down migration removes
+confirmation filtering and drops `scraper_head`; it refuses to proceed while
+provisional or halted history remains. The first down migration restores and
+drops `scraper_checkpoint`, so both near-head state tables are gone before legacy
+indexing restarts.

@@ -53,11 +53,6 @@ impl Worker {
                 return Err(error);
             }
         };
-        self.sync_metrics
-            .indexed_height
-            .with_label_values(&["near_head", self.domain.name()])
-            .set(i64::try_from(observed.indexed)?);
-
         // Ingest before publication so newly indexed events do not wait for the
         // next poll. Keep the result so existing work can still publish when
         // the log query fails.
@@ -84,6 +79,14 @@ impl Worker {
         } else {
             Ok(false)
         };
+        if let Err(error) = &ingestion {
+            warn!(
+                domain = self.store.domain,
+                phase = "ingestion",
+                ?error,
+                "Near-head indexing phase failed"
+            );
+        }
 
         let confirmation = confirm_leased(
             self.source.as_ref(),
@@ -112,6 +115,10 @@ impl Worker {
             .state()
             .await?
             .ok_or_else(|| eyre::eyre!("Missing head state"))?;
+        self.sync_metrics
+            .indexed_height
+            .with_label_values(&["near_head", self.domain.name()])
+            .set(i64::try_from(state.indexed)?);
         for label in [
             "message_dispatch",
             "message_delivery",
@@ -124,7 +131,20 @@ impl Worker {
                 .set(i64::try_from(state.confirmed)?);
         }
 
-        Ok(ingestion? || confirmation.page_limited)
+        if confirmation.page_limited {
+            return Ok(true);
+        }
+        let more_ingestion = ingestion?;
+        let capped_head = observed
+            .head
+            .min(state.confirmed.saturating_add(depth).saturating_add(10_000));
+        let at_provisional_cap = capped_head < observed.head && state.indexed >= capped_head;
+        if at_provisional_cap {
+            eyre::bail!(
+                "Provisional suffix reached its 10,000-block limit; confirmation is stalled"
+            );
+        }
+        Ok(more_ingestion)
     }
 }
 

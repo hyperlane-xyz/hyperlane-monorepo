@@ -175,7 +175,11 @@ async fn ingestion_errors_do_not_block_existing_publication() -> Result<()> {
     ))
     .await?;
     let chain = Arc::new(Chain::new(2, false));
-    chain.events.lock().unwrap().push(gas_event(1, 0));
+    chain.events.lock().unwrap().extend(
+        (0..999)
+            .map(|index| gas_event(1, index))
+            .chain((999..1500).map(|index| gas_event(2, index))),
+    );
     let worker = worker(db, chain.clone()).await?;
     let mut cache = None;
     worker.cycle(&mut cache).await?;
@@ -184,6 +188,8 @@ async fn ingestion_errors_do_not_block_existing_publication() -> Result<()> {
     chain.head.store(3, Ordering::SeqCst);
     chain.tag.store(2, Ordering::SeqCst);
     chain.fail_events.store(true, Ordering::SeqCst);
+    assert!(worker.cycle(&mut cache).await?);
+    assert_eq!(worker.store.state().await?.unwrap().confirmed, 1);
     assert!(worker.cycle(&mut cache).await.is_err());
     assert_eq!(worker.store.state().await?.unwrap().confirmed, 2);
     Ok(())
@@ -206,10 +212,10 @@ async fn stale_finality_tag_on_another_fork_releases_nothing() -> Result<()> {
     assert_eq!(worker.store.state().await?.unwrap().confirmed, 2);
 
     chain.head.store(3, Ordering::SeqCst);
-    chain.tag.store(1, Ordering::SeqCst);
+    chain.tag.store(3, Ordering::SeqCst);
     chain.wrong_tag.store(true, Ordering::SeqCst);
     chain.events.lock().unwrap().push(gas_event(3, 1));
-    worker.cycle(&mut cache).await?;
+    assert!(worker.cycle(&mut cache).await.is_err());
     let state = worker.store.state().await?.unwrap();
     assert_eq!((state.indexed, state.confirmed), (3, 2));
     Ok(())
@@ -295,7 +301,7 @@ async fn stationary_finality_tag_bounds_ingestion_then_resumes() -> Result<()> {
     });
 
     wait_for(&worker, |state| {
-        state.indexed == 10_000 && state.confirmed == 0 && critical(&worker) == 0
+        state.indexed == 10_000 && state.confirmed == 0 && critical(&worker) == 1
     })
     .await?;
     let observations = chain.observations.load(Ordering::SeqCst);
@@ -305,7 +311,7 @@ async fn stationary_finality_tag_bounds_ingestion_then_resumes() -> Result<()> {
     .await?;
     let state = worker.store.state().await?.expect("initialized state");
     assert_eq!((state.indexed, state.confirmed), (10_000, 0));
-    assert_eq!(critical(&worker), 0);
+    assert_eq!(critical(&worker), 1);
 
     // Publishing 100 blocks opens the cap; ingestion can now consume block 10,001
     // without requiring the finality tag to catch all the way up to the head.
