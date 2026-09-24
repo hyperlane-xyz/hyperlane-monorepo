@@ -14,7 +14,7 @@ PROGRAM_TYPE="${1:-all}"
 source "$(dirname "${BASH_SOURCE[0]}")/toolchain.env"
 
 # The paths to the programs
-CORE_PROGRAM_PATHS=("mailbox" "ism/multisig-ism-message-id" "ism/composite-ism" "ism/test-ism" "validator-announce" "hyperlane-sealevel-igp")
+CORE_PROGRAM_PATHS=("mailbox" "ism/multisig-ism-message-id" "ism/composite-ism" "ism/test-ism" "validator-announce" "hyperlane-sealevel-igp" "universal-router")
 TOKEN_PROGRAM_PATHS=("hyperlane-sealevel-token" "hyperlane-sealevel-token-collateral" "hyperlane-sealevel-token-cross-collateral" "hyperlane-sealevel-token-native" "hyperlane-sealevel-fee")
 
 build_program () {
