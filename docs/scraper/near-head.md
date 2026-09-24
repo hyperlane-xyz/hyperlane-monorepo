@@ -2,22 +2,20 @@
 
 The scraper indexes dispatch, delivery, gas-payment and Merkle-insertion events
 at the current head by default on all selected EVM chains. Each event is stored
-once in its existing table, initially with `confirmed=false`. Permanent headers
+once in its existing table. Permanent headers
 for event blocks remain in `block`; the current confirmation boundary and sparse
 unconfirmed range checkpoints live in `scraper_checkpoint`. `scraper_head`
 contains only per-chain progress and health, not event payloads.
 
-The scraper flips `confirmed` after the chain's existing `reorgPeriod`. Legacy
-websocket notifications and gas-payment cursors are created on that transition.
-The proxy and Explorer query confirmed views, preserving their configured delay.
+The scraper advances `scraper_head.confirmed_height` after the chain's existing
+`reorgPeriod`. The proxy publishes that newly visible height range, and gas-payment
+cursors are allocated atomically with the frontier advance. The proxy and Explorer
+query confirmed views, preserving their configured delay.
 There is no new endpoint or subscriber-selected delay in this change.
 
-The migration also installs a future proxy notification contract without changing
-the current proxy's behavior. `scraper_event_provisional` announces provisional
-event inserts using the same `eventType`, `id`, and unsigned `domain` fields as
-`scraper_event`. `scraper_head` announces initialized, progress, status, and
+`scraper_head` announces initialized, progress, status, and
 rollback boundaries, including the indexed hash and previous indexed height.
-Both channels are transactional PostgreSQL notifications. A rollback emits one
+These are transactional PostgreSQL notifications. A rollback emits one
 head boundary rather than one notification for every deleted event. Notifications
 are wake-up hints; reconnect and catch-up must read the persisted rows and head.
 
@@ -177,7 +175,8 @@ hangs, and verify uncached successful receipts survive a neighboring timeout.
    and historical boundary state. Fleet capability has not been established by
    the local tests. There is no legacy opt-out after this hard cutover.
 2. Build this scraper and migration, and prepare the scraper image-tag update for
-   every environment sharing the database. Stop **all** such scraper deployments.
+   every environment sharing the database. Deploy the matching proxy first so it
+   listens for frontier notifications, then stop **all** scraper deployments.
    For `explorer4`, this means both mainnet3 and testnet4. Apply the migration
    before deploying the matching binaries. Land the image-tag update before or
    with the migration so a routine deployment cannot restart an old writer.
@@ -284,8 +283,7 @@ are stored minus `2^32`), `height`, `timestamp` as Unix seconds, and `block_hash
 `mailbox`, `hook`, `paymaster` as hex without `0x`, using `psql -v name=value`.
 
 Run the expensive overlap checks outside the seed transaction after all writers
-are stopped. Every maximum must be NULL or at most `H`, and every provisional
-flag must be false:
+are stopped. Every maximum must be NULL or at most `H`:
 
 ```sql
 SELECT
@@ -293,11 +291,7 @@ SELECT
   (SELECT max(origin_block_height) FROM raw_message_dispatch WHERE origin_domain=:'domain'::integer) AS dispatch_max,
   (SELECT max(block_number) FROM merkle_tree_insertion WHERE domain=:'domain'::integer) AS merkle_max,
   (SELECT max(block_number) FROM delivered_message WHERE domain=:'domain'::integer) AS delivery_max,
-  (SELECT max(block_number) FROM gas_payment WHERE domain=:'domain'::integer) AS gas_max,
-  EXISTS (SELECT 1 FROM raw_message_dispatch WHERE origin_domain=:'domain'::integer AND NOT confirmed) AS dispatch_provisional,
-  EXISTS (SELECT 1 FROM merkle_tree_insertion WHERE domain=:'domain'::integer AND NOT confirmed) AS merkle_provisional,
-  EXISTS (SELECT 1 FROM delivered_message WHERE domain=:'domain'::integer AND NOT confirmed) AS delivery_provisional,
-  EXISTS (SELECT 1 FROM gas_payment WHERE domain=:'domain'::integer AND NOT confirmed) AS gas_provisional;
+  (SELECT max(block_number) FROM gas_payment WHERE domain=:'domain'::integer) AS gas_max;
 ```
 
 The seed uses only the per-domain advisory lock and repeats cheap indexed checks.
@@ -377,16 +371,17 @@ SQL consumers wanting the old visibility must use `confirmed_raw_message_dispatc
 both their names and output columns. Raw event tables now include provisional rows.
 Roles with `SELECT` on any event table also receive `SELECT` on `scraper_head`.
 
-To roll back to the previous near-head scraper image, stop every scraper deployment
-sharing the database and run `cargo run --release -p migration --bin down 1`.
-This restores retained checkpoints to `block`; no provisional drain is required
-because that image understands provisional rows. Then deploy the previous scraper
-image. Never start it before the down migration.
+To roll back to the previous near-head scraper image from this version, stop every
+scraper deployment sharing the database and run
+`cargo run --release -p migration --bin down 1`. This restores the transitional
+`confirmed` columns without rewriting historical confirmed rows. Then deploy the
+previous scraper image. Never start it before the down migration.
 
 To return to legacy indexers, stop every scraper writer, drain or explicitly
 repair/discard provisional and halted history, then run
-`cargo run --release -p migration --bin down 2`. The second down migration removes
+`cargo run --release -p migration --bin down 3`. The final down migration removes
 confirmation filtering and drops `scraper_head`; it refuses to proceed while
-provisional or halted history remains. The first down migration restores and
+provisional or halted history remains. The checkpoint migration restores and
 drops `scraper_checkpoint`, so both near-head state tables are gone before legacy
-indexing restarts.
+indexing restarts. Use `down 2` only to return to the earlier near-head image that
+still stored checkpoints in `block`.

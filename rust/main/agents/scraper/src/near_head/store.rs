@@ -136,11 +136,6 @@ impl Store {
                 vec![self.domain(), bytes(anchor.hash), number(anchor.height)?, number(anchor.timestamp)?],
             )).await?;
         }
-        tx.execute(sql(
-            "UPDATE scraper_head SET healthy=false WHERE domain=$1",
-            vec![self.domain()],
-        ))
-        .await?;
         tx.commit().await?;
         Ok(())
     }
@@ -180,12 +175,17 @@ impl Store {
     }
 
     pub async fn pause(&self, halt: bool) -> Result<()> {
-        self.db
+        let result = self
+            .db
             .execute(sql(
-                "UPDATE scraper_head SET healthy=false,halted=halted OR $2 WHERE domain=$1",
-                vec![self.domain(), halt.into()],
+                "UPDATE scraper_head SET healthy=false,halted=halted OR $2 WHERE domain=$1 AND (writer_id IS NULL OR writer_id=$3)",
+                vec![self.domain(), halt.into(), writer_id().into()],
             ))
             .await?;
+        ensure!(
+            result.rows_affected() == 1,
+            "Another near-head writer owns this domain"
+        );
         Ok(())
     }
 
@@ -410,7 +410,7 @@ impl Store {
 
     pub async fn enrich(&self, table: &str, after: i64, through: i64) -> Result<()> {
         let column = transaction_column(table)?;
-        self.db.execute(sql(format!("UPDATE {table} e SET {column}=t.id FROM \"transaction\" t JOIN block b ON b.id=t.block_id WHERE e.domain=$1 AND e.id>$2 AND e.id<=$3 AND (NOT EXISTS (SELECT 1 FROM scraper_head h WHERE h.domain=e.domain) OR e.block_number<=(SELECT h.confirmed_height FROM scraper_head h WHERE h.domain=e.domain)) AND e.{column} IS NULL AND t.hash=e.transaction_hash AND b.domain=e.domain AND b.hash=e.block_hash"), vec![self.domain(), after.into(), through.into()])).await?;
+        self.db.execute(sql(format!("UPDATE {table} e SET {column}=t.id FROM \"transaction\" t JOIN block b ON b.id=t.block_id WHERE e.domain=$1 AND e.id>$2 AND e.id<=$3 AND (e.block_number IS NULL OR e.block_number<=COALESCE((SELECT h.confirmed_height FROM scraper_head h WHERE h.domain=e.domain),9223372036854775807)) AND e.{column} IS NULL AND t.hash=e.transaction_hash AND b.domain=e.domain AND b.hash=e.block_hash"), vec![self.domain(), after.into(), through.into()])).await?;
         Ok(())
     }
 }

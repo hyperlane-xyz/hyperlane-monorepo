@@ -79,7 +79,6 @@ pub async fn spawn(
         domain: conf.domain.id(),
     };
     let anchor_height = store.anchor_height(u32::try_from(conf.index.from)?).await?;
-    store.pause(false).await?;
     let anchor = source.header(anchor_height.into()).await?;
     let period = conf.reorg_period.clone();
     ensure!(conf.index.chunk_size > 0, "index.chunk must be positive");
@@ -90,7 +89,6 @@ pub async fn spawn(
         .configured_interval
         .unwrap_or(Duration::from_secs(30));
     prepare(source.as_ref(), &store, &anchor, &contracts, &period).await?;
-    store.claim(confirmation_lease(poll_interval)).await?;
     let worker = runtime::Worker {
         source,
         store,

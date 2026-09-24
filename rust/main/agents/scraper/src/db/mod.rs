@@ -1,6 +1,8 @@
 pub use block::*;
 pub use block_cursor::BlockCursor;
-use eyre::Result;
+use std::time::Duration;
+
+use eyre::{ensure, Result};
 pub use merkle_tree_insertion::*;
 pub use message::*;
 pub use payment::*;
@@ -33,12 +35,30 @@ impl ScraperDb {
     // Hash lookups bind one parameter per hash; stay below PostgreSQL's 65,535 limit.
     const HASH_LOOKUP_CHUNK_SIZE: usize = 65_000;
 
+    #[cfg(test)]
     #[instrument]
     pub async fn connect(url: &str) -> Result<Self> {
+        Self::connect_with_options(url, 10, Duration::from_secs(15)).await
+    }
+
+    #[instrument]
+    pub async fn connect_with_options(
+        url: &str,
+        max_connections: u32,
+        acquire_timeout: Duration,
+    ) -> Result<Self> {
+        ensure!(max_connections > 0, "Database pool must allow a connection");
+        ensure!(
+            !acquire_timeout.is_zero(),
+            "Database acquire timeout must be positive"
+        );
         // One shared pool is the global backpressure boundary for indexing,
         // confirmation and enrichment across every configured chain.
         let mut options = ConnectOptions::new(url);
-        options.max_connections(20).min_connections(1);
+        options
+            .max_connections(max_connections)
+            .min_connections(1)
+            .acquire_timeout(acquire_timeout);
         let db = Database::connect(options).await?;
         Ok(Self(db))
     }
@@ -63,7 +83,7 @@ impl ScraperDb {
 
 pub(super) fn confirmed_event(table: &str, domain: &str, height: &str) -> SimpleExpr {
     Expr::cust(format!(
-        "NOT EXISTS (SELECT 1 FROM scraper_head h WHERE h.domain={table}.{domain}) OR {table}.{height}<=(SELECT h.confirmed_height FROM scraper_head h WHERE h.domain={table}.{domain})"
+        "{table}.{height} IS NULL OR {table}.{height}<=COALESCE((SELECT h.confirmed_height FROM scraper_head h WHERE h.domain={table}.{domain}),9223372036854775807)"
     ))
 }
 

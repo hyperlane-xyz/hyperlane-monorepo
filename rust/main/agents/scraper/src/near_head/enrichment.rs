@@ -92,17 +92,25 @@ async fn run_stream(legacy: &HyperlaneDbStore, table: &str, poll_interval: Durat
     let stagger_period = u64::try_from(poll_interval.as_millis())
         .unwrap_or(u64::MAX)
         .max(1);
-    let stagger = u64::from(legacy.domain.id())
-        .saturating_mul(2)
-        .saturating_add(salt)
-        .checked_rem(stagger_period)
-        .unwrap_or_default();
+    let stagger = if cfg!(test) {
+        0
+    } else {
+        u64::from(legacy.domain.id())
+            .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+            .saturating_mul(2)
+            .saturating_add(salt)
+            .checked_rem(stagger_period)
+            .unwrap_or_default()
+    };
     sleep(Duration::from_millis(stagger)).await;
     loop {
-        let Ok(_permit) = RECEIPT_PERMITS.acquire().await else {
-            return;
+        let more = {
+            let Ok(_permit) = RECEIPT_PERMITS.acquire().await else {
+                return;
+            };
+            enrich_page(legacy, table, &mut after, RECEIPT_TIMEOUT).await
         };
-        if enrich_page(legacy, table, &mut after, RECEIPT_TIMEOUT).await {
+        if more {
             // Each turn is bounded to one page. Let other worker tasks run even
             // when a large cache-only backlog never needs to wait for an RPC.
             tokio::task::yield_now().await;

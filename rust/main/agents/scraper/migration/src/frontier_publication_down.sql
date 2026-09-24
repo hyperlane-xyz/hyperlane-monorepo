@@ -1,3 +1,5 @@
+SET LOCAL lock_timeout='5s';
+
 CREATE TEMP TABLE frontier_down_view_grant ON COMMIT DROP AS
 SELECT c.relname,a.grantee,a.privilege_type,a.is_grantable
 FROM pg_class c CROSS JOIN LATERAL aclexplode(c.relacl) a
@@ -17,26 +19,18 @@ DROP VIEW message_view,total_gas_payment;
 DROP VIEW confirmed_raw_message_dispatch,confirmed_delivered_message,
   confirmed_gas_payment,confirmed_merkle_tree_insertion;
 
-ALTER TABLE raw_message_dispatch ADD COLUMN confirmed boolean;
-ALTER TABLE delivered_message ADD COLUMN confirmed boolean;
-ALTER TABLE gas_payment ADD COLUMN confirmed boolean;
-ALTER TABLE merkle_tree_insertion ADD COLUMN confirmed boolean;
-UPDATE raw_message_dispatch e SET confirmed=(h.confirmed_height IS NULL OR e.origin_block_height<=h.confirmed_height)
- FROM (SELECT d.id AS domain,h.confirmed_height FROM domain d LEFT JOIN scraper_head h ON h.domain=d.id) h
- WHERE h.domain=e.origin_domain;
-UPDATE delivered_message e SET confirmed=(h.confirmed_height IS NULL OR e.block_number<=h.confirmed_height)
- FROM (SELECT d.id AS domain,h.confirmed_height FROM domain d LEFT JOIN scraper_head h ON h.domain=d.id) h
- WHERE h.domain=e.domain;
-UPDATE gas_payment e SET confirmed=(h.confirmed_height IS NULL OR e.block_number<=h.confirmed_height)
- FROM (SELECT d.id AS domain,h.confirmed_height FROM domain d LEFT JOIN scraper_head h ON h.domain=d.id) h
- WHERE h.domain=e.domain;
-UPDATE merkle_tree_insertion e SET confirmed=(h.confirmed_height IS NULL OR e.block_number<=h.confirmed_height)
- FROM (SELECT d.id AS domain,h.confirmed_height FROM domain d LEFT JOIN scraper_head h ON h.domain=d.id) h
- WHERE h.domain=e.domain;
-ALTER TABLE raw_message_dispatch ALTER COLUMN confirmed SET DEFAULT true,ALTER COLUMN confirmed SET NOT NULL;
-ALTER TABLE delivered_message ALTER COLUMN confirmed SET DEFAULT true,ALTER COLUMN confirmed SET NOT NULL;
-ALTER TABLE gas_payment ALTER COLUMN confirmed SET DEFAULT true,ALTER COLUMN confirmed SET NOT NULL;
-ALTER TABLE merkle_tree_insertion ALTER COLUMN confirmed SET DEFAULT true,ALTER COLUMN confirmed SET NOT NULL;
+ALTER TABLE raw_message_dispatch ADD COLUMN confirmed boolean NOT NULL DEFAULT true;
+ALTER TABLE delivered_message ADD COLUMN confirmed boolean NOT NULL DEFAULT true;
+ALTER TABLE gas_payment ADD COLUMN confirmed boolean NOT NULL DEFAULT true;
+ALTER TABLE merkle_tree_insertion ADD COLUMN confirmed boolean NOT NULL DEFAULT true;
+UPDATE raw_message_dispatch e SET confirmed=false FROM scraper_head h
+ WHERE h.domain=e.origin_domain AND e.origin_block_height>h.confirmed_height;
+UPDATE delivered_message e SET confirmed=false FROM scraper_head h
+ WHERE h.domain=e.domain AND e.block_number>h.confirmed_height;
+UPDATE gas_payment e SET confirmed=false FROM scraper_head h
+ WHERE h.domain=e.domain AND e.block_number>h.confirmed_height;
+UPDATE merkle_tree_insertion e SET confirmed=false FROM scraper_head h
+ WHERE h.domain=e.domain AND e.block_number>h.confirmed_height;
 
 CREATE INDEX gas_payment_unconfirmed ON gas_payment(domain,block_number) WHERE NOT confirmed;
 CREATE INDEX merkle_insertion_unconfirmed ON merkle_tree_insertion(domain,block_number) WHERE NOT confirmed;
@@ -106,6 +100,7 @@ CREATE TRIGGER gas_payment_stream_cursor_confirm AFTER UPDATE OF confirmed ON ga
  FOR EACH ROW WHEN (NEW.confirmed AND NOT OLD.confirmed) EXECUTE FUNCTION assign_gas_payment_stream_cursor();
 
 DROP FUNCTION assign_confirmed_gas_payment_cursors(integer,bigint,bigint);
-DROP INDEX delivery_frontier_unenriched,gas_payment_frontier_unenriched,
+DROP STATISTICS gas_payment_domain_paymaster_dependencies;
+DROP INDEX IF EXISTS delivery_frontier_unenriched,gas_payment_frontier_unenriched,
   gas_payment_frontier_height,merkle_insertion_frontier_height;
 ALTER TABLE scraper_head DROP COLUMN writer_lease_until,DROP COLUMN writer_id;

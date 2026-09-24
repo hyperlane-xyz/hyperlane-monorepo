@@ -42,6 +42,25 @@ pub const GAS_PAYMENT_SCOPE: ScraperIndex = ScraperIndex {
     predicate: None,
 };
 
+pub const DELIVERY_FRONTIER_UNENRICHED: ScraperIndex = ScraperIndex {
+    name: "delivery_frontier_unenriched",
+    table: "delivered_message",
+    keys: &["domain", "id"],
+    predicate: Some("((destination_tx_id IS NULL) AND (block_hash IS NOT NULL))"),
+};
+pub const GAS_PAYMENT_FRONTIER_UNENRICHED: ScraperIndex = ScraperIndex {
+    name: "gas_payment_frontier_unenriched",
+    table: "gas_payment",
+    keys: &["domain", "id"],
+    predicate: Some("((tx_id IS NULL) AND (block_hash IS NOT NULL))"),
+};
+pub const GAS_PAYMENT_FRONTIER_HEIGHT: ScraperIndex = ScraperIndex {
+    name: "gas_payment_frontier_height",
+    table: "gas_payment",
+    keys: &["domain", "block_number"],
+    predicate: Some("(block_number IS NOT NULL)"),
+};
+
 /// Run after transactional migrations have committed. Concurrent index creation
 /// cannot run inside the SeaORM migration transaction.
 pub async fn create_indexes(db: &DatabaseConnection) -> eyre::Result<()> {
@@ -51,9 +70,16 @@ pub async fn create_indexes(db: &DatabaseConnection) -> eyre::Result<()> {
         DELIVERY_SCOPE,
         MERKLE_BLOCK_HEIGHT,
         GAS_PAYMENT_SCOPE,
+        DELIVERY_FRONTIER_UNENRICHED,
+        GAS_PAYMENT_FRONTIER_UNENRICHED,
+        GAS_PAYMENT_FRONTIER_HEIGHT,
     ] {
         create_index(db, index).await?;
     }
+    db.execute_unprepared(
+        "ANALYZE raw_message_dispatch,delivered_message,gas_payment,merkle_tree_insertion",
+    )
+    .await?;
     Ok(())
 }
 

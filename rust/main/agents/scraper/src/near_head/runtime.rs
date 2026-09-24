@@ -29,6 +29,7 @@ impl Worker {
             .unwrap_or(u64::MAX)
             .max(1);
         let stagger = u64::from(self.domain.id())
+            .wrapping_mul(0x9E37_79B9_7F4A_7C15)
             .checked_rem(stagger_period)
             .unwrap_or_default();
         sleep(Duration::from_millis(stagger)).await;

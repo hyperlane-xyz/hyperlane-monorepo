@@ -122,8 +122,18 @@ async fn unchanged_delivery_replays_preserve_row_and_notifications() -> eyre::Re
     assert!(
         tokio::time::timeout(Duration::from_millis(100), listener.recv())
             .await
-            .is_err()
+            .is_err(),
+        "Frontier publication uses the head notification"
     );
+    db.store_deliveries(
+        1,
+        H256::zero(),
+        [delivery(Some(second_tx), &meta)].into_iter(),
+    )
+    .await?;
+    let notification = tokio::time::timeout(Duration::from_secs(1), listener.recv()).await??;
+    let payload: serde_json::Value = serde_json::from_str(notification.payload())?;
+    assert_eq!(payload["messageId"], format!("{:064x}", 100));
     Ok(())
 }
 

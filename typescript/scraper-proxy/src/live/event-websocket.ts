@@ -62,6 +62,7 @@ const MAX_EXPLORER_PENDING_MESSAGES = 2_000;
 const MAX_CLIENT_MESSAGES = 30;
 const MAX_PENDING_EVENTS = 5_000;
 const MAX_PENDING_NOTIFICATIONS = 10_000;
+const MAX_HEAD_PUBLICATION_FAILURES = 3;
 const GAS_PAYMENT_STREAM_CURSOR = 'gas_payment_stream_cursor';
 const GAS_PAYMENT_STREAM_HEAD = 'gas_payment_stream_head';
 const STREAM_CURSOR_COLUMN = 'scraper_stream_cursor';
@@ -118,6 +119,12 @@ type Limits = {
 type SerializedMessage = Buffer;
 type HeadRange = { after: bigint; through: bigint };
 export type EventDatabase = Pick<DbService, 'listen' | 'queryLive'>;
+
+class PartialHeadPublicationError extends Error {
+  constructor(readonly original: unknown) {
+    super(`frontier publication partially completed: ${formatError(original)}`);
+  }
+}
 
 function stream(
   table: string,
@@ -185,6 +192,7 @@ export class EventWebSocketServer {
   private readonly explorerNotifications = new Set<string>();
   private readonly notifications = new Map<string, EventNotification>();
   private readonly headRanges = new Map<number, HeadRange>();
+  private readonly headFailures = new Map<number, number>();
   private heartbeatTimer?: NodeJS.Timeout;
   private listenerRetryTimer?: NodeJS.Timeout;
   private agentNotificationTimer?: NodeJS.Timeout;
@@ -1186,10 +1194,30 @@ export class EventWebSocketServer {
   private async drainHeadNotifications(): Promise<void> {
     if (this.drainingHeadNotifications) return;
     this.drainingHeadNotifications = true;
-    let succeeded = false;
     try {
       for (const [domain, range] of this.headRanges) {
-        await this.publishHeadRange(domain, range);
+        try {
+          await this.publishHeadRange(domain, range);
+          this.headFailures.delete(domain);
+        } catch (error) {
+          if (error instanceof PartialHeadPublicationError) {
+            this.logger.error(error.message);
+            this.failAgentStream(error.original);
+            this.failExplorerStream(error.original);
+            return;
+          }
+          const failures = (this.headFailures.get(domain) ?? 0) + 1;
+          this.headFailures.set(domain, failures);
+          this.logger.error(
+            `frontier publication failed for domain ${domain} (${failures}/${MAX_HEAD_PUBLICATION_FAILURES}): ${formatError(error)}`,
+          );
+          if (failures >= MAX_HEAD_PUBLICATION_FAILURES) {
+            this.failAgentStream(error);
+            this.failExplorerStream(error);
+            return;
+          }
+          continue;
+        }
         const current = this.headRanges.get(domain);
         if (!current) continue;
         if (current.through <= range.through) {
@@ -1201,10 +1229,9 @@ export class EventWebSocketServer {
           });
         }
       }
-      succeeded = true;
     } finally {
       this.drainingHeadNotifications = false;
-      if (succeeded && this.headRanges.size) this.scheduleHeadDrain();
+      if (this.headRanges.size) this.scheduleHeadDrain(LISTENER_RETRY_MS);
     }
   }
 
@@ -1212,54 +1239,83 @@ export class EventWebSocketServer {
     domain: number,
     { after, through }: HeadRange,
   ): Promise<void> {
-    const messageIds = new Set<string>();
-    const batches: Array<{
-      agentInterested: boolean;
-      eventType: EventType;
-      rows: Row[];
-    }> = [];
-    for (const eventType of EVENT_TYPES) {
-      const agentInterested = this.hasSubscriber({
-        domain,
-        eventType,
-        id: 0n,
-      });
-      const explorerInterested =
-        this.explorerClients.size > 0 &&
-        (eventType === 'delivery' || eventType === 'gas_payment');
-      if (!agentInterested && !explorerInterested) continue;
-      const stream = STREAMS[eventType];
-      const height =
-        eventType === 'dispatch' ? 'origin_block_height' : 'block_number';
-      const gasPaymentCursor =
-        eventType === 'gas_payment'
-          ? ` LEFT JOIN ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} ON ${q('event_cursor')}.${q('gas_payment_id')} = ${q('event_row')}.${q('id')}`
-          : '';
-      const gasPaymentMetadata =
-        eventType === 'gas_payment' ? gasPaymentMetadataJoins('LEFT JOIN') : '';
-      const eventProjection =
-        eventType === 'gas_payment'
-          ? gasPaymentColumns(stream)
-          : columns(stream, 'event_row');
-      const cursorProjection =
-        eventType === 'gas_payment'
-          ? `, ${gasPaymentCursorExpression()} AS ${q(STREAM_CURSOR_COLUMN)}`
-          : '';
-      const rows = await this.db.queryLive<Row>(
-        `SELECT ${eventProjection}${cursorProjection} FROM ${q(stream.table)} AS ${q('event_row')}${gasPaymentMetadata}${gasPaymentCursor} WHERE ${q('event_row')}.${q(stream.domain)}=$1 AND ${q('event_row')}.${q(height)}>$2::bigint AND ${q('event_row')}.${q(height)}<=$3::bigint ORDER BY ${q('event_row')}.${q(height)}, ${q('event_row')}.${q('id')}`,
-        [storedDomain(domain), after.toString(), through.toString()],
-      );
-      rows.forEach((row) => {
-        const messageId = row.msg_id ?? row.message_id;
-        if (typeof messageId === 'string') messageIds.add(messageId);
-      });
-      batches.push({ agentInterested, eventType, rows });
-    }
-    if (messageIds.size && this.explorerClients.size) {
-      await this.publishExplorer([...messageIds]);
-    }
-    for (const { agentInterested, eventType, rows } of batches) {
-      if (agentInterested) rows.forEach((row) => this.publish(eventType, row));
+    let published = false;
+    try {
+      for (const eventType of EVENT_TYPES) {
+        const agentInterested = this.hasSubscriber({
+          domain,
+          eventType,
+          id: 0n,
+        });
+        const explorerInterested =
+          this.explorerClients.size > 0 &&
+          (eventType === 'delivery' || eventType === 'gas_payment');
+        if (!agentInterested && !explorerInterested) continue;
+        const stream = STREAMS[eventType];
+        const height =
+          eventType === 'dispatch' ? 'origin_block_height' : 'block_number';
+        const gasPaymentCursor =
+          eventType === 'gas_payment'
+            ? ` LEFT JOIN ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} ON ${q('event_cursor')}.${q('gas_payment_id')} = ${q('event_row')}.${q('id')}`
+            : '';
+        const gasPaymentMetadata =
+          eventType === 'gas_payment'
+            ? gasPaymentMetadataJoins('LEFT JOIN')
+            : '';
+        const eventProjection =
+          eventType === 'gas_payment'
+            ? gasPaymentColumns(stream)
+            : columns(stream, 'event_row');
+        const cursorProjection =
+          eventType === 'gas_payment'
+            ? `, ${gasPaymentCursorExpression()} AS ${q(STREAM_CURSOR_COLUMN)}`
+            : '';
+        let cursorHeight = after;
+        let cursorId = 0n;
+        while (true) {
+          const rows = await this.db.queryLive<Row>(
+            `SELECT ${eventProjection}${cursorProjection} FROM ${q(stream.table)} AS ${q('event_row')}${gasPaymentMetadata}${gasPaymentCursor} WHERE ${q('event_row')}.${q(stream.domain)}=$1 AND ${q('event_row')}.${q(height)}>$2::bigint AND ${q('event_row')}.${q(height)}<=$3::bigint AND (${q('event_row')}.${q(height)}>$4::bigint OR (${q('event_row')}.${q(height)}=$4::bigint AND ${q('event_row')}.${q('id')}>$5::bigint)) ORDER BY ${q('event_row')}.${q(height)}, ${q('event_row')}.${q('id')} LIMIT $6`,
+            [
+              storedDomain(domain),
+              after.toString(),
+              through.toString(),
+              cursorHeight.toString(),
+              cursorId.toString(),
+              config.EVENT_STREAM_BATCH_SIZE,
+            ],
+          );
+          if (!rows.length) break;
+          const lastByHeight = rows.at(-1)!;
+          const nextHeight = parseId(lastByHeight[height]);
+          const nextId = parseId(lastByHeight.id);
+          rows.sort((a, b) => compareRows(eventType, a, b));
+          if (agentInterested) {
+            published = true;
+            rows.forEach((row) => this.publish(eventType, row));
+          }
+          if (explorerInterested && this.explorerClients.size) {
+            const messageIds = new Set<string>();
+            rows.forEach((row) => {
+              const messageId = row.msg_id ?? row.message_id;
+              if (typeof messageId === 'string') messageIds.add(messageId);
+            });
+            if (messageIds.size) {
+              try {
+                published = true;
+                await this.publishExplorer([...messageIds]);
+              } catch (error) {
+                this.failExplorerStream(error);
+              }
+            }
+          }
+          cursorHeight = nextHeight;
+          cursorId = nextId;
+          if (rows.length < config.EVENT_STREAM_BATCH_SIZE) break;
+        }
+      }
+    } catch (error) {
+      if (published) throw new PartialHeadPublicationError(error);
+      throw error;
     }
   }
 
@@ -1443,6 +1499,8 @@ export class EventWebSocketServer {
 
   private closeAgentClients(reason: string, code = 1013): void {
     this.notifications.clear();
+    this.headRanges.clear();
+    this.headFailures.clear();
     this.clients.forEach((_client, socket) => {
       this.cancelCatchUp(socket);
       socket.close(code, reason);

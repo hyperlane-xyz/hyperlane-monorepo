@@ -8,7 +8,7 @@ impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
             .get_connection()
-            .execute_unprepared(include_str!("near_head_checkpoints.sql"))
+            .execute_unprepared(include_str!("frontier_publication.sql"))
             .await?;
         Ok(())
     }
@@ -16,7 +16,7 @@ impl MigrationTrait for Migration {
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
             .get_connection()
-            .execute_unprepared(include_str!("near_head_checkpoints_down.sql"))
+            .execute_unprepared(include_str!("frontier_publication_down.sql"))
             .await?;
         Ok(())
     }

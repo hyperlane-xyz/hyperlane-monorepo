@@ -38,6 +38,7 @@ let explorerQueryError: Error | undefined;
 let explorerQueryGate: Promise<void> | undefined;
 let notificationQueryError: Error | undefined;
 let headQueryError: Error | undefined;
+let headQueryErrorDomain: number | undefined;
 let omitMappedGasPaymentRows = false;
 const notifiedIds = new Set<string>();
 const gasReplayQueries: string[] = [];
@@ -144,9 +145,15 @@ const db: EventDatabase = {
     }
     if (
       !sql.includes('notification_id') &&
-      sql.includes('"event_row"."block_number">')
+      (sql.includes('"event_row"."block_number">') ||
+        sql.includes('"event_row"."origin_block_height">'))
     ) {
-      if (headQueryError) throw headQueryError;
+      if (
+        headQueryError &&
+        (headQueryErrorDomain === undefined ||
+          headQueryErrorDomain === values[0])
+      )
+        throw headQueryError;
       const source = sql.includes('"confirmed_merkle_tree_insertion"')
         ? rows
         : sql.includes('"confirmed_delivered_message"')
@@ -156,22 +163,40 @@ const db: EventDatabase = {
             : dispatchRows;
       const after = BigInt(String(values[1]));
       const through = BigInt(String(values[2]));
+      const cursorHeight = BigInt(String(values[3]));
+      const cursorId = BigInt(String(values[4]));
       return queryRows<T>(
-        [...source.values()].filter((event) => {
-          const height = event.block_number;
-          if (
-            typeof height !== 'bigint' &&
-            typeof height !== 'number' &&
-            typeof height !== 'string'
-          )
-            return false;
-          const parsedHeight = BigInt(height);
-          return (
-            event.domain === values[0] &&
-            parsedHeight > after &&
-            parsedHeight <= through
-          );
-        }),
+        [...source.entries()]
+          .filter(([id, event]) => {
+            const height = event.block_number ?? event.origin_block_height;
+            if (
+              typeof height !== 'bigint' &&
+              typeof height !== 'number' &&
+              typeof height !== 'string'
+            )
+              return false;
+            const parsedHeight = BigInt(height);
+            return (
+              (event.domain ?? event.origin_domain) === values[0] &&
+              parsedHeight > after &&
+              parsedHeight <= through &&
+              (parsedHeight > cursorHeight ||
+                (parsedHeight === cursorHeight && BigInt(id) > cursorId))
+            );
+          })
+          .sort(([leftId, left], [rightId, right]) => {
+            const leftHeight = BigInt(
+              String(left.block_number ?? left.origin_block_height),
+            );
+            const rightHeight = BigInt(
+              String(right.block_number ?? right.origin_block_height),
+            );
+            if (leftHeight !== rightHeight)
+              return leftHeight < rightHeight ? -1 : 1;
+            return BigInt(leftId) < BigInt(rightId) ? -1 : 1;
+          })
+          .slice(0, Number(values[5]))
+          .map(([id, event]) => ({ id, ...event })),
       );
     }
     if (
@@ -963,6 +988,51 @@ void it('retries a frontier until its rows can be loaded', async () => {
   } finally {
     headQueryError = undefined;
     rows.delete('51');
+    socket.close();
+    await new Promise<void>((resolve) => socket.once('close', resolve));
+  }
+});
+
+void it('keeps one failing frontier from blocking another domain', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [
+          {
+            domains: [1, 2],
+            eventType: 'merkle_tree_insertion',
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'subscribed');
+    rows.set('52', {
+      ...row(hookA, 52),
+      block_number: '12',
+      domain: 2,
+    });
+    headQueryError = new Error('domain 1 unavailable');
+    headQueryErrorDomain = 1;
+    for (const domain of [1, 2]) {
+      notify(
+        'scraper_head',
+        JSON.stringify({
+          confirmedHeight: '12',
+          domain,
+          previousConfirmedHeight: '11',
+        }),
+      );
+    }
+    await waitUntil(() => eventSequences(messages).includes('52'));
+  } finally {
+    headQueryError = undefined;
+    headQueryErrorDomain = undefined;
+    rows.delete('52');
     socket.close();
     await new Promise<void>((resolve) => socket.once('close', resolve));
   }

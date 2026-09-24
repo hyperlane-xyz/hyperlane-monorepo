@@ -1,5 +1,7 @@
 -- Confirmation is represented only by scraper_head.confirmed_height. Preserve
 -- grants while replacing views whose old shape included the transitional flag.
+SET LOCAL lock_timeout='5s';
+
 CREATE TEMP TABLE frontier_view_grant ON COMMIT DROP AS
 SELECT c.relname,a.grantee,a.privilege_type,a.is_grantable
 FROM pg_class c CROSS JOIN LATERAL aclexplode(c.relacl) a
@@ -29,25 +31,25 @@ DROP FUNCTION notify_scraper_provisional_event();
 
 ALTER TABLE scraper_head ADD COLUMN writer_id text,
   ADD COLUMN writer_lease_until timestamptz;
-CREATE INDEX delivery_frontier_unenriched ON delivered_message(domain,id)
- WHERE destination_tx_id IS NULL AND block_hash IS NOT NULL;
-CREATE INDEX gas_payment_frontier_unenriched ON gas_payment(domain,id)
- WHERE tx_id IS NULL AND block_hash IS NOT NULL;
-CREATE INDEX gas_payment_frontier_height ON gas_payment(domain,block_number);
-CREATE INDEX merkle_insertion_frontier_height ON merkle_tree_insertion(domain,block_number);
+CREATE STATISTICS gas_payment_domain_paymaster_dependencies (dependencies)
+ ON domain,interchain_gas_paymaster FROM gas_payment;
 
 CREATE VIEW confirmed_raw_message_dispatch AS
- SELECT e.* FROM raw_message_dispatch e LEFT JOIN scraper_head h ON h.domain=e.origin_domain
- WHERE h.domain IS NULL OR e.origin_block_height<=h.confirmed_height;
+ SELECT e.* FROM raw_message_dispatch e
+ WHERE e.origin_block_height<=COALESCE((SELECT h.confirmed_height FROM scraper_head h
+   WHERE h.domain=e.origin_domain),9223372036854775807);
 CREATE VIEW confirmed_delivered_message AS
- SELECT e.* FROM delivered_message e LEFT JOIN scraper_head h ON h.domain=e.domain
- WHERE h.domain IS NULL OR e.block_number<=h.confirmed_height;
+ SELECT e.* FROM delivered_message e
+ WHERE e.block_number IS NULL OR e.block_number<=COALESCE((SELECT h.confirmed_height
+   FROM scraper_head h WHERE h.domain=e.domain),9223372036854775807);
 CREATE VIEW confirmed_gas_payment AS
- SELECT e.* FROM gas_payment e LEFT JOIN scraper_head h ON h.domain=e.domain
- WHERE h.domain IS NULL OR e.block_number<=h.confirmed_height;
+ SELECT e.* FROM gas_payment e
+ WHERE e.block_number IS NULL OR e.block_number<=COALESCE((SELECT h.confirmed_height
+   FROM scraper_head h WHERE h.domain=e.domain),9223372036854775807);
 CREATE VIEW confirmed_merkle_tree_insertion AS
- SELECT e.* FROM merkle_tree_insertion e LEFT JOIN scraper_head h ON h.domain=e.domain
- WHERE h.domain IS NULL OR e.block_number<=h.confirmed_height;
+ SELECT e.* FROM merkle_tree_insertion e
+ WHERE e.block_number<=COALESCE((SELECT h.confirmed_height FROM scraper_head h
+   WHERE h.domain=e.domain),9223372036854775807);
 
 DO $$ DECLARE item record; BEGIN
   FOR item IN SELECT * FROM frontier_view_definition LOOP
@@ -82,6 +84,7 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM scraper_head h
     WHERE h.domain=(to_jsonb(NEW)->>'domain')::integer
+      AND (TG_OP='INSERT' OR (to_jsonb(NEW)->>'block_number')::bigint>h.confirmed_height)
   ) THEN RETURN NEW; END IF;
   PERFORM pg_notify('scraper_explorer_event',json_build_object('messageId',encode(NEW.msg_id,'hex'))::text);
   RETURN NEW;

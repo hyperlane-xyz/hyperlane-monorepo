@@ -388,7 +388,12 @@ impl BaseAgent for Scraper {
     where
         Self: Sized,
     {
-        let db = ScraperDb::connect(&settings.db).await?;
+        let db = ScraperDb::connect_with_options(
+            &settings.db,
+            settings.db_max_connections,
+            settings.db_acquire_timeout,
+        )
+        .await?;
         let core = settings.build_hyperlane_core(metrics.clone());
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
@@ -1719,6 +1724,8 @@ mod test {
                 tracing: TracingConfig::default(),
             },
             db: String::new(),
+            db_max_connections: 10,
+            db_acquire_timeout: Duration::from_secs(15),
             chains_to_scrape: vec![],
             ccr_routers: HashMap::new(),
         }
