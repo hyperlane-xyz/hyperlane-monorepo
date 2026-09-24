@@ -8,6 +8,7 @@ import type { QueryResultRow } from 'pg';
 import {
   metricsRegistry,
   websocketCatchUps,
+  websocketNotificationQueueOverflows,
   websocketSendFailures,
 } from '../metrics.js';
 import type { EventDatabase, EventWebSocketServer } from './event-websocket.js';
@@ -42,6 +43,7 @@ let headQueryError: Error | undefined;
 let headQueryErrorDomain: number | undefined;
 let headQueryErrorEventType: EventType | undefined;
 let omitMappedGasPaymentRows = false;
+let omitExplorerRows = false;
 const notifiedIds = new Set<string>();
 const gasReplayQueries: string[] = [];
 
@@ -94,6 +96,7 @@ const db: EventDatabase = {
       if (explorerQueryError) throw explorerQueryError;
       const messageIds = stringArray(values[0]);
       explorerBatchSizes.push(messageIds.length);
+      if (omitExplorerRows) return [];
       return queryRows<T>(
         messageIds.map((messageId) => ({
           id: '42',
@@ -1253,6 +1256,69 @@ void it('disconnects only subscribers of a persistently failing domain', async (
     headQueryErrorDomain = undefined;
     for (const socket of sockets) socket.terminate();
     await waitUntil(() => events.metricsSnapshot().connections.agent === 0);
+  }
+});
+
+void it('drains Explorer ids from a frontier range larger than the queue cap', async () => {
+  const explorer = new WebSocket(messagesUrl);
+  const explorerMessages: Record<string, unknown>[] = [];
+  explorer.on('message', (data) =>
+    explorerMessages.push(parseRecord(rawData(data))),
+  );
+  const count = 12_000;
+  const ids = Array.from({ length: count }, (_, index) =>
+    String(100_000 + index),
+  );
+  const batchesBefore = explorerBatchSizes.length;
+  const overflows = async () =>
+    (await websocketNotificationQueueOverflows.get()).values
+      .filter(({ labels }) => labels.route === 'messages')
+      .reduce((total, { value }) => total + value, 0);
+  const overflowsBefore = await overflows();
+  // Isolate the notification queue from per-socket outbound limits.
+  omitExplorerRows = true;
+  try {
+    await waitFor(explorerMessages, 'ready');
+    ids.forEach((id, index) =>
+      deliveryRows.set(id, {
+        block_number: '31',
+        destination_mailbox: hookB,
+        destination_tx_id: null,
+        domain: 1,
+        msg_id: `\\x${index.toString(16).padStart(64, '0')}`,
+        sequence: null,
+        time_created: new Date(0).toISOString(),
+      }),
+    );
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '31',
+        domain: 1,
+        previousConfirmedHeight: '30',
+      }),
+    );
+    await waitUntil(
+      () =>
+        explorerBatchSizes
+          .slice(batchesBefore)
+          .reduce((total, size) => total + size, 0) >= count ||
+        explorer.readyState !== WebSocket.OPEN,
+      3_000,
+    );
+    assert.equal(explorer.readyState, WebSocket.OPEN);
+    assert.equal(
+      explorerBatchSizes
+        .slice(batchesBefore)
+        .reduce((total, size) => total + size, 0),
+      count,
+    );
+    assert.equal(await overflows(), overflowsBefore);
+  } finally {
+    omitExplorerRows = false;
+    ids.forEach((id) => deliveryRows.delete(id));
+    explorer.close();
+    await waitUntil(() => explorer.readyState === WebSocket.CLOSED);
   }
 });
 

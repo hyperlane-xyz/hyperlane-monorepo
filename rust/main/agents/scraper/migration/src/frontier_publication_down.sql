@@ -23,6 +23,10 @@ ALTER TABLE raw_message_dispatch ADD COLUMN confirmed boolean NOT NULL DEFAULT t
 ALTER TABLE delivered_message ADD COLUMN confirmed boolean NOT NULL DEFAULT true;
 ALTER TABLE gas_payment ADD COLUMN confirmed boolean NOT NULL DEFAULT true;
 ALTER TABLE merkle_tree_insertion ADD COLUMN confirmed boolean NOT NULL DEFAULT true;
+-- Mark only the provisional suffix. The id array is bounded by rows above each
+-- chain's confirmed height (the provisional window is capped at 10k blocks per
+-- chain; a few hundred rows in practice). Matching ids avoids a join the planner
+-- can turn into a whole-table hash join under the exclusive lock.
 UPDATE raw_message_dispatch SET confirmed=false WHERE id=ANY(ARRAY(
   SELECT pending.id FROM scraper_head h CROSS JOIN LATERAL (
     SELECT id FROM raw_message_dispatch p WHERE p.origin_domain=h.domain AND p.origin_block_height>h.confirmed_height

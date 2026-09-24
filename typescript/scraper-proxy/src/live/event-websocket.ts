@@ -1337,10 +1337,23 @@ export class EventWebSocketServer {
             events.forEach((row) => this.publish(eventType, row));
           }
           if (explorerInterested && this.explorerClients.size) {
+            const batch: string[] = [];
             events.forEach((row) => {
               const messageId = row.msg_id ?? row.message_id;
-              if (typeof messageId === 'string') explorerIds.add(messageId);
+              if (
+                typeof messageId === 'string' &&
+                !explorerIds.has(messageId)
+              ) {
+                explorerIds.add(messageId);
+                batch.push(messageId);
+              }
             });
+            // A range after an outage can hold more ids than the queue cap;
+            // queue page by page and let the drain make room first.
+            await this.waitForExplorerCapacity(batch.length);
+            batch.forEach((messageId) =>
+              this.queueExplorerNotification(messageId),
+            );
           }
           cursorHeight = nextHeight;
           cursorId = nextId;
@@ -1349,11 +1362,30 @@ export class EventWebSocketServer {
       } catch (error) {
         throw new HeadPublicationError(error, agentPublished, explorerPending);
       }
-      if (eventType === 'gas_payment') {
-        explorerIds.forEach((messageId) =>
-          this.queueExplorerNotification(messageId),
+      if (eventType === 'gas_payment') explorerPending = false;
+    }
+  }
+
+  /** Wait until the Explorer queue can take `count` more ids without overflowing. */
+  private async waitForExplorerCapacity(count: number): Promise<void> {
+    const limit = MAX_PENDING_NOTIFICATIONS - count;
+    while (
+      this.explorerClients.size &&
+      this.explorerNotifications.size > limit
+    ) {
+      if (this.drainingExplorerNotifications) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, NOTIFICATION_BATCH_MS),
         );
-        explorerPending = false;
+        continue;
+      }
+      clearTimeout(this.explorerNotificationTimer);
+      this.explorerNotificationTimer = undefined;
+      try {
+        await this.drainExplorerNotifications();
+      } catch (error) {
+        // Explorer failures stay on the Explorer stream; agents keep publishing.
+        this.failExplorerStream(error);
       }
     }
   }
