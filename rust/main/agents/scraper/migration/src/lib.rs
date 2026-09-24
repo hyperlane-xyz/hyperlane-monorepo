@@ -25,6 +25,7 @@ mod m20260819_000012_notify_scraper_events;
 mod m20260830_000013_gas_payment_stream_cursor;
 
 mod m20260922_000014_near_head;
+mod m20260924_000015_near_head_checkpoints;
 
 pub struct Migrator;
 
@@ -51,6 +52,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260819_000012_notify_scraper_events::Migration),
             Box::new(m20260830_000013_gas_payment_stream_cursor::Migration),
             Box::new(m20260922_000014_near_head::Migration),
+            Box::new(m20260924_000015_near_head_checkpoints::Migration),
         ]
     }
 }

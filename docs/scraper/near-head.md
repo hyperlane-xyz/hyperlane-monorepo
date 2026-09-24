@@ -2,9 +2,10 @@
 
 The scraper indexes dispatch, delivery, gas-payment and Merkle-insertion events
 at the current head by default on all selected EVM chains. Each event is stored
-once in its existing table, initially with `confirmed=false`. Block headers remain
-in `block`; `scraper_head` contains only per-chain progress and health, not event
-payloads.
+once in its existing table, initially with `confirmed=false`. Permanent headers
+for event blocks remain in `block`; the current confirmation boundary and sparse
+unconfirmed range checkpoints live in `scraper_checkpoint`. `scraper_head`
+contains only per-chain progress and health, not event payloads.
 
 The scraper flips `confirmed` after the chain's existing `reorgPeriod`. Legacy
 websocket notifications and gas-payment cursors are created on that transition.
@@ -73,7 +74,8 @@ boundary from stored maxima. Contract changes are rejected.
   an older head only lowers the boundary. Advancing the observed head can confirm
   existing events even if the next log fetch fails. Long in-flight RPC calls or
   database waits can expire the lease; confirmation then waits for a fresh
-  observation.
+  observation. Observation, confirmation, and ingestion execute sequentially
+  for each chain, so they do not compete for that chain's progress-row lock.
 - Startup probes the configured finality tag and hash-pinned contract-count calls
   before persisting a first-time cutover. On restart it probes the provider's
   latest canonical block. Observation waits for providers behind saved progress
@@ -111,15 +113,11 @@ boundary from stored maxima. Contract changes are rejected.
   age since creation of the oldest pending row by ID, including time it spent
   provisional. It is sampled independently once per poll and returns zero when
   the stream has no pending rows.
-- An independent maintenance loop scans at most 1,000 old block headers per poll
-  and deletes unreferenced candidates in a separate transaction. Confirmation
-  does not await cleanup, including during catch-up. An in-memory cursor
-  advances past retained headers; after a sweep wraps, the next one starts ten
-  minutes later. It retains the cutover anchor, confirmed
-  boundary, retained unconfirmed checkpoints, transaction references, raw-dispatch headers,
-  and headers needed by pending gas/delivery enrichment. Event records are not
-  deleted by cleanup. Halted chains are not pruned. Historical headers from before
-  the cutover are left intact; retained event/transaction history still grows.
+- Confirmation deletes superseded rows directly from the small
+  `scraper_checkpoint` table by `(domain,height)`. There is no background header
+  scanner. `block` receives only headers for blocks containing actual events;
+  those headers remain available for transaction enrichment. Historical headers
+  left by older scraper versions are not removed automatically.
 - Block/log/transaction positions are recorded for future custom-period consumers.
   No further database schema is required for block-count confirmation periods.
   Adding those consumers still requires a reorg-aware cursor/reset protocol that
@@ -223,7 +221,8 @@ INSERT INTO verified_cutover VALUES (
 SELECT pg_advisory_xact_lock(domain::bigint & 4294967295)
 FROM verified_cutover;
 LOCK TABLE block, raw_message_dispatch, delivered_message, gas_payment,
-  merkle_tree_insertion, scraper_head IN SHARE ROW EXCLUSIVE MODE;
+  merkle_tree_insertion, scraper_head, scraper_checkpoint
+  IN SHARE ROW EXCLUSIVE MODE;
 DO $$
 DECLARE c verified_cutover%ROWTYPE;
 BEGIN
@@ -250,14 +249,13 @@ BEGIN
   THEN
     RAISE EXCEPTION 'Cutover hash disagrees with stored block identity';
   END IF;
-  INSERT INTO block(domain,hash,height,timestamp)
-    VALUES(c.domain,c.hash,c.height,to_timestamp(c.timestamp) AT TIME ZONE 'UTC')
-    ON CONFLICT(hash) DO NOTHING;
   INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,
                           head_height,confirmed_height,mailbox,merkle_tree_hook,
                           interchain_gas_paymaster)
     VALUES(c.domain,c.height,c.height,c.hash,c.height,c.height,
            c.mailbox,c.hook,c.paymaster);
+  INSERT INTO scraper_checkpoint(domain,height,hash,timestamp)
+    VALUES(c.domain,c.height,c.hash,to_timestamp(c.timestamp) AT TIME ZONE 'UTC');
 END $$;
 COMMIT;
 SELECT domain,start_height,encode(indexed_hash,'hex') AS block_hash,

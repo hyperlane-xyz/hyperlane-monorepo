@@ -18,7 +18,6 @@ use testcontainers_modules::postgres::Postgres;
 
 use super::*;
 use source::{Event, EventData};
-use store::PRUNE_HEADERS_SQL;
 
 struct Chain {
     headers: Mutex<BTreeMap<u64, Header>>,
@@ -176,6 +175,11 @@ async fn seed_verified_cutover(store: &Store, anchor: &Header) -> Result<()> {
         "INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster) VALUES($1,$2,$2,$3,$2,$2,$4,$5,$6)",
         [domain.into(), height.into(), anchor.hash.as_bytes().to_vec().into(), contracts.mailbox.as_bytes().to_vec().into(), contracts.hook.as_bytes().to_vec().into(), contracts.paymaster.as_bytes().to_vec().into()],
     )).await?;
+    tx.execute(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "INSERT INTO scraper_checkpoint(domain,height,hash,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC')",
+        [domain.into(), height.into(), anchor.hash.as_bytes().to_vec().into(), i64::try_from(anchor.timestamp)?.into()],
+    )).await?;
     tx.commit().await?;
     Ok(())
 }
@@ -196,6 +200,34 @@ async fn count(store: &Store, relation: &str) -> Result<i64> {
         .await?
         .unwrap()
         .try_get("", "n")?)
+}
+
+#[tokio::test]
+async fn checkpoint_migration_backfills_an_existing_frontier() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    migration::Migrator::down(&db, Some(1)).await?;
+    db.execute_unprepared(
+        r#"
+        INSERT INTO block(domain,height,hash,timestamp)
+        VALUES(1,7,decode(repeat('07',32),'hex'),now());
+        INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,
+            head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster)
+        VALUES(1,7,7,decode(repeat('07',32),'hex'),7,7,
+            decode(repeat('01',20),'hex'),decode(repeat('02',20),'hex'),decode(repeat('03',20),'hex'));
+        "#,
+    )
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    assert_eq!(store.checkpoint(7).await?, 7);
+    assert_eq!(store.hash(7).await?, Some(H256::repeat_byte(7)));
+    Ok(())
 }
 
 #[tokio::test]
@@ -223,13 +255,22 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     let writer_permission = db
         .query_one(Statement::from_string(
             DbBackend::Postgres,
-            "SELECT has_table_privilege('scraper_writer','scraper_head','INSERT') AS head_insert,has_table_privilege('scraper_writer','scraper_head','UPDATE') AS head_update,has_table_privilege('scraper_writer','block','DELETE') AS block_delete,has_table_privilege('scraper_writer','raw_message_dispatch','DELETE') AS event_delete",
+            "SELECT has_table_privilege('scraper_writer','scraper_head','INSERT') AS head_insert,has_table_privilege('scraper_writer','scraper_head','UPDATE') AS head_update,has_table_privilege('scraper_writer','block','DELETE') AS block_delete,has_table_privilege('scraper_writer','raw_message_dispatch','DELETE') AS event_delete,has_table_privilege('scraper_writer','scraper_checkpoint','SELECT') AS checkpoint_select,has_table_privilege('scraper_writer','scraper_checkpoint','INSERT') AS checkpoint_insert,has_table_privilege('scraper_writer','scraper_checkpoint','DELETE') AS checkpoint_delete,has_table_privilege('scraper_notification_reader','scraper_checkpoint','SELECT') AS reader_checkpoint_select",
         ))
         .await?
         .unwrap();
-    for privilege in ["head_insert", "head_update", "block_delete", "event_delete"] {
+    for privilege in [
+        "head_insert",
+        "head_update",
+        "block_delete",
+        "event_delete",
+        "checkpoint_select",
+        "checkpoint_insert",
+        "checkpoint_delete",
+    ] {
         assert!(writer_permission.try_get::<bool>("", privilege)?);
     }
+    assert!(!writer_permission.try_get::<bool>("", "reader_checkpoint_select")?);
     let mut listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
     listener.listen("scraper_event").await?;
     let mut provisional_listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
@@ -289,10 +330,6 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
             .await
             .is_err(),
         "Provisional events must not notify legacy consumers"
-    );
-    assert!(
-        migration::Migrator::down(&store.db, Some(1)).await.is_err(),
-        "Rollback must not expose provisional rows"
     );
     assert_eq!(count(&store, "gas_payment_stream_cursor").await?, 0);
     assert_eq!(count(&store, "total_gas_payment").await?, 0);
@@ -390,6 +427,8 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
         .db
         .execute_unprepared(
             r#"
+        INSERT INTO block(domain,hash,height,timestamp)
+        VALUES(1,decode(repeat('aa',32),'hex'),1,now());
         INSERT INTO "transaction"(hash,block_id,gas_limit,nonce,sender,gas_used,cumulative_gas_used)
         SELECT g.transaction_hash,b.id,0,0,decode(repeat('11',20),'hex'),0,0
         FROM gas_payment g JOIN block b ON b.domain=g.domain AND b.height=1;
@@ -434,9 +473,8 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
         .unwrap();
     assert_eq!(row.try_get::<i64>("", "n")?, 1);
 
-    assert_eq!(store.prune_headers(0).await?.1, 1);
     assert!(store.hash(1).await?.is_none());
-    assert!(store.hash(0).await?.is_some()); // Cutover anchor.
+    assert!(store.hash(0).await?.is_none()); // Superseded cutover anchor.
     assert!(store.hash(2).await?.is_some()); // Confirmed boundary.
     assert!(store.hash(3).await?.is_some()); // Unconfirmed suffix.
 
@@ -493,11 +531,16 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     store.initialize(&anchor, &contracts()).await?;
     assert!(observe(&chain, &store).await.is_err());
     assert_eq!(count(&store, "confirmed_gas_payment").await?, 1);
+    migration::Migrator::down(&store.db, Some(1)).await?;
+    assert!(
+        migration::Migrator::down(&store.db, Some(1)).await.is_err(),
+        "Base near-head rollback must not expose provisional or halted history"
+    );
     Ok(())
 }
 
 #[tokio::test]
-async fn header_cleanup_preserves_enrichment_and_bounds_deletes() -> Result<()> {
+async fn confirmation_bounds_temporary_checkpoints_without_scanning_blocks() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let url = format!(
         "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
@@ -512,90 +555,18 @@ async fn header_cleanup_preserves_enrichment_and_bounds_deletes() -> Result<()> 
         .await?;
     ingest_head(&chain, &store).await?;
     confirm(&chain, &store, &ReorgPeriod::from_blocks(2)).await?;
-    // Seed historical empty headers to test cleanup of pre-range ingestion data.
-    store
-        .db
-        .execute_unprepared(
-            r#"
-        INSERT INTO block(domain,height,hash,timestamp)
-        SELECT 1,h,decode(lpad(to_hex(h+1),64,'0'),'hex'),now() FROM generate_series(1,9) AS h
-        ON CONFLICT DO NOTHING;
-    "#,
-        )
-        .await?;
-    let plan_tx = store.db.begin().await?;
-    plan_tx
-        .execute_unprepared("SET LOCAL enable_seqscan=off")
-        .await?;
-    let plan = plan_tx
-        .query_all(Statement::from_sql_and_values(
-            DbBackend::Postgres,
-            format!("EXPLAIN (COSTS OFF) {PRUNE_HEADERS_SQL}"),
-            [1i32.into(), 0i64.into()],
-        ))
-        .await?
-        .into_iter()
-        .map(|row| row.try_get::<String>("", "QUERY PLAN"))
-        .collect::<std::result::Result<Vec<_>, _>>()?
-        .join("\n");
-    assert!(
-        plan.contains("Index Cond: ((domain = 1) AND (height >") && plan.contains("AND (height <"),
-        "cleanup must use both height bounds in the block index:\n{plan}"
-    );
-    plan_tx.rollback().await?;
-    // Separate pending event types to exercise each retention condition.
-    store.db.execute_unprepared(r#"
-        UPDATE gas_payment SET block_number=3, block_hash=(SELECT hash FROM block WHERE domain=1 AND height=3);
-        UPDATE delivered_message SET block_number=4, block_hash=(SELECT hash FROM block WHERE domain=1 AND height=4);
-        INSERT INTO "transaction"(hash,block_id,gas_limit,nonce,sender,gas_used,cumulative_gas_used)
-        SELECT decode(repeat('ee',32),'hex'),id,0,0,decode(repeat('11',20),'hex'),0,0 FROM block WHERE domain=1 AND height=5;
-    "#).await?;
-    // Enrichment has inserted a transaction but has not committed its event link.
-    let enrichment = store.db.begin().await?;
-    enrichment.execute_unprepared(r#"
-        INSERT INTO "transaction"(hash,block_id,gas_limit,nonce,sender,gas_used,cumulative_gas_used)
-        SELECT g.transaction_hash,b.id,0,0,decode(repeat('11',20),'hex'),0,0
-        FROM gas_payment g JOIN block b ON b.domain=g.domain AND b.height=g.block_number;
-        UPDATE gas_payment SET tx_id=(SELECT id FROM "transaction" WHERE hash=gas_payment.transaction_hash);
-    "#).await?;
-    assert_eq!(store.prune_headers(0).await?.1, 3); // Empty blocks 1, 6, 7.
-    enrichment.commit().await?;
-    for height in [0, 2, 3, 4, 5, 8, 9, 10] {
-        assert!(
-            store.hash(height).await?.is_some(),
-            "Missing retained block {height}"
-        );
-    }
-    assert_eq!(store.prune_headers(0).await?.1, 0);
-    // A lagging finality tag can point to a header already pruned; no new release.
-    chain.fork(1, 1, 0);
-    assert_eq!(
-        confirm(&chain, &store, &ReorgPeriod::Tag("finalized".into())).await?,
-        [0; 4]
-    );
-    for table in [
-        "raw_message_dispatch",
-        "gas_payment",
-        "delivered_message",
-        "merkle_tree_insertion",
-    ] {
-        assert_eq!(count(&store, table).await?, 1);
-    }
-
-    // A backlog is drained across cycles, never one unbounded deletion.
-    store.db.execute_unprepared(r#"
-        INSERT INTO block(domain,height,hash,timestamp)
-        SELECT 1,h,decode(lpad(to_hex(h+10000),64,'0'),'hex'),now() FROM generate_series(11,1110) AS h;
-        UPDATE scraper_head SET head_height=1110,indexed_height=1110,confirmed_height=1110,
-            indexed_hash=(SELECT hash FROM block WHERE domain=1 AND height=1110);
-    "#).await?;
-    let (next, deleted) = store.prune_headers(0).await?;
-    assert_eq!(deleted, 996); // 1,000 candidates, including four retained headers.
-    assert_eq!(store.prune_headers(next).await?.1, 106);
-    assert_eq!(store.prune_headers(0).await?.1, 0);
-    assert!(store.hash(1110).await?.is_some());
-    migration::Migrator::down(&store.db, Some(1)).await?;
-    migration::Migrator::up(&store.db, None).await?;
+    let state = store.state().await?.unwrap();
+    assert_eq!(state.confirmed, 8);
+    let row = store.db.query_one(Statement::from_string(DbBackend::Postgres,
+        "SELECT count(*) AS n,min(height) AS first,max(height) AS last FROM scraper_checkpoint WHERE domain=1".to_owned())).await?.unwrap();
+    assert_eq!(row.try_get::<i64>("", "first")?, 8);
+    assert_eq!(row.try_get::<i64>("", "last")?, 10);
+    assert!(row.try_get::<i64>("", "n")? <= 3);
+    let blocks = count(&store, "block").await?;
+    confirm(&chain, &store, &ReorgPeriod::from_blocks(0)).await?;
+    assert_eq!(count(&store, "scraper_checkpoint").await?, 1);
+    assert_eq!(store.checkpoint(10).await?, 10);
+    assert_eq!(count(&store, "block").await?, blocks);
     Ok(())
 }
 
@@ -672,7 +643,7 @@ async fn ranges_use_sparse_headers_and_reject_fork_changes() -> Result<()> {
     // 1,000 blocks, one event-bearing block: one log range and seven header reads.
     assert_eq!(*chain.ranges.lock().unwrap(), vec![(1, 1000)]);
     assert_eq!(chain.header_calls.load(Ordering::Relaxed), 7);
-    assert_eq!(count(&store, "block").await?, 3); // Anchor, event block, range end.
+    assert_eq!(count(&store, "block").await?, 1); // Event blocks only.
     chain.header_calls.store(0, Ordering::Relaxed);
     ingest_head(&chain, &store).await?;
     assert_eq!(chain.header_calls.load(Ordering::Relaxed), 1);
@@ -701,7 +672,7 @@ async fn ranges_use_sparse_headers_and_reject_fork_changes() -> Result<()> {
     ingest_head(&chain, &store).await?;
     assert_eq!(chain.header_calls.load(Ordering::Relaxed), 6);
     assert_eq!(*chain.ranges.lock().unwrap(), vec![(51, 1000)]);
-    assert_eq!(count(&store, "block").await?, 4); // No headers for 950 empty blocks.
+    assert_eq!(count(&store, "block").await?, 1); // Event blocks only.
                                                   // Exact confirmed boundary remains the deep-reorg stop, despite sparse headers.
     chain.fork(1000, 40, 20);
     assert!(observe(&chain, &store).await.is_err());
@@ -805,7 +776,7 @@ async fn incomplete_sequences_retry_after_restart_and_dense_ranges_batch_atomica
         .is_err());
     assert_eq!(store.state().await?.unwrap().indexed, 0);
     assert_eq!(count(&store, "raw_message_dispatch").await?, 0);
-    assert_eq!(count(&store, "block").await?, 1);
+    assert_eq!(count(&store, "block").await?, 0);
     let probe = Database::connect(&url).await?;
     let done = AtomicBool::new(false);
     let (ingestion, lock_probe) = tokio::join!(

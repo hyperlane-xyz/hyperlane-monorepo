@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicU64, AtomicUsize};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
 use async_trait::async_trait;
 use ethers::types::{BlockNumber, H160, H256};
@@ -6,9 +6,7 @@ use eyre::{ensure, Result};
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::KnownHyperlaneDomain;
 use migration::MigratorTrait;
-use sea_orm::{
-    ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement, TransactionTrait,
-};
+use sea_orm::{Database, DatabaseConnection};
 use testcontainers::{runners::AsyncRunner, ImageExt};
 use testcontainers_modules::postgres::Postgres;
 
@@ -244,84 +242,4 @@ async fn restart_waits_for_an_rpc_behind_saved_progress() -> Result<()> {
     chain.head.store(5, Ordering::SeqCst);
     crate::near_head::observe(&chain, &worker.store).await?;
     Ok(())
-}
-
-#[tokio::test]
-async fn blocked_cleanup_does_not_delay_publication() -> Result<()> {
-    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
-    let url = format!(
-        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
-        postgres.get_host_port_ipv4(5432).await?
-    );
-    let chain = Arc::new(Chain::new(2, false));
-    chain.tag.store(2, Ordering::SeqCst);
-    let worker = worker(Database::connect(&url).await?, chain.clone()).await?;
-    let state = crate::near_head::observe(&chain, &worker.store).await?;
-    worker
-        .store
-        .append(
-            &state,
-            &[
-                (chain.header(1u64.into()).await?, vec![]),
-                (chain.header(2u64.into()).await?, vec![]),
-            ],
-        )
-        .await?;
-    let state = worker.store.state().await?.expect("initialized");
-    worker
-        .store
-        .confirm(
-            &state,
-            &chain.header(2u64.into()).await?,
-            crate::near_head::MIN_CONFIRMATION_LEASE,
-        )
-        .await?;
-    worker
-        .store
-        .db
-        .execute_unprepared(
-            r#"
-        CREATE FUNCTION block_cleanup_for_test() RETURNS trigger LANGUAGE plpgsql AS $$
-        BEGIN PERFORM pg_advisory_xact_lock(424242); RETURN OLD; END $$;
-        CREATE TRIGGER block_cleanup_for_test BEFORE DELETE ON block
-            FOR EACH ROW EXECUTE FUNCTION block_cleanup_for_test();
-    "#,
-        )
-        .await?;
-    let gate_db = Database::connect(&url).await?;
-    let gate = gate_db.begin().await?;
-    gate.execute_unprepared("SELECT pg_advisory_xact_lock(424242)")
-        .await?;
-    let task = tokio::spawn({
-        let worker = worker.clone();
-        async move { worker.run().await }
-    });
-    tokio::time::timeout(Duration::from_secs(15), async {
-        loop {
-            let row = worker.store.db.query_one(Statement::from_string(DbBackend::Postgres,
-                "SELECT EXISTS(SELECT 1 FROM pg_locks WHERE locktype='advisory' AND objid=424242 AND NOT granted) AS waiting".to_owned())).await?.expect("lock query");
-            if row.try_get::<bool>("", "waiting")? { return Ok::<_, eyre::Report>(()); }
-            sleep(Duration::from_millis(10)).await;
-        }
-    }).await??;
-    // Cleanup is definitely blocked, yet new canonical work must still finish.
-    chain.head.store(4, Ordering::SeqCst);
-    chain.tag.store(4, Ordering::SeqCst);
-    wait_for(&worker, |state| state.confirmed == 4).await?;
-    gate.rollback().await?;
-    task.abort();
-    assert!(task
-        .await
-        .expect_err("worker runs until aborted")
-        .is_cancelled());
-    Ok(())
-}
-
-#[test]
-fn header_cleanup_rests_only_after_a_sweep_wraps() {
-    let poll = Duration::from_secs(30);
-    assert_eq!(prune_delay(1_000, poll), poll);
-    assert_eq!(prune_delay(0, poll), PRUNE_SWEEP_INTERVAL);
-    let slow_poll = Duration::from_secs(3_600);
-    assert_eq!(prune_delay(0, slow_poll), slow_poll);
 }
