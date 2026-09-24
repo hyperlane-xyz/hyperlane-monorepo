@@ -40,6 +40,15 @@ import {
 } from './protocol.js';
 import { rawData } from './websocket-data.js';
 
+// Explorer types first: a failure in an agent-only type must not close Explorer
+// clients that already received this range. No cross-type order is promised.
+const HEAD_PUBLICATION_ORDER = [
+  'delivery',
+  'gas_payment',
+  'dispatch',
+  'merkle_tree_insertion',
+] as const satisfies readonly EventType[];
+
 const AGENT_PATH = '/agents';
 const MAX_AGENT_MESSAGE_BYTES = 1_048_576;
 const MESSAGE_PATH = '/messages';
@@ -1221,7 +1230,7 @@ export class EventWebSocketServer {
             this.failAgentDomain(domain, failure.original);
             if (failure.explorerAffected && this.explorerClients.size)
               this.failExplorerStream(failure.original);
-            this.headRanges.delete(domain);
+            this.releaseHeadRange(domain, range);
             this.headFailures.delete(domain);
             continue;
           }
@@ -1234,21 +1243,12 @@ export class EventWebSocketServer {
             this.failAgentDomain(domain, failure.original);
             if (failure.explorerAffected && this.explorerClients.size)
               this.failExplorerStream(failure.original);
-            this.headRanges.delete(domain);
+            this.releaseHeadRange(domain, range);
             this.headFailures.delete(domain);
           }
           continue;
         }
-        const current = this.headRanges.get(domain);
-        if (!current) continue;
-        if (current.through <= range.through) {
-          this.headRanges.delete(domain);
-        } else {
-          this.headRanges.set(domain, {
-            after: range.through,
-            through: current.through,
-          });
-        }
+        this.releaseHeadRange(domain, range);
       }
     } finally {
       this.drainingHeadNotifications = false;
@@ -1259,13 +1259,29 @@ export class EventWebSocketServer {
     }
   }
 
+  /** Drop a handled range, keeping any extension that arrived meanwhile. */
+  private releaseHeadRange(domain: number, range: HeadRange): void {
+    const current = this.headRanges.get(domain);
+    if (!current) return;
+    if (current.through <= range.through) {
+      this.headRanges.delete(domain);
+    } else {
+      this.headRanges.set(domain, {
+        after: range.through,
+        through: current.through,
+      });
+    }
+  }
+
   private async publishHeadRange(
     domain: number,
     { after, through }: HeadRange,
   ): Promise<void> {
     let agentPublished = false;
     let explorerPending = this.explorerClients.size > 0;
-    for (const eventType of EVENT_TYPES) {
+    // Delivery and gas share message ids; queue each Explorer id once per range.
+    const explorerIds = new Set<string>();
+    for (const eventType of HEAD_PUBLICATION_ORDER) {
       const agentInterested = this.hasSubscriber({
         domain,
         eventType,
@@ -1323,8 +1339,7 @@ export class EventWebSocketServer {
           if (explorerInterested && this.explorerClients.size) {
             events.forEach((row) => {
               const messageId = row.msg_id ?? row.message_id;
-              if (typeof messageId === 'string')
-                this.queueExplorerNotification(messageId);
+              if (typeof messageId === 'string') explorerIds.add(messageId);
             });
           }
           cursorHeight = nextHeight;
@@ -1334,7 +1349,12 @@ export class EventWebSocketServer {
       } catch (error) {
         throw new HeadPublicationError(error, agentPublished, explorerPending);
       }
-      if (eventType === 'gas_payment') explorerPending = false;
+      if (eventType === 'gas_payment') {
+        explorerIds.forEach((messageId) =>
+          this.queueExplorerNotification(messageId),
+        );
+        explorerPending = false;
+      }
     }
   }
 

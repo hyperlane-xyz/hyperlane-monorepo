@@ -8,12 +8,15 @@ cargo run --release -p migration --bin init-db
 
 This single command applies pending transactional migrations, then creates and
 verifies the raw-dispatch reconciliation, raw-dispatch native-sequence, delivery
-scope, Merkle block-height, and gas payment paymaster-scope indexes
-concurrently. It works for both empty and
-existing DBs. Reruns retain matching valid indexes and reject invalid or
-conflicting definitions. If index setup fails, the schema migrations stay
-committed; repair the reported index and rerun the same command. Concurrent
-indexes are independently managed and survive schema rollback.
+scope, Merkle block-height, gas payment paymaster-scope, and the three frontier
+indexes (`delivery_frontier_unenriched`, `gas_payment_frontier_unenriched`,
+`gas_payment_frontier_height`) concurrently, then runs `ANALYZE` on the four event
+tables (also when an index build fails). It works for both empty and existing DBs.
+Reruns retain matching valid indexes and reject invalid or conflicting
+definitions. If index setup fails, the schema migrations stay committed; repair
+the reported index and rerun the same command. Concurrent indexes survive schema
+rollback, except the three frontier indexes, which the frontier publication down
+migration drops.
 
 For migration development and rollback operations, the SeaORM CLI remains
 available from this directory:
@@ -34,8 +37,8 @@ cargo run -- status
 
 `init-db` also installs `merkle_insertion_block_height` on
 `merkle_tree_insertion(domain, block_number)`. Automatic cutover selection and the
-first-start overlap check need confirmed legacy rows as well as provisional rows;
-the existing partial `merkle_insertion_unconfirmed` index cannot serve them.
+first-start overlap check need confirmed legacy rows as well as provisional rows,
+which a partial index over unconfirmed rows cannot serve.
 
 ## Event scope indexes
 

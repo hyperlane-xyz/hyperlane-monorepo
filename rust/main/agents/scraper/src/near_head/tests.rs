@@ -373,6 +373,80 @@ async fn frontier_migration_preserves_legacy_null_heights_and_rolls_back() -> Re
 }
 
 #[tokio::test]
+async fn null_height_rows_on_near_head_domains_publish_on_insert() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let url = format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    );
+    let db = Database::connect(&url).await?;
+    migration::Migrator::up(&db, None).await?;
+    db.execute_unprepared(
+        r#"
+        INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,
+          head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster)
+        VALUES(1,0,0,decode(repeat('01',32),'hex'),0,0,
+          decode(repeat('01',20),'hex'),decode(repeat('02',20),'hex'),decode(repeat('03',20),'hex'));
+        "#,
+    )
+    .await?;
+    let mut events = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
+    events.listen("scraper_event").await?;
+    let mut explorer = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
+    explorer.listen("scraper_explorer_event").await?;
+
+    // Legacy writers (e.g. CCR deliveries) leave the height NULL: visible at once,
+    // never part of a frontier range, so they must publish on insert.
+    db.execute_unprepared(
+        r#"
+        INSERT INTO delivered_message(domain,destination_mailbox,msg_id,transaction_index,log_index)
+        VALUES(1,decode(repeat('01',20),'hex'),decode(repeat('04',32),'hex'),0,0);
+        INSERT INTO gas_payment(domain,interchain_gas_paymaster,msg_id,destination,
+          gas_amount,payment,origin,transaction_index,log_index)
+        VALUES(1,decode(repeat('03',20),'hex'),decode(repeat('04',32),'hex'),2,1,1,1,0,0);
+        "#,
+    )
+    .await?;
+    for expected in ["\"delivery\"", "\"gas_payment\""] {
+        let payload = timeout(Duration::from_secs(1), events.recv())
+            .await??
+            .payload()
+            .to_owned();
+        assert!(payload.contains(expected), "{payload}");
+    }
+    // Both rows share a message id in one transaction; PostgreSQL delivers
+    // identical payloads once.
+    timeout(Duration::from_secs(1), explorer.recv()).await??;
+    let cursors = db
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT count(*) AS n FROM gas_payment_stream_cursor WHERE domain=1",
+        ))
+        .await?
+        .unwrap()
+        .try_get::<i64>("", "n")?;
+    assert_eq!(cursors, 1);
+
+    // Near-head rows with a height still wait for the frontier.
+    db.execute_unprepared(
+        r#"
+        INSERT INTO delivered_message(domain,destination_mailbox,msg_id,transaction_index,
+          log_index,block_number,block_hash)
+        VALUES(1,decode(repeat('01',20),'hex'),decode(repeat('05',32),'hex'),0,1,5,
+          decode(repeat('06',32),'hex'));
+        "#,
+    )
+    .await?;
+    assert!(timeout(Duration::from_millis(300), events.recv())
+        .await
+        .is_err());
+    assert!(timeout(Duration::from_millis(300), explorer.recv())
+        .await
+        .is_err());
+    Ok(())
+}
+
+#[tokio::test]
 async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let url = format!(

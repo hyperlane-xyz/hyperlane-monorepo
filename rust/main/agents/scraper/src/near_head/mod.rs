@@ -290,8 +290,8 @@ async fn verify(source: &dyn Source, header: &Header) -> Result<()> {
 /// Shortest lease on a head observation that confirmation will accept.
 const MIN_CONFIRMATION_LEASE: Duration = Duration::from_secs(60);
 
-/// Confirmation needs a recent healthy observation: pauses and restarts clear
-/// `healthy`, so a lagging or reorging RPC stops publication. It does not need
+/// Confirmation needs a recent healthy observation: pauses clear `healthy`, so a
+/// lagging or reorging RPC stops publication. It does not need
 /// a fresh one: confirmation rechecks ancestry against the RPC before
 /// committing, and an older head only lowers the depth/tag boundary. The lease
 /// therefore spans one poll plus database latency rather than equalling it.

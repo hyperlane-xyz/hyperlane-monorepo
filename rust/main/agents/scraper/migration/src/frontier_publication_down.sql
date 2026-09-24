@@ -135,5 +135,5 @@ END $$;
 DROP FUNCTION assign_confirmed_gas_payment_cursors(integer,bigint,bigint);
 DROP STATISTICS gas_payment_domain_paymaster_dependencies;
 DROP INDEX IF EXISTS delivery_frontier_unenriched,gas_payment_frontier_unenriched,
-  gas_payment_frontier_height,merkle_insertion_frontier_height;
+  gas_payment_frontier_height;
 ALTER TABLE scraper_head DROP COLUMN writer_lease_until,DROP COLUMN writer_id;

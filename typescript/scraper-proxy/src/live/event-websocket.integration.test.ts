@@ -1140,7 +1140,8 @@ void it('retries a frontier until its rows can be loaded', async () => {
     await new Promise((resolve) => setTimeout(resolve, 150));
     assert(!eventSequences(messages).includes('51'));
     headQueryError = undefined;
-    await waitUntil(() => eventSequences(messages).includes('51'));
+    // The retry fires LISTENER_RETRY_MS after the failure; leave slack for slow runners.
+    await waitUntil(() => eventSequences(messages).includes('51'), 500);
   } finally {
     headQueryError = undefined;
     rows.delete('51');
@@ -3125,8 +3126,9 @@ async function waitFor(
 
 async function waitUntil(
   predicate: () => boolean | Promise<boolean>,
+  maxAttempts = 100,
 ): Promise<void> {
-  for (let attempts = 0; attempts < 100; attempts++) {
+  for (let attempts = 0; attempts < maxAttempts; attempts++) {
     if (await predicate()) return;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
