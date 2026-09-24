@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicU64, AtomicUsize};
 
 use async_trait::async_trait;
-use ethers::types::{BlockNumber, H160, H256};
+use ethers::types::{H160, H256};
 use eyre::{ensure, Result};
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::KnownHyperlaneDomain;
@@ -14,7 +14,7 @@ use testcontainers_modules::postgres::Postgres;
 
 use super::*;
 use crate::near_head::{
-    source::{Contracts, Event, Header},
+    source::{BlockSelector, Contracts, Event, Header},
     store::State,
 };
 
@@ -38,18 +38,17 @@ impl Chain {
 
 #[async_trait]
 impl Source for Arc<Chain> {
-    async fn header(&self, block: BlockNumber) -> Result<Header> {
+    async fn header(&self, block: BlockSelector) -> Result<Header> {
         let height = match block {
-            BlockNumber::Number(height) => height.as_u64(),
-            BlockNumber::Safe | BlockNumber::Finalized => {
+            BlockSelector::Height(height) => height,
+            BlockSelector::Safe | BlockSelector::Finalized => {
                 ensure!(!self.fail_tag.load(Ordering::SeqCst), "Tag unavailable");
                 self.tag.load(Ordering::SeqCst)
             }
-            BlockNumber::Latest => {
+            BlockSelector::Latest => {
                 self.observations.fetch_add(1, Ordering::SeqCst);
                 self.head.load(Ordering::SeqCst)
             }
-            _ => eyre::bail!("Unexpected block selector"),
         };
         ensure!(height <= self.head.load(Ordering::SeqCst), "Unknown height");
         Ok(Header {
@@ -76,9 +75,9 @@ async fn worker(db: DatabaseConnection, source: Arc<Chain>) -> Result<Arc<Worker
         .initialize(
             &source.header(0u64.into()).await?,
             &Contracts {
-                mailbox: H160::repeat_byte(1),
-                hook: H160::repeat_byte(2),
-                paymaster: H160::repeat_byte(3),
+                mailbox: H160::repeat_byte(1).into(),
+                hook: H160::repeat_byte(2).into(),
+                paymaster: H160::repeat_byte(3).into(),
             },
         )
         .await?;
@@ -231,9 +230,9 @@ async fn restart_waits_for_an_rpc_behind_saved_progress() -> Result<()> {
         &worker.store,
         &anchor,
         &Contracts {
-            mailbox: H160::repeat_byte(1),
-            hook: H160::repeat_byte(2),
-            paymaster: H160::repeat_byte(3),
+            mailbox: H160::repeat_byte(1).into(),
+            hook: H160::repeat_byte(2).into(),
+            paymaster: H160::repeat_byte(3).into(),
         },
         &worker.period,
     )

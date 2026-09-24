@@ -3,10 +3,16 @@ use ethers::{
     abi::RawLog,
     contract::EthEvent,
     providers::Middleware,
-    types::{BlockId, BlockNumber, Filter, Log, TransactionRequest, H160, H256, U256},
+    types::{
+        BlockId, BlockNumber, Filter, Log, TransactionRequest, H160, H256 as EthersH256, U256,
+    },
 };
 use eyre::{ensure, eyre, Result};
-use hyperlane_core::{ContractLocator, Decode, HyperlaneMessage};
+use hyperlane_base::{settings::ChainConf, CoreMetrics};
+use hyperlane_core::{
+    ContractLocator, Decode, HyperlaneMessage, HyperlaneProvider, IndexMode, Indexed,
+    InterchainGasPayment, LogMeta, MerkleTreeInsertion, SequenceAwareIndexer, H256, H512,
+};
 use hyperlane_ethereum::{
     event_filters::{DispatchFilter, GasPaymentFilter, InsertedIntoTreeFilter, ProcessIdFilter},
     BuildableWithProvider, ConnectionConf,
@@ -16,18 +22,20 @@ use hyperlane_ethereum::{
 pub(super) struct Header {
     pub height: u64,
     pub timestamp: u64,
-    pub hash: H256,
-    pub parent: H256,
+    pub hash: EthersH256,
+    /// Zero when the protocol provider does not expose parent hashes.
+    pub parent: EthersH256,
 }
 
 #[derive(Clone, Debug)]
 pub(super) struct Event {
     pub block_number: u64,
-    pub block_hash: H256,
-    pub address: H160,
-    pub tx_hash: H256,
+    pub block_hash: EthersH256,
+    pub address: H256,
+    pub tx_hash: H512,
     pub tx_index: u64,
     pub log_index: u64,
+    pub sequence: Option<u32>,
     pub data: EventData,
 }
 
@@ -47,24 +55,68 @@ pub(super) enum EventData {
     },
 }
 
+pub(super) struct EventBatch {
+    pub events: Vec<Event>,
+    pub watermarks: Option<[(Option<u32>, u32); 4]>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Contracts {
-    pub mailbox: H160,
-    pub hook: H160,
-    pub paymaster: H160,
+    pub mailbox: H256,
+    pub hook: H256,
+    pub paymaster: H256,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(super) enum BlockSelector {
+    Height(u64),
+    Latest,
+    Safe,
+    Finalized,
+}
+
+impl From<u64> for BlockSelector {
+    fn from(height: u64) -> Self {
+        Self::Height(height)
+    }
 }
 
 #[async_trait]
 pub(super) trait Source: Send + Sync {
-    async fn header(&self, block: BlockNumber) -> Result<Header>;
+    async fn header(&self, block: BlockSelector) -> Result<Header>;
+    async fn range_end(&self, after: u64, through: u64, _head: u64) -> Result<Header> {
+        ensure!(after < through, "Empty indexing range");
+        self.header(BlockSelector::Height(through)).await
+    }
     async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>>;
+    async fn events_after(
+        &self,
+        from: u64,
+        through: u64,
+        _sequences: [u32; 4],
+    ) -> Result<EventBatch> {
+        Ok(EventBatch {
+            events: self.events(from, through).await?,
+            watermarks: None,
+        })
+    }
     /// Dispatch nonce and Merkle count, pinned to the range boundary fork.
-    async fn counts(&self, hash: H256) -> Result<[u32; 2]>;
+    async fn counts(&self, hash: EthersH256) -> Result<[u32; 2]>;
+    fn has_historical_counts(&self) -> bool {
+        true
+    }
 }
 
 pub(super) struct SourceBuilder {
-    pub contracts: Contracts,
+    pub contracts: EvmContracts,
     pub domain: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct EvmContracts {
+    pub mailbox: H160,
+    pub hook: H160,
+    pub paymaster: H160,
 }
 
 #[async_trait]
@@ -88,12 +140,12 @@ impl BuildableWithProvider for SourceBuilder {
 
 struct EvmSource<M> {
     provider: M,
-    contracts: Contracts,
+    contracts: EvmContracts,
     domain: u32,
 }
 
 impl<M: Middleware + 'static> EvmSource<M> {
-    async fn count(&self, address: H160, signature: &str, hash: H256) -> Result<u32> {
+    async fn count(&self, address: H160, signature: &str, hash: EthersH256) -> Result<u32> {
         let call = TransactionRequest::new()
             .to(address)
             .data(ethers::utils::id(signature)[..4].to_vec())
@@ -120,7 +172,13 @@ impl<M: Middleware + 'static> EvmSource<M> {
 
 #[async_trait]
 impl<M: Middleware + 'static> Source for EvmSource<M> {
-    async fn header(&self, number: BlockNumber) -> Result<Header> {
+    async fn header(&self, selector: BlockSelector) -> Result<Header> {
+        let number = match selector {
+            BlockSelector::Height(height) => BlockNumber::Number(height.into()),
+            BlockSelector::Latest => BlockNumber::Latest,
+            BlockSelector::Safe => BlockNumber::Safe,
+            BlockSelector::Finalized => BlockNumber::Finalized,
+        };
         let block = self
             .provider
             .get_block(BlockId::Number(number))
@@ -144,7 +202,7 @@ impl<M: Middleware + 'static> Source for EvmSource<M> {
         })
     }
 
-    async fn counts(&self, hash: H256) -> Result<[u32; 2]> {
+    async fn counts(&self, hash: EthersH256) -> Result<[u32; 2]> {
         let (dispatches, insertions) = tokio::try_join!(
             self.count(self.contracts.mailbox, "nonce()", hash),
             self.count(self.contracts.hook, "count()", hash),
@@ -195,7 +253,7 @@ impl<M: Middleware + 'static> Source for EvmSource<M> {
     }
 }
 
-fn decode(contracts: &Contracts, domain: u32, log: Log) -> Result<Option<Event>> {
+fn decode(contracts: &EvmContracts, domain: u32, log: Log) -> Result<Option<Event>> {
     let topic = log
         .topics
         .first()
@@ -212,22 +270,24 @@ fn decode(contracts: &Contracts, domain: u32, log: Log) -> Result<Option<Event>>
             message.origin == domain
                 && message.destination == event.destination
                 && message.recipient.as_bytes() == event.recipient
-                && message.sender.as_bytes() == H256::from(event.sender).as_bytes(),
+                && message.sender.as_bytes() == EthersH256::from(event.sender).as_bytes(),
             "Dispatch fields disagree with message"
         );
         EventData::Dispatch(message)
     } else if log.address == contracts.mailbox && topic == ProcessIdFilter::signature() {
-        EventData::Delivery(H256::from(ProcessIdFilter::decode_log(&raw)?.message_id))
+        EventData::Delivery(H256::from_slice(
+            &ProcessIdFilter::decode_log(&raw)?.message_id,
+        ))
     } else if log.address == contracts.hook && topic == InsertedIntoTreeFilter::signature() {
         let event = InsertedIntoTreeFilter::decode_log(&raw)?;
         EventData::Insertion {
             index: event.index,
-            message_id: H256::from(event.message_id),
+            message_id: H256::from_slice(&event.message_id),
         }
     } else if log.address == contracts.paymaster && topic == GasPaymentFilter::signature() {
         let event = GasPaymentFilter::decode_log(&raw)?;
         EventData::Gas {
-            message_id: H256::from(event.message_id),
+            message_id: H256::from_slice(&event.message_id),
             destination: event.destination_domain,
             gas: event.gas_amount.to_string(),
             payment: event.payment.to_string(),
@@ -244,20 +304,319 @@ fn decode(contracts: &Contracts, domain: u32, log: Log) -> Result<Option<Event>>
             .as_u64(),
         block_hash: log.block_hash.ok_or_else(|| eyre!("Missing block hash"))?,
         data,
-        address: log.address,
+        address: log.address.into(),
         tx_hash: log
             .transaction_hash
-            .ok_or_else(|| eyre!("Missing transaction hash"))?,
+            .ok_or_else(|| eyre!("Missing transaction hash"))?
+            .into(),
         tx_index: log
             .transaction_index
             .ok_or_else(|| eyre!("Missing transaction index"))?
             .as_u64(),
         log_index: log_index.as_u64(),
+        sequence: None,
     }))
+}
+
+pub(super) struct GenericSource {
+    provider: Box<dyn HyperlaneProvider>,
+    messages: Box<dyn SequenceAwareIndexer<HyperlaneMessage>>,
+    deliveries: Box<dyn SequenceAwareIndexer<H256>>,
+    payments: Box<dyn SequenceAwareIndexer<InterchainGasPayment>>,
+    insertions: Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>,
+    contracts: Contracts,
+    sequence_mode: bool,
+    chunk_size: u32,
+}
+
+impl GenericSource {
+    pub async fn build(
+        conf: &ChainConf,
+        metrics: &CoreMetrics,
+        contracts: Contracts,
+    ) -> Result<Box<dyn Source>> {
+        let provider = conf.build_provider(metrics).await?;
+        let messages = conf.build_message_indexer(metrics, true).await?;
+        let deliveries = conf.build_delivery_indexer(metrics, true).await?;
+        let payments = conf
+            .build_interchain_gas_payment_indexer(metrics, true)
+            .await?;
+        let insertions = conf.build_merkle_tree_hook_indexer(metrics, false).await?;
+        Ok(Box::new(Self {
+            provider,
+            messages,
+            deliveries,
+            payments,
+            insertions,
+            contracts,
+            sequence_mode: matches!(conf.index.mode, IndexMode::Sequence),
+            chunk_size: conf.index.chunk_size,
+        }))
+    }
+
+    fn event<T>(
+        indexed: &Indexed<T>,
+        meta: LogMeta,
+        address: H256,
+        data: EventData,
+    ) -> Result<Event> {
+        ensure!(meta.log_index <= u64::MAX.into(), "Log index too large");
+        Ok(Event {
+            block_number: meta.block_number,
+            block_hash: meta.block_hash.into(),
+            address,
+            tx_hash: meta.transaction_id,
+            tx_index: meta.transaction_index,
+            log_index: meta.log_index.as_u64(),
+            sequence: indexed.sequence,
+            data,
+        })
+    }
+
+    async fn logs<T: Send + Sync + 'static>(
+        indexer: &dyn SequenceAwareIndexer<T>,
+        blocks: std::ops::RangeInclusive<u32>,
+        next_sequence: u32,
+        sequence_mode: bool,
+        chunk_size: u32,
+    ) -> Result<(Vec<(Indexed<T>, LogMeta)>, (Option<u32>, u32))> {
+        let watermark = indexer.latest_sequence_count_and_tip().await?;
+        if sequence_mode {
+            let Some(count) = watermark.0 else {
+                return Ok((indexer.fetch_logs_in_range(blocks).await?, watermark));
+            };
+            ensure!(
+                count >= next_sequence,
+                "Provider sequence count is behind durable history"
+            );
+            if count == next_sequence {
+                return Ok((Vec::new(), watermark));
+            }
+            ensure!(chunk_size > 0, "index.chunk must be positive");
+            let mut logs = Vec::new();
+            let mut start = next_sequence;
+            let mut previous_block = None;
+            while start < count {
+                let end = count
+                    .saturating_sub(1)
+                    .min(start.saturating_add(chunk_size).saturating_sub(1));
+                let mut page = indexer.fetch_logs_in_range(start..=end).await?;
+                page.sort_by_key(|(indexed, _)| indexed.sequence);
+                let mut expected = start;
+                for (indexed, meta) in &page {
+                    ensure!(
+                        indexed.sequence == Some(expected),
+                        "Indexer returned an incomplete sequence page"
+                    );
+                    ensure!(
+                        previous_block.is_none_or(|height| height <= meta.block_number),
+                        "Indexer returned sequences out of block order"
+                    );
+                    previous_block = Some(meta.block_number);
+                    expected = expected
+                        .checked_add(1)
+                        .ok_or_else(|| eyre!("Sequence range overflow"))?;
+                }
+                ensure!(
+                    expected == end.saturating_add(1),
+                    "Indexer returned an incomplete sequence page"
+                );
+                let beyond_boundary = page
+                    .last()
+                    .is_some_and(|(_, meta)| meta.block_number > u64::from(*blocks.end()));
+                logs.extend(page);
+                start = end
+                    .checked_add(1)
+                    .ok_or_else(|| eyre!("Sequence range overflow"))?;
+                if beyond_boundary {
+                    break;
+                }
+            }
+            Ok((logs, watermark))
+        } else {
+            Ok((indexer.fetch_logs_in_range(blocks).await?, watermark))
+        }
+    }
+
+    fn normalize_gas_positions(events: &mut [Event]) -> Result<()> {
+        let mut block = None;
+        let mut gas_index = 0u64;
+        for event in events {
+            if block != Some(event.block_number) {
+                block = Some(event.block_number);
+                gas_index = 0;
+            }
+            if matches!(event.data, EventData::Gas { .. }) {
+                event.log_index = gas_index;
+                gas_index = gas_index
+                    .checked_add(1)
+                    .ok_or_else(|| eyre!("Gas-payment occurrence index overflow"))?;
+            }
+        }
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl Source for GenericSource {
+    async fn header(&self, selector: BlockSelector) -> Result<Header> {
+        let height = match selector {
+            BlockSelector::Height(height) => height,
+            BlockSelector::Latest => {
+                self.provider
+                    .get_chain_metrics()
+                    .await?
+                    .ok_or_else(|| eyre!("Provider omitted chain height"))?
+                    .block_height
+            }
+            BlockSelector::Safe | BlockSelector::Finalized => {
+                u64::from(self.messages.latest_sequence_count_and_tip().await?.1)
+            }
+        };
+        let block = self.provider.get_block_by_height(height).await?;
+        ensure!(
+            block.number == height,
+            "RPC returned incorrect block height"
+        );
+        Ok(Header {
+            height,
+            timestamp: block.timestamp,
+            hash: block.hash.into(),
+            parent: EthersH256::zero(),
+        })
+    }
+
+    async fn range_end(&self, after: u64, through: u64, head: u64) -> Result<Header> {
+        ensure!(after < through, "Empty indexing range");
+        ensure!(through <= head, "Range boundary is ahead of head");
+        let mut first_error = None;
+        for height in (after.saturating_add(1)..=through).rev() {
+            match self.header(BlockSelector::Height(height)).await {
+                Ok(header) => return Ok(header),
+                Err(error) => first_error.get_or_insert(error),
+            };
+        }
+        // An entire chunk may consist of skipped slots. Advance to the first
+        // real block after it without treating nonexistent slots as headers.
+        for height in through.saturating_add(1)..=head {
+            if let Ok(header) = self.header(BlockSelector::Height(height)).await {
+                return Ok(header);
+            }
+        }
+        Err(first_error.unwrap_or_else(|| eyre!("No canonical block in indexing range")))
+    }
+
+    async fn counts(&self, _hash: EthersH256) -> Result<[u32; 2]> {
+        eyre::bail!("Historical sequence counts are unsupported")
+    }
+
+    fn has_historical_counts(&self) -> bool {
+        false
+    }
+
+    async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
+        Ok(self.events_after(from, through, [0; 4]).await?.events)
+    }
+
+    async fn events_after(
+        &self,
+        from: u64,
+        through: u64,
+        sequences: [u32; 4],
+    ) -> Result<EventBatch> {
+        ensure!(from <= through, "Invalid event range");
+        let range = u32::try_from(from)?..=u32::try_from(through)?;
+        let (messages, deliveries, payments, insertions) = tokio::try_join!(
+            Self::logs(
+                self.messages.as_ref(),
+                range.clone(),
+                sequences[0],
+                self.sequence_mode,
+                self.chunk_size,
+            ),
+            Self::logs(
+                self.deliveries.as_ref(),
+                range.clone(),
+                sequences[1],
+                self.sequence_mode,
+                self.chunk_size,
+            ),
+            Self::logs(
+                self.payments.as_ref(),
+                range.clone(),
+                sequences[2],
+                self.sequence_mode,
+                self.chunk_size,
+            ),
+            Self::logs(
+                self.insertions.as_ref(),
+                range,
+                sequences[3],
+                self.sequence_mode,
+                self.chunk_size,
+            ),
+        )?;
+        let (messages, message_watermark) = messages;
+        let (deliveries, delivery_watermark) = deliveries;
+        let (payments, payment_watermark) = payments;
+        let (insertions, insertion_watermark) = insertions;
+        let capacity = messages
+            .len()
+            .saturating_add(deliveries.len())
+            .saturating_add(payments.len())
+            .saturating_add(insertions.len());
+        let mut events = Vec::with_capacity(capacity);
+        for (indexed, meta) in messages {
+            let data = EventData::Dispatch(indexed.inner().clone());
+            events.push(Self::event(&indexed, meta, self.contracts.mailbox, data)?);
+        }
+        for (indexed, meta) in deliveries {
+            let data = EventData::Delivery(*indexed.inner());
+            events.push(Self::event(&indexed, meta, self.contracts.mailbox, data)?);
+        }
+        for (indexed, meta) in payments {
+            let payment = *indexed.inner();
+            let data = EventData::Gas {
+                message_id: payment.message_id,
+                destination: payment.destination,
+                gas: payment.gas_amount.to_string(),
+                payment: payment.payment.to_string(),
+            };
+            events.push(Self::event(&indexed, meta, self.contracts.paymaster, data)?);
+        }
+        for (indexed, meta) in insertions {
+            let insertion = *indexed.inner();
+            let data = EventData::Insertion {
+                message_id: insertion.message_id(),
+                index: insertion.index(),
+            };
+            events.push(Self::event(&indexed, meta, self.contracts.hook, data)?);
+        }
+        events.sort_by_key(|event| (event.block_number, event.tx_index, event.log_index));
+        Self::normalize_gas_positions(&mut events)?;
+        ensure!(
+            events.iter().all(|event| event.block_number >= from),
+            "Indexer returned an event from a different block"
+        );
+        // Sequence tips can advance after the observed head. Defer those events
+        // until their blocks are included in a later observation.
+        events.retain(|event| event.block_number <= through);
+        Ok(EventBatch {
+            events,
+            watermarks: Some([
+                message_watermark,
+                delivery_watermark,
+                payment_watermark,
+                insertion_watermark,
+            ]),
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::{ops::RangeInclusive, sync::Mutex};
+
     use ethers::{
         abi::{encode, Token},
         providers::Provider,
@@ -266,10 +625,136 @@ mod tests {
     use super::*;
 
     #[derive(Debug)]
+    struct SequenceIndexer {
+        count: u32,
+        truncate_last: bool,
+        requests: Mutex<Vec<RangeInclusive<u32>>>,
+    }
+
+    #[async_trait]
+    impl hyperlane_core::Indexer<HyperlaneMessage> for SequenceIndexer {
+        async fn fetch_logs_in_range(
+            &self,
+            range: RangeInclusive<u32>,
+        ) -> hyperlane_core::ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+            self.requests
+                .lock()
+                .expect("request mutex poisoned")
+                .push(range.clone());
+            let mut logs: Vec<_> = range
+                .map(|sequence| {
+                    (
+                        Indexed::new(HyperlaneMessage::default()).with_sequence(sequence),
+                        LogMeta {
+                            block_number: u64::from(sequence),
+                            ..LogMeta::default()
+                        },
+                    )
+                })
+                .collect();
+            if self.truncate_last {
+                logs.pop();
+            }
+            Ok(logs)
+        }
+
+        async fn get_finalized_block_number(&self) -> hyperlane_core::ChainResult<u32> {
+            Ok(200)
+        }
+    }
+
+    #[async_trait]
+    impl SequenceAwareIndexer<HyperlaneMessage> for SequenceIndexer {
+        async fn latest_sequence_count_and_tip(
+            &self,
+        ) -> hyperlane_core::ChainResult<(Option<u32>, u32)> {
+            Ok((Some(self.count), 200))
+        }
+    }
+
+    #[tokio::test]
+    async fn sequence_mode_translates_durable_count_to_sequence_range() -> Result<()> {
+        let indexer = SequenceIndexer {
+            count: 10,
+            truncate_last: false,
+            requests: Mutex::new(Vec::new()),
+        };
+        GenericSource::logs(&indexer, 100..=200, 7, true, 2).await?;
+        assert_eq!(
+            *indexer.requests.lock().expect("request mutex poisoned"),
+            vec![7..=8, 9..=9]
+        );
+
+        indexer
+            .requests
+            .lock()
+            .expect("request mutex poisoned")
+            .clear();
+        GenericSource::logs(&indexer, 100..=200, 7, false, 2).await?;
+        assert_eq!(
+            *indexer.requests.lock().expect("request mutex poisoned"),
+            vec![100..=200]
+        );
+        assert!(GenericSource::logs(&indexer, 100..=200, 11, true, 2)
+            .await
+            .is_err());
+
+        let partial = SequenceIndexer {
+            count: 10,
+            truncate_last: true,
+            requests: Mutex::new(Vec::new()),
+        };
+        assert!(GenericSource::logs(&partial, 100..=200, 7, true, 10)
+            .await
+            .is_err());
+
+        let bounded = SequenceIndexer {
+            count: 100,
+            truncate_last: false,
+            requests: Mutex::new(Vec::new()),
+        };
+        GenericSource::logs(&bounded, 0..=3, 0, true, 2).await?;
+        assert_eq!(
+            *bounded.requests.lock().expect("request mutex poisoned"),
+            vec![0..=1, 2..=3, 4..=5]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn generic_gas_positions_are_unique_per_block() -> Result<()> {
+        let event = |block_number, log_index| Event {
+            block_number,
+            block_hash: EthersH256::zero(),
+            address: H256::zero(),
+            tx_hash: H512::zero(),
+            tx_index: 0,
+            log_index,
+            sequence: None,
+            data: EventData::Gas {
+                message_id: H256::zero(),
+                destination: 0,
+                gas: "0".into(),
+                payment: "0".into(),
+            },
+        };
+        let mut events = vec![event(7, 0), event(7, 0), event(8, 0)];
+        GenericSource::normalize_gas_positions(&mut events)?;
+        assert_eq!(
+            events
+                .into_iter()
+                .map(|event| event.log_index)
+                .collect::<Vec<_>>(),
+            vec![0, 1, 0]
+        );
+        Ok(())
+    }
+
+    #[derive(Debug)]
     struct ConcurrentCounts {
         inner: Provider<ethers::providers::MockProvider>,
         started: tokio::sync::Barrier,
-        hash: H256,
+        hash: EthersH256,
     }
 
     #[async_trait]
@@ -302,14 +787,14 @@ mod tests {
     #[tokio::test]
     async fn sequence_count_requests_run_concurrently() -> Result<()> {
         let (inner, _) = Provider::mocked();
-        let hash = H256::repeat_byte(4);
+        let hash = EthersH256::repeat_byte(4);
         let source = EvmSource {
             provider: ConcurrentCounts {
                 inner,
                 started: tokio::sync::Barrier::new(2),
                 hash,
             },
-            contracts: Contracts {
+            contracts: EvmContracts {
                 mailbox: H160::repeat_byte(1),
                 hook: H160::repeat_byte(2),
                 paymaster: H160::repeat_byte(3),
@@ -329,14 +814,14 @@ mod tests {
         let (provider, rpc) = Provider::mocked();
         let source = EvmSource {
             provider,
-            contracts: Contracts {
+            contracts: EvmContracts {
                 mailbox: H160::repeat_byte(1),
                 hook: H160::repeat_byte(2),
                 paymaster: H160::repeat_byte(3),
             },
             domain: 1,
         };
-        let hash = H256::repeat_byte(4);
+        let hash = EthersH256::repeat_byte(4);
         let encoded = |value: u32| Bytes::from(encode(&[Token::Uint(value.into())]));
         rpc.push::<Bytes, _>(encoded(7))?;
         rpc.push::<Bytes, _>(encoded(9))?;
@@ -370,7 +855,7 @@ mod tests {
     #[tokio::test]
     async fn gas_logs_require_the_requested_occurrence_and_unique_positions() -> Result<()> {
         let (provider, rpc) = Provider::mocked();
-        let contracts = Contracts {
+        let contracts = EvmContracts {
             mailbox: H160::repeat_byte(1),
             hook: H160::repeat_byte(2),
             paymaster: H160::repeat_byte(3),
@@ -383,20 +868,20 @@ mod tests {
         let header = Header {
             height: 10,
             timestamp: 1,
-            hash: H256::repeat_byte(4),
-            parent: H256::repeat_byte(5),
+            hash: EthersH256::repeat_byte(4),
+            parent: EthersH256::repeat_byte(5),
         };
         let log = Log {
             address: contracts.paymaster,
             topics: vec![
                 GasPaymentFilter::signature(),
-                H256::repeat_byte(6),
-                H256::from_low_u64_be(42161),
+                EthersH256::repeat_byte(6),
+                EthersH256::from_low_u64_be(42161),
             ],
             data: encode(&[Token::Uint(123.into()), Token::Uint(456.into())]).into(),
             block_hash: Some(header.hash),
             block_number: Some(header.height.into()),
-            transaction_hash: Some(H256::repeat_byte(7)),
+            transaction_hash: Some(EthersH256::repeat_byte(7)),
             transaction_index: Some(0.into()),
             log_index: Some(1.into()),
             removed: Some(false),

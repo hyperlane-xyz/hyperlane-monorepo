@@ -1,6 +1,6 @@
 use ethers::types::H256;
 use eyre::{ensure, Result};
-use hyperlane_core::{address_to_bytes, LogMeta};
+use hyperlane_core::{address_to_bytes, h512_to_bytes, LogMeta};
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement, TransactionTrait, Value};
 
 use super::source::{Contracts, Event, EventData, Header};
@@ -101,10 +101,12 @@ impl Store {
         if let Some(row) = previous {
             ensure!(
                 row.try_get::<i64>("", "start_height")? == i64::try_from(anchor.height)?
-                    && row.try_get::<Vec<u8>>("", "mailbox")? == contracts.mailbox.as_bytes()
-                    && row.try_get::<Vec<u8>>("", "merkle_tree_hook")? == contracts.hook.as_bytes()
+                    && row.try_get::<Vec<u8>>("", "mailbox")?
+                        == address_to_bytes(&contracts.mailbox)
+                    && row.try_get::<Vec<u8>>("", "merkle_tree_hook")?
+                        == address_to_bytes(&contracts.hook)
                     && row.try_get::<Vec<u8>>("", "interchain_gas_paymaster")?
-                        == contracts.paymaster.as_bytes(),
+                        == address_to_bytes(&contracts.paymaster),
                 "Near-head boundary or contracts changed; restore the original configuration"
             );
         } else {
@@ -114,7 +116,7 @@ impl Store {
             insert_block(&tx, signed(self.domain), anchor).await?;
             tx.execute(sql(
                 "INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster) VALUES($1,$2,$2,$3,$2,$2,$4,$5,$6)",
-                vec![self.domain(), number(anchor.height)?, bytes(anchor.hash), contracts.mailbox.as_bytes().to_vec().into(), contracts.hook.as_bytes().to_vec().into(), contracts.paymaster.as_bytes().to_vec().into()],
+                vec![self.domain(), number(anchor.height)?, bytes(anchor.hash), address_to_bytes(&contracts.mailbox).into(), address_to_bytes(&contracts.hook).into(), address_to_bytes(&contracts.paymaster).into()],
             )).await?;
         }
         tx.execute(sql(
@@ -135,6 +137,20 @@ impl Store {
             .await?
             .map(|row| Ok(H256::from_slice(&row.try_get::<Vec<u8>>("", "hash")?)))
             .transpose()
+    }
+
+    /// Next expected sequences for all four streams in durable history.
+    pub async fn sequence_counts(&self) -> Result<[u32; 4]> {
+        let row = self.db.query_one(sql(
+            "SELECT coalesce((SELECT max(nonce::bigint & 4294967295)+1 FROM raw_message_dispatch WHERE origin_domain=$1 AND origin_mailbox=(SELECT mailbox FROM scraper_head WHERE domain=$1)),0) AS dispatches, coalesce((SELECT max(sequence)+1 FROM delivered_message WHERE domain=$1 AND destination_mailbox=(SELECT mailbox FROM scraper_head WHERE domain=$1)),0) AS deliveries, coalesce((SELECT max(sequence)+1 FROM gas_payment WHERE domain=$1 AND interchain_gas_paymaster=(SELECT interchain_gas_paymaster FROM scraper_head WHERE domain=$1)),0) AS payments, coalesce((SELECT max(leaf_index::bigint & 4294967295)+1 FROM merkle_tree_insertion WHERE domain=$1 AND merkle_tree_hook=(SELECT merkle_tree_hook FROM scraper_head WHERE domain=$1)),0) AS insertions",
+            vec![self.domain()],
+        )).await?.ok_or_else(|| eyre::eyre!("Missing sequence counts"))?;
+        Ok([
+            u32::try_from(row.try_get::<i64>("", "dispatches")?)?,
+            u32::try_from(row.try_get::<i64>("", "deliveries")?)?,
+            u32::try_from(row.try_get::<i64>("", "payments")?)?,
+            u32::try_from(row.try_get::<i64>("", "insertions")?)?,
+        ])
     }
 
     /// A range may contain empty blocks whose headers were never fetched.
@@ -199,7 +215,9 @@ impl Store {
             ensure!(
                 header.height > height
                     && header.height <= expected.head
-                    && (header.height.checked_sub(1) != Some(height) || header.parent == previous),
+                    && (header.height.checked_sub(1) != Some(height)
+                        || header.parent.is_zero()
+                        || header.parent == previous),
                 "Invalid range checkpoint order"
             );
             batches.entry("INSERT INTO block(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC')").or_default().push(vec![self.domain(), bytes(header.hash), number(header.height)?, number(header.timestamp)?]);
@@ -360,10 +378,9 @@ impl Store {
                         block_hash: hyperlane_core::H256::from_slice(
                             &r.try_get::<Vec<u8>>("", "block_hash")?,
                         ),
-                        transaction_id: hyperlane_core::H256::from_slice(
+                        transaction_id: hyperlane_core::bytes_to_h512(
                             &r.try_get::<Vec<u8>>("", "transaction_hash")?,
-                        )
-                        .into(),
+                        ),
                         // Receipt fetching only needs the transaction and block identity.
                         ..LogMeta::default()
                     },
@@ -393,12 +410,12 @@ async fn insert_block<C: ConnectionTrait>(db: &C, domain: i32, h: &Header) -> Re
 }
 
 fn event_row(domain: i32, h: &Header, e: &Event) -> Result<(&'static str, Vec<Value>)> {
-    let address = e.address.as_bytes().to_vec();
+    let address = address_to_bytes(&e.address);
     let meta = vec![
         domain.into(),
         bytes(h.hash),
         number(h.height)?,
-        bytes(e.tx_hash),
+        h512_to_bytes(&e.tx_hash).into(),
         number(e.tx_index)?,
         number(e.log_index)?,
         address.into(),
@@ -409,16 +426,16 @@ fn event_row(domain: i32, h: &Header, e: &Event) -> Result<(&'static str, Vec<Va
             vec![m.id().as_bytes().to_vec().into(), signed(m.destination).into(), signed(m.nonce).into(), address_to_bytes(&m.sender).into(), address_to_bytes(&m.recipient).into(), m.body.clone().into(), i16::from(m.version).into()],
         ),
         EventData::Delivery(id) => (
-            "INSERT INTO delivered_message(domain,block_hash,block_number,transaction_hash,transaction_index,log_index,destination_mailbox,msg_id,confirmed) VALUES($1,$2,$3,$4,$5,$6,$7,$8,false)",
-            vec![bytes(*id)],
+            "INSERT INTO delivered_message(domain,block_hash,block_number,transaction_hash,transaction_index,log_index,destination_mailbox,msg_id,sequence,confirmed) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,false)",
+            vec![id.as_bytes().to_vec().into(), e.sequence.map(i64::from).into()],
         ),
         EventData::Insertion { message_id, index } => (
             "INSERT INTO merkle_tree_insertion(domain,block_hash,block_number,transaction_hash,transaction_index,log_index,merkle_tree_hook,message_id,leaf_index,confirmed) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,false)",
-            vec![bytes(*message_id), signed(*index).into()],
+            vec![message_id.as_bytes().to_vec().into(), signed(*index).into()],
         ),
         EventData::Gas { message_id, destination, gas, payment } => (
-            "INSERT INTO gas_payment(domain,block_hash,block_number,transaction_hash,transaction_index,log_index,interchain_gas_paymaster,msg_id,destination,gas_amount,payment,origin,confirmed) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::text::numeric,$11::text::numeric,$1,false)",
-            vec![bytes(*message_id), signed(*destination).into(), gas.clone().into(), payment.clone().into()],
+            "INSERT INTO gas_payment(domain,block_hash,block_number,transaction_hash,transaction_index,log_index,interchain_gas_paymaster,msg_id,destination,gas_amount,payment,origin,sequence,confirmed) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::text::numeric,$11::text::numeric,$1,$12,false)",
+            vec![message_id.as_bytes().to_vec().into(), signed(*destination).into(), gas.clone().into(), payment.clone().into(), e.sequence.map(i64::from).into()],
         ),
     };
     Ok((query, meta.into_iter().chain(extra).collect()))

@@ -23,19 +23,20 @@ fn header(height: u64) -> Header {
     }
 }
 
-fn event(height: u64, index: u64, address: H160, data: EventData) -> Event {
+fn event(height: u64, index: u64, address: hyperlane_core::H256, data: EventData) -> Event {
     Event {
         block_number: height,
         block_hash: header(height).hash,
-        tx_hash: H256::from_low_u64_be(height * 10_000 + index),
+        tx_hash: H256::from_low_u64_be(height * 10_000 + index).into(),
         tx_index: index,
         log_index: index,
         address,
+        sequence: None,
         data,
     }
 }
 
-fn payments(height: u64, count: u64, address: H160) -> Vec<Event> {
+fn payments(height: u64, count: u64, address: hyperlane_core::H256) -> Vec<Event> {
     (0..count)
         .map(|index| {
             event(
@@ -43,7 +44,7 @@ fn payments(height: u64, count: u64, address: H160) -> Vec<Event> {
                 index,
                 address,
                 EventData::Gas {
-                    message_id: H256::from_low_u64_be(index),
+                    message_id: H256::from_low_u64_be(index).into(),
                     destination: 2,
                     gas: "1".into(),
                     payment: "1".into(),
@@ -64,9 +65,9 @@ async fn confirmation_budget_preserves_blocks_and_measures_gas_dense_publication
     migration::Migrator::up(&db, None).await?;
     let store = Store { db, domain: 1 };
     let contracts = Contracts {
-        mailbox: H160::repeat_byte(1),
-        hook: H160::repeat_byte(2),
-        paymaster: H160::repeat_byte(3),
+        mailbox: H160::repeat_byte(1).into(),
+        hook: H160::repeat_byte(2).into(),
+        paymaster: H160::repeat_byte(3).into(),
     };
     store.initialize(&header(0), &contracts).await?;
     let initial = store.state().await?.unwrap();
@@ -81,7 +82,7 @@ async fn confirmation_budget_preserves_blocks_and_measures_gas_dense_publication
         recipient: hyperlane_core::H256::repeat_byte(2),
         body: vec![],
     };
-    let message_id = H256::from_slice(message.id().as_bytes());
+    let message_id = message.id();
     let mixed = vec![
         event(20, 0, contracts.mailbox, EventData::Dispatch(message)),
         event(20, 1, contracts.mailbox, EventData::Delivery(message_id)),
