@@ -183,12 +183,18 @@ impl SealevelMailboxIndexer {
             Err(err) => return Err(err),
         };
 
-        match self.dispatch_message_log_meta_composer.log_meta(
-            block,
-            log_index,
-            message_storage_pda_pubkey,
-            message_account_slot,
-        ) {
+        let rpc_client = self.mailbox.provider.rpc_client();
+        match self
+            .dispatch_message_log_meta_composer
+            .log_meta_at_or_before(
+                block,
+                log_index,
+                message_storage_pda_pubkey,
+                message_account_slot,
+                |previous_slot| rpc_client.get_block(previous_slot),
+            )
+            .await?
+        {
             Ok(log_meta) => Ok(Some(log_meta)),
             Err(err) if err.is_log_meta_unresolvable() => {
                 warn!(
@@ -308,12 +314,18 @@ impl SealevelMailboxIndexer {
             Err(err) => return Err(err),
         };
 
-        match self.delivery_message_log_meta_composer.log_meta(
-            block,
-            log_index,
-            message_storage_pda_pubkey,
-            message_account_slot,
-        ) {
+        let rpc_client = self.mailbox.provider.rpc_client();
+        match self
+            .delivery_message_log_meta_composer
+            .log_meta_at_or_before(
+                block,
+                log_index,
+                message_storage_pda_pubkey,
+                message_account_slot,
+                |previous_slot| rpc_client.get_block(previous_slot),
+            )
+            .await?
+        {
             Ok(log_meta) => Ok(Some(log_meta)),
             Err(err) if err.is_log_meta_unresolvable() => {
                 warn!(
