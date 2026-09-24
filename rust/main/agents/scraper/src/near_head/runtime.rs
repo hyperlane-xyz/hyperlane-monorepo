@@ -2,7 +2,6 @@
 //! publication and ingestion never contend for the same `scraper_head` row.
 use std::{sync::Arc, time::Duration};
 
-use eyre::ensure;
 use hyperlane_base::{ChainMetrics, ContractSyncMetrics};
 use hyperlane_core::{HyperlaneDomain, ReorgPeriod};
 use tokio::time::sleep;
@@ -59,9 +58,34 @@ impl Worker {
             .with_label_values(&["near_head", self.domain.name()])
             .set(i64::try_from(observed.indexed)?);
 
-        // Publish one bounded page before ingesting more. Repeating the cycle
-        // drains both backlogs without concurrent database writers.
-        let counts = confirm_leased(
+        // Ingest before publication so newly indexed events do not wait for the
+        // next poll. Keep the result so existing work can still publish when
+        // the log query fails.
+        let depth = match &self.period {
+            ReorgPeriod::Blocks(depth) => u64::from(depth.get()),
+            _ => 0,
+        };
+        let mut bounded = observed.clone();
+        bounded.head = bounded.head.min(
+            bounded
+                .confirmed
+                .saturating_add(depth)
+                .saturating_add(10_000),
+        );
+        let ingestion = if bounded.indexed < bounded.head {
+            ingest_cached(
+                self.source.as_ref(),
+                &self.store,
+                &bounded,
+                self.chunk_size,
+                count_cache,
+            )
+            .await
+        } else {
+            Ok(false)
+        };
+
+        let confirmation = confirm_leased(
             self.source.as_ref(),
             &self.store,
             &self.period,
@@ -75,7 +99,7 @@ impl Worker {
             "merkle_tree_insertion",
         ]
         .into_iter()
-        .zip(counts)
+        .zip(confirmation.counts)
         {
             self.sync_metrics
                 .stored_events
@@ -100,35 +124,7 @@ impl Worker {
                 .set(i64::try_from(state.confirmed)?);
         }
 
-        // Bound provisional storage if a valid finality tag stops advancing.
-        let depth = match &self.period {
-            ReorgPeriod::Blocks(depth) => u64::from(depth.get()),
-            _ => 0,
-        };
-        let observed_head = state.head;
-        let mut bounded = state;
-        bounded.head = bounded.head.min(
-            bounded
-                .confirmed
-                .saturating_add(depth)
-                .saturating_add(10_000),
-        );
-        ensure!(
-            bounded.indexed < bounded.head || bounded.head == observed_head,
-            "Confirmation backlog reached its provisional block limit"
-        );
-        if bounded.indexed >= bounded.head {
-            // A full publication page means more confirmed work may be ready.
-            return Ok(counts.into_iter().sum::<u64>() >= 1_000);
-        }
-        ingest_cached(
-            self.source.as_ref(),
-            &self.store,
-            &bounded,
-            self.chunk_size,
-            count_cache,
-        )
-        .await
+        Ok(ingestion? || confirmation.page_limited)
     }
 }
 

@@ -129,7 +129,10 @@ async fn prepare(
     // indexed height. The observation loop waits for lagging providers and
     // checks retained ancestry before publishing anything.
     let hash = match store.state().await? {
-        Some(_) => source.header(BlockNumber::Latest).await?.hash,
+        Some(state) => {
+            store.validate_checkpoints(&state).await?;
+            source.header(BlockNumber::Latest).await?.hash
+        }
         None => anchor.hash,
     };
     source.counts(hash).await?;
@@ -299,7 +302,16 @@ fn confirmation_lease(poll_interval: Duration) -> Duration {
 
 #[cfg(test)]
 async fn confirm(source: &dyn Source, store: &Store, period: &ReorgPeriod) -> Result<[u64; 4]> {
-    confirm_leased(source, store, period, MIN_CONFIRMATION_LEASE).await
+    Ok(
+        confirm_leased(source, store, period, MIN_CONFIRMATION_LEASE)
+            .await?
+            .counts,
+    )
+}
+
+struct Confirmation {
+    counts: [u64; 4],
+    page_limited: bool,
 }
 
 async fn confirm_leased(
@@ -307,14 +319,17 @@ async fn confirm_leased(
     store: &Store,
     period: &ReorgPeriod,
     lease: Duration,
-) -> Result<[u64; 4]> {
+) -> Result<Confirmation> {
     let state = store
         .state()
         .await?
         .ok_or_else(|| eyre::eyre!("Missing head state"))?;
     ensure!(!state.halted, "Confirmed history requires operator repair");
     if state.indexed == state.confirmed {
-        return Ok([0; 4]);
+        return Ok(Confirmation {
+            counts: [0; 4],
+            page_limited: false,
+        });
     }
     let tagged = match period {
         ReorgPeriod::Tag(tag) if tag != "latest" => Some(
@@ -335,13 +350,18 @@ async fn confirm_leased(
     // to the observed head is then final; confirm only that observed history.
     let through = through.min(state.head);
     if through <= state.confirmed {
-        return Ok([0; 4]);
+        return Ok(Confirmation {
+            counts: [0; 4],
+            page_limited: false,
+        });
     }
-    let through = store
-        .confirmation_boundary(state.confirmed, through.min(state.indexed))
-        .await?;
+    let target = through.min(state.indexed);
+    let through = store.confirmation_boundary(state.confirmed, target).await?;
     if through <= state.confirmed {
-        return Ok([0; 4]);
+        return Ok(Confirmation {
+            counts: [0; 4],
+            page_limited: false,
+        });
     }
     let boundary = match tagged {
         Some(header) if header.height == through => header,
@@ -363,7 +383,10 @@ async fn confirm_leased(
         indexed_hash == state.hash,
         "Indexed fork changed before confirmation"
     );
-    store.confirm(&state, &boundary, lease).await
+    Ok(Confirmation {
+        counts: store.confirm(&state, &boundary, lease).await?,
+        page_limited: through < target,
+    })
 }
 
 #[cfg(test)]

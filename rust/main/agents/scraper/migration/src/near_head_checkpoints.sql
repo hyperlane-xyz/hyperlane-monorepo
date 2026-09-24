@@ -9,13 +9,21 @@ CREATE TABLE scraper_checkpoint (
   PRIMARY KEY(domain,height)
 );
 
--- Preserve the live reorg window across a rolling upgrade. The old scraper
--- stored these checkpoints in block; copying extra event blocks is harmless and
--- they disappear as confirmation advances.
+-- Every scraper deployment sharing this database must be stopped. The lock
+-- fails quickly if an old near-head writer is still advancing scraper_head.
+SET LOCAL lock_timeout='5s';
+LOCK TABLE scraper_head IN EXCLUSIVE MODE;
+
+-- Preserve the live reorg window while the old scraper is stopped. Drive the
+-- copy from the small head table so PostgreSQL uses block_domain_height_key.
 INSERT INTO scraper_checkpoint(domain,height,hash,timestamp)
 SELECT b.domain,b.height,b.hash,b.timestamp
-FROM block b JOIN scraper_head h ON h.domain=b.domain
-WHERE b.height>=h.confirmed_height AND b.height<=h.indexed_height
+FROM scraper_head h CROSS JOIN LATERAL (
+  SELECT domain,height,hash,timestamp FROM block b
+  WHERE b.domain=h.domain AND b.height>=h.confirmed_height
+    AND b.height<=h.indexed_height
+  OFFSET 0
+) b
 ON CONFLICT DO NOTHING;
 
 DO $$ BEGIN
@@ -26,7 +34,17 @@ DO $$ BEGIN
       WHERE c.domain=h.domain AND c.height=h.confirmed_height
     )
   ) THEN
-    RAISE EXCEPTION 'Missing confirmed near-head checkpoint';
+    RAISE EXCEPTION 'Missing confirmed near-head checkpoint; stop all scraper writers sharing this database and repair the boundary';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM scraper_head h
+    WHERE NOT EXISTS (
+      SELECT 1 FROM scraper_checkpoint c
+      WHERE c.domain=h.domain AND c.height=h.indexed_height
+        AND c.hash=h.indexed_hash
+    )
+  ) THEN
+    RAISE EXCEPTION 'Missing or mismatched indexed near-head checkpoint; stop all scraper writers sharing this database and repair the boundary';
   END IF;
 END $$;
 

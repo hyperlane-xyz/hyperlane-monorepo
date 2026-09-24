@@ -82,7 +82,7 @@ impl Store {
 
     async fn ensure_empty_history<C: ConnectionTrait>(&self, db: &C) -> Result<()> {
         let row = db.query_one(sql(
-            "SELECT EXISTS(SELECT 1 FROM block WHERE domain=$1) OR EXISTS(SELECT 1 FROM raw_message_dispatch WHERE origin_domain=$1) OR EXISTS(SELECT 1 FROM delivered_message WHERE domain=$1) OR EXISTS(SELECT 1 FROM gas_payment WHERE domain=$1) OR EXISTS(SELECT 1 FROM merkle_tree_insertion WHERE domain=$1) AS has_history",
+            "SELECT EXISTS(SELECT 1 FROM block WHERE domain=$1) OR EXISTS(SELECT 1 FROM scraper_checkpoint WHERE domain=$1) OR EXISTS(SELECT 1 FROM raw_message_dispatch WHERE origin_domain=$1) OR EXISTS(SELECT 1 FROM delivered_message WHERE domain=$1) OR EXISTS(SELECT 1 FROM gas_payment WHERE domain=$1) OR EXISTS(SELECT 1 FROM merkle_tree_insertion WHERE domain=$1) AS has_history",
             vec![self.domain()],
         )).await?.ok_or_else(|| eyre::eyre!("Missing legacy history check"))?;
         ensure!(
@@ -117,7 +117,10 @@ impl Store {
                 "INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster) VALUES($1,$2,$2,$3,$2,$2,$4,$5,$6)",
                 vec![self.domain(), number(anchor.height)?, bytes(anchor.hash), contracts.mailbox.as_bytes().to_vec().into(), contracts.hook.as_bytes().to_vec().into(), contracts.paymaster.as_bytes().to_vec().into()],
             )).await?;
-            insert_checkpoint(&tx, signed(self.domain), anchor).await?;
+            tx.execute(sql(
+                "INSERT INTO scraper_checkpoint(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC')",
+                vec![self.domain(), bytes(anchor.hash), number(anchor.height)?, number(anchor.timestamp)?],
+            )).await?;
         }
         tx.execute(sql(
             "UPDATE scraper_head SET healthy=false WHERE domain=$1",
@@ -125,6 +128,19 @@ impl Store {
         ))
         .await?;
         tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn validate_checkpoints(&self, state: &State) -> Result<()> {
+        let row = self.db.query_one(sql(
+            "SELECT EXISTS(SELECT 1 FROM scraper_checkpoint WHERE domain=$1 AND height=$2) AS confirmed_exists, EXISTS(SELECT 1 FROM scraper_checkpoint WHERE domain=$1 AND height=$3 AND hash=$4) AS indexed_matches",
+            vec![self.domain(), number(state.confirmed)?, number(state.indexed)?, bytes(state.hash)],
+        )).await?.ok_or_else(|| eyre::eyre!("Missing checkpoint validation"))?;
+        ensure!(
+            row.try_get::<bool>("", "confirmed_exists")?
+                && row.try_get::<bool>("", "indexed_matches")?,
+            "Near-head checkpoints are out of sync; stop old scraper writers and repair scraper_checkpoint before restarting"
+        );
         Ok(())
     }
 
@@ -395,7 +411,7 @@ fn event_row(domain: i32, h: &Header, e: &Event) -> Result<(&'static str, Vec<Va
             vec![m.id().as_bytes().to_vec().into(), signed(m.destination).into(), signed(m.nonce).into(), address_to_bytes(&m.sender).into(), address_to_bytes(&m.recipient).into(), m.body.clone().into(), i16::from(m.version).into()],
         ),
         EventData::Delivery(id) => (
-            "INSERT INTO delivered_message(domain,block_hash,block_number,transaction_hash,transaction_index,log_index,destination_mailbox,msg_id,confirmed) VALUES($1,$2,$3,$4,$5,$6,$7,$8,false)",
+            "INSERT INTO delivered_message(domain,block_hash,block_number,transaction_hash,transaction_index,log_index,destination_mailbox,msg_id,time_created,confirmed) VALUES($1,$2,$3,$4,$5,$6,$7,$8,now(),false)",
             vec![bytes(*id)],
         ),
         EventData::Insertion { message_id, index } => (
@@ -403,7 +419,7 @@ fn event_row(domain: i32, h: &Header, e: &Event) -> Result<(&'static str, Vec<Va
             vec![bytes(*message_id), signed(*index).into()],
         ),
         EventData::Gas { message_id, destination, gas, payment } => (
-            "INSERT INTO gas_payment(domain,block_hash,block_number,transaction_hash,transaction_index,log_index,interchain_gas_paymaster,msg_id,destination,gas_amount,payment,origin,confirmed) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::text::numeric,$11::text::numeric,$1,false)",
+            "INSERT INTO gas_payment(domain,block_hash,block_number,transaction_hash,transaction_index,log_index,interchain_gas_paymaster,msg_id,destination,gas_amount,payment,origin,time_created,confirmed) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::text::numeric,$11::text::numeric,$1,now(),false)",
             vec![bytes(*message_id), signed(*destination).into(), gas.clone().into(), payment.clone().into()],
         ),
     };

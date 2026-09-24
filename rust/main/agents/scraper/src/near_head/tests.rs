@@ -214,11 +214,12 @@ async fn checkpoint_migration_backfills_an_existing_frontier() -> Result<()> {
     migration::Migrator::down(&db, Some(1)).await?;
     db.execute_unprepared(
         r#"
-        INSERT INTO block(domain,height,hash,timestamp)
-        VALUES(1,7,decode(repeat('07',32),'hex'),now());
+        INSERT INTO block(domain,height,hash,timestamp) VALUES
+          (1,7,decode(repeat('07',32),'hex'),now()),
+          (1,8,decode(repeat('08',32),'hex'),now());
         INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,
             head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster)
-        VALUES(1,7,7,decode(repeat('07',32),'hex'),7,7,
+        VALUES(1,7,8,decode(repeat('08',32),'hex'),8,7,
             decode(repeat('01',20),'hex'),decode(repeat('02',20),'hex'),decode(repeat('03',20),'hex'));
         "#,
     )
@@ -227,6 +228,53 @@ async fn checkpoint_migration_backfills_an_existing_frontier() -> Result<()> {
     let store = Store { db, domain: 1 };
     assert_eq!(store.checkpoint(7).await?, 7);
     assert_eq!(store.hash(7).await?, Some(H256::repeat_byte(7)));
+    assert_eq!(store.hash(8).await?, Some(H256::repeat_byte(8)));
+    migration::Migrator::down(&store.db, Some(1)).await?;
+    let restored = store
+        .db
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT hash FROM block WHERE domain=1 AND height=8".to_owned(),
+        ))
+        .await?
+        .expect("down migration restores the indexed checkpoint");
+    assert_eq!(restored.try_get::<Vec<u8>>("", "hash")?, vec![8; 32]);
+    Ok(())
+}
+
+#[tokio::test]
+async fn checkpoint_migration_rejects_a_missing_indexed_boundary() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    migration::Migrator::down(&db, Some(1)).await?;
+    db.execute_unprepared(
+        r#"
+        INSERT INTO block(domain,height,hash,timestamp)
+        VALUES(1,7,decode(repeat('07',32),'hex'),now());
+        INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,
+            head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster)
+        VALUES(1,7,8,decode(repeat('08',32),'hex'),8,7,
+            decode(repeat('01',20),'hex'),decode(repeat('02',20),'hex'),decode(repeat('03',20),'hex'));
+        "#,
+    )
+    .await?;
+    let error = migration::Migrator::up(&db, None)
+        .await
+        .expect_err("migration must reject a missing indexed checkpoint");
+    assert!(error.to_string().contains("indexed near-head checkpoint"));
+    db.execute_unprepared(
+        "DELETE FROM block WHERE domain=1; INSERT INTO block(domain,height,hash,timestamp) VALUES(1,8,decode(repeat('08',32),'hex'),now())",
+    )
+    .await?;
+    let error = migration::Migrator::up(&db, None)
+        .await
+        .expect_err("migration must reject a missing confirmed checkpoint");
+    assert!(error.to_string().contains("confirmed near-head checkpoint"));
     Ok(())
 }
 
@@ -1097,6 +1145,12 @@ async fn automatic_cutover_rejects_partial_legacy_history_and_reuses_verified_bo
     // Empty databases start from configured index.from (or block 1 for from=0).
     assert_eq!(store.anchor_height(10).await?, 9);
     assert_eq!(store.anchor_height(0).await?, 0);
+    store.db.execute_unprepared("INSERT INTO scraper_checkpoint(domain,height,hash,timestamp) VALUES(1,0,decode(repeat('01',32),'hex'),now())").await?;
+    assert!(store.anchor_height(1).await.is_err());
+    store
+        .db
+        .execute_unprepared("DELETE FROM scraper_checkpoint WHERE domain=1")
+        .await?;
     let chain = Chain::new(50);
     let header = chain.header(10u64.into()).await?;
     store
@@ -1130,6 +1184,15 @@ async fn automatic_cutover_rejects_partial_legacy_history_and_reuses_verified_bo
     let anchor = chain.header(30u64.into()).await?;
     seed_verified_cutover(&store, &anchor).await?;
     prepare(&chain, &store, &anchor, &contracts(), &ReorgPeriod::None).await?;
+    store
+        .db
+        .execute_unprepared("DELETE FROM scraper_checkpoint WHERE domain=1 AND height=30")
+        .await?;
+    let error = prepare(&chain, &store, &anchor, &contracts(), &ReorgPeriod::None)
+        .await
+        .expect_err("restart must reject stale checkpoint state");
+    assert!(error.to_string().contains("checkpoints are out of sync"));
+    store.db.execute_unprepared("INSERT INTO scraper_checkpoint(domain,height,hash,timestamp) VALUES(1,30,decode(repeat('00',31) || '1f','hex'),to_timestamp(1) AT TIME ZONE 'UTC')").await?;
     // Restart must not choose a new boundary from newer history or a changed default.
     store
         .db
