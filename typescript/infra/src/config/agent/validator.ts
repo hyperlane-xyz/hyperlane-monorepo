@@ -73,13 +73,15 @@ export interface HelmValidatorValues extends HelmStatefulSetValues {
 export type CheckpointSyncerConfig =
   | LocalCheckpointSyncerConfig
   | S3CheckpointSyncerConfig
-  | GcsCheckpointSyncerConfig;
+  | GcsCheckpointSyncerConfig
+  | OnchainCheckpointSyncerConfig;
 
 // These values are eventually passed to Rust, which expects the values to be camelCase
 export const CheckpointSyncerType = {
   LocalStorage: 'localStorage',
   S3: 's3',
   Gcs: 'gcs',
+  Onchain: 'onchain',
 } as const;
 
 export type CheckpointSyncerType =
@@ -102,6 +104,14 @@ export type GcsCheckpointSyncerConfig = {
   userSecrets?: string;
   // Ambient credentials (GKE Workload Identity) instead of a key file/secret.
   useApplicationDefault?: boolean;
+};
+
+export type OnchainCheckpointSyncerConfig = {
+  type: typeof CheckpointSyncerType.Onchain;
+  chainName: string;
+  contractAddress: string;
+  validatorAddress?: string;
+  rpcUrl?: string;
 };
 
 export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {

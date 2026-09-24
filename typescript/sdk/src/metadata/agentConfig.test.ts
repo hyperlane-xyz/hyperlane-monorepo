@@ -506,4 +506,18 @@ describe('ValidatorAgentConfigSchema lightweight mode', () => {
       }).success,
     ).to.be.false;
   });
+
+  it('accepts onchain checkpointSyncer configuration', () => {
+    const onchainConfig = {
+      ...config,
+      checkpointSyncer: {
+        type: 'onchain',
+        chainName: 'ethereum',
+        contractAddress: '0x1234567890123456789012345678901234567890',
+        validatorAddress: '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd',
+      },
+    };
+    const result = ValidatorAgentConfigSchema.safeParse(onchainConfig);
+    expect(result.success, result.error?.message).to.be.true;
+  });
 });

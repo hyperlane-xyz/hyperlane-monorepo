@@ -444,7 +444,10 @@ impl BaseAgent for Validator {
             Some(LatestCheckpointReorgReporter::from_settings(&settings, &metrics).await?)
         };
 
-        let checkpoint_syncer_result = settings.checkpoint_syncer.build_and_validate(None).await;
+        let checkpoint_syncer_conf = settings
+            .checkpoint_syncer
+            .with_validator(H256::from(raw_signer.eth_address()));
+        let checkpoint_syncer_result = checkpoint_syncer_conf.build_and_validate(None).await;
 
         if let Some(reorg_reporter) = &reorg_reporter {
             Self::report_latest_checkpoints_from_each_endpoint(
