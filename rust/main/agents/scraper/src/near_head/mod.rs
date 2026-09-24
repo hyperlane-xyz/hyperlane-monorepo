@@ -285,7 +285,29 @@ async fn verify(source: &dyn Source, header: &Header) -> Result<()> {
     Ok(())
 }
 
+/// Shortest lease on a head observation that confirmation will accept.
+const MIN_CONFIRMATION_LEASE: Duration = Duration::from_secs(60);
+
+/// Confirmation needs a recent healthy observation: pauses and restarts clear
+/// `healthy`, so a lagging or reorging RPC stops publication. It does not need
+/// a fresh one: confirmation rechecks ancestry against the RPC before
+/// committing, and an older head only lowers the depth/tag boundary. The lease
+/// therefore spans one poll plus database latency rather than equalling it.
+fn confirmation_lease(poll_interval: Duration) -> Duration {
+    poll_interval.saturating_mul(2).max(MIN_CONFIRMATION_LEASE)
+}
+
+#[cfg(test)]
 async fn confirm(source: &dyn Source, store: &Store, period: &ReorgPeriod) -> Result<[u64; 4]> {
+    confirm_leased(source, store, period, MIN_CONFIRMATION_LEASE).await
+}
+
+async fn confirm_leased(
+    source: &dyn Source,
+    store: &Store,
+    period: &ReorgPeriod,
+    lease: Duration,
+) -> Result<[u64; 4]> {
     let state = store
         .state()
         .await?
@@ -309,10 +331,9 @@ async fn confirm(source: &dyn Source, store: &Store, period: &ReorgPeriod) -> Re
             .map(|header| header.height)
             .unwrap_or(state.head),
     };
-    ensure!(
-        through <= state.head,
-        "Confirmation tag is ahead of the observed head"
-    );
+    // A tag read after the head observation can be newer than it. Everything up
+    // to the observed head is then final; confirm only that observed history.
+    let through = through.min(state.head);
     if through <= state.confirmed {
         return Ok([0; 4]);
     }
@@ -342,7 +363,7 @@ async fn confirm(source: &dyn Source, store: &Store, period: &ReorgPeriod) -> Re
         indexed_hash == state.hash,
         "Indexed fork changed before confirmation"
     );
-    store.confirm(&state, &boundary).await
+    store.confirm(&state, &boundary, lease).await
 }
 
 #[cfg(test)]

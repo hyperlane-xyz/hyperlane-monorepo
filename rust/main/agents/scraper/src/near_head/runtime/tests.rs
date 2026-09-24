@@ -270,7 +270,11 @@ async fn blocked_cleanup_does_not_delay_publication() -> Result<()> {
     let state = worker.store.state().await?.expect("initialized");
     worker
         .store
-        .confirm(&state, &chain.header(2u64.into()).await?)
+        .confirm(
+            &state,
+            &chain.header(2u64.into()).await?,
+            crate::near_head::MIN_CONFIRMATION_LEASE,
+        )
         .await?;
     worker
         .store
@@ -311,4 +315,13 @@ async fn blocked_cleanup_does_not_delay_publication() -> Result<()> {
         .expect_err("worker runs until aborted")
         .is_cancelled());
     Ok(())
+}
+
+#[test]
+fn header_cleanup_rests_only_after_a_sweep_wraps() {
+    let poll = Duration::from_secs(30);
+    assert_eq!(prune_delay(1_000, poll), poll);
+    assert_eq!(prune_delay(0, poll), PRUNE_SWEEP_INTERVAL);
+    let slow_poll = Duration::from_secs(3_600);
+    assert_eq!(prune_delay(0, slow_poll), slow_poll);
 }

@@ -65,10 +65,15 @@ boundary from stored maxima. Contract changes are rejected.
   retained suffix. A reorg rolls back to the newest retained checkpoint on the canonical chain,
   then replays the range. Confirmation stores its exact boundary header even
   when that height was an empty block inside a range.
-- Confirmation requires a healthy head observation less than 30 seconds old and
-  cannot pass indexed progress. Advancing the observed head can confirm existing
-  events even if the next log fetch fails. Long in-flight RPC calls can expire the
-  observation lease; confirmation then waits for a fresh observation.
+- Confirmation requires a healthy head observation within its lease (twice the
+  polling interval, at least 60 seconds) and cannot pass indexed progress or the
+  observed head. A finality tag read after the observation may be newer than it;
+  confirmation then stops at the observed head. The lease only proves a recent
+  healthy observation: confirmation still rechecks ancestry against the RPC, and
+  an older head only lowers the boundary. Advancing the observed head can confirm
+  existing events even if the next log fetch fails. Long in-flight RPC calls or
+  database waits can expire the lease; confirmation then waits for a fresh
+  observation.
 - Startup probes the configured finality tag and hash-pinned contract-count calls
   before persisting a first-time cutover. On restart it probes the provider's
   latest canonical block. Observation waits for providers behind saved progress
@@ -109,7 +114,8 @@ boundary from stored maxima. Contract changes are rejected.
 - An independent maintenance loop scans at most 1,000 old block headers per poll
   and deletes unreferenced candidates in a separate transaction. Confirmation
   does not await cleanup, including during catch-up. An in-memory cursor
-  advances past retained headers and wraps for another sweep. It retains the cutover anchor, confirmed
+  advances past retained headers; after a sweep wraps, the next one starts ten
+  minutes later. It retains the cutover anchor, confirmed
   boundary, retained unconfirmed checkpoints, transaction references, raw-dispatch headers,
   and headers needed by pending gas/delivery enrichment. Event records are not
   deleted by cleanup. Halted chains are not pruned. Historical headers from before

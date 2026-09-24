@@ -327,7 +327,11 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     }
     assert!(
         store
-            .confirm(&before_reorg, &chain.header(2u64.into()).await?)
+            .confirm(
+                &before_reorg,
+                &chain.header(2u64.into()).await?,
+                MIN_CONFIRMATION_LEASE,
+            )
             .await
             .is_err(),
         "Stale fork snapshots cannot confirm replacements"
@@ -442,7 +446,8 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     assert!(store
         .confirm(
             &store.state().await?.unwrap(),
-            &chain.header(3u64.into()).await?
+            &chain.header(3u64.into()).await?,
+            MIN_CONFIRMATION_LEASE,
         )
         .await
         .is_err());
@@ -463,7 +468,11 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     chain.fork(3, 3, 1);
     observe(&chain, &store).await?;
     assert!(store
-        .confirm(&stale, &chain.header(3u64.into()).await?)
+        .confirm(
+            &stale,
+            &chain.header(3u64.into()).await?,
+            MIN_CONFIRMATION_LEASE,
+        )
         .await
         .is_err());
 
@@ -588,6 +597,54 @@ async fn header_cleanup_preserves_enrichment_and_bounds_deletes() -> Result<()> 
     migration::Migrator::down(&store.db, Some(1)).await?;
     migration::Migrator::up(&store.db, None).await?;
     Ok(())
+}
+
+#[tokio::test]
+async fn finality_tag_ahead_of_observed_head_confirms_observed_history() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let url = format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    );
+    let db = Database::connect(&url).await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let chain = Chain::new(3);
+    store
+        .initialize(&chain.header(0u64.into()).await?, &contracts())
+        .await?;
+    ingest_head(&chain, &store).await?;
+    // Fast-finality chains can finalize past the head observed moments earlier.
+    chain.fork(8, 3, 0);
+    store
+        .db
+        .execute_unprepared(
+            "UPDATE scraper_head SET updated_at=clock_timestamp()-interval '45 seconds'",
+        )
+        .await?;
+    let finalized = ReorgPeriod::Tag("finalized".into());
+    assert!(
+        confirm_leased(&chain, &store, &finalized, Duration::from_secs(30))
+            .await
+            .is_err(),
+        "An expired observation cannot confirm"
+    );
+    assert_eq!(confirm(&chain, &store, &finalized).await?, [1; 4]);
+    let state = store.state().await?.unwrap();
+    assert_eq!((state.head, state.confirmed), (3, 3));
+    Ok(())
+}
+
+#[test]
+fn confirmation_lease_outlasts_a_poll() {
+    assert_eq!(
+        confirmation_lease(Duration::from_millis(20)),
+        MIN_CONFIRMATION_LEASE
+    );
+    assert_eq!(
+        confirmation_lease(Duration::from_secs(45)),
+        Duration::from_secs(90)
+    );
 }
 
 #[tokio::test]
