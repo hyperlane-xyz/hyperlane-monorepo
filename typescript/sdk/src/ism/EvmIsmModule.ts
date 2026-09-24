@@ -103,7 +103,11 @@ type IsmModuleAddresses = {
   mailbox: Address;
 };
 
-type ContainerSubModuleEntry = { address: Address; targetConfig: IsmConfig };
+type ContainerSubModuleEntry = {
+  address: Address;
+  currentConfig: IsmConfig;
+  targetConfig: IsmConfig;
+};
 
 export class EvmIsmModule extends HyperlaneModule<
   ProtocolType.Ethereum,
@@ -939,11 +943,7 @@ export class EvmIsmModule extends HyperlaneModule<
     );
     if (subModules === null) return null;
 
-    for (const { address: origAddress, targetConfig } of subModules) {
-      if (!(await this.canUpdateSubModuleInPlace(origAddress, targetConfig))) {
-        return null;
-      }
-    }
+    if (!(await this.canUpdateSubModulesInPlace(subModules))) return null;
 
     const allUpdateTxs: AnnotatedEV5Transaction[] = [];
     for (const { address: origAddress, targetConfig } of subModules) {
@@ -992,35 +992,36 @@ export class EvmIsmModule extends HyperlaneModule<
       );
       if (onChainAddresses.length !== target.modules.length) return null;
 
-      const onChainTyped = await Promise.all(
+      const onChainModules = await Promise.all(
         onChainAddresses.map(async (addr) => {
-          const cfg = await this.reader.deriveIsmConfig(addr);
-          return { address: addr, key: this.ismConfigSortKey(cfg) };
+          const currentConfig = await this.reader.deriveIsmConfig(addr);
+          return {
+            address: addr,
+            currentConfig,
+            key: this.ismConfigSortKey(currentConfig),
+          };
         }),
       );
-
-      const targetTyped = target.modules.map((targetConfig) => ({
-        targetConfig,
-        key: this.ismConfigSortKey(targetConfig),
-      }));
-
+      const currentByKey = new Map(
+        onChainModules.map(({ key, ...module }) => [key, module]),
+      );
+      const targetByKey = new Map(
+        target.modules.map((targetConfig) => [
+          this.ismConfigSortKey(targetConfig),
+          targetConfig,
+        ]),
+      );
       if (
-        this.hasDuplicateSortKeys(onChainTyped.map(({ key }) => key)) ||
-        this.hasDuplicateSortKeys(targetTyped.map(({ key }) => key))
-      ) {
+        currentByKey.size !== onChainModules.length ||
+        targetByKey.size !== target.modules.length
+      )
         return null;
-      }
-
-      onChainTyped.sort((a, b) => a.key.localeCompare(b.key));
-      targetTyped.sort((a, b) => a.key.localeCompare(b.key));
 
       const subModules: ContainerSubModuleEntry[] = [];
-      for (const [i, { address, key }] of onChainTyped.entries()) {
-        if (key !== targetTyped[i].key) return null;
-        subModules.push({
-          address,
-          targetConfig: targetTyped[i].targetConfig,
-        });
+      for (const [key, currentModule] of currentByKey) {
+        const targetConfig = targetByKey.get(key);
+        if (targetConfig === undefined) return null;
+        subModules.push({ ...currentModule, targetConfig });
       }
       return subModules;
     } else if (
@@ -1038,24 +1039,43 @@ export class EvmIsmModule extends HyperlaneModule<
         amountRoutingIsm.upper(),
       ]);
       return [
-        { address: lowerAddr, targetConfig: target.lowerIsm },
-        { address: upperAddr, targetConfig: target.upperIsm },
+        {
+          address: lowerAddr,
+          currentConfig: current.lowerIsm,
+          targetConfig: target.lowerIsm,
+        },
+        {
+          address: upperAddr,
+          currentConfig: current.upperIsm,
+          targetConfig: target.upperIsm,
+        },
       ];
     } else {
       return null;
     }
   }
 
+  private async canUpdateSubModulesInPlace(
+    subModules: ContainerSubModuleEntry[],
+  ): Promise<boolean> {
+    const results = await Promise.all(
+      subModules.map(({ address, currentConfig, targetConfig }) =>
+        this.canUpdateSubModuleInPlace(address, currentConfig, targetConfig),
+      ),
+    );
+    return results.every(Boolean);
+  }
+
   private async canUpdateSubModuleInPlace(
     address: Address,
+    currentConfig: IsmConfig,
     targetConfig: IsmConfig,
   ): Promise<boolean> {
-    const normalizedCurrentConfig = normalizeConfig(
-      await this.reader.deriveIsmConfig(address),
-    );
-    const normalizedTargetConfig = normalizeConfig(
-      await this.reader.deriveIsmConfig(targetConfig),
-    );
+    // The target tree is derived before update planning, and container
+    // discovery derives each current child. Reuse both snapshots here instead
+    // of repeating the same recursive RPC reads during preflight.
+    const normalizedCurrentConfig = normalizeConfig(currentConfig);
+    const normalizedTargetConfig = normalizeConfig(targetConfig);
 
     if (deepEquals(normalizedCurrentConfig, normalizedTargetConfig)) {
       return true;
@@ -1082,21 +1102,7 @@ export class EvmIsmModule extends HyperlaneModule<
         normalizedTargetConfig,
       );
       if (subModules === null) return false;
-
-      for (const {
-        address: subModuleAddress,
-        targetConfig: subModuleTarget,
-      } of subModules) {
-        if (
-          !(await this.canUpdateSubModuleInPlace(
-            subModuleAddress,
-            subModuleTarget,
-          ))
-        ) {
-          return false;
-        }
-      }
-      return true;
+      return this.canUpdateSubModulesInPlace(subModules);
     }
 
     if (!MUTABLE_ISM_TYPE.includes(normalizedTargetConfig.type)) {
@@ -1174,9 +1180,5 @@ export class EvmIsmModule extends HyperlaneModule<
 
   private ismConfigSortKey(config: IsmConfig): string {
     return typeof config === 'string' ? config : config.type;
-  }
-
-  private hasDuplicateSortKeys(keys: string[]): boolean {
-    return new Set(keys).size !== keys.length;
   }
 }
