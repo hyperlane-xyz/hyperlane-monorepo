@@ -16,6 +16,15 @@ CREATE TABLE scraper_checkpoint (
 -- resuming after commit; startup validation rejects incompatible later writes.
 LOCK TABLE scraper_head IN EXCLUSIVE MODE;
 
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM scraper_head
+    WHERE updated_at>clock_timestamp()-interval '90 seconds'
+  ) THEN
+    RAISE EXCEPTION 'Near-head state was updated in the last 90 seconds; stop all scraper writers and wait before retrying';
+  END IF;
+END $$;
+
 -- Preserve the live reorg window while the old scraper is stopped. Drive the
 -- copy from the small head table so PostgreSQL uses block_domain_height_key.
 INSERT INTO scraper_checkpoint(domain,height,hash,timestamp)

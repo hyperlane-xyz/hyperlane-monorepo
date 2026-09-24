@@ -132,6 +132,7 @@ impl Worker {
         }
 
         if confirmation.page_limited {
+            ingestion?;
             return Ok(true);
         }
         let more_ingestion = ingestion?;
@@ -141,7 +142,7 @@ impl Worker {
         let at_provisional_cap = capped_head < observed.head && state.indexed >= capped_head;
         if at_provisional_cap {
             eyre::bail!(
-                "Provisional suffix reached its 10,000-block limit; confirmation is stalled"
+                "Provisional suffix reached its 10,000-block limit; confirmation is lagging"
             );
         }
         Ok(more_ingestion)

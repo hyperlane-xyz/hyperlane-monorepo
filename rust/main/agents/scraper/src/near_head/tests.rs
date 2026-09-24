@@ -224,6 +224,14 @@ async fn checkpoint_migration_backfills_an_existing_frontier() -> Result<()> {
         "#,
     )
     .await?;
+    let error = migration::Migrator::up(&db, None)
+        .await
+        .expect_err("migration must reject a recently active writer");
+    assert!(error.to_string().contains("updated in the last 90 seconds"));
+    db.execute_unprepared(
+        "UPDATE scraper_head SET updated_at=clock_timestamp()-interval '2 minutes'",
+    )
+    .await?;
     migration::Migrator::up(&db, None).await?;
     let store = Store { db, domain: 1 };
     assert_eq!(store.checkpoint(7).await?, 7);
@@ -264,6 +272,7 @@ async fn checkpoint_migration_rejects_a_missing_indexed_boundary() -> Result<()>
             head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster)
         VALUES(1,7,8,decode(repeat('08',32),'hex'),8,7,
             decode(repeat('01',20),'hex'),decode(repeat('02',20),'hex'),decode(repeat('03',20),'hex'));
+        UPDATE scraper_head SET updated_at=clock_timestamp()-interval '2 minutes';
         "#,
     )
     .await?;

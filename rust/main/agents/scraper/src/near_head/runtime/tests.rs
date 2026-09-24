@@ -188,7 +188,7 @@ async fn ingestion_errors_do_not_block_existing_publication() -> Result<()> {
     chain.head.store(3, Ordering::SeqCst);
     chain.tag.store(2, Ordering::SeqCst);
     chain.fail_events.store(true, Ordering::SeqCst);
-    assert!(worker.cycle(&mut cache).await?);
+    assert!(worker.cycle(&mut cache).await.is_err());
     assert_eq!(worker.store.state().await?.unwrap().confirmed, 1);
     assert!(worker.cycle(&mut cache).await.is_err());
     assert_eq!(worker.store.state().await?.unwrap().confirmed, 2);
@@ -196,7 +196,7 @@ async fn ingestion_errors_do_not_block_existing_publication() -> Result<()> {
 }
 
 #[tokio::test]
-async fn stale_finality_tag_on_another_fork_releases_nothing() -> Result<()> {
+async fn finality_tag_on_another_fork_releases_nothing() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let db = Database::connect(format!(
         "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
@@ -204,20 +204,24 @@ async fn stale_finality_tag_on_another_fork_releases_nothing() -> Result<()> {
     ))
     .await?;
     let chain = Arc::new(Chain::new(2, false));
-    chain.tag.store(2, Ordering::SeqCst);
+    chain.tag.store(1, Ordering::SeqCst);
     chain.events.lock().unwrap().push(gas_event(1, 0));
     let worker = worker(db, chain.clone()).await?;
     let mut cache = None;
     worker.cycle(&mut cache).await?;
-    assert_eq!(worker.store.state().await?.unwrap().confirmed, 2);
+    assert_eq!(worker.store.state().await?.unwrap().confirmed, 1);
 
     chain.head.store(3, Ordering::SeqCst);
-    chain.tag.store(3, Ordering::SeqCst);
+    chain.tag.store(2, Ordering::SeqCst);
     chain.wrong_tag.store(true, Ordering::SeqCst);
     chain.events.lock().unwrap().push(gas_event(3, 1));
-    assert!(worker.cycle(&mut cache).await.is_err());
+    let error = worker.cycle(&mut cache).await.unwrap_err();
+    assert!(
+        format!("{error:#}").contains("Confirmation boundary is on another fork"),
+        "unexpected error: {error:#}"
+    );
     let state = worker.store.state().await?.unwrap();
-    assert_eq!((state.indexed, state.confirmed), (3, 2));
+    assert_eq!((state.indexed, state.confirmed), (3, 1));
     Ok(())
 }
 

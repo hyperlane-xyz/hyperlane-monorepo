@@ -91,7 +91,9 @@ boundary from stored maxima. Contract changes are rejected.
   the chain critical-error metric until confirmation opens room again.
   `scraper_head.healthy` describes the head-observation lease, not overall worker
   health. Compare the `indexed_height` metric's `near_head` series with the
-  confirmed event series to observe confirmation lag.
+  confirmed event series to observe confirmation lag. Alert rules for the
+  chain critical-error metric should use a `for` window longer than the expected
+  finality-tag update interval so slow but advancing tags do not flap alerts.
 - Unpublished forks are deleted and reindexed. Existing block, transaction,
   message and leaf uniqueness constraints are unchanged. Fork occurrences are not
   archived. A reorg crossing confirmed history persists a halt and raises the
@@ -181,7 +183,11 @@ hangs, and verify uncached successful receipts survive a neighboring timeout.
    with the migration so a routine deployment cannot restart an old writer.
    Measure index creation on a database clone and allow a
    maintenance window. Run `cargo run --release -p migration --bin init-db` with
-   `DATABASE_URL` set to apply migrations and verify concurrent indexes.
+   `DATABASE_URL` set for the `postgres` role, which owns the existing tables and
+   migration history, to apply migrations and verify concurrent indexes. Use the
+   migration binary built from this PR for both upgrades and rollbacks; older
+   binaries do not know checkpoint migration 15. After stopping writers, wait at
+   least 90 seconds before migrating so the migration's activity gate can pass.
 3. For each existing EVM domain, complete the verified cutover below. Empty
    domains need no seed. Start the scraper and matching proxy only afterwards.
 4. Check `scraper_head` for advancing `indexed_height` and `confirmed_height`,
@@ -202,17 +208,36 @@ WHERE NOT EXISTS (
 );
 ```
 
-This must return no rows. After migration, run the same check against
-`scraper_checkpoint`. Do not start any old scraper image after migration.
+This must return no rows. After migration, connect as `postgres` or a scraper
+writer role with access to `scraper_checkpoint` and run:
+
+```sql
+SELECT h.domain,h.confirmed_height,h.indexed_height
+FROM scraper_head h
+WHERE NOT EXISTS (
+  SELECT 1 FROM scraper_checkpoint c
+  WHERE c.domain=h.domain AND c.height=h.confirmed_height
+) OR NOT EXISTS (
+  SELECT 1 FROM scraper_checkpoint c
+  WHERE c.domain=h.domain AND c.height=h.indexed_height
+    AND c.hash=h.indexed_hash
+) OR EXISTS (
+  SELECT 1 FROM scraper_checkpoint c
+  WHERE c.domain=h.domain AND c.height>h.indexed_height
+);
+```
+
+This must return no rows. Do not start any old scraper image after migration.
 The scraper database can be shared across environments; stopping one deployment
 does not stop another deployment's writers.
 
 If startup reports that checkpoints are out of sync, stop every writer and repair
-only after checking the saved head against the canonical chain. This rebuilds one
-domain's retained range from the old writer's `block` checkpoints and fails on
-conflicting rows:
+only after checking the saved head against the canonical chain. Save the following
+script and run it as `postgres` with `psql "$DATABASE_URL" -v domain=N -f repair.sql`.
+It replaces one domain's retained range from the old writer's `block` checkpoints:
 
 ```sql
+\set ON_ERROR_STOP on
 BEGIN;
 SET LOCAL lock_timeout='5s';
 LOCK TABLE scraper_head IN EXCLUSIVE MODE;
@@ -231,7 +256,7 @@ WHERE h.domain=:'domain'::integer;
 COMMIT;
 ```
 
-Repeat the post-migration boundary check before restarting. If `block` lacks the
+Run the post-migration boundary check above before restarting. If `block` lacks the
 full retained range or its indexed hash differs, restore or reseed from a separately
 verified canonical boundary instead of using this repair.
 
