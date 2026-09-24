@@ -37,6 +37,7 @@ let explorerQueryCount = 0;
 let explorerQueryError: Error | undefined;
 let explorerQueryGate: Promise<void> | undefined;
 let notificationQueryError: Error | undefined;
+let headQueryError: Error | undefined;
 let omitMappedGasPaymentRows = false;
 const notifiedIds = new Set<string>();
 const gasReplayQueries: string[] = [];
@@ -139,6 +140,38 @@ const db: EventDatabase = {
             ...payment,
             scraper_stream_cursor: id,
           })),
+      );
+    }
+    if (
+      !sql.includes('notification_id') &&
+      sql.includes('"event_row"."block_number">')
+    ) {
+      if (headQueryError) throw headQueryError;
+      const source = sql.includes('"confirmed_merkle_tree_insertion"')
+        ? rows
+        : sql.includes('"confirmed_delivered_message"')
+          ? deliveryRows
+          : sql.includes('"confirmed_gas_payment"')
+            ? gasPaymentRows
+            : dispatchRows;
+      const after = BigInt(String(values[1]));
+      const through = BigInt(String(values[2]));
+      return queryRows<T>(
+        [...source.values()].filter((event) => {
+          const height = event.block_number;
+          if (
+            typeof height !== 'bigint' &&
+            typeof height !== 'number' &&
+            typeof height !== 'string'
+          )
+            return false;
+          const parsedHeight = BigInt(height);
+          return (
+            event.domain === values[0] &&
+            parsedHeight > after &&
+            parsedHeight <= through
+          );
+        }),
       );
     }
     if (
@@ -871,6 +904,68 @@ void it('drains live events arriving while the pending buffer is sent', async (c
   assert.deepEqual(eventSequences(messages), ['0', '1', '2', '3']);
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
+});
+
+void it('publishes newly confirmed rows from one head notification', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  await waitFor(messages, 'ready');
+  socket.send(
+    JSON.stringify({
+      streams: [{ domains: [1], eventType: 'merkle_tree_insertion' }],
+      type: 'subscribe',
+    }),
+  );
+  await waitFor(messages, 'subscribed');
+  rows.set('50', { ...row(hookA, 50), block_number: '10' });
+  notify(
+    'scraper_head',
+    JSON.stringify({
+      confirmedHeight: '10',
+      domain: 1,
+      previousConfirmedHeight: '9',
+    }),
+  );
+  await waitUntil(() => eventSequences(messages).includes('50'));
+  socket.close();
+  await new Promise<void>((resolve) => socket.once('close', resolve));
+  rows.delete('50');
+});
+
+void it('retries a frontier until its rows can be loaded', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [{ domains: [1], eventType: 'merkle_tree_insertion' }],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'subscribed');
+    rows.set('51', { ...row(hookA, 51), block_number: '11' });
+    headQueryError = new Error('temporary frontier read failure');
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '11',
+        domain: 1,
+        previousConfirmedHeight: '10',
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert(!eventSequences(messages).includes('51'));
+    headQueryError = undefined;
+    await waitUntil(() => eventSequences(messages).includes('51'));
+  } finally {
+    headQueryError = undefined;
+    rows.delete('51');
+    socket.close();
+    await new Promise<void>((resolve) => socket.once('close', resolve));
+  }
 });
 
 void it('checks each cursor before sharing a live agent frame', async () => {

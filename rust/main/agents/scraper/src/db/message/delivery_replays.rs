@@ -86,9 +86,9 @@ async fn unchanged_delivery_replays_preserve_row_and_notifications() -> eyre::Re
         previous_state = Some(state);
     }
 
-    // Near-head metadata and confirmation are owned by the near-head writer.
-    // Enriching a provisional delivery must not promote it or lose its header.
-    db.0.execute_unprepared("UPDATE delivered_message SET confirmed=false, block_hash=decode('01','hex'), block_number=10, transaction_hash=decode('02','hex'), transaction_index=2, log_index=3").await?;
+    // Near-head metadata and confirmation are owned by the frontier writer.
+    // Enriching a provisional delivery must not expose it or lose its header.
+    db.0.execute_unprepared("INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster) VALUES(1,0,10,decode(repeat('01',32),'hex'),10,0,decode(repeat('01',20),'hex'),decode(repeat('02',20),'hex'),decode(repeat('03',20),'hex')); UPDATE delivered_message SET block_hash=decode('01','hex'), block_number=10, transaction_hash=decode('02','hex'), transaction_index=2, log_index=3").await?;
     let metadata_query = Statement::from_string(
         DatabaseBackend::Postgres,
         "SELECT (to_jsonb(d) - 'destination_tx_id')::text AS metadata FROM delivered_message d"
@@ -117,9 +117,13 @@ async fn unchanged_delivery_replays_preserve_row_and_notifications() -> eyre::Re
             .await
             .is_err()
     );
-    db.0.execute_unprepared("UPDATE delivered_message SET confirmed=true")
+    db.0.execute_unprepared("UPDATE scraper_head SET confirmed_height=10")
         .await?;
-    tokio::time::timeout(Duration::from_secs(1), listener.recv()).await??;
+    assert!(
+        tokio::time::timeout(Duration::from_millis(100), listener.recv())
+            .await
+            .is_err()
+    );
     Ok(())
 }
 

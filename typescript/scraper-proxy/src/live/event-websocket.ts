@@ -29,6 +29,7 @@ import {
   parseClientMessage,
   parseEventNotification,
   parseExplorerNotification,
+  parseHeadNotification,
   parseId,
   parseInteger,
   type GasPaymentCursor,
@@ -44,6 +45,7 @@ const MAX_AGENT_MESSAGE_BYTES = 1_048_576;
 const MESSAGE_PATH = '/messages';
 const EVENT_CHANNEL = 'scraper_event';
 const EXPLORER_CHANNEL = 'scraper_explorer_event';
+const HEAD_CHANNEL = 'scraper_head';
 const HEARTBEAT_MS = 30_000;
 // Node's setInterval() warns and clamps to 1 for non-positive values and
 // overflows above a signed 32-bit integer, so heartbeat overrides must stay
@@ -114,6 +116,7 @@ type Limits = {
   maxTotalBufferedBytes: number;
 };
 type SerializedMessage = Buffer;
+type HeadRange = { after: bigint; through: bigint };
 export type EventDatabase = Pick<DbService, 'listen' | 'queryLive'>;
 
 function stream(
@@ -181,11 +184,14 @@ export class EventWebSocketServer {
   private readonly catchUpWaiters: CatchUpWaiter[] = [];
   private readonly explorerNotifications = new Set<string>();
   private readonly notifications = new Map<string, EventNotification>();
+  private readonly headRanges = new Map<number, HeadRange>();
   private heartbeatTimer?: NodeJS.Timeout;
   private listenerRetryTimer?: NodeJS.Timeout;
   private agentNotificationTimer?: NodeJS.Timeout;
+  private headNotificationTimer?: NodeJS.Timeout;
   private explorerNotificationTimer?: NodeJS.Timeout;
   private drainingAgentNotifications = false;
+  private drainingHeadNotifications = false;
   private drainingExplorerNotifications = false;
   private catchUps = 0;
   private pendingBytes = 0;
@@ -255,10 +261,12 @@ export class EventWebSocketServer {
       this.heartbeatTimer,
       this.listenerRetryTimer,
       this.agentNotificationTimer,
+      this.headNotificationTimer,
       this.explorerNotificationTimer,
     ].forEach((timer) => timer && clearTimeout(timer));
     this.explorerNotifications.clear();
     this.notifications.clear();
+    this.headRanges.clear();
     await this.stopListening?.();
     this.httpServer?.off('upgrade', this.handleUpgrade);
     this.closeClients('Server stopping', 1001);
@@ -1032,7 +1040,7 @@ export class EventWebSocketServer {
   private async connectListener(): Promise<void> {
     try {
       this.stopListening = await this.db.listen(
-        [EVENT_CHANNEL, EXPLORER_CHANNEL],
+        [EVENT_CHANNEL, EXPLORER_CHANNEL, HEAD_CHANNEL],
         (channel, payload) => this.queueNotification(channel, payload),
         (error) => this.listenerDisconnected(error),
       );
@@ -1048,7 +1056,27 @@ export class EventWebSocketServer {
     payload: string | undefined,
   ): void {
     try {
-      if (channel === EXPLORER_CHANNEL) {
+      if (channel === HEAD_CHANNEL) {
+        if (!this.clients.size && !this.explorerClients.size) return;
+        const head = parseHeadNotification(payload);
+        if (
+          head.previousConfirmedHeight === undefined ||
+          head.confirmedHeight <= head.previousConfirmedHeight
+        )
+          return;
+        const current = this.headRanges.get(head.domain);
+        this.headRanges.set(head.domain, {
+          after:
+            current && current.after < head.previousConfirmedHeight
+              ? current.after
+              : head.previousConfirmedHeight,
+          through:
+            current && current.through > head.confirmedHeight
+              ? current.through
+              : head.confirmedHeight,
+        });
+        this.scheduleHeadDrain();
+      } else if (channel === EXPLORER_CHANNEL) {
         if (!this.explorerClients.size) return;
         const messageId = parseExplorerNotification(payload).messageId;
         if (
@@ -1101,6 +1129,20 @@ export class EventWebSocketServer {
     }
   }
 
+  private scheduleHeadDrain(delay = NOTIFICATION_BATCH_MS): void {
+    if (!this.headNotificationTimer && !this.drainingHeadNotifications) {
+      this.headNotificationTimer = setTimeout(() => {
+        this.headNotificationTimer = undefined;
+        void this.drainHeadNotifications().catch((error) => {
+          this.logger.error(
+            `frontier publication failed: ${formatError(error)}`,
+          );
+          this.scheduleHeadDrain(LISTENER_RETRY_MS);
+        });
+      }, delay);
+    }
+  }
+
   private scheduleExplorerDrain(): void {
     if (
       !this.explorerNotificationTimer &&
@@ -1138,6 +1180,86 @@ export class EventWebSocketServer {
       }
     } finally {
       this.drainingAgentNotifications = false;
+    }
+  }
+
+  private async drainHeadNotifications(): Promise<void> {
+    if (this.drainingHeadNotifications) return;
+    this.drainingHeadNotifications = true;
+    let succeeded = false;
+    try {
+      for (const [domain, range] of this.headRanges) {
+        await this.publishHeadRange(domain, range);
+        const current = this.headRanges.get(domain);
+        if (!current) continue;
+        if (current.through <= range.through) {
+          this.headRanges.delete(domain);
+        } else {
+          this.headRanges.set(domain, {
+            after: range.through,
+            through: current.through,
+          });
+        }
+      }
+      succeeded = true;
+    } finally {
+      this.drainingHeadNotifications = false;
+      if (succeeded && this.headRanges.size) this.scheduleHeadDrain();
+    }
+  }
+
+  private async publishHeadRange(
+    domain: number,
+    { after, through }: HeadRange,
+  ): Promise<void> {
+    const messageIds = new Set<string>();
+    const batches: Array<{
+      agentInterested: boolean;
+      eventType: EventType;
+      rows: Row[];
+    }> = [];
+    for (const eventType of EVENT_TYPES) {
+      const agentInterested = this.hasSubscriber({
+        domain,
+        eventType,
+        id: 0n,
+      });
+      const explorerInterested =
+        this.explorerClients.size > 0 &&
+        (eventType === 'delivery' || eventType === 'gas_payment');
+      if (!agentInterested && !explorerInterested) continue;
+      const stream = STREAMS[eventType];
+      const height =
+        eventType === 'dispatch' ? 'origin_block_height' : 'block_number';
+      const gasPaymentCursor =
+        eventType === 'gas_payment'
+          ? ` LEFT JOIN ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} ON ${q('event_cursor')}.${q('gas_payment_id')} = ${q('event_row')}.${q('id')}`
+          : '';
+      const gasPaymentMetadata =
+        eventType === 'gas_payment' ? gasPaymentMetadataJoins('LEFT JOIN') : '';
+      const eventProjection =
+        eventType === 'gas_payment'
+          ? gasPaymentColumns(stream)
+          : columns(stream, 'event_row');
+      const cursorProjection =
+        eventType === 'gas_payment'
+          ? `, ${gasPaymentCursorExpression()} AS ${q(STREAM_CURSOR_COLUMN)}`
+          : '';
+      const rows = await this.db.queryLive<Row>(
+        `SELECT ${eventProjection}${cursorProjection} FROM ${q(stream.table)} AS ${q('event_row')}${gasPaymentMetadata}${gasPaymentCursor} WHERE ${q('event_row')}.${q(stream.domain)}=$1 AND ${q('event_row')}.${q(height)}>$2::bigint AND ${q('event_row')}.${q(height)}<=$3::bigint ORDER BY ${q('event_row')}.${q(height)}, ${q('event_row')}.${q('id')}`,
+        [storedDomain(domain), after.toString(), through.toString()],
+      );
+      rows.forEach((row) => {
+        const messageId = row.msg_id ?? row.message_id;
+        if (typeof messageId === 'string') messageIds.add(messageId);
+      });
+      batches.push({ agentInterested, eventType, rows });
+    }
+    if (messageIds.size && this.explorerClients.size) {
+      await this.publishExplorer([...messageIds]);
+    }
+    for (const { agentInterested, eventType, rows } of batches) {
+      if (agentInterested) rows.forEach((row) => this.publish(eventType, row));
     }
   }
 

@@ -25,6 +25,13 @@ pub(super) struct Worker {
 impl Worker {
     pub async fn run(&self) {
         let mut count_cache = None;
+        let stagger_period = u64::try_from(self.poll_interval.as_millis())
+            .unwrap_or(u64::MAX)
+            .max(1);
+        let stagger = u64::from(self.domain.id())
+            .checked_rem(stagger_period)
+            .unwrap_or_default();
+        sleep(Duration::from_millis(stagger)).await;
         loop {
             let result = self.cycle(&mut count_cache).await;
             self.chain_metrics
@@ -46,6 +53,9 @@ impl Worker {
         &self,
         count_cache: &mut Option<(ethers::types::H256, [u32; 2])>,
     ) -> eyre::Result<bool> {
+        self.store
+            .claim(confirmation_lease(self.poll_interval))
+            .await?;
         let observed = match observe(self.source.as_ref(), &self.store).await {
             Ok(state) => state,
             Err(error) => {

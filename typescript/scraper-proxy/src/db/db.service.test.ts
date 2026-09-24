@@ -18,6 +18,8 @@ const readyEventStreamSchema = {
   head_readable: true,
   legacy_boundary_exists: true,
   range_index_exists: true,
+  scraper_head_exists: true,
+  scraper_head_readable: true,
 };
 
 void it('keeps replica health from gating primary live queries', async (context) => {

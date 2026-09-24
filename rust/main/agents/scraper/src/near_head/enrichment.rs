@@ -3,7 +3,10 @@ use std::time::Duration;
 
 use prometheus::GaugeVec;
 use sea_orm::{ConnectionTrait, DbBackend, Statement};
-use tokio::time::{sleep, timeout};
+use tokio::{
+    sync::Semaphore,
+    time::{sleep, timeout},
+};
 use tracing::warn;
 
 use crate::store::HyperlaneDbStore;
@@ -12,6 +15,8 @@ use super::store::Store;
 
 const PAGE_SIZE: usize = 100;
 const RECEIPT_TIMEOUT: Duration = Duration::from_secs(30);
+const RECEIPT_CONCURRENCY: usize = 16;
+static RECEIPT_PERMITS: Semaphore = Semaphore::const_new(RECEIPT_CONCURRENCY);
 
 /// Drain healthy full pages immediately; back off on failures and between sweeps.
 /// Independent stream loops keep a slow delivery receipt from delaying gas work.
@@ -67,7 +72,7 @@ async fn update_pending_age(
                 format!(
                     "SELECT coalesce((SELECT greatest(0, extract(epoch FROM \
                     ((clock_timestamp() AT TIME ZONE 'UTC') - time_created))::double precision) \
-                    FROM {table} WHERE domain=$1 AND confirmed AND {column} IS NULL \
+                    FROM confirmed_{table} WHERE domain=$1 AND {column} IS NULL \
                     AND block_hash IS NOT NULL ORDER BY id LIMIT 1),0::double precision) AS age"
                 ),
                 [i32::from_ne_bytes(legacy.domain.id().to_ne_bytes()).into()],
@@ -83,7 +88,20 @@ async fn update_pending_age(
 
 async fn run_stream(legacy: &HyperlaneDbStore, table: &str, poll_interval: Duration) {
     let mut after = 0;
+    let salt = if table == "gas_payment" { 1 } else { 0 };
+    let stagger_period = u64::try_from(poll_interval.as_millis())
+        .unwrap_or(u64::MAX)
+        .max(1);
+    let stagger = u64::from(legacy.domain.id())
+        .saturating_mul(2)
+        .saturating_add(salt)
+        .checked_rem(stagger_period)
+        .unwrap_or_default();
+    sleep(Duration::from_millis(stagger)).await;
     loop {
+        let Ok(_permit) = RECEIPT_PERMITS.acquire().await else {
+            return;
+        };
         if enrich_page(legacy, table, &mut after, RECEIPT_TIMEOUT).await {
             // Each turn is bounded to one page. Let other worker tasks run even
             // when a large cache-only backlog never needs to wait for an RPC.

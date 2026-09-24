@@ -6,7 +6,8 @@ pub use message::*;
 pub use payment::*;
 pub use raw_message_dispatch::*;
 pub use same_chain_ccr_swap::*;
-use sea_orm::{Database, DatabaseConnection, DbConn};
+use sea_orm::sea_query::{Expr, SimpleExpr};
+use sea_orm::{ConnectOptions, Database, DatabaseConnection, DbConn};
 use tracing::instrument;
 pub use txn::*;
 
@@ -34,7 +35,11 @@ impl ScraperDb {
 
     #[instrument]
     pub async fn connect(url: &str) -> Result<Self> {
-        let db = Database::connect(url).await?;
+        // One shared pool is the global backpressure boundary for indexing,
+        // confirmation and enrichment across every configured chain.
+        let mut options = ConnectOptions::new(url);
+        options.max_connections(20).min_connections(1);
+        let db = Database::connect(options).await?;
         Ok(Self(db))
     }
 
@@ -54,6 +59,12 @@ impl ScraperDb {
             }
         }
     }
+}
+
+pub(super) fn confirmed_event(table: &str, domain: &str, height: &str) -> SimpleExpr {
+    Expr::cust(format!(
+        "NOT EXISTS (SELECT 1 FROM scraper_head h WHERE h.domain={table}.{domain}) OR {table}.{height}<=(SELECT h.confirmed_height FROM scraper_head h WHERE h.domain={table}.{domain})"
+    ))
 }
 
 /// Not sure why Seaorm's DatabaseConnection does not #[derive(Clone)]

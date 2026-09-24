@@ -23,6 +23,7 @@ const EVENT_STREAM_SCHEMA_QUERY = `
     to_regclass('gas_payment_stream_head') IS NOT NULL AS head_exists,
     to_regclass('gas_payment_stream_cursor') IS NOT NULL AS cursor_exists,
     to_regclass('gas_payment_stream_cursor_range_key') IS NOT NULL AS range_index_exists,
+    to_regclass('scraper_head') IS NOT NULL AS scraper_head_exists,
     EXISTS (
       SELECT 1 FROM pg_attribute
       WHERE attrelid = to_regclass('gas_payment_stream_head')
@@ -51,7 +52,11 @@ const EVENT_STREAM_SCHEMA_QUERY = `
         'SELECT'
       ),
       false
-    ) AS cursor_readable
+    ) AS cursor_readable,
+    COALESCE(
+      has_table_privilege(current_user, to_regclass('scraper_head'), 'SELECT'),
+      false
+    ) AS scraper_head_readable
 `;
 
 [1114, 1186].forEach((oid) =>
@@ -75,6 +80,8 @@ type EventStreamSchema = {
   head_readable: boolean;
   legacy_boundary_exists: boolean;
   range_index_exists: boolean;
+  scraper_head_exists: boolean;
+  scraper_head_readable: boolean;
 };
 const EVENT_STREAM_SCHEMA_CHECKS: readonly (keyof EventStreamSchema)[] = [
   'cursor_exists',
@@ -84,6 +91,8 @@ const EVENT_STREAM_SCHEMA_CHECKS: readonly (keyof EventStreamSchema)[] = [
   'head_readable',
   'legacy_boundary_exists',
   'range_index_exists',
+  'scraper_head_exists',
+  'scraper_head_readable',
 ];
 
 export class DbService implements ScraperDbDatabase {

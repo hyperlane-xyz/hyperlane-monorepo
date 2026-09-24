@@ -90,6 +90,7 @@ pub async fn spawn(
         .configured_interval
         .unwrap_or(Duration::from_secs(30));
     prepare(source.as_ref(), &store, &anchor, &contracts, &period).await?;
+    store.claim(confirmation_lease(poll_interval)).await?;
     let worker = runtime::Worker {
         source,
         store,
