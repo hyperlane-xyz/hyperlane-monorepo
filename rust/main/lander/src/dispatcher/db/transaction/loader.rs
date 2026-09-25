@@ -23,6 +23,7 @@ pub struct TransactionDbLoader {
     finality_stage_sender: Sender<Transaction>,
     domain: String,
 }
+
 impl TransactionDbLoader {
     pub async fn into_iterator(self) -> DbIterator<Self> {
         let domain = self.domain.clone();
@@ -74,6 +75,121 @@ impl LoadableFromDb for TransactionDbLoader {
                 debug!(?item, "Transaction already processed");
                 Ok(LoadingOutcome::Skipped)
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::{Duration, Instant};
+
+    use hyperlane_base::db::{HyperlaneRocksDB, DB};
+    use hyperlane_core::KnownHyperlaneDomain;
+    use tokio::sync::mpsc;
+
+    use crate::{
+        dispatcher::DispatcherMetrics, tests::test_utils::dummy_tx, transaction::DropReason,
+    };
+
+    use super::*;
+
+    async fn recover_transactions(statuses: &[Option<TransactionStatus>]) -> Duration {
+        let directory = tempfile::tempdir().unwrap();
+        let domain = KnownHyperlaneDomain::Arbitrum.into();
+        let db = HyperlaneRocksDB::new(&domain, DB::from_path(directory.path()).unwrap());
+        let mut expected_inclusion = Vec::new();
+        let mut expected_finality = Vec::new();
+        for (offset, status) in statuses.iter().enumerate() {
+            let index = offset as u32 + 1;
+            if let Some(status) = status {
+                let tx = dummy_tx(vec![], status.clone());
+                db.store_transaction_by_uuid(&tx).await.unwrap();
+                match status {
+                    TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
+                        expected_inclusion.push(tx.uuid);
+                    }
+                    TransactionStatus::Included => expected_finality.push(tx.uuid),
+                    _ => {}
+                }
+            }
+            // A crash between persisting the high index and the transaction can leave a hole.
+            db.store_highest_transaction_index(index).await.unwrap();
+        }
+        drop(db);
+
+        let db = HyperlaneRocksDB::new(&domain, DB::from_path(directory.path()).unwrap());
+        let (inclusion_tx, mut inclusion_rx) = mpsc::channel(statuses.len().max(1));
+        let (finality_tx, mut finality_rx) = mpsc::channel(statuses.len().max(1));
+        let mut iterator = TransactionDbLoader::new(
+            Arc::new(db),
+            inclusion_tx,
+            finality_tx,
+            "arbitrum".to_owned(),
+        )
+        .into_iterator()
+        .await;
+        let started = Instant::now();
+        tokio::time::timeout(
+            Duration::from_secs(60),
+            iterator.load_from_db(DispatcherMetrics::dummy_instance()),
+        )
+        .await
+        .expect("recovery should finish")
+        .unwrap();
+        let elapsed = started.elapsed();
+
+        expected_inclusion.reverse();
+        expected_finality.reverse();
+        let mut actual_inclusion = Vec::new();
+        let mut actual_finality = Vec::new();
+        while let Ok(tx) = inclusion_rx.try_recv() {
+            actual_inclusion.push(tx.uuid);
+        }
+        while let Ok(tx) = finality_rx.try_recv() {
+            actual_finality.push(tx.uuid);
+        }
+        assert_eq!(actual_inclusion, expected_inclusion);
+        assert_eq!(actual_finality, expected_finality);
+        elapsed
+    }
+
+    #[tokio::test]
+    async fn restart_recovers_older_transactions_past_terminal_entries() {
+        use TransactionStatus::*;
+        recover_transactions(&[
+            Some(PendingInclusion),
+            Some(Finalized),
+            Some(Included),
+            Some(Dropped(DropReason::Other("test".to_owned()))),
+            Some(Mempool),
+            Some(Finalized),
+        ])
+        .await;
+    }
+
+    #[tokio::test]
+    async fn restart_recovers_older_transactions_past_missing_entries() {
+        use TransactionStatus::*;
+        recover_transactions(&[Some(Included), None, Some(PendingInclusion), None]).await;
+    }
+
+    #[tokio::test]
+    async fn restart_finishes_with_no_active_transactions() {
+        recover_transactions(&[]).await;
+        recover_transactions(&[Some(TransactionStatus::Finalized)]).await;
+    }
+
+    #[tokio::test]
+    #[ignore = "manual terminal-history restart benchmark"]
+    async fn benchmark_terminal_history_recovery() {
+        for terminal_count in [10_000, 100_000] {
+            let mut statuses = vec![Some(TransactionStatus::Finalized); terminal_count + 1];
+            statuses[0] = Some(TransactionStatus::PendingInclusion);
+            let elapsed = recover_transactions(&statuses).await;
+            println!(
+                "{terminal_count} terminal transactions plus one oldest pending: recovered 1/1 in {} ms (database population/reopen excluded)",
+                elapsed.as_millis(),
+            );
         }
     }
 }

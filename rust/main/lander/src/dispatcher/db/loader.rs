@@ -114,7 +114,8 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
                 // If we don't have any items, we can skip
                 self.low_index_iter.iterate();
             }
-            None => {}
+            // An interrupted index write can leave a hole above older live transactions.
+            None => self.low_index_iter.iterate(),
         }
         Ok(LoadingOutcome::Skipped)
     }
@@ -129,9 +130,14 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
             );
             if let LoadingOutcome::Skipped = self.try_load_next_item().await? {
                 if self.high_index_iter.is_none() {
-                    debug!(?self, "No more items to process, stopping iterator",);
-                    // If we are only loading backward, we have processed all items
-                    return Ok(());
+                    if self.low_index_iter.index == 0 {
+                        debug!(?self, "Finished scanning transaction history");
+                        return Ok(());
+                    }
+                    // A finalized/dropped entry is not the end of recovery. Yield without
+                    // the live-polling delay while scanning the remaining history.
+                    tokio::task::yield_now().await;
+                    continue;
                 }
 
                 if iteration_count == 0
