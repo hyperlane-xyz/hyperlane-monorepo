@@ -311,16 +311,13 @@ impl ScraperSource {
 
     fn local_event_present(&self, kind: EventKind, sequence: u32) -> Result<bool> {
         Ok(match kind {
+            // A missing tx ID is backfilled on match, so it doesn't block the marker.
+            // Sealevel RPC indexing never writes one.
             EventKind::Dispatch => {
-                let Some(message) = self.database.retrieve_message_by_nonce(sequence)? else {
-                    return Ok(false);
-                };
-                self.database
-                    .retrieve_dispatched_block_number_by_nonce(&sequence)?
-                    .is_some()
+                self.database.retrieve_message_by_nonce(sequence)?.is_some()
                     && self
                         .database
-                        .retrieve_dispatched_tx_hash_by_message_id(&message.id())?
+                        .retrieve_dispatched_block_number_by_nonce(&sequence)?
                         .is_some()
             }
             EventKind::MerkleTreeInsertion => {
@@ -378,16 +375,42 @@ impl ScraperSource {
             .context("Storing durable scraper gas payment cursor")
     }
 
+    /// CCIP-read metadata needs the dispatch transaction ID, and RPC won't
+    /// revisit a dispatch once this origin is authoritative. Fill an absent or
+    /// zero local ID; never store a zero scraper ID.
+    fn backfill_dispatch_transaction_id(&self, input: &ParityInput) -> Result<()> {
+        let ParityInput::Dispatch {
+            message,
+            transaction_id,
+            ..
+        } = input
+        else {
+            return Ok(());
+        };
+        if *transaction_id == H512::zero() {
+            return Ok(());
+        }
+        let local =
+            HyperlaneDb::retrieve_dispatched_tx_hash_by_message_id(&self.cursor_db, &message.id())?;
+        if local.is_none_or(|local| local == H512::zero()) {
+            self.cursor_db
+                .store_dispatched_tx_hash_by_message_id(&message.id(), transaction_id)?;
+        }
+        Ok(())
+    }
+
     fn store_sequenced_event(&self, input: &ParityInput) -> Result<Option<IndexingNotification>> {
         match input.compare(self.database.as_ref())? {
             ParityResult::Match => {
-                if let ParityInput::MerkleTreeInsertion {
-                    block_number,
-                    insertion,
-                } = input
-                {
-                    self.cursor_db
-                        .process_tree_insertion(insertion, *block_number)?;
+                match input {
+                    ParityInput::MerkleTreeInsertion {
+                        block_number,
+                        insertion,
+                    } => {
+                        self.cursor_db
+                            .process_tree_insertion(insertion, *block_number)?;
+                    }
+                    ParityInput::Dispatch { .. } => self.backfill_dispatch_transaction_id(input)?,
                 }
                 return Ok(None);
             }
@@ -410,16 +433,8 @@ impl ScraperSource {
                     self.cursor_db
                         .store_dispatched_block_number_by_nonce(&message.nonce, block_number)?;
                 }
-                if HyperlaneDb::retrieve_dispatched_tx_hash_by_message_id(
-                    &self.cursor_db,
-                    &message.id(),
-                )?
-                .is_none()
-                {
-                    self.cursor_db
-                        .store_dispatched_tx_hash_by_message_id(&message.id(), transaction_id)?;
-                }
-                Some(IndexingNotification {
+                self.backfill_dispatch_transaction_id(input)?;
+                (*transaction_id != H512::zero()).then(|| IndexingNotification {
                     tx_id: *transaction_id,
                     sequences: vec![Some(message.nonce)],
                 })
@@ -702,21 +717,19 @@ impl ParityInput {
                 let local_transaction_id = database
                     .retrieve_dispatched_tx_hash_by_message_id(&message.id())
                     .context("Reading RPC-indexed dispatch transaction ID")?;
-                // Sealevel's basic log metadata stores zero when the relayer's
-                // advanced transaction lookup is disabled. Keep requiring the
-                // entry, but only compare transaction IDs when one is known.
-                let transaction_id_conflicts = local_transaction_id
-                    .is_some_and(|local| local != H512::zero() && local != *transaction_id);
+                // Zero means unknown on both sides: Sealevel's basic log metadata
+                // stores it locally, and the scraper sends it until enrichment. An
+                // absent local ID is backfilled on match.
+                let transaction_id_conflicts = *transaction_id != H512::zero()
+                    && local_transaction_id
+                        .is_some_and(|local| local != H512::zero() && local != *transaction_id);
                 if local_message.as_ref().is_some_and(|local| local != message)
                     || local_block_number.is_some_and(|local| local != *block_number)
                     || transaction_id_conflicts
                 {
                     return Ok(ParityResult::Conflict);
                 }
-                if local_message.is_none()
-                    || local_block_number.is_none()
-                    || local_transaction_id.is_none()
-                {
+                if local_message.is_none() || local_block_number.is_none() {
                     return Ok(ParityResult::Missing);
                 }
                 Ok(ParityResult::Match)
@@ -1928,6 +1941,9 @@ impl ScraperWebSocketMonitor {
                     if authority_active && comparison == ParityResult::Missing {
                         let notification = source.store_sequenced_event(&parity_input)?;
                         return Ok((ParityResult::Match, notification));
+                    }
+                    if comparison == ParityResult::Match {
+                        source.backfill_dispatch_transaction_id(&parity_input)?;
                     }
                     Ok((comparison, None))
                 },
@@ -5576,6 +5592,13 @@ mod tests {
     }
 
     fn dispatch_parity_result(local_transaction_id: Option<H512>) -> ParityResult {
+        dispatch_parity_result_for(local_transaction_id, dispatch_transaction_id())
+    }
+
+    fn dispatch_parity_result_for(
+        local_transaction_id: Option<H512>,
+        transaction_id: H512,
+    ) -> ParityResult {
         let message = dispatch_message(7, b"payload");
         let local_message = message.clone();
         let mut database = MockParityDatabase::new();
@@ -5595,7 +5618,7 @@ mod tests {
         ParityInput::Dispatch {
             block_number: 100,
             message,
-            transaction_id: dispatch_transaction_id(),
+            transaction_id,
         }
         .compare(&database)
         .expect("compare dispatch parity")
@@ -6366,8 +6389,109 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_parity_requires_local_transaction_id_entry() {
-        assert_eq!(dispatch_parity_result(None), ParityResult::Missing);
+    fn dispatch_parity_matches_without_local_transaction_id_entry() {
+        assert_eq!(dispatch_parity_result(None), ParityResult::Match);
+    }
+
+    #[test]
+    fn dispatch_parity_treats_zero_scraper_transaction_id_as_unknown() {
+        assert_eq!(
+            dispatch_parity_result_for(Some(dispatch_transaction_id()), H512::zero()),
+            ParityResult::Match
+        );
+    }
+
+    #[test]
+    fn dispatch_match_backfills_missing_transaction_id() {
+        let temp_dir = tempfile::tempdir().expect("temp DB directory");
+        let db = DB::from_path(temp_dir.path()).expect("open temp DB");
+        let database =
+            HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("scraper-parity"), db);
+        let message = dispatch_message(7, b"payload");
+        database
+            .store_message_id_by_nonce(&message.nonce, &message.id())
+            .expect("store message ID");
+        database
+            .store_message_by_id(&message.id(), &message)
+            .expect("store message");
+        database
+            .store_dispatched_block_number_by_nonce(&message.nonce, &100)
+            .expect("store dispatch block");
+        let source = source(database);
+        let tx_id = || {
+            HyperlaneDb::retrieve_dispatched_tx_hash_by_message_id(&source.cursor_db, &message.id())
+                .expect("tx id read")
+        };
+        let parity = |transaction_id| ParityInput::Dispatch {
+            block_number: 100,
+            message: message.clone(),
+            transaction_id,
+        };
+
+        // A zero (unenriched) scraper ID is never stored.
+        assert!(source
+            .store_sequenced_event(&parity(H512::zero()))
+            .expect("store matched dispatch")
+            .is_none());
+        assert_eq!(tx_id(), None);
+
+        assert!(source
+            .store_sequenced_event(&parity(dispatch_transaction_id()))
+            .expect("store matched dispatch")
+            .is_none());
+        assert_eq!(tx_id(), Some(dispatch_transaction_id()));
+    }
+
+    #[tokio::test]
+    async fn non_authoritative_match_backfills_transaction_id() {
+        let sources = sources_for(&[5]);
+        let input = StreamState::default()
+            .validate(sequenced_event_for(EventKind::Dispatch, 0), &sources)
+            .expect("valid event")
+            .parity
+            .expect("sequenced parity input");
+        let ParityInput::Dispatch {
+            message,
+            block_number,
+            transaction_id,
+        } = &input
+        else {
+            unreachable!("dispatch parity input");
+        };
+        sources[&5]
+            .cursor_db
+            .store_message(message, *block_number)
+            .expect("store message without tx hash");
+        let metrics = CoreMetrics::new("tx-id-backfill", 0, Registry::new()).expect("metrics");
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new(
+                Url::parse("ws://localhost:1").expect("URL"),
+                sources.clone().into_values().collect(),
+                &metrics,
+            )
+            .expect("monitor"),
+        );
+        assert!(
+            monitor
+                .enqueue_parity(5, EventKind::Dispatch, input.clone(), 0)
+                .await
+        );
+        let source = &monitor.sources[&5];
+        timeout(Duration::from_secs(5), async {
+            while source.cursor(EventKind::Dispatch).expect("cursor") != Some(0) {
+                sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("worker matches the dispatch");
+        assert_eq!(
+            HyperlaneDb::retrieve_dispatched_tx_hash_by_message_id(
+                &source.cursor_db,
+                &message.id()
+            )
+            .expect("tx id read"),
+            Some(*transaction_id)
+        );
     }
 
     #[test]
@@ -6988,9 +7112,18 @@ mod tests {
             ((5, EventKind::MerkleTreeInsertion), 2),
         ]);
 
-        // RPC has the marker's message and block but not yet its tx hash, and a
-        // matched live event left the cursor below the marker.
+        // RPC has not indexed the marker sequence yet, and a matched live event
+        // left the cursor below the marker.
         index_locally(&sources, EventKind::Dispatch, 0..=1);
+        source
+            .store_cursor(EventKind::Dispatch, 1)
+            .expect("store cursor");
+        monitor.retry_fresh_markers(&mut rejected).expect("retry");
+        assert_eq!(rejected.len(), 2);
+        assert_eq!(source.cursor(EventKind::Dispatch).expect("cursor"), Some(1));
+
+        // Dispatch catches up without a tx ID (Sealevel basic metadata); the
+        // Merkle stream backs up meanwhile.
         let input = StreamState::default()
             .validate(sequenced_event_for(EventKind::Dispatch, 2), &sources)
             .expect("valid event")
@@ -7008,15 +7141,6 @@ mod tests {
             .cursor_db
             .store_message(message, *block_number)
             .expect("store message without tx hash");
-        source
-            .store_cursor(EventKind::Dispatch, 1)
-            .expect("store cursor");
-        monitor.retry_fresh_markers(&mut rejected).expect("retry");
-        assert_eq!(rejected.len(), 2);
-        assert_eq!(source.cursor(EventKind::Dispatch).expect("cursor"), Some(1));
-
-        // Dispatch catches up; the Merkle stream backs up meanwhile.
-        index_locally(&sources, EventKind::Dispatch, 2..=2);
         index_locally(&sources, EventKind::MerkleTreeInsertion, 0..=2);
         monitor
             .parity_overflowed

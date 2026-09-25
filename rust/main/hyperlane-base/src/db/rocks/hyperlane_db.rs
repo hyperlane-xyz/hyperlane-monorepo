@@ -708,6 +708,40 @@ mod pending_index_tests {
     use crate::db::rocks::test_utils::run_test_db;
 
     #[tokio::test]
+    async fn zero_dispatch_tx_id_is_never_stored() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            let message = message(7, 10);
+            let meta = |transaction_id| LogMeta {
+                address: H256::from_low_u64_be(1),
+                block_number: 1,
+                block_hash: H256::from_low_u64_be(1),
+                transaction_id,
+                transaction_index: 0,
+                log_index: 0.into(),
+            };
+            let stored = || {
+                db.retrieve_dispatched_tx_hash_by_message_id(&message.id())
+                    .unwrap()
+            };
+            for (transaction_id, expected) in [
+                // Zero is never written.
+                (H512::zero(), None),
+                (H512::from_low_u64_be(2), Some(H512::from_low_u64_be(2))),
+                // Re-indexing with Sealevel basic metadata keeps the known ID.
+                (H512::zero(), Some(H512::from_low_u64_be(2))),
+                // A nonzero ID still replaces it.
+                (H512::from_low_u64_be(3), Some(H512::from_low_u64_be(3))),
+            ] {
+                let logs = [(Indexed::new(message.clone()), meta(transaction_id))];
+                db.store_logs(&logs).await.unwrap();
+                assert_eq!(stored(), expected);
+            }
+        })
+        .await;
+    }
+
+    #[tokio::test]
     async fn highest_message_nonce_ignores_overlapping_message_keys() {
         run_test_db(|raw_db| async move {
             let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
@@ -1036,10 +1070,17 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
             if stored_message {
                 stored = stored.saturating_add(1);
             }
-            self.store_dispatched_tx_hash_by_message_id(
-                &message.inner().id(),
-                &meta.transaction_id,
-            )?;
+            // Sealevel's basic log metadata carries a zero transaction ID, which
+            // parity backfill and CCIP-read treat as absent. Never write it, so it cannot
+            // replace a known ID (e.g. backfilled from the scraper); a nonzero ID
+            // still replaces it. Sealevel relayer indexing is finalized, so a kept
+            // ID is never orphaned by a reorg re-index.
+            if meta.transaction_id != H512::zero() {
+                self.store_dispatched_tx_hash_by_message_id(
+                    &message.inner().id(),
+                    &meta.transaction_id,
+                )?;
+            }
         }
         if stored > 0 {
             debug!(messages = stored, "Wrote new messages to database");
