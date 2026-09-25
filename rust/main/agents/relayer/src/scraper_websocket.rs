@@ -3084,6 +3084,8 @@ impl ScraperWebSocketMonitor {
                     warn!(%chain, ?err, "Canonical scraper freshness probe failed");
                 }
                 self.last_fresh_probe.lock().remove(&domain);
+                // Ahead needs two consecutive probes; a failed one breaks the run.
+                self.ahead_probe.lock().remove(&domain);
                 self.fresh.with_label_values(&[chain.as_str()]).set(0);
                 // A failed probe proves neither lag nor progress, so an authoritative
                 // origin tolerates it for the same grace as lag.
@@ -5478,7 +5480,14 @@ mod tests {
         probe(&monitor).await;
         assert!(authority.active.load(Ordering::Acquire));
 
+        // A failed probe between two ahead probes breaks the run.
         dispatch.count.store(9, Ordering::Release);
+        probe(&monitor).await;
+        assert!(authority.active.load(Ordering::Acquire));
+        dispatch.failing.store(true, Ordering::Release);
+        probe(&monitor).await;
+        assert!(authority.active.load(Ordering::Acquire));
+        dispatch.failing.store(false, Ordering::Release);
         probe(&monitor).await;
         assert!(authority.active.load(Ordering::Acquire));
         probe(&monitor).await;
