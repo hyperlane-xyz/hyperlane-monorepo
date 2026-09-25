@@ -31,10 +31,6 @@ const DEFAULT_TESSELLATED_VALIDATOR: ValidatorConfig = {
   address: '0x0d4c1394a255568ec0ecd11795b28d1bda183ca4',
   alias: 'Tessellated',
 };
-const DEFAULT_ZKV_VALIDATOR: ValidatorConfig = {
-  address: '0x761980c3debdc8ddb69a2713cf5126d4db900f0f',
-  alias: 'ZKV',
-};
 const DEFAULT_BLOCKPI_VALIDATOR: ValidatorConfig = {
   address: '0x6d113ae51bfea7b63a8828f97e9dce393b25c189',
   alias: 'BlockPI',
