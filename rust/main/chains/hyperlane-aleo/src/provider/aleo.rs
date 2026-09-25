@@ -62,10 +62,9 @@ pub struct AleoProvider<C: AleoClient = FallbackHttpClient> {
     signer: Option<AleoSigner>,
     priority_fee_multiplier: f64,
     estimate_cache: Arc<RwLock<HashMap<FeeEstimateCacheKey, FeeEstimate>>>,
-    // Read-only ISM and indexing providers never need a VM. snarkVM 4.8.1's
-    // sequential worker retains its VM after external owners drop, so eagerly
-    // creating three VMs for every metadata builder leaks threads and memory.
-    // Initialize only the execution network, sharing it with provider clones.
+    // Read-only ISM and indexing providers never need a VM. Initialize only
+    // the execution network, sharing it with provider clones. The pinned
+    // snarkVM lifecycle fix releases its worker after the last clone drops.
     mainnet_vm: LazyVm<MainnetV0>,
     testnet_vm: LazyVm<TestnetV0>,
     canary_vm: LazyVm<CanaryV0>,
@@ -926,5 +925,14 @@ mod vm_lifecycle_tests {
         assert!(provider.canary_vm.get().is_none());
         assert!(clone.testnet_vm.get().is_none());
         assert!(clone.canary_vm.get().is_none());
+
+        let process = Arc::downgrade(provider.mainnet_vm.get().expect("initialized VM").process());
+        drop(provider);
+        assert!(process.upgrade().is_some());
+        drop(clone);
+        assert!(
+            process.upgrade().is_none(),
+            "worker retained the final provider VM"
+        );
     }
 }
