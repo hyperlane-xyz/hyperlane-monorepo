@@ -238,6 +238,8 @@ async fn test_validate_assigned_nonce_with_db() {
     let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
     // Set tracked_tx_uuid to uuid
     state.set_tracked_tx_uuid(&nonce, &tx.uuid).await.unwrap();
+    // No lower nonce is free, so there is no gap to fill.
+    state.set_finalized_nonce(&(nonce - 1)).await.unwrap();
 
     let action = state.validate_assigned_nonce(&tx).await.unwrap();
 
@@ -464,12 +466,12 @@ async fn test_validate_assigned_nonce_taken_status_no_finalized() {
     let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     let uuid = TransactionUuid::random();
-    let nonce_val = U256::from(8);
+    let nonce_val = U256::zero();
 
     // Set tracked_tx_uuid to uuid
     state.set_tracked_tx_uuid(&nonce_val, &uuid).await.unwrap();
 
-    // Do NOT set finalized_nonce (it will be None)
+    // Do NOT set finalized_nonce (it will be None). Nonce 0 leaves no lower gap.
 
     let tx = dummy_tx(
         uuid,
@@ -481,6 +483,44 @@ async fn test_validate_assigned_nonce_taken_status_no_finalized() {
     // With no finalized nonce, Taken status should just assign the nonce
     assert_eq!(action, NonceAction::Assign { nonce: nonce_val });
     assert_eq!(state.metrics.get_mismatched_nonce().get(), 0);
+}
+
+#[tokio::test]
+async fn test_validate_assigned_nonce_taken_status_above_freed_gap() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+
+    let uuid = TransactionUuid::random();
+    let nonce_val = U256::from(8);
+    state.set_tracked_tx_uuid(&nonce_val, &uuid).await.unwrap();
+    // Nonces 6 and 7 are untracked, so the tx cannot be mined until the gap is filled.
+    state.set_finalized_nonce(&U256::from(5)).await.unwrap();
+
+    for status in [
+        TransactionStatus::PendingInclusion,
+        TransactionStatus::Mempool,
+    ] {
+        let tx = dummy_tx(uuid.clone(), status, Some(nonce_val), Some(address));
+        let action = state.validate_assigned_nonce(&tx).await.unwrap();
+        assert_eq!(
+            action,
+            NonceAction::AssignNext {
+                old_nonce: Some(nonce_val)
+            }
+        );
+    }
+
+    // An included tx is never moved.
+    let tx = dummy_tx(
+        uuid,
+        TransactionStatus::Included,
+        Some(nonce_val),
+        Some(address),
+    );
+    let action = state.validate_assigned_nonce(&tx).await.unwrap();
+    assert_eq!(action, NonceAction::Assign { nonce: nonce_val });
 }
 
 #[tokio::test]
