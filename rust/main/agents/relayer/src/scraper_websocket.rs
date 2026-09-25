@@ -312,10 +312,15 @@ impl ScraperSource {
     fn local_event_present(&self, kind: EventKind, sequence: u32) -> Result<bool> {
         Ok(match kind {
             EventKind::Dispatch => {
-                self.database.retrieve_message_by_nonce(sequence)?.is_some()
+                let Some(message) = self.database.retrieve_message_by_nonce(sequence)? else {
+                    return Ok(false);
+                };
+                self.database
+                    .retrieve_dispatched_block_number_by_nonce(&sequence)?
+                    .is_some()
                     && self
                         .database
-                        .retrieve_dispatched_block_number_by_nonce(&sequence)?
+                        .retrieve_dispatched_tx_hash_by_message_id(&message.id())?
                         .is_some()
             }
             EventKind::MerkleTreeInsertion => {
@@ -327,7 +332,7 @@ impl ScraperSource {
                         .retrieve_merkle_tree_insertion_block_number_by_leaf_index(&sequence)?
                         .is_some()
             }
-            EventKind::GasPayment => false,
+            EventKind::GasPayment => unreachable!("gas payments have no sequenced cursor"),
         })
     }
 
@@ -2252,6 +2257,8 @@ impl ScraperWebSocketMonitor {
         let mut rejected_fresh_markers = HashMap::new();
         let mut subscribed = false;
         loop {
+            // Before the probes read cursors, and also when authority is disabled.
+            self.retry_fresh_markers(&mut rejected_fresh_markers)?;
             for source in self.sources.values() {
                 if !self
                     .source_authority(source.domain)
@@ -2276,7 +2283,6 @@ impl ScraperWebSocketMonitor {
             let message = match event {
                 SessionEvent::Message(message) => message,
                 SessionEvent::Progress(probe) => {
-                    self.retry_fresh_markers(&mut rejected_fresh_markers)?;
                     self.apply_freshness(probe);
                     continue;
                 }
@@ -2674,29 +2680,25 @@ impl ScraperWebSocketMonitor {
     }
 
     fn retry_fresh_markers(&self, rejected: &mut HashMap<(u32, EventKind), u32>) -> Result<()> {
-        let mut result = Ok(());
-        rejected.retain(|&(domain, kind), &mut sequence| {
-            if result.is_err() {
-                return true;
-            }
+        let pending: Vec<_> = rejected
+            .iter()
+            .map(|(&key, &sequence)| (key, sequence))
+            .collect();
+        for ((domain, kind), sequence) in pending {
             let source = &self.sources[&domain];
-            let retry = || -> Result<bool> {
-                // A matched live event may have stored a cursor in the meantime.
-                if source.cursor(kind)?.is_some() {
-                    return Ok(false);
-                }
+            // A matched live event may have stored a cursor at or past the marker.
+            let superseded = source
+                .cursor(kind)?
+                .is_some_and(|cursor| cursor >= sequence);
+            if !superseded {
                 if !self.fresh_caught_up_cursor_trusted(source, kind, sequence)? {
-                    return Ok(true);
+                    continue;
                 }
                 source.store_cursor(kind, sequence)?;
-                Ok(false)
-            };
-            retry().unwrap_or_else(|err| {
-                result = Err(err);
-                true
-            })
-        });
-        result
+            }
+            rejected.remove(&(domain, kind));
+        }
+        Ok(())
     }
 
     fn refresh_parity_ready(&self, source: &ScraperSource) {
@@ -6986,11 +6988,32 @@ mod tests {
             ((5, EventKind::MerkleTreeInsertion), 2),
         ]);
 
-        // RPC has not indexed the marker sequence yet.
+        // RPC has the marker's message and block but not yet its tx hash, and a
+        // matched live event left the cursor below the marker.
         index_locally(&sources, EventKind::Dispatch, 0..=1);
+        let input = StreamState::default()
+            .validate(sequenced_event_for(EventKind::Dispatch, 2), &sources)
+            .expect("valid event")
+            .parity
+            .expect("sequenced parity input");
+        let ParityInput::Dispatch {
+            message,
+            block_number,
+            ..
+        } = &input
+        else {
+            unreachable!("dispatch parity input");
+        };
+        source
+            .cursor_db
+            .store_message(message, *block_number)
+            .expect("store message without tx hash");
+        source
+            .store_cursor(EventKind::Dispatch, 1)
+            .expect("store cursor");
         monitor.retry_fresh_markers(&mut rejected).expect("retry");
         assert_eq!(rejected.len(), 2);
-        assert_eq!(source.cursor(EventKind::Dispatch).expect("cursor"), None);
+        assert_eq!(source.cursor(EventKind::Dispatch).expect("cursor"), Some(1));
 
         // Dispatch catches up; the Merkle stream backs up meanwhile.
         index_locally(&sources, EventKind::Dispatch, 2..=2);
