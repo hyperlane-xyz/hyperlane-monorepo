@@ -24,7 +24,6 @@ derive_builder.workspace = true
 ed25519-dalek.workspace = true
 ethers.workspace = true
 eyre.workspace = true
-fuels.workspace = true
 futures.workspace = true
 futures-util.workspace = true
 itertools.workspace = true
@@ -69,7 +68,6 @@ hyperlane-test = { path = "../hyperlane-test" }
 
 hyperlane-aleo = { path = "../chains/hyperlane-aleo", optional = true }
 hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
-hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-cosmos = { path = "../chains/hyperlane-cosmos" }
 hyperlane-starknet = { path = "../chains/hyperlane-starknet" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }

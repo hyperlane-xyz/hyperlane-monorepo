@@ -292,7 +292,6 @@ See `docs/2025-11-20-multi-vm-migration.md` for full migration guide.
 | `hyperlane-ethereum` | EVM chains    |
 | `hyperlane-cosmos`   | Cosmos chains |
 | `hyperlane-sealevel` | Solana/SVM    |
-| `hyperlane-fuel`     | Fuel          |
 | `hyperlane-aleo`     | Aleo          |
 | `hyperlane-radix`    | Radix         |
 | `hyperlane-starknet` | Starknet      |

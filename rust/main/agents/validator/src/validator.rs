@@ -473,7 +473,7 @@ impl BaseAgent for Validator {
                 .enumerate()
                 .map(|(i, rpc)| Url::parse(&rpc.url).map_err(|_| eyre!("Invalid rpcUrls[{i}] URL")))
                 .collect::<Result<Vec<_>>>()?;
-            let (source, urls) = state_read_urls(&origin_chain_conf, rpc_urls)?;
+            let (source, urls) = state_read_urls(&origin_chain_conf, rpc_urls);
             let urls = dedupe_rpc_urls(urls, source);
             let hooks = build_validator_per_url_hooks(
                 &origin_chain_conf,
@@ -1530,7 +1530,7 @@ mod tests {
                 Url::parse("https://rpc-a.example").unwrap(),
                 Url::parse("https://rpc-b.example").unwrap(),
             ];
-            let (selected_source, urls) = state_read_urls(chain, raw_rpc_urls).unwrap();
+            let (selected_source, urls) = state_read_urls(chain, raw_rpc_urls);
             assert_eq!(selected_source, source, "{protocol}");
             assert_eq!(urls.len(), 2, "{protocol}");
             for url in urls {
@@ -1546,7 +1546,6 @@ mod tests {
                     ChainConnectionConf::Radix(conn) => conn.core,
                     #[cfg(feature = "aleo")]
                     ChainConnectionConf::Aleo(conn) => conn.rpcs,
-                    ChainConnectionConf::Fuel(_) => panic!("unsupported protocol"),
                 };
                 assert_eq!(
                     actual,

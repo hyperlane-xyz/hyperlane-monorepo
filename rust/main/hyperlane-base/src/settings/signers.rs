@@ -249,30 +249,6 @@ impl ChainSigner for hyperlane_tron::TronSigner {
 }
 
 #[async_trait]
-impl BuildableWithSignerConf for fuels::prelude::WalletUnlocked {
-    async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        if let SignerConf::HexKey { key } = conf {
-            let key = fuels::crypto::SecretKey::try_from(key.as_bytes())
-                .context("Invalid fuel signer key")?;
-            Ok(fuels::prelude::WalletUnlocked::new_from_private_key(
-                key, None,
-            ))
-        } else {
-            bail!(format!("{conf:?} key is not supported by fuel"));
-        }
-    }
-}
-
-impl ChainSigner for fuels::prelude::WalletUnlocked {
-    fn address_string(&self) -> String {
-        self.address().to_string()
-    }
-    fn address_h256(&self) -> H256 {
-        H256::from_slice(fuels::types::Address::from(self.address()).as_slice())
-    }
-}
-
-#[async_trait]
 impl BuildableWithSignerConf for hyperlane_sealevel::Keypair {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
         if let SignerConf::HexKey { key } = conf {
@@ -518,29 +494,6 @@ mod tests {
 
         let address_h256 = H256::from_slice(
             hex::decode(ADDRESS)
-                .expect("Failed to decode public key")
-                .as_slice(),
-        );
-        assert_eq!(chain_signer.address_h256(), address_h256);
-    }
-
-    #[test]
-    fn address_h256_fuel() {
-        const PRIVATE_KEY: &str =
-            "0a83ee2a87f328704512567198ee25578c27c707b26fdf3be9ea8bf8588f3b65";
-        const PUBLIC_KEY: &str = "b43425b2256e7dcdd61752808b137b23f4f697cfaf21175ed81d0610ebab5a87";
-
-        let private_key = fuels::crypto::SecretKey::try_from(
-            hex::decode(PRIVATE_KEY)
-                .expect("Failed to decode private key")
-                .as_slice(),
-        )
-        .expect("Failed to create secret key");
-
-        let chain_signer = fuels::prelude::WalletUnlocked::new_from_private_key(private_key, None);
-
-        let address_h256 = H256::from_slice(
-            hex::decode(PUBLIC_KEY)
                 .expect("Failed to decode public key")
                 .as_slice(),
         );

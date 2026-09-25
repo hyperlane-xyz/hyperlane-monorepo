@@ -544,7 +544,6 @@ export {
 } from './providers/defaultProviderBuilderMaps.js';
 export {
   defaultEthersV5ProviderBuilder,
-  defaultFuelProviderBuilder,
   defaultProviderBuilder,
   defaultSolProviderBuilder,
   defaultViemProviderBuilder,

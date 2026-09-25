@@ -211,6 +211,6 @@ We use the tokio async runtime environment. Please see the docs
 - `chains/hyperlane-*`
   - VM-specific integration of the agents
   - depends on hyperlane-core (and transitively hyperlane-base)
-  - interfaces with the contracts of that VM (e.g `ethereum`, `sealevel`, `cosmos`, `fuel`, etc)
+  - interfaces with the contracts of that VM (e.g `ethereum`, `sealevel`, `cosmos`, etc)
 - `agents`
   - each of the off-chain agents implemented thus far

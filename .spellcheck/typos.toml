@@ -19,7 +19,6 @@ extend-exclude = [
 
   # JSON config, fixtures, and ABIs (full of hashes/addresses that trigger false positives)
   "rust/main/config/",
-  "rust/main/chains/hyperlane-fuel/abis/",
   "rust/main/chains/hyperlane-sealevel/src/log_meta_composer/*.json",
   "rust/main/chains/hyperlane-sealevel/src/provider/recipient/*.json",
   "rust/main/chains/hyperlane-aleo/src/indexer/mock_responses/",
@@ -65,8 +64,6 @@ TRE = "TRE"
 transferrable = "transferrable"
 # Solana processed-message discriminator (fixed 8-byte value)
 PROCESSD = "PROCESSD"
-# Fuel ABI field name (external API)
-configurables = "configurables"
 # "Datas" used as a type name suffix
 Datas = "Datas"
 # GraphQL _nin operator (Hasura "not in" filter)

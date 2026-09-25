@@ -1,5 +1,3 @@
-#[cfg(feature = "fuels")]
-use fuels_code_gen::ProgramType;
 use std::collections::BTreeSet;
 #[cfg(feature = "starknet")]
 use std::collections::HashMap;
@@ -13,7 +11,6 @@ use inflector::Inflector;
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum BuildType {
     Ethers,
-    Fuels,
     Starknet,
 }
 
@@ -107,27 +104,6 @@ pub fn generate_bindings(
             .write_to_file(&output_file)
             .expect("Could not write bindings to file");
     }
-    #[cfg(feature = "fuels")]
-    if build_type == BuildType::Fuels {
-        let abi =
-            fuels_code_gen::Abi::load_from(contract_path.as_ref()).expect("could not load abi");
-        let tokens = fuels_code_gen::Abigen::generate(
-            vec![fuels_code_gen::AbigenTarget::new(
-                contract_name.into(),
-                abi,
-                ProgramType::Contract,
-            )],
-            false,
-        )
-        .expect("could not generate bindings")
-        .to_string();
-        let mut outfile = File::create(&output_file).expect("Could not open output file");
-        outfile
-            .write_all(tokens.as_bytes())
-            .expect("Could not write bindings to file");
-
-        fmt_file(&output_file);
-    }
     #[cfg(feature = "starknet")]
     if build_type == BuildType::Starknet {
         let mut aliases = HashMap::new();
@@ -168,31 +144,4 @@ pub fn generate_bindings(
     }
 
     module_name
-}
-
-#[cfg(feature = "fmt")]
-fn fmt_file(path: &Path) {
-    if let Err(err) = std::process::Command::new(rustfmt_path())
-        .args(["--edition", "2021"])
-        .arg(path)
-        .output()
-    {
-        println!("cargo:warning=Failed to run rustfmt for {path:?}, ignoring ({err})");
-    }
-}
-
-/// Get the rustfmt binary path.
-#[cfg(feature = "fmt")]
-fn rustfmt_path() -> &'static Path {
-    use std::{path::PathBuf, sync::LazyLock};
-
-    static PATH: LazyLock<PathBuf> = LazyLock::new(|| {
-        if let Ok(path) = std::env::var("RUSTFMT") {
-            PathBuf::from(path)
-        } else {
-            which::which("rustfmt").unwrap_or_else(|_| "rustfmt".into())
-        }
-    });
-
-    PATH.as_path()
 }
