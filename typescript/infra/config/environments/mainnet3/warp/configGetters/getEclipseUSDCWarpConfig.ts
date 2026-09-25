@@ -96,6 +96,7 @@ export const deploymentChains = [
 
 // EVM chains with CCTP rebalancing support
 export const cctpRebalanceableChains = [
+  'arc',
   'arbitrum',
   'base',
   'ethereum',
