@@ -6,7 +6,10 @@ stored event proves that the other worker covered earlier ranges. Copying either
 maximum into a new checkpoint would preserve historical gaps.
 
 Block-indexed delivery and gas-payment stores now use `(domain, "delivery")` and
-`(domain, "interchain_gas_payment")`. A missing key starts at the configured
+`(domain, "interchain_gas_payment")`. EVM domains no longer run these legacy
+workers: near-head ingestion replaced them (see `docs/scraper/near-head.md`). This
+migration applies to the remaining block-indexed legacy protocols: Cosmos,
+CosmosNative, Starknet, and Tron. A missing key starts at the configured
 `index.from`. Once written, each key resumes independently, including after a
 restart during backfill. The existing cursor table and uniqueness constraint are
 sufficient; there is no SQL schema migration. Existing legacy, CCR, and backward
@@ -29,22 +32,17 @@ advanced does not rewind that checkpoint.
 
 The following snapshot combines the running mainnet scraper's configuration and
 runtime index overrides with read-only replica queries of legacy cursor rows on
-2026-09-22 (row timestamps around 14:05 UTC). These six chains are a sample, not
-the complete set of affected domains. No production state was changed.
+2026-09-22 (row timestamps around 14:05 UTC). It is a sample, not the complete set
+of affected domains. EVM rows from the original sample are omitted because those
+domains now use near-head ingestion. No production state was changed.
 
 | Chain    | Configured start | Legacy cursor | Blocks through cursor, inclusive | Chunk setting | Range fetches per stream | Both streams |
 | -------- | ---------------: | ------------: | -------------------------------: | ------------: | -----------------------: | -----------: |
-| Ethereum |       18,422,581 |    26,031,497 |                        7,608,917 |         1,999 |                    3,805 |        7,610 |
-| Arbitrum |      143,649,797 |   507,803,042 |                      364,153,246 |         1,999 |                  182,077 |      364,154 |
-| Base     |        5,695,475 |    51,647,251 |                       45,951,777 |         1,000 |                   45,906 |       91,812 |
-| BSC      |       32,893,043 |   123,383,977 |                       90,490,935 |         1,999 |                   45,246 |       90,492 |
-| Polygon  |       49,108,065 |    94,251,854 |                       45,143,790 |         1,999 |                   22,572 |       45,144 |
 | Starknet |          804,854 |    15,270,924 |                       14,466,071 |           999 |                   14,467 |       28,934 |
 
 The cursor queries inclusive ranges `from..=from + chunk`. Therefore the estimate
 is `ceil((legacy_height - configured_start + 1) / (chunk + 1))` per stream, doubled
-for delivery and gas payment. The parser default is 1,999; Base has an explicit
-runtime override of 1,000.
+for delivery and gas payment. The parser default is 1,999.
 
 These counts are range fetches, **not total RPC requests, provider billing, or a
 completion-time estimate**. Tip reads, pagination, retries, chain progress during
@@ -57,8 +55,7 @@ check, and transaction capacity.
 ## Rollout gate and staged backfill
 
 A first startup with absent event keys replays configured history. Do not roll
-this change out to every mainnet domain at once without a capacity plan. The
-large Arbitrum and Base ranges make that a material rollout decision.
+this change out to every affected mainnet domain at once without a capacity plan.
 
 1. Include the required-enrichment retry fix from PR #9673 before backfilling.
    Otherwise a transient enrichment failure can still omit events during replay.
