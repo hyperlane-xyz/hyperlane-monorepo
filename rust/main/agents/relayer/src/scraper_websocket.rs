@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 
-use eyre::{bail, Context, ContextCompat, Result};
+use eyre::{bail, ensure, Context, ContextCompat, Result};
 use futures_util::{
     stream::{self, BoxStream},
     StreamExt,
@@ -382,6 +382,7 @@ impl ScraperSource {
     fn backfill_dispatch_transaction_id(&self, input: &ParityInput) -> Result<()> {
         let ParityInput::Dispatch {
             message,
+            missing_body_id,
             transaction_id,
             ..
         } = input
@@ -391,11 +392,12 @@ impl ScraperSource {
         if *transaction_id == H512::zero() {
             return Ok(());
         }
+        let message_id = ParityInput::message_id(message, *missing_body_id);
         let local =
-            HyperlaneDb::retrieve_dispatched_tx_hash_by_message_id(&self.cursor_db, &message.id())?;
+            HyperlaneDb::retrieve_dispatched_tx_hash_by_message_id(&self.cursor_db, &message_id)?;
         if local.is_none_or(|local| local == H512::zero()) {
             self.cursor_db
-                .store_dispatched_tx_hash_by_message_id(&message.id(), transaction_id)?;
+                .store_dispatched_tx_hash_by_message_id(&message_id, transaction_id)?;
         }
         Ok(())
     }
@@ -416,13 +418,17 @@ impl ScraperSource {
                 return Ok(None);
             }
             ParityResult::Conflict => bail!("Scraper event conflicts with local RPC data"),
-            ParityResult::Missing => {}
+            ParityResult::Missing => ensure!(
+                input.storable(),
+                "Scraper dispatch without a body cannot be stored"
+            ),
         }
         let notification = match input {
             ParityInput::Dispatch {
                 block_number,
                 message,
                 transaction_id,
+                ..
             } => {
                 self.cursor_db.store_message(message, *block_number)?;
                 if HyperlaneDb::retrieve_dispatched_block_number_by_nonce(
@@ -686,6 +692,10 @@ enum ParityInput {
     Dispatch {
         block_number: u64,
         message: HyperlaneMessage,
+        /// Set when the scraper row has no body: `message` then holds only the
+        /// header, and this ID, which commits to the real body, is checked
+        /// against the local message instead.
+        missing_body_id: Option<H256>,
         transaction_id: H512,
     },
     MerkleTreeInsertion {
@@ -702,11 +712,27 @@ struct GasPaymentInput {
 }
 
 impl ParityInput {
+    fn message_id(message: &HyperlaneMessage, missing_body_id: Option<H256>) -> H256 {
+        missing_body_id.unwrap_or_else(|| message.id())
+    }
+
+    /// A dispatch without its body can only match a local message, never be stored.
+    fn storable(&self) -> bool {
+        !matches!(
+            self,
+            Self::Dispatch {
+                missing_body_id: Some(_),
+                ..
+            }
+        )
+    }
+
     fn compare(&self, database: &dyn ParityDatabase) -> Result<ParityResult> {
         match self {
             Self::Dispatch {
                 block_number,
                 message,
+                missing_body_id,
                 transaction_id,
             } => {
                 let local_message = database
@@ -716,15 +742,38 @@ impl ParityInput {
                     .retrieve_dispatched_block_number_by_nonce(&message.nonce)
                     .context("Reading RPC-indexed dispatch block number")?;
                 let local_transaction_id = database
-                    .retrieve_dispatched_tx_hash_by_message_id(&message.id())
+                    .retrieve_dispatched_tx_hash_by_message_id(&Self::message_id(
+                        message,
+                        *missing_body_id,
+                    ))
                     .context("Reading RPC-indexed dispatch transaction ID")?;
+                let message_conflicts = |local: &HyperlaneMessage| match missing_body_id {
+                    // The ID covers the body; also check the header fields sent.
+                    Some(message_id) => {
+                        local.id() != *message_id
+                            || (
+                                local.nonce,
+                                local.origin,
+                                local.sender,
+                                local.destination,
+                                local.recipient,
+                            ) != (
+                                message.nonce,
+                                message.origin,
+                                message.sender,
+                                message.destination,
+                                message.recipient,
+                            )
+                    }
+                    None => local != message,
+                };
                 // Zero means unknown on both sides: Sealevel's basic log metadata
                 // stores it locally, and the scraper sends it until enrichment. An
                 // absent local ID is backfilled on match.
                 let transaction_id_conflicts = *transaction_id != H512::zero()
                     && local_transaction_id
                         .is_some_and(|local| local != H512::zero() && local != *transaction_id);
-                if local_message.as_ref().is_some_and(|local| local != message)
+                if local_message.as_ref().is_some_and(message_conflicts)
                     || local_block_number.is_some_and(|local| local != *block_number)
                     || transaction_id_conflicts
                 {
@@ -853,15 +902,15 @@ struct StreamGap {
     received: u64,
 }
 
-/// A gas payment row whose projected content cannot be trusted. Unlike envelope
-/// or cursor errors, it does not prove the stream is broken: only its origin
-/// falls back to RPC, and replay retries it from the durable cursor.
+/// A row whose projected content cannot be trusted. Unlike envelope or cursor
+/// errors, it does not prove the stream is broken: only its origin stream falls
+/// back to RPC, and replay retries it from the durable cursor.
 #[derive(Debug, thiserror::Error)]
 #[error("{0:#}")]
-struct InvalidGasPaymentRow(eyre::Report);
+struct InvalidEventRow(eyre::Report);
 
-fn invalid_gas_payment_row(err: eyre::Report) -> eyre::Report {
-    InvalidGasPaymentRow(err).into()
+fn invalid_event_row(err: eyre::Report) -> eyre::Report {
+    InvalidEventRow(err).into()
 }
 
 fn is_gas_payment_sequence_conflict(err: &eyre::Report) -> bool {
@@ -1011,94 +1060,34 @@ impl StreamState {
             .parse::<u32>()
             .context("Invalid scraper event sequence")?;
 
-        let (kind, fingerprint, parity) = match event.event_type.as_str() {
-            DISPATCH_EVENT_TYPE => {
-                let data: DispatchEventData =
-                    serde_json::from_value(event.data).context("Invalid dispatch event payload")?;
-                if data.origin_domain != event.domain {
-                    bail!("Dispatch payload domain does not match event envelope");
-                }
-                let origin_mailbox = parse_address(&data.origin_mailbox)?;
-                if origin_mailbox != source.mailbox {
-                    bail!("Dispatch event mailbox does not match configured mailbox");
-                }
-                let nonce = data.nonce.as_u32("dispatch nonce")?;
-                if nonce != sequence {
-                    bail!("Dispatch event nonce does not match stream sequence");
-                }
-                // The scraper stores some empty bodies as NULL, so treat a
-                // missing body as empty. The message ID check below still
-                // rejects a missing non-empty body.
-                let body = data
-                    .msg_body
-                    .as_deref()
-                    .map(parse_hex)
-                    .transpose()?
-                    .unwrap_or_default();
-                let message = HyperlaneMessage {
-                    version: 3,
-                    nonce,
-                    origin: data.origin_domain,
-                    sender: parse_address(&data.sender)?,
-                    destination: data.destination_domain,
-                    recipient: parse_address(&data.recipient)?,
-                    body,
-                };
-                let message_id = parse_h256(&data.msg_id, "dispatch message ID")?;
-                if message.id() != message_id {
-                    bail!("Dispatch message ID does not match reconstructed message");
-                }
-                if data.time_created.is_empty() {
-                    bail!("Dispatch event omitted creation time");
-                }
-                let origin_block_hash = parse_h256(&data.origin_block_hash, "origin block hash")?;
-                let origin_block_height = data.origin_block_height.as_u64("origin block height")?;
-                let origin_tx_hash = parse_h512(&data.origin_tx_hash)?;
-                let row_id = data.id.as_u64("dispatch row ID")?;
-                let row_id_bytes = row_id.to_be_bytes();
-                let origin_block_height_bytes = origin_block_height.to_be_bytes();
-                let fingerprint = event_fingerprint(&[
-                    b"dispatch",
-                    &row_id_bytes,
-                    message_id.as_ref(),
-                    origin_block_hash.as_ref(),
-                    &origin_block_height_bytes,
-                    origin_mailbox.as_ref(),
-                    origin_tx_hash.as_ref(),
-                    data.time_created.as_bytes(),
-                ]);
-                (
-                    EventKind::Dispatch,
-                    fingerprint,
-                    ParityInput::Dispatch {
-                        block_number: origin_block_height,
-                        message,
-                        transaction_id: origin_tx_hash,
-                    },
-                )
-            }
-            MERKLE_EVENT_TYPE => {
-                let data: MerkleEventData = serde_json::from_value(event.data)
-                    .context("Invalid Merkle tree insertion payload")?;
-                let (insertion, block_number) =
-                    data.decode(event.domain, source.merkle_tree_hook, sequence)?;
-                let block_number_bytes = block_number.to_be_bytes();
-                (
-                    EventKind::MerkleTreeInsertion,
-                    event_fingerprint(&[
-                        b"merkle_tree_insertion",
-                        &block_number_bytes,
-                        source.merkle_tree_hook.as_ref(),
-                        insertion.message_id().as_ref(),
-                    ]),
-                    ParityInput::MerkleTreeInsertion {
-                        block_number,
-                        insertion,
-                    },
-                )
-            }
-            event_type => bail!("Unexpected scraper event type {event_type}"),
-        };
+        let kind = EventKind::from_label(&event.event_type)?;
+        // Row content errors degrade only this origin stream. Envelope and
+        // sequence errors still close the connection.
+        let (fingerprint, parity) = match kind {
+            EventKind::Dispatch => serde_json::from_value::<DispatchEventData>(event.data)
+                .context("Invalid dispatch event payload")
+                .and_then(|data| data.decode(event.domain, source.mailbox, sequence)),
+            EventKind::MerkleTreeInsertion => serde_json::from_value::<MerkleEventData>(event.data)
+                .context("Invalid Merkle tree insertion payload")
+                .and_then(|data| data.decode(event.domain, source.merkle_tree_hook, sequence))
+                .map(|(insertion, block_number)| {
+                    let block_number_bytes = block_number.to_be_bytes();
+                    (
+                        event_fingerprint(&[
+                            b"merkle_tree_insertion",
+                            &block_number_bytes,
+                            source.merkle_tree_hook.as_ref(),
+                            insertion.message_id().as_ref(),
+                        ]),
+                        ParityInput::MerkleTreeInsertion {
+                            block_number,
+                            insertion,
+                        },
+                    )
+                }),
+            EventKind::GasPayment => unreachable!("gas payments are validated separately"),
+        }
+        .map_err(invalid_event_row)?;
 
         let key = (event.domain, kind);
         let new_cursor = if self.cursors.contains_key(&key) {
@@ -1146,7 +1135,7 @@ impl StreamState {
             .context("Invalid gas payment row ID")?;
         let data: GasPaymentEventData = serde_json::from_value(event.data)
             .context("Invalid gas payment event payload")
-            .map_err(invalid_gas_payment_row)?;
+            .map_err(invalid_event_row)?;
         if data
             .id
             .parse::<u64>()
@@ -1182,7 +1171,7 @@ impl StreamState {
             payment,
             sequence,
             transaction_id,
-        } = data.decode_row().map_err(invalid_gas_payment_row)?;
+        } = data.decode_row().map_err(invalid_event_row)?;
         let encoded = serde_json::to_vec(&data).context("Encoding gas payment fingerprint")?;
         let fingerprint = event_fingerprint(&[
             b"gas_payment",
@@ -1886,12 +1875,13 @@ impl ScraperWebSocketMonitor {
         Ok(admitted)
     }
 
-    /// Keep RPC authoritative for one origin stream whose parity backed up.
-    /// Later events are dropped, so no queued job persists a cursor past a skipped
-    /// event, and readiness cannot return without terminal matching parity.
-    fn overflow_parity(&self, domain: u32, kind: EventKind, stage: &str, capacity: usize) {
+    /// Keep RPC authoritative for one origin stream until reconnect. Later events
+    /// are dropped, so no queued job persists a cursor past a skipped event, and
+    /// readiness cannot return without terminal matching parity. Returns false
+    /// when the stream was already degraded.
+    fn degrade_parity(&self, domain: u32, kind: EventKind) -> bool {
         if !self.parity_overflowed.lock().insert((domain, kind)) {
-            return;
+            return false;
         }
         let source = self
             .sources
@@ -1901,12 +1891,31 @@ impl ScraperWebSocketMonitor {
             .with_label_values(&[source.chain.as_str(), kind.label()])
             .set(0);
         self.deactivate_source_authority(domain);
+        true
+    }
+
+    fn overflow_parity(&self, domain: u32, kind: EventKind, stage: &str, capacity: usize) {
+        if self.degrade_parity(domain, kind) {
+            warn!(
+                chain = self.sources[&domain].chain,
+                event_type = kind.label(),
+                stage,
+                capacity,
+                "Scraper parity backed up; keeping RPC indexing for this origin until reconnect"
+            );
+        }
+    }
+
+    /// The durable cursor stays before the invalid row, so each reconnect
+    /// replays it until the row is repaired.
+    fn contain_invalid_event(&self, domain: u32, kind: EventKind, err: &eyre::Report) {
+        self.degrade_parity(domain, kind);
         warn!(
-            chain = source.chain,
+            chain = self.sources[&domain].chain,
+            domain,
             event_type = kind.label(),
-            stage,
-            capacity,
-            "Scraper parity backed up; keeping RPC indexing for this origin until reconnect"
+            ?err,
+            "Rejected invalid scraper event; keeping RPC indexing for this origin until reconnect"
         );
     }
 
@@ -1959,7 +1968,11 @@ impl ScraperWebSocketMonitor {
                 move || -> Result<(ParityResult, Option<IndexingNotification>)> {
                     let _permit = permit;
                     let comparison = parity_input.compare(source.database.as_ref())?;
-                    if authority_active && comparison == ParityResult::Missing {
+                    // A body-less dispatch stays Missing until RPC indexes it.
+                    if authority_active
+                        && comparison == ParityResult::Missing
+                        && parity_input.storable()
+                    {
                         let notification = source.store_sequenced_event(&parity_input)?;
                         return Ok((ParityResult::Match, notification));
                     }
@@ -2290,6 +2303,8 @@ impl ScraperWebSocketMonitor {
         let mut gas_payment_caught_up = HashSet::new();
         // Origins whose gas stream hit an invalid row on this connection.
         let mut gas_payment_unusable = HashSet::new();
+        // Sequenced origin streams that hit an invalid row on this connection.
+        let mut invalid_streams = HashSet::new();
         // Fresh caught-up markers not yet trusted as durable cursors.
         let mut rejected_fresh_markers = HashMap::new();
         let mut subscribed = false;
@@ -2362,6 +2377,13 @@ impl ScraperWebSocketMonitor {
                         self.record(domain, event_type, "dropped");
                         continue;
                     }
+                    // Dropped unvalidated: the stream cursor stopped before the invalid row.
+                    if EventKind::from_label(&event.event_type)
+                        .is_ok_and(|kind| invalid_streams.contains(&(domain, kind)))
+                    {
+                        self.record(domain, event_type, "dropped");
+                        continue;
+                    }
                     match state.validate(event, &self.sources) {
                         Ok(validated) => {
                             let kind = validated.kind;
@@ -2410,13 +2432,16 @@ impl ScraperWebSocketMonitor {
                                 }
                             }
                         }
-                        Err(err)
-                            if is_gas_payment
-                                && err.downcast_ref::<InvalidGasPaymentRow>().is_some() =>
-                        {
+                        Err(err) if err.downcast_ref::<InvalidEventRow>().is_some() => {
                             self.record(domain, event_type, "invalid");
-                            gas_payment_unusable.insert(domain);
-                            self.contain_rejected_gas_payment(domain, &err);
+                            if is_gas_payment {
+                                gas_payment_unusable.insert(domain);
+                                self.contain_rejected_gas_payment(domain, &err);
+                            } else {
+                                let kind = EventKind::from_label(event_type)?;
+                                invalid_streams.insert((domain, kind));
+                                self.contain_invalid_event(domain, kind, &err);
+                            }
                         }
                         Err(err) => {
                             let result = if err.downcast_ref::<StreamGap>().is_some() {
@@ -3420,6 +3445,75 @@ struct DispatchEventData {
     recipient: String,
     sender: String,
     time_created: String,
+}
+
+impl DispatchEventData {
+    fn decode(
+        self,
+        domain: u32,
+        mailbox: H256,
+        sequence: u32,
+    ) -> Result<(EventFingerprint, ParityInput)> {
+        if self.origin_domain != domain {
+            bail!("Dispatch payload domain does not match event envelope");
+        }
+        let origin_mailbox = parse_address(&self.origin_mailbox)?;
+        if origin_mailbox != mailbox {
+            bail!("Dispatch event mailbox does not match configured mailbox");
+        }
+        let nonce = self.nonce.as_u32("dispatch nonce")?;
+        if nonce != sequence {
+            bail!("Dispatch event nonce does not match stream sequence");
+        }
+        let message_id = parse_h256(&self.msg_id, "dispatch message ID")?;
+        // Only legacy rows, written before `msg_body` existed, lack a body; the
+        // scraper now always writes one, empty as `\x`. A NULL body is unknown,
+        // not empty, so parity checks the ID against the local message.
+        let (body, missing_body_id) = match self.msg_body.as_deref() {
+            Some(body) => (parse_hex(body)?, None),
+            None => (Vec::new(), Some(message_id)),
+        };
+        let message = HyperlaneMessage {
+            version: 3,
+            nonce,
+            origin: self.origin_domain,
+            sender: parse_address(&self.sender)?,
+            destination: self.destination_domain,
+            recipient: parse_address(&self.recipient)?,
+            body,
+        };
+        if missing_body_id.is_none() && message.id() != message_id {
+            bail!("Dispatch message ID does not match reconstructed message");
+        }
+        if self.time_created.is_empty() {
+            bail!("Dispatch event omitted creation time");
+        }
+        let origin_block_hash = parse_h256(&self.origin_block_hash, "origin block hash")?;
+        let origin_block_height = self.origin_block_height.as_u64("origin block height")?;
+        let origin_tx_hash = parse_h512(&self.origin_tx_hash)?;
+        let row_id = self.id.as_u64("dispatch row ID")?;
+        let row_id_bytes = row_id.to_be_bytes();
+        let origin_block_height_bytes = origin_block_height.to_be_bytes();
+        let fingerprint = event_fingerprint(&[
+            b"dispatch",
+            &row_id_bytes,
+            message_id.as_ref(),
+            origin_block_hash.as_ref(),
+            &origin_block_height_bytes,
+            origin_mailbox.as_ref(),
+            origin_tx_hash.as_ref(),
+            self.time_created.as_bytes(),
+        ]);
+        Ok((
+            fingerprint,
+            ParityInput::Dispatch {
+                block_number: origin_block_height,
+                message,
+                missing_body_id,
+                transaction_id: origin_tx_hash,
+            },
+        ))
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -5542,6 +5636,7 @@ mod tests {
         let input = ParityInput::Dispatch {
             block_number: 100,
             message: message.clone(),
+            missing_body_id: None,
             transaction_id: dispatch_transaction_id(),
         };
 
@@ -5969,6 +6064,7 @@ mod tests {
         ParityInput::Dispatch {
             block_number: 100,
             message,
+            missing_body_id: None,
             transaction_id,
         }
         .compare(&database)
@@ -6724,32 +6820,194 @@ mod tests {
     }
 
     #[test]
-    fn accepts_empty_dispatch_body_as_null_omitted_or_empty() {
+    fn explicit_empty_dispatch_body_is_reconstructed() {
         let fixture = fixture();
         let source = fixture.sources.get(&5).expect("source");
         store_dispatch(&fixture.database, &dispatch_message(7, b""));
 
-        let mut null_body = dispatch_data(7, b"");
-        null_body["msg_body"] = serde_json::Value::Null;
-        let mut omitted_body = dispatch_data(7, b"");
-        omitted_body
-            .as_object_mut()
-            .expect("dispatch object")
-            .remove("msg_body");
-        for data in [dispatch_data(7, b""), null_body, omitted_body] {
-            let validated = StreamState::default()
-                .validate(event(DISPATCH_EVENT_TYPE, 7, data), &fixture.sources)
-                .expect("empty-body dispatch");
-            assert_eq!(validated.sequence_result, SequenceResult::Accepted);
+        let validated = StreamState::default()
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"")),
+                &fixture.sources,
+            )
+            .expect("empty-body dispatch");
+        let parity = validated.parity.expect("dispatch parity");
+        assert!(parity.storable());
+        assert_eq!(
+            parity
+                .compare(source.database.as_ref())
+                .expect("empty-body parity"),
+            ParityResult::Match
+        );
+    }
+
+    fn without_body(mut data: serde_json::Value, omit: bool) -> serde_json::Value {
+        let data_object = data.as_object_mut().expect("dispatch object");
+        if omit {
+            data_object.remove("msg_body");
+        } else {
+            data_object.insert("msg_body".to_owned(), serde_json::Value::Null);
+        }
+        data
+    }
+
+    #[test]
+    fn body_less_dispatch_is_checked_against_the_local_message_id() {
+        let fixture = fixture();
+        let source = fixture.sources.get(&5).expect("source");
+        let body_less = |data: serde_json::Value, omit: bool| {
+            StreamState::default()
+                .validate(
+                    event(DISPATCH_EVENT_TYPE, 7, without_body(data, omit)),
+                    &fixture.sources,
+                )
+                .expect("body-less dispatch")
+                .parity
+                .expect("dispatch parity")
+        };
+        let compare = |parity: &ParityInput| {
+            parity
+                .compare(source.database.as_ref())
+                .expect("body-less parity")
+        };
+
+        for omit in [false, true] {
+            let parity = body_less(dispatch_data(7, b"legacy body"), omit);
+            assert!(!parity.storable());
+            assert_eq!(compare(&parity), ParityResult::Missing);
+        }
+
+        // A legacy row's real body is not empty; parity takes it from the local DB.
+        store_dispatch(&fixture.database, &dispatch_message(7, b"legacy body"));
+        for omit in [false, true] {
             assert_eq!(
-                validated
-                    .parity
-                    .expect("dispatch parity")
-                    .compare(source.database.as_ref())
-                    .expect("empty-body parity"),
+                compare(&body_less(dispatch_data(7, b"legacy body"), omit)),
                 ParityResult::Match
             );
         }
+
+        // The local message has a different ID.
+        assert_eq!(
+            compare(&body_less(dispatch_data(7, b"other body"), false)),
+            ParityResult::Conflict
+        );
+        // The ID matches, but a header field the scraper did send does not.
+        let mut wrong_recipient = dispatch_data(7, b"legacy body");
+        wrong_recipient["recipient"] =
+            serde_json::json!(format!("{:#x}", H256::from_low_u64_be(9)));
+        assert_eq!(
+            compare(&body_less(wrong_recipient, false)),
+            ParityResult::Conflict
+        );
+    }
+
+    #[test]
+    fn body_less_dispatch_match_backfills_transaction_id_by_scraper_id() {
+        let fixture = fixture();
+        let source = fixture.sources.get(&5).expect("source");
+        let message = dispatch_message(7, b"legacy body");
+        store_dispatch(&fixture.database, &message);
+        fixture
+            .database
+            .store_dispatched_tx_hash_by_message_id(&message.id(), &H512::zero())
+            .expect("clear local transaction ID");
+        let parity = StreamState::default()
+            .validate(
+                event(
+                    DISPATCH_EVENT_TYPE,
+                    7,
+                    without_body(dispatch_data(7, b"legacy body"), false),
+                ),
+                &fixture.sources,
+            )
+            .expect("body-less dispatch")
+            .parity
+            .expect("dispatch parity");
+
+        assert_eq!(
+            source
+                .store_sequenced_event(&parity)
+                .expect("matched body-less dispatch"),
+            None
+        );
+        assert_eq!(
+            HyperlaneDb::retrieve_dispatched_tx_hash_by_message_id(
+                &source.cursor_db,
+                &message.id()
+            )
+            .expect("read transaction ID"),
+            Some(dispatch_transaction_id())
+        );
+    }
+
+    #[tokio::test]
+    async fn authoritative_body_less_dispatch_stays_missing_and_is_never_stored() {
+        let fixture = fixture();
+        let database = fixture.database.clone();
+        let metrics = CoreMetrics::new("scraper-body-less-missing", 9090, Registry::new())
+            .expect("create test metrics");
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new_with_authority(
+                Url::parse("ws://localhost:1").expect("test URL"),
+                fixture.sources.into_values().collect(),
+                &metrics,
+                true,
+            )
+            .expect("create authority monitor"),
+        );
+        monitor.authority_active.store(true, Ordering::Release);
+        let input = StreamState::default()
+            .validate(
+                event(
+                    DISPATCH_EVENT_TYPE,
+                    7,
+                    without_body(dispatch_data(7, b"legacy body"), false),
+                ),
+                &monitor.sources,
+            )
+            .expect("body-less dispatch")
+            .parity
+            .expect("dispatch parity");
+        assert!(monitor.sources[&5]
+            .store_sequenced_event(&input)
+            .expect_err("body-less dispatch cannot be stored")
+            .to_string()
+            .contains("without a body"));
+
+        assert!(
+            monitor
+                .enqueue_parity(5, EventKind::Dispatch, input, 7)
+                .await
+        );
+        let labels = ["test", DISPATCH_EVENT_TYPE];
+        timeout(Duration::from_secs(5), async {
+            while monitor.parity_pending.with_label_values(&labels).get() != 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("missing parity expires");
+
+        assert_eq!(
+            monitor
+                .parity
+                .with_label_values(&["test", DISPATCH_EVENT_TYPE, "expired"])
+                .get(),
+            1
+        );
+        assert_eq!(
+            database.retrieve_message_by_nonce(7).expect("read message"),
+            None
+        );
+        let source = &monitor.sources[&5];
+        assert_eq!(source.cursor(EventKind::Dispatch).expect("cursor"), None);
+        assert!(!source
+            .parity_unhealthy(EventKind::Dispatch)
+            .expect("durable parity health"));
+        assert!(monitor
+            .parity_overflowed
+            .lock()
+            .contains(&(5, EventKind::Dispatch)));
     }
 
     #[test]
@@ -6805,6 +7063,7 @@ mod tests {
         let parity = |transaction_id| ParityInput::Dispatch {
             block_number: 100,
             message: message.clone(),
+            missing_body_id: None,
             transaction_id,
         };
 
@@ -6834,6 +7093,7 @@ mod tests {
             message,
             block_number,
             transaction_id,
+            ..
         } = &input
         else {
             unreachable!("dispatch parity input");
@@ -7905,6 +8165,7 @@ mod tests {
                 recipient: H256::from_low_u64_be(4),
                 body: b"payload".to_vec(),
             },
+            missing_body_id: None,
             transaction_id: dispatch_transaction_id(),
         };
 
@@ -8038,6 +8299,7 @@ mod tests {
                         ParityInput::Dispatch {
                             block_number: 100,
                             message: dispatch_message(7, b"payload"),
+                            missing_body_id: None,
                             transaction_id: dispatch_transaction_id(),
                         },
                     )
@@ -8278,6 +8540,7 @@ mod tests {
                 recipient: H256::from_low_u64_be(4),
                 body: b"payload".to_vec(),
             },
+            missing_body_id: None,
             transaction_id: dispatch_transaction_id(),
         };
         let mut parity_tasks = Vec::new();
@@ -8404,17 +8667,6 @@ mod tests {
     #[test]
     fn rejects_invalid_dispatch_payload() {
         let fixture = fixture();
-        let mut missing_body = dispatch_data(7, b"original");
-        missing_body["msg_body"] = serde_json::Value::Null;
-        assert!(StreamState::default()
-            .validate(
-                event(DISPATCH_EVENT_TYPE, 7, missing_body),
-                &fixture.sources
-            )
-            .expect_err("missing non-empty body must reject")
-            .to_string()
-            .contains("message ID"));
-
         let mut malformed_body = dispatch_data(7, b"original");
         malformed_body["msg_body"] = serde_json::json!("\\xzz");
         assert!(StreamState::default()
@@ -8441,6 +8693,151 @@ mod tests {
             .expect_err("invalid sender must reject")
             .to_string()
             .contains("address"));
+    }
+
+    #[test]
+    fn only_row_content_errors_are_contained() {
+        let fixture = fixture();
+        let reject = |event| {
+            StreamState::default()
+                .validate(event, &fixture.sources)
+                .expect_err("invalid event")
+        };
+        let contained = |err: &eyre::Report| err.downcast_ref::<InvalidEventRow>().is_some();
+
+        let mut bad_id = dispatch_data(7, b"payload");
+        bad_id["msg_id"] = serde_json::json!(format!("{:#x}", H256::from_low_u64_be(9)));
+        let mut bad_hex = dispatch_data(7, b"payload");
+        bad_hex["msg_body"] = serde_json::json!("\\xzz");
+        let mut unparseable = dispatch_data(7, b"payload");
+        unparseable["nonce"] = serde_json::json!("seven");
+        for data in [bad_id, bad_hex, unparseable] {
+            assert!(contained(&reject(event(DISPATCH_EVENT_TYPE, 7, data))));
+        }
+        assert!(contained(&reject(event(
+            MERKLE_EVENT_TYPE,
+            1,
+            merkle_data(1, H256::from_low_u64_be(3)),
+        ))));
+
+        let valid = || event(DISPATCH_EVENT_TYPE, 7, dispatch_data(7, b"payload"));
+        let mut unknown_type = valid();
+        unknown_type.event_type = "delivery".to_owned();
+        let mut unknown_domain = valid();
+        unknown_domain.domain = 99;
+        let mut missing_sequence = valid();
+        missing_sequence.sequence = None;
+        let mut row_cursor = valid();
+        row_cursor.row_id = Some("1".to_owned());
+        for event in [unknown_type, unknown_domain, missing_sequence, row_cursor] {
+            assert!(!contained(&reject(event)));
+        }
+
+        let mut state = StreamState::default();
+        state
+            .validate(valid(), &fixture.sources)
+            .expect("first event");
+        let gap = state
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 9, dispatch_data(9, b"payload")),
+                &fixture.sources,
+            )
+            .expect_err("gap");
+        assert!(gap.downcast_ref::<StreamGap>().is_some() && !contained(&gap));
+    }
+
+    fn dispatch_event_for(domain: u32, nonce: u32) -> serde_json::Value {
+        let message = HyperlaneMessage {
+            origin: domain,
+            ..dispatch_message(nonce, b"payload")
+        };
+        let mut data = dispatch_data(nonce, b"payload");
+        data["origin_domain"] = serde_json::json!(domain);
+        data["msg_id"] = serde_json::json!(format!("{:#x}", message.id()));
+        wire_event(EventMessage {
+            domain,
+            ..event(DISPATCH_EVENT_TYPE, nonce, data)
+        })
+    }
+
+    #[tokio::test]
+    async fn invalid_dispatch_row_degrades_only_its_origin_stream() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
+        let url =
+            Url::parse(&format!("ws://{}", listener.local_addr().expect("address"))).expect("URL");
+        let metrics = CoreMetrics::new("dispatch-contain", 0, Registry::new()).expect("metrics");
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new_with_authority(
+                url,
+                sources_for(&[5, 9]).into_values().collect(),
+                &metrics,
+                true,
+            )
+            .expect("monitor"),
+        );
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.expect("connection");
+            let mut socket = accept_async(stream).await.expect("WebSocket");
+            socket
+                .send(Message::Text(r#"{"type":"ready"}"#.to_owned().into()))
+                .await
+                .expect("ready");
+            let request = socket.next().await.expect("request").expect("frame");
+            let request: serde_json::Value =
+                serde_json::from_str(request.to_text().expect("text")).expect("JSON");
+            let mut invalid = dispatch_event_for(5, 0);
+            invalid["data"]["msg_body"] = serde_json::json!("\\x00");
+            for message in [
+                serde_json::json!({
+                    "type": "subscribed", "streams": proxy_subscription_response(&request),
+                }),
+                // A body-present ID mismatch: only origin 5's dispatch stream degrades.
+                invalid,
+                // Dropped unread, so the stopped stream cursor does not report a gap.
+                dispatch_event_for(5, 1),
+                dispatch_event_for(9, 0),
+                serde_json::json!({
+                    "type": "caught_up", "eventType": DISPATCH_EVENT_TYPE, "domain": 5,
+                    "address": scraper_address(H256::from_low_u64_be(1)), "sequence": "1",
+                }),
+                // A sequence gap still closes the connection.
+                dispatch_event_for(9, 2),
+            ] {
+                socket
+                    .send(Message::Text(message.to_string().into()))
+                    .await
+                    .expect("send");
+            }
+            let _ = socket.next().await;
+        });
+
+        let mut state = StreamState::default();
+        let err = timeout(Duration::from_secs(5), monitor.stream_once(&mut state))
+            .await
+            .expect("session ends")
+            .expect_err("gap ends the session");
+        assert!(err.downcast_ref::<StreamGap>().is_some(), "{err:?}");
+        let count = |chain: &str, result: &str| {
+            monitor
+                .events
+                .with_label_values(&[chain, DISPATCH_EVENT_TYPE, result])
+                .get()
+        };
+        assert_eq!(count("test-5", "invalid"), 1);
+        assert_eq!(count("test-5", "dropped"), 1);
+        assert_eq!(count("test-9", "accepted"), 1);
+        assert_eq!(count("test-9", "gap"), 1);
+        let overflowed = monitor.parity_overflowed.lock().clone();
+        assert!(overflowed.contains(&(5, EventKind::Dispatch)));
+        assert!(!overflowed.contains(&(5, EventKind::MerkleTreeInsertion)));
+        assert!(!overflowed.contains(&(9, EventKind::Dispatch)));
+        assert_eq!(
+            monitor.sources[&5]
+                .cursor(EventKind::Dispatch)
+                .expect("cursor"),
+            None
+        );
+        server.abort();
     }
 
     #[test]
