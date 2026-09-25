@@ -4,7 +4,10 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use thiserror::Error;
 
-use crate::{BlockInfo, ChainInfo, ChainResult, HyperlaneChain, TxnInfo, H256, H512, U256};
+use crate::{
+    BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain, TxnInfo, H256,
+    H512, U256,
+};
 
 /// Interface for a provider. Allows abstraction over different provider types
 /// for different chains.
@@ -18,6 +21,12 @@ use crate::{BlockInfo, ChainInfo, ChainResult, HyperlaneChain, TxnInfo, H256, H5
 pub trait HyperlaneProvider: HyperlaneChain + Send + Sync + Debug {
     /// Get block info for a given block height
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo>;
+
+    /// Whether a block lookup failed because this protocol permits a missing
+    /// height, rather than because the provider request itself failed.
+    fn is_block_not_found_error(&self, _error: &ChainCommunicationError) -> bool {
+        false
+    }
 
     /// Get txn info for a given txn hash
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo>;

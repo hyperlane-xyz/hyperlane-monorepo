@@ -328,12 +328,18 @@ impl SealevelInterchainGasPaymasterIndexer {
             Err(err) => return Err(err),
         };
 
-        match self.log_meta_composer.log_meta(
-            block,
-            log_index,
-            payment_pda_pubkey,
-            payment_pda_slot,
-        ) {
+        let rpc_client = self.provider.rpc_client();
+        match self
+            .log_meta_composer
+            .log_meta_at_or_before(
+                block,
+                log_index,
+                payment_pda_pubkey,
+                payment_pda_slot,
+                |previous_slot| rpc_client.get_block(previous_slot),
+            )
+            .await?
+        {
             Ok(log_meta) => Ok(Some(log_meta)),
             // The block will never contain the expected transaction after filtering, so falling
             // back to basic log meta lets the sequence-aware cursor advance instead of rewinding

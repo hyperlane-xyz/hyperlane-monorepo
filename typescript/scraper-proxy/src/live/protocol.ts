@@ -46,6 +46,11 @@ export type EventNotification = {
   id: bigint;
 };
 export type ExplorerNotification = { messageId: string };
+export type HeadNotification = {
+  confirmedHeight: bigint;
+  domain: number;
+  previousConfirmedHeight?: bigint;
+};
 
 export function parseClientMessage(raw: string): ClientMessage {
   let value: unknown;
@@ -114,6 +119,31 @@ export function parseExplorerNotification(
     throw new Error('Invalid scraper Explorer notification');
   }
   return { messageId: normalizeAddress(value.messageId) };
+}
+
+export function parseHeadNotification(
+  payload: string | undefined,
+): HeadNotification {
+  if (!payload) throw new Error('Missing scraper head notification payload');
+  let value: unknown;
+  try {
+    value = JSON.parse(payload);
+  } catch {
+    throw new Error('Invalid scraper head notification JSON');
+  }
+  if (!isRecord(value)) throw new Error('Invalid scraper head notification');
+  return {
+    confirmedHeight: parseId(value.confirmedHeight),
+    domain: parseDatabaseDomain(
+      value.domain,
+      'Invalid scraper head notification',
+    ),
+    previousConfirmedHeight:
+      value.previousConfirmedHeight === null ||
+      value.previousConfirmedHeight === undefined
+        ? undefined
+        : parseId(value.previousConfirmedHeight),
+  };
 }
 
 export function parseId(value: unknown): bigint {

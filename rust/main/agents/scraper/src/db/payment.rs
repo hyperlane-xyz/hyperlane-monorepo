@@ -13,7 +13,7 @@ use migration::OnConflict;
 
 use crate::conversions::{decimal_to_u256, u256_to_decimal};
 use crate::date_time;
-use crate::db::ScraperDb;
+use crate::db::{confirmed_event, ScraperDb};
 
 use super::generated::gas_payment;
 
@@ -43,7 +43,7 @@ impl ScraperDb {
         sequence: u32,
     ) -> Result<Option<InterchainGasPayment>> {
         if let Some((msg_id, destination, payment, gas_amount)) = gas_payment::Entity::find()
-            .filter(sea_orm::sea_query::Expr::cust("confirmed"))
+            .filter(confirmed_event("gas_payment", "domain", "block_number"))
             .select_only()
             .columns([
                 gas_payment::Column::MsgId,
@@ -84,7 +84,7 @@ impl ScraperDb {
         sequence: u32,
     ) -> Result<Option<u64>> {
         let tx_id_query = gas_payment::Entity::find()
-            .filter(sea_orm::sea_query::Expr::cust("confirmed"))
+            .filter(confirmed_event("gas_payment", "domain", "block_number"))
             .filter(gas_payment::Column::Origin.eq(origin))
             .filter(
                 gas_payment::Column::InterchainGasPaymaster
@@ -156,7 +156,7 @@ impl ScraperDb {
         let mut existing_resolved_payments = HashSet::new();
         for message_ids in payment_msg_ids.chunks(Self::PAYMENT_STORE_CHUNK_SIZE) {
             let existing_payments = gas_payment::Entity::find()
-                .filter(sea_orm::sea_query::Expr::cust("confirmed"))
+                .filter(confirmed_event("gas_payment", "domain", "block_number"))
                 .select_only()
                 .columns([
                     gas_payment::Column::Id,
@@ -237,7 +237,7 @@ impl ScraperDb {
             0
         } else {
             let latest_id_before = gas_payment::Entity::find()
-                .filter(sea_orm::sea_query::Expr::cust("confirmed"))
+                .filter(confirmed_event("gas_payment", "domain", "block_number"))
                 .select_only()
                 .column_as(gas_payment::Column::Id.max(), "max_id")
                 .filter(gas_payment::Column::Domain.eq(domain))
@@ -277,7 +277,7 @@ impl ScraperDb {
             }
 
             gas_payment::Entity::find()
-                .filter(sea_orm::sea_query::Expr::cust("confirmed"))
+                .filter(confirmed_event("gas_payment", "domain", "block_number"))
                 .filter(gas_payment::Column::Domain.eq(domain))
                 .filter(gas_payment::Column::Id.gt(latest_id_before))
                 .count(&txn)

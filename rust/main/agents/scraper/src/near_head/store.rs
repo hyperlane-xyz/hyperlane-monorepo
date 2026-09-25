@@ -1,3 +1,8 @@
+use std::{
+    sync::OnceLock,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+
 use ethers::types::H256;
 use eyre::{ensure, Result};
 use hyperlane_core::{address_to_bytes, h512_to_bytes, LogMeta};
@@ -44,6 +49,17 @@ const EVENTS: [(&str, &str, &str); 4] = [
 ];
 
 impl Store {
+    pub async fn claim(&self, lease: Duration) -> Result<()> {
+        let result = self.db.execute(sql(
+            "UPDATE scraper_head SET writer_id=$2,writer_lease_until=clock_timestamp()+make_interval(secs=>$3) WHERE domain=$1 AND (writer_id=$2 OR writer_lease_until IS NULL OR writer_lease_until<clock_timestamp())",
+            vec![self.domain(), writer_id().into(), lease.as_secs_f64().into()],
+        )).await?;
+        ensure!(
+            result.rows_affected() == 1,
+            "Another near-head writer owns this domain"
+        );
+        Ok(())
+    }
     fn domain(&self) -> Value {
         signed(self.domain).into()
     }
@@ -80,7 +96,7 @@ impl Store {
 
     async fn ensure_empty_history<C: ConnectionTrait>(&self, db: &C) -> Result<()> {
         let row = db.query_one(sql(
-            "SELECT EXISTS(SELECT 1 FROM block WHERE domain=$1) OR EXISTS(SELECT 1 FROM raw_message_dispatch WHERE origin_domain=$1) OR EXISTS(SELECT 1 FROM delivered_message WHERE domain=$1) OR EXISTS(SELECT 1 FROM gas_payment WHERE domain=$1) OR EXISTS(SELECT 1 FROM merkle_tree_insertion WHERE domain=$1) AS has_history",
+            "SELECT EXISTS(SELECT 1 FROM block WHERE domain=$1) OR EXISTS(SELECT 1 FROM scraper_checkpoint WHERE domain=$1) OR EXISTS(SELECT 1 FROM raw_message_dispatch WHERE origin_domain=$1) OR EXISTS(SELECT 1 FROM delivered_message WHERE domain=$1) OR EXISTS(SELECT 1 FROM gas_payment WHERE domain=$1) OR EXISTS(SELECT 1 FROM merkle_tree_insertion WHERE domain=$1) AS has_history",
             vec![self.domain()],
         )).await?.ok_or_else(|| eyre::eyre!("Missing legacy history check"))?;
         ensure!(
@@ -113,25 +129,37 @@ impl Store {
             // Recheck after RPC preflight: another writer may have stored history
             // since anchor selection. Existing domains require operator cutover.
             self.ensure_empty_history(&tx).await?;
-            insert_block(&tx, signed(self.domain), anchor).await?;
             tx.execute(sql(
                 "INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster) VALUES($1,$2,$2,$3,$2,$2,$4,$5,$6)",
                 vec![self.domain(), number(anchor.height)?, bytes(anchor.hash), address_to_bytes(&contracts.mailbox).into(), address_to_bytes(&contracts.hook).into(), address_to_bytes(&contracts.paymaster).into()],
             )).await?;
+            tx.execute(sql(
+                "INSERT INTO scraper_checkpoint(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC')",
+                vec![self.domain(), bytes(anchor.hash), number(anchor.height)?, number(anchor.timestamp)?],
+            )).await?;
         }
-        tx.execute(sql(
-            "UPDATE scraper_head SET healthy=false WHERE domain=$1",
-            vec![self.domain()],
-        ))
-        .await?;
         tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn validate_checkpoints(&self) -> Result<()> {
+        let row = self.db.query_one(sql(
+            "SELECT EXISTS(SELECT 1 FROM scraper_checkpoint c WHERE c.domain=h.domain AND c.height=h.confirmed_height) AS confirmed_exists, EXISTS(SELECT 1 FROM scraper_checkpoint c WHERE c.domain=h.domain AND c.height=h.indexed_height AND c.hash=h.indexed_hash) AS indexed_matches, NOT EXISTS(SELECT 1 FROM scraper_checkpoint c WHERE c.domain=h.domain AND c.height>h.indexed_height) AS no_stale_suffix FROM scraper_head h WHERE h.domain=$1",
+            vec![self.domain()],
+        )).await?.ok_or_else(|| eyre::eyre!("Missing checkpoint validation"))?;
+        ensure!(
+            row.try_get::<bool>("", "confirmed_exists")?
+                && row.try_get::<bool>("", "indexed_matches")?
+                && row.try_get::<bool>("", "no_stale_suffix")?,
+            "Near-head checkpoints are out of sync; stop old scraper writers and repair scraper_checkpoint before restarting"
+        );
         Ok(())
     }
 
     pub async fn hash(&self, height: u64) -> Result<Option<H256>> {
         self.db
             .query_one(sql(
-                "SELECT hash FROM block WHERE domain=$1 AND height=$2",
+                "SELECT hash FROM scraper_checkpoint WHERE domain=$1 AND height=$2",
                 vec![self.domain(), number(height)?],
             ))
             .await?
@@ -156,27 +184,36 @@ impl Store {
     /// A range may contain empty blocks whose headers were never fetched.
     pub async fn checkpoint(&self, through: u64) -> Result<u64> {
         let row = self.db.query_one(sql(
-            "SELECT height FROM block WHERE domain=$1 AND height<=$2 ORDER BY height DESC LIMIT 1",
+            "SELECT height FROM scraper_checkpoint WHERE domain=$1 AND height<=$2 ORDER BY height DESC LIMIT 1",
             vec![self.domain(), number(through)?],
         )).await?.ok_or_else(|| eyre::eyre!("Missing retained checkpoint"))?;
         Ok(u64::try_from(row.try_get::<i64>("", "height")?)?)
     }
 
     pub async fn pause(&self, halt: bool) -> Result<()> {
-        self.db
+        let result = self
+            .db
             .execute(sql(
-                "UPDATE scraper_head SET healthy=false,halted=halted OR $2 WHERE domain=$1",
-                vec![self.domain(), halt.into()],
+                "UPDATE scraper_head SET healthy=false,halted=halted OR $2 WHERE domain=$1 AND (writer_id IS NULL OR writer_id=$3)",
+                vec![self.domain(), halt.into(), writer_id().into()],
             ))
             .await?;
+        ensure!(
+            result.rows_affected() == 1,
+            "Another near-head writer owns this domain"
+        );
         Ok(())
     }
 
     pub async fn observe(&self, expected: &State, ancestor: &Header, head: &Header) -> Result<()> {
         let tx = self.db.begin().await?;
-        let row = tx.query_one(sql("SELECT indexed_hash,confirmed_height,halted FROM scraper_head WHERE domain=$1 FOR UPDATE", vec![self.domain()])).await?.ok_or_else(|| eyre::eyre!("Missing head state"))?;
+        let row = tx.query_one(sql("SELECT indexed_hash,confirmed_height,halted,writer_id FROM scraper_head WHERE domain=$1 FOR UPDATE", vec![self.domain()])).await?.ok_or_else(|| eyre::eyre!("Missing head state"))?;
         ensure!(
             !row.try_get::<bool>("", "halted")?
+                && row
+                    .try_get::<Option<String>>("", "writer_id")?
+                    .as_deref()
+                    .is_none_or(|id| id == writer_id())
                 && row.try_get::<Vec<u8>>("", "indexed_hash")? == expected.hash.as_bytes(),
             "Head state changed"
         );
@@ -187,9 +224,7 @@ impl Store {
         if ancestor.hash != expected.hash {
             for (table, domain, height) in EVENTS {
                 tx.execute(sql(
-                    format!(
-                        "DELETE FROM {table} WHERE {domain}=$1 AND {height}>$2 AND NOT confirmed"
-                    ),
+                    format!("DELETE FROM {table} WHERE {domain}=$1 AND {height}>$2"),
                     vec![self.domain(), number(ancestor.height)?],
                 ))
                 .await?;
@@ -198,6 +233,11 @@ impl Store {
             // rollback rather than deleting data owned by another writer.
             tx.execute(sql(
                 "DELETE FROM block WHERE domain=$1 AND height>$2",
+                vec![self.domain(), number(ancestor.height)?],
+            ))
+            .await?;
+            tx.execute(sql(
+                "DELETE FROM scraper_checkpoint WHERE domain=$1 AND height>$2",
                 vec![self.domain(), number(ancestor.height)?],
             ))
             .await?;
@@ -220,7 +260,16 @@ impl Store {
                         || header.parent == previous),
                 "Invalid range checkpoint order"
             );
-            batches.entry("INSERT INTO block(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC')").or_default().push(vec![self.domain(), bytes(header.hash), number(header.height)?, number(header.timestamp)?]);
+            let header_row = vec![
+                self.domain(),
+                bytes(header.hash),
+                number(header.height)?,
+                number(header.timestamp)?,
+            ];
+            batches.entry("INSERT INTO scraper_checkpoint(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC')").or_default().push(header_row.clone());
+            if !events.is_empty() {
+                batches.entry("INSERT INTO block(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC')").or_default().push(header_row);
+            }
             for event in events {
                 ensure!(
                     event.block_number == header.height && event.block_hash == header.hash,
@@ -235,7 +284,7 @@ impl Store {
         let tx = self.db.begin().await?;
         let row = tx
             .query_one(sql(
-                "SELECT indexed_hash,healthy,halted FROM scraper_head WHERE domain=$1 FOR UPDATE",
+                "SELECT indexed_hash,healthy,halted,writer_id FROM scraper_head WHERE domain=$1 FOR UPDATE",
                 vec![self.domain()],
             ))
             .await?
@@ -243,6 +292,10 @@ impl Store {
         ensure!(
             row.try_get::<bool>("", "healthy")?
                 && !row.try_get::<bool>("", "halted")?
+                && row
+                    .try_get::<Option<String>>("", "writer_id")?
+                    .as_deref()
+                    .is_none_or(|id| id == writer_id())
                 && row.try_get::<Vec<u8>>("", "indexed_hash")? == expected.hash.as_bytes(),
             "Head changed during log fetch"
         );
@@ -250,7 +303,7 @@ impl Store {
             insert_batch(&tx, query, &rows).await?;
         }
         tx.execute(sql(
-            "UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3 WHERE domain=$1",
+            "UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3,updated_at=clock_timestamp() WHERE domain=$1",
             vec![self.domain(), number(height)?, bytes(previous)],
         ))
         .await?;
@@ -263,11 +316,11 @@ impl Store {
     pub async fn confirmation_boundary(&self, after: u64, through: u64) -> Result<u64> {
         ensure!(after <= through, "Confirmation range regressed");
         // Each branch returns at most 1,001 rows via its domain/height range.
-        // The gas/merkle indexes additionally exclude already-confirmed history.
+        // All branches use their domain/height range indexes.
         // Limit before UNION so the merge sorts at most 4,004 event heights;
         // counting the entire eligible backlog would defeat this work budget.
         let branches = EVENTS.iter().map(|(table, domain, height)| {
-            format!("(SELECT {height} AS height FROM {table} WHERE {domain}=$1 AND {height}>$2 AND {height}<=$3 AND NOT confirmed ORDER BY {height} LIMIT 1001)")
+            format!("(SELECT {height} AS height FROM {table} WHERE {domain}=$1 AND {height}>$2 AND {height}<=$3 ORDER BY {height} LIMIT 1001)")
         }).collect::<Vec<_>>().join(" UNION ALL ");
         let row = self
             .db
@@ -289,44 +342,70 @@ impl Store {
         Ok(u64::try_from(row.try_get::<i64>("", "boundary")?)?)
     }
 
-    pub async fn confirm(&self, expected: &State, boundary: &Header) -> Result<[u64; 4]> {
+    pub async fn confirm(
+        &self,
+        expected: &State,
+        boundary: &Header,
+        lease: Duration,
+    ) -> Result<[u64; 4]> {
         let through = boundary.height;
-        let tx = self.db.begin().await?;
-        let row = tx.query_one(sql(
-            "SELECT head_height,confirmed_height,healthy AND NOT halted AND updated_at>clock_timestamp()-interval '30 seconds' AS ready FROM scraper_head WHERE domain=$1 FOR UPDATE",
-            vec![self.domain()],
-        )).await?.ok_or_else(|| eyre::eyre!("Missing head state"))?;
-        // Read ancestry in a fresh statement after acquiring the state lock. A
-        // subquery in the locking SELECT could use a snapshot from before a
-        // concurrent rollback committed while this transaction waited.
-        let same_branch = tx
-            .query_one(sql(
-                "SELECT hash FROM block WHERE domain=$1 AND height=$2",
-                vec![self.domain(), number(expected.indexed)?],
-            ))
-            .await?
-            .map(|row| row.try_get::<Vec<u8>>("", "hash"))
-            .transpose()?;
-        ensure!(
-            row.try_get::<bool>("", "ready")?
-                && row.try_get::<i64>("", "head_height")? >= i64::try_from(expected.head)?
-                && same_branch.as_deref() == Some(expected.hash.as_bytes()),
-            "Confirmation observation changed or expired"
-        );
-        let after = row.try_get::<i64>("", "confirmed_height")?;
         ensure!(
             through <= expected.indexed,
             "Cannot confirm unindexed events"
         );
-        if i64::try_from(through)? <= after {
+        if through <= expected.confirmed {
             return Ok([0; 4]);
         }
-        // Retain an exact rollback boundary even when it was an empty range block.
-        insert_block(&tx, signed(self.domain), boundary).await?;
+        let after = i64::try_from(expected.confirmed)?;
+        let count_projection = EVENTS
+            .iter()
+            .map(|(table, domain, height)| {
+                format!("(SELECT count(*) FROM {table} WHERE {domain}=$1 AND {height}>$2 AND {height}<=$3) AS {table}")
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let count_row = self
+            .db
+            .query_one(sql(
+                format!("SELECT {count_projection}"),
+                vec![self.domain(), after.into(), number(through)?],
+            ))
+            .await?
+            .ok_or_else(|| eyre::eyre!("Missing confirmation counts"))?;
         let mut counts = [0; 4];
-        for (index, (table, domain, height)) in EVENTS.iter().enumerate() {
-            counts[index] = tx.execute(sql(format!("UPDATE {table} SET confirmed=true WHERE {domain}=$1 AND {height}>$2 AND {height}<=$3 AND NOT confirmed"), vec![self.domain(), after.into(), number(through)?])).await?.rows_affected();
+        for (index, (table, _, _)) in EVENTS.iter().enumerate() {
+            counts[index] = u64::try_from(count_row.try_get::<i64>("", table)?)?;
         }
+
+        let tx = self.db.begin().await?;
+        // Prepare bounded publication work before taking the chain's progress
+        // lock. Any stale observation rolls the whole transaction back.
+        insert_checkpoint(&tx, signed(self.domain), boundary).await?;
+        tx.execute(sql(
+            "SELECT assign_confirmed_gas_payment_cursors($1,$2,$3)",
+            vec![self.domain(), after.into(), number(through)?],
+        ))
+        .await?;
+        tx.execute(sql(
+            "DELETE FROM scraper_checkpoint WHERE domain=$1 AND height<$2",
+            vec![self.domain(), number(through)?],
+        ))
+        .await?;
+        let row = tx.query_one(sql(
+            "SELECT indexed_hash,head_height,confirmed_height,writer_id,healthy AND NOT halted AND updated_at>clock_timestamp()-make_interval(secs=>$2) AS ready FROM scraper_head WHERE domain=$1 FOR UPDATE",
+            vec![self.domain(), lease.as_secs_f64().into()],
+        )).await?.ok_or_else(|| eyre::eyre!("Missing head state"))?;
+        ensure!(
+            row.try_get::<bool>("", "ready")?
+                && row
+                    .try_get::<Option<String>>("", "writer_id")?
+                    .as_deref()
+                    .is_none_or(|id| id == writer_id())
+                && row.try_get::<i64>("", "head_height")? >= i64::try_from(expected.head)?
+                && row.try_get::<i64>("", "confirmed_height")? == after
+                && row.try_get::<Vec<u8>>("", "indexed_hash")? == expected.hash.as_bytes(),
+            "Confirmation observation changed or expired"
+        );
         tx.execute(sql(
             "UPDATE scraper_head SET confirmed_height=$2 WHERE domain=$1",
             vec![self.domain(), number(through)?],
@@ -336,39 +415,10 @@ impl Store {
         Ok(counts)
     }
 
-    /// Keep the rollback boundary and headers needed by existing/pending enrichment.
-    /// Raw dispatch headers are retained even before a message/transaction exists.
-    pub async fn prune_headers(&self, after: u64) -> Result<(u64, u64)> {
-        let row = self.db.query_one(sql(r#"
-            WITH candidates AS MATERIALIZED (
-                SELECT b.id,b.height FROM block b JOIN scraper_head h ON h.domain=b.domain
-                WHERE b.domain=$1 AND NOT h.halted
-                  AND b.height>greatest(h.start_height,$2) AND b.height<h.confirmed_height
-                ORDER BY b.height LIMIT 1000 FOR UPDATE OF b SKIP LOCKED
-            ), removed AS (
-                DELETE FROM block b USING candidates c WHERE b.id=c.id
-                  AND NOT EXISTS (SELECT 1 FROM "transaction" t WHERE t.block_id=b.id)
-                  AND NOT EXISTS (SELECT 1 FROM raw_message_dispatch r
-                      WHERE r.origin_domain=b.domain AND r.origin_block_height=b.height)
-                  AND NOT EXISTS (SELECT 1 FROM delivered_message d
-                      WHERE d.domain=b.domain AND d.block_number=b.height AND d.destination_tx_id IS NULL)
-                  AND NOT EXISTS (SELECT 1 FROM gas_payment g
-                      WHERE g.domain=b.domain AND g.block_hash=b.hash AND g.tx_id IS NULL)
-                RETURNING b.id
-            )
-            SELECT coalesce((SELECT max(height) FROM candidates),0) AS next,
-                   (SELECT count(*) FROM removed) AS deleted
-        "#, vec![self.domain(), number(after)?])).await?.ok_or_else(|| eyre::eyre!("Missing cleanup result"))?;
-        Ok((
-            u64::try_from(row.try_get::<i64>("", "next")?)?,
-            u64::try_from(row.try_get::<i64>("", "deleted")?)?,
-        ))
-    }
-
     /// Keyset batches avoid one permanently unavailable receipt starving later rows.
     pub async fn unenriched(&self, table: &str, after: i64) -> Result<Vec<(i64, LogMeta)>> {
         let column = transaction_column(table)?;
-        let rows = self.db.query_all(sql(format!("SELECT id,block_number,block_hash,transaction_hash FROM {table} WHERE domain=$1 AND confirmed AND {column} IS NULL AND block_hash IS NOT NULL AND id>$2 ORDER BY id LIMIT 100"), vec![self.domain(), after.into()])).await?;
+        let rows = self.db.query_all(sql(format!("SELECT id,block_number,block_hash,transaction_hash FROM confirmed_{table} WHERE domain=$1 AND {column} IS NULL AND block_hash IS NOT NULL AND transaction_hash IS NOT NULL AND id>$2 ORDER BY id LIMIT 100"), vec![self.domain(), after.into()])).await?;
         rows.into_iter()
             .map(|r| {
                 Ok((
@@ -391,9 +441,20 @@ impl Store {
 
     pub async fn enrich(&self, table: &str, after: i64, through: i64) -> Result<()> {
         let column = transaction_column(table)?;
-        self.db.execute(sql(format!("UPDATE {table} e SET {column}=t.id FROM \"transaction\" t JOIN block b ON b.id=t.block_id WHERE e.domain=$1 AND e.id>$2 AND e.id<=$3 AND e.confirmed AND e.{column} IS NULL AND t.hash=e.transaction_hash AND b.domain=e.domain AND b.hash=e.block_hash"), vec![self.domain(), after.into(), through.into()])).await?;
+        self.db.execute(sql(format!("UPDATE {table} e SET {column}=t.id FROM \"transaction\" t JOIN block b ON b.id=t.block_id WHERE e.domain=$1 AND e.id>$2 AND e.id<=$3 AND (e.block_number IS NULL OR e.block_number<=COALESCE((SELECT h.confirmed_height FROM scraper_head h WHERE h.domain=e.domain),9223372036854775807)) AND e.{column} IS NULL AND t.hash=e.transaction_hash AND b.domain=e.domain AND b.hash=e.block_hash"), vec![self.domain(), after.into(), through.into()])).await?;
         Ok(())
     }
+}
+
+fn writer_id() -> &'static str {
+    static ID: OnceLock<String> = OnceLock::new();
+    ID.get_or_init(|| {
+        let started = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        format!("{}-{started}", std::process::id())
+    })
 }
 
 fn transaction_column(table: &str) -> Result<&'static str> {
@@ -404,8 +465,8 @@ fn transaction_column(table: &str) -> Result<&'static str> {
     }
 }
 
-async fn insert_block<C: ConnectionTrait>(db: &C, domain: i32, h: &Header) -> Result<()> {
-    db.execute(sql("INSERT INTO block(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC') ON CONFLICT(hash) DO NOTHING", vec![domain.into(), bytes(h.hash), number(h.height)?, number(h.timestamp)?])).await?;
+async fn insert_checkpoint<C: ConnectionTrait>(db: &C, domain: i32, h: &Header) -> Result<()> {
+    db.execute(sql("INSERT INTO scraper_checkpoint(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC') ON CONFLICT(domain,height) DO NOTHING", vec![domain.into(), bytes(h.hash), number(h.height)?, number(h.timestamp)?])).await?;
     Ok(())
 }
 
@@ -415,26 +476,26 @@ fn event_row(domain: i32, h: &Header, e: &Event) -> Result<(&'static str, Vec<Va
         domain.into(),
         bytes(h.hash),
         number(h.height)?,
-        h512_to_bytes(&e.tx_hash).into(),
+        e.tx_hash.as_ref().map(h512_to_bytes).into(),
         number(e.tx_index)?,
         number(e.log_index)?,
         address.into(),
     ];
     let (query, extra) = match &e.data {
         EventData::Dispatch(m) => (
-            "INSERT INTO raw_message_dispatch(origin_domain,origin_block_hash,origin_block_height,origin_tx_hash,transaction_index,log_index,origin_mailbox,msg_id,destination_domain,nonce,sender,recipient,msg_body,message_version,time_updated,confirmed) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,now(),false)",
+            "INSERT INTO raw_message_dispatch(origin_domain,origin_block_hash,origin_block_height,origin_tx_hash,transaction_index,log_index,origin_mailbox,msg_id,destination_domain,nonce,sender,recipient,msg_body,message_version,time_updated) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,now())",
             vec![m.id().as_bytes().to_vec().into(), signed(m.destination).into(), signed(m.nonce).into(), address_to_bytes(&m.sender).into(), address_to_bytes(&m.recipient).into(), m.body.clone().into(), i16::from(m.version).into()],
         ),
         EventData::Delivery(id) => (
-            "INSERT INTO delivered_message(domain,block_hash,block_number,transaction_hash,transaction_index,log_index,destination_mailbox,msg_id,sequence,confirmed) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,false)",
+            "INSERT INTO delivered_message(domain,block_hash,block_number,transaction_hash,transaction_index,log_index,destination_mailbox,msg_id,sequence,time_created) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,now())",
             vec![id.as_bytes().to_vec().into(), e.sequence.map(i64::from).into()],
         ),
         EventData::Insertion { message_id, index } => (
-            "INSERT INTO merkle_tree_insertion(domain,block_hash,block_number,transaction_hash,transaction_index,log_index,merkle_tree_hook,message_id,leaf_index,confirmed) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,false)",
+            "INSERT INTO merkle_tree_insertion(domain,block_hash,block_number,transaction_hash,transaction_index,log_index,merkle_tree_hook,message_id,leaf_index) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)",
             vec![message_id.as_bytes().to_vec().into(), signed(*index).into()],
         ),
         EventData::Gas { message_id, destination, gas, payment } => (
-            "INSERT INTO gas_payment(domain,block_hash,block_number,transaction_hash,transaction_index,log_index,interchain_gas_paymaster,msg_id,destination,gas_amount,payment,origin,sequence,confirmed) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::text::numeric,$11::text::numeric,$1,$12,false)",
+            "INSERT INTO gas_payment(domain,block_hash,block_number,transaction_hash,transaction_index,log_index,interchain_gas_paymaster,msg_id,destination,gas_amount,payment,origin,sequence,time_created) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::text::numeric,$11::text::numeric,$1,$12,now())",
             vec![message_id.as_bytes().to_vec().into(), signed(*destination).into(), gas.clone().into(), payment.clone().into(), e.sequence.map(i64::from).into()],
         ),
     };

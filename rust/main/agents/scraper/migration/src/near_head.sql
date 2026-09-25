@@ -174,4 +174,28 @@ DO $$ DECLARE item record; BEGIN
       CASE WHEN item.grantee=0 THEN 'PUBLIC' ELSE quote_ident(pg_get_userbyid(item.grantee)) END,
       CASE WHEN item.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END);
   END LOOP;
+  -- Copy writer privileges from the existing tables. Near-head workers update
+  -- their shared frontier and delete only unconfirmed fork rows or unreferenced
+  -- headers. Reader roles must not receive these privileges.
+  FOR item IN
+    SELECT a.grantee,a.privilege_type,a.is_grantable FROM pg_class c
+    CROSS JOIN LATERAL aclexplode(coalesce(c.relacl,acldefault('r',c.relowner))) a
+    WHERE c.oid='block'::regclass AND a.privilege_type IN ('INSERT','UPDATE')
+  LOOP
+    EXECUTE format('GRANT %s ON scraper_head TO %s%s',item.privilege_type,
+      CASE WHEN item.grantee=0 THEN 'PUBLIC' ELSE quote_ident(pg_get_userbyid(item.grantee)) END,
+      CASE WHEN item.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END);
+  END LOOP;
+  FOR item IN
+    SELECT c.relname,a.grantee,a.is_grantable FROM pg_class c
+    CROSS JOIN LATERAL aclexplode(coalesce(c.relacl,acldefault('r',c.relowner))) a
+    WHERE c.oid IN ('block'::regclass,'raw_message_dispatch'::regclass,
+                    'delivered_message'::regclass,'gas_payment'::regclass,
+                    'merkle_tree_insertion'::regclass)
+      AND a.privilege_type='UPDATE'
+  LOOP
+    EXECUTE format('GRANT DELETE ON %I TO %s%s',item.relname,
+      CASE WHEN item.grantee=0 THEN 'PUBLIC' ELSE quote_ident(pg_get_userbyid(item.grantee)) END,
+      CASE WHEN item.is_grantable THEN ' WITH GRANT OPTION' ELSE '' END);
+  END LOOP;
 END $$;

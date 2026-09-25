@@ -14,6 +14,8 @@ use testcontainers_modules::postgres::Postgres;
 
 use super::*;
 
+const LEASE: Duration = Duration::from_secs(60);
+
 fn header(height: u64) -> Header {
     Header {
         height,
@@ -27,7 +29,7 @@ fn event(height: u64, index: u64, address: hyperlane_core::H256, data: EventData
     Event {
         block_number: height,
         block_hash: header(height).hash,
-        tx_hash: H256::from_low_u64_be(height * 10_000 + index).into(),
+        tx_hash: Some(H256::from_low_u64_be(height * 10_000 + index).into()),
         tx_index: index,
         log_index: index,
         address,
@@ -52,6 +54,49 @@ fn payments(height: u64, count: u64, address: hyperlane_core::H256) -> Vec<Event
             )
         })
         .collect()
+}
+
+#[tokio::test]
+async fn unavailable_transaction_hashes_are_not_enrichment_work() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let contracts = Contracts {
+        mailbox: H160::repeat_byte(1).into(),
+        hook: H160::repeat_byte(2).into(),
+        paymaster: H160::repeat_byte(3).into(),
+    };
+    store.initialize(&header(0), &contracts).await?;
+    let initial = store.state().await?.unwrap();
+    store.observe(&initial, &header(0), &header(1)).await?;
+    let mut payment = payments(1, 1, contracts.paymaster).remove(0);
+    payment.tx_hash = None;
+    store
+        .append(
+            &store.state().await?.unwrap(),
+            &[(header(1), vec![payment])],
+        )
+        .await?;
+    store
+        .confirm(&store.state().await?.unwrap(), &header(1), LEASE)
+        .await?;
+
+    assert!(store.unenriched("gas_payment", 0).await?.is_empty());
+    let row = store
+        .db
+        .query_one(sql(
+            "SELECT transaction_hash IS NULL AS missing FROM gas_payment",
+            vec![],
+        ))
+        .await?
+        .expect("payment row");
+    assert!(row.try_get::<bool>("", "missing")?);
+    Ok(())
 }
 
 #[tokio::test]
@@ -144,7 +189,7 @@ async fn confirmation_budget_preserves_blocks_and_measures_gas_dense_publication
         let (publication, lock_probe) = tokio::join!(
             async {
                 let start = Instant::now();
-                let result = store.confirm(&state, &header(through)).await;
+                let result = store.confirm(&state, &header(through), LEASE).await;
                 done.store(true, Ordering::Relaxed);
                 (result, start.elapsed())
             },
@@ -209,6 +254,6 @@ async fn confirmation_budget_preserves_blocks_and_measures_gas_dense_publication
         ]
     );
     let state = store.state().await?.unwrap();
-    assert_eq!(store.confirm(&state, &header(10_000)).await?, [0; 4]);
+    assert_eq!(store.confirm(&state, &header(10_000), LEASE).await?, [0; 4]);
     Ok(())
 }

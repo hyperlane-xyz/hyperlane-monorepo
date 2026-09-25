@@ -9,6 +9,7 @@ use std::{
     default::Default,
     ops::Add,
     str::FromStr,
+    time::Duration,
 };
 
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
@@ -34,6 +35,8 @@ pub struct ScraperSettings {
     pub base: Settings,
 
     pub db: String,
+    pub db_max_connections: u32,
+    pub db_acquire_timeout: Duration,
     pub chains_to_scrape: Vec<HyperlaneDomain>,
     /// Per-domain CCR contract → underlying ERC20 token mapping.
     /// Domain ID → { router_address → token_address }.
@@ -79,6 +82,20 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
             .parse_string()
             .end()
             .map(|v| v.to_owned());
+
+        let db_max_connections = p
+            .chain(&mut err)
+            .get_opt_key("dbMaxConnections")
+            .parse_u32()
+            .end()
+            .unwrap_or(10);
+        let db_acquire_timeout = Duration::from_millis(u64::from(
+            p.chain(&mut err)
+                .get_opt_key("dbAcquireTimeoutMillis")
+                .parse_u32()
+                .end()
+                .unwrap_or(15_000),
+        ));
 
         let chains_to_scrape = if let (Some(base), Some(chains)) = (&base, chains_names_to_scrape) {
             chains
@@ -142,6 +159,8 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
         err.into_result(Self {
             base,
             db,
+            db_max_connections,
+            db_acquire_timeout,
             chains_to_scrape,
             ccr_routers,
         })

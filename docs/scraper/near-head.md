@@ -1,22 +1,21 @@
 # Near-head scraper ingestion
 
 The scraper indexes dispatch, delivery, gas-payment and Merkle-insertion events
-at the current head by default on all selected supported chains. Each event is stored
-once in its existing table, initially with `confirmed=false`. Block headers remain
-in `block`; `scraper_head` contains only per-chain progress and health, not event
-payloads.
+at the current head by default on every selected supported chain except Fuel.
+Each event is stored once in its existing table. Permanent headers for event
+blocks remain in `block`; the current confirmation boundary and sparse unconfirmed
+range checkpoints live in `scraper_checkpoint`. `scraper_head` contains only
+per-chain progress and health, not event payloads.
 
-The scraper flips `confirmed` after the chain's existing `reorgPeriod`. Legacy
-websocket notifications and gas-payment cursors are created on that transition.
-The proxy and Explorer query confirmed views, preserving their configured delay.
+The scraper advances `scraper_head.confirmed_height` after the chain's existing
+`reorgPeriod`. The proxy publishes that newly visible height range, and gas-payment
+cursors are allocated atomically with the frontier advance. The proxy and Explorer
+query confirmed views, preserving their configured delay.
 There is no new endpoint or subscriber-selected delay in this change.
 
-The migration also installs a future proxy notification contract without changing
-the current proxy's behavior. `scraper_event_provisional` announces provisional
-event inserts using the same `eventType`, `id`, and unsigned `domain` fields as
-`scraper_event`. `scraper_head` announces initialized, progress, status, and
+`scraper_head` announces initialized, progress, status, and
 rollback boundaries, including the indexed hash and previous indexed height.
-Both channels are transactional PostgreSQL notifications. A rollback emits one
+These are transactional PostgreSQL notifications. A rollback emits one
 head boundary rather than one notification for every deleted event. Notifications
 are wake-up hints; reconnect and catch-up must read the persisted rows and head.
 
@@ -26,11 +25,14 @@ gas-payment, and Merkle indexers are not implemented.
 The old `HYP_NEARHEAD` and `HYP_NEARHEAD_<DOMAIN>_FROMBLOCK` variables are no longer
 used and can be removed.
 
-An empty domain starts automatically at `index.from` (block 1 when `index.from`
-is 0). A domain with existing block or event rows and no `scraper_head` state
-fails closed. Neither the greatest stored height nor the shared legacy cursor
-proves that all four legacy streams completed that height: choosing either can
-skip a slower gas-payment or delivery backlog.
+An empty EVM domain starts automatically at `index.from`. Non-EVM domains require
+an explicit verified `scraper_head` cutover even when their event tables are empty,
+because their indexers cannot provide historical counts pinned immediately before
+`index.from`; this also avoids treating a sequence-mode starting index as a block
+height. A domain with existing block or event rows and no `scraper_head` state
+fails closed. Neither the greatest stored height nor the shared legacy cursor proves
+that all four legacy streams completed that height: choosing either can skip a
+slower gas-payment or delivery backlog.
 
 Existing domains require the verified cutover below. Startup rechecks that an
 automatically initialized domain is still empty after RPC preflight. Restarts
@@ -57,12 +59,17 @@ boundary from stored maxima. Contract changes are rejected.
   restart or changed ancestry reloads them from durable rows. Delivery and gas
   streams receive the same check when their indexers expose sequence counts;
   otherwise completeness depends on the RPC returning all matching logs.
+  Non-EVM publication remains at the previous verified frontier until the indexed
+  range covers every available sequence watermark and its durable counts match.
   Generic adapters assign gas-payment occurrence indexes in canonical returned
   order per block because some protocol indexers do not expose a unique log index.
 - Polling uses `index.interval`, with the legacy range cursor's 30-second default.
-  An unchanged head costs one RPC call and no log query. Catch-up ranges run
-  without an idle delay. Confirmation wakes on progress and drains eligible
-  batches without waiting for another poll. Publication targets 1,000 events per
+  An unchanged EVM head costs one RPC call and no log query. Generic adapters
+  read chain metrics and then the latest block header, so an unchanged non-EVM
+  head normally costs two provider calls. Catch-up ranges run
+  without an idle delay. Each cycle ingests before publishing, so newly indexed
+  events do not wait for another poll. Page-limited publication repeats without
+  an idle delay. Publication targets 1,000 events per
   transaction rather than 100 blocks, allowing empty spans to advance together.
   A block containing more than 1,000 events publishes as one indivisible batch;
   the event budget is therefore soft. `safe`/`finalized` tag checks use the
@@ -74,21 +81,33 @@ boundary from stored maxima. Contract changes are rejected.
   then replays the range. Confirmation stores its exact boundary header even
   when that height was an empty block inside a range. Protocols with sparse block
   numbering choose the newest available boundary at or below the requested height.
-- Confirmation requires a healthy head observation less than 30 seconds old and
-  cannot pass indexed progress. Advancing the observed head can confirm existing
-  events even if the next log fetch fails. Long in-flight RPC calls can expire the
-  observation lease; confirmation then waits for a fresh observation.
+- Confirmation requires a healthy head observation within its lease (twice the
+  polling interval, at least 60 seconds) and cannot pass indexed progress or the
+  observed head. A finality tag read after the observation may be newer than it;
+  confirmation then stops at the observed head. The lease only proves a recent
+  healthy observation: confirmation still rechecks ancestry against the RPC, and
+  an older head only lowers the boundary. Each cycle observes, ingests, then
+  confirms, so newly ingested events can publish immediately. Committing ingestion
+  refreshes the observation lease after long RPC calls. An ingestion failure is
+  logged before existing eligible history publishes; page-limited publication
+  drains before the error pauses the loop. The three phases execute sequentially
+  for each chain, so they do not compete for that chain's progress-row lock.
 - Startup probes the configured finality selector and, on EVM, hash-pinned
   contract-count calls before persisting a first-time cutover. On restart it probes the provider's
   latest canonical block. Observation waits for providers behind saved progress
-  and reconciles retained ancestry before publication. Ingestion and confirmation failures
-  independently contribute to the chain critical-error metric; successful head
-  reads cannot clear a confirmation failure. Ingestion pauses on confirmation
-  errors. A stalled boundary limits the provisional suffix to 10,000 blocks plus
-  the configured numeric reorg depth; reaching the limit raises a critical error.
+  and reconciles retained ancestry before publication. It fails immediately with
+  a checkpoint-sync error if the saved confirmed or indexed checkpoint is absent
+  or the indexed hash differs. Ingestion errors do not prevent already indexed
+  history from publishing. A confirmation error marks the chain critical and
+  pauses the combined cycle. A stalled boundary limits the provisional suffix to
+  10,000 blocks plus the configured numeric reorg depth; at the limit the worker
+  continues confirmation without extending the provisional suffix and raises
+  the chain critical-error metric until confirmation opens room again.
   `scraper_head.healthy` describes the head-observation lease, not overall worker
   health. Compare the `indexed_height` metric's `near_head` series with the
-  confirmed event series to observe confirmation lag.
+  confirmed event series to observe confirmation lag. Alert rules for the
+  chain critical-error metric should use a `for` window longer than the expected
+  finality-tag update interval so slow but advancing tags do not flap alerts.
 - Unpublished forks are deleted and reindexed. Existing block, transaction,
   message and leaf uniqueness constraints are unchanged. Fork occurrences are not
   archived. A reorg crossing confirmed history persists a halt and raises the
@@ -105,24 +124,24 @@ boundary from stored maxima. Contract changes are rejected.
   yield, while short, exhausted or failed pages wait for the polling interval.
   Failed/timed-out pages advance their scan cursor so later pages are attempted;
   missing receipts are retried on the next sweep. Cache lookups are batched per
-  page, and at most eight missing receipts per stream (16 per domain) are fetched
-  concurrently. The two streams can briefly fetch the same uncached transaction;
+  page, and at most 16 missing receipts are fetched concurrently across all domains.
+  Database work uses a separate five-permit limit, and no database permit is held
+  while an RPC is pending. The two streams can briefly fetch the same uncached transaction;
   uniqueness constraints and the linker handle concurrent inserts.
   Fetching and linking each have a separate 30-second timeout. Completed receipts
   are linked even when a neighboring receipt times out. Existing nullable
-  transaction relations remain nullable until enrichment succeeds. The
+  transaction relations remain nullable until enrichment succeeds. Generic
+  adapters store unavailable transaction hashes as NULL, excluding those rows
+  from receipt retries and backlog age. The
   `hyperlane_scraper_receipt_oldest_pending_seconds{chain,event_type}` gauge tracks
   age since creation of the oldest pending row by ID, including time it spent
   provisional. It is sampled independently once per poll and returns zero when
   the stream has no pending rows.
-- An independent maintenance loop scans at most 1,000 old block headers per poll
-  and deletes unreferenced candidates in a separate transaction. Confirmation
-  does not await cleanup, including during catch-up. An in-memory cursor
-  advances past retained headers and wraps for another sweep. It retains the cutover anchor, confirmed
-  boundary, retained unconfirmed checkpoints, transaction references, raw-dispatch headers,
-  and headers needed by pending gas/delivery enrichment. Event records are not
-  deleted by cleanup. Halted chains are not pruned. Historical headers from before
-  the cutover are left intact; retained event/transaction history still grows.
+- Confirmation deletes superseded rows directly from the small
+  `scraper_checkpoint` table by `(domain,height)`. There is no background header
+  scanner. `block` receives only headers for blocks containing actual events;
+  those headers remain available for transaction enrichment. Historical headers
+  left by older scraper versions are not removed automatically.
 - Block/log/transaction positions are recorded for future custom-period consumers.
   No further database schema is required for block-count confirmation periods.
   Adding those consumers still requires a reorg-aware cursor/reset protocol that
@@ -132,7 +151,7 @@ boundary from stored maxima. Contract changes are rejected.
 
 ## RPC cost
 
-For a caught-up unchanged head: one header request per poll. For a normal EVM new
+For a caught-up unchanged EVM head: one header request per poll. For a normal EVM new
 range containing events in `B` distinct blocks: at most `B + 6` header requests
 and one combined log request plus two new contract-count reads on consecutive
 committed ranges. Non-EVM ranges make one sequence-watermark request per stream
@@ -177,14 +196,93 @@ hangs, and verify uncached successful receipts survive a neighboring timeout.
    block-hash-pinned `eth_getCode`. Check the actual configured endpoints and
    historical boundary state. Fleet capability has not been established by
    the local tests. There is no legacy opt-out after this hard cutover.
-2. Stop scraper writers and the proxy. Apply the migration before deploying the
-   matching binaries. Measure index creation on a database clone and allow a
+2. Build this scraper and migration, and prepare the scraper image-tag update for
+   every environment sharing the database. Deploy the matching proxy first so it
+   listens for frontier notifications, then stop **all** scraper deployments.
+   For `explorer4`, this means both mainnet3 and testnet4. Apply the migration
+   before deploying the matching binaries. Land the image-tag update before or
+   with the migration so a routine deployment cannot restart an old writer.
+   Measure index creation on a database clone and allow a
    maintenance window. Run `cargo run --release -p migration --bin init-db` with
-   `DATABASE_URL` set to apply migrations and verify concurrent indexes.
-3. For each existing supported domain, complete the verified cutover below. Empty
-   domains need no seed. Start the scraper and matching proxy only afterwards.
+   `DATABASE_URL` set for the `postgres` role, which owns the existing tables and
+   migration history, to apply migrations, verify every concurrent index, and run
+   `ANALYZE` on the event tables. Do not start a scraper unless `init-db` reaches
+   both index verification and `ANALYZE`; rerun it after any interrupted build. Use the
+   migration binary built from this PR for both upgrades and rollbacks; older
+   binaries do not know checkpoint migration 15. After stopping writers, wait at
+   least 90 seconds before migrating so the migration's activity gate can pass.
+3. For each existing supported domain, complete the verified cutover below.
+   Empty EVM domains need no seed; non-EVM domains still require an explicit
+   verified cutover. Start the scraper and matching proxy only afterwards.
 4. Check `scraper_head` for advancing `indexed_height` and `confirmed_height`,
    verify the chain critical-error metric is clear, and check consumer streams.
+
+Before migration, every existing head must have both boundary rows in `block`:
+
+```sql
+SELECT h.domain,h.confirmed_height,h.indexed_height
+FROM scraper_head h
+WHERE NOT EXISTS (
+  SELECT 1 FROM block b
+  WHERE b.domain=h.domain AND b.height=h.confirmed_height
+) OR NOT EXISTS (
+  SELECT 1 FROM block b
+  WHERE b.domain=h.domain AND b.height=h.indexed_height
+    AND b.hash=h.indexed_hash
+);
+```
+
+This must return no rows. After migration, connect as `postgres` or a scraper
+writer role with access to `scraper_checkpoint` and run:
+
+```sql
+SELECT h.domain,h.confirmed_height,h.indexed_height
+FROM scraper_head h
+WHERE NOT EXISTS (
+  SELECT 1 FROM scraper_checkpoint c
+  WHERE c.domain=h.domain AND c.height=h.confirmed_height
+) OR NOT EXISTS (
+  SELECT 1 FROM scraper_checkpoint c
+  WHERE c.domain=h.domain AND c.height=h.indexed_height
+    AND c.hash=h.indexed_hash
+) OR EXISTS (
+  SELECT 1 FROM scraper_checkpoint c
+  WHERE c.domain=h.domain AND c.height>h.indexed_height
+);
+```
+
+This must return no rows. Do not start any old scraper image after migration.
+The scraper database can be shared across environments; stopping one deployment
+does not stop another deployment's writers.
+
+If startup reports that checkpoints are out of sync, stop every writer and repair
+only after checking the saved head against the canonical chain. Save the following
+script and run it as `postgres` with `psql "$DATABASE_URL" -v domain=N -f repair.sql`.
+It replaces one domain's retained range from the old writer's `block` checkpoints:
+
+```sql
+\set ON_ERROR_STOP on
+BEGIN;
+SET LOCAL lock_timeout='5s';
+LOCK TABLE scraper_head IN EXCLUSIVE MODE;
+DELETE FROM scraper_checkpoint c
+USING scraper_head h
+WHERE c.domain=h.domain AND c.domain=:'domain'::integer;
+INSERT INTO scraper_checkpoint(domain,height,hash,timestamp)
+SELECT b.domain,b.height,b.hash,b.timestamp
+FROM scraper_head h CROSS JOIN LATERAL (
+  SELECT domain,height,hash,timestamp FROM block b
+  WHERE b.domain=h.domain AND b.height>=h.confirmed_height
+    AND b.height<=h.indexed_height
+  OFFSET 0
+) b
+WHERE h.domain=:'domain'::integer;
+COMMIT;
+```
+
+Run the post-migration boundary check above before restarting. If `block` lacks the
+full retained range or its indexed hash differs, restore or reseed from a separately
+verified canonical boundary instead of using this repair.
 
 ### Verified legacy cutover
 
@@ -209,6 +307,21 @@ Supply `domain` as the stored `domain.id` integer (unsigned IDs above `2^31-1`
 are stored minus `2^32`), `height`, `timestamp` as Unix seconds, and `block_hash`,
 `mailbox`, `hook`, `paymaster` as hex without `0x`, using `psql -v name=value`.
 
+Run the expensive overlap checks outside the seed transaction after all writers
+are stopped. Every maximum must be NULL or at most `H`:
+
+```sql
+SELECT
+  (SELECT max(height) FROM block WHERE domain=:'domain'::integer) AS block_max,
+  (SELECT max(origin_block_height) FROM raw_message_dispatch WHERE origin_domain=:'domain'::integer) AS dispatch_max,
+  (SELECT max(block_number) FROM merkle_tree_insertion WHERE domain=:'domain'::integer) AS merkle_max,
+  (SELECT max(block_number) FROM delivered_message WHERE domain=:'domain'::integer) AS delivery_max,
+  (SELECT max(block_number) FROM gas_payment WHERE domain=:'domain'::integer) AS gas_max;
+```
+
+The seed uses only the per-domain advisory lock and repeats cheap indexed checks.
+Do not add a table lock: it would stall every environment sharing the database.
+
 ```sql
 \set ON_ERROR_STOP on
 BEGIN;
@@ -228,8 +341,6 @@ INSERT INTO verified_cutover VALUES (
 );
 SELECT pg_advisory_xact_lock(domain::bigint & 4294967295)
 FROM verified_cutover;
-LOCK TABLE block, raw_message_dispatch, delivered_message, gas_payment,
-  merkle_tree_insertion, scraper_head IN SHARE ROW EXCLUSIVE MODE;
 DO $$
 DECLARE c verified_cutover%ROWTYPE;
 BEGIN
@@ -237,17 +348,12 @@ BEGIN
   IF EXISTS (SELECT 1 FROM scraper_head WHERE domain=c.domain) THEN
     RAISE EXCEPTION 'Saved near-head state already exists; do not reseed it';
   END IF;
-  IF EXISTS (SELECT 1 FROM block WHERE domain=c.domain AND height>c.height)
-    OR EXISTS (SELECT 1 FROM raw_message_dispatch
-               WHERE origin_domain=c.domain AND (origin_block_height>c.height OR NOT confirmed))
-    OR EXISTS (SELECT 1 FROM merkle_tree_insertion
-               WHERE domain=c.domain AND (block_number>c.height OR NOT confirmed))
-    OR EXISTS (SELECT 1 FROM delivered_message
-               WHERE domain=c.domain AND (block_number>c.height OR NOT confirmed))
-    OR EXISTS (SELECT 1 FROM gas_payment
-               WHERE domain=c.domain AND (block_number>c.height OR NOT confirmed))
+  IF EXISTS (SELECT 1 FROM scraper_checkpoint WHERE domain=c.domain)
+    OR (SELECT max(height) FROM block WHERE domain=c.domain)>c.height
+    OR (SELECT max(origin_block_height) FROM raw_message_dispatch
+        WHERE origin_domain=c.domain)>c.height
   THEN
-    RAISE EXCEPTION 'History overlaps the cutover or contains provisional rows';
+    RAISE EXCEPTION 'History overlaps the cutover; rerun the overlap checks';
   END IF;
   IF EXISTS (SELECT 1 FROM block WHERE domain=c.domain
              AND height=c.height AND hash<>c.hash)
@@ -256,14 +362,16 @@ BEGIN
   THEN
     RAISE EXCEPTION 'Cutover hash disagrees with stored block identity';
   END IF;
-  INSERT INTO block(domain,hash,height,timestamp)
-    VALUES(c.domain,c.hash,c.height,to_timestamp(c.timestamp) AT TIME ZONE 'UTC')
-    ON CONFLICT(hash) DO NOTHING;
   INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,
                           head_height,confirmed_height,mailbox,merkle_tree_hook,
                           interchain_gas_paymaster)
     VALUES(c.domain,c.height,c.height,c.hash,c.height,c.height,
            c.mailbox,c.hook,c.paymaster);
+  INSERT INTO scraper_checkpoint(domain,height,hash,timestamp)
+    VALUES(c.domain,c.height,c.hash,to_timestamp(c.timestamp) AT TIME ZONE 'UTC');
+  INSERT INTO block(domain,height,hash,timestamp)
+    VALUES(c.domain,c.height,c.hash,to_timestamp(c.timestamp) AT TIME ZONE 'UTC')
+    ON CONFLICT(hash) DO NOTHING;
 END $$;
 COMMIT;
 SELECT domain,start_height,encode(indexed_hash,'hex') AS block_hash,
@@ -288,8 +396,22 @@ SQL consumers wanting the old visibility must use `confirmed_raw_message_dispatc
 both their names and output columns. Raw event tables now include provisional rows.
 Roles with `SELECT` on any event table also receive `SELECT` on `scraper_head`.
 
-To roll back to a legacy scraper, stop writers and drain all provisional
-history first (or explicitly repair/discard it). Clear that domain's `scraper_head`
-row only after reconciling its progress with the legacy indexers. The down migration
-refuses to remove confirmation filtering while provisional or halted history
-exists. Restore the matching proxy version when rolling back the migration.
+To roll back to the previous near-head scraper image from this version, stop every
+scraper deployment sharing the database and pause proxy reads during a maintenance
+window, then run
+`cargo run --release -p migration --bin down 1`. This restores the transitional
+`confirmed` columns without rewriting historical confirmed rows. The transactional
+down migration takes access-exclusive table locks while rebuilding the old partial
+indexes, so production-scale tables block reads and replica replay: about 35-50s
+cold on explorer4 (15-25s with parallel workers), during which Explorer queries on
+the replica stall too. Then deploy the previous scraper image. Never start it
+before the down migration.
+
+To return to legacy indexers, stop every scraper writer, drain or explicitly
+repair/discard provisional and halted history, then run
+`cargo run --release -p migration --bin down 3`. The final down migration removes
+confirmation filtering and drops `scraper_head`; it refuses to proceed while
+provisional or halted history remains. The checkpoint migration restores and
+drops `scraper_checkpoint`, so both near-head state tables are gone before legacy
+indexing restarts. Use `down 2` only to return to the earlier near-head image that
+still stored checkpoints in `block`.

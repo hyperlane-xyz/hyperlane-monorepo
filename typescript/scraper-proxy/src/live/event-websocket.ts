@@ -29,6 +29,7 @@ import {
   parseClientMessage,
   parseEventNotification,
   parseExplorerNotification,
+  parseHeadNotification,
   parseId,
   parseInteger,
   type GasPaymentCursor,
@@ -39,11 +40,21 @@ import {
 } from './protocol.js';
 import { rawData } from './websocket-data.js';
 
+// Explorer types first: a failure in an agent-only type must not close Explorer
+// clients that already received this range. No cross-type order is promised.
+const HEAD_PUBLICATION_ORDER = [
+  'delivery',
+  'gas_payment',
+  'dispatch',
+  'merkle_tree_insertion',
+] as const satisfies readonly EventType[];
+
 const AGENT_PATH = '/agents';
 const MAX_AGENT_MESSAGE_BYTES = 1_048_576;
 const MESSAGE_PATH = '/messages';
 const EVENT_CHANNEL = 'scraper_event';
 const EXPLORER_CHANNEL = 'scraper_explorer_event';
+const HEAD_CHANNEL = 'scraper_head';
 const HEARTBEAT_MS = 30_000;
 // Node's setInterval() warns and clamps to 1 for non-positive values and
 // overflows above a signed 32-bit integer, so heartbeat overrides must stay
@@ -60,11 +71,14 @@ const MAX_EXPLORER_PENDING_MESSAGES = 2_000;
 const MAX_CLIENT_MESSAGES = 30;
 const MAX_PENDING_EVENTS = 5_000;
 const MAX_PENDING_NOTIFICATIONS = 10_000;
+const MAX_HEAD_PUBLICATION_FAILURES = 3;
 const GAS_PAYMENT_STREAM_CURSOR = 'gas_payment_stream_cursor';
 const GAS_PAYMENT_STREAM_HEAD = 'gas_payment_stream_head';
 const STREAM_CURSOR_COLUMN = 'scraper_stream_cursor';
 const GAS_PAYMENT_TRANSACTION = 'event_transaction';
 const GAS_PAYMENT_BLOCK = 'event_block';
+const FRONTIER_ID = 'frontier_id';
+const FRONTIER_HEIGHT = 'frontier_height';
 
 type Row = Record<string, unknown>;
 type NotifiedRow = Row & { notification_id: number | string };
@@ -114,7 +128,18 @@ type Limits = {
   maxTotalBufferedBytes: number;
 };
 type SerializedMessage = Buffer;
+type HeadRange = { after: bigint; through: bigint };
 export type EventDatabase = Pick<DbService, 'listen' | 'queryLive'>;
+
+class HeadPublicationError extends Error {
+  constructor(
+    readonly original: unknown,
+    readonly partialAgent: boolean,
+    readonly explorerAffected: boolean,
+  ) {
+    super(`frontier publication failed: ${formatError(original)}`);
+  }
+}
 
 function stream(
   table: string,
@@ -181,11 +206,15 @@ export class EventWebSocketServer {
   private readonly catchUpWaiters: CatchUpWaiter[] = [];
   private readonly explorerNotifications = new Set<string>();
   private readonly notifications = new Map<string, EventNotification>();
+  private readonly headRanges = new Map<number, HeadRange>();
+  private readonly headFailures = new Map<number, number>();
   private heartbeatTimer?: NodeJS.Timeout;
   private listenerRetryTimer?: NodeJS.Timeout;
   private agentNotificationTimer?: NodeJS.Timeout;
+  private headNotificationTimer?: NodeJS.Timeout;
   private explorerNotificationTimer?: NodeJS.Timeout;
   private drainingAgentNotifications = false;
+  private drainingHeadNotifications = false;
   private drainingExplorerNotifications = false;
   private catchUps = 0;
   private pendingBytes = 0;
@@ -255,10 +284,12 @@ export class EventWebSocketServer {
       this.heartbeatTimer,
       this.listenerRetryTimer,
       this.agentNotificationTimer,
+      this.headNotificationTimer,
       this.explorerNotificationTimer,
     ].forEach((timer) => timer && clearTimeout(timer));
     this.explorerNotifications.clear();
     this.notifications.clear();
+    this.headRanges.clear();
     await this.stopListening?.();
     this.httpServer?.off('upgrade', this.handleUpgrade);
     this.closeClients('Server stopping', 1001);
@@ -979,8 +1010,10 @@ export class EventWebSocketServer {
     through: bigint,
   ): Promise<Row[]> {
     const stream = STREAMS.gas_payment;
+    // Limit payments before joining metadata; joining first enriches every
+    // remaining row in the range before the planner applies the batch limit.
     return this.db.queryLive<Row>(
-      `SELECT ${gasPaymentColumns(stream)}, ${q('event_row')}.${q('id')} AS ${q(STREAM_CURSOR_COLUMN)} FROM ${q(stream.table)} AS ${q('event_row')}${gasPaymentMetadataJoins('LEFT JOIN')} WHERE ${q('event_row')}.${q(stream.domain)} = $1 AND ${q('event_row')}.${q('interchain_gas_paymaster')} = $2::bytea AND ${q('event_row')}.${q('id')} > $3::bigint AND ${q('event_row')}.${q('id')} <= $4::bigint ORDER BY ${q('event_row')}.${q('id')} ASC LIMIT $5`,
+      `SELECT ${gasPaymentColumns(stream)}, ${q('event_row')}.${q('id')} AS ${q(STREAM_CURSOR_COLUMN)} FROM (SELECT * FROM ${q(stream.table)} WHERE ${q(stream.domain)} = $1 AND ${q('interchain_gas_paymaster')} = $2::bytea AND ${q('id')} > $3::bigint AND ${q('id')} <= $4::bigint ORDER BY ${q('id')} ASC LIMIT $5) AS ${q('event_row')}${gasPaymentMetadataJoins('LEFT JOIN')} ORDER BY ${q('event_row')}.${q('id')} ASC`,
       [
         storedDomain(cursor.domain),
         cursor.address,
@@ -997,8 +1030,10 @@ export class EventWebSocketServer {
     through: bigint,
   ): Promise<Row[]> {
     const stream = STREAMS.gas_payment;
+    // Cursors are only assigned to confirmed payments, so limiting cursors
+    // before the joins cannot drop rows that the confirmed view would filter.
     return this.db.queryLive<Row>(
-      `SELECT ${gasPaymentColumns(stream)}, ${q('event_cursor')}.${q('stream_cursor')} AS ${q(STREAM_CURSOR_COLUMN)} FROM ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} INNER JOIN ${q(stream.table)} AS ${q('event_row')} ON ${q('event_row')}.${q('id')} = ${q('event_cursor')}.${q('gas_payment_id')}${gasPaymentMetadataJoins('LEFT JOIN')} WHERE ${q('event_cursor')}.${q('domain')} = $1 AND ${q('event_cursor')}.${q('interchain_gas_paymaster')} = $2::bytea AND ${q('event_cursor')}.${q('stream_cursor')} > $3::bigint AND ${q('event_cursor')}.${q('stream_cursor')} <= $4::bigint ORDER BY ${q('event_cursor')}.${q('stream_cursor')} ASC LIMIT $5`,
+      `SELECT ${gasPaymentColumns(stream)}, ${q('event_cursor')}.${q('stream_cursor')} AS ${q(STREAM_CURSOR_COLUMN)} FROM (SELECT ${q('gas_payment_id')}, ${q('stream_cursor')} FROM ${q(GAS_PAYMENT_STREAM_CURSOR)} WHERE ${q('domain')} = $1 AND ${q('interchain_gas_paymaster')} = $2::bytea AND ${q('stream_cursor')} > $3::bigint AND ${q('stream_cursor')} <= $4::bigint ORDER BY ${q('stream_cursor')} ASC LIMIT $5) AS ${q('event_cursor')} INNER JOIN ${q(stream.table)} AS ${q('event_row')} ON ${q('event_row')}.${q('id')} = ${q('event_cursor')}.${q('gas_payment_id')}${gasPaymentMetadataJoins('LEFT JOIN')} ORDER BY ${q('event_cursor')}.${q('stream_cursor')} ASC`,
       [
         storedDomain(cursor.domain),
         cursor.address,
@@ -1028,7 +1063,7 @@ export class EventWebSocketServer {
   private async connectListener(): Promise<void> {
     try {
       this.stopListening = await this.db.listen(
-        [EVENT_CHANNEL, EXPLORER_CHANNEL],
+        [EVENT_CHANNEL, EXPLORER_CHANNEL, HEAD_CHANNEL],
         (channel, payload) => this.queueNotification(channel, payload),
         (error) => this.listenerDisconnected(error),
       );
@@ -1044,22 +1079,29 @@ export class EventWebSocketServer {
     payload: string | undefined,
   ): void {
     try {
-      if (channel === EXPLORER_CHANNEL) {
-        if (!this.explorerClients.size) return;
-        const messageId = parseExplorerNotification(payload).messageId;
+      if (channel === HEAD_CHANNEL) {
+        if (!this.clients.size && !this.explorerClients.size) return;
+        const head = parseHeadNotification(payload);
         if (
-          !this.explorerNotifications.has(messageId) &&
-          this.explorerNotifications.size >= MAX_PENDING_NOTIFICATIONS
-        ) {
-          websocketSendFailures.inc({ reason: 'notification_queue_limit' });
-          websocketNotificationQueueOverflows.inc({ route: 'messages' });
-          this.failExplorerStream(
-            new Error('Explorer notification queue limit exceeded'),
-          );
+          head.previousConfirmedHeight === undefined ||
+          head.confirmedHeight <= head.previousConfirmedHeight
+        )
           return;
-        }
-        this.explorerNotifications.add(messageId);
-        this.scheduleExplorerDrain();
+        const current = this.headRanges.get(head.domain);
+        this.headRanges.set(head.domain, {
+          after:
+            current && current.after < head.previousConfirmedHeight
+              ? current.after
+              : head.previousConfirmedHeight,
+          through:
+            current && current.through > head.confirmedHeight
+              ? current.through
+              : head.confirmedHeight,
+        });
+        this.scheduleHeadDrain();
+      } else if (channel === EXPLORER_CHANNEL) {
+        const messageId = parseExplorerNotification(payload).messageId;
+        this.queueExplorerNotification(messageId);
       } else {
         const notification = parseEventNotification(payload);
         if (!this.hasSubscriber(notification)) return;
@@ -1068,7 +1110,9 @@ export class EventWebSocketServer {
           !this.notifications.has(key) &&
           this.notifications.size >= MAX_PENDING_NOTIFICATIONS
         ) {
-          websocketSendFailures.inc({ reason: 'notification_queue_limit' });
+          websocketSendFailures.inc({
+            reason: 'notification_queue_limit',
+          });
           websocketNotificationQueueOverflows.inc({ route: 'agent' });
           this.failAgentStream(
             new Error('Agent notification queue limit exceeded'),
@@ -1097,6 +1141,20 @@ export class EventWebSocketServer {
     }
   }
 
+  private scheduleHeadDrain(delay = NOTIFICATION_BATCH_MS): void {
+    if (!this.headNotificationTimer && !this.drainingHeadNotifications) {
+      this.headNotificationTimer = setTimeout(() => {
+        this.headNotificationTimer = undefined;
+        void this.drainHeadNotifications().catch((error) => {
+          this.logger.error(
+            `frontier publication failed: ${formatError(error)}`,
+          );
+          this.scheduleHeadDrain(LISTENER_RETRY_MS);
+        });
+      }, delay);
+    }
+  }
+
   private scheduleExplorerDrain(): void {
     if (
       !this.explorerNotificationTimer &&
@@ -1109,6 +1167,23 @@ export class EventWebSocketServer {
         );
       }, NOTIFICATION_BATCH_MS);
     }
+  }
+
+  private queueExplorerNotification(messageId: string): void {
+    if (!this.explorerClients.size) return;
+    if (
+      !this.explorerNotifications.has(messageId) &&
+      this.explorerNotifications.size >= MAX_PENDING_NOTIFICATIONS
+    ) {
+      websocketSendFailures.inc({ reason: 'notification_queue_limit' });
+      websocketNotificationQueueOverflows.inc({ route: 'messages' });
+      this.failExplorerStream(
+        new Error('Explorer notification queue limit exceeded'),
+      );
+      return;
+    }
+    this.explorerNotifications.add(messageId);
+    this.scheduleExplorerDrain();
   }
 
   private async drainAgentNotifications(): Promise<void> {
@@ -1137,6 +1212,184 @@ export class EventWebSocketServer {
     }
   }
 
+  private async drainHeadNotifications(): Promise<void> {
+    if (this.drainingHeadNotifications) return;
+    this.drainingHeadNotifications = true;
+    try {
+      for (const [domain, range] of this.headRanges) {
+        try {
+          await this.publishHeadRange(domain, range);
+          this.headFailures.delete(domain);
+        } catch (error) {
+          const failure =
+            error instanceof HeadPublicationError
+              ? error
+              : new HeadPublicationError(error, false, false);
+          if (failure.partialAgent) {
+            this.logger.error(failure.message);
+            this.failAgentDomain(domain, failure.original);
+            if (failure.explorerAffected && this.explorerClients.size)
+              this.failExplorerStream(failure.original);
+            this.releaseHeadRange(domain, range);
+            this.headFailures.delete(domain);
+            continue;
+          }
+          const failures = (this.headFailures.get(domain) ?? 0) + 1;
+          this.headFailures.set(domain, failures);
+          this.logger.error(
+            `frontier publication failed for domain ${domain} (${failures}/${MAX_HEAD_PUBLICATION_FAILURES}): ${formatError(error)}`,
+          );
+          if (failures >= MAX_HEAD_PUBLICATION_FAILURES) {
+            this.failAgentDomain(domain, failure.original);
+            if (failure.explorerAffected && this.explorerClients.size)
+              this.failExplorerStream(failure.original);
+            this.releaseHeadRange(domain, range);
+            this.headFailures.delete(domain);
+          }
+          continue;
+        }
+        this.releaseHeadRange(domain, range);
+      }
+    } finally {
+      this.drainingHeadNotifications = false;
+      if (this.headRanges.size)
+        this.scheduleHeadDrain(
+          this.headFailures.size ? LISTENER_RETRY_MS : NOTIFICATION_BATCH_MS,
+        );
+    }
+  }
+
+  /** Drop a handled range, keeping any extension that arrived meanwhile. */
+  private releaseHeadRange(domain: number, range: HeadRange): void {
+    const current = this.headRanges.get(domain);
+    if (!current) return;
+    if (current.through <= range.through) {
+      this.headRanges.delete(domain);
+    } else {
+      this.headRanges.set(domain, {
+        after: range.through,
+        through: current.through,
+      });
+    }
+  }
+
+  private async publishHeadRange(
+    domain: number,
+    { after, through }: HeadRange,
+  ): Promise<void> {
+    let agentPublished = false;
+    let explorerPending = this.explorerClients.size > 0;
+    // Delivery and gas share message ids; queue each Explorer id once per range.
+    const explorerIds = new Set<string>();
+    for (const eventType of HEAD_PUBLICATION_ORDER) {
+      const agentInterested = this.hasSubscriber({
+        domain,
+        eventType,
+        id: 0n,
+      });
+      const explorerInterested =
+        this.explorerClients.size > 0 &&
+        (eventType === 'delivery' || eventType === 'gas_payment');
+      if (!agentInterested && !explorerInterested) continue;
+      const stream = STREAMS[eventType];
+      const height =
+        eventType === 'dispatch' ? 'origin_block_height' : 'block_number';
+      const gasPaymentCursor =
+        eventType === 'gas_payment'
+          ? ` LEFT JOIN ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} ON ${q('event_cursor')}.${q('gas_payment_id')} = ${q('event_row')}.${q('id')}`
+          : '';
+      const gasPaymentMetadata =
+        eventType === 'gas_payment' ? gasPaymentMetadataJoins('LEFT JOIN') : '';
+      const eventProjection =
+        eventType === 'gas_payment'
+          ? gasPaymentColumns(stream)
+          : columns(stream, 'event_row');
+      const cursorProjection =
+        eventType === 'gas_payment'
+          ? `, ${q('event_cursor')}.${q('stream_cursor')} AS ${q(STREAM_CURSOR_COLUMN)}`
+          : '';
+      let cursorHeight = after;
+      let cursorId = 0n;
+      try {
+        while (true) {
+          const rows = await this.db.queryLive<Row>(
+            `SELECT ${eventProjection}${cursorProjection}, ${q('event_row')}.${q('id')} AS ${q(FRONTIER_ID)}, ${q('event_row')}.${q(height)} AS ${q(FRONTIER_HEIGHT)} FROM (SELECT * FROM ${q(stream.table)} AS ${q('frontier_row')} WHERE ${q('frontier_row')}.${q(stream.domain)}=$1 AND ${q('frontier_row')}.${q(height)}>$2::bigint AND ${q('frontier_row')}.${q(height)}<=$3::bigint AND (${q('frontier_row')}.${q(height)}>$4::bigint OR (${q('frontier_row')}.${q(height)}=$4::bigint AND ${q('frontier_row')}.${q('id')}>$5::bigint)) ORDER BY ${q('frontier_row')}.${q(height)}, ${q('frontier_row')}.${q('id')} LIMIT $6) AS ${q('event_row')}${gasPaymentMetadata}${gasPaymentCursor} ORDER BY ${q('event_row')}.${q(height)}, ${q('event_row')}.${q('id')}`,
+            [
+              storedDomain(domain),
+              after.toString(),
+              through.toString(),
+              cursorHeight.toString(),
+              cursorId.toString(),
+              config.EVENT_STREAM_BATCH_SIZE,
+            ],
+          );
+          if (!rows.length) break;
+          const lastByHeight = rows.at(-1)!;
+          const nextHeight = parseId(lastByHeight[FRONTIER_HEIGHT]);
+          const nextId = parseId(lastByHeight[FRONTIER_ID]);
+          const events = rows.map(
+            ({ [FRONTIER_ID]: _id, [FRONTIER_HEIGHT]: _height, ...event }) =>
+              event,
+          );
+          events.sort((a, b) => compareRows(eventType, a, b));
+          if (agentInterested) {
+            agentPublished = true;
+            events.forEach((row) => this.publish(eventType, row));
+          }
+          if (explorerInterested && this.explorerClients.size) {
+            const batch: string[] = [];
+            events.forEach((row) => {
+              const messageId = row.msg_id ?? row.message_id;
+              if (
+                typeof messageId === 'string' &&
+                !explorerIds.has(messageId)
+              ) {
+                explorerIds.add(messageId);
+                batch.push(messageId);
+              }
+            });
+            // A range after an outage can hold more ids than the queue cap;
+            // queue page by page and let the drain make room first.
+            await this.waitForExplorerCapacity(batch.length);
+            batch.forEach((messageId) =>
+              this.queueExplorerNotification(messageId),
+            );
+          }
+          cursorHeight = nextHeight;
+          cursorId = nextId;
+          if (rows.length < config.EVENT_STREAM_BATCH_SIZE) break;
+        }
+      } catch (error) {
+        throw new HeadPublicationError(error, agentPublished, explorerPending);
+      }
+      if (eventType === 'gas_payment') explorerPending = false;
+    }
+  }
+
+  /** Wait until the Explorer queue can take `count` more ids without overflowing. */
+  private async waitForExplorerCapacity(count: number): Promise<void> {
+    const limit = MAX_PENDING_NOTIFICATIONS - count;
+    while (
+      this.explorerClients.size &&
+      this.explorerNotifications.size > limit
+    ) {
+      if (this.drainingExplorerNotifications) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, NOTIFICATION_BATCH_MS),
+        );
+        continue;
+      }
+      clearTimeout(this.explorerNotificationTimer);
+      this.explorerNotificationTimer = undefined;
+      try {
+        await this.drainExplorerNotifications();
+      } catch (error) {
+        // Explorer failures stay on the Explorer stream; agents keep publishing.
+        this.failExplorerStream(error);
+      }
+    }
+  }
+
   private async drainExplorerNotifications(): Promise<void> {
     if (this.drainingExplorerNotifications) return;
     this.drainingExplorerNotifications = true;
@@ -1153,6 +1406,7 @@ export class EventWebSocketServer {
       }
     } finally {
       this.drainingExplorerNotifications = false;
+      if (this.explorerNotifications.size) this.scheduleExplorerDrain();
     }
   }
 
@@ -1305,6 +1559,22 @@ export class EventWebSocketServer {
     this.closeAgentClients('Event stream read failed');
   }
 
+  private failAgentDomain(domain: number, error: unknown): void {
+    this.logger.error(
+      `agent event stream failed for domain ${domain}: ${formatError(error)}`,
+    );
+    for (const [socket, client] of this.clients) {
+      if (
+        [...client.subscriptions.values()].some((subscription) =>
+          matchesDomain(subscription, domain),
+        )
+      ) {
+        this.disconnect(socket);
+        socket.close(1013, 'Event stream read failed');
+      }
+    }
+  }
+
   private failExplorerStream(error: unknown): void {
     this.logger.error(`Explorer event stream failed: ${formatError(error)}`);
     this.closeExplorerClients('Event stream read failed');
@@ -1317,6 +1587,8 @@ export class EventWebSocketServer {
 
   private closeAgentClients(reason: string, code = 1013): void {
     this.notifications.clear();
+    this.headRanges.clear();
+    this.headFailures.clear();
     this.clients.forEach((_client, socket) => {
       this.cancelCatchUp(socket);
       socket.close(code, reason);

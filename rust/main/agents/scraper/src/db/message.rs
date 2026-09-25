@@ -15,7 +15,10 @@ use migration::{Alias, Expr, Func, OnConflict};
 use crate::date_time;
 use crate::db::ScraperDb;
 
-use super::generated::{delivered_message, message};
+use super::{
+    confirmed_event,
+    generated::{delivered_message, message},
+};
 
 #[derive(Debug, Clone)]
 pub struct StorableDelivery<'a> {
@@ -62,7 +65,11 @@ impl ScraperDb {
         sequence: u32,
     ) -> Result<Option<Delivery>> {
         if let Some(msg_id) = delivered_message::Entity::find()
-            .filter(sea_orm::sea_query::Expr::cust("confirmed"))
+            .filter(confirmed_event(
+                "delivered_message",
+                "domain",
+                "block_number",
+            ))
             .select_only()
             .column(delivered_message::Column::MsgId)
             .filter(delivered_message::Column::Domain.eq(destination_domain))
@@ -93,7 +100,11 @@ impl ScraperDb {
         sequence: u32,
     ) -> Result<Option<u64>> {
         let tx_id_query = delivered_message::Entity::find()
-            .filter(sea_orm::sea_query::Expr::cust("confirmed"))
+            .filter(confirmed_event(
+                "delivered_message",
+                "domain",
+                "block_number",
+            ))
             .filter(delivered_message::Column::Domain.eq(destination_domain))
             .filter(
                 delivered_message::Column::DestinationMailbox
@@ -109,7 +120,11 @@ impl ScraperDb {
 
     async fn latest_deliveries_id(&self, domain: u32, destination_mailbox: Vec<u8>) -> Result<i64> {
         let result = delivered_message::Entity::find()
-            .filter(sea_orm::sea_query::Expr::cust("confirmed"))
+            .filter(confirmed_event(
+                "delivered_message",
+                "domain",
+                "block_number",
+            ))
             .select_only()
             .column_as(delivered_message::Column::Id.max(), "max_id")
             .filter(delivered_message::Column::Domain.eq(domain))
@@ -133,7 +148,11 @@ impl ScraperDb {
         prev_id: i64,
     ) -> Result<u64> {
         Ok(delivered_message::Entity::find()
-            .filter(sea_orm::sea_query::Expr::cust("confirmed"))
+            .filter(confirmed_event(
+                "delivered_message",
+                "domain",
+                "block_number",
+            ))
             .filter(delivered_message::Column::Domain.eq(domain))
             .filter(delivered_message::Column::DestinationMailbox.eq(destination_mailbox))
             .filter(delivered_message::Column::Id.gt(prev_id))

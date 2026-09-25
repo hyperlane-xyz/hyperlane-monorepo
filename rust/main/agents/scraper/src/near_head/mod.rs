@@ -84,8 +84,11 @@ pub async fn spawn(
         db: legacy.db.clone_connection(),
         domain: conf.domain.id(),
     };
+    ensure!(
+        source.has_historical_counts() || store.state().await?.is_some(),
+        "Non-EVM near-head indexing requires an explicit verified scraper_head cutover"
+    );
     let anchor_height = store.anchor_height(u32::try_from(conf.index.from)?).await?;
-    store.pause(false).await?;
     let anchor = source.header(BlockSelector::Height(anchor_height)).await?;
     let period = conf.reorg_period.clone();
     ensure!(conf.index.chunk_size > 0, "index.chunk must be positive");
@@ -133,7 +136,10 @@ async fn prepare(
     // indexed height. The observation loop waits for lagging providers and
     // checks retained ancestry before publishing anything.
     let hash = match store.state().await? {
-        Some(_) => source.header(BlockSelector::Latest).await?.hash,
+        Some(_) => {
+            store.validate_checkpoints().await?;
+            source.header(BlockSelector::Latest).await?.hash
+        }
         None => anchor.hash,
     };
     if source.has_historical_counts() {
@@ -202,12 +208,14 @@ async fn ingest(
     ingest_cached(source, store, state, chunk_size, &mut None).await
 }
 
+type CountCache = Option<(ethers::types::H256, [u32; 4], Option<u64>)>;
+
 async fn ingest_cached(
     source: &dyn Source,
     store: &Store,
     state: &State,
     chunk_size: u64,
-    count_cache: &mut Option<(ethers::types::H256, [u32; 4])>,
+    count_cache: &mut CountCache,
 ) -> Result<bool> {
     ensure!(chunk_size > 0, "Empty indexing range");
     if state.indexed == state.head {
@@ -219,10 +227,12 @@ async fn ingest_cached(
         .await?;
     let end = boundary.height;
     let mut by_block = BTreeMap::<u64, Vec<source::Event>>::new();
-    let cached = count_cache.filter(|(hash, _)| *hash == state.hash);
+    let cached = count_cache
+        .as_ref()
+        .filter(|(hash, _, _)| *hash == state.hash);
     let start_counts = async {
         match cached {
-            Some((_, counts)) => Ok::<_, eyre::Report>(counts),
+            Some((_, counts, _)) => Ok::<_, eyre::Report>(*counts),
             None => {
                 let mut counts = store.sequence_counts().await?;
                 if source.has_historical_counts() {
@@ -262,9 +272,11 @@ async fn ingest_cached(
             "Incomplete event range"
         );
     }
-    if let Some(watermarks) = batch.watermarks {
-        validate_watermarks(validated_counts, boundary.height, watermarks)?;
-    }
+    let verified_through = batch
+        .watermarks
+        .map(|watermarks| validate_watermarks(validated_counts, boundary.height, watermarks))
+        .transpose()?
+        .flatten();
     for event in events {
         ensure!(
             event.block_number > state.indexed && event.block_number <= end,
@@ -308,7 +320,7 @@ async fn ingest_cached(
     );
     verify(source, &boundary).await?;
     store.append(state, &blocks).await?;
-    *count_cache = Some((boundary.hash, validated_counts));
+    *count_cache = Some((boundary.hash, validated_counts, verified_through));
     Ok(end < state.head)
 }
 
@@ -316,18 +328,20 @@ fn validate_watermarks(
     counts: [u32; 4],
     indexed_height: u64,
     watermarks: [(Option<u32>, u32); 4],
-) -> Result<()> {
+) -> Result<Option<u64>> {
+    let mut verified_through = indexed_height;
     for (stream, (expected, tip)) in watermarks.into_iter().enumerate() {
-        if u64::from(tip) <= indexed_height {
-            if let Some(expected) = expected {
-                ensure!(
-                    counts[stream] >= expected,
-                    "Incomplete finalized event sequence"
-                );
-            }
+        let Some(expected) = expected else { continue };
+        if u64::from(tip) > indexed_height {
+            return Ok(None);
         }
+        ensure!(
+            counts[stream] == expected,
+            "Incomplete finalized event sequence"
+        );
+        verified_through = verified_through.min(u64::from(tip));
     }
-    Ok(())
+    Ok(Some(verified_through))
 }
 
 #[cfg(test)]
@@ -366,14 +380,49 @@ async fn verify(source: &dyn Source, header: &Header) -> Result<()> {
     Ok(())
 }
 
+/// Shortest lease on a head observation that confirmation will accept.
+const MIN_CONFIRMATION_LEASE: Duration = Duration::from_secs(60);
+
+/// Confirmation needs a recent healthy observation: pauses clear `healthy`, so a
+/// lagging or reorging RPC stops publication. It does not need
+/// a fresh one: confirmation rechecks ancestry against the RPC before
+/// committing, and an older head only lowers the depth/tag boundary. The lease
+/// therefore spans one poll plus database latency rather than equalling it.
+fn confirmation_lease(poll_interval: Duration) -> Duration {
+    poll_interval.saturating_mul(2).max(MIN_CONFIRMATION_LEASE)
+}
+
+#[cfg(test)]
 async fn confirm(source: &dyn Source, store: &Store, period: &ReorgPeriod) -> Result<[u64; 4]> {
+    Ok(
+        confirm_leased(source, store, period, MIN_CONFIRMATION_LEASE, None)
+            .await?
+            .counts,
+    )
+}
+
+struct Confirmation {
+    counts: [u64; 4],
+    page_limited: bool,
+}
+
+async fn confirm_leased(
+    source: &dyn Source,
+    store: &Store,
+    period: &ReorgPeriod,
+    lease: Duration,
+    publication_cap: Option<u64>,
+) -> Result<Confirmation> {
     let state = store
         .state()
         .await?
         .ok_or_else(|| eyre::eyre!("Missing head state"))?;
     ensure!(!state.halted, "Confirmed history requires operator repair");
     if state.indexed == state.confirmed {
-        return Ok([0; 4]);
+        return Ok(Confirmation {
+            counts: [0; 4],
+            page_limited: false,
+        });
     }
     let tagged = match period {
         ReorgPeriod::Tag(tag) if tag != "latest" => Some(source.header(tag_selector(tag)?).await?),
@@ -386,18 +435,24 @@ async fn confirm(source: &dyn Source, store: &Store, period: &ReorgPeriod) -> Re
             .map(|header| header.height)
             .unwrap_or(state.head),
     };
-    ensure!(
-        through <= state.head,
-        "Confirmation tag is ahead of the observed head"
-    );
+    // A tag read after the head observation can be newer than it. Everything up
+    // to the observed head is then final; confirm only that observed history.
+    let through = through
+        .min(state.head)
+        .min(publication_cap.unwrap_or(u64::MAX));
     if through <= state.confirmed {
-        return Ok([0; 4]);
+        return Ok(Confirmation {
+            counts: [0; 4],
+            page_limited: false,
+        });
     }
-    let through = store
-        .confirmation_boundary(state.confirmed, through.min(state.indexed))
-        .await?;
+    let target = through.min(state.indexed);
+    let through = store.confirmation_boundary(state.confirmed, target).await?;
     if through <= state.confirmed {
-        return Ok([0; 4]);
+        return Ok(Confirmation {
+            counts: [0; 4],
+            page_limited: false,
+        });
     }
     let boundary = match tagged {
         Some(header) if header.height == through => header,
@@ -423,7 +478,10 @@ async fn confirm(source: &dyn Source, store: &Store, period: &ReorgPeriod) -> Re
         indexed_hash == state.hash,
         "Indexed fork changed before confirmation"
     );
-    store.confirm(&state, &boundary).await
+    Ok(Confirmation {
+        counts: store.confirm(&state, &boundary, lease).await?,
+        page_limited: through < target,
+    })
 }
 
 fn tag_selector(tag: &str) -> Result<BlockSelector> {

@@ -27,19 +27,19 @@ pub(super) struct Header {
     pub parent: EthersH256,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Event {
     pub block_number: u64,
     pub block_hash: EthersH256,
     pub address: H256,
-    pub tx_hash: H512,
+    pub tx_hash: Option<H512>,
     pub tx_index: u64,
     pub log_index: u64,
     pub sequence: Option<u32>,
     pub data: EventData,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum EventData {
     Dispatch(HyperlaneMessage),
     Delivery(H256),
@@ -305,10 +305,11 @@ fn decode(contracts: &EvmContracts, domain: u32, log: Log) -> Result<Option<Even
         block_hash: log.block_hash.ok_or_else(|| eyre!("Missing block hash"))?,
         data,
         address: log.address.into(),
-        tx_hash: log
-            .transaction_hash
-            .ok_or_else(|| eyre!("Missing transaction hash"))?
-            .into(),
+        tx_hash: Some(
+            log.transaction_hash
+                .ok_or_else(|| eyre!("Missing transaction hash"))?
+                .into(),
+        ),
         tx_index: log
             .transaction_index
             .ok_or_else(|| eyre!("Missing transaction index"))?
@@ -365,7 +366,7 @@ impl GenericSource {
             block_number: meta.block_number,
             block_hash: meta.block_hash.into(),
             address,
-            tx_hash: meta.transaction_id,
+            tx_hash: (!meta.transaction_id.is_zero()).then_some(meta.transaction_id),
             tx_index: meta.transaction_index,
             log_index: meta.log_index.as_u64(),
             sequence: indexed.sequence,
@@ -455,6 +456,31 @@ impl GenericSource {
         }
         Ok(())
     }
+
+    fn normalize_events(events: &mut Vec<Event>) -> Result<()> {
+        events.sort_by_key(|event| (event.block_number, event.tx_index, event.log_index));
+        events.dedup();
+        Self::normalize_gas_positions(events)
+    }
+
+    async fn header_at(&self, height: u64) -> hyperlane_core::ChainResult<Header> {
+        let block = self.provider.get_block_by_height(height).await?;
+        if block.number != height {
+            return Err(
+                hyperlane_core::HyperlaneProviderError::IncorrectBlockByHeight(
+                    height,
+                    block.number,
+                )
+                .into(),
+            );
+        }
+        Ok(Header {
+            height,
+            timestamp: block.timestamp,
+            hash: block.hash.into(),
+            parent: EthersH256::zero(),
+        })
+    }
 }
 
 #[async_trait]
@@ -473,17 +499,7 @@ impl Source for GenericSource {
                 u64::from(self.messages.latest_sequence_count_and_tip().await?.1)
             }
         };
-        let block = self.provider.get_block_by_height(height).await?;
-        ensure!(
-            block.number == height,
-            "RPC returned incorrect block height"
-        );
-        Ok(Header {
-            height,
-            timestamp: block.timestamp,
-            hash: block.hash.into(),
-            parent: EthersH256::zero(),
-        })
+        Ok(self.header_at(height).await?)
     }
 
     async fn range_end(&self, after: u64, through: u64, head: u64) -> Result<Header> {
@@ -491,16 +507,24 @@ impl Source for GenericSource {
         ensure!(through <= head, "Range boundary is ahead of head");
         let mut first_error = None;
         for height in (after.saturating_add(1)..=through).rev() {
-            match self.header(BlockSelector::Height(height)).await {
+            match self.header_at(height).await {
                 Ok(header) => return Ok(header),
-                Err(error) => first_error.get_or_insert(error),
-            };
+                Err(error) if self.provider.is_block_not_found_error(&error) => {
+                    first_error.get_or_insert(eyre::Report::new(error));
+                }
+                Err(error) => return Err(error.into()),
+            }
         }
         // An entire chunk may consist of skipped slots. Advance to the first
         // real block after it without treating nonexistent slots as headers.
-        for height in through.saturating_add(1)..=head {
-            if let Ok(header) = self.header(BlockSelector::Height(height)).await {
-                return Ok(header);
+        let limit = head.min(through.saturating_add(through.saturating_sub(after)));
+        for height in through.saturating_add(1)..=limit {
+            match self.header_at(height).await {
+                Ok(header) => return Ok(header),
+                Err(error) if self.provider.is_block_not_found_error(&error) => {
+                    first_error.get_or_insert(eyre::Report::new(error));
+                }
+                Err(error) => return Err(error.into()),
             }
         }
         Err(first_error.unwrap_or_else(|| eyre!("No canonical block in indexing range")))
@@ -592,8 +616,7 @@ impl Source for GenericSource {
             };
             events.push(Self::event(&indexed, meta, self.contracts.hook, data)?);
         }
-        events.sort_by_key(|event| (event.block_number, event.tx_index, event.log_index));
-        Self::normalize_gas_positions(&mut events)?;
+        Self::normalize_events(&mut events)?;
         ensure!(
             events.iter().all(|event| event.block_number >= from),
             "Indexer returned an event from a different block"
@@ -722,12 +745,12 @@ mod tests {
     }
 
     #[test]
-    fn generic_gas_positions_are_unique_per_block() -> Result<()> {
+    fn generic_events_are_deduplicated_and_gas_positions_are_unique_per_block() -> Result<()> {
         let event = |block_number, log_index| Event {
             block_number,
             block_hash: EthersH256::zero(),
             address: H256::zero(),
-            tx_hash: H512::zero(),
+            tx_hash: None,
             tx_index: 0,
             log_index,
             sequence: None,
@@ -739,13 +762,13 @@ mod tests {
             },
         };
         let mut events = vec![event(7, 0), event(7, 0), event(8, 0)];
-        GenericSource::normalize_gas_positions(&mut events)?;
+        GenericSource::normalize_events(&mut events)?;
         assert_eq!(
             events
                 .into_iter()
                 .map(|event| event.log_index)
                 .collect::<Vec<_>>(),
-            vec![0, 1, 0]
+            vec![0, 0]
         );
         Ok(())
     }

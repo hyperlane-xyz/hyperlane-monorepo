@@ -231,7 +231,7 @@ pub struct Relayer {
     runtime_metrics: RuntimeMetrics,
     scraper_websocket_monitor: Option<ScraperWebSocketMonitor>,
     scraper_websocket_authority: HashMap<u32, ScraperAuthorityReceiver>,
-    gas_payment_websocket_authority: Option<watch::Receiver<bool>>,
+    gas_payment_websocket_authority: HashMap<u32, watch::Receiver<bool>>,
     /// Tokio console server
     pub tokio_console_server: Option<console_subscriber::Server>,
 
@@ -443,9 +443,15 @@ impl BaseAgent for Relayer {
                 )
             })
             .transpose()?;
-        let gas_payment_websocket_authority = scraper_websocket_monitor
-            .as_ref()
-            .and_then(ScraperWebSocketMonitor::gas_payment_authority_receiver);
+        let gas_payment_websocket_authority = origins
+            .keys()
+            .filter_map(|domain| {
+                scraper_websocket_monitor
+                    .as_ref()
+                    .and_then(|monitor| monitor.gas_payment_authority_receiver(domain.id()))
+                    .map(|authority| (domain.id(), authority))
+            })
+            .collect();
         let scraper_websocket_authority = origins
             .keys()
             .filter_map(|domain| {
@@ -1180,7 +1186,10 @@ impl Relayer {
             }
         };
         let critical_errors = self.critical_errors.clone();
-        let authority = self.gas_payment_websocket_authority.clone();
+        let authority = self
+            .gas_payment_websocket_authority
+            .get(&origin.domain.id())
+            .cloned();
 
         let origin_domain = origin.domain.clone();
         let index_settings = origin.chain_conf.index_settings().clone();

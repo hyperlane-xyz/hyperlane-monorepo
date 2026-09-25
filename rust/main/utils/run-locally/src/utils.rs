@@ -228,7 +228,8 @@ pub fn start_postgres() -> AgentHandles {
         .spawn("SQL", None)
 }
 
-/// Poll postgres container until pg_isready succeeds.
+/// Poll postgres container until pg_isready succeeds over TCP. The image's
+/// temporary init server only listens on the Unix socket and then shuts down.
 #[allow(dead_code)]
 pub fn wait_for_postgres() {
     use std::thread::sleep;
@@ -241,6 +242,8 @@ pub fn wait_for_postgres() {
                 "exec",
                 "scraper-testnet-postgres",
                 "pg_isready",
+                "-h",
+                "127.0.0.1",
                 "-U",
                 "postgres",
             ])

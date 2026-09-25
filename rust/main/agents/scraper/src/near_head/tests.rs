@@ -15,6 +15,7 @@ use migration::MigratorTrait;
 use sea_orm::{ConnectionTrait, Database, DbBackend, Statement, TransactionTrait};
 use testcontainers::{runners::AsyncRunner, ImageExt};
 use testcontainers_modules::postgres::Postgres;
+use tokio::time::timeout;
 
 use super::*;
 use source::{Event, EventData};
@@ -142,7 +143,7 @@ impl Source for Chain {
                 header.hash
             },
             address: H160::repeat_byte(1).into(),
-            tx_hash: header.hash.into(),
+            tx_hash: Some(header.hash.into()),
             tx_index: 0,
             log_index: u64::try_from(index).unwrap(),
             sequence: None,
@@ -176,6 +177,11 @@ async fn seed_verified_cutover(store: &Store, anchor: &Header) -> Result<()> {
         "INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster) VALUES($1,$2,$2,$3,$2,$2,$4,$5,$6)",
         [domain.into(), height.into(), anchor.hash.as_bytes().to_vec().into(), hyperlane_core::address_to_bytes(&contracts.mailbox).into(), hyperlane_core::address_to_bytes(&contracts.hook).into(), hyperlane_core::address_to_bytes(&contracts.paymaster).into()],
     )).await?;
+    tx.execute(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "INSERT INTO scraper_checkpoint(domain,height,hash,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC')",
+        [domain.into(), height.into(), anchor.hash.as_bytes().to_vec().into(), i64::try_from(anchor.timestamp)?.into()],
+    )).await?;
     tx.commit().await?;
     Ok(())
 }
@@ -199,6 +205,249 @@ async fn count(store: &Store, relation: &str) -> Result<i64> {
 }
 
 #[tokio::test]
+async fn checkpoint_migration_backfills_an_existing_frontier() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    migration::Migrator::down(&db, Some(2)).await?;
+    db.execute_unprepared(
+        r#"
+        INSERT INTO block(domain,height,hash,timestamp) VALUES
+          (1,7,decode(repeat('07',32),'hex'),now()),
+          (1,8,decode(repeat('08',32),'hex'),now());
+        INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,
+            head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster)
+        VALUES(1,7,8,decode(repeat('08',32),'hex'),8,7,
+            decode(repeat('01',20),'hex'),decode(repeat('02',20),'hex'),decode(repeat('03',20),'hex'));
+        "#,
+    )
+    .await?;
+    let error = migration::Migrator::up(&db, None)
+        .await
+        .expect_err("migration must reject a recently active writer");
+    assert!(error.to_string().contains("updated in the last 90 seconds"));
+    db.execute_unprepared(
+        "UPDATE scraper_head SET updated_at=clock_timestamp()-interval '2 minutes'",
+    )
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    let confirmation_columns = db
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT count(*) AS count FROM pg_attribute WHERE attrelid IN ('raw_message_dispatch'::regclass,'delivered_message'::regclass,'gas_payment'::regclass,'merkle_tree_insertion'::regclass) AND attname='confirmed' AND NOT attisdropped".to_owned(),
+        ))
+        .await?
+        .unwrap()
+        .try_get::<i64>("", "count")?;
+    assert_eq!(confirmation_columns, 0);
+    let store = Store { db, domain: 1 };
+    assert_eq!(store.checkpoint(7).await?, 7);
+    assert_eq!(store.hash(7).await?, Some(H256::repeat_byte(7)));
+    assert_eq!(store.hash(8).await?, Some(H256::repeat_byte(8)));
+    store
+        .db
+        .execute_unprepared("DELETE FROM block WHERE domain=1 AND height=8")
+        .await?;
+    migration::Migrator::down(&store.db, Some(1)).await?;
+    let restored_confirmed = store
+        .db
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT bool_and(confirmed) AS confirmed FROM delivered_message".to_owned(),
+        ))
+        .await?;
+    assert!(restored_confirmed.is_some());
+    migration::Migrator::down(&store.db, Some(1)).await?;
+    let restored = store
+        .db
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT hash FROM block WHERE domain=1 AND height=8".to_owned(),
+        ))
+        .await?
+        .expect("down migration restores the indexed checkpoint");
+    assert_eq!(restored.try_get::<Vec<u8>>("", "hash")?, vec![8; 32]);
+    Ok(())
+}
+
+#[tokio::test]
+async fn checkpoint_migration_rejects_a_missing_indexed_boundary() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    migration::Migrator::down(&db, Some(2)).await?;
+    db.execute_unprepared(
+        r#"
+        INSERT INTO block(domain,height,hash,timestamp)
+        VALUES(1,7,decode(repeat('07',32),'hex'),now());
+        INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,
+            head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster)
+        VALUES(1,7,8,decode(repeat('08',32),'hex'),8,7,
+            decode(repeat('01',20),'hex'),decode(repeat('02',20),'hex'),decode(repeat('03',20),'hex'));
+        UPDATE scraper_head SET updated_at=clock_timestamp()-interval '2 minutes';
+        "#,
+    )
+    .await?;
+    let error = migration::Migrator::up(&db, None)
+        .await
+        .expect_err("migration must reject a missing indexed checkpoint");
+    assert!(error.to_string().contains("indexed near-head checkpoint"));
+    db.execute_unprepared(
+        "DELETE FROM block WHERE domain=1; INSERT INTO block(domain,height,hash,timestamp) VALUES(1,8,decode(repeat('08',32),'hex'),now())",
+    )
+    .await?;
+    let error = migration::Migrator::up(&db, None)
+        .await
+        .expect_err("migration must reject a missing confirmed checkpoint");
+    assert!(error.to_string().contains("confirmed near-head checkpoint"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn frontier_migration_preserves_legacy_null_heights_and_rolls_back() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let url = format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    );
+    let db = Database::connect(&url).await?;
+    migration::Migrator::up(&db, None).await?;
+    migration::Migrator::down(&db, Some(1)).await?;
+    db.execute_unprepared(
+        r#"
+        INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,
+          head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster)
+        VALUES(1,0,0,decode(repeat('01',32),'hex'),0,0,
+          decode(repeat('01',20),'hex'),decode(repeat('02',20),'hex'),decode(repeat('03',20),'hex'));
+        INSERT INTO scraper_checkpoint(domain,height,hash,timestamp)
+        VALUES(1,0,decode(repeat('01',32),'hex'),now());
+        INSERT INTO delivered_message(domain,destination_mailbox,msg_id,transaction_index,log_index)
+        VALUES(1,decode(repeat('01',20),'hex'),decode(repeat('04',32),'hex'),0,0);
+        INSERT INTO gas_payment(domain,interchain_gas_paymaster,msg_id,destination,
+          gas_amount,payment,origin,transaction_index,log_index)
+        VALUES(1,decode(repeat('03',20),'hex'),decode(repeat('04',32),'hex'),2,1,1,1,0,0);
+        "#,
+    )
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    for relation in ["confirmed_delivered_message", "confirmed_gas_payment"] {
+        assert_eq!(
+            db.query_one(Statement::from_string(
+                DbBackend::Postgres,
+                format!("SELECT count(*) AS n FROM {relation}"),
+            ))
+            .await?
+            .unwrap()
+            .try_get::<i64>("", "n")?,
+            1
+        );
+    }
+    let mut head_listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
+    head_listener.listen("scraper_head").await?;
+    migration::Migrator::down(&db, Some(1)).await?;
+    for relation in ["delivered_message", "gas_payment"] {
+        let row = db
+            .query_one(Statement::from_string(
+                DbBackend::Postgres,
+                format!("SELECT confirmed FROM {relation}"),
+            ))
+            .await?
+            .unwrap();
+        assert!(row.try_get::<bool>("", "confirmed")?);
+    }
+    db.execute_unprepared("UPDATE scraper_head SET healthy=NOT healthy")
+        .await?;
+    let payload = timeout(Duration::from_secs(1), head_listener.recv())
+        .await??
+        .payload()
+        .to_owned();
+    assert!(!payload.contains("previousConfirmedHeight"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn null_height_rows_on_near_head_domains_publish_on_insert() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let url = format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    );
+    let db = Database::connect(&url).await?;
+    migration::Migrator::up(&db, None).await?;
+    db.execute_unprepared(
+        r#"
+        INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,
+          head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster)
+        VALUES(1,0,0,decode(repeat('01',32),'hex'),0,0,
+          decode(repeat('01',20),'hex'),decode(repeat('02',20),'hex'),decode(repeat('03',20),'hex'));
+        "#,
+    )
+    .await?;
+    let mut events = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
+    events.listen("scraper_event").await?;
+    let mut explorer = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
+    explorer.listen("scraper_explorer_event").await?;
+
+    // Legacy writers (e.g. CCR deliveries) leave the height NULL: visible at once,
+    // never part of a frontier range, so they must publish on insert.
+    db.execute_unprepared(
+        r#"
+        INSERT INTO delivered_message(domain,destination_mailbox,msg_id,transaction_index,log_index)
+        VALUES(1,decode(repeat('01',20),'hex'),decode(repeat('04',32),'hex'),0,0);
+        INSERT INTO gas_payment(domain,interchain_gas_paymaster,msg_id,destination,
+          gas_amount,payment,origin,transaction_index,log_index)
+        VALUES(1,decode(repeat('03',20),'hex'),decode(repeat('04',32),'hex'),2,1,1,1,0,0);
+        "#,
+    )
+    .await?;
+    for expected in ["\"delivery\"", "\"gas_payment\""] {
+        let payload = timeout(Duration::from_secs(1), events.recv())
+            .await??
+            .payload()
+            .to_owned();
+        assert!(payload.contains(expected), "{payload}");
+    }
+    // Both rows share a message id in one transaction; PostgreSQL delivers
+    // identical payloads once.
+    timeout(Duration::from_secs(1), explorer.recv()).await??;
+    let cursors = db
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT count(*) AS n FROM gas_payment_stream_cursor WHERE domain=1",
+        ))
+        .await?
+        .unwrap()
+        .try_get::<i64>("", "n")?;
+    assert_eq!(cursors, 1);
+
+    // Near-head rows with a height still wait for the frontier.
+    db.execute_unprepared(
+        r#"
+        INSERT INTO delivered_message(domain,destination_mailbox,msg_id,transaction_index,
+          log_index,block_number,block_hash)
+        VALUES(1,decode(repeat('01',20),'hex'),decode(repeat('05',32),'hex'),0,1,5,
+          decode(repeat('06',32),'hex'));
+        "#,
+    )
+    .await?;
+    assert!(timeout(Duration::from_millis(300), events.recv())
+        .await
+        .is_err());
+    assert!(timeout(Duration::from_millis(300), explorer.recv())
+        .await
+        .is_err());
+    Ok(())
+}
+
+#[tokio::test]
 async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let url = format!(
@@ -209,7 +458,7 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     // Seed a legacy row before the migration. Existing IDs, visibility and
     // notifications must survive the additive schema change.
     migration::Migrator::up(&db, Some(14)).await?;
-    db.execute_unprepared("CREATE ROLE scraper_notification_reader; GRANT SELECT ON raw_message_dispatch TO scraper_notification_reader; INSERT INTO merkle_tree_insertion(domain,merkle_tree_hook,leaf_index,message_id,block_number) VALUES(1,decode(repeat('09',20),'hex'),0,decode(repeat('09',32),'hex'),0)").await?;
+    db.execute_unprepared("CREATE ROLE scraper_notification_reader; CREATE ROLE scraper_writer; GRANT SELECT ON raw_message_dispatch TO scraper_notification_reader; GRANT SELECT,INSERT,UPDATE ON block,raw_message_dispatch,delivered_message,gas_payment,merkle_tree_insertion TO scraper_writer; INSERT INTO merkle_tree_insertion(domain,merkle_tree_hook,leaf_index,message_id,block_number) VALUES(1,decode(repeat('09',20),'hex'),0,decode(repeat('09',32),'hex'),0)").await?;
     migration::Migrator::up(&db, None).await?;
     let permission = db
         .query_one(Statement::from_string(
@@ -220,12 +469,27 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
         .unwrap();
     assert!(permission.try_get::<bool>("", "head")?);
     assert!(permission.try_get::<bool>("", "events")?);
+    let writer_permission = db
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT has_table_privilege('scraper_writer','scraper_head','INSERT') AS head_insert,has_table_privilege('scraper_writer','scraper_head','UPDATE') AS head_update,has_table_privilege('scraper_writer','block','DELETE') AS block_delete,has_table_privilege('scraper_writer','raw_message_dispatch','DELETE') AS event_delete,has_table_privilege('scraper_writer','scraper_checkpoint','SELECT') AS checkpoint_select,has_table_privilege('scraper_writer','scraper_checkpoint','INSERT') AS checkpoint_insert,has_table_privilege('scraper_writer','scraper_checkpoint','DELETE') AS checkpoint_delete,has_table_privilege('scraper_notification_reader','scraper_checkpoint','SELECT') AS reader_checkpoint_select",
+        ))
+        .await?
+        .unwrap();
+    for privilege in [
+        "head_insert",
+        "head_update",
+        "block_delete",
+        "event_delete",
+        "checkpoint_select",
+        "checkpoint_insert",
+        "checkpoint_delete",
+    ] {
+        assert!(writer_permission.try_get::<bool>("", privilege)?);
+    }
+    assert!(!writer_permission.try_get::<bool>("", "reader_checkpoint_select")?);
     let mut listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
     listener.listen("scraper_event").await?;
-    let mut provisional_listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
-    provisional_listener
-        .listen("scraper_event_provisional")
-        .await?;
     let mut head_listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
     head_listener.listen("scraper_head").await?;
     let store = Store { db, domain: 1 };
@@ -234,6 +498,21 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     let anchor = chain.header(0u64.into()).await?;
     seed_verified_cutover(&store, &anchor).await?;
     store.initialize(&anchor, &contracts()).await?;
+    store.claim(Duration::from_secs(60)).await?;
+    store
+        .db
+        .execute_unprepared(
+            "UPDATE scraper_head SET writer_id='another-writer',writer_lease_until=clock_timestamp()+interval '1 minute'",
+        )
+        .await?;
+    assert!(store.claim(Duration::from_secs(60)).await.is_err());
+    store
+        .db
+        .execute_unprepared(
+            "UPDATE scraper_head SET writer_lease_until=clock_timestamp()-interval '1 second'",
+        )
+        .await?;
+    store.claim(Duration::from_secs(60)).await?;
     ingest_head(&chain, &store).await?;
     assert_eq!(
         store.state().await?.unwrap().indexed,
@@ -244,26 +523,6 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
         assert_eq!(count(&store, table).await?, 1);
         assert_eq!(count(&store, &format!("confirmed_{table}")).await?, 0);
     }
-    let mut provisional_event_types = std::collections::HashSet::new();
-    for _ in 0..4 {
-        let notice =
-            tokio::time::timeout(Duration::from_secs(2), provisional_listener.recv()).await??;
-        let event: serde_json::Value = serde_json::from_str(notice.payload())?;
-        assert_eq!(event["domain"], 1);
-        provisional_event_types.insert(event["eventType"].as_str().unwrap().to_owned());
-    }
-    assert_eq!(
-        provisional_event_types,
-        [
-            "dispatch",
-            "delivery",
-            "gas_payment",
-            "merkle_tree_insertion"
-        ]
-        .into_iter()
-        .map(str::to_owned)
-        .collect()
-    );
     for (expected_kind, expected_height) in
         [("initialized", "0"), ("progress", "0"), ("progress", "3")]
     {
@@ -279,10 +538,6 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
             .await
             .is_err(),
         "Provisional events must not notify legacy consumers"
-    );
-    assert!(
-        migration::Migrator::down(&store.db, Some(1)).await.is_err(),
-        "Rollback must not expose provisional rows"
     );
     assert_eq!(count(&store, "gas_payment_stream_cursor").await?, 0);
     assert_eq!(count(&store, "total_gas_payment").await?, 0);
@@ -309,15 +564,13 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     let rollback = rollback.expect("reorg must publish its rollback boundary");
     assert_eq!(rollback["previousIndexedHeight"], "3");
     assert_eq!(rollback["indexedHeight"], "1");
-    for _ in 0..4 {
-        let notice =
-            tokio::time::timeout(Duration::from_secs(2), provisional_listener.recv()).await??;
-        let event: serde_json::Value = serde_json::from_str(notice.payload())?;
-        assert_eq!(event["domain"], 1);
-    }
     assert!(
         store
-            .confirm(&before_reorg, &chain.header(2u64.into()).await?)
+            .confirm(
+                &before_reorg,
+                &chain.header(2u64.into()).await?,
+                MIN_CONFIRMATION_LEASE,
+            )
             .await
             .is_err(),
         "Stale fork snapshots cannot confirm replacements"
@@ -346,13 +599,12 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     for table in ["raw_message_dispatch", "delivered_message", "gas_payment"] {
         assert_eq!(count(&store, &format!("confirmed_{table}")).await?, 1);
     }
-    let mut event_types = std::collections::HashSet::new();
-    for _ in 0..4 {
-        let notice = tokio::time::timeout(Duration::from_secs(2), listener.recv()).await??;
-        let event: serde_json::Value = serde_json::from_str(notice.payload())?;
-        event_types.insert(event["eventType"].as_str().unwrap().to_owned());
-    }
-    assert_eq!(event_types.len(), 4);
+    assert!(
+        tokio::time::timeout(Duration::from_millis(50), listener.recv())
+            .await
+            .is_err(),
+        "Frontier confirmation must not emit per-row notifications"
+    );
     assert_eq!(count(&store, "confirmed_merkle_tree_insertion").await?, 2);
     assert_eq!(count(&store, "gas_payment_stream_cursor").await?, 1);
     confirm(&chain, &store, &ReorgPeriod::from_blocks(2)).await?;
@@ -376,6 +628,8 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
         .db
         .execute_unprepared(
             r#"
+        INSERT INTO block(domain,hash,height,timestamp)
+        VALUES(1,decode(repeat('aa',32),'hex'),1,now());
         INSERT INTO "transaction"(hash,block_id,gas_limit,nonce,sender,gas_used,cumulative_gas_used)
         SELECT g.transaction_hash,b.id,0,0,decode(repeat('11',20),'hex'),0,0
         FROM gas_payment g JOIN block b ON b.domain=g.domain AND b.height=1;
@@ -420,22 +674,30 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
         .unwrap();
     assert_eq!(row.try_get::<i64>("", "n")?, 1);
 
-    assert_eq!(store.prune_headers(0).await?.1, 1);
     assert!(store.hash(1).await?.is_none());
-    assert!(store.hash(0).await?.is_some()); // Cutover anchor.
+    assert!(store.hash(0).await?.is_none()); // Superseded cutover anchor.
     assert!(store.hash(2).await?.is_some()); // Confirmed boundary.
     assert!(store.hash(3).await?.is_some()); // Unconfirmed suffix.
 
-    // Restart preserves state and invalidates old health. A stale observation
-    // cannot release events, and failure to read a finality tag does not release.
+    // Restart preparation must not disturb a live owner's state. The replacement
+    // waits for lease expiry, then observes before it can publish.
+    store.db.execute_unprepared("UPDATE scraper_head SET writer_id='live-owner',writer_lease_until=clock_timestamp()+interval '1 minute'").await?;
     store.initialize(&anchor, &contracts()).await?;
     assert!(store
         .confirm(
             &store.state().await?.unwrap(),
-            &chain.header(3u64.into()).await?
+            &chain.header(3u64.into()).await?,
+            MIN_CONFIRMATION_LEASE,
         )
         .await
         .is_err());
+    store
+        .db
+        .execute_unprepared(
+            "UPDATE scraper_head SET writer_lease_until=clock_timestamp()-interval '1 second'",
+        )
+        .await?;
+    store.claim(MIN_CONFIRMATION_LEASE).await?;
     observe(&chain, &store).await?;
     *chain.fail_tag.lock().unwrap() = true;
     assert!(
@@ -453,7 +715,11 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     chain.fork(3, 3, 1);
     observe(&chain, &store).await?;
     assert!(store
-        .confirm(&stale, &chain.header(3u64.into()).await?)
+        .confirm(
+            &stale,
+            &chain.header(3u64.into()).await?,
+            MIN_CONFIRMATION_LEASE,
+        )
         .await
         .is_err());
 
@@ -474,11 +740,17 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     store.initialize(&anchor, &contracts()).await?;
     assert!(observe(&chain, &store).await.is_err());
     assert_eq!(count(&store, "confirmed_gas_payment").await?, 1);
+    migration::Migrator::down(&store.db, Some(1)).await?;
+    migration::Migrator::down(&store.db, Some(1)).await?;
+    assert!(
+        migration::Migrator::down(&store.db, Some(1)).await.is_err(),
+        "Base near-head rollback must not expose provisional or halted history"
+    );
     Ok(())
 }
 
 #[tokio::test]
-async fn header_cleanup_preserves_enrichment_and_bounds_deletes() -> Result<()> {
+async fn confirmation_bounds_temporary_checkpoints_without_scanning_blocks() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let url = format!(
         "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
@@ -493,71 +765,136 @@ async fn header_cleanup_preserves_enrichment_and_bounds_deletes() -> Result<()> 
         .await?;
     ingest_head(&chain, &store).await?;
     confirm(&chain, &store, &ReorgPeriod::from_blocks(2)).await?;
-    // Seed historical empty headers to test cleanup of pre-range ingestion data.
+    let state = store.state().await?.unwrap();
+    assert_eq!(state.confirmed, 8);
+    let row = store.db.query_one(Statement::from_string(DbBackend::Postgres,
+        "SELECT count(*) AS n,min(height) AS first,max(height) AS last FROM scraper_checkpoint WHERE domain=1".to_owned())).await?.unwrap();
+    assert_eq!(row.try_get::<i64>("", "first")?, 8);
+    assert_eq!(row.try_get::<i64>("", "last")?, 10);
+    assert!(row.try_get::<i64>("", "n")? <= 3);
+    let blocks = count(&store, "block").await?;
+    confirm(&chain, &store, &ReorgPeriod::from_blocks(0)).await?;
+    assert_eq!(count(&store, "scraper_checkpoint").await?, 1);
+    assert_eq!(store.checkpoint(10).await?, 10);
+    assert_eq!(count(&store, "block").await?, blocks);
+    Ok(())
+}
+
+#[tokio::test]
+async fn append_refreshes_the_confirmation_lease_after_a_slow_fetch() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let chain = Chain::new(1);
+    store
+        .initialize(&chain.header(0u64.into()).await?, &contracts())
+        .await?;
+    let observed = observe(&chain, &store).await?;
     store
         .db
         .execute_unprepared(
-            r#"
-        INSERT INTO block(domain,height,hash,timestamp)
-        SELECT 1,h,decode(lpad(to_hex(h+1),64,'0'),'hex'),now() FROM generate_series(1,9) AS h
-        ON CONFLICT DO NOTHING;
-    "#,
+            "UPDATE scraper_head SET updated_at=clock_timestamp()-interval '61 seconds'",
         )
         .await?;
-    // Separate pending event types to exercise each retention condition.
-    store.db.execute_unprepared(r#"
-        UPDATE gas_payment SET block_number=3, block_hash=(SELECT hash FROM block WHERE domain=1 AND height=3);
-        UPDATE delivered_message SET block_number=4, block_hash=(SELECT hash FROM block WHERE domain=1 AND height=4);
-        INSERT INTO "transaction"(hash,block_id,gas_limit,nonce,sender,gas_used,cumulative_gas_used)
-        SELECT decode(repeat('ee',32),'hex'),id,0,0,decode(repeat('11',20),'hex'),0,0 FROM block WHERE domain=1 AND height=5;
-    "#).await?;
-    // Enrichment has inserted a transaction but has not committed its event link.
-    let enrichment = store.db.begin().await?;
-    enrichment.execute_unprepared(r#"
-        INSERT INTO "transaction"(hash,block_id,gas_limit,nonce,sender,gas_used,cumulative_gas_used)
-        SELECT g.transaction_hash,b.id,0,0,decode(repeat('11',20),'hex'),0,0
-        FROM gas_payment g JOIN block b ON b.domain=g.domain AND b.height=g.block_number;
-        UPDATE gas_payment SET tx_id=(SELECT id FROM "transaction" WHERE hash=gas_payment.transaction_hash);
-    "#).await?;
-    assert_eq!(store.prune_headers(0).await?.1, 3); // Empty blocks 1, 6, 7.
-    enrichment.commit().await?;
-    for height in [0, 2, 3, 4, 5, 8, 9, 10] {
-        assert!(
-            store.hash(height).await?.is_some(),
-            "Missing retained block {height}"
-        );
-    }
-    assert_eq!(store.prune_headers(0).await?.1, 0);
-    // A lagging finality tag can point to a header already pruned; no new release.
-    chain.fork(1, 1, 0);
-    assert_eq!(
-        confirm(&chain, &store, &ReorgPeriod::Tag("finalized".into())).await?,
-        [0; 4]
-    );
-    for table in [
-        "raw_message_dispatch",
-        "gas_payment",
-        "delivered_message",
-        "merkle_tree_insertion",
-    ] {
-        assert_eq!(count(&store, table).await?, 1);
-    }
-
-    // A backlog is drained across cycles, never one unbounded deletion.
-    store.db.execute_unprepared(r#"
-        INSERT INTO block(domain,height,hash,timestamp)
-        SELECT 1,h,decode(lpad(to_hex(h+10000),64,'0'),'hex'),now() FROM generate_series(11,1110) AS h;
-        UPDATE scraper_head SET head_height=1110,indexed_height=1110,confirmed_height=1110,
-            indexed_hash=(SELECT hash FROM block WHERE domain=1 AND height=1110);
-    "#).await?;
-    let (next, deleted) = store.prune_headers(0).await?;
-    assert_eq!(deleted, 996); // 1,000 candidates, including four retained headers.
-    assert_eq!(store.prune_headers(next).await?.1, 106);
-    assert_eq!(store.prune_headers(0).await?.1, 0);
-    assert!(store.hash(1110).await?.is_some());
-    migration::Migrator::down(&store.db, Some(1)).await?;
-    migration::Migrator::up(&store.db, None).await?;
+    store
+        .append(&observed, &[(chain.header(1u64.into()).await?, vec![])])
+        .await?;
+    assert_eq!(confirm(&chain, &store, &ReorgPeriod::None).await?, [0; 4]);
+    assert_eq!(store.state().await?.unwrap().confirmed, 1);
     Ok(())
+}
+
+#[tokio::test]
+async fn finality_tag_ahead_of_observed_head_confirms_observed_history() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let url = format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    );
+    let db = Database::connect(&url).await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let chain = Chain::new(3);
+    store
+        .initialize(&chain.header(0u64.into()).await?, &contracts())
+        .await?;
+    ingest_head(&chain, &store).await?;
+    // Fast-finality chains can finalize past the head observed moments earlier.
+    chain.fork(8, 3, 0);
+    store
+        .db
+        .execute_unprepared(
+            "UPDATE scraper_head SET updated_at=clock_timestamp()-interval '45 seconds'",
+        )
+        .await?;
+    let finalized = ReorgPeriod::Tag("finalized".into());
+    assert!(
+        confirm_leased(&chain, &store, &finalized, Duration::from_secs(30), None,)
+            .await
+            .is_err(),
+        "An expired observation cannot confirm"
+    );
+    assert_eq!(confirm(&chain, &store, &finalized).await?, [1; 4]);
+    let state = store.state().await?.unwrap();
+    assert_eq!((state.head, state.confirmed), (3, 3));
+    Ok(())
+}
+
+#[tokio::test]
+async fn publication_cap_holds_unverified_generic_ranges() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let chain = Chain::new(3);
+    store
+        .initialize(&chain.header(0u64.into()).await?, &contracts())
+        .await?;
+    ingest_head(&chain, &store).await?;
+
+    confirm_leased(
+        &chain,
+        &store,
+        &ReorgPeriod::None,
+        MIN_CONFIRMATION_LEASE,
+        Some(0),
+    )
+    .await?;
+    assert_eq!(store.state().await?.unwrap().confirmed, 0);
+    assert_eq!(count(&store, "confirmed_raw_message_dispatch").await?, 0);
+
+    confirm_leased(
+        &chain,
+        &store,
+        &ReorgPeriod::None,
+        MIN_CONFIRMATION_LEASE,
+        Some(3),
+    )
+    .await?;
+    assert_eq!(store.state().await?.unwrap().confirmed, 3);
+    assert_eq!(count(&store, "confirmed_raw_message_dispatch").await?, 1);
+    Ok(())
+}
+
+#[test]
+fn confirmation_lease_outlasts_a_poll() {
+    assert_eq!(
+        confirmation_lease(Duration::from_millis(20)),
+        MIN_CONFIRMATION_LEASE
+    );
+    assert_eq!(
+        confirmation_lease(Duration::from_secs(45)),
+        Duration::from_secs(90)
+    );
 }
 
 #[tokio::test]
@@ -585,7 +922,7 @@ async fn ranges_use_sparse_headers_and_reject_fork_changes() -> Result<()> {
     // 1,000 blocks, one event-bearing block: one log range and seven header reads.
     assert_eq!(*chain.ranges.lock().unwrap(), vec![(1, 1000)]);
     assert_eq!(chain.header_calls.load(Ordering::Relaxed), 7);
-    assert_eq!(count(&store, "block").await?, 3); // Anchor, event block, range end.
+    assert_eq!(count(&store, "block").await?, 1); // Event blocks only.
     chain.header_calls.store(0, Ordering::Relaxed);
     ingest_head(&chain, &store).await?;
     assert_eq!(chain.header_calls.load(Ordering::Relaxed), 1);
@@ -614,7 +951,7 @@ async fn ranges_use_sparse_headers_and_reject_fork_changes() -> Result<()> {
     ingest_head(&chain, &store).await?;
     assert_eq!(chain.header_calls.load(Ordering::Relaxed), 6);
     assert_eq!(*chain.ranges.lock().unwrap(), vec![(51, 1000)]);
-    assert_eq!(count(&store, "block").await?, 4); // No headers for 950 empty blocks.
+    assert_eq!(count(&store, "block").await?, 1); // Event blocks only.
                                                   // Exact confirmed boundary remains the deep-reorg stop, despite sparse headers.
     chain.fork(1000, 40, 20);
     assert!(observe(&chain, &store).await.is_err());
@@ -718,7 +1055,7 @@ async fn incomplete_sequences_retry_after_restart_and_dense_ranges_batch_atomica
         .is_err());
     assert_eq!(store.state().await?.unwrap().indexed, 0);
     assert_eq!(count(&store, "raw_message_dispatch").await?, 0);
-    assert_eq!(count(&store, "block").await?, 1);
+    assert_eq!(count(&store, "block").await?, 0);
     let probe = Database::connect(&url).await?;
     let done = AtomicBool::new(false);
     let (ingestion, lock_probe) = tokio::join!(
@@ -846,7 +1183,7 @@ async fn receipt_timeouts_do_not_starve_cached_neighbors_across_sweeps() -> Resu
         .unwrap()
         .clone();
     poison.log_index = 99;
-    poison.tx_hash = H256::repeat_byte(99).into();
+    poison.tx_hash = Some(H256::repeat_byte(99).into());
     events.push(poison);
     store
         .append(&state, &[(chain.header(2u64.into()).await?, events)])
@@ -905,11 +1242,18 @@ fn missing_entire_sequences_and_regressing_counts_are_rejected() {
 #[test]
 fn finalized_sequence_watermarks_reject_missing_tail_events() {
     let watermarks = [(Some(4), 20), (Some(6), 19), (Some(7), 18), (Some(5), 17)];
-    assert!(validate_watermarks([4, 6, 7, 5], 20, watermarks).is_ok());
+    assert_eq!(
+        validate_watermarks([4, 6, 7, 5], 20, watermarks).unwrap(),
+        Some(17)
+    );
     assert!(validate_watermarks([3, 6, 7, 5], 20, watermarks).is_err());
     assert!(validate_watermarks([4, 6, 6, 5], 20, watermarks).is_err());
+    assert!(validate_watermarks([5, 6, 7, 5], 20, watermarks).is_err());
     // A watermark ahead of the indexed boundary cannot describe this range yet.
-    assert!(validate_watermarks([3, 4, 5, 6], 20, [(Some(4), 21); 4]).is_ok());
+    assert_eq!(
+        validate_watermarks([3, 4, 5, 6], 20, [(Some(4), 21); 4]).unwrap(),
+        None
+    );
 }
 
 struct CountedChain {
@@ -1049,6 +1393,12 @@ async fn automatic_cutover_rejects_partial_legacy_history_and_reuses_verified_bo
     // Empty databases start from configured index.from (or block 1 for from=0).
     assert_eq!(store.anchor_height(10).await?, 9);
     assert_eq!(store.anchor_height(0).await?, 0);
+    store.db.execute_unprepared("INSERT INTO scraper_checkpoint(domain,height,hash,timestamp) VALUES(1,0,decode(repeat('01',32),'hex'),now())").await?;
+    assert!(store.anchor_height(1).await.is_err());
+    store
+        .db
+        .execute_unprepared("DELETE FROM scraper_checkpoint WHERE domain=1")
+        .await?;
     let chain = Chain::new(50);
     let header = chain.header(10u64.into()).await?;
     store
@@ -1082,6 +1432,24 @@ async fn automatic_cutover_rejects_partial_legacy_history_and_reuses_verified_bo
     let anchor = chain.header(30u64.into()).await?;
     seed_verified_cutover(&store, &anchor).await?;
     prepare(&chain, &store, &anchor, &contracts(), &ReorgPeriod::None).await?;
+    store
+        .db
+        .execute_unprepared("DELETE FROM scraper_checkpoint WHERE domain=1 AND height=30")
+        .await?;
+    let error = prepare(&chain, &store, &anchor, &contracts(), &ReorgPeriod::None)
+        .await
+        .expect_err("restart must reject stale checkpoint state");
+    assert!(error.to_string().contains("checkpoints are out of sync"));
+    store.db.execute_unprepared("INSERT INTO scraper_checkpoint(domain,height,hash,timestamp) VALUES(1,30,decode(repeat('00',31) || '1f','hex'),to_timestamp(1) AT TIME ZONE 'UTC')").await?;
+    store.db.execute_unprepared("INSERT INTO scraper_checkpoint(domain,height,hash,timestamp) VALUES(1,31,decode(repeat('00',31) || '20','hex'),to_timestamp(1) AT TIME ZONE 'UTC')").await?;
+    let error = prepare(&chain, &store, &anchor, &contracts(), &ReorgPeriod::None)
+        .await
+        .expect_err("restart must reject checkpoints above indexed progress");
+    assert!(error.to_string().contains("checkpoints are out of sync"));
+    store
+        .db
+        .execute_unprepared("DELETE FROM scraper_checkpoint WHERE domain=1 AND height=31")
+        .await?;
     // Restart must not choose a new boundary from newer history or a changed default.
     store
         .db

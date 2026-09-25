@@ -845,6 +845,10 @@ impl HyperlaneProvider for SealevelProvider {
         Ok(block_info)
     }
 
+    fn is_block_not_found_error(&self, error: &ChainCommunicationError) -> bool {
+        crate::error::is_get_block_unresolvable_after_retries(error)
+    }
+
     /// TODO This method is superfluous for Solana.
     /// Since we have to request full block to find transaction hash and transaction index
     /// for Solana, we have all the data about transaction mach earlier before this
