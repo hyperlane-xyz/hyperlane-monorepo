@@ -338,7 +338,7 @@ impl hyperlane_core::ContractSyncCursor<Delivery> for Cursor {
         _: Vec<(Indexed<Delivery>, LogMeta)>,
         range: std::ops::RangeInclusive<u32>,
     ) -> Result<()> {
-        self.checkpoint.update((*range.end()).into()).await;
+        self.checkpoint.update((*range.end()).into()).await?;
         self.checkpoint.flush().await?;
         self.updated.send(()).expect("cursor update receiver");
         Ok(())

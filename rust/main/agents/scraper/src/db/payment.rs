@@ -9,7 +9,7 @@ use sea_orm::{
 use tracing::{debug, instrument};
 
 use hyperlane_core::{address_to_bytes, h256_to_bytes, InterchainGasPayment, LogMeta, H256};
-use migration::OnConflict;
+use migration::{Alias, BinOper, Expr, OnConflict};
 
 use crate::conversions::{decimal_to_u256, u256_to_decimal};
 use crate::date_time;
@@ -270,8 +270,31 @@ impl ScraperDb {
                             gas_payment::Column::InterchainGasPaymaster,
                             gas_payment::Column::Sequence,
                         ])
+                        // Replaying an unchanged event must not reset its timestamp
+                        // or fire the Explorer UPDATE notification trigger.
+                        .action_and_where({
+                            let columns = [
+                                gas_payment::Column::Payment,
+                                gas_payment::Column::GasAmount,
+                                gas_payment::Column::Origin,
+                                gas_payment::Column::Destination,
+                                gas_payment::Column::InterchainGasPaymaster,
+                                gas_payment::Column::Sequence,
+                            ];
+                            Expr::tuple(
+                                columns
+                                    .map(|column| Expr::col((gas_payment::Entity, column)).into()),
+                            )
+                            .binary(
+                                BinOper::Custom("IS DISTINCT FROM"),
+                                Expr::tuple(columns.map(|column| {
+                                    Expr::col((Alias::new("excluded"), column)).into()
+                                })),
+                            )
+                        })
                         .to_owned(),
                     )
+                    .do_nothing()
                     .exec(&txn)
                     .await?;
             }

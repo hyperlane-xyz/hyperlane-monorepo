@@ -18,8 +18,11 @@ const MAX_WRITE_BACK_FREQUENCY: Duration = Duration::from_secs(10);
 struct BlockCursorInner {
     /// Block height
     height: u64,
+    /// Last height restored from or successfully written to the database.
+    last_saved_height: u64,
     /// Last time we updated the database with the block height.
-    last_saved_at: Instant,
+    /// None until this process has persisted its first advancing checkpoint.
+    last_saved_at: Option<Instant>,
 }
 
 /// A tool to wrap the logic of fetching and updating the cursor position in the
@@ -69,7 +72,8 @@ impl BlockCursor {
             event_type: event_type.to_owned(),
             inner: RwLock::new(BlockCursorInner {
                 height,
-                last_saved_at: Instant::now(),
+                last_saved_height: height,
+                last_saved_at: None,
             }),
         })
     }
@@ -78,28 +82,25 @@ impl BlockCursor {
         self.inner.read().await.height
     }
 
-    /// Update the in-memory height and report whether a throttled flush succeeded.
+    /// Persist the first advancing checkpoint immediately, then throttle writes.
+    /// Failed writes remain dirty and are retried even at the same height.
     #[instrument(skip(self), fields(cursor = ?self.inner))]
-    pub async fn update(&self, height: u64) -> bool {
+    pub async fn update(&self, height: u64) -> Result<bool> {
         let mut inner = self.inner.write().await;
 
-        let old_height = inner.height;
         inner.height = inner.height.max(height);
 
-        let now = Instant::now();
-        let time_since_last_save = now.duration_since(inner.last_saved_at);
-        let should_flush = height > old_height && time_since_last_save > MAX_WRITE_BACK_FREQUENCY;
+        let should_flush = inner.height > inner.last_saved_height
+            && inner
+                .last_saved_at
+                .is_none_or(|saved| saved.elapsed() > MAX_WRITE_BACK_FREQUENCY);
         drop(inner);
 
         if should_flush {
-            match self.flush().await {
-                Ok(()) => return true,
-                Err(e) => {
-                    warn!(error = ?e, "Failed to update database with new cursor. When you just started this, ensure that the migrations included this domain.")
-                }
-            }
+            self.flush().await?;
+            return Ok(true);
         }
-        false
+        Ok(false)
     }
 
     /// Persist the current height to the database unconditionally, bypassing the
@@ -142,7 +143,8 @@ impl BlockCursor {
             )
             .exec(&self.db)
             .await?;
-        inner.last_saved_at = Instant::now();
+        inner.last_saved_height = height;
+        inner.last_saved_at = Some(Instant::now());
         let inner = inner.downgrade();
         debug!(cursor = ?*inner, "Flushed cursor");
         Ok(())

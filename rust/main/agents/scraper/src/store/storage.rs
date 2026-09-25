@@ -12,7 +12,10 @@ use prometheus::IntCounterVec;
 use tokio::sync::Semaphore;
 use tracing::{trace, warn};
 
-use hyperlane_base::settings::{CoreContractAddresses, IndexSettings};
+use hyperlane_base::{
+    cursors::{CursorType, Indexable},
+    settings::{CoreContractAddresses, IndexSettings},
+};
 use hyperlane_core::{
     BlockId, BlockInfo, HyperlaneDomain, HyperlaneLogStore, HyperlaneProvider,
     HyperlaneWatermarkedLogStore, LogMeta, H256, H512,
@@ -65,6 +68,32 @@ impl HyperlaneDbStore {
             cursor,
             stored_events_metric,
         })
+    }
+
+    /// Give a block-indexed event its own durable checkpoint. The legacy empty
+    /// event type contains the fastest worker's height, so copying it would
+    /// preserve gaps left by slower workers. An absent event checkpoint replays
+    /// from the configured start; existing event checkpoints resume normally.
+    /// Sequence-aware cursors use their existing sequence/backward progress.
+    pub(crate) async fn with_event_watermark<T: Indexable>(
+        mut self,
+        index_settings: &IndexSettings,
+    ) -> Result<Self> {
+        if matches!(
+            T::indexing_cursor(self.domain.domain_protocol()),
+            CursorType::RateLimited
+        ) {
+            self.cursor = Arc::new(
+                self.db
+                    .block_cursor(
+                        self.domain.id(),
+                        T::name(),
+                        index_settings.from.max(0) as u64,
+                    )
+                    .await?,
+            );
+        }
+        Ok(self)
     }
 
     /// Get the stored events metric for incrementing when raw messages are stored.
@@ -390,7 +419,7 @@ where
     }
     /// Stores the block number high watermark
     async fn store_high_watermark(&self, block_number: u32) -> Result<()> {
-        self.cursor.update(block_number.into()).await;
+        self.cursor.update(block_number.into()).await?;
         Ok(())
     }
 }
@@ -497,6 +526,9 @@ mod tests {
         let _ = as_chunks(0..1, 0);
     }
 }
+
+#[cfg(test)]
+mod watermark_tests;
 
 #[cfg(test)]
 mod block_tests;
