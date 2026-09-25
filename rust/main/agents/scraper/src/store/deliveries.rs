@@ -8,15 +8,16 @@ use hyperlane_core::{
 };
 
 use crate::db::StorableDelivery;
-use crate::store::storage::{txn_id_for_meta, HyperlaneDbStore};
+use crate::store::storage::{ensure_event_enrichment_complete, txn_id_for_meta, HyperlaneDbStore};
 
 #[async_trait]
 impl HyperlaneLogStore<Delivery> for HyperlaneDbStore {
     /// Store delivered message ids from the destination mailbox into the database.
     /// Deliveries whose transaction could not be resolved on-chain (zero block
     /// and transaction hashes, e.g. Sealevel basic log meta fallback) are
-    /// stored with a NULL transaction relation; other unavailable transactions
-    /// are skipped (and retried later).
+    /// stored with a NULL transaction relation. Failed required transaction
+    /// enrichment returns an error after storing available siblings, so the
+    /// cursor retries the range without withholding resolvable events.
     async fn store_logs(&self, deliveries: &[(Indexed<Delivery>, LogMeta)]) -> Result<u32> {
         if deliveries.is_empty() {
             return Ok(0);
@@ -48,6 +49,7 @@ impl HyperlaneLogStore<Delivery> for HyperlaneDbStore {
             .db
             .store_deliveries(self.domain.id(), self.mailbox_address, storable)
             .await?;
+        ensure_event_enrichment_complete(&txns, deliveries.iter().map(|r| &r.1))?;
         Ok(stored as u32)
     }
 }

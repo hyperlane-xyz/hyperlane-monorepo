@@ -7,7 +7,7 @@ use tracing::{debug, warn};
 use hyperlane_core::{HyperlaneLogStore, Indexed, LogMeta, SameChainCcrSwap, H512};
 
 use crate::db::StorableCcrSwap;
-use crate::store::storage::HyperlaneDbStore;
+use crate::store::storage::{ensure_event_enrichment_complete, HyperlaneDbStore};
 
 #[async_trait]
 impl HyperlaneLogStore<SameChainCcrSwap> for HyperlaneDbStore {
@@ -20,10 +20,10 @@ impl HyperlaneLogStore<SameChainCcrSwap> for HyperlaneDbStore {
             .await?
             .collect();
 
-        // filter_map mirrors the dispatch/payment store_logs pattern: if
-        // ensure_blocks_and_txns silently dropped a txn (transient RPC fetch
-        // failure), skip the swap rather than returning Err and stalling the
-        // indexer in a tight retry loop for the same block range.
+        // CCR assigns synthetic nonces in insertion order. Reject incomplete
+        // enrichment before writing any swaps, so a later resolved sibling
+        // cannot claim an earlier nonce than a missing swap on retry.
+        ensure_event_enrichment_complete(&txns, swaps.iter().map(|r| &r.1))?;
         let storable: Vec<_> = swaps
             .iter()
             .filter_map(|(swap, meta)| {
@@ -31,7 +31,7 @@ impl HyperlaneLogStore<SameChainCcrSwap> for HyperlaneDbStore {
                 if txn.is_none() {
                     warn!(
                         tx_hash = ?meta.transaction_id,
-                        "skipping CCR swap: txn not found in enriched map (transient RPC miss?)"
+                        "skipping unsupported CCR swap with zero transaction hash"
                     );
                 }
                 txn.map(|t| StorableCcrSwap {

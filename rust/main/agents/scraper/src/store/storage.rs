@@ -229,6 +229,10 @@ impl HyperlaneDbStore {
                         continue;
                     }
                 };
+                if info.hash != **hash {
+                    warn!(requested_hash = ?hash, returned_hash = ?info.hash, "transaction enrichment returned a different hash");
+                    continue;
+                }
                 hashes_to_insert.push(*hash);
                 txns_to_insert.push(StorableTxn {
                     info,
@@ -323,6 +327,12 @@ impl HyperlaneDbStore {
                         continue;
                     }
                 };
+                // A mismatched response can occupy the unique (domain, height)
+                // key and prevent a later retry from inserting the correct block.
+                if info.hash != *hash || info.number != block_height {
+                    warn!(requested_hash = ?hash, requested_height = block_height, returned_block = ?info, "block enrichment returned a different block");
+                    continue;
+                }
                 let block_id = stored_id.insert(-1);
                 block_infos.push(info);
                 blocks_to_insert.push((hash, block_id));
@@ -385,6 +395,27 @@ where
     }
 }
 
+/// Check required enrichment to keep incomplete ranges retryable. Delivery and
+/// payment stores persist available siblings first. CCR checks before writes
+/// because its synthetic nonce allocation depends on insertion order.
+/// Zero-tx Cosmos block events retain their existing unsupported handling; the
+/// zero/zero Sealevel sentinel is persisted with a NULL transaction relation.
+pub(crate) fn ensure_event_enrichment_complete<'a>(
+    txns: &HashMap<H512, i64>,
+    log_meta: impl Iterator<Item = &'a LogMeta>,
+) -> Result<()> {
+    for meta in log_meta {
+        eyre::ensure!(
+            meta.transaction_id.is_zero() || txns.contains_key(&meta.transaction_id),
+            "Incomplete event enrichment at block {} ({:?}), transaction {:?}; retrying range",
+            meta.block_number,
+            meta.block_hash,
+            meta.transaction_id,
+        );
+    }
+    Ok(())
+}
+
 /// Resolves the database transaction id for a log's meta.
 ///
 /// - `Some(Some(id))` when the transaction was ensured in the database.
@@ -392,8 +423,9 @@ where
 ///   meaning the indexer could not resolve the on-chain transaction (e.g. the
 ///   Sealevel basic log meta fallback); the event must still be persisted with
 ///   a NULL transaction relation so it remains retrievable by sequence.
-/// - `None` when the transaction could not be fetched; the event is skipped
-///   and retried later.
+/// - `None` when enrichment is incomplete. Only callers with a durable raw
+///   event for reconciliation may skip a required nonzero transaction; other
+///   callers must return an error. Zero-tx Cosmos block events remain unsupported.
 pub(crate) fn txn_id_for_meta(txns: &HashMap<H512, i64>, meta: &LogMeta) -> Option<Option<i64>> {
     if meta.transaction_id.is_zero() && meta.block_hash.is_zero() {
         Some(None)
@@ -471,3 +503,6 @@ mod block_tests;
 
 #[cfg(test)]
 mod returning_tests;
+
+#[cfg(test)]
+mod event_loss_tests;
