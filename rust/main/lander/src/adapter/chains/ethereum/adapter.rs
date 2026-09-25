@@ -699,6 +699,17 @@ impl AdaptsChain for EthereumAdapter {
         tx_status_checker::get_tx_hash_status(&self.provider, hash, &self.reorg_period).await
     }
 
+    async fn tx_statuses(
+        &self,
+        txs: &[Transaction],
+    ) -> Vec<Result<TransactionStatus, LanderError>> {
+        tx_status_checker::get_tx_statuses(&self.provider, txs, &self.reorg_period).await
+    }
+
+    fn tx_status_batch_size(&self) -> usize {
+        tx_status_checker::STATUS_READ_BATCH_SIZE
+    }
+
     async fn reverted_payloads(
         &self,
         tx: &Transaction,
