@@ -146,6 +146,7 @@ jobs:
       has_relayer: ${{ steps.decide.outputs.has_relayer }}
       has_rebalancer: ${{ steps.decide.outputs.has_rebalancer }}
       has_svm: ${{ steps.decide.outputs.has_svm }}
+      has_svm_program_inputs: ${{ steps.decide.outputs.has_svm_program_inputs }}
     runs-on: depot-ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -198,6 +199,7 @@ jobs:
             echo "has_relayer=true" >> $GITHUB_OUTPUT
             echo "has_rebalancer=true" >> $GITHUB_OUTPUT
             echo "has_svm=true" >> $GITHUB_OUTPUT
+            echo "has_svm_program_inputs=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -211,6 +213,7 @@ jobs:
             echo "has_relayer=false" >> $GITHUB_OUTPUT
             echo "has_rebalancer=false" >> $GITHUB_OUTPUT
             echo "has_svm=false" >> $GITHUB_OUTPUT
+            echo "has_svm_program_inputs=false" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -221,6 +224,9 @@ jobs:
           has_starknet=$(echo "$CHANGED_FILES" | grep -qE '^(typescript/(starknet-sdk|provider-sdk|utils)/|starknet/)' && echo true || echo false)
           has_tron=$(echo "$CHANGED_FILES" | grep -qE '^typescript/tron-sdk/' && echo true || echo false)
           has_svm=$(echo "$CHANGED_FILES" | grep -qE '^(rust/sealevel/|typescript/(svm-sdk|forking-sdk)/)' && echo true || echo false)
+          # Inputs to SEALEVEL_SOURCE_HASH; sealevel-source-hash.test.mjs keeps this in sync.
+          SVM_PROGRAM_INPUTS='^(rust/sealevel/(Cargo\.(toml|lock)|rust-toolchain|\.cargo/|programs/|libraries/)|rust/main/(Cargo\.toml|hyperlane-core/|applications/)|typescript/svm-sdk/(scripts/|src/hyperlane/program-bytes\.ts))'
+          has_svm_program_inputs=$(echo "$CHANGED_FILES" | grep -qE "$SVM_PROGRAM_INPUTS" && echo true || echo false)
 
           # Package-specific changes (run only their targeted CLI e2e tests)
           has_relayer=$(echo "$CHANGED_FILES" | grep -qE '^typescript/relayer/' && echo true || echo false)
@@ -245,6 +251,7 @@ jobs:
           echo "VM-specific — radix=$has_radix aleo=$has_aleo cosmos=$has_cosmos starknet=$has_starknet tron=$has_tron"
           echo "Package-specific — relayer=$has_relayer rebalancer=$has_rebalancer"
           echo "has_svm=$has_svm" >> $GITHUB_OUTPUT
+          echo "has_svm_program_inputs=$has_svm_program_inputs" >> $GITHUB_OUTPUT
 
           echo "VM-specific — radix=$has_radix aleo=$has_aleo cosmos=$has_cosmos starknet=$has_starknet tron=$has_tron svm=$has_svm"
 
@@ -272,6 +279,7 @@ jobs:
             echo "has_relayer=false" >> $GITHUB_OUTPUT
             echo "has_rebalancer=false" >> $GITHUB_OUTPUT
             echo "has_svm=false" >> $GITHUB_OUTPUT
+            echo "has_svm_program_inputs=false" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -288,6 +296,7 @@ jobs:
             echo "has_relayer=true" >> $GITHUB_OUTPUT
             echo "has_rebalancer=true" >> $GITHUB_OUTPUT
             echo "has_svm=true" >> $GITHUB_OUTPUT
+            echo "has_svm_program_inputs=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -309,6 +318,7 @@ jobs:
           echo "has_relayer=${{ steps.check-vm.outputs.has_relayer }}" >> $GITHUB_OUTPUT
           echo "has_rebalancer=${{ steps.check-vm.outputs.has_rebalancer }}" >> $GITHUB_OUTPUT
           echo "has_svm=${{ steps.check-vm.outputs.has_svm }}" >> $GITHUB_OUTPUT
+          echo "has_svm_program_inputs=${{ steps.check-vm.outputs.has_svm_program_inputs }}" >> $GITHUB_OUTPUT
 
   pnpm-test-run:
     runs-on: depot-ubuntu-24.04
@@ -521,7 +531,7 @@ jobs:
   svm-program-bytes:
     runs-on: macos-15
     needs: [change-detection]
-    if: needs.change-detection.outputs.has_svm == 'true'
+    if: needs.change-detection.outputs.has_svm_program_inputs == 'true'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -542,14 +552,15 @@ jobs:
       - name: Check production source boundary
         run: node --test typescript/svm-sdk/scripts/sealevel-source-hash.test.mjs
 
-      - name: Check program-bytes.ts staleness
-        run: node typescript/svm-sdk/scripts/check-program-bytes-hash.mjs
-
       - name: Rebuild embedded programs
         run: bash typescript/svm-sdk/scripts/build-program-bytes.sh
 
+      # Rebuilt bytecode is the gate; the source hash can move without it changing.
       - name: Compare rebuilt ELF hashes with embedded bytes
         run: node typescript/svm-sdk/scripts/check-program-elf.mjs
+
+      - name: Check program-bytes.ts source hash
+        run: node typescript/svm-sdk/scripts/check-program-bytes-hash.mjs --warn
 
   env-tests:
     needs: [change-detection]
