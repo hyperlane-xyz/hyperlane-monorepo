@@ -34,6 +34,7 @@ export const tokenMessengerV2Addresses = {
   sei: '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d',
   hyperevm: '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d',
   ink: '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d',
+  arc: '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d',
 } as const;
 
 export const messageTransmitterV2Addresses = {
@@ -50,6 +51,7 @@ export const messageTransmitterV2Addresses = {
   sei: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
   hyperevm: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
   ink: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
+  arc: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
 } as const;
 
 // https://developers.circle.com/cctp/concepts/fees
@@ -76,6 +78,7 @@ export const usdcTokenAddresses = {
   algorand: '31566704',
   aptos: '0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b',
   arbitrum: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+  arc: '0x3600000000000000000000000000000000000000',
   avalanche: '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E',
   base: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
   bsc: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',
