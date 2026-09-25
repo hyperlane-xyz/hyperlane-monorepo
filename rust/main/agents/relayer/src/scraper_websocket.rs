@@ -1886,20 +1886,16 @@ impl ScraperWebSocketMonitor {
     /// Later events are dropped, so no queued job persists a cursor past a skipped
     /// event, and readiness cannot return without terminal matching parity.
     fn overflow_parity(&self, domain: u32, kind: EventKind, stage: &str, capacity: usize) {
+        if !self.parity_overflowed.lock().insert((domain, kind)) {
+            return;
+        }
         let source = self
             .sources
             .get(&domain)
             .expect("validated scraper event source must exist");
-        {
-            // Gauge writes share the overflow lock so a worker can't restore readiness.
-            let mut overflowed = self.parity_overflowed.lock();
-            if !overflowed.insert((domain, kind)) {
-                return;
-            }
-            self.parity_ready
-                .with_label_values(&[source.chain.as_str(), kind.label()])
-                .set(0);
-        }
+        self.parity_ready
+            .with_label_values(&[source.chain.as_str(), kind.label()])
+            .set(0);
         self.deactivate_source_authority(domain);
         warn!(
             chain = source.chain,
@@ -2030,15 +2026,13 @@ impl ScraperWebSocketMonitor {
         let pending = self.parity_pending.with_label_values(&labels);
         pending.dec();
         self.release_parity_pending(1);
-        let overflowed = self.parity_overflowed.lock();
         if pending.get() == 0
             && !self.parity_unhealthy.lock().contains(&(domain, kind))
-            && !overflowed.contains(&(domain, kind))
+            && !self.parity_overflowed.lock().contains(&(domain, kind))
         {
             self.parity_ready.with_label_values(&labels).set(1);
             // The connection schedules cutover after events and progress probes.
         }
-        drop(overflowed);
         terminal
     }
 
@@ -2752,13 +2746,15 @@ impl ScraperWebSocketMonitor {
     fn refresh_parity_ready(&self, source: &ScraperSource) {
         for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
             let labels = [source.chain.as_str(), kind.label()];
-            let overflowed = self.parity_overflowed.lock();
             if self.parity_pending.with_label_values(&labels).get() == 0
                 && !self
                     .parity_unhealthy
                     .lock()
                     .contains(&(source.domain, kind))
-                && !overflowed.contains(&(source.domain, kind))
+                && !self
+                    .parity_overflowed
+                    .lock()
+                    .contains(&(source.domain, kind))
             {
                 self.parity_ready.with_label_values(&labels).set(1);
             }
@@ -3035,6 +3031,8 @@ impl ScraperWebSocketMonitor {
                         readiness_still_valid = true;
                         // Readiness gates remain strict. Once authoritative, tolerate
                         // sustained canonical lag for the same grace period as validators.
+                        // Check every stream, so ahead tolerance on one can't hide
+                        // expired lag on the other.
                         if authority.active.load(Ordering::Acquire) {
                             let mut health = authority.health.lock();
                             within_grace = [
@@ -3043,15 +3041,18 @@ impl ScraperWebSocketMonitor {
                             ]
                             .into_iter()
                             .zip(health.iter_mut())
-                            .all(|((count, cursor), health)| {
+                            .map(|((count, cursor), health)| {
+                                let count = count.unwrap_or(0);
                                 let next =
                                     cursor.map(|last| last.checked_add(1)).unwrap_or(Some(0));
-                                next.is_some_and(|next| {
-                                    health
-                                        .observe(count.unwrap_or(0), next, true)
-                                        .is_ok_and(|usable| usable)
+                                next.is_some_and(|next| match health.observe(count, next, true) {
+                                    Ok(usable) => usable,
+                                    Err(_) => tolerate_ahead && next > count,
                                 })
-                            });
+                            })
+                            .filter(|usable| !usable)
+                            .count()
+                                == 0;
                         }
                         self.fresh
                             .with_label_values(&[chain.as_str()])
@@ -3064,7 +3065,7 @@ impl ScraperWebSocketMonitor {
                 } else {
                     self.last_fresh_probe.lock().remove(&domain);
                 }
-                if !readiness_still_valid || (!is_fresh && !within_grace && !tolerate_ahead) {
+                if !readiness_still_valid || (!is_fresh && !within_grace) {
                     if !is_fresh && should_warn(&self.freshness_warned_at) {
                         warn!(
                             %chain,
@@ -3083,6 +3084,7 @@ impl ScraperWebSocketMonitor {
                     warn!(%chain, ?err, "Canonical scraper freshness probe failed");
                 }
                 self.last_fresh_probe.lock().remove(&domain);
+                self.fresh.with_label_values(&[chain.as_str()]).set(0);
                 // A failed probe proves neither lag nor progress, so an authoritative
                 // origin tolerates it for the same grace as lag.
                 let authority = self.source_authority(domain);
@@ -5440,9 +5442,12 @@ mod tests {
         assert_eq!(monitor.fresh.with_label_values(&["test"]).get(), 0);
 
         authority.active.store(true, Ordering::Release);
+        monitor.fresh.with_label_values(&["test"]).set(1);
         probe(&monitor).await;
         probe(&monitor).await;
         assert!(authority.active.load(Ordering::Acquire));
+        // Freshness is unknown during the grace.
+        assert_eq!(monitor.fresh.with_label_values(&["test"]).get(), 0);
 
         // Failures that outlast the grace period restore RPC.
         *authority.health.lock() = std::array::from_fn(|_| StreamHealth::new(Duration::ZERO));
@@ -5476,6 +5481,25 @@ mod tests {
         dispatch.count.store(9, Ordering::Release);
         probe(&monitor).await;
         assert!(authority.active.load(Ordering::Acquire));
+        probe(&monitor).await;
+        assert!(!authority.active.load(Ordering::Acquire));
+    }
+
+    #[tokio::test]
+    async fn ahead_tolerance_does_not_hide_expired_lag_on_the_other_stream() {
+        // Dispatch lags (next 10, count 11); Merkle is ahead (next 11, count 10).
+        let dispatch = Arc::new(FlakySequenceIndexer {
+            count: AtomicU32::new(11),
+            failing: AtomicBool::new(false),
+        });
+        let monitor = probed_monitor("probe-ahead-lag", dispatch);
+        monitor.sources[&5]
+            .store_cursor(EventKind::MerkleTreeInsertion, 10)
+            .expect("Merkle cursor");
+        let authority = monitor.source_authority(5);
+        authority.active.store(true, Ordering::Release);
+        *authority.health.lock() = std::array::from_fn(|_| StreamHealth::new(Duration::ZERO));
+
         probe(&monitor).await;
         assert!(!authority.active.load(Ordering::Acquire));
     }
