@@ -133,7 +133,7 @@ impl<P: Send + 'static, C: Send + 'static> ScraperSession<P, C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scraper_websocket::client::tests::connection;
+    use crate::scraper_websocket::client::{tests::connection, READ_TIMEOUT};
     use futures_util::{stream, SinkExt};
     use serde_json::Value;
     use std::sync::{
@@ -141,8 +141,8 @@ mod tests {
         Arc,
     };
     use tokio::{
-        sync::oneshot,
-        time::{advance, timeout},
+        sync::{mpsc, oneshot},
+        time::{advance, sleep, timeout},
     };
     use tokio_tungstenite::tungstenite::Message;
 
@@ -153,11 +153,13 @@ mod tests {
         }
     }
 
+    // Tests that exchange frames after connecting run in real time: paused time
+    // auto-advances to the next timer, the read deadline, whenever the runtime
+    // waits on socket I/O. Paused tests keep the server silent after connecting.
     #[tokio::test]
     async fn pending_cutover_does_not_block_messages_probes_or_other_sources() {
-        let (client, mut server) = connection(Duration::from_secs(75)).await;
-        tokio::time::pause();
-        let mut session = ScraperSession::<u32>::new(client, Duration::from_secs(10));
+        let (client, mut server) = connection(READ_TIMEOUT).await;
+        let mut session = ScraperSession::<u32>::new(client, Duration::from_millis(10));
         let dropped = Arc::new(AtomicBool::new(false));
         let guard = DropFlag(dropped.clone());
         session.start_cutover(1, async move {
@@ -173,7 +175,7 @@ mod tests {
         let mut received = [false; 3];
         while !received.iter().all(|received| *received) {
             match timeout(
-                Duration::from_secs(15),
+                Duration::from_secs(30),
                 session.next::<Value>(true, || stream::once(async { 7 }).boxed()),
             )
             .await
@@ -275,25 +277,33 @@ mod tests {
 
     #[tokio::test]
     async fn incoming_messages_do_not_cancel_or_restart_pending_probe() {
-        let (client, mut server) = connection(Duration::from_secs(75)).await;
-        tokio::time::pause();
-        let mut session = ScraperSession::<u32>::new(client, Duration::from_secs(10));
+        let progress_check = Duration::from_millis(10);
+        let (client, mut server) = connection(READ_TIMEOUT).await;
+        let mut session = ScraperSession::<u32>::new(client, progress_check);
         let calls = Arc::new(AtomicUsize::new(0));
+        let (started_tx, mut started) = mpsc::unbounded_channel();
         let (finish, receiver) = oneshot::channel();
         let mut receiver = Some(receiver);
         let mut factory = || {
             calls.fetch_add(1, Ordering::SeqCst);
+            started_tx.send(()).expect("report probe start");
             let receiver = receiver.take().expect("probe starts once");
             stream::once(async move { receiver.await.expect("finish probe") }).boxed()
         };
-        assert!(timeout(
-            Duration::from_secs(11),
-            session.next::<Value>(true, &mut factory)
-        )
+        // Drive the session until the scheduled probe starts; it then stays pending.
+        timeout(Duration::from_secs(30), async {
+            tokio::select! {
+                event = session.next::<Value>(true, &mut factory) => {
+                    panic!("unexpected event: {event:?}")
+                }
+                _ = started.recv() => {}
+            }
+        })
         .await
-        .is_err());
+        .expect("probe starts");
         for _ in 0..3 {
-            advance(Duration::from_secs(10)).await;
+            // Make the next tick due, so an unguarded ticker would restart the probe.
+            sleep(progress_check).await;
             server
                 .send(Message::Text(r#"{"type":"heartbeat"}"#.into()))
                 .await
