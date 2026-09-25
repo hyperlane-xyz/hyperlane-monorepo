@@ -5,7 +5,7 @@ use std::{
 
 use ethers::types::H256;
 use eyre::{ensure, Result};
-use hyperlane_core::{address_to_bytes, h512_to_bytes, LogMeta};
+use hyperlane_core::{address_to_bytes, h512_to_bytes, LogMeta, H512};
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement, TransactionTrait, Value};
 
 use super::source::{Contracts, Event, EventData, Header};
@@ -472,11 +472,18 @@ async fn insert_checkpoint<C: ConnectionTrait>(db: &C, domain: i32, h: &Header) 
 
 fn event_row(domain: i32, h: &Header, e: &Event) -> Result<(&'static str, Vec<Value>)> {
     let address = address_to_bytes(&e.address);
+    // Legacy dispatch schema requires a transaction hash. Other near-head event
+    // tables allow NULL so an unavailable receipt identity creates no backlog.
+    let transaction_hash = match (&e.data, &e.tx_hash) {
+        (_, Some(hash)) => Some(h512_to_bytes(hash)),
+        (EventData::Dispatch(_), None) => Some(h512_to_bytes(&H512::zero())),
+        _ => None,
+    };
     let meta = vec![
         domain.into(),
         bytes(h.hash),
         number(h.height)?,
-        e.tx_hash.as_ref().map(h512_to_bytes).into(),
+        transaction_hash.into(),
         number(e.tx_index)?,
         number(e.log_index)?,
         address.into(),
