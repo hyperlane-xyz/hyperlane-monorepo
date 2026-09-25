@@ -30,7 +30,10 @@ use lander::DispatcherMetrics;
 use crate::scraper_websocket::{AuthorityCommand, ScraperAuthorityReceiver};
 use crate::settings::{matching_list::MatchingList, RelayerSettings};
 
-use super::{spawn_cancellable_blocking, CriticalErrorSource, CriticalErrorTracker, Relayer};
+use super::{
+    spawn_cancellable_blocking, CriticalErrorSource, CriticalErrorTracker, Relayer,
+    PROD_CHAIN_BUILD_RETRY,
+};
 
 #[tokio::test]
 async fn cancelled_blocking_task_is_signalled_to_stop() {
@@ -534,7 +537,7 @@ async fn check_relayer_metrics(agent: Relayer, metrics_port: u16, chain_count: u
     });
 
     let metrics_url = format!("http://localhost:{metrics_port}/metrics");
-    let sleep_duration = Duration::from_secs(3);
+    let sleep_duration = Duration::from_millis(200);
     let metrics = "hyperlane_critical_error";
     loop {
         let res = reqwest::get(&metrics_url).await;
@@ -870,18 +873,19 @@ async fn build_chain_with_retries_recovers_from_transient_failures() {
     let calls_inner = calls.clone();
     let started = tokio::time::Instant::now();
 
-    let result: Result<u32, String> = Relayer::build_chain_with_retries(&domain, "origin", || {
-        let calls_inner = calls_inner.clone();
-        async move {
-            let attempt = calls_inner.fetch_add(1, Ordering::SeqCst) + 1;
-            if attempt < 3 {
-                Err(format!("transient failure {attempt}"))
-            } else {
-                Ok(42)
+    let result: Result<u32, String> =
+        Relayer::build_chain_with_retries(&domain, "origin", PROD_CHAIN_BUILD_RETRY, || {
+            let calls_inner = calls_inner.clone();
+            async move {
+                let attempt = calls_inner.fetch_add(1, Ordering::SeqCst) + 1;
+                if attempt < 3 {
+                    Err(format!("transient failure {attempt}"))
+                } else {
+                    Ok(42)
+                }
             }
-        }
-    })
-    .await;
+        })
+        .await;
 
     assert_eq!(result, Ok(42));
     assert_eq!(calls.load(Ordering::SeqCst), 3);
@@ -898,7 +902,7 @@ async fn build_chain_with_retries_surfaces_persistent_failure() {
     let started = tokio::time::Instant::now();
 
     let result: Result<u32, String> =
-        Relayer::build_chain_with_retries(&domain, "destination", || {
+        Relayer::build_chain_with_retries(&domain, "destination", PROD_CHAIN_BUILD_RETRY, || {
             let calls_inner = calls_inner.clone();
             async move {
                 let attempt = calls_inner.fetch_add(1, Ordering::SeqCst) + 1;
@@ -918,14 +922,15 @@ async fn build_chain_with_retries_preserves_slow_first_success() {
     let started = tokio::time::Instant::now();
     let mut calls = 0;
 
-    let result = Relayer::build_chain_with_retries(&domain, "origin", || {
-        calls += 1;
-        async {
-            tokio::time::sleep(Duration::from_secs(60)).await;
-            Ok::<_, &'static str>(42)
-        }
-    })
-    .await;
+    let result =
+        Relayer::build_chain_with_retries(&domain, "origin", PROD_CHAIN_BUILD_RETRY, || {
+            calls += 1;
+            async {
+                tokio::time::sleep(Duration::from_secs(60)).await;
+                Ok::<_, &'static str>(42)
+            }
+        })
+        .await;
 
     assert_eq!(result, Ok(42));
     assert_eq!(calls, 1);
@@ -947,20 +952,21 @@ async fn build_chain_with_retries_cancels_hanging_retry_after_slow_first_failure
     let started = tokio::time::Instant::now();
     let mut calls = 0;
 
-    let result = Relayer::build_chain_with_retries(&domain, "destination", || {
-        calls += 1;
-        let attempt = calls;
-        let cancelled = cancelled.clone();
-        async move {
-            if attempt == 1 {
-                tokio::time::sleep(Duration::from_secs(60)).await;
-                return Err::<u32, _>("first RPC failure");
+    let result =
+        Relayer::build_chain_with_retries(&domain, "destination", PROD_CHAIN_BUILD_RETRY, || {
+            calls += 1;
+            let attempt = calls;
+            let cancelled = cancelled.clone();
+            async move {
+                if attempt == 1 {
+                    tokio::time::sleep(Duration::from_secs(60)).await;
+                    return Err::<u32, _>("first RPC failure");
+                }
+                let _probe = DropProbe(cancelled);
+                std::future::pending().await
             }
-            let _probe = DropProbe(cancelled);
-            std::future::pending().await
-        }
-    })
-    .await;
+        })
+        .await;
 
     assert_eq!(result, Err("first RPC failure"));
     assert_eq!(calls, 2);
@@ -974,24 +980,25 @@ async fn build_chain_with_retries_preserves_latest_error_on_timeout() {
     let started = tokio::time::Instant::now();
     let mut calls = 0;
 
-    let result = Relayer::build_chain_with_retries(&domain, "origin", || {
-        calls += 1;
-        let attempt = calls;
-        async move {
-            match attempt {
-                1 => Err::<u32, _>("first failure"),
-                2 => {
-                    tokio::time::sleep(Duration::from_secs(5)).await;
-                    Err("latest completed failure")
-                }
-                _ => {
-                    tokio::time::sleep(Duration::from_secs(60)).await;
-                    Err("failure beyond deadline")
+    let result =
+        Relayer::build_chain_with_retries(&domain, "origin", PROD_CHAIN_BUILD_RETRY, || {
+            calls += 1;
+            let attempt = calls;
+            async move {
+                match attempt {
+                    1 => Err::<u32, _>("first failure"),
+                    2 => {
+                        tokio::time::sleep(Duration::from_secs(5)).await;
+                        Err("latest completed failure")
+                    }
+                    _ => {
+                        tokio::time::sleep(Duration::from_secs(60)).await;
+                        Err("failure beyond deadline")
+                    }
                 }
             }
-        }
-    })
-    .await;
+        })
+        .await;
 
     assert_eq!(result, Err("latest completed failure"));
     assert_eq!(calls, 3);
@@ -1004,18 +1011,19 @@ async fn build_chain_with_retries_includes_backoff_in_budget() {
     let started = tokio::time::Instant::now();
     let mut calls = 0;
 
-    let result = Relayer::build_chain_with_retries(&domain, "destination", || {
-        calls += 1;
-        let attempt = calls;
-        async move {
-            if attempt == 1 {
-                return Err::<u32, _>("first failure");
+    let result =
+        Relayer::build_chain_with_retries(&domain, "destination", PROD_CHAIN_BUILD_RETRY, || {
+            calls += 1;
+            let attempt = calls;
+            async move {
+                if attempt == 1 {
+                    return Err::<u32, _>("first failure");
+                }
+                tokio::time::sleep(Duration::from_secs(10)).await;
+                Err("retry failure")
             }
-            tokio::time::sleep(Duration::from_secs(10)).await;
-            Err("retry failure")
-        }
-    })
-    .await;
+        })
+        .await;
 
     assert_eq!(result, Err("retry failure"));
     assert_eq!(calls, 2, "budget expires during backoff before third build");
@@ -1028,18 +1036,19 @@ async fn build_chain_with_retries_allows_recovery_within_budget() {
     let started = tokio::time::Instant::now();
     let mut calls = 0;
 
-    let result = Relayer::build_chain_with_retries(&domain, "origin", || {
-        calls += 1;
-        let attempt = calls;
-        async move {
-            if attempt == 1 {
-                return Err("first failure");
+    let result =
+        Relayer::build_chain_with_retries(&domain, "origin", PROD_CHAIN_BUILD_RETRY, || {
+            calls += 1;
+            let attempt = calls;
+            async move {
+                if attempt == 1 {
+                    return Err("first failure");
+                }
+                tokio::time::sleep(Duration::from_secs(10)).await;
+                Ok(42)
             }
-            tokio::time::sleep(Duration::from_secs(10)).await;
-            Ok(42)
-        }
-    })
-    .await;
+        })
+        .await;
 
     assert_eq!(result, Ok(42));
     assert_eq!(calls, 2);

@@ -42,9 +42,12 @@ pub(crate) fn download(output: &str, uri: &str, dir: &str) {
         .flag("location")
         .flag("fail")
         .arg("retry", "5")
+        .arg("retry-delay", "5")
+        .arg("retry-max-time", "180")
         .flag("retry-all-errors")
         .cmd(uri)
         .flag("silent")
+        .flag("show-error")
         .working_dir(dir)
         .run()
         .join();

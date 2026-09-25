@@ -6,7 +6,6 @@ use std::{
     path::Path,
     str::FromStr,
     sync::atomic::Ordering,
-    thread::sleep,
     time::{Duration, Instant},
 };
 
@@ -31,7 +30,7 @@ use crate::{
         SEALEVELTEST2_DOMAIN_ID, SEALEVELTEST2_MAILBOX_PROGRAM_ID,
         SOLANA_CONTRACTS_CLI_RELEASE_URL, SOLANA_CONTRACTS_CLI_VERSION, SOLANA_ENV_NAME,
     },
-    utils::{concat_path, get_sealevel_path, get_workspace_path, TaskHandle},
+    utils::{concat_path, get_sealevel_path, get_workspace_path, poll_until, TaskHandle},
     wait_for_condition, State, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT,
 };
 
@@ -108,17 +107,7 @@ fn run_locally_warp_route_composite_ism() {
         .hyp_env("CHECKPOINTSYNCER_PATH", checkpoint_path.to_str().unwrap());
 
     let mut state = State::default();
-    let solana_path_tempdir = tempdir().expect("Failed to create solana temp dir");
-    let solana_cli_tools_path = install_solana_cli_tools(
-        SOLANA_CONTRACTS_CLI_RELEASE_URL.to_owned(),
-        SOLANA_CONTRACTS_CLI_VERSION.to_owned(),
-        solana_path_tempdir.path().to_path_buf(),
-    )
-    .join();
-    state.data.push(Box::new(solana_path_tempdir));
-
-    let built_programs = build_solana_programs(solana_cli_tools_path.clone()).join();
-
+    // Compile agents and the client alongside the Solana download and SBF build.
     let build_main = Program::new("cargo")
         .cmd("build")
         .working_dir(&workspace_path)
@@ -133,6 +122,17 @@ fn run_locally_warp_route_composite_ism() {
         .arg("bin", "hyperlane-sealevel-client")
         .filter_logs(|line| !line.contains("workspace-inheritance"))
         .run();
+
+    let solana_path_tempdir = tempdir().expect("Failed to create solana temp dir");
+    let solana_cli_tools_path = install_solana_cli_tools(
+        SOLANA_CONTRACTS_CLI_RELEASE_URL.to_owned(),
+        SOLANA_CONTRACTS_CLI_VERSION.to_owned(),
+        solana_path_tempdir.path().to_path_buf(),
+    )
+    .join();
+    state.data.push(Box::new(solana_path_tempdir));
+
+    let built_programs = build_solana_programs(solana_cli_tools_path.clone()).join();
     build_main.join();
     build_client.join();
 
@@ -145,8 +145,6 @@ fn run_locally_warp_route_composite_ism() {
     .join();
     state.push_agent(validator_result.validator);
     let solana_config_path = validator_result.config_path;
-
-    sleep(Duration::from_secs(10));
 
     let composite_ism = deploy_live_shaped_composite_ism(
         &solana_cli_tools_path,
@@ -175,11 +173,9 @@ fn run_locally_warp_route_composite_ism() {
         .collect();
 
     let loop_start = Instant::now();
-    sleep(Duration::from_secs(10));
-    assert!(
-        post_startup_invariants(&checkpoint_dirs),
-        "Post startup invariants are not met"
-    );
+    poll_until("post startup invariants", Duration::from_secs(60), || {
+        post_startup_invariants(&checkpoint_dirs)
+    });
 
     let test_passed = wait_for_condition(
         &config,
