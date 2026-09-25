@@ -96,6 +96,25 @@ impl NonceManagerState {
                     old_nonce: Some(nonce),
                 })
             }
+            (Taken(_), _)
+                if matches!(
+                    tx_status,
+                    TransactionStatus::PendingInclusion | TransactionStatus::Mempool
+                ) && self.lower_nonce_available(finalized_nonce, nonce).await? =>
+            {
+                // A lower nonce was freed (e.g. its transaction was dropped). The chain cannot
+                // include this nonce until the gap is filled, and this transaction is not
+                // included, so move it down to fill the gap.
+                warn!(
+                    ?nonce,
+                    ?nonce_status,
+                    ?finalized_nonce,
+                    "Lower nonce is available, reassigning transaction to fill the nonce gap"
+                );
+                Ok(NonceAction::AssignNext {
+                    old_nonce: Some(nonce),
+                })
+            }
             (Taken(_), _) => {
                 // If the nonce is taken or committed, we don't need to do anything.
                 info!(

@@ -15,6 +15,8 @@ impl NonceManagerState {
         tx_uuid: &TransactionUuid,
         old_nonce: &Option<U256>,
     ) -> NonceResult<U256> {
+        // Serialize with boundary updates, which may lower the upper nonce past freed nonces.
+        let _guard = self.boundary_update_lock.lock().await;
         if let Some(nonce) = old_nonce {
             // Only clear nonce and tx_uuid linkage if the old_nonce is indeed associated with the tx_uuid in question
             if *tx_uuid == self.get_tracked_tx_uuid(nonce).await? {
@@ -51,14 +53,21 @@ impl NonceManagerState {
         Ok(next_nonce)
     }
 
+    /// Whether a nonce in (finalized_nonce, nonce) is free to be assigned.
+    pub(super) async fn lower_nonce_available(
+        &self,
+        finalized_nonce: Option<U256>,
+        nonce: U256,
+    ) -> NonceResult<bool> {
+        Ok(self.identify_next_nonce(finalized_nonce, nonce).await? < nonce)
+    }
+
     #[instrument(skip(self), fields(?finalized_nonce, ?upper_nonce))]
     async fn identify_next_nonce(
         &self,
         finalized_nonce: Option<U256>,
         upper_nonce: U256,
     ) -> Result<U256, NonceError> {
-        use NonceStatus::Freed;
-
         // finalized_nonce is the last committed nonce on-chain.
         // When Some, nonces [0..=finalized] are committed, so scan from finalized+1.
         // When None (fresh account, 0 txs on-chain), scan from nonce 0.
@@ -70,45 +79,50 @@ impl NonceManagerState {
         let mut next_nonce = scan_start;
 
         while next_nonce < upper_nonce {
-            let tracked_tx_uuid = self.get_tracked_tx_uuid(&next_nonce).await?;
-            if tracked_tx_uuid == TransactionUuid::default() {
-                // If the nonce is not tracked, we can use it.
-                debug!(
-                    ?next_nonce,
-                    "There is no tracked transaction for nonce, reusing it"
-                );
+            if self.nonce_available(&next_nonce).await? {
                 return Ok(next_nonce);
             }
-
-            let Some(tx) = self.get_tracked_tx(&tracked_tx_uuid).await? else {
-                // If the transaction is not found, it means that the nonce was assigned to
-                // a non-existing transaction. This should never happen. We assign new nonce.
-                warn!(
-                    ?next_nonce,
-                    ?tracked_tx_uuid,
-                    "Nonce was assigned to a non-existing transaction, assigning new nonce"
-                );
-                return Ok(next_nonce);
-            };
-
-            let tx_status = tx.status;
-            let tx_nonce_status = NonceStatus::calculate_nonce_status(tx.uuid.clone(), &tx_status);
-
-            if matches!(tx_nonce_status, Freed(_)) {
-                debug!(
-                    ?next_nonce,
-                    ?tracked_tx_uuid,
-                    "Transaction is freed, reusing nonce"
-                );
-                // If the transaction, which is tracked by the nonce, was dropped,
-                // we can re-use the nonce.
-                return Ok(next_nonce);
-            }
-
             next_nonce = next_nonce.saturating_add(U256::one());
         }
 
         Ok(next_nonce)
+    }
+
+    /// A nonce is available if it is untracked, tracked by a missing transaction,
+    /// or tracked by a transaction whose nonce is Freed (dropped).
+    pub(super) async fn nonce_available(&self, nonce: &U256) -> NonceResult<bool> {
+        let tracked_tx_uuid = self.get_tracked_tx_uuid(nonce).await?;
+        if tracked_tx_uuid == TransactionUuid::default() {
+            debug!(
+                ?nonce,
+                "There is no tracked transaction for nonce, reusing it"
+            );
+            return Ok(true);
+        }
+
+        let Some(tx) = self.get_tracked_tx(&tracked_tx_uuid).await? else {
+            // If the transaction is not found, it means that the nonce was assigned to
+            // a non-existing transaction. This should never happen. We assign new nonce.
+            warn!(
+                ?nonce,
+                ?tracked_tx_uuid,
+                "Nonce was assigned to a non-existing transaction, assigning new nonce"
+            );
+            return Ok(true);
+        };
+
+        let tx_nonce_status = NonceStatus::calculate_nonce_status(tx.uuid.clone(), &tx.status);
+        if matches!(tx_nonce_status, NonceStatus::Freed(_)) {
+            // If the transaction, which is tracked by the nonce, was dropped,
+            // we can re-use the nonce.
+            debug!(
+                ?nonce,
+                ?tracked_tx_uuid,
+                "Transaction is freed, reusing nonce"
+            );
+            return Ok(true);
+        }
+        Ok(false)
     }
 }
 
