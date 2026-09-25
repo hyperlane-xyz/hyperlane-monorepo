@@ -234,11 +234,10 @@ const safeSubmitter: SubmitterMetadata = {
 
 const icaChainsLegacy = Object.keys(awIcasLegacy);
 // A V2 leg is submitted through the ethereum Safe's ICA unless it is routed
-// directly through a native Safe. The ethereum home leg is Safe-owned. optimism
-// is still owned on-chain by its native AW Safe, so its enroll/unenroll and the
-// transferOwnership(-> ICA) must be signed by that Safe; routing it directly
-// lets the ownership migration land in the same batch.
-const v2NativeSafeChains = new Set<ChainName>(['optimism']);
+// directly through a native Safe. The ethereum home leg is Safe-owned. optimism's
+// transferOwnership(-> ICA) has executed on-chain, so its leg is now ICA-owned
+// like the rest; later owner-gated changes must go through the ICA submitter.
+const v2NativeSafeChains = new Set<ChainName>();
 const icaChainsV2 = Object.keys(v2Owners).filter(
   (chain) =>
     v2Owners[chain] !== awSafes[chain] && !v2NativeSafeChains.has(chain),
