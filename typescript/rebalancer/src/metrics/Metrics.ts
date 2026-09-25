@@ -41,6 +41,7 @@ import {
 export class Metrics implements IMetrics {
   private readonly logger: Logger;
   private readonly priceGetter: TokenPriceGetter;
+  private readonly cachedPriceGetter: TokenPriceGetter;
 
   constructor(
     private readonly tokenPriceGetter: PriceGetter,
@@ -57,6 +58,10 @@ export class Metrics implements IMetrics {
       tryGetTokenPrice: async (token: Token) => {
         return this.tokenPriceGetter.tryGetTokenPrice(token);
       },
+    };
+    this.cachedPriceGetter = {
+      tryGetTokenPrice: async (token: Token) =>
+        this.tokenPriceGetter.tryGetCachedTokenPrice(token),
     };
   }
 
@@ -115,9 +120,41 @@ export class Metrics implements IMetrics {
     token,
     bridgedSupply,
   }: MonitorEvent['tokensInfo'][number]) {
+    await this.processTokenWithPriceGetter(
+      token,
+      bridgedSupply,
+      this.priceGetter,
+    );
+  }
+
+  async processTokens(tokensInfo: MonitorEvent['tokensInfo']): Promise<void> {
+    const coinGeckoIds = tokensInfo.flatMap(({ token }) =>
+      token.coinGeckoId ? [token.coinGeckoId] : [],
+    );
+    await tryFn(
+      () => this.tokenPriceGetter.prefetchMissing(coinGeckoIds),
+      'Prefetching warp route token prices',
+      this.logger,
+    );
+    await Promise.all(
+      tokensInfo.map(({ token, bridgedSupply }) =>
+        this.processTokenWithPriceGetter(
+          token,
+          bridgedSupply,
+          this.cachedPriceGetter,
+        ),
+      ),
+    );
+  }
+
+  private async processTokenWithPriceGetter(
+    token: Token,
+    bridgedSupply: bigint | undefined,
+    priceGetter: TokenPriceGetter,
+  ): Promise<void> {
     await tryFn(
       async () => {
-        await this.updateTokenMetrics(token, bridgedSupply);
+        await this.updateTokenMetrics(token, bridgedSupply, priceGetter);
       },
       'Updating warp route metrics',
       this.logger,
@@ -128,6 +165,7 @@ export class Metrics implements IMetrics {
   private async updateTokenMetrics(
     token: Token,
     bridgedSupply?: bigint,
+    priceGetter: TokenPriceGetter = this.priceGetter,
   ): Promise<void> {
     const promises = [
       tryFn(
@@ -135,7 +173,7 @@ export class Metrics implements IMetrics {
           const balanceInfo = await getTokenBridgedBalance(
             this.warpCore,
             token,
-            this.priceGetter,
+            priceGetter,
             this.logger,
             bridgedSupply,
           );
@@ -263,7 +301,7 @@ export class Metrics implements IMetrics {
               const balance = await getExtraLockboxBalance(
                 this.warpCore.multiProvider,
                 token,
-                this.priceGetter,
+                priceGetter,
                 lockbox.lockbox,
                 this.logger,
               );
