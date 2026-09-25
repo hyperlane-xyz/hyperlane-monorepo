@@ -210,6 +210,18 @@ impl Store {
         Ok(u64::try_from(row.try_get::<i64>("", "height")?)?)
     }
 
+    /// Newest retained checkpoint that can advance the confirmed frontier.
+    pub async fn checkpoint_between(&self, after: u64, through: u64) -> Result<Option<u64>> {
+        let row = self.db.query_one(sql(
+            "SELECT max(height) AS height FROM scraper_checkpoint WHERE domain=$1 AND height>$2 AND height<=$3",
+            vec![self.domain(), number(after)?, number(through)?],
+        )).await?.ok_or_else(|| eyre::eyre!("Missing checkpoint result"))?;
+        row.try_get::<Option<i64>>("", "height")?
+            .map(u64::try_from)
+            .transpose()
+            .map_err(Into::into)
+    }
+
     pub async fn pause(&self, halt: bool) -> Result<()> {
         let result = self
             .db

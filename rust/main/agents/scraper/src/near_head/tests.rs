@@ -781,6 +781,45 @@ async fn confirmation_bounds_temporary_checkpoints_without_scanning_blocks() -> 
 }
 
 #[tokio::test]
+async fn confirmation_uses_retained_checkpoint_before_scanning_sparse_slots() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let chain = Chain::new(100);
+    store
+        .initialize(&chain.header(0u64.into()).await?, &contracts())
+        .await?;
+    ingest_head(&chain, &store).await?;
+    let checkpoint = chain.header(40u64.into()).await?;
+    store
+        .db
+        .execute(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "INSERT INTO scraper_checkpoint(domain,height,hash,timestamp) VALUES(1,40,$1,now())",
+            [checkpoint.hash.as_bytes().to_vec().into()],
+        ))
+        .await?;
+
+    chain.header_calls.store(0, Ordering::Relaxed);
+    confirm(&chain, &store, &ReorgPeriod::from_blocks(50)).await?;
+    assert_eq!(store.state().await?.unwrap().confirmed, 40);
+    assert_eq!(chain.header_calls.load(Ordering::Relaxed), 2);
+
+    // The next pass materializes the exact finality boundary after the retained
+    // checkpoint has bounded the potentially sparse lookup range.
+    chain.header_calls.store(0, Ordering::Relaxed);
+    confirm(&chain, &store, &ReorgPeriod::from_blocks(50)).await?;
+    assert_eq!(store.state().await?.unwrap().confirmed, 50);
+    assert_eq!(chain.header_calls.load(Ordering::Relaxed), 2);
+    Ok(())
+}
+
+#[tokio::test]
 async fn append_refreshes_the_confirmation_lease_after_a_slow_fetch() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let db = Database::connect(format!(

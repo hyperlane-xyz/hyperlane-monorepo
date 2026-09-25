@@ -499,8 +499,10 @@ async fn confirm_leased(
             page_limited: false,
         });
     }
-    let boundary = match tagged {
-        Some(header) if header.height == through => header,
+    let checkpoint = store.checkpoint_between(state.confirmed, through).await?;
+    let boundary = match (tagged, checkpoint) {
+        (Some(header), _) if header.height == through => header,
+        (_, Some(height)) => source.header(BlockSelector::Height(height)).await?,
         _ => source.range_end(state.confirmed, through, through).await?,
     };
     let through = boundary.height;
