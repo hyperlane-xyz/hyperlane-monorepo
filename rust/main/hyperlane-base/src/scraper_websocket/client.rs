@@ -387,7 +387,7 @@ pub(super) mod tests {
 
     #[tokio::test]
     async fn heartbeat_is_serviced_without_hiding_protocol_messages() {
-        let (mut client, mut server) = connection(Duration::from_secs(5)).await;
+        let (mut client, mut server) = connection(READ_TIMEOUT).await;
         server
             .send(Message::Ping(vec![1, 2, 3].into()))
             .await
@@ -400,7 +400,7 @@ pub(super) mod tests {
             client.recv::<serde_json::Value>().await.expect("receive"),
             Some(ServerMessage::Ready { .. })
         ));
-        let pong = timeout(Duration::from_secs(1), server.next())
+        let pong = timeout(Duration::from_secs(30), server.next())
             .await
             .expect("pong deadline")
             .expect("pong frame")
@@ -432,7 +432,7 @@ pub(super) mod tests {
     async fn cancelled_partial_ping_preserves_fragmented_message_and_pong() {
         use tokio::io::AsyncWriteExt;
 
-        let (mut client, mut server) = connection(Duration::from_secs(5)).await;
+        let (mut client, mut server) = connection(READ_TIMEOUT).await;
         let ready = br#"{"type":"ready"}"#;
         // A non-final text frame, followed by a ping interrupted mid-payload.
         let mut partial = vec![0x01, 8];
@@ -463,14 +463,14 @@ pub(super) mod tests {
             .await
             .expect("remaining frames");
         assert!(matches!(
-            timeout(Duration::from_secs(1), client.recv::<serde_json::Value>())
+            timeout(Duration::from_secs(30), client.recv::<serde_json::Value>())
                 .await
                 .expect("resume deadline")
                 .expect("fragmented ready"),
             Some(ServerMessage::Ready { .. })
         ));
         assert_eq!(
-            timeout(Duration::from_secs(1), server.next())
+            timeout(Duration::from_secs(30), server.next())
                 .await
                 .expect("pong deadline")
                 .expect("pong frame")
@@ -506,7 +506,7 @@ pub(super) mod tests {
             r#"{"type":"subscribed","streams":[]}"#,
             r#"{"type":"event","domain":5,"eventType":"dispatch","data":{}}"#,
         ] {
-            let (mut client, mut server) = connection(Duration::from_secs(1)).await;
+            let (mut client, mut server) = connection(READ_TIMEOUT).await;
             server
                 .send(Message::Text(text.into()))
                 .await

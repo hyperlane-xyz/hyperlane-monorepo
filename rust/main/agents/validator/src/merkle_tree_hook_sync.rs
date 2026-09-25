@@ -1047,6 +1047,25 @@ mod tests {
         }
     }
 
+    /// Bounds waits for a state the scenario must reach. It only catches hangs,
+    /// so a slow or descheduled runner cannot fail an assertion.
+    const HANG_GUARD: Duration = Duration::from_secs(30);
+    /// For stream deadlines the scenario never expects to fire. These tests use
+    /// real sockets, so real time: a short heartbeat or grace deadline lets one
+    /// scheduler stall drop the connection or report lag, and the mock servers
+    /// accept only the connections the scenario expects.
+    const UNREACHED: Duration = Duration::from_secs(3600);
+
+    async fn wait_until(what: &str, mut ready: impl FnMut() -> bool) {
+        timeout(HANG_GUARD, async {
+            while !ready() {
+                sleep(Duration::from_millis(1)).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("timed out waiting for {what}"));
+    }
+
     fn subscription_ack(request: Message) -> Message {
         let mut ack: serde_json::Value =
             serde_json::from_str(request.to_text().expect("text request")).expect("request JSON");
@@ -1765,9 +1784,9 @@ mod tests {
                 1,
                 3,
                 StreamTimeouts {
-                    read: Duration::from_secs(1),
-                    progress_check: Duration::from_secs(1),
-                    progress_grace: Duration::from_secs(1),
+                    read: UNREACHED,
+                    progress_check: UNREACHED,
+                    progress_grace: UNREACHED,
                 },
                 Duration::from_secs(1),
                 dependencies,
@@ -1776,32 +1795,22 @@ mod tests {
             .await;
         });
 
-        timeout(Duration::from_secs(1), async {
-            while db
-                .retrieve_merkle_tree_insertion_by_leaf_index(&1)
+        wait_until("first backfill insertion", || {
+            db.retrieve_merkle_tree_insertion_by_leaf_index(&1)
                 .expect("retrieve first backfill insertion")
-                .is_none()
-            {
-                tokio::task::yield_now().await;
-            }
+                .is_some()
         })
-        .await
-        .expect("first backfill insertion");
+        .await;
         assert_eq!(active_after_backfill.get(), 0);
         assert_eq!(websocket_active.get(), 0);
 
         continue_tx.send(()).expect("continue backfill");
-        timeout(Duration::from_secs(1), async {
-            while db
-                .retrieve_merkle_tree_insertion_by_leaf_index(&2)
+        wait_until("final backfill insertion", || {
+            db.retrieve_merkle_tree_insertion_by_leaf_index(&2)
                 .expect("retrieve final backfill insertion")
-                .is_none()
-            {
-                tokio::task::yield_now().await;
-            }
+                .is_some()
         })
-        .await
-        .expect("final backfill insertion");
+        .await;
         assert_eq!(active_after_backfill.get(), 0);
         assert_eq!(websocket_active.get(), 0);
 
@@ -1811,13 +1820,10 @@ mod tests {
         assert_eq!(websocket_active.get(), 0);
 
         live_tx.send(()).expect("send live event");
-        timeout(Duration::from_secs(1), async {
-            while websocket_active.get() != 1 {
-                tokio::task::yield_now().await;
-            }
+        wait_until("WebSocket received post-marker live event", || {
+            websocket_active.get() == 1
         })
-        .await
-        .expect("WebSocket received post-marker live event");
+        .await;
         assert_eq!(active_after_backfill.get(), 0);
         assert!(db
             .retrieve_merkle_tree_insertion_by_leaf_index(&3)
@@ -1894,9 +1900,9 @@ mod tests {
                 4,
                 4,
                 StreamTimeouts {
-                    read: Duration::from_secs(1),
-                    progress_check: Duration::from_secs(1),
-                    progress_grace: Duration::from_secs(1),
+                    read: UNREACHED,
+                    progress_check: UNREACHED,
+                    progress_grace: UNREACHED,
                 },
                 Duration::from_millis(1),
                 test_dependencies_with_count(Arc::new(AtomicUsize::new(4))),
@@ -1910,7 +1916,7 @@ mod tests {
             )
             .await;
         });
-        timeout(Duration::from_secs(5), server)
+        timeout(HANG_GUARD, server)
             .await
             .expect("server completed")
             .expect("server assertions passed");
@@ -1964,7 +1970,19 @@ mod tests {
                 ).into()))
                 .await
                 .expect("send caught-up message");
-            pending::<()>().await;
+            // The first connection must hit the short read timeout; keep this one
+            // alive so the recovered state persists until the test observes it.
+            let mut heartbeats = interval(Duration::from_millis(10));
+            loop {
+                heartbeats.tick().await;
+                if socket
+                    .send(Message::Text(r#"{"type":"heartbeat"}"#.into()))
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
+            }
         });
 
         let starts = Arc::new(AtomicUsize::new(0));
@@ -2007,16 +2025,12 @@ mod tests {
             .await;
         });
 
-        timeout(Duration::from_secs(5), async {
-            while starts.load(Ordering::SeqCst) != 1
-                || active.get() != 0
-                || websocket_active_after_recovery.get() != 1
-            {
-                tokio::task::yield_now().await;
-            }
+        wait_until("fallback recovery", || {
+            starts.load(Ordering::SeqCst) == 1
+                && active.get() == 0
+                && websocket_active_after_recovery.get() == 1
         })
-        .await
-        .expect("fallback recovery");
+        .await;
         task.abort();
         assert_eq!(starts.load(Ordering::SeqCst), 1);
         assert_eq!(active.get(), 0);
@@ -2066,8 +2080,7 @@ mod tests {
                 ).into()))
                 .await
                 .expect("send caught-up message");
-            // Heartbeat until the test changes the on-chain count, so the read
-            // timeout cannot drop the only connection before cutover is observed.
+            // Live traffic that must neither mask nor cause a freshness failure.
             let mut heartbeats = interval(Duration::from_millis(2));
             loop {
                 heartbeats.tick().await;
@@ -2095,7 +2108,7 @@ mod tests {
                 1,
                 1,
                 StreamTimeouts {
-                    read: Duration::from_millis(50),
+                    read: UNREACHED,
                     progress_check: Duration::from_millis(5),
                     progress_grace: Duration::from_millis(10),
                 },
@@ -2121,25 +2134,18 @@ mod tests {
             .await;
         });
 
-        timeout(Duration::from_secs(1), async {
-            while active.get() != 0 || websocket_active_after_rollback.get() != 1 {
-                tokio::task::yield_now().await;
-            }
+        wait_until("initial WebSocket cutover", || {
+            active.get() == 0 && websocket_active_after_rollback.get() == 1
         })
-        .await
-        .expect("initial WebSocket cutover");
+        .await;
         count_control.store(0, Ordering::SeqCst);
 
-        timeout(Duration::from_secs(1), async {
-            while starts.load(Ordering::SeqCst) != 1
-                || active.get() != 1
-                || websocket_active_after_rollback.get() != 0
-            {
-                tokio::task::yield_now().await;
-            }
+        wait_until("rollback fallback", || {
+            starts.load(Ordering::SeqCst) == 1
+                && active.get() == 1
+                && websocket_active_after_rollback.get() == 0
         })
-        .await
-        .expect("rollback fallback");
+        .await;
         assert_eq!(
             db.retrieve_merkle_tree_insertion_by_leaf_index(&0)
                 .expect("retrieve replacement insertion"),
@@ -2192,9 +2198,8 @@ mod tests {
             let mut ticks = interval(Duration::from_millis(1));
             loop {
                 ticks.tick().await;
-                // Heartbeat until the test advances the on-chain count, so the read
-                // timeout cannot drop the only connection before cutover is observed.
-                // Then flood duplicate markers, which must not mask the lag.
+                // Heartbeat until the test advances the on-chain count, then flood
+                // duplicate markers, which must not mask the lag.
                 let message = if server_count.load(Ordering::SeqCst) == 1 {
                     heartbeat.clone()
                 } else {
@@ -2227,7 +2232,7 @@ mod tests {
                 1,
                 1,
                 StreamTimeouts {
-                    read: Duration::from_millis(50),
+                    read: UNREACHED,
                     progress_check: Duration::from_millis(5),
                     progress_grace: Duration::from_millis(10),
                 },
@@ -2245,25 +2250,18 @@ mod tests {
             .await;
         });
 
-        timeout(Duration::from_secs(1), async {
-            while active.get() != 0 || websocket_active_after_stale.get() != 1 {
-                tokio::task::yield_now().await;
-            }
+        wait_until("initial WebSocket cutover", || {
+            active.get() == 0 && websocket_active_after_stale.get() == 1
         })
-        .await
-        .expect("initial WebSocket cutover");
+        .await;
         count_control.store(2, Ordering::SeqCst);
 
-        timeout(Duration::from_secs(1), async {
-            while starts.load(Ordering::SeqCst) != 1
-                || active.get() != 1
-                || websocket_active_after_stale.get() != 0
-            {
-                tokio::task::yield_now().await;
-            }
+        wait_until("duplicate markers cannot mask lag", || {
+            starts.load(Ordering::SeqCst) == 1
+                && active.get() == 1
+                && websocket_active_after_stale.get() == 0
         })
-        .await
-        .expect("duplicate markers cannot mask lag");
+        .await;
         task.abort();
     }
 
@@ -2309,8 +2307,7 @@ mod tests {
                 ).into()))
                 .await
                 .expect("send caught-up message");
-            // Heartbeat until the test changes the on-chain count, so the read
-            // timeout cannot drop the only connection before cutover is observed.
+            // Live traffic that must neither mask nor cause a freshness failure.
             let mut heartbeats = interval(Duration::from_millis(2));
             loop {
                 heartbeats.tick().await;
@@ -2345,9 +2342,9 @@ mod tests {
                 1,
                 1,
                 StreamTimeouts {
-                    read: Duration::from_millis(50),
+                    read: UNREACHED,
                     progress_check: Duration::from_millis(20),
-                    progress_grace: Duration::from_secs(5),
+                    progress_grace: UNREACHED,
                 },
                 Duration::from_secs(1),
                 dependencies,
@@ -2363,24 +2360,16 @@ mod tests {
             .await;
         });
 
-        timeout(Duration::from_secs(5), async {
-            while calls.load(Ordering::SeqCst) < 2 {
-                tokio::task::yield_now().await;
-            }
-        })
-        .await
-        .expect("cache ahead target");
+        wait_until("cache ahead target", || calls.load(Ordering::SeqCst) >= 2).await;
         assert_eq!(active.get(), 0);
         assert_eq!(websocket_active_after_retreat.get(), 0);
         count_control.store(1, Ordering::SeqCst);
 
-        timeout(Duration::from_secs(5), async {
-            while active.get() != 0 || websocket_active_after_retreat.get() != 1 {
-                tokio::task::yield_now().await;
-            }
-        })
-        .await
-        .expect("scheduled probe activates WebSocket at retreated target");
+        wait_until(
+            "scheduled probe activates WebSocket at retreated target",
+            || active.get() == 0 && websocket_active_after_retreat.get() == 1,
+        )
+        .await;
         assert_eq!(starts.load(Ordering::SeqCst), 0);
         task.abort();
     }
@@ -2421,8 +2410,7 @@ mod tests {
                 ).into()))
                 .await
                 .expect("send caught-up message");
-            // Heartbeat until the test changes the on-chain count, so the read
-            // timeout cannot drop the only connection before cutover is observed.
+            // Live traffic that must neither mask nor cause a freshness failure.
             let mut heartbeats = interval(Duration::from_millis(2));
             loop {
                 heartbeats.tick().await;
@@ -2457,7 +2445,7 @@ mod tests {
                 1,
                 1,
                 StreamTimeouts {
-                    read: Duration::from_millis(50),
+                    read: UNREACHED,
                     progress_check: Duration::from_millis(5),
                     progress_grace: Duration::from_millis(10),
                 },
@@ -2475,25 +2463,18 @@ mod tests {
             .await;
         });
 
-        timeout(Duration::from_secs(1), async {
-            while active.get() != 0 || websocket_active_after_stale.get() != 1 {
-                tokio::task::yield_now().await;
-            }
+        wait_until("initial WebSocket cutover", || {
+            active.get() == 0 && websocket_active_after_stale.get() == 1
         })
-        .await
-        .expect("initial WebSocket cutover");
+        .await;
         count_control.store(2, Ordering::SeqCst);
 
-        timeout(Duration::from_secs(1), async {
-            while starts.load(Ordering::SeqCst) != 1
-                || active.get() != 1
-                || websocket_active_after_stale.get() != 0
-            {
-                tokio::task::yield_now().await;
-            }
+        wait_until("stale data fallback", || {
+            starts.load(Ordering::SeqCst) == 1
+                && active.get() == 1
+                && websocket_active_after_stale.get() == 0
         })
-        .await
-        .expect("stale data fallback");
+        .await;
         task.abort();
     }
 }
