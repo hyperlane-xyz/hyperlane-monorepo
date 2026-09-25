@@ -381,6 +381,9 @@ struct TokenTransferRemote {
     recipient: String,
     #[arg(value_enum)]
     token_type: TokenType,
+    /// Commitment level to confirm the transfer at.
+    #[arg(long, default_value = "finalized")]
+    commitment: CommitmentConfig,
 }
 
 #[derive(Args)]
@@ -1196,7 +1199,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
         }
         TokenSubCmd::TransferRemote(xfer) => {
             is_keypair(&xfer.sender).unwrap();
-            ctx.commitment = CommitmentConfig::finalized();
+            ctx.commitment = xfer.commitment;
             let sender = read_keypair_file(xfer.sender).unwrap();
 
             let recipient = if xfer.recipient.starts_with("0x") {
