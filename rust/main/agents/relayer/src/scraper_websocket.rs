@@ -5,7 +5,7 @@ use hyperlane_base::scraper_websocket::SubscribedStream;
 use std::{
     collections::{BTreeMap, HashMap, HashSet, VecDeque},
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
     time::Duration,
@@ -18,6 +18,7 @@ use futures_util::{
 };
 use hyperlane_base::{
     broadcast::{BroadcastMpscSender, IndexingNotification},
+    cursors::Indexable,
     db::{DbError, DbResult, HyperlaneDb, HyperlaneRocksDB},
     scraper_websocket::{
         format_address as scraper_address, reconnect_after, validate_cutover_freshness,
@@ -27,7 +28,7 @@ use hyperlane_base::{
         SubscribeMessage, SubscribeStream, SubscribedCursor, RETRY_DELAY, RPC_PROBE_TIMEOUT,
     },
     settings::SequenceIndexer,
-    CoreMetrics,
+    ContractSyncMetrics, CoreMetrics,
 };
 use hyperlane_core::{
     bytes_to_address, bytes_to_h512, Decode, Encode, HyperlaneMessage, HyperlaneProtocolError,
@@ -37,7 +38,7 @@ use prometheus::{IntCounterVec, IntGaugeVec};
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
 use tokio::{
-    sync::{watch, Notify, OwnedSemaphorePermit, Semaphore},
+    sync::{watch, Notify, Semaphore},
     time::{sleep, timeout, Instant},
 };
 use tracing::{info, warn};
@@ -48,12 +49,29 @@ const GAS_PAYMENT_EVENT_TYPE: &str = "gas_payment";
 const GAS_PAYMENT_STREAM_CURSOR_VERSION: u32 = 3;
 const MERKLE_EVENT_TYPE: &str = "merkle_tree_insertion";
 const AUTHORITY_FRESHNESS_CONCURRENCY: usize = 16;
+// Authoritative origins whose last probe was exactly fresh are probed less often.
+// Lag is only acted on after PROGRESS_GRACE_PERIOD (300s), and a lagging origin
+// returns to every-tick probing, so worst-case stale detection is ~420s instead of
+// ~330s. Busy origins that are rarely exactly fresh keep every-tick probing.
+#[cfg(not(test))]
+const AUTHORITATIVE_PROBE_INTERVAL: Duration = Duration::from_secs(120);
+#[cfg(test)]
+const AUTHORITATIVE_PROBE_INTERVAL: Duration = Duration::ZERO;
 #[cfg(not(test))]
 const AUTHORITY_HANDOFF_TIMEOUT: Duration = Duration::from_secs(30);
 #[cfg(test)]
 const AUTHORITY_HANDOFF_TIMEOUT: Duration = Duration::from_millis(50);
 const PARITY_READ_CONCURRENCY: usize = 4;
+// Per origin stream. One origin backing up must not close the connection for every origin.
 const PARITY_QUEUE_CAPACITY: usize = 256;
+// Process-wide bound on staged, queued and in-flight parity events. Dispatch jobs
+// retain message bodies, so per-stream limits alone would scale with origin count.
+const PARITY_PENDING_CAPACITY: usize = 4096;
+// At the process cap, streams with at most this many pending events are still
+// admitted: the backlog belongs to other streams, and degrading a quiet or
+// authoritative origin would not relieve it. Bounds memory at the cap plus this
+// many events per stream.
+const PARITY_CAP_EXEMPT_PENDING: i64 = 16;
 #[cfg(not(test))]
 const PARITY_READ_TIMEOUT: Duration = Duration::from_secs(5);
 #[cfg(test)]
@@ -139,6 +157,7 @@ pub(crate) struct ScraperSource {
     database: Arc<dyn ParityDatabase>,
     freshness_indexer: Option<SequenceIndexer<HyperlaneMessage>>,
     merkle_freshness_indexer: Option<SequenceIndexer<MerkleTreeInsertion>>,
+    sync_metrics: Option<Arc<ContractSyncMetrics>>,
 }
 
 impl ScraperSource {
@@ -161,6 +180,50 @@ impl ScraperSource {
             database: Arc::new(database),
             freshness_indexer: None,
             merkle_freshness_indexer: None,
+            sync_metrics: None,
+        }
+    }
+
+    pub(crate) fn with_sync_metrics(mut self, sync_metrics: Arc<ContractSyncMetrics>) -> Self {
+        self.sync_metrics = Some(sync_metrics);
+        self
+    }
+
+    /// Paused RPC cursors stop updating their gauges, so raise them from
+    /// scraper-indexed progress too. Only ever raised: once RPC indexing resumes,
+    /// its cursors set the gauges from the chain as before.
+    fn raise_cursor_max_sequence(&self, kind: EventKind, sequence: u32) {
+        self.raise_cursor_gauge(kind, sequence, false);
+    }
+
+    fn raise_cursor_gauges(&self, kind: EventKind, sequence: u32) {
+        self.raise_cursor_gauge(kind, sequence, false);
+        self.raise_cursor_gauge(kind, sequence, true);
+    }
+
+    fn raise_cursor_gauge(&self, kind: EventKind, sequence: u32, current: bool) {
+        let Some(metrics) = &self.sync_metrics else {
+            return;
+        };
+        let event_type = match kind {
+            EventKind::Dispatch => HyperlaneMessage::name(),
+            EventKind::MerkleTreeInsertion => MerkleTreeInsertion::name(),
+            EventKind::GasPayment => return,
+        };
+        let metrics = &metrics.cursor_metrics;
+        let gauge = if current {
+            metrics.cursor_current_sequence.with_label_values(&[
+                event_type,
+                self.chain.as_str(),
+                "forward_sequenced",
+            ])
+        } else {
+            metrics
+                .cursor_max_sequence
+                .with_label_values(&[event_type, self.chain.as_str()])
+        };
+        if gauge.get() < i64::from(sequence) {
+            gauge.set(i64::from(sequence));
         }
     }
 
@@ -215,6 +278,7 @@ impl ScraperSource {
             database,
             freshness_indexer: None,
             merkle_freshness_indexer: None,
+            sync_metrics: None,
         }
     }
 
@@ -233,12 +297,16 @@ impl ScraperSource {
     }
 
     fn store_cursor(&self, kind: EventKind, sequence: u32) -> Result<()> {
-        if self.cursor(kind)?.is_some_and(|stored| stored >= sequence) {
+        if let Some(stored) = self.cursor(kind)?.filter(|stored| *stored >= sequence) {
+            // Replay after a restart re-checks the stored boundary; gauges start at zero.
+            self.raise_cursor_gauges(kind, stored);
             return Ok(());
         }
         self.cursor_db
             .store_value_by_key(kind.cursor_prefix(), &self.address(kind), &sequence)
-            .context("Storing durable scraper WebSocket cursor")
+            .context("Storing durable scraper WebSocket cursor")?;
+        self.raise_cursor_gauges(kind, sequence);
+        Ok(())
     }
 
     fn parity_unhealthy(&self, kind: EventKind) -> Result<bool> {
@@ -479,7 +547,6 @@ struct ValidatedEvent {
 #[derive(Debug, Default)]
 struct StagedParity {
     events: HashMap<u32, VecDeque<StagedParityEvent>>,
-    len: usize,
 }
 
 #[derive(Debug)]
@@ -490,9 +557,16 @@ struct StagedParityEvent {
 }
 
 impl StagedParity {
-    fn push(&mut self, domain: u32, event: ValidatedEvent) -> Result<()> {
-        if self.len >= PARITY_QUEUE_CAPACITY {
-            bail!("Fresh scraper parity staging exceeded {PARITY_QUEUE_CAPACITY} events");
+    /// Returns false when this origin stream's staging is full; the event is not staged.
+    fn push(&mut self, domain: u32, event: ValidatedEvent) -> Result<bool> {
+        if self.events.get(&domain).is_some_and(|events| {
+            events
+                .iter()
+                .filter(|staged| staged.kind == event.kind)
+                .count()
+                >= PARITY_QUEUE_CAPACITY
+        }) {
+            return Ok(false);
         }
         let event = StagedParityEvent {
             kind: event.kind,
@@ -504,11 +578,7 @@ impl StagedParity {
                 .context("Sequenced parity event omitted its wire sequence")?,
         };
         self.events.entry(domain).or_default().push_back(event);
-        self.len = self
-            .len
-            .checked_add(1)
-            .context("Fresh scraper parity staging length overflowed")?;
-        Ok(())
+        Ok(true)
     }
 
     fn drain_ready(
@@ -550,18 +620,18 @@ impl StagedParity {
                 retained.push_back(event);
             }
         }
-        self.len = self
-            .len
-            .checked_sub(ready.len())
-            .context("Fresh scraper parity staging length underflowed")?;
         if !retained.is_empty() {
             self.events.insert(domain, retained);
         }
         Ok(ready)
     }
 
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.events.values().map(VecDeque::len).sum()
+    }
+
     fn drain_all(&mut self) -> impl Iterator<Item = (u32, StagedParityEvent)> + '_ {
-        self.len = 0;
         self.events
             .drain()
             .flat_map(|(domain, events)| events.into_iter().map(move |event| (domain, event)))
@@ -1263,7 +1333,6 @@ impl StreamState {
 
 struct ParityJob {
     input: ParityInput,
-    queue_permit: OwnedSemaphorePermit,
     sequence: u32,
 }
 
@@ -1434,10 +1503,16 @@ pub(crate) struct ScraperWebSocketMonitor {
     degraded: IntGaugeVec,
     fresh: IntGaugeVec,
     freshness_warned_at: Arc<parking_lot::Mutex<Option<Instant>>>,
+    // Last exactly-fresh probe per authoritative origin.
+    last_fresh_probe: parking_lot::Mutex<HashMap<u32, Instant>>,
     events: IntCounterVec,
     parity: IntCounterVec,
     parity_pending: IntGaugeVec,
-    parity_queue_permit: Arc<Semaphore>,
+    // Sum of parity_pending across origin streams, bounded by PARITY_PENDING_CAPACITY.
+    parity_pending_total: AtomicUsize,
+    // Origin streams whose parity backed up on this connection. Their later events
+    // are dropped and parity readiness stays off until the next connection.
+    parity_overflowed: parking_lot::Mutex<HashSet<(u32, EventKind)>>,
     parity_queues: HashMap<(u32, EventKind), Arc<parking_lot::Mutex<ParityQueue>>>,
     parity_ready: IntGaugeVec,
     parity_read_disabled: AtomicBool,
@@ -1590,10 +1665,12 @@ impl ScraperWebSocketMonitor {
             degraded,
             fresh,
             freshness_warned_at: Arc::new(parking_lot::Mutex::new(None)),
+            last_fresh_probe: parking_lot::Mutex::default(),
             events,
             parity,
             parity_pending,
-            parity_queue_permit: Arc::new(Semaphore::new(PARITY_QUEUE_CAPACITY)),
+            parity_pending_total: AtomicUsize::new(0),
+            parity_overflowed: parking_lot::Mutex::default(),
             parity_queues,
             parity_ready,
             parity_read_disabled: AtomicBool::new(false),
@@ -1693,6 +1770,7 @@ impl ScraperWebSocketMonitor {
         let labels = [source.chain.as_str(), kind.label()];
         self.parity_ready.with_label_values(&labels).set(0);
         self.parity_pending.with_label_values(&labels).inc();
+        self.parity_pending_total.fetch_add(1, Ordering::AcqRel);
     }
 
     fn cancel_parity_pending(&self, domain: u32, kind: EventKind) {
@@ -1703,18 +1781,74 @@ impl ScraperWebSocketMonitor {
         self.parity_pending
             .with_label_values(&[source.chain.as_str(), kind.label()])
             .dec();
+        self.release_parity_pending(1);
     }
 
+    fn stream_parity_pending(&self, domain: u32, kind: EventKind) -> i64 {
+        let source = self
+            .sources
+            .get(&domain)
+            .expect("validated scraper event source must exist");
+        self.parity_pending
+            .with_label_values(&[source.chain.as_str(), kind.label()])
+            .get()
+    }
+
+    fn release_parity_pending(&self, count: usize) {
+        let previous = self.parity_pending_total.fetch_sub(count, Ordering::AcqRel);
+        debug_assert!(previous >= count, "parity pending accounting underflow");
+    }
+
+    /// Returns false, recording the event as dropped, when the stream is degraded.
     fn stage_parity(
         &self,
         staged: &mut StagedParity,
         domain: u32,
         validated: ValidatedEvent,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         let kind = validated.kind;
-        staged.push(domain, validated)?;
-        self.note_parity_pending(domain, kind);
-        Ok(())
+        let admitted = if self.parity_overflowed.lock().contains(&(domain, kind)) {
+            false
+        } else if self.parity_pending_total.load(Ordering::Acquire) >= PARITY_PENDING_CAPACITY
+            && self.stream_parity_pending(domain, kind) > PARITY_CAP_EXEMPT_PENDING
+        {
+            self.overflow_parity(domain, kind, "process", PARITY_PENDING_CAPACITY);
+            false
+        } else if !staged.push(domain, validated)? {
+            self.overflow_parity(domain, kind, "staging", PARITY_QUEUE_CAPACITY);
+            false
+        } else {
+            self.note_parity_pending(domain, kind);
+            true
+        };
+        if !admitted {
+            self.record(domain, kind.label(), "dropped");
+        }
+        Ok(admitted)
+    }
+
+    /// Keep RPC authoritative for one origin stream whose parity backed up.
+    /// Later events are dropped, so no queued job persists a cursor past a skipped
+    /// event, and readiness cannot return without terminal matching parity.
+    fn overflow_parity(&self, domain: u32, kind: EventKind, stage: &str, capacity: usize) {
+        if !self.parity_overflowed.lock().insert((domain, kind)) {
+            return;
+        }
+        let source = self
+            .sources
+            .get(&domain)
+            .expect("validated scraper event source must exist");
+        self.parity_ready
+            .with_label_values(&[source.chain.as_str(), kind.label()])
+            .set(0);
+        self.deactivate_source_authority(domain);
+        warn!(
+            chain = source.chain,
+            event_type = kind.label(),
+            stage,
+            capacity,
+            "Scraper parity backed up; keeping RPC indexing for this origin until reconnect"
+        );
     }
 
     async fn observe_parity_inner(
@@ -1817,16 +1951,25 @@ impl ScraperWebSocketMonitor {
         self.parity
             .with_label_values(&[chain.as_str(), event_type, terminal])
             .inc();
-        if terminal != ParityResult::Match.label() {
+        if terminal == ParityResult::Conflict.label() {
             self.parity_unhealthy.lock().insert((domain, kind));
             self.deactivate_source_authority(domain);
-            if should_warn(&self.parity_warned_at) {
-                warn!(%chain, event_type, result = terminal, "Scraper event did not reach matching local DB parity");
-            }
+        } else if terminal != ParityResult::Match.label() {
+            // Missing/expired/error only degrade this connection: later events are
+            // dropped and the durable cursor stays before this event for a retry.
+            self.parity_overflowed.lock().insert((domain, kind));
+            self.deactivate_source_authority(domain);
+        }
+        if terminal != ParityResult::Match.label() && should_warn(&self.parity_warned_at) {
+            warn!(%chain, event_type, result = terminal, "Scraper event did not reach matching local DB parity");
         }
         let pending = self.parity_pending.with_label_values(&labels);
         pending.dec();
-        if pending.get() == 0 && !self.parity_unhealthy.lock().contains(&(domain, kind)) {
+        self.release_parity_pending(1);
+        if pending.get() == 0
+            && !self.parity_unhealthy.lock().contains(&(domain, kind))
+            && !self.parity_overflowed.lock().contains(&(domain, kind))
+        {
             self.parity_ready.with_label_values(&labels).set(1);
             // The connection schedules cutover after events and progress probes.
         }
@@ -1861,19 +2004,7 @@ impl ScraperWebSocketMonitor {
         if self.parity_read_disabled.load(Ordering::Acquire) {
             return Ok(false);
         }
-        // Admission runs between session polls. Waiting here would also stop
-        // freshness probes and disconnect detection for every origin.
-        let queue_permit = match self.parity_queue_permit.clone().try_acquire_owned() {
-            Ok(permit) => permit,
-            Err(tokio::sync::TryAcquireError::NoPermits) => {
-                self.deactivate_authority();
-                bail!("Scraper parity queue is full; restoring RPC fallback");
-            }
-            Err(tokio::sync::TryAcquireError::Closed) => {
-                unreachable!("parity queue semaphore is never closed")
-            }
-        };
-        if self.parity_read_disabled.load(Ordering::Acquire) {
+        if self.parity_overflowed.lock().contains(&(domain, kind)) {
             return Ok(false);
         }
         let queue = self
@@ -1881,11 +2012,21 @@ impl ScraperWebSocketMonitor {
             .get(&(domain, kind))
             .expect("validated scraper stream has a parity queue")
             .clone();
+        // Admission runs between session polls. Waiting here would also stop
+        // freshness probes and disconnect detection for every origin.
         let start_worker = {
             let mut queue = queue.lock();
+            // A worker may have abandoned this stream since the check above.
+            if self.parity_overflowed.lock().contains(&(domain, kind)) {
+                return Ok(false);
+            }
+            if queue.jobs.len() >= PARITY_QUEUE_CAPACITY {
+                drop(queue);
+                self.overflow_parity(domain, kind, "queue", PARITY_QUEUE_CAPACITY);
+                return Ok(false);
+            }
             queue.jobs.push_back(ParityJob {
                 input: parity_input,
-                queue_permit,
                 sequence,
             });
             if queue.worker_running {
@@ -1987,7 +2128,14 @@ impl ScraperWebSocketMonitor {
                 .sources
                 .get(&domain)
                 .expect("validated scraper event source exists");
-            if terminal != ParityResult::Match.label() {
+            if terminal != ParityResult::Match.label() && terminal != ParityResult::Conflict.label()
+            {
+                // Keep the cursor before this event and drop the later jobs, so the
+                // next connection re-checks it once the local DB has caught up.
+                self.abandon_parity_queue(domain, kind, &queue);
+                return;
+            }
+            if terminal == ParityResult::Conflict.label() {
                 if let Err(err) = source.store_parity_unhealthy(kind) {
                     warn!(%domain, event_type = kind.label(), ?err, "Persisting scraper parity failure failed; disabling parity work");
                     self.disable_parity_reads(
@@ -2009,7 +2157,6 @@ impl ScraperWebSocketMonitor {
                 self.abandon_parity_queue(domain, kind, &queue);
                 return;
             }
-            drop(job.queue_permit);
         }
     }
 
@@ -2021,6 +2168,8 @@ impl ScraperWebSocketMonitor {
     ) {
         let dropped = {
             let mut queue = queue.lock();
+            // Under the queue lock, so admission cannot start a worker past this event.
+            self.parity_overflowed.lock().insert((domain, kind));
             let dropped = queue.jobs.len();
             queue.jobs.clear();
             queue.worker_running = false;
@@ -2033,6 +2182,7 @@ impl ScraperWebSocketMonitor {
         self.parity_pending
             .with_label_values(&[source.chain.as_str(), kind.label()])
             .sub(dropped as i64);
+        self.release_parity_pending(dropped);
     }
 
     #[cfg(test)]
@@ -2055,6 +2205,7 @@ impl ScraperWebSocketMonitor {
         gas_payment_cursors: &[SubscribedCursor],
     ) -> Result<()> {
         let _gas_payment_guard = GasPaymentConnectionGuard(&self.gas_payment_authority);
+        self.parity_overflowed.lock().clear();
         let mut staged_parity = StagedParity::default();
         let result = self
             .stream_inner(state, plan, gas_payment_cursors, &mut staged_parity)
@@ -2142,13 +2293,15 @@ impl ScraperWebSocketMonitor {
                     }
                     match state.validate(event, &self.sources) {
                         Ok(validated) => {
+                            let kind = validated.kind;
                             let result = match validated.sequence_result {
                                 SequenceResult::Accepted => "accepted",
                                 SequenceResult::Duplicate => "duplicate",
                             };
-                            self.record(domain, validated.kind.label(), result);
                             if validated.parity.is_some() {
-                                self.stage_parity(staged_parity, domain, validated)?;
+                                if self.stage_parity(staged_parity, domain, validated)? {
+                                    self.record(domain, kind.label(), result);
+                                }
                                 self.flush_staged_parity(
                                     state,
                                     plan,
@@ -2160,6 +2313,7 @@ impl ScraperWebSocketMonitor {
                                 self.update_source_caught_up(state, plan, &caught_up, domain)
                                     .await?;
                             } else {
+                                self.record(domain, kind.label(), result);
                                 let source = self.sources.get(&domain).context(
                                     "Validated scraper event source unexpectedly missing",
                                 )?;
@@ -2271,6 +2425,7 @@ impl ScraperWebSocketMonitor {
                     }
                     if plan.source(domain)?.floor(kind).is_none()
                         && sequence >= 0
+                        && !self.parity_overflowed.lock().contains(&(domain, kind))
                         && self
                             .parity_pending
                             .with_label_values(&[source.chain.as_str(), kind.label()])
@@ -2294,7 +2449,6 @@ impl ScraperWebSocketMonitor {
                         && is_unsupported_row_cursor_error(&error)
                     {
                         self.gas_payment_enabled.store(false, Ordering::Relaxed);
-                        self.deactivate_authority();
                         for source in self.sources.values() {
                             self.set_source_caught_up(source, EventKind::GasPayment, false);
                             self.degraded
@@ -2394,7 +2548,7 @@ impl ScraperWebSocketMonitor {
         self.degraded
             .with_label_values(&[source.chain.as_str(), GAS_PAYMENT_EVENT_TYPE])
             .set(1);
-        self.deactivate_source_authority(domain);
+        // Dispatch/Merkle authority is independent of gas payments.
         // At most once per origin per connection: later rows are dropped unread.
         warn!(
             chain = source.chain,
@@ -2483,6 +2637,10 @@ impl ScraperWebSocketMonitor {
                     .parity_unhealthy
                     .lock()
                     .contains(&(source.domain, kind))
+                && !self
+                    .parity_overflowed
+                    .lock()
+                    .contains(&(source.domain, kind))
             {
                 self.parity_ready.with_label_values(&labels).set(1);
             }
@@ -2561,37 +2719,36 @@ impl ScraperWebSocketMonitor {
         });
     }
 
+    /// Dispatch/Merkle authority depends only on those streams. Gas payments have
+    /// their own per-origin authority: RPC gas indexing keeps running until that
+    /// origin's gas replay catches up, so neither waits on the other.
     fn base_source_authority_ready(&self, source: &ScraperSource) -> bool {
         self.authority_enabled
-            && self.gas_payment_enabled.load(Ordering::Acquire)
             && self
                 .active
                 .with_label_values(&[source.chain.as_str()])
                 .get()
                 == 1
-            && [
-                EventKind::Dispatch,
-                EventKind::GasPayment,
-                EventKind::MerkleTreeInsertion,
-            ]
-            .into_iter()
-            .all(|kind| {
-                self.caught_up
-                    .with_label_values(&[source.chain.as_str(), kind.label()])
-                    .get()
-                    == 1
-            })
-            && self
-                .degraded
-                .with_label_values(&[source.chain.as_str(), GAS_PAYMENT_EVENT_TYPE])
-                .get()
-                == 0
+            && [EventKind::Dispatch, EventKind::MerkleTreeInsertion]
+                .into_iter()
+                .all(|kind| {
+                    self.caught_up
+                        .with_label_values(&[source.chain.as_str(), kind.label()])
+                        .get()
+                        == 1
+                })
             && [EventKind::Dispatch, EventKind::MerkleTreeInsertion]
                 .into_iter()
                 .all(|kind| {
                     let labels = [source.chain.as_str(), kind.label()];
+                    // A parity worker can restore parity_ready just after the stream
+                    // overflows, so check the overflow set directly as well.
                     self.parity_pending.with_label_values(&labels).get() == 0
                         && self.parity_ready.with_label_values(&labels).get() == 1
+                        && !self
+                            .parity_overflowed
+                            .lock()
+                            .contains(&(source.domain, kind))
                 })
     }
 
@@ -2620,7 +2777,15 @@ impl ScraperWebSocketMonitor {
                 if !ready {
                     self.deactivate_source_authority(source.domain);
                 }
-                ready.then(|| source.clone())
+                let due = !self
+                    .source_authority(source.domain)
+                    .active
+                    .load(Ordering::Acquire)
+                    || authoritative_probe_due(
+                        self.last_fresh_probe.lock().get(&source.domain).copied(),
+                        AUTHORITATIVE_PROBE_INTERVAL,
+                    );
+                (ready && due).then(|| source.clone())
             })
             .collect::<Vec<_>>();
         let monitor = self.clone();
@@ -2675,16 +2840,19 @@ impl ScraperWebSocketMonitor {
                         // Snapshot durable cursors before RPC. Events may advance
                         // during those calls; comparing newer cursors to older
                         // counts would incorrectly classify progress as rollback.
-                        let (dispatch_canonical_count, _) =
-                            timeout(RPC_PROBE_TIMEOUT, indexer.latest_sequence_count_and_tip())
-                                .await
-                                .context("Canonical dispatch freshness probe timed out")??;
-                        let (merkle_canonical_count, _) = timeout(
-                            RPC_PROBE_TIMEOUT,
-                            merkle_indexer.latest_sequence_count_and_tip(),
-                        )
-                        .await
-                        .context("Canonical Merkle freshness probe timed out")??;
+                        // Concurrent probes share one tip lookup through the RPC
+                        // client's single-flight block cache.
+                        let (dispatch_probe, merkle_probe) = tokio::join!(
+                            timeout(RPC_PROBE_TIMEOUT, indexer.latest_sequence_count_and_tip()),
+                            timeout(
+                                RPC_PROBE_TIMEOUT,
+                                merkle_indexer.latest_sequence_count_and_tip(),
+                            ),
+                        );
+                        let (dispatch_canonical_count, _) = dispatch_probe
+                            .context("Canonical dispatch freshness probe timed out")??;
+                        let (merkle_canonical_count, _) = merkle_probe
+                            .context("Canonical Merkle freshness probe timed out")??;
                         Ok::<_, eyre::Report>((
                             canonical_cursors_are_fresh(
                                 dispatch_canonical_count,
@@ -2726,6 +2894,15 @@ impl ScraperWebSocketMonitor {
                 merkle_cursor,
             )) => {
                 let source = &self.sources[&domain];
+                // Same canonical view as the RPC cursors: max sequence is count - 1.
+                for (kind, count) in [
+                    (EventKind::Dispatch, dispatch_canonical_count),
+                    (EventKind::MerkleTreeInsertion, merkle_canonical_count),
+                ] {
+                    if let Some(max_sequence) = count.and_then(|count| count.checked_sub(1)) {
+                        source.raise_cursor_max_sequence(kind, max_sequence);
+                    }
+                }
                 let mut readiness_still_valid = false;
                 let mut within_grace = false;
                 let authority = self.source_authority(domain);
@@ -2758,6 +2935,11 @@ impl ScraperWebSocketMonitor {
                     }
                     false
                 });
+                if is_fresh && readiness_still_valid && authority.active.load(Ordering::Acquire) {
+                    self.last_fresh_probe.lock().insert(domain, Instant::now());
+                } else {
+                    self.last_fresh_probe.lock().remove(&domain);
+                }
                 if !readiness_still_valid || (!is_fresh && !within_grace) {
                     if !is_fresh && should_warn(&self.freshness_warned_at) {
                         warn!(
@@ -2776,6 +2958,7 @@ impl ScraperWebSocketMonitor {
                 if should_warn(&self.freshness_warned_at) {
                     warn!(%chain, ?err, "Canonical scraper freshness probe failed");
                 }
+                self.last_fresh_probe.lock().remove(&domain);
                 self.deactivate_source_authority(domain);
             }
         }
@@ -2830,6 +3013,10 @@ impl ScraperWebSocketMonitor {
             .with_label_values(&[chain, event_type, result])
             .inc();
     }
+}
+
+fn authoritative_probe_due(last_fresh: Option<Instant>, interval: Duration) -> bool {
+    last_fresh.is_none_or(|last| last.elapsed() >= interval)
 }
 
 fn should_warn(warned_at: &parking_lot::Mutex<Option<Instant>>) -> bool {
@@ -3507,7 +3694,8 @@ mod tests {
         assert!(!*poisoned.borrow(), "poisoned origin restores gas RPC");
         assert!(*healthy.borrow(), "healthy origin keeps gas authority");
         let [poisoned_source, healthy_source] = [5, 9].map(|domain| &monitor.sources[&domain]);
-        assert!(!monitor.base_source_authority_ready(poisoned_source));
+        // Gas payments fall back on their own; dispatch/Merkle readiness is unaffected.
+        assert!(monitor.base_source_authority_ready(poisoned_source));
         assert!(monitor.base_source_authority_ready(healthy_source));
         for (source, degraded, caught_up, cursor) in
             [(poisoned_source, 1, 0, 1), (healthy_source, 0, 1, 2)]
@@ -3680,7 +3868,8 @@ mod tests {
         assert!(!*poisoned.borrow(), "conflicted origin keeps gas RPC");
         assert!(*healthy.borrow(), "healthy origin gains gas authority");
         let healthy_source = &monitor.sources[&9];
-        assert!(!monitor.base_source_authority_ready(conflicted));
+        // Gas payments fall back on their own; dispatch/Merkle readiness is unaffected.
+        assert!(monitor.base_source_authority_ready(conflicted));
         assert!(monitor.base_source_authority_ready(healthy_source));
         assert_eq!(
             conflicted
@@ -5226,6 +5415,27 @@ mod tests {
         );
     }
 
+    fn sequenced_event_for(kind: EventKind, sequence: u32) -> EventMessage<serde_json::Value> {
+        match kind {
+            EventKind::Dispatch => event(
+                DISPATCH_EVENT_TYPE,
+                sequence,
+                dispatch_data(sequence, b"message"),
+            ),
+            EventKind::MerkleTreeInsertion => event(
+                MERKLE_EVENT_TYPE,
+                sequence,
+                merkle_data_for(
+                    sequence,
+                    H256::from_low_u64_be(2),
+                    dispatch_message(sequence, b"message").id(),
+                    100,
+                ),
+            ),
+            EventKind::GasPayment => unreachable!("gas payments are not sequenced parity events"),
+        }
+    }
+
     fn event(
         event_type: &str,
         sequence: u32,
@@ -5714,7 +5924,7 @@ mod tests {
                 .expect_err("fresh event must immediately follow its marker")
                 .to_string()
                 .contains("expected 101"));
-            assert_eq!(staged.len, 1, "rejected parity remains unadmitted");
+            assert_eq!(staged.len(), 1, "rejected parity remains unadmitted");
             assert_eq!(source.cursor(kind).expect("stream cursor"), None);
 
             let mut contiguous = StreamState::default();
@@ -5786,7 +5996,7 @@ mod tests {
                 (EventKind::MerkleTreeInsertion, 0),
             ]
         );
-        assert_eq!(staged.len, 0);
+        assert_eq!(staged.len(), 0);
 
         staged
             .push(
@@ -5817,7 +6027,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![(EventKind::MerkleTreeInsertion, 1)]
         );
-        assert_eq!(staged.len, 0);
+        assert_eq!(staged.len(), 0);
     }
 
     #[test]
@@ -5846,7 +6056,7 @@ mod tests {
             .expect_err("empty stream must begin at zero")
             .to_string()
             .contains("expected 0"));
-        assert_eq!(staged.len, 1, "invalid staged event remains unadmitted");
+        assert_eq!(staged.len(), 1, "invalid staged event remains unadmitted");
     }
 
     #[test]
@@ -6319,11 +6529,6 @@ mod tests {
             .expect("dispatch queue");
         queue.lock().jobs.push_back(ParityJob {
             input: queued_event.parity.expect("sequenced parity input"),
-            queue_permit: monitor
-                .parity_queue_permit
-                .clone()
-                .try_acquire_owned()
-                .expect("queue permit"),
             sequence: queued_event.sequence.expect("sequenced wire sequence"),
         });
         assert_eq!(monitor.parity_pending.with_label_values(&labels).get(), 2);
@@ -6333,6 +6538,193 @@ mod tests {
         assert_eq!(monitor.parity_ready.with_label_values(&labels).get(), 0);
         monitor.abandon_parity_queue(5, EventKind::Dispatch, queue);
         assert_eq!(monitor.parity_pending.with_label_values(&labels).get(), 0);
+        assert_eq!(monitor.parity_pending_total.load(Ordering::Acquire), 0);
+    }
+
+    #[test]
+    fn scraper_progress_raises_cursor_gauges() {
+        let metrics =
+            CoreMetrics::new("scraper-cursor-metrics", 0, Registry::new()).expect("metrics");
+        let sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
+        let monitor = ScraperWebSocketMonitor::new_with_authority(
+            Url::parse("ws://localhost:1").expect("test URL"),
+            sources_for(&[5])
+                .into_values()
+                .map(|source| source.with_sync_metrics(sync_metrics.clone()))
+                .collect(),
+            &metrics,
+            true,
+        )
+        .expect("monitor");
+        let chain = monitor.sources[&5].chain.clone();
+        let gauge = |event_type: &str| {
+            sync_metrics
+                .cursor_metrics
+                .cursor_max_sequence
+                .with_label_values(&[event_type, chain.as_str()])
+                .get()
+        };
+        let probe = |dispatch_count, merkle_count| {
+            (
+                5,
+                chain.clone(),
+                Ok((false, Some(dispatch_count), Some(merkle_count), None, None)),
+            )
+        };
+
+        monitor.apply_freshness(probe(11, 7));
+        assert_eq!(gauge(HyperlaneMessage::name()), 10);
+        assert_eq!(gauge(MerkleTreeInsertion::name()), 6);
+
+        let current = || {
+            sync_metrics
+                .cursor_metrics
+                .cursor_current_sequence
+                .with_label_values(&[
+                    HyperlaneMessage::name(),
+                    chain.as_str(),
+                    "forward_sequenced",
+                ])
+        };
+        monitor.sources[&5]
+            .store_cursor(EventKind::Dispatch, 12)
+            .expect("store cursor");
+        assert_eq!(gauge(HyperlaneMessage::name()), 12);
+        assert_eq!(current().get(), 12);
+
+        // After a restart the gauges start at zero and replay re-checks the stored boundary.
+        current().set(0);
+        monitor.sources[&5]
+            .store_cursor(EventKind::Dispatch, 12)
+            .expect("replay stored boundary");
+        assert_eq!(current().get(), 12);
+
+        // A stale probe never moves the gauge backwards.
+        monitor.apply_freshness(probe(5, 5));
+        assert_eq!(gauge(HyperlaneMessage::name()), 12);
+        assert_eq!(gauge(MerkleTreeInsertion::name()), 6);
+    }
+
+    #[test]
+    fn overflowed_stream_is_not_ready_even_with_a_stale_parity_ready_gauge() {
+        let metrics =
+            CoreMetrics::new("parity-overflow-ready", 0, Registry::new()).expect("metrics");
+        let monitor = ScraperWebSocketMonitor::new_with_authority(
+            Url::parse("ws://localhost:1").expect("test URL"),
+            sources_for(&[5]).into_values().collect(),
+            &metrics,
+            true,
+        )
+        .expect("monitor");
+        let source = monitor.sources[&5].clone();
+        monitor
+            .active
+            .with_label_values(&[source.chain.as_str()])
+            .set(1);
+        for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
+            let labels = [source.chain.as_str(), kind.label()];
+            monitor.caught_up.with_label_values(&labels).set(1);
+            monitor.parity_ready.with_label_values(&labels).set(1);
+        }
+        assert!(monitor.base_source_authority_ready(&source));
+
+        // A parity worker raced the overflow and left parity_ready at 1.
+        monitor
+            .parity_overflowed
+            .lock()
+            .insert((5, EventKind::MerkleTreeInsertion));
+        assert!(!monitor.base_source_authority_ready(&source));
+    }
+
+    #[test]
+    fn authoritative_probes_back_off_only_after_an_exactly_fresh_probe() {
+        let interval = Duration::from_secs(120);
+        assert!(authoritative_probe_due(None, interval));
+        assert!(!authoritative_probe_due(Some(Instant::now()), interval));
+        let stale = Instant::now()
+            .checked_sub(Duration::from_secs(121))
+            .expect("monotonic clock has 121s of history");
+        assert!(authoritative_probe_due(Some(stale), interval));
+    }
+
+    #[test]
+    fn parity_staging_is_bounded_per_event_kind() {
+        let sources = sources();
+        let stage = |staged: &mut StagedParity, kind, sequence| {
+            let validated = StreamState::default()
+                .validate(sequenced_event_for(kind, sequence), &sources)
+                .expect("valid staged event");
+            staged.push(5, validated).expect("stage parity")
+        };
+        let half = u32::try_from(PARITY_QUEUE_CAPACITY / 2).expect("capacity fits u32");
+        let full = u32::try_from(PARITY_QUEUE_CAPACITY).expect("capacity fits u32");
+        let mut staged = StagedParity::default();
+        for sequence in 0..half {
+            assert!(stage(&mut staged, EventKind::Dispatch, sequence));
+            assert!(stage(&mut staged, EventKind::MerkleTreeInsertion, sequence));
+        }
+        // Mixed kinds at half capacity each must not overflow either stream.
+        assert!(stage(&mut staged, EventKind::MerkleTreeInsertion, half));
+        for sequence in half..full {
+            assert!(stage(&mut staged, EventKind::Dispatch, sequence));
+        }
+        assert!(!stage(&mut staged, EventKind::Dispatch, full));
+        assert!(stage(&mut staged, EventKind::MerkleTreeInsertion, half + 1));
+    }
+
+    #[tokio::test]
+    async fn process_wide_parity_cap_degrades_only_backlogged_streams() {
+        let monitor = Arc::new(monitor(Arc::new(MockParityDatabase::new())));
+        monitor
+            .parity_pending_total
+            .store(PARITY_PENDING_CAPACITY, Ordering::Release);
+        // Dispatch holds part of the backlog; Merkle is quiet.
+        monitor
+            .parity_pending
+            .with_label_values(&["test", DISPATCH_EVENT_TYPE])
+            .set(PARITY_CAP_EXEMPT_PENDING + 1);
+        let mut staged = StagedParity::default();
+        let dispatch = StreamState::default()
+            .validate(
+                sequenced_event_for(EventKind::Dispatch, 1),
+                &monitor.sources,
+            )
+            .expect("valid dispatch");
+        monitor
+            .stage_parity(&mut staged, 5, dispatch)
+            .expect("process cap degrades instead of failing");
+        assert_eq!(staged.len(), 0);
+        assert!(monitor
+            .parity_overflowed
+            .lock()
+            .contains(&(5, EventKind::Dispatch)));
+        assert_eq!(
+            monitor
+                .parity_ready
+                .with_label_values(&["test", DISPATCH_EVENT_TYPE])
+                .get(),
+            0
+        );
+
+        // Still at the cap: a quiet stream is admitted, not degraded.
+        let merkle = StreamState::default()
+            .validate(
+                sequenced_event_for(EventKind::MerkleTreeInsertion, 1),
+                &monitor.sources,
+            )
+            .expect("valid Merkle insertion");
+        monitor
+            .stage_parity(&mut staged, 5, merkle)
+            .expect("quiet stream stages at the process cap");
+        assert_eq!(staged.len(), 1);
+        assert!(!monitor
+            .parity_overflowed
+            .lock()
+            .contains(&(5, EventKind::MerkleTreeInsertion)));
+        assert_eq!(
+            monitor.parity_pending_total.load(Ordering::Acquire),
+            PARITY_PENDING_CAPACITY + 1
+        );
     }
 
     #[tokio::test]
@@ -6405,7 +6797,89 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn full_parity_queue_restores_other_origin_rpc_fallback() {
+    async fn overflowed_fresh_stream_does_not_take_a_caught_up_cursor() {
+        for overflow in [false, true] {
+            let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind server");
+            let url = Url::parse(&format!("ws://{}", listener.local_addr().expect("address")))
+                .expect("URL");
+            let metrics =
+                CoreMetrics::new("parity-overflow-marker", 0, Registry::new()).expect("metrics");
+            let monitor = Arc::new(
+                ScraperWebSocketMonitor::new_with_authority(
+                    url,
+                    sources_for(&[5]).into_values().collect(),
+                    &metrics,
+                    true,
+                )
+                .expect("monitor"),
+            );
+            if overflow {
+                monitor
+                    .parity_pending_total
+                    .store(PARITY_PENDING_CAPACITY, Ordering::Release);
+                monitor
+                    .parity_pending
+                    .with_label_values(&[monitor.sources[&5].chain.as_str(), DISPATCH_EVENT_TYPE])
+                    .set(PARITY_CAP_EXEMPT_PENDING + 1);
+            }
+            let server = tokio::spawn(async move {
+                let (stream, _) = listener.accept().await.expect("accept");
+                let mut socket = accept_async(stream).await.expect("websocket");
+                socket
+                    .send(Message::Text(r#"{"type":"ready"}"#.to_owned().into()))
+                    .await
+                    .expect("ready");
+                let request = socket.next().await.expect("subscription").expect("read");
+                let request: serde_json::Value =
+                    serde_json::from_str(request.to_text().expect("text")).expect("JSON");
+                let caught_up = Message::Text(
+                    serde_json::json!({
+                        "type": "caught_up", "eventType": DISPATCH_EVENT_TYPE, "domain": 5,
+                        "address": scraper_address(H256::from_low_u64_be(1)), "sequence": "4",
+                    })
+                    .to_string()
+                    .into(),
+                );
+                let mut messages = vec![Message::Text(
+                    serde_json::json!({
+                        "type": "subscribed", "streams": proxy_subscription_response(&request),
+                    })
+                    .to_string()
+                    .into(),
+                )];
+                if overflow {
+                    // Dropped at the process cap before the marker arrives.
+                    messages.push(Message::Text(
+                        wire_event(event(DISPATCH_EVENT_TYPE, 5, dispatch_data(5, b"payload")))
+                            .to_string()
+                            .into(),
+                    ));
+                }
+                // The duplicate marker ends the session after the first is handled.
+                messages.extend([caught_up.clone(), caught_up]);
+                for message in messages {
+                    socket.send(message).await.expect("send");
+                }
+                let _ = socket.next().await;
+            });
+            let mut state = StreamState::default();
+            let err = timeout(Duration::from_secs(5), monitor.stream_once(&mut state))
+                .await
+                .expect("session ends")
+                .expect_err("duplicate marker ends the session");
+            assert!(err.to_string().contains("duplicate"), "{err:?}");
+            assert_eq!(
+                monitor.sources[&5]
+                    .cursor(EventKind::Dispatch)
+                    .expect("cursor"),
+                (!overflow).then_some(4)
+            );
+            server.abort();
+        }
+    }
+
+    #[tokio::test]
+    async fn full_parity_queue_falls_back_only_for_its_origin() {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind server");
         let url =
             Url::parse(&format!("ws://{}", listener.local_addr().expect("address"))).expect("URL");
@@ -6424,34 +6898,30 @@ mod tests {
                 .store_cursor(kind, 0)
                 .expect("replay floor");
         }
-        // Origin 5 has no RPC-indexed messages. Its FIFO worker retries Missing
-        // while retaining a slot; the remaining jobs consume the global queue.
-        for sequence in 1..=u32::try_from(PARITY_QUEUE_CAPACITY).expect("capacity") {
-            let validated = StreamState::default()
-                .validate(
-                    event(
-                        DISPATCH_EVENT_TYPE,
-                        sequence,
-                        dispatch_data(sequence, b"payload"),
-                    ),
-                    &monitor.sources,
-                )
-                .expect("valid event");
-            assert!(
-                monitor
-                    .enqueue_parity(
-                        5,
-                        EventKind::Dispatch,
-                        validated.parity.expect("parity"),
-                        sequence,
-                    )
-                    .await
-            );
+        // Fill origin 5's queue and mark its worker busy, so nothing drains it.
+        let input = StreamState::default()
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 1, dispatch_data(1, b"payload")),
+                &monitor.sources,
+            )
+            .expect("valid event")
+            .parity
+            .expect("parity");
+        {
+            let mut queue = monitor.parity_queues[&(5, EventKind::Dispatch)].lock();
+            queue.worker_running = true;
+            for sequence in 1..=PARITY_QUEUE_CAPACITY as u32 {
+                queue.jobs.push_back(ParityJob {
+                    input: input.clone(),
+                    sequence,
+                });
+            }
         }
-        assert_eq!(monitor.parity_queue_permit.available_permits(), 0);
+        let mut origin_5 = monitor.authority_receiver(5).expect("authority receiver");
         let mut receiver = monitor.authority_receiver(9).expect("authority receiver");
         let server_monitor = monitor.clone();
         let (finish_tx, finish_rx) = oneshot::channel();
+        let (sent_tx, sent_rx) = oneshot::channel();
         let server = tokio::spawn(async move {
             let (stream, _) = listener.accept().await.expect("accept");
             let mut socket = accept_async(stream).await.expect("websocket");
@@ -6472,33 +6942,58 @@ mod tests {
                 ))
                 .await
                 .expect("subscribed");
-            // Model origin 9 having completed cutover, with RPC indexers paused.
-            let authority = server_monitor.source_authority(9);
-            authority
-                .sender
-                .send_modify(|command| command.desired = true);
-            authority.active.store(true, Ordering::Release);
-            authority
-                .handoff
-                .mark_paused(9, authority.sender.borrow().generation);
-            socket
-                .send(Message::Text(
-                    wire_event(event(DISPATCH_EVENT_TYPE, 0, dispatch_data(0, b"payload")))
+            // Model both origins having completed cutover, with RPC indexers paused.
+            for domain in [5, 9] {
+                let authority = server_monitor.source_authority(domain);
+                authority
+                    .sender
+                    .send_modify(|command| command.desired = true);
+                authority.active.store(true, Ordering::Release);
+                authority
+                    .handoff
+                    .mark_paused(domain, authority.sender.borrow().generation);
+            }
+            // More events than the worker can free slots for while they arrive.
+            for sequence in 0..8 {
+                socket
+                    .send(Message::Text(
+                        wire_event(event(
+                            DISPATCH_EVENT_TYPE,
+                            sequence,
+                            dispatch_data(sequence, b"payload"),
+                        ))
                         .to_string()
                         .into(),
-                ))
-                .await
-                .expect("event");
+                    ))
+                    .await
+                    .expect("event");
+            }
+            sent_tx.send(()).expect("sent");
             finish_rx.await.expect("finish");
         });
         let mut state = StreamState::default();
-        let err = timeout(Duration::from_millis(250), monitor.stream_once(&mut state))
-            .await
-            .expect("admission must not wait for Missing retries")
-            .expect_err("full queue ends session");
-        assert!(err.to_string().contains("parity queue is full"), "{err:?}");
-        assert!(!receiver.borrow_and_update().desired);
-        assert!(!monitor.source_authority(9).active.load(Ordering::Acquire));
+        let session = monitor.stream_once(&mut state);
+        tokio::pin!(session);
+        tokio::select! {
+            result = &mut session => panic!("a full origin queue must not end the session: {result:?}"),
+            _ = async {
+                sent_rx.await.expect("server sent events");
+                let dropped = monitor
+                    .events
+                    .with_label_values(&["test-5", DISPATCH_EVENT_TYPE, "dropped"]);
+                while dropped.get() == 0 {
+                    sleep(Duration::from_millis(5)).await;
+                }
+            } => {}
+        }
+        assert!(monitor
+            .parity_overflowed
+            .lock()
+            .contains(&(5, EventKind::Dispatch)));
+        assert!(!monitor.source_authority(5).active.load(Ordering::Acquire));
+        assert!(!origin_5.borrow_and_update().desired);
+        assert!(receiver.borrow_and_update().desired);
+        assert!(monitor.source_authority(9).active.load(Ordering::Acquire));
         assert!(!monitor.parity_read_disabled.load(Ordering::Acquire));
         assert_eq!(
             monitor.sources[&5]
@@ -6508,12 +7003,13 @@ mod tests {
         );
         assert_eq!(
             monitor
-                .parity_pending
+                .parity_ready
                 .with_label_values(&["test-5", DISPATCH_EVENT_TYPE])
                 .get(),
-            i64::try_from(PARITY_QUEUE_CAPACITY).expect("capacity")
+            0
         );
         finish_tx.send(()).expect("finish server");
+        drop(session);
         server.await.expect("server");
     }
 
@@ -6704,24 +7200,26 @@ mod tests {
                 later_domain,
             )
             .await;
+        let settled = |domain: u32| {
+            let chain = monitor.sources[&domain].chain.clone();
+            monitor
+                .parity_pending
+                .with_label_values(&[chain.as_str(), DISPATCH_EVENT_TYPE])
+                .get()
+                == 0
+                && !monitor.parity_queues[&(domain, EventKind::Dispatch)]
+                    .lock()
+                    .worker_running
+        };
         timeout(Duration::from_secs(1), async {
-            while monitor.sources[&later_domain]
-                .cursor(EventKind::Dispatch)
-                .expect("cursor read")
-                != Some(later_domain)
-            {
+            while !settled(later_domain) {
                 tokio::task::yield_now().await;
             }
         })
         .await
         .expect("later parity work terminates after circuit opens");
         timeout(Duration::from_secs(1), async {
-            while (1..=PARITY_READ_CONCURRENCY as u32).any(|domain| {
-                monitor.sources[&domain]
-                    .cursor(EventKind::Dispatch)
-                    .expect("cursor read")
-                    != Some(domain)
-            }) {
+            while !(1..=PARITY_READ_CONCURRENCY as u32).all(settled) {
                 tokio::task::yield_now().await;
             }
         })
@@ -6739,9 +7237,19 @@ mod tests {
                     0
                 );
             }
-            assert!(source
+            // Errors are connection-scoped: nothing durable, and the cursor stays
+            // before the unchecked event so the next connection retries it.
+            assert!(!source
                 .parity_unhealthy(EventKind::Dispatch)
-                .expect("durable parity poison"));
+                .expect("durable parity health"));
+            assert_eq!(
+                source.cursor(EventKind::Dispatch).expect("cursor read"),
+                None
+            );
+            assert!(monitor
+                .parity_unhealthy
+                .lock()
+                .contains(&(domain, EventKind::Dispatch)));
         }
         timeout(
             Duration::from_millis(10),
@@ -6758,12 +7266,12 @@ mod tests {
             monitor.sources[&later_domain]
                 .cursor(EventKind::Dispatch)
                 .expect("cursor read"),
-            Some(later_domain)
+            None
         );
-        assert_eq!(
-            monitor.parity_queue_permit.available_permits(),
-            PARITY_QUEUE_CAPACITY
-        );
+        assert!(monitor.parity_queues[&(later_domain, EventKind::Dispatch)]
+            .lock()
+            .jobs
+            .is_empty());
         assert_eq!(monitor.parity_read_permit.available_permits(), 0);
 
         let (released, signal) = release.as_ref();
@@ -6892,6 +7400,65 @@ mod tests {
                 .get(),
             0
         );
+    }
+
+    #[tokio::test]
+    async fn expired_parity_keeps_cursor_and_is_connection_scoped() {
+        let mut database = MockParityDatabase::new();
+        database
+            .expect_retrieve_message_by_nonce()
+            .returning(|_| Ok(None));
+        database
+            .expect_retrieve_dispatched_block_number_by_nonce()
+            .returning(|_| Ok(None));
+        database
+            .expect_retrieve_dispatched_tx_hash_by_message_id()
+            .returning(|_| Ok(None));
+        let monitor = Arc::new(monitor(Arc::new(database)));
+        for sequence in [7, 8] {
+            let input = StreamState::default()
+                .validate(
+                    event(
+                        DISPATCH_EVENT_TYPE,
+                        sequence,
+                        dispatch_data(sequence, b"payload"),
+                    ),
+                    &monitor.sources,
+                )
+                .expect("valid dispatch")
+                .parity
+                .expect("dispatch has parity input");
+            monitor
+                .enqueue_parity(5, EventKind::Dispatch, input, sequence)
+                .await;
+        }
+        let labels = ["test", DISPATCH_EVENT_TYPE];
+        timeout(Duration::from_secs(5), async {
+            while monitor.parity_pending.with_label_values(&labels).get() != 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("expired parity settles");
+
+        let source = &monitor.sources[&5];
+        assert_eq!(
+            source.cursor(EventKind::Dispatch).expect("cursor read"),
+            None
+        );
+        assert!(!source
+            .parity_unhealthy(EventKind::Dispatch)
+            .expect("durable parity health"));
+        assert!(monitor
+            .parity_overflowed
+            .lock()
+            .contains(&(5, EventKind::Dispatch)));
+        assert!(monitor.parity_queues[&(5, EventKind::Dispatch)]
+            .lock()
+            .jobs
+            .is_empty());
+        assert_eq!(monitor.parity_ready.with_label_values(&labels).get(), 0);
+        assert_eq!(monitor.parity_pending_total.load(Ordering::Acquire), 0);
     }
 
     #[test]

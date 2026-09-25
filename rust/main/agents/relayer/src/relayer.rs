@@ -429,6 +429,7 @@ impl BaseAgent for Relayer {
                 )
                 .with_broadcaster(origin.message_sync.get_broadcaster())
                 .with_freshness_indexer(origin.message_sequence_indexer.clone())
+                .with_sync_metrics(origin.sync_metrics.clone())
                 .with_merkle_freshness_indexer(origin.merkle_sequence_indexer.clone())
             })
             .collect();
