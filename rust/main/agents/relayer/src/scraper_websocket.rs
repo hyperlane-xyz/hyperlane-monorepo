@@ -67,6 +67,11 @@ const PARITY_QUEUE_CAPACITY: usize = 256;
 // Process-wide bound on staged, queued and in-flight parity events. Dispatch jobs
 // retain message bodies, so per-stream limits alone would scale with origin count.
 const PARITY_PENDING_CAPACITY: usize = 4096;
+// At the process cap, streams with at most this many pending events are still
+// admitted: the backlog belongs to other streams, and degrading a quiet or
+// authoritative origin would not relieve it. Bounds memory at the cap plus this
+// many events per stream.
+const PARITY_CAP_EXEMPT_PENDING: i64 = 16;
 #[cfg(not(test))]
 const PARITY_READ_TIMEOUT: Duration = Duration::from_secs(5);
 #[cfg(test)]
@@ -1779,6 +1784,16 @@ impl ScraperWebSocketMonitor {
         self.release_parity_pending(1);
     }
 
+    fn stream_parity_pending(&self, domain: u32, kind: EventKind) -> i64 {
+        let source = self
+            .sources
+            .get(&domain)
+            .expect("validated scraper event source must exist");
+        self.parity_pending
+            .with_label_values(&[source.chain.as_str(), kind.label()])
+            .get()
+    }
+
     fn release_parity_pending(&self, count: usize) {
         let previous = self.parity_pending_total.fetch_sub(count, Ordering::AcqRel);
         debug_assert!(previous >= count, "parity pending accounting underflow");
@@ -1794,7 +1809,9 @@ impl ScraperWebSocketMonitor {
         let kind = validated.kind;
         let admitted = if self.parity_overflowed.lock().contains(&(domain, kind)) {
             false
-        } else if self.parity_pending_total.load(Ordering::Acquire) >= PARITY_PENDING_CAPACITY {
+        } else if self.parity_pending_total.load(Ordering::Acquire) >= PARITY_PENDING_CAPACITY
+            && self.stream_parity_pending(domain, kind) > PARITY_CAP_EXEMPT_PENDING
+        {
             self.overflow_parity(domain, kind, "process", PARITY_PENDING_CAPACITY);
             false
         } else if !staged.push(domain, validated)? {
@@ -6656,11 +6673,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn process_wide_parity_cap_degrades_only_the_incoming_stream() {
+    async fn process_wide_parity_cap_degrades_only_backlogged_streams() {
         let monitor = Arc::new(monitor(Arc::new(MockParityDatabase::new())));
         monitor
             .parity_pending_total
             .store(PARITY_PENDING_CAPACITY, Ordering::Release);
+        // Dispatch holds part of the backlog; Merkle is quiet.
+        monitor
+            .parity_pending
+            .with_label_values(&["test", DISPATCH_EVENT_TYPE])
+            .set(PARITY_CAP_EXEMPT_PENDING + 1);
         let mut staged = StagedParity::default();
         let dispatch = StreamState::default()
             .validate(
@@ -6676,10 +6698,6 @@ mod tests {
             .parity_overflowed
             .lock()
             .contains(&(5, EventKind::Dispatch)));
-        assert!(!monitor
-            .parity_overflowed
-            .lock()
-            .contains(&(5, EventKind::MerkleTreeInsertion)));
         assert_eq!(
             monitor
                 .parity_ready
@@ -6688,7 +6706,7 @@ mod tests {
             0
         );
 
-        monitor.release_parity_pending(1);
+        // Still at the cap: a quiet stream is admitted, not degraded.
         let merkle = StreamState::default()
             .validate(
                 sequenced_event_for(EventKind::MerkleTreeInsertion, 1),
@@ -6697,11 +6715,15 @@ mod tests {
             .expect("valid Merkle insertion");
         monitor
             .stage_parity(&mut staged, 5, merkle)
-            .expect("stage below the process cap");
+            .expect("quiet stream stages at the process cap");
         assert_eq!(staged.len(), 1);
+        assert!(!monitor
+            .parity_overflowed
+            .lock()
+            .contains(&(5, EventKind::MerkleTreeInsertion)));
         assert_eq!(
             monitor.parity_pending_total.load(Ordering::Acquire),
-            PARITY_PENDING_CAPACITY
+            PARITY_PENDING_CAPACITY + 1
         );
     }
 
@@ -6795,6 +6817,10 @@ mod tests {
                 monitor
                     .parity_pending_total
                     .store(PARITY_PENDING_CAPACITY, Ordering::Release);
+                monitor
+                    .parity_pending
+                    .with_label_values(&[monitor.sources[&5].chain.as_str(), DISPATCH_EVENT_TYPE])
+                    .set(PARITY_CAP_EXEMPT_PENDING + 1);
             }
             let server = tokio::spawn(async move {
                 let (stream, _) = listener.accept().await.expect("accept");
