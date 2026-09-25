@@ -1,5 +1,15 @@
 # @hyperlane-xyz/utils
 
+## 45.0.0
+
+### Major Changes
+
+- 28eda66: Removed `ValidatorMetadata.additional_quorum_rpcs`.
+
+### Patch Changes
+
+- 9a59116: Updated Solana clients to versions with transaction v1 codecs while preserving existing transaction-version defaults.
+
 ## 44.0.2
 
 ## 44.0.1
