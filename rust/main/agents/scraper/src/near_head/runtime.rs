@@ -1,33 +1,15 @@
-//! Independent ingestion, publication and header-maintenance loops.
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    time::Duration,
-};
+//! One state writer per chain. RPC work remains asynchronous, but observation,
+//! publication and ingestion never contend for the same `scraper_head` row.
+use std::{sync::Arc, time::Duration};
 
-use eyre::ensure;
 use hyperlane_base::{ChainMetrics, ContractSyncMetrics};
 use hyperlane_core::{HyperlaneDomain, ReorgPeriod};
-use tokio::{sync::Notify, time::sleep};
+use tokio::time::sleep;
 use tracing::warn;
 
 use super::{
     confirm_leased, confirmation_lease, ingest_cached, observe, source::Source, store::Store,
 };
-
-/// Retained headers are rescanned on every sweep; rest between completed sweeps.
-const PRUNE_SWEEP_INTERVAL: Duration = Duration::from_secs(600);
-
-/// A zero cursor means the sweep found no candidates and wrapped.
-fn prune_delay(next: u64, poll_interval: Duration) -> Duration {
-    if next == 0 {
-        PRUNE_SWEEP_INTERVAL.max(poll_interval)
-    } else {
-        poll_interval
-    }
-}
 
 pub(super) struct Worker {
     pub source: Box<dyn Source>,
@@ -42,178 +24,128 @@ pub(super) struct Worker {
 
 impl Worker {
     pub async fn run(&self) {
-        let Self {
-            source,
-            store,
-            domain,
-            period,
-            chunk_size,
-            poll_interval,
-            chain_metrics,
-            sync_metrics,
-        } = self;
-        let confirmation_wake = Notify::new();
-        let ingestion_failed = AtomicBool::new(false);
-        let confirmation_failed = AtomicBool::new(false);
-        tokio::join!(
-            async {
-                let mut count_cache = None;
-                loop {
-                    let result = async {
-                        let state = match observe(source.as_ref(), store).await {
-                            Ok(state) => state,
-                            Err(error) => {
-                                store.pause(false).await?;
-                                return Err(error);
-                            }
-                        };
-                        confirmation_wake.notify_one();
-                        sync_metrics
-                            .indexed_height
-                            .with_label_values(&["near_head", domain.name()])
-                            .set(i64::try_from(state.indexed)?);
-                        if confirmation_failed.load(Ordering::Relaxed) {
-                            return Ok(false);
-                        }
-                        // Bound provisional storage even if a valid finality tag stops advancing.
-                        let depth = match period {
-                            ReorgPeriod::Blocks(depth) => u64::from(depth.get()),
-                            _ => 0,
-                        };
-                        let observed_head = state.head;
-                        let mut bounded = state;
-                        bounded.head = bounded.head.min(
-                            bounded
-                                .confirmed
-                                .saturating_add(depth)
-                                .saturating_add(10_000),
-                        );
-                        ensure!(
-                            bounded.indexed < bounded.head || bounded.head == observed_head,
-                            "Confirmation backlog reached its provisional block limit"
-                        );
-                        if bounded.indexed >= bounded.head {
-                            return Ok(false);
-                        }
-                        let more = ingest_cached(
-                            source.as_ref(),
-                            store,
-                            &bounded,
-                            *chunk_size,
-                            &mut count_cache,
-                        )
-                        .await?;
-                        confirmation_wake.notify_one();
-                        Ok::<_, eyre::Report>(more)
-                    }
-                    .await;
-                    ingestion_failed.store(result.is_err(), Ordering::Relaxed);
-                    chain_metrics.set_critical_error(
-                        domain.name(),
-                        result.is_err() || confirmation_failed.load(Ordering::Relaxed),
-                    );
-                    match result {
-                        Ok(true) => continue,
-                        Ok(false) => {}
-                        Err(error) => warn!(
-                            domain = store.domain,
-                            ?error,
-                            "Near-head ingestion paused; retrying"
-                        ),
-                    }
-                    sleep(*poll_interval).await;
-                }
-            },
-            async {
-                let mut last_confirmed = 0;
-                loop {
-                    let result = async {
-                        let counts = confirm_leased(
-                            source.as_ref(),
-                            store,
-                            period,
-                            confirmation_lease(*poll_interval),
-                        )
-                        .await?;
-                        if let Some(state) = store.state().await? {
-                            // Drain confirmation backlogs without waiting another poll interval.
-                            if state.confirmed > last_confirmed && state.confirmed < state.indexed {
-                                confirmation_wake.notify_one();
-                            }
-                            last_confirmed = state.confirmed;
-                            sync_metrics
-                                .indexed_height
-                                .with_label_values(&["near_head", domain.name()])
-                                .set(i64::try_from(state.indexed)?);
-                            for (label, count) in [
-                                "raw_message_dispatch",
-                                "message_delivery",
-                                "gas_payment",
-                                "merkle_tree_insertion",
-                            ]
-                            .into_iter()
-                            .zip(counts)
-                            {
-                                sync_metrics
-                                    .stored_events
-                                    .with_label_values(&[label, domain.name()])
-                                    .inc_by(count);
-                            }
-                            for label in [
-                                "message_dispatch",
-                                "message_delivery",
-                                "gas_payment",
-                                "merkle_tree_insertion",
-                            ] {
-                                sync_metrics
-                                    .indexed_height
-                                    .with_label_values(&[label, domain.name()])
-                                    .set(i64::try_from(state.confirmed)?);
-                            }
-                        }
-                        Ok::<_, eyre::Report>(())
-                    }
-                    .await;
-                    confirmation_failed.store(result.is_err(), Ordering::Relaxed);
-                    chain_metrics.set_critical_error(
-                        domain.name(),
-                        result.is_err() || ingestion_failed.load(Ordering::Relaxed),
-                    );
-                    if let Err(error) = result {
-                        warn!(
-                            domain = store.domain,
-                            ?error,
-                            "Near-head confirmation paused; retrying"
-                        );
-                    }
-                    // Observe refreshes the lease before waking publication. A
-                    // timer-only wake can race the next observation at the lease
-                    // boundary and mark a healthy chain critical.
-                    confirmation_wake.notified().await;
-                }
-            },
-            async {
-                let mut prune_after = 0;
-                loop {
-                    // Maintenance is paced independently, including during catch-up.
-                    let delay = match store.prune_headers(prune_after).await {
-                        Ok((next, _)) => {
-                            prune_after = next;
-                            prune_delay(next, *poll_interval)
-                        }
-                        Err(error) => {
-                            warn!(
-                                domain = store.domain,
-                                ?error,
-                                "Block header cleanup failed; retrying"
-                            );
-                            *poll_interval
-                        }
-                    };
-                    sleep(delay).await;
-                }
-            },
+        let mut count_cache = None;
+        loop {
+            let result = self.cycle(&mut count_cache).await;
+            self.chain_metrics
+                .set_critical_error(self.domain.name(), result.is_err());
+            match result {
+                Ok(true) => continue,
+                Ok(false) => {}
+                Err(error) => warn!(
+                    domain = self.store.domain,
+                    ?error,
+                    "Near-head indexing paused; retrying"
+                ),
+            }
+            sleep(self.poll_interval).await;
+        }
+    }
+
+    async fn cycle(
+        &self,
+        count_cache: &mut Option<(ethers::types::H256, [u32; 2])>,
+    ) -> eyre::Result<bool> {
+        let observed = match observe(self.source.as_ref(), &self.store).await {
+            Ok(state) => state,
+            Err(error) => {
+                self.store.pause(false).await?;
+                return Err(error);
+            }
+        };
+        // Ingest before publication so newly indexed events do not wait for the
+        // next poll. Keep the result so existing work can still publish when
+        // the log query fails.
+        let depth = match &self.period {
+            ReorgPeriod::Blocks(depth) => u64::from(depth.get()),
+            _ => 0,
+        };
+        let mut bounded = observed.clone();
+        bounded.head = bounded.head.min(
+            bounded
+                .confirmed
+                .saturating_add(depth)
+                .saturating_add(10_000),
         );
+        let ingestion = if bounded.indexed < bounded.head {
+            ingest_cached(
+                self.source.as_ref(),
+                &self.store,
+                &bounded,
+                self.chunk_size,
+                count_cache,
+            )
+            .await
+        } else {
+            Ok(false)
+        };
+        if let Err(error) = &ingestion {
+            warn!(
+                domain = self.store.domain,
+                phase = "ingestion",
+                ?error,
+                "Near-head indexing phase failed"
+            );
+        }
+
+        let confirmation = confirm_leased(
+            self.source.as_ref(),
+            &self.store,
+            &self.period,
+            confirmation_lease(self.poll_interval),
+        )
+        .await?;
+        for (label, count) in [
+            "raw_message_dispatch",
+            "message_delivery",
+            "gas_payment",
+            "merkle_tree_insertion",
+        ]
+        .into_iter()
+        .zip(confirmation.counts)
+        {
+            self.sync_metrics
+                .stored_events
+                .with_label_values(&[label, self.domain.name()])
+                .inc_by(count);
+        }
+
+        let state = self
+            .store
+            .state()
+            .await?
+            .ok_or_else(|| eyre::eyre!("Missing head state"))?;
+        self.sync_metrics
+            .indexed_height
+            .with_label_values(&["near_head", self.domain.name()])
+            .set(i64::try_from(state.indexed)?);
+        for label in [
+            "message_dispatch",
+            "message_delivery",
+            "gas_payment",
+            "merkle_tree_insertion",
+        ] {
+            self.sync_metrics
+                .indexed_height
+                .with_label_values(&[label, self.domain.name()])
+                .set(i64::try_from(state.confirmed)?);
+        }
+
+        if confirmation.page_limited {
+            ingestion?;
+            return Ok(true);
+        }
+        let more_ingestion = ingestion?;
+        let capped_head = observed
+            .head
+            .min(state.confirmed.saturating_add(depth).saturating_add(10_000));
+        let at_provisional_cap = capped_head < observed.head && state.indexed >= capped_head;
+        if at_provisional_cap {
+            eyre::bail!(
+                "Provisional suffix reached its 10,000-block limit; confirmation is lagging"
+            );
+        }
+        Ok(more_ingestion)
     }
 }
 

@@ -45,31 +45,6 @@ const EVENTS: [(&str, &str, &str); 4] = [
     ("merkle_tree_insertion", "domain", "block_number"),
 ];
 
-pub(super) const PRUNE_HEADERS_SQL: &str = r#"
-    WITH state AS MATERIALIZED (
-        SELECT start_height,confirmed_height,halted
-        FROM scraper_head WHERE domain=$1
-    ), candidates AS MATERIALIZED (
-        SELECT b.id,b.height FROM block b
-        WHERE b.domain=$1 AND NOT (SELECT halted FROM state)
-          AND b.height>greatest((SELECT start_height FROM state),$2)
-          AND b.height<(SELECT confirmed_height FROM state)
-        ORDER BY b.height LIMIT 1000 FOR UPDATE OF b SKIP LOCKED
-    ), removed AS (
-        DELETE FROM block b USING candidates c WHERE b.id=c.id
-          AND NOT EXISTS (SELECT 1 FROM "transaction" t WHERE t.block_id=b.id)
-          AND NOT EXISTS (SELECT 1 FROM raw_message_dispatch r
-              WHERE r.origin_domain=b.domain AND r.origin_block_height=b.height)
-          AND NOT EXISTS (SELECT 1 FROM delivered_message d
-              WHERE d.domain=b.domain AND d.block_number=b.height AND d.destination_tx_id IS NULL)
-          AND NOT EXISTS (SELECT 1 FROM gas_payment g
-              WHERE g.domain=b.domain AND g.block_hash=b.hash AND g.tx_id IS NULL)
-        RETURNING b.id
-    )
-    SELECT coalesce((SELECT max(height) FROM candidates),0) AS next,
-           (SELECT count(*) FROM removed) AS deleted
-"#;
-
 impl Store {
     fn domain(&self) -> Value {
         signed(self.domain).into()
@@ -107,7 +82,7 @@ impl Store {
 
     async fn ensure_empty_history<C: ConnectionTrait>(&self, db: &C) -> Result<()> {
         let row = db.query_one(sql(
-            "SELECT EXISTS(SELECT 1 FROM block WHERE domain=$1) OR EXISTS(SELECT 1 FROM raw_message_dispatch WHERE origin_domain=$1) OR EXISTS(SELECT 1 FROM delivered_message WHERE domain=$1) OR EXISTS(SELECT 1 FROM gas_payment WHERE domain=$1) OR EXISTS(SELECT 1 FROM merkle_tree_insertion WHERE domain=$1) AS has_history",
+            "SELECT EXISTS(SELECT 1 FROM block WHERE domain=$1) OR EXISTS(SELECT 1 FROM scraper_checkpoint WHERE domain=$1) OR EXISTS(SELECT 1 FROM raw_message_dispatch WHERE origin_domain=$1) OR EXISTS(SELECT 1 FROM delivered_message WHERE domain=$1) OR EXISTS(SELECT 1 FROM gas_payment WHERE domain=$1) OR EXISTS(SELECT 1 FROM merkle_tree_insertion WHERE domain=$1) AS has_history",
             vec![self.domain()],
         )).await?.ok_or_else(|| eyre::eyre!("Missing legacy history check"))?;
         ensure!(
@@ -138,10 +113,13 @@ impl Store {
             // Recheck after RPC preflight: another writer may have stored history
             // since anchor selection. Existing domains require operator cutover.
             self.ensure_empty_history(&tx).await?;
-            insert_block(&tx, signed(self.domain), anchor).await?;
             tx.execute(sql(
                 "INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster) VALUES($1,$2,$2,$3,$2,$2,$4,$5,$6)",
                 vec![self.domain(), number(anchor.height)?, bytes(anchor.hash), contracts.mailbox.as_bytes().to_vec().into(), contracts.hook.as_bytes().to_vec().into(), contracts.paymaster.as_bytes().to_vec().into()],
+            )).await?;
+            tx.execute(sql(
+                "INSERT INTO scraper_checkpoint(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC')",
+                vec![self.domain(), bytes(anchor.hash), number(anchor.height)?, number(anchor.timestamp)?],
             )).await?;
         }
         tx.execute(sql(
@@ -153,10 +131,24 @@ impl Store {
         Ok(())
     }
 
+    pub async fn validate_checkpoints(&self) -> Result<()> {
+        let row = self.db.query_one(sql(
+            "SELECT EXISTS(SELECT 1 FROM scraper_checkpoint c WHERE c.domain=h.domain AND c.height=h.confirmed_height) AS confirmed_exists, EXISTS(SELECT 1 FROM scraper_checkpoint c WHERE c.domain=h.domain AND c.height=h.indexed_height AND c.hash=h.indexed_hash) AS indexed_matches, NOT EXISTS(SELECT 1 FROM scraper_checkpoint c WHERE c.domain=h.domain AND c.height>h.indexed_height) AS no_stale_suffix FROM scraper_head h WHERE h.domain=$1",
+            vec![self.domain()],
+        )).await?.ok_or_else(|| eyre::eyre!("Missing checkpoint validation"))?;
+        ensure!(
+            row.try_get::<bool>("", "confirmed_exists")?
+                && row.try_get::<bool>("", "indexed_matches")?
+                && row.try_get::<bool>("", "no_stale_suffix")?,
+            "Near-head checkpoints are out of sync; stop old scraper writers and repair scraper_checkpoint before restarting"
+        );
+        Ok(())
+    }
+
     pub async fn hash(&self, height: u64) -> Result<Option<H256>> {
         self.db
             .query_one(sql(
-                "SELECT hash FROM block WHERE domain=$1 AND height=$2",
+                "SELECT hash FROM scraper_checkpoint WHERE domain=$1 AND height=$2",
                 vec![self.domain(), number(height)?],
             ))
             .await?
@@ -167,7 +159,7 @@ impl Store {
     /// A range may contain empty blocks whose headers were never fetched.
     pub async fn checkpoint(&self, through: u64) -> Result<u64> {
         let row = self.db.query_one(sql(
-            "SELECT height FROM block WHERE domain=$1 AND height<=$2 ORDER BY height DESC LIMIT 1",
+            "SELECT height FROM scraper_checkpoint WHERE domain=$1 AND height<=$2 ORDER BY height DESC LIMIT 1",
             vec![self.domain(), number(through)?],
         )).await?.ok_or_else(|| eyre::eyre!("Missing retained checkpoint"))?;
         Ok(u64::try_from(row.try_get::<i64>("", "height")?)?)
@@ -212,6 +204,11 @@ impl Store {
                 vec![self.domain(), number(ancestor.height)?],
             ))
             .await?;
+            tx.execute(sql(
+                "DELETE FROM scraper_checkpoint WHERE domain=$1 AND height>$2",
+                vec![self.domain(), number(ancestor.height)?],
+            ))
+            .await?;
         }
         tx.execute(sql("UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3,head_height=$4,healthy=true,updated_at=clock_timestamp() WHERE domain=$1", vec![self.domain(), number(ancestor.height)?, bytes(ancestor.hash), number(head.height)?])).await?;
         tx.commit().await?;
@@ -229,7 +226,16 @@ impl Store {
                     && (header.height.checked_sub(1) != Some(height) || header.parent == previous),
                 "Invalid range checkpoint order"
             );
-            batches.entry("INSERT INTO block(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC')").or_default().push(vec![self.domain(), bytes(header.hash), number(header.height)?, number(header.timestamp)?]);
+            let header_row = vec![
+                self.domain(),
+                bytes(header.hash),
+                number(header.height)?,
+                number(header.timestamp)?,
+            ];
+            batches.entry("INSERT INTO scraper_checkpoint(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC')").or_default().push(header_row.clone());
+            if !events.is_empty() {
+                batches.entry("INSERT INTO block(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC')").or_default().push(header_row);
+            }
             for event in events {
                 ensure!(
                     event.block_number == header.height && event.block_hash == header.hash,
@@ -259,7 +265,7 @@ impl Store {
             insert_batch(&tx, query, &rows).await?;
         }
         tx.execute(sql(
-            "UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3 WHERE domain=$1",
+            "UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3,updated_at=clock_timestamp() WHERE domain=$1",
             vec![self.domain(), number(height)?, bytes(previous)],
         ))
         .await?;
@@ -307,24 +313,13 @@ impl Store {
         let through = boundary.height;
         let tx = self.db.begin().await?;
         let row = tx.query_one(sql(
-            "SELECT head_height,confirmed_height,healthy AND NOT halted AND updated_at>clock_timestamp()-make_interval(secs=>$2) AS ready FROM scraper_head WHERE domain=$1 FOR UPDATE",
+            "SELECT indexed_hash,head_height,confirmed_height,healthy AND NOT halted AND updated_at>clock_timestamp()-make_interval(secs=>$2) AS ready FROM scraper_head WHERE domain=$1 FOR UPDATE",
             vec![self.domain(), lease.as_secs_f64().into()],
         )).await?.ok_or_else(|| eyre::eyre!("Missing head state"))?;
-        // Read ancestry in a fresh statement after acquiring the state lock. A
-        // subquery in the locking SELECT could use a snapshot from before a
-        // concurrent rollback committed while this transaction waited.
-        let same_branch = tx
-            .query_one(sql(
-                "SELECT hash FROM block WHERE domain=$1 AND height=$2",
-                vec![self.domain(), number(expected.indexed)?],
-            ))
-            .await?
-            .map(|row| row.try_get::<Vec<u8>>("", "hash"))
-            .transpose()?;
         ensure!(
             row.try_get::<bool>("", "ready")?
                 && row.try_get::<i64>("", "head_height")? >= i64::try_from(expected.head)?
-                && same_branch.as_deref() == Some(expected.hash.as_bytes()),
+                && row.try_get::<Vec<u8>>("", "indexed_hash")? == expected.hash.as_bytes(),
             "Confirmation observation changed or expired"
         );
         let after = row.try_get::<i64>("", "confirmed_height")?;
@@ -335,8 +330,8 @@ impl Store {
         if i64::try_from(through)? <= after {
             return Ok([0; 4]);
         }
-        // Retain an exact rollback boundary even when it was an empty range block.
-        insert_block(&tx, signed(self.domain), boundary).await?;
+        // Retain exactly one confirmed rollback boundary in the small checkpoint table.
+        insert_checkpoint(&tx, signed(self.domain), boundary).await?;
         let mut counts = [0; 4];
         for (index, (table, domain, height)) in EVENTS.iter().enumerate() {
             counts[index] = tx.execute(sql(format!("UPDATE {table} SET confirmed=true WHERE {domain}=$1 AND {height}>$2 AND {height}<=$3 AND NOT confirmed"), vec![self.domain(), after.into(), number(through)?])).await?.rows_affected();
@@ -346,22 +341,13 @@ impl Store {
             vec![self.domain(), number(through)?],
         ))
         .await?;
+        tx.execute(sql(
+            "DELETE FROM scraper_checkpoint WHERE domain=$1 AND height<$2",
+            vec![self.domain(), number(through)?],
+        ))
+        .await?;
         tx.commit().await?;
         Ok(counts)
-    }
-
-    /// Keep the rollback boundary and headers needed by existing/pending enrichment.
-    /// Raw dispatch headers are retained even before a message/transaction exists.
-    pub async fn prune_headers(&self, after: u64) -> Result<(u64, u64)> {
-        let row = self
-            .db
-            .query_one(sql(PRUNE_HEADERS_SQL, vec![self.domain(), number(after)?]))
-            .await?
-            .ok_or_else(|| eyre::eyre!("Missing cleanup result"))?;
-        Ok((
-            u64::try_from(row.try_get::<i64>("", "next")?)?,
-            u64::try_from(row.try_get::<i64>("", "deleted")?)?,
-        ))
     }
 
     /// Keyset batches avoid one permanently unavailable receipt starving later rows.
@@ -404,8 +390,8 @@ fn transaction_column(table: &str) -> Result<&'static str> {
     }
 }
 
-async fn insert_block<C: ConnectionTrait>(db: &C, domain: i32, h: &Header) -> Result<()> {
-    db.execute(sql("INSERT INTO block(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC') ON CONFLICT(hash) DO NOTHING", vec![domain.into(), bytes(h.hash), number(h.height)?, number(h.timestamp)?])).await?;
+async fn insert_checkpoint<C: ConnectionTrait>(db: &C, domain: i32, h: &Header) -> Result<()> {
+    db.execute(sql("INSERT INTO scraper_checkpoint(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC') ON CONFLICT(domain,height) DO NOTHING", vec![domain.into(), bytes(h.hash), number(h.height)?, number(h.timestamp)?])).await?;
     Ok(())
 }
 
@@ -426,7 +412,7 @@ fn event_row(domain: i32, h: &Header, e: &Event) -> Result<(&'static str, Vec<Va
             vec![m.id().as_bytes().to_vec().into(), signed(m.destination).into(), signed(m.nonce).into(), address_to_bytes(&m.sender).into(), address_to_bytes(&m.recipient).into(), m.body.clone().into(), i16::from(m.version).into()],
         ),
         EventData::Delivery(id) => (
-            "INSERT INTO delivered_message(domain,block_hash,block_number,transaction_hash,transaction_index,log_index,destination_mailbox,msg_id,confirmed) VALUES($1,$2,$3,$4,$5,$6,$7,$8,false)",
+            "INSERT INTO delivered_message(domain,block_hash,block_number,transaction_hash,transaction_index,log_index,destination_mailbox,msg_id,time_created,confirmed) VALUES($1,$2,$3,$4,$5,$6,$7,$8,now(),false)",
             vec![bytes(*id)],
         ),
         EventData::Insertion { message_id, index } => (
@@ -434,7 +420,7 @@ fn event_row(domain: i32, h: &Header, e: &Event) -> Result<(&'static str, Vec<Va
             vec![bytes(*message_id), signed(*index).into()],
         ),
         EventData::Gas { message_id, destination, gas, payment } => (
-            "INSERT INTO gas_payment(domain,block_hash,block_number,transaction_hash,transaction_index,log_index,interchain_gas_paymaster,msg_id,destination,gas_amount,payment,origin,confirmed) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::text::numeric,$11::text::numeric,$1,false)",
+            "INSERT INTO gas_payment(domain,block_hash,block_number,transaction_hash,transaction_index,log_index,interchain_gas_paymaster,msg_id,destination,gas_amount,payment,origin,time_created,confirmed) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::text::numeric,$11::text::numeric,$1,now(),false)",
             vec![bytes(*message_id), signed(*destination).into(), gas.clone().into(), payment.clone().into()],
         ),
     };
