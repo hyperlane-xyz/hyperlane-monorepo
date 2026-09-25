@@ -122,11 +122,12 @@ impl Worker {
                 .state()
                 .await?
                 .ok_or_else(|| eyre::eyre!("Missing head state"))?;
+            let verified = state.verified.unwrap_or(state.confirmed);
             Some(
                 self.source
                     .publication_tip()
                     .await?
-                    .unwrap_or(state.confirmed)
+                    .map_or(verified, |tip| verified.min(tip))
                     .min(state.indexed),
             )
         };

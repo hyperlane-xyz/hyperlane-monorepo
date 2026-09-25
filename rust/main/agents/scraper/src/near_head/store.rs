@@ -15,6 +15,7 @@ pub(super) struct State {
     pub indexed: u64,
     pub hash: H256,
     pub confirmed: u64,
+    pub verified: Option<u64>,
     pub head: u64,
     pub halted: bool,
 }
@@ -66,12 +67,16 @@ impl Store {
 
     pub async fn state(&self) -> Result<Option<State>> {
         self.db.query_one(sql(
-            "SELECT indexed_height,indexed_hash,confirmed_height,head_height,halted FROM scraper_head WHERE domain=$1",
+            "SELECT indexed_height,indexed_hash,confirmed_height,verified_height,head_height,halted FROM scraper_head WHERE domain=$1",
             vec![self.domain()],
         )).await?.map(|row| Ok(State {
             indexed: u64::try_from(row.try_get::<i64>("", "indexed_height")?)?,
             hash: H256::from_slice(&row.try_get::<Vec<u8>>("", "indexed_hash")?),
             confirmed: u64::try_from(row.try_get::<i64>("", "confirmed_height")?)?,
+            verified: row
+                .try_get::<Option<i64>>("", "verified_height")?
+                .map(u64::try_from)
+                .transpose()?,
             head: u64::try_from(row.try_get::<i64>("", "head_height")?)?,
             halted: row.try_get("", "halted")?,
         })).transpose()
@@ -274,12 +279,17 @@ impl Store {
             ))
             .await?;
         }
-        tx.execute(sql("UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3,head_height=$4,healthy=true,updated_at=clock_timestamp() WHERE domain=$1", vec![self.domain(), number(ancestor.height)?, bytes(ancestor.hash), number(head.height)?])).await?;
+        tx.execute(sql("UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3,verified_height=CASE WHEN verified_height IS NULL THEN NULL ELSE least(verified_height,$2) END,head_height=$4,healthy=true,updated_at=clock_timestamp() WHERE domain=$1", vec![self.domain(), number(ancestor.height)?, bytes(ancestor.hash), number(head.height)?])).await?;
         tx.commit().await?;
         Ok(())
     }
 
-    pub async fn append(&self, expected: &State, blocks: &[(Header, Vec<Event>)]) -> Result<()> {
+    pub async fn append(
+        &self,
+        expected: &State,
+        blocks: &[(Header, Vec<Event>)],
+        verified_through: Option<u64>,
+    ) -> Result<()> {
         let mut previous = expected.hash;
         let mut height = expected.indexed;
         let mut batches = std::collections::BTreeMap::<&str, Vec<Vec<Value>>>::new();
@@ -335,8 +345,13 @@ impl Store {
             insert_batch(&tx, query, &rows).await?;
         }
         tx.execute(sql(
-            "UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3,updated_at=clock_timestamp() WHERE domain=$1",
-            vec![self.domain(), number(height)?, bytes(previous)],
+            "UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3,verified_height=CASE WHEN $4::bigint IS NULL THEN verified_height ELSE greatest(coalesce(verified_height,confirmed_height),$4) END,updated_at=clock_timestamp() WHERE domain=$1",
+            vec![
+                self.domain(),
+                number(height)?,
+                bytes(previous),
+                verified_through.map(i64::try_from).transpose()?.into(),
+            ],
         ))
         .await?;
         tx.commit().await?;

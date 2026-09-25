@@ -400,7 +400,7 @@ impl GenericSource {
         let watermark = indexer.latest_sequence_count_and_tip().await?;
         if sequence_mode {
             let Some(count) = watermark.0 else {
-                return Ok((indexer.fetch_logs_in_range(blocks).await?, watermark, true));
+                return Ok((indexer.fetch_logs_in_range(blocks).await?, watermark, false));
             };
             ensure!(
                 watermark.1 >= *blocks.end(),
@@ -455,7 +455,7 @@ impl GenericSource {
             }
             Ok((logs, watermark, true))
         } else {
-            Ok((indexer.fetch_logs_in_range(blocks).await?, watermark, true))
+            Ok((indexer.fetch_logs_in_range(blocks).await?, watermark, false))
         }
     }
 
@@ -784,7 +784,11 @@ mod tests {
             truncate_last: false,
             requests: Mutex::new(Vec::new()),
         };
-        GenericSource::logs(&indexer, 100..=200, 7, true, 2).await?;
+        assert!(
+            GenericSource::logs(&indexer, 100..=200, 7, true, 2)
+                .await?
+                .2
+        );
         assert_eq!(
             *indexer.requests.lock().expect("request mutex poisoned"),
             vec![7..=8, 9..=9]
@@ -795,7 +799,11 @@ mod tests {
             .lock()
             .expect("request mutex poisoned")
             .clear();
-        GenericSource::logs(&indexer, 100..=200, 7, false, 2).await?;
+        assert!(
+            !GenericSource::logs(&indexer, 100..=200, 7, false, 2)
+                .await?
+                .2
+        );
         assert_eq!(
             *indexer.requests.lock().expect("request mutex poisoned"),
             vec![100..=200]

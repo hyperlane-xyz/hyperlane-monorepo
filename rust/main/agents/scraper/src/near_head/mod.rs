@@ -298,7 +298,7 @@ async fn ingest_cached(
             "Incomplete event range"
         );
     }
-    let _ = batch
+    let verified_through = batch
         .watermarks
         .zip(batch.complete_through)
         .map(|(watermarks, complete_through)| {
@@ -353,7 +353,7 @@ async fn ingest_cached(
         "Indexed boundary changed during range fetch"
     );
     verify(source, &boundary).await?;
-    store.append(state, &blocks).await?;
+    store.append(state, &blocks, verified_through).await?;
     *count_cache = Some((boundary.hash, validated_counts));
     Ok(end < state.head)
 }

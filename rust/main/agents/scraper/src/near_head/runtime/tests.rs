@@ -15,7 +15,7 @@ use testcontainers_modules::postgres::Postgres;
 
 use super::*;
 use crate::near_head::{
-    source::{BlockSelector, Contracts, Event, EventData, Header},
+    source::{BlockSelector, Contracts, Event, EventBatch, EventData, Header},
     store::State,
 };
 
@@ -87,6 +87,23 @@ impl Source for Arc<Chain> {
             .filter(|event| event.block_number >= start && event.block_number <= end)
             .cloned()
             .collect())
+    }
+
+    async fn events_after(&self, start: u64, end: u64, _sequences: [u32; 4]) -> Result<EventBatch> {
+        let events = self.events(start, end).await?;
+        if !self.sequence.load(Ordering::SeqCst) {
+            return Ok(EventBatch {
+                events,
+                watermarks: None,
+                complete_through: None,
+            });
+        }
+        let tip = u32::try_from(self.publication_tip.load(Ordering::SeqCst))?;
+        Ok(EventBatch {
+            events,
+            watermarks: Some([(Some(0), tip); 4]),
+            complete_through: Some([true; 4]),
+        })
     }
 
     async fn counts(&self, _: H256) -> Result<[u32; 2]> {
@@ -205,10 +222,16 @@ async fn moving_sequence_tip_publishes_before_the_provisional_cap() -> Result<()
 
     worker.cycle(&mut cache).await?;
     let state = worker.store.state().await?.unwrap();
-    assert_eq!((state.indexed, state.confirmed), (10_000, 10_000));
+    assert_eq!(
+        (state.indexed, state.confirmed, state.verified),
+        (10_000, 10_000, Some(10_000))
+    );
     worker.cycle(&mut cache).await?;
     let state = worker.store.state().await?.unwrap();
-    assert_eq!((state.indexed, state.confirmed), (20_000, 20_000));
+    assert_eq!(
+        (state.indexed, state.confirmed, state.verified),
+        (20_000, 20_000, Some(20_000))
+    );
     Ok(())
 }
 
