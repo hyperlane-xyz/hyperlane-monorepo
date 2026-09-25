@@ -1,5 +1,23 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 45.0.0
+
+### Major Changes
+
+- 8d0af67: The Cosmos SDK was migrated to the stricter shared TypeScript configuration.
+
+### Patch Changes
+
+- Updated dependencies [ee50f43]
+- Updated dependencies [12678bc]
+- Updated dependencies [9a59116]
+- Updated dependencies [28eda66]
+- Updated dependencies [4ad4577]
+- Updated dependencies [f64f992]
+  - @hyperlane-xyz/provider-sdk@10.1.0
+  - @hyperlane-xyz/utils@45.0.0
+  - @hyperlane-xyz/cosmos-types@45.0.0
+
 ## 44.0.2
 
 ### Patch Changes

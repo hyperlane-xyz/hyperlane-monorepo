@@ -1,5 +1,7 @@
 # @hyperlane-xyz/github-proxy
 
+## 45.0.0
+
 ## 44.0.2
 
 ## 44.0.1

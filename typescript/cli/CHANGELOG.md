@@ -1,5 +1,12 @@
 # @hyperlane-xyz/cli
 
+## 45.0.0
+
+### Patch Changes
+
+- d36e4eb: Enabled accurate local Arc forks in the CLI for testing Arc transactions before deployment.
+- 9a59116: Updated Solana clients to versions with transaction v1 codecs while preserving existing transaction-version defaults.
+
 ## 44.0.2
 
 ## 44.0.1
