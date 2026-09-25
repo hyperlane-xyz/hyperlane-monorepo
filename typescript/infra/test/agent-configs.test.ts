@@ -278,10 +278,7 @@ describe('Agent configs', () => {
             expect(
               relayer.websocketAuthorityEnabled,
               `${environment}/${context} shared scraper authority`,
-            ).to.equal(
-              // Keep RPC authority until seismictestnet scraper coverage and freshness are fixed.
-              !(environment === 'testnet4' && context === Contexts.Hyperlane),
-            );
+            ).to.equal(true);
           });
         }
       }
