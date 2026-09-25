@@ -659,11 +659,25 @@ impl AdaptsChain for EthereumAdapter {
 
         let (nonce, gas_price) = try_join!(self.calculate_nonce(tx), self.estimate_gas_price(tx))?;
 
+        let previous_nonce: Option<U256> = tx.precursor().tx.nonce().map(|n| (*n).into());
+        let nonce_changed = previous_nonce != Some(nonce);
+
         // Update the transaction with nonce before checking if resubmission makes sense
         // This ensures the nonce is stored even if we decide not to resubmit due to gas price limits
         Self::update_tx_nonce(tx, nonce);
 
-        Self::check_if_resubmission_makes_sense(tx, &gas_price)?;
+        // Existing hashes were signed for the previous nonce, so an unchanged gas price
+        // does not mean this nonce has been broadcast.
+        if nonce_changed {
+            info!(
+                ?tx,
+                ?previous_nonce,
+                ?nonce,
+                "nonce changed, broadcasting regardless of gas price"
+            );
+        } else {
+            Self::check_if_resubmission_makes_sense(tx, &gas_price)?;
+        }
 
         Self::update_tx_gas_price(tx, gas_price);
 
@@ -676,6 +690,16 @@ impl AdaptsChain for EthereumAdapter {
             Ok(hash) => hash,
             Err(e) => {
                 warn!(?e, "submitting transaction error");
+                if nonce_changed {
+                    // Nothing was broadcast for the new nonce. Keep the previous nonce so the
+                    // next attempt still treats the nonce as changed and broadcasts it.
+                    match previous_nonce {
+                        Some(previous_nonce) => {
+                            tx.precursor_mut().tx.set_nonce(previous_nonce);
+                        }
+                        None => clear_nonce(&mut tx.precursor_mut().tx),
+                    }
+                }
                 let err_str = e.to_string().to_lowercase();
                 return if NONCE_TOO_LOW_ERRORS.iter().any(|s| err_str.contains(s)) {
                     Err(TxAlreadyExists)
@@ -735,6 +759,17 @@ impl AdaptsChain for EthereumAdapter {
         }
 
         Ok(reverted)
+    }
+
+    async fn payload_delivered(&self, payload: &PayloadDetails) -> Result<bool, LanderError> {
+        let Some(precursor) = EthereumTxPrecursor::from_success_criteria(payload, self.signer)
+        else {
+            return Ok(false);
+        };
+        Ok(self
+            .provider
+            .check(&precursor.tx, &precursor.function)
+            .await?)
     }
 
     fn reprocess_txs_poll_rate(&self) -> Option<Duration> {
@@ -813,6 +848,14 @@ impl AdaptsChain for EthereumAdapter {
             }
         }
         Ok(())
+    }
+}
+
+fn clear_nonce(tx: &mut TypedTransaction) {
+    match tx {
+        TypedTransaction::Legacy(request) => request.nonce = None,
+        TypedTransaction::Eip2930(request) => request.tx.nonce = None,
+        TypedTransaction::Eip1559(request) => request.nonce = None,
     }
 }
 

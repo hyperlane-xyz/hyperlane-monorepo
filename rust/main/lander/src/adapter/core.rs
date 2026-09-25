@@ -115,6 +115,12 @@ pub trait AdaptsChain: Send + Sync {
         Ok(Vec::new())
     }
 
+    /// Returns true only if the payload's success criteria prove it was already delivered on chain.
+    /// Used to reconcile stale transactions recovered from the database. Defaults to false.
+    async fn payload_delivered(&self, _payload: &PayloadDetails) -> Result<bool, LanderError> {
+        Ok(false)
+    }
+
     /// Returns the estimated block time of the chain. Used for polling pending transactions. Called in the Inclusion and Finality Stages of the PayloadDispatcher
     fn estimated_block_time(&self) -> &Duration;
 
