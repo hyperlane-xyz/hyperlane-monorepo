@@ -77,6 +77,7 @@ const stagingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
 };
 
 const stagingOwnersByChain: Record<DeploymentChain, string> = {
+  arc: DEPLOYER,
   ethereum: DEPLOYER,
   arbitrum: DEPLOYER,
   base: DEPLOYER,

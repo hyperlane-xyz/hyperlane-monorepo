@@ -29,6 +29,7 @@ import {
 } from './utils.js';
 
 type DeploymentChains<T> = {
+  arc: T;
   ethereum: T;
   arbitrum: T;
   base: T;
@@ -55,16 +56,16 @@ export type DeploymentChain = keyof DeploymentChains<unknown>;
  * A multi-chain USDC warp route connecting Eclipse with major EVM chains and Solana.
  *
  * Chains:
- * - EVM (collateral): Ethereum, Arbitrum, Base, Optimism, Polygon, Unichain, ink, worldchain, avalanche, hyperevm, linea, monad
+ * - EVM (collateral): Arc, Ethereum, Arbitrum, Base, Optimism, Polygon, Unichain, ink, worldchain, avalanche, hyperevm, linea, monad
  * - SVM (synthetic): Eclipse
  * - SVM (collateral): Solana
  *
  * Features:
  * - CCTP V2 rebalancing bridges (Standard + Fast) on all EVM chains
- * - Routing fee: 5 bps for EVM-to-EVM transfers, 0 bps for EVM-to-SVM transfers
- * - Contract version 10.1.3
+ * - Routing fee: 1.5 bps for EVM-to-EVM transfers, 0 bps for EVM-to-SVM transfers
  */
 export const evmDeploymentChains = [
+  'arc',
   'arbitrum',
   'avalanche',
   'base',
@@ -126,7 +127,8 @@ export const rebalancingChains = [
   'katana',
 ] as const satisfies DeploymentChain[];
 
-const awProxyAdminAddresses: Record<EvmChain, string> = {
+const awProxyAdminAddresses: Record<EvmChain, string | undefined> = {
+  arc: undefined,
   arbitrum: '0x33465314CbD880976B7A9f86062d615DE5E4Fa8A',
   base: '0x4e60dB3117AB7322949dC0A8E952D0cD413B1132',
   ethereum: '0x692e50577fAaBF10F824Dc8Ce581e3Af93785175',
@@ -144,6 +146,7 @@ const awProxyAdminAddresses: Record<EvmChain, string> = {
 } as const;
 
 const awProxyAdminOwners: Record<EvmChain, string> = {
+  arc: awIcas.arc,
   arbitrum: awSafes.arbitrum,
   base: awSafes.base,
   ethereum: awSafes.ethereum,
@@ -165,6 +168,7 @@ const awProxyAdminOwners: Record<EvmChain, string> = {
 } as const;
 
 const productionOwnersByChain: DeploymentChains<string> = {
+  arc: awIcas.arc,
   ethereum: awSafes.ethereum,
   // Explicitly set from typescript/infra/config/environments/mainnet3/governance/ica/aw.ts
   arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45',
@@ -186,6 +190,7 @@ const productionOwnersByChain: DeploymentChains<string> = {
 };
 
 const chainDecimals: DeploymentChains<number> = {
+  arc: 6,
   arbitrum: 6,
   avalanche: 6,
   base: 6,
@@ -205,6 +210,7 @@ const chainDecimals: DeploymentChains<number> = {
 };
 
 const contractVersionByChain: DeploymentChains<string | null> = {
+  arc: '12.1.0',
   arbitrum: '10.1.3',
   avalanche: '10.1.5',
   base: '10.1.3',
@@ -355,23 +361,22 @@ export const buildEclipseUSDCWarpConfig = async (
   return Object.fromEntries(configs);
 };
 
-const awProxyAdmins: ChainMap<{ address: string; owner: string }> = objMap(
-  awProxyAdminAddresses,
-  (chain, address) => {
-    const proxyAdminOwner =
-      awProxyAdminOwners[chain] ?? chainOwners[chain].owner;
+const awProxyAdmins: ChainMap<{
+  address: string | undefined;
+  owner: string;
+}> = objMap(awProxyAdminAddresses, (chain, address) => {
+  const proxyAdminOwner = awProxyAdminOwners[chain] ?? chainOwners[chain].owner;
 
-    assert(
-      proxyAdminOwner,
-      `Expected proxy admin owner to be defined for chain ${chain}`,
-    );
+  assert(
+    proxyAdminOwner,
+    `Expected proxy admin owner to be defined for chain ${chain}`,
+  );
 
-    return {
-      address: address,
-      owner: proxyAdminOwner,
-    };
-  },
-);
+  return {
+    address: address,
+    owner: proxyAdminOwner,
+  };
+});
 
 export const getEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,

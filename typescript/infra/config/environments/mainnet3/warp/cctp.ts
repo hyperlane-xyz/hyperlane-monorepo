@@ -75,6 +75,7 @@ export const STANDARD_FINALITY_THRESHOLD = 2000;
 export const usdcTokenAddresses = {
   algorand: '31566704',
   aptos: '0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b',
+  arc: '0x3600000000000000000000000000000000000000',
   arbitrum: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
   avalanche: '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E',
   base: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
