@@ -36,7 +36,6 @@ type DeploymentChains<T> = {
   bsc: T;
   optimism: T;
   polygon: T;
-  katana: T;
   unichain: T;
   eclipsemainnet: T;
   solanamainnet: T;
@@ -73,7 +72,6 @@ export const evmDeploymentChains = [
   'ethereum',
   'hyperevm',
   'ink',
-  'katana',
   'linea',
   'monad',
   'optimism',
@@ -125,7 +123,6 @@ export const rebalancingChains = [
   'hyperevm',
   'linea',
   'bsc',
-  'katana',
 ] as const satisfies DeploymentChain[];
 
 const awProxyAdminAddresses: Record<EvmChain, string | undefined> = {
@@ -143,7 +140,6 @@ const awProxyAdminAddresses: Record<EvmChain, string | undefined> = {
   worldchain: '0xbcA7cc1c87E67341463f62F00Ea096564cAD13C1',
   hyperevm: '0xa5ff938C9DdC524d98ebf0297e39A6F5918Db2CD',
   bsc: '0x840A9f5dEF03dDffd798A5F4b405E59F8b7F6801',
-  katana: '0xa8ab7DF354DD5d4bCE5856b2b4E0863A3AaeEb44',
 } as const;
 
 const awProxyAdminOwners: Record<EvmChain, string> = {
@@ -165,7 +161,6 @@ const awProxyAdminOwners: Record<EvmChain, string> = {
   worldchain: awSafes.worldchain,
   hyperevm: awSafes.hyperevm,
   bsc: awSafes.bsc,
-  katana: awSafes.katana,
 } as const;
 
 const productionOwnersByChain: DeploymentChains<string> = {
@@ -178,7 +173,6 @@ const productionOwnersByChain: DeploymentChains<string> = {
   optimism: '0x1E2afA8d1B841c53eDe9474D188Cd4FcfEd40dDC',
   //
   polygon: awIcas.polygon,
-  katana: awIcas.katana,
   unichain: awIcas.unichain,
   eclipsemainnet: chainOwners.eclipsemainnet.owner,
   solanamainnet: chainOwners.solanamainnet.owner,
@@ -200,7 +194,6 @@ const chainDecimals: DeploymentChains<number> = {
   ethereum: 6,
   hyperevm: 6,
   ink: 6,
-  katana: 6,
   linea: 6,
   monad: 6,
   optimism: 6,
@@ -220,7 +213,6 @@ const contractVersionByChain: DeploymentChains<string | null> = {
   ethereum: '10.1.3',
   hyperevm: '10.1.5',
   ink: '10.1.5',
-  katana: '11.1.0',
   linea: '10.1.5',
   monad: '10.1.5',
   optimism: '10.1.3',
@@ -261,11 +253,6 @@ const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
 );
 
 const DEFAULT_FEE_BPS = 1.5;
-// katana's fee contracts were raised to 10 bps on-chain; pin the expected
-// config so the warp check keeps matching on-chain state.
-const feeBpsByOriginChain: Partial<Record<EvmChain, number>> = {
-  katana: 10,
-};
 
 export const buildEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -325,7 +312,7 @@ export const buildEclipseUSDCWarpConfig = async (
       const feeConfig = getFixedRoutingFeeConfig(
         WARP_FEES_TURNKEY_OWNER,
         feeDestinations,
-        feeBpsByOriginChain[currentChain] ?? DEFAULT_FEE_BPS,
+        DEFAULT_FEE_BPS,
         undefined,
         quoteSigners,
       );
