@@ -1026,11 +1026,15 @@ impl StreamState {
                 if nonce != sequence {
                     bail!("Dispatch event nonce does not match stream sequence");
                 }
-                let body = parse_hex(
-                    data.msg_body
-                        .as_deref()
-                        .context("Dispatch event omitted message body")?,
-                )?;
+                // The scraper stores some empty bodies as NULL, so treat a
+                // missing body as empty. The message ID check below still
+                // rejects a missing non-empty body.
+                let body = data
+                    .msg_body
+                    .as_deref()
+                    .map(parse_hex)
+                    .transpose()?
+                    .unwrap_or_default();
                 let message = HyperlaneMessage {
                     version: 3,
                     nonce,
@@ -6720,6 +6724,35 @@ mod tests {
     }
 
     #[test]
+    fn accepts_empty_dispatch_body_as_null_omitted_or_empty() {
+        let fixture = fixture();
+        let source = fixture.sources.get(&5).expect("source");
+        store_dispatch(&fixture.database, &dispatch_message(7, b""));
+
+        let mut null_body = dispatch_data(7, b"");
+        null_body["msg_body"] = serde_json::Value::Null;
+        let mut omitted_body = dispatch_data(7, b"");
+        omitted_body
+            .as_object_mut()
+            .expect("dispatch object")
+            .remove("msg_body");
+        for data in [dispatch_data(7, b""), null_body, omitted_body] {
+            let validated = StreamState::default()
+                .validate(event(DISPATCH_EVENT_TYPE, 7, data), &fixture.sources)
+                .expect("empty-body dispatch");
+            assert_eq!(validated.sequence_result, SequenceResult::Accepted);
+            assert_eq!(
+                validated
+                    .parity
+                    .expect("dispatch parity")
+                    .compare(source.database.as_ref())
+                    .expect("empty-body parity"),
+                ParityResult::Match
+            );
+        }
+    }
+
+    #[test]
     fn dispatch_parity_accepts_unknown_local_transaction_id() {
         assert_eq!(
             dispatch_parity_result(Some(H512::zero())),
@@ -8378,9 +8411,20 @@ mod tests {
                 event(DISPATCH_EVENT_TYPE, 7, missing_body),
                 &fixture.sources
             )
-            .expect_err("missing body must reject")
+            .expect_err("missing non-empty body must reject")
             .to_string()
-            .contains("omitted message body"));
+            .contains("message ID"));
+
+        let mut malformed_body = dispatch_data(7, b"original");
+        malformed_body["msg_body"] = serde_json::json!("\\xzz");
+        assert!(StreamState::default()
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 7, malformed_body),
+                &fixture.sources
+            )
+            .expect_err("malformed body must reject")
+            .to_string()
+            .contains("hexadecimal"));
 
         let mut bad_body = dispatch_data(7, b"original");
         bad_body["msg_body"] = serde_json::json!("\\x00");
