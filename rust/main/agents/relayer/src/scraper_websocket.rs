@@ -1780,42 +1780,40 @@ impl ScraperWebSocketMonitor {
     }
 
     fn release_parity_pending(&self, count: usize) {
-        // The closure always returns Some, so the update cannot fail.
-        let _ =
-            self.parity_pending_total
-                .fetch_update(Ordering::AcqRel, Ordering::Acquire, |total| {
-                    Some(total.saturating_sub(count))
-                });
+        let previous = self.parity_pending_total.fetch_sub(count, Ordering::AcqRel);
+        debug_assert!(previous >= count, "parity pending accounting underflow");
     }
 
+    /// Returns false, recording the event as dropped, when the stream is degraded.
     fn stage_parity(
         &self,
         staged: &mut StagedParity,
         domain: u32,
         validated: ValidatedEvent,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         let kind = validated.kind;
-        if self.parity_overflowed.lock().contains(&(domain, kind)) {
-            self.record(domain, kind.label(), "dropped");
-            return Ok(());
-        }
-        if self.parity_pending_total.load(Ordering::Acquire) >= PARITY_PENDING_CAPACITY {
+        let admitted = if self.parity_overflowed.lock().contains(&(domain, kind)) {
+            false
+        } else if self.parity_pending_total.load(Ordering::Acquire) >= PARITY_PENDING_CAPACITY {
             self.overflow_parity(domain, kind, "process", PARITY_PENDING_CAPACITY);
-            return Ok(());
-        }
-        if !staged.push(domain, validated)? {
+            false
+        } else if !staged.push(domain, validated)? {
             self.overflow_parity(domain, kind, "staging", PARITY_QUEUE_CAPACITY);
-            return Ok(());
+            false
+        } else {
+            self.note_parity_pending(domain, kind);
+            true
+        };
+        if !admitted {
+            self.record(domain, kind.label(), "dropped");
         }
-        self.note_parity_pending(domain, kind);
-        Ok(())
+        Ok(admitted)
     }
 
     /// Keep RPC authoritative for one origin stream whose parity backed up.
     /// Later events are dropped, so no queued job persists a cursor past a skipped
     /// event, and readiness cannot return without terminal matching parity.
     fn overflow_parity(&self, domain: u32, kind: EventKind, stage: &str, capacity: usize) {
-        self.record(domain, kind.label(), "dropped");
         if !self.parity_overflowed.lock().insert((domain, kind)) {
             return;
         }
@@ -1990,7 +1988,6 @@ impl ScraperWebSocketMonitor {
             return Ok(false);
         }
         if self.parity_overflowed.lock().contains(&(domain, kind)) {
-            self.record(domain, kind.label(), "dropped");
             return Ok(false);
         }
         let queue = self
@@ -2002,6 +1999,10 @@ impl ScraperWebSocketMonitor {
         // freshness probes and disconnect detection for every origin.
         let start_worker = {
             let mut queue = queue.lock();
+            // A worker may have abandoned this stream since the check above.
+            if self.parity_overflowed.lock().contains(&(domain, kind)) {
+                return Ok(false);
+            }
             if queue.jobs.len() >= PARITY_QUEUE_CAPACITY {
                 drop(queue);
                 self.overflow_parity(domain, kind, "queue", PARITY_QUEUE_CAPACITY);
@@ -2150,6 +2151,8 @@ impl ScraperWebSocketMonitor {
     ) {
         let dropped = {
             let mut queue = queue.lock();
+            // Under the queue lock, so admission cannot start a worker past this event.
+            self.parity_overflowed.lock().insert((domain, kind));
             let dropped = queue.jobs.len();
             queue.jobs.clear();
             queue.worker_running = false;
@@ -2273,13 +2276,15 @@ impl ScraperWebSocketMonitor {
                     }
                     match state.validate(event, &self.sources) {
                         Ok(validated) => {
+                            let kind = validated.kind;
                             let result = match validated.sequence_result {
                                 SequenceResult::Accepted => "accepted",
                                 SequenceResult::Duplicate => "duplicate",
                             };
-                            self.record(domain, validated.kind.label(), result);
                             if validated.parity.is_some() {
-                                self.stage_parity(staged_parity, domain, validated)?;
+                                if self.stage_parity(staged_parity, domain, validated)? {
+                                    self.record(domain, kind.label(), result);
+                                }
                                 self.flush_staged_parity(
                                     state,
                                     plan,
@@ -2291,6 +2296,7 @@ impl ScraperWebSocketMonitor {
                                 self.update_source_caught_up(state, plan, &caught_up, domain)
                                     .await?;
                             } else {
+                                self.record(domain, kind.label(), result);
                                 let source = self.sources.get(&domain).context(
                                     "Validated scraper event source unexpectedly missing",
                                 )?;
@@ -2426,7 +2432,6 @@ impl ScraperWebSocketMonitor {
                         && is_unsupported_row_cursor_error(&error)
                     {
                         self.gas_payment_enabled.store(false, Ordering::Relaxed);
-                        self.deactivate_authority();
                         for source in self.sources.values() {
                             self.set_source_caught_up(source, EventKind::GasPayment, false);
                             self.degraded
@@ -6867,33 +6872,26 @@ mod tests {
                 .store_cursor(kind, 0)
                 .expect("replay floor");
         }
-        // Origin 5 has no RPC-indexed messages. Its FIFO worker retries Missing
-        // while the remaining jobs fill origin 5's own queue.
-        let queue = monitor.parity_queues[&(5, EventKind::Dispatch)].clone();
-        let mut sequence = 1_u32;
-        while queue.lock().jobs.len() < PARITY_QUEUE_CAPACITY {
-            let validated = StreamState::default()
-                .validate(
-                    event(
-                        DISPATCH_EVENT_TYPE,
-                        sequence,
-                        dispatch_data(sequence, b"payload"),
-                    ),
-                    &monitor.sources,
-                )
-                .expect("valid event");
-            assert!(
-                monitor
-                    .enqueue_parity(
-                        5,
-                        EventKind::Dispatch,
-                        validated.parity.expect("parity"),
-                        sequence,
-                    )
-                    .await
-            );
-            sequence += 1;
+        // Fill origin 5's queue and mark its worker busy, so nothing drains it.
+        let input = StreamState::default()
+            .validate(
+                event(DISPATCH_EVENT_TYPE, 1, dispatch_data(1, b"payload")),
+                &monitor.sources,
+            )
+            .expect("valid event")
+            .parity
+            .expect("parity");
+        {
+            let mut queue = monitor.parity_queues[&(5, EventKind::Dispatch)].lock();
+            queue.worker_running = true;
+            for sequence in 1..=PARITY_QUEUE_CAPACITY as u32 {
+                queue.jobs.push_back(ParityJob {
+                    input: input.clone(),
+                    sequence,
+                });
+            }
         }
+        let mut origin_5 = monitor.authority_receiver(5).expect("authority receiver");
         let mut receiver = monitor.authority_receiver(9).expect("authority receiver");
         let server_monitor = monitor.clone();
         let (finish_tx, finish_rx) = oneshot::channel();
@@ -6918,15 +6916,17 @@ mod tests {
                 ))
                 .await
                 .expect("subscribed");
-            // Model origin 9 having completed cutover, with RPC indexers paused.
-            let authority = server_monitor.source_authority(9);
-            authority
-                .sender
-                .send_modify(|command| command.desired = true);
-            authority.active.store(true, Ordering::Release);
-            authority
-                .handoff
-                .mark_paused(9, authority.sender.borrow().generation);
+            // Model both origins having completed cutover, with RPC indexers paused.
+            for domain in [5, 9] {
+                let authority = server_monitor.source_authority(domain);
+                authority
+                    .sender
+                    .send_modify(|command| command.desired = true);
+                authority.active.store(true, Ordering::Release);
+                authority
+                    .handoff
+                    .mark_paused(domain, authority.sender.borrow().generation);
+            }
             // More events than the worker can free slots for while they arrive.
             for sequence in 0..8 {
                 socket
@@ -6964,6 +6964,8 @@ mod tests {
             .parity_overflowed
             .lock()
             .contains(&(5, EventKind::Dispatch)));
+        assert!(!monitor.source_authority(5).active.load(Ordering::Acquire));
+        assert!(!origin_5.borrow_and_update().desired);
         assert!(receiver.borrow_and_update().desired);
         assert!(monitor.source_authority(9).active.load(Ordering::Acquire));
         assert!(!monitor.parity_read_disabled.load(Ordering::Acquire));
