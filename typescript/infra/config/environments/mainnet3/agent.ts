@@ -603,15 +603,17 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
 };
 
 // Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
-// Sized from 30-day observed usage: steady-state CPU ~0.7-1.3 cores, memory
-// working set ~11-12G. Restart/cold-start catch-up bursts (cursor re-sync +
-// backlog drain) reach ~6 cores; these are absorbed by burst since there is no
-// CPU limit. Request covers the burst peak with headroom; memory covers the
-// working set with ~30% headroom.
+// CPU sizing: steady-state ~0.7-1.3 cores, restart/cold-start catch-up bursts
+// (cursor re-sync + backlog drain) reach ~6 cores. Request covers the burst
+// peak with headroom; there is no CPU limit.
+// Memory: 2026-09-19 seven-day working-set peak was ~14.33G. A 20G request
+// reserves ~40% above that peak and keeps it below the 85%-of-request alert.
+// RSS was still growing within the current container lifetime; this restores
+// scheduling headroom, but does not establish a steady state or fix the growth.
 const relayerResources = {
   requests: {
     cpu: '8000m',
-    memory: '16G',
+    memory: '20G',
   },
 };
 
