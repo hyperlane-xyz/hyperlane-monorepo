@@ -850,8 +850,12 @@ impl ChainConf {
                 ));
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
-            ChainConnectionConf::Starknet(_) => {
-                let indexer = Box::new(h_starknet::StarknetInterchainGasPaymasterIndexer {});
+            ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let indexer = Box::new(h_starknet::StarknetInterchainGasPaymasterIndexer::new(
+                    provider,
+                    &self.reorg_period,
+                ));
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
             ChainConnectionConf::CosmosNative(conf) => {

@@ -250,24 +250,20 @@ async fn ingest_cached(
     } else {
         state.head.min(state.indexed.saturating_add(chunk_size))
     };
-    let boundary = source
+    let mut boundary = source
         .range_end(state.indexed, requested_end, state.head)
         .await?;
-    let end = boundary.height;
+    let mut end = boundary.height;
     let mut by_block = BTreeMap::<u64, Vec<source::Event>>::new();
     let cached = count_cache.as_ref().filter(|(hash, _)| *hash == state.hash);
     let start_counts = async {
         match cached {
             Some((_, counts)) => Ok::<_, eyre::Report>(*counts),
-            None => {
-                let mut counts = store.sequence_counts().await?;
-                if source.has_historical_counts() {
-                    let exact = source.counts(state.hash).await?;
-                    counts[0] = exact[0];
-                    counts[3] = exact[1];
-                }
-                Ok(counts)
+            None if source.has_historical_counts() => {
+                let exact = source.counts(state.hash).await?;
+                Ok([exact[0], 0, 0, exact[1]])
             }
+            None => Ok(store.sequence_counts().await?),
         }
     };
     let end_counts = async {
@@ -290,6 +286,27 @@ async fn ingest_cached(
         end_counts,
     )?;
     let (batch, start_counts) = events;
+    if source.indexes_by_sequence()
+        && batch
+            .events
+            .iter()
+            .any(|event| event.block_number <= state.indexed)
+    {
+        store.rewind_to_confirmed(state).await?;
+        eyre::bail!("Sequence gap crossed the provisional frontier; rewound for retry");
+    }
+    if let Some(indexed_through) = batch.indexed_through {
+        ensure!(
+            indexed_through > state.indexed,
+            "Sequence page made no block progress"
+        );
+        if indexed_through < end {
+            boundary = source
+                .range_end(state.indexed, indexed_through, state.head)
+                .await?;
+            end = boundary.height;
+        }
+    }
     let events = batch.events;
     let validated_counts = advance_sequences(&events, start_counts)?;
     if let Some(end_counts) = end_counts {
@@ -298,12 +315,13 @@ async fn ingest_cached(
             "Incomplete event range"
         );
     }
+    let counts_at_tips = counts_at_watermarks(&events, start_counts, batch.watermarks);
     let verified_through = batch
         .watermarks
         .zip(batch.complete_through)
         .map(|(watermarks, complete_through)| {
             validate_watermarks(
-                validated_counts,
+                counts_at_tips,
                 boundary.height,
                 watermarks,
                 complete_through,
@@ -372,10 +390,6 @@ fn validate_watermarks(
             }
             continue;
         }
-        if complete_through[stream] && u64::from(tip) < indexed_height {
-            verified_through = verified_through.min(u64::from(tip));
-            continue;
-        }
         let Some(expected) = expected else {
             verified_through = verified_through.min(u64::from(tip));
             continue;
@@ -387,6 +401,29 @@ fn validate_watermarks(
         verified_through = verified_through.min(u64::from(tip));
     }
     Ok(Some(verified_through))
+}
+
+fn counts_at_watermarks(
+    events: &[source::Event],
+    start: [u32; 4],
+    watermarks: Option<[(Option<u32>, u32); 4]>,
+) -> [u32; 4] {
+    let Some(watermarks) = watermarks else {
+        return start;
+    };
+    let mut counts = start;
+    for event in events {
+        let (stream, sequence) = match &event.data {
+            source::EventData::Dispatch(message) => (0, Some(message.nonce)),
+            source::EventData::Delivery(_) => (1, event.sequence),
+            source::EventData::Gas { .. } => (2, event.sequence),
+            source::EventData::Insertion { index, .. } => (3, Some(*index)),
+        };
+        if event.block_number <= u64::from(watermarks[stream].1) && sequence.is_some() {
+            counts[stream] = counts[stream].saturating_add(1);
+        }
+    }
+    counts
 }
 
 #[cfg(test)]

@@ -28,6 +28,9 @@ async fn init_db_migrates_builds_indexes_and_can_be_retried() -> eyre::Result<()
                 AND i.indisvalid AND i.indisready
         "#)).await?.unwrap();
         assert_eq!(row.try_get::<i64>("", "n")?, 4);
+        let row = db.query_one(Statement::from_string(DbBackend::Postgres,
+            "SELECT indnkeyatts AS n FROM pg_index WHERE indexrelid='gas_payment_block_log'::regclass".to_owned())).await?.unwrap();
+        assert_eq!(row.try_get::<i16>("", "n")?, 10);
     }
     for (name, definition) in [
         (

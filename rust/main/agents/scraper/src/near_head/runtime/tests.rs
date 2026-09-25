@@ -96,6 +96,7 @@ impl Source for Arc<Chain> {
                 events,
                 watermarks: None,
                 complete_through: None,
+                indexed_through: None,
             });
         }
         let tip = u32::try_from(self.publication_tip.load(Ordering::SeqCst))?;
@@ -103,6 +104,7 @@ impl Source for Arc<Chain> {
             events,
             watermarks: Some([(Some(0), tip); 4]),
             complete_through: Some([true; 4]),
+            indexed_through: Some(end),
         })
     }
 

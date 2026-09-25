@@ -1308,6 +1308,27 @@ fn finalized_sequence_watermarks_reject_missing_tail_events() {
         validate_watermarks([0; 4], 20, [(None, 17); 4], [false; 4]).unwrap(),
         Some(17)
     );
+    let gas = |block_number, sequence| Event {
+        block_number,
+        block_hash: H256::zero(),
+        address: H160::zero().into(),
+        tx_hash: None,
+        tx_index: 0,
+        log_index: u64::from(sequence),
+        sequence: Some(sequence),
+        data: EventData::Gas {
+            message_id: H256::zero().into(),
+            destination: 1,
+            gas: "1".into(),
+            payment: "1".into(),
+        },
+    };
+    let counts = counts_at_watermarks(
+        &[gas(19, 7), gas(21, 8)],
+        [0, 0, 7, 0],
+        Some([(None, 20); 4]),
+    );
+    assert_eq!(counts[2], 8);
 }
 
 struct CountedChain {

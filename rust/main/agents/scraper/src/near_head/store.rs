@@ -358,6 +358,52 @@ impl Store {
         Ok(())
     }
 
+    pub async fn rewind_to_confirmed(&self, expected: &State) -> Result<()> {
+        let tx = self.db.begin().await?;
+        let row = tx.query_one(sql(
+            "SELECT indexed_hash,confirmed_height,writer_id,(SELECT hash FROM scraper_checkpoint c WHERE c.domain=h.domain AND c.height=h.confirmed_height) AS confirmed_hash FROM scraper_head h WHERE domain=$1 FOR UPDATE",
+            vec![self.domain()],
+        )).await?.ok_or_else(|| eyre::eyre!("Missing head state"))?;
+        let confirmed = u64::try_from(row.try_get::<i64>("", "confirmed_height")?)?;
+        ensure!(
+            confirmed == expected.confirmed
+                && row.try_get::<Vec<u8>>("", "indexed_hash")? == expected.hash.as_bytes()
+                && row
+                    .try_get::<Option<String>>("", "writer_id")?
+                    .as_deref()
+                    .is_none_or(|id| id == writer_id()),
+            "Head changed before sequence recovery"
+        );
+        for (table, domain, height) in EVENTS {
+            tx.execute(sql(
+                format!("DELETE FROM {table} WHERE {domain}=$1 AND {height}>$2"),
+                vec![self.domain(), number(confirmed)?],
+            ))
+            .await?;
+        }
+        tx.execute(sql(
+            "DELETE FROM block WHERE domain=$1 AND height>$2",
+            vec![self.domain(), number(confirmed)?],
+        ))
+        .await?;
+        tx.execute(sql(
+            "DELETE FROM scraper_checkpoint WHERE domain=$1 AND height>$2",
+            vec![self.domain(), number(confirmed)?],
+        ))
+        .await?;
+        tx.execute(sql(
+            "UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3,verified_height=CASE WHEN verified_height IS NULL THEN NULL ELSE least(verified_height,$2) END,updated_at=clock_timestamp() WHERE domain=$1",
+            vec![
+                self.domain(),
+                number(confirmed)?,
+                row.try_get::<Vec<u8>>("", "confirmed_hash")?.into(),
+            ],
+        ))
+        .await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
     /// Bound publication by event work, while allowing empty spans to advance at once.
     /// A single block can exceed the budget: its events must publish atomically.
     pub async fn confirmation_boundary(&self, after: u64, through: u64) -> Result<u64> {

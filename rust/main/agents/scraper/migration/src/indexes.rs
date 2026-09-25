@@ -66,6 +66,7 @@ pub const GAS_PAYMENT_FRONTIER_HEIGHT: ScraperIndex = ScraperIndex {
 /// cannot run inside the SeaORM migration transaction.
 pub async fn create_indexes(db: &DatabaseConnection) -> eyre::Result<()> {
     let build_result = async {
+        replace_gas_payment_log_index(db).await?;
         for index in [
             RAW_DISPATCH_RECONCILIATION,
             RAW_DISPATCH_NATIVE_SEQUENCE,
@@ -90,6 +91,47 @@ pub async fn create_indexes(db: &DatabaseConnection) -> eyre::Result<()> {
     build_result?;
     analyze_result?;
     Ok(())
+}
+
+async fn replace_gas_payment_log_index(db: &DatabaseConnection) -> eyre::Result<()> {
+    if gas_payment_log_index_valid(db, "gas_payment_block_log").await? {
+        return Ok(());
+    }
+    db.execute_unprepared(
+        "CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS gas_payment_block_log_v2 ON gas_payment(domain,block_hash,coalesce(transaction_hash,'\\x'::bytea),transaction_index,log_index,interchain_gas_paymaster,msg_id,destination,gas_amount,payment) WHERE block_hash IS NOT NULL",
+    )
+    .await
+    .wrap_err("Creating replacement gas payment log index")?;
+    let replacement = gas_payment_log_index_valid(db, "gas_payment_block_log_v2").await?;
+    ensure!(replacement, "Replacement gas payment log index is invalid");
+    db.execute_unprepared("DROP INDEX CONCURRENTLY IF EXISTS gas_payment_block_log")
+        .await?;
+    db.execute_unprepared("ALTER INDEX gas_payment_block_log_v2 RENAME TO gas_payment_block_log")
+        .await?;
+    Ok(())
+}
+
+async fn gas_payment_log_index_valid(db: &DatabaseConnection, name: &str) -> eyre::Result<bool> {
+    let row = db
+        .query_one(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            r#"
+            SELECT i.indisvalid AND i.indisready AND i.indisunique
+                AND i.indnkeyatts=10 AND i.indnatts=10
+                AND pg_get_expr(i.indpred,i.indrelid)='(block_hash IS NOT NULL)'
+                AND (SELECT string_agg(pg_get_indexdef(i.indexrelid,n,true),',' ORDER BY n)
+                     FROM generate_series(1,i.indnkeyatts) n)
+                    = 'domain,block_hash,COALESCE(transaction_hash, ''\x''::bytea),transaction_index,log_index,interchain_gas_paymaster,msg_id,destination,gas_amount,payment'
+                AS expected
+            FROM pg_index i WHERE i.indexrelid=to_regclass($1)
+            "#,
+            [name.into()],
+        ))
+        .await?;
+    Ok(row
+        .map(|row| row.try_get::<bool>("", "expected"))
+        .transpose()?
+        .unwrap_or(false))
 }
 
 pub async fn create_index(db: &DatabaseConnection, index: ScraperIndex) -> eyre::Result<()> {
