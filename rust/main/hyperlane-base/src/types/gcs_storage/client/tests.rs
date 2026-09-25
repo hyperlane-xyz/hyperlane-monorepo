@@ -399,3 +399,107 @@ async fn deadline_includes_token_fetch() {
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     task.abort();
 }
+
+#[tokio::test]
+async fn snapshot_download_distinguishes_missing_corrupt_and_transport_errors() {
+    use super::super::MAX_MERKLE_SNAPSHOT_SIZE;
+    use hyperlane_core::accumulator::incremental::{IncrementalMerkle, MerkleTreeSnapshot};
+    let mut tree = IncrementalMerkle::default();
+    tree.ingest(hyperlane_core::H256::from_low_u64_be(1));
+    let snapshot = MerkleTreeSnapshot::capture(&tree).unwrap();
+    let data = serde_json::to_vec(&snapshot).unwrap();
+    let (endpoint, task) = server(move |request| {
+        assert_eq!(
+            request.headers()["authorization"],
+            "Bearer snapshot-test-token"
+        );
+        match request.uri().path() {
+            "/valid" => Response::new(Body::from(data.clone())),
+            "/missing" => Response::builder().status(404).body(Body::empty()).unwrap(),
+            "/forbidden" => Response::builder()
+                .status(403)
+                .body(Body::from("forbidden"))
+                .unwrap(),
+            "/corrupt" => Response::new(Body::from("not JSON")),
+            "/oversized" => Response::new(Body::from(vec![0; MAX_MERKLE_SNAPSHOT_SIZE])),
+            _ => unreachable!(),
+        }
+    })
+    .await;
+    let mut client = StorageClient::new(AuthFlow::NoAuth).await.unwrap();
+    client.auth = Some(
+        yup_oauth2::AccessTokenAuthenticator::with_client(
+            "snapshot-test-token".into(),
+            client.http.clone(),
+        )
+        .build()
+        .await
+        .unwrap(),
+    );
+    for path in ["valid", "missing", "forbidden", "corrupt", "oversized"] {
+        let result = client
+            .download(
+                Request::get(format!("{endpoint}/{path}"))
+                    .body(Body::empty())
+                    .unwrap(),
+                MAX_MERKLE_SNAPSHOT_SIZE,
+            )
+            .await;
+        match path {
+            "valid" => assert_eq!(
+                serde_json::from_slice::<MerkleTreeSnapshot>(&result.unwrap().unwrap()).unwrap(),
+                snapshot
+            ),
+            "missing" => assert!(result.unwrap().is_none()),
+            "corrupt" => assert!(serde_json::from_slice::<MerkleTreeSnapshot>(
+                &result.unwrap().unwrap()
+            )
+            .is_err()),
+            _ => assert!(result.is_err()),
+        }
+    }
+    task.abort();
+}
+
+#[tokio::test]
+async fn snapshot_limit_is_separate_and_applies_to_chunked_bodies_and_deadlines() {
+    use super::super::MAX_MERKLE_SNAPSHOT_SIZE;
+    let polled = Arc::new(AtomicUsize::new(0));
+    let observed = polled.clone();
+    let stream = futures::stream::iter((0..100).map(move |_| {
+        observed.fetch_add(1, Ordering::SeqCst);
+        Ok::<_, Infallible>(Bytes::from_static(&[0; 1024]))
+    }));
+    let response = Response::builder()
+        .header("content-length", "1")
+        .body(Body::wrap_stream(stream))
+        .unwrap();
+    assert!(
+        collect_response_with_limit(response, MAX_MERKLE_SNAPSHOT_SIZE)
+            .await
+            .is_err()
+    );
+    assert_eq!(polled.load(Ordering::SeqCst), 8);
+    // A 9 KiB ordinary checkpoint still fits its independent 50 KiB cap.
+    assert!(
+        collect_response(Response::new(Body::from(vec![0; 9 * 1024])))
+            .await
+            .is_ok()
+    );
+    let (endpoint, task) = server(|_| {
+        Response::new(Body::wrap_stream(futures::stream::pending::<
+            Result<Bytes, Infallible>,
+        >()))
+    })
+    .await;
+    let client = StorageClient::new(AuthFlow::NoAuth).await.unwrap();
+    let result = client
+        .send_with_limits(
+            Request::get(&endpoint).body(Body::empty()).unwrap(),
+            Duration::from_millis(200),
+            MAX_MERKLE_SNAPSHOT_SIZE,
+        )
+        .await;
+    assert!(result.unwrap_err().to_string().contains("deadline"));
+    task.abort();
+}

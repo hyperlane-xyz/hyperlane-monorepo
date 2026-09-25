@@ -47,13 +47,25 @@ impl StorageClient {
     }
 
     async fn send(&self, request: Request<Body>) -> Result<Response<Bytes>> {
-        self.send_with_timeout(request, REQUEST_TIMEOUT).await
+        self.send_with_limits(request, REQUEST_TIMEOUT, MAX_CHECKPOINT_OBJECT_SIZE)
+            .await
     }
 
+    #[cfg(test)]
     async fn send_with_timeout(
+        &self,
+        request: Request<Body>,
+        timeout: Duration,
+    ) -> Result<Response<Bytes>> {
+        self.send_with_limits(request, timeout, MAX_CHECKPOINT_OBJECT_SIZE)
+            .await
+    }
+
+    async fn send_with_limits(
         &self,
         mut request: Request<Body>,
         timeout: Duration,
+        max_bytes: usize,
     ) -> Result<Response<Bytes>> {
         tokio::time::timeout(timeout, async {
             if let Some(auth) = &self.auth {
@@ -68,17 +80,34 @@ impl StorageClient {
                     .headers_mut()
                     .insert(hyper::header::AUTHORIZATION, header);
             }
-            collect_response(self.http.request(request).await?).await
+            collect_response_with_limit(self.http.request(request).await?, max_bytes).await
         })
         .await
         .wrap_err_with(|| format!("GCS request exceeded {timeout:?} deadline"))?
     }
 
     pub(super) async fn get_object(&self, bucket: &str, key: &str) -> Result<Option<Bytes>> {
+        self.get_object_with_limit(bucket, key, MAX_CHECKPOINT_OBJECT_SIZE)
+            .await
+    }
+
+    pub(super) async fn get_object_with_limit(
+        &self,
+        bucket: &str,
+        key: &str,
+        max_bytes: usize,
+    ) -> Result<Option<Bytes>> {
         let oid = object_id(bucket, key)?;
         let request = objects::Object::download(&oid, None)?;
         let (parts, _) = request.into_parts();
-        let response = self.send(Request::from_parts(parts, Body::empty())).await?;
+        self.download(Request::from_parts(parts, Body::empty()), max_bytes)
+            .await
+    }
+
+    async fn download(&self, request: Request<Body>, max_bytes: usize) -> Result<Option<Bytes>> {
+        let response = self
+            .send_with_limits(request, REQUEST_TIMEOUT, max_bytes)
+            .await?;
         if response.status() == StatusCode::NOT_FOUND {
             return Ok(None);
         }
@@ -121,7 +150,15 @@ fn object_id<'a>(bucket: &'a str, key: &'a str) -> Result<ObjectId<'a>> {
     })
 }
 
+#[cfg(test)]
 async fn collect_response(response: Response<Body>) -> Result<Response<Bytes>> {
+    collect_response_with_limit(response, MAX_CHECKPOINT_OBJECT_SIZE).await
+}
+
+async fn collect_response_with_limit(
+    response: Response<Body>,
+    max_bytes: usize,
+) -> Result<Response<Bytes>> {
     let (parts, mut body) = response.into_parts();
     // Check each chunk before reserving space; headers never determine allocation.
     // Reject exactly the limit, matching the exclusive S3/local checkpoint cap.
@@ -129,17 +166,16 @@ async fn collect_response(response: Response<Body>) -> Result<Response<Bytes>> {
     while let Some(chunk) = body.data().await {
         let chunk = chunk?;
         ensure!(
-            chunk.len() < MAX_CHECKPOINT_OBJECT_SIZE.saturating_sub(bytes.len()),
-            "GCS response exceeds checkpoint object limit of {} bytes",
-            MAX_CHECKPOINT_OBJECT_SIZE
+            chunk.len() < max_bytes.saturating_sub(bytes.len()),
+            "GCS response exceeds object limit of {} bytes",
+            max_bytes
         );
         if chunk.len() > bytes.capacity().saturating_sub(bytes.len()) {
             // Grow geometrically for tiny chunks without exceeding the byte cap.
-            let additional = chunk.len().max(bytes.capacity()).min(
-                MAX_CHECKPOINT_OBJECT_SIZE
-                    .saturating_sub(bytes.len())
-                    .saturating_sub(1),
-            );
+            let additional = chunk
+                .len()
+                .max(bytes.capacity())
+                .min(max_bytes.saturating_sub(bytes.len()).saturating_sub(1));
             bytes.reserve_exact(additional);
         }
         bytes.extend_from_slice(&chunk);

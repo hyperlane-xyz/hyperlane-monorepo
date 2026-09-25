@@ -4631,3 +4631,138 @@ async fn healthy_websocket_idle_audit_detects_same_count_single_provider_reorg()
     assert!(task.await.unwrap_err().is_panic());
     assert!(recorded.load(Ordering::SeqCst));
 }
+
+#[tokio::test]
+async fn snapshot_restore_rejects_foreign_signer_and_checkpoint_fields() {
+    for field in ["signer", "domain", "hook", "index", "root"] {
+        let (domain, _, mut checkpoint, target, snapshot) = three_leaf_snapshot_fixture();
+        let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+        match field {
+            "domain" => checkpoint.checkpoint.mailbox_domain += 1,
+            "hook" => checkpoint.checkpoint.merkle_tree_hook_address = H256::repeat_byte(1),
+            "index" => checkpoint.checkpoint.index += 1,
+            "root" => checkpoint.checkpoint.root = H256::repeat_byte(1),
+            _ => {}
+        }
+        let signed = if field == "signer" {
+            let other: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+            other.sign(checkpoint).await.unwrap()
+        } else {
+            signer.sign(checkpoint).await.unwrap()
+        };
+        let mut syncer = MockCheckpointSyncer::new();
+        syncer
+            .expect_read_merkle_snapshot()
+            .once()
+            .return_once(move || Ok(Some(snapshot)));
+        syncer
+            .expect_fetch_checkpoint()
+            .once()
+            .return_once(move |_| Ok(Some(signed)));
+        let submitter = snapshot_test_submitter(domain, signer, syncer, MockDb::new());
+        assert!(
+            submitter
+                .restored_snapshot_tree(target.index)
+                .await
+                .is_none(),
+            "{field}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn snapshot_restore_rejects_future_and_malformed_frontiers_before_checkpoint_get() {
+    for mutation in ["future", "index", "root", "truncated", "count"] {
+        let (domain, _, _, target, mut snapshot) = three_leaf_snapshot_fixture();
+        let mut target_index = target.index;
+        match mutation {
+            "future" => target_index = 0,
+            "index" => snapshot.index = 0,
+            "root" => snapshot.root = H256::repeat_byte(1),
+            "truncated" => {
+                snapshot.tree.pop();
+            }
+            "count" => {
+                snapshot.tree[1024..].fill(0);
+            }
+            _ => unreachable!(),
+        }
+        let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+        let mut syncer = MockCheckpointSyncer::new();
+        syncer
+            .expect_read_merkle_snapshot()
+            .once()
+            .return_once(move || Ok(Some(snapshot)));
+        let submitter = snapshot_test_submitter(domain, signer, syncer, MockDb::new());
+        assert!(
+            submitter
+                .restored_snapshot_tree(target_index)
+                .await
+                .is_none(),
+            "{mutation}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn authenticated_snapshot_cannot_authorize_a_conflicting_canonical_tail() {
+    let (domain, insertions, checkpoint, mut target, snapshot) = three_leaf_snapshot_fixture();
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let signed = signer.sign(checkpoint).await.unwrap();
+    let mut syncer = MockCheckpointSyncer::new();
+    syncer
+        .expect_read_merkle_snapshot()
+        .once()
+        .return_once(move || Ok(Some(snapshot)));
+    syncer
+        .expect_fetch_checkpoint()
+        .once()
+        .return_once(move |_| Ok(Some(signed)));
+    let mut db = MockDb::new();
+    db.expect_retrieve_merkle_tree_insertion_by_leaf_index()
+        .with(mockall::predicate::eq(2))
+        .once()
+        .return_once(move |_| Ok(Some(insertions[2])));
+    let submitter = snapshot_test_submitter(domain, signer, syncer, db);
+    let restored = submitter
+        .restored_snapshot_tree(target.index)
+        .await
+        .unwrap();
+    let committed_root = restored.root();
+    let mut tree = CheckpointTree::new(restored);
+    target.checkpoint.root = H256::repeat_byte(42);
+    let batch = submitter
+        .verify_checkpoint_batch(&mut tree, &[Some(target)])
+        .await;
+    assert!(matches!(batch, CheckpointBatch::WaitingForRpc));
+    assert_eq!(tree.committed.index(), 1);
+    assert_eq!(tree.committed.root(), committed_root);
+    // No signing/publication mock is configured: neither may be called.
+    assert!(submitter.readiness.snapshot().signing_blocked);
+}
+
+#[tokio::test]
+async fn future_authenticated_snapshot_waits_for_canonical_rpc_progress() {
+    let (domain, _, checkpoint, mut target, snapshot) = three_leaf_snapshot_fixture();
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let signed = signer.sign(checkpoint).await.unwrap();
+    let mut syncer = MockCheckpointSyncer::new();
+    syncer
+        .expect_read_merkle_snapshot()
+        .once()
+        .return_once(move || Ok(Some(snapshot)));
+    syncer
+        .expect_fetch_checkpoint()
+        .once()
+        .return_once(move |_| Ok(Some(signed)));
+    let submitter = snapshot_test_submitter(domain, signer, syncer, MockDb::new());
+    let restored = submitter.restore_consensus_tree().await;
+    let mut tree = CheckpointTree::new(restored);
+    target.checkpoint.index = 0;
+    let batch = submitter
+        .verify_checkpoint_batch(&mut tree, &[Some(target)])
+        .await;
+    assert!(matches!(batch, CheckpointBatch::WaitingForRpc));
+    assert_eq!(tree.committed.index(), 1);
+    assert!(submitter.readiness.snapshot().signing_blocked);
+}

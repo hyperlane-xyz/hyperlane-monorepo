@@ -1,7 +1,8 @@
 use crate::CheckpointSyncer;
 use async_trait::async_trait;
 use derive_new::new;
-use eyre::{bail, Result};
+use eyre::{bail, ensure, Result};
+use hyperlane_core::accumulator::incremental::MerkleTreeSnapshot;
 use hyperlane_core::{
     ReorgEvent, ReorgEventResponse, SignedAnnouncement, SignedCheckpointWithMessageId,
 };
@@ -12,6 +13,10 @@ use ya_gcp::AuthFlow;
 mod client;
 use client::StorageClient;
 
+// A depth-32 frontier serializes to < 5 KiB of JSON even at the largest index.
+// Keep its bound separate from ordinary checkpoint and error responses.
+const MAX_MERKLE_SNAPSHOT_SIZE: usize = 8 * 1024;
+const MERKLE_SNAPSHOT_KEY: &str = "merkle_snapshot.json";
 const LATEST_INDEX_KEY: &str = "gcsLatestIndexKey";
 const METADATA_KEY: &str = "gcsMetadataKey";
 const ANNOUNCEMENT_KEY: &str = "gcsAnnouncementKey";
@@ -173,8 +178,28 @@ impl fmt::Debug for GcsStorageClient {
 
 #[async_trait]
 impl CheckpointSyncer for GcsStorageClient {
-    // Keep cold replay until snapshot publication and canonical-tail validation
-    // are wired and tested together for GCS.
+    async fn read_merkle_snapshot(&self) -> Result<Option<MerkleTreeSnapshot>> {
+        self.inner
+            .get_object_with_limit(
+                &self.bucket,
+                &self.object_path(MERKLE_SNAPSHOT_KEY),
+                MAX_MERKLE_SNAPSHOT_SIZE,
+            )
+            .await?
+            .map(|data| serde_json::from_slice(&data).map_err(Into::into))
+            .transpose()
+    }
+
+    async fn write_merkle_snapshot(&self, snapshot: &MerkleTreeSnapshot) -> Result<()> {
+        let data = serde_json::to_vec(snapshot)?;
+        ensure!(
+            data.len() < MAX_MERKLE_SNAPSHOT_SIZE,
+            "Merkle snapshot exceeds GCS snapshot size limit"
+        );
+        self.upload_and_log(&self.object_path(MERKLE_SNAPSHOT_KEY), data)
+            .await
+    }
+
     /// Read the highest index of this Syncer
     #[instrument(skip(self))]
     async fn latest_index(&self) -> Result<Option<u32>> {
@@ -318,6 +343,10 @@ async fn object_path_prefixes_every_key_with_the_folder() {
     // sharing a bucket across chains via folder prefixes silently collide,
     // and a write under the folder is unreadable by a read that isn't scoped.
     assert_eq!(
+        client.object_path(MERKLE_SNAPSHOT_KEY),
+        "sepolia/merkle_snapshot.json"
+    );
+    assert_eq!(
         client.object_path(LATEST_INDEX_KEY),
         "sepolia/gcsLatestIndexKey"
     );
@@ -349,25 +378,17 @@ async fn object_path_is_unprefixed_without_a_folder() {
     );
 }
 
-#[tokio::test]
-async fn merkle_snapshot_uses_cold_replay_without_gcs_access() {
-    use hyperlane_core::accumulator::incremental::{IncrementalMerkle, MerkleTreeSnapshot};
-
-    // An invalid bucket makes any accidental object request fail immediately.
-    let client = GcsStorageClientBuilder::new(AuthFlow::NoAuth)
-        .build("", None)
-        .await
-        .expect("unauthenticated client");
-    let mut tree = IncrementalMerkle::default();
-    tree.ingest(hyperlane_core::H256::from_low_u64_be(1));
-    let snapshot = MerkleTreeSnapshot::capture(&tree).expect("snapshot");
-
-    assert_eq!(
-        client.read_merkle_snapshot().await.expect("no snapshot"),
-        None
+#[test]
+fn snapshot_frontier_fits_dedicated_cap_at_maximum_supported_count() {
+    use hyperlane_core::{accumulator::incremental::IncrementalMerkle, H256};
+    // All byte values are 255: worst-case JSON width for the fixed frontier.
+    let tree = IncrementalMerkle::new([H256::repeat_byte(255); 32], u32::MAX as usize);
+    let snapshot = MerkleTreeSnapshot::capture(&tree).unwrap();
+    let data = serde_json::to_vec(&snapshot).unwrap();
+    println!(
+        "maximum supported count snapshot JSON bytes: {}",
+        data.len()
     );
-    client
-        .write_merkle_snapshot(&snapshot)
-        .await
-        .expect("no-op write");
+    assert!(data.len() < MAX_MERKLE_SNAPSHOT_SIZE);
+    assert_eq!(snapshot.restore().unwrap().root(), tree.root());
 }
