@@ -306,7 +306,8 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
 
     // skunkchain special
     solanamainnet: 0.35,
-    ethereum: 0.12,
+    // Ethereum floor ($0.12 -> $0.20). *->ethereum quotes are pinned to this floor; L1 gas rose to ~0.3 gwei (Sep 2026) and $0.12 ran 11 EVM lanes ~30% below break-even.
+    ethereum: 0.2,
     arbitrum: 0.09,
     // OP-stack L2 floors ($0.05 -> $0.10). These destinations pay an L1
     // data-availability cost that is NOT in the L2 execution gasPrice, so only
