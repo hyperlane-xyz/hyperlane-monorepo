@@ -162,6 +162,24 @@ jobs:
             sleep $((attempt * 10))
           done
         working-directory: ./rust/sealevel
+      # Scraper tests start many testcontainers Postgres instances in parallel; pull
+      # the images once up front so a Docker Hub hiccup cannot fail a test mid-run.
+      # Tags must match the scraper tests: testcontainers' default and `with_tag`.
+      - name: Pre-pull testcontainers images
+        run: |
+          for image in postgres:11-alpine postgres:16-alpine; do
+            for attempt in 1 2 3; do
+              if docker pull "$image"; then
+                break
+              fi
+              if [[ "$attempt" == "3" ]]; then
+                echo "Failed to pull $image after $attempt attempts"
+                exit 1
+              fi
+              echo "$image pull failed; retrying in $((attempt * 10)) seconds"
+              sleep $((attempt * 10))
+            done
+          done
       - name: Run tests for main workspace
         run: cargo test --all-targets --features aleo,integration_test
         working-directory: ./rust/main

@@ -2043,8 +2043,7 @@ mod tests {
             .expect("store original insertion");
         let hook_address = format!("{:#x}", sync.merkle_tree_hook);
         let onchain_count = Arc::new(AtomicUsize::new(1));
-        let server_count = onchain_count.clone();
-        let (rollback_tx, rollback_rx) = tokio::sync::oneshot::channel();
+        let count_control = onchain_count.clone();
         tokio::spawn(async move {
             let (stream, _) = listener.accept().await.expect("connection");
             let mut socket = accept_async(stream).await.expect("WebSocket");
@@ -2067,8 +2066,8 @@ mod tests {
                 ).into()))
                 .await
                 .expect("send caught-up message");
-            rollback_rx.await.expect("roll back on-chain count");
-            server_count.store(0, Ordering::SeqCst);
+            // Heartbeat until the test changes the on-chain count, so the read
+            // timeout cannot drop the only connection before cutover is observed.
             let mut heartbeats = interval(Duration::from_millis(2));
             loop {
                 heartbeats.tick().await;
@@ -2129,7 +2128,7 @@ mod tests {
         })
         .await
         .expect("initial WebSocket cutover");
-        rollback_tx.send(()).expect("roll back on-chain count");
+        count_control.store(0, Ordering::SeqCst);
 
         timeout(Duration::from_secs(1), async {
             while starts.load(Ordering::SeqCst) != 1
@@ -2163,7 +2162,7 @@ mod tests {
         let hook_address = format!("{:#x}", sync.merkle_tree_hook);
         let onchain_count = Arc::new(AtomicUsize::new(1));
         let server_count = onchain_count.clone();
-        let (advance_tx, advance_rx) = tokio::sync::oneshot::channel();
+        let count_control = onchain_count.clone();
         tokio::spawn(async move {
             let (stream, _) = listener.accept().await.expect("connection");
             let mut socket = accept_async(stream).await.expect("WebSocket");
@@ -2186,15 +2185,22 @@ mod tests {
                 ).into()))
                 .await
                 .expect("send caught-up message");
-            advance_rx.await.expect("advance on-chain count");
-            server_count.store(2, Ordering::SeqCst);
+            let heartbeat = Message::Text(r#"{"type":"heartbeat"}"#.into());
             let duplicate = Message::Text(format!(
                 r#"{{"type":"caught_up","address":"{hook_address}","domain":1,"eventType":"merkle_tree_insertion","sequence":"0"}}"#
             ).into());
-            let mut markers = interval(Duration::from_millis(1));
+            let mut ticks = interval(Duration::from_millis(1));
             loop {
-                markers.tick().await;
-                if socket.send(duplicate.clone()).await.is_err() {
+                ticks.tick().await;
+                // Heartbeat until the test advances the on-chain count, so the read
+                // timeout cannot drop the only connection before cutover is observed.
+                // Then flood duplicate markers, which must not mask the lag.
+                let message = if server_count.load(Ordering::SeqCst) == 1 {
+                    heartbeat.clone()
+                } else {
+                    duplicate.clone()
+                };
+                if socket.send(message).await.is_err() {
                     break;
                 }
             }
@@ -2246,7 +2252,7 @@ mod tests {
         })
         .await
         .expect("initial WebSocket cutover");
-        advance_tx.send(()).expect("advance on-chain count");
+        count_control.store(2, Ordering::SeqCst);
 
         timeout(Duration::from_secs(1), async {
             while starts.load(Ordering::SeqCst) != 1
@@ -2274,11 +2280,10 @@ mod tests {
         .expect("test WebSocket URL");
         let hook_address = format!("{:#x}", sync.merkle_tree_hook);
         let onchain_count = Arc::new(AtomicUsize::new(2));
-        let server_count = onchain_count.clone();
+        let count_control = onchain_count.clone();
         let calls = Arc::new(AtomicUsize::new(0));
         let calls_in_hook = calls.clone();
         let calls_in_server = calls.clone();
-        let (retreat_tx, retreat_rx) = tokio::sync::oneshot::channel();
         tokio::spawn(async move {
             let (stream, _) = listener.accept().await.expect("connection");
             let mut socket = accept_async(stream).await.expect("WebSocket");
@@ -2304,8 +2309,8 @@ mod tests {
                 ).into()))
                 .await
                 .expect("send caught-up message");
-            retreat_rx.await.expect("retreat on-chain count");
-            server_count.store(1, Ordering::SeqCst);
+            // Heartbeat until the test changes the on-chain count, so the read
+            // timeout cannot drop the only connection before cutover is observed.
             let mut heartbeats = interval(Duration::from_millis(2));
             loop {
                 heartbeats.tick().await;
@@ -2367,7 +2372,7 @@ mod tests {
         .expect("cache ahead target");
         assert_eq!(active.get(), 0);
         assert_eq!(websocket_active_after_retreat.get(), 0);
-        retreat_tx.send(()).expect("retreat on-chain count");
+        count_control.store(1, Ordering::SeqCst);
 
         timeout(Duration::from_secs(5), async {
             while active.get() != 0 || websocket_active_after_retreat.get() != 1 {
@@ -2393,8 +2398,7 @@ mod tests {
         .expect("test WebSocket URL");
         let hook_address = format!("{:#x}", sync.merkle_tree_hook);
         let onchain_count = Arc::new(AtomicUsize::new(1));
-        let server_count = onchain_count.clone();
-        let (advance_tx, advance_rx) = tokio::sync::oneshot::channel();
+        let count_control = onchain_count.clone();
         tokio::spawn(async move {
             let (stream, _) = listener.accept().await.expect("connection");
             let mut socket = accept_async(stream).await.expect("WebSocket");
@@ -2417,8 +2421,8 @@ mod tests {
                 ).into()))
                 .await
                 .expect("send caught-up message");
-            advance_rx.await.expect("advance on-chain count");
-            server_count.store(2, Ordering::SeqCst);
+            // Heartbeat until the test changes the on-chain count, so the read
+            // timeout cannot drop the only connection before cutover is observed.
             let mut heartbeats = interval(Duration::from_millis(2));
             loop {
                 heartbeats.tick().await;
@@ -2478,7 +2482,7 @@ mod tests {
         })
         .await
         .expect("initial WebSocket cutover");
-        advance_tx.send(()).expect("advance on-chain count");
+        count_control.store(2, Ordering::SeqCst);
 
         timeout(Duration::from_secs(1), async {
             while starts.load(Ordering::SeqCst) != 1
