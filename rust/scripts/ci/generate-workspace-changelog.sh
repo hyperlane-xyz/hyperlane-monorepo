@@ -113,7 +113,6 @@ declare -A SCOPE_TO_WORKSPACE=(
     ["cosmos"]="chains/hyperlane-cosmos"
     ["ethereum"]="chains/hyperlane-ethereum"
     ["sealevel"]="chains/hyperlane-sealevel"
-    ["fuel"]="chains/hyperlane-fuel"
     ["starknet"]="chains/hyperlane-starknet"
     ["aleo"]="chains/hyperlane-aleo"
 )
