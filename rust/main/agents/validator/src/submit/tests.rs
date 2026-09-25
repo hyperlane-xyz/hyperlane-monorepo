@@ -1818,6 +1818,223 @@ async fn sign_and_submit_checkpoint_different_signature() {
     logs_contain("Checkpoint already submitted, but with different signature, overwriting");
 }
 
+#[tokio::test(start_paused = true)]
+async fn conflicting_checkpoint_halts_before_overwriting_root_or_message_id() {
+    for message_id_only in [false, true] {
+        let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+        let existing = submission_checkpoint(7);
+        let signed = signer.sign(existing).await.unwrap();
+        let mut proposed = existing;
+        if message_id_only {
+            proposed.message_id = H256::repeat_byte(1);
+        } else {
+            proposed.checkpoint.root = H256::repeat_byte(1);
+        }
+        let mut syncer = MockCheckpointSyncer::new();
+        syncer
+            .expect_fetch_checkpoint()
+            .once()
+            .returning(move |index| {
+                assert_eq!(index, existing.index);
+                Ok(Some(signed.clone()))
+            });
+        syncer.expect_write_checkpoint().never();
+        syncer.expect_update_latest_index().never();
+        syncer
+            .expect_write_reorg_status()
+            .once()
+            .returning(move |event| {
+                assert_eq!(event.local_merkle_root, existing.root);
+                assert_eq!(event.canonical_merkle_root, proposed.root);
+                assert_eq!(event.checkpoint_index, proposed.index);
+                Ok(())
+            });
+        let readiness = dummy_readiness();
+        let mut submitter = submission_test_submitter(syncer, readiness.clone());
+        submitter.signer = signer;
+        let panic = std::panic::AssertUnwindSafe(submitter.sign_and_submit_checkpoint(proposed))
+            .catch_unwind()
+            .await;
+        assert!(
+            panic.is_err(),
+            "must halt after making the restart guard durable"
+        );
+        assert!(*submitter.reorg_halt.borrow());
+        assert_eq!(
+            readiness.snapshot().blocked_operations,
+            vec!["checkpoint_reorg"]
+        );
+        // A cloned live or historical worker shares the halt before its signer is called.
+        assert!(tokio::time::timeout(
+            Duration::from_millis(1),
+            submitter.clone().sign_checkpoint(submission_checkpoint(8)),
+        )
+        .await
+        .is_err());
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn conflicting_checkpoint_waits_for_durable_guard_while_siblings_remain_halted() {
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let existing = submission_checkpoint(7);
+    let signed = signer.sign(existing).await.unwrap();
+    let mut proposed = existing;
+    proposed.checkpoint.root = H256::repeat_byte(1);
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let observed = attempts.clone();
+    let mut syncer = MockCheckpointSyncer::new();
+    syncer
+        .expect_fetch_checkpoint()
+        .once()
+        .returning(move |_| Ok(Some(signed.clone())));
+    syncer.expect_write_checkpoint().never();
+    syncer
+        .expect_write_reorg_status()
+        .times(3)
+        .returning(move |_| {
+            if observed.fetch_add(1, Ordering::SeqCst) < 2 {
+                Err(eyre::eyre!("guard unavailable"))
+            } else {
+                Ok(())
+            }
+        });
+    let readiness = dummy_readiness();
+    let mut submitter = submission_test_submitter(syncer, readiness.clone());
+    submitter.signer = signer;
+    let sibling = submitter.clone();
+    let detector =
+        tokio::spawn(async move { submitter.sign_and_submit_checkpoint(proposed).await });
+    tokio::task::yield_now().await;
+    assert_eq!(attempts.load(Ordering::SeqCst), 1);
+    assert!(!detector.is_finished());
+    assert!(readiness.snapshot().signing_blocked);
+    assert!(tokio::time::timeout(
+        Duration::from_millis(1),
+        sibling.sign_and_submit_checkpoint(submission_checkpoint(8)),
+    )
+    .await
+    .is_err());
+    let error = tokio::time::timeout(Duration::from_secs(11), detector)
+        .await
+        .unwrap()
+        .expect_err("exit only after guard persistence");
+    assert!(error.is_panic());
+    assert_eq!(attempts.load(Ordering::SeqCst), 3);
+}
+
+#[tokio::test]
+async fn conflicting_checkpoint_cold_replay_refuses_previously_signed_history() {
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let (domain, insertions, _, target, _) = three_leaf_snapshot_fixture();
+    let proposed = CheckpointWithMessageId {
+        checkpoint: target.checkpoint,
+        message_id: insertions[2].message_id(),
+    };
+    let mut existing = proposed;
+    existing.checkpoint.root = H256::repeat_byte(99);
+    let signed = signer.sign(existing).await.unwrap();
+    let mut db = MockDb::new();
+    db.expect_retrieve_merkle_tree_insertion_by_leaf_index()
+        .returning(move |index| Ok(Some(insertions[*index as usize])));
+    let mut syncer = MockCheckpointSyncer::new();
+    syncer
+        .expect_fetch_checkpoint()
+        .once()
+        .returning(move |index| {
+            assert_eq!(index, proposed.index, "newest checkpoint is checked first");
+            Ok(Some(signed.clone()))
+        });
+    syncer.expect_write_checkpoint().never();
+    syncer
+        .expect_write_reorg_status()
+        .once()
+        .returning(|_| Ok(()));
+    let mut submitter = snapshot_test_submitter(domain, signer, syncer, db);
+    // A single-entry chunk makes the no-sibling-write assertion deterministic.
+    submitter.max_sign_concurrency = 1;
+    let mut tree = IncrementalMerkle::default();
+    assert!(std::panic::AssertUnwindSafe(
+        submitter.submit_checkpoints_until_correctness_checkpoint(&mut tree, &target)
+    )
+    .catch_unwind()
+    .await
+    .is_err());
+    assert_eq!(
+        tree.root(),
+        target.root,
+        "current history itself passed verification"
+    );
+    assert!(submitter.readiness.snapshot().signing_blocked);
+}
+
+#[tokio::test]
+async fn unrelated_checkpoint_signature_does_not_trigger_reorg_guard() {
+    for unrelated in ["signer", "domain", "hook", "index"] {
+        let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+        let other: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+        let proposed = submission_checkpoint(7);
+        let mut existing = proposed;
+        existing.checkpoint.root = H256::repeat_byte(1);
+        match unrelated {
+            "domain" => existing.checkpoint.mailbox_domain += 1,
+            "hook" => existing.checkpoint.merkle_tree_hook_address = H256::repeat_byte(1),
+            "index" => existing.checkpoint.index += 1,
+            _ => {}
+        }
+        let signed = if unrelated == "signer" {
+            other.sign(existing).await.unwrap()
+        } else {
+            signer.sign(existing).await.unwrap()
+        };
+        let expected_signer = signer.eth_address();
+        let mut syncer = MockCheckpointSyncer::new();
+        syncer
+            .expect_fetch_checkpoint()
+            .once()
+            .returning(move |_| Ok(Some(signed.clone())));
+        syncer.expect_write_reorg_status().never();
+        syncer
+            .expect_write_checkpoint()
+            .once()
+            .returning(move |checkpoint| {
+                assert_eq!(checkpoint.value, proposed);
+                assert_eq!(checkpoint.recover().unwrap(), expected_signer);
+                Ok(())
+            });
+        let mut submitter = submission_test_submitter(syncer, dummy_readiness());
+        submitter.signer = signer;
+        assert!(submitter
+            .sign_and_submit_checkpoint(proposed)
+            .await
+            .unwrap());
+        assert!(!*submitter.reorg_halt.borrow());
+    }
+}
+
+#[tokio::test]
+async fn corrupt_checkpoint_signature_is_an_error_without_reorg_guard() {
+    let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
+    let proposed = submission_checkpoint(7);
+    let mut signed = signer.sign(proposed).await.unwrap();
+    signed.signature.r = hyperlane_core::U256::zero();
+    signed.signature.s = hyperlane_core::U256::zero();
+    let mut syncer = MockCheckpointSyncer::new();
+    syncer
+        .expect_fetch_checkpoint()
+        .once()
+        .returning(move |_| Ok(Some(signed.clone())));
+    syncer.expect_write_checkpoint().never();
+    syncer.expect_write_reorg_status().never();
+    let mut submitter = submission_test_submitter(syncer, dummy_readiness());
+    submitter.signer = signer;
+    assert!(submitter
+        .sign_and_submit_checkpoint(proposed)
+        .await
+        .is_err());
+    assert!(!*submitter.reorg_halt.borrow());
+}
+
 fn snapshot_test_submitter(
     domain: HyperlaneDomain,
     signer: Signers,
