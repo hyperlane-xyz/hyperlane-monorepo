@@ -25,6 +25,7 @@ function createMockToken({
 }): Token {
   return {
     isCollateralized: () => collateralized,
+    isHypToken: () => false,
     amount: ((amount: bigint) => ({
       getDecimalFormattedAmount: () => Number(amount) / 10 ** decimals,
     })) as Token['amount'],
