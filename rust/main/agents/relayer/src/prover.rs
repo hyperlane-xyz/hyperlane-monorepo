@@ -3,18 +3,21 @@
 //! Struct responsible for syncing Prover
 
 use hyperlane_core::accumulator::{
-    merkle::{merkle_root_from_branch, MerkleTree, MerkleTreeError, Proof},
+    merkle::{merkle_root_from_branch, MerkleTreeError, Proof},
     TREE_DEPTH,
 };
 use hyperlane_core::H256;
 use tracing::instrument;
 
+mod packed;
+
+use packed::PackedMerkle;
+
 /// A depth-32 sparse Merkle tree capable of producing proofs for arbitrary
 /// elements.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Prover {
-    count: usize,
-    tree: MerkleTree,
+    tree: PackedMerkle,
 }
 
 /// Prover Errors
@@ -45,34 +48,23 @@ pub enum ProverError {
     },
 }
 
-impl Default for Prover {
-    fn default() -> Self {
-        let full = MerkleTree::create(&[], TREE_DEPTH);
-        Self {
-            count: 0,
-            tree: full,
-        }
-    }
-}
-
 impl Prover {
     /// Push a leaf to the tree. Appends it to the first unoccupied slot
     ///
     /// This will fail if the underlying tree is full.
     pub fn ingest(&mut self, element: H256) -> Result<H256, ProverError> {
-        self.tree.push_leaf(element, TREE_DEPTH)?;
-        self.count = self.count.saturating_add(1);
-        Ok(self.tree.hash())
+        self.tree.push(element)?;
+        Ok(self.tree.root())
     }
 
     /// Return the current root hash of the tree
     pub fn root(&self) -> H256 {
-        self.tree.hash()
+        self.tree.root()
     }
 
     /// Return the number of leaves that have been ingested
     pub fn count(&self) -> usize {
-        self.count
+        self.tree.count()
     }
 
     /// Create a proof of a leaf in this tree.
@@ -92,7 +84,13 @@ impl Prover {
                 count,
             });
         }
-        Ok(self.tree.prove_against_previous(leaf_index, root_index))
+        if leaf_index > root_index {
+            return Err(ProverError::ZeroProof {
+                index: leaf_index,
+                count: root_index.saturating_add(1),
+            });
+        }
+        Ok(self.tree.prove(leaf_index, root_index))
     }
 
     /// Verify a proof against this tree's root.
@@ -117,10 +115,7 @@ where
 {
     fn from(t: T) -> Self {
         let slice = t.as_ref();
-        Self {
-            count: slice.len(),
-            tree: MerkleTree::create(slice, TREE_DEPTH),
-        }
+        slice.iter().copied().collect()
     }
 }
 
@@ -178,6 +173,95 @@ mod test {
                 // check that the tree can verify the proof for this leaf
                 tree.verify(&proof).unwrap();
             }
+        }
+    }
+    #[test]
+    fn rejects_unavailable_or_inverted_proofs() {
+        let mut prover = Prover::default();
+        assert!(prover.prove_against_previous(0, 0).is_err());
+        prover.ingest(H256::from_low_u64_be(1)).unwrap();
+        assert!(prover.prove_against_previous(1, 0).is_err());
+        assert!(prover.prove_against_previous(0, 1).is_err());
+        if let Some(index) = (u32::MAX as usize).checked_add(1) {
+            assert!(prover.prove_against_previous(0, index).is_err());
+        }
+    }
+
+    #[test]
+    fn rebuilding_after_canonical_leaf_replacement_matches_reference() {
+        use hyperlane_core::accumulator::merkle::MerkleTree;
+        let mut leaves: Vec<_> = (0..513).map(H256::from_low_u64_be).collect();
+        let old = Prover::from(&leaves);
+        leaves[255] = H256::repeat_byte(0xff);
+        let rebuilt = Prover::from(&leaves);
+        let reference = MerkleTree::create(&leaves, TREE_DEPTH);
+        assert_ne!(old.root(), rebuilt.root());
+        assert_eq!(rebuilt.root(), reference.hash());
+        for root_index in [254, 255, 256, 511, 512] {
+            for leaf_index in [0, root_index] {
+                assert_eq!(
+                    rebuilt
+                        .prove_against_previous(leaf_index, root_index)
+                        .unwrap(),
+                    reference.prove_against_previous(leaf_index, root_index)
+                );
+            }
+        }
+    }
+    /// Run each backend in a separate process to compare peak RSS:
+    /// PROVER_BENCH_BACKEND=recursive|packed PROVER_BENCH_LEAVES=1048576
+    /// cargo test --release -p relayer benchmark_prover_storage -- --ignored --nocapture
+    #[test]
+    #[ignore = "manual memory and latency benchmark"]
+    fn benchmark_prover_storage() {
+        use hyperlane_core::accumulator::merkle::MerkleTree;
+        use std::{hint::black_box, time::Instant};
+
+        let count: usize = std::env::var("PROVER_BENCH_LEAVES")
+            .unwrap_or_else(|_| "1048576".into())
+            .parse()
+            .unwrap();
+        assert!(count > 1);
+        let backend = std::env::var("PROVER_BENCH_BACKEND").unwrap_or_else(|_| "packed".into());
+        let queries: Vec<_> = (0..10_000_usize)
+            .map(|i| {
+                let root = (i.wrapping_mul(2_654_435_761) % count).max(1);
+                (i.wrapping_mul(2_246_822_519) % (root + 1), root)
+            })
+            .collect();
+        let started = Instant::now();
+        if backend == "recursive" {
+            let mut tree = MerkleTree::create(&[], TREE_DEPTH);
+            for i in 0..count {
+                tree.push_leaf(H256::from_low_u64_be(i as u64 + 1), TREE_DEPTH)
+                    .unwrap();
+            }
+            let built = started.elapsed();
+            let proof_start = Instant::now();
+            for (leaf, root) in queries {
+                black_box(tree.prove_against_previous(leaf, root));
+            }
+            println!(
+                "backend={backend} leaves={count} build={built:?} proofs_10000={:?}",
+                proof_start.elapsed()
+            );
+            black_box(tree);
+        } else {
+            assert_eq!(backend, "packed");
+            let mut prover = Prover::default();
+            for i in 0..count {
+                prover.ingest(H256::from_low_u64_be(i as u64 + 1)).unwrap();
+            }
+            let built = started.elapsed();
+            let proof_start = Instant::now();
+            for (leaf, root) in queries {
+                black_box(prover.prove_against_previous(leaf, root).unwrap());
+            }
+            println!(
+                "backend={backend} leaves={count} build={built:?} proofs_10000={:?}",
+                proof_start.elapsed()
+            );
+            black_box(prover);
         }
     }
 }
