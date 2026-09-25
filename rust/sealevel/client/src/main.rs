@@ -382,8 +382,17 @@ struct TokenTransferRemote {
     #[arg(value_enum)]
     token_type: TokenType,
     /// Commitment level to confirm the transfer at.
-    #[arg(long, default_value = "finalized")]
+    #[arg(long, default_value = "finalized", value_parser = parse_transfer_commitment)]
     commitment: CommitmentConfig,
+}
+
+/// `processed` is rejected: the tx is then read back at `confirmed`, which may not have landed yet.
+fn parse_transfer_commitment(s: &str) -> Result<CommitmentConfig, String> {
+    match s {
+        "confirmed" => Ok(CommitmentConfig::confirmed()),
+        "finalized" => Ok(CommitmentConfig::finalized()),
+        _ => Err("expected `confirmed` or `finalized`".to_owned()),
+    }
 }
 
 #[derive(Args)]
