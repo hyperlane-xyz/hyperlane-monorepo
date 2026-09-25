@@ -93,7 +93,8 @@ impl MerkleTreeBuilder {
 
     pub fn ingest_message_id(&mut self, message_id: H256) -> Result<()> {
         const CTX: &str = "When ingesting message id";
-        tracing::trace!(?message_id, "Ingesting leaf");
+        let leaf_index = self.count();
+        tracing::trace!(?message_id, leaf_index, "Ingesting leaf");
         self.prover.ingest(message_id).expect("tree full");
         self.incremental.ingest(message_id);
         match self.prover.root().eq(&self.incremental.root()) {
@@ -104,5 +105,28 @@ impl MerkleTreeBuilder {
             }),
         }
         .context(CTX)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hyperlane_core::H256;
+
+    use super::MerkleTreeBuilder;
+
+    #[test]
+    fn ingesting_message_ids_increments_leaf_count() {
+        let mut builder = MerkleTreeBuilder::new();
+
+        assert_eq!(builder.count(), 0);
+        builder
+            .ingest_message_id(H256::from_low_u64_be(1))
+            .expect("ingest of first message id should succeed");
+        assert_eq!(builder.count(), 1);
+
+        builder
+            .ingest_message_id(H256::from_low_u64_be(2))
+            .expect("ingest of second message id should succeed");
+        assert_eq!(builder.count(), 2);
     }
 }
