@@ -60,18 +60,9 @@ impl DbLoaderExt for MerkleTreeDbLoader {
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
-        let mut insertions = Vec::with_capacity(MAX_LEAVES_PER_TICK);
-        while insertions.len() < MAX_LEAVES_PER_TICK {
-            let index = self.leaf_index + insertions.len() as u32;
-            let begin = Instant::now();
-            match self.retrieve_at(index).await? {
-                Some(insertion) => {
-                    self.update_metrics(&insertion, &begin);
-                    insertions.push(insertion);
-                }
-                None => break,
-            }
-        }
+        let begin = Instant::now();
+        let insertions = self.retrieve_batch().await?;
+        self.update_metrics(&insertions, &begin);
 
         if insertions.is_empty() {
             trace!(leaf_index=?self.leaf_index, "No merkle tree insertion found in DB for leaf index, waiting for it to be indexed");
@@ -100,26 +91,44 @@ impl DbLoaderExt for MerkleTreeDbLoader {
 }
 
 impl MerkleTreeDbLoader {
-    async fn retrieve_at(&self, index: u32) -> Result<Option<MerkleTreeInsertion>> {
+    async fn retrieve_batch(&self) -> Result<Vec<MerkleTreeInsertion>> {
         let db = self.db.clone();
-        let name = format!("{}::retrieval::{}::{}", PREFIX, self.domain(), index);
-        let insertion = tokio::task::Builder::new()
+        let first_index = self.leaf_index;
+        let name = format!("{}::retrieval::{}::{}", PREFIX, self.domain(), first_index);
+        let insertions = tokio::task::Builder::new()
             .name(&name)
-            .spawn_blocking(move || db.retrieve_merkle_tree_insertion_by_leaf_index(&index))?
+            .spawn_blocking(move || {
+                let mut insertions = Vec::with_capacity(MAX_LEAVES_PER_TICK);
+                for offset in 0..MAX_LEAVES_PER_TICK as u32 {
+                    let Some(index) = first_index.checked_add(offset) else {
+                        break;
+                    };
+                    match db.retrieve_merkle_tree_insertion_by_leaf_index(&index)? {
+                        Some(insertion) => insertions.push(insertion),
+                        None => break,
+                    }
+                }
+                Ok::<_, hyperlane_base::db::DbError>(insertions)
+            })?
             .await??;
-        Ok(insertion)
+        Ok(insertions)
     }
 
-    fn update_metrics(&self, insertion: &MerkleTreeInsertion, begin: &Instant) {
+    fn update_metrics(&self, insertions: &[MerkleTreeInsertion], begin: &Instant) {
+        let Some(last) = insertions.last() else {
+            return;
+        };
         // Update the metrics
         // we assume that leaves are inserted in order so this will be monotonically increasing
         self.metrics
             .latest_tree_insertion_index_gauge
-            .set(insertion.index() as i64);
+            .set(last.index() as i64);
         self.metrics
             .merkle_tree_retrieve_insertion_total_elapsed_micros
             .inc_by(begin.elapsed().as_micros() as u64);
-        self.metrics.merkle_tree_retrieve_insertions_count.inc();
+        self.metrics
+            .merkle_tree_retrieve_insertions_count
+            .inc_by(insertions.len() as u64);
     }
 }
 
@@ -261,5 +270,67 @@ mod tests {
             );
         }
         let _ = dir;
+    }
+
+    #[tokio::test]
+    #[ignore = "manual replay read benchmark"]
+    async fn benchmark_replay_reads() {
+        const LEAVES: u32 = 32_768;
+        let (_directory, mut loader) = test_loader(LEAVES, 49103);
+        let mut single_times = Vec::new();
+        let mut batch_times = Vec::new();
+        for round in 0..6 {
+            for batched in if round % 2 == 0 {
+                [false, true]
+            } else {
+                [true, false]
+            } {
+                let begin = Instant::now();
+                let mut leaves = Vec::with_capacity(LEAVES as usize);
+                if batched {
+                    for index in (0..LEAVES).step_by(MAX_LEAVES_PER_TICK) {
+                        loader.leaf_index = index;
+                        leaves.extend(loader.retrieve_batch().await.unwrap());
+                    }
+                } else {
+                    for index in 0..LEAVES {
+                        let db = loader.db.clone();
+                        leaves.push(
+                            tokio::task::Builder::new()
+                                .name("replay-benchmark-single")
+                                .spawn_blocking(move || {
+                                    db.retrieve_merkle_tree_insertion_by_leaf_index(&index)
+                                })
+                                .unwrap()
+                                .await
+                                .unwrap()
+                                .unwrap()
+                                .unwrap(),
+                        );
+                    }
+                }
+                let elapsed = begin.elapsed();
+                assert_eq!(leaves.len(), LEAVES as usize);
+                for (index, insertion) in leaves.iter().enumerate() {
+                    assert_eq!(insertion.index(), index as u32);
+                    assert_eq!(insertion.message_id(), H256::from_low_u64_be(index as u64));
+                }
+                if round > 0 {
+                    if batched {
+                        batch_times.push(elapsed.as_micros());
+                    } else {
+                        single_times.push(elapsed.as_micros());
+                    }
+                }
+            }
+        }
+        single_times.sort_unstable();
+        batch_times.sort_unstable();
+        println!(
+            "{LEAVES} leaves; single-read tasks={LEAVES}, batched tasks={}; median single={} us, batched={} us; samples single={single_times:?}, batched={batch_times:?}",
+            LEAVES as usize / MAX_LEAVES_PER_TICK,
+            single_times[2],
+            batch_times[2],
+        );
     }
 }
