@@ -23,26 +23,30 @@ ALTER TABLE raw_message_dispatch ADD COLUMN confirmed boolean NOT NULL DEFAULT t
 ALTER TABLE delivered_message ADD COLUMN confirmed boolean NOT NULL DEFAULT true;
 ALTER TABLE gas_payment ADD COLUMN confirmed boolean NOT NULL DEFAULT true;
 ALTER TABLE merkle_tree_insertion ADD COLUMN confirmed boolean NOT NULL DEFAULT true;
-UPDATE raw_message_dispatch e SET confirmed=false
-FROM scraper_head h CROSS JOIN LATERAL (
-  SELECT id FROM raw_message_dispatch pending
-  WHERE pending.origin_domain=h.domain AND pending.origin_block_height>h.confirmed_height OFFSET 0
-) provisional WHERE e.id=provisional.id;
-UPDATE delivered_message e SET confirmed=false
-FROM scraper_head h CROSS JOIN LATERAL (
-  SELECT id FROM delivered_message pending
-  WHERE pending.domain=h.domain AND pending.block_number>h.confirmed_height OFFSET 0
-) provisional WHERE e.id=provisional.id;
-UPDATE gas_payment e SET confirmed=false
-FROM scraper_head h CROSS JOIN LATERAL (
-  SELECT id FROM gas_payment pending
-  WHERE pending.domain=h.domain AND pending.block_number>h.confirmed_height OFFSET 0
-) provisional WHERE e.id=provisional.id;
-UPDATE merkle_tree_insertion e SET confirmed=false
-FROM scraper_head h CROSS JOIN LATERAL (
-  SELECT id FROM merkle_tree_insertion pending
-  WHERE pending.domain=h.domain AND pending.block_number>h.confirmed_height OFFSET 0
-) provisional WHERE e.id=provisional.id;
+-- Mark only the provisional suffix. The id array is bounded by rows above each
+-- chain's confirmed height (the provisional window is capped at 10k blocks per
+-- chain; a few hundred rows in practice). Matching ids avoids a join the planner
+-- can turn into a whole-table hash join under the exclusive lock.
+UPDATE raw_message_dispatch SET confirmed=false WHERE id=ANY(ARRAY(
+  SELECT pending.id FROM scraper_head h CROSS JOIN LATERAL (
+    SELECT id FROM raw_message_dispatch p WHERE p.origin_domain=h.domain AND p.origin_block_height>h.confirmed_height
+  ) pending
+));
+UPDATE delivered_message SET confirmed=false WHERE id=ANY(ARRAY(
+  SELECT pending.id FROM scraper_head h CROSS JOIN LATERAL (
+    SELECT id FROM delivered_message p WHERE p.domain=h.domain AND p.block_number>h.confirmed_height
+  ) pending
+));
+UPDATE gas_payment SET confirmed=false WHERE id=ANY(ARRAY(
+  SELECT pending.id FROM scraper_head h CROSS JOIN LATERAL (
+    SELECT id FROM gas_payment p WHERE p.domain=h.domain AND p.block_number>h.confirmed_height
+  ) pending
+));
+UPDATE merkle_tree_insertion SET confirmed=false WHERE id=ANY(ARRAY(
+  SELECT pending.id FROM scraper_head h CROSS JOIN LATERAL (
+    SELECT id FROM merkle_tree_insertion p WHERE p.domain=h.domain AND p.block_number>h.confirmed_height
+  ) pending
+));
 
 CREATE INDEX gas_payment_unconfirmed ON gas_payment(domain,block_number) WHERE NOT confirmed;
 CREATE INDEX merkle_insertion_unconfirmed ON merkle_tree_insertion(domain,block_number) WHERE NOT confirmed;
@@ -135,5 +139,5 @@ END $$;
 DROP FUNCTION assign_confirmed_gas_payment_cursors(integer,bigint,bigint);
 DROP STATISTICS gas_payment_domain_paymaster_dependencies;
 DROP INDEX IF EXISTS delivery_frontier_unenriched,gas_payment_frontier_unenriched,
-  gas_payment_frontier_height,merkle_insertion_frontier_height;
+  gas_payment_frontier_height;
 ALTER TABLE scraper_head DROP COLUMN writer_lease_until,DROP COLUMN writer_id;

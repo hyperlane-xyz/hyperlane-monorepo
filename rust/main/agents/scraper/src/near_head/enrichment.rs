@@ -112,8 +112,8 @@ async fn run_stream(
     } else {
         u64::from(legacy.domain.id())
             .wrapping_mul(0x9E37_79B9_7F4A_7C15)
-            .saturating_mul(2)
-            .saturating_add(salt)
+            .wrapping_mul(2)
+            .wrapping_add(salt)
             .checked_rem(stagger_period)
             .unwrap_or_default()
     };

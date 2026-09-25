@@ -22,9 +22,16 @@ pub(super) struct Worker {
     pub sync_metrics: Arc<ContractSyncMetrics>,
 }
 
+/// A completed cycle: whether to run again at once, and whether ingestion failed
+/// while existing work still published.
+#[derive(Debug)]
+pub(super) struct CycleOutcome {
+    pub more: bool,
+    pub ingestion_failed: bool,
+}
+
 impl Worker {
     pub async fn run(&self) {
-        let mut count_cache = None;
         let stagger_period = u64::try_from(self.poll_interval.as_millis())
             .unwrap_or(u64::MAX)
             .max(1);
@@ -33,13 +40,23 @@ impl Worker {
             .checked_rem(stagger_period)
             .unwrap_or_default();
         sleep(Duration::from_millis(stagger)).await;
+        self.run_cycles().await
+    }
+
+    async fn run_cycles(&self) {
+        let mut count_cache = None;
         loop {
             let result = self.cycle(&mut count_cache).await;
+            // A failed log fetch stays critical even while confirmed pages keep
+            // draining without waiting for the next poll.
+            let critical = result
+                .as_ref()
+                .map_or(true, |outcome| outcome.ingestion_failed);
             self.chain_metrics
-                .set_critical_error(self.domain.name(), result.is_err());
+                .set_critical_error(self.domain.name(), critical);
             match result {
-                Ok(true) => continue,
-                Ok(false) => {}
+                Ok(CycleOutcome { more: true, .. }) => continue,
+                Ok(CycleOutcome { more: false, .. }) => {}
                 Err(error) => warn!(
                     domain = self.store.domain,
                     ?error,
@@ -53,7 +70,7 @@ impl Worker {
     async fn cycle(
         &self,
         count_cache: &mut Option<(ethers::types::H256, [u32; 2])>,
-    ) -> eyre::Result<bool> {
+    ) -> eyre::Result<CycleOutcome> {
         self.store
             .claim(confirmation_lease(self.poll_interval))
             .await?;
@@ -142,9 +159,13 @@ impl Worker {
                 .set(i64::try_from(state.confirmed)?);
         }
 
+        // Keep draining confirmed pages while logs fail; the failure was logged
+        // above and stays visible through the critical-error metric.
         if confirmation.page_limited {
-            ingestion?;
-            return Ok(true);
+            return Ok(CycleOutcome {
+                more: true,
+                ingestion_failed: ingestion.is_err(),
+            });
         }
         let more_ingestion = ingestion?;
         let capped_head = observed
@@ -156,7 +177,10 @@ impl Worker {
                 "Provisional suffix reached its 10,000-block limit; confirmation is lagging"
             );
         }
-        Ok(more_ingestion)
+        Ok(CycleOutcome {
+            more: more_ingestion,
+            ingestion_failed: false,
+        })
     }
 }
 
