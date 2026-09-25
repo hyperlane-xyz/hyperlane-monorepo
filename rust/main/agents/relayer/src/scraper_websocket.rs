@@ -311,16 +311,13 @@ impl ScraperSource {
 
     fn local_event_present(&self, kind: EventKind, sequence: u32) -> Result<bool> {
         Ok(match kind {
+            // A missing tx ID is backfilled on match, so it doesn't block the marker.
+            // Sealevel RPC indexing never writes one.
             EventKind::Dispatch => {
-                let Some(message) = self.database.retrieve_message_by_nonce(sequence)? else {
-                    return Ok(false);
-                };
-                self.database
-                    .retrieve_dispatched_block_number_by_nonce(&sequence)?
-                    .is_some()
+                self.database.retrieve_message_by_nonce(sequence)?.is_some()
                     && self
                         .database
-                        .retrieve_dispatched_tx_hash_by_message_id(&message.id())?
+                        .retrieve_dispatched_block_number_by_nonce(&sequence)?
                         .is_some()
             }
             EventKind::MerkleTreeInsertion => {
@@ -6445,6 +6442,58 @@ mod tests {
         assert_eq!(tx_id(), Some(dispatch_transaction_id()));
     }
 
+    #[tokio::test]
+    async fn non_authoritative_match_backfills_transaction_id() {
+        let sources = sources_for(&[5]);
+        let input = StreamState::default()
+            .validate(sequenced_event_for(EventKind::Dispatch, 0), &sources)
+            .expect("valid event")
+            .parity
+            .expect("sequenced parity input");
+        let ParityInput::Dispatch {
+            message,
+            block_number,
+            transaction_id,
+        } = &input
+        else {
+            unreachable!("dispatch parity input");
+        };
+        sources[&5]
+            .cursor_db
+            .store_message(message, *block_number)
+            .expect("store message without tx hash");
+        let metrics = CoreMetrics::new("tx-id-backfill", 0, Registry::new()).expect("metrics");
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new(
+                Url::parse("ws://localhost:1").expect("URL"),
+                sources.clone().into_values().collect(),
+                &metrics,
+            )
+            .expect("monitor"),
+        );
+        assert!(
+            monitor
+                .enqueue_parity(5, EventKind::Dispatch, input.clone(), 0)
+                .await
+        );
+        let source = &monitor.sources[&5];
+        timeout(Duration::from_secs(5), async {
+            while source.cursor(EventKind::Dispatch).expect("cursor") != Some(0) {
+                sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("worker matches the dispatch");
+        assert_eq!(
+            HyperlaneDb::retrieve_dispatched_tx_hash_by_message_id(
+                &source.cursor_db,
+                &message.id()
+            )
+            .expect("tx id read"),
+            Some(*transaction_id)
+        );
+    }
+
     #[test]
     fn dispatch_parity_survives_database_restart() {
         let temp_dir = tempfile::tempdir().expect("temp DB directory");
@@ -7063,9 +7112,18 @@ mod tests {
             ((5, EventKind::MerkleTreeInsertion), 2),
         ]);
 
-        // RPC has the marker's message and block but not yet its tx hash, and a
-        // matched live event left the cursor below the marker.
+        // RPC has not indexed the marker sequence yet, and a matched live event
+        // left the cursor below the marker.
         index_locally(&sources, EventKind::Dispatch, 0..=1);
+        source
+            .store_cursor(EventKind::Dispatch, 1)
+            .expect("store cursor");
+        monitor.retry_fresh_markers(&mut rejected).expect("retry");
+        assert_eq!(rejected.len(), 2);
+        assert_eq!(source.cursor(EventKind::Dispatch).expect("cursor"), Some(1));
+
+        // Dispatch catches up without a tx ID (Sealevel basic metadata); the
+        // Merkle stream backs up meanwhile.
         let input = StreamState::default()
             .validate(sequenced_event_for(EventKind::Dispatch, 2), &sources)
             .expect("valid event")
@@ -7083,15 +7141,6 @@ mod tests {
             .cursor_db
             .store_message(message, *block_number)
             .expect("store message without tx hash");
-        source
-            .store_cursor(EventKind::Dispatch, 1)
-            .expect("store cursor");
-        monitor.retry_fresh_markers(&mut rejected).expect("retry");
-        assert_eq!(rejected.len(), 2);
-        assert_eq!(source.cursor(EventKind::Dispatch).expect("cursor"), Some(1));
-
-        // Dispatch catches up; the Merkle stream backs up meanwhile.
-        index_locally(&sources, EventKind::Dispatch, 2..=2);
         index_locally(&sources, EventKind::MerkleTreeInsertion, 0..=2);
         monitor
             .parity_overflowed

@@ -190,9 +190,11 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         &self,
         message_id: H256,
     ) -> eyre::Result<Option<H512>> {
+        // Older rows may hold Sealevel's zero placeholder; it is not a tx hash.
         Ok(self
             .db
-            .retrieve_dispatched_tx_hash_by_message_id(&message_id)?)
+            .retrieve_dispatched_tx_hash_by_message_id(&message_id)?
+            .filter(|hash| *hash != H512::zero()))
     }
 
     async fn build_ism(&self, address: H256) -> eyre::Result<Box<dyn InterchainSecurityModule>> {

@@ -1071,7 +1071,7 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
                 stored = stored.saturating_add(1);
             }
             // Sealevel's basic log metadata carries a zero transaction ID, which
-            // readers treat like an absent one. Never write it, so it cannot
+            // parity backfill and CCIP-read treat as absent. Never write it, so it cannot
             // replace a known ID (e.g. backfilled from the scraper); a nonzero ID
             // still replaces it. Sealevel relayer indexing is finalized, so a kept
             // ID is never orphaned by a reorg re-index.
