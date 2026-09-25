@@ -1,6 +1,9 @@
 //! Reproduces the mainnet stall where #9683's full-history loader recovered ancient
 //! PendingInclusion transactions whose payloads were already delivered. They were re-nonced
 //! above the finalized nonce but never broadcast, parking a live transaction behind them.
+//!
+//! Recovery drops the stale txs so their nonces are freed. New txs refill the freed nonces
+//! first, so the parked tx is mined in order at its original nonce without a second broadcast.
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -129,7 +132,7 @@ fn nonce_of(tx: &Transaction) -> u64 {
 }
 
 #[tokio::test]
-async fn restart_drops_stale_recovered_txs_and_repairs_nonce_gaps() {
+async fn restart_drops_stale_recovered_txs_and_refills_freed_nonces() {
     let (payload_db, tx_db, nonce_db) = tmp_dbs();
     let sent_nonces = Arc::new(Mutex::new(Vec::new()));
     let signer = Address::random();
@@ -235,37 +238,63 @@ async fn restart_drops_stale_recovered_txs_and_repairs_nonce_gaps() {
         U256::from(FINALIZED + 5)
     );
 
-    // The next new tx gets finalized + 1.
-    let mut fresh = build_tx(&adapter, &state).await;
-    adapter.submit(&mut fresh).await.unwrap();
-    assert_eq!(nonce_of(&fresh), FINALIZED + 1);
-    state.store_tx(&fresh).await;
-
-    // The parked tx is reassigned into the freed gap and broadcast, even though its gas
-    // price is unchanged.
+    // A possibly broadcast tx is never moved to another nonce, even with lower nonces freed:
+    // its copy at the old nonce could still be mined.
     let mut parked = recovered;
     let hashes_before = parked.tx_hashes.len();
-    adapter.submit(&mut parked).await.unwrap();
-    assert_eq!(nonce_of(&parked), FINALIZED + 2);
-    assert_eq!(parked.tx_hashes.len(), hashes_before + 1);
-    assert_eq!(
-        *sent_nonces.lock().unwrap(),
-        vec![FINALIZED + 4, FINALIZED + 1, FINALIZED + 2]
-    );
-
-    // Resubmitting at an unchanged nonce and gas price is still suppressed.
-    state.store_tx(&parked).await;
+    for status in [
+        TransactionStatus::Mempool,
+        TransactionStatus::PendingInclusion,
+    ] {
+        let mut probe = parked.clone();
+        probe.status = status;
+        let nonce = adapter.calculate_nonce(&probe).await.unwrap();
+        assert_eq!(nonce, U256::from(FINALIZED + 4));
+    }
+    // Resubmitting it at an unchanged nonce and gas price is suppressed.
     let err = adapter.submit(&mut parked).await.unwrap_err();
     assert!(matches!(err, LanderError::TxAlreadyExists), "{err:?}");
-    assert_eq!(sent_nonces.lock().unwrap().len(), 3);
+    assert_eq!(nonce_of(&parked), FINALIZED + 4);
+    assert_eq!(parked.tx_hashes.len(), hashes_before);
 
-    // Upper falls to just above the highest nonce held by a live tx.
+    // New txs reuse the freed nonces below the parked tx, in order.
+    for expected in [FINALIZED + 1, FINALIZED + 2, FINALIZED + 3] {
+        let mut fresh = build_tx(&adapter, &state).await;
+        adapter.submit(&mut fresh).await.unwrap();
+        assert_eq!(nonce_of(&fresh), expected);
+        state.store_tx(&fresh).await;
+    }
+
+    // With the gap filled, the next new tx goes above the parked tx, reusing the trimmed nonce.
+    let mut next = build_tx(&adapter, &state).await;
+    adapter.submit(&mut next).await.unwrap();
+    assert_eq!(nonce_of(&next), FINALIZED + 5);
+    state.store_tx(&next).await;
+
+    // The parked tx still holds its original nonce and was broadcast exactly once.
+    let err = adapter.submit(&mut parked).await.unwrap_err();
+    assert!(matches!(err, LanderError::TxAlreadyExists), "{err:?}");
+    assert_eq!(nonce_of(&parked), FINALIZED + 4);
+    let sent = sent_nonces.lock().unwrap().clone();
+    assert_eq!(
+        sent,
+        vec![
+            FINALIZED + 4,
+            FINALIZED + 1,
+            FINALIZED + 2,
+            FINALIZED + 3,
+            FINALIZED + 5
+        ]
+    );
+    assert_eq!(sent.iter().filter(|n| **n == FINALIZED + 4).count(), 1);
+
+    // Upper sits just above the highest nonce held by a live tx.
     nonce_state
         .update_boundary_nonces(&U256::from(FINALIZED))
         .await
         .unwrap();
     assert_eq!(
         nonce_state.get_upper_nonce_test().await.unwrap(),
-        U256::from(FINALIZED + 3)
+        U256::from(FINALIZED + 6)
     );
 }

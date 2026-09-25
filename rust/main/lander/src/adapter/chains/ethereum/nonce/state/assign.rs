@@ -53,15 +53,6 @@ impl NonceManagerState {
         Ok(next_nonce)
     }
 
-    /// Whether a nonce in (finalized_nonce, nonce) is free to be assigned.
-    pub(super) async fn lower_nonce_available(
-        &self,
-        finalized_nonce: Option<U256>,
-        nonce: U256,
-    ) -> NonceResult<bool> {
-        Ok(self.identify_next_nonce(finalized_nonce, nonce).await? < nonce)
-    }
-
     #[instrument(skip(self), fields(?finalized_nonce, ?upper_nonce))]
     async fn identify_next_nonce(
         &self,
