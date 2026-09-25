@@ -7,10 +7,12 @@ use std::{
 
 use async_trait::async_trait;
 use derive_more::AsRef;
+use eyre::Context;
 use futures::{future::try_join_all, FutureExt};
 use hyperlane_core::{
-    rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, IndexMode, InterchainGasPayment, MerkleTreeInsertion, SameChainCcrSwap,
+    rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneDomainProtocol,
+    HyperlaneLogStore, HyperlaneMessage, IndexMode, InterchainGasPayment, MerkleTreeInsertion,
+    SameChainCcrSwap,
 };
 use prometheus::{HistogramVec, IntCounterVec, IntGauge, IntGaugeVec};
 use tokio::{
@@ -186,6 +188,7 @@ fn raw_dispatch_scan_slot_available(
 #[derive(Debug)]
 struct RawDispatchReconciliationSchedule {
     discovery_watermark: i64,
+    discovery_interval: Duration,
     discovery_scan: Option<RawDispatchScan>,
     full_sweep: Option<RawDispatchScan>,
     next_discovery_at: Instant,
@@ -198,6 +201,7 @@ impl RawDispatchReconciliationSchedule {
     fn new(discovery_watermark: i64, now: Instant, global_not_before: Instant) -> Self {
         Self {
             discovery_watermark,
+            discovery_interval: RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP,
             discovery_scan: None,
             full_sweep: None,
             next_discovery_at: instant_after(now, RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP),
@@ -235,7 +239,7 @@ impl RawDispatchReconciliationSchedule {
         debug_assert!(self.discovery_slot_available());
         self.discovery_scan = RawDispatchScan::new(self.discovery_watermark, frontier, now);
         if self.discovery_scan.is_none() {
-            self.next_discovery_at = instant_after(now, RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP);
+            self.next_discovery_at = instant_after(now, self.discovery_interval);
         }
     }
 
@@ -255,7 +259,7 @@ impl RawDispatchReconciliationSchedule {
         if scan.complete_page(result, now) {
             self.discovery_watermark = self.discovery_watermark.max(scan.through_id);
             self.discovery_scan = None;
-            self.next_discovery_at = instant_after(now, RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP);
+            self.next_discovery_at = instant_after(now, self.discovery_interval);
         } else {
             self.discovery_scan = Some(scan);
         }
@@ -356,6 +360,7 @@ pub struct Scraper {
     chain_metrics: ChainMetrics,
     runtime_metrics: RuntimeMetrics,
     raw_dispatch_unenriched_max_age: IntGaugeVec,
+    receipt_oldest_pending_seconds: prometheus::GaugeVec,
     raw_dispatch_reconciliation_metrics: RawDispatchReconciliationMetrics,
 }
 
@@ -384,7 +389,15 @@ impl BaseAgent for Scraper {
     where
         Self: Sized,
     {
-        let db = ScraperDb::connect(&settings.db).await?;
+        let db = ScraperDb::connect_with_options(
+            &settings.db,
+            settings.db_max_connections,
+            settings.db_acquire_timeout,
+        )
+        .await?;
+        db.verify_frontier_indexes().await.wrap_err(
+            "Required scraper frontier indexes are missing or invalid; rerun init-db to completion",
+        )?;
         let core = settings.build_hyperlane_core(metrics.clone());
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
@@ -396,6 +409,11 @@ impl BaseAgent for Scraper {
             )
             .expect("failed to register raw dispatch reconciliation age metric");
         let raw_dispatch_reconciliation_metrics = RawDispatchReconciliationMetrics::new(&metrics);
+        let receipt_oldest_pending_seconds = metrics.new_gauge(
+            "scraper_receipt_oldest_pending_seconds",
+            "Age since creation of the oldest pending receipt event by ID, in seconds",
+            &["chain", "event_type"],
+        )?;
 
         let scrapers = Self::build_chain_scrapers(
             &settings,
@@ -418,6 +436,7 @@ impl BaseAgent for Scraper {
             chain_metrics,
             runtime_metrics,
             raw_dispatch_unenriched_max_age,
+            receipt_oldest_pending_seconds,
             raw_dispatch_reconciliation_metrics,
         })
     }
@@ -524,53 +543,68 @@ impl Scraper {
         let domain = scraper.domain.clone();
 
         let mut tasks = Vec::with_capacity(2);
-        let (message_indexer, maybe_broadcaster) = self
-            .build_message_indexer(
-                domain.clone(),
-                self.core_metrics.clone(),
-                self.contract_sync_metrics.clone(),
-                store.clone(),
-                index_settings.clone(),
-            )
-            .await?;
-        tasks.push(message_indexer);
-
-        let delivery_indexer = self
-            .build_delivery_indexer(
-                domain.clone(),
-                self.core_metrics.clone(),
-                self.contract_sync_metrics.clone(),
-                store.clone(),
-                index_settings.clone(),
-            )
-            .await?;
-        tasks.push(delivery_indexer);
-
-        let gas_payment_indexer = self
-            .build_interchain_gas_payment_indexer(
-                domain.clone(),
-                self.core_metrics.clone(),
-                self.contract_sync_metrics.clone(),
-                store.clone(),
-                index_settings.clone(),
-                BroadcastMpscSender::<IndexingNotification>::map_get_receiver(
-                    maybe_broadcaster.as_ref(),
+        if domain.domain_protocol() == HyperlaneDomainProtocol::Ethereum {
+            tasks.push(
+                crate::near_head::spawn(
+                    self.settings.chain_setup(&domain)?,
+                    store.clone(),
+                    self.core_metrics.clone(),
+                    self.chain_metrics.clone(),
+                    self.contract_sync_metrics.clone(),
+                    self.receipt_oldest_pending_seconds.clone(),
                 )
-                .await,
-            )
-            .await?;
-        tasks.push(gas_payment_indexer);
+                .await?,
+            );
+        } else {
+            crate::near_head::ensure_legacy_mode(&store).await?;
+            let (message_indexer, maybe_broadcaster) = self
+                .build_message_indexer(
+                    domain.clone(),
+                    self.core_metrics.clone(),
+                    self.contract_sync_metrics.clone(),
+                    store.clone(),
+                    index_settings.clone(),
+                )
+                .await?;
+            tasks.push(message_indexer);
 
-        tasks.push(
-            self.build_merkle_tree_insertion_indexer(
-                domain.clone(),
-                self.core_metrics.clone(),
-                self.contract_sync_metrics.clone(),
-                store.clone(),
-                index_settings.clone(),
-            )
-            .await?,
-        );
+            let delivery_indexer = self
+                .build_delivery_indexer(
+                    domain.clone(),
+                    self.core_metrics.clone(),
+                    self.contract_sync_metrics.clone(),
+                    store.clone(),
+                    index_settings.clone(),
+                )
+                .await?;
+            tasks.push(delivery_indexer);
+
+            let gas_payment_indexer = self
+                .build_interchain_gas_payment_indexer(
+                    domain.clone(),
+                    self.core_metrics.clone(),
+                    self.contract_sync_metrics.clone(),
+                    store.clone(),
+                    index_settings.clone(),
+                    BroadcastMpscSender::<IndexingNotification>::map_get_receiver(
+                        maybe_broadcaster.as_ref(),
+                    )
+                    .await,
+                )
+                .await?;
+            tasks.push(gas_payment_indexer);
+
+            tasks.push(
+                self.build_merkle_tree_insertion_indexer(
+                    domain.clone(),
+                    self.core_metrics.clone(),
+                    self.contract_sync_metrics.clone(),
+                    store.clone(),
+                    index_settings.clone(),
+                )
+                .await?,
+            );
+        }
 
         tasks.push(self.build_raw_dispatch_reconciler(
             domain.clone(),
@@ -720,6 +754,7 @@ impl Scraper {
         reconciliation_metrics: RawDispatchReconciliationMetrics,
         store: HyperlaneDbStore,
     ) -> JoinHandle<()> {
+        let near_head = domain.domain_protocol() == HyperlaneDomainProtocol::Ethereum;
         let domain_name = domain.name().to_owned();
         let span_domain_name = domain_name.clone();
         tokio::spawn(
@@ -738,7 +773,11 @@ impl Scraper {
 
                 update_liveness_metric(&liveness_metric);
                 sleep_with_liveness(
-                    raw_dispatch_reconciliation_initial_delay(domain.id()),
+                    if near_head {
+                        Duration::ZERO
+                    } else {
+                        raw_dispatch_reconciliation_initial_delay(domain.id())
+                    },
                     &liveness_metric,
                 )
                 .await;
@@ -773,6 +812,10 @@ impl Scraper {
                     now,
                     global_not_before,
                 );
+                if near_head {
+                    schedule.discovery_interval = Duration::from_secs(30);
+                    schedule.next_discovery_at = now;
+                }
 
                 loop {
                     update_liveness_metric(&liveness_metric);
@@ -1042,7 +1085,14 @@ impl Scraper {
                     let discovery_delay = schedule.discovery_delay(now);
                     let sweep_delay = schedule.full_sweep_delay(now);
                     sleep_with_liveness(
-                        retry_delay.min(discovery_delay).min(sweep_delay),
+                        retry_delay
+                            .min(discovery_delay)
+                            .min(sweep_delay)
+                            .min(if near_head {
+                                Duration::from_secs(30)
+                            } else {
+                                Duration::MAX
+                            }),
                         &liveness_metric,
                     )
                     .await;
@@ -1183,6 +1233,7 @@ impl Scraper {
             _ => return Ok(None),
         };
 
+        let near_head = domain.domain_protocol() == HyperlaneDomainProtocol::Ethereum;
         let ccr_to_erc20 = ccr_router_map.clone();
         let local_domain = domain.id();
 
@@ -1216,7 +1267,12 @@ impl Scraper {
                 let mut from_block = ccr_cursor.height().await as u32;
 
                 loop {
-                    let tip = match indexer.get_finalized_block_number().await {
+                    let tip = match async {
+                        let tip = indexer.get_finalized_block_number().await?;
+                        Ok::<_, eyre::Report>(if near_head {
+                            tip.min(crate::near_head::confirmed_height(&store.db, local_domain).await?)
+                        } else { tip })
+                    }.await {
                         Ok(tip) => tip,
                         Err(err) => {
                             warn!(?err, "Failed to get finalized block number for CCR indexer");
@@ -1401,6 +1457,19 @@ mod test {
         assert!(raw_dispatch_scan_slot_available(None, None));
         assert!(!raw_dispatch_scan_slot_available(active_scan, None));
         assert!(!raw_dispatch_scan_slot_available(None, active_scan));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn near_head_discovery_keeps_its_short_interval_after_empty_and_complete_pages() {
+        let now = Instant::now();
+        let mut schedule = RawDispatchReconciliationSchedule::new(0, now, now);
+        schedule.discovery_interval = Duration::from_secs(30);
+        schedule.start_discovery(0, now);
+        assert_eq!(schedule.discovery_delay(now), Duration::from_secs(30));
+        schedule.start_discovery(10, now);
+        let scan = schedule.discovery_scan.unwrap();
+        schedule.complete_discovery_page(scan, &RawDispatchReconciliationResult::default(), now);
+        assert_eq!(schedule.discovery_delay(now), Duration::from_secs(30));
     }
 
     #[tokio::test(start_paused = true)]
@@ -1659,6 +1728,8 @@ mod test {
                 tracing: TracingConfig::default(),
             },
             db: String::new(),
+            db_max_connections: 10,
+            db_acquire_timeout: Duration::from_secs(15),
             chains_to_scrape: vec![],
             ccr_routers: HashMap::new(),
         }

@@ -15,7 +15,10 @@ use migration::{Alias, Expr, Func, OnConflict};
 use crate::date_time;
 use crate::db::ScraperDb;
 
-use super::generated::{delivered_message, message};
+use super::{
+    confirmed_event,
+    generated::{delivered_message, message},
+};
 
 #[derive(Debug, Clone)]
 pub struct StorableDelivery<'a> {
@@ -62,6 +65,11 @@ impl ScraperDb {
         sequence: u32,
     ) -> Result<Option<Delivery>> {
         if let Some(msg_id) = delivered_message::Entity::find()
+            .filter(confirmed_event(
+                "delivered_message",
+                "domain",
+                "block_number",
+            ))
             .select_only()
             .column(delivered_message::Column::MsgId)
             .filter(delivered_message::Column::Domain.eq(destination_domain))
@@ -92,6 +100,11 @@ impl ScraperDb {
         sequence: u32,
     ) -> Result<Option<u64>> {
         let tx_id_query = delivered_message::Entity::find()
+            .filter(confirmed_event(
+                "delivered_message",
+                "domain",
+                "block_number",
+            ))
             .filter(delivered_message::Column::Domain.eq(destination_domain))
             .filter(
                 delivered_message::Column::DestinationMailbox
@@ -107,6 +120,11 @@ impl ScraperDb {
 
     async fn latest_deliveries_id(&self, domain: u32, destination_mailbox: Vec<u8>) -> Result<i64> {
         let result = delivered_message::Entity::find()
+            .filter(confirmed_event(
+                "delivered_message",
+                "domain",
+                "block_number",
+            ))
             .select_only()
             .column_as(delivered_message::Column::Id.max(), "max_id")
             .filter(delivered_message::Column::Domain.eq(domain))
@@ -130,6 +148,11 @@ impl ScraperDb {
         prev_id: i64,
     ) -> Result<u64> {
         Ok(delivered_message::Entity::find()
+            .filter(confirmed_event(
+                "delivered_message",
+                "domain",
+                "block_number",
+            ))
             .filter(delivered_message::Column::Domain.eq(domain))
             .filter(delivered_message::Column::DestinationMailbox.eq(destination_mailbox))
             .filter(delivered_message::Column::Id.gt(prev_id))
@@ -180,7 +203,9 @@ impl ScraperDb {
         trace!(?models, "Writing delivered messages to database");
 
         if models.len() <= Self::STORE_DELIVERY_CHUNK_SIZE {
-            delivery_insert_query(models).exec(&self.0).await?;
+            delivery_insert_query(models)
+                .exec_without_returning(&self.0)
+                .await?;
         } else {
             self.0
                 .transaction::<_, (), DbErr>(|txn| {
@@ -191,7 +216,9 @@ impl ScraperDb {
                                 .by_ref()
                                 .take(Self::STORE_DELIVERY_CHUNK_SIZE)
                                 .collect();
-                            delivery_insert_query(chunk).exec(txn).await?;
+                            delivery_insert_query(chunk)
+                                .exec_without_returning(txn)
+                                .await?;
                         }
                         Ok(())
                     })
@@ -406,9 +433,18 @@ fn delivery_insert_query(
                     )),
                 ),
             )
+            // Replays with no new transaction metadata must not rewrite the
+            // row or emit another Explorer notification. PostgreSQL still
+            // locks the conflict row before evaluating this condition.
+            .action_and_where(Expr::cust(
+                "excluded.destination_tx_id IS NOT NULL AND \"delivered_message\".destination_tx_id IS DISTINCT FROM excluded.destination_tx_id",
+            ))
             .to_owned(),
     )
 }
+
+#[cfg(test)]
+mod delivery_replays;
 
 #[cfg(test)]
 mod tests {

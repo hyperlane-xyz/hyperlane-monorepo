@@ -21,7 +21,8 @@ use crate::transaction::{DropReason as TxDropReason, Transaction, TransactionSta
 use crate::FullPayload;
 
 use super::{
-    MAX_REPROCESS_TXS_POLL_RATE, MAX_TX_STATUS_CHECK_DELAY, REPROCESS_TXS_LIVENESS_RATE, STAGE_NAME,
+    SubmitOutcome, MAX_REPROCESS_TXS_POLL_RATE, MAX_TX_STATUS_CHECK_DELAY,
+    REPROCESS_TXS_LIVENESS_RATE, STAGE_NAME,
 };
 
 async fn yield_to_reprocess_task() {
@@ -1405,7 +1406,9 @@ async fn owned_submission_preserves_retry_mutations_and_notifies_only_on_success
         )
         .await
         .is_err());
-        let result = task.await.unwrap().unwrap();
+        let SubmitOutcome::Submitted(result) = task.await.unwrap().unwrap() else {
+            panic!("successful submission should not be deferred");
+        };
         assert_eq!(calls.load(Ordering::SeqCst), 2);
         let bytes = result.payload_details[0].success_criteria.as_ref().unwrap();
         assert_eq!(bytes.as_ptr() as usize, pointer);

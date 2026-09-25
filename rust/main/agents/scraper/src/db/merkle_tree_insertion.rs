@@ -9,7 +9,7 @@ use sea_orm::{
 
 use hyperlane_core::{address_to_bytes, h256_to_bytes, MerkleTreeInsertion, H256};
 
-use super::{generated::merkle_tree_insertion, ScraperDb};
+use super::{confirmed_event, generated::merkle_tree_insertion, ScraperDb};
 
 pub struct StorableMerkleTreeInsertion<'a> {
     pub insertion: &'a MerkleTreeInsertion,
@@ -83,6 +83,11 @@ impl ScraperDb {
         leaf_index: u32,
     ) -> Result<Option<(MerkleTreeInsertion, u64)>> {
         let row = merkle_tree_insertion::Entity::find()
+            .filter(confirmed_event(
+                "merkle_tree_insertion",
+                "domain",
+                "block_number",
+            ))
             .select_only()
             .columns([
                 merkle_tree_insertion::Column::LeafIndex,

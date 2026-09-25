@@ -12,6 +12,15 @@ use ethers::prelude::{abi, Lazy, Middleware};
 
 pub use self::{config::*, contracts::*, ism::*, rpc_clients::*, signer::*};
 
+/// ABI event decoders for scraper range ingestion.
+pub mod event_filters {
+    pub use crate::interfaces::{
+        i_interchain_gas_paymaster::GasPaymentFilter,
+        mailbox::{DispatchFilter, ProcessIdFilter},
+        merkle_tree_hook::InsertedIntoTreeFilter,
+    };
+}
+
 /// Hyperlane Application specific functionality
 pub mod application;
 mod config;

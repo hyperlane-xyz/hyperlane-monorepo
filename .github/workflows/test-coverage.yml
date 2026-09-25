@@ -2,11 +2,6 @@ name: test-coverage
 
 on:
   workflow_call:
-    inputs:
-      base_sha:
-        type: string
-      current_sha:
-        type: string
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
@@ -24,12 +19,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Determine BASE_SHA
+        id: determine-sha
+        uses: ./.github/actions/determine-base-sha
+
       - name: Check for Solidity changes
         id: check-solidity
         uses: ./.github/actions/check-path-changes
         with:
-          base_sha: ${{ inputs.base_sha }}
-          head_sha: ${{ inputs.current_sha }}
+          base_sha: ${{ steps.determine-sha.outputs.base_sha }}
+          head_sha: ${{ steps.determine-sha.outputs.current_sha }}
           path_pattern: 'solidity/'
 
   coverage-run:

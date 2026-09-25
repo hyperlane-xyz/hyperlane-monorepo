@@ -19,6 +19,16 @@ void describe('scraper database SQL', () => {
     assert.deepEqual(query.values, [1, 'ethereum', 5, 2]);
   });
 
+  void it('preserves the public dispatch name while filtering every read through confirmed history', () => {
+    for (const query of [
+      buildSelect('raw_message_dispatch'),
+      buildCount('raw_message_dispatch'),
+      buildByPk('raw_message_dispatch', 1),
+    ]) {
+      assert.match(query.sql, /FROM "confirmed_raw_message_dispatch"/);
+    }
+  });
+
   void it('builds cursor ordering and windowed counts', () => {
     const select = buildSelect('raw_message_dispatch', {
       cursor: [{ initial_value: { nonce: 10 }, ordering: 'DESC' }],

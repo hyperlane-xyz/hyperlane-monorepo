@@ -7,7 +7,9 @@ pub use error::decode_revert_reason;
 mod dynamic_tag_quorum;
 mod error;
 mod fallback;
+mod http;
 mod provider;
+mod rate_limit;
 mod retrying;
 mod trait_builder;
 
@@ -46,6 +48,10 @@ fn categorize_client_response<R>(
     use CategorizedResponse::*;
     use HttpClientError::*;
     match resp {
+        Err(error) if rate_limit::is_rate_limited(&error) => {
+            info!(provider_host, "RPC endpoint returned a rate limit response");
+            RateLimitErr(error)
+        }
         Ok(res) => {
             trace!(provider_host, "Received Ok response from http client");
             IsOk(res)
@@ -55,24 +61,13 @@ fn categorize_client_response<R>(
             RetryableErr(ReqwestError(e))
         }
         Err(SerdeJson { err, text }) => {
-            if text.contains("429") {
-                warn!(provider_host, error=%err, text, "Received rate limit request SerdeJson error in http provider");
-                RateLimitErr(SerdeJson { err, text })
-            } else {
-                warn!(provider_host, error=%err, text, "SerdeJson error in http provider");
-                RetryableErr(SerdeJson { err, text })
-            }
+            warn!(provider_host, error=%err, text, "SerdeJson error in http provider");
+            RetryableErr(SerdeJson { err, text })
         }
+
         Err(JsonRpcError(e)) => {
             let msg = e.message.to_ascii_lowercase().replace('_', " ");
-            if e.code == 429
-                || msg.contains("429")
-                || msg.contains("rate limit")
-                || msg.contains("too many requests")
-            {
-                info!(provider_host, error=%e, "Received rate limit request JsonRpcError in http provider");
-                RateLimitErr(JsonRpcError(e))
-            } else if METHODS_TO_NOT_RETRY.contains(&method)
+            if METHODS_TO_NOT_RETRY.contains(&method)
                 || (METHOD_TO_NOT_RETRY_WHEN_NOT_SUPPORTED.contains(&method)
                     && (msg.contains("support")
                         || msg.contains("invalid type")

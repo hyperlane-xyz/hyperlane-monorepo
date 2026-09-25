@@ -1,44 +1,44 @@
-# Running Migrator CLI
+# Running scraper migrations
 
-- Generate a new migration file
-  ```sh
-  cargo run -- migrate generate MIGRATION_NAME
-  ```
-- Apply all pending migrations
-  ```sh
-  cargo run
-  ```
-  ```sh
-  cargo run -- up
-  ```
-- Apply first 10 pending migrations
-  ```sh
-  cargo run -- up -n 10
-  ```
-- Rollback last applied migrations
-  ```sh
-  cargo run -- down
-  ```
-- Rollback last 10 applied migrations
-  ```sh
-  cargo run -- down -n 10
-  ```
-- Drop all tables from the database, then reapply all migrations
-  ```sh
-  cargo run -- fresh
-  ```
-- Rollback all applied migrations, then reapply all migrations
-  ```sh
-  cargo run -- refresh
-  ```
-- Rollback all applied migrations
-  ```sh
-  cargo run -- reset
-  ```
-- Check the status of all migrations
-  ```sh
-  cargo run -- status
-  ```
+From `rust/main`, with `DATABASE_URL` set to the intended database:
+
+```sh
+cargo run --release -p migration --bin init-db
+```
+
+This single command applies pending transactional migrations, then creates and
+verifies the raw-dispatch reconciliation, raw-dispatch native-sequence, delivery
+scope, Merkle block-height, gas payment paymaster-scope, and the three frontier
+indexes (`delivery_frontier_unenriched`, `gas_payment_frontier_unenriched`,
+`gas_payment_frontier_height`) concurrently, then runs `ANALYZE` on the four event
+tables (also when an index build fails). It works for both empty and existing DBs.
+Reruns retain matching valid indexes and reject invalid or conflicting
+definitions. If index setup fails, the schema migrations stay committed; repair
+the reported index and rerun the same command. Concurrent indexes survive schema
+rollback, except the three frontier indexes, which the frontier publication down
+migration drops.
+
+For migration development and rollback operations, the SeaORM CLI remains
+available from this directory:
+
+```sh
+cargo run -- migrate generate MIGRATION_NAME
+cargo run -- up
+cargo run -- up -n 10
+cargo run -- down
+cargo run -- down -n 10
+cargo run -- fresh
+cargo run -- refresh
+cargo run -- reset
+cargo run -- status
+```
+
+## Merkle block-height index
+
+`init-db` also installs `merkle_insertion_block_height` on
+`merkle_tree_insertion(domain, block_number)`. Automatic cutover selection and the
+first-start overlap check need confirmed legacy rows as well as provisional rows,
+which a partial index over unconfirmed rows cannot serve.
 
 ## Event scope indexes
 
@@ -62,14 +62,25 @@ From `rust/main`, with `DATABASE_URL` set to the intended database:
 cargo run --release -p migration --bin create-event-scope-indexes
 ```
 
-Run this separately from SeaORM migrations: PostgreSQL forbids `CREATE INDEX
-CONCURRENTLY` inside a transaction. The binary retains existing indexes and verifies
-that the index is a valid, ready, nonpartial B-tree with the expected table and
-three keys. Reruns accept a matching valid index. If an interrupted concurrent build
-leaves an invalid index, or its name belongs to another definition, the command fails
-instead of treating `IF NOT EXISTS` as success. Inspect `pg_index` and
-`pg_get_indexdef` and repair the named index explicitly before retrying; the command
-never drops indexes.
+The scraper-proxy's legacy gas payment replay pages one paymaster's rows by ID.
+Without a matching index, PostgreSQL can combine the domain and paymaster indexes
+and sort every remaining row in the range for each page:
+
+- `gas_payment_domain_paymaster_id_idx`:
+  `gas_payment(domain, interchain_gas_paymaster, id)`
+
+```sh
+cargo run --release -p migration --bin create-gas-payment-scope-index
+```
+
+`init-db` runs these automatically after SeaORM migrations commit: PostgreSQL
+forbids `CREATE INDEX CONCURRENTLY` inside a transaction. The binary retains
+existing indexes and verifies that each index is a valid, ready, nonpartial
+B-tree with the expected table and keys. Reruns accept a matching valid index. If
+an interrupted concurrent build leaves an invalid index, or its name belongs to
+another definition, the command fails instead of treating `IF NOT EXISTS` as
+success. Inspect `pg_index` and `pg_get_indexdef` and repair the named index
+explicitly before retrying; the command never drops indexes.
 
 Concurrent builds permit normal writes but consume database I/O, CPU, disk and
 WAL, and can wait for existing transactions. Schedule the build accordingly and

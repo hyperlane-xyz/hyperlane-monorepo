@@ -163,7 +163,7 @@ impl AgentConfig {
             grpc_urls: vec![
                 // The first url points to a nonexistent node, but is used for checking fallback provider logic
                 AgentUrl {
-                    http: "localhost:1337".to_string(),
+                    http: "http://localhost:1337".to_string(),
                 },
                 AgentUrl {
                     http: format!("http://{}", network.launch_resp.endpoint.grpc_addr),

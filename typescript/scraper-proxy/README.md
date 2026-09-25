@@ -43,6 +43,8 @@ Production requests must arrive through Cloudflare with a valid
 `CF-Connecting-IP` header; at most five connections are accepted per client IP.
 
 The private `/agents` endpoint always supports historical WebSocket catch-up.
+Replay is paginated without a total row limit. Concurrent catch-ups, session
+duration, database query timeouts, and outbound buffering remain bounded.
 
 Outbound WebSocket buffering is limited to 1 MiB per socket and 32 MiB across
 all sockets. GraphQL is limited to 25 concurrent requests; Cloudflare owns

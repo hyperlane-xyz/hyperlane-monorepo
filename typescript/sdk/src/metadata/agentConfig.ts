@@ -11,10 +11,7 @@ import { ProtocolType, isEmptyAddress } from '@hyperlane-xyz/utils';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 
-import {
-  ChainMetadataSchemaObject,
-  RpcUrlSchema,
-} from './chainMetadataTypes.js';
+import { ChainMetadataSchemaObject } from './chainMetadataTypes.js';
 import { ZHash, ZNzUint, ZUWei } from './customZodTypes.js';
 import {
   HyperlaneDeploymentArtifacts,
@@ -29,6 +26,7 @@ export enum RpcConsensusType {
   Single = 'single',
   Fallback = 'fallback',
   Quorum = 'quorum',
+  Majority = 'majority',
 }
 
 export enum AgentLogLevel {
@@ -282,20 +280,22 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
         'Specify a comma separated list of custom RPC URLs to use for this chain. If not specified, the default RPC urls will be used.',
       ),
     additionalQuorumRpcUrls: z
-      .array(RpcUrlSchema)
+      .never()
       .optional()
       .describe(
-        'Validator only: statically configured, *additional* RPC URLs that vote together with rpcUrls (2/3 majority, combined) on safety-critical merkle tree hook reads. Overridden entirely by customAdditionalQuorumRpcUrls when set, same as rpcUrls/customRpcUrls. See customAdditionalQuorumRpcUrls for the full quorum semantics.',
+        'Removed. Move endpoints into rpcUrls/customRpcUrls and remove this setting.',
       ),
     customAdditionalQuorumRpcUrls: z
-      .string()
+      .never()
       .optional()
       .describe(
-        'Validator only: comma separated list of *additional* RPC URLs that vote together with rpcUrls (2/3 majority, combined) on safety-critical merkle tree hook reads. Empty disables quorum verification. Intended for additional public RPCs only -- rpcUrls already votes in the same group, so there is no need to duplicate its (typically private) entries here.',
+        'Removed. Move endpoints into rpcUrls/customRpcUrls and remove this setting.',
       ),
     rpcConsensusType: z
       .enum(RpcConsensusType)
-      .describe('The consensus type to use when multiple RPCs are configured.')
+      .describe(
+        'RPC consensus policy. Validators default to majority for ceil(2N/3), with optional quorum for ceil(N/2) matching checkpoint histories across protocols. Majority is validator-only. Lightweight validators always require ceil(2N/3).',
+      )
       .optional(),
     fallbackHedgeDelayMillis: ZNzUint.optional().describe(
       'For fallback RPC consensus, start one speculative immutable read on the next provider after this delay. Unset disables hedging.',
@@ -819,6 +819,13 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       `Maximum number of checkpoints signed concurrently. Defaults to 50; maximum ${MAX_SIGN_CONCURRENCY}.`,
     ),
+  lightweight: z
+    .boolean()
+    .optional()
+    .describe(
+      'Uses trusted websocket indexing and requires at least two thirds of configured state-read endpoints to match local roots. Signs through the highest index supported by that majority, independently of rpcConsensusType. Disables RPC indexing fallback; insufficient agreement pauses signing.',
+    ),
+  leightweigt: z.boolean().optional().describe('Alias for lightweight.'),
   websocketUrl: z
     .url()
     .refine((url) => /^wss?:\/\//i.test(url), {
@@ -826,8 +833,27 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
     })
     .optional()
     .describe(
-      'Preferred Merkle tree insertion source; local RPC indexing is used while unavailable.',
+      'Merkle tree insertion source for replay and live events. RPC indexing fallback is disabled in lightweight mode.',
     ),
+}).superRefine((config, ctx) => {
+  if (
+    config.lightweight !== undefined &&
+    config.leightweigt !== undefined &&
+    config.lightweight !== config.leightweigt
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['lightweight'],
+      message: 'lightweight and leightweigt must agree when both are set',
+    });
+  }
+  if ((config.lightweight ?? config.leightweigt) && !config.websocketUrl) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['websocketUrl'],
+      message: 'websocketUrl is required in lightweight mode',
+    });
+  }
 });
 
 export type ValidatorConfig = z.infer<typeof ValidatorAgentConfigSchema>;

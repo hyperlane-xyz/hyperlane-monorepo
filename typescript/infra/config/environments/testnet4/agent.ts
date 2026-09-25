@@ -269,7 +269,7 @@ const hyperlane: RootAgentConfig = {
     resources: relayerResources,
   },
   validators: {
-    rpcConsensusType: RpcConsensusType.Fallback,
+    rpcConsensusType: RpcConsensusType.Majority,
     websocketUrl: scraperWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
@@ -335,7 +335,7 @@ const releaseCandidate: RootAgentConfig = {
     resources: relayerResources,
   },
   validators: {
-    rpcConsensusType: RpcConsensusType.Fallback,
+    rpcConsensusType: RpcConsensusType.Majority,
     websocketUrl: scraperWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
@@ -376,7 +376,7 @@ const fastPath: RootAgentConfig = {
     resources: relayerResources,
   },
   validators: {
-    rpcConsensusType: RpcConsensusType.Fallback,
+    rpcConsensusType: RpcConsensusType.Majority,
     // Use RPC indexing until the scraper proxy supports fastpath streaming.
     docker: {
       repo: DockerImageRepos.AGENT,

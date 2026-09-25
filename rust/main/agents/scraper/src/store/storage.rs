@@ -7,7 +7,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use eyre::Result;
+use futures::{stream, StreamExt};
 use prometheus::IntCounterVec;
+use tokio::sync::Semaphore;
 use tracing::{trace, warn};
 
 use hyperlane_base::settings::{CoreContractAddresses, IndexSettings};
@@ -68,6 +70,73 @@ impl HyperlaneDbStore {
     /// Get the stored events metric for incrementing when raw messages are stored.
     pub fn stored_events_metric(&self) -> Option<&IntCounterVec> {
         self.stored_events_metric.as_ref()
+    }
+
+    /// Enrich a confirmed near-head page whose block headers are already retained.
+    /// Look up the page's cache entries together, then persist missing receipts
+    /// independently so one failed or timed-out fetch cannot discard successes.
+    pub(crate) async fn ensure_transactions_for_known_blocks(
+        &self,
+        log_meta: impl Iterator<Item = &LogMeta>,
+        rpc_permits: &Semaphore,
+        domain_rpc_permits: &Semaphore,
+        db_permits: &Semaphore,
+    ) -> Result<bool> {
+        let requested: HashMap<_, _> = log_meta
+            .map(|meta| (meta.transaction_id, meta.block_hash))
+            .collect();
+        if requested.is_empty() {
+            return Ok(true);
+        }
+        let db_permit = db_permits.acquire().await?;
+        let blocks = self.db.get_block_basic(requested.values()).await?;
+        let existing = self.db.get_txn_ids(requested.keys()).await?;
+        drop(db_permit);
+        let blocks: HashMap<_, _> = blocks.into_iter().map(|b| (b.hash, b.id)).collect();
+        eyre::ensure!(
+            requested.values().all(|hash| blocks.contains_key(hash)),
+            "Confirmed receipt page is missing retained block headers"
+        );
+        let missing = requested
+            .into_iter()
+            .filter(|(hash, _)| !existing.contains_key(hash));
+        let mut results = stream::iter(missing)
+            .map(|(hash, block_hash)| {
+                let blocks = &blocks;
+                async move {
+                    let result = async {
+                        let block_id = *blocks
+                            .get(&block_hash)
+                            .ok_or_else(|| eyre::eyre!("Missing retained block"))?;
+                        let domain_rpc_permit = domain_rpc_permits.acquire().await?;
+                        let rpc_permit = rpc_permits.acquire().await?;
+                        let info = self.provider.get_txn_by_hash(&hash).await?;
+                        drop(rpc_permit);
+                        drop(domain_rpc_permit);
+                        let _db_permit = db_permits.acquire().await?;
+                        self.db
+                            .store_txns(std::iter::once(StorableTxn { info, block_id }))
+                            .await?;
+                        Ok::<_, eyre::Report>(())
+                    }
+                    .await;
+                    if let Err(error) = &result {
+                        warn!(
+                            domain = self.domain.id(),
+                            ?hash,
+                            ?error,
+                            "Receipt unavailable; retrying"
+                        );
+                    }
+                    result.is_ok()
+                }
+            })
+            .buffer_unordered(8);
+        let mut complete = true;
+        while let Some(success) = results.next().await {
+            complete &= success;
+        }
+        Ok(complete)
     }
 
     /// Takes a list of txn and block hashes and ensure they are all in the

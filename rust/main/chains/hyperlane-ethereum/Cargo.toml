@@ -28,7 +28,8 @@ itertools.workspace = true
 k256 = { workspace = true, features = ["pem"] }
 num.workspace = true
 num-traits.workspace = true
-reqwest.workspace = true
+rand.workspace = true
+reqwest = { workspace = true, features = ["rustls-tls-native-roots"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -49,6 +50,7 @@ abigen = { path = "../../utils/abigen", features = ["ethers"] }
 hyperlane-core = { path = "../../hyperlane-core", features = ["test-utils"] }
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
 prometheus.workspace = true
 tracing-test.workspace = true
 

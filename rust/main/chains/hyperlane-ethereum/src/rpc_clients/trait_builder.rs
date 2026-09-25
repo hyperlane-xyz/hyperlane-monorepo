@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
+use super::http::StatusAwareHttp;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use ethers::middleware::gas_escalator::{
@@ -11,8 +12,8 @@ use ethers::middleware::gas_oracle::{
     GasCategory, GasOracle, GasOracleMiddleware, Polygon, ProviderOracle,
 };
 use ethers::prelude::{
-    Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, SignerMiddleware,
-    Ws, WsClientError,
+    JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, SignerMiddleware, Ws,
+    WsClientError,
 };
 use ethers::types::Address;
 use ethers_signers::Signer;
@@ -164,7 +165,7 @@ pub trait BuildableWithProvider {
                 let fallback_provider = builder.build();
                 let ethereum_fallback_provider = EthereumFallbackProvider::<
                     _,
-                    JsonRpcBlockGetter<PrometheusJsonRpcClient<Http>>,
+                    JsonRpcBlockGetter<PrometheusJsonRpcClient<StatusAwareHttp>>,
                 >::new(
                     fallback_provider,
                     conn.consider_null_transaction_receipt,
@@ -400,11 +401,11 @@ where
 }
 
 /// Builds a new HTTP provider with the given URL.
-fn build_http_provider(url: Url) -> ChainResult<Http> {
+fn build_http_provider(url: Url) -> ChainResult<StatusAwareHttp> {
     // Cache by the original URL so clients with different credentials stay isolated.
     let client = get_reqwest_client(&url)?;
     let (_, url) = parse_custom_rpc_headers(&url).map_err(ChainCommunicationError::from_other)?;
-    Ok(Http::new_with_client(url, client))
+    Ok(StatusAwareHttp::new(url, client))
 }
 
 /// Gets a cached reqwest client for the given URL, or builds a new one if it doesn't exist.
@@ -416,6 +417,8 @@ fn get_reqwest_client(url: &Url) -> ChainResult<Client> {
     let (headers, _) =
         parse_custom_rpc_headers(url).map_err(ChainCommunicationError::from_other)?;
     let client = Client::builder()
+        // Avoid platform TLS negotiation failures (notably Secure Transport on macOS).
+        .use_rustls_tls()
         .timeout(HTTP_CLIENT_TIMEOUT)
         .default_headers(headers)
         .build()
@@ -539,6 +542,7 @@ mod tests {
     #[derive(Clone, Debug, Default)]
     struct CountingClient {
         chain_id_requests: Arc<AtomicUsize>,
+        requests: Arc<StdMutex<Vec<String>>>,
     }
 
     #[async_trait]
@@ -550,6 +554,24 @@ mod tests {
             T: Debug + Serialize + Send + Sync,
             R: DeserializeOwned,
         {
+            self.requests
+                .lock()
+                .expect("request log")
+                .push(method.to_owned());
+            if method == "eth_call" {
+                let encoded = ethers::abi::encode(&[ethers::abi::Token::Array(vec![
+                    ethers::abi::Token::Array(vec![ethers::abi::Token::String(
+                        "test-location".to_owned(),
+                    )]),
+                ])]);
+                return serde_json::from_value(serde_json::json!(ethers::types::Bytes::from(
+                    encoded
+                )))
+                .map_err(|err| HttpClientError::SerdeJson {
+                    err,
+                    text: "announcement response".into(),
+                });
+            }
             let response = if method == "eth_chainId" {
                 self.chain_id_requests.fetch_add(1, Ordering::Relaxed);
                 r#""0x1""#
@@ -751,6 +773,38 @@ mod tests {
 
         assert_eq!(sender, Some(expected_sender));
         assert_eq!(client.chain_id_requests.load(Ordering::Relaxed), 0);
+        Ok(())
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn announcement_reader_does_not_start_background_rpc_polling(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let client = CountingClient::default();
+        let (domain, address) = test_locator();
+        let locator = ContractLocator {
+            domain: &domain,
+            address,
+        };
+        let reader = crate::ValidatorAnnounceReaderBuilder {}
+            .build(
+                client.clone(),
+                &ConnectionConf::default(),
+                &locator,
+                Some(test_signer()?),
+            )
+            .await?;
+        assert!(client.requests.lock().expect("requests").is_empty());
+        let locations = reader.get_announced_storage_locations(&[address]).await?;
+        assert_eq!(locations, vec![vec!["test-location".to_owned()]]);
+        for _ in 0..5 {
+            tokio::time::advance(Duration::from_secs(12)).await;
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(*client.requests.lock().expect("requests"), vec!["eth_call"]);
+        drop(reader);
+        tokio::time::advance(Duration::from_secs(60)).await;
+        tokio::task::yield_now().await;
+        assert_eq!(*client.requests.lock().expect("requests"), vec!["eth_call"]);
         Ok(())
     }
 

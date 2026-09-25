@@ -26,7 +26,7 @@ use crate::db::{
     HyperlaneDb,
 };
 
-use super::{DbError, TypedDB, DB};
+use super::{DbError, GasPaymentSequenceConflict, TypedDB, DB};
 
 // these keys MUST not be given multiple uses in case multiple agents are
 // started with the same database and domain.
@@ -472,14 +472,15 @@ impl HyperlaneRocksDB {
                     return Ok(false);
                 }
                 (None, None) => {}
-                (Some(_), _) => {
-                    return Err(DbError::Other(format!(
-                        "Gas payment sequence {sequence} conflicts with stored payment"
-                    )));
-                }
-                (None, Some(_)) => {
-                    return Err(DbError::Other(format!(
-                        "Gas payment sequence {sequence} has block metadata without a payment"
+                (stored, stored_block) => {
+                    return Err(DbError::GasPaymentSequenceConflict(Box::new(
+                        GasPaymentSequenceConflict {
+                            sequence,
+                            stored,
+                            stored_block,
+                            incoming: payment,
+                            incoming_block: log_meta.block_number,
+                        },
                     )));
                 }
             }
@@ -596,6 +597,24 @@ impl HyperlaneRocksDB {
     ) -> DbResult<bool> {
         let _guard = self.3.lock();
         self.store_tree_insertion_inner(insertion, insertion_block_number)
+    }
+
+    /// Store an unverified insertion only if its leaf index is absent. Returns the
+    /// existing insertion otherwise. Shares the RPC writer's lock so a concurrent
+    /// stream replay cannot overwrite a canonical insertion or its block metadata.
+    pub fn store_tree_insertion_if_absent(
+        &self,
+        insertion: &MerkleTreeInsertion,
+        insertion_block_number: u64,
+    ) -> DbResult<Option<MerkleTreeInsertion>> {
+        let _guard = self.3.lock();
+        if let Some(existing) =
+            self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index())?
+        {
+            return Ok(Some(existing));
+        }
+        self.store_tree_insertion_inner(insertion, insertion_block_number)?;
+        Ok(None)
     }
 
     fn store_tree_insertion_inner(

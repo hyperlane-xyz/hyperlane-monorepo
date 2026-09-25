@@ -9,11 +9,11 @@ use serde::Serialize;
 use tracing::{info, warn};
 use url::Url;
 
-use hyperlane_base::settings::ChainConnectionConf;
+use crate::rpc::{chain_conf_for_read_url, dedupe_rpc_urls, state_read_urls};
 use hyperlane_base::{CheckpointSyncer, CoreMetrics};
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
-use hyperlane_core::{CheckpointAtBlock, HyperlaneDomain, MerkleTreeHook, ReorgPeriod, H256};
-use hyperlane_ethereum::RpcConnectionConf;
+use hyperlane_core::{CheckpointAtBlock, MerkleTreeHook, ReorgPeriod, H256};
+use hyperlane_metric::prometheus_metric::RpcRole;
 
 use crate::settings::ValidatorSettings;
 
@@ -83,7 +83,7 @@ impl LatestCheckpointReorgReporter {
                 })
                 .await;
 
-                info!(url = ?url.clone(), ?height, ?latest_checkpoint, "Report latest checkpoint on reorg");
+                info!(rpc_url_hash = ?H256::from_slice(&keccak256(url.as_str().as_bytes())), ?height, ?latest_checkpoint, "Report latest checkpoint on reorg");
                 ReorgReportRpcResponse::new(url.clone(), latest_checkpoint, Some(height), None)
             };
 
@@ -108,7 +108,7 @@ impl LatestCheckpointReorgReporter {
                 })
                 .await;
 
-                info!(url = ?url.clone(), ?reorg_period, ?latest_checkpoint, "Report latest checkpoint on reorg");
+                info!(rpc_url_hash = ?H256::from_slice(&keccak256(url.as_str().as_bytes())), ?reorg_period, ?latest_checkpoint, "Report latest checkpoint on reorg");
                 ReorgReportRpcResponse::new(
                     url.clone(),
                     latest_checkpoint,
@@ -129,120 +129,24 @@ impl LatestCheckpointReorgReporter {
         settings: &ValidatorSettings,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Self> {
-        let origin = &settings.origin_chain;
-
-        let mut merkle_tree_hooks = HashMap::new();
-        for (url, settings) in Self::settings_with_single_rpc(settings, origin) {
-            let chain_setup = settings.chain_setup(&settings.origin_chain)?;
-            let merkle_tree_hook = chain_setup.build_merkle_tree_hook(metrics).await?;
-
-            merkle_tree_hooks.insert(url, merkle_tree_hook.into());
-        }
-
-        let reporter = LatestCheckpointReorgReporter { merkle_tree_hooks };
-
-        Ok(reporter)
-    }
-
-    fn settings_with_single_rpc(
-        settings: &ValidatorSettings,
-        origin: &HyperlaneDomain,
-    ) -> Vec<(Url, ValidatorSettings)> {
-        #[cfg(feature = "aleo")]
-        use ChainConnectionConf::Aleo;
-        use ChainConnectionConf::{
-            Cosmos, CosmosNative, Ethereum, Fuel, Radix, Sealevel, Starknet, Tron,
-        };
-
-        let chain_conf = settings
-            .chains
-            .get(origin)
-            .expect("Chain configuration is not found")
-            .clone();
-
-        let chain_conn_confs: Vec<(Url, ChainConnectionConf)> = match chain_conf.connection {
-            Ethereum(conn) => Self::map_urls_to_connections(conn.rpc_urls(), conn, |conn, url| {
-                let mut updated_conn = conn.clone();
-                updated_conn.rpc_connection = RpcConnectionConf::Http { url };
-                Ethereum(updated_conn)
-            }),
-            Fuel(_) => todo!("Fuel connection not implemented"),
-            Sealevel(conn) => {
-                Self::map_urls_to_connections(conn.urls.clone(), conn, |conn, url| {
-                    let mut updated_conn = conn.clone();
-                    updated_conn.urls = vec![url];
-                    Sealevel(updated_conn)
-                })
-            }
-            // We need only gRPC URLs for Cosmos and CosmosNative to create MerkleTreeHook
-            Cosmos(conn) => {
-                Self::map_urls_to_connections(conn.grpc_urls.clone(), conn, |conn, url| {
-                    let mut updated_conn = conn.clone();
-                    updated_conn.grpc_urls = vec![url];
-                    Cosmos(updated_conn)
-                })
-            }
-            CosmosNative(conn) => {
-                Self::map_urls_to_connections(conn.grpc_urls.clone(), conn, |conn, url| {
-                    let mut updated_conn = conn.clone();
-                    updated_conn.grpc_urls = vec![url];
-                    CosmosNative(updated_conn)
-                })
-            }
-            Starknet(conn) => {
-                Self::map_urls_to_connections(conn.urls.clone(), conn, |conn, url| {
-                    let mut updated_conn = conn.clone();
-                    updated_conn.urls = vec![url];
-                    Starknet(updated_conn)
-                })
-            }
-            Radix(conn) => Self::map_urls_to_connections(conn.core.clone(), conn, |conn, url| {
-                let mut updated_conn = conn.clone();
-                updated_conn.core = vec![url];
-                Radix(updated_conn)
-            }),
-            #[cfg(feature = "aleo")]
-            Aleo(conn) => Self::map_urls_to_connections(conn.rpcs.clone(), conn, |conn, url| {
-                let mut updated_conn = conn.clone();
-                updated_conn.rpcs = vec![url];
-                Aleo(updated_conn)
-            }),
-            Tron(conn) => {
-                Self::map_urls_to_connections(conn.rpc_urls.clone(), conn, |conn, url| {
-                    let mut updated_conn = conn.clone();
-                    updated_conn.rpc_urls = vec![url];
-                    Tron(updated_conn)
-                })
-            }
-        };
-
-        chain_conn_confs
-            .into_iter()
-            .map(|(url, conn)| {
-                let mut updated_settings = settings.clone();
-                let mut chain_conf = settings
-                    .chains
-                    .get(origin)
-                    .expect("Chain configuration is not found")
-                    .clone();
-                chain_conf.connection = conn;
-                updated_settings.chains.insert(origin.clone(), chain_conf);
-                (url, updated_settings)
+        let chain = settings.chain_setup(&settings.origin_chain)?;
+        let rpc_urls = settings
+            .rpcs
+            .iter()
+            .enumerate()
+            .map(|(i, rpc)| {
+                Url::parse(&rpc.url).map_err(|_| eyre::eyre!("Invalid rpcUrls[{i}] URL"))
             })
-            .collect::<Vec<_>>()
-    }
-
-    fn map_urls_to_connections<T, F>(
-        urls: Vec<Url>,
-        conn: T,
-        update_conn: F,
-    ) -> Vec<(Url, ChainConnectionConf)>
-    where
-        F: Fn(&T, Url) -> ChainConnectionConf,
-    {
-        urls.into_iter()
-            .map(|url| (url.clone(), update_conn(&conn, url)))
-            .collect()
+            .collect::<eyre::Result<Vec<_>>>()?;
+        let (source, urls) = state_read_urls(chain, rpc_urls)?;
+        let mut merkle_tree_hooks = HashMap::new();
+        for url in dedupe_rpc_urls(urls, source) {
+            let hook = chain_conf_for_read_url(chain, url.clone(), RpcRole::Primary)
+                .build_merkle_tree_hook(metrics)
+                .await?;
+            merkle_tree_hooks.insert(url, Arc::from(hook));
+        }
+        Ok(Self { merkle_tree_hooks })
     }
 }
 
@@ -277,18 +181,14 @@ impl ReorgReporter for LatestCheckpointReorgReporterWithStorageWriter {
 }
 
 impl LatestCheckpointReorgReporterWithStorageWriter {
-    pub(crate) async fn from_settings_with_storage_writer(
-        settings: &ValidatorSettings,
-        metrics: &CoreMetrics,
+    pub(crate) fn new(
+        latest_checkpoint_reorg_reporter: LatestCheckpointReorgReporter,
         storage_writer: Arc<dyn CheckpointSyncer>,
-    ) -> eyre::Result<Self> {
-        Ok(LatestCheckpointReorgReporterWithStorageWriter {
-            latest_checkpoint_reorg_reporter: LatestCheckpointReorgReporter::from_settings(
-                settings, metrics,
-            )
-            .await?,
+    ) -> Self {
+        Self {
+            latest_checkpoint_reorg_reporter,
             storage_writer,
-        })
+        }
     }
 
     async fn submit_to_storage_writer(&self, storage_logs_entries: &Vec<ReorgReportRpcResponse>) {
