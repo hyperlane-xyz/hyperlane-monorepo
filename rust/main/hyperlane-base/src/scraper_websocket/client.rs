@@ -167,6 +167,15 @@ impl StreamHealth {
         Ok(authoritative || count == next)
     }
 
+    /// A failed canonical probe proves neither lag nor progress: tolerate it like
+    /// lag, sharing the same timer and grace. Returns whether the stream is usable.
+    pub fn observe_probe_failure(&mut self) -> bool {
+        self.lag_started_at
+            .get_or_insert_with(Instant::now)
+            .elapsed()
+            < self.grace
+    }
+
     /// Reset on reconnect, loss of readiness, or the first completed replay.
     pub fn reset(&mut self) {
         self.lag_started_at = None;
@@ -531,5 +540,20 @@ pub(super) mod tests {
         tokio::time::advance(Duration::from_secs(5)).await;
 
         assert!(health.observe(104, 3, false).is_err());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn probe_failures_share_the_lag_grace() {
+        let grace = Duration::from_secs(10);
+        let mut health = StreamHealth::new(grace);
+
+        health.observe(100, 99, true).expect("lag starts the timer");
+        tokio::time::advance(Duration::from_secs(5)).await;
+        assert!(health.observe_probe_failure());
+        tokio::time::advance(Duration::from_secs(5)).await;
+        assert!(!health.observe_probe_failure());
+
+        health.observe(100, 100, true).expect("caught up resets");
+        assert!(health.observe_probe_failure());
     }
 }

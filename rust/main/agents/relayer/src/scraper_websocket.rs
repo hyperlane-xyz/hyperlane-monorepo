@@ -62,6 +62,7 @@ const AUTHORITY_HANDOFF_TIMEOUT: Duration = Duration::from_secs(30);
 #[cfg(test)]
 const AUTHORITY_HANDOFF_TIMEOUT: Duration = Duration::from_millis(50);
 const PARITY_READ_CONCURRENCY: usize = 4;
+const FRESHNESS_READ_CONCURRENCY: usize = 2;
 // Per origin stream. One origin backing up must not close the connection for every origin.
 const PARITY_QUEUE_CAPACITY: usize = 256;
 // Process-wide bound on staged, queued and in-flight parity events. Dispatch jobs
@@ -1505,7 +1506,14 @@ struct AuthorityRevocationHooks {
 type FreshnessProbe = (
     u32,
     String,
-    Result<(bool, Option<u32>, Option<u32>, Option<u32>, Option<u32>)>,
+    Result<(
+        bool,
+        bool,
+        Option<u32>,
+        Option<u32>,
+        Option<u32>,
+        Option<u32>,
+    )>,
 );
 /// Restore gas RPC even if the connection task is cancelled or panics.
 struct GasPaymentConnectionGuard<'a>(&'a HashMap<u32, watch::Sender<bool>>);
@@ -1545,6 +1553,8 @@ pub(crate) struct ScraperWebSocketMonitor {
     freshness_warned_at: Arc<parking_lot::Mutex<Option<Instant>>>,
     // Last exactly-fresh probe per authoritative origin.
     last_fresh_probe: parking_lot::Mutex<HashMap<u32, Instant>>,
+    /// Authoritative origins whose last probe found a cursor ahead of the count.
+    ahead_probe: parking_lot::Mutex<HashSet<u32>>,
     events: IntCounterVec,
     parity: IntCounterVec,
     parity_pending: IntGaugeVec,
@@ -1557,9 +1567,11 @@ pub(crate) struct ScraperWebSocketMonitor {
     parity_ready: IntGaugeVec,
     parity_read_disabled: AtomicBool,
     parity_read_permit: Arc<Semaphore>,
+    freshness_read_permit: Arc<Semaphore>,
     parity_unhealthy: Arc<parking_lot::Mutex<std::collections::HashSet<(u32, EventKind)>>>,
     parity_warned_at: Arc<parking_lot::Mutex<Option<Instant>>>,
     gas_payment_enabled: AtomicBool,
+    gas_payment_row_cursor_unsupported: AtomicBool,
     gas_payment_authority: HashMap<u32, watch::Sender<bool>>,
     sources: HashMap<u32, ScraperSource>,
     url: Url,
@@ -1706,6 +1718,7 @@ impl ScraperWebSocketMonitor {
             fresh,
             freshness_warned_at: Arc::new(parking_lot::Mutex::new(None)),
             last_fresh_probe: parking_lot::Mutex::default(),
+            ahead_probe: parking_lot::Mutex::default(),
             events,
             parity,
             parity_pending,
@@ -1715,9 +1728,11 @@ impl ScraperWebSocketMonitor {
             parity_ready,
             parity_read_disabled: AtomicBool::new(false),
             parity_read_permit: Arc::new(Semaphore::new(PARITY_READ_CONCURRENCY)),
+            freshness_read_permit: Arc::new(Semaphore::new(FRESHNESS_READ_CONCURRENCY)),
             parity_unhealthy: Arc::new(parking_lot::Mutex::new(parity_unhealthy)),
             parity_warned_at: Arc::new(parking_lot::Mutex::new(None)),
             gas_payment_enabled: AtomicBool::new(false),
+            gas_payment_row_cursor_unsupported: AtomicBool::new(false),
             gas_payment_authority: sources
                 .keys()
                 .map(|domain| (*domain, watch::channel(false).0))
@@ -1923,8 +1938,10 @@ impl ScraperWebSocketMonitor {
             {
                 Ok(Ok(permit)) => permit,
                 Ok(Err(_)) => unreachable!("parity semaphore is never closed"),
+                // Every permit is busy, e.g. with other origins' replays. That is no
+                // evidence against the DB (a stuck read trips the timeout below), so
+                // only this stream falls back until reconnect.
                 Err(_) => {
-                    self.disable_parity_reads(&chain, event_type, "read capacity timed out");
                     terminal = Some("error");
                     break;
                 }
@@ -2309,7 +2326,10 @@ impl ScraperWebSocketMonitor {
                     stream_cursor_versions,
                 } => {
                     let gas_payment_enabled = stream_cursor_versions.get(GAS_PAYMENT_EVENT_TYPE)
-                        == Some(&GAS_PAYMENT_STREAM_CURSOR_VERSION);
+                        == Some(&GAS_PAYMENT_STREAM_CURSOR_VERSION)
+                        && !self
+                            .gas_payment_row_cursor_unsupported
+                            .load(Ordering::Relaxed);
                     self.gas_payment_enabled
                         .store(gas_payment_enabled, Ordering::Relaxed);
                     for source in self.sources.values() {
@@ -2360,7 +2380,6 @@ impl ScraperWebSocketMonitor {
                                 self.update_source_caught_up(state, plan, &caught_up, domain)
                                     .await?;
                             } else {
-                                self.record(domain, kind.label(), result);
                                 let source = self.sources.get(&domain).context(
                                     "Validated scraper event source unexpectedly missing",
                                 )?;
@@ -2368,11 +2387,14 @@ impl ScraperWebSocketMonitor {
                                     .gas_payment
                                     .context("Validated gas payment has no input")?;
                                 match source.store_gas_payment(&input) {
-                                    Ok(()) => state.persist_gas_payment_cursor(
-                                        domain,
-                                        input.cursor,
-                                        |cursor| source.store_gas_payment_cursor(cursor),
-                                    )?,
+                                    Ok(()) => {
+                                        self.record(domain, event_type, result);
+                                        state.persist_gas_payment_cursor(
+                                            domain,
+                                            input.cursor,
+                                            |cursor| source.store_gas_payment_cursor(cursor),
+                                        )?
+                                    }
                                     // The row disagrees with this origin's RPC-indexed history.
                                     // Nothing was written; storage failures still close the stream.
                                     Err(err) if is_gas_payment_sequence_conflict(&err) => {
@@ -2489,6 +2511,10 @@ impl ScraperWebSocketMonitor {
                     if self.gas_payment_enabled.load(Ordering::Relaxed)
                         && is_unsupported_row_cursor_error(&error)
                     {
+                        // Later connections subscribe to sequenced streams only, so
+                        // this disconnect happens once rather than on every reconnect.
+                        self.gas_payment_row_cursor_unsupported
+                            .store(true, Ordering::Relaxed);
                         self.gas_payment_enabled.store(false, Ordering::Relaxed);
                         for source in self.sources.values() {
                             self.set_source_caught_up(source, EventKind::GasPayment, false);
@@ -2895,11 +2921,11 @@ impl ScraperWebSocketMonitor {
                         let cursor_source = source.clone();
                         let cursor_read = async {
                             let permit = monitor
-                                .parity_read_permit
+                                .freshness_read_permit
                                 .clone()
                                 .acquire_owned()
                                 .await
-                                .expect("parity semaphore is never closed");
+                                .expect("freshness semaphore is never closed");
                             if monitor.parity_read_disabled.load(Ordering::Acquire) {
                                 bail!("Canonical scraper freshness reads are disabled");
                             }
@@ -2913,18 +2939,12 @@ impl ScraperWebSocketMonitor {
                             .await
                             .context("Canonical scraper freshness cursor task failed")?
                         };
+                        // A timeout only fails this probe. Parity reads have their own
+                        // pool and timeout, so this is no evidence against them.
                         let (dispatch_cursor, merkle_cursor) =
-                            match timeout(PARITY_READ_TIMEOUT, cursor_read).await {
-                                Ok(result) => result?,
-                                Err(_) => {
-                                    monitor.disable_parity_reads(
-                                        &chain,
-                                        DISPATCH_EVENT_TYPE,
-                                        "canonical freshness cursor read timed out",
-                                    );
-                                    bail!("Canonical scraper freshness cursor read timed out");
-                                }
-                            };
+                            timeout(PARITY_READ_TIMEOUT, cursor_read)
+                                .await
+                                .context("Canonical scraper freshness cursor read timed out")??;
                         // Snapshot durable cursors before RPC. Events may advance
                         // during those calls; comparing newer cursors to older
                         // counts would incorrectly classify progress as rollback.
@@ -2941,13 +2961,16 @@ impl ScraperWebSocketMonitor {
                             .context("Canonical dispatch freshness probe timed out")??;
                         let (merkle_canonical_count, _) = merkle_probe
                             .context("Canonical Merkle freshness probe timed out")??;
+                        // An error here means a cursor is ahead of the canonical count.
+                        let freshness = canonical_cursors_are_fresh(
+                            dispatch_canonical_count,
+                            dispatch_cursor,
+                            merkle_canonical_count,
+                            merkle_cursor,
+                        );
                         Ok::<_, eyre::Report>((
-                            canonical_cursors_are_fresh(
-                                dispatch_canonical_count,
-                                dispatch_cursor,
-                                merkle_canonical_count,
-                                merkle_cursor,
-                            )?,
+                            freshness.as_ref().is_ok_and(|fresh| *fresh),
+                            freshness.is_err(),
                             dispatch_canonical_count,
                             merkle_canonical_count,
                             dispatch_cursor,
@@ -2976,6 +2999,7 @@ impl ScraperWebSocketMonitor {
         match result {
             Ok((
                 is_fresh,
+                ahead,
                 dispatch_canonical_count,
                 merkle_canonical_count,
                 dispatch_cursor,
@@ -2994,11 +3018,21 @@ impl ScraperWebSocketMonitor {
                 let mut readiness_still_valid = false;
                 let mut within_grace = false;
                 let authority = self.source_authority(domain);
+                // The count comes from this relayer's RPC and reorg period, not the
+                // scraper's, so one ahead probe can be skew. Revoke if the next is too.
+                let tolerate_ahead = ahead
+                    && authority.active.load(Ordering::Acquire)
+                    && self.ahead_probe.lock().insert(domain);
+                if !ahead {
+                    self.ahead_probe.lock().remove(&domain);
+                }
                 authority.sender.send_if_modified(|_| {
                     if self.base_source_authority_ready(source) {
                         readiness_still_valid = true;
                         // Readiness gates remain strict. Once authoritative, tolerate
                         // sustained canonical lag for the same grace period as validators.
+                        // Check every stream, so ahead tolerance on one can't hide
+                        // expired lag on the other.
                         if authority.active.load(Ordering::Acquire) {
                             let mut health = authority.health.lock();
                             within_grace = [
@@ -3007,15 +3041,18 @@ impl ScraperWebSocketMonitor {
                             ]
                             .into_iter()
                             .zip(health.iter_mut())
-                            .all(|((count, cursor), health)| {
+                            .map(|((count, cursor), health)| {
+                                let count = count.unwrap_or(0);
                                 let next =
                                     cursor.map(|last| last.checked_add(1)).unwrap_or(Some(0));
-                                next.is_some_and(|next| {
-                                    health
-                                        .observe(count.unwrap_or(0), next, true)
-                                        .is_ok_and(|usable| usable)
+                                next.is_some_and(|next| match health.observe(count, next, true) {
+                                    Ok(usable) => usable,
+                                    Err(_) => tolerate_ahead && next > count,
                                 })
-                            });
+                            })
+                            .filter(|usable| !usable)
+                            .count()
+                                == 0;
                         }
                         self.fresh
                             .with_label_values(&[chain.as_str()])
@@ -3047,7 +3084,23 @@ impl ScraperWebSocketMonitor {
                     warn!(%chain, ?err, "Canonical scraper freshness probe failed");
                 }
                 self.last_fresh_probe.lock().remove(&domain);
-                self.deactivate_source_authority(domain);
+                // Ahead needs two consecutive probes; a failed one breaks the run.
+                self.ahead_probe.lock().remove(&domain);
+                self.fresh.with_label_values(&[chain.as_str()]).set(0);
+                // A failed probe proves neither lag nor progress, so an authoritative
+                // origin tolerates it for the same grace as lag.
+                let authority = self.source_authority(domain);
+                let within_grace = authority.active.load(Ordering::Acquire)
+                    && authority
+                        .health
+                        .lock()
+                        .iter_mut()
+                        .fold(true, |usable, health| {
+                            health.observe_probe_failure() && usable
+                        });
+                if !within_grace {
+                    self.deactivate_source_authority(domain);
+                }
             }
         }
     }
@@ -3513,6 +3566,8 @@ fn event_label(event_type: &str) -> &'static str {
 mod tests {
     use std::ops::RangeInclusive;
 
+    use std::sync::atomic::AtomicU32;
+
     use super::*;
     use async_trait::async_trait;
     use futures_util::{SinkExt, StreamExt};
@@ -3526,6 +3581,85 @@ mod tests {
         _temp_dir: tempfile::TempDir,
         database: HyperlaneRocksDB,
         sources: HashMap<u32, ScraperSource>,
+    }
+
+    #[tokio::test]
+    async fn gas_row_cursor_downgrade_survives_reconnect() {
+        let fixture = fixture();
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
+        let url =
+            Url::parse(&format!("ws://{}", listener.local_addr().expect("address"))).expect("URL");
+        let metrics =
+            CoreMetrics::new("gas-row-downgrade", 9090, Registry::new()).expect("metrics");
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new_with_authority(
+                url,
+                fixture.sources.values().cloned().collect(),
+                &metrics,
+                true,
+            )
+            .expect("monitor"),
+        );
+        let server = tokio::spawn(async move {
+            let mut stream_counts = Vec::new();
+            for connection in 0..2 {
+                let (stream, _) = listener.accept().await.expect("connection");
+                let mut socket = accept_async(stream).await.expect("WebSocket");
+                // The proxy advertises v3 row cursors on both connections.
+                socket
+                    .send(Message::Text(
+                        serde_json::json!({"type":"ready","streamCursorVersions":{"gas_payment":3}})
+                            .to_string()
+                            .into(),
+                    ))
+                    .await
+                    .expect("ready");
+                let request = socket.next().await.expect("request").expect("frame");
+                let request: serde_json::Value =
+                    serde_json::from_str(request.to_text().expect("text")).expect("request JSON");
+                stream_counts.push(request["streams"].as_array().expect("streams").len());
+                if connection == 0 {
+                    socket
+                        .send(Message::Text(
+                            serde_json::json!({
+                                "type": "error",
+                                "error": "cursors are only supported for sequenced streams",
+                            })
+                            .to_string()
+                            .into(),
+                        ))
+                        .await
+                        .expect("row cursor rejection");
+                    let _ = socket.next().await;
+                }
+            }
+            stream_counts
+        });
+
+        let mut state = StreamState::load_gas_payment(&monitor.sources).expect("replay baseline");
+        let err = monitor
+            .stream_once(&mut state)
+            .await
+            .expect_err("row cursor rejection closes the first connection");
+        assert!(format!("{err:?}").contains("lacks gas payment row cursor support"));
+
+        let second = tokio::spawn({
+            let monitor = monitor.clone();
+            async move {
+                let mut state =
+                    StreamState::load_gas_payment(&monitor.sources).expect("replay baseline");
+                monitor.stream_once(&mut state).await
+            }
+        });
+        let stream_counts = timeout(Duration::from_secs(5), server)
+            .await
+            .expect("second subscription")
+            .expect("server");
+        // The second connection subscribes to sequenced streams only.
+        assert_eq!(stream_counts[1] + 1, stream_counts[0]);
+        assert!(!monitor.gas_payment_enabled.load(Ordering::Acquire));
+        second.abort();
+        let _ = second.await;
     }
 
     #[tokio::test]
@@ -3950,6 +4084,14 @@ mod tests {
             monitor
                 .events
                 .with_label_values(&["test-5", GAS_PAYMENT_EVENT_TYPE, "conflict"])
+                .get(),
+            1
+        );
+        // One outcome per row: the conflicting row is not also counted as accepted.
+        assert_eq!(
+            monitor
+                .events
+                .with_label_values(&["test-5", GAS_PAYMENT_EVENT_TYPE, "accepted"])
                 .get(),
             1
         );
@@ -4526,8 +4668,9 @@ mod tests {
         }
         monitor.refresh_parity_ready(source);
         let (_, _, result) = monitor.freshness_probes().next().await.expect("probe");
-        let (fresh, _, _, dispatch_cursor, _) = result.expect("progress must not be rollback");
-        assert!(fresh);
+        let (fresh, ahead, _, _, dispatch_cursor, _) =
+            result.expect("progress must not be rollback");
+        assert!(fresh && !ahead);
         assert_eq!(dispatch_cursor, Some(9));
         assert_eq!(
             source.cursor(EventKind::Dispatch).expect("current cursor"),
@@ -5108,8 +5251,8 @@ mod tests {
         assert_eq!(monitor.authority.with_label_values(&["test"]).get(), 0);
     }
 
-    #[tokio::test]
-    async fn freshness_read_capacity_timeout_restores_fallback_and_stops_retries() {
+    #[tokio::test(start_paused = true)]
+    async fn freshness_reads_use_their_own_pool_and_timeouts_fail_only_the_probe() {
         let fixture = fixture();
         let source = fixture.sources[&5]
             .clone()
@@ -5137,6 +5280,50 @@ mod tests {
             .authority_sender
             .send_modify(|command| command.desired = true);
 
+        // A parity backlog holding every parity permit does not block probes.
+        let parity_permits = monitor
+            .parity_read_permit
+            .clone()
+            .acquire_many_owned(
+                PARITY_READ_CONCURRENCY
+                    .try_into()
+                    .expect("bounded concurrency"),
+            )
+            .await
+            .expect("reserve all parity read capacity");
+        let (_, _, result) = monitor.freshness_probes().next().await.expect("probe");
+        result.expect("freshness reads use their own pool");
+        drop(parity_permits);
+
+        let permits = monitor
+            .freshness_read_permit
+            .clone()
+            .acquire_many_owned(
+                FRESHNESS_READ_CONCURRENCY
+                    .try_into()
+                    .expect("bounded concurrency"),
+            )
+            .await
+            .expect("reserve all freshness read capacity");
+        monitor.last_fresh_probe.lock().clear();
+        monitor.refresh_authority_once().await;
+        // A timed-out probe is tolerated within the grace period.
+        assert!(monitor.authority_active.load(Ordering::Acquire));
+        assert!(receiver.borrow_and_update().desired);
+        *monitor.source_authority(5).health.lock() =
+            std::array::from_fn(|_| StreamHealth::new(Duration::ZERO));
+        monitor.refresh_authority_once().await;
+        assert!(!monitor.authority_active.load(Ordering::Acquire));
+        assert!(!receiver.borrow_and_update().desired);
+        // It fails only itself: parity reads stay enabled.
+        assert!(!monitor.parity_read_disabled.load(Ordering::Acquire));
+        assert!(monitor.parity_unhealthy.lock().is_empty());
+        drop(permits);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn busy_parity_read_capacity_degrades_only_the_waiting_stream() {
+        let monitor = Arc::new(monitor(Arc::new(MockParityDatabase::new())));
         let permits = monitor
             .parity_read_permit
             .clone()
@@ -5146,24 +5333,184 @@ mod tests {
                     .expect("bounded concurrency"),
             )
             .await
-            .expect("reserve all read capacity");
-        timeout(Duration::from_secs(2), monitor.refresh_authority_once())
-            .await
-            .expect("freshness check must not wait indefinitely for local reads");
-        assert!(!monitor.authority_active.load(Ordering::Acquire));
-        assert!(!receiver.borrow_and_update().desired);
-        assert!(monitor.parity_read_disabled.load(Ordering::Acquire));
-        assert_eq!(monitor.fresh.with_label_values(&["test"]).get(), 0);
-        assert!(!monitor.base_authority_ready());
-
-        timeout(Duration::from_millis(50), monitor.refresh_authority_once())
-            .await
-            .expect("disabled freshness reads must not queue further work");
-        drop(permits);
+            .expect("hold all parity read capacity");
+        let dispatch = StreamState::default()
+            .validate(
+                sequenced_event_for(EventKind::Dispatch, 1),
+                &monitor.sources,
+            )
+            .expect("valid dispatch");
         assert_eq!(
-            monitor.parity_read_permit.available_permits(),
-            PARITY_READ_CONCURRENCY
+            monitor
+                .observe_parity(5, dispatch.kind, dispatch.parity.expect("dispatch parity"))
+                .await,
+            "error"
         );
+        drop(permits);
+        assert!(!monitor.parity_read_disabled.load(Ordering::Acquire));
+        assert!(monitor.parity_unhealthy.lock().is_empty());
+        let overflowed = monitor.parity_overflowed.lock();
+        assert!(overflowed.contains(&(5, EventKind::Dispatch)));
+        assert!(!overflowed.contains(&(5, EventKind::MerkleTreeInsertion)));
+    }
+
+    #[derive(Debug)]
+    struct FlakySequenceIndexer {
+        count: AtomicU32,
+        failing: AtomicBool,
+    }
+
+    #[async_trait]
+    impl Indexer<HyperlaneMessage> for FlakySequenceIndexer {
+        async fn fetch_logs_in_range(
+            &self,
+            _range: RangeInclusive<u32>,
+        ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+            unreachable!("freshness tests only query the sequence count")
+        }
+
+        async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+            unreachable!("freshness tests only query the sequence count")
+        }
+    }
+
+    #[async_trait]
+    impl SequenceAwareIndexer<HyperlaneMessage> for FlakySequenceIndexer {
+        async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+            if self.failing.load(Ordering::Acquire) {
+                return Err(hyperlane_core::ChainCommunicationError::from_other_str(
+                    "RPC unavailable",
+                ));
+            }
+            Ok((Some(self.count.load(Ordering::Acquire)), 0))
+        }
+    }
+
+    /// Cursors at 9 on both streams; the Merkle count is fixed at 10.
+    fn probed_monitor(
+        name: &str,
+        dispatch: Arc<FlakySequenceIndexer>,
+    ) -> Arc<ScraperWebSocketMonitor> {
+        let fixture = fixture();
+        let source = fixture.sources[&5].clone();
+        source
+            .store_cursor(EventKind::Dispatch, 9)
+            .expect("dispatch cursor");
+        source
+            .store_cursor(EventKind::MerkleTreeInsertion, 9)
+            .expect("Merkle cursor");
+        let source = source
+            .with_freshness_indexer(dispatch)
+            .with_merkle_freshness_indexer(Arc::new(FixedSequenceIndexer(10)));
+        let metrics = CoreMetrics::new(name, 0, Registry::new()).expect("metrics");
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new_with_authority(
+                Url::parse("ws://localhost:1").expect("URL"),
+                vec![source],
+                &metrics,
+                true,
+            )
+            .expect("monitor"),
+        );
+        monitor.set_active(true);
+        let source = &monitor.sources[&5];
+        for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
+            monitor.set_source_caught_up(source, kind, true);
+        }
+        monitor.refresh_parity_ready(source);
+        monitor
+    }
+
+    async fn probe(monitor: &Arc<ScraperWebSocketMonitor>) {
+        // Probe every time, even when an authoritative origin was just fresh.
+        monitor.last_fresh_probe.lock().clear();
+        for probe in monitor.freshness_probes().collect::<Vec<_>>().await {
+            monitor.apply_freshness(probe);
+        }
+    }
+
+    #[tokio::test]
+    async fn authoritative_probe_errors_are_tolerated_like_lag() {
+        let dispatch = Arc::new(FlakySequenceIndexer {
+            count: AtomicU32::new(10),
+            failing: AtomicBool::new(true),
+        });
+        let monitor = probed_monitor("probe-errors", dispatch.clone());
+        let authority = monitor.source_authority(5);
+
+        // Before authority, a failed probe stays strict.
+        monitor.fresh.with_label_values(&["test"]).set(1);
+        probe(&monitor).await;
+        assert_eq!(monitor.fresh.with_label_values(&["test"]).get(), 0);
+
+        authority.active.store(true, Ordering::Release);
+        monitor.fresh.with_label_values(&["test"]).set(1);
+        probe(&monitor).await;
+        probe(&monitor).await;
+        assert!(authority.active.load(Ordering::Acquire));
+        // Freshness is unknown during the grace.
+        assert_eq!(monitor.fresh.with_label_values(&["test"]).get(), 0);
+
+        // Failures that outlast the grace period restore RPC.
+        *authority.health.lock() = std::array::from_fn(|_| StreamHealth::new(Duration::ZERO));
+        probe(&monitor).await;
+        assert!(!authority.active.load(Ordering::Acquire));
+    }
+
+    #[tokio::test]
+    async fn cursor_ahead_of_canonical_count_revokes_on_second_probe() {
+        // Dispatch cursor 9 against a count of 9.
+        let dispatch = Arc::new(FlakySequenceIndexer {
+            count: AtomicU32::new(9),
+            failing: AtomicBool::new(false),
+        });
+        let monitor = probed_monitor("probe-ahead", dispatch.clone());
+        let authority = monitor.source_authority(5);
+
+        // Never activates while ahead.
+        probe(&monitor).await;
+        monitor.maybe_activate_source_authority(5).await;
+        assert!(!authority.active.load(Ordering::Acquire));
+
+        authority.active.store(true, Ordering::Release);
+        probe(&monitor).await;
+        assert!(authority.active.load(Ordering::Acquire));
+        // The relayer's view caught up by the next probe.
+        dispatch.count.store(10, Ordering::Release);
+        probe(&monitor).await;
+        assert!(authority.active.load(Ordering::Acquire));
+
+        // A failed probe between two ahead probes breaks the run.
+        dispatch.count.store(9, Ordering::Release);
+        probe(&monitor).await;
+        assert!(authority.active.load(Ordering::Acquire));
+        dispatch.failing.store(true, Ordering::Release);
+        probe(&monitor).await;
+        assert!(authority.active.load(Ordering::Acquire));
+        dispatch.failing.store(false, Ordering::Release);
+        probe(&monitor).await;
+        assert!(authority.active.load(Ordering::Acquire));
+        probe(&monitor).await;
+        assert!(!authority.active.load(Ordering::Acquire));
+    }
+
+    #[tokio::test]
+    async fn ahead_tolerance_does_not_hide_expired_lag_on_the_other_stream() {
+        // Dispatch lags (next 10, count 11); Merkle is ahead (next 11, count 10).
+        let dispatch = Arc::new(FlakySequenceIndexer {
+            count: AtomicU32::new(11),
+            failing: AtomicBool::new(false),
+        });
+        let monitor = probed_monitor("probe-ahead-lag", dispatch);
+        monitor.sources[&5]
+            .store_cursor(EventKind::MerkleTreeInsertion, 10)
+            .expect("Merkle cursor");
+        let authority = monitor.source_authority(5);
+        authority.active.store(true, Ordering::Release);
+        *authority.health.lock() = std::array::from_fn(|_| StreamHealth::new(Duration::ZERO));
+
+        probe(&monitor).await;
+        assert!(!authority.active.load(Ordering::Acquire));
     }
 
     #[tokio::test]
@@ -6764,7 +7111,14 @@ mod tests {
             (
                 5,
                 chain.clone(),
-                Ok((false, Some(dispatch_count), Some(merkle_count), None, None)),
+                Ok((
+                    false,
+                    false,
+                    Some(dispatch_count),
+                    Some(merkle_count),
+                    None,
+                    None,
+                )),
             )
         };
 
