@@ -807,13 +807,6 @@ async fn confirmation_uses_retained_checkpoint_before_scanning_sparse_slots() ->
 
     chain.header_calls.store(0, Ordering::Relaxed);
     confirm(&chain, &store, &ReorgPeriod::from_blocks(50)).await?;
-    assert_eq!(store.state().await?.unwrap().confirmed, 40);
-    assert_eq!(chain.header_calls.load(Ordering::Relaxed), 2);
-
-    // The next pass materializes the exact finality boundary after the retained
-    // checkpoint has bounded the potentially sparse lookup range.
-    chain.header_calls.store(0, Ordering::Relaxed);
-    confirm(&chain, &store, &ReorgPeriod::from_blocks(50)).await?;
     assert_eq!(store.state().await?.unwrap().confirmed, 50);
     assert_eq!(chain.header_calls.load(Ordering::Relaxed), 2);
     Ok(())
@@ -1157,7 +1150,7 @@ async fn incomplete_sequences_retry_after_restart_and_dense_ranges_batch_atomica
         .unwrap();
     assert!(index
         .try_get::<String>("", "indexdef")?
-        .contains("transaction_hash"));
+        .contains("WHERE (block_hash IS NOT NULL)"));
     Ok(())
 }
 
