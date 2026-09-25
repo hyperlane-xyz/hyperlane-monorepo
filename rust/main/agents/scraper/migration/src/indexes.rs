@@ -1,6 +1,7 @@
 use eyre::{ensure, Context};
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement};
 
+#[derive(Clone, Copy)]
 pub struct ScraperIndex {
     name: &'static str,
     table: &'static str,
@@ -42,18 +43,52 @@ pub const GAS_PAYMENT_SCOPE: ScraperIndex = ScraperIndex {
     predicate: None,
 };
 
+pub const DELIVERY_FRONTIER_UNENRICHED: ScraperIndex = ScraperIndex {
+    name: "delivery_frontier_unenriched",
+    table: "delivered_message",
+    keys: &["domain", "id"],
+    predicate: Some("((destination_tx_id IS NULL) AND (block_hash IS NOT NULL))"),
+};
+pub const GAS_PAYMENT_FRONTIER_UNENRICHED: ScraperIndex = ScraperIndex {
+    name: "gas_payment_frontier_unenriched",
+    table: "gas_payment",
+    keys: &["domain", "id"],
+    predicate: Some("((tx_id IS NULL) AND (block_hash IS NOT NULL))"),
+};
+pub const GAS_PAYMENT_FRONTIER_HEIGHT: ScraperIndex = ScraperIndex {
+    name: "gas_payment_frontier_height",
+    table: "gas_payment",
+    keys: &["domain", "block_number"],
+    predicate: Some("(block_number IS NOT NULL)"),
+};
+
 /// Run after transactional migrations have committed. Concurrent index creation
 /// cannot run inside the SeaORM migration transaction.
 pub async fn create_indexes(db: &DatabaseConnection) -> eyre::Result<()> {
-    for index in [
-        RAW_DISPATCH_RECONCILIATION,
-        RAW_DISPATCH_NATIVE_SEQUENCE,
-        DELIVERY_SCOPE,
-        MERKLE_BLOCK_HEIGHT,
-        GAS_PAYMENT_SCOPE,
-    ] {
-        create_index(db, index).await?;
+    let build_result = async {
+        for index in [
+            RAW_DISPATCH_RECONCILIATION,
+            RAW_DISPATCH_NATIVE_SEQUENCE,
+            DELIVERY_SCOPE,
+            MERKLE_BLOCK_HEIGHT,
+            GAS_PAYMENT_SCOPE,
+            DELIVERY_FRONTIER_UNENRICHED,
+            GAS_PAYMENT_FRONTIER_UNENRICHED,
+            GAS_PAYMENT_FRONTIER_HEIGHT,
+        ] {
+            create_index(db, index).await?;
+        }
+        Ok::<_, eyre::Report>(())
     }
+    .await;
+    let analyze_result = db
+        .execute_unprepared(
+            "ANALYZE raw_message_dispatch,delivered_message,gas_payment,merkle_tree_insertion",
+        )
+        .await
+        .wrap_err("Analyzing scraper event tables");
+    build_result?;
+    analyze_result?;
     Ok(())
 }
 
@@ -74,6 +109,29 @@ pub async fn create_index(db: &DatabaseConnection, index: ScraperIndex) -> eyre:
         format!("Creating {name}; inspect its validity before retrying an interrupted build")
     })?;
 
+    verify_index(db, index).await
+}
+
+/// Fail scraper startup when an interrupted or mismatched frontier index would
+/// turn bounded near-head work into a full-table scan.
+pub async fn verify_frontier_indexes(db: &DatabaseConnection) -> eyre::Result<()> {
+    for index in [
+        DELIVERY_FRONTIER_UNENRICHED,
+        GAS_PAYMENT_FRONTIER_UNENRICHED,
+        GAS_PAYMENT_FRONTIER_HEIGHT,
+    ] {
+        verify_index(db, index).await?;
+    }
+    Ok(())
+}
+
+async fn verify_index(db: &DatabaseConnection, index: ScraperIndex) -> eyre::Result<()> {
+    let ScraperIndex {
+        name,
+        table,
+        keys,
+        predicate,
+    } = index;
     // IF NOT EXISTS also skips invalid or differently defined indexes. Never
     // report those as successfully installed, and never drop them automatically.
     let row = db
@@ -130,7 +188,16 @@ mod tests {
         .await?;
         Migrator::up(&db, None).await?;
         create_indexes(&db).await?;
+        verify_frontier_indexes(&db).await?;
         create_indexes(&db).await?;
+        db.execute_unprepared("DROP INDEX gas_payment_frontier_height")
+            .await?;
+        assert!(verify_frontier_indexes(&db)
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("gas_payment_frontier_height"));
+        create_index(&db, GAS_PAYMENT_FRONTIER_HEIGHT).await?;
         db.execute_unprepared("DROP INDEX delivered_message_domain_mailbox_id_idx")
             .await?;
         db.execute_unprepared(

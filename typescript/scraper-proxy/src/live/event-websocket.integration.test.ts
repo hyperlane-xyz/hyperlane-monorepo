@@ -11,6 +11,7 @@ import {
   websocketSendFailures,
 } from '../metrics.js';
 import type { EventDatabase, EventWebSocketServer } from './event-websocket.js';
+import type { EventType } from './protocol.js';
 import { rawData } from './websocket-data.js';
 
 const hookA = '\\xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -37,6 +38,9 @@ let explorerQueryCount = 0;
 let explorerQueryError: Error | undefined;
 let explorerQueryGate: Promise<void> | undefined;
 let notificationQueryError: Error | undefined;
+let headQueryError: Error | undefined;
+let headQueryErrorDomain: number | undefined;
+let headQueryErrorEventType: EventType | undefined;
 let omitMappedGasPaymentRows = false;
 const notifiedIds = new Set<string>();
 const gasReplayQueries: string[] = [];
@@ -139,6 +143,89 @@ const db: EventDatabase = {
             ...payment,
             scraper_stream_cursor: id,
           })),
+      );
+    }
+    if (
+      !sql.includes('notification_id') &&
+      (sql.includes('"frontier_row"."block_number">') ||
+        sql.includes('"frontier_row"."origin_block_height">'))
+    ) {
+      const eventType: EventType = sql.includes(
+        '"confirmed_merkle_tree_insertion"',
+      )
+        ? 'merkle_tree_insertion'
+        : sql.includes('"confirmed_delivered_message"')
+          ? 'delivery'
+          : sql.includes('"confirmed_gas_payment"')
+            ? 'gas_payment'
+            : 'dispatch';
+      if (
+        headQueryError &&
+        (headQueryErrorDomain === undefined ||
+          headQueryErrorDomain === values[0]) &&
+        (headQueryErrorEventType === undefined ||
+          headQueryErrorEventType === eventType)
+      )
+        throw headQueryError;
+      const source =
+        eventType === 'merkle_tree_insertion'
+          ? rows
+          : eventType === 'delivery'
+            ? deliveryRows
+            : eventType === 'gas_payment'
+              ? gasPaymentRows
+              : dispatchRows;
+      const after = BigInt(String(values[1]));
+      const through = BigInt(String(values[2]));
+      const cursorHeight = BigInt(String(values[3]));
+      const cursorId = BigInt(String(values[4]));
+      return queryRows<T>(
+        [...source.entries()]
+          .filter(([id, event]) => {
+            const height = event.block_number ?? event.origin_block_height;
+            if (
+              typeof height !== 'bigint' &&
+              typeof height !== 'number' &&
+              typeof height !== 'string'
+            )
+              return false;
+            const parsedHeight = BigInt(height);
+            return (
+              (event.domain ?? event.origin_domain) === values[0] &&
+              parsedHeight > after &&
+              parsedHeight <= through &&
+              (parsedHeight > cursorHeight ||
+                (parsedHeight === cursorHeight && BigInt(id) > cursorId))
+            );
+          })
+          .sort(([leftId, left], [rightId, right]) => {
+            const leftHeight = BigInt(
+              String(left.block_number ?? left.origin_block_height),
+            );
+            const rightHeight = BigInt(
+              String(right.block_number ?? right.origin_block_height),
+            );
+            if (leftHeight !== rightHeight)
+              return leftHeight < rightHeight ? -1 : 1;
+            return BigInt(leftId) < BigInt(rightId) ? -1 : 1;
+          })
+          .slice(0, Number(values[5]))
+          .map(([id, event]) => {
+            const projected = {
+              ...event,
+              frontier_height: event.block_number ?? event.origin_block_height,
+              frontier_id: id,
+            };
+            if (source === deliveryRows) {
+              delete projected.block_number;
+              delete projected.id;
+            } else if (source === rows) {
+              delete projected.id;
+            } else if (source === gasPaymentRows) {
+              delete projected.block_number;
+            }
+            return projected;
+          }),
       );
     }
     if (
@@ -640,7 +727,11 @@ void it('completes historical replay across pages without a total row budget', a
           streams: [
             {
               cursors: [
-                { address: replayHook, afterSequence: '-1', domain: 1 },
+                {
+                  address: replayHook,
+                  afterSequence: '-1',
+                  domain: 1,
+                },
               ],
               eventType: 'merkle_tree_insertion',
             },
@@ -671,7 +762,11 @@ void it('treats a missing sequence zero as a gap for -1 cursors', async () => {
           streams: [
             {
               cursors: [
-                { address: historyHook, afterSequence: '-1', domain: 1 },
+                {
+                  address: historyHook,
+                  afterSequence: '-1',
+                  domain: 1,
+                },
               ],
               eventType: 'merkle_tree_insertion',
             },
@@ -699,7 +794,13 @@ void it('paces historical sends by send completion', async (context) => {
         JSON.stringify({
           streams: [
             {
-              cursors: [{ address: pacedHook, afterSequence: '-1', domain: 1 }],
+              cursors: [
+                {
+                  address: pacedHook,
+                  afterSequence: '-1',
+                  domain: 1,
+                },
+              ],
               eventType: 'merkle_tree_insertion',
             },
           ],
@@ -750,7 +851,13 @@ void it('queues catch-ups at the concurrency limit', async (context) => {
           JSON.stringify({
             streams: [
               {
-                cursors: [{ address: hookA, afterSequence: '-1', domain: 1 }],
+                cursors: [
+                  {
+                    address: hookA,
+                    afterSequence: '-1',
+                    domain: 1,
+                  },
+                ],
                 eventType: 'merkle_tree_insertion',
               },
             ],
@@ -796,7 +903,13 @@ void it('records a disconnected historical replay as aborted', async (context) =
         JSON.stringify({
           streams: [
             {
-              cursors: [{ address: pacedHook, afterSequence: '-1', domain: 1 }],
+              cursors: [
+                {
+                  address: pacedHook,
+                  afterSequence: '-1',
+                  domain: 1,
+                },
+              ],
               eventType: 'merkle_tree_insertion',
             },
           ],
@@ -832,7 +945,13 @@ void it('drains live events arriving while the pending buffer is sent', async (c
         JSON.stringify({
           streams: [
             {
-              cursors: [{ address: pacedHook, afterSequence: '-1', domain: 1 }],
+              cursors: [
+                {
+                  address: pacedHook,
+                  afterSequence: '-1',
+                  domain: 1,
+                },
+              ],
               eventType: 'merkle_tree_insertion',
             },
           ],
@@ -873,6 +992,321 @@ void it('drains live events arriving while the pending buffer is sent', async (c
   await new Promise<void>((resolve) => socket.once('close', resolve));
 });
 
+void it('publishes every frontier projection without exposing pagination columns', async () => {
+  const fixtures = [
+    {
+      event: {
+        destination_domain: 2,
+        id: '50',
+        msg_body: '\\x',
+        msg_id: msgId,
+        nonce: 0,
+        origin_block_hash: `\\x${'02'.repeat(32)}`,
+        origin_block_height: '10',
+        origin_domain: 1,
+        origin_mailbox: hookA,
+        origin_tx_hash: `\\x${'03'.repeat(32)}`,
+        recipient: hookB,
+        sender: hookA,
+        time_created: new Date(0).toISOString(),
+      },
+      eventType: 'dispatch',
+      id: '50',
+      source: dispatchRows,
+    },
+    {
+      event: {
+        block_number: '10',
+        destination_mailbox: hookB,
+        destination_tx_id: null,
+        domain: 1,
+        msg_id: msgId,
+        sequence: '0',
+        time_created: new Date(0).toISOString(),
+      },
+      eventType: 'delivery',
+      id: '51',
+      source: deliveryRows,
+    },
+    {
+      event: {
+        ...gasPaymentRow('52', null, '1'),
+        block_number: '10',
+      },
+      eventType: 'gas_payment',
+      id: '52',
+      source: gasPaymentRows,
+    },
+    {
+      event: { ...row(hookA, 0), block_number: '10' },
+      eventType: 'merkle_tree_insertion',
+      id: '53',
+      source: rows,
+    },
+  ] as const;
+  for (const fixture of fixtures) {
+    const socket = new WebSocket(url);
+    const messages: Record<string, unknown>[] = [];
+    socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+    try {
+      await waitFor(messages, 'ready');
+      socket.send(
+        JSON.stringify({
+          streams: [{ domains: [1], eventType: fixture.eventType }],
+          type: 'subscribe',
+        }),
+      );
+      await waitFor(messages, 'subscribed');
+      fixture.source.set(fixture.id, fixture.event);
+      notify(
+        'scraper_head',
+        JSON.stringify({
+          confirmedHeight: '10',
+          domain: 1,
+          previousConfirmedHeight: '9',
+        }),
+      );
+      const message = await waitFor(messages, 'event');
+      assert.equal(message.eventType, fixture.eventType);
+      assert(!('frontier_id' in record(message.data)));
+      assert(!('frontier_height' in record(message.data)));
+      assert.equal(socket.readyState, WebSocket.OPEN);
+    } finally {
+      fixture.source.delete(fixture.id);
+      socket.close();
+      await new Promise<void>((resolve) => socket.once('close', resolve));
+    }
+  }
+});
+
+void it('fails a frontier instead of inventing a missing gas cursor', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [{ domains: [1], eventType: 'gas_payment' }],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'subscribed');
+    gasPaymentRows.set('54', {
+      ...gasPaymentRow('54', null),
+      block_number: '10',
+    });
+    const closed = new Promise<number>((resolve) =>
+      socket.once('close', resolve),
+    );
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '10',
+        domain: 1,
+        previousConfirmedHeight: '9',
+      }),
+    );
+    assert.equal(await closed, 1013);
+  } finally {
+    gasPaymentRows.delete('54');
+    socket.terminate();
+  }
+});
+
+void it('retries a frontier until its rows can be loaded', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [{ domains: [1], eventType: 'merkle_tree_insertion' }],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'subscribed');
+    rows.set('51', { ...row(hookA, 51), block_number: '11' });
+    headQueryError = new Error('temporary frontier read failure');
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '11',
+        domain: 1,
+        previousConfirmedHeight: '10',
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert(!eventSequences(messages).includes('51'));
+    headQueryError = undefined;
+    await waitUntil(() => eventSequences(messages).includes('51'));
+  } finally {
+    headQueryError = undefined;
+    rows.delete('51');
+    socket.close();
+    await new Promise<void>((resolve) => socket.once('close', resolve));
+  }
+});
+
+void it('keeps one failing frontier from blocking another domain', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [
+          {
+            domains: [1, 2],
+            eventType: 'merkle_tree_insertion',
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'subscribed');
+    rows.set('52', {
+      ...row(hookA, 52),
+      block_number: '12',
+      domain: 2,
+    });
+    headQueryError = new Error('domain 1 unavailable');
+    headQueryErrorDomain = 1;
+    for (const domain of [1, 2]) {
+      notify(
+        'scraper_head',
+        JSON.stringify({
+          confirmedHeight: '12',
+          domain,
+          previousConfirmedHeight: '11',
+        }),
+      );
+    }
+    await waitUntil(() => eventSequences(messages).includes('52'));
+  } finally {
+    headQueryError = undefined;
+    headQueryErrorDomain = undefined;
+    rows.delete('52');
+    socket.close();
+    await new Promise<void>((resolve) => socket.once('close', resolve));
+  }
+});
+
+void it('disconnects only subscribers of a persistently failing domain', async () => {
+  const sockets = [new WebSocket(url), new WebSocket(url)];
+  const received = sockets.map((socket, index) => {
+    const messages: Record<string, unknown>[] = [];
+    socket.on('message', (data) => {
+      const message = parseRecord(rawData(data));
+      messages.push(message);
+      if (message.type === 'ready') {
+        socket.send(
+          JSON.stringify({
+            streams: [
+              {
+                domains: [index + 1],
+                eventType: 'merkle_tree_insertion',
+              },
+            ],
+            type: 'subscribe',
+          }),
+        );
+      }
+    });
+    return messages;
+  });
+  try {
+    await Promise.all(
+      received.map((messages) => waitFor(messages, 'subscribed')),
+    );
+    headQueryError = new Error('domain 1 unavailable');
+    headQueryErrorDomain = 1;
+    const closed = new Promise<number>((resolve) =>
+      sockets[0].once('close', resolve),
+    );
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '12',
+        domain: 1,
+        previousConfirmedHeight: '11',
+      }),
+    );
+    assert.equal(
+      await Promise.race([
+        closed,
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(
+            () => reject(new Error('Timed out waiting for close')),
+            5_000,
+          ),
+        ),
+      ]),
+      1013,
+    );
+    assert.equal(sockets[1].readyState, WebSocket.OPEN);
+  } finally {
+    headQueryError = undefined;
+    headQueryErrorDomain = undefined;
+    for (const socket of sockets) socket.terminate();
+    await waitUntil(() => events.metricsSnapshot().connections.agent === 0);
+  }
+});
+
+void it('keeps Explorer connected after an agent-only frontier fails', async () => {
+  const explorer = new WebSocket(messagesUrl);
+  const explorerMessages: Record<string, unknown>[] = [];
+  const agentMessages: Record<string, unknown>[] = [];
+  explorer.on('message', (data) =>
+    explorerMessages.push(parseRecord(rawData(data))),
+  );
+  const agent = liveAgent(agentMessages);
+  try {
+    await Promise.all([
+      waitFor(explorerMessages, 'ready'),
+      waitFor(agentMessages, 'subscribed'),
+    ]);
+    headQueryError = new Error('Merkle frontier unavailable');
+    headQueryErrorDomain = 1;
+    headQueryErrorEventType = 'merkle_tree_insertion';
+    const agentClosed = new Promise<number>((resolve) =>
+      agent.once('close', resolve),
+    );
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '12',
+        domain: 1,
+        previousConfirmedHeight: '11',
+      }),
+    );
+    assert.equal(await agentClosed, 1013);
+    assert.equal(explorer.readyState, WebSocket.OPEN);
+
+    headQueryError = undefined;
+    headQueryErrorDomain = undefined;
+    headQueryErrorEventType = undefined;
+    notify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: msgId.slice(2) }),
+    );
+    await waitFor(explorerMessages, 'message_upsert');
+  } finally {
+    headQueryError = undefined;
+    headQueryErrorDomain = undefined;
+    headQueryErrorEventType = undefined;
+    agent.terminate();
+    explorer.close();
+    await waitUntil(() =>
+      [agent, explorer].every(
+        ({ readyState }) => readyState === WebSocket.CLOSED,
+      ),
+    );
+  }
+});
+
 void it('checks each cursor before sharing a live agent frame', async () => {
   const sockets = [new WebSocket(url), new WebSocket(url)];
   const received = sockets.map((socket) => {
@@ -896,7 +1330,11 @@ void it('checks each cursor before sharing a live agent frame', async () => {
                 ? {}
                 : {
                     cursors: [
-                      { address: hookA, afterSequence: '0', domain: 1 },
+                      {
+                        address: hookA,
+                        afterSequence: '0',
+                        domain: 1,
+                      },
                     ],
                   }),
             },
@@ -1551,7 +1989,13 @@ void it('enforces the catch-up deadline while pending rows replenish', async (co
         JSON.stringify({
           streams: [
             {
-              cursors: [{ address: pacedHook, afterSequence: '-1', domain: 1 }],
+              cursors: [
+                {
+                  address: pacedHook,
+                  afterSequence: '-1',
+                  domain: 1,
+                },
+              ],
               eventType: 'merkle_tree_insertion',
             },
           ],
@@ -1641,7 +2085,13 @@ void it('rejects a durable cursor when its history is empty', async () => {
         JSON.stringify({
           streams: [
             {
-              cursors: [{ address: emptyHook, afterSequence: '0', domain: 1 }],
+              cursors: [
+                {
+                  address: emptyHook,
+                  afterSequence: '0',
+                  domain: 1,
+                },
+              ],
               eventType: 'merkle_tree_insertion',
             },
           ],
@@ -1672,7 +2122,11 @@ void it('catches up populated and fresh empty origins together', async () => {
           streams: [
             {
               cursors: [
-                { address: hookA, afterSequence: '-1', domain: 1 },
+                {
+                  address: hookA,
+                  afterSequence: '-1',
+                  domain: 1,
+                },
                 { address: emptyHook, domain: 2 },
               ],
               eventType: 'merkle_tree_insertion',
@@ -1714,7 +2168,13 @@ void it('requires replay opt-in for a cursor ahead of scraper history', async ()
         JSON.stringify({
           streams: [
             {
-              cursors: [{ address: hookA, afterSequence: '10', domain: 1 }],
+              cursors: [
+                {
+                  address: hookA,
+                  afterSequence: '10',
+                  domain: 1,
+                },
+              ],
               eventType: 'merkle_tree_insertion',
             },
           ],
@@ -1849,8 +2309,24 @@ void it('keeps agent delivery independent from a blocked Explorer query', async 
     );
     await waitUntil(() => explorerQueryCount > queriesBefore);
 
-    rows.set('5', row(hookA, 5));
-    notify('scraper_event', notification('5'));
+    deliveryRows.set('9005', {
+      block_number: '5',
+      destination_mailbox: hookB,
+      destination_tx_id: null,
+      domain: 1,
+      msg_id: msgId,
+      sequence: '0',
+      time_created: new Date(0).toISOString(),
+    });
+    rows.set('5', { ...row(hookA, 5), block_number: '5' });
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        previousConfirmedHeight: '4',
+      }),
+    );
     const event = await waitFor(agentMessages, 'event');
     assert.equal(record(event.data).leaf_index, 5);
     assert.equal(
@@ -1863,6 +2339,8 @@ void it('keeps agent delivery independent from a blocked Explorer query', async 
   } finally {
     releaseExplorerQuery?.();
     explorerQueryGate = undefined;
+    deliveryRows.delete('9005');
+    rows.delete('5');
     explorer.close();
     agent.close();
     await waitUntil(() =>
@@ -1966,7 +2444,9 @@ void it('bounds Explorer notifications without closing agents', async () => {
     for (let index = 0; index <= 10_000; index++) {
       notify(
         'scraper_explorer_event',
-        JSON.stringify({ messageId: index.toString(16).padStart(64, '0') }),
+        JSON.stringify({
+          messageId: index.toString(16).padStart(64, '0'),
+        }),
       );
     }
     await waitUntil(() => explorer.readyState === WebSocket.CLOSED);

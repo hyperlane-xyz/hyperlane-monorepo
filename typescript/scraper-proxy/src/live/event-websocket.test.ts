@@ -6,6 +6,7 @@ import {
   parseDatabaseDomain,
   parseEventNotification,
   parseExplorerNotification,
+  parseHeadNotification,
 } from './protocol.js';
 
 void describe('event websocket protocol', () => {
@@ -362,6 +363,15 @@ void describe('event websocket protocol', () => {
       parseEventNotification(
         '{"eventType":"dispatch","id":"123","domain":-2147483649}',
       ),
+    );
+  });
+
+  void it('parses confirmation frontier notifications', () => {
+    assert.deepEqual(
+      parseHeadNotification(
+        '{"domain":42161,"confirmedHeight":"102","previousConfirmedHeight":"99"}',
+      ),
+      { confirmedHeight: 102n, domain: 42161, previousConfirmedHeight: 99n },
     );
   });
 

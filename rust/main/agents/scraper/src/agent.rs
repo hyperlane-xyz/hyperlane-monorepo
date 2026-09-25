@@ -7,6 +7,7 @@ use std::{
 
 use async_trait::async_trait;
 use derive_more::AsRef;
+use eyre::Context;
 use futures::{future::try_join_all, FutureExt};
 use hyperlane_core::{
     rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneDomainProtocol,
@@ -388,7 +389,15 @@ impl BaseAgent for Scraper {
     where
         Self: Sized,
     {
-        let db = ScraperDb::connect(&settings.db).await?;
+        let db = ScraperDb::connect_with_options(
+            &settings.db,
+            settings.db_max_connections,
+            settings.db_acquire_timeout,
+        )
+        .await?;
+        db.verify_frontier_indexes().await.wrap_err(
+            "Required scraper frontier indexes are missing or invalid; rerun init-db to completion",
+        )?;
         let core = settings.build_hyperlane_core(metrics.clone());
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
@@ -1719,6 +1728,8 @@ mod test {
                 tracing: TracingConfig::default(),
             },
             db: String::new(),
+            db_max_connections: 10,
+            db_acquire_timeout: Duration::from_secs(15),
             chains_to_scrape: vec![],
             ccr_routers: HashMap::new(),
         }

@@ -79,7 +79,6 @@ pub async fn spawn(
         domain: conf.domain.id(),
     };
     let anchor_height = store.anchor_height(u32::try_from(conf.index.from)?).await?;
-    store.pause(false).await?;
     let anchor = source.header(anchor_height.into()).await?;
     let period = conf.reorg_period.clone();
     ensure!(conf.index.chunk_size > 0, "index.chunk must be positive");
