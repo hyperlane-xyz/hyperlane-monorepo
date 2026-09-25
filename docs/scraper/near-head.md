@@ -59,10 +59,12 @@ boundary from stored maxima. Contract changes are rejected.
   restart or changed ancestry reloads them from durable rows. Delivery and gas
   streams receive the same check when their indexers expose sequence counts;
   otherwise completeness depends on the RPC returning all matching logs.
-  Non-EVM publication remains at the previous verified frontier until the indexed
-  range covers every available sequence watermark and its durable counts match.
-  Generic adapters assign gas-payment occurrence indexes in canonical returned
-  order per block because some protocol indexers do not expose a unique log index.
+  Non-EVM publication is capped at the minimum current event-stream tip.
+  Sequence-mode streams additionally require contiguous pages through each
+  indexed boundary; a lagging sequence tip rejects the range before commit.
+  Generic adapters preserve provider transaction and log positions. The
+  provisional database key includes both positions and the event identity so
+  protocols without a globally unique log index remain collision-safe.
 - Polling uses `index.interval`, with the legacy range cursor's 30-second default.
   An unchanged EVM head costs one RPC call and no log query. Generic adapters
   read chain metrics and then the latest block header, so an unchanged non-EVM

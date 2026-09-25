@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use async_trait::async_trait;
 use ethers::{
     abi::RawLog,
@@ -10,8 +12,9 @@ use ethers::{
 use eyre::{ensure, eyre, Result};
 use hyperlane_base::{settings::ChainConf, CoreMetrics};
 use hyperlane_core::{
-    ContractLocator, Decode, HyperlaneMessage, HyperlaneProvider, IndexMode, Indexed,
-    InterchainGasPayment, LogMeta, MerkleTreeInsertion, SequenceAwareIndexer, H256, H512,
+    ContractLocator, Decode, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
+    IndexMode, Indexed, InterchainGasPayment, LogMeta, MerkleTreeInsertion, SequenceAwareIndexer,
+    H256, H512,
 };
 use hyperlane_ethereum::{
     event_filters::{DispatchFilter, GasPaymentFilter, InsertedIntoTreeFilter, ProcessIdFilter},
@@ -27,7 +30,7 @@ pub(super) struct Header {
     pub parent: EthersH256,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(super) struct Event {
     pub block_number: u64,
     pub block_hash: EthersH256,
@@ -39,7 +42,7 @@ pub(super) struct Event {
     pub data: EventData,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(super) enum EventData {
     Dispatch(HyperlaneMessage),
     Delivery(H256),
@@ -58,6 +61,7 @@ pub(super) enum EventData {
 pub(super) struct EventBatch {
     pub events: Vec<Event>,
     pub watermarks: Option<[(Option<u32>, u32); 4]>,
+    pub complete_through: Option<[bool; 4]>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -98,12 +102,19 @@ pub(super) trait Source: Send + Sync {
         Ok(EventBatch {
             events: self.events(from, through).await?,
             watermarks: None,
+            complete_through: None,
         })
     }
     /// Dispatch nonce and Merkle count, pinned to the range boundary fork.
     async fn counts(&self, hash: EthersH256) -> Result<[u32; 2]>;
     fn has_historical_counts(&self) -> bool {
         true
+    }
+    fn indexes_by_sequence(&self) -> bool {
+        false
+    }
+    async fn publication_tip(&self) -> Result<Option<u64>> {
+        Ok(None)
     }
 }
 
@@ -327,6 +338,7 @@ pub(super) struct GenericSource {
     insertions: Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>,
     contracts: Contracts,
     sequence_mode: bool,
+    derive_insertions_from_messages: bool,
     chunk_size: u32,
 }
 
@@ -351,6 +363,10 @@ impl GenericSource {
             insertions,
             contracts,
             sequence_mode: matches!(conf.index.mode, IndexMode::Sequence),
+            derive_insertions_from_messages: matches!(
+                conf.connection.protocol(),
+                HyperlaneDomainProtocol::Sealevel
+            ),
             chunk_size: conf.index.chunk_size,
         }))
     }
@@ -380,18 +396,22 @@ impl GenericSource {
         next_sequence: u32,
         sequence_mode: bool,
         chunk_size: u32,
-    ) -> Result<(Vec<(Indexed<T>, LogMeta)>, (Option<u32>, u32))> {
+    ) -> Result<(Vec<(Indexed<T>, LogMeta)>, (Option<u32>, u32), bool)> {
         let watermark = indexer.latest_sequence_count_and_tip().await?;
         if sequence_mode {
             let Some(count) = watermark.0 else {
-                return Ok((indexer.fetch_logs_in_range(blocks).await?, watermark));
+                return Ok((indexer.fetch_logs_in_range(blocks).await?, watermark, true));
             };
+            ensure!(
+                watermark.1 >= *blocks.end(),
+                "Indexer sequence tip is behind the range boundary"
+            );
             ensure!(
                 count >= next_sequence,
                 "Provider sequence count is behind durable history"
             );
             if count == next_sequence {
-                return Ok((Vec::new(), watermark));
+                return Ok((Vec::new(), watermark, true));
             }
             ensure!(chunk_size > 0, "index.chunk must be positive");
             let mut logs = Vec::new();
@@ -433,34 +453,36 @@ impl GenericSource {
                     break;
                 }
             }
-            Ok((logs, watermark))
+            Ok((logs, watermark, true))
         } else {
-            Ok((indexer.fetch_logs_in_range(blocks).await?, watermark))
+            Ok((indexer.fetch_logs_in_range(blocks).await?, watermark, true))
         }
     }
 
-    fn normalize_gas_positions(events: &mut [Event]) -> Result<()> {
-        let mut block = None;
-        let mut gas_index = 0u64;
-        for event in events {
-            if block != Some(event.block_number) {
-                block = Some(event.block_number);
-                gas_index = 0;
-            }
-            if matches!(event.data, EventData::Gas { .. }) {
-                event.log_index = gas_index;
-                gas_index = gas_index
-                    .checked_add(1)
-                    .ok_or_else(|| eyre!("Gas-payment occurrence index overflow"))?;
-            }
-        }
-        Ok(())
-    }
-
-    fn normalize_events(events: &mut Vec<Event>) -> Result<()> {
-        events.sort_by_key(|event| (event.block_number, event.tx_index, event.log_index));
-        events.dedup();
-        Self::normalize_gas_positions(events)
+    fn normalize_events(events: &mut Vec<Event>) {
+        *events = std::mem::take(events)
+            .into_iter()
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        events.sort_by_key(|event| {
+            let (stream, sequence, id) = match &event.data {
+                EventData::Dispatch(message) => (0, message.nonce, message.id()),
+                EventData::Delivery(id) => (1, event.sequence.unwrap_or(u32::MAX), *id),
+                EventData::Gas { message_id, .. } => {
+                    (2, event.sequence.unwrap_or(u32::MAX), *message_id)
+                }
+                EventData::Insertion { message_id, index } => (3, *index, *message_id),
+            };
+            (
+                event.block_number,
+                event.tx_index,
+                event.log_index,
+                stream,
+                sequence,
+                id,
+            )
+        });
     }
 
     async fn header_at(&self, height: u64) -> hyperlane_core::ChainResult<Header> {
@@ -538,6 +560,29 @@ impl Source for GenericSource {
         false
     }
 
+    fn indexes_by_sequence(&self) -> bool {
+        self.sequence_mode
+    }
+
+    async fn publication_tip(&self) -> Result<Option<u64>> {
+        let (messages, deliveries, payments) = tokio::try_join!(
+            self.messages.latest_sequence_count_and_tip(),
+            self.deliveries.latest_sequence_count_and_tip(),
+            self.payments.latest_sequence_count_and_tip(),
+        )?;
+        let insertion_tip = if self.derive_insertions_from_messages {
+            messages.1
+        } else {
+            self.insertions.latest_sequence_count_and_tip().await?.1
+        };
+        Ok(Some(u64::from(
+            [messages.1, deliveries.1, payments.1, insertion_tip]
+                .into_iter()
+                .min()
+                .ok_or_else(|| eyre!("Missing event-stream tip"))?,
+        )))
+    }
+
     async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
         Ok(self.events_after(from, through, [0; 4]).await?.events)
     }
@@ -549,6 +594,12 @@ impl Source for GenericSource {
         sequences: [u32; 4],
     ) -> Result<EventBatch> {
         ensure!(from <= through, "Invalid event range");
+        if self.derive_insertions_from_messages {
+            ensure!(
+                sequences[0] == sequences[3],
+                "Sealevel dispatch and insertion history diverged"
+            );
+        }
         let range = u32::try_from(from)?..=u32::try_from(through)?;
         let (messages, deliveries, payments, insertions) = tokio::try_join!(
             Self::logs(
@@ -572,18 +623,29 @@ impl Source for GenericSource {
                 self.sequence_mode,
                 self.chunk_size,
             ),
-            Self::logs(
-                self.insertions.as_ref(),
-                range,
-                sequences[3],
-                self.sequence_mode,
-                self.chunk_size,
-            ),
+            async {
+                if self.derive_insertions_from_messages {
+                    Ok((Vec::new(), (None, 0), false))
+                } else {
+                    Self::logs(
+                        self.insertions.as_ref(),
+                        range,
+                        sequences[3],
+                        self.sequence_mode,
+                        self.chunk_size,
+                    )
+                    .await
+                }
+            },
         )?;
-        let (messages, message_watermark) = messages;
-        let (deliveries, delivery_watermark) = deliveries;
-        let (payments, payment_watermark) = payments;
-        let (insertions, insertion_watermark) = insertions;
+        let (messages, message_watermark, messages_complete) = messages;
+        let (deliveries, delivery_watermark, deliveries_complete) = deliveries;
+        let (payments, payment_watermark, payments_complete) = payments;
+        let (insertions, mut insertion_watermark, mut insertions_complete) = insertions;
+        if self.derive_insertions_from_messages {
+            insertion_watermark = message_watermark;
+            insertions_complete = messages_complete;
+        }
         let capacity = messages
             .len()
             .saturating_add(deliveries.len())
@@ -592,7 +654,19 @@ impl Source for GenericSource {
         let mut events = Vec::with_capacity(capacity);
         for (indexed, meta) in messages {
             let data = EventData::Dispatch(indexed.inner().clone());
-            events.push(Self::event(&indexed, meta, self.contracts.mailbox, data)?);
+            events.push(Self::event(
+                &indexed,
+                meta.clone(),
+                self.contracts.mailbox,
+                data,
+            )?);
+            if self.derive_insertions_from_messages {
+                let data = EventData::Insertion {
+                    message_id: indexed.inner().id(),
+                    index: indexed.inner().nonce,
+                };
+                events.push(Self::event(&indexed, meta, self.contracts.hook, data)?);
+            }
         }
         for (indexed, meta) in deliveries {
             let data = EventData::Delivery(*indexed.inner());
@@ -616,7 +690,7 @@ impl Source for GenericSource {
             };
             events.push(Self::event(&indexed, meta, self.contracts.hook, data)?);
         }
-        Self::normalize_events(&mut events)?;
+        Self::normalize_events(&mut events);
         ensure!(
             events.iter().all(|event| event.block_number >= from),
             "Indexer returned an event from a different block"
@@ -631,6 +705,12 @@ impl Source for GenericSource {
                 delivery_watermark,
                 payment_watermark,
                 insertion_watermark,
+            ]),
+            complete_through: Some([
+                messages_complete,
+                deliveries_complete,
+                payments_complete,
+                insertions_complete,
             ]),
         })
     }
@@ -650,6 +730,7 @@ mod tests {
     #[derive(Debug)]
     struct SequenceIndexer {
         count: u32,
+        tip: u32,
         truncate_last: bool,
         requests: Mutex<Vec<RangeInclusive<u32>>>,
     }
@@ -691,7 +772,7 @@ mod tests {
         async fn latest_sequence_count_and_tip(
             &self,
         ) -> hyperlane_core::ChainResult<(Option<u32>, u32)> {
-            Ok((Some(self.count), 200))
+            Ok((Some(self.count), self.tip))
         }
     }
 
@@ -699,6 +780,7 @@ mod tests {
     async fn sequence_mode_translates_durable_count_to_sequence_range() -> Result<()> {
         let indexer = SequenceIndexer {
             count: 10,
+            tip: 200,
             truncate_last: false,
             requests: Mutex::new(Vec::new()),
         };
@@ -724,6 +806,7 @@ mod tests {
 
         let partial = SequenceIndexer {
             count: 10,
+            tip: 200,
             truncate_last: true,
             requests: Mutex::new(Vec::new()),
         };
@@ -733,6 +816,7 @@ mod tests {
 
         let bounded = SequenceIndexer {
             count: 100,
+            tip: 200,
             truncate_last: false,
             requests: Mutex::new(Vec::new()),
         };
@@ -741,11 +825,25 @@ mod tests {
             *bounded.requests.lock().expect("request mutex poisoned"),
             vec![0..=1, 2..=3, 4..=5]
         );
+        let lagging = SequenceIndexer {
+            count: 10,
+            tip: 199,
+            truncate_last: false,
+            requests: Mutex::new(Vec::new()),
+        };
+        assert!(GenericSource::logs(&lagging, 100..=200, 7, true, 2)
+            .await
+            .is_err());
+        assert!(lagging
+            .requests
+            .lock()
+            .expect("request mutex poisoned")
+            .is_empty());
         Ok(())
     }
 
     #[test]
-    fn generic_events_are_deduplicated_and_gas_positions_are_unique_per_block() -> Result<()> {
+    fn generic_events_are_deduplicated_without_rewriting_log_positions() -> Result<()> {
         let event = |block_number, log_index| Event {
             block_number,
             block_hash: EthersH256::zero(),
@@ -761,14 +859,22 @@ mod tests {
                 payment: "0".into(),
             },
         };
-        let mut events = vec![event(7, 0), event(7, 0), event(8, 0)];
-        GenericSource::normalize_events(&mut events)?;
+        let repeated = event(7, 0);
+        let mut distinct = event(7, 0);
+        distinct.data = EventData::Gas {
+            message_id: H256::repeat_byte(1),
+            destination: 0,
+            gas: "0".into(),
+            payment: "0".into(),
+        };
+        let mut events = vec![repeated.clone(), distinct, repeated, event(8, 0)];
+        GenericSource::normalize_events(&mut events);
         assert_eq!(
             events
                 .into_iter()
                 .map(|event| event.log_index)
                 .collect::<Vec<_>>(),
-            vec![0, 0]
+            vec![0, 0, 0]
         );
         Ok(())
     }

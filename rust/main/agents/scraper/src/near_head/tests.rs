@@ -1114,7 +1114,7 @@ async fn incomplete_sequences_retry_after_restart_and_dense_ranges_batch_atomica
         .unwrap();
     assert!(index
         .try_get::<String>("", "indexdef")?
-        .contains("WHERE (block_hash IS NOT NULL)"));
+        .contains("transaction_hash"));
     Ok(())
 }
 
@@ -1243,16 +1243,27 @@ fn missing_entire_sequences_and_regressing_counts_are_rejected() {
 fn finalized_sequence_watermarks_reject_missing_tail_events() {
     let watermarks = [(Some(4), 20), (Some(6), 19), (Some(7), 18), (Some(5), 17)];
     assert_eq!(
-        validate_watermarks([4, 6, 7, 5], 20, watermarks).unwrap(),
+        validate_watermarks([4, 6, 7, 5], 20, watermarks, [false; 4]).unwrap(),
         Some(17)
     );
-    assert!(validate_watermarks([3, 6, 7, 5], 20, watermarks).is_err());
-    assert!(validate_watermarks([4, 6, 6, 5], 20, watermarks).is_err());
-    assert!(validate_watermarks([5, 6, 7, 5], 20, watermarks).is_err());
+    assert!(validate_watermarks([3, 6, 7, 5], 20, watermarks, [false; 4]).is_err());
+    assert!(validate_watermarks([4, 6, 6, 5], 20, watermarks, [false; 4]).is_err());
+    assert!(validate_watermarks([5, 6, 7, 5], 20, watermarks, [false; 4]).is_err());
     // A watermark ahead of the indexed boundary cannot describe this range yet.
     assert_eq!(
-        validate_watermarks([3, 4, 5, 6], 20, [(Some(4), 21); 4]).unwrap(),
+        validate_watermarks([3, 4, 5, 6], 20, [(Some(4), 21); 4], [false; 4]).unwrap(),
         None
+    );
+    // Contiguous sequence pages can prove the boundary even when the sampled
+    // watermark includes newer events that were deferred to the next range.
+    assert_eq!(
+        validate_watermarks([3, 4, 5, 6], 20, [(Some(100), 21); 4], [true; 4]).unwrap(),
+        Some(20)
+    );
+    // Streams without counts still cap publication at their reported tip.
+    assert_eq!(
+        validate_watermarks([0; 4], 20, [(None, 17); 4], [false; 4]).unwrap(),
+        Some(17)
     );
 }
 
@@ -1341,7 +1352,7 @@ async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Resul
     prepare(
         &source,
         &store,
-        &anchor,
+        None,
         &contracts(),
         &ReorgPeriod::from_blocks(0),
     )
@@ -1352,7 +1363,7 @@ async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Resul
     prepare(
         &source,
         &store,
-        &anchor,
+        None,
         &contracts(),
         &ReorgPeriod::from_blocks(0),
     )

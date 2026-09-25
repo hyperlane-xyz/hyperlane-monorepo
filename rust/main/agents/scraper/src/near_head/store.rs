@@ -142,6 +142,26 @@ impl Store {
         Ok(())
     }
 
+    pub async fn validate_contracts(&self, contracts: &Contracts) -> Result<()> {
+        let row = self
+            .db
+            .query_one(sql(
+                "SELECT mailbox,merkle_tree_hook,interchain_gas_paymaster FROM scraper_head WHERE domain=$1",
+                vec![self.domain()],
+            ))
+            .await?
+            .ok_or_else(|| eyre::eyre!("Missing near-head configuration"))?;
+        ensure!(
+            row.try_get::<Vec<u8>>("", "mailbox")? == address_to_bytes(&contracts.mailbox)
+                && row.try_get::<Vec<u8>>("", "merkle_tree_hook")?
+                    == address_to_bytes(&contracts.hook)
+                && row.try_get::<Vec<u8>>("", "interchain_gas_paymaster")?
+                    == address_to_bytes(&contracts.paymaster),
+            "Near-head contracts changed; restore the original configuration"
+        );
+        Ok(())
+    }
+
     pub async fn validate_checkpoints(&self) -> Result<()> {
         let row = self.db.query_one(sql(
             "SELECT EXISTS(SELECT 1 FROM scraper_checkpoint c WHERE c.domain=h.domain AND c.height=h.confirmed_height) AS confirmed_exists, EXISTS(SELECT 1 FROM scraper_checkpoint c WHERE c.domain=h.domain AND c.height=h.indexed_height AND c.hash=h.indexed_hash) AS indexed_matches, NOT EXISTS(SELECT 1 FROM scraper_checkpoint c WHERE c.domain=h.domain AND c.height>h.indexed_height) AS no_stale_suffix FROM scraper_head h WHERE h.domain=$1",

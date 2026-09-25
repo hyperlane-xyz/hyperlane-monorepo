@@ -84,12 +84,17 @@ pub async fn spawn(
         db: legacy.db.clone_connection(),
         domain: conf.domain.id(),
     };
+    let initialized = store.state().await?.is_some();
     ensure!(
-        source.has_historical_counts() || store.state().await?.is_some(),
+        source.has_historical_counts() || initialized,
         "Non-EVM near-head indexing requires an explicit verified scraper_head cutover"
     );
-    let anchor_height = store.anchor_height(u32::try_from(conf.index.from)?).await?;
-    let anchor = source.header(BlockSelector::Height(anchor_height)).await?;
+    let anchor = if initialized {
+        None
+    } else {
+        let anchor_height = store.anchor_height(u32::try_from(conf.index.from)?).await?;
+        Some(source.header(BlockSelector::Height(anchor_height)).await?)
+    };
     let period = conf.reorg_period.clone();
     ensure!(conf.index.chunk_size > 0, "index.chunk must be positive");
     let chunk_size = u64::from(conf.index.chunk_size);
@@ -98,7 +103,14 @@ pub async fn spawn(
         .index
         .configured_interval
         .unwrap_or(Duration::from_secs(30));
-    prepare(source.as_ref(), &store, &anchor, &contracts, &period).await?;
+    prepare(
+        source.as_ref(),
+        &store,
+        anchor.as_ref(),
+        &contracts,
+        &period,
+    )
+    .await?;
     let worker = runtime::Worker {
         source,
         store,
@@ -117,13 +129,14 @@ pub async fn spawn(
     }))
 }
 
-async fn prepare(
+async fn prepare<'a>(
     source: &dyn Source,
     store: &Store,
-    anchor: &Header,
+    anchor: impl Into<Option<&'a Header>>,
     contracts: &Contracts,
     period: &ReorgPeriod,
 ) -> Result<()> {
+    let anchor = anchor.into();
     // Fail before persisting a first-time cutover if required RPC methods fail.
     if let ReorgPeriod::Tag(tag) = period {
         ensure!(
@@ -135,17 +148,25 @@ async fn prepare(
     // Capability checks must not require an RPC that is caught up to our saved
     // indexed height. The observation loop waits for lagging providers and
     // checks retained ancestry before publishing anything.
-    let hash = match store.state().await? {
+    let state = store.state().await?;
+    let hash = match state {
         Some(_) => {
             store.validate_checkpoints().await?;
+            store.validate_contracts(contracts).await?;
             source.header(BlockSelector::Latest).await?.hash
         }
-        None => anchor.hash,
+        None => {
+            anchor
+                .ok_or_else(|| eyre::eyre!("Missing first-start anchor"))?
+                .hash
+        }
     };
     if source.has_historical_counts() {
         source.counts(hash).await?;
     }
-    store.initialize(anchor, contracts).await?;
+    if let Some(anchor) = anchor {
+        store.initialize(anchor, contracts).await?;
+    }
     Ok(())
 }
 
@@ -208,7 +229,7 @@ async fn ingest(
     ingest_cached(source, store, state, chunk_size, &mut None).await
 }
 
-type CountCache = Option<(ethers::types::H256, [u32; 4], Option<u64>)>;
+type CountCache = Option<(ethers::types::H256, [u32; 4])>;
 
 async fn ingest_cached(
     source: &dyn Source,
@@ -221,18 +242,23 @@ async fn ingest_cached(
     if state.indexed == state.head {
         return Ok(false);
     }
-    let requested_end = state.head.min(state.indexed.saturating_add(chunk_size));
+    let requested_end = if source.indexes_by_sequence() {
+        // Sequence paging is already bounded by its configured page size. Use
+        // the observed head as the block boundary so sparse-slot chains do not
+        // turn a sequence page into thousands of one-slot ingestion cycles.
+        state.head
+    } else {
+        state.head.min(state.indexed.saturating_add(chunk_size))
+    };
     let boundary = source
         .range_end(state.indexed, requested_end, state.head)
         .await?;
     let end = boundary.height;
     let mut by_block = BTreeMap::<u64, Vec<source::Event>>::new();
-    let cached = count_cache
-        .as_ref()
-        .filter(|(hash, _, _)| *hash == state.hash);
+    let cached = count_cache.as_ref().filter(|(hash, _)| *hash == state.hash);
     let start_counts = async {
         match cached {
-            Some((_, counts, _)) => Ok::<_, eyre::Report>(*counts),
+            Some((_, counts)) => Ok::<_, eyre::Report>(*counts),
             None => {
                 let mut counts = store.sequence_counts().await?;
                 if source.has_historical_counts() {
@@ -272,9 +298,17 @@ async fn ingest_cached(
             "Incomplete event range"
         );
     }
-    let verified_through = batch
+    let _ = batch
         .watermarks
-        .map(|watermarks| validate_watermarks(validated_counts, boundary.height, watermarks))
+        .zip(batch.complete_through)
+        .map(|(watermarks, complete_through)| {
+            validate_watermarks(
+                validated_counts,
+                boundary.height,
+                watermarks,
+                complete_through,
+            )
+        })
         .transpose()?
         .flatten();
     for event in events {
@@ -320,7 +354,7 @@ async fn ingest_cached(
     );
     verify(source, &boundary).await?;
     store.append(state, &blocks).await?;
-    *count_cache = Some((boundary.hash, validated_counts, verified_through));
+    *count_cache = Some((boundary.hash, validated_counts));
     Ok(end < state.head)
 }
 
@@ -328,13 +362,24 @@ fn validate_watermarks(
     counts: [u32; 4],
     indexed_height: u64,
     watermarks: [(Option<u32>, u32); 4],
+    complete_through: [bool; 4],
 ) -> Result<Option<u64>> {
     let mut verified_through = indexed_height;
     for (stream, (expected, tip)) in watermarks.into_iter().enumerate() {
-        let Some(expected) = expected else { continue };
         if u64::from(tip) > indexed_height {
-            return Ok(None);
+            if expected.is_some() && !complete_through[stream] {
+                return Ok(None);
+            }
+            continue;
         }
+        if complete_through[stream] && u64::from(tip) < indexed_height {
+            verified_through = verified_through.min(u64::from(tip));
+            continue;
+        }
+        let Some(expected) = expected else {
+            verified_through = verified_through.min(u64::from(tip));
+            continue;
+        };
         ensure!(
             counts[stream] == expected,
             "Incomplete finalized event sequence"

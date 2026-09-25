@@ -123,11 +123,11 @@ impl Worker {
                 .await?
                 .ok_or_else(|| eyre::eyre!("Missing head state"))?;
             Some(
-                count_cache
-                    .as_ref()
-                    .filter(|(hash, _, _)| *hash == state.hash)
-                    .and_then(|(_, _, verified)| *verified)
-                    .unwrap_or(state.confirmed),
+                self.source
+                    .publication_tip()
+                    .await?
+                    .unwrap_or(state.confirmed)
+                    .min(state.indexed),
             )
         };
         let confirmation = confirm_leased(
