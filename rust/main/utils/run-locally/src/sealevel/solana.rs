@@ -134,6 +134,9 @@ pub fn install_solana_cli_tools(
     Program::new("curl")
         .arg("output", &solana_archive_name)
         .flag("location")
+        .flag("fail")
+        .arg("retry", "5")
+        .flag("retry-all-errors")
         .cmd(format!(
             "https://{release_url}/releases/download/v{release_version}/{solana_archive_name}"
         ))
@@ -171,6 +174,9 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
     Program::new("curl")
         .arg("output", "spl.tar.gz")
         .flag("location")
+        .flag("fail")
+        .arg("retry", "5")
+        .flag("retry-all-errors")
         .cmd(SOLANA_PROGRAM_LIBRARY_ARCHIVE)
         .flag("silent")
         .working_dir(&out_path)
