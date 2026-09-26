@@ -1,11 +1,11 @@
 # Near-head scraper ingestion
 
 The scraper indexes dispatch, delivery, gas-payment and Merkle-insertion events
-at the current head by default on all selected EVM chains. Each event is stored
-once in its existing table. Permanent headers
-for event blocks remain in `block`; the current confirmation boundary and sparse
-unconfirmed range checkpoints live in `scraper_checkpoint`. `scraper_head`
-contains only per-chain progress and health, not event payloads.
+at the current head by default on every selected supported chain except Fuel.
+Each event is stored once in its existing table. Permanent headers for event
+blocks remain in `block`; the current confirmation boundary and sparse unconfirmed
+range checkpoints live in `scraper_checkpoint`. `scraper_head` contains only
+per-chain progress and health, not event payloads.
 
 The scraper advances `scraper_head.confirmed_height` after the chain's existing
 `reorgPeriod`. The proxy publishes that newly visible height range, and gas-payment
@@ -20,15 +20,19 @@ head boundary rather than one notification for every deleted event. Notification
 are wake-up hints; reconnect and catch-up must read the persisted rows and head.
 
 Select chains with `chainsToScrape` as before. No `nearHead` setting or per-chain
-`fromBlock` values are needed. Non-EVM chains retain their existing indexers.
+`fromBlock` values are needed. Fuel retains its existing path because its delivery,
+gas-payment, and Merkle indexers are not implemented.
 The old `HYP_NEARHEAD` and `HYP_NEARHEAD_<DOMAIN>_FROMBLOCK` variables are no longer
 used and can be removed.
 
-An empty domain starts automatically at `index.from` (block 1 when `index.from`
-is 0). A domain with existing block or event rows and no `scraper_head` state
-fails closed. Neither the greatest stored height nor the shared legacy cursor
-proves that all four legacy streams completed that height: choosing either can
-skip a slower gas-payment or delivery backlog.
+An empty EVM domain starts automatically at `index.from`. Non-EVM domains require
+an explicit verified `scraper_head` cutover even when their event tables are empty,
+because their indexers cannot provide historical counts pinned immediately before
+`index.from`; this also avoids treating a sequence-mode starting index as a block
+height. A domain with existing block or event rows and no `scraper_head` state
+fails closed. Neither the greatest stored height nor the shared legacy cursor proves
+that all four legacy streams completed that height: choosing either can skip a
+slower gas-payment or delivery backlog.
 
 Existing domains require the verified cutover below. Startup rechecks that an
 automatically initialized domain is still empty after RPC preflight. Restarts
@@ -37,21 +41,34 @@ boundary from stored maxima. Contract changes are rejected.
 
 ## Behavior
 
-- One combined RPC log query covers all four event types over a block range,
-  using the existing `index.chunk` limit. Headers are fetched only for blocks
+- EVM uses one combined RPC log query for all four event types. Other protocols
+  use their existing four range indexers concurrently. Both use the existing
+  `index.chunk` limit. Headers are fetched only for blocks
   containing events and range boundaries, not every empty block. Events and the
   end checkpoint commit atomically, including when the range has no events.
 - Each returned log must match its block header. The previous indexed boundary
   and the range end are checked again before commit; changed forks are retried.
-  Dispatch nonces and Merkle leaf indexes must exactly cover the counts read
-  from their contracts at both boundary hashes. Missing first, middle, tail, or
-  entire sequences reject the range without advancing progress, including after
-  restart. Independent count calls run concurrently with log fetching. The last
-  successfully committed end counts are reused only for the same boundary hash;
-  restart or changed ancestry causes a fresh read. Delivery and gas events have no sequence counters, so their completeness
-  still depends on the RPC returning all matching logs.
+  On EVM, dispatch nonces and Merkle leaf indexes must exactly cover counts read
+  from their contracts at both boundary hashes. Other protocols anchor continuity
+  to the database cutover and compare ingested counts with each indexer’s reported
+  sequence count once its reported tip is covered. Sequence-mode protocols page
+  from the durable count until they pass the current block boundary and prove each
+  requested page complete before filtering by block. Missing first, middle, tail,
+  or entire sequences reject the range without advancing progress. The last
+  successfully committed counts are reused only for the same boundary hash;
+  restart or changed ancestry reloads them from durable rows. Delivery and gas
+  streams receive the same check when their indexers expose sequence counts;
+  otherwise completeness depends on the RPC returning all matching logs.
+  Non-EVM publication is capped at the minimum current event-stream tip.
+  Sequence-mode streams additionally require contiguous pages through each
+  indexed boundary; a lagging sequence tip rejects the range before commit.
+  Generic adapters preserve provider transaction and log positions. The
+  provisional database key includes both positions and the event identity so
+  protocols without a globally unique log index remain collision-safe.
 - Polling uses `index.interval`, with the legacy range cursor's 30-second default.
-  An unchanged head costs one RPC call and no log query. Catch-up ranges run
+  An unchanged EVM head costs one RPC call and no log query. Generic adapters
+  read chain metrics and then the latest block header, so an unchanged non-EVM
+  head normally costs two provider calls. Catch-up ranges run
   without an idle delay. Each cycle ingests before publishing, so newly indexed
   events do not wait for another poll. Page-limited publication repeats without
   an idle delay. Publication targets 1,000 events per
@@ -64,7 +81,8 @@ boundary from stored maxima. Contract changes are rejected.
 - A lagging RPC head pauses ingestion and publication without deleting the
   retained suffix. A reorg rolls back to the newest retained checkpoint on the canonical chain,
   then replays the range. Confirmation stores its exact boundary header even
-  when that height was an empty block inside a range.
+  when that height was an empty block inside a range. Protocols with sparse block
+  numbering choose the newest available boundary at or below the requested height.
 - Confirmation requires a healthy head observation within its lease (twice the
   polling interval, at least 60 seconds) and cannot pass indexed progress or the
   observed head. A finality tag read after the observation may be newer than it;
@@ -76,8 +94,8 @@ boundary from stored maxima. Contract changes are rejected.
   logged before existing eligible history publishes; page-limited publication
   drains before the error pauses the loop. The three phases execute sequentially
   for each chain, so they do not compete for that chain's progress-row lock.
-- Startup probes the configured finality tag and hash-pinned contract-count calls
-  before persisting a first-time cutover. On restart it probes the provider's
+- Startup probes the configured finality selector and, on EVM, hash-pinned
+  contract-count calls before persisting a first-time cutover. On restart it probes the provider's
   latest canonical block. Observation waits for providers behind saved progress
   and reconciles retained ancestry before publication. It fails immediately with
   a checkpoint-sync error if the saved confirmed or indexed checkpoint is absent
@@ -114,7 +132,9 @@ boundary from stored maxima. Contract changes are rejected.
   uniqueness constraints and the linker handle concurrent inserts.
   Fetching and linking each have a separate 30-second timeout. Completed receipts
   are linked even when a neighboring receipt times out. Existing nullable
-  transaction relations remain nullable until enrichment succeeds. The
+  transaction relations remain nullable until enrichment succeeds. Generic
+  adapters store unavailable transaction hashes as NULL, excluding those rows
+  from receipt retries and backlog age. The
   `hyperlane_scraper_receipt_oldest_pending_seconds{chain,event_type}` gauge tracks
   age since creation of the oldest pending row by ID, including time it spent
   provisional. It is sampled independently once per poll and returns zero when
@@ -133,10 +153,12 @@ boundary from stored maxima. Contract changes are rejected.
 
 ## RPC cost
 
-For a caught-up unchanged head: one header request per poll. For a normal new
+For a caught-up unchanged EVM head: one header request per poll. For a normal EVM new
 range containing events in `B` distinct blocks: at most `B + 6` header requests
 and one combined log request plus two new contract-count reads on consecutive
-committed ranges, independent of the number of empty blocks in the range. The
+committed ranges. Non-EVM ranges make one sequence-watermark request per stream
+and one or more bounded, paged event requests per stream; sparse numbering can require
+additional boundary lookups. The
 first range after startup or a changed boundary hash requires four count reads;
 startup capability probes are additional. Numeric confirmation needs up to two header reads when it advances;
 finality tags also require a tag read while provisional progress exists. Count
@@ -169,11 +191,12 @@ hangs, and verify uncached successful receipts survive a neighboring timeout.
 
 ## Rollout
 
-1. Before stopping the legacy scraper, verify every selected EVM provider supports
-   its configured finality tag, when used, and block-hash-pinned `eth_call`
-   for the mailbox nonce and Merkle hook count. Empty predeployment results also
-   require block-hash-pinned `eth_getCode`. Check the actual configured endpoints
-   and historical boundary state. Fleet capability has not been established by
+1. Before stopping the legacy scraper, verify every selected provider supports
+   event-range queries, block lookup, latest height, and its configured
+   finality selector. EVM additionally requires block-hash-pinned `eth_call` for
+   the mailbox nonce and Merkle hook count; empty predeployment results require
+   block-hash-pinned `eth_getCode`. Check the actual configured endpoints and
+   historical boundary state. Fleet capability has not been established by
    the local tests. There is no legacy opt-out after this hard cutover.
 2. Build this scraper and migration, and prepare the scraper image-tag update for
    every environment sharing the database. Deploy the matching proxy first so it
@@ -190,8 +213,9 @@ hangs, and verify uncached successful receipts survive a neighboring timeout.
    migration binary built from this PR for both upgrades and rollbacks; older
    binaries do not know checkpoint migration 15. After stopping writers, wait at
    least 90 seconds before migrating so the migration's activity gate can pass.
-3. For each existing EVM domain, complete the verified cutover below. Empty
-   domains need no seed. Start the scraper and matching proxy only afterwards.
+3. For each existing supported domain, complete the verified cutover below.
+   Empty EVM domains need no seed; non-EVM domains still require an explicit
+   verified cutover. Start the scraper and matching proxy only afterwards.
 4. Check `scraper_head` for advancing `indexed_height` and `confirmed_height`,
    verify the chain critical-error metric is clear, and check consumer streams.
 
@@ -371,9 +395,9 @@ CREATE TEMP TABLE verified_cutover (
   height bigint NOT NULL CHECK (height BETWEEN 0 AND 4294967294),
   timestamp bigint NOT NULL CHECK (timestamp >= 0),
   hash bytea NOT NULL CHECK (octet_length(hash) = 32),
-  mailbox bytea NOT NULL CHECK (octet_length(mailbox) = 20),
-  hook bytea NOT NULL CHECK (octet_length(hook) = 20),
-  paymaster bytea NOT NULL CHECK (octet_length(paymaster) = 20)
+  mailbox bytea NOT NULL CHECK (octet_length(mailbox) IN (20,32)),
+  hook bytea NOT NULL CHECK (octet_length(hook) IN (20,32)),
+  paymaster bytea NOT NULL CHECK (octet_length(paymaster) IN (20,32))
 ) ON COMMIT DROP;
 INSERT INTO verified_cutover VALUES (
   :'domain'::integer, :'height'::bigint, :'timestamp'::bigint,

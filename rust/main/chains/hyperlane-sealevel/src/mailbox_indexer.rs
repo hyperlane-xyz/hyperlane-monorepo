@@ -408,13 +408,12 @@ impl Indexer<H256> for SealevelMailboxIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<H256> for SealevelMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let tip = self.mailbox.get_provider().rpc_client().get_slot().await?;
         let inbox = self.mailbox.get_inbox().await?;
         let sequence = inbox
             .processed_count
             .try_into()
             .map_err(StrOrIntParseError::from)?;
-
-        let tip = self.mailbox.get_provider().rpc_client().get_slot().await?;
 
         Ok((Some(sequence), tip))
     }

@@ -543,7 +543,7 @@ impl Scraper {
         let domain = scraper.domain.clone();
 
         let mut tasks = Vec::with_capacity(2);
-        if domain.domain_protocol() == HyperlaneDomainProtocol::Ethereum {
+        if domain.domain_protocol() != HyperlaneDomainProtocol::Fuel {
             tasks.push(
                 crate::near_head::spawn(
                     self.settings.chain_setup(&domain)?,
@@ -754,7 +754,7 @@ impl Scraper {
         reconciliation_metrics: RawDispatchReconciliationMetrics,
         store: HyperlaneDbStore,
     ) -> JoinHandle<()> {
-        let near_head = domain.domain_protocol() == HyperlaneDomainProtocol::Ethereum;
+        let near_head = domain.domain_protocol() != HyperlaneDomainProtocol::Fuel;
         let domain_name = domain.name().to_owned();
         let span_domain_name = domain_name.clone();
         tokio::spawn(
@@ -1239,7 +1239,7 @@ impl Scraper {
             _ => return Ok(None),
         };
 
-        let near_head = domain.domain_protocol() == HyperlaneDomainProtocol::Ethereum;
+        let near_head = domain.domain_protocol() != HyperlaneDomainProtocol::Fuel;
         let ccr_to_erc20 = ccr_router_map.clone();
         let local_domain = domain.id();
 

@@ -30,7 +30,10 @@ ALTER TABLE merkle_tree_insertion DROP COLUMN confirmed;
 DROP FUNCTION notify_scraper_provisional_event();
 
 ALTER TABLE scraper_head ADD COLUMN writer_id text,
-  ADD COLUMN writer_lease_until timestamptz;
+  ADD COLUMN writer_lease_until timestamptz,
+  ADD COLUMN verified_height bigint,
+  ADD CONSTRAINT scraper_head_verified_height_check CHECK(verified_height IS NULL OR
+    (verified_height>=confirmed_height AND verified_height<=indexed_height));
 CREATE STATISTICS IF NOT EXISTS gas_payment_domain_paymaster_dependencies (dependencies)
  ON domain,interchain_gas_paymaster FROM gas_payment;
 

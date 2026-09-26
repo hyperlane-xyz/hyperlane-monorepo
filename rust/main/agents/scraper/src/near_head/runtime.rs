@@ -9,6 +9,7 @@ use tracing::warn;
 
 use super::{
     confirm_leased, confirmation_lease, ingest_cached, observe, source::Source, store::Store,
+    CountCache,
 };
 
 pub(super) struct Worker {
@@ -67,10 +68,7 @@ impl Worker {
         }
     }
 
-    async fn cycle(
-        &self,
-        count_cache: &mut Option<(ethers::types::H256, [u32; 2])>,
-    ) -> eyre::Result<CycleOutcome> {
+    async fn cycle(&self, count_cache: &mut CountCache) -> eyre::Result<CycleOutcome> {
         self.store
             .claim(confirmation_lease(self.poll_interval))
             .await?;
@@ -116,11 +114,29 @@ impl Worker {
             );
         }
 
+        let publication_cap = if self.source.has_historical_counts() {
+            None
+        } else {
+            let state = self
+                .store
+                .state()
+                .await?
+                .ok_or_else(|| eyre::eyre!("Missing head state"))?;
+            let verified = state.verified.unwrap_or(state.confirmed);
+            Some(
+                self.source
+                    .publication_tip()
+                    .await?
+                    .map_or(verified, |tip| verified.min(tip))
+                    .min(state.indexed),
+            )
+        };
         let confirmation = confirm_leased(
             self.source.as_ref(),
             &self.store,
             &self.period,
             confirmation_lease(self.poll_interval),
+            publication_cap,
         )
         .await?;
         for (label, count) in [

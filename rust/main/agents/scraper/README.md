@@ -35,11 +35,12 @@ retrying. If index creation fails, schema migrations remain committed; rerunning
 
 The indexes are not removed by migration rollback.
 
-EVM near-head indexing starts automatically only for domains without stored
-history. Existing domains need a verified common boundary for all four legacy
-event streams before seeding `scraper_head`; a shared cursor or maximum stored
-height cannot establish completeness. Follow the [cutover runbook](../../../../docs/scraper/near-head.md#verified-legacy-cutover)
-with writers stopped before starting the new binary.
+Near-head indexing starts automatically only for empty EVM domains. Non-EVM and
+existing domains need a verified common boundary for all four legacy event streams
+before seeding `scraper_head`; a shared cursor or maximum stored height cannot
+establish completeness. Follow the
+[cutover runbook](../../../../docs/scraper/near-head.md#verified-legacy-cutover) with
+writers stopped before starting the new binary.
 
 For rollback, stop or roll back scraper binaries that reference a new column
 before dropping that column.

@@ -1,5 +1,8 @@
 SET LOCAL lock_timeout='5s';
 
+ALTER TABLE scraper_head DROP CONSTRAINT scraper_head_verified_height_check,
+  DROP COLUMN verified_height;
+
 CREATE TEMP TABLE frontier_down_view_grant ON COMMIT DROP AS
 SELECT c.relname,a.grantee,a.privilege_type,a.is_grantable
 FROM pg_class c CROSS JOIN LATERAL aclexplode(c.relacl) a
