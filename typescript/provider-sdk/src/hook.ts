@@ -11,11 +11,14 @@ import * as AltVM from './altvm.js';
 import {
   ArtifactDeployed,
   ArtifactNew,
+  ArtifactReader,
   ArtifactState,
+  ArtifactWriter,
   IArtifactManager,
   isArtifactDeployed,
 } from './artifact.js';
 import { ChainLookup } from './chain.js';
+import { ProtocolType } from './protocolType.js';
 
 export type HookModuleType = {
   config: HookConfig;
@@ -173,6 +176,14 @@ export interface RawHookArtifactConfigs {
   unknownHook: UnknownHookConfig;
 }
 
+export type HookArtifactReaderFactories<D = DeployedHookAddress> = Partial<{
+  [K in HookType]: () => ArtifactReader<RawHookArtifactConfigs[K], D>;
+}>;
+
+export type HookArtifactWriterFactories<D = DeployedHookAddress> = Partial<{
+  [K in HookType]: () => ArtifactWriter<RawHookArtifactConfigs[K], D>;
+}>;
+
 /**
  * Should be used for the specific artifact code that
  * deploys or reads a single hook artifact on chain
@@ -239,13 +250,23 @@ function throwUnhandledHookType(value: unknown, context: string): never {
   );
 }
 
+export class UnsupportedHookArtifactTypeError extends Error {
+  constructor(
+    public readonly hookType: string,
+    public readonly protocol: ProtocolType,
+  ) {
+    super(
+      `Unsupported hook artifact type ${hookType} for protocol ${protocol}`,
+    );
+    this.name = 'UnsupportedHookArtifactTypeError';
+  }
+}
+
 export function throwUnsupportedHookType(
   hookType: string,
-  protocolName: string,
+  protocol: ProtocolType,
 ): never {
-  throw new Error(
-    `Unsupported hook artifact type ${hookType} for protocol ${protocolName}`,
-  );
+  throw new UnsupportedHookArtifactTypeError(hookType, protocol);
 }
 
 // Hook Config Utilities

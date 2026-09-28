@@ -1,14 +1,17 @@
 import { expect } from 'chai';
 
+import * as AltVM from './altvm.js';
 import { ArtifactState } from './artifact.js';
 import { ChainLookup } from './chain.js';
 import {
   HookConfig,
+  UnsupportedHookArtifactTypeError,
   hookArtifactToDerivedConfig,
   hookConfigToArtifact,
   shouldDeployNewHook,
   throwUnsupportedHookType,
 } from './hook.js';
+import { ProtocolType } from './protocolType.js';
 
 const chainLookup: ChainLookup = {
   getChainMetadata: () => {
@@ -159,9 +162,17 @@ describe('hook protocolFee support', () => {
   });
 
   it('throws clear errors for unsupported hook artifact types', () => {
-    expect(() => throwUnsupportedHookType('protocolFee', 'Aleo')).to.throw(
-      'Unsupported hook artifact type protocolFee for protocol Aleo',
-    );
+    const hookType = AltVM.HookType.PROTOCOL_FEE;
+
+    expect(() => throwUnsupportedHookType(hookType, ProtocolType.Aleo))
+      .to.throw(
+        UnsupportedHookArtifactTypeError,
+        `Unsupported hook artifact type ${hookType} for protocol ${ProtocolType.Aleo}`,
+      )
+      .and.include({
+        hookType,
+        protocol: ProtocolType.Aleo,
+      });
   });
 
   it('includes hook type in hookConfigToArtifact errors', () => {

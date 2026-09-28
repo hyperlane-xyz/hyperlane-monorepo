@@ -1,9 +1,12 @@
 import { expect } from 'chai';
 
+import { ProtocolType } from './protocolType.js';
 import {
   TokenType,
+  UnsupportedWarpArtifactTypeError,
   computeRemoteRoutersUpdates,
   resolveFeeTokenFromWarpArtifactConfig,
+  throwUnsupportedWarpType,
 } from './warp.js';
 import type {
   CollateralWarpArtifactConfig,
@@ -18,6 +21,19 @@ interface BaseSharedFixture {
   remoteRouters: Record<number, { address: string }>;
   destinationGas: Record<number, string>;
 }
+
+describe('unsupported warp artifact types', () => {
+  it('includes the warp type and protocol', () => {
+    const warpType = TokenType.crossCollateral;
+
+    expect(() => throwUnsupportedWarpType(warpType, ProtocolType.Aleo))
+      .to.throw(UnsupportedWarpArtifactTypeError)
+      .and.include({
+        warpType,
+        protocol: ProtocolType.Aleo,
+      });
+  });
+});
 
 describe('resolveFeeTokenFromWarpArtifactConfig', () => {
   const baseShared: BaseSharedFixture = {

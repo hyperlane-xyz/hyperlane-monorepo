@@ -12,10 +12,27 @@ import {
 import {
   DeployedIsmArtifact,
   IsmArtifactConfig,
+  IsmType,
   MultisigIsmConfig,
   RoutingIsmArtifactConfig,
+  UnsupportedIsmArtifactTypeError,
   mergeIsmArtifacts,
+  throwUnsupportedIsmType,
 } from './ism.js';
+import { ProtocolType } from './protocolType.js';
+
+describe('unsupported ISM artifact types', () => {
+  it('includes the ISM type and protocol', () => {
+    const ismType = IsmType.PAUSABLE;
+
+    expect(() => throwUnsupportedIsmType(ismType, ProtocolType.Aleo))
+      .to.throw(UnsupportedIsmArtifactTypeError)
+      .and.include({
+        ismType,
+        protocol: ProtocolType.Aleo,
+      });
+  });
+});
 
 describe('mergeIsmArtifacts', () => {
   const address1 = '0x1111111111111111111111111111111111111111';

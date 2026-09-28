@@ -11,7 +11,9 @@ import {
   Artifact,
   ArtifactDeployed,
   ArtifactNew,
+  ArtifactReader,
   ArtifactState,
+  ArtifactWriter,
   ConfigOnChain,
   IArtifactManager,
   isArtifactDeployed,
@@ -19,6 +21,7 @@ import {
   isArtifactUnderived,
 } from './artifact.js';
 import { ChainLookup } from './chain.js';
+import { ProtocolType } from './protocolType.js';
 
 function assertNever(value: never, context: string): never {
   throw new Error(`Unhandled ISM type in ${context}: ${JSON.stringify(value)}`);
@@ -277,6 +280,31 @@ export interface RawIsmArtifactConfigs {
   [IsmType.COMPOSITE]: CompositeIsmArtifactConfig;
   [IsmType.AGGREGATION]: RawAggregationIsmArtifactConfig;
   [IsmType.PAUSABLE]: PausableIsmConfig;
+}
+
+export type IsmArtifactReaderFactories<D = DeployedIsmAddress> = Partial<{
+  [K in IsmType]: () => ArtifactReader<RawIsmArtifactConfigs[K], D>;
+}>;
+
+export type IsmArtifactWriterFactories<D = DeployedIsmAddress> = Partial<{
+  [K in IsmType]: () => ArtifactWriter<RawIsmArtifactConfigs[K], D>;
+}>;
+
+export class UnsupportedIsmArtifactTypeError extends Error {
+  constructor(
+    public readonly ismType: string,
+    public readonly protocol: ProtocolType,
+  ) {
+    super(`Unsupported ISM artifact type ${ismType} for protocol ${protocol}`);
+    this.name = 'UnsupportedIsmArtifactTypeError';
+  }
+}
+
+export function throwUnsupportedIsmType(
+  ismType: string,
+  protocol: ProtocolType,
+): never {
+  throw new UnsupportedIsmArtifactTypeError(ismType, protocol);
 }
 
 /**

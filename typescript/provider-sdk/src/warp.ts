@@ -11,7 +11,9 @@ import {
   Artifact,
   ArtifactDeployed,
   ArtifactNew,
+  ArtifactReader,
   ArtifactState,
+  ArtifactWriter,
   ConfigOnChain,
   IArtifactManager,
   addressToUnderivedArtifact,
@@ -19,6 +21,7 @@ import {
   isArtifactNew,
 } from './artifact.js';
 import { ChainLookup } from './chain.js';
+import { ProtocolType } from './protocolType.js';
 import {
   type DeployedFeeAddress,
   type DerivedFeeConfig,
@@ -263,6 +266,33 @@ export interface RawWarpArtifactConfigs {
   synthetic: RawSyntheticWarpArtifactConfig;
   native: RawNativeWarpArtifactConfig;
   crossCollateral: RawCrossCollateralWarpArtifactConfig;
+}
+
+export type WarpArtifactReaderFactories<D = DeployedWarpAddress> = Partial<{
+  [K in WarpType]: () => ArtifactReader<RawWarpArtifactConfigs[K], D>;
+}>;
+
+export type WarpArtifactWriterFactories<D = DeployedWarpAddress> = Partial<{
+  [K in WarpType]: () => ArtifactWriter<RawWarpArtifactConfigs[K], D>;
+}>;
+
+export class UnsupportedWarpArtifactTypeError extends Error {
+  constructor(
+    public readonly warpType: string,
+    public readonly protocol: ProtocolType,
+  ) {
+    super(
+      `Unsupported warp artifact type ${warpType} for protocol ${protocol}`,
+    );
+    this.name = 'UnsupportedWarpArtifactTypeError';
+  }
+}
+
+export function throwUnsupportedWarpType(
+  warpType: string,
+  protocol: ProtocolType,
+): never {
+  throw new UnsupportedWarpArtifactTypeError(warpType, protocol);
 }
 
 /**
