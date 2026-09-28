@@ -601,6 +601,7 @@ describe("HypTokenConfigSchema 'collateralDex' normalization", () => {
 });
 
 describe('buildAltVmWarpRouteDiff', () => {
+  const remoteRouter = addressToBytes32(ROUTER_B);
   const baseConfig = {
     destinationGas: {},
     mailbox: MAILBOX,
@@ -754,6 +755,73 @@ describe('buildAltVmWarpRouteDiff', () => {
     expect(diff).to.not.deep.equal({});
   });
 
+  it('does not flag on-chain destinationGas for an unenrolled domain', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '64000' },
+        },
+      },
+      { [testSealevelChain.name]: { ...baseConfig } },
+    );
+
+    expect(diff).to.deep.equal({});
+  });
+
+  it('flags destinationGas drift for an enrolled domain', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '64000' },
+          remoteRouters: { [test1.name]: remoteRouter },
+        },
+      },
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '5000000' },
+          remoteRouters: { [test1.name]: remoteRouter },
+        },
+      },
+    );
+
+    expect(diff[testSealevelChain.name]).to.deep.include({
+      destinationGas: {
+        [test1.name]: { actual: '64000', expected: '5000000' },
+      },
+    });
+  });
+
+  it('keeps destinationGas for a domain enrolled only through crossCollateralRouters', () => {
+    const crossCollateralRouters = {
+      [test1.name]: [remoteRouter],
+    };
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          crossCollateralRouters,
+          destinationGas: { [test1.name]: '64000' },
+        },
+      },
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          crossCollateralRouters,
+          destinationGas: { [test1.name]: '5000000' },
+        },
+      },
+    );
+
+    expect(diff[testSealevelChain.name]).to.deep.include({
+      destinationGas: {
+        [test1.name]: { actual: '64000', expected: '5000000' },
+      },
+    });
+  });
+
   it('flags a zero-vs-nonzero destinationGas drift on an IGP-capable altVM origin (not scoped as no-IGP)', () => {
     // Sealevel consumes destination_gas, so an on-chain 0 against a non-zero
     // expected is a real regression that must NOT be suppressed.
@@ -762,12 +830,14 @@ describe('buildAltVmWarpRouteDiff', () => {
         [testSealevelChain.name]: {
           ...baseConfig,
           destinationGas: { [test1.name]: '0' },
+          remoteRouters: { [test1.name]: remoteRouter },
         },
       },
       {
         [testSealevelChain.name]: {
           ...baseConfig,
           destinationGas: { [test1.name]: '64000' },
+          remoteRouters: { [test1.name]: remoteRouter },
         },
       },
     );
@@ -785,12 +855,14 @@ describe('buildAltVmWarpRouteDiff', () => {
         [testStarknetChain.name]: {
           ...baseConfig,
           destinationGas: { [test1.name]: '0' },
+          remoteRouters: { [test1.name]: remoteRouter },
         },
       },
       {
         [testStarknetChain.name]: {
           ...baseConfig,
           destinationGas: { [test1.name]: '64000' },
+          remoteRouters: { [test1.name]: remoteRouter },
         },
       },
       new Set([testStarknetChain.name]),
@@ -805,12 +877,14 @@ describe('buildAltVmWarpRouteDiff', () => {
         [testStarknetChain.name]: {
           ...baseConfig,
           destinationGas: { [test1.name]: '5000000' },
+          remoteRouters: { [test1.name]: remoteRouter },
         },
       },
       {
         [testStarknetChain.name]: {
           ...baseConfig,
           destinationGas: { [test1.name]: '64000' },
+          remoteRouters: { [test1.name]: remoteRouter },
         },
       },
       new Set([testStarknetChain.name]),
@@ -829,12 +903,14 @@ describe('buildAltVmWarpRouteDiff', () => {
         [testSealevelChain.name]: {
           ...baseConfig,
           destinationGas: { [test1.name]: '5000000' },
+          remoteRouters: { [test1.name]: remoteRouter },
         },
       },
       {
         [testSealevelChain.name]: {
           ...baseConfig,
           destinationGas: { [test1.name]: '5000000' },
+          remoteRouters: { [test1.name]: remoteRouter },
         },
       },
     );

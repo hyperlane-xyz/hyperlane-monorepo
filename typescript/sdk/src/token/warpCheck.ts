@@ -520,6 +520,30 @@ export function normalizeAltVmDestinationGas(
   return { actual: normalizedActual, expected: normalizedExpected };
 }
 
+export function filterDestinationGasToEnrolledDomains(
+  destinationGas: Record<string, string>,
+  {
+    crossCollateralRouters,
+    remoteRouters,
+  }: Pick<AltVmCheckConfig, 'crossCollateralRouters' | 'remoteRouters'>,
+): Record<string, string> {
+  const enrolledChains = new Set([
+    ...Object.keys(remoteRouters),
+    ...Object.keys(crossCollateralRouters ?? {}),
+  ]);
+  const filteredDestinationGas: Record<string, string> = {};
+
+  // Mirror expandWarpDeployConfig: gas for domains without an enrolled router or
+  // CCR has no effect, but can remain on-chain after unenrollment.
+  for (const [chain, gas] of Object.entries(destinationGas)) {
+    if (enrolledChains.has(chain)) {
+      filteredDestinationGas[chain] = gas;
+    }
+  }
+
+  return filteredDestinationGas;
+}
+
 export function buildAltVmWarpRouteDiff(
   onChainConfigs: Record<string, AltVmCheckConfig>,
   expectedConfigs: Record<string, AltVmCheckConfig>,
@@ -553,13 +577,17 @@ export function buildAltVmWarpRouteDiff(
     // false-positive decimals mismatch.
     // scale is excluded entirely here -- it needs an exact rational comparison
     // (see altVmScaleMismatch) rather than the plain `number` diffObjMerge does.
+    const enrolledActualGas = filterDestinationGasToEnrolledDomains(
+      actual.destinationGas,
+      actual,
+    );
     const { actual: normalizedActualGas, expected: normalizedExpectedGas } =
       noIgpChains.has(chain)
         ? normalizeAltVmDestinationGas(
-            actual.destinationGas,
+            enrolledActualGas,
             expected.destinationGas,
           )
-        : { actual: actual.destinationGas, expected: expected.destinationGas };
+        : { actual: enrolledActualGas, expected: expected.destinationGas };
     const normalizedActual: AltVmCheckConfig = {
       ...actual,
       interchainSecurityModule: isNullish(expected.interchainSecurityModule)
