@@ -63,7 +63,7 @@ require earlier nonces or Wormhole sequences to have been delivered.
 - the VAA nonce equals the Hyperlane message nonce;
 - the Hyperlane message origin has an enrolled remote hook/ISM;
 - the VAA emitter chain equals that route's Wormhole chain ID;
-- the VAA emitter address equals the enrolled remote hook/ISM address;
+- the VAA emitter identifier equals the enrolled remote hook/ISM identifier;
 - the VAA consistency level equals the route's expected level; and
 - the payload message ID equals the ID of the Hyperlane message passed to
   `verify`.
@@ -89,13 +89,14 @@ The owner enrolls one or more remote hook/ISM routes with
 | Field                      | Purpose                                               |
 | -------------------------- | ----------------------------------------------------- |
 | `domainId`                 | Hyperlane origin or destination domain ID             |
-| `domainIsm`                | Remote combined hook/ISM address encoded as `bytes32` |
+| `domainIsm`                | Remote hook/ISM's Wormhole emitter identifier         |
 | `wormholeChainId`          | Wormhole chain containing that remote hook/ISM        |
 | `expectedConsistencyLevel` | Required consistency level in VAAs from that hook/ISM |
 
-The inherited `Router.routers(domainId)` mapping stores the remote hook/ISM as
-the expected VAA emitter. `remoteRouterConfigs` returns its Wormhole chain ID
-and expected consistency level. Verification requires both parts to match.
+The inherited `Router.routers(domainId)` mapping stores the remote hook/ISM's
+`bytes32` emitter identifier. EVM addresses are left-padded; non-EVM emitters
+may use all 32 bytes. `remoteRouterConfigs` returns its Wormhole chain ID and
+expected consistency level. Verification requires every value to match.
 
 A Wormhole chain ID can belong to only one enrolled Hyperlane domain ID. The
 `domainIdForRemoteWormholeChainId` records this reverse lookup explicitly,
@@ -118,12 +119,11 @@ share its owner and route-change blast radius.
 The constructor fixes the consistency level used for local Core publications.
 Standard Wormhole EVM levels require no additional configuration.
 
-The contract currently allows `0`, `1`, `200`, `201`, `202`, and `203`.
-Wormhole's [consistency-level reference][wormhole-finality] documents `0` as
-finalized on many chains. Its Solidity SDK defines `1` as finalized, while its
-Guardian implementation uses `202` as an explicit EVM finalized sentinel. This
-is a contract-specific allowlist, not proof that every value is supported on
-every chain.
+The contract allows `0`, `200`, `201`, `202`, and `203`. Wormhole's
+[consistency-level reference][wormhole-finality] documents `0` as finalized.
+The EVM Guardian watcher uses `200` for instant, `201` for safe, `202` for
+finalized, and `203` for custom consistency. This contract-specific allowlist
+does not prove that every value is supported on every EVM chain.
 
 Consistency levels trade publication latency for protection against source-chain
 reorganizations. Named `instant` and `safe` modes can produce VAAs sooner with

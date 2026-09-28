@@ -116,7 +116,9 @@ contract WormholeVaaHookIsm is
     struct RemoteRouterConfig {
         /// @notice Hyperlane domain of the remote hook/ISM.
         uint32 domainId;
-        /// @notice Remote hook/ISM address encoded as `bytes32`.
+        /// @notice Remote hook/ISM's Wormhole emitter identifier.
+        /// @dev EVM addresses are left-padded to `bytes32`; non-EVM emitters
+        /// may use the full value.
         bytes32 domainIsm;
         /// @notice Wormhole chain containing the remote hook/ISM.
         uint16 wormholeChainId;
@@ -253,7 +255,7 @@ contract WormholeVaaHookIsm is
         return (entry.assigned, entry.key);
     }
 
-    /// @notice Enrolls remote hook/ISM addresses, Wormhole chain IDs, and
+    /// @notice Enrolls remote hook/ISM identifiers, Wormhole chain IDs, and
     /// expected VAA consistency levels atomically.
     function enrollRemoteRouters(
         RemoteRouterConfig[] calldata newRemoteConfigs
@@ -263,8 +265,8 @@ contract WormholeVaaHookIsm is
         }
     }
 
-    /// @dev Installs the remote hook/ISM address in `Router` together with its
-    /// Wormhole chain ID and expected VAA consistency level.
+    /// @dev Installs the remote hook/ISM identifier in `Router` together with
+    /// its Wormhole chain ID and expected VAA consistency level.
     function _enrollWormholeRemoteRouter(
         RemoteRouterConfig calldata newRemoteConfig
     ) internal {
@@ -385,6 +387,8 @@ contract WormholeVaaHookIsm is
         uint32 destination = message.destination();
         return
             wormholeCoreBridge.publishMessage{value: coreFee}(
+                // Wormhole's nonce is emitter-defined. Reuse the Hyperlane
+                // nonce so the VAA can be correlated with its dispatch.
                 message.nonce(),
                 WormholeMessage.encode(
                     _mustHaveRemoteRouter(destination),
@@ -522,8 +526,8 @@ contract WormholeVaaHookIsm is
     function _validateConsistencyLevelConfig(
         WormholeConsistencyLevelConfig memory config
     ) private view {
-        // Accept both Wormhole finalized encodings while rejecting arbitrary
-        // values that are likely configuration mistakes.
+        // Reject values outside the documented finalized value and EVM
+        // Guardian sentinels because they are likely configuration mistakes.
         if (
             !CustomConsistencyLevelLib.isAllowedConsistencyLevel(
                 config.consistencyLevel

@@ -3,7 +3,6 @@ pragma solidity ^0.8.19;
 
 import {Test} from "forge-std/Test.sol";
 import {CoreBridgeVM, ICoreBridge} from "wormhole-sdk/interfaces/ICoreBridge.sol";
-import {CONSISTENCY_LEVEL_FINALIZED} from "wormhole-sdk/constants/ConsistencyLevel.sol";
 
 import {WormholeVaaHookIsm} from "contracts/hooks/wormhole/WormholeVaaHookIsm.sol";
 import {WormholeMessage} from "contracts/libs/WormholeMessage.sol";
@@ -1321,23 +1320,26 @@ contract WormholeHookIsmTest is Test {
         );
     }
 
-    function test_constructor_acceptsSdkFinalizedConsistencyLevel() public {
+    function test_constructor_rejectsSoliditySdkFinalizedConsistencyLevel()
+        public
+    {
         WormholeConsistencyLevelConfig
-            memory finalized = WormholeConsistencyLevelConfig({
-                consistencyLevel: CONSISTENCY_LEVEL_FINALIZED,
+            memory invalid = WormholeConsistencyLevelConfig({
+                consistencyLevel: 1,
                 customConsistencyLevelContract: address(0),
                 customBaseConsistencyLevel: 0,
                 additionalBlocks: 0
             });
 
-        WormholeVaaHookIsm router = new WormholeVaaHookIsm(
+        vm.expectRevert(
+            WormholeVaaHookIsm.InvalidConsistencyLevelConfig.selector
+        );
+        new WormholeVaaHookIsm(
             address(destinationMailbox),
             address(destinationCore),
-            finalized,
+            invalid,
             _urls()
         );
-
-        assertEq(router.consistencyLevel(), CONSISTENCY_LEVEL_FINALIZED);
     }
 
     function test_constructor_acceptsZeroFinalizedConsistencyLevel() public {
@@ -1399,13 +1401,13 @@ contract WormholeHookIsmTest is Test {
         );
     }
 
-    function test_constructor_rejectsSdkFinalizedAsCustomBase() public {
+    function test_constructor_rejectsOneAsCustomBase() public {
         MockCustomConsistencyLevel ccl = new MockCustomConsistencyLevel();
         WormholeConsistencyLevelConfig
             memory invalid = WormholeConsistencyLevelConfig({
                 consistencyLevel: 203,
                 customConsistencyLevelContract: address(ccl),
-                customBaseConsistencyLevel: CONSISTENCY_LEVEL_FINALIZED,
+                customBaseConsistencyLevel: 1,
                 additionalBlocks: 2
             });
 
