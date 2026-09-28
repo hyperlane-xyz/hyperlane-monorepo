@@ -804,6 +804,7 @@ describe('buildAltVmWarpRouteDiff', () => {
           ...baseConfig,
           crossCollateralRouters,
           destinationGas: { [test1.name]: '64000' },
+          type: TokenType.crossCollateral,
         },
       },
       {
@@ -811,6 +812,7 @@ describe('buildAltVmWarpRouteDiff', () => {
           ...baseConfig,
           crossCollateralRouters,
           destinationGas: { [test1.name]: '5000000' },
+          type: TokenType.crossCollateral,
         },
       },
     );
@@ -820,6 +822,81 @@ describe('buildAltVmWarpRouteDiff', () => {
         [test1.name]: { actual: '64000', expected: '5000000' },
       },
     });
+  });
+
+  it('does not flag self-domain crossCollateralRouters destinationGas', () => {
+    const crossCollateralRouters = {
+      [testSealevelChain.name]: [remoteRouter],
+    };
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          crossCollateralRouters,
+          destinationGas: { [testSealevelChain.name]: '64000' },
+          type: TokenType.crossCollateral,
+        },
+      },
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          crossCollateralRouters,
+          type: TokenType.crossCollateral,
+        },
+      },
+    );
+
+    expect(diff).to.deep.equal({});
+  });
+
+  it('does not flag stale gas for an unenrolled domain in a mixed destinationGas map', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          destinationGas: {
+            [test1.name]: '64000',
+            [test2.name]: '5000000',
+          },
+          remoteRouters: { [test1.name]: remoteRouter },
+        },
+      },
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '64000' },
+          remoteRouters: { [test1.name]: remoteRouter },
+        },
+      },
+    );
+
+    expect(diff).to.deep.equal({});
+  });
+
+  it('does not flag destinationGas as missing when the expected router is missing on-chain but gas is present', () => {
+    const diff = buildAltVmWarpRouteDiff(
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '64000' },
+        },
+      },
+      {
+        [testSealevelChain.name]: {
+          ...baseConfig,
+          destinationGas: { [test1.name]: '64000' },
+          remoteRouters: { [test1.name]: remoteRouter },
+        },
+      },
+    );
+
+    expect(diff[testSealevelChain.name]).to.have.property('remoteRouters');
+    expect(diff[testSealevelChain.name]).to.not.have.nested.property(
+      `destinationGas.${test1.name}.actual`,
+    );
+    expect(diff[testSealevelChain.name]).to.not.have.nested.property(
+      `destinationGas.${test1.name}.expected`,
+    );
   });
 
   it('flags a zero-vs-nonzero destinationGas drift on an IGP-capable altVM origin (not scoped as no-IGP)', () => {

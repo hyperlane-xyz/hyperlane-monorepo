@@ -522,22 +522,29 @@ export function normalizeAltVmDestinationGas(
 
 export function filterDestinationGasToEnrolledDomains(
   destinationGas: Record<string, string>,
-  {
-    crossCollateralRouters,
-    remoteRouters,
-  }: Pick<AltVmCheckConfig, 'crossCollateralRouters' | 'remoteRouters'>,
+  chain: string,
+  enrollmentSources: ReadonlyArray<
+    Pick<AltVmCheckConfig, 'crossCollateralRouters' | 'remoteRouters'>
+  >,
 ): Record<string, string> {
-  const enrolledChains = new Set([
-    ...Object.keys(remoteRouters),
-    ...Object.keys(crossCollateralRouters ?? {}),
-  ]);
+  const enrolledChains = new Set<string>();
+  for (const { crossCollateralRouters, remoteRouters } of enrollmentSources) {
+    for (const remoteRouterChain of Object.keys(remoteRouters)) {
+      enrolledChains.add(remoteRouterChain);
+    }
+    for (const ccrChain of Object.keys(crossCollateralRouters ?? {})) {
+      if (ccrChain !== chain) {
+        enrolledChains.add(ccrChain);
+      }
+    }
+  }
   const filteredDestinationGas: Record<string, string> = {};
 
-  // Mirror expandWarpDeployConfig: gas for domains without an enrolled router or
-  // CCR has no effect, but can remain on-chain after unenrollment.
-  for (const [chain, gas] of Object.entries(destinationGas)) {
-    if (enrolledChains.has(chain)) {
-      filteredDestinationGas[chain] = gas;
+  // Gas for domains without an enrolled router or CCR has no effect, but can
+  // remain on-chain after unenrollment.
+  for (const [destinationChain, gas] of Object.entries(destinationGas)) {
+    if (enrolledChains.has(destinationChain)) {
+      filteredDestinationGas[destinationChain] = gas;
     }
   }
 
@@ -579,7 +586,8 @@ export function buildAltVmWarpRouteDiff(
     // (see altVmScaleMismatch) rather than the plain `number` diffObjMerge does.
     const enrolledActualGas = filterDestinationGasToEnrolledDomains(
       actual.destinationGas,
-      actual,
+      chain,
+      [actual, expected],
     );
     const { actual: normalizedActualGas, expected: normalizedExpectedGas } =
       noIgpChains.has(chain)
