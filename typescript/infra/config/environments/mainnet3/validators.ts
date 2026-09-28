@@ -792,16 +792,6 @@ export const validatorChainConfig = (
         'kiichain',
       ),
     },
-    nesa: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('nesa'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'nesa',
-      ),
-    },
     nexus: {
       interval: 5,
       reorgPeriod: getReorgPeriod('nexus'),

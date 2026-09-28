@@ -118,7 +118,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mocachain: true,
     mode: true,
     monad: true,
-    nesa: false, // disabled — superseded by nesachain after the Nesa incident
     nesachain: true,
     nexus: true,
     optimism: true,
@@ -198,7 +197,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mocachain: true,
     mode: true,
     monad: true,
-    nesa: false, // disabled — superseded by nesachain after the Nesa incident
     nesachain: true,
     nexus: true,
     optimism: true,
@@ -278,7 +276,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mocachain: true,
     mode: true,
     monad: true,
-    nesa: false, // disabled — superseded by nesachain after the Nesa incident
     nesachain: true,
     nexus: true,
     optimism: true,

@@ -639,11 +639,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
   },
 
-  nesa: {
-    threshold: 2,
-    validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
-  },
-
   nesachain: {
     threshold: 2,
     validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],

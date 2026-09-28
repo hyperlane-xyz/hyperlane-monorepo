@@ -85,7 +85,6 @@ export const chainsToSkip: ChainName[] = [
   'abstract',
 
   // temp during downtime
-  'nesa',
   'tac',
 
   ...getDisabledChains(),

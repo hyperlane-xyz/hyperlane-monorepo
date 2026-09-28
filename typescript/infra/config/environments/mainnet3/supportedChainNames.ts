@@ -48,7 +48,6 @@ export const mainnet3SupportedChainNames = [
   'mocachain',
   'mode',
   'monad',
-  'nesa',
   'nesachain',
   'nexus',
   'optimism',
