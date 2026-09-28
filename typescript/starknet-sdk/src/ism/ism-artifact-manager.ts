@@ -1,4 +1,8 @@
-import { AltVM, type ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
+import {
+  AltVM,
+  ProtocolType,
+  type ChainMetadataForAltVM,
+} from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactReader,
@@ -8,9 +12,12 @@ import {
   type DeployedIsmAddress,
   type DeployedRawIsmArtifact,
   type IRawIsmArtifactManager,
+  type IsmArtifactReaderFactories,
+  type IsmArtifactWriterFactories,
   type IsmType,
   type RawIsmArtifactConfigs,
   altVMIsmTypeToProviderSdkType,
+  throwUnsupportedIsmType,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   type AnnotatedTx,
@@ -69,12 +76,7 @@ export class StarknetIsmArtifactManager implements IRawIsmArtifactManager {
   createReader<T extends IsmType>(
     type: T,
   ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
-    const readers: Partial<{
-      [K in IsmType]: () => ArtifactReader<
-        RawIsmArtifactConfigs[K],
-        DeployedIsmAddress
-      >;
-    }> = {
+    const readers: IsmArtifactReaderFactories = {
       staticAggregationIsm: () =>
         new StarknetAggregationIsmReader(this.provider),
       pausableIsm: () => new StarknetPausableIsmReader(this.provider),
@@ -85,8 +87,12 @@ export class StarknetIsmArtifactManager implements IRawIsmArtifactManager {
         new StarknetMessageIdMultisigIsmReader(this.provider),
       domainRoutingIsm: () => new StarknetRoutingIsmReader(this.provider),
     };
+
     const readerFactory = readers[type];
-    assert(readerFactory, `Unsupported Starknet ISM type: ${type}`);
+    if (!readerFactory) {
+      return throwUnsupportedIsmType(type, ProtocolType.Starknet);
+    }
+
     return readerFactory();
   }
 
@@ -94,23 +100,22 @@ export class StarknetIsmArtifactManager implements IRawIsmArtifactManager {
     type: T,
     signer: ISigner<AnnotatedTx, TxReceipt>,
   ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
-    const writers: Partial<{
-      [K in IsmType]: (
-        starknetSigner: StarknetSigner,
-      ) => ArtifactWriter<RawIsmArtifactConfigs[K], DeployedIsmAddress>;
-    }> = {
-      testIsm: (starknetSigner) =>
-        new StarknetTestIsmWriter(this.provider, starknetSigner),
-      merkleRootMultisigIsm: (starknetSigner) =>
+    const starknetSigner = this.requireStarknetSigner(signer);
+    const writers: IsmArtifactWriterFactories = {
+      testIsm: () => new StarknetTestIsmWriter(this.provider, starknetSigner),
+      merkleRootMultisigIsm: () =>
         new StarknetMerkleRootMultisigIsmWriter(this.provider, starknetSigner),
-      messageIdMultisigIsm: (starknetSigner) =>
+      messageIdMultisigIsm: () =>
         new StarknetMessageIdMultisigIsmWriter(this.provider, starknetSigner),
-      domainRoutingIsm: (starknetSigner) =>
+      domainRoutingIsm: () =>
         new StarknetRoutingIsmWriter(this.provider, starknetSigner),
     };
+
     const writer = writers[type];
-    assert(writer, `Unsupported Starknet ISM type: ${type}`);
-    const starknetSigner = this.requireStarknetSigner(signer);
-    return writer(starknetSigner);
+    if (!writer) {
+      return throwUnsupportedIsmType(type, ProtocolType.Starknet);
+    }
+
+    return writer();
   }
 }

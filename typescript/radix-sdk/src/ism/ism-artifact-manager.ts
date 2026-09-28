@@ -1,6 +1,6 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ArtifactReader,
   ArtifactWriter,
@@ -9,8 +9,11 @@ import {
   DeployedIsmAddress,
   DeployedRawIsmArtifact,
   IRawIsmArtifactManager,
+  IsmArtifactReaderFactories,
+  IsmArtifactWriterFactories,
   IsmType,
   RawIsmArtifactConfigs,
+  throwUnsupportedIsmType,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
 import { RadixSigner } from '../clients/signer.js';
@@ -64,38 +67,21 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
   createReader<T extends IsmType>(
     type: T,
   ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
-    switch (type) {
-      case AltVM.IsmType.TEST_ISM:
-        return new RadixTestIsmReader(
-          this.gateway,
-        ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
-        return new RadixMerkleRootMultisigIsmReader(
-          this.gateway,
-        ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      case AltVM.IsmType.MESSAGE_ID_MULTISIG:
-        return new RadixMessageIdMultisigIsmReader(
-          this.gateway,
-        ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      case AltVM.IsmType.ROUTING:
-        return new RadixRoutingIsmRawReader(
-          this.gateway,
-        ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      default:
-        throw new Error(`Unsupported ISM type: ${type}`);
+    const readers: IsmArtifactReaderFactories = {
+      [AltVM.IsmType.TEST_ISM]: () => new RadixTestIsmReader(this.gateway),
+      [AltVM.IsmType.MERKLE_ROOT_MULTISIG]: () =>
+        new RadixMerkleRootMultisigIsmReader(this.gateway),
+      [AltVM.IsmType.MESSAGE_ID_MULTISIG]: () =>
+        new RadixMessageIdMultisigIsmReader(this.gateway),
+      [AltVM.IsmType.ROUTING]: () => new RadixRoutingIsmRawReader(this.gateway),
+    };
+
+    const reader = readers[type];
+    if (!reader) {
+      return throwUnsupportedIsmType(type, ProtocolType.Radix);
     }
+
+    return reader();
   }
 
   createWriter<T extends IsmType>(
@@ -104,45 +90,30 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
   ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
     const baseSigner = signer.getBaseSigner();
 
-    switch (type) {
-      case AltVM.IsmType.TEST_ISM:
-        return new RadixTestIsmWriter(
+    const writers: IsmArtifactWriterFactories = {
+      [AltVM.IsmType.TEST_ISM]: () =>
+        new RadixTestIsmWriter(this.gateway, baseSigner, this.base),
+      [AltVM.IsmType.MERKLE_ROOT_MULTISIG]: () =>
+        new RadixMerkleRootMultisigIsmWriter(
           this.gateway,
           baseSigner,
           this.base,
-        ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
-        return new RadixMerkleRootMultisigIsmWriter(
+        ),
+      [AltVM.IsmType.MESSAGE_ID_MULTISIG]: () =>
+        new RadixMessageIdMultisigIsmWriter(
           this.gateway,
           baseSigner,
           this.base,
-        ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      case AltVM.IsmType.MESSAGE_ID_MULTISIG:
-        return new RadixMessageIdMultisigIsmWriter(
-          this.gateway,
-          baseSigner,
-          this.base,
-        ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      case AltVM.IsmType.ROUTING:
-        return new RadixRoutingIsmRawWriter(
-          this.gateway,
-          baseSigner,
-          this.base,
-        ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      default:
-        throw new Error(`Unsupported ISM type: ${type}`);
+        ),
+      [AltVM.IsmType.ROUTING]: () =>
+        new RadixRoutingIsmRawWriter(this.gateway, baseSigner, this.base),
+    };
+
+    const writer = writers[type];
+    if (!writer) {
+      return throwUnsupportedIsmType(type, ProtocolType.Radix);
     }
+
+    return writer();
   }
 }

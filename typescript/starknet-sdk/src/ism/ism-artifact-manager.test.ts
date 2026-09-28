@@ -4,6 +4,7 @@ import { RpcProvider } from 'starknet';
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
+import { UnsupportedIsmArtifactTypeError } from '@hyperlane-xyz/provider-sdk/ism';
 
 import { StarknetSigner } from '../clients/signer.js';
 import { StarknetAnnotatedTx, StarknetTxReceipt } from '../types.js';
@@ -48,15 +49,20 @@ describe('StarknetIsmArtifactManager', () => {
     expect(() => {
       // @ts-expect-error testing runtime validation for unsupported value
       manager.createReader('unsupported');
-    }).to.throw(/Unsupported Starknet ISM type/i);
+    })
+      .to.throw(UnsupportedIsmArtifactTypeError)
+      .with.property('protocol', ProtocolType.Starknet);
   });
 
   it('throws for unsupported writer type', () => {
     const manager = new StarknetIsmArtifactManager(chainMetadata);
+    const signer = new MockStarknetSigner();
     expect(() => {
       // @ts-expect-error testing runtime validation for unsupported value
-      manager.createWriter('unsupported', {});
-    }).to.throw(/Unsupported Starknet ISM type/i);
+      manager.createWriter('unsupported', signer);
+    })
+      .to.throw(UnsupportedIsmArtifactTypeError)
+      .with.property('ismType', 'unsupported');
   });
 
   it('returns noop ISM deployment receipts', async () => {

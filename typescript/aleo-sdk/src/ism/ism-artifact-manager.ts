@@ -1,4 +1,4 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactReader,
   type ArtifactWriter,
@@ -7,9 +7,12 @@ import {
   type DeployedIsmAddress,
   type DeployedRawIsmArtifact,
   type IRawIsmArtifactManager,
+  type IsmArtifactReaderFactories,
+  type IsmArtifactWriterFactories,
   type IsmType,
   type RawIsmArtifactConfigs,
   altVMIsmTypeToProviderSdkType,
+  throwUnsupportedIsmType,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
@@ -39,8 +42,9 @@ function aleoIsmTypeToAltVmType(aleoType: AleoIsmType): AltVM.IsmType {
     case AleoIsmType.TEST_ISM:
       return AltVM.IsmType.TEST_ISM;
     case AleoIsmType.MERKLE_ROOT_MULTISIG:
-      throw new Error(
-        `${AltVM.IsmType.MERKLE_ROOT_MULTISIG} is not supported on Aleo`,
+      return throwUnsupportedIsmType(
+        AltVM.IsmType.MERKLE_ROOT_MULTISIG,
+        ProtocolType.Aleo,
       );
     default:
       throw new Error(`Unknown Aleo ISM type: ${aleoType}`);
@@ -61,64 +65,40 @@ export class AleoIsmArtifactManager implements IRawIsmArtifactManager {
   createReader<T extends IsmType>(
     type: T,
   ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
-    switch (type) {
-      case AltVM.IsmType.TEST_ISM:
-        return new AleoTestIsmReader(
-          this.aleoClient,
-        ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      case AltVM.IsmType.MESSAGE_ID_MULTISIG:
-        return new AleoMessageIdMultisigIsmReader(
-          this.aleoClient,
-        ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      case AltVM.IsmType.ROUTING:
-        return new AleoRoutingIsmRawReader(
-          this.aleoClient,
-        ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      default:
-        throw new Error(`Unsupported ISM type: ${type}`);
+    const readers: IsmArtifactReaderFactories = {
+      [AltVM.IsmType.TEST_ISM]: () => new AleoTestIsmReader(this.aleoClient),
+      [AltVM.IsmType.MESSAGE_ID_MULTISIG]: () =>
+        new AleoMessageIdMultisigIsmReader(this.aleoClient),
+      [AltVM.IsmType.ROUTING]: () =>
+        new AleoRoutingIsmRawReader(this.aleoClient),
+    };
+
+    const reader = readers[type];
+    if (!reader) {
+      return throwUnsupportedIsmType(type, ProtocolType.Aleo);
     }
+
+    return reader();
   }
 
   createWriter<T extends IsmType>(
     type: T,
     signer: AleoSigner,
   ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
-    switch (type) {
-      case AltVM.IsmType.TEST_ISM:
-        return new AleoTestIsmWriter(
-          this.aleoClient,
-          signer,
-        ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      case AltVM.IsmType.MESSAGE_ID_MULTISIG:
-        return new AleoMessageIdMultisigIsmWriter(
-          this.aleoClient,
-          signer,
-        ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      case AltVM.IsmType.ROUTING:
-        return new AleoRoutingIsmRawWriter(
-          this.aleoClient,
-          signer,
-        ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      default:
-        throw new Error(`Unsupported ISM type: ${type}`);
+    const writers: IsmArtifactWriterFactories = {
+      [AltVM.IsmType.TEST_ISM]: () =>
+        new AleoTestIsmWriter(this.aleoClient, signer),
+      [AltVM.IsmType.MESSAGE_ID_MULTISIG]: () =>
+        new AleoMessageIdMultisigIsmWriter(this.aleoClient, signer),
+      [AltVM.IsmType.ROUTING]: () =>
+        new AleoRoutingIsmRawWriter(this.aleoClient, signer),
+    };
+
+    const writer = writers[type];
+    if (!writer) {
+      return throwUnsupportedIsmType(type, ProtocolType.Aleo);
     }
+
+    return writer();
   }
 }
