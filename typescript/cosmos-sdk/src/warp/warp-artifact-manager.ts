@@ -1,7 +1,7 @@
 import { QueryClient } from '@cosmjs/stargate';
 import { connectComet } from '@cosmjs/tendermint-rpc';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactReader,
   type ArtifactWriter,
@@ -11,7 +11,10 @@ import {
   type DeployedWarpAddress,
   type IRawWarpArtifactManager,
   type RawWarpArtifactConfigs,
+  type WarpArtifactReaderFactories,
+  type WarpArtifactWriterFactories,
   type WarpType,
+  throwUnsupportedWarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { LazyAsync, assert } from '@hyperlane-xyz/utils';
 
@@ -66,96 +69,87 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
         warpType = 'synthetic';
         break;
       default:
-        throw new Error(
-          `Token type ${altVMType} is not supported on Cosmos. Only collateral and synthetic tokens are supported.`,
-        );
+        return throwUnsupportedWarpType(altVMType, ProtocolType.CosmosNative);
     }
 
-    const reader = this.createReaderWithQuery(warpType, query);
+    const reader = this.createReader(warpType);
     return reader.read(address);
   }
 
   createReader<T extends WarpType>(
     type: T,
   ): ArtifactReader<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
-    // For synchronous createReader, we return a wrapper that will initialize lazily
+    const readers: WarpArtifactReaderFactories = {
+      collateral: () =>
+        this.createLazyReader(
+          (query) => new CosmosCollateralTokenReader(query),
+        ),
+      synthetic: () =>
+        this.createLazyReader((query) => new CosmosSyntheticTokenReader(query)),
+    };
+
+    const reader = readers[type];
+    if (!reader) {
+      return throwUnsupportedWarpType(type, ProtocolType.CosmosNative);
+    }
+
+    return reader();
+  }
+
+  private createLazyReader<C>(
+    createReader: (
+      query: CosmosWarpQueryClient,
+    ) => ArtifactReader<C, DeployedWarpAddress>,
+  ): ArtifactReader<C, DeployedWarpAddress> {
     return {
       read: async (address: string) => {
         const query = await this.getQuery();
-        const reader = this.createReaderWithQuery(type, query);
-        return reader.read(address);
-      },
-    } satisfies ArtifactReader<RawWarpArtifactConfigs[T], DeployedWarpAddress>;
-  }
-
-  private createReaderWithQuery<T extends WarpType>(
-    type: T,
-    query: CosmosWarpQueryClient,
-  ): ArtifactReader<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
-    const readers: {
-      [K in WarpType]: () => ArtifactReader<
-        RawWarpArtifactConfigs[K],
-        DeployedWarpAddress
-      >;
-    } = {
-      collateral: () => new CosmosCollateralTokenReader(query),
-      synthetic: () => new CosmosSyntheticTokenReader(query),
-      native: () => {
-        throw new Error('Native tokens are not supported on Cosmos');
-      },
-      crossCollateral: () => {
-        throw new Error('Cross-collateral tokens are not supported on Cosmos');
+        return createReader(query).read(address);
       },
     };
-
-    return readers[type]();
   }
 
   createWriter<T extends WarpType>(
     type: T,
     signer: CosmosNativeSigner,
   ): ArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
-    // For synchronous createWriter, we return a wrapper that will initialize lazily
+    const writers: WarpArtifactWriterFactories = {
+      collateral: () =>
+        this.createLazyWriter(
+          (query) => new CosmosCollateralTokenWriter(query, signer),
+        ),
+      synthetic: () =>
+        this.createLazyWriter(
+          (query) => new CosmosSyntheticTokenWriter(query, signer),
+        ),
+    };
+
+    const writer = writers[type];
+    if (!writer) {
+      return throwUnsupportedWarpType(type, ProtocolType.CosmosNative);
+    }
+
+    return writer();
+  }
+
+  private createLazyWriter<C>(
+    createWriter: (
+      query: CosmosWarpQueryClient,
+    ) => ArtifactWriter<C, DeployedWarpAddress>,
+  ): ArtifactWriter<C, DeployedWarpAddress> {
     return {
       read: async (address: string) => {
         const query = await this.getQuery();
-        const writer = this.createWriterWithQuery(type, query, signer);
-        return writer.read(address);
+        return createWriter(query).read(address);
       },
       create: async (artifact) => {
         const query = await this.getQuery();
-        const writer = this.createWriterWithQuery(type, query, signer);
-        return writer.create(artifact);
+        return createWriter(query).create(artifact);
       },
       update: async (artifact) => {
         const query = await this.getQuery();
-        const writer = this.createWriterWithQuery(type, query, signer);
-        return writer.update(artifact);
-      },
-    } satisfies ArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress>;
-  }
-
-  private createWriterWithQuery<T extends WarpType>(
-    type: T,
-    query: CosmosWarpQueryClient,
-    signer: CosmosNativeSigner,
-  ): ArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
-    const writers: {
-      [K in WarpType]: () => ArtifactWriter<
-        RawWarpArtifactConfigs[K],
-        DeployedWarpAddress
-      >;
-    } = {
-      collateral: () => new CosmosCollateralTokenWriter(query, signer),
-      synthetic: () => new CosmosSyntheticTokenWriter(query, signer),
-      native: () => {
-        throw new Error('Native tokens are not supported on Cosmos');
-      },
-      crossCollateral: () => {
-        throw new Error('Cross-collateral tokens are not supported on Cosmos');
+        return createWriter(query).update(artifact);
       },
     };
-
-    return writers[type]();
   }
 }

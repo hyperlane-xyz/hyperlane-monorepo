@@ -1,3 +1,4 @@
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactReader,
   type ArtifactWriter,
@@ -7,7 +8,10 @@ import {
   type DeployedWarpAddress,
   type IRawWarpArtifactManager,
   type RawWarpArtifactConfigs,
+  type WarpArtifactReaderFactories,
+  type WarpArtifactWriterFactories,
   type WarpType,
+  throwUnsupportedWarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 
 import type { AnyAleoNetworkClient } from '../clients/base.js';
@@ -54,12 +58,7 @@ export class AleoWarpArtifactManager implements IRawWarpArtifactManager {
   createReader<T extends WarpType>(
     type: T,
   ): ArtifactReader<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
-    const readers: {
-      [K in WarpType]: () => ArtifactReader<
-        RawWarpArtifactConfigs[K],
-        DeployedWarpAddress
-      >;
-    } = {
+    const readers: WarpArtifactReaderFactories = {
       native: () =>
         new AleoNativeTokenReader(
           this.aleoClient,
@@ -75,24 +74,21 @@ export class AleoWarpArtifactManager implements IRawWarpArtifactManager {
           this.aleoClient,
           this.onChainArtifactManagers,
         ),
-      crossCollateral: () => {
-        throw new Error('Cross-collateral tokens are not supported on Aleo');
-      },
     };
 
-    return readers[type]();
+    const reader = readers[type];
+    if (!reader) {
+      return throwUnsupportedWarpType(type, ProtocolType.Aleo);
+    }
+
+    return reader();
   }
 
   createWriter<T extends WarpType>(
     type: T,
     signer: AleoSigner,
   ): ArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
-    const writers: {
-      [K in WarpType]: () => ArtifactWriter<
-        RawWarpArtifactConfigs[K],
-        DeployedWarpAddress
-      >;
-    } = {
+    const writers: WarpArtifactWriterFactories = {
       native: () =>
         new AleoNativeTokenWriter(
           this.aleoClient,
@@ -111,11 +107,13 @@ export class AleoWarpArtifactManager implements IRawWarpArtifactManager {
           signer,
           this.onChainArtifactManagers,
         ),
-      crossCollateral: () => {
-        throw new Error('Cross-collateral tokens are not supported on Aleo');
-      },
     };
 
-    return writers[type]();
+    const writer = writers[type];
+    if (!writer) {
+      return throwUnsupportedWarpType(type, ProtocolType.Aleo);
+    }
+
+    return writer();
   }
 }

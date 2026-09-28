@@ -4,7 +4,10 @@ import { RpcProvider } from 'starknet';
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
-import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
+import {
+  TokenType,
+  UnsupportedWarpArtifactTypeError,
+} from '@hyperlane-xyz/provider-sdk/warp';
 import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
 import { StarknetSigner } from '../clients/signer.js';
@@ -44,6 +47,15 @@ describe('StarknetWarpArtifactManager', () => {
       };
     }
   }
+
+  it('throws a structured error for unsupported warp types', () => {
+    const manager = new StarknetWarpArtifactManager(chainMetadata);
+    const signer = new MockStarknetSigner();
+
+    expect(() => manager.createWriter(TokenType.crossCollateral, signer))
+      .to.throw(UnsupportedWarpArtifactTypeError)
+      .with.property('protocol', ProtocolType.Starknet);
+  });
 
   it('preserves current hook and ism when Starknet updates omit them', async () => {
     const manager = new StarknetWarpArtifactManager(chainMetadata);

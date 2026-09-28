@@ -1,5 +1,6 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ArtifactReader,
   ArtifactWriter,
@@ -9,7 +10,10 @@ import {
   DeployedWarpAddress,
   IRawWarpArtifactManager,
   RawWarpArtifactConfigs,
+  WarpArtifactReaderFactories,
+  WarpArtifactWriterFactories,
   WarpType,
+  throwUnsupportedWarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 
 import { RadixSigner } from '../clients/signer.js';
@@ -52,23 +56,17 @@ export class RadixWarpArtifactManager implements IRawWarpArtifactManager {
   createReader<T extends WarpType>(
     type: T,
   ): ArtifactReader<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
-    const readers: {
-      [K in WarpType]: () => ArtifactReader<
-        RawWarpArtifactConfigs[K],
-        DeployedWarpAddress
-      >;
-    } = {
+    const readers: WarpArtifactReaderFactories = {
       collateral: () => new RadixCollateralTokenReader(this.gateway, this.base),
       synthetic: () => new RadixSyntheticTokenReader(this.gateway, this.base),
-      native: () => {
-        throw new Error('Native tokens are not supported on Radix');
-      },
-      crossCollateral: () => {
-        throw new Error('Cross-collateral tokens are not supported on Radix');
-      },
     };
 
-    return readers[type]();
+    const reader = readers[type];
+    if (!reader) {
+      return throwUnsupportedWarpType(type, ProtocolType.Radix);
+    }
+
+    return reader();
   }
 
   createWriter<T extends WarpType>(
@@ -77,24 +75,18 @@ export class RadixWarpArtifactManager implements IRawWarpArtifactManager {
   ): ArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
     const baseSigner = signer.getBaseSigner();
 
-    const writers: {
-      [K in WarpType]: () => ArtifactWriter<
-        RawWarpArtifactConfigs[K],
-        DeployedWarpAddress
-      >;
-    } = {
+    const writers: WarpArtifactWriterFactories = {
       collateral: () =>
         new RadixCollateralTokenWriter(this.gateway, baseSigner, this.base),
       synthetic: () =>
         new RadixSyntheticTokenWriter(this.gateway, baseSigner, this.base),
-      native: () => {
-        throw new Error('Native tokens are not supported on Radix');
-      },
-      crossCollateral: () => {
-        throw new Error('Cross-collateral tokens are not supported on Radix');
-      },
     };
 
-    return writers[type]();
+    const writer = writers[type];
+    if (!writer) {
+      return throwUnsupportedWarpType(type, ProtocolType.Radix);
+    }
+
+    return writer();
   }
 }

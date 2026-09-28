@@ -1,15 +1,19 @@
 import { address, type Rpc, type SolanaRpcApi } from '@solana/kit';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import type {
   ArtifactReader,
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type {
-  DeployedRawWarpArtifact,
-  DeployedWarpAddress,
-  IRawWarpArtifactManager,
-  RawWarpArtifactConfigs,
-  WarpType,
+import {
+  type DeployedRawWarpArtifact,
+  type DeployedWarpAddress,
+  type IRawWarpArtifactManager,
+  type RawWarpArtifactConfigs,
+  type WarpArtifactReaderFactories,
+  type WarpArtifactWriterFactories,
+  type WarpType,
+  throwUnsupportedWarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import type { SvmSigner } from '../clients/signer.js';
 import { resolveFeeSalt } from '../fee/types.js';
@@ -52,31 +56,26 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
   createReader<T extends WarpType>(
     type: T,
   ): ArtifactReader<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
-    const readers: {
-      [K in WarpType]: () => ArtifactReader<
-        RawWarpArtifactConfigs[K],
-        DeployedWarpAddress
-      >;
-    } = {
+    const readers: WarpArtifactReaderFactories = {
       native: () => new SvmNativeTokenReader(this.rpc),
       synthetic: () => new SvmSyntheticTokenReader(this.rpc),
       collateral: () => new SvmCollateralTokenReader(this.rpc),
       crossCollateral: () => new SvmCrossCollateralTokenReader(this.rpc),
     };
 
-    return readers[type]();
+    const reader = readers[type];
+    if (!reader) {
+      return throwUnsupportedWarpType(type, ProtocolType.Sealevel);
+    }
+
+    return reader();
   }
 
   createWriter<T extends WarpType>(
     type: T,
     signer: SvmSigner,
   ): ArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
-    const writers: {
-      [K in WarpType]: () => ArtifactWriter<
-        RawWarpArtifactConfigs[K],
-        DeployedWarpAddress
-      >;
-    } = {
+    const writers: WarpArtifactWriterFactories = {
       native: () =>
         new SvmNativeTokenWriter(
           {
@@ -125,7 +124,12 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
         ),
     };
 
-    return writers[type]();
+    const writer = writers[type];
+    if (!writer) {
+      return throwUnsupportedWarpType(type, ProtocolType.Sealevel);
+    }
+
+    return writer();
   }
 
   supportsHookUpdates(): boolean {

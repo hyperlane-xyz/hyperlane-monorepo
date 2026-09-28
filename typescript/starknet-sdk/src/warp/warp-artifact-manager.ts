@@ -1,4 +1,7 @@
-import { type ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
+import {
+  ProtocolType,
+  type ChainMetadataForAltVM,
+} from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactReader,
@@ -13,7 +16,10 @@ import {
   type DeployedWarpAddress,
   type IRawWarpArtifactManager,
   type RawWarpArtifactConfigs,
+  type WarpArtifactReaderFactories,
+  type WarpArtifactWriterFactories,
   type WarpType,
+  throwUnsupportedWarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -54,24 +60,18 @@ export class StarknetWarpArtifactManager implements IRawWarpArtifactManager {
   createReader<T extends WarpType>(
     type: T,
   ): ArtifactReader<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
-    const readers: {
-      [K in WarpType]: ArtifactReader<
-        RawWarpArtifactConfigs[K],
-        DeployedWarpAddress
-      >;
-    } = {
-      native: new StarknetNativeTokenReader(this.provider),
-      collateral: new StarknetCollateralTokenReader(this.provider),
-      synthetic: new StarknetSyntheticTokenReader(this.provider),
-      crossCollateral: {
-        read: async () => {
-          throw new Error(
-            'Cross-collateral tokens are not supported on Starknet',
-          );
-        },
-      },
+    const readers: WarpArtifactReaderFactories = {
+      native: () => new StarknetNativeTokenReader(this.provider),
+      collateral: () => new StarknetCollateralTokenReader(this.provider),
+      synthetic: () => new StarknetSyntheticTokenReader(this.provider),
     };
-    return readers[type];
+
+    const reader = readers[type];
+    if (!reader) {
+      return throwUnsupportedWarpType(type, ProtocolType.Starknet);
+    }
+
+    return reader();
   }
 
   createWriter<T extends WarpType>(
@@ -80,33 +80,18 @@ export class StarknetWarpArtifactManager implements IRawWarpArtifactManager {
   ): ArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
     assert(signer instanceof StarknetSigner, 'Expected StarknetSigner');
 
-    const writers: {
-      [K in WarpType]: ArtifactWriter<
-        RawWarpArtifactConfigs[K],
-        DeployedWarpAddress
-      >;
-    } = {
-      native: new StarknetNativeTokenWriter(this.provider, signer),
-      collateral: new StarknetCollateralTokenWriter(this.provider, signer),
-      synthetic: new StarknetSyntheticTokenWriter(this.provider, signer),
-      crossCollateral: {
-        read: async () => {
-          throw new Error(
-            'Cross-collateral tokens are not supported on Starknet',
-          );
-        },
-        create: async () => {
-          throw new Error(
-            'Cross-collateral tokens are not supported on Starknet',
-          );
-        },
-        update: async () => {
-          throw new Error(
-            'Cross-collateral tokens are not supported on Starknet',
-          );
-        },
-      },
+    const writers: WarpArtifactWriterFactories = {
+      native: () => new StarknetNativeTokenWriter(this.provider, signer),
+      collateral: () =>
+        new StarknetCollateralTokenWriter(this.provider, signer),
+      synthetic: () => new StarknetSyntheticTokenWriter(this.provider, signer),
     };
-    return writers[type];
+
+    const writer = writers[type];
+    if (!writer) {
+      return throwUnsupportedWarpType(type, ProtocolType.Starknet);
+    }
+
+    return writer();
   }
 }
