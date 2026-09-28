@@ -63,10 +63,10 @@ contract LayerZeroV2OffchainLookupHookIsm is
     bytes22 internal constant PULL_EXECUTOR_OPTIONS =
         hex"00030100110100000000000000000000000000000001";
 
-    // Optional Endpoint.clear gas cap. 100k exceeds the 26,610 gas measured
+    // Optional Endpoint.clear gas cap. 50k exceeds the 26,610 gas measured
     // for a single-packet clear in the Ethereum fork test (block 25,878,200),
     // while bounding cleanup work when a long nonce backlog accumulates.
-    uint256 internal constant CLEAR_GAS_LIMIT = 100_000;
+    uint256 internal constant CLEAR_GAS_LIMIT = 50_000;
     uint256 internal constant PACKET_MESSAGE_OFFSET = 113;
     uint8 internal constant PACKET_VERSION = 1;
 
@@ -282,8 +282,10 @@ contract LayerZeroV2OffchainLookupHookIsm is
         bytes calldata message
     ) external override returns (bool) {
         bytes32 messageId = Message.id(message);
-        // The Mailbox records the processing block before invoking its ISM.
-        // Require that record to be current before accepting packet metadata.
+        // Prevent direct callers from clearing the packet before Mailbox
+        // delivery. `clear` deletes the Endpoint payload hash after ULN has
+        // deleted the DVN attestations, which would leave the corresponding
+        // Hyperlane message without a proof and therefore undeliverable.
         if (!_isProcessing(messageId)) {
             revert MessageNotBeingProcessed(messageId);
         }

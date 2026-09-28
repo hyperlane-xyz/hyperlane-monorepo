@@ -287,13 +287,13 @@ Destination authentication checks bind together:
 GUID validation hashes the complete 32-byte LayerZero sender, including any
 non-EVM address bytes.
 
-| Component | Security role |
-| --- | --- |
-| LayerZero Endpoint and selected message libraries | Commit and expose authenticated packet state according to the configured pathway |
-| Configured DVNs | Attest packets under the configured threshold and confirmation policy |
-| Hook/ISM owner | Select peers, endpoint IDs, libraries, DVNs, confirmations, and Executor policy |
-| Hyperlane Mailbox | Supplies the canonical message and final replay protection |
-| Application configuration | Ensures this hook runs on dispatch and this ISM participates in delivery policy |
+| Component                                                | Security role                                                                                                |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| LayerZero Endpoint and selected message libraries        | Commit and expose authenticated packet state according to the configured pathway                             |
+| Configured DVNs                                          | Attest packets under the configured threshold and confirmation policy                                        |
+| Hook/ISM owner                                           | Select peers, endpoint IDs, libraries, DVNs, confirmations, and Executor policy                              |
+| Hyperlane Mailbox                                        | Supplies the canonical message and final replay protection                                                   |
+| Application configuration                                | Ensures this hook runs on dispatch and this ISM participates in delivery policy                              |
 | Executor, offchain lookup service, and Hyperlane relayer | Transport data and transactions; can delay or omit work but cannot satisfy packet checks with different data |
 
 A matching LayerZero packet proves that the enrolled remote Hook/ISM sent an
@@ -311,12 +311,12 @@ asynchronously.
 
 Route changes affect in-flight messages by stage:
 
-| Stage | Effect of route or receive-policy changes |
-| --- | --- |
-| Before origin publication | Later sends require the new route |
+| Stage                                            | Effect of route or receive-policy changes                                                                                          |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Before origin publication                        | Later sends require the new route                                                                                                  |
 | Packet sent but not authenticated at destination | Destination checks use the current endpoint ID, peer, library, and DVN/confirmation policy; old packets may no longer authenticate |
-| Pull packet awaiting `Mailbox.process` | Verification uses current route identity; old peer or endpoint ID data is rejected |
-| Hyperlane message delivered | Mailbox replay protection remains final |
+| Pull packet awaiting `Mailbox.process`           | Verification uses current route identity; old peer or endpoint ID data is rejected                                                 |
+| Hyperlane message delivered                      | Mailbox replay protection remains final                                                                                            |
 
 Unenrollment removes the peer and endpoint ID mappings, blocks both Endpoint
 directions, and restores the selected libraries' configuration to defaults.
@@ -331,7 +331,7 @@ payload hash. This prevents a clear from skipping an unverified packet, even
 though packets can be verified and executed out of order.
 
 After pull verification succeeds, the ISM calls `Endpoint.clear` with a
-100,000-gas safety budget. This is our cap, not a LayerZero requirement: a
+50,000-gas safety budget. This is our cap, not a LayerZero requirement: a
 single-packet clear used 26,610 gas on the production Endpoint at Ethereum fork
 block 25,878,200. The [fork test](../../../test/hooks/LayerZeroV2OffchainLookupHookIsm.fork.t.sol)
 checks it fits the cap. A longer verified backlog can require more gas, so
@@ -347,7 +347,7 @@ application policy, and this ISM cannot safely decide to consume it.
 Consequences:
 
 - a successfully verified pull packet may remain in Endpoint storage;
-- later clear attempts may repeatedly reach the 100,000-gas limit when the
+- later clear attempts may repeatedly reach the 50,000-gas limit when the
   Endpoint must scan a large committed nonce prefix; and
 - Endpoint storage and cleanup work may accumulate without blocking Hyperlane
   delivery through this ISM.
@@ -360,17 +360,17 @@ and retry cleanup after confirming Mailbox delivery.
 
 ## Observability
 
-| Event | Meaning |
-| --- | --- |
-| Mailbox `DispatchId` | Origin Mailbox emitted the Hyperlane message ID |
-| `LayerZeroAuthorizationSent` | Origin Hook/ISM paid the Endpoint and obtained a GUID and nonce |
-| LayerZero Endpoint `PacketSent` | Endpoint emitted the complete encoded packet |
-| `LayerZeroPayloadVerified` | ISM matched or committed the exact Endpoint payload hash |
-| `LayerZeroPayloadClearFailed` | Pull verification succeeded but bounded cleanup failed |
-| Mailbox `ProcessId` | ISM verification and recipient handling completed |
-| `LayerZeroRemoteRouterEnrolled` / `LayerZeroRemoteRouterUnenrolled` | Owner changed route identity |
-| `LayerZeroSendLibrarySet` / `LayerZeroReceiveLibrarySet` | Owner selected an Endpoint library |
-| Library `UlnConfigSet` / `ExecutorConfigSet` | Owner changed pathway worker configuration |
+| Event                                                               | Meaning                                                         |
+| ------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Mailbox `DispatchId`                                                | Origin Mailbox emitted the Hyperlane message ID                 |
+| `LayerZeroAuthorizationSent`                                        | Origin Hook/ISM paid the Endpoint and obtained a GUID and nonce |
+| LayerZero Endpoint `PacketSent`                                     | Endpoint emitted the complete encoded packet                    |
+| `LayerZeroPayloadVerified`                                          | ISM matched or committed the exact Endpoint payload hash        |
+| `LayerZeroPayloadClearFailed`                                       | Pull verification succeeded but bounded cleanup failed          |
+| Mailbox `ProcessId`                                                 | ISM verification and recipient handling completed               |
+| `LayerZeroRemoteRouterEnrolled` / `LayerZeroRemoteRouterUnenrolled` | Owner changed route identity                                    |
+| `LayerZeroSendLibrarySet` / `LayerZeroReceiveLibrarySet`            | Owner selected an Endpoint library                              |
+| Library `UlnConfigSet` / `ExecutorConfigSet`                        | Owner changed pathway worker configuration                      |
 
 `LayerZeroPayloadVerified` does not report the metadata-supplied receive
 library. When a payload hash was committed before processing, that library is

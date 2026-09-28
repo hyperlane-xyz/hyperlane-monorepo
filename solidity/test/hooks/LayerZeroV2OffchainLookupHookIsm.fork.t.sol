@@ -458,7 +458,7 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
         vm.stopPrank();
 
         emit log_named_uint("Endpoint.clear single-packet gas", clearGasUsed);
-        assertLt(clearGasUsed, 100_000);
+        assertLt(clearGasUsed, 50_000);
         assertEq(
             ENDPOINT.inboundPayloadHash(
                 address(router),
