@@ -454,12 +454,17 @@ impl GenericSource {
                 let beyond_boundary = page
                     .last()
                     .is_some_and(|(_, meta)| meta.block_number > u64::from(*blocks.end()));
+                let first_page_block = page
+                    .first()
+                    .map(|(_, meta)| u32::try_from(meta.block_number))
+                    .transpose()?
+                    .ok_or_else(|| eyre!("Sequence page omitted its requested events"))?;
                 let last_block = page
                     .last()
                     .map(|(_, meta)| u32::try_from(meta.block_number))
                     .transpose()?
                     .ok_or_else(|| eyre!("Sequence page omitted its requested events"))?;
-                first_block.get_or_insert(last_block);
+                first_block.get_or_insert(first_page_block);
                 logs.extend(page);
                 start = end
                     .checked_add(1)
@@ -833,7 +838,7 @@ mod tests {
         );
         assert_eq!(
             *indexer.requests.lock().expect("request mutex poisoned"),
-            vec![7..=8, 9..=9]
+            vec![7..=8]
         );
 
         indexer
@@ -871,10 +876,10 @@ mod tests {
             requests: Mutex::new(Vec::new()),
         };
         let bounded_result = GenericSource::logs(&bounded, 0..=3, 0, true, 2).await?;
-        assert_eq!(bounded_result.3, 2);
+        assert_eq!(bounded_result.3, 0);
         assert_eq!(
             *bounded.requests.lock().expect("request mutex poisoned"),
-            vec![0..=1, 2..=3]
+            vec![0..=1]
         );
         let lagging = SequenceIndexer {
             count: 10,

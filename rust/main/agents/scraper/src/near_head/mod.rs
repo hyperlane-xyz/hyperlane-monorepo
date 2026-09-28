@@ -310,12 +310,28 @@ async fn ingest_cached(
     let events = batch.events;
     let validated_counts = advance_sequences(&events, start_counts)?;
     if let Some(end_counts) = end_counts {
-        ensure!(
-            validated_counts[0] == end_counts[0] && validated_counts[3] == end_counts[1],
-            "Incomplete event range"
-        );
+        if validated_counts[0] != end_counts[0] || validated_counts[3] != end_counts[1] {
+            if !source.has_historical_counts() {
+                store.rewind_to_confirmed(state).await?;
+            }
+            eyre::bail!("Incomplete event range");
+        }
     }
-    let counts_at_tips = counts_at_watermarks(&events, start_counts, batch.watermarks);
+    let stored_counts_at_tips = match batch.watermarks {
+        Some(watermarks) => {
+            store
+                .sequence_counts_through(watermarks.map(|(_, tip)| tip))
+                .await?
+        }
+        None => [0; 4],
+    };
+    let counts_at_tips = counts_at_watermarks(
+        &events,
+        start_counts,
+        stored_counts_at_tips,
+        state.indexed,
+        batch.watermarks,
+    );
     let verified_through = batch
         .watermarks
         .zip(batch.complete_through)
@@ -327,8 +343,16 @@ async fn ingest_cached(
                 complete_through,
             )
         })
-        .transpose()?
-        .flatten();
+        .transpose();
+    let verified_through = match verified_through {
+        Ok(verified) => verified.flatten(),
+        Err(error) => {
+            if !source.has_historical_counts() {
+                store.rewind_to_confirmed(state).await?;
+            }
+            return Err(error);
+        }
+    };
     for event in events {
         ensure!(
             event.block_number > state.indexed && event.block_number <= end,
@@ -406,12 +430,19 @@ fn validate_watermarks(
 fn counts_at_watermarks(
     events: &[source::Event],
     start: [u32; 4],
+    stored: [u32; 4],
+    indexed_height: u64,
     watermarks: Option<[(Option<u32>, u32); 4]>,
 ) -> [u32; 4] {
     let Some(watermarks) = watermarks else {
         return start;
     };
     let mut counts = start;
+    for (stream, (_, tip)) in watermarks.into_iter().enumerate() {
+        if u64::from(tip) <= indexed_height {
+            counts[stream] = stored[stream];
+        }
+    }
     for event in events {
         let (stream, sequence) = match &event.data {
             source::EventData::Dispatch(message) => (0, Some(message.nonce)),
@@ -419,7 +450,10 @@ fn counts_at_watermarks(
             source::EventData::Gas { .. } => (2, event.sequence),
             source::EventData::Insertion { index, .. } => (3, Some(*index)),
         };
-        if event.block_number <= u64::from(watermarks[stream].1) && sequence.is_some() {
+        if u64::from(watermarks[stream].1) > indexed_height
+            && event.block_number <= u64::from(watermarks[stream].1)
+            && sequence.is_some()
+        {
             counts[stream] = counts[stream].saturating_add(1);
         }
     }

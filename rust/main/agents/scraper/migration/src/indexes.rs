@@ -97,6 +97,10 @@ async fn replace_gas_payment_log_index(db: &DatabaseConnection) -> eyre::Result<
     if gas_payment_log_index_valid(db, "gas_payment_block_log").await? {
         return Ok(());
     }
+    if !gas_payment_log_index_valid(db, "gas_payment_block_log_v2").await? {
+        db.execute_unprepared("DROP INDEX CONCURRENTLY IF EXISTS gas_payment_block_log_v2")
+            .await?;
+    }
     db.execute_unprepared(
         "CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS gas_payment_block_log_v2 ON gas_payment(domain,block_hash,coalesce(transaction_hash,'\\x'::bytea),transaction_index,log_index,interchain_gas_paymaster,msg_id,destination,gas_amount,payment) WHERE block_hash IS NOT NULL",
     )
@@ -157,6 +161,10 @@ pub async fn create_index(db: &DatabaseConnection, index: ScraperIndex) -> eyre:
 /// Fail scraper startup when an interrupted or mismatched frontier index would
 /// turn bounded near-head work into a full-table scan.
 pub async fn verify_frontier_indexes(db: &DatabaseConnection) -> eyre::Result<()> {
+    ensure!(
+        gas_payment_log_index_valid(db, "gas_payment_block_log").await?,
+        "Index gas_payment_block_log is invalid or has an unexpected definition; rerun init-db"
+    );
     for index in [
         DELIVERY_FRONTIER_UNENRICHED,
         GAS_PAYMENT_FRONTIER_UNENRICHED,
@@ -232,6 +240,16 @@ mod tests {
         create_indexes(&db).await?;
         verify_frontier_indexes(&db).await?;
         create_indexes(&db).await?;
+        db.execute_unprepared(
+            "DROP INDEX gas_payment_block_log; CREATE UNIQUE INDEX gas_payment_block_log_v2 ON gas_payment(domain)",
+        )
+        .await?;
+        create_indexes(&db).await?;
+        assert!(gas_payment_log_index_valid(&db, "gas_payment_block_log").await?);
+        db.execute_unprepared("DROP INDEX gas_payment_block_log")
+            .await?;
+        assert!(verify_frontier_indexes(&db).await.is_err());
+        replace_gas_payment_log_index(&db).await?;
         db.execute_unprepared("DROP INDEX gas_payment_frontier_height")
             .await?;
         assert!(verify_frontier_indexes(&db)

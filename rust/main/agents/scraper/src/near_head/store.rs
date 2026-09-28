@@ -206,6 +206,26 @@ impl Store {
         ])
     }
 
+    /// Next expected sequences at each stream's independently sampled tip.
+    pub async fn sequence_counts_through(&self, tips: [u32; 4]) -> Result<[u32; 4]> {
+        let row = self.db.query_one(sql(
+            "SELECT coalesce((SELECT max(nonce::bigint & 4294967295)+1 FROM raw_message_dispatch WHERE origin_domain=$1 AND origin_mailbox=(SELECT mailbox FROM scraper_head WHERE domain=$1) AND origin_block_height<=$2),0) AS dispatches, coalesce((SELECT max(sequence)+1 FROM delivered_message WHERE domain=$1 AND destination_mailbox=(SELECT mailbox FROM scraper_head WHERE domain=$1) AND block_number<=$3),0) AS deliveries, coalesce((SELECT max(sequence)+1 FROM gas_payment WHERE domain=$1 AND interchain_gas_paymaster=(SELECT interchain_gas_paymaster FROM scraper_head WHERE domain=$1) AND block_number<=$4),0) AS payments, coalesce((SELECT max(leaf_index::bigint & 4294967295)+1 FROM merkle_tree_insertion WHERE domain=$1 AND merkle_tree_hook=(SELECT merkle_tree_hook FROM scraper_head WHERE domain=$1) AND block_number<=$5),0) AS insertions",
+            vec![
+                self.domain(),
+                i64::from(tips[0]).into(),
+                i64::from(tips[1]).into(),
+                i64::from(tips[2]).into(),
+                i64::from(tips[3]).into(),
+            ],
+        )).await?.ok_or_else(|| eyre::eyre!("Missing sequence counts"))?;
+        Ok([
+            u32::try_from(row.try_get::<i64>("", "dispatches")?)?,
+            u32::try_from(row.try_get::<i64>("", "deliveries")?)?,
+            u32::try_from(row.try_get::<i64>("", "payments")?)?,
+            u32::try_from(row.try_get::<i64>("", "insertions")?)?,
+        ])
+    }
+
     /// A range may contain empty blocks whose headers were never fetched.
     pub async fn checkpoint(&self, through: u64) -> Result<u64> {
         let row = self.db.query_one(sql(
