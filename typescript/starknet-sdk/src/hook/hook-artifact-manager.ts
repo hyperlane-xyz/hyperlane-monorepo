@@ -1,4 +1,8 @@
-import { AltVM, type ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
+import {
+  AltVM,
+  ProtocolType,
+  type ChainMetadataForAltVM,
+} from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactReader,
@@ -7,6 +11,8 @@ import {
 import {
   type DeployedHookAddress,
   type DeployedHookArtifact,
+  type HookArtifactReaderFactories,
+  type HookArtifactWriterFactories,
   type HookType,
   type IRawHookArtifactManager,
   type RawHookArtifactConfigs,
@@ -71,19 +77,14 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
       case AltVM.HookType.PROTOCOL_FEE:
         return this.createReader(AltVM.HookType.PROTOCOL_FEE).read(address);
       default:
-        return throwUnsupportedHookType(hookType, 'Starknet');
+        return throwUnsupportedHookType(hookType, ProtocolType.Starknet);
     }
   }
 
   createReader<T extends HookType>(
     type: T,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    const readers: Partial<{
-      [K in HookType]: () => ArtifactReader<
-        RawHookArtifactConfigs[K],
-        DeployedHookAddress
-      >;
-    }> = {
+    const readers: HookArtifactReaderFactories = {
       merkleTreeHook: () => new StarknetMerkleTreeHookReader(),
       interchainGasPaymaster: () =>
         createStarknetInterchainGasPaymasterHookReader(),
@@ -91,10 +92,12 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
         new StarknetProtocolFeeHookReader(this.chainMetadata, this.provider),
       unknownHook: () => new StarknetUnknownHookReader(),
     };
+
     const readerFactory = readers[type];
     if (!readerFactory) {
-      return throwUnsupportedHookType(type, 'Starknet');
+      return throwUnsupportedHookType(type, ProtocolType.Starknet);
     }
+
     return readerFactory();
   }
 
@@ -108,12 +111,7 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
       'mailbox address required for Starknet merkle tree hook deployment',
     );
 
-    const writers: Partial<{
-      [K in HookType]: () => ArtifactWriter<
-        RawHookArtifactConfigs[K],
-        DeployedHookAddress
-      >;
-    }> = {
+    const writers: HookArtifactWriterFactories = {
       merkleTreeHook: () =>
         new StarknetMerkleTreeHookWriter(starknetSigner, this.mailboxAddress),
       interchainGasPaymaster: () =>
@@ -126,10 +124,12 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
         ),
       unknownHook: () => new StarknetUnknownHookWriter(),
     };
+
     const writerFactory = writers[type];
     if (!writerFactory) {
-      return throwUnsupportedHookType(type, 'Starknet');
+      return throwUnsupportedHookType(type, ProtocolType.Starknet);
     }
+
     return writerFactory();
   }
 }

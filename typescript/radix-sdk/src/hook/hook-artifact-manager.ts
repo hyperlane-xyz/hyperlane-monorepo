@@ -1,6 +1,6 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ArtifactReader,
   ArtifactWriter,
@@ -8,6 +8,8 @@ import {
 import {
   DeployedHookAddress,
   DeployedHookArtifact,
+  HookArtifactReaderFactories,
+  HookArtifactWriterFactories,
   HookType,
   IRawHookArtifactManager,
   RawHookArtifactConfigs,
@@ -58,20 +60,16 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
   createReader<T extends HookType>(
     type: T,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    const readers: Partial<{
-      [K in HookType]: () => ArtifactReader<
-        RawHookArtifactConfigs[K],
-        DeployedHookAddress
-      >;
-    }> = {
+    const readers: HookArtifactReaderFactories = {
       merkleTreeHook: () => new RadixMerkleTreeHookReader(this.gateway),
       interchainGasPaymaster: () => new RadixIgpHookReader(this.gateway),
     };
 
     const reader = readers[type];
     if (!reader) {
-      return throwUnsupportedHookType(type, 'Radix');
+      return throwUnsupportedHookType(type, ProtocolType.Radix);
     }
+
     return reader();
   }
 
@@ -81,12 +79,7 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
   ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
     const baseSigner = signer.getBaseSigner();
 
-    const writers: Partial<{
-      [K in HookType]: () => ArtifactWriter<
-        RawHookArtifactConfigs[K],
-        DeployedHookAddress
-      >;
-    }> = {
+    const writers: HookArtifactWriterFactories = {
       merkleTreeHook: () =>
         new RadixMerkleTreeHookWriter(
           this.gateway,
@@ -105,8 +98,9 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
 
     const writer = writers[type];
     if (!writer) {
-      return throwUnsupportedHookType(type, 'Radix');
+      return throwUnsupportedHookType(type, ProtocolType.Radix);
     }
+
     return writer();
   }
 }

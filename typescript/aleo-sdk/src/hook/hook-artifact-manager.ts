@@ -1,4 +1,4 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactReader,
   type ArtifactWriter,
@@ -6,6 +6,8 @@ import {
 import {
   type DeployedHookAddress,
   type DeployedHookArtifact,
+  type HookArtifactReaderFactories,
+  type HookArtifactWriterFactories,
   type HookType,
   type IRawHookArtifactManager,
   type RawHookArtifactConfigs,
@@ -49,7 +51,7 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
       aleoHookType === AltVM.HookType.CUSTOM ||
       aleoHookType === AltVM.HookType.PAUSABLE
     ) {
-      return throwUnsupportedHookType(aleoHookType, 'Aleo');
+      return throwUnsupportedHookType(aleoHookType, ProtocolType.Aleo);
     }
 
     // Get the appropriate reader and read the hook
@@ -62,12 +64,7 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
   createReader<T extends HookType>(
     type: T,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    const readers: Partial<{
-      [K in HookType]: () => ArtifactReader<
-        RawHookArtifactConfigs[K],
-        DeployedHookAddress
-      >;
-    }> = {
+    const readers: HookArtifactReaderFactories = {
       [AltVM.HookType.MERKLE_TREE]: () =>
         new AleoMerkleTreeHookReader(this.aleoClient),
       [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
@@ -76,8 +73,9 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
 
     const reader = readers[type];
     if (!reader) {
-      return throwUnsupportedHookType(type, 'Aleo');
+      return throwUnsupportedHookType(type, ProtocolType.Aleo);
     }
+
     return reader();
   }
 
@@ -88,22 +86,24 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
     const mailboxAddress = this.mailboxAddress;
     assert(mailboxAddress, 'mailbox address required for hook deployment');
 
-    const writers: Partial<{
-      [K in HookType]: () => ArtifactWriter<
-        RawHookArtifactConfigs[K],
-        DeployedHookAddress
-      >;
-    }> = {
-      [AltVM.HookType.MERKLE_TREE]: () =>
-        new AleoMerkleTreeHookWriter(this.aleoClient, signer, mailboxAddress),
-      [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
-        new AleoIgpHookWriter(this.aleoClient, signer, mailboxAddress),
+    const writers: HookArtifactWriterFactories = {
+      [AltVM.HookType.MERKLE_TREE]: () => {
+        return new AleoMerkleTreeHookWriter(
+          this.aleoClient,
+          signer,
+          mailboxAddress,
+        );
+      },
+      [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () => {
+        return new AleoIgpHookWriter(this.aleoClient, signer, mailboxAddress);
+      },
     };
 
     const writer = writers[type];
     if (!writer) {
-      return throwUnsupportedHookType(type, 'Aleo');
+      return throwUnsupportedHookType(type, ProtocolType.Aleo);
     }
+
     return writer();
   }
 }

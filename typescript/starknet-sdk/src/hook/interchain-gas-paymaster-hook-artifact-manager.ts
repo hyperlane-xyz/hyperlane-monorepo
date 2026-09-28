@@ -1,4 +1,4 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactReader,
   type ArtifactWriter,
@@ -17,7 +17,7 @@ export function createStarknetInterchainGasPaymasterHookReader(): ArtifactReader
     read: async () => {
       return throwUnsupportedHookType(
         AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
-        'Starknet',
+        ProtocolType.Starknet,
       );
     },
   };
@@ -31,19 +31,19 @@ export function createStarknetInterchainGasPaymasterHookWriter(): ArtifactWriter
     read: async () => {
       return throwUnsupportedHookType(
         AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
-        'Starknet',
+        ProtocolType.Starknet,
       );
     },
     create: async () => {
       return throwUnsupportedHookType(
         AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
-        'Starknet',
+        ProtocolType.Starknet,
       );
     },
     update: async () => {
       return throwUnsupportedHookType(
         AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
-        'Starknet',
+        ProtocolType.Starknet,
       );
     },
   };

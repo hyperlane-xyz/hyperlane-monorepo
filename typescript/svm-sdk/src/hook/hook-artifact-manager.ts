@@ -1,5 +1,6 @@
 import { address as parseAddress, type Address } from '@solana/kit';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import type {
   ArtifactReader,
@@ -7,6 +8,8 @@ import type {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookArtifact,
+  type HookArtifactReaderFactories,
+  type HookArtifactWriterFactories,
   type IRawHookArtifactManager,
   type RawHookArtifactConfigs,
   throwUnsupportedHookType,
@@ -65,19 +68,18 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
     RawHookArtifactConfigs[T],
     SvmDeployedHook | SvmDeployedIgpHook
   > {
-    const readers: Partial<{
-      [K in keyof RawHookArtifactConfigs]: () => ArtifactReader<
-        RawHookArtifactConfigs[K],
-        SvmDeployedHook | SvmDeployedIgpHook
-      >;
-    }> = {
+    const readers: HookArtifactReaderFactories<
+      SvmDeployedHook | SvmDeployedIgpHook
+    > = {
       merkleTreeHook: () => new SvmMerkleTreeHookReader(this.rpc),
       interchainGasPaymaster: () => new SvmIgpHookReader(this.rpc, this.salt),
     };
+
     const factory = readers[type];
     if (!factory) {
-      return throwUnsupportedHookType(type, 'Sealevel');
+      return throwUnsupportedHookType(type, ProtocolType.Sealevel);
     }
+
     return factory();
   }
 
@@ -88,12 +90,9 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
     RawHookArtifactConfigs[T],
     SvmDeployedHook | SvmDeployedIgpHook
   > {
-    const writers: Partial<{
-      [K in keyof RawHookArtifactConfigs]: () => ArtifactWriter<
-        RawHookArtifactConfigs[K],
-        SvmDeployedHook | SvmDeployedIgpHook
-      >;
-    }> = {
+    const writers: HookArtifactWriterFactories<
+      SvmDeployedHook | SvmDeployedIgpHook
+    > = {
       merkleTreeHook: () => {
         assert(
           this.mailboxAddress,
@@ -116,10 +115,12 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
           signer,
         ),
     };
+
     const factory = writers[type];
     if (!factory) {
-      return throwUnsupportedHookType(type, 'Sealevel');
+      return throwUnsupportedHookType(type, ProtocolType.Sealevel);
     }
+
     return factory();
   }
 
@@ -130,7 +131,7 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
       case HookType.INTERCHAIN_GAS_PAYMASTER:
         return 'interchainGasPaymaster';
       default:
-        throw new Error(`Unsupported hook type on Solana: ${hookType}`);
+        return throwUnsupportedHookType(hookType, ProtocolType.Sealevel);
     }
   }
 }

@@ -1,7 +1,7 @@
 import { QueryClient } from '@cosmjs/stargate';
 import { connectComet } from '@cosmjs/tendermint-rpc';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactReader,
   type ArtifactWriter,
@@ -9,6 +9,8 @@ import {
 import {
   type DeployedHookAddress,
   type DeployedHookArtifact,
+  type HookArtifactReaderFactories,
+  type HookArtifactWriterFactories,
   type HookType,
   type IRawHookArtifactManager,
   type RawHookArtifactConfigs,
@@ -75,9 +77,8 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
   async readHook(address: string): Promise<DeployedHookArtifact> {
     const query = await this.getQuery();
     const altVMType = await getHookType(query, address);
-    const reader = this.createReaderWithQuery(
+    const reader = this.createReader(
       altVmHookTypeToProviderHookType(altVMType),
-      query,
     );
     return reader.read(address);
   }
@@ -91,43 +92,32 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
   createReader<T extends HookType>(
     type: T,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    // For synchronous createReader, we return a wrapper that will initialize lazily
-    return {
-      read: async (address: string) => {
-        const query = await this.getQuery();
-        const reader = this.createReaderWithQuery(type, query);
-        return reader.read(address);
-      },
-    } satisfies ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress>;
-  }
-
-  /**
-   * Internal helper to create type-specific hook readers with query client.
-   *
-   * @param type - Hook type to create reader for
-   * @param query - Query client to use for reading
-   * @returns Type-specific hook reader
-   */
-  private createReaderWithQuery<T extends HookType>(
-    type: T,
-    query: CosmosHookQueryClient,
-  ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    const readers: Partial<{
-      [K in HookType]: () => ArtifactReader<
-        RawHookArtifactConfigs[K],
-        DeployedHookAddress
-      >;
-    }> = {
-      [AltVM.HookType.MERKLE_TREE]: () => new CosmosMerkleTreeHookReader(query),
+    const readers: HookArtifactReaderFactories = {
+      [AltVM.HookType.MERKLE_TREE]: () =>
+        this.createLazyReader((query) => new CosmosMerkleTreeHookReader(query)),
       [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
-        new CosmosIgpHookReader(query),
+        this.createLazyReader((query) => new CosmosIgpHookReader(query)),
     };
 
     const reader = readers[type];
     if (!reader) {
-      return throwUnsupportedHookType(type, 'Cosmos');
+      return throwUnsupportedHookType(type, ProtocolType.CosmosNative);
     }
+
     return reader();
+  }
+
+  private createLazyReader<C>(
+    createReader: (
+      query: CosmosHookQueryClient,
+    ) => ArtifactReader<C, DeployedHookAddress>,
+  ): ArtifactReader<C, DeployedHookAddress> {
+    return {
+      read: async (address: string) => {
+        const query = await this.getQuery();
+        return createReader(query).read(address);
+      },
+    };
   }
 
   /**
@@ -141,69 +131,56 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     type: T,
     signer: CosmosNativeSigner,
   ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    // For synchronous createWriter, we return a wrapper that will initialize lazily
-    return {
-      read: async (address: string) => {
-        const query = await this.getQuery();
-        const writer = this.createWriterWithQuery(type, query, signer);
-        return writer.read(address);
-      },
-      create: async (artifact) => {
-        const query = await this.getQuery();
-        const writer = this.createWriterWithQuery(type, query, signer);
-        return writer.create(artifact);
-      },
-      update: async (artifact) => {
-        const query = await this.getQuery();
-        const writer = this.createWriterWithQuery(type, query, signer);
-        return writer.update(artifact);
-      },
-    } satisfies ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress>;
-  }
-
-  /**
-   * Internal helper to create type-specific hook writers with query client and signer.
-   *
-   * @param type - Hook type to create writer for
-   * @param query - Query client to use for reading
-   * @param signer - Signer to use for writing
-   * @returns Type-specific hook writer
-   */
-  private createWriterWithQuery<T extends HookType>(
-    type: T,
-    query: CosmosHookQueryClient,
-    signer: CosmosNativeSigner,
-  ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    const writers: Partial<{
-      [K in HookType]: () => ArtifactWriter<
-        RawHookArtifactConfigs[K],
-        DeployedHookAddress
-      >;
-    }> = {
-      [AltVM.HookType.MERKLE_TREE]: () => {
-        assert(
-          this.config.mailboxAddress,
-          `Mailbox needs to be defined to deploy a ${AltVM.HookType.MERKLE_TREE} hook`,
-        );
-        return new CosmosMerkleTreeHookWriter(
-          query,
-          signer,
-          this.config.mailboxAddress,
-        );
-      },
-      [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () => {
-        return new CosmosIgpHookWriter(
-          query,
-          signer,
-          this.config.nativeTokenDenom,
-        );
-      },
+    const writers: HookArtifactWriterFactories = {
+      [AltVM.HookType.MERKLE_TREE]: () =>
+        this.createLazyWriter((query) => {
+          assert(
+            this.config.mailboxAddress,
+            `Mailbox needs to be defined to deploy a ${AltVM.HookType.MERKLE_TREE} hook`,
+          );
+          return new CosmosMerkleTreeHookWriter(
+            query,
+            signer,
+            this.config.mailboxAddress,
+          );
+        }),
+      [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
+        this.createLazyWriter(
+          (query) =>
+            new CosmosIgpHookWriter(
+              query,
+              signer,
+              this.config.nativeTokenDenom,
+            ),
+        ),
     };
 
     const writer = writers[type];
     if (!writer) {
-      return throwUnsupportedHookType(type, 'Cosmos');
+      return throwUnsupportedHookType(type, ProtocolType.CosmosNative);
     }
+
     return writer();
+  }
+
+  private createLazyWriter<C>(
+    createWriter: (
+      query: CosmosHookQueryClient,
+    ) => ArtifactWriter<C, DeployedHookAddress>,
+  ): ArtifactWriter<C, DeployedHookAddress> {
+    return {
+      read: async (address: string) => {
+        const query = await this.getQuery();
+        return createWriter(query).read(address);
+      },
+      create: async (artifact) => {
+        const query = await this.getQuery();
+        return createWriter(query).create(artifact);
+      },
+      update: async (artifact) => {
+        const query = await this.getQuery();
+        return createWriter(query).update(artifact);
+      },
+    };
   }
 }
