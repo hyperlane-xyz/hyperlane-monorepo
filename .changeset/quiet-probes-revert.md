@@ -2,4 +2,9 @@
 '@hyperlane-xyz/sdk': patch
 ---
 
-EVM warp route reads were fixed to treat data-carrying reverts from the xERC20 probe as "not xERC20", to skip the `feeRecipient()` read on routers older than the token fee interface, and to skip the `feeHook()` and legacy `scale()` reads for routers whose bytecode lacks those getters.
+The EVM warp route reader was made reliable for non-standard routers:
+
+- The xERC20 probe treats a data-carrying revert (e.g. Fluent `Panic`) as "not xERC20".
+- `feeRecipient()` is only read for routers with the token fee interface, and `feeHook()` and the legacy `scale()` are skipped when the router bytecode lacks the selector.
+- SmartProvider keeps an empty-response error as the cause when another provider times out, so missing-selector handling no longer depends on provider latency.
+- Missing-selector detection no longer classifies RPC transport failures (HTTP errors, dropped connections, `header not found`) as an absent selector.
