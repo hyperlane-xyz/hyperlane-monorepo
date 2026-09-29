@@ -20,6 +20,9 @@ env:
   RUST_BACKTRACE: full
   MIN_LANDERCOVERAGE_PERCENTAGE: 15
   RUSTC_WRAPPER: sccache
+  # Backtraces keep file:line; full variable debuginfo only bloats test binaries.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  CARGO_PROFILE_TEST_DEBUG: line-tables-only
 
 jobs:
   ts-only:
@@ -138,6 +141,53 @@ jobs:
         uses: rui314/setup-mold@v1
       - name: Setup sccache
         uses: ./.github/actions/setup-sccache
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest@0.9
+      # Scraper tests start many testcontainers Postgres instances in parallel; pull
+      # the images once up front so a Docker Hub hiccup cannot fail a test mid-run.
+      # Tags must match the scraper tests: testcontainers' default and `with_tag`.
+      - name: Pre-pull testcontainers images
+        run: |
+          for image in postgres:11-alpine postgres:16-alpine; do
+            for attempt in 1 2 3; do
+              if docker pull "$image"; then
+                break
+              fi
+              if [[ "$attempt" == "3" ]]; then
+                echo "Failed to pull $image after $attempt attempts"
+                exit 1
+              fi
+              echo "$image pull failed; retrying in $((attempt * 10)) seconds"
+              sleep $((attempt * 10))
+            done
+          done
+      - name: Run tests for main workspace
+        run: cargo nextest run --profile ci --features aleo,integration_test --all-targets
+        working-directory: ./rust/main
+
+  test-rs-sealevel-run:
+    needs: [ts-only]
+    if: needs.ts-only.outputs.skip_rust != 'true'
+    runs-on: depot-ubuntu-24.04-8
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+      - name: Install mold linker
+        uses: rui314/setup-mold@v1
+      - name: Setup sccache
+        uses: ./.github/actions/setup-sccache
       - name: Install Solana toolchain
         run: |
           sh -c "$(curl -sSfL https://release.anza.xyz/v3.0.14/install)"
@@ -162,27 +212,6 @@ jobs:
             sleep $((attempt * 10))
           done
         working-directory: ./rust/sealevel
-      # Scraper tests start many testcontainers Postgres instances in parallel; pull
-      # the images once up front so a Docker Hub hiccup cannot fail a test mid-run.
-      # Tags must match the scraper tests: testcontainers' default and `with_tag`.
-      - name: Pre-pull testcontainers images
-        run: |
-          for image in postgres:11-alpine postgres:16-alpine; do
-            for attempt in 1 2 3; do
-              if docker pull "$image"; then
-                break
-              fi
-              if [[ "$attempt" == "3" ]]; then
-                echo "Failed to pull $image after $attempt attempts"
-                exit 1
-              fi
-              echo "$image pull failed; retrying in $((attempt * 10)) seconds"
-              sleep $((attempt * 10))
-            done
-          done
-      - name: Run tests for main workspace
-        run: cargo test --all-targets --features aleo,integration_test
-        working-directory: ./rust/main
       - name: Build sealevel SBF programs
         run: cargo build-sbf --manifest-path programs/ism/composite-ism/Cargo.toml
         working-directory: ./rust/sealevel
@@ -274,7 +303,7 @@ jobs:
 
   test-rs:
     runs-on: ubuntu-latest
-    needs: [test-rs-run]
+    needs: [test-rs-run, test-rs-sealevel-run]
     if: always()
     steps:
       - uses: actions/checkout@v7
@@ -283,6 +312,11 @@ jobs:
         with:
           job_name: 'Rust Tests'
           result: ${{ needs.test-rs-run.result }}
+      - name: Check test-rs sealevel status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Rust Sealevel Tests'
+          result: ${{ needs.test-rs-sealevel-run.result }}
 
   lint-rs:
     runs-on: ubuntu-latest

@@ -7,12 +7,13 @@ use std::time::Duration;
 use macro_rules_attribute::apply;
 use regex::Regex;
 use serde::Deserialize;
-use tempfile::{tempdir, NamedTempFile};
+use tempfile::{tempdir_in, NamedTempFile};
 
 use crate::logging::log;
 use crate::program::Program;
 use crate::utils::{
-    as_task, concat_path, get_sealevel_path, get_workspace_path, AgentHandles, TaskHandle,
+    as_task, concat_path, download, get_sealevel_path, get_workspace_path, poll_until,
+    AgentHandles, TaskHandle,
 };
 
 pub const SOLANA_AGENT_BIN_PATH: &str = "target/debug";
@@ -99,6 +100,11 @@ pub const SOLANA_CHECKPOINT_LOCATION_2: &str =
 
 const SOLANA_GAS_ORACLE_CONFIG_FILE: &str = "environments/local-e2e/gas-oracle-configs.json";
 
+/// When set, the extracted Solana release is kept in (and reused from) this dir.
+const SOLANA_RELEASE_DIR_ENV: &str = "E2E_SOLANA_RELEASE_DIR";
+/// When set, the SPL program shared objects are kept in (and reused from) this dir.
+const SPL_PROGRAMS_DIR_ENV: &str = "E2E_SPL_PROGRAMS_DIR";
+
 // Install the CLI tools and return the path to the bin dir.
 #[apply(as_task)]
 pub fn install_solana_cli_tools(
@@ -106,7 +112,28 @@ pub fn install_solana_cli_tools(
     release_version: String,
     tools_dir: PathBuf,
 ) -> PathBuf {
-    let solana_download_dir = tempdir().unwrap();
+    let tools_dir = std::env::var_os(SOLANA_RELEASE_DIR_ENV)
+        .map(PathBuf::from)
+        .unwrap_or(tools_dir);
+    let bin_dir = concat_path(&tools_dir, "bin");
+    let version_file = concat_path(&tools_dir, "version.yml");
+    if fs::read_to_string(&version_file)
+        .is_ok_and(|version| version.contains(&format!("v{release_version}")))
+    {
+        log!(
+            "Using cached solana cli release v{} from {}",
+            release_version,
+            tools_dir.display()
+        );
+        return bin_dir;
+    }
+
+    let parent_dir = tools_dir
+        .parent()
+        .expect("Solana tools dir must have a parent");
+    fs::create_dir_all(parent_dir).expect("Failed to create solana tools parent dir");
+    // Download next to the destination so the final rename stays on one filesystem.
+    let solana_download_dir = tempdir_in(parent_dir).expect("Failed to create solana download dir");
     log!(
         "Downloading solana cli release v{} from {}",
         release_version,
@@ -130,35 +157,74 @@ pub fn install_solana_cli_tools(
         format!("solana-release-{target}")
     };
     let solana_archive_name = format!("{solana_release_name}.tar.bz2");
+    let solana_download_dir_str = solana_download_dir.as_ref().to_str().unwrap();
 
-    Program::new("curl")
-        .arg("output", &solana_archive_name)
-        .flag("location")
-        .flag("fail")
-        .arg("retry", "5")
-        .flag("retry-all-errors")
-        .cmd(format!(
+    download(
+        &solana_archive_name,
+        &format!(
             "https://{release_url}/releases/download/v{release_version}/{solana_archive_name}"
-        ))
-        .flag("silent")
-        .working_dir(solana_download_dir.as_ref().to_str().unwrap())
-        .run()
-        .join();
+        ),
+        solana_download_dir_str,
+    );
     log!("Uncompressing solana release");
 
     Program::new("tar")
         .flag("extract")
         .arg("file", &solana_archive_name)
-        .working_dir(solana_download_dir.as_ref().to_str().unwrap())
+        .working_dir(solana_download_dir_str)
         .run()
         .join();
 
+    if tools_dir.exists() {
+        fs::remove_dir_all(&tools_dir).expect("Failed to remove stale solana tools dir");
+    }
     fs::rename(
         concat_path(&solana_download_dir, "solana-release"),
         &tools_dir,
     )
     .expect("Failed to move solana-release dir");
-    concat_path(&tools_dir, "bin")
+    bin_dir
+}
+
+/// Copies the SPL program shared objects into `out_path`, reusing
+/// `E2E_SPL_PROGRAMS_DIR` when it is populated and downloading otherwise.
+fn install_spl_programs(out_path: &Path) {
+    let cache_dir = std::env::var_os(SPL_PROGRAMS_DIR_ENV).map(PathBuf::from);
+    if let Some(cache_dir) = &cache_dir {
+        if SOLANA_PROGRAMS
+            .iter()
+            .all(|(_, lib)| concat_path(cache_dir, lib).exists())
+        {
+            log!("Using cached solana programs from {}", cache_dir.display());
+            for (_, lib) in SOLANA_PROGRAMS {
+                fs::copy(concat_path(cache_dir, lib), concat_path(out_path, lib))
+                    .expect("Failed to copy cached solana program");
+            }
+            return;
+        }
+    }
+
+    let out_path_str = out_path.to_str().unwrap();
+    download("spl.tar.gz", SOLANA_PROGRAM_LIBRARY_ARCHIVE, out_path_str);
+    log!("Uncompressing solana programs");
+
+    Program::new("tar")
+        .flag("extract")
+        .arg("file", "spl.tar.gz")
+        .working_dir(out_path_str)
+        .run()
+        .join();
+    log!("Removing temporary solana files");
+    fs::remove_file(concat_path(out_path, "spl.tar.gz"))
+        .expect("Failed to remove solana program archive");
+
+    if let Some(cache_dir) = &cache_dir {
+        fs::create_dir_all(cache_dir).expect("Failed to create solana programs cache dir");
+        for (_, lib) in SOLANA_PROGRAMS {
+            fs::copy(concat_path(out_path, lib), concat_path(cache_dir, lib))
+                .expect("Failed to populate solana programs cache");
+        }
+    }
 }
 
 #[apply(as_task)]
@@ -171,28 +237,7 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
     fs::create_dir_all(&out_path).expect("Failed to create solana program deploy dir");
     let out_path = out_path.canonicalize().unwrap();
 
-    Program::new("curl")
-        .arg("output", "spl.tar.gz")
-        .flag("location")
-        .flag("fail")
-        .arg("retry", "5")
-        .flag("retry-all-errors")
-        .cmd(SOLANA_PROGRAM_LIBRARY_ARCHIVE)
-        .flag("silent")
-        .working_dir(&out_path)
-        .run()
-        .join();
-    log!("Uncompressing solana programs");
-
-    Program::new("tar")
-        .flag("extract")
-        .arg("file", "spl.tar.gz")
-        .working_dir(&out_path)
-        .run()
-        .join();
-    log!("Removing temporary solana files");
-    fs::remove_file(concat_path(&out_path, "spl.tar.gz"))
-        .expect("Failed to remove solana program archive");
+    install_spl_programs(&out_path);
 
     let bin_path = concat_path(&solana_cli_tools_path, "cargo-build-sbf");
     let build_sbf = Program::new(bin_path.clone()).env("SBF_OUT_PATH", out_path.to_str().unwrap());
@@ -304,7 +349,9 @@ pub fn start_solana_test_validator(
         );
     }
     let validator = args.spawn("SOL", None);
-    sleep(Duration::from_secs(5));
+    poll_until("solana validator RPC", Duration::from_secs(60), || {
+        solana_slot(&solana_cli_tools_path, &solana_config_path, "confirmed").is_some()
+    });
 
     log!("Deploying the hyperlane programs to solana");
 
@@ -521,6 +568,8 @@ pub fn initiate_hyperlane_transfer_to_sealeveltest2(
         .cmd(TRANSFER_RECIPIENT)
         .cmd("native")
         .arg("program-id", SEALEVELTEST1_WARP_ROUTE_PROGRAM_ID)
+        // Agents index at finalized anyway; skip the client's finalized wait.
+        .arg("commitment", "confirmed")
         .run_with_output()
         .join();
 
@@ -562,6 +611,8 @@ pub fn initiate_hyperlane_transfer_to_sealeveltest3(
         .cmd(TRANSFER_RECIPIENT)
         .cmd("native")
         .arg("program-id", SEALEVELTEST1_WARP_ROUTE_PROGRAM_ID)
+        // Agents index at finalized anyway; skip the client's finalized wait.
+        .arg("commitment", "confirmed")
         .run_with_output()
         .join();
 
@@ -605,6 +656,8 @@ pub fn initiate_non_matching_igp_paying_transfer(
         .cmd(TRANSFER_RECIPIENT)
         .cmd("native")
         .arg("program-id", SEALEVELTEST1_WARP_ROUTE_PROGRAM_ID)
+        // Agents index at finalized anyway; skip the client's finalized wait.
+        .arg("commitment", "confirmed")
         .run_with_output()
         .join();
     let non_matching_igp_message_id =
@@ -668,6 +721,38 @@ pub fn solana_termination_invariants_met(
         .join("\n")
         .contains("Message delivered")
 }
+
+/// Returns the validator's slot at `commitment`, or `None` if the RPC is not answering.
+fn solana_slot(
+    solana_cli_tools_path: &Path,
+    solana_config_path: &Path,
+    commitment: &str,
+) -> Option<u64> {
+    let (success, output) = Program::new(concat_path(solana_cli_tools_path, "solana"))
+        .arg("config", solana_config_path.to_str().unwrap())
+        .cmd("slot")
+        .arg("commitment", commitment)
+        .run_with_status_and_output()
+        .join();
+    success
+        .then(|| output.iter().find_map(|line| line.trim().parse().ok()))
+        .flatten()
+}
+
+/// Blocks until everything confirmed so far is also finalized, which is what agents index.
+pub fn wait_for_finalized(solana_cli_tools_path: &Path, solana_config_path: &Path) {
+    let confirmed = solana_slot(solana_cli_tools_path, solana_config_path, "confirmed")
+        .expect("Failed to read confirmed slot");
+    poll_until(
+        "finalized slot to reach confirmed slot",
+        Duration::from_secs(60),
+        || {
+            solana_slot(solana_cli_tools_path, solana_config_path, "finalized")
+                .is_some_and(|finalized| finalized >= confirmed)
+        },
+    );
+}
+
 pub fn sealevel_client(solana_cli_tools_path: &Path, solana_config_path: &Path) -> Program {
     let workspace_path = get_workspace_path();
     let sealevel_path = get_sealevel_path(&workspace_path);

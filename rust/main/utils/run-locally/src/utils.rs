@@ -285,6 +285,20 @@ pub fn wait_for_postgres() {
     panic!("Postgres not ready after {MAX_ATTEMPTS} attempts");
 }
 
+/// Polls `ready` every 500ms until it returns true, panicking after `timeout`.
+#[allow(dead_code)]
+pub(crate) fn poll_until(what: &str, timeout: std::time::Duration, ready: impl Fn() -> bool) {
+    let start = std::time::Instant::now();
+    while !ready() {
+        assert!(
+            start.elapsed() < timeout,
+            "Timed out after {timeout:?} waiting for {what}"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(500));
+    }
+    log!("Ready after {:?}: {}", start.elapsed(), what);
+}
+
 #[allow(dead_code)]
 pub(crate) fn download(output: &str, uri: &str, dir: &str) {
     Program::new("curl")
@@ -292,9 +306,12 @@ pub(crate) fn download(output: &str, uri: &str, dir: &str) {
         .flag("location")
         .flag("fail")
         .arg("retry", "5")
+        .arg("retry-delay", "5")
+        .arg("retry-max-time", "180")
         .flag("retry-all-errors")
         .cmd(uri)
         .flag("silent")
+        .flag("show-error")
         .working_dir(dir)
         .run()
         .join();

@@ -1,0 +1,6 @@
+# CI profile: `cargo nextest run --profile ci`.
+[profile.ci]
+# Report every failing test instead of stopping at the first.
+fail-fast = false
+# Repeat failure output at the end so it is easy to find in CI logs.
+failure-output = "immediate-final"

@@ -76,11 +76,39 @@ mod destination;
 mod origin;
 
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
-const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
+/// Unit tests instantiate cursors against dead localhost RPCs, so they retry less and faster.
+const CURSOR_INSTANTIATION_ATTEMPTS: usize = if cfg!(test) { 3 } else { 10 };
+const CURSOR_INSTANTIATION_RETRY_SLEEP: Duration = if cfg!(test) {
+    Duration::from_millis(100)
+} else {
+    hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION
+};
 const MESSAGE_DB_LOADER_INIT_RETRY_INTERVAL: Duration = Duration::from_secs(5);
-const CHAIN_BUILD_ATTEMPTS: usize = 5;
-const CHAIN_BUILD_RETRY_INTERVAL: Duration = Duration::from_secs(3);
-const CHAIN_BUILD_RETRY_BUDGET: Duration = Duration::from_secs(15);
+
+/// Retry schedule for transient chain construction failures.
+#[derive(Clone, Copy, Debug)]
+struct ChainBuildRetry {
+    attempts: usize,
+    interval: Duration,
+    budget: Duration,
+}
+
+const PROD_CHAIN_BUILD_RETRY: ChainBuildRetry = ChainBuildRetry {
+    attempts: 5,
+    interval: Duration::from_secs(3),
+    budget: Duration::from_secs(15),
+};
+
+/// Unit tests build relayers against dead localhost RPCs, so they use a short schedule.
+const CHAIN_BUILD_RETRY: ChainBuildRetry = if cfg!(test) {
+    ChainBuildRetry {
+        attempts: 5,
+        interval: Duration::from_millis(100),
+        budget: Duration::from_millis(500),
+    }
+} else {
+    PROD_CHAIN_BUILD_RETRY
+};
 const ADVANCED_LOG_META: bool = false;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -956,7 +984,7 @@ impl Relayer {
             },
             CURSOR_INSTANTIATION_ATTEMPTS,
             // Bound startup failure reporting independently of background RPC backoff.
-            Some(hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION),
+            Some(CURSOR_INSTANTIATION_RETRY_SLEEP),
         )
         .await
     }
@@ -1510,6 +1538,7 @@ impl Relayer {
     async fn build_chain_with_retries<T, E, F, Fut>(
         domain: &HyperlaneDomain,
         role: &str,
+        retry: ChainBuildRetry,
         mut build: F,
     ) -> Result<T, E>
     where
@@ -1521,12 +1550,11 @@ impl Relayer {
             Ok(value) => return Ok(value),
             Err(err) => err,
         };
-        let Some(deadline) = tokio::time::Instant::now().checked_add(CHAIN_BUILD_RETRY_BUDGET)
-        else {
+        let Some(deadline) = tokio::time::Instant::now().checked_add(retry.budget) else {
             return Err(last_error);
         };
 
-        for attempt in 2..=CHAIN_BUILD_ATTEMPTS {
+        for attempt in 2..=retry.attempts {
             warn!(
                 domain = domain.name(),
                 role,
@@ -1535,7 +1563,7 @@ impl Relayer {
                 "Retrying chain construction after failure"
             );
             let retry = async {
-                tokio::time::sleep(CHAIN_BUILD_RETRY_INTERVAL).await;
+                tokio::time::sleep(retry.interval).await;
                 build().await
             };
             match tokio::time::timeout_at(deadline, retry).await {
@@ -1579,14 +1607,15 @@ impl Relayer {
             .chains
             .iter()
             .map(|(domain, chain)| async {
-                let result = Self::build_chain_with_retries(domain, "origin", || {
-                    factory.create(
-                        domain.clone(),
-                        chain,
-                        settings.gas_payment_enforcement.clone(),
-                    )
-                })
-                .await;
+                let result =
+                    Self::build_chain_with_retries(domain, "origin", CHAIN_BUILD_RETRY, || {
+                        factory.create(
+                            domain.clone(),
+                            chain,
+                            settings.gas_payment_enforcement.clone(),
+                        )
+                    })
+                    .await;
                 (domain.clone(), result)
             })
             .collect();
@@ -1640,13 +1669,18 @@ impl Relayer {
             .map(|(domain, chain)| async {
                 let result = match chain.validate_mailbox_config() {
                     Ok(()) => {
-                        Self::build_chain_with_retries(domain, "destination", || {
-                            factory.create(
-                                domain.clone(),
-                                chain.clone(),
-                                dispatcher_metrics.clone(),
-                            )
-                        })
+                        Self::build_chain_with_retries(
+                            domain,
+                            "destination",
+                            CHAIN_BUILD_RETRY,
+                            || {
+                                factory.create(
+                                    domain.clone(),
+                                    chain.clone(),
+                                    dispatcher_metrics.clone(),
+                                )
+                            },
+                        )
                         .await
                     }
                     Err(err) => Err(FactoryError::InvalidConfiguration(
