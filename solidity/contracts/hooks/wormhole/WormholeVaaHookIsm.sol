@@ -162,9 +162,8 @@ contract WormholeVaaHookIsm is
     /// also contain that domain.
     mapping(uint32 domainId => uint8 level) private expectedConsistencyLevels;
 
-    /// @notice Whether each Hyperlane message ID has been published through
-    /// Wormhole Core by this contract.
-    mapping(bytes32 messageId => bool published) public publishedMessages;
+    /// @notice Most recent Hyperlane message ID successfully processed by this hook.
+    bytes32 public latestPublishedMessageId;
 
     // ============ Constructor ============
 
@@ -355,7 +354,7 @@ contract WormholeVaaHookIsm is
             revert MessageNotDispatched();
         }
 
-        if (publishedMessages[messageId]) {
+        if (latestPublishedMessageId == messageId) {
             revert MessageAlreadyPublished();
         }
 
@@ -365,7 +364,7 @@ contract WormholeVaaHookIsm is
         }
 
         // Effect before the Core call; a later failure reverts this write.
-        publishedMessages[messageId] = true;
+        latestPublishedMessageId = messageId;
         uint64 publishedSequence = _publish(message, messageId, coreFee);
 
         emit WormholeMessagePublished(

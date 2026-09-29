@@ -288,14 +288,21 @@ contract WormholeHookIsmTest_Invariants is Test {
         );
     }
 
-    function invariant_everyRecordedMessageIsPublished() public view {
+    function invariant_latestPublishedMessageMatchesLatestDispatch()
+        public
+        view
+    {
         uint256 count = handler.messageCount();
-        for (uint256 i; i < count; ++i) {
-            assertTrue(
-                originRouter.publishedMessages(handler.messageId(i)),
-                "recorded message not published"
-            );
+        if (count == 0) {
+            assertEq(originRouter.latestPublishedMessageId(), bytes32(0));
+            return;
         }
+
+        assertEq(
+            originRouter.latestPublishedMessageId(),
+            handler.messageId(count - 1),
+            "latest published message diverged"
+        );
     }
 
     function invariant_invalidEmitterNeverVerifies() public view {

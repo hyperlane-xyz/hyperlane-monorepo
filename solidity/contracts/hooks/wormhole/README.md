@@ -166,11 +166,13 @@ closes this rescue window. The caller cannot fabricate a message because the
 hook checks its ID against the Mailbox, and each message can be published only
 once by this deployment.
 
-The hook publishes only the Mailbox's latest dispatched message and records
-published message IDs. This prevents duplicate publication through the same
-deployment. Applications should still ensure the same hook is not included
-twice in nested required/default/aggregation hook trees, because the second
-invocation reverts the dispatch.
+The hook publishes only the Mailbox's latest dispatched message and records the
+latest published message ID. This prevents duplicate publication through the
+same deployment without retaining every prior ID: after another dispatch, an
+older message no longer matches the Mailbox's latest ID. Applications should
+still ensure the same hook is not included twice in nested
+required/default/aggregation hook trees, because the second invocation reverts
+the dispatch.
 
 ## CCIP-read service
 

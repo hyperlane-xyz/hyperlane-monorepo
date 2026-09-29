@@ -819,7 +819,7 @@ contract WormholeHookIsmTest is Test {
         _dispatch();
 
         assertEq(address(originCore).balance, CORE_FEE);
-        assertTrue(originRouter.publishedMessages(message.id()));
+        assertEq(originRouter.latestPublishedMessageId(), message.id());
     }
 
     function test_postDispatch_emitsCorrelationEvent() public {
@@ -863,6 +863,18 @@ contract WormholeHookIsmTest is Test {
         );
     }
 
+    function test_postDispatch_rejectsPreviousMessageAfterNewDispatch() public {
+        (bytes memory previousMessage, ) = _dispatch();
+        (bytes memory latestMessage, ) = _dispatch();
+
+        assertEq(originRouter.latestPublishedMessageId(), latestMessage.id());
+        vm.expectRevert(WormholeVaaHookIsm.MessageNotDispatched.selector);
+        IPostDispatchHook(address(originRouter)).postDispatch{value: CORE_FEE}(
+            "",
+            previousMessage
+        );
+    }
+
     function test_postDispatch_rejectsUnderpayment() public {
         uint256 required = CORE_FEE;
         vm.expectRevert(
@@ -903,11 +915,6 @@ contract WormholeHookIsmTest is Test {
     }
 
     function test_postDispatch_coreFailureRollsBackPublicationState() public {
-        bytes memory message = originMailbox.buildOutboundMessage(
-            DESTINATION,
-            address(recipient).addressToBytes32(),
-            _body()
-        );
         vm.mockCallRevert(
             address(originCore),
             abi.encodeWithSelector(ICoreBridge.publishMessage.selector),
@@ -915,7 +922,7 @@ contract WormholeHookIsmTest is Test {
         );
         vm.expectRevert("Core publication failed");
         _dispatchOnly();
-        assertFalse(originRouter.publishedMessages(message.id()));
+        assertEq(originRouter.latestPublishedMessageId(), bytes32(0));
     }
 
     function test_handle_isUnsupported() public {
