@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.19;
 
+import {BytesParsing} from "wormhole-sdk/libraries/BytesParsing.sol";
+
 /**
  * @title WormholeMessage
  * @notice Fixed-size payload published through Wormhole Core for a Hyperlane
  * message.
- * @dev All four fields have fixed-size types, so the ABI-encoded payload has
- * a fixed length. `messageId` commits to all Hyperlane message fields.
  */
 library WormholeMessage {
+    using BytesParsing for bytes;
+
     // ============ Errors ============
 
     error InvalidPayloadLength();
@@ -19,7 +21,7 @@ library WormholeMessage {
 
     bytes4 internal constant MAGIC = bytes4(keccak256("HYPERLANE_WORMHOLE"));
     uint8 internal constant VERSION = 1;
-    uint256 internal constant ENCODED_LENGTH = 32 * 4;
+    uint256 internal constant ENCODED_LENGTH = 4 + 1 + 32 + 32;
 
     // ============ Types ============
 
@@ -36,15 +38,7 @@ library WormholeMessage {
         bytes32 destinationHookIsm,
         bytes32 messageId
     ) internal pure returns (bytes memory) {
-        return
-            abi.encode(
-                Message({
-                    magic: MAGIC,
-                    version: VERSION,
-                    destinationHookIsm: destinationHookIsm,
-                    messageId: messageId
-                })
-            );
+        return abi.encodePacked(MAGIC, VERSION, destinationHookIsm, messageId);
     }
 
     function decode(
@@ -54,7 +48,11 @@ library WormholeMessage {
             revert InvalidPayloadLength();
         }
 
-        m = abi.decode(payload, (Message));
+        uint256 offset;
+        (m.magic, offset) = payload.asBytes4MemUnchecked(offset);
+        (m.version, offset) = payload.asUint8MemUnchecked(offset);
+        (m.destinationHookIsm, offset) = payload.asBytes32MemUnchecked(offset);
+        (m.messageId, ) = payload.asBytes32MemUnchecked(offset);
 
         if (m.magic != MAGIC) {
             revert InvalidPayloadMagic();

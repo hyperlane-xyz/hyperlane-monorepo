@@ -1072,14 +1072,11 @@ contract WormholeHookIsmTest is Test {
 
     function test_verify_rejectsWrongPayloadMagic() public {
         (bytes memory message, ) = _dispatch();
-        bytes memory payload = abi.encode(
-            WormholeMessage.Message({
-                magic: bytes4("XXXX"),
-                version: WormholeMessage.VERSION,
-                destinationHookIsm: address(destinationRouter)
-                    .addressToBytes32(),
-                messageId: message.id()
-            })
+        bytes memory payload = abi.encodePacked(
+            bytes4("XXXX"),
+            WormholeMessage.VERSION,
+            address(destinationRouter).addressToBytes32(),
+            message.id()
         );
         bytes memory metadata = _wrapVaa(
             _vaa(
@@ -1098,14 +1095,11 @@ contract WormholeHookIsmTest is Test {
 
     function test_verify_rejectsWrongPayloadVersion() public {
         (bytes memory message, ) = _dispatch();
-        bytes memory payload = abi.encode(
-            WormholeMessage.Message({
-                magic: WormholeMessage.MAGIC,
-                version: WormholeMessage.VERSION + 1,
-                destinationHookIsm: address(destinationRouter)
-                    .addressToBytes32(),
-                messageId: message.id()
-            })
+        bytes memory payload = abi.encodePacked(
+            WormholeMessage.MAGIC,
+            WormholeMessage.VERSION + 1,
+            address(destinationRouter).addressToBytes32(),
+            message.id()
         );
         bytes memory metadata = _wrapVaa(
             _vaa(
@@ -1538,6 +1532,22 @@ contract WormholeHookIsmTest_Payload is Test {
             bytes32(uint256(4))
         );
         assertEq(payload.length, WormholeMessage.ENCODED_LENGTH);
+        assertEq(payload.length, 69);
+    }
+
+    function test_payload_wireLayout() public pure {
+        bytes32 destinationHookIsm = bytes32(uint256(3));
+        bytes32 messageId = bytes32(uint256(4));
+
+        assertEq(
+            WormholeMessage.encode(destinationHookIsm, messageId),
+            abi.encodePacked(
+                WormholeMessage.MAGIC,
+                WormholeMessage.VERSION,
+                destinationHookIsm,
+                messageId
+            )
+        );
     }
 
     function testFuzz_payload_roundTrip(
