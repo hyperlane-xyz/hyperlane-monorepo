@@ -403,7 +403,7 @@ contract WormholeHookIsmTest is Test {
     }
 
     function test_enroll_rejectsZeroWormholeChainId() public {
-        vm.expectRevert(WormholeVaaHookIsm.InvalidWormholeChainId.selector);
+        vm.expectRevert(ReverseMappingLib.ReverseKeyCannotBeZero.selector);
         _enroll(originRouter, 3000, makeAddr("remote"), 0);
     }
 

@@ -281,10 +281,6 @@ contract WormholeVaaHookIsm is
             revert InvalidDomainIsm();
         }
 
-        if (newRemoteConfig.wormholeChainId == 0) {
-            revert InvalidWormholeChainId();
-        }
-
         if (newRemoteConfig.wormholeChainId == wormholeChainId) {
             revert InvalidRemoteWormholeChainId();
         }
