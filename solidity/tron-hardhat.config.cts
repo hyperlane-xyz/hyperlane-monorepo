@@ -29,6 +29,7 @@ const TRON_EXCLUDED_PATTERNS = [
     // Wormhole has no canonical Core deployment on Tron.
     "/contracts/hooks/wormhole/",
     "/contracts/interfaces/wormhole/",
+    "/contracts/libs/WormholeMessage.sol",
     "/contracts/hooks/OPStackHook.sol",
     "/contracts/hooks/aggregation/ERC5164Hook.sol",
     "/contracts/token/extensions/OPL2ToL1TokenBridgeNative.sol",
