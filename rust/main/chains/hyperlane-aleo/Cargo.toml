@@ -52,5 +52,8 @@ rand_chacha = "0.10.0"
 sodiumbox = "0.1.0"
 base64.workspace = true
 
+[target.'cfg(all(target_os = "linux", target_env = "gnu"))'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 prometheus.workspace = true

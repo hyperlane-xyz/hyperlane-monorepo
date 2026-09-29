@@ -35,7 +35,7 @@ use crate::{
     provider::{
         fallback::FallbackHttpClient,
         metric::{record_execution_phase, ExecutionPhase},
-        AleoClient, BaseHttpClient, JWTBaseHttpClient, ProvingClient, RpcClient,
+        vm_thread, AleoClient, BaseHttpClient, JWTBaseHttpClient, ProvingClient, RpcClient,
     },
     utils::{get_tx_id, to_h256},
     AleoSigner, ConnectionConf, CurrentNetwork, FeeEstimate, HyperlaneAleoError,
@@ -312,7 +312,7 @@ impl<C: AleoClient> AleoProvider<C> {
     where
         I: IntoIterator<Item = V>,
         I::IntoIter: ExactSizeIterator,
-        V: TryInto<Value<N>>,
+        V: TryInto<Value<N>> + Send + 'static,
     {
         let start = Instant::now();
         debug!(
@@ -335,16 +335,22 @@ impl<C: AleoClient> AleoProvider<C> {
             Instant::now().duration_since(start).as_secs_f32()
         );
 
-        // Create authorization.
-        let authorization = vm
-            .authorize(
+        // Create authorization. Checked authorization synthesizes the circuit.
+        let inputs: Vec<V> = input.into_iter().collect();
+        let job_vm = vm.clone();
+        let (authorization, rng) = vm_thread::run(move || {
+            let authorization = job_vm.authorize(
                 &private_key,
                 program_id_parsed,
                 function_name_parsed,
-                input.into_iter(),
+                inputs.into_iter(),
                 &mut rng,
-            )
-            .map_err(|e| HyperlaneAleoError::SnarkVmError(e.into()))?;
+            );
+            (authorization, rng)
+        })
+        .await?;
+        let authorization =
+            authorization.map_err(|e| HyperlaneAleoError::SnarkVmError(e.into()))?;
 
         // Malicious authorization check
         self.malicious_authorization_check(program_id, &authorization)?;
@@ -380,7 +386,7 @@ impl<C: AleoClient> AleoProvider<C> {
     where
         I: IntoIterator<Item = V>,
         I::IntoIter: ExactSizeIterator,
-        V: TryInto<Value<N>>,
+        V: TryInto<Value<N>> + Send + 'static,
     {
         let (authorization, program_id_parsed, function_name_parsed, _, _) = self
             .prepare_authorization::<N, I, V>(program_id, function_name, input, vm)
@@ -475,7 +481,7 @@ impl<C: AleoClient> AleoProvider<C> {
     where
         I: IntoIterator<Item = V>,
         I::IntoIter: ExactSizeIterator,
-        V: TryInto<Value<N>>,
+        V: TryInto<Value<N>> + Send + 'static,
     {
         debug!("Creating ZK-Proof for: {}/{}", program_id, function_name);
 
@@ -524,18 +530,23 @@ impl<C: AleoClient> AleoProvider<C> {
         let priority_fee = self.get_priority_fee(base_fee);
         debug!(base_fee, priority_fee, "Calculated fees");
 
-        // Authorize fee payment.
-        let fee = vm
-            .authorize_fee_public(
+        // Authorize fee payment. This also synthesizes a circuit.
+        let execution_id = authorization
+            .to_execution_id()
+            .map_err(HyperlaneAleoError::from)?;
+        let job_vm = vm.clone();
+        let (fee, mut rng) = vm_thread::run(move || {
+            let fee = job_vm.authorize_fee_public(
                 &private_key,
                 base_fee,
                 priority_fee,
-                authorization
-                    .to_execution_id()
-                    .map_err(HyperlaneAleoError::from)?,
+                execution_id,
                 &mut rng,
-            )
-            .map_err(HyperlaneAleoError::SnarkVmError)?;
+            );
+            (fee, rng)
+        })
+        .await?;
+        let fee = fee.map_err(HyperlaneAleoError::SnarkVmError)?;
 
         // Use local proving only when no delegated proving service is configured. A delegated
         // prover failure is retried by the relayer; falling back here can saturate Tokio's
