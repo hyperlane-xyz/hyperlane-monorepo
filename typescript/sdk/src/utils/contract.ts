@@ -11,6 +11,8 @@ import {
   strip0x,
 } from '@hyperlane-xyz/utils';
 
+import { getNestedJsonRpcError } from '../providers/SmartProvider/jsonRpcError.js';
+
 /**
  * Returns true when the deployed contract version is already at or above the
  * target version.
@@ -66,6 +68,23 @@ export function isMissingSelectorCallException(error: unknown): boolean {
   return isMissingSelectorRevert(error);
 }
 
+// EIP-1474 execution error
+const EXECUTION_REVERTED_JSON_RPC_CODE = 3;
+const NODE_REVERT_MESSAGE_PATTERN = /\brevert(ed)?\b/i;
+
+/**
+ * True for an ethers CALL_EXCEPTION produced by a call that executed and
+ * returned nothing: either ethers failed to decode an empty return (no nested
+ * error) or the node reported an execution revert without data.
+ *
+ * ethers wraps every eth_call failure without revert data as a CALL_EXCEPTION
+ * with data "0x", including transport failures (HTTP status errors, dropped
+ * connections, JSON-RPC errors such as "header not found"). Those carry the
+ * original error nested and must not be read as a missing selector. The
+ * formatted message also contains data="0x" for those wrapped failures, so
+ * neither the data field nor the message text alone can tell a missing
+ * selector from an outage; the nested error has to be inspected.
+ */
 export function isMissingSelectorRevert(error: unknown): boolean {
   const callException = findCallException(error);
   if (!callException) return false;
@@ -77,13 +96,14 @@ export function isMissingSelectorRevert(error: unknown): boolean {
     typeof callException.data === 'string'
       ? callException.data
       : nestedError?.data;
-  if (data === '0x') return true;
+  if (data !== '0x') return false;
 
-  // Some ethers/provider combinations only expose empty return data in the
-  // formatted message.
+  if (isNullish(callException.error)) return true;
+
+  const { code, message } = getNestedJsonRpcError(callException);
   return (
-    typeof callException.message === 'string' &&
-    callException.message.includes('data="0x"')
+    code === EXECUTION_REVERTED_JSON_RPC_CODE ||
+    (typeof message === 'string' && NODE_REVERT_MESSAGE_PATTERN.test(message))
   );
 }
 

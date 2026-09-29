@@ -5,6 +5,7 @@ import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { stubPackageVersion } from '../test/contractStubs.js';
 import {
+  ethersCallExceptionWithNestedError,
   lsp17NoExtensionError,
   missingSelectorError,
   networkError,
@@ -69,6 +70,112 @@ describe('contract utils', () => {
         ),
       ).to.equal(false);
     });
+  });
+
+  describe('isMissingSelectorCallException with nested ethers errors', () => {
+    interface Case {
+      name: string;
+      nested: object;
+      expected: boolean;
+    }
+
+    const cases: Case[] = [
+      {
+        name: 'JSON-RPC code 3 revert without data',
+        nested: Object.assign(new Error('execution reverted'), {
+          code: 3,
+          data: '0x',
+        }),
+        expected: true,
+      },
+      {
+        name: 'JSON-RPC -32000 execution reverted',
+        nested: Object.assign(new Error('execution reverted'), {
+          code: -32000,
+        }),
+        expected: true,
+      },
+      {
+        name: 'hardhat VM exception revert',
+        nested: Object.assign(
+          new Error(
+            "VM Exception while processing transaction: reverted with reason string ''",
+          ),
+          { code: -32603 },
+        ),
+        expected: true,
+      },
+      {
+        name: 'revert JSON body inside an HTTP error response (transient, like SmartProvider)',
+        nested: {
+          code: 'SERVER_ERROR',
+          message: 'processing response error',
+          body: '{"jsonrpc":"2.0","id":1,"error":{"code":3,"message":"x"}}',
+        },
+        expected: false,
+      },
+      {
+        name: 'HTTP 500 server error',
+        nested: {
+          code: 'SERVER_ERROR',
+          message:
+            'processing response error (body="Internal Server Error", responseText="Internal Server Error", requestBody="{}", requestMethod="POST", url="http://x", code=SERVER_ERROR, version=web/5.8.0)',
+          body: 'Internal Server Error',
+          status: 500,
+        },
+        expected: false,
+      },
+      {
+        name: 'JSON-RPC -32000 header not found',
+        nested: Object.assign(new Error('header not found'), { code: -32000 }),
+        expected: false,
+      },
+      {
+        name: 'connection reset (missing response)',
+        nested: {
+          code: 'SERVER_ERROR',
+          message:
+            'missing response (requestBody="{}", requestMethod="POST", serverError={"code":"ECONNRESET"}, url="http://x", code=SERVER_ERROR, version=web/5.8.0)',
+        },
+        expected: false,
+      },
+      {
+        name: 'request timeout',
+        nested: {
+          code: 'TIMEOUT',
+          message: 'timeout (requestBody="{}", timeout=120000)',
+        },
+        expected: false,
+      },
+      {
+        name: 'HTTP 429 rate limit',
+        nested: {
+          code: 'SERVER_ERROR',
+          message:
+            'bad response (status=429, headers={}, body="Too Many Requests")',
+          status: 429,
+        },
+        expected: false,
+      },
+      {
+        name: 'JSON-RPC rate limit error',
+        nested: Object.assign(new Error('rate limit exceeded'), {
+          code: -32005,
+        }),
+        expected: false,
+      },
+    ];
+
+    for (const c of cases) {
+      it(`returns ${c.expected} for ${c.name}`, () => {
+        const error = ethersCallExceptionWithNestedError(c.nested);
+        expect(isMissingSelectorCallException(error)).to.equal(c.expected);
+        expect(isMissingSelectorRevert(error)).to.equal(c.expected);
+        expect(isMissingSelectorCallException(wrappedError(error))).to.equal(
+          c.expected,
+        );
+      });
+    }
   });
 
   describe('isRevertWithData', () => {
