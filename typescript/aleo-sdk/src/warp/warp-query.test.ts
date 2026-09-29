@@ -114,7 +114,7 @@ describe('getArc20ProgramId', () => {
     const aleoClient = clientWithImports([
       'credits.aleo',
       'test_arc20_usdc.aleo',
-      'test_arc20_multisig.aleo',
+      'arc20_multisig_core.aleo',
     ]);
 
     expect(
@@ -135,12 +135,40 @@ describe('getArc20ProgramId', () => {
     ).to.equal('shield_arc22_usdg.aleo');
   });
 
+  it('resolves an ARC-22 token import before its helper imports', async () => {
+    const aleoClient = clientWithImports([
+      'credits.aleo',
+      'shield_arc22_bat.aleo',
+      'shield_arc22_freezelist.aleo',
+      'shield_arc22_multisig_core.aleo',
+    ]);
+
+    expect(
+      await getArc20ProgramId(aleoClient, 'hyp_warp_token_bat_v2.aleo'),
+    ).to.equal('shield_arc22_bat.aleo');
+  });
+
   it('rejects v2 programs without an ARC token import', async () => {
     const aleoClient = clientWithImports(['credits.aleo', 'hyp_mailbox.aleo']);
 
     await expect(
       getArc20ProgramId(aleoClient, 'hyp_warp_token_invalid_v2.aleo'),
-    ).to.be.rejectedWith('Could not find ARC-20 or ARC-22 token import');
+    ).to.be.rejectedWith(
+      'Expected exactly one ARC-20 or ARC-22 token import in program hyp_warp_token_invalid_v2.aleo, found 0: none',
+    );
+  });
+
+  it('rejects ambiguous ARC token imports and lists the candidates', async () => {
+    const aleoClient = clientWithImports([
+      'shield_arc22_bat.aleo',
+      'shield_arc22_usdg.aleo',
+    ]);
+
+    await expect(
+      getArc20ProgramId(aleoClient, 'hyp_warp_token_invalid_v2.aleo'),
+    ).to.be.rejectedWith(
+      'found 2: shield_arc22_bat.aleo, shield_arc22_usdg.aleo',
+    );
   });
 });
 

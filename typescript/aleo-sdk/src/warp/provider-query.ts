@@ -14,17 +14,18 @@ export async function getArc20ProgramId(
   warpProgramId: string,
 ): Promise<string> {
   const imports = await aleoClient.getProgramImportNames(warpProgramId);
-  const arc20ProgramId = imports.find(
+  const arcTokenProgramIds = imports.filter(
     (i) =>
       (i.includes('arc20') || i.includes('arc22')) &&
       !i.includes('freezelist') &&
       !i.includes('multisig'),
   );
+  const [arcTokenProgramId] = arcTokenProgramIds;
   assert(
-    arc20ProgramId,
-    `Could not find ARC-20 or ARC-22 token import in program ${warpProgramId}`,
+    arcTokenProgramIds.length === 1 && arcTokenProgramId,
+    `Expected exactly one ARC-20 or ARC-22 token import in program ${warpProgramId}, found ${arcTokenProgramIds.length}: ${arcTokenProgramIds.join(', ') || 'none'}`,
   );
-  return arc20ProgramId;
+  return arcTokenProgramId;
 }
 
 /** Extracts the first wire-format output from a view function response. */
