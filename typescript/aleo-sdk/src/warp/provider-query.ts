@@ -8,18 +8,21 @@ import {
 } from '../utils/helper.js';
 import type { AleoPlaintextRuntime } from '../utils/provable.js';
 
-/** Returns the ARC-20 token program imported by an ARC-20 warp token. */
+/** Returns the ARC-20 or ARC-22 token program imported by a v2 warp token. */
 export async function getArc20ProgramId(
   aleoClient: AnyAleoNetworkClient,
   warpProgramId: string,
 ): Promise<string> {
   const imports = await aleoClient.getProgramImportNames(warpProgramId);
   const arc20ProgramId = imports.find(
-    (i) => i.includes('arc20') && !i.includes('multisig'),
+    (i) =>
+      (i.includes('arc20') || i.includes('arc22')) &&
+      !i.includes('freezelist') &&
+      !i.includes('multisig'),
   );
   assert(
     arc20ProgramId,
-    `Could not find ARC-20 token import in program ${warpProgramId}`,
+    `Could not find ARC-20 or ARC-22 token import in program ${warpProgramId}`,
   );
   return arc20ProgramId;
 }
@@ -77,7 +80,7 @@ function parseAleoIdentifier(raw: string): string {
   return raw.replace(/^'|'$/g, '');
 }
 
-/** Queries token metadata from an ARC-20 token program's view functions. */
+/** Queries token metadata from an ARC-20 or ARC-22 program's view functions. */
 export async function getArc20TokenMetadata(
   aleoClient: AnyAleoNetworkClient,
   arc20ProgramId: string,
