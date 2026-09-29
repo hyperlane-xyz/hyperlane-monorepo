@@ -778,7 +778,12 @@ export class HyperlaneSmartProvider
       return class extends Error {
         constructor() {
           super(fallbackMsg, {
-            cause: timedOutError,
+            cause:
+              errors.find(
+                (e) =>
+                  e instanceof Error &&
+                  errorChainHasMessage(e, 'Invalid response from provider'),
+              ) ?? timedOutError,
           });
         }
       };

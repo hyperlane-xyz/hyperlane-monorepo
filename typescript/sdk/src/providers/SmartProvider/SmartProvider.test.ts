@@ -1074,6 +1074,76 @@ describe('SmartProvider', () => {
       expect(isMissingSelectorCallException(e)).to.equal(true);
     });
 
+    describe('when another provider timed out', () => {
+      const timeout = { status: ProviderStatus.Timeout };
+
+      interface TimeoutCase {
+        name: string;
+        others: Error[];
+        expectCause: 'timeout' | 'other';
+        causeIndex: number;
+        missingSelector: boolean;
+      }
+
+      const networkError = Object.assign(new Error('network error'), {
+        code: 'NETWORK_ERROR',
+      });
+      const emptyResponseError = new Error('Invalid response from provider');
+      const cases: TimeoutCase[] = [
+        {
+          name: 'keeps the empty-response error as the cause',
+          others: [emptyResponseError],
+          expectCause: 'other',
+          causeIndex: 0,
+          missingSelector: true,
+        },
+        {
+          name: 'keeps the timeout as the cause when it is the only error',
+          others: [],
+          expectCause: 'timeout',
+          causeIndex: 0,
+          missingSelector: false,
+        },
+        {
+          name: 'keeps the timeout as the cause for a generic error',
+          others: [new Error('generic')],
+          expectCause: 'timeout',
+          causeIndex: 0,
+          missingSelector: false,
+        },
+        {
+          name: 'keeps a network error as the cause and is not a missing selector',
+          others: [networkError],
+          expectCause: 'other',
+          causeIndex: 0,
+          missingSelector: false,
+        },
+        {
+          name: 'picks the empty-response error among several errors',
+          others: [new Error('generic'), emptyResponseError],
+          expectCause: 'other',
+          causeIndex: 1,
+          missingSelector: true,
+        },
+      ];
+
+      for (const c of cases) {
+        it(c.name, () => {
+          const CombinedError = provider.testGetCombinedProviderError(
+            [timeout, ...c.others],
+            'Test fallback message',
+          );
+
+          const e = new CombinedError();
+
+          expect(e.cause).to.equal(
+            c.expectCause === 'timeout' ? timeout : c.others[c.causeIndex],
+          );
+          expect(isMissingSelectorCallException(e)).to.equal(c.missingSelector);
+        });
+      }
+    });
+
     it('treats CALL_EXCEPTION with JSON-RPC error code 3 as permanent (BlockchainError)', () => {
       // JSON-RPC error code 3 definitively indicates execution revert (EIP-1474)
       // Even without revert data, this is a real contract revert
