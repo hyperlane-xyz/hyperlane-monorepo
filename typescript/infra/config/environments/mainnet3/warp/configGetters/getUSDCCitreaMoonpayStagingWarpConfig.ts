@@ -8,6 +8,7 @@ import {
 import { getDomainId, getRegistry } from '../../../../registry.js';
 import { DEPLOYER } from '../../owners.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
+import { usdcTokenAddresses } from '../cctp.js';
 import { WarpRouteIds } from '../warpIds.js';
 import {
   getRebalancingBridgesConfigFor,
@@ -36,6 +37,7 @@ const SOLANA_IGP_ADDRESS = 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv';
 const SOLANA_XO_TOKEN_MINT = 'xoUSDq85Rjsb6SbUwJyreFgeWQvxdkT7R3c3g7s6p5Y';
 const SOLANA_XO_NAME = 'XO Cash';
 const SOLANA_XO_SYMBOL = 'XO';
+const ROBINHOOD_USDG_TOKEN = '0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168';
 
 const EXTRA_REBALANCER = '0x2cB236403574301029c7bDDfda133c6e0338a857';
 const ALLOWED_REBALANCERS = [REBALANCER, EXTRA_REBALANCER];
@@ -93,6 +95,12 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
     [WarpRouteIds.MainnetCCTPV2Standard, WarpRouteIds.MainnetCCTPV2Fast],
   );
 
+  const cctpStandardRebalancingConfigByChain =
+    getUSDCRebalancingBridgesConfigFor(
+      ['arbitrum', 'arc', 'base', 'ethereum', 'polygon'],
+      [WarpRouteIds.MainnetCCTPV2Standard],
+    );
+
   const additionalRebalancingConfigByChain = getRebalancingBridgesConfigFor(
     ['arbitrum', 'base', 'bsc', 'ethereum', 'polygon'],
     [
@@ -134,7 +142,20 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
         cctpRebalancingConfigByChain.arbitrum.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.arbitrum?.allowedRebalancingBridges,
         { citrea: [{ bridge: tbda.arbitrum }] },
+        {
+          arc: cctpStandardRebalancingConfigByChain.arbitrum
+            .allowedRebalancingBridges.arc,
+        },
       ),
+      crossCollateralRouters,
+    },
+    arc: {
+      type: TokenType.crossCollateral,
+      token: usdcTokenAddresses.arc,
+      mailbox: routerConfig.arc.mailbox,
+      owner: DEPLOYER_EVM,
+      ...cctpStandardRebalancingConfigByChain.arc,
+      allowedRebalancers: ALLOWED_REBALANCERS,
       crossCollateralRouters,
     },
     base: {
@@ -148,6 +169,10 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
         cctpRebalancingConfigByChain.base.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.base?.allowedRebalancingBridges,
         { citrea: [{ bridge: tbda.base }] },
+        {
+          arc: cctpStandardRebalancingConfigByChain.base
+            .allowedRebalancingBridges.arc,
+        },
       ),
       crossCollateralRouters,
     },
@@ -183,6 +208,10 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
         cctpRebalancingConfigByChain.ethereum.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.ethereum?.allowedRebalancingBridges,
         { citrea: [{ bridge: tbda.ethereum }] },
+        {
+          arc: cctpStandardRebalancingConfigByChain.ethereum
+            .allowedRebalancingBridges.arc,
+        },
       ),
       crossCollateralRouters,
     },
@@ -205,7 +234,19 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
         cctpRebalancingConfigByChain.polygon.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.polygon?.allowedRebalancingBridges,
         { citrea: [{ bridge: tbda.polygon }] },
+        {
+          arc: cctpStandardRebalancingConfigByChain.polygon
+            .allowedRebalancingBridges.arc,
+        },
       ),
+      crossCollateralRouters,
+    },
+    robinhood: {
+      type: TokenType.crossCollateral,
+      token: ROBINHOOD_USDG_TOKEN,
+      mailbox: routerConfig.robinhood.mailbox,
+      owner: DEPLOYER_EVM,
+      allowedRebalancers: [EXTRA_REBALANCER],
       crossCollateralRouters,
     },
   };
