@@ -1,4 +1,9 @@
-import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  CrossCollateralTokenConfig,
+  HypTokenRouterConfig,
+  TokenType,
+} from '@hyperlane-xyz/sdk';
 import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import {
@@ -85,6 +90,26 @@ function getSiblingCrossCollateralRouters(): Record<string, string[]> {
   );
 }
 
+// Preserve the existing same-chain USDC -> USDT staging rebalance link so
+// extending the route does not remove unrelated on-chain configuration.
+function getBaseSiblingRebalanceConfig(): Partial<
+  Pick<CrossCollateralTokenConfig, 'rebalanceRecipients' | 'rebalanceTargets'>
+> {
+  const route = getRegistry().getWarpRoute(
+    WarpRouteIds.USDTCitreaMoonpaySTAGING,
+  );
+  if (!route) return {};
+
+  const sibling = route.tokens.find(({ chainName }) => chainName === 'base');
+  assert(sibling?.addressOrDenom, 'Missing Base USDT staging router');
+  const siblingRouter = addressToBytes32(sibling.addressOrDenom);
+
+  return {
+    rebalanceRecipients: { base: siblingRouter },
+    rebalanceTargets: { base: [siblingRouter] },
+  };
+}
+
 export async function getUSDCCitreaMoonpayStagingWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
@@ -163,6 +188,7 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       token: tokens.base.USDC,
       mailbox: routerConfig.base.mailbox,
       owner: DEPLOYER_EVM,
+      ...getBaseSiblingRebalanceConfig(),
       ...cctpRebalancingConfigByChain.base,
       allowedRebalancers: ALLOWED_REBALANCERS,
       allowedRebalancingBridges: mergeAllowedBridges(
