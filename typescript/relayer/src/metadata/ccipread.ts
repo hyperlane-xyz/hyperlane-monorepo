@@ -5,6 +5,7 @@ import {
   HyperlaneCore,
   IsmType,
   OffchainLookupIsmConfig,
+  WormholeIsmConfig,
   offchainLookupRequestMessageHash,
 } from '@hyperlane-xyz/sdk';
 import { WithAddress, ensure0x } from '@hyperlane-xyz/utils';
@@ -49,6 +50,15 @@ function extractRevertData(error: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * ISMs that answer `getOffchainVerifyInfo` with an EIP-3668 `OffchainLookup`.
+ * Only the ISM address is needed to trigger it, so the direct-VAA Wormhole
+ * router reuses this builder unchanged.
+ */
+export type OffchainLookupContextConfig =
+  | OffchainLookupIsmConfig
+  | (WormholeIsmConfig & { type: typeof IsmType.WORMHOLE_VAA });
+
 export class OffchainLookupMetadataBuilder implements MetadataBuilder {
   readonly type = IsmType.OFFCHAIN_LOOKUP;
   private core: HyperlaneCore;
@@ -58,9 +68,9 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
   }
 
   async build(
-    context: MetadataContext<WithAddress<OffchainLookupIsmConfig>>,
+    context: MetadataContext<WithAddress<OffchainLookupContextConfig>>,
   ): Promise<CcipReadMetadataBuildResult> {
-    const { ism, message } = context;
+    const { ism, message, dispatchTx } = context;
     const provider = this.core.multiProvider.getProvider(
       message.parsed.destination,
     );
@@ -91,7 +101,7 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
     ];
 
     const baseResult: Omit<CcipReadMetadataBuildResult, 'metadata'> = {
-      type: IsmType.OFFCHAIN_LOOKUP,
+      type: ism.type,
       ismAddress: ism.address,
       urls,
     };
@@ -128,10 +138,13 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
               sender,
               data: callDataHex,
               signature,
+              // Matches the Rust relayer: lets a service locate the origin
+              // event directly instead of querying the Explorer for it.
+              origin_tx_hash: dispatchTx.transactionHash,
             }),
           });
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         this.core.logger.warn(
           `CCIP-read metadata fetch failed for ${url}: ${error}`,
         );

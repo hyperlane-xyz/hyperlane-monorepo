@@ -2144,7 +2144,7 @@ export class EvmWarpModule extends HyperlaneModule<
   async createIsmUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-    opaqueHybridAddress?: Address,
+    opaqueCombinedHookIsmAddress?: Address,
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
     if (!expectedConfig.interchainSecurityModule) {
@@ -2160,7 +2160,7 @@ export class EvmWarpModule extends HyperlaneModule<
     } = await this.deployOrUpdateIsm(
       actualConfig,
       expectedConfig,
-      opaqueHybridAddress,
+      opaqueCombinedHookIsmAddress,
     );
 
     // If an ISM is updated in-place, push the update txs
@@ -2201,7 +2201,7 @@ export class EvmWarpModule extends HyperlaneModule<
   async createHookAndPredicateUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-    opaqueHybridAddress?: Address,
+    opaqueCombinedHookIsmAddress?: Address,
   ): Promise<AnnotatedEV5Transaction[]> {
     let hookTransactions: AnnotatedEV5Transaction[] = [];
     let newHookAddress: Address | undefined;
@@ -2291,8 +2291,8 @@ export class EvmWarpModule extends HyperlaneModule<
           multiProvider: this.multiProvider,
           proxyAdminAddress,
           rateLimitedSender: this.args.addresses.deployedTokenRoute,
-          opaqueHybridAddresses: opaqueHybridAddress
-            ? [opaqueHybridAddress]
+          opaqueCombinedHookIsmAddresses: opaqueCombinedHookIsmAddress
+            ? [opaqueCombinedHookIsmAddress]
             : undefined,
         },
       );
@@ -2841,7 +2841,7 @@ export class EvmWarpModule extends HyperlaneModule<
   async deployOrUpdateIsm(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-    opaqueHybridAddress?: Address,
+    opaqueCombinedHookIsmAddress?: Address,
   ): Promise<{
     deployedIsm: Address;
     updateTransactions: AnnotatedEV5Transaction[];
@@ -2924,7 +2924,7 @@ export class EvmWarpModule extends HyperlaneModule<
     );
     const updateTransactions = await ismModule.update(
       expectedIsm,
-      opaqueHybridAddress ? [opaqueHybridAddress] : [],
+      opaqueCombinedHookIsmAddress ? [opaqueCombinedHookIsmAddress] : [],
     );
     const { deployedIsm } = ismModule.serialize();
 

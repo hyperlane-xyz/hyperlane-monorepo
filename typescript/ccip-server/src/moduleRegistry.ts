@@ -21,4 +21,11 @@ export const moduleRegistry: Record<string, ServiceFactory> = {
       return OPStackService.create(name);
     },
   },
+  wormhole: {
+    async create(name) {
+      const { WormholeVaaService } =
+        await import('./services/WormholeVaaService.js');
+      return WormholeVaaService.create(name);
+    },
+  },
 };

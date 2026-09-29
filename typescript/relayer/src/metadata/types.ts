@@ -124,7 +124,10 @@ export interface NullMetadataBuildResult extends BaseMetadataBuildResult {
     | typeof IsmType.RATE_LIMITED
     | typeof IsmType.BLACKLIST
     | typeof IsmType.NET_FLOW_RATE_LIMITED
-    | typeof IsmType.DELAYED_FLOW_ROUTER;
+    | typeof IsmType.DELAYED_FLOW_ROUTER
+    // The Executor router is preauthorized by executeVAAv1 before process, so
+    // Hyperlane carries no metadata for it.
+    | typeof IsmType.WORMHOLE_EXECUTOR;
   /** Always present for null ISMs */
   metadata: string;
 }
@@ -140,7 +143,9 @@ export interface ArbL2ToL1MetadataBuildResult extends BaseMetadataBuildResult {
 
 /** Result for offchain lookup (CCIP-Read) ISM */
 export interface CcipReadMetadataBuildResult extends BaseMetadataBuildResult {
-  type: typeof IsmType.OFFCHAIN_LOOKUP;
+  // The direct-VAA Wormhole router reverts with the same OffchainLookup shape
+  // and its response is a single ABI-encoded `bytes`, so it reuses this path.
+  type: typeof IsmType.OFFCHAIN_LOOKUP | typeof IsmType.WORMHOLE_VAA;
   /** URLs configured for offchain lookup */
   urls: string[];
 }

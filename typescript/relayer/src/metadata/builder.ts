@@ -72,6 +72,12 @@ export class BaseMetadataBuilder implements MetadataBuilder {
       case IsmType.DELAYED_FLOW_ROUTER:
         return this.nullMetadataBuilder.build({ ...context, ism });
 
+      case IsmType.WORMHOLE_EXECUTOR:
+        return this.nullMetadataBuilder.build({
+          ...context,
+          ism: { ...ism, type: IsmType.WORMHOLE_EXECUTOR },
+        });
+
       case IsmType.MERKLE_ROOT_MULTISIG:
       case IsmType.MESSAGE_ID_MULTISIG:
       case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
@@ -125,6 +131,12 @@ export class BaseMetadataBuilder implements MetadataBuilder {
         return this.ccipReadMetadataBuilder.build({
           ...context,
           ism,
+        });
+
+      case IsmType.WORMHOLE_VAA:
+        return this.ccipReadMetadataBuilder.build({
+          ...context,
+          ism: { ...ism, type: IsmType.WORMHOLE_VAA },
         });
 
       default:
