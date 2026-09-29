@@ -499,28 +499,6 @@ contract WormholeVaaHookIsm is
     function _validateAndConfigureConsistencyLevel(
         WormholeConsistencyLevelConfig memory config
     ) private {
-        _validateConsistencyLevelConfig(config);
-
-        if (config.consistencyLevel != CustomConsistencyLevelLib.CUSTOM) {
-            return;
-        }
-
-        ICustomConsistencyLevel customConsistencyLevel = ICustomConsistencyLevel(
-                config.customConsistencyLevelContract
-            );
-        bytes32 encodedConfig = CustomConsistencyLib
-            .encodeAdditionalBlocksConfig(
-                config.customBaseConsistencyLevel,
-                config.additionalBlocks
-            );
-
-        // Store this hook/ISM's custom configuration in the local CCL contract.
-        customConsistencyLevel.configure(encodedConfig);
-    }
-
-    function _validateConsistencyLevelConfig(
-        WormholeConsistencyLevelConfig memory config
-    ) private view {
         // Reject values outside the documented finalized value and EVM
         // Guardian sentinels because they are likely configuration mistakes.
         if (
@@ -532,22 +510,16 @@ contract WormholeVaaHookIsm is
         }
 
         if (config.consistencyLevel == CustomConsistencyLevelLib.CUSTOM) {
-            if (!Address.isContract(config.customConsistencyLevelContract)) {
-                revert InvalidCustomConsistencyLevelContract();
-            }
-
-            // Guardian CCL accepts only its instant, safe, and finalized
-            // sentinels as custom base levels.
-            if (
-                !CustomConsistencyLevelLib.isAllowedCustomBaseConsistencyLevel(
-                    config.customBaseConsistencyLevel
-                )
-            ) {
-                revert InvalidCustomConsistencyLevelConfig();
-            }
+            _validateAndConfigureCustomConsistencyLevel(config);
             return;
         }
 
+        _validateStandardConsistencyLevel(config);
+    }
+
+    function _validateStandardConsistencyLevel(
+        WormholeConsistencyLevelConfig memory config
+    ) private pure {
         // A non-custom level must not carry unused custom-level settings.
         if (
             config.customConsistencyLevelContract != address(0) ||
@@ -556,5 +528,33 @@ contract WormholeVaaHookIsm is
         ) {
             revert UnexpectedCustomConsistencyLevelConfig();
         }
+    }
+
+    function _validateAndConfigureCustomConsistencyLevel(
+        WormholeConsistencyLevelConfig memory config
+    ) private {
+        if (!Address.isContract(config.customConsistencyLevelContract)) {
+            revert InvalidCustomConsistencyLevelContract();
+        }
+
+        // Guardian CCL accepts only its instant, safe, and finalized
+        // sentinels as custom base levels.
+        if (
+            !CustomConsistencyLevelLib.isAllowedCustomBaseConsistencyLevel(
+                config.customBaseConsistencyLevel
+            )
+        ) {
+            revert InvalidCustomConsistencyLevelConfig();
+        }
+
+        bytes32 encodedConfig = CustomConsistencyLib
+            .encodeAdditionalBlocksConfig(
+                config.customBaseConsistencyLevel,
+                config.additionalBlocks
+            );
+
+        // Register this emitter's custom Guardian policy in Wormhole's CCL contract.
+        ICustomConsistencyLevel(config.customConsistencyLevelContract)
+            .configure(encodedConfig);
     }
 }
