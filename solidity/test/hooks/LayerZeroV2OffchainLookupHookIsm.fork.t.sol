@@ -272,7 +272,7 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
             "",
             IPostDispatchHook(address(router))
         );
-        assertTrue(router.publishedAuthorizationPackets(message.id()));
+        assertEq(router.latestPublishedAuthorizationMessageId(), message.id());
     }
 
     function testProductionEndpointEnrollmentWithoutDefaultReceiveLibrary()

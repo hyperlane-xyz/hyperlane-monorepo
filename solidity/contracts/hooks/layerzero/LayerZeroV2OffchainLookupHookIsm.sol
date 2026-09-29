@@ -226,9 +226,10 @@ contract LayerZeroV2OffchainLookupHookIsm is
 
     /// @dev One-to-one Hyperlane domain and LayerZero endpoint ID assignments.
     ReverseMappingLib.Uint32ReverseMappingStorage private remoteEndpointIds;
-    /// @notice Whether this hook published an authorization packet for a message ID.
-    mapping(bytes32 messageId => bool published)
-        public publishedAuthorizationPackets;
+
+    /// @notice Most recent Hyperlane message ID whose authorization packet was
+    /// successfully sent by this hook.
+    bytes32 public latestPublishedAuthorizationMessageId;
 
     // ============ Constructor ============
 
@@ -530,7 +531,8 @@ contract LayerZeroV2OffchainLookupHookIsm is
         bytes calldata,
         bytes calldata message
     ) internal view override returns (uint256) {
-        return _quoteLzNativeFee(_lzNativeFeeQuoteParams(message));
+        bytes32 messageId = Message.id(message);
+        return _quoteLzNativeFee(_lzNativeFeeQuoteParams(message, messageId));
     }
 
     function _quoteLzNativeFee(
@@ -548,8 +550,7 @@ contract LayerZeroV2OffchainLookupHookIsm is
     }
 
     /// @dev Sends one authorization packet for the latest Mailbox dispatch.
-    /// The `publishedAuthorizationPackets` write rolls back if quoting, sending, or
-    /// refunding fails.
+    /// The latest published ID write rolls back if sending or refunding fails.
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
@@ -559,20 +560,22 @@ contract LayerZeroV2OffchainLookupHookIsm is
             revert MessageNotLatestDispatched(messageId);
         }
 
-        if (publishedAuthorizationPackets[messageId]) {
+        if (latestPublishedAuthorizationMessageId == messageId) {
             revert LayerZeroAuthorizationAlreadySent(messageId);
         }
 
-        publishedAuthorizationPackets[messageId] = true;
-
         LayerZeroMessagingParams memory params = _lzNativeFeeQuoteParams(
-            message
+            message,
+            messageId
         );
         uint256 nativeFee = _quoteLzNativeFee(params);
 
         if (msg.value < nativeFee) {
             revert InsufficientLayerZeroFee(nativeFee, msg.value);
         }
+
+        // Effect before the Endpoint call; a later failure reverts this write.
+        latestPublishedAuthorizationMessageId = messageId;
 
         address refundAddress = metadata.refundAddress(
             Message.senderAddress(message)
@@ -596,7 +599,8 @@ contract LayerZeroV2OffchainLookupHookIsm is
     /// @dev Builds the same message-ID commitment and one-gas Executor option
     /// for quoting and sending; payment is always in native currency.
     function _lzNativeFeeQuoteParams(
-        bytes calldata message
+        bytes calldata message,
+        bytes32 messageId
     ) internal view returns (LayerZeroMessagingParams memory) {
         uint32 destination = Message.destination(message);
         uint32 endpointId = _mustHaveRemoteEndpointId(destination);
@@ -608,7 +612,7 @@ contract LayerZeroV2OffchainLookupHookIsm is
                 message: LayerZeroMessage.encode(
                     localDomain,
                     destination,
-                    Message.id(message)
+                    messageId
                 ),
                 options: abi.encodePacked(PULL_EXECUTOR_OPTIONS),
                 payInLzToken: false
@@ -821,9 +825,11 @@ contract LayerZeroV2OffchainLookupHookIsm is
             revert UnauthorizedCaller(msg.sender);
         }
 
-        (, , bytes32 messageId) = LayerZeroMessage.decode(payload);
-        if (!mailbox.delivered(messageId)) {
-            revert MessageNotDelivered(messageId);
+        LayerZeroMessage.Message memory lzMessage = LayerZeroMessage.decode(
+            payload
+        );
+        if (!mailbox.delivered(lzMessage.messageId)) {
+            revert MessageNotDelivered(lzMessage.messageId);
         }
     }
 
@@ -878,8 +884,8 @@ contract LayerZeroV2OffchainLookupHookIsm is
             revert WrongPacketReceiver(packetReceiver, expectedReceiver);
         }
 
-        // The versioned LayerZero payload commits to both Hyperlane domains
-        // and the ID of the entire Hyperlane message, not just its body.
+        // The versioned payload commits to both Hyperlane domains and the ID
+        // of the entire Hyperlane message, not just its body.
         context.message = LayerZeroMessage.encode(
             context.originDomain,
             localDomain,

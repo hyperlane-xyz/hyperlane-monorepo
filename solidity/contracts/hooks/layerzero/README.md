@@ -90,7 +90,7 @@ the full Hyperlane message and does not call the Hyperlane recipient. A
 Hyperlane relayer must still submit the original message to `Mailbox.process`.
 
 The payload is defined by
-[`LayerZeroMessage.sol`](../../libs/LayerZeroMessage.sol) and ABI-encodes:
+[`LayerZeroMessage.sol`](../../libs/LayerZeroMessage.sol) and packs:
 
 ```text
 version = 1
@@ -122,6 +122,11 @@ dispatched message and only once per message ID. This permits recovery when the
 hook was omitted from a dispatch, while the message remains the latest
 dispatch. Normal integrations should invoke the hook atomically during
 dispatch instead of depending on this timing-sensitive recovery path.
+
+The hook stores only the latest published authorization ID. Once a later
+message is dispatched, the Mailbox's latest-ID check prevents republishing an
+older message. Repeating the hook within one dispatch is rejected by the stored
+ID.
 
 ## Offchain lookup verification
 
@@ -306,8 +311,8 @@ does, or enforce an equivalent application/ISM policy.
 
 Origin dispatch and LayerZero send are atomic when the Hook/ISM is in the hook
 tree. A failed quote, send, or refund reverts the Mailbox dispatch and the
-`publishedAuthorizationPackets` write. DVN attestation and destination processing occur
-asynchronously.
+latest published authorization ID write. DVN attestation and destination
+processing occur asynchronously.
 
 Route changes affect in-flight messages by stage:
 

@@ -28,6 +28,12 @@ import {TestIsm} from "contracts/test/TestIsm.sol";
 import {TestPostDispatchHook} from "contracts/test/TestPostDispatchHook.sol";
 import {TestRecipient} from "contracts/test/TestRecipient.sol";
 
+contract RejectingLayerZeroRefund {
+    receive() external payable {
+        revert();
+    }
+}
+
 contract LayerZeroV2OffchainLookupHookIsmTest is Test {
     using Message for bytes;
     using TypeCasts for address;
@@ -940,6 +946,10 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         );
 
         (message, messageId) = _dispatch();
+        assertEq(
+            originRouter.latestPublishedAuthorizationMessageId(),
+            messageId
+        );
         vm.expectRevert(
             abi.encodeWithSelector(
                 LayerZeroV2OffchainLookupHookIsm
@@ -949,6 +959,115 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
             )
         );
         originRouter.postDispatch{value: NATIVE_FEE}("", message);
+    }
+
+    function testDispatchTracksLatestAuthorization() public {
+        (, bytes32 firstMessageId) = _dispatch();
+        assertEq(
+            originRouter.latestPublishedAuthorizationMessageId(),
+            firstMessageId
+        );
+
+        (, bytes32 secondMessageId) = _dispatch();
+        assertNotEq(secondMessageId, firstMessageId);
+        assertEq(
+            originRouter.latestPublishedAuthorizationMessageId(),
+            secondMessageId
+        );
+    }
+
+    function testDispatchRejectsOlderUnpublishedMessage() public {
+        bytes memory firstBody = bytes("unpublished first message");
+        bytes memory firstMessage = originMailbox.buildOutboundMessage(
+            DESTINATION,
+            address(recipient).addressToBytes32(),
+            firstBody
+        );
+        originMailbox.dispatch(
+            DESTINATION,
+            address(recipient).addressToBytes32(),
+            firstBody,
+            "",
+            IPostDispatchHook(address(noopHook))
+        );
+
+        _dispatch();
+
+        bytes32 firstMessageId = firstMessage.id();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LayerZeroV2OffchainLookupHookIsm
+                    .MessageNotLatestDispatched
+                    .selector,
+                firstMessageId
+            )
+        );
+        originRouter.postDispatch{value: NATIVE_FEE}("", firstMessage);
+    }
+
+    function testEndpointSendFailureRollsBackLatestAuthorization() public {
+        bytes memory body = bytes("failed endpoint send");
+        bytes memory message = originMailbox.buildOutboundMessage(
+            DESTINATION,
+            address(recipient).addressToBytes32(),
+            body
+        );
+        originMailbox.dispatch(
+            DESTINATION,
+            address(recipient).addressToBytes32(),
+            body,
+            "",
+            IPostDispatchHook(address(noopHook))
+        );
+
+        bytes memory revertData = abi.encodeWithSignature(
+            "Error(string)",
+            "endpoint send failed"
+        );
+        vm.mockCallRevert(
+            address(originEndpoint),
+            NATIVE_FEE,
+            abi.encodeWithSelector(MockLayerZeroEndpointV2.send.selector),
+            revertData
+        );
+        vm.expectRevert(revertData);
+        originRouter.postDispatch{value: NATIVE_FEE}("", message);
+
+        assertEq(originRouter.latestPublishedAuthorizationMessageId(), 0);
+    }
+
+    function testRefundFailureRollsBackLatestAuthorizationAndSend() public {
+        bytes memory body = bytes("failed refund");
+        bytes memory message = originMailbox.buildOutboundMessage(
+            DESTINATION,
+            address(recipient).addressToBytes32(),
+            body
+        );
+        originMailbox.dispatch(
+            DESTINATION,
+            address(recipient).addressToBytes32(),
+            body,
+            "",
+            IPostDispatchHook(address(noopHook))
+        );
+
+        RejectingLayerZeroRefund refundAddress = new RejectingLayerZeroRefund();
+        bytes memory metadata = StandardHookMetadata.overrideRefundAddress(
+            address(refundAddress)
+        );
+        vm.expectRevert();
+        originRouter.postDispatch{value: NATIVE_FEE + 1}(metadata, message);
+
+        assertEq(originRouter.latestPublishedAuthorizationMessageId(), 0);
+        assertEq(
+            originEndpoint.outboundNonces(
+                address(originRouter),
+                DESTINATION_ENDPOINT_ID,
+                address(destinationRouter).addressToBytes32()
+            ),
+            0
+        );
+        assertEq(originEndpoint.lastPacket().length, 0);
     }
 
     function testRejectsLayerZeroTokenFees() public {
@@ -1248,22 +1367,77 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         uint32 destination,
         bytes32 messageId
     ) public view {
+        bytes memory payload = LayerZeroMessage.encode(
+            origin,
+            destination,
+            messageId
+        );
+        assertEq(payload.length, 41);
         (
             uint32 decodedOrigin,
             uint32 decodedDestination,
             bytes32 decodedId
-        ) = this.decodeLayerZeroPayload(
-                LayerZeroMessage.encode(origin, destination, messageId)
-            );
+        ) = this.decodeLayerZeroPayload(payload);
         assertEq(decodedOrigin, origin);
         assertEq(decodedDestination, destination);
         assertEq(decodedId, messageId);
     }
 
+    function testLayerZeroPayloadWireLayout() public pure {
+        uint32 origin = 0x01020304;
+        uint32 destination = 0x05060708;
+        bytes32 messageId = bytes32(uint256(9));
+
+        assertEq(
+            LayerZeroMessage.encode(origin, destination, messageId),
+            abi.encodePacked(
+                LayerZeroMessage.VERSION,
+                origin,
+                destination,
+                messageId
+            )
+        );
+    }
+
+    function testLayerZeroPayloadRejectsInvalidLength() public {
+        bytes memory payload = LayerZeroMessage.encode(
+            ORIGIN,
+            DESTINATION,
+            bytes32(uint256(1))
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LayerZeroMessage.InvalidLayerZeroMessageLength.selector,
+                payload.length - 1
+            )
+        );
+        this.decodeLayerZeroPayload(new bytes(payload.length - 1));
+    }
+
+    function testLayerZeroPayloadRejectsInvalidVersion() public {
+        bytes memory payload = LayerZeroMessage.encode(
+            ORIGIN,
+            DESTINATION,
+            bytes32(uint256(1))
+        );
+        payload[0] = bytes1(uint8(2));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LayerZeroMessage.InvalidLayerZeroMessageVersion.selector,
+                uint8(2)
+            )
+        );
+        this.decodeLayerZeroPayload(payload);
+    }
+
     function decodeLayerZeroPayload(
         bytes calldata payload
     ) external pure returns (uint32, uint32, bytes32) {
-        return LayerZeroMessage.decode(payload);
+        LayerZeroMessage.Message memory lzMessage = LayerZeroMessage.decode(
+            payload
+        );
+        return (lzMessage.origin, lzMessage.destination, lzMessage.messageId);
     }
 
     function decodeLayerZeroPacket(
