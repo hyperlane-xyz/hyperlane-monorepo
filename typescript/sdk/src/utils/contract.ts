@@ -87,6 +87,34 @@ export function isMissingSelectorRevert(error: unknown): boolean {
   );
 }
 
+const REVERT_DATA_PATTERN = /^0x[0-9a-fA-F]+$/;
+// 0x + 4-byte selector
+const MIN_REVERT_DATA_LENGTH = 10;
+
+/**
+ * True for any contract revert carrying selector-prefixed data (custom error,
+ * Error(string), Panic). Unlike isMissingSelectorRevert, it treats a reverting
+ * probe as an answer rather than a failure to reach the contract.
+ */
+export function isRevertWithData(error: unknown): boolean {
+  const callException = findCallException(error);
+  if (!callException) return false;
+
+  const nestedError = isRecord(callException.error)
+    ? callException.error
+    : undefined;
+  const data =
+    typeof callException.data === 'string'
+      ? callException.data
+      : nestedError?.data;
+
+  return (
+    typeof data === 'string' &&
+    data.length >= MIN_REVERT_DATA_LENGTH &&
+    REVERT_DATA_PATTERN.test(data)
+  );
+}
+
 export function throwIfNotMissingSelector(error: unknown): void {
   if (!isMissingSelectorCallException(error)) throw error;
 }

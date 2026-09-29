@@ -1,5 +1,5 @@
 import { compareVersions } from 'compare-versions';
-import { BigNumber, Contract, constants } from 'ethers';
+import { BigNumber, Contract, constants, utils } from 'ethers';
 
 import {
   AtomicLocalRebalancingBridge__factory,
@@ -71,6 +71,7 @@ import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import {
   fetchPackageVersion as fetchContractPackageVersion,
   isMissingSelectorRevert,
+  isRevertWithData,
   throwIfNotMissingSelector,
   throwIfNotMissingSelectorRevert,
 } from '../utils/contract.js';
@@ -121,9 +122,13 @@ export const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
 // version that introduced the fractional scale interface
 const SCALE_FRACTION_VERSION = '11.0.0';
 
-// version that introduced the legacy scale interface
+// public `scale()` getter on FungibleTokenRouter, core 6.0.0 to 10.x (replaced
+// by scaleNumerator/scaleDenominator in 11.0.0)
 // https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/tag/%40hyperlane-xyz%2Fcore%406.0.0
 const SCALE_VERSION = '6.0.0';
+const LEGACY_SCALE_INTERFACE = new utils.Interface([
+  'function scale() external view returns (uint256)',
+]);
 
 // Version that introduced CrossCollateralRouter.rebalanceTargets().
 const REBALANCE_TARGETS_CONTRACT_VERSION = '12.0.0';
@@ -489,6 +494,17 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   public async fetchFeeHook(
     routerAddress: Address,
   ): Promise<Address | undefined> {
+    if (
+      (await this.implementationHasSelector(
+        routerAddress,
+        TokenRouter__factory.createInterface().getSighash('feeHook()'),
+      )) === false
+    ) {
+      this.logger.debug(
+        `Token at "${routerAddress}" on chain "${this.chain}" has no feeHook() getter; skipping`,
+      );
+      return undefined;
+    }
     try {
       const router = TokenRouter__factory.connect(routerAddress, this.provider);
       const feeHookAddress = await router.feeHook();
@@ -524,18 +540,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       this.provider,
     );
 
-    const [packageVersion, tokenFee] = await Promise.all([
-      this.fetchPackageVersion(routerAddress),
-      TokenRouter.feeRecipient().catch((error) => {
-        throwIfNotMissingSelector(error);
-        this.logger.debug(
-          `Failed to read feeRecipient for token at address "${routerAddress}" on chain "${this.chain}", defaulting to AddressZero`,
-          error,
-        );
-        return constants.AddressZero;
-      }),
-    ]);
-
+    const packageVersion = await this.fetchPackageVersion(routerAddress);
     const hasTokenFeeInterface =
       compareVersions(packageVersion, TOKEN_FEE_CONTRACT_VERSION) >= 0;
 
@@ -545,6 +550,15 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       );
       return undefined;
     }
+
+    const tokenFee = await TokenRouter.feeRecipient().catch((error) => {
+      throwIfNotMissingSelector(error);
+      this.logger.debug(
+        `Failed to read feeRecipient for token at address "${routerAddress}" on chain "${this.chain}", defaulting to AddressZero`,
+        error,
+      );
+      return constants.AddressZero;
+    });
 
     if (isZeroishAddress(tokenFee)) {
       this.logger.debug(
@@ -695,6 +709,53 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   }
 
   /**
+   * Fetches the bytecode of the contract's implementation.
+   * Read the EIP-1967 impl slot directly so UUPS proxies (which have
+   * an empty admin slot) are resolved correctly alongside TransparentProxy.
+   * Wrapped in try/catch so EOAs / bad addresses don't throw here — bytecode
+   * will be '0x' and selector guards fall through to the probes.
+   */
+  private async fetchImplementationBytecode(address: Address): Promise<string> {
+    let implAddress = address;
+    try {
+      const impl = await proxyImplementation(this.provider, address);
+      if (!isZeroishAddress(impl)) implAddress = impl;
+    } catch {
+      // not a proxy or address has no code — use address directly
+    }
+    return this.provider.getCode(implAddress);
+  }
+
+  private readonly implementationBytecodeCache = new Map<
+    string,
+    Promise<string>
+  >();
+
+  private fetchImplementationBytecodeCached(address: Address): Promise<string> {
+    const key = address.toLowerCase();
+    const cached = this.implementationBytecodeCache.get(key);
+    if (cached) return cached;
+    const pending = this.fetchImplementationBytecode(address);
+    this.implementationBytecodeCache.set(key, pending);
+    pending.catch(() => this.implementationBytecodeCache.delete(key));
+    return pending;
+  }
+
+  /**
+   * Checks whether the implementation bytecode contains the selector.
+   * Returns undefined when the bytecode is empty/unreadable (unknown), so
+   * callers proceed with the call and its normal error handling.
+   */
+  private async implementationHasSelector(
+    address: Address,
+    selector: string,
+  ): Promise<boolean | undefined> {
+    const bytecode = await this.fetchImplementationBytecodeCached(address);
+    if (isStorageEmpty(bytecode)) return undefined;
+    return bytecode.includes(strip0x(selector));
+  }
+
+  /**
    * Derives the token type for a given Warp Route address using specific methods
    *
    * @param warpRouteAddress - The Warp Route address to derive the token type for.
@@ -749,18 +810,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     try {
       // Fetch implementation bytecode once; scanning selectors locally avoids
       // reverted eth_calls for methods that don't exist on the contract.
-      // Read the EIP-1967 impl slot directly so UUPS proxies (which have
-      // an empty admin slot) are resolved correctly alongside TransparentProxy.
-      // Wrapped in try/catch so EOAs / bad addresses don't throw here — bytecode
-      // will be '0x' and the selector guard falls through to probes as pre-PR.
-      let implAddress = warpRouteAddress;
-      try {
-        const impl = await proxyImplementation(this.provider, warpRouteAddress);
-        if (!isZeroishAddress(impl)) implAddress = impl;
-      } catch {
-        // not a proxy or address has no code — use warpRouteAddress directly
-      }
-      const bytecode = await this.provider.getCode(implAddress);
+      const bytecode = await this.fetchImplementationBytecode(warpRouteAddress);
 
       // First, try checking token specific methods
       for (const [tokenType, { factory, method }] of Object.entries(
@@ -789,7 +839,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
               await xerc20['mintingCurrentLimitOf(address)'](warpRouteAddress);
               return TokenType.XERC20;
             } catch (error) {
-              throwIfNotMissingSelector(error);
+              if (!isRevertWithData(error)) throwIfNotMissingSelector(error);
               this.logger.debug(
                 `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.XERC20}`,
                 error,
@@ -1764,12 +1814,21 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       };
     } else {
       // Read old format (single scale value) using low-level call
-      const legacyScaleABI = [
-        'function scale() external view returns (uint256)',
-      ];
+      if (
+        (await this.implementationHasSelector(
+          tokenRouterAddress,
+          LEGACY_SCALE_INTERFACE.getSighash('scale()'),
+        )) === false
+      ) {
+        this.logger.debug(
+          `Router at address "${tokenRouterAddress}" on chain "${this.chain}" reports ${packageVersion} but has no scale() getter; treating as identity`,
+        );
+        return undefined;
+      }
+
       const legacyContract = new Contract(
         tokenRouterAddress,
-        legacyScaleABI,
+        LEGACY_SCALE_INTERFACE,
         this.provider,
       );
       const scale: BigNumber = await legacyContract.scale();

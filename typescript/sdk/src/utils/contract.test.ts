@@ -5,8 +5,10 @@ import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { stubPackageVersion } from '../test/contractStubs.js';
 import {
+  lsp17NoExtensionError,
   missingSelectorError,
   networkError,
+  panicRevertError,
   wrappedError,
 } from '../test/errors.js';
 import { randomAddress } from '../test/testUtils.js';
@@ -16,6 +18,7 @@ import {
   fetchPackageVersion,
   isMissingSelectorCallException,
   isMissingSelectorRevert,
+  isRevertWithData,
 } from './contract.js';
 
 describe('contract utils', () => {
@@ -65,6 +68,87 @@ describe('contract utils', () => {
           new Error('request failed with data="0x"'),
         ),
       ).to.equal(false);
+    });
+  });
+
+  describe('isRevertWithData', () => {
+    interface Case {
+      name: string;
+      error: () => unknown;
+      expected: boolean;
+    }
+
+    const cases: Case[] = [
+      { name: 'panic revert', error: panicRevertError, expected: true },
+      {
+        name: 'LSP17 no-extension revert',
+        error: lsp17NoExtensionError,
+        expected: true,
+      },
+      {
+        name: 'wrapped panic revert',
+        error: () => wrappedError(panicRevertError()),
+        expected: true,
+      },
+      {
+        name: 'revert data on nested error.data',
+        error: () =>
+          Object.assign(new Error('call revert exception'), {
+            code: 'CALL_EXCEPTION',
+            error: { data: '0x08c379a0abcd' },
+          }),
+        expected: true,
+      },
+      {
+        name: 'empty data (missing selector)',
+        error: missingSelectorError,
+        expected: false,
+      },
+      {
+        name: 'empty provider response',
+        error: () => new Error('Invalid response from provider'),
+        expected: false,
+      },
+      { name: 'network error', error: networkError, expected: false },
+      {
+        name: 'data shorter than a selector',
+        error: () =>
+          Object.assign(new Error('call revert exception'), {
+            code: 'CALL_EXCEPTION',
+            data: '0x4e487b',
+          }),
+        expected: false,
+      },
+      {
+        name: 'non-hex data',
+        error: () =>
+          Object.assign(new Error('call revert exception'), {
+            code: 'CALL_EXCEPTION',
+            data: '0xzzzzzzzzzz',
+          }),
+        expected: false,
+      },
+      {
+        name: 'call exception without data',
+        error: () =>
+          Object.assign(new Error('call revert exception'), {
+            code: 'CALL_EXCEPTION',
+          }),
+        expected: false,
+      },
+    ];
+
+    for (const c of cases) {
+      it(`returns ${c.expected} for ${c.name}`, () => {
+        expect(isRevertWithData(c.error())).to.equal(c.expected);
+      });
+    }
+
+    it('is not a missing selector for data-carrying reverts', () => {
+      expect(isMissingSelectorRevert(panicRevertError())).to.equal(false);
+      expect(isMissingSelectorCallException(panicRevertError())).to.equal(
+        false,
+      );
     });
   });
 
