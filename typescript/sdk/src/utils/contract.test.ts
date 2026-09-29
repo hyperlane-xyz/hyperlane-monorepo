@@ -178,6 +178,86 @@ describe('contract utils', () => {
     }
   });
 
+  describe('isMissingSelectorRevert empty-data signals', () => {
+    interface Case {
+      name: string;
+      error: () => unknown;
+      expected: boolean;
+    }
+
+    const cases: Case[] = [
+      {
+        name: 'nested error reporting data 0x without top-level data',
+        error: () => ({ code: 'CALL_EXCEPTION', error: { data: '0x' } }),
+        expected: true,
+      },
+      {
+        name: 'nested error data 0x alongside a non-empty message',
+        error: () =>
+          ethersCallExceptionWithNestedError(
+            Object.assign(new Error('boom'), { data: '0x' }),
+          ),
+        expected: true,
+      },
+      {
+        name: 'nested error reporting empty-string data',
+        error: () => ({ code: 'CALL_EXCEPTION', error: { data: '' } }),
+        expected: true,
+      },
+      {
+        name: 'top-level empty-string data without nested error',
+        error: () => ({ code: 'CALL_EXCEPTION', data: '' }),
+        expected: true,
+      },
+      {
+        name: 'top-level empty-string data with nested transport error',
+        error: () => ({
+          code: 'CALL_EXCEPTION',
+          data: '',
+          error: { code: 'SERVER_ERROR', status: 500 },
+        }),
+        expected: false,
+      },
+      {
+        name: 'message-only data="0x" without nested error',
+        error: () => ({
+          code: 'CALL_EXCEPTION',
+          message: 'call reverted with data="0x"',
+        }),
+        expected: true,
+      },
+      {
+        name: 'message data="0x" with nested transport error',
+        error: () =>
+          ethersCallExceptionWithNestedError(
+            Object.assign(new Error('header not found'), { code: -32000 }),
+          ),
+        expected: false,
+      },
+      {
+        name: 'message data="0x" with nested HTTP 500 and no top-level data',
+        error: () => ({
+          code: 'CALL_EXCEPTION',
+          message: 'call reverted with data="0x"',
+          error: { code: 'SERVER_ERROR', status: 500 },
+        }),
+        expected: false,
+      },
+      {
+        name: 'non-empty revert data',
+        error: () => ({ code: 'CALL_EXCEPTION', data: '0x08c379a0abcd' }),
+        expected: false,
+      },
+    ];
+
+    for (const c of cases) {
+      it(`returns ${c.expected} for ${c.name}`, () => {
+        expect(isMissingSelectorRevert(c.error())).to.equal(c.expected);
+        expect(isMissingSelectorCallException(c.error())).to.equal(c.expected);
+      });
+    }
+  });
+
   describe('isRevertWithData', () => {
     interface Case {
       name: string;

@@ -11,6 +11,7 @@ import {
   strip0x,
 } from '@hyperlane-xyz/utils';
 
+import { isStorageEmpty } from '../deploy/proxy.js';
 import { getNestedJsonRpcError } from '../providers/SmartProvider/jsonRpcError.js';
 
 /**
@@ -82,8 +83,11 @@ const NODE_REVERT_MESSAGE_PATTERN = /\brevert(ed)?\b/i;
  * connections, JSON-RPC errors such as "header not found"). Those carry the
  * original error nested and must not be read as a missing selector. The
  * formatted message also contains data="0x" for those wrapped failures, so
- * neither the data field nor the message text alone can tell a missing
- * selector from an outage; the nested error has to be inspected.
+ * the message fallback (for ethers/provider combinations that only expose
+ * empty return data there) applies only when there is no nested error. With a
+ * nested error, the call counts as a missing selector when the nested error
+ * itself reports data "0x" (the node's explicit empty revert payload;
+ * transport errors carry no data), a JSON-RPC code 3, or a revert message.
  */
 export function isMissingSelectorRevert(error: unknown): boolean {
   const callException = findCallException(error);
@@ -92,11 +96,20 @@ export function isMissingSelectorRevert(error: unknown): boolean {
   const nestedError = isRecord(callException.error)
     ? callException.error
     : undefined;
+  if (typeof nestedError?.data === 'string' && isStorageEmpty(nestedError.data))
+    return true;
+
   const data =
     typeof callException.data === 'string'
       ? callException.data
       : nestedError?.data;
-  if (data !== '0x') return false;
+  // Some ethers/provider combinations only expose empty return data in the
+  // formatted message.
+  const hasEmptyData =
+    (typeof data === 'string' && isStorageEmpty(data)) ||
+    (typeof callException.message === 'string' &&
+      callException.message.includes('data="0x"'));
+  if (!hasEmptyData) return false;
 
   if (isNullish(callException.error)) return true;
 
