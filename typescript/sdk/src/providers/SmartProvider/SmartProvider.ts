@@ -22,6 +22,10 @@ import {
   HyperlaneJsonRpcProvider,
   LogBlockRangeTooLargeError,
 } from './HyperlaneJsonRpcProvider.js';
+import {
+  getNestedJsonRpcError,
+  isCallExceptionWithTransientRpcError,
+} from './jsonRpcError.js';
 import { IProviderMethods, ProviderMethod } from './ProviderMethods.js';
 import { getMultiAddressLogs, isMultiAddressFilter } from './logFilters.js';
 import {
@@ -109,72 +113,6 @@ type HyperlaneProvider = HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider;
 
 function getErrorMessage(error: unknown): string | undefined {
   return error instanceof Error ? error.message : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function getRecord(value: unknown): Record<string, unknown> | undefined {
-  return isRecord(value) ? value : undefined;
-}
-
-function getJsonRpcErrorCode(value: unknown): number | string | undefined {
-  if (!isRecord(value)) return undefined;
-  const code = value.code;
-  return typeof code === 'number' || typeof code === 'string'
-    ? code
-    : undefined;
-}
-
-function getJsonRpcErrorMessage(value: unknown): string | undefined {
-  if (!isRecord(value)) return undefined;
-  return typeof value.message === 'string' ? value.message : undefined;
-}
-
-function parseJsonRpcErrorBody(body: unknown): {
-  code?: number | string;
-  message?: string;
-} {
-  if (typeof body !== 'string') return {};
-  try {
-    const parsed = getRecord(JSON.parse(body));
-    const error = getRecord(parsed?.error);
-    return {
-      code: getJsonRpcErrorCode(error),
-      message: getJsonRpcErrorMessage(error),
-    };
-  } catch {
-    return {};
-  }
-}
-
-export function getNestedJsonRpcError(error: unknown): {
-  code?: number | string;
-  message?: string;
-} {
-  const nested = getRecord(getRecord(error)?.error);
-  const nestedError = getRecord(nested?.error);
-  const nestedBody = parseJsonRpcErrorBody(nested?.body);
-  return {
-    code:
-      getJsonRpcErrorCode(nestedError) ??
-      getJsonRpcErrorCode(nested) ??
-      nestedBody.code,
-    message:
-      getJsonRpcErrorMessage(nestedError) ??
-      getJsonRpcErrorMessage(nested) ??
-      nestedBody.message,
-  };
-}
-
-function isCallExceptionWithTransientRpcError(error: unknown): boolean {
-  const record = getRecord(error);
-  if (record?.code !== EthersError.CALL_EXCEPTION) return false;
-  const hasRevertData = !!record.data && record.data !== '0x';
-  const nestedError = record.error;
-  const jsonRpcErrorCode = getNestedJsonRpcError(error).code;
-  return !!nestedError && !hasRevertData && jsonRpcErrorCode !== 3;
 }
 
 function errorChainHasMessage(error: unknown, message: string): boolean {
@@ -605,7 +543,11 @@ export class HyperlaneSmartProvider
       }
       case ProviderStatus.Error: {
         const CombinedError = this.getCombinedProviderError(
-          [result.error, ...providerResultErrors],
+          [
+            result.error,
+            ...(result.otherErrors ?? []),
+            ...providerResultErrors,
+          ],
           `All providers failed on chain ${
             this.network.name
           } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
@@ -667,12 +609,15 @@ export class HyperlaneSmartProvider
       }
     }
     // If reached, all providers finished unsuccessfully
+    // The first error to arrive stays `error`; the rest are returned in
+    // `otherErrors` so the caller can combine them rather than pick by latency.
+    const [firstError, ...otherErrors] = combinedErrors;
     return {
       status: ProviderStatus.Error,
-      // TODO combine errors
       error: combinedErrors.length
-        ? combinedErrors[0]
+        ? firstError
         : new Error('Unknown error from provider'),
+      otherErrors,
     };
   }
 
@@ -770,7 +715,17 @@ export class HyperlaneSmartProvider
             getNestedJsonRpcError(rpcServerError).message ??
               rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
               getSmartProviderErrorMessage(rpcServerError.code),
-            { cause: rpcServerError },
+            {
+              // An empty response from one provider is the more diagnostic
+              // answer whatever else failed alongside it, matching the
+              // timeout branch below.
+              cause:
+                errors.find(
+                  (e) =>
+                    e instanceof Error &&
+                    errorChainHasMessage(e, 'Invalid response from provider'),
+                ) ?? rpcServerError,
+            },
           );
         }
       };
@@ -778,7 +733,12 @@ export class HyperlaneSmartProvider
       return class extends Error {
         constructor() {
           super(fallbackMsg, {
-            cause: timedOutError,
+            cause:
+              errors.find(
+                (e) =>
+                  e instanceof Error &&
+                  errorChainHasMessage(e, 'Invalid response from provider'),
+              ) ?? timedOutError,
           });
         }
       };
