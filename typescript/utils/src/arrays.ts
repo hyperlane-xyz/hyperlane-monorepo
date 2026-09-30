@@ -1,6 +1,20 @@
 import { sortBy } from 'lodash-es';
 
 import { randomInt } from './math.js';
+import { assert } from './validation.js';
+
+/** An array containing at least one element. */
+export type NonEmptyArray<T> = [T, ...T[]];
+
+export function isNonEmptyArray<T>(array: T[]): array is NonEmptyArray<T> {
+  return array.length > 0;
+}
+
+/** Narrows an array after a runtime non-empty check. */
+export function nonEmptyArray<T>(array: T[]): NonEmptyArray<T> {
+  assert(isNonEmptyArray(array), 'expected non-empty array');
+  return array;
+}
 
 interface Sliceable {
   length: number;

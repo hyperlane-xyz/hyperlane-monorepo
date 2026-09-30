@@ -1,8 +1,30 @@
 import { expect } from 'chai';
 
-import { chunk, exclude, randomElement, sortArrayByKey } from './arrays.js';
+import {
+  chunk,
+  exclude,
+  isNonEmptyArray,
+  nonEmptyArray,
+  randomElement,
+  sortArrayByKey,
+} from './arrays.js';
 
 describe('Arrays utilities', () => {
+  describe('nonEmptyArray', () => {
+    it('narrows a non-empty array without copying', () => {
+      const source = [1, 2];
+      const result = nonEmptyArray(source);
+
+      expect(result).to.deep.equal(source);
+      expect(result).to.equal(source);
+      expect(isNonEmptyArray(source)).to.equal(true);
+    });
+
+    it('rejects an empty array', () => {
+      expect(() => nonEmptyArray([])).to.throw('expected non-empty array');
+    });
+  });
+
   describe('chunk', () => {
     it('should split an array into chunks of the specified size', () => {
       const result = chunk([1, 2, 3, 4, 5], 2);
