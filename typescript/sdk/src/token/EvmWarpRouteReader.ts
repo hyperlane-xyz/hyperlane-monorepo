@@ -38,6 +38,7 @@ import {
   assert,
   eqAddress,
   getLogLevel,
+  isNullish,
   isZeroish,
   isZeroishAddress,
   objFilter,
@@ -71,13 +72,15 @@ import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import {
   fetchPackageVersion as fetchContractPackageVersion,
   isMissingSelectorRevert,
-  isRevertWithData,
+  isPanicRevert,
   throwIfNotMissingSelector,
   throwIfNotMissingSelectorRevert,
 } from '../utils/contract.js';
 import { NormalizedScale } from '../utils/decimals.js';
 
 import {
+  EIP1967_BEACON_SLOT,
+  EIP1967_IMPLEMENTATION_SLOT,
   isProxy,
   isStorageEmpty,
   proxyAdmin,
@@ -115,6 +118,10 @@ import {
   deriveXERC20TokenType,
   getExtraLockBoxConfigs,
 } from './xerc20.js';
+
+// EIP-1167 minimal proxy runtime code: prefix, 20-byte implementation, suffix
+const EIP1167_PREFIX = '0x363d3d373d3d3d363d73';
+const EIP1167_ADDRESS_HEX_LENGTH = 40;
 
 const REBALANCING_CONTRACT_VERSION = '8.0.0';
 export const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
@@ -712,32 +719,82 @@ export class EvmWarpRouteReader extends EvmRouterReader {
    * Fetches the bytecode of the contract's implementation.
    * Read the EIP-1967 impl slot directly so UUPS proxies (which have
    * an empty admin slot) are resolved correctly alongside TransparentProxy.
-   * Wrapped in try/catch so EOAs / bad addresses don't throw here — bytecode
-   * will be '0x' and selector guards fall through to the probes.
+   * EIP-1167 minimal proxies are resolved from their runtime code. A clone
+   * whose target is itself an EIP-1967 proxy or another clone returns the
+   * target's own code without resolving further, so the selector guard can
+   * read false for a selector the final implementation has.
+   *
+   * Returns '0x' when the address has no code (EOAs / bad addresses) so
+   * selector guards fall through to the probes, and undefined when the
+   * bytecode cannot be determined: a failed RPC read, or a beacon proxy whose
+   * implementation lives behind the beacon. Proxies that route through a
+   * diamond facet table or LSP17 extensions are not resolved; their own
+   * bytecode is returned, which does not contain the routed selectors.
    */
-  private async fetchImplementationBytecode(address: Address): Promise<string> {
-    let implAddress = address;
+  private async fetchImplementationBytecode(
+    address: Address,
+  ): Promise<string | undefined> {
     try {
-      const impl = await proxyImplementation(this.provider, address);
-      if (!isZeroishAddress(impl)) implAddress = impl;
-    } catch {
-      // not a proxy or address has no code — use address directly
+      const code = await this.provider.getCode(address);
+      if (isStorageEmpty(code)) return code;
+
+      if (
+        code.toLowerCase().startsWith(EIP1167_PREFIX) &&
+        code.length >= EIP1167_PREFIX.length + EIP1167_ADDRESS_HEX_LENGTH
+      ) {
+        const start = EIP1167_PREFIX.length;
+        return await this.provider.getCode(
+          utils.getAddress(
+            `0x${code.slice(start, start + EIP1167_ADDRESS_HEX_LENGTH)}`,
+          ),
+        );
+      }
+
+      const implSlot = await this.provider.getStorageAt(
+        address,
+        EIP1967_IMPLEMENTATION_SLOT,
+      );
+      if (!isStorageEmpty(implSlot)) {
+        const impl = utils.getAddress(implSlot.slice(26));
+        if (!isZeroishAddress(impl)) return await this.provider.getCode(impl);
+      }
+
+      const beaconSlot = await this.provider.getStorageAt(
+        address,
+        EIP1967_BEACON_SLOT,
+      );
+      if (!isStorageEmpty(beaconSlot) && !isZeroish(beaconSlot))
+        return undefined;
+
+      return code;
+    } catch (error: unknown) {
+      this.logger.debug(
+        `Could not resolve implementation bytecode for "${address}" on chain "${this.chain}"`,
+        error,
+      );
+      return undefined;
     }
-    return this.provider.getCode(implAddress);
   }
 
   private readonly implementationBytecodeCache = new Map<
     string,
-    Promise<string>
+    Promise<string | undefined>
   >();
 
-  private fetchImplementationBytecodeCached(address: Address): Promise<string> {
+  private fetchImplementationBytecodeCached(
+    address: Address,
+  ): Promise<string | undefined> {
     const key = address.toLowerCase();
     const cached = this.implementationBytecodeCache.get(key);
     if (cached) return cached;
     const pending = this.fetchImplementationBytecode(address);
     this.implementationBytecodeCache.set(key, pending);
-    pending.catch(() => this.implementationBytecodeCache.delete(key));
+    // Only non-empty bytecode is cached; unknown and empty ('0x') results are
+    // retried so a lagging node cannot pin a just-deployed contract as empty.
+    void pending.then((bytecode) => {
+      if (isNullish(bytecode) || isStorageEmpty(bytecode))
+        this.implementationBytecodeCache.delete(key);
+    });
     return pending;
   }
 
@@ -751,7 +808,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     selector: string,
   ): Promise<boolean | undefined> {
     const bytecode = await this.fetchImplementationBytecodeCached(address);
-    if (isStorageEmpty(bytecode)) return undefined;
+    if (isNullish(bytecode) || isStorageEmpty(bytecode)) return undefined;
     return bytecode.includes(strip0x(selector));
   }
 
@@ -810,18 +867,21 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     try {
       // Fetch implementation bytecode once; scanning selectors locally avoids
       // reverted eth_calls for methods that don't exist on the contract.
-      const bytecode = await this.fetchImplementationBytecode(warpRouteAddress);
+      const bytecode =
+        await this.fetchImplementationBytecodeCached(warpRouteAddress);
+      const hasKnownBytecode =
+        !isNullish(bytecode) && !isStorageEmpty(bytecode);
 
       // First, try checking token specific methods
       for (const [tokenType, { factory, method }] of Object.entries(
         contractTypes,
       )) {
         // Skip if selector absent from bytecode — avoids reverted eth_calls.
-        // When bytecode is unavailable ('0x'), fall through to the probe anyway
-        // to preserve pre-optimization behavior on zero-impl / flaky-RPC paths.
+        // When bytecode is unavailable ('0x' or unknown), fall through to the
+        // probe anyway to preserve pre-optimization behavior on zero-impl /
+        // flaky-RPC paths.
         const selector = factory.createInterface().getSighash(method);
-        if (!isStorageEmpty(bytecode) && !bytecode.includes(strip0x(selector)))
-          continue;
+        if (hasKnownBytecode && !bytecode.includes(strip0x(selector))) continue;
 
         try {
           const warpRoute = factory.connect(warpRouteAddress, this.provider);
@@ -839,7 +899,11 @@ export class EvmWarpRouteReader extends EvmRouterReader {
               await xerc20['mintingCurrentLimitOf(address)'](warpRouteAddress);
               return TokenType.XERC20;
             } catch (error) {
-              if (!isRevertWithData(error)) throwIfNotMissingSelector(error);
+              // Fluent's universal-token runtime answers an unknown selector
+              // with Panic(uint256). An xERC20 that reverts with Error(string)
+              // or a custom error (paused, bug) must surface rather than be
+              // read as plain collateral.
+              if (!isPanicRevert(error)) throwIfNotMissingSelector(error);
               this.logger.debug(
                 `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.XERC20}`,
                 error,

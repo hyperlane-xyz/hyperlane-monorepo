@@ -708,7 +708,17 @@ export class HyperlaneSmartProvider
             getNestedJsonRpcError(rpcServerError).message ??
               rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
               getSmartProviderErrorMessage(rpcServerError.code),
-            { cause: rpcServerError },
+            {
+              // An empty response from one provider is the more diagnostic
+              // answer whatever else failed alongside it, matching the
+              // timeout branch below.
+              cause:
+                errors.find(
+                  (e) =>
+                    e instanceof Error &&
+                    errorChainHasMessage(e, 'Invalid response from provider'),
+                ) ?? rpcServerError,
+            },
           );
         }
       };

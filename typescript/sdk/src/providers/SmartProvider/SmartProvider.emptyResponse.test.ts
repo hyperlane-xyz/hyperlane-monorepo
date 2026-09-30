@@ -20,6 +20,7 @@ const Behavior = {
   Hang: 'hang',
   Empty: 'empty',
   Data: 'data',
+  ServerError: 'serverError',
 } as const;
 type Behavior = (typeof Behavior)[keyof typeof Behavior];
 
@@ -74,6 +75,10 @@ async function startServer(
         case Behavior.Data:
           reply(DATA_RESULT);
           return;
+        case Behavior.ServerError:
+          res.statusCode = 500;
+          res.end('Internal Server Error');
+          return;
       }
     });
   });
@@ -87,17 +92,17 @@ function assertRequest(body: unknown): asserts body is JsonRpcRequest {
   if (!isJsonRpcRequest(body)) throw new Error('Unexpected JSON-RPC body');
 }
 
-describe('HyperlaneSmartProvider empty response with a hanging provider', function () {
+describe('HyperlaneSmartProvider empty response next to failing providers', function () {
   this.timeout(10_000);
 
   const servers: http.Server[] = [];
   const hanging = new Set<http.ServerResponse>();
 
   async function makeProvider(
-    hangBehavior: Behavior,
+    firstBehavior: Behavior,
     otherBehavior: Behavior,
   ): Promise<HyperlaneSmartProvider> {
-    const a = await startServer(hangBehavior, hanging);
+    const a = await startServer(firstBehavior, hanging);
     const b = await startServer(otherBehavior, hanging);
     servers.push(a.server, b.server);
     return new HyperlaneSmartProvider(
@@ -122,19 +127,57 @@ describe('HyperlaneSmartProvider empty response with a hanging provider', functi
     );
   });
 
-  it('classifies an empty eth_call as a missing selector', async () => {
-    const provider = await makeProvider(Behavior.Hang, Behavior.Empty);
+  interface Case {
+    name: string;
+    first: Behavior;
+    other: Behavior;
+    missingSelector: boolean;
+  }
 
-    let thrown: unknown;
-    try {
-      await provider.call(CALL_PARAMS);
-    } catch (error) {
-      thrown = error;
-    }
+  const cases: Case[] = [
+    {
+      name: 'a hanging provider and an empty response',
+      first: Behavior.Hang,
+      other: Behavior.Empty,
+      missingSelector: true,
+    },
+    {
+      name: 'a server error and an empty response',
+      first: Behavior.ServerError,
+      other: Behavior.Empty,
+      missingSelector: true,
+    },
+    {
+      name: 'two server errors',
+      first: Behavior.ServerError,
+      other: Behavior.ServerError,
+      missingSelector: false,
+    },
+    {
+      name: 'a hanging provider and a server error',
+      first: Behavior.Hang,
+      other: Behavior.ServerError,
+      missingSelector: false,
+    },
+  ];
 
-    expect(thrown).to.be.instanceOf(Error);
-    expect(isMissingSelectorCallException(thrown)).to.equal(true);
-  });
+  for (const c of cases) {
+    it(`classifies an eth_call failing with ${c.name} as missing selector=${c.missingSelector}`, async () => {
+      const provider = await makeProvider(c.first, c.other);
+
+      let thrown: unknown;
+      try {
+        await provider.call(CALL_PARAMS);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).to.be.instanceOf(Error);
+      expect(isMissingSelectorCallException(thrown)).to.equal(
+        c.missingSelector,
+      );
+    });
+  }
 
   it('resolves when the other provider returns data', async () => {
     const provider = await makeProvider(Behavior.Hang, Behavior.Data);

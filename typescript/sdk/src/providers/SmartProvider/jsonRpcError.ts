@@ -21,9 +21,15 @@ function getJsonRpcErrorMessage(value: unknown): string | undefined {
   return typeof value.message === 'string' ? value.message : undefined;
 }
 
+function getJsonRpcErrorData(value: unknown): string | undefined {
+  if (!isRecord(value)) return undefined;
+  return typeof value.data === 'string' ? value.data : undefined;
+}
+
 function parseJsonRpcErrorBody(body: unknown): {
   code?: number | string;
   message?: string;
+  data?: string;
 } {
   if (typeof body !== 'string') return {};
   try {
@@ -32,6 +38,7 @@ function parseJsonRpcErrorBody(body: unknown): {
     return {
       code: getJsonRpcErrorCode(error),
       message: getJsonRpcErrorMessage(error),
+      data: getJsonRpcErrorData(error),
     };
   } catch {
     return {};
@@ -41,6 +48,7 @@ function parseJsonRpcErrorBody(body: unknown): {
 export function getNestedJsonRpcError(error: unknown): {
   code?: number | string;
   message?: string;
+  data?: string;
 } {
   const nested = getRecord(getRecord(error)?.error);
   const nestedError = getRecord(nested?.error);
@@ -54,6 +62,10 @@ export function getNestedJsonRpcError(error: unknown): {
       getJsonRpcErrorMessage(nestedError) ??
       getJsonRpcErrorMessage(nested) ??
       nestedBody.message,
+    data:
+      getJsonRpcErrorData(nestedError) ??
+      getJsonRpcErrorData(nested) ??
+      nestedBody.data,
   };
 }
 

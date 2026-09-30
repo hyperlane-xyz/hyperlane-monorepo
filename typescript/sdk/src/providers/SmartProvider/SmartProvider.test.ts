@@ -1144,6 +1144,72 @@ describe('SmartProvider', () => {
       }
     });
 
+    describe('when a provider failed with a server error', () => {
+      const timeout = { status: ProviderStatus.Timeout };
+      const serverError = new ProviderError(
+        'connection refused',
+        EthersError.SERVER_ERROR,
+      );
+      const emptyResponseError = new Error('Invalid response from provider');
+
+      interface ServerErrorCase {
+        name: string;
+        errors: unknown[];
+        cause: unknown;
+        missingSelector: boolean;
+      }
+
+      const cases: ServerErrorCase[] = [
+        {
+          name: 'keeps the empty-response error as the cause next to a server error',
+          errors: [emptyResponseError, serverError],
+          cause: emptyResponseError,
+          missingSelector: true,
+        },
+        {
+          name: 'keeps the empty-response error as the cause regardless of order',
+          errors: [serverError, emptyResponseError],
+          cause: emptyResponseError,
+          missingSelector: true,
+        },
+        {
+          name: 'keeps the empty-response error as the cause next to a timeout and a server error',
+          errors: [timeout, emptyResponseError, serverError],
+          cause: emptyResponseError,
+          missingSelector: true,
+        },
+        {
+          name: 'keeps the server error as the cause when it is the only error',
+          errors: [serverError],
+          cause: serverError,
+          missingSelector: false,
+        },
+        {
+          name: 'keeps the server error as the cause next to a timeout',
+          errors: [timeout, serverError],
+          cause: serverError,
+          missingSelector: false,
+        },
+      ];
+
+      for (const c of cases) {
+        it(c.name, () => {
+          const CombinedError = provider.testGetCombinedProviderError(
+            c.errors,
+            'Test fallback message',
+          );
+
+          const e = new CombinedError();
+
+          expect(e.message).to.equal(
+            getSmartProviderErrorMessage(EthersError.SERVER_ERROR),
+          );
+          expect(e.cause).to.equal(c.cause);
+          expect(isMissingSelectorCallException(e)).to.equal(c.missingSelector);
+        });
+      }
+    });
+
     it('treats CALL_EXCEPTION with JSON-RPC error code 3 as permanent (BlockchainError)', () => {
       // JSON-RPC error code 3 definitively indicates execution revert (EIP-1474)
       // Even without revert data, this is a real contract revert

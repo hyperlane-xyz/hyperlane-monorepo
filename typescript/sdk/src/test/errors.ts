@@ -25,6 +25,16 @@ export function panicRevertError(): Error & { code: string; data: string } {
   });
 }
 
+export function errorStringRevertError(): Error & {
+  code: string;
+  data: string;
+} {
+  return Object.assign(new Error('call revert exception'), {
+    code: 'CALL_EXCEPTION',
+    data: `0x08c379a0${'0'.repeat(62)}20${'0'.repeat(62)}06${'706175736564'}${'0'.repeat(52)}`,
+  });
+}
+
 export function lsp17NoExtensionError(): Error & {
   code: string;
   data: string;
