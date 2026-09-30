@@ -12,6 +12,8 @@ import {
   chunk,
   difference,
   isNullish,
+  type NonEmptyArray,
+  nonEmptyArray,
   normalizeAddressSealevel,
   sleep,
 } from '@hyperlane-xyz/utils';
@@ -50,9 +52,6 @@ const ALT_ACTIVATION_POLL_MS = 1_000;
  */
 export const ALT_MAX_ADDRESSES = 256;
 
-/** Non-empty tuple type — at least one element required at compile time. */
-export type NonEmptyArray<T> = readonly [T, ...T[]];
-
 /**
  * ALT artifact config.
  *
@@ -83,12 +82,6 @@ export interface SvmDeployedAlt {
    * frozen. Not user-configurable — surfaced from on-chain state.
    */
   authority: Address | null;
-}
-
-export function nonEmptyArray<T>(arr: readonly T[]): NonEmptyArray<T> {
-  const [first, ...rest] = arr;
-  assert(!isNullish(first), 'expected non-empty array');
-  return [first, ...rest];
 }
 
 export class SvmAddressLookupTableReader implements ArtifactReader<
