@@ -24,6 +24,13 @@ import {
   isReturnDataEmpty,
 } from './contract.js';
 
+function facetNotFoundError(): Error & { code: string; data: string } {
+  return Object.assign(new Error('call reverted with FacetNotFound()'), {
+    code: 'CALL_EXCEPTION',
+    data: '0x800ab12c',
+  });
+}
+
 describe('contract utils', () => {
   describe('isMissingSelectorCallException', () => {
     it('matches empty call exceptions', () => {
@@ -44,6 +51,34 @@ describe('contract utils', () => {
           wrappedError(wrappedError(missingSelectorError())),
         ),
       ).to.equal(true);
+    });
+
+    it('matches direct and wrapped diamond FacetNotFound reverts', () => {
+      expect(isMissingSelectorCallException(facetNotFoundError())).to.equal(
+        true,
+      );
+      expect(
+        isMissingSelectorCallException(wrappedError(facetNotFoundError())),
+      ).to.equal(true);
+    });
+
+    it('matches FacetNotFound revert data nested in the underlying error but not with trailing bytes', () => {
+      expect(
+        isMissingSelectorCallException(
+          Object.assign(new Error('call revert exception'), {
+            code: 'CALL_EXCEPTION',
+            error: { data: '0x800ab12c' },
+          }),
+        ),
+      ).to.equal(true);
+      expect(
+        isMissingSelectorCallException(
+          Object.assign(new Error('call revert exception'), {
+            code: 'CALL_EXCEPTION',
+            data: `0x800ab12c${'00'.repeat(32)}`,
+          }),
+        ),
+      ).to.equal(false);
     });
 
     it('matches HyperlaneJsonRpcProvider empty responses', () => {

@@ -13,6 +13,12 @@ import {
 
 import { getNestedJsonRpcError } from '../providers/SmartProvider/jsonRpcError.js';
 
+// Diamond fallbacks can use this custom error instead of empty revert data
+// when no facet implements the requested selector. The value is the selector of
+// FacetNotFound() (first 4 bytes of keccak256("FacetNotFound()")), which takes no
+// arguments, so the revert data is exactly the selector.
+const FACET_NOT_FOUND_REVERT_DATA = '0x800ab12c';
+
 /**
  * Returns true when the deployed contract version is already at or above the
  * target version.
@@ -124,6 +130,19 @@ export function isMissingSelectorRevert(error: unknown): boolean {
   const nestedError = isRecord(callException.error)
     ? callException.error
     : undefined;
+  const data =
+    typeof callException.data === 'string'
+      ? callException.data
+      : nestedError?.data;
+  // A diamond miss is a known "no such function" revert, so unlike empty data
+  // it needs no transport gating.
+  if (
+    typeof data === 'string' &&
+    data.toLowerCase() === FACET_NOT_FOUND_REVERT_DATA
+  ) {
+    return true;
+  }
+
   const {
     code: nestedCode,
     message: nestedMessage,
@@ -136,10 +155,6 @@ export function isMissingSelectorRevert(error: unknown): boolean {
     );
   }
 
-  const data =
-    typeof callException.data === 'string'
-      ? callException.data
-      : nestedError?.data;
   // Some ethers/provider combinations only expose empty return data in the
   // formatted message.
   const hasEmptyData =
@@ -173,7 +188,6 @@ export function isPanicRevert(error: unknown): boolean {
     typeof callException.data === 'string'
       ? callException.data
       : nestedError?.data;
-
   return (
     typeof data === 'string' &&
     REVERT_DATA_PATTERN.test(data) &&
