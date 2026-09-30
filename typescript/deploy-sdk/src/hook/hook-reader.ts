@@ -7,12 +7,14 @@ import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DeployedHookAddress,
   DeployedHookArtifact,
+  DeployedRawHookArtifact,
   DerivedHookConfig,
   HookArtifactConfig,
   IRawHookArtifactManager,
   hookArtifactToDerivedConfig,
+  isDirectHookArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
-import { Logger, rootLogger } from '@hyperlane-xyz/utils';
+import { Logger, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 /**
  * Factory function to create a HookReader instance.
@@ -43,8 +45,8 @@ export function createHookReader(
 }
 
 /**
- * Generic Hook Reader that can read any hook type by detecting its type.
- * Unlike ISMs, hooks don't have composite/nested types, so no recursive expansion needed.
+ * Generic Hook Reader that can read direct hook types by detecting their type.
+ * Nested hook expansion is not yet supported.
  */
 export class HookReader implements ArtifactReader<
   HookArtifactConfig,
@@ -60,8 +62,14 @@ export class HookReader implements ArtifactReader<
   ) {}
 
   async read(address: string): Promise<DeployedHookArtifact> {
-    // Read hook via artifactManager - detects type and returns config
-    return this.artifactManager.readHook(address);
+    const artifact: DeployedRawHookArtifact =
+      await this.artifactManager.readHook(address);
+    assert(
+      isDirectHookArtifactConfig(artifact.config),
+      `Nested hook artifact type ${artifact.config.type} is not yet supported by HookReader`,
+    );
+
+    return artifact;
   }
 
   /**

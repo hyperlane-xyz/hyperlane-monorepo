@@ -19,7 +19,7 @@ import {
   RawRoutingIsmArtifactConfig,
   RoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import { Logger, rootLogger } from '@hyperlane-xyz/utils';
+import { Logger, nonEmptyArray, rootLogger } from '@hyperlane-xyz/utils';
 
 /**
  * Factory function to create an IsmReader instance.
@@ -83,7 +83,15 @@ export class IsmReader implements ArtifactReader<
             : await this.read(module.deployed.address),
         );
       }
-      return { artifactState, config: { ...config, modules }, deployed };
+      return {
+        artifactState,
+        config: {
+          type: config.type,
+          threshold: config.threshold,
+          modules: nonEmptyArray(modules),
+        },
+        deployed,
+      };
     }
 
     // For non-routing ISMs, the raw and expanded configs are identical

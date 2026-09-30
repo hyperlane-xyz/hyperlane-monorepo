@@ -1,5 +1,4 @@
 import {
-  AltVM,
   ChainMetadataForAltVM,
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
@@ -14,6 +13,9 @@ import {
   DeployedIsmArtifact,
   IRawIsmArtifactManager,
   IsmArtifactConfig,
+  IsmType,
+  isDirectIsmArtifactConfig,
+  isMutableIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { assert } from '@hyperlane-xyz/utils';
@@ -92,15 +94,20 @@ export class IsmWriter
   ): Promise<[DeployedIsmArtifact, TxReceipt[]]> {
     const { artifactState, config } = artifact;
     assert(
-      config.type !== AltVM.IsmType.AGGREGATION &&
-        config.type !== AltVM.IsmType.PAUSABLE,
-      'Aggregation and pausable ISM artifacts currently support reading only',
+      config.type !== IsmType.AGGREGATION &&
+        config.type !== IsmType.STORAGE_AGGREGATION,
+      'Aggregation ISM artifact composition is not yet supported',
     );
 
     // Routing ISMs are composite - use RoutingIsmWriter for nested deployments
-    if (config.type === AltVM.IsmType.ROUTING) {
+    if (config.type === IsmType.ROUTING) {
       return this.routingWriter.create({ artifactState, config });
     }
+
+    assert(
+      isDirectIsmArtifactConfig(config),
+      `Nested ISM artifact type ${config.type} is not yet supported by IsmWriter`,
+    );
 
     // For other ISM types, request typed writer from artifact manager
     const writer = this.artifactManager.createWriter(config.type, this.signer);
@@ -118,29 +125,26 @@ export class IsmWriter
   async update(artifact: DeployedIsmArtifact): Promise<AnnotatedTx[]> {
     const { artifactState, config, deployed } = artifact;
     assert(
-      config.type !== AltVM.IsmType.AGGREGATION &&
-        config.type !== AltVM.IsmType.PAUSABLE,
-      'Aggregation and pausable ISM artifacts currently support reading only',
+      config.type !== IsmType.AGGREGATION &&
+        config.type !== IsmType.STORAGE_AGGREGATION,
+      'Aggregation ISM artifact composition is not yet supported',
     );
 
     // Only routing ISMs are mutable - support domain updates and owner changes
-    if (config.type === AltVM.IsmType.ROUTING) {
+    if (config.type === IsmType.ROUTING) {
       return this.routingWriter.update({ artifactState, config, deployed });
     }
 
-    // Composite ISM is mutable too, but self-contained: it diffs its own tree
-    // against on-chain state (re-read internally), so it's delegated to
-    // directly rather than routed through RoutingIsmWriter's nested-artifact
-    // recursion.
-    if (config.type === AltVM.IsmType.COMPOSITE) {
-      const writer = this.artifactManager.createWriter(
-        config.type,
-        this.signer,
-      );
-      return writer.update({ artifactState, config, deployed });
+    if (config.type !== IsmType.COMPOSITE && !isMutableIsmConfig(config)) {
+      return [];
     }
 
-    // Multisig and test ISMs are immutable - no updates possible
-    return [];
+    assert(
+      isDirectIsmArtifactConfig(config),
+      `Nested ISM artifact type ${config.type} is not yet supported by IsmWriter`,
+    );
+
+    const writer = this.artifactManager.createWriter(config.type, this.signer);
+    return writer.update({ artifactState, config, deployed });
   }
 }

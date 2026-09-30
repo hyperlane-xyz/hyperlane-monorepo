@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { type IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import { IsmType, type IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 
 import {
   UnsupportedIsmTypeError,
@@ -13,7 +13,7 @@ describe('validateIsmType', () => {
   it('accepts compositeIsm on Sealevel', () => {
     expect(() => {
       validateIsmType(
-        'compositeIsm',
+        IsmType.COMPOSITE,
         'solanamainnet',
         'configuration',
         ProtocolType.Sealevel,
@@ -30,7 +30,12 @@ describe('validateIsmType', () => {
   ]) {
     it(`rejects compositeIsm on ${protocol}`, () => {
       expect(() => {
-        validateIsmType('compositeIsm', 'somechain', 'configuration', protocol);
+        validateIsmType(
+          IsmType.COMPOSITE,
+          'somechain',
+          'configuration',
+          protocol,
+        );
       }).to.throw(UnsupportedIsmTypeError);
     });
   }
@@ -38,7 +43,7 @@ describe('validateIsmType', () => {
   it('accepts protocol-agnostic ISM types on any Alt-VM protocol', () => {
     expect(() => {
       validateIsmType(
-        'testIsm',
+        IsmType.TEST_ISM,
         'somechain',
         'configuration',
         ProtocolType.Radix,
@@ -56,28 +61,37 @@ describe('validateIsmType', () => {
       );
     }).to.throw(UnsupportedIsmTypeError);
   });
+
+  for (const ismType of [IsmType.OP_STACK, IsmType.CCIP, IsmType.BLACKLIST]) {
+    it(`rejects recognized but unsupported ${ismType}`, () => {
+      expect(() => {
+        validateIsmType(
+          ismType,
+          'somechain',
+          'configuration',
+          ProtocolType.Sealevel,
+        );
+      }).to.throw(UnsupportedIsmTypeError);
+    });
+  }
 });
 
 describe('validateIsmType legacy calls (no protocol)', () => {
   it('accepts a 2-arg call (chain only, default context)', () => {
     expect(() => {
-      validateIsmType('testIsm', 'somechain');
+      validateIsmType(IsmType.TEST_ISM, 'somechain');
     }).to.not.throw();
   });
 
   it('accepts a 3-arg call with an explicit context string in the old position', () => {
     expect(() => {
-      validateIsmType('testIsm', 'somechain', 'core config');
+      validateIsmType(IsmType.TEST_ISM, 'somechain', 'core config');
     }).to.not.throw();
   });
 
-  it('rejects compositeIsm with a clear "protocol required" error when protocol is omitted', () => {
-    // compositeIsm never existed as a supported type before protocol
-    // awareness was added — there's no legacy call shape to preserve
-    // permissiveness for. Omitting protocol must still reject it (just
-    // with a clearer reason), not silently accept it for every protocol.
+  it('rejects compositeIsm when protocol is omitted', () => {
     expect(() => {
-      validateIsmType('compositeIsm', 'somechain', 'core config');
+      validateIsmType(IsmType.COMPOSITE, 'somechain', 'core config');
     }).to.throw(UnsupportedIsmTypeError, /requires the chain's protocol/);
   });
 
@@ -91,11 +105,11 @@ describe('validateIsmType legacy calls (no protocol)', () => {
 describe('validateIsmConfig', () => {
   it('rejects compositeIsm nested in a domainRoutingIsm on a non-Sealevel chain', () => {
     const config: IsmConfig = {
-      type: 'domainRoutingIsm',
+      type: IsmType.ROUTING,
       owner: '0x0',
       domains: {
         ethereum: {
-          type: 'compositeIsm',
+          type: IsmType.COMPOSITE,
           owner: '0x0',
           root: { type: 'test', accept: true },
         },
@@ -111,9 +125,32 @@ describe('validateIsmConfig', () => {
     }).to.throw(UnsupportedIsmTypeError);
   });
 
+  it('rejects a recognized but unsupported ISM nested in a domainRoutingIsm', () => {
+    const config: IsmConfig = {
+      type: IsmType.ROUTING,
+      owner: '0x0',
+      domains: {
+        ethereum: {
+          type: IsmType.PAUSABLE,
+          owner: '0x0',
+          paused: false,
+        },
+      },
+    };
+
+    expect(() => {
+      validateIsmConfig(
+        config,
+        'somechain',
+        'configuration',
+        ProtocolType.Sealevel,
+      );
+    }).to.throw(UnsupportedIsmTypeError);
+  });
+
   it('accepts a legacy 2-arg call with no context/protocol', () => {
     expect(() => {
-      validateIsmConfig({ type: 'testIsm' }, 'somechain');
+      validateIsmConfig({ type: IsmType.TEST_ISM }, 'somechain');
     }).to.not.throw();
   });
 });

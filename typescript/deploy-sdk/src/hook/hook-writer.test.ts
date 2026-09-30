@@ -1,4 +1,5 @@
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import sinon from 'sinon';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
@@ -6,11 +7,14 @@ import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DeployedHookArtifact,
+  HookType,
   IRawHookArtifactManager,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 
 import { HookWriter } from './hook-writer.js';
+
+chai.use(chaiAsPromised);
 
 const chainLookup: ChainLookup = {
   getChainMetadata: () => {
@@ -22,6 +26,27 @@ const chainLookup: ChainLookup = {
 };
 
 describe('HookWriter', () => {
+  it('rejects nested hook artifacts before delegating', async () => {
+    const createWriter = sinon.stub();
+    const artifactManager = {
+      createReader: sinon.stub(),
+      createWriter,
+      readHook: sinon.stub(),
+    } as IRawHookArtifactManager;
+    const signer = {} as AltVM.ISigner<AnnotatedTx, TxReceipt>;
+    const writer = new HookWriter(artifactManager, chainLookup, signer);
+
+    await expect(
+      writer.create({
+        artifactState: ArtifactState.NEW,
+        config: { type: HookType.AGGREGATION, hooks: [] },
+      }),
+    ).to.be.rejectedWith(
+      `Nested hook artifact type ${HookType.AGGREGATION} is not yet supported`,
+    );
+    expect(createWriter.called).to.equal(false);
+  });
+
   it('delegates protocolFee updates to the protocol writer', async () => {
     const expectedTxs = [
       { annotation: 'protocol fee update' },
@@ -42,7 +67,7 @@ describe('HookWriter', () => {
     const artifact: DeployedHookArtifact = {
       artifactState: ArtifactState.DEPLOYED,
       config: {
-        type: AltVM.HookType.PROTOCOL_FEE,
+        type: HookType.PROTOCOL_FEE,
         owner: '0xowner',
         beneficiary: '0xbeneficiary',
         maxProtocolFee: '100',
@@ -53,11 +78,37 @@ describe('HookWriter', () => {
 
     const txs = await writer.update(artifact);
 
-    expect(
-      createWriter.calledOnceWith(AltVM.HookType.PROTOCOL_FEE, signer),
-    ).to.equal(true);
+    expect(createWriter.calledOnceWith(HookType.PROTOCOL_FEE, signer)).to.equal(
+      true,
+    );
     expect(update.calledOnceWith(artifact)).to.equal(true);
     expect(txs).to.deep.equal(expectedTxs);
+  });
+
+  it('rejects nested mutable hook updates before delegating', async () => {
+    const createWriter = sinon.stub();
+    const artifactManager = {
+      createReader: sinon.stub(),
+      createWriter,
+      readHook: sinon.stub(),
+    } as IRawHookArtifactManager;
+    const signer = {} as AltVM.ISigner<AnnotatedTx, TxReceipt>;
+    const writer = new HookWriter(artifactManager, chainLookup, signer);
+
+    await expect(
+      writer.update({
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          type: HookType.ROUTING,
+          owner: '0xowner',
+          domains: {},
+        },
+        deployed: { address: '0xrouting' },
+      }),
+    ).to.be.rejectedWith(
+      `Nested hook artifact type ${HookType.ROUTING} is not yet supported by HookWriter`,
+    );
+    expect(createWriter.called).to.equal(false);
   });
 
   it('treats unknownHook updates as a no-op', async () => {

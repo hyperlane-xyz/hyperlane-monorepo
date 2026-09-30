@@ -1,18 +1,24 @@
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 
-import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DeployedRawIsmArtifact,
   IRawIsmArtifactManager,
   IsmConfig,
+  IsmType,
   ismArtifactToDerivedConfig,
   ismConfigToArtifact,
 } from '@hyperlane-xyz/provider-sdk/ism';
+import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { IsmReader } from './generic-ism.js';
+import { IsmWriter } from './generic-ism-writer.js';
+
+chai.use(chaiAsPromised);
 
 const chainLookup: ChainLookup = {
   getChainMetadata: () => ({
@@ -81,7 +87,12 @@ function fixture() {
       throw new Error('Unexpected writer');
     },
   };
-  return { artifacts, reads, reader: new IsmReader(manager, chainLookup) };
+  return {
+    artifacts,
+    manager,
+    reads,
+    reader: new IsmReader(manager, chainLookup),
+  };
 }
 
 describe('IsmReader aggregation', () => {
@@ -168,5 +179,33 @@ describe('IsmReader aggregation', () => {
         chainLookup,
       ),
     ).to.throw(/nested ISM is NEW/);
+  });
+});
+
+describe('IsmWriter', () => {
+  it('rejects nested ISM artifacts before delegating', async () => {
+    const { manager } = fixture();
+    const signer = {} as AltVM.ISigner<AnnotatedTx, TxReceipt>;
+    const writer = new IsmWriter(manager, chainLookup, signer);
+
+    await expect(
+      writer.create({
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: IsmType.AMOUNT_ROUTING,
+          threshold: 1,
+          lowerIsm: {
+            artifactState: ArtifactState.NEW,
+            config: { type: IsmType.TEST_ISM },
+          },
+          upperIsm: {
+            artifactState: ArtifactState.NEW,
+            config: { type: IsmType.TEST_ISM },
+          },
+        },
+      }),
+    ).to.be.rejectedWith(
+      `Nested ISM artifact type ${IsmType.AMOUNT_ROUTING} is not yet supported`,
+    );
   });
 });

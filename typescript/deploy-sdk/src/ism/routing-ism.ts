@@ -1,4 +1,3 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   Artifact,
@@ -17,8 +16,10 @@ import {
   DeployedIsmArtifact,
   IRawIsmArtifactManager,
   IsmArtifactConfig,
+  IsmType,
   RawRoutingIsmArtifactConfig,
   RoutingIsmArtifactConfig,
+  isDirectIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { Logger, assert, rootLogger } from '@hyperlane-xyz/utils';
@@ -50,7 +51,7 @@ export class RoutingIsmWriter implements ArtifactWriter<
 
   async read(address: string): Promise<DeployedRoutingIsmArtifact> {
     const artifact = await this.ismReader.read(address);
-    if (artifact.config.type !== AltVM.IsmType.ROUTING) {
+    if (artifact.config.type !== IsmType.ROUTING) {
       throw new Error(
         `Expected ROUTING ISM at ${address}, got ${artifact.config.type}`,
       );
@@ -91,7 +92,7 @@ export class RoutingIsmWriter implements ArtifactWriter<
     }
 
     const rawRoutingIsmWriter = this.artifactManager.createWriter(
-      AltVM.IsmType.ROUTING,
+      IsmType.ROUTING,
       this.signer,
     );
 
@@ -136,7 +137,7 @@ export class RoutingIsmWriter implements ArtifactWriter<
     for (const [domainId, domainIsmConfig] of Object.entries(config.domains)) {
       if (!this.chainLookup.getChainName(parseInt(domainId))) {
         this.logger.warn(
-          `Skipping update of unknown ${AltVM.IsmType.ROUTING} domain ${domainId}`,
+          `Skipping update of unknown ${IsmType.ROUTING} domain ${domainId}`,
         );
 
         continue;
@@ -147,24 +148,28 @@ export class RoutingIsmWriter implements ArtifactWriter<
       if (isArtifactDeployed(domainIsmConfig)) {
         const { artifactState, config, deployed } = domainIsmConfig;
         assert(
-          config.type !== AltVM.IsmType.AGGREGATION &&
-            config.type !== AltVM.IsmType.PAUSABLE,
-          'Aggregation and pausable ISM artifacts currently support reading only',
-        );
-
-        const domainIsmWriter = this.artifactManager.createWriter(
-          domainIsmConfig.config.type,
-          this.signer,
+          config.type !== IsmType.AGGREGATION &&
+            config.type !== IsmType.STORAGE_AGGREGATION,
+          'Aggregation ISM artifact composition is not yet supported',
         );
 
         let domainIsmUpdateTxs: AnnotatedTx[];
-        if (config.type === AltVM.IsmType.ROUTING) {
+        if (config.type === IsmType.ROUTING) {
           domainIsmUpdateTxs = await this.update({
             artifactState,
             config,
             deployed,
           });
         } else {
+          assert(
+            isDirectIsmArtifactConfig(config),
+            `Nested ISM artifact type ${config.type} is not yet supported by RoutingIsmWriter`,
+          );
+
+          const domainIsmWriter = this.artifactManager.createWriter(
+            config.type,
+            this.signer,
+          );
           domainIsmUpdateTxs = await domainIsmWriter.update({
             artifactState,
             config,
@@ -191,7 +196,7 @@ export class RoutingIsmWriter implements ArtifactWriter<
     }
 
     const rawRoutingWriter = this.artifactManager.createWriter(
-      AltVM.IsmType.ROUTING,
+      IsmType.ROUTING,
       this.signer,
     );
 
@@ -217,16 +222,21 @@ export class RoutingIsmWriter implements ArtifactWriter<
   ): Promise<[DeployedIsmArtifact, TxReceipt[]]> {
     const { config, artifactState } = artifact;
     assert(
-      config.type !== AltVM.IsmType.AGGREGATION &&
-        config.type !== AltVM.IsmType.PAUSABLE,
-      'Aggregation and pausable ISM artifacts currently support reading only',
+      config.type !== IsmType.AGGREGATION &&
+        config.type !== IsmType.STORAGE_AGGREGATION,
+      'Aggregation ISM artifact composition is not yet supported',
     );
-    if (config.type === AltVM.IsmType.ROUTING) {
+    if (config.type === IsmType.ROUTING) {
       return this.create({
         config,
         artifactState,
       });
     }
+
+    assert(
+      isDirectIsmArtifactConfig(config),
+      `Nested ISM artifact type ${config.type} is not yet supported by RoutingIsmWriter`,
+    );
 
     const writer = this.artifactManager.createWriter(config.type, this.signer);
 

@@ -15,12 +15,13 @@ import {
   HookArtifactConfig,
   HookConfig,
   IRawHookArtifactManager,
-  MUTABLE_HOOK_TYPE,
   hookConfigToArtifact,
+  isDirectHookArtifactConfig,
+  isMutableHookConfig,
   shouldDeployNewHook,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { Address, isEmptyAddress } from '@hyperlane-xyz/utils';
+import { Address, assert, isEmptyAddress } from '@hyperlane-xyz/utils';
 
 import { HookReader } from './hook-reader.js';
 
@@ -105,11 +106,16 @@ export class HookWriter
   async create(
     artifact: ArtifactNew<HookArtifactConfig>,
   ): Promise<[DeployedHookArtifact, TxReceipt[]]> {
-    const { config } = artifact;
+    const { artifactState, config } = artifact;
+
+    assert(
+      isDirectHookArtifactConfig(config),
+      `Nested hook artifact type ${config.type} is not yet supported by HookWriter`,
+    );
 
     // Get the typed writer for this hook type
     const writer = this.artifactManager.createWriter(config.type, this.signer);
-    return writer.create(artifact);
+    return writer.create({ artifactState, config });
   }
 
   /**
@@ -126,9 +132,14 @@ export class HookWriter
   async update(artifact: DeployedHookArtifact): Promise<AnnotatedTx[]> {
     const { artifactState, config, deployed } = artifact;
 
-    if (!MUTABLE_HOOK_TYPE.includes(config.type)) {
+    if (!isMutableHookConfig(config)) {
       return [];
     }
+
+    assert(
+      isDirectHookArtifactConfig(config),
+      `Nested hook artifact type ${config.type} is not yet supported by HookWriter`,
+    );
 
     const writer = this.artifactManager.createWriter(config.type, this.signer);
     return writer.update({ artifactState, config, deployed });
