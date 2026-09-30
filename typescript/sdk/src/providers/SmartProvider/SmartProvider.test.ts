@@ -1210,6 +1210,36 @@ describe('SmartProvider', () => {
       }
     });
 
+    describe('when a provider returned revert data alongside an empty response', () => {
+      const emptyResponseError = new Error('Invalid response from provider');
+      const revertWithData = new ProviderError(
+        'execution reverted',
+        EthersError.CALL_EXCEPTION,
+        '0x08c379a0',
+        { jsonRpcErrorCode: 3 },
+      );
+
+      const orderings = [
+        { name: 'revert first', errors: [revertWithData, emptyResponseError] },
+        { name: 'empty first', errors: [emptyResponseError, revertWithData] },
+      ];
+
+      for (const c of orderings) {
+        it(`keeps the revert as the cause with ${c.name}`, () => {
+          const CombinedError = provider.testGetCombinedProviderError(
+            c.errors,
+            'Test fallback message',
+          );
+
+          const e = new CombinedError();
+
+          expect(e).to.be.instanceOf(BlockchainError);
+          expect(e.cause).to.equal(revertWithData);
+          expect(isMissingSelectorCallException(e)).to.equal(false);
+        });
+      }
+    });
+
     it('treats CALL_EXCEPTION with JSON-RPC error code 3 as permanent (BlockchainError)', () => {
       // JSON-RPC error code 3 definitively indicates execution revert (EIP-1474)
       // Even without revert data, this is a real contract revert
@@ -1335,6 +1365,70 @@ describe('SmartProvider', () => {
         expect(provider2.called).to.be.true;
       }
     });
+
+    interface LateErrorCase {
+      name: string;
+      firstError: Error;
+      otherError: Error;
+      missingSelector: boolean;
+    }
+
+    const emptyResponseError = new Error('Invalid response from provider');
+    const lateServerError = new ProviderError(
+      'connection refused',
+      EthersError.SERVER_ERROR,
+    );
+    const lateRevertWithData = new ProviderError(
+      'execution reverted',
+      EthersError.CALL_EXCEPTION,
+      '0x08c379a0',
+      { jsonRpcErrorCode: 3 },
+    );
+    const lateErrorCases: LateErrorCase[] = [
+      {
+        name: 'a late revert with data and an earlier late empty response',
+        firstError: lateRevertWithData,
+        otherError: emptyResponseError,
+        missingSelector: false,
+      },
+      {
+        name: 'a late empty response and an earlier late server error',
+        firstError: emptyResponseError,
+        otherError: lateServerError,
+        missingSelector: true,
+      },
+      {
+        name: 'a late server error and an earlier late empty response',
+        firstError: lateServerError,
+        otherError: emptyResponseError,
+        missingSelector: true,
+      },
+      {
+        name: 'two late server errors',
+        firstError: lateServerError,
+        otherError: new ProviderError(
+          'connection refused',
+          EthersError.SERVER_ERROR,
+        ),
+        missingSelector: false,
+      },
+    ];
+
+    for (const c of lateErrorCases) {
+      it(`classifies ${c.name} independently of arrival order (missing selector=${c.missingSelector})`, async () => {
+        // Both providers miss the stagger window; the second replies first
+        const provider1 = MockProvider.error(c.firstError, 300);
+        const provider2 = MockProvider.error(c.otherError, 150);
+        const provider = new TestableSmartProvider([provider1, provider2]);
+
+        try {
+          await provider.simplePerform('getBlockNumber', 1);
+          expect.fail('Should have thrown an error');
+        } catch (e: unknown) {
+          expect(isMissingSelectorCallException(e)).to.equal(c.missingSelector);
+        }
+      });
+    }
 
     it('blockchain error with revert data stops trying additional providers immediately', async () => {
       const blockchainError = new ProviderError(

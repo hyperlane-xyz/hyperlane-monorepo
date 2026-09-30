@@ -9,6 +9,8 @@ import { HyperlaneSmartProvider } from './SmartProvider.js';
 
 const CHAIN_ID = 1;
 const FALLBACK_STAGGER_MS = 50;
+const LATE_SLOW_MS = 300;
+const LATE_FAST_MS = 150;
 const CALL_PARAMS = { to: '0x' + '11'.repeat(20), data: '0x12345678' };
 
 const EthMethod = {
@@ -45,6 +47,7 @@ function isJsonRpcRequest(value: unknown): value is JsonRpcRequest {
 async function startServer(
   callBehavior: Behavior,
   sockets: Set<http.ServerResponse>,
+  replyDelayMs = 0,
 ): Promise<{ server: http.Server; url: string }> {
   const server = http.createServer((req, res) => {
     const chunks: Buffer[] = [];
@@ -65,19 +68,25 @@ async function startServer(
         res.end();
         return;
       }
+      const respond = (send: () => void) => {
+        if (replyDelayMs > 0) setTimeout(send, replyDelayMs);
+        else send();
+      };
       switch (callBehavior) {
         case Behavior.Hang:
           sockets.add(res);
           return;
         case Behavior.Empty:
-          reply('0x');
+          respond(() => reply('0x'));
           return;
         case Behavior.Data:
           reply(DATA_RESULT);
           return;
         case Behavior.ServerError:
-          res.statusCode = 500;
-          res.end('Internal Server Error');
+          respond(() => {
+            res.statusCode = 500;
+            res.end('Internal Server Error');
+          });
           return;
       }
     });
@@ -101,9 +110,11 @@ describe('HyperlaneSmartProvider empty response next to failing providers', func
   async function makeProvider(
     firstBehavior: Behavior,
     otherBehavior: Behavior,
+    firstDelayMs = 0,
+    otherDelayMs = 0,
   ): Promise<HyperlaneSmartProvider> {
-    const a = await startServer(firstBehavior, hanging);
-    const b = await startServer(otherBehavior, hanging);
+    const a = await startServer(firstBehavior, hanging, firstDelayMs);
+    const b = await startServer(otherBehavior, hanging, otherDelayMs);
     servers.push(a.server, b.server);
     return new HyperlaneSmartProvider(
       { chainId: CHAIN_ID, name: 'test' },
@@ -131,6 +142,9 @@ describe('HyperlaneSmartProvider empty response next to failing providers', func
     name: string;
     first: Behavior;
     other: Behavior;
+    // Both replies land after the stagger window, the other one first
+    firstDelayMs?: number;
+    otherDelayMs?: number;
     missingSelector: boolean;
   }
 
@@ -159,11 +173,32 @@ describe('HyperlaneSmartProvider empty response next to failing providers', func
       other: Behavior.ServerError,
       missingSelector: false,
     },
+    {
+      name: 'a late empty response and an earlier late server error',
+      first: Behavior.Empty,
+      other: Behavior.ServerError,
+      firstDelayMs: LATE_SLOW_MS,
+      otherDelayMs: LATE_FAST_MS,
+      missingSelector: true,
+    },
+    {
+      name: 'two late server errors',
+      first: Behavior.ServerError,
+      other: Behavior.ServerError,
+      firstDelayMs: LATE_SLOW_MS,
+      otherDelayMs: LATE_FAST_MS,
+      missingSelector: false,
+    },
   ];
 
   for (const c of cases) {
     it(`classifies an eth_call failing with ${c.name} as missing selector=${c.missingSelector}`, async () => {
-      const provider = await makeProvider(c.first, c.other);
+      const provider = await makeProvider(
+        c.first,
+        c.other,
+        c.firstDelayMs,
+        c.otherDelayMs,
+      );
 
       let thrown: unknown;
       try {

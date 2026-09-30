@@ -543,7 +543,11 @@ export class HyperlaneSmartProvider
       }
       case ProviderStatus.Error: {
         const CombinedError = this.getCombinedProviderError(
-          [result.error, ...providerResultErrors],
+          [
+            result.error,
+            ...(result.otherErrors ?? []),
+            ...providerResultErrors,
+          ],
           `All providers failed on chain ${
             this.network.name
           } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
@@ -605,12 +609,15 @@ export class HyperlaneSmartProvider
       }
     }
     // If reached, all providers finished unsuccessfully
+    // The first error to arrive stays `error`; the rest are returned in
+    // `otherErrors` so the caller can combine them rather than pick by latency.
+    const [firstError, ...otherErrors] = combinedErrors;
     return {
       status: ProviderStatus.Error,
-      // TODO combine errors
       error: combinedErrors.length
-        ? combinedErrors[0]
+        ? firstError
         : new Error('Unknown error from provider'),
+      otherErrors,
     };
   }
 
