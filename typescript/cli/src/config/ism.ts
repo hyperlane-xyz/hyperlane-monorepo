@@ -1,6 +1,7 @@
 import { input, select } from '@inquirer/prompts';
 import { z } from 'zod';
 
+import { isStaticIsmType } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   type AggregationIsmConfig,
   type ChainMap,
@@ -10,8 +11,8 @@ import {
   type MultisigIsmConfig,
   MultisigIsmConfigSchema,
   type TrustedRelayerIsmConfig,
-  isStaticIsm,
 } from '@hyperlane-xyz/sdk';
+import { assert, nonEmptyArray, objKeys } from '@hyperlane-xyz/utils';
 
 import { type CommandContext } from '../context/types.js';
 import { tryResolveSignerAddress } from '../context/strategies/signer/resolveSignerAddress.js';
@@ -68,7 +69,7 @@ export function readIsmConfig(filePath: string) {
   return parsedConfig;
 }
 
-const ISM_TYPE_DESCRIPTIONS: Record<string, string> = {
+const ISM_TYPE_DESCRIPTIONS = {
   [IsmType.AGGREGATION]:
     'You can aggregate multiple ISMs into one ISM via AggregationISM',
   [IsmType.FALLBACK_ROUTING]:
@@ -90,7 +91,7 @@ const ISM_TYPE_DESCRIPTIONS: Record<string, string> = {
   // COMPOSITE intentionally excluded: it's Sealevel-only, config-file input
   // only — createAdvancedIsmConfig()'s switch has no branch for it, so
   // listing it here would let it be selected into a dead end.
-};
+} as const satisfies Partial<Record<IsmType, string>>;
 
 export async function createAdvancedIsmConfig(
   context: CommandContext,
@@ -104,11 +105,11 @@ export async function createAdvancedIsmConfig(
 
   const moduleType = await select({
     message: 'Select ISM type',
-    choices: Object.entries(ISM_TYPE_DESCRIPTIONS)
-      .filter(([value]) => !excludeStaticIsms || !isStaticIsm(value as IsmType))
-      .map(([value, description]) => ({
+    choices: objKeys(ISM_TYPE_DESCRIPTIONS)
+      .filter((value) => !excludeStaticIsms || !isStaticIsmType(value))
+      .map((value) => ({
         value,
-        description,
+        description: ISM_TYPE_DESCRIPTIONS[value],
       })),
     pageSize: 10,
   });
@@ -206,13 +207,15 @@ export const createAggregationConfig = callWithConfigCreationLogs(
       10,
     );
 
+    assert(isms > 0, 'At least one ISM is required for aggregation');
+
     const modules: Array<IsmConfig> = [];
     for (let i = 0; i < isms; i++) {
       modules.push(await createAdvancedIsmConfig(context));
     }
     return {
       type: IsmType.AGGREGATION,
-      modules,
+      modules: nonEmptyArray(modules),
       threshold,
     };
   },

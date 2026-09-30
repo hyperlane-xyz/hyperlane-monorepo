@@ -2,10 +2,13 @@ import { expect } from 'chai';
 import { Wallet } from 'ethers';
 
 import { type ERC20Test } from '@hyperlane-xyz/core';
+import {
+  MUTABLE_HOOK_TYPE,
+  type MutableHookType,
+} from '@hyperlane-xyz/provider-sdk/hook';
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   type HookConfig,
-  MUTABLE_HOOK_TYPE,
   TokenType,
   type WarpRouteDeployConfig,
   randomAddress,
@@ -96,7 +99,7 @@ describe('hyperlane warp check e2e tests', async function () {
 
       const hookConfig: Extract<
         HookConfig,
-        { type: (typeof MUTABLE_HOOK_TYPE)[number]; owner: string }
+        { type: MutableHookType; owner: string }
       > = mutatedWarpConfig[CHAIN_NAME_3].hook!;
       const actualOwner = hookConfig.owner;
       const wrongOwner = randomAddress();

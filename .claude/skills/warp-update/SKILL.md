@@ -96,8 +96,8 @@ When uncertain about a composition you have not used before, surface the questio
 
 **Canonical schema files — read these when authoring or editing nested ISM / hook / fee configs:**
 
-- ISMs: `typescript/sdk/src/ism/types.ts` — `IsmConfigSchema` union, plus per-type schemas (`PausableIsmConfigSchema`, `RateLimitedIsmConfigSchema`, `AggregationIsmConfigSchema`, `RoutingIsmConfigSchema`, etc.). The `MUTABLE_ISM_TYPE` constant enumerates which types can be edited in place vs. which require a fresh deploy on any change.
-- Hooks: `typescript/sdk/src/hook/types.ts` — `HookConfigSchema` union, plus per-type schemas. `MUTABLE_HOOK_TYPE` is the equivalent in-place-editable list.
+- ISMs: `typescript/sdk/src/ism/types.ts` — `IsmConfigSchema` union and per-type schemas (`PausableIsmConfigSchema`, `RateLimitedIsmConfigSchema`, `AggregationIsmConfigSchema`, `RoutingIsmConfigSchema`, etc.). Mutability classification is owned by `typescript/provider-sdk/src/ism.ts` through `isMutableIsmConfig` and `MUTABLE_ISM_TYPE`.
+- Hooks: `typescript/sdk/src/hook/types.ts` — `HookConfigSchema` union and per-type schemas. Mutability classification is owned by `typescript/provider-sdk/src/hook.ts` through `isMutableHookConfig` and `MUTABLE_HOOK_TYPE`.
 - Fees: `typescript/sdk/src/fee/types.ts` — `TokenFeeConfigSchema` discriminated union (`LinearFee`, `RoutingFee`, `CrossCollateralRoutingFee`, etc.); note that `LinearFee.bps` is immutable so `bps` edits trigger a redeploy.
 - Top-level token / per-chain router shape: `typescript/sdk/src/token/types.ts` — `HypTokenRouterConfigSchema` and the `HypTokenConfig` token-type union.
 - Shared mixins: `typescript/sdk/src/types.ts` — `OwnableSchema` (`owner` + optional `ownerOverrides`) and `PausableSchema` (Ownable + `paused: boolean`). Many ISM / hook configs `.extend(OwnableSchema)` or `.and(PausableSchema)`, so `owner` is required on more types than the field name alone would suggest (every routing-variant ISM, the offchain-lookup ISM, the interchainAccountRouting ISM, the rate-limited ISM optionally, pausableIsm, etc.).

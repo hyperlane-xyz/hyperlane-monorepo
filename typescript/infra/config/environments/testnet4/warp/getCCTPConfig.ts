@@ -1,3 +1,4 @@
+import { CctpVersion } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   ChainMap,
   HypTokenRouterConfig,
@@ -39,7 +40,7 @@ export const getCCTPWarpConfig = async (
         token: usdcTokenAddresses[chain],
         messageTransmitter: messageTransmitterAddresses[chain],
         tokenMessenger: tokenMessengerAddresses[chain],
-        cctpVersion: 'V1',
+        cctpVersion: CctpVersion.V1,
         urls: [`${SERVICE_URL}/cctp/getCctpAttestation`],
       };
       return [chain, config];

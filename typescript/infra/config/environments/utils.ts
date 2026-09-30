@@ -3,6 +3,7 @@ import {
   ChainSubmissionStrategy,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
+import type { NonEmptyArray } from '@hyperlane-xyz/utils';
 
 import {
   CheckpointSyncerType,
@@ -10,7 +11,7 @@ import {
 } from '../../src/config/agent/validator.js';
 import { Contexts } from '../contexts.js';
 
-export const DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS = [
+export const DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS: NonEmptyArray<string> = [
   'https://offchain-lookup.services.hyperlane.xyz/callCommitments/getCallsFromRevealMessage',
 ];
 

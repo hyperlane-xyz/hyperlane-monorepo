@@ -3,13 +3,16 @@ import { Wallet } from 'ethers';
 
 import { type ERC20Test } from '@hyperlane-xyz/core';
 import {
+  MUTABLE_ISM_TYPE,
+  type MutableIsmType,
+} from '@hyperlane-xyz/provider-sdk/ism';
+import {
   type ChainAddresses,
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import {
   type IsmConfig,
   IsmType,
-  MUTABLE_ISM_TYPE,
   TokenType,
   type WarpRouteDeployConfig,
   randomAddress,
@@ -124,7 +127,7 @@ describe('hyperlane warp check e2e tests', async function () {
 
       const ismConfig: Extract<
         IsmConfig,
-        { type: (typeof MUTABLE_ISM_TYPE)[number]; owner: string }
+        { type: MutableIsmType; owner: string }
       > = mutatedWarpConfig[CHAIN_NAME_3].interchainSecurityModule;
       const actualOwner = ismConfig.owner;
       const wrongOwner = randomAddress();

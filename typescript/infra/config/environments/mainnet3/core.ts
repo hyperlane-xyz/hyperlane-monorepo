@@ -286,14 +286,14 @@ export function getCore(): ChainMap<CoreConfig> {
         };
       }
 
+      const recoveredDefaultIsm: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [routingIsm, recoveredPausableIsm],
+        threshold: 2,
+      };
+
       return {
-        defaultIsm: isZksyncChain
-          ? defaultIsm
-          : {
-              type: IsmType.AGGREGATION,
-              modules: [routingIsm, recoveredPausableIsm],
-              threshold: 2,
-            },
+        defaultIsm: isZksyncChain ? defaultIsm : recoveredDefaultIsm,
         defaultHook,
         requiredHook: requiredHookAddress,
         deployQuotedCalls: false,

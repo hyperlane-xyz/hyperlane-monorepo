@@ -5,7 +5,7 @@ import {
   TestChainName,
   WeightedMultisigIsmConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { type Address, nonEmptyArray } from '@hyperlane-xyz/utils';
 
 // the addresses here must line up with the e2e test's validator addresses
 // Validators are anvil accounts 4-7
@@ -45,14 +45,17 @@ export const uniformlyWeightedMultisigIsm = (
   multisigIsm: MultisigIsmConfig,
 ): WeightedMultisigIsmConfig => {
   const totalWeight = 1e10;
-  const numValidators = multisigIsm.validators.length;
+  const validatorKeys = nonEmptyArray(multisigIsm.validators);
+  const numValidators = validatorKeys.length;
   const baseWeight = Math.floor(totalWeight / numValidators);
   const remainingWeight = totalWeight - baseWeight * (numValidators - 1);
 
-  const validators = multisigIsm.validators.map((validatorKey, index) => ({
-    signingAddress: validatorKey,
-    weight: index === numValidators - 1 ? remainingWeight : baseWeight,
-  }));
+  const validators = nonEmptyArray(
+    validatorKeys.map((validatorKey, index) => ({
+      signingAddress: validatorKey,
+      weight: index === numValidators - 1 ? remainingWeight : baseWeight,
+    })),
+  );
 
   const thresholdWeight = multisigIsm.threshold * baseWeight;
 

@@ -1,3 +1,4 @@
+import { CctpVersion } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   ChainMap,
   ChainName,
@@ -50,7 +51,6 @@ const getContractVersion = (
     : CONTRACT_VERSION_LEGACY;
 };
 
-type CctpVersion = 'V1' | 'V2';
 // production routes are owned by the AW ICAs/Safes; staging routes are owned by
 // the Haggis deployer key so they can be iterated on without governance.
 type CctpEnvironment = 'production' | 'staging';
@@ -120,7 +120,7 @@ const getOwner = (
     return HAGGIS_DEPLOYER;
   }
   // TODO: restore after V1 route has been updated
-  return version === 'V1' ? v1Owners[chain] : v2Owners[chain];
+  return version === CctpVersion.V1 ? v1Owners[chain] : v2Owners[chain];
 };
 
 const getCCTPWarpConfig = (
@@ -129,13 +129,15 @@ const getCCTPWarpConfig = (
   environment: CctpEnvironment,
 ): ChainMap<HypTokenRouterConfig> => {
   const messengerAddresses =
-    version === 'V1' ? tokenMessengerV1Addresses : tokenMessengerV2Addresses;
+    version === CctpVersion.V1
+      ? tokenMessengerV1Addresses
+      : tokenMessengerV2Addresses;
   const transmitterAddresses =
-    version === 'V1'
+    version === CctpVersion.V1
       ? messageTransmitterV1Addresses
       : messageTransmitterV2Addresses;
   const routeChains: string[] =
-    version === 'V1' ? [...CCTP_V1_CHAINS] : [...CCTP_V2_CHAINS];
+    version === CctpVersion.V1 ? [...CCTP_V1_CHAINS] : [...CCTP_V2_CHAINS];
 
   const chains = (
     Object.keys(messengerAddresses) as Array<keyof typeof messengerAddresses>
@@ -165,7 +167,7 @@ export const getCCTPV1WarpConfig = async (
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   _warpRouteId: string,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  return getCCTPWarpConfig(routerConfig, 'V1', 'production');
+  return getCCTPWarpConfig(routerConfig, CctpVersion.V1, 'production');
 };
 
 const getCCTPV2WarpConfig = (
@@ -173,7 +175,11 @@ const getCCTPV2WarpConfig = (
   mode: 'fast' | 'standard',
   environment: CctpEnvironment,
 ): ChainMap<HypTokenRouterConfig> => {
-  const baseConfig = getCCTPWarpConfig(routerConfig, 'V2', environment);
+  const baseConfig = getCCTPWarpConfig(
+    routerConfig,
+    CctpVersion.V2,
+    environment,
+  );
   return objMap(baseConfig, (chain, config) => {
     const maxFeeBps =
       mode === 'fast'
@@ -241,13 +247,13 @@ const icaChainsV2 = Object.keys(v2Owners).filter(
 );
 
 const getCCTPStrategyConfig = (
-  version: CctpVersion = 'V1',
+  version: CctpVersion = CctpVersion.V1,
 ): ChainSubmissionStrategy => {
   const chains: string[] =
-    version === 'V1' ? [...CCTP_V1_CHAINS] : [...CCTP_V2_CHAINS];
+    version === CctpVersion.V1 ? [...CCTP_V1_CHAINS] : [...CCTP_V2_CHAINS];
 
   // For V1, use legacy ICAs; for V2, use new ICAs
-  const icaChains = version === 'V1' ? icaChainsLegacy : icaChainsV2;
+  const icaChains = version === CctpVersion.V1 ? icaChainsLegacy : icaChainsV2;
 
   const submitterMetadata = chains.map((chain): SubmitterMetadata => {
     const hasIca = icaChains.includes(chain);
@@ -277,9 +283,9 @@ const getCCTPStrategyConfig = (
 };
 
 export const getCCTPV1StrategyConfig = (): ChainSubmissionStrategy => {
-  return getCCTPStrategyConfig('V1');
+  return getCCTPStrategyConfig(CctpVersion.V1);
 };
 
 export const getCCTPV2StrategyConfig = (): ChainSubmissionStrategy => {
-  return getCCTPStrategyConfig('V2');
+  return getCCTPStrategyConfig(CctpVersion.V2);
 };
