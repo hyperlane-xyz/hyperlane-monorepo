@@ -199,7 +199,10 @@ catalog:
   '@prisma/client': 7.8.0
   prisma: 7.8.0
 overrides:
-  # Keep WASM aligned with the SDK's Aleo consensus fee model.
+  # Keep WASM aligned with the SDK's Aleo consensus fee model. The v1.1.0
+  # aleo-tools devnode still uses 17 consensus heights; keep TEST_ALEO_ENV in
+  # typescript/aleo-sdk/src/testing/constants.ts unchanged until that image is
+  # rebuilt on snarkVM 4.10.
   '@provablehq/wasm': 0.11.11
   '@types/react': 18.3.27
   '@types/react-dom': 18.3.7
