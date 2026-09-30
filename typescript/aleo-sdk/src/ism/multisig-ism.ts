@@ -8,7 +8,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
-  type MultisigIsmConfig,
+  type MessageIdMultisigIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
@@ -24,14 +24,14 @@ import { getMessageIdMultisigIsmConfig } from './ism-query.js';
 import { getCreateMessageIdMultisigIsmTx } from './ism-tx.js';
 
 export class AleoMessageIdMultisigIsmReader implements ArtifactReader<
-  MultisigIsmConfig,
+  MessageIdMultisigIsmConfig,
   DeployedIsmAddress
 > {
   constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>> {
+  ): Promise<ArtifactDeployed<MessageIdMultisigIsmConfig, DeployedIsmAddress>> {
     const ismConfig = await getMessageIdMultisigIsmConfig(
       this.aleoClient,
       address,
@@ -53,7 +53,7 @@ export class AleoMessageIdMultisigIsmReader implements ArtifactReader<
 
 export class AleoMessageIdMultisigIsmWriter
   extends AleoMessageIdMultisigIsmReader
-  implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
+  implements ArtifactWriter<MessageIdMultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(
     aleoClient: AnyAleoNetworkClient,
@@ -63,9 +63,12 @@ export class AleoMessageIdMultisigIsmWriter
   }
 
   async create(
-    artifact: ArtifactNew<MultisigIsmConfig>,
+    artifact: ArtifactNew<MessageIdMultisigIsmConfig>,
   ): Promise<
-    [ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>, AleoReceipt[]]
+    [
+      ArtifactDeployed<MessageIdMultisigIsmConfig, DeployedIsmAddress>,
+      AleoReceipt[],
+    ]
   > {
     const { config } = artifact;
 
@@ -88,7 +91,7 @@ export class AleoMessageIdMultisigIsmWriter
     );
 
     const deployedArtifact: ArtifactDeployed<
-      MultisigIsmConfig,
+      MessageIdMultisigIsmConfig,
       DeployedIsmAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
@@ -102,7 +105,7 @@ export class AleoMessageIdMultisigIsmWriter
   }
 
   async update(
-    _artifact: ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>,
+    _artifact: ArtifactDeployed<MessageIdMultisigIsmConfig, DeployedIsmAddress>,
   ): Promise<AnnotatedAleoTransaction[]> {
     return [];
   }

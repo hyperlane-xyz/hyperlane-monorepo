@@ -5,7 +5,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
-  type DeployedHookArtifact,
+  type DeployedRawHookArtifact,
   type HookArtifactReaderFactories,
   type HookArtifactWriterFactories,
   type HookType,
@@ -44,7 +44,7 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
     private readonly mailboxAddress?: string, // Required only for deployments
   ) {}
 
-  async readHook(address: string): Promise<DeployedHookArtifact> {
+  async readHook(address: string): Promise<DeployedRawHookArtifact> {
     // Detect hook type first
     const aleoHookType = await getHookType(this.aleoClient, address);
     if (

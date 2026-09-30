@@ -8,6 +8,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
+  HookType,
   type RawHookArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import {
@@ -150,7 +151,7 @@ export class StarknetProtocolFeeHookReader implements ArtifactReader<
       protocolFeeAmount,
     );
     const config: RawHookArtifactConfigs['protocolFee'] = {
-      type: 'protocolFee',
+      type: HookType.PROTOCOL_FEE,
       owner: ownerAddress,
       beneficiary: beneficiaryAddress,
       maxProtocolFee: (maxProtocolFee ?? protocolFeeAmount).toString(),

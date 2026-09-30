@@ -1,4 +1,4 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
@@ -9,6 +9,7 @@ import {
 import {
   type DeployedHookAddress,
   type IgpHookConfig,
+  assertNoUnsupportedIgpFields,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { eqAddressAleo, isNullish } from '@hyperlane-xyz/utils';
 
@@ -42,20 +43,15 @@ export class AleoIgpHookReader implements ArtifactReader<
     const hookConfig = await getIgpHookConfig(this.aleoClient, address);
 
     // Map Aleo config to provider-sdk format
-    const overhead: Record<string, number> = {};
-    const oracleConfig: Record<
-      string,
-      {
-        gasPrice: string;
-        tokenExchangeRate: string;
-      }
-    > = {};
+    const overhead: Record<number, number> = {};
+    const oracleConfig: IgpHookConfig['oracleConfig'] = {};
 
     for (const [domainId, gasConfig] of Object.entries(
       hookConfig.destinationGasConfigs,
     )) {
-      overhead[domainId] = parseInt(gasConfig.gasOverhead);
-      oracleConfig[domainId] = {
+      const domain = Number(domainId);
+      overhead[domain] = parseInt(gasConfig.gasOverhead);
+      oracleConfig[domain] = {
         gasPrice: gasConfig.gasOracle.gasPrice,
         tokenExchangeRate: gasConfig.gasOracle.tokenExchangeRate,
       };
@@ -97,6 +93,8 @@ export class AleoIgpHookWriter
   ): Promise<
     [ArtifactDeployed<IgpHookConfig, DeployedHookAddress>, AleoReceipt[]]
   > {
+    assertNoUnsupportedIgpFields(artifact.config, ProtocolType.Aleo);
+
     const { programId } = fromAleoAddress(this.mailboxAddress);
     const suffix = getProgramSuffix(programId);
 
@@ -166,6 +164,8 @@ export class AleoIgpHookWriter
   async update(
     artifact: ArtifactDeployed<IgpHookConfig, DeployedHookAddress>,
   ): Promise<AnnotatedAleoTransaction[]> {
+    assertNoUnsupportedIgpFields(artifact.config, ProtocolType.Aleo);
+
     const current = await this.read(artifact.deployed.address);
     const transactions: AnnotatedAleoTransaction[] = [];
 

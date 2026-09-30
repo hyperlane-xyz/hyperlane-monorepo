@@ -11,6 +11,7 @@ import chaiAsPromised from 'chai-as-promised';
 chai.use(chaiAsPromised);
 
 import type { CompositeIsmArtifactConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import { nonEmptyArray, type NonEmptyArray } from '@hyperlane-xyz/utils';
 
 import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import { getSetCompositeIsmDomainInstruction } from '../instructions/composite-ism.js';
@@ -26,10 +27,12 @@ const PROGRAM_ADDRESS: Address = parseAddress(
   'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
 );
 
-function manyValidators(count: number): string[] {
-  return Array.from(
-    { length: count },
-    (_, i) => '0x' + (i + 1).toString(16).padStart(40, '0'),
+function manyValidators(count: number): NonEmptyArray<string> {
+  return nonEmptyArray(
+    Array.from(
+      { length: count },
+      (_, i) => '0x' + (i + 1).toString(16).padStart(40, '0'),
+    ),
   );
 }
 

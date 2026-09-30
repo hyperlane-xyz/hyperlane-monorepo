@@ -67,9 +67,9 @@ export class SvmWarpAltManager {
     const existingCoreAlt = options?.existingCoreAlt
       ? parseAddress(options.existingCoreAlt)
       : undefined;
-    const writers: {
+    const writers: Partial<{
       [K in WarpType]: () => SvmTokenAltWriter<WarpArtifactConfigs[K]>;
-    } = {
+    }> = {
       native: () =>
         new SvmNativeTokenAltWriter(
           this.chainName,
@@ -100,7 +100,9 @@ export class SvmWarpAltManager {
         ),
     };
 
-    return writers[type]();
+    const writer = writers[type];
+    assert(writer, `Unsupported SVM warp ALT type ${type}`);
+    return writer();
   }
 }
 
@@ -150,9 +152,9 @@ export class SvmWarpAltReader {
   createReader<T extends WarpType>(
     type: T,
   ): SvmTokenAltReader<WarpArtifactConfigs[T]> {
-    const readers: {
+    const readers: Partial<{
       [K in WarpType]: () => SvmTokenAltReader<WarpArtifactConfigs[K]>;
-    } = {
+    }> = {
       native: () =>
         new SvmNativeTokenAltReader(this.chainName, this.rpc, this.altReader),
       collateral: () =>
@@ -175,7 +177,9 @@ export class SvmWarpAltReader {
         ),
     };
 
-    return readers[type]();
+    const reader = readers[type];
+    assert(reader, `Unsupported SVM warp ALT type ${type}`);
+    return reader();
   }
 }
 

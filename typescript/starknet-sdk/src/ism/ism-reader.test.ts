@@ -3,6 +3,7 @@ import { RpcProvider } from 'starknet';
 
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { IsmType } from '@hyperlane-xyz/provider-sdk/ism';
 import { getContractClassHash } from '@hyperlane-xyz/starknet-core/runtime';
 
 import { normalizeStarknetAddressSafe } from '../contracts.js';
@@ -57,7 +58,7 @@ describe('Starknet ISM reading', () => {
     expect(result).to.deep.equal({
       artifactState: ArtifactState.DEPLOYED,
       config: {
-        type: 'staticAggregationIsm',
+        type: IsmType.AGGREGATION,
         threshold: 2,
         modules: ['0x2', '0x3'].map((a) => ({
           artifactState: ArtifactState.UNDERIVED,
@@ -86,13 +87,13 @@ describe('Starknet ISM reading', () => {
         await new StarknetIsmArtifactManager(metadata).readIsm('0x3'),
       ).to.deep.equal({
         artifactState: ArtifactState.DEPLOYED,
-        config: { type: 'pausableIsm', owner: address('0x123'), paused },
+        config: { type: IsmType.PAUSABLE, owner: address('0x123'), paused },
         deployed: { address: address('0x3') },
       });
     });
   }
 
-  it('recognizes the published noop class and rejects other NULL modules', async () => {
+  it('recognizes the published noop class and reports other NULL modules as unknown', async () => {
     RpcProvider.prototype.callContract = async (call) => {
       if (call.entrypoint === 'module_type') return ['0x6'];
       throw new Error('Entry point not found in contract');
@@ -100,21 +101,29 @@ describe('Starknet ISM reading', () => {
     RpcProvider.prototype.getClassHashAt = async () =>
       getContractClassHash('noop_ism');
     const manager = new StarknetIsmArtifactManager(metadata);
-    expect((await manager.readIsm('0x4')).config.type).to.equal('testIsm');
-    RpcProvider.prototype.getClassHashAt = async () => '0x1234';
-    expect(await rejection(manager.readIsm('0x4'))).to.match(
-      /Unsupported Starknet ISM/,
+    expect((await manager.readIsm('0x4')).config.type).to.equal(
+      IsmType.TEST_ISM,
     );
+    RpcProvider.prototype.getClassHashAt = async () => '0x1234';
+    expect(await manager.readIsm('0x4')).to.deep.equal({
+      artifactState: ArtifactState.DEPLOYED,
+      config: { type: IsmType.UNKNOWN },
+      deployed: { address: address('0x4') },
+    });
     expect(
-      await rejection(manager.createReader('testIsm').read('0x4')),
+      await rejection(manager.createReader(IsmType.TEST_ISM).read('0x4')),
     ).to.match(/Expected a verified Starknet noop/);
   });
 
-  it('rejects unsupported module types rather than fabricating a testIsm', async () => {
+  it('reports unsupported module types as unknown rather than fabricating a testIsm', async () => {
     RpcProvider.prototype.callContract = async () => ['0x7', '0x123'];
     expect(
-      await rejection(new StarknetIsmArtifactManager(metadata).readIsm('0x4')),
-    ).to.match(/Unsupported Starknet ISM/);
+      await new StarknetIsmArtifactManager(metadata).readIsm('0x4'),
+    ).to.deep.equal({
+      artifactState: ArtifactState.DEPLOYED,
+      config: { type: IsmType.UNKNOWN },
+      deployed: { address: address('0x4') },
+    });
   });
 
   it('propagates RPC failures while probing a NULL module', async () => {

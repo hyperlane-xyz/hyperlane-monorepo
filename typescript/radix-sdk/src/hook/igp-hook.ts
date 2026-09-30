@@ -1,6 +1,6 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ArtifactDeployed,
   ArtifactNew,
@@ -11,6 +11,7 @@ import {
 import {
   DeployedHookAddress,
   IgpHookConfig,
+  assertNoUnsupportedIgpFields,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { eqAddressRadix } from '@hyperlane-xyz/utils';
@@ -40,14 +41,7 @@ export class RadixIgpHookReader implements ArtifactReader<
     // Map Radix IGP config to provider-sdk IgpHookConfig format
     // Note: Using numeric domain IDs as keys (Artifact API), not chain names
     const overhead: Record<number, number> = {};
-    const oracleConfig: Record<
-      number,
-      {
-        gasPrice: string;
-        tokenExchangeRate: string;
-        tokenDecimals?: number;
-      }
-    > = {};
+    const oracleConfig: IgpHookConfig['oracleConfig'] = {};
 
     for (const [domainIdStr, gasConfig] of Object.entries(
       hookConfig.destinationGasConfigs,
@@ -101,6 +95,8 @@ export class RadixIgpHookWriter
     [ArtifactDeployed<IgpHookConfig, DeployedHookAddress>, TxReceipt[]]
   > {
     const { config } = artifact;
+    assertNoUnsupportedIgpFields(config, ProtocolType.Radix);
+
     const allReceipts: TxReceipt[] = [];
 
     // Create the IGP
@@ -173,6 +169,8 @@ export class RadixIgpHookWriter
     artifact: ArtifactDeployed<IgpHookConfig, DeployedHookAddress>,
   ): Promise<AnnotatedRadixTransaction[]> {
     const { config, deployed } = artifact;
+    assertNoUnsupportedIgpFields(config, ProtocolType.Radix);
+
     const updateTxs: AnnotatedRadixTransaction[] = [];
 
     // Read current state

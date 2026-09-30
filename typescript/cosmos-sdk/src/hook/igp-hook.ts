@@ -1,6 +1,6 @@
 import { type DeliverTxResponse } from '@cosmjs/stargate';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
@@ -11,6 +11,7 @@ import {
 import {
   type DeployedHookAddress,
   type IgpHookConfig,
+  assertNoUnsupportedIgpFields,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { eqAddressCosmos } from '@hyperlane-xyz/utils';
 
@@ -41,20 +42,15 @@ export class CosmosIgpHookReader implements ArtifactReader<
     const hookConfig = await getIgpHookConfig(this.query, address);
 
     // Map Cosmos IGP config to provider-sdk IgpHookConfig format
-    const overhead: Record<string, number> = {};
-    const oracleConfig: Record<
-      string,
-      {
-        gasPrice: string;
-        tokenExchangeRate: string;
-      }
-    > = {};
+    const overhead: Record<number, number> = {};
+    const oracleConfig: IgpHookConfig['oracleConfig'] = {};
 
     for (const [domainId, gasConfig] of Object.entries(
       hookConfig.destinationGasConfigs,
     )) {
-      overhead[domainId] = parseInt(gasConfig.gasOverhead);
-      oracleConfig[domainId] = {
+      const domain = Number(domainId);
+      overhead[domain] = parseInt(gasConfig.gasOverhead);
+      oracleConfig[domain] = {
         gasPrice: gasConfig.gasOracle.gasPrice,
         tokenExchangeRate: gasConfig.gasOracle.tokenExchangeRate,
       };
@@ -101,6 +97,8 @@ export class CosmosIgpHookWriter
     [ArtifactDeployed<IgpHookConfig, DeployedHookAddress>, DeliverTxResponse[]]
   > {
     const { config } = artifact;
+    assertNoUnsupportedIgpFields(config, ProtocolType.CosmosNative);
+
     const receipts: DeliverTxResponse[] = [];
 
     // Create the IGP hook
@@ -164,6 +162,8 @@ export class CosmosIgpHookWriter
     artifact: ArtifactDeployed<IgpHookConfig, DeployedHookAddress>,
   ): Promise<AnnotatedEncodeObject[]> {
     const { config, deployed } = artifact;
+    assertNoUnsupportedIgpFields(config, ProtocolType.CosmosNative);
+
     const updateTxs: AnnotatedEncodeObject[] = [];
 
     // Read current state

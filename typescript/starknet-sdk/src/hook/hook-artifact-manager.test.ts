@@ -4,6 +4,7 @@ import { RpcProvider } from 'starknet';
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
+import { HookType } from '@hyperlane-xyz/provider-sdk/hook';
 
 import { StarknetSigner } from '../clients/signer.js';
 import { StarknetAnnotatedTx, StarknetTxReceipt } from '../types.js';
@@ -86,12 +87,12 @@ describe('StarknetHookArtifactManager', () => {
   it('deploys protocolFee hook with maxProtocolFee and protocolFee args', async () => {
     const manager = new StarknetHookArtifactManager(chainMetadata);
     const signer = new MockStarknetSigner();
-    const writer = manager.createWriter('protocolFee', signer);
+    const writer = manager.createWriter(HookType.PROTOCOL_FEE, signer);
 
     const [artifact] = await writer.create({
       artifactState: ArtifactState.NEW,
       config: {
-        type: 'protocolFee',
+        type: HookType.PROTOCOL_FEE,
         owner: '0x1',
         beneficiary: '0x2',
         maxProtocolFee: '20',
@@ -119,11 +120,11 @@ describe('StarknetHookArtifactManager', () => {
       mailbox: '0x111',
     });
     const signer = new MockStarknetSigner();
-    const writer = manager.createWriter('merkleTreeHook', signer);
+    const writer = manager.createWriter(HookType.MERKLE_TREE, signer);
 
     const [, receipts] = await writer.create({
       artifactState: ArtifactState.NEW,
-      config: { type: 'merkleTreeHook' },
+      config: { type: HookType.MERKLE_TREE },
     });
 
     expect(receipts).to.have.length(1);
@@ -134,13 +135,13 @@ describe('StarknetHookArtifactManager', () => {
   it('rejects creating unknownHook artifacts on Starknet', async () => {
     const manager = new StarknetHookArtifactManager(chainMetadata);
     const signer = new MockStarknetSigner();
-    const writer = manager.createWriter('unknownHook', signer);
+    const writer = manager.createWriter(HookType.UNKNOWN, signer);
 
     let error: unknown;
     try {
       await writer.create({
         artifactState: ArtifactState.NEW,
-        config: { type: 'unknownHook' },
+        config: { type: HookType.UNKNOWN },
       });
     } catch (caughtError) {
       error = caughtError;
@@ -154,12 +155,12 @@ describe('StarknetHookArtifactManager', () => {
   it('rejects protocolFee in-place updates when maxProtocolFee changes', async () => {
     const manager = new StarknetHookArtifactManager(chainMetadata);
     const signer = new MockStarknetSigner();
-    const writer = manager.createWriter('protocolFee', signer);
+    const writer = manager.createWriter(HookType.PROTOCOL_FEE, signer);
     Object.assign(writer, {
       read: async () => ({
         artifactState: ArtifactState.DEPLOYED,
         config: {
-          type: 'protocolFee' as const,
+          type: HookType.PROTOCOL_FEE,
           owner: '0x1',
           beneficiary: '0x2',
           maxProtocolFee: '20',
@@ -174,7 +175,7 @@ describe('StarknetHookArtifactManager', () => {
       await writer.update({
         artifactState: ArtifactState.DEPLOYED,
         config: {
-          type: 'protocolFee',
+          type: HookType.PROTOCOL_FEE,
           owner: '0x1',
           beneficiary: '0x2',
           maxProtocolFee: '30',

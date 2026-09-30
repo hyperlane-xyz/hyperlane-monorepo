@@ -11,7 +11,7 @@ import type {
   CompositeIsmArtifactConfig,
   CompositeIsmNodeArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, nonEmptyArray } from '@hyperlane-xyz/utils';
 
 import { SvmSigner } from '../clients/signer.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
@@ -791,9 +791,11 @@ describe('SVM Composite ISM E2E Tests', function () {
       // instruction carries a variable-sized recursive IsmNode, so a
       // handful of large multisig overrides can already exceed Solana's
       // 1232-byte transaction limit well before a fixed count is reached.
-      const manyValidators = Array.from(
-        { length: 15 },
-        (_, i) => '0x' + (i + 1).toString(16).padStart(40, '0'),
+      const manyValidators = nonEmptyArray(
+        Array.from(
+          { length: 15 },
+          (_, i) => '0x' + (i + 1).toString(16).padStart(40, '0'),
+        ),
       );
 
       const domains: Record<number, CompositeIsmNodeArtifactConfig> = {};

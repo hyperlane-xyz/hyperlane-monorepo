@@ -10,7 +10,8 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedIsmAddress,
-  MultisigIsmConfig,
+  MerkleRootMultisigIsmConfig,
+  MessageIdMultisigIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 
@@ -25,14 +26,14 @@ import {
 } from './ism-tx.js';
 
 export class RadixMessageIdMultisigIsmReader implements ArtifactReader<
-  MultisigIsmConfig,
+  MessageIdMultisigIsmConfig,
   DeployedIsmAddress
 > {
   constructor(private readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>> {
+  ): Promise<ArtifactDeployed<MessageIdMultisigIsmConfig, DeployedIsmAddress>> {
     const ismConfig = await getMultisigIsmConfig(this.gateway, address);
 
     return {
@@ -51,7 +52,7 @@ export class RadixMessageIdMultisigIsmReader implements ArtifactReader<
 
 export class RadixMessageIdMultisigIsmWriter
   extends RadixMessageIdMultisigIsmReader
-  implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
+  implements ArtifactWriter<MessageIdMultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,
@@ -62,9 +63,12 @@ export class RadixMessageIdMultisigIsmWriter
   }
 
   async create(
-    artifact: ArtifactNew<MultisigIsmConfig>,
+    artifact: ArtifactNew<MessageIdMultisigIsmConfig>,
   ): Promise<
-    [ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>, TxReceipt[]]
+    [
+      ArtifactDeployed<MessageIdMultisigIsmConfig, DeployedIsmAddress>,
+      TxReceipt[],
+    ]
   > {
     const { config } = artifact;
 
@@ -81,7 +85,7 @@ export class RadixMessageIdMultisigIsmWriter
     const address = await this.base.getNewComponent(receipt);
 
     const deployedArtifact: ArtifactDeployed<
-      MultisigIsmConfig,
+      MessageIdMultisigIsmConfig,
       DeployedIsmAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
@@ -95,7 +99,7 @@ export class RadixMessageIdMultisigIsmWriter
   }
 
   async update(
-    _artifact: ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>,
+    _artifact: ArtifactDeployed<MessageIdMultisigIsmConfig, DeployedIsmAddress>,
   ): Promise<AnnotatedRadixTransaction[]> {
     // Multisig ISMs are immutable.
     // To change configuration, a new ISM must be deployed
@@ -104,14 +108,16 @@ export class RadixMessageIdMultisigIsmWriter
 }
 
 export class RadixMerkleRootMultisigIsmReader implements ArtifactReader<
-  MultisigIsmConfig,
+  MerkleRootMultisigIsmConfig,
   DeployedIsmAddress
 > {
   constructor(private readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>> {
+  ): Promise<
+    ArtifactDeployed<MerkleRootMultisigIsmConfig, DeployedIsmAddress>
+  > {
     const ismConfig = await getMultisigIsmConfig(this.gateway, address);
 
     return {
@@ -130,7 +136,7 @@ export class RadixMerkleRootMultisigIsmReader implements ArtifactReader<
 
 export class RadixMerkleRootMultisigIsmWriter
   extends RadixMerkleRootMultisigIsmReader
-  implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
+  implements ArtifactWriter<MerkleRootMultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,
@@ -141,9 +147,12 @@ export class RadixMerkleRootMultisigIsmWriter
   }
 
   async create(
-    artifact: ArtifactNew<MultisigIsmConfig>,
+    artifact: ArtifactNew<MerkleRootMultisigIsmConfig>,
   ): Promise<
-    [ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>, TxReceipt[]]
+    [
+      ArtifactDeployed<MerkleRootMultisigIsmConfig, DeployedIsmAddress>,
+      TxReceipt[],
+    ]
   > {
     const { config } = artifact;
 
@@ -160,7 +169,7 @@ export class RadixMerkleRootMultisigIsmWriter
     const address = await this.base.getNewComponent(receipt);
 
     const deployedArtifact: ArtifactDeployed<
-      MultisigIsmConfig,
+      MerkleRootMultisigIsmConfig,
       DeployedIsmAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
@@ -174,7 +183,10 @@ export class RadixMerkleRootMultisigIsmWriter
   }
 
   async update(
-    _artifact: ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>,
+    _artifact: ArtifactDeployed<
+      MerkleRootMultisigIsmConfig,
+      DeployedIsmAddress
+    >,
   ): Promise<AnnotatedRadixTransaction[]> {
     // Multisig ISMs are immutable.
     // To change configuration, a new ISM must be deployed

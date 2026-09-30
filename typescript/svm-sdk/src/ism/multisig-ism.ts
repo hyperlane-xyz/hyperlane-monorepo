@@ -8,7 +8,7 @@ import {
   ArtifactState,
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type { MultisigIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import type { MessageIdMultisigIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import { assert, retryAsync } from '@hyperlane-xyz/utils';
 
 import { resolveProgram } from '../deploy/resolve-program.js';
@@ -55,20 +55,20 @@ function isProgramDeploymentRace(error: unknown): boolean {
   );
 }
 
-export interface SvmMultisigIsmConfig extends MultisigIsmConfig {
+export interface SvmMultisigIsmConfig extends MessageIdMultisigIsmConfig {
   program: SvmProgramTarget;
   domains?: Record<number, { validators: string[]; threshold: number }>;
 }
 
 export class SvmMessageIdMultisigIsmReader implements ArtifactReader<
-  MultisigIsmConfig,
+  MessageIdMultisigIsmConfig,
   SvmDeployedIsm
 > {
   constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<MultisigIsmConfig, SvmDeployedIsm>> {
+  ): Promise<ArtifactDeployed<MessageIdMultisigIsmConfig, SvmDeployedIsm>> {
     const programId = parseAddress(address);
     const accessControl = await fetchMultisigIsmAccessControl(
       this.rpc,
@@ -112,7 +112,7 @@ export class SvmMessageIdMultisigIsmReader implements ArtifactReader<
 
 export class SvmMessageIdMultisigIsmWriter
   extends SvmMessageIdMultisigIsmReader
-  implements ArtifactWriter<MultisigIsmConfig, SvmDeployedIsm>
+  implements ArtifactWriter<MessageIdMultisigIsmConfig, SvmDeployedIsm>
 {
   constructor(
     rpc: SvmRpc,
@@ -122,9 +122,9 @@ export class SvmMessageIdMultisigIsmWriter
   }
 
   async create(
-    artifact: ArtifactNew<MultisigIsmConfig>,
+    artifact: ArtifactNew<MessageIdMultisigIsmConfig>,
   ): Promise<
-    [ArtifactDeployed<MultisigIsmConfig, SvmDeployedIsm>, SvmReceipt[]]
+    [ArtifactDeployed<MessageIdMultisigIsmConfig, SvmDeployedIsm>, SvmReceipt[]]
   > {
     const config = artifact.config as SvmMultisigIsmConfig;
     const { programAddress, receipts } = await resolveProgram(
@@ -203,7 +203,7 @@ export class SvmMessageIdMultisigIsmWriter
   }
 
   async update(
-    artifact: ArtifactDeployed<MultisigIsmConfig, SvmDeployedIsm>,
+    artifact: ArtifactDeployed<MessageIdMultisigIsmConfig, SvmDeployedIsm>,
   ): Promise<AnnotatedSvmTransaction[]> {
     const programId = artifact.deployed.programId;
     return this.getUpdateDomainTxs(artifact, programId);
@@ -212,7 +212,7 @@ export class SvmMessageIdMultisigIsmWriter
   // TODO: The SVM multisig ISM requires per-domain diffing to compute updates.
   // Proper update logic will be added in a future PR.
   private async getUpdateDomainTxs(
-    _artifact: ArtifactDeployed<MultisigIsmConfig, SvmDeployedIsm>,
+    _artifact: ArtifactDeployed<MessageIdMultisigIsmConfig, SvmDeployedIsm>,
     _programId: Address,
   ): Promise<AnnotatedSvmTransaction[]> {
     return [];

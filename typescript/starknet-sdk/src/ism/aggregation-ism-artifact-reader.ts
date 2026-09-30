@@ -5,14 +5,16 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
+  IsmType,
   type RawIsmArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/ism';
+import { nonEmptyArray } from '@hyperlane-xyz/utils';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { getAggregationIsmConfig, getPausableIsmConfig } from './ism-query.js';
 
 export class StarknetAggregationIsmReader implements ArtifactReader<
-  RawIsmArtifactConfigs['staticAggregationIsm'],
+  RawIsmArtifactConfigs[typeof IsmType.AGGREGATION],
   DeployedIsmAddress
 > {
   constructor(private readonly provider: StarknetProvider) {}
@@ -21,7 +23,7 @@ export class StarknetAggregationIsmReader implements ArtifactReader<
     address: string,
   ): Promise<
     ArtifactDeployed<
-      RawIsmArtifactConfigs['staticAggregationIsm'],
+      RawIsmArtifactConfigs[typeof IsmType.AGGREGATION],
       DeployedIsmAddress
     >
   > {
@@ -32,12 +34,14 @@ export class StarknetAggregationIsmReader implements ArtifactReader<
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
-        type: 'staticAggregationIsm',
+        type: IsmType.AGGREGATION,
         threshold: config.threshold,
-        modules: config.modules.map((address) => ({
-          artifactState: ArtifactState.UNDERIVED,
-          deployed: { address },
-        })),
+        modules: nonEmptyArray(
+          config.modules.map((address) => ({
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address },
+          })),
+        ),
       },
       deployed: { address: config.address },
     };
@@ -45,7 +49,7 @@ export class StarknetAggregationIsmReader implements ArtifactReader<
 }
 
 export class StarknetPausableIsmReader implements ArtifactReader<
-  RawIsmArtifactConfigs['pausableIsm'],
+  RawIsmArtifactConfigs[typeof IsmType.PAUSABLE],
   DeployedIsmAddress
 > {
   constructor(private readonly provider: StarknetProvider) {}
@@ -53,7 +57,10 @@ export class StarknetPausableIsmReader implements ArtifactReader<
   async read(
     address: string,
   ): Promise<
-    ArtifactDeployed<RawIsmArtifactConfigs['pausableIsm'], DeployedIsmAddress>
+    ArtifactDeployed<
+      RawIsmArtifactConfigs[typeof IsmType.PAUSABLE],
+      DeployedIsmAddress
+    >
   > {
     const config = await getPausableIsmConfig(
       this.provider.getRawProvider(),
@@ -62,7 +69,7 @@ export class StarknetPausableIsmReader implements ArtifactReader<
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
-        type: 'pausableIsm',
+        type: IsmType.PAUSABLE,
         owner: config.owner,
         paused: config.paused,
       },

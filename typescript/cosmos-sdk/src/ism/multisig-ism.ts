@@ -10,7 +10,8 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
-  type MultisigIsmConfig,
+  type MerkleRootMultisigIsmConfig,
+  type MessageIdMultisigIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
 import { type CosmosNativeSigner } from '../clients/signer.js';
@@ -32,14 +33,14 @@ import {
  * Uses message IDs for validator signature verification.
  */
 export class CosmosMessageIdMultisigIsmReader implements ArtifactReader<
-  MultisigIsmConfig,
+  MessageIdMultisigIsmConfig,
   DeployedIsmAddress
 > {
   constructor(private readonly query: CosmosIsmQueryClient) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>> {
+  ): Promise<ArtifactDeployed<MessageIdMultisigIsmConfig, DeployedIsmAddress>> {
     const ismConfig = await getMessageIdMultisigIsmConfig(this.query, address);
 
     return {
@@ -62,7 +63,7 @@ export class CosmosMessageIdMultisigIsmReader implements ArtifactReader<
  */
 export class CosmosMessageIdMultisigIsmWriter
   extends CosmosMessageIdMultisigIsmReader
-  implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
+  implements ArtifactWriter<MessageIdMultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(
     query: CosmosIsmQueryClient,
@@ -72,10 +73,10 @@ export class CosmosMessageIdMultisigIsmWriter
   }
 
   async create(
-    artifact: ArtifactNew<MultisigIsmConfig>,
+    artifact: ArtifactNew<MessageIdMultisigIsmConfig>,
   ): Promise<
     [
-      ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>,
+      ArtifactDeployed<MessageIdMultisigIsmConfig, DeployedIsmAddress>,
       DeliverTxResponse[],
     ]
   > {
@@ -93,7 +94,7 @@ export class CosmosMessageIdMultisigIsmWriter
     const ismAddress = getNewContractAddress(receipt);
 
     const deployedArtifact: ArtifactDeployed<
-      MultisigIsmConfig,
+      MessageIdMultisigIsmConfig,
       DeployedIsmAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
@@ -107,7 +108,7 @@ export class CosmosMessageIdMultisigIsmWriter
   }
 
   async update(
-    _artifact: ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>,
+    _artifact: ArtifactDeployed<MessageIdMultisigIsmConfig, DeployedIsmAddress>,
   ): Promise<AnnotatedEncodeObject[]> {
     // Multisig ISMs are immutable.
     // To change configuration, a new ISM must be deployed
@@ -120,14 +121,16 @@ export class CosmosMessageIdMultisigIsmWriter
  * Uses merkle root proofs for validator signature verification.
  */
 export class CosmosMerkleRootMultisigIsmReader implements ArtifactReader<
-  MultisigIsmConfig,
+  MerkleRootMultisigIsmConfig,
   DeployedIsmAddress
 > {
   constructor(private readonly query: CosmosIsmQueryClient) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>> {
+  ): Promise<
+    ArtifactDeployed<MerkleRootMultisigIsmConfig, DeployedIsmAddress>
+  > {
     const ismConfig = await getMerkleRootMultisigIsmConfig(this.query, address);
 
     return {
@@ -150,7 +153,7 @@ export class CosmosMerkleRootMultisigIsmReader implements ArtifactReader<
  */
 export class CosmosMerkleRootMultisigIsmWriter
   extends CosmosMerkleRootMultisigIsmReader
-  implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
+  implements ArtifactWriter<MerkleRootMultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(
     query: CosmosIsmQueryClient,
@@ -160,10 +163,10 @@ export class CosmosMerkleRootMultisigIsmWriter
   }
 
   async create(
-    artifact: ArtifactNew<MultisigIsmConfig>,
+    artifact: ArtifactNew<MerkleRootMultisigIsmConfig>,
   ): Promise<
     [
-      ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>,
+      ArtifactDeployed<MerkleRootMultisigIsmConfig, DeployedIsmAddress>,
       DeliverTxResponse[],
     ]
   > {
@@ -181,7 +184,7 @@ export class CosmosMerkleRootMultisigIsmWriter
     const ismAddress = getNewContractAddress(receipt);
 
     const deployedArtifact: ArtifactDeployed<
-      MultisigIsmConfig,
+      MerkleRootMultisigIsmConfig,
       DeployedIsmAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
@@ -195,7 +198,10 @@ export class CosmosMerkleRootMultisigIsmWriter
   }
 
   async update(
-    _artifact: ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>,
+    _artifact: ArtifactDeployed<
+      MerkleRootMultisigIsmConfig,
+      DeployedIsmAddress
+    >,
   ): Promise<AnnotatedEncodeObject[]> {
     // Multisig ISMs are immutable.
     // To change configuration, a new ISM must be deployed

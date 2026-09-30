@@ -7,7 +7,7 @@ import type {
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  type DeployedHookArtifact,
+  type DeployedRawHookArtifact,
   type HookArtifactReaderFactories,
   type HookArtifactWriterFactories,
   type IRawHookArtifactManager,
@@ -41,7 +41,7 @@ export class SvmHookArtifactManager implements IRawHookArtifactManager {
     private readonly salt: Uint8Array = DEFAULT_IGP_SALT,
   ) {}
 
-  async readHook(address: string): Promise<DeployedHookArtifact> {
+  async readHook(address: string): Promise<DeployedRawHookArtifact> {
     const addr = parseAddress(address);
     const hookType = await detectHookType(this.rpc, addr);
 

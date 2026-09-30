@@ -8,7 +8,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
-  type DeployedHookArtifact,
+  type DeployedRawHookArtifact,
   type HookArtifactReaderFactories,
   type HookArtifactWriterFactories,
   type HookType,
@@ -74,7 +74,7 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
    * @param address - Address of the hook to read
    * @returns Deployed hook artifact with configuration
    */
-  async readHook(address: string): Promise<DeployedHookArtifact> {
+  async readHook(address: string): Promise<DeployedRawHookArtifact> {
     const query = await this.getQuery();
     const altVMType = await getHookType(query, address);
     const reader = this.createReader(

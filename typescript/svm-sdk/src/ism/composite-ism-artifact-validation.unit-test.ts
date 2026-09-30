@@ -5,6 +5,7 @@ import type {
   CompositeIsmArtifactConfig,
   CompositeIsmNodeArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
+import { nonEmptyArray } from '@hyperlane-xyz/utils';
 
 import { assertValidCompositeIsmArtifact } from './composite-ism.js';
 
@@ -82,9 +83,11 @@ describe('assertValidCompositeIsmArtifact', () => {
   });
 
   it('rejects a multisigMessageId threshold above u8::MAX', () => {
-    const validators = Array.from(
-      { length: 256 },
-      (_, i) => '0x' + (i + 1).toString(16).padStart(40, '0'),
+    const validators = nonEmptyArray(
+      Array.from(
+        { length: 256 },
+        (_, i) => '0x' + (i + 1).toString(16).padStart(40, '0'),
+      ),
     );
     expect(() =>
       assertValidCompositeIsmArtifact(

@@ -7,7 +7,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedHookAddress,
-  DeployedHookArtifact,
+  DeployedRawHookArtifact,
   HookArtifactReaderFactories,
   HookArtifactWriterFactories,
   HookType,
@@ -34,7 +34,7 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
     private readonly nativeTokenDenom: string,
   ) {}
 
-  async readHook(address: string): Promise<DeployedHookArtifact> {
+  async readHook(address: string): Promise<DeployedRawHookArtifact> {
     // Detect hook type first
     const radixHookType = await getHookType(this.gateway, address);
 

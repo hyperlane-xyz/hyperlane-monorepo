@@ -32,6 +32,7 @@ import {
   assert,
   deepEquals,
   isEmptyAddress,
+  nonEmptyArray,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -185,15 +186,15 @@ function ismNodeToArtifactConfig(
     case CompositeIsmNodeType.MULTISIG_MESSAGE_ID:
       return {
         type: CompositeIsmNodeType.MULTISIG_MESSAGE_ID,
-        validators: validatorBytesToHex(node.validators),
+        validators: nonEmptyArray(validatorBytesToHex(node.validators)),
         threshold: node.threshold,
       };
     case CompositeIsmNodeType.AGGREGATION:
       return {
         type: CompositeIsmNodeType.AGGREGATION,
         threshold: node.threshold,
-        subIsms: node.subIsms.map((sub) =>
-          ismNodeToArtifactConfig(sub, domains),
+        subIsms: nonEmptyArray(
+          node.subIsms.map((sub) => ismNodeToArtifactConfig(sub, domains)),
         ),
       };
     case CompositeIsmNodeType.TEST:
@@ -982,7 +983,7 @@ function stripDomains(
     case CompositeIsmNodeType.AGGREGATION:
       return {
         ...node,
-        subIsms: node.subIsms.map(stripDomains),
+        subIsms: nonEmptyArray(node.subIsms.map(stripDomains)),
       };
     case CompositeIsmNodeType.AMOUNT_ROUTING:
       return {

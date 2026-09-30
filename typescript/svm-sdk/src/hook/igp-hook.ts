@@ -1,6 +1,7 @@
 import { address as parseAddress, type Address } from '@solana/kit';
 import { keccak_256 } from '@noble/hashes/sha3';
 
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
@@ -9,7 +10,10 @@ import {
   ArtifactState,
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
+import {
+  type IgpHookConfig,
+  assertNoUnsupportedIgpFields,
+} from '@hyperlane-xyz/provider-sdk/hook';
 import {
   assert,
   difference,
@@ -102,10 +106,7 @@ export class SvmIgpHookReader implements ArtifactReader<
       this.salt,
     );
 
-    const oracleConfig: Record<
-      number,
-      { gasPrice: string; tokenExchangeRate: string; tokenDecimals?: number }
-    > = {};
+    const oracleConfig: IgpHookConfig['oracleConfig'] = {};
     for (const [domain, oracle] of igp.gasOracles.entries()) {
       oracleConfig[domain] = remoteGasDataToConfig(oracle);
     }
@@ -176,6 +177,8 @@ export class SvmIgpHookWriter
     [ArtifactDeployed<IgpHookConfig, SvmDeployedIgpHook>, SvmReceipt[]]
   > {
     const config = artifact.config;
+    assertNoUnsupportedIgpFields(config, ProtocolType.Sealevel);
+
     const { programAddress: programId, receipts } = await resolveProgram(
       this.config.program,
       this.svmSigner,
@@ -363,6 +366,8 @@ export class SvmIgpHookWriter
   ): Promise<AnnotatedSvmTransaction[]> {
     const txs: AnnotatedSvmTransaction[] = [];
     const config = artifact.config;
+    assertNoUnsupportedIgpFields(config, ProtocolType.Sealevel);
+
     const programId = artifact.deployed.programId;
 
     const current = await this.read(programId);

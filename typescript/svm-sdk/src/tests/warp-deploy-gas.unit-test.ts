@@ -6,8 +6,14 @@ import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { FeeParamsType, FeeType } from '@hyperlane-xyz/provider-sdk/fee';
 import type { FeeArtifactConfig } from '@hyperlane-xyz/provider-sdk/fee';
-import type { HookArtifactConfig } from '@hyperlane-xyz/provider-sdk/hook';
-import type { IsmArtifactConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  HookType,
+  type HookArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/hook';
+import {
+  IsmType,
+  type IsmArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/ism';
 import type {
   CollateralWarpArtifactConfig,
   CrossCollateralWarpArtifactConfig,
@@ -26,13 +32,13 @@ const feeArtifactConfig: FeeArtifactConfig = {
 };
 
 const ismArtifactConfig: IsmArtifactConfig = {
-  type: 'messageIdMultisigIsm',
+  type: IsmType.MESSAGE_ID_MULTISIG,
   validators: ['0xV1'],
   threshold: 1,
 };
 
 const hookArtifactConfig: HookArtifactConfig = {
-  type: 'protocolFee',
+  type: HookType.PROTOCOL_FEE,
   owner: '0xOwner',
   beneficiary: '0xBeneficiary',
   maxProtocolFee: '1000',

@@ -10,7 +10,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedHookAddress,
-  type DeployedHookArtifact,
+  type DeployedRawHookArtifact,
   type HookArtifactReaderFactories,
   type HookArtifactWriterFactories,
   type HookType,
@@ -66,7 +66,7 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
     return signer;
   }
 
-  async readHook(address: string): Promise<DeployedHookArtifact> {
+  async readHook(address: string): Promise<DeployedRawHookArtifact> {
     const hookType = await getHookType(this.provider.getRawProvider(), address);
 
     switch (hookType) {
