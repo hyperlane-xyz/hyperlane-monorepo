@@ -368,3 +368,86 @@ export function serializeUnsignedTransaction(
     messageBase58: base58Decoder.decode(messageBytes),
   };
 }
+
+// Solana's serialized transaction size limit
+// (https://solana.com/docs/core/transactions#transaction-size). Instructions
+// with variable-sized payloads (composite ISM nodes, multisig validator sets)
+// can't be bounded by a static per-tx count, so they are batched by actual
+// serialized size instead.
+export const SOLANA_MAX_TRANSACTION_SIZE = 1232;
+
+/**
+ * Real serialized wire size (signatures + message) for a candidate
+ * transaction, including the ComputeBudget instruction `SvmSigner.send()`
+ * always prepends — measuring only the given instructions undercounts the
+ * actual submitted size.
+ */
+export function estimateTransactionWireSize(
+  feePayer: Address,
+  instructions: readonly Instruction[],
+): number {
+  const message = appendTransactionMessageInstructions(
+    [...getComputeBudgetInstructions(DEFAULT_COMPUTE_UNITS), ...instructions],
+    setTransactionMessageLifetimeUsingBlockhash(
+      { blockhash: DEFAULT_BLOCKHASH, lastValidBlockHeight: 0n },
+      setTransactionMessageFeePayer(
+        feePayer,
+        createTransactionMessage({ version: 0 }),
+      ),
+    ),
+  );
+  const compiled = compileTransactionMessage(message);
+  const messageBytes = messageEncoder.encode(compiled);
+  const sigCountBytes = shortU16Encoder.encode(
+    compiled.header.numSignerAccounts,
+  );
+  return (
+    sigCountBytes.length +
+    compiled.header.numSignerAccounts * 64 +
+    messageBytes.length
+  );
+}
+
+/**
+ * Greedily groups items into batches whose instructions fit within Solana's
+ * transaction size limit, using the real serialized size (not a fixed
+ * per-item count) since domain instructions are variable-sized.
+ */
+export function chunkInstructionsBySize<T>(
+  items: readonly T[],
+  toInstruction: (item: T) => Instruction,
+  feePayer: Address,
+): T[][] {
+  const chunks: T[][] = [];
+  let current: T[] = [];
+  for (const item of items) {
+    // Checked unconditionally (not just in the "merge" branch below) — an
+    // oversized item that starts a fresh chunk (because it doesn't fit
+    // alongside the previous batch) would otherwise never hit this check
+    // and get pushed as an ordinary single-item chunk, only failing later
+    // with an opaque RPC size error instead of this message.
+    const soloSize = estimateTransactionWireSize(feePayer, [
+      toInstruction(item),
+    ]);
+    assert(
+      soloSize <= SOLANA_MAX_TRANSACTION_SIZE,
+      `Instruction alone (${soloSize} bytes) exceeds Solana's ` +
+        `${SOLANA_MAX_TRANSACTION_SIZE}-byte transaction size limit — it is too ` +
+        `large to submit in a single transaction.`,
+    );
+
+    const candidate = [...current, item];
+    const size = estimateTransactionWireSize(
+      feePayer,
+      candidate.map(toInstruction),
+    );
+    if (current.length > 0 && size > SOLANA_MAX_TRANSACTION_SIZE) {
+      chunks.push(current);
+      current = [item];
+    } else {
+      current = candidate;
+    }
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}

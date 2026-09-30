@@ -17,10 +17,11 @@ import { getSetCompositeIsmDomainInstruction } from '../instructions/composite-i
 
 import {
   SOLANA_MAX_TRANSACTION_SIZE,
-  assertCompositeIsmFitsSizeLimit,
   chunkInstructionsBySize,
   estimateTransactionWireSize,
-} from './composite-ism.js';
+} from '../tx.js';
+
+import { assertCompositeIsmFitsSizeLimit } from './composite-ism.js';
 
 const PROGRAM_ADDRESS: Address = parseAddress(
   'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
