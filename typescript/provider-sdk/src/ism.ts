@@ -1,8 +1,10 @@
 import {
+  type NonEmptyArray,
   WithAddress,
   assert,
   deepEquals,
   isNullish,
+  nonEmptyArray,
   normalizeConfig,
 } from '@hyperlane-xyz/utils';
 
@@ -24,7 +26,14 @@ import { ChainLookup } from './chain.js';
 import { ProtocolType } from './protocolType.js';
 
 function assertNever(value: never, context: string): never {
-  throw new Error(`Unhandled ISM type in ${context}: ${JSON.stringify(value)}`);
+  throw new Error(`Unhandled ISM type in ${context}: ${String(value)}`);
+}
+
+function throwUnhandledIsmType(
+  config: { type: string },
+  context: string,
+): never {
+  throw new Error(`Unhandled ISM type in ${context}: ${config.type}`);
 }
 
 export type IsmModuleType = {
@@ -33,73 +42,284 @@ export type IsmModuleType = {
   addresses: IsmModuleAddresses;
 };
 
+// This catalog is shared by deployment and checking code.
 export const IsmType = {
+  CUSTOM: 'custom',
+  OP_STACK: 'opStackIsm',
   ROUTING: 'domainRoutingIsm',
+  INCREMENTAL_ROUTING: 'incrementalDomainRoutingIsm',
+  FALLBACK_ROUTING: 'defaultFallbackRoutingIsm',
+  AMOUNT_ROUTING: 'amountRoutingIsm',
+  INTERCHAIN_ACCOUNT_ROUTING: 'interchainAccountRouting',
+  AGGREGATION: 'staticAggregationIsm',
+  STORAGE_AGGREGATION: 'storageAggregationIsm',
   MERKLE_ROOT_MULTISIG: 'merkleRootMultisigIsm',
   MESSAGE_ID_MULTISIG: 'messageIdMultisigIsm',
+  STORAGE_MERKLE_ROOT_MULTISIG: 'storageMerkleRootMultisigIsm',
+  STORAGE_MESSAGE_ID_MULTISIG: 'storageMessageIdMultisigIsm',
   TEST_ISM: 'testIsm',
-  COMPOSITE: 'compositeIsm',
-  AGGREGATION: 'staticAggregationIsm',
   PAUSABLE: 'pausableIsm',
+  TRUSTED_RELAYER: 'trustedRelayerIsm',
+  ARB_L2_TO_L1: 'arbL2ToL1Ism',
+  WEIGHTED_MERKLE_ROOT_MULTISIG: 'weightedMerkleRootMultisigIsm',
+  WEIGHTED_MESSAGE_ID_MULTISIG: 'weightedMessageIdMultisigIsm',
+  CCIP: 'ccipIsm',
+  OFFCHAIN_LOOKUP: 'offchainLookupIsm',
+  RATE_LIMITED: 'rateLimitedIsm',
+  COMPOSITE: 'compositeIsm',
+  BLACKLIST: 'blacklistIsm',
+  /**
+   * Ownerless routing ISM that always delegates to the mailbox default ISM.
+   * Distinct from a zero-address mailbox field: this is a deployed contract
+   * with its own address.
+   */
+  MAILBOX_DEFAULT: 'defaultIsm',
+  /**
+   * Hybrid hook/ISM: one contract instance is installed as both the hook and
+   * the ISM of a single warp router, sharing bucket state. It is deployed
+   * through the ISM configuration; the hook side is referenced by address.
+   */
+  NET_FLOW_RATE_LIMITED: 'netFlowRateLimitedHookIsm',
+  /** ISM configuration surface for the DelayedFlowRouterHookIsm hybrid. */
+  DELAYED_FLOW_ROUTER: 'delayedFlowRouterHookIsm',
+  UNKNOWN: 'unknownIsm',
 } as const;
 
 export type IsmType = (typeof IsmType)[keyof typeof IsmType];
 
 export interface IsmConfigs {
   [IsmType.ROUTING]: DomainRoutingIsmConfig;
-  [IsmType.MERKLE_ROOT_MULTISIG]: MultisigIsmConfig;
-  [IsmType.MESSAGE_ID_MULTISIG]: MultisigIsmConfig;
+  [IsmType.AGGREGATION]: StaticAggregationIsmConfig;
+  [IsmType.MERKLE_ROOT_MULTISIG]: MerkleRootMultisigIsmConfig;
+  [IsmType.MESSAGE_ID_MULTISIG]: MessageIdMultisigIsmConfig;
   [IsmType.TEST_ISM]: TestIsmConfig;
-  [IsmType.COMPOSITE]: CompositeIsmConfig;
-  [IsmType.AGGREGATION]: AggregationIsmConfig;
   [IsmType.PAUSABLE]: PausableIsmConfig;
+  [IsmType.COMPOSITE]: CompositeIsmConfig;
 }
 
-export type IsmConfig = IsmConfigs[IsmType];
+export type IsmConfigType = keyof IsmConfigs;
+export type IsmConfig = IsmConfigs[IsmConfigType];
 export type DerivedIsmConfig = WithAddress<IsmConfig>;
 
-export const STATIC_ISM_TYPES: IsmType[] = [
-  IsmType.TEST_ISM,
+/** ISM types with immutable configuration embedded in bytecode via MetaProxy. */
+export const STATIC_ISM_TYPES = [
+  IsmType.AGGREGATION,
   IsmType.MERKLE_ROOT_MULTISIG,
   IsmType.MESSAGE_ID_MULTISIG,
-];
+  IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG,
+  IsmType.WEIGHTED_MESSAGE_ID_MULTISIG,
+] as const satisfies readonly IsmType[];
 
-export interface MultisigIsmConfig {
-  type:
+export type StaticIsmType = (typeof STATIC_ISM_TYPES)[number];
+
+export function isStaticIsmType(ismType: IsmType): ismType is StaticIsmType {
+  return STATIC_ISM_TYPES.some((staticType) => staticType === ismType);
+}
+
+/** ISM types whose configuration can be updated in place. */
+export const MUTABLE_ISM_TYPE = [
+  IsmType.ROUTING,
+  IsmType.INCREMENTAL_ROUTING,
+  IsmType.FALLBACK_ROUTING,
+  IsmType.PAUSABLE,
+  IsmType.OFFCHAIN_LOOKUP,
+  IsmType.RATE_LIMITED,
+  IsmType.BLACKLIST,
+  // Only the owner is mutable; rate parameters require redeployment.
+  IsmType.NET_FLOW_RATE_LIMITED,
+  // Owner and remote routers are mutable; rate parameters require redeployment.
+  IsmType.DELAYED_FLOW_ROUTER,
+] as const satisfies readonly IsmType[];
+
+export type MutableIsmType = (typeof MUTABLE_ISM_TYPE)[number];
+
+export function isMutableIsmConfig<T extends { type: IsmType }>(
+  config: T,
+): config is Extract<T, { type: MutableIsmType }> {
+  return MUTABLE_ISM_TYPE.some((mutableType) => mutableType === config.type);
+}
+
+export interface OwnableIsmConfig {
+  owner: string;
+}
+
+export interface OpStackIsmConfig {
+  type: typeof IsmType.OP_STACK;
+  origin: string;
+  nativeBridge: string;
+}
+
+export interface MultisigIsmConfig<
+  T extends
     | typeof IsmType.MERKLE_ROOT_MULTISIG
-    | typeof IsmType.MESSAGE_ID_MULTISIG;
+    | typeof IsmType.MESSAGE_ID_MULTISIG
+    | typeof IsmType.STORAGE_MERKLE_ROOT_MULTISIG
+    | typeof IsmType.STORAGE_MESSAGE_ID_MULTISIG =
+    | typeof IsmType.MERKLE_ROOT_MULTISIG
+    | typeof IsmType.MESSAGE_ID_MULTISIG
+    | typeof IsmType.STORAGE_MERKLE_ROOT_MULTISIG
+    | typeof IsmType.STORAGE_MESSAGE_ID_MULTISIG,
+> {
+  type: T;
   validators: string[];
   threshold: number;
 }
+
+export type MerkleRootMultisigIsmConfig = MultisigIsmConfig<
+  typeof IsmType.MERKLE_ROOT_MULTISIG
+>;
+
+export type MessageIdMultisigIsmConfig = MultisigIsmConfig<
+  typeof IsmType.MESSAGE_ID_MULTISIG
+>;
+
+export type StorageMerkleRootMultisigIsmConfig = MultisigIsmConfig<
+  typeof IsmType.STORAGE_MERKLE_ROOT_MULTISIG
+>;
+
+export type StorageMessageIdMultisigIsmConfig = MultisigIsmConfig<
+  typeof IsmType.STORAGE_MESSAGE_ID_MULTISIG
+>;
+
+export interface WeightedMultisigIsmConfig<
+  T extends
+    | typeof IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG
+    | typeof IsmType.WEIGHTED_MESSAGE_ID_MULTISIG =
+    | typeof IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG
+    | typeof IsmType.WEIGHTED_MESSAGE_ID_MULTISIG,
+> {
+  type: T;
+  validators: NonEmptyArray<{ signingAddress: string; weight: number }>;
+  thresholdWeight: number;
+}
+
+export type WeightedMerkleRootMultisigIsmConfig = WeightedMultisigIsmConfig<
+  typeof IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG
+>;
+
+export type WeightedMessageIdMultisigIsmConfig = WeightedMultisigIsmConfig<
+  typeof IsmType.WEIGHTED_MESSAGE_ID_MULTISIG
+>;
 
 export interface TestIsmConfig {
   type: typeof IsmType.TEST_ISM;
 }
 
-export interface AggregationIsmConfig {
-  type: typeof IsmType.AGGREGATION;
-  modules: (IsmConfig | string)[];
+export interface AggregationIsmConfig<
+  T extends typeof IsmType.AGGREGATION | typeof IsmType.STORAGE_AGGREGATION =
+    typeof IsmType.AGGREGATION,
+> {
+  type: T;
+  modules: NonEmptyArray<IsmConfig | string>;
   threshold: number;
 }
 
-export interface PausableIsmConfig {
+export type StaticAggregationIsmConfig = AggregationIsmConfig<
+  typeof IsmType.AGGREGATION
+>;
+
+export type StorageAggregationIsmConfig = AggregationIsmConfig<
+  typeof IsmType.STORAGE_AGGREGATION
+>;
+
+export interface PausableIsmConfig extends OwnableIsmConfig {
   type: typeof IsmType.PAUSABLE;
-  owner: string;
   paused: boolean;
 }
 
-export interface DomainRoutingIsmConfig {
-  type: typeof IsmType.ROUTING;
-  owner: string;
+export interface DomainRoutingIsmConfig<
+  T extends
+    | typeof IsmType.ROUTING
+    | typeof IsmType.INCREMENTAL_ROUTING
+    | typeof IsmType.FALLBACK_ROUTING = typeof IsmType.ROUTING,
+> extends OwnableIsmConfig {
+  type: T;
   domains: Record<string, IsmConfig | string>;
+}
+
+export type IncrementalDomainRoutingIsmConfig = DomainRoutingIsmConfig<
+  typeof IsmType.INCREMENTAL_ROUTING
+>;
+
+export type DefaultFallbackRoutingIsmConfig = DomainRoutingIsmConfig<
+  typeof IsmType.FALLBACK_ROUTING
+>;
+
+export interface AmountRoutingIsmConfig {
+  type: typeof IsmType.AMOUNT_ROUTING;
+  lowerIsm: IsmConfig | string;
+  upperIsm: IsmConfig | string;
+  threshold: number;
+}
+
+export interface InterchainAccountRoutingIsmConfig extends OwnableIsmConfig {
+  type: typeof IsmType.INTERCHAIN_ACCOUNT_ROUTING;
+  isms: Record<string, string>;
+}
+
+export interface TrustedRelayerIsmConfig {
+  type: typeof IsmType.TRUSTED_RELAYER;
+  relayer: string;
+}
+
+export interface ArbL2ToL1IsmConfig {
+  type: typeof IsmType.ARB_L2_TO_L1;
+  bridge: string;
+}
+
+export interface CcipIsmConfig {
+  type: typeof IsmType.CCIP;
+  originChain: string;
+}
+
+export interface OffchainLookupIsmConfig extends OwnableIsmConfig {
+  type: typeof IsmType.OFFCHAIN_LOOKUP;
+  urls: NonEmptyArray<string>;
+}
+
+export interface RateLimitedIsmConfig {
+  type: typeof IsmType.RATE_LIMITED;
+  maxCapacity: string;
+  duration: bigint;
+  recipient?: string;
+  owner?: string;
+}
+
+export interface BlacklistIsmConfig extends OwnableIsmConfig {
+  type: typeof IsmType.BLACKLIST;
+  blacklistedIds: string[];
+}
+
+export interface MailboxDefaultIsmConfig {
+  type: typeof IsmType.MAILBOX_DEFAULT;
+}
+
+export interface NetFlowRateLimitedHookIsmConfig {
+  type: typeof IsmType.NET_FLOW_RATE_LIMITED;
+  warpRouter?: string;
+  thresholdBps: number;
+  duration: bigint;
+  owner?: string;
+}
+
+export interface DelayedFlowRouterHookIsmConfig extends OwnableIsmConfig {
+  type: typeof IsmType.DELAYED_FLOW_ROUTER;
+  warpRouter?: string;
+  thresholdBps: number;
+  maxDelay: number;
+  duration: bigint;
+  remoteIsms?: Record<string, string>;
+}
+
+export interface UnknownIsmConfig {
+  type: typeof IsmType.UNKNOWN;
+  [key: string]: unknown;
 }
 
 /**
  * Discriminants for composite ISM tree nodes — used to compare/narrow
  * `CompositeIsmNodeConfig`/`CompositeIsmNodeArtifactConfig` without
- * hardcoding string literals at each comparison site (mirrors
- * `@hyperlane-xyz/sdk`'s `CompositeIsmNodeType`, redeclared here since
- * provider-sdk doesn't depend on the top-level sdk package).
+ * hardcoding string literals at each comparison site.
  */
 export const CompositeIsmNodeType = {
   TRUSTED_RELAYER: 'trustedRelayer',
@@ -113,6 +333,9 @@ export const CompositeIsmNodeType = {
   FALLBACK_ROUTING: 'fallbackRouting',
 } as const;
 
+export type CompositeIsmNodeType =
+  (typeof CompositeIsmNodeType)[keyof typeof CompositeIsmNodeType];
+
 /**
  * A node in a Sealevel-only "composite ISM" tree (one program storing the
  * whole tree in a single PDA). Sub-nodes are inline Borsh data, not separate
@@ -123,13 +346,13 @@ export type CompositeIsmNodeConfig =
   | { type: typeof CompositeIsmNodeType.TRUSTED_RELAYER; relayer: string }
   | {
       type: typeof CompositeIsmNodeType.MULTISIG_MESSAGE_ID;
-      validators: string[];
+      validators: NonEmptyArray<string>;
       threshold: number;
     }
   | {
       type: typeof CompositeIsmNodeType.AGGREGATION;
       threshold: number;
-      subIsms: CompositeIsmNodeConfig[];
+      subIsms: NonEmptyArray<CompositeIsmNodeConfig>;
     }
   | { type: typeof CompositeIsmNodeType.TEST; accept: boolean }
   | { type: typeof CompositeIsmNodeType.PAUSABLE; paused: boolean }
@@ -172,14 +395,42 @@ export interface DeployedIsmAddress {
   address: string;
 }
 
+export interface OpStackIsmArtifactConfig {
+  type: typeof IsmType.OP_STACK;
+  originDomain: number;
+  nativeBridge: string;
+}
+
 export interface IsmArtifactConfigs {
-  [IsmType.ROUTING]: RoutingIsmArtifactConfig;
-  [IsmType.MERKLE_ROOT_MULTISIG]: MultisigIsmConfig;
-  [IsmType.MESSAGE_ID_MULTISIG]: MultisigIsmConfig;
+  /** User-facing custom ISMs are opaque to the Artifact API. */
+  [IsmType.CUSTOM]: UnknownIsmConfig;
+  [IsmType.OP_STACK]: OpStackIsmArtifactConfig;
+  [IsmType.ROUTING]: DomainRoutingIsmArtifactConfig;
+  [IsmType.INCREMENTAL_ROUTING]: IncrementalDomainRoutingIsmArtifactConfig;
+  [IsmType.FALLBACK_ROUTING]: DefaultFallbackRoutingIsmArtifactConfig;
+  [IsmType.AMOUNT_ROUTING]: AmountRoutingIsmArtifactConfig;
+  [IsmType.INTERCHAIN_ACCOUNT_ROUTING]: InterchainAccountRoutingIsmArtifactConfig;
+  [IsmType.AGGREGATION]: StaticAggregationIsmArtifactConfig;
+  [IsmType.STORAGE_AGGREGATION]: StorageAggregationIsmArtifactConfig;
+  [IsmType.MERKLE_ROOT_MULTISIG]: MerkleRootMultisigIsmConfig;
+  [IsmType.MESSAGE_ID_MULTISIG]: MessageIdMultisigIsmConfig;
+  [IsmType.STORAGE_MERKLE_ROOT_MULTISIG]: StorageMerkleRootMultisigIsmConfig;
+  [IsmType.STORAGE_MESSAGE_ID_MULTISIG]: StorageMessageIdMultisigIsmConfig;
   [IsmType.TEST_ISM]: TestIsmConfig;
-  [IsmType.COMPOSITE]: CompositeIsmArtifactConfig;
-  [IsmType.AGGREGATION]: AggregationIsmArtifactConfig;
   [IsmType.PAUSABLE]: PausableIsmConfig;
+  [IsmType.TRUSTED_RELAYER]: TrustedRelayerIsmConfig;
+  [IsmType.ARB_L2_TO_L1]: ArbL2ToL1IsmConfig;
+  [IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG]: WeightedMerkleRootMultisigIsmConfig;
+  [IsmType.WEIGHTED_MESSAGE_ID_MULTISIG]: WeightedMessageIdMultisigIsmConfig;
+  [IsmType.CCIP]: CcipIsmArtifactConfig;
+  [IsmType.OFFCHAIN_LOOKUP]: OffchainLookupIsmConfig;
+  [IsmType.RATE_LIMITED]: RateLimitedIsmConfig;
+  [IsmType.COMPOSITE]: CompositeIsmArtifactConfig;
+  [IsmType.BLACKLIST]: BlacklistIsmConfig;
+  [IsmType.MAILBOX_DEFAULT]: MailboxDefaultIsmConfig;
+  [IsmType.NET_FLOW_RATE_LIMITED]: NetFlowRateLimitedHookIsmConfig;
+  [IsmType.DELAYED_FLOW_ROUTER]: DelayedFlowRouterHookIsmArtifactConfig;
+  [IsmType.UNKNOWN]: UnknownIsmConfig;
 }
 
 /**
@@ -187,6 +438,99 @@ export interface IsmArtifactConfigs {
  * deploys or reads any kind of ISM and its nested configs (Routing, Aggregation, ...)
  */
 export type IsmArtifactConfig = IsmArtifactConfigs[IsmType];
+
+export type MutableIsmArtifactConfig = Extract<
+  IsmArtifactConfig,
+  { type: MutableIsmType }
+>;
+
+type LegacyIsmArtifactConfig = IsmArtifactConfigs[IsmConfigType];
+
+function isLegacyIsmArtifactConfig(
+  config: IsmArtifactConfig,
+): config is LegacyIsmArtifactConfig {
+  switch (config.type) {
+    case IsmType.ROUTING:
+    case IsmType.AGGREGATION:
+    case IsmType.MERKLE_ROOT_MULTISIG:
+    case IsmType.MESSAGE_ID_MULTISIG:
+    case IsmType.TEST_ISM:
+    case IsmType.PAUSABLE:
+    case IsmType.COMPOSITE:
+      return true;
+    case IsmType.OP_STACK:
+    case IsmType.INCREMENTAL_ROUTING:
+    case IsmType.FALLBACK_ROUTING:
+    case IsmType.AMOUNT_ROUTING:
+    case IsmType.INTERCHAIN_ACCOUNT_ROUTING:
+    case IsmType.STORAGE_AGGREGATION:
+    case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
+    case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
+    case IsmType.TRUSTED_RELAYER:
+    case IsmType.ARB_L2_TO_L1:
+    case IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG:
+    case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
+    case IsmType.CCIP:
+    case IsmType.OFFCHAIN_LOOKUP:
+    case IsmType.RATE_LIMITED:
+    case IsmType.BLACKLIST:
+    case IsmType.MAILBOX_DEFAULT:
+    case IsmType.NET_FLOW_RATE_LIMITED:
+    case IsmType.DELAYED_FLOW_ROUTER:
+    case IsmType.UNKNOWN:
+      return false;
+    default:
+      return assertNever(config, 'isLegacyIsmArtifactConfig');
+  }
+}
+
+export type DirectIsmArtifactConfig = Exclude<
+  IsmArtifactConfig,
+  | IsmArtifactConfigs[typeof IsmType.ROUTING]
+  | IsmArtifactConfigs[typeof IsmType.INCREMENTAL_ROUTING]
+  | IsmArtifactConfigs[typeof IsmType.FALLBACK_ROUTING]
+  | IsmArtifactConfigs[typeof IsmType.AMOUNT_ROUTING]
+  | IsmArtifactConfigs[typeof IsmType.AGGREGATION]
+  | IsmArtifactConfigs[typeof IsmType.STORAGE_AGGREGATION]
+>;
+
+export function isDirectIsmArtifactConfig(
+  config: IsmArtifactConfig,
+): config is DirectIsmArtifactConfig {
+  switch (config.type) {
+    case IsmType.ROUTING:
+    case IsmType.INCREMENTAL_ROUTING:
+    case IsmType.FALLBACK_ROUTING:
+    case IsmType.AMOUNT_ROUTING:
+    case IsmType.AGGREGATION:
+    case IsmType.STORAGE_AGGREGATION:
+      return false;
+    case IsmType.OP_STACK:
+    case IsmType.INTERCHAIN_ACCOUNT_ROUTING:
+    case IsmType.MERKLE_ROOT_MULTISIG:
+    case IsmType.MESSAGE_ID_MULTISIG:
+    case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
+    case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
+    case IsmType.TEST_ISM:
+    case IsmType.PAUSABLE:
+    case IsmType.TRUSTED_RELAYER:
+    case IsmType.ARB_L2_TO_L1:
+    case IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG:
+    case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
+    case IsmType.CCIP:
+    case IsmType.OFFCHAIN_LOOKUP:
+    case IsmType.RATE_LIMITED:
+    case IsmType.COMPOSITE:
+    case IsmType.BLACKLIST:
+    case IsmType.MAILBOX_DEFAULT:
+    case IsmType.NET_FLOW_RATE_LIMITED:
+    case IsmType.DELAYED_FLOW_ROUTER:
+    case IsmType.UNKNOWN:
+      return true;
+    default:
+      return assertNever(config, 'isDirectIsmArtifactConfig');
+  }
+}
 
 /**
  * Describes the configuration of deployed ISM and its nested configs (Routing, Aggregation, ...)
@@ -206,23 +550,96 @@ export type IIsmArtifactManager = IArtifactManager<
   DeployedIsmAddress
 >;
 
-export interface RoutingIsmArtifactConfig {
-  type: typeof IsmType.ROUTING;
+export interface RoutingIsmArtifactConfig<
+  T extends
+    | typeof IsmType.ROUTING
+    | typeof IsmType.INCREMENTAL_ROUTING
+    | typeof IsmType.FALLBACK_ROUTING = typeof IsmType.ROUTING,
+> {
+  type: T;
   owner: string;
   domains: Record<number, Artifact<IsmArtifactConfig, DeployedIsmAddress>>;
 }
 
-export interface AggregationIsmArtifactConfig {
-  type: typeof IsmType.AGGREGATION;
-  modules: Artifact<IsmArtifactConfig, DeployedIsmAddress>[];
+export type DomainRoutingIsmArtifactConfig = RoutingIsmArtifactConfig<
+  typeof IsmType.ROUTING
+>;
+
+export type IncrementalDomainRoutingIsmArtifactConfig =
+  RoutingIsmArtifactConfig<typeof IsmType.INCREMENTAL_ROUTING>;
+
+export type DefaultFallbackRoutingIsmArtifactConfig = RoutingIsmArtifactConfig<
+  typeof IsmType.FALLBACK_ROUTING
+>;
+
+export type AnyDomainRoutingIsmArtifactConfig =
+  | DomainRoutingIsmArtifactConfig
+  | IncrementalDomainRoutingIsmArtifactConfig
+  | DefaultFallbackRoutingIsmArtifactConfig;
+
+export interface AmountRoutingIsmArtifactConfig {
+  type: typeof IsmType.AMOUNT_ROUTING;
+  lowerIsm: Artifact<IsmArtifactConfig, DeployedIsmAddress>;
+  upperIsm: Artifact<IsmArtifactConfig, DeployedIsmAddress>;
   threshold: number;
 }
 
-export type RawAggregationIsmArtifactConfig =
-  ConfigOnChain<AggregationIsmArtifactConfig>;
+export interface InterchainAccountRoutingIsmArtifactConfig extends OwnableIsmConfig {
+  type: typeof IsmType.INTERCHAIN_ACCOUNT_ROUTING;
+  isms: Record<number, string>;
+}
 
-export type RawRoutingIsmArtifactConfig =
-  ConfigOnChain<RoutingIsmArtifactConfig>;
+export interface AggregationIsmArtifactConfig<
+  T extends typeof IsmType.AGGREGATION | typeof IsmType.STORAGE_AGGREGATION =
+    typeof IsmType.AGGREGATION,
+> {
+  type: T;
+  modules: NonEmptyArray<Artifact<IsmArtifactConfig, DeployedIsmAddress>>;
+  threshold: number;
+}
+
+export type StaticAggregationIsmArtifactConfig = AggregationIsmArtifactConfig<
+  typeof IsmType.AGGREGATION
+>;
+
+export type StorageAggregationIsmArtifactConfig = AggregationIsmArtifactConfig<
+  typeof IsmType.STORAGE_AGGREGATION
+>;
+
+export interface CcipIsmArtifactConfig {
+  type: typeof IsmType.CCIP;
+  originDomain: number;
+}
+
+export interface DelayedFlowRouterHookIsmArtifactConfig extends Omit<
+  DelayedFlowRouterHookIsmConfig,
+  'remoteIsms'
+> {
+  remoteIsms?: Record<number, string>;
+}
+
+export type RawStaticAggregationIsmArtifactConfig =
+  ConfigOnChain<StaticAggregationIsmArtifactConfig>;
+
+export type RawStorageAggregationIsmArtifactConfig =
+  ConfigOnChain<StorageAggregationIsmArtifactConfig>;
+
+export type RawAggregationIsmArtifactConfig =
+  RawStaticAggregationIsmArtifactConfig;
+
+export type RawDomainRoutingIsmArtifactConfig =
+  ConfigOnChain<DomainRoutingIsmArtifactConfig>;
+
+export type RawIncrementalDomainRoutingIsmArtifactConfig =
+  ConfigOnChain<IncrementalDomainRoutingIsmArtifactConfig>;
+
+export type RawDefaultFallbackRoutingIsmArtifactConfig =
+  ConfigOnChain<DefaultFallbackRoutingIsmArtifactConfig>;
+
+export type RawRoutingIsmArtifactConfig = RawDomainRoutingIsmArtifactConfig;
+
+export type RawAmountRoutingIsmArtifactConfig =
+  ConfigOnChain<AmountRoutingIsmArtifactConfig>;
 
 /**
  * Artifact-API mirror of CompositeIsmNodeConfig: `routing`/`fallbackRouting.domains`
@@ -234,13 +651,13 @@ export type CompositeIsmNodeArtifactConfig =
   | { type: typeof CompositeIsmNodeType.TRUSTED_RELAYER; relayer: string }
   | {
       type: typeof CompositeIsmNodeType.MULTISIG_MESSAGE_ID;
-      validators: string[];
+      validators: NonEmptyArray<string>;
       threshold: number;
     }
   | {
       type: typeof CompositeIsmNodeType.AGGREGATION;
       threshold: number;
-      subIsms: CompositeIsmNodeArtifactConfig[];
+      subIsms: NonEmptyArray<CompositeIsmNodeArtifactConfig>;
     }
   | { type: typeof CompositeIsmNodeType.TEST; accept: boolean }
   | { type: typeof CompositeIsmNodeType.PAUSABLE; paused: boolean }
@@ -272,15 +689,9 @@ export interface CompositeIsmArtifactConfig {
   root: CompositeIsmNodeArtifactConfig;
 }
 
-export interface RawIsmArtifactConfigs {
-  [IsmType.ROUTING]: RawRoutingIsmArtifactConfig;
-  [IsmType.MERKLE_ROOT_MULTISIG]: MultisigIsmConfig;
-  [IsmType.MESSAGE_ID_MULTISIG]: MultisigIsmConfig;
-  [IsmType.TEST_ISM]: TestIsmConfig;
-  [IsmType.COMPOSITE]: CompositeIsmArtifactConfig;
-  [IsmType.AGGREGATION]: RawAggregationIsmArtifactConfig;
-  [IsmType.PAUSABLE]: PausableIsmConfig;
-}
+export type RawIsmArtifactConfigs = {
+  [K in IsmType]: ConfigOnChain<IsmArtifactConfigs[K]>;
+};
 
 export type IsmArtifactReaderFactories<D = DeployedIsmAddress> = Partial<{
   [K in IsmType]: () => ArtifactReader<RawIsmArtifactConfigs[K], D>;
@@ -343,7 +754,8 @@ export interface IRawIsmArtifactManager extends IArtifactManager<
  * Determines if a new ISM should be deployed instead of updating the existing one.
  * Deploy new ISM if:
  * - ISM type changed
- * - ISM config changed (for static/immutable ISMs: multisig, testIsm)
+ * - Static/immutable configuration changed
+ * - An immutable field of a partially mutable ISM changed
  *
  * For routing ISMs, config changes don't trigger redeployment as they support updates.
  *
@@ -356,24 +768,74 @@ export function shouldDeployNewIsm(
   expected: IsmArtifactConfig,
 ): boolean {
   assert(
-    expected.type !== IsmType.AGGREGATION && expected.type !== IsmType.PAUSABLE,
-    'Aggregation and pausable ISM artifacts currently support reading only',
+    expected.type !== IsmType.AGGREGATION &&
+      expected.type !== IsmType.STORAGE_AGGREGATION,
+    'Aggregation ISM artifact composition is not yet supported',
   );
 
   // Type changed - must deploy new
   if (actual.type !== expected.type) return true;
 
   // Normalize and compare configs (handles address casing, validator order, etc.)
-  const normalizedActual = normalizeConfig(actual);
-  const normalizedExpected = normalizeConfig(expected);
+  const normalizedActual: IsmArtifactConfig = normalizeConfig(actual);
+  const normalizedExpected: IsmArtifactConfig = normalizeConfig(expected);
+
+  if (
+    normalizedActual.type === IsmType.RATE_LIMITED &&
+    normalizedExpected.type === IsmType.RATE_LIMITED
+  ) {
+    return (
+      normalizedActual.duration !== normalizedExpected.duration ||
+      (normalizedExpected.recipient !== undefined &&
+        normalizedActual.recipient !== normalizedExpected.recipient)
+    );
+  }
+
+  if (
+    normalizedActual.type === IsmType.NET_FLOW_RATE_LIMITED &&
+    normalizedExpected.type === IsmType.NET_FLOW_RATE_LIMITED
+  ) {
+    return (
+      normalizedActual.duration !== normalizedExpected.duration ||
+      normalizedActual.thresholdBps !== normalizedExpected.thresholdBps ||
+      (normalizedExpected.warpRouter !== undefined &&
+        normalizedActual.warpRouter !== normalizedExpected.warpRouter)
+    );
+  }
+
+  if (
+    normalizedActual.type === IsmType.DELAYED_FLOW_ROUTER &&
+    normalizedExpected.type === IsmType.DELAYED_FLOW_ROUTER
+  ) {
+    return (
+      normalizedActual.duration !== normalizedExpected.duration ||
+      normalizedActual.thresholdBps !== normalizedExpected.thresholdBps ||
+      normalizedActual.maxDelay !== normalizedExpected.maxDelay ||
+      (normalizedExpected.warpRouter !== undefined &&
+        normalizedActual.warpRouter !== normalizedExpected.warpRouter)
+    );
+  }
+
+  if (
+    normalizedActual.type === IsmType.BLACKLIST &&
+    normalizedExpected.type === IsmType.BLACKLIST
+  ) {
+    const targetIds = new Set(normalizedExpected.blacklistedIds);
+    return normalizedActual.blacklistedIds.some((id) => !targetIds.has(id));
+  }
 
   // For static ISM types, they're immutable - must redeploy if config differs
-  if (STATIC_ISM_TYPES.includes(expected.type)) {
+  if (isStaticIsmType(expected.type)) {
     return !deepEquals(normalizedActual, normalizedExpected);
   }
 
-  // For routing ISMs, they support updates - never redeploy based on config
-  return false;
+  // Mutable ISMs and the self-diffing composite ISM update in place.
+  if (expected.type === IsmType.COMPOSITE || isMutableIsmConfig(expected)) {
+    return false;
+  }
+
+  // Remaining direct and dynamically routed ISMs are immutable.
+  return !deepEquals(normalizedActual, normalizedExpected);
 }
 
 /**
@@ -393,8 +855,8 @@ export function mergeIsmArtifacts(
 ): ArtifactNew<IsmArtifactConfig> | DeployedIsmArtifact {
   assert(
     expectedArtifact.config.type !== IsmType.AGGREGATION &&
-      expectedArtifact.config.type !== IsmType.PAUSABLE,
-    'Aggregation and pausable ISM artifacts currently support reading only',
+      expectedArtifact.config.type !== IsmType.STORAGE_AGGREGATION,
+    'Aggregation ISM artifact composition is not yet supported',
   );
 
   const expectedConfig = expectedArtifact.config;
@@ -414,30 +876,21 @@ export function mergeIsmArtifacts(
     };
   }
 
-  // For static ISMs, check if config changed
-  if (STATIC_ISM_TYPES.includes(expectedConfig.type)) {
-    if (shouldDeployNewIsm(currentConfig, expectedConfig)) {
-      return {
-        artifactState: ArtifactState.NEW,
-        config: expectedConfig,
-      };
-    }
-
-    const deployedAddress = isArtifactDeployed(expectedArtifact)
-      ? expectedArtifact.deployed
-      : currentArtifact.deployed;
-
+  if (shouldDeployNewIsm(currentConfig, expectedConfig)) {
     return {
-      artifactState: ArtifactState.DEPLOYED,
+      artifactState: ArtifactState.NEW,
       config: expectedConfig,
-      deployed: deployedAddress,
     };
   }
 
-  // Composite ISM's tree is diffed by SvmCompositeIsmWriter.update() itself
-  // (it re-reads on-chain state directly) rather than via this generic
-  // Artifact recursion, since sub-nodes aren't separate deployments.
-  if (expectedConfig.type === IsmType.COMPOSITE) {
+  const isRoutingConfig = (
+    config: IsmArtifactConfig,
+  ): config is AnyDomainRoutingIsmArtifactConfig =>
+    config.type === IsmType.ROUTING ||
+    config.type === IsmType.INCREMENTAL_ROUTING ||
+    config.type === IsmType.FALLBACK_ROUTING;
+
+  if (!isRoutingConfig(expectedConfig)) {
     const deployedAddress = isArtifactDeployed(expectedArtifact)
       ? expectedArtifact.deployed
       : currentArtifact.deployed;
@@ -450,9 +903,8 @@ export function mergeIsmArtifacts(
   }
 
   assert(
-    currentConfig.type === IsmType.ROUTING &&
-      expectedConfig.type === IsmType.ROUTING,
-    'Expected both configs to be of type domainRoutingIsm',
+    isRoutingConfig(currentConfig),
+    `Expected matching routing ISM configs, got ${currentConfig.type} and ${expectedConfig.type}`,
   );
 
   // Merge domain ISMs recursively
@@ -497,7 +949,7 @@ export function mergeIsmArtifacts(
   return {
     artifactState: ArtifactState.DEPLOYED,
     config: {
-      type: IsmType.ROUTING,
+      type: expectedConfig.type,
       owner: expectedConfig.owner,
       domains: mergedDomains,
     },
@@ -509,24 +961,50 @@ export function altVMIsmTypeToProviderSdkType(
   altVMType: AltVMIsmType,
 ): IsmType {
   switch (altVMType) {
+    case AltVMIsmType.CUSTOM:
+      return IsmType.UNKNOWN;
+    case AltVMIsmType.OP_STACK:
+      return IsmType.OP_STACK;
+    case AltVMIsmType.FALLBACK_ROUTING:
+      return IsmType.FALLBACK_ROUTING;
+    case AltVMIsmType.AMOUNT_ROUTING:
+      return IsmType.AMOUNT_ROUTING;
+    case AltVMIsmType.INTERCHAIN_ACCOUNT_ROUTING:
+      return IsmType.INTERCHAIN_ACCOUNT_ROUTING;
     case AltVMIsmType.TEST_ISM:
       return IsmType.TEST_ISM;
     case AltVMIsmType.MERKLE_ROOT_MULTISIG:
       return IsmType.MERKLE_ROOT_MULTISIG;
     case AltVMIsmType.MESSAGE_ID_MULTISIG:
       return IsmType.MESSAGE_ID_MULTISIG;
+    case AltVMIsmType.STORAGE_MERKLE_ROOT_MULTISIG:
+      return IsmType.STORAGE_MERKLE_ROOT_MULTISIG;
+    case AltVMIsmType.STORAGE_MESSAGE_ID_MULTISIG:
+      return IsmType.STORAGE_MESSAGE_ID_MULTISIG;
+    case AltVMIsmType.WEIGHTED_MERKLE_ROOT_MULTISIG:
+      return IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG;
+    case AltVMIsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
+      return IsmType.WEIGHTED_MESSAGE_ID_MULTISIG;
     case AltVMIsmType.ROUTING:
       return IsmType.ROUTING;
     case AltVMIsmType.AGGREGATION:
       return IsmType.AGGREGATION;
+    case AltVMIsmType.STORAGE_AGGREGATION:
+      return IsmType.STORAGE_AGGREGATION;
     case AltVMIsmType.PAUSABLE:
       return IsmType.PAUSABLE;
+    case AltVMIsmType.TRUSTED_RELAYER:
+      return IsmType.TRUSTED_RELAYER;
+    case AltVMIsmType.ARB_L2_TO_L1:
+      return IsmType.ARB_L2_TO_L1;
+    case AltVMIsmType.CCIP:
+      return IsmType.CCIP;
+    case AltVMIsmType.OFFCHAIN_LOOKUP:
+      return IsmType.OFFCHAIN_LOOKUP;
     case AltVMIsmType.COMPOSITE:
       return IsmType.COMPOSITE;
     default:
-      throw new Error(
-        `Unsupported ISM type: AltVM ISM type ${altVMType} is not supported by the provider sdk`,
-      );
+      return assertNever(altVMType, 'altVMIsmTypeToProviderSdkType');
   }
 }
 
@@ -544,8 +1022,10 @@ function compositeIsmNodeArtifactToConfig(
     case CompositeIsmNodeType.AGGREGATION:
       return {
         ...node,
-        subIsms: node.subIsms.map((sub) =>
-          compositeIsmNodeArtifactToConfig(sub, chainLookup),
+        subIsms: nonEmptyArray(
+          node.subIsms.map((sub) =>
+            compositeIsmNodeArtifactToConfig(sub, chainLookup),
+          ),
         ),
       };
     case CompositeIsmNodeType.AMOUNT_ROUTING:
@@ -591,8 +1071,10 @@ function compositeIsmNodeConfigToArtifact(
     case CompositeIsmNodeType.AGGREGATION:
       return {
         ...node,
-        subIsms: node.subIsms.map((sub) =>
-          compositeIsmNodeConfigToArtifact(sub, chainLookup),
+        subIsms: nonEmptyArray(
+          node.subIsms.map((sub) =>
+            compositeIsmNodeConfigToArtifact(sub, chainLookup),
+          ),
         ),
       };
     case CompositeIsmNodeType.AMOUNT_ROUTING:
@@ -704,8 +1186,23 @@ function assertIsmConfigSupportedAsMailboxDefault(
   config: IsmArtifactConfig,
   context: string,
 ): void {
+  if (config.type === IsmType.RATE_LIMITED) {
+    assert(
+      false,
+      `A rateLimitedIsm is only supported on a warp route, but one was configured for ${context}.`,
+    );
+  }
+
+  if (config.type === IsmType.COMPOSITE) {
+    assertCompositeIsmNodeSupportedAsMailboxDefault(config.root, context);
+    return;
+  }
+
+  if (isDirectIsmArtifactConfig(config)) return;
+
   switch (config.type) {
     case IsmType.AGGREGATION:
+    case IsmType.STORAGE_AGGREGATION:
       for (const module of config.modules) {
         if (!isArtifactUnderived(module)) {
           assertIsmConfigSupportedAsMailboxDefault(module.config, context);
@@ -713,19 +1210,20 @@ function assertIsmConfigSupportedAsMailboxDefault(
       }
       return;
     case IsmType.ROUTING:
+    case IsmType.INCREMENTAL_ROUTING:
+    case IsmType.FALLBACK_ROUTING:
       for (const domainIsm of Object.values(config.domains)) {
         if (!isArtifactUnderived(domainIsm)) {
           assertIsmConfigSupportedAsMailboxDefault(domainIsm.config, context);
         }
       }
       return;
-    case IsmType.COMPOSITE:
-      assertCompositeIsmNodeSupportedAsMailboxDefault(config.root, context);
-      return;
-    case IsmType.MERKLE_ROOT_MULTISIG:
-    case IsmType.MESSAGE_ID_MULTISIG:
-    case IsmType.PAUSABLE:
-    case IsmType.TEST_ISM:
+    case IsmType.AMOUNT_ROUTING:
+      for (const nestedIsm of [config.lowerIsm, config.upperIsm]) {
+        if (!isArtifactUnderived(nestedIsm)) {
+          assertIsmConfigSupportedAsMailboxDefault(nestedIsm.config, context);
+        }
+      }
       return;
     default:
       return assertNever(config, 'assertIsmConfigSupportedAsMailboxDefault');
@@ -752,31 +1250,43 @@ export function assertIsmSupportedAsMailboxDefault(
 function ismArtifactHasExplicitRateLimitedRecipient(
   config: IsmArtifactConfig,
 ): boolean {
+  if (config.type === IsmType.RATE_LIMITED) {
+    return !isNullish(config.recipient);
+  }
+
+  if (config.type === IsmType.COMPOSITE) {
+    return someCompositeIsmNode(
+      config.root,
+      (node) =>
+        node.type === CompositeIsmNodeType.RATE_LIMITED &&
+        !isNullish(node.recipient),
+    );
+  }
+
+  if (isDirectIsmArtifactConfig(config)) return false;
+
   switch (config.type) {
     case IsmType.AGGREGATION:
+    case IsmType.STORAGE_AGGREGATION:
       return config.modules.some(
         (module) =>
           isArtifactNew(module) &&
           ismArtifactHasExplicitRateLimitedRecipient(module.config),
       );
     case IsmType.ROUTING:
+    case IsmType.INCREMENTAL_ROUTING:
+    case IsmType.FALLBACK_ROUTING:
       return Object.values(config.domains).some(
         (domainIsm) =>
           isArtifactNew(domainIsm) &&
           ismArtifactHasExplicitRateLimitedRecipient(domainIsm.config),
       );
-    case IsmType.COMPOSITE:
-      return someCompositeIsmNode(
-        config.root,
-        (node) =>
-          node.type === CompositeIsmNodeType.RATE_LIMITED &&
-          !isNullish(node.recipient),
+    case IsmType.AMOUNT_ROUTING:
+      return [config.lowerIsm, config.upperIsm].some(
+        (nestedIsm) =>
+          isArtifactNew(nestedIsm) &&
+          ismArtifactHasExplicitRateLimitedRecipient(nestedIsm.config),
       );
-    case IsmType.MERKLE_ROOT_MULTISIG:
-    case IsmType.MESSAGE_ID_MULTISIG:
-    case IsmType.PAUSABLE:
-    case IsmType.TEST_ISM:
-      return false;
     default:
       return assertNever(config, 'ismArtifactHasExplicitRateLimitedRecipient');
   }
@@ -870,8 +1380,29 @@ function assertIsmConfigRecipientsMatch(
   warpRouter: ContextualAddress,
   context: string,
 ): void {
+  if (config.type === IsmType.RATE_LIMITED) {
+    const recipient = normalizeRecipientBytes32(warpRouter.toBytes32());
+    assert(
+      !isNullish(config.recipient),
+      `Deployed rateLimitedIsm recipient is missing for ${context}.`,
+    );
+    assert(
+      normalizeRecipientBytes32(config.recipient) === recipient,
+      `Deployed rateLimitedIsm recipient ${config.recipient} does not match the warp router it protects (${recipient}) for ${context}.`,
+    );
+    return;
+  }
+
+  if (config.type === IsmType.COMPOSITE) {
+    assertCompositeIsmNodeRecipientMatches(config.root, warpRouter, context);
+    return;
+  }
+
+  if (isDirectIsmArtifactConfig(config)) return;
+
   switch (config.type) {
     case IsmType.AGGREGATION:
+    case IsmType.STORAGE_AGGREGATION:
       for (const module of config.modules) {
         if (!isArtifactUnderived(module)) {
           assertIsmConfigRecipientsMatch(module.config, warpRouter, context);
@@ -879,19 +1410,20 @@ function assertIsmConfigRecipientsMatch(
       }
       return;
     case IsmType.ROUTING:
+    case IsmType.INCREMENTAL_ROUTING:
+    case IsmType.FALLBACK_ROUTING:
       for (const domainIsm of Object.values(config.domains)) {
         if (!isArtifactUnderived(domainIsm)) {
           assertIsmConfigRecipientsMatch(domainIsm.config, warpRouter, context);
         }
       }
       return;
-    case IsmType.COMPOSITE:
-      assertCompositeIsmNodeRecipientMatches(config.root, warpRouter, context);
-      return;
-    case IsmType.MERKLE_ROOT_MULTISIG:
-    case IsmType.MESSAGE_ID_MULTISIG:
-    case IsmType.PAUSABLE:
-    case IsmType.TEST_ISM:
+    case IsmType.AMOUNT_ROUTING:
+      for (const nestedIsm of [config.lowerIsm, config.upperIsm]) {
+        if (!isArtifactUnderived(nestedIsm)) {
+          assertIsmConfigRecipientsMatch(nestedIsm.config, warpRouter, context);
+        }
+      }
       return;
     default:
       return assertNever(config, 'assertIsmConfigRecipientsMatch');
@@ -902,8 +1434,11 @@ function assertNoNewIsmDescendants(
   config: IsmArtifactConfig,
   context: string,
 ): void {
+  if (isDirectIsmArtifactConfig(config)) return;
+
   switch (config.type) {
     case IsmType.AGGREGATION:
+    case IsmType.STORAGE_AGGREGATION:
       for (const module of config.modules) {
         assert(
           !isArtifactNew(module),
@@ -914,6 +1449,8 @@ function assertNoNewIsmDescendants(
       }
       return;
     case IsmType.ROUTING:
+    case IsmType.INCREMENTAL_ROUTING:
+    case IsmType.FALLBACK_ROUTING:
       for (const [domainId, domainIsm] of Object.entries(config.domains)) {
         assert(
           !isArtifactNew(domainIsm),
@@ -924,11 +1461,16 @@ function assertNoNewIsmDescendants(
         }
       }
       return;
-    case IsmType.COMPOSITE:
-    case IsmType.MERKLE_ROOT_MULTISIG:
-    case IsmType.MESSAGE_ID_MULTISIG:
-    case IsmType.PAUSABLE:
-    case IsmType.TEST_ISM:
+    case IsmType.AMOUNT_ROUTING:
+      for (const nestedIsm of [config.lowerIsm, config.upperIsm]) {
+        assert(
+          !isArtifactNew(nestedIsm),
+          `A DEPLOYED ISM used while creating ${context} cannot contain a NEW amount routing descendant.`,
+        );
+        if (isArtifactDeployed(nestedIsm)) {
+          assertNoNewIsmDescendants(nestedIsm.config, context);
+        }
+      }
       return;
     default:
       return assertNever(config, 'assertNoNewIsmDescendants');
@@ -957,8 +1499,10 @@ function resolveCompositeIsmNodeRecipients(
       return {
         type: node.type,
         threshold: node.threshold,
-        subIsms: node.subIsms.map((sub) =>
-          resolveCompositeIsmNodeRecipients(sub, recipient, context),
+        subIsms: nonEmptyArray(
+          node.subIsms.map((sub) =>
+            resolveCompositeIsmNodeRecipients(sub, recipient, context),
+          ),
         ),
       };
     case CompositeIsmNodeType.AMOUNT_ROUTING:
@@ -1156,16 +1700,50 @@ export function resolveRateLimitedIsmRecipients(
   warpRouter: ContextualAddress,
   context: string,
 ): IsmArtifactConfig {
+  if (config.type === IsmType.RATE_LIMITED) {
+    const recipient = normalizeRecipientBytes32(warpRouter.toBytes32());
+    if (!isNullish(config.recipient)) {
+      assert(
+        normalizeRecipientBytes32(config.recipient) === recipient,
+        `rateLimitedIsm recipient ${config.recipient} does not match the warp router it protects (${recipient}) for ${context}. Remove the recipient field to have it resolved automatically.`,
+      );
+    }
+    return {
+      type: config.type,
+      maxCapacity: config.maxCapacity,
+      duration: config.duration,
+      recipient,
+      owner: config.owner,
+    };
+  }
+
+  if (config.type === IsmType.COMPOSITE) {
+    const recipient = normalizeRecipientBytes32(warpRouter.toBytes32());
+    return {
+      type: config.type,
+      owner: config.owner,
+      root: resolveCompositeIsmNodeRecipients(config.root, recipient, context),
+    };
+  }
+
+  if (isDirectIsmArtifactConfig(config)) return config;
+
   switch (config.type) {
     case IsmType.AGGREGATION:
+    case IsmType.STORAGE_AGGREGATION:
       return {
-        ...config,
-        modules: config.modules.map((module) =>
-          resolveIsmArtifactRecipients(module, warpRouter, context),
+        type: config.type,
+        threshold: config.threshold,
+        modules: nonEmptyArray(
+          config.modules.map((module) =>
+            resolveIsmArtifactRecipients(module, warpRouter, context),
+          ),
         ),
       };
-    case IsmType.ROUTING: {
-      const domains: RoutingIsmArtifactConfig['domains'] = {};
+    case IsmType.ROUTING:
+    case IsmType.INCREMENTAL_ROUTING:
+    case IsmType.FALLBACK_ROUTING: {
+      const domains: typeof config.domains = {};
       for (const [domainId, domainIsm] of Object.entries(config.domains)) {
         domains[Number(domainId)] = resolveIsmArtifactRecipients(
           domainIsm,
@@ -1173,25 +1751,27 @@ export function resolveRateLimitedIsmRecipients(
           context,
         );
       }
-      return { type: config.type, owner: config.owner, domains };
-    }
-    case IsmType.COMPOSITE: {
-      const recipient = normalizeRecipientBytes32(warpRouter.toBytes32());
       return {
         type: config.type,
         owner: config.owner,
-        root: resolveCompositeIsmNodeRecipients(
-          config.root,
-          recipient,
+        domains,
+      };
+    }
+    case IsmType.AMOUNT_ROUTING:
+      return {
+        type: config.type,
+        threshold: config.threshold,
+        lowerIsm: resolveIsmArtifactRecipients(
+          config.lowerIsm,
+          warpRouter,
+          context,
+        ),
+        upperIsm: resolveIsmArtifactRecipients(
+          config.upperIsm,
+          warpRouter,
           context,
         ),
       };
-    }
-    case IsmType.MERKLE_ROOT_MULTISIG:
-    case IsmType.MESSAGE_ID_MULTISIG:
-    case IsmType.PAUSABLE:
-    case IsmType.TEST_ISM:
-      return config;
     default:
       return assertNever(config, 'resolveRateLimitedIsmRecipients');
   }
@@ -1204,21 +1784,27 @@ export function ismArtifactToDerivedConfig(
   const config = artifact.config;
   const address = artifact.deployed.address;
 
+  if (!isLegacyIsmArtifactConfig(config)) {
+    return throwUnhandledIsmType(config, 'ismArtifactToDerivedConfig');
+  }
+
   switch (config.type) {
     case IsmType.AGGREGATION:
       return {
         type: config.type,
         threshold: config.threshold,
         address,
-        modules: config.modules.map((module) => {
-          if (isArtifactDeployed(module))
-            return ismArtifactToDerivedConfig(module, chainLookup);
-          assert(
-            isArtifactUnderived(module),
-            'Cannot convert aggregation ISM to derived config: nested ISM is NEW and has no address',
-          );
-          return module.deployed.address;
-        }),
+        modules: nonEmptyArray(
+          config.modules.map((module) => {
+            if (isArtifactDeployed(module))
+              return ismArtifactToDerivedConfig(module, chainLookup);
+            assert(
+              isArtifactUnderived(module),
+              'Cannot convert aggregation ISM to derived config: nested ISM is NEW and has no address',
+            );
+            return module.deployed.address;
+          }),
+        ),
       };
     case IsmType.ROUTING: {
       // For routing ISMs, convert domain IDs back to chain names
@@ -1330,13 +1916,15 @@ export function ismConfigToArtifact(
       config: {
         type: config.type,
         threshold: config.threshold,
-        modules: config.modules.map((module) =>
-          typeof module === 'string'
-            ? {
-                artifactState: ArtifactState.UNDERIVED,
-                deployed: { address: module },
-              }
-            : ismConfigToArtifact(module, chainLookup),
+        modules: nonEmptyArray(
+          config.modules.map((module) =>
+            typeof module === 'string'
+              ? {
+                  artifactState: ArtifactState.UNDERIVED,
+                  deployed: { address: module },
+                }
+              : ismConfigToArtifact(module, chainLookup),
+          ),
         ),
       },
     };
@@ -1393,7 +1981,13 @@ export function ismConfigToArtifact(
     };
   }
 
-  // Other ISM types (multisig, testIsm) have identical config structure
-  // between Config API and Artifact API - just wrap in artifact object
-  return { artifactState: ArtifactState.NEW, config };
+  switch (config.type) {
+    case IsmType.MERKLE_ROOT_MULTISIG:
+    case IsmType.MESSAGE_ID_MULTISIG:
+    case IsmType.PAUSABLE:
+    case IsmType.TEST_ISM:
+      return { artifactState: ArtifactState.NEW, config };
+    default:
+      return assertNever(config, 'ismConfigToArtifact');
+  }
 }

@@ -9,7 +9,9 @@ import type {
 } from './artifact.js';
 import { FeeParamsType, FeeType } from './fee.js';
 import type { DeployedFeeAddress, FeeArtifactConfig } from './fee.js';
+import { HookType } from './hook.js';
 import type { DeployedHookAddress, HookArtifactConfig } from './hook.js';
+import { IsmType } from './ism.js';
 import type { DeployedIsmAddress, IsmArtifactConfig } from './ism.js';
 import type {
   CollateralWarpArtifactConfig,
@@ -57,7 +59,7 @@ const feeArtifactConfig: FeeArtifactConfig = {
 };
 
 const hookArtifactConfig: HookArtifactConfig = {
-  type: 'protocolFee',
+  type: HookType.PROTOCOL_FEE,
   owner: '0xOwner',
   maxProtocolFee: '1000',
   protocolFee: '10',
@@ -65,7 +67,7 @@ const hookArtifactConfig: HookArtifactConfig = {
 };
 
 const ismArtifactConfig: IsmArtifactConfig = {
-  type: 'messageIdMultisigIsm',
+  type: IsmType.MESSAGE_ID_MULTISIG,
   validators: ['0xV1'],
   threshold: 1,
 };

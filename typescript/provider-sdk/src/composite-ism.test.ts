@@ -8,6 +8,7 @@ import {
   ArtifactState,
   ArtifactUnderived,
   isArtifactDeployed,
+  isArtifactNew,
   isArtifactUnderived,
 } from './artifact.js';
 import { ChainLookup } from './chain.js';
@@ -63,6 +64,56 @@ describe('compositeIsm config <-> artifact conversion', () => {
     expect(altVMIsmTypeToProviderSdkType(AltVMIsmType.COMPOSITE)).to.equal(
       IsmType.COMPOSITE,
     );
+  });
+
+  it('normalizes custom AltVM ISMs to unknown artifacts', () => {
+    expect(altVMIsmTypeToProviderSdkType(AltVMIsmType.CUSTOM)).to.equal(
+      IsmType.UNKNOWN,
+    );
+  });
+
+  it('maps every named AltVM ISM type to the provider SDK catalog', () => {
+    const mappings: Array<[AltVMIsmType, IsmType]> = [
+      [AltVMIsmType.OP_STACK, IsmType.OP_STACK],
+      [AltVMIsmType.ROUTING, IsmType.ROUTING],
+      [AltVMIsmType.FALLBACK_ROUTING, IsmType.FALLBACK_ROUTING],
+      [AltVMIsmType.AMOUNT_ROUTING, IsmType.AMOUNT_ROUTING],
+      [
+        AltVMIsmType.INTERCHAIN_ACCOUNT_ROUTING,
+        IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+      ],
+      [AltVMIsmType.AGGREGATION, IsmType.AGGREGATION],
+      [AltVMIsmType.STORAGE_AGGREGATION, IsmType.STORAGE_AGGREGATION],
+      [AltVMIsmType.MERKLE_ROOT_MULTISIG, IsmType.MERKLE_ROOT_MULTISIG],
+      [AltVMIsmType.MESSAGE_ID_MULTISIG, IsmType.MESSAGE_ID_MULTISIG],
+      [
+        AltVMIsmType.STORAGE_MERKLE_ROOT_MULTISIG,
+        IsmType.STORAGE_MERKLE_ROOT_MULTISIG,
+      ],
+      [
+        AltVMIsmType.STORAGE_MESSAGE_ID_MULTISIG,
+        IsmType.STORAGE_MESSAGE_ID_MULTISIG,
+      ],
+      [AltVMIsmType.TEST_ISM, IsmType.TEST_ISM],
+      [AltVMIsmType.PAUSABLE, IsmType.PAUSABLE],
+      [AltVMIsmType.TRUSTED_RELAYER, IsmType.TRUSTED_RELAYER],
+      [AltVMIsmType.ARB_L2_TO_L1, IsmType.ARB_L2_TO_L1],
+      [
+        AltVMIsmType.WEIGHTED_MERKLE_ROOT_MULTISIG,
+        IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG,
+      ],
+      [
+        AltVMIsmType.WEIGHTED_MESSAGE_ID_MULTISIG,
+        IsmType.WEIGHTED_MESSAGE_ID_MULTISIG,
+      ],
+      [AltVMIsmType.CCIP, IsmType.CCIP],
+      [AltVMIsmType.OFFCHAIN_LOOKUP, IsmType.OFFCHAIN_LOOKUP],
+      [AltVMIsmType.COMPOSITE, IsmType.COMPOSITE],
+    ];
+
+    for (const [altVMType, providerType] of mappings) {
+      expect(altVMIsmTypeToProviderSdkType(altVMType)).to.equal(providerType);
+    }
   });
 
   it('converts a nested tree from chain-name to domain-ID keyed domains', () => {
@@ -447,6 +498,63 @@ const nestingCases: NestingCase[] = [
 
 describe('compositeIsm rateLimited recipient resolution', () => {
   describe('resolveRateLimitedIsmRecipients', () => {
+    it('fills an unset recipient on a top-level rateLimitedIsm', () => {
+      const resolved = resolveRateLimitedIsmRecipients(
+        {
+          type: IsmType.RATE_LIMITED,
+          maxCapacity: '1',
+          duration: 2n,
+        },
+        WARP_ROUTER,
+        CONTEXT,
+      );
+
+      assert(resolved.type === IsmType.RATE_LIMITED, 'expected rateLimitedIsm');
+      expect(resolved.recipient).to.equal(WARP_ROUTER_BYTES32);
+    });
+
+    it('rejects a mismatched recipient on a top-level rateLimitedIsm', () => {
+      expect(() =>
+        resolveRateLimitedIsmRecipients(
+          {
+            type: IsmType.RATE_LIMITED,
+            maxCapacity: '1',
+            duration: 2n,
+            recipient: OTHER_BYTES32,
+          },
+          WARP_ROUTER,
+          CONTEXT,
+        ),
+      ).to.throw(WARP_ROUTER_BYTES32);
+    });
+
+    it('resolves a rateLimitedIsm nested in an aggregation artifact', () => {
+      const resolved = resolveRateLimitedIsmRecipients(
+        {
+          type: IsmType.AGGREGATION,
+          threshold: 1,
+          modules: [
+            newIsmArtifact({
+              type: IsmType.RATE_LIMITED,
+              maxCapacity: '1',
+              duration: 2n,
+            }),
+          ],
+        },
+        WARP_ROUTER,
+        CONTEXT,
+      );
+
+      assert(resolved.type === IsmType.AGGREGATION, 'expected aggregation');
+      const [module] = resolved.modules;
+      assert(isArtifactNew(module), 'expected a new module');
+      assert(
+        module.config.type === IsmType.RATE_LIMITED,
+        'expected rate limit',
+      );
+      expect(module.config.recipient).to.equal(WARP_ROUTER_BYTES32);
+    });
+
     for (const testCase of nestingCases) {
       it(`fills an unset recipient ${testCase.name}`, () => {
         const resolved = resolveRateLimitedIsmRecipients(
@@ -743,6 +851,57 @@ describe('compositeIsm rateLimited recipient resolution', () => {
       expect(nested.root.recipient).to.equal(WARP_ROUTER_BYTES32);
     });
 
+    it('rejects a NEW descendant in a DEPLOYED aggregation root', () => {
+      const artifact: DeployedIsmArtifact = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          type: IsmType.AGGREGATION,
+          threshold: 1,
+          modules: [newIsmArtifact({ type: IsmType.TEST_ISM })],
+        },
+        deployed: { address: PROGRAM_ADDRESS },
+      };
+
+      expect(() => {
+        resolveIsmArtifact(artifact, {
+          operation: IsmArtifactResolutionOperation.CREATE,
+          warpRouter: WARP_ROUTER,
+          context: CONTEXT,
+        });
+      }).to.throw('NEW aggregation module');
+    });
+
+    it('validates a rateLimitedIsm in a DEPLOYED aggregation root', () => {
+      const artifact: DeployedIsmArtifact = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          type: IsmType.AGGREGATION,
+          threshold: 1,
+          modules: [
+            {
+              artifactState: ArtifactState.DEPLOYED,
+              config: {
+                type: IsmType.RATE_LIMITED,
+                maxCapacity: '1',
+                duration: 2n,
+                recipient: WARP_ROUTER_BYTES32,
+              },
+              deployed: { address: PROGRAM_ADDRESS },
+            },
+          ],
+        },
+        deployed: { address: PROGRAM_ADDRESS },
+      };
+
+      expect(() => {
+        resolveIsmArtifact(artifact, {
+          operation: IsmArtifactResolutionOperation.CREATE,
+          warpRouter: WARP_ROUTER,
+          context: CONTEXT,
+        });
+      }).to.not.throw();
+    });
+
     it('validates and preserves DEPLOYED descendants of a NEW routing artifact', () => {
       const deployedDomainIsm: DeployedIsmArtifact = {
         artifactState: ArtifactState.DEPLOYED,
@@ -928,6 +1087,40 @@ describe('compositeIsm rateLimited recipient resolution', () => {
   });
 
   describe('assertRateLimitedIsmRecipientsUnset', () => {
+    it('rejects a recipient on a top-level rateLimitedIsm', () => {
+      expect(() => {
+        assertRateLimitedIsmRecipientsUnset(
+          newIsmArtifact({
+            type: IsmType.RATE_LIMITED,
+            maxCapacity: '1',
+            duration: 2n,
+            recipient: WARP_ROUTER_BYTES32,
+          }),
+          CONTEXT,
+        );
+      }).to.throw(CONTEXT);
+    });
+
+    it('rejects a recipient nested in an aggregation artifact', () => {
+      expect(() => {
+        assertRateLimitedIsmRecipientsUnset(
+          newIsmArtifact({
+            type: IsmType.AGGREGATION,
+            threshold: 1,
+            modules: [
+              newIsmArtifact({
+                type: IsmType.RATE_LIMITED,
+                maxCapacity: '1',
+                duration: 2n,
+                recipient: WARP_ROUTER_BYTES32,
+              }),
+            ],
+          }),
+          CONTEXT,
+        );
+      }).to.throw(CONTEXT);
+    });
+
     for (const testCase of nestingCases) {
       it(`rejects a recipient written out ${testCase.name}`, () => {
         expect(() => {
@@ -996,6 +1189,38 @@ describe('compositeIsm rateLimited recipient resolution', () => {
   });
 
   describe('assertIsmSupportedAsMailboxDefault', () => {
+    it('rejects a top-level rateLimitedIsm', () => {
+      expect(() => {
+        assertIsmSupportedAsMailboxDefault(
+          newIsmArtifact({
+            type: IsmType.RATE_LIMITED,
+            maxCapacity: '1',
+            duration: 2n,
+          }),
+          CONTEXT,
+        );
+      }).to.throw(CONTEXT);
+    });
+
+    it('rejects a rateLimitedIsm nested in an aggregation artifact', () => {
+      expect(() => {
+        assertIsmSupportedAsMailboxDefault(
+          newIsmArtifact({
+            type: IsmType.AGGREGATION,
+            threshold: 1,
+            modules: [
+              newIsmArtifact({
+                type: IsmType.RATE_LIMITED,
+                maxCapacity: '1',
+                duration: 2n,
+              }),
+            ],
+          }),
+          CONTEXT,
+        );
+      }).to.throw(CONTEXT);
+    });
+
     for (const testCase of nestingCases) {
       it(`rejects a rateLimited node ${testCase.name}`, () => {
         expect(() => {

@@ -9,6 +9,7 @@ import {
   isArtifactNew,
   isArtifactUnderived,
 } from './artifact.js';
+import { ChainLookup } from './chain.js';
 import {
   DeployedIsmArtifact,
   IsmArtifactConfig,
@@ -16,10 +17,32 @@ import {
   MultisigIsmConfig,
   RoutingIsmArtifactConfig,
   UnsupportedIsmArtifactTypeError,
+  isDirectIsmArtifactConfig,
+  isMutableIsmConfig,
+  isStaticIsmType,
+  ismArtifactToDerivedConfig,
   mergeIsmArtifacts,
   throwUnsupportedIsmType,
 } from './ism.js';
 import { ProtocolType } from './protocolType.js';
+
+describe('ISM type categories', () => {
+  it('distinguishes mutable ISM types', () => {
+    expect(
+      isMutableIsmConfig({
+        type: IsmType.ROUTING,
+        owner: '0xowner',
+        domains: {},
+      }),
+    ).to.equal(true);
+    expect(isMutableIsmConfig({ type: IsmType.TEST_ISM })).to.equal(false);
+  });
+
+  it('distinguishes static ISM types', () => {
+    expect(isStaticIsmType(IsmType.MERKLE_ROOT_MULTISIG)).to.equal(true);
+    expect(isStaticIsmType(IsmType.ROUTING)).to.equal(false);
+  });
+});
 
 describe('unsupported ISM artifact types', () => {
   it('includes the ISM type and protocol', () => {
@@ -31,6 +54,75 @@ describe('unsupported ISM artifact types', () => {
         ismType,
         protocol: ProtocolType.Aleo,
       });
+  });
+
+  it('rejects deriving an unsupported valid ISM type', () => {
+    const chainLookup: ChainLookup = {
+      getChainMetadata: () => {
+        throw new Error('not needed');
+      },
+      getDomainId: () => null,
+      getChainName: () => null,
+      getKnownChainNames: () => [],
+    };
+    const artifact: DeployedIsmArtifact = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: { type: IsmType.UNKNOWN },
+      deployed: { address: '0xUnknownIsm' },
+    };
+
+    expect(() => ismArtifactToDerivedConfig(artifact, chainLookup)).to.throw(
+      `Unhandled ISM type in ismArtifactToDerivedConfig: ${IsmType.UNKNOWN}`,
+    );
+  });
+});
+
+describe('isDirectIsmArtifactConfig', () => {
+  it('distinguishes direct ISMs from nested ISM artifacts', () => {
+    const nestedIsms: IsmArtifactConfig[] = [
+      { type: IsmType.ROUTING, owner: '0xowner', domains: {} },
+      { type: IsmType.INCREMENTAL_ROUTING, owner: '0xowner', domains: {} },
+      { type: IsmType.FALLBACK_ROUTING, owner: '0xowner', domains: {} },
+      {
+        type: IsmType.AMOUNT_ROUTING,
+        threshold: 1,
+        lowerIsm: {
+          artifactState: ArtifactState.NEW,
+          config: { type: IsmType.TEST_ISM },
+        },
+        upperIsm: {
+          artifactState: ArtifactState.NEW,
+          config: { type: IsmType.TEST_ISM },
+        },
+      },
+      {
+        type: IsmType.AGGREGATION,
+        threshold: 1,
+        modules: [
+          {
+            artifactState: ArtifactState.NEW,
+            config: { type: IsmType.TEST_ISM },
+          },
+        ],
+      },
+      {
+        type: IsmType.STORAGE_AGGREGATION,
+        threshold: 1,
+        modules: [
+          {
+            artifactState: ArtifactState.NEW,
+            config: { type: IsmType.TEST_ISM },
+          },
+        ],
+      },
+    ];
+
+    expect(isDirectIsmArtifactConfig({ type: IsmType.TEST_ISM })).to.equal(
+      true,
+    );
+    expect(nestedIsms.every((ism) => !isDirectIsmArtifactConfig(ism))).to.equal(
+      true,
+    );
   });
 });
 
@@ -358,8 +450,255 @@ describe('mergeIsmArtifacts', () => {
     });
   });
 
+  it('keeps a rate-limited ISM deployed when only capacity changes', () => {
+    const currentArtifact: DeployedIsmArtifact = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: {
+        type: IsmType.RATE_LIMITED,
+        maxCapacity: '4',
+        duration: 2n,
+      },
+      deployed: { address: address1 },
+    };
+    const expectedConfig: IsmArtifactConfig = {
+      type: IsmType.RATE_LIMITED,
+      maxCapacity: '6',
+      duration: 2n,
+    };
+
+    const result = mergeIsmArtifacts(currentArtifact, {
+      artifactState: ArtifactState.NEW,
+      config: expectedConfig,
+    });
+
+    assert(isArtifactDeployed(result), 'Expected DEPLOYED artifact');
+    expect(result.config).to.deep.equal(expectedConfig);
+    expect(result.deployed.address).to.equal(address1);
+  });
+
+  it('redeploys a rate-limited ISM when duration changes', () => {
+    const result = mergeIsmArtifacts(
+      {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          type: IsmType.RATE_LIMITED,
+          maxCapacity: '6',
+          duration: 2n,
+        },
+        deployed: { address: address1 },
+      },
+      {
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: IsmType.RATE_LIMITED,
+          maxCapacity: '6',
+          duration: 3n,
+        },
+      },
+    );
+
+    expect(isArtifactNew(result)).to.equal(true);
+  });
+
+  it('redeploys a rate-limited ISM when its explicit recipient changes', () => {
+    const result = mergeIsmArtifacts(
+      {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          type: IsmType.RATE_LIMITED,
+          maxCapacity: '6',
+          duration: 2n,
+          recipient: address1,
+        },
+        deployed: { address: address1 },
+      },
+      {
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: IsmType.RATE_LIMITED,
+          maxCapacity: '6',
+          duration: 2n,
+          recipient: address2,
+        },
+      },
+    );
+
+    expect(isArtifactNew(result)).to.equal(true);
+  });
+
+  it('keeps a hybrid ISM deployed when only mutable fields change', () => {
+    const result = mergeIsmArtifacts(
+      {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          type: IsmType.DELAYED_FLOW_ROUTER,
+          owner: address1,
+          warpRouter: address1,
+          thresholdBps: 100,
+          maxDelay: 10,
+          duration: 20n,
+          remoteIsms: { '1': address1 },
+        },
+        deployed: { address: address1 },
+      },
+      {
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: IsmType.DELAYED_FLOW_ROUTER,
+          owner: address2,
+          thresholdBps: 100,
+          maxDelay: 10,
+          duration: 20n,
+          remoteIsms: { '1': address2 },
+        },
+      },
+    );
+
+    expect(isArtifactDeployed(result)).to.equal(true);
+  });
+
+  it('redeploys a hybrid ISM when an immutable field changes', () => {
+    const result = mergeIsmArtifacts(
+      {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          type: IsmType.NET_FLOW_RATE_LIMITED,
+          owner: address1,
+          warpRouter: address1,
+          thresholdBps: 100,
+          duration: 20n,
+        },
+        deployed: { address: address1 },
+      },
+      {
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: IsmType.NET_FLOW_RATE_LIMITED,
+          owner: address1,
+          warpRouter: address1,
+          thresholdBps: 200,
+          duration: 20n,
+        },
+      },
+    );
+
+    expect(isArtifactNew(result)).to.equal(true);
+  });
+
+  it('redeploys a blacklist ISM when an entry is removed', () => {
+    const result = mergeIsmArtifacts(
+      {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          type: IsmType.BLACKLIST,
+          owner: address1,
+          blacklistedIds: ['0x01', '0x02'],
+        },
+        deployed: { address: address1 },
+      },
+      {
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: IsmType.BLACKLIST,
+          owner: address1,
+          blacklistedIds: ['0x02'],
+        },
+      },
+    );
+
+    expect(isArtifactNew(result)).to.equal(true);
+  });
+
+  it('keeps a blacklist ISM deployed when an entry is added', () => {
+    const result = mergeIsmArtifacts(
+      {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          type: IsmType.BLACKLIST,
+          owner: address1,
+          blacklistedIds: ['0x01'],
+        },
+        deployed: { address: address1 },
+      },
+      {
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: IsmType.BLACKLIST,
+          owner: address1,
+          blacklistedIds: ['0x01', '0x02'],
+        },
+      },
+    );
+
+    expect(isArtifactDeployed(result)).to.equal(true);
+  });
+
+  it('redeploys a changed immutable direct ISM', () => {
+    const result = mergeIsmArtifacts(
+      {
+        artifactState: ArtifactState.DEPLOYED,
+        config: { type: IsmType.TRUSTED_RELAYER, relayer: address1 },
+        deployed: { address: address1 },
+      },
+      {
+        artifactState: ArtifactState.NEW,
+        config: { type: IsmType.TRUSTED_RELAYER, relayer: address2 },
+      },
+    );
+
+    expect(isArtifactNew(result)).to.equal(true);
+  });
+
+  it('rejects storage aggregation artifacts as read-only', () => {
+    expect(() => {
+      mergeIsmArtifacts(undefined, {
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: IsmType.STORAGE_AGGREGATION,
+          threshold: 1,
+          modules: [
+            {
+              artifactState: ArtifactState.NEW,
+              config: { type: IsmType.TEST_ISM },
+            },
+          ],
+        },
+      });
+    }).to.throw('Aggregation ISM artifact composition is not yet supported');
+  });
+
   // Routing ISM tests (more complex, kept separate)
   describe('Routing ISM', () => {
+    for (const routingType of [
+      IsmType.INCREMENTAL_ROUTING,
+      IsmType.FALLBACK_ROUTING,
+    ]) {
+      it(`preserves the ${routingType} discriminator`, () => {
+        const currentArtifact: DeployedIsmArtifact = {
+          artifactState: ArtifactState.DEPLOYED,
+          config: {
+            type: routingType,
+            owner: address1,
+            domains: {},
+          },
+          deployed: { address: address1 },
+        };
+
+        const result = mergeIsmArtifacts(currentArtifact, {
+          artifactState: ArtifactState.NEW,
+          config: {
+            type: routingType,
+            owner: address2,
+            domains: {},
+          },
+        });
+
+        assert(isArtifactDeployed(result), 'Expected DEPLOYED artifact');
+        expect(result.config.type).to.equal(routingType);
+        expect(result.deployed.address).to.equal(address1);
+      });
+    }
+
     it('should return DEPLOYED when domain ISMs are unchanged', () => {
       const domainIsmConfig: MultisigIsmConfig = {
         type: 'merkleRootMultisigIsm',

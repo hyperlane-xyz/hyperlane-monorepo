@@ -1,5 +1,7 @@
 import { expect } from 'chai';
 
+import { ArtifactState } from './artifact.js';
+import { ChainLookup } from './chain.js';
 import { ProtocolType } from './protocolType.js';
 import {
   TokenType,
@@ -7,9 +9,11 @@ import {
   computeRemoteRoutersUpdates,
   resolveFeeTokenFromWarpArtifactConfig,
   throwUnsupportedWarpType,
+  warpArtifactToDerivedConfig,
 } from './warp.js';
 import type {
   CollateralWarpArtifactConfig,
+  CollateralVaultWarpArtifactConfig,
   CrossCollateralWarpArtifactConfig,
   NativeWarpArtifactConfig,
   SyntheticWarpArtifactConfig,
@@ -32,6 +36,38 @@ describe('unsupported warp artifact types', () => {
         warpType,
         protocol: ProtocolType.Aleo,
       });
+  });
+
+  it('rejects deriving an unsupported valid warp type', () => {
+    const chainLookup: ChainLookup = {
+      getChainMetadata: () => {
+        throw new Error('not needed');
+      },
+      getDomainId: () => null,
+      getChainName: () => null,
+      getKnownChainNames: () => [],
+    };
+    const config: CollateralVaultWarpArtifactConfig = {
+      owner: '0xOwner',
+      mailbox: '0xMailbox',
+      remoteRouters: {},
+      destinationGas: {},
+      type: TokenType.collateralVault,
+      token: '0xToken',
+    };
+
+    expect(() =>
+      warpArtifactToDerivedConfig(
+        {
+          artifactState: ArtifactState.DEPLOYED,
+          config,
+          deployed: { address: '0xWarp' },
+        },
+        chainLookup,
+      ),
+    ).to.throw(
+      `Unsupported warp token type in warpArtifactToDerivedConfig: ${TokenType.collateralVault}`,
+    );
   });
 });
 
@@ -97,6 +133,18 @@ describe('resolveFeeTokenFromWarpArtifactConfig', () => {
       type: TokenType.native,
     };
     expect(resolveFeeTokenFromWarpArtifactConfig(config)).to.equal(undefined);
+  });
+
+  it('rejects unsupported valid warp types', () => {
+    const config: CollateralVaultWarpArtifactConfig = {
+      ...baseShared,
+      type: TokenType.collateralVault,
+      token: '0xToken',
+    };
+
+    expect(() => resolveFeeTokenFromWarpArtifactConfig(config)).to.throw(
+      `Unsupported warp token type in resolveFeeTokenFromWarpArtifactConfig: ${TokenType.collateralVault}`,
+    );
   });
 });
 

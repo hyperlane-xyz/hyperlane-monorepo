@@ -1,4 +1,5 @@
 import {
+  type NonEmptyArray,
   type Logger,
   addressToBytes32,
   assert,
@@ -11,6 +12,7 @@ import {
   Artifact,
   ArtifactDeployed,
   ArtifactNew,
+  ArtifactOnChain,
   ArtifactReader,
   ArtifactState,
   ArtifactWriter,
@@ -56,12 +58,44 @@ export type TokenRouterModuleType = {
 
 export const TokenType = {
   synthetic: 'synthetic',
+  syntheticRebase: 'syntheticRebase',
+  syntheticUri: 'syntheticUri',
   collateral: 'collateral',
+  collateralVault: 'collateralVault',
+  collateralVaultRebase: 'collateralVaultRebase',
+  XERC20: 'xERC20',
+  XERC20Lockbox: 'xERC20Lockbox',
+  collateralFiat: 'collateralFiat',
+  collateralUri: 'collateralUri',
+  collateralCctp: 'collateralCctp',
+  collateralEverclear: 'collateralEverclear',
+  collateralDepositAddress: 'collateralDepositAddress',
+  collateralOft: 'collateralOft',
+  /** Same-chain bare ITokenBridge rebalancing adapter. */
+  atomicLocalRebalancing: 'atomicLocalRebalancing',
   native: 'native',
+  nativeOpL2: 'nativeOpL2',
+  nativeOpL1: 'nativeOpL1',
+  ethEverclear: 'ethEverclear',
+  /** Backwards-compatible native token alias. */
+  nativeScaled: 'nativeScaled',
+  /** Canonical cross-collateral routing token. */
   crossCollateral: 'crossCollateral',
+  unknown: 'unknown',
 } as const;
 
 export type TokenType = (typeof TokenType)[keyof typeof TokenType];
+
+function assertNever(value: never, context: string): never {
+  throw new Error(`Unhandled warp token type in ${context}: ${String(value)}`);
+}
+
+function throwUnhandledWarpConfigType(
+  config: { type: string },
+  context: string,
+): never {
+  throw new Error(`Unsupported warp token type in ${context}: ${config.type}`);
+}
 
 export type RemoteRouters = Record<string, { address: string }>;
 export type DestinationGas = Record<string, string>;
@@ -79,12 +113,12 @@ export interface BaseWarpConfig {
 }
 
 export interface CollateralWarpConfig extends BaseWarpConfig {
-  type: 'collateral';
+  type: typeof TokenType.collateral;
   token: string;
 }
 
 export interface SyntheticWarpConfig extends BaseWarpConfig {
-  type: 'synthetic';
+  type: typeof TokenType.synthetic;
   name?: string;
   symbol?: string;
   decimals?: number;
@@ -93,11 +127,11 @@ export interface SyntheticWarpConfig extends BaseWarpConfig {
 }
 
 export interface NativeWarpConfig extends BaseWarpConfig {
-  type: 'native';
+  type: typeof TokenType.native;
 }
 
 export interface CrossCollateralWarpConfig extends BaseWarpConfig {
-  type: 'crossCollateral';
+  type: typeof TokenType.crossCollateral;
   token: string;
   crossCollateralRouters?: Record<string, string[]>;
 }
@@ -121,7 +155,7 @@ export interface BaseDerivedWarpConfig {
 }
 
 export interface DerivedCollateralWarpConfig extends BaseDerivedWarpConfig {
-  type: 'collateral';
+  type: typeof TokenType.collateral;
   token: string;
   name?: string;
   symbol?: string;
@@ -129,7 +163,7 @@ export interface DerivedCollateralWarpConfig extends BaseDerivedWarpConfig {
 }
 
 export interface DerivedSyntheticWarpConfig extends BaseDerivedWarpConfig {
-  type: 'synthetic';
+  type: typeof TokenType.synthetic;
   name?: string;
   symbol?: string;
   decimals?: number;
@@ -139,11 +173,11 @@ export interface DerivedSyntheticWarpConfig extends BaseDerivedWarpConfig {
 }
 
 export interface DerivedNativeWarpConfig extends BaseDerivedWarpConfig {
-  type: 'native';
+  type: typeof TokenType.native;
 }
 
 export interface DerivedCrossCollateralWarpConfig extends BaseDerivedWarpConfig {
-  type: 'crossCollateral';
+  type: typeof TokenType.crossCollateral;
   token: string;
   name?: string;
   symbol?: string;
@@ -167,12 +201,59 @@ export interface DeployedWarpAddress {
   address: string;
 }
 
+export interface PredicateWrapperArtifactConfig {
+  predicateRegistry: string;
+  policyId: string;
+  owner: string;
+}
+
+export const Xerc20LimitType = {
+  Velo: 'velo',
+  Standard: 'standard',
+} as const;
+
+export type Xerc20LimitType =
+  (typeof Xerc20LimitType)[keyof typeof Xerc20LimitType];
+
+export type Xerc20LimitArtifactConfig =
+  | {
+      type: typeof Xerc20LimitType.Velo;
+      bufferCap?: string;
+      rateLimitPerSecond?: string;
+    }
+  | {
+      type: typeof Xerc20LimitType.Standard;
+      mint?: string;
+      burn?: string;
+    };
+
+export const NativeOpL1Version = {
+  V1: 1,
+  V2: 2,
+} as const;
+
+export type NativeOpL1Version =
+  (typeof NativeOpL1Version)[keyof typeof NativeOpL1Version];
+
+export const CctpVersion = {
+  V1: 'V1',
+  V2: 'V2',
+} as const;
+
+export type CctpVersion = (typeof CctpVersion)[keyof typeof CctpVersion];
+
+export interface EverclearFeeParamsArtifactConfig {
+  fee: number;
+  deadline: number;
+  signature: string;
+}
+
 /**
  * Base warp config for Artifact API.
  * Uses domain IDs (numbers) instead of chain names (strings) for remoteRouters and destinationGas keys.
  * ISM can be a nested artifact or just an address.
  */
-interface BaseWarpArtifactConfig {
+export interface BaseWarpArtifactConfig {
   owner: string;
   mailbox: string;
   interchainSecurityModule?: Artifact<IsmArtifactConfig, DeployedIsmAddress>;
@@ -187,7 +268,23 @@ interface BaseWarpArtifactConfig {
   contractVersion?: string;
 }
 
-export interface CollateralWarpArtifactConfig extends BaseWarpArtifactConfig {
+export interface RebalancingBridgeArtifactConfig {
+  bridge: string;
+  approvedTokens?: Set<string>;
+}
+
+export interface MovableWarpArtifactConfig {
+  allowedRebalancingBridges?: Record<number, RebalancingBridgeArtifactConfig[]>;
+  allowedRebalancers?: Set<string>;
+  predicateWrapper?: PredicateWrapperArtifactConfig;
+}
+
+export interface PredicateWrappedWarpArtifactConfig {
+  predicateWrapper?: PredicateWrapperArtifactConfig;
+}
+
+export interface CollateralWarpArtifactConfig
+  extends BaseWarpArtifactConfig, MovableWarpArtifactConfig {
   type: typeof TokenType.collateral;
   token: string;
 }
@@ -198,6 +295,8 @@ export interface SyntheticWarpArtifactConfig extends BaseWarpArtifactConfig {
   symbol: string;
   decimals: number;
   metadataUri?: string;
+  initialSupply?: string | number;
+  predicateWrapper?: PredicateWrapperArtifactConfig;
   /**
    * Address of the token the hyp adapter deployed alongside the synthetic
    * warp. Populated by the protocol-specific reader/writer after deploy.
@@ -206,21 +305,241 @@ export interface SyntheticWarpArtifactConfig extends BaseWarpArtifactConfig {
   token?: string;
 }
 
-export interface NativeWarpArtifactConfig extends BaseWarpArtifactConfig {
+export interface NativeWarpArtifactConfig
+  extends BaseWarpArtifactConfig, MovableWarpArtifactConfig {
   type: typeof TokenType.native;
 }
 
-export interface CrossCollateralWarpArtifactConfig extends BaseWarpArtifactConfig {
+export interface CrossCollateralWarpArtifactConfig
+  extends BaseWarpArtifactConfig, MovableWarpArtifactConfig {
   type: typeof TokenType.crossCollateral;
   token: string;
   crossCollateralRouters: Record<number, Set<string>>;
+  rebalanceTargets?: Record<number, Set<string>>;
+  rebalanceRecipients?: Record<number, string>;
+}
+
+export type CollateralVariantWarpArtifactConfig<
+  T extends
+    | typeof TokenType.collateralVault
+    | typeof TokenType.collateralVaultRebase
+    | typeof TokenType.collateralFiat
+    | typeof TokenType.collateralUri,
+> = BaseWarpArtifactConfig &
+  PredicateWrappedWarpArtifactConfig & {
+    type: T;
+    token: string;
+  };
+
+export type CollateralVaultWarpArtifactConfig =
+  CollateralVariantWarpArtifactConfig<typeof TokenType.collateralVault>;
+
+export type CollateralVaultRebaseWarpArtifactConfig =
+  CollateralVariantWarpArtifactConfig<typeof TokenType.collateralVaultRebase>;
+
+export type CollateralFiatWarpArtifactConfig =
+  CollateralVariantWarpArtifactConfig<typeof TokenType.collateralFiat>;
+
+export type CollateralUriWarpArtifactConfig =
+  CollateralVariantWarpArtifactConfig<typeof TokenType.collateralUri>;
+
+export type SyntheticVariantWarpArtifactConfig<
+  T extends typeof TokenType.syntheticUri | typeof TokenType.syntheticRebase,
+> = Omit<SyntheticWarpArtifactConfig, 'type'> &
+  (T extends typeof TokenType.syntheticRebase
+    ? { type: T; collateralDomain: number }
+    : { type: T });
+
+export type SyntheticRebaseWarpArtifactConfig =
+  SyntheticVariantWarpArtifactConfig<typeof TokenType.syntheticRebase>;
+
+export type SyntheticUriWarpArtifactConfig = SyntheticVariantWarpArtifactConfig<
+  typeof TokenType.syntheticUri
+>;
+
+export type NativeVariantWarpArtifactConfig<
+  T extends typeof TokenType.nativeScaled,
+> = Omit<NativeWarpArtifactConfig, 'type'> & { type: T };
+
+export type NativeScaledWarpArtifactConfig = NativeVariantWarpArtifactConfig<
+  typeof TokenType.nativeScaled
+>;
+
+export interface NativeOpL2WarpArtifactConfig
+  extends BaseWarpArtifactConfig, PredicateWrappedWarpArtifactConfig {
+  type: typeof TokenType.nativeOpL2;
+  l2Bridge: string;
+}
+
+export interface NativeOpL1WarpArtifactConfig
+  extends BaseWarpArtifactConfig, PredicateWrappedWarpArtifactConfig {
+  type: typeof TokenType.nativeOpL1;
+  portal: string;
+  version: NativeOpL1Version;
+  urls: NonEmptyArray<string>;
+}
+
+export interface BaseXerc20WarpArtifactConfig<
+  T extends typeof TokenType.XERC20 | typeof TokenType.XERC20Lockbox =
+    | typeof TokenType.XERC20
+    | typeof TokenType.XERC20Lockbox,
+>
+  extends BaseWarpArtifactConfig, PredicateWrappedWarpArtifactConfig {
+  type: T;
+  token: string;
+  xERC20?: {
+    warpRouteLimits: Xerc20LimitArtifactConfig;
+    extraBridges?: Array<{
+      lockbox: string;
+      limits: Xerc20LimitArtifactConfig;
+    }>;
+  };
+}
+
+export type Xerc20WarpArtifactConfig = BaseXerc20WarpArtifactConfig<
+  typeof TokenType.XERC20
+>;
+
+export type Xerc20LockboxWarpArtifactConfig = BaseXerc20WarpArtifactConfig<
+  typeof TokenType.XERC20Lockbox
+>;
+
+interface BaseCollateralCctpWarpArtifactConfig
+  extends BaseWarpArtifactConfig, PredicateWrappedWarpArtifactConfig {
+  type: typeof TokenType.collateralCctp;
+  token: string;
+  messageTransmitter: string;
+  tokenMessenger: string;
+  urls: NonEmptyArray<string>;
+}
+
+export type CollateralCctpWarpArtifactConfig =
+  BaseCollateralCctpWarpArtifactConfig &
+    (
+      | {
+          cctpVersion: typeof CctpVersion.V1;
+          minFinalityThreshold?: never;
+          maxFeeBps?: never;
+        }
+      | {
+          cctpVersion: typeof CctpVersion.V2;
+          /** Required for a fresh V2 deployment; may be omitted by update flows. */
+          minFinalityThreshold?: number;
+          /** Required for a fresh V2 deployment; omission preserves the current fee. */
+          maxFeeBps?: number;
+        }
+    );
+
+export interface CollateralDepositAddressWarpArtifactConfig extends BaseWarpArtifactConfig {
+  type: typeof TokenType.collateralDepositAddress;
+  token: string;
+  destinationConfigs: Record<
+    number,
+    Record<string, { depositAddress: string; feeBps?: string }>
+  >;
+  predicateWrapper?: PredicateWrapperArtifactConfig;
+}
+
+export interface CollateralOftWarpArtifactConfig extends BaseWarpArtifactConfig {
+  type: typeof TokenType.collateralOft;
+  token: string;
+  oft: string;
+  domainMappings: Record<number, number>;
+  extraOptions?: string;
+  predicateWrapper?: PredicateWrapperArtifactConfig;
+}
+
+export interface AtomicLocalRebalancingWarpArtifactConfig extends BaseWarpArtifactConfig {
+  type: typeof TokenType.atomicLocalRebalancing;
+  sourceRouter: string;
+}
+
+export interface CollateralEverclearWarpArtifactConfig
+  extends BaseWarpArtifactConfig, PredicateWrappedWarpArtifactConfig {
+  type: typeof TokenType.collateralEverclear;
+  token: string;
+  everclearBridgeAddress: string;
+  outputAssets: Record<number, string>;
+  everclearFeeParams: Record<number, EverclearFeeParamsArtifactConfig>;
+}
+
+export interface EthEverclearWarpArtifactConfig
+  extends BaseWarpArtifactConfig, PredicateWrappedWarpArtifactConfig {
+  type: typeof TokenType.ethEverclear;
+  wethAddress: string;
+  everclearBridgeAddress: string;
+  outputAssets: Record<number, string>;
+  everclearFeeParams: Record<number, EverclearFeeParamsArtifactConfig>;
+}
+
+export interface UnknownWarpArtifactConfig extends BaseWarpArtifactConfig {
+  type: typeof TokenType.unknown;
+  predicateWrapper?: PredicateWrapperArtifactConfig;
+  rawConfig?: Record<string, unknown>;
 }
 
 export interface WarpArtifactConfigs {
-  collateral: CollateralWarpArtifactConfig;
-  synthetic: SyntheticWarpArtifactConfig;
-  native: NativeWarpArtifactConfig;
-  crossCollateral: CrossCollateralWarpArtifactConfig;
+  [TokenType.synthetic]: SyntheticWarpArtifactConfig;
+  [TokenType.syntheticRebase]: SyntheticRebaseWarpArtifactConfig;
+  [TokenType.syntheticUri]: SyntheticUriWarpArtifactConfig;
+  [TokenType.collateral]: CollateralWarpArtifactConfig;
+  [TokenType.collateralVault]: CollateralVaultWarpArtifactConfig;
+  [TokenType.collateralVaultRebase]: CollateralVaultRebaseWarpArtifactConfig;
+  [TokenType.XERC20]: Xerc20WarpArtifactConfig;
+  [TokenType.XERC20Lockbox]: Xerc20LockboxWarpArtifactConfig;
+  [TokenType.collateralFiat]: CollateralFiatWarpArtifactConfig;
+  [TokenType.collateralUri]: CollateralUriWarpArtifactConfig;
+  [TokenType.collateralCctp]: CollateralCctpWarpArtifactConfig;
+  [TokenType.collateralEverclear]: CollateralEverclearWarpArtifactConfig;
+  [TokenType.collateralDepositAddress]: CollateralDepositAddressWarpArtifactConfig;
+  [TokenType.collateralOft]: CollateralOftWarpArtifactConfig;
+  [TokenType.atomicLocalRebalancing]: AtomicLocalRebalancingWarpArtifactConfig;
+  [TokenType.native]: NativeWarpArtifactConfig;
+  [TokenType.nativeOpL2]: NativeOpL2WarpArtifactConfig;
+  [TokenType.nativeOpL1]: NativeOpL1WarpArtifactConfig;
+  [TokenType.ethEverclear]: EthEverclearWarpArtifactConfig;
+  [TokenType.nativeScaled]: NativeScaledWarpArtifactConfig;
+  [TokenType.crossCollateral]: CrossCollateralWarpArtifactConfig;
+  [TokenType.unknown]: UnknownWarpArtifactConfig;
+}
+
+type LegacyWarpArtifactConfig = WarpArtifactConfigs[
+  | typeof TokenType.collateral
+  | typeof TokenType.synthetic
+  | typeof TokenType.native
+  | typeof TokenType.crossCollateral];
+
+function isLegacyWarpArtifactConfig(
+  config: WarpArtifactConfig,
+): config is LegacyWarpArtifactConfig {
+  switch (config.type) {
+    case TokenType.collateral:
+    case TokenType.synthetic:
+    case TokenType.native:
+    case TokenType.crossCollateral:
+      return true;
+    case TokenType.syntheticRebase:
+    case TokenType.syntheticUri:
+    case TokenType.collateralVault:
+    case TokenType.collateralVaultRebase:
+    case TokenType.XERC20:
+    case TokenType.XERC20Lockbox:
+    case TokenType.collateralFiat:
+    case TokenType.collateralUri:
+    case TokenType.collateralCctp:
+    case TokenType.collateralEverclear:
+    case TokenType.collateralDepositAddress:
+    case TokenType.collateralOft:
+    case TokenType.atomicLocalRebalancing:
+    case TokenType.nativeOpL2:
+    case TokenType.nativeOpL1:
+    case TokenType.ethEverclear:
+    case TokenType.nativeScaled:
+    case TokenType.unknown:
+      return false;
+    default:
+      return assertNever(config, 'isLegacyWarpArtifactConfig');
+  }
 }
 
 export type WarpType = keyof WarpArtifactConfigs;
@@ -261,12 +580,24 @@ export type RawNativeWarpArtifactConfig =
 export type RawCrossCollateralWarpArtifactConfig =
   ConfigOnChain<CrossCollateralWarpArtifactConfig>;
 
-export interface RawWarpArtifactConfigs {
-  collateral: RawCollateralWarpArtifactConfig;
-  synthetic: RawSyntheticWarpArtifactConfig;
-  native: RawNativeWarpArtifactConfig;
-  crossCollateral: RawCrossCollateralWarpArtifactConfig;
-}
+type WarpConfigOnChain<C extends BaseWarpArtifactConfig> =
+  C extends BaseWarpArtifactConfig
+    ? Omit<C, 'interchainSecurityModule' | 'hook' | 'fee'> & {
+        interchainSecurityModule?: ArtifactOnChain<
+          IsmArtifactConfig,
+          DeployedIsmAddress
+        >;
+        hook?: ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>;
+        fee?: ArtifactOnChain<FeeArtifactConfig, DeployedFeeAddress>;
+      }
+    : never;
+
+export type RawBaseWarpArtifactConfig =
+  WarpConfigOnChain<BaseWarpArtifactConfig>;
+
+export type RawWarpArtifactConfigs = {
+  [K in WarpType]: WarpConfigOnChain<WarpArtifactConfigs[K]>;
+};
 
 export type WarpArtifactReaderFactories<D = DeployedWarpAddress> = Partial<{
   [K in WarpType]: () => ArtifactReader<RawWarpArtifactConfigs[K], D>;
@@ -439,7 +770,7 @@ export function warpConfigToArtifact(
         artifactState: ArtifactState.NEW,
         config: {
           ...baseArtifactConfig,
-          type: 'collateral',
+          type: TokenType.collateral,
           token: config.token,
         },
       };
@@ -460,7 +791,7 @@ export function warpConfigToArtifact(
         artifactState: ArtifactState.NEW,
         config: {
           ...baseArtifactConfig,
-          type: 'synthetic',
+          type: TokenType.synthetic,
           name: config.name,
           symbol: config.symbol,
           decimals: config.decimals,
@@ -474,7 +805,7 @@ export function warpConfigToArtifact(
         artifactState: ArtifactState.NEW,
         config: {
           ...baseArtifactConfig,
-          type: 'native',
+          type: TokenType.native,
         },
       };
 
@@ -483,7 +814,7 @@ export function warpConfigToArtifact(
         artifactState: ArtifactState.NEW,
         config: {
           ...baseArtifactConfig,
-          type: 'crossCollateral',
+          type: TokenType.crossCollateral,
           token: config.token,
           crossCollateralRouters: convertCrossCollateralRoutersToArtifact(
             config.crossCollateralRouters,
@@ -493,12 +824,8 @@ export function warpConfigToArtifact(
         },
       };
 
-    default: {
-      const invalidConfig: never = config;
-      throw new Error(
-        `Unsupported warp token type for artifact API: ${JSON.stringify(invalidConfig)}`,
-      );
-    }
+    default:
+      return assertNever(config, 'warpConfigToArtifact');
   }
 }
 
@@ -516,6 +843,10 @@ export function warpArtifactToDerivedConfig(
   chainLookup: ChainLookup,
 ): DerivedWarpConfig {
   const config = artifact.config;
+
+  if (!isLegacyWarpArtifactConfig(config)) {
+    return throwUnhandledWarpConfigType(config, 'warpArtifactToDerivedConfig');
+  }
 
   // Convert remoteRouters from domain IDs back to chain names
   const remoteRouters: RemoteRouters = {};
@@ -640,12 +971,8 @@ export function warpArtifactToDerivedConfig(
           chainLookup,
         ),
       };
-    default: {
-      const invalidConfig: never = config;
-      throw new Error(
-        `Unhandled warp token type: ${JSON.stringify(invalidConfig)}`,
-      );
-    }
+    default:
+      return assertNever(config, 'warpArtifactToDerivedConfig');
   }
 }
 
@@ -761,6 +1088,13 @@ export function buildFeeReadContextFromWarpArtifactConfig(
 export function resolveFeeTokenFromWarpArtifactConfig(
   config: WarpArtifactConfig,
 ): string | undefined {
+  if (!isLegacyWarpArtifactConfig(config)) {
+    return throwUnhandledWarpConfigType(
+      config,
+      'resolveFeeTokenFromWarpArtifactConfig',
+    );
+  }
+
   switch (config.type) {
     case TokenType.collateral:
     case TokenType.crossCollateral:
@@ -769,12 +1103,8 @@ export function resolveFeeTokenFromWarpArtifactConfig(
       return config.token;
     case TokenType.native:
       return undefined;
-    default: {
-      const invalidConfig: never = config;
-      throw new Error(
-        `Unsupported warp type for resolveFeeTokenFromWarpArtifactConfig: ${JSON.stringify(invalidConfig)}`,
-      );
-    }
+    default:
+      return assertNever(config, 'resolveFeeTokenFromWarpArtifactConfig');
   }
 }
 
@@ -792,7 +1122,7 @@ export interface WarpRouterDiff {
 }
 
 type RemoteRoutersConfig = Pick<
-  RawWarpArtifactConfig,
+  RawBaseWarpArtifactConfig,
   'destinationGas' | 'remoteRouters'
 >;
 

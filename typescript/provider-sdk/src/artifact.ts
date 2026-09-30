@@ -1,4 +1,5 @@
 import {
+  type NonEmptyArray,
   assert,
   isEmptyAddress,
   ZERO_ADDRESS_HEX_32,
@@ -190,9 +191,11 @@ export type ConfigOnChain<C> = {
     ? ArtifactOnChain<CC, DD>
     : C[K] extends Artifact<infer CC, infer DD> | undefined
       ? ArtifactOnChain<CC, DD> | undefined
-      : C[K] extends Artifact<infer CC, infer DD>[]
-        ? ArtifactOnChain<CC, DD>[]
-        : NestedOnChain<C[K]>;
+      : C[K] extends NonEmptyArray<Artifact<infer CC, infer DD>>
+        ? NonEmptyArray<ArtifactOnChain<CC, DD>>
+        : C[K] extends Artifact<infer CC, infer DD>[]
+          ? ArtifactOnChain<CC, DD>[]
+          : NestedOnChain<C[K]>;
 };
 
 /**
