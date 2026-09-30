@@ -11,6 +11,10 @@ import {
   strip0x,
 } from '@hyperlane-xyz/utils';
 
+// Diamond fallbacks can use this custom error instead of empty revert data
+// when no facet implements the requested selector.
+const FACET_NOT_FOUND_REVERT_DATA = '0x800ab12c';
+
 /**
  * Returns true when the deployed contract version is already at or above the
  * target version.
@@ -77,7 +81,7 @@ export function isMissingSelectorRevert(error: unknown): boolean {
     typeof callException.data === 'string'
       ? callException.data
       : nestedError?.data;
-  if (data === '0x') return true;
+  if (data === '0x' || data === FACET_NOT_FOUND_REVERT_DATA) return true;
 
   // Some ethers/provider combinations only expose empty return data in the
   // formatted message.

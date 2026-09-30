@@ -18,6 +18,13 @@ import {
   isMissingSelectorRevert,
 } from './contract.js';
 
+function facetNotFoundError(): Error & { code: string; data: string } {
+  return Object.assign(new Error('call reverted with FacetNotFound()'), {
+    code: 'CALL_EXCEPTION',
+    data: '0x800ab12c',
+  });
+}
+
 describe('contract utils', () => {
   describe('isMissingSelectorCallException', () => {
     it('matches empty call exceptions', () => {
@@ -37,6 +44,15 @@ describe('contract utils', () => {
         isMissingSelectorCallException(
           wrappedError(wrappedError(missingSelectorError())),
         ),
+      ).to.equal(true);
+    });
+
+    it('matches direct and wrapped diamond FacetNotFound reverts', () => {
+      expect(isMissingSelectorCallException(facetNotFoundError())).to.equal(
+        true,
+      );
+      expect(
+        isMissingSelectorCallException(wrappedError(facetNotFoundError())),
       ).to.equal(true);
     });
 
