@@ -1,6 +1,11 @@
-import { address as parseAddress, type Address } from '@solana/kit';
+import {
+  address as parseAddress,
+  generateKeyPairSigner,
+  isAddress,
+  type Address,
+  type Instruction,
+} from '@solana/kit';
 
-import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   type ArtifactNew,
@@ -8,14 +13,41 @@ import {
   ArtifactState,
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type { MultisigIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
-import { assert, retryAsync } from '@hyperlane-xyz/utils';
+import {
+  type DomainMultisigConfig,
+  type RoutingMessageIdMultisigIsmArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  ZERO_ADDRESS_HEX_32,
+  assert,
+  deepEquals,
+  difference,
+  eqAddressSol,
+  eqOptionalAddress,
+  isEmptyAddress,
+  isZeroishAddress,
+  type NonEmptyArray,
+  nonEmptyArray,
+  normalizeConfig,
+  retryAsync,
+} from '@hyperlane-xyz/utils';
 
+import { encodeH160 } from '../codecs/shared.js';
 import { resolveProgram } from '../deploy/resolve-program.js';
 import {
+  MAX_ROUTING_MESSAGE_ID_MULTISIG_THRESHOLD,
+  MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN,
+  ROUTING_MESSAGE_ID_MULTISIG_SIGNATURES_HARD_LIMIT,
+  ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_HARD_LIMIT,
   getInitializeMultisigIsmMessageIdInstruction,
   getSetValidatorsAndThresholdInstruction,
+  getTransferOwnershipInstruction,
 } from '../instructions/multisig-ism-message-id.js';
+import {
+  SOLANA_MAX_TRANSACTION_SIZE,
+  chunkInstructionsBySize,
+  estimateTransactionWireSize,
+} from '../tx.js';
 import type { SvmSigner } from '../clients/signer.js';
 import type {
   AnnotatedSvmTransaction,
@@ -23,18 +55,18 @@ import type {
   SvmProgramTarget,
   SvmReceipt,
   SvmRpc,
-  SvmTransaction,
 } from '../types.js';
 
 import {
   fetchMultisigIsmAccessControl,
-  fetchMultisigIsmDomainData,
+  fetchMultisigIsmDomainsData,
   validatorBytesToHex,
 } from './ism-query.js';
 
-const CHUNK_SIZE = 5;
 const INIT_RETRY_ATTEMPTS = 8;
 const INIT_RETRY_BASE_MS = 1000;
+const MAX_DOMAIN_ID = 0xffffffffn;
+const MAX_THRESHOLD = 255;
 
 type ProgramDeploymentError = Error & {
   context?: { logs?: string[] };
@@ -55,80 +87,231 @@ function isProgramDeploymentRace(error: unknown): boolean {
   );
 }
 
-export interface SvmMultisigIsmConfig extends MultisigIsmConfig {
+type RoutingMessageIdMultisigIsmArtifact = ArtifactDeployed<
+  RoutingMessageIdMultisigIsmArtifactConfig,
+  SvmDeployedIsm
+>;
+
+export type SvmRoutingMessageIdMultisigIsmWriterConfig = Readonly<{
   program: SvmProgramTarget;
-  domains?: Record<number, { validators: string[]; threshold: number }>;
+}>;
+
+/**
+ * Mirrors the program's per-domain ValidatorsAndThreshold::validate()
+ * (rust/sealevel/programs/ism/multisig-ism-message-id/src/instruction.rs),
+ * plus the caps derived from the measured transaction-size limits.
+ */
+function assertValidDomainMultisig(
+  domain: string,
+  { validators, threshold }: DomainMultisigConfig,
+): void {
+  assert(
+    /^(0|[1-9]\d*)$/.test(domain) && BigInt(domain) <= MAX_DOMAIN_ID,
+    `Invalid multisig ISM domain: '${domain}'`,
+  );
+  assert(
+    validators.length <= MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN,
+    `Multisig ISM domain ${domain} has ${validators.length} validators, above the enforced cap of ${MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN} (a set of more than ${ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_HARD_LIMIT} cannot be written in one transaction)`,
+  );
+  assert(
+    Number.isInteger(threshold) &&
+      threshold >= 1 &&
+      threshold <= MAX_THRESHOLD &&
+      threshold <= validators.length,
+    `Multisig ISM domain ${domain} threshold (${threshold}) must be an integer between 1 and min(${MAX_THRESHOLD}, validators.length)`,
+  );
+  assert(
+    threshold <= MAX_ROUTING_MESSAGE_ID_MULTISIG_THRESHOLD,
+    `Multisig ISM domain ${domain} threshold (${threshold}) is above the enforced cap of ${MAX_ROUTING_MESSAGE_ID_MULTISIG_THRESHOLD} (a Verify transaction fits at most ${ROUTING_MESSAGE_ID_MULTISIG_SIGNATURES_HARD_LIMIT} signatures)`,
+  );
+  const seen = new Set<string>();
+  for (const validator of validators) {
+    try {
+      encodeH160(validator);
+    } catch {
+      assert(
+        false,
+        `Multisig ISM domain ${domain} has an invalid H160 validator address: ${validator}`,
+      );
+    }
+    const normalized = validator.toLowerCase();
+    assert(
+      !seen.has(normalized),
+      `Multisig ISM domain ${domain} has a duplicate validator address: ${validator}`,
+    );
+    seen.add(normalized);
+  }
 }
 
-export class SvmMessageIdMultisigIsmReader implements ArtifactReader<
-  MultisigIsmConfig,
+export function assertValidRoutingMessageIdMultisigIsmArtifact(
+  config: RoutingMessageIdMultisigIsmArtifactConfig,
+): void {
+  assert(
+    isEmptyAddress(config.owner) || isAddress(config.owner),
+    `Multisig ISM owner must be a Sealevel address or empty (renounced), got: ${config.owner}`,
+  );
+  for (const [domain, domainConfig] of Object.entries(config.domains)) {
+    assertValidDomainMultisig(domain, domainConfig);
+  }
+}
+
+export interface SetDomainItem {
+  domain: number;
+  instruction: Instruction;
+}
+
+/** Defense in depth behind the caps: fails naming the domain, not at send time. */
+export function chunkSetDomainItems(
+  items: readonly SetDomainItem[],
+  feePayer: Address,
+) {
+  for (const item of items) {
+    const size = estimateTransactionWireSize(feePayer, [item.instruction]);
+    assert(
+      size <= SOLANA_MAX_TRANSACTION_SIZE,
+      `Multisig ISM domain ${item.domain} instruction (${size} bytes) exceeds Solana's ${SOLANA_MAX_TRANSACTION_SIZE}-byte transaction size limit`,
+    );
+  }
+  return chunkInstructionsBySize(items, (item) => item.instruction, feePayer);
+}
+
+function expectedDomainEntries(
+  config: RoutingMessageIdMultisigIsmArtifactConfig,
+): [number, DomainMultisigConfig][] {
+  return Object.entries(config.domains).map(([domain, domainConfig]) => [
+    Number(domain),
+    domainConfig,
+  ]);
+}
+
+async function buildSetDomainItems(
+  programAddress: Address,
+  owner: Address,
+  entries: readonly [number, DomainMultisigConfig][],
+): Promise<SetDomainItem[]> {
+  return Promise.all(
+    entries.map(async ([domain, domainConfig]) => ({
+      domain,
+      instruction: await getSetValidatorsAndThresholdInstruction({
+        programAddress,
+        owner,
+        domain,
+        validators: domainConfig.validators,
+        threshold: domainConfig.threshold,
+      }),
+    })),
+  );
+}
+
+/**
+ * Domain PDAs can't be enumerated, so only `knownDomainIds` are probed. Reads
+ * and the writer's `update()` domain-drop detection are only as complete as
+ * that list: a domain that is configured on chain but omitted stays configured
+ * silently.
+ */
+export class SvmRoutingMessageIdMultisigIsmReader implements ArtifactReader<
+  RoutingMessageIdMultisigIsmArtifactConfig,
   SvmDeployedIsm
 > {
-  constructor(protected readonly rpc: SvmRpc) {}
+  constructor(
+    protected readonly rpc: SvmRpc,
+    protected readonly knownDomainIds: NonEmptyArray<number>,
+  ) {}
 
-  async read(
-    address: string,
-  ): Promise<ArtifactDeployed<MultisigIsmConfig, SvmDeployedIsm>> {
+  async read(address: string): Promise<RoutingMessageIdMultisigIsmArtifact> {
     const programId = parseAddress(address);
     const accessControl = await fetchMultisigIsmAccessControl(
       this.rpc,
       programId,
     );
-    if (accessControl === null) {
-      throw new Error(`Multisig ISM not initialized at program: ${programId}`);
+    assert(
+      accessControl !== null,
+      `Multisig ISM not initialized at program: ${programId}`,
+    );
+
+    const domainsData = await fetchMultisigIsmDomainsData(
+      this.rpc,
+      programId,
+      this.knownDomainIds,
+    );
+    const domains: Record<number, DomainMultisigConfig> = {};
+    for (const [domain, data] of Object.entries(domainsData)) {
+      const validators = validatorBytesToHex(
+        data.validatorsAndThreshold.validators,
+      );
+      assert(
+        validators.length > 0,
+        `Corrupt multisig ISM domain ${domain} at program ${programId}: on-chain validator set is empty (the program never creates one)`,
+      );
+      domains[Number(domain)] = {
+        validators: nonEmptyArray(validators),
+        threshold: data.validatorsAndThreshold.threshold,
+      };
     }
 
-    // TODO: The SVM multisig ISM stores validators/threshold per-domain rather
-    // than globally. Proper reading will be added in a future PR.
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
-        type: IsmType.MESSAGE_ID_MULTISIG,
-        validators: [],
-        threshold: 0,
+        type: 'routingMessageIdMultisigIsm',
+        owner: accessControl.owner ?? ZERO_ADDRESS_HEX_32,
+        domains,
       },
       deployed: { address: programId, programId },
     };
   }
-
-  async readDomain(
-    programId: Address,
-    domain: number,
-  ): Promise<{ validators: string[]; threshold: number } | null> {
-    const domainData = await fetchMultisigIsmDomainData(
-      this.rpc,
-      programId,
-      domain,
-    );
-    if (domainData === null) return null;
-    return {
-      validators: validatorBytesToHex(
-        domainData.validatorsAndThreshold.validators,
-      ),
-      threshold: domainData.validatorsAndThreshold.threshold,
-    };
-  }
 }
 
-export class SvmMessageIdMultisigIsmWriter
-  extends SvmMessageIdMultisigIsmReader
-  implements ArtifactWriter<MultisigIsmConfig, SvmDeployedIsm>
+export class SvmRoutingMessageIdMultisigIsmWriter
+  extends SvmRoutingMessageIdMultisigIsmReader
+  implements
+    ArtifactWriter<RoutingMessageIdMultisigIsmArtifactConfig, SvmDeployedIsm>
 {
   constructor(
+    private readonly writerConfig: SvmRoutingMessageIdMultisigIsmWriterConfig,
     rpc: SvmRpc,
     private readonly svmSigner: SvmSigner,
+    knownDomainIds: NonEmptyArray<number>,
   ) {
-    super(rpc);
+    super(rpc, knownDomainIds);
   }
 
+  /**
+   * Only the configured domains are written and returned: when an already
+   * initialized program is reused, domains already on chain are left untouched
+   * and not reported.
+   *
+   * Transactions are sized for direct or export submission (one transaction
+   * including the compute-budget instruction); a Squads proposal wraps
+   * instructions and has different limits.
+   *
+   * Transfers OWNERSHIP (`config.owner`) but not the program upgrade
+   * authority, which stays with the deploying key like the other SVM writers.
+   * Callers that need it moved must do so separately, and a redeploy triggered
+   * by a dropped domain (deploy-sdk core/warp writers) leaves the authority
+   * with the deployer until transferred.
+   */
   async create(
-    artifact: ArtifactNew<MultisigIsmConfig>,
-  ): Promise<
-    [ArtifactDeployed<MultisigIsmConfig, SvmDeployedIsm>, SvmReceipt[]]
-  > {
-    const config = artifact.config as SvmMultisigIsmConfig;
+    artifact: ArtifactNew<RoutingMessageIdMultisigIsmArtifactConfig>,
+  ): Promise<[RoutingMessageIdMultisigIsmArtifact, SvmReceipt[]]> {
+    const config = artifact.config;
+    assertValidRoutingMessageIdMultisigIsmArtifact(config);
+
+    const signerAddress = this.svmSigner.signer.address;
+    const domainEntries = expectedDomainEntries(config);
+
+    // Placeholder program: fail on an oversized domain before deploying.
+    const { address: placeholderProgramId } = await generateKeyPairSigner();
+    chunkSetDomainItems(
+      await buildSetDomainItems(
+        placeholderProgramId,
+        signerAddress,
+        domainEntries,
+      ),
+      signerAddress,
+    );
+
     const { programAddress, receipts } = await resolveProgram(
-      config.program,
+      this.writerConfig.program,
       this.svmSigner,
       this.rpc,
     );
@@ -158,84 +341,147 @@ export class SvmMessageIdMultisigIsmWriter
         INIT_RETRY_BASE_MS,
       );
       receipts.push(initReceipt);
+    } else {
+      assert(
+        accessControl.owner !== null &&
+          eqAddressSol(accessControl.owner, signerAddress),
+        `Multisig ISM ${programAddress} is already initialized and not owned by the deploying signer`,
+      );
     }
 
-    if (config.domains) {
-      const domainInstructions = await Promise.all(
-        Object.entries(config.domains).map(
-          async ([domainStr, domainConfig]) => {
-            const domain = Number(domainStr);
-            assert(
-              Number.isInteger(domain) && domain >= 0,
-              `Invalid domain: '${domainStr}'`,
-            );
-            return getSetValidatorsAndThresholdInstruction({
-              programAddress,
-              owner: this.svmSigner.signer,
-              domain,
-              validators: domainConfig.validators,
-              threshold: domainConfig.threshold,
-            });
-          },
-        ),
+    // Every mutating instruction requires the CURRENT owner as signer, so
+    // ownership transfer must be the last step.
+    const chunks = chunkSetDomainItems(
+      await buildSetDomainItems(programAddress, signerAddress, domainEntries),
+      signerAddress,
+    );
+    for (const chunk of chunks) {
+      receipts.push(
+        await this.svmSigner.send({
+          instructions: chunk.map((item) => item.instruction),
+        }),
       );
+    }
 
-      for (let i = 0; i < domainInstructions.length; i += CHUNK_SIZE) {
-        const chunk = domainInstructions.slice(i, i + CHUNK_SIZE);
-        const tx: SvmTransaction = { instructions: chunk };
-        const receipt = await this.svmSigner.send(tx);
-        receipts.push(receipt);
-      }
-    } else if (config.validators.length > 0) {
-      throw new Error(
-        'Single validators/threshold config not supported on Solana. Use domains map.',
+    const expectedOwner = isEmptyAddress(config.owner)
+      ? null
+      : parseAddress(config.owner);
+    if (!eqOptionalAddress(signerAddress, config.owner, eqAddressSol)) {
+      const transferIx = await getTransferOwnershipInstruction(
+        programAddress,
+        signerAddress,
+        expectedOwner,
       );
+      receipts.push(await this.svmSigner.send({ instructions: [transferIx] }));
+    }
+
+    const domains: Record<number, DomainMultisigConfig> = {};
+    for (const [domain, { validators, threshold }] of domainEntries) {
+      domains[domain] = {
+        validators: nonEmptyArray(
+          validatorBytesToHex(
+            validators.map((validator) =>
+              Uint8Array.from(encodeH160(validator)),
+            ),
+          ),
+        ),
+        threshold,
+      };
     }
 
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
-        config: config,
+        config: {
+          type: 'routingMessageIdMultisigIsm',
+          owner: expectedOwner ?? ZERO_ADDRESS_HEX_32,
+          domains,
+        },
         deployed: { address: programAddress, programId: programAddress },
       },
       receipts,
     ];
   }
 
+  /**
+   * Adds or changes per-domain validator sets and transfers ownership. The
+   * program has no remove-domain instruction, so a domain that exists on chain
+   * and is missing from the expected config is rejected; callers deploy a new
+   * ISM in that case (see `shouldDeployNewIsm` in provider-sdk).
+   *
+   * Chunking assumes direct or export submission (one transaction including
+   * the compute-budget instruction); a Squads proposal wraps instructions and
+   * has different limits. The on-chain OWNER pays the rent for new DomainData
+   * PDAs, so it must hold lamports when the returned transactions are sent.
+   */
   async update(
-    artifact: ArtifactDeployed<MultisigIsmConfig, SvmDeployedIsm>,
+    artifact: RoutingMessageIdMultisigIsmArtifact,
   ): Promise<AnnotatedSvmTransaction[]> {
     const programId = artifact.deployed.programId;
-    return this.getUpdateDomainTxs(artifact, programId);
-  }
+    const expected = artifact.config;
+    assertValidRoutingMessageIdMultisigIsmArtifact(expected);
+    const current = await this.read(programId);
 
-  // TODO: The SVM multisig ISM requires per-domain diffing to compute updates.
-  // Proper update logic will be added in a future PR.
-  private async getUpdateDomainTxs(
-    _artifact: ArtifactDeployed<MultisigIsmConfig, SvmDeployedIsm>,
-    _programId: Address,
-  ): Promise<AnnotatedSvmTransaction[]> {
-    return [];
-  }
+    assert(
+      !isZeroishAddress(current.config.owner),
+      `Cannot update multisig ISM ${programId}: ISM has no owner`,
+    );
+    const ownerAddress = parseAddress(current.config.owner);
+    const expectedOwner = isEmptyAddress(expected.owner)
+      ? null
+      : parseAddress(expected.owner);
 
-  async getUpdateDomainTx(
-    programId: Address,
-    domain: number,
-    validators: string[],
-    threshold: number,
-  ): Promise<AnnotatedSvmTransaction> {
-    const ix = await getSetValidatorsAndThresholdInstruction({
-      programAddress: programId,
-      owner: this.svmSigner.signer,
-      domain,
-      validators,
-      threshold,
-    });
+    const [droppedDomain] = difference(
+      new Set(Object.keys(current.config.domains)),
+      new Set(Object.keys(expected.domains)),
+    );
+    assert(
+      droppedDomain === undefined,
+      `Cannot remove domain ${droppedDomain} from multisig ISM ${programId}: the program has no remove-domain instruction, deploy a new ISM instead`,
+    );
 
-    return {
-      feePayer: this.svmSigner.signer.address,
-      instructions: [ix],
-      annotation: `Set validators for domain ${domain}`,
-    };
+    // normalizeConfig ignores validator order and case: an order-only change
+    // is never applied, matching the other ISM diffs.
+    const changedEntries = expectedDomainEntries(expected).filter(
+      ([domain, domainConfig]) =>
+        !deepEquals(
+          normalizeConfig(current.config.domains[domain]),
+          normalizeConfig(domainConfig),
+        ),
+    );
+
+    const transactions: AnnotatedSvmTransaction[] = [];
+    const chunks = chunkSetDomainItems(
+      await buildSetDomainItems(programId, ownerAddress, changedEntries),
+      ownerAddress,
+    );
+    for (const chunk of chunks) {
+      transactions.push({
+        feePayer: ownerAddress,
+        instructions: chunk.map((item) => item.instruction),
+        annotation: `Set multisig ISM validators for domains ${chunk
+          .map((item) => item.domain)
+          .join(', ')}`,
+      });
+    }
+
+    // Last: the instructions above require the current owner as signer.
+    if (
+      !eqOptionalAddress(current.config.owner, expected.owner, eqAddressSol)
+    ) {
+      transactions.push({
+        feePayer: ownerAddress,
+        instructions: [
+          await getTransferOwnershipInstruction(
+            programId,
+            ownerAddress,
+            expectedOwner,
+          ),
+        ],
+        annotation: 'Transfer multisig ISM ownership',
+      });
+    }
+
+    return transactions;
   }
 }

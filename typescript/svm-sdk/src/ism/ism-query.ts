@@ -27,7 +27,7 @@ import {
   deriveMultisigIsmDomainDataPda,
   deriveTestIsmStoragePda,
 } from '../pda.js';
-import { fetchAccountDataRaw } from '../rpc.js';
+import { fetchAccountDataRaw, fetchAccountDataRawBatch } from '../rpc.js';
 
 export const decodeIsmInstruction = {
   interchainSecurityModule: decodeInterchainSecurityModuleInterfaceInstruction,
@@ -83,18 +83,39 @@ export async function fetchCompositeIsmStorageAccount(
   }
 }
 
-export async function fetchMultisigIsmDomainData(
+/** Absent or uninitialized domain accounts are omitted, meaning "not configured". */
+export async function fetchMultisigIsmDomainsData(
   rpc: Rpc<SolanaRpcApi>,
   programId: Address,
-  domain: number,
-): Promise<DomainData | null> {
-  const { address: domainPda } = await deriveMultisigIsmDomainDataPda(
-    programId,
-    domain,
+  domains: readonly number[],
+): Promise<Record<number, DomainData>> {
+  const uniqueDomains = [...new Set(domains)];
+  const pdas = await Promise.all(
+    uniqueDomains.map((domain) =>
+      deriveMultisigIsmDomainDataPda(programId, domain),
+    ),
   );
-  const raw = await fetchAccountDataRaw(rpc, domainPda);
-  if (!raw || raw.length === 0) return null;
-  return decodeMultisigIsmDomainDataAccount(raw);
+  const rawAccounts = await fetchAccountDataRawBatch(
+    rpc,
+    pdas.map(({ address }) => address),
+  );
+
+  const out: Record<number, DomainData> = {};
+  uniqueDomains.forEach((domain, i) => {
+    const raw = rawAccounts[i];
+    if (!raw || raw.length === 0) return;
+    let decoded: DomainData | null;
+    try {
+      decoded = decodeMultisigIsmDomainDataAccount(raw);
+    } catch (error: unknown) {
+      throw new Error(
+        `Failed to decode multisig ISM domain data for domain ${domain} at program ${programId}`,
+        { cause: error },
+      );
+    }
+    if (decoded !== null) out[domain] = decoded;
+  });
+  return out;
 }
 
 export async function detectIsmType(

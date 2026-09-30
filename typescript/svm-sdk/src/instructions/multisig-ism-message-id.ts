@@ -27,6 +27,7 @@ import {
   readonlyAccount,
   writableAccount,
   writableSigner,
+  writableSignerAddress,
 } from './utils.js';
 import {
   deriveMultisigIsmAccessControlPda,
@@ -118,14 +119,85 @@ export function decodeMultisigIsmMessageIdProgramInstruction(
   }
 }
 
+/**
+ * Measured hard limit on the validators of one origin domain: the most that fit
+ * in the single `SetValidatorsAndThreshold` transaction. See
+ * {@link MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN} for the
+ * measurement.
+ */
+export const ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_HARD_LIMIT = 45;
+
+/**
+ * Measured hard limit on the signatures of one Verify transaction (empty message
+ * body, ISM accounts only). See
+ * {@link MAX_ROUTING_MESSAGE_ID_MULTISIG_THRESHOLD} for the measurement.
+ */
+export const ROUTING_MESSAGE_ID_MULTISIG_SIGNATURES_HARD_LIMIT = 12;
+
+/**
+ * Enforced cap on the validators of one origin domain of a
+ * `routingMessageIdMultisigIsm`.
+ *
+ * Measured hard limits (bundled multisig-ism-message-id program, local test
+ * validator, 2026-09-30; reproduced by
+ * `routing-message-id-multisig-ism-limits.e2e-test.ts`):
+ * - `SetValidatorsAndThreshold` is one transaction carrying 20 bytes per
+ *   validator. With the compute-budget instruction it is 1230 bytes at 45
+ *   validators and 1250 at 46, against Solana's 1232-byte limit, so 45 is the
+ *   hard limit (44 when a compute-unit-price instruction is also added).
+ * - The domain account starts at 1024 bytes (7 + 20n bytes needed), i.e. 50
+ *   validators, and grows without a lamport top-up above that. This wall is
+ *   unreachable in a single transaction, so it does not bind first.
+ * - Verifying deserializes the whole set at about 55 compute units per
+ *   validator (about 2.4k units at 45), which is negligible.
+ *
+ * The cap is 40, leaving 5 validators (100 bytes) below the hard limit for the
+ * price instruction and signer variations, so a valid config is always
+ * settable by the writers.
+ */
+export const MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN = 40;
+
+/**
+ * Enforced cap on the threshold of one origin domain of a
+ * `routingMessageIdMultisigIsm`.
+ *
+ * Measured (same method as
+ * {@link MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN}):
+ * - Verification recovers one secp256k1 signer per threshold signature at
+ *   about 25.4k compute units each on top of about 53k fixed units
+ *   (T=1: 78.6k, T=5: 180k, T=10: 307k, T=12: 358k). The default 200k
+ *   per-instruction limit only fits T<=5; the 1.4M maximum would fit T<=53, so
+ *   compute is not the binding limit.
+ * - The metadata carries 65 bytes per signature, so the Verify transaction is
+ *   the binding limit: at most 12 signatures fit a single packet, with an
+ *   empty message body and only the ISM accounts. The mailbox `process`
+ *   transaction also carries the recipient accounts and the message body, so
+ *   fewer fit there (address lookup tables recover only the account bytes).
+ *
+ * The cap is 8, leaving 4 signatures (260 bytes) below the Verify-only hard
+ * limit for that overhead. A higher threshold can make every message
+ * undeliverable, which is why it is rejected instead of accepted.
+ */
+export const MAX_ROUTING_MESSAGE_ID_MULTISIG_THRESHOLD = 8;
+
 export interface SetDomainValidatorsArgs {
   programAddress: Address;
-  owner: TransactionSigner;
+  owner: Address;
   domain: number;
-  validators: (H160 | string)[];
+  validators: readonly (H160 | string)[];
   threshold: number;
 }
 
+/**
+ * Fails with AlreadyInitialized on an initialized access-control PDA, so
+ * writers check the account first.
+ *
+ * Accounts (mirrors `init_instruction` in
+ * rust/sealevel/programs/ism/multisig-ism-message-id/src/instruction.rs):
+ * 0. [signer, writable] owner and payer of the access-control PDA
+ * 1. [writable] access-control PDA
+ * 2. [] system program
+ */
 export async function getInitializeMultisigIsmMessageIdInstruction(
   programAddress: Address,
   owner: TransactionSigner,
@@ -143,6 +215,19 @@ export async function getInitializeMultisigIsmMessageIdInstruction(
   );
 }
 
+/**
+ * Accounts (mirrors `set_validators_and_threshold` in
+ * rust/sealevel/programs/ism/multisig-ism-message-id/src/processor.rs):
+ * 0. [signer, writable] owner, and payer of the domain PDA
+ * 1. [] access-control PDA
+ * 2. [writable] domain PDA
+ * 3. [] system program, required only when creating the domain PDA (a set
+ *    without it is rejected while the domain PDA does not exist); always
+ *    passed here so one builder serves create and update.
+ *
+ * The validators are stored in the given order, which is load-bearing for
+ * verification (signatures must follow it).
+ */
 export async function getSetValidatorsAndThresholdInstruction(
   args: SetDomainValidatorsArgs,
 ): Promise<Instruction> {
@@ -159,7 +244,7 @@ export async function getSetValidatorsAndThresholdInstruction(
   return buildInstruction(
     args.programAddress,
     [
-      writableSigner(args.owner),
+      writableSignerAddress(args.owner),
       readonlyAccount(accessControl),
       writableAccount(domainData),
       readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
@@ -177,16 +262,23 @@ export async function getSetValidatorsAndThresholdInstruction(
   );
 }
 
+/**
+ * Accounts: 0. [signer, writable] current owner, 1. [writable] access-control
+ * PDA. The PDA is writable although the program's `Instruction` enum doc lists
+ * it as `[]`: `transfer_ownership` stores the new owner into it
+ * (rust/sealevel/programs/ism/multisig-ism-message-id/src/processor.rs).
+ * A null `newOwner` renounces ownership.
+ */
 export async function getTransferOwnershipInstruction(
   programAddress: Address,
-  owner: TransactionSigner,
+  owner: Address,
   newOwner: Address | null,
 ): Promise<Instruction> {
   const { address: accessControl } =
     await deriveMultisigIsmAccessControlPda(programAddress);
   return buildInstruction(
     programAddress,
-    [writableSigner(owner), writableAccount(accessControl)],
+    [writableSignerAddress(owner), writableAccount(accessControl)],
     encodeMultisigIsmMessageIdProgramInstruction({
       kind: 'transferOwnership',
       newOwner,
