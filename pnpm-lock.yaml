@@ -421,7 +421,7 @@ catalogs:
       version: 4.5.4
 
 overrides:
-  '@provablehq/wasm': 0.11.3
+  '@provablehq/wasm': 0.11.11
   '@types/react': 18.3.27
   '@types/react-dom': 18.3.7
   async: ^2.6.4
@@ -621,8 +621,8 @@ importers:
         specifier: workspace:*
         version: link:../utils
       '@provablehq/sdk':
-        specifier: 0.11.3
-        version: 0.11.3
+        specifier: 0.11.11
+        version: 0.11.11
       bignumber.js:
         specifier: 'catalog:'
         version: 9.3.1
@@ -6550,11 +6550,11 @@ packages:
   '@provablehq/aleo-wallet-standard@1.0.0':
     resolution: {integrity: sha512-3QVgBd9Mq0y769VRj6a5FIzWEI5TPQ2CzwgpMurq8JwHxKLRry9Zze0XF92dWAqE6ILvvPCew3pwapC8gerYQA==}
 
-  '@provablehq/sdk@0.11.3':
-    resolution: {integrity: sha512-3vxTFXqiQHm9PHlceANvrAcoS1NhyJEe/RRREgdW+6zVmMg5+i5AA2q4XzgUVDJ8Pdhu7VpdUtunKzEejQ/BcQ==}
+  '@provablehq/sdk@0.11.11':
+    resolution: {integrity: sha512-6lrKTwJdfWNUAScDEBuiVYAUNJZtasYmc8VpD026VvQyNyCsoA1g46Vy9FijYNHM+1nDnZaMSeZJakmv3ThXSA==}
 
-  '@provablehq/wasm@0.11.3':
-    resolution: {integrity: sha512-/ZJZXHK7Rvsv4AsgFgqKe6/6EYvenpJ38UlxigwtAwyhNwtx5wzQMMrkJkf2+WpcCoo3VlWeLWFW3Nw1hfjrog==}
+  '@provablehq/wasm@0.11.11':
+    resolution: {integrity: sha512-XunZexf+KGa7uCZtHtIQ1is5iQ5Fg35NUWakfnr2G/lrmtEOTxYSAZt4n3tMR5HmcVF3uTCpPMeUzeGZm+4abQ==}
 
   '@radix-ui/number@1.0.1':
     resolution: {integrity: sha512-T5gIdVO2mmPW3NNhjNgEP3cqMXjXL9UbO0BzWcXfvdBs+BohbQxvd/K5hSVKmn9/lbTdsQVKbUcP5WLCwvUbBg==}
@@ -23050,9 +23050,9 @@ snapshots:
       '@provablehq/aleo-types': 1.0.0
       eventemitter3: 5.0.4
 
-  '@provablehq/sdk@0.11.3':
+  '@provablehq/sdk@0.11.11':
     dependencies:
-      '@provablehq/wasm': 0.11.3
+      '@provablehq/wasm': 0.11.11
       '@scure/base': 2.3.0
       '@serenity-kit/noble-sodium': 0.2.3
       comlink: 4.4.2
@@ -23060,7 +23060,7 @@ snapshots:
       mime: 4.1.0
       xmlhttprequest-ssl: 4.0.0
 
-  '@provablehq/wasm@0.11.3': {}
+  '@provablehq/wasm@0.11.11': {}
 
   '@radix-ui/number@1.0.1':
     dependencies:
