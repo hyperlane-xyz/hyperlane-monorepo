@@ -32,6 +32,7 @@ import {
   StorageGasOracle,
   StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
+import { isMutableHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import {
   Address,
   Domain,
@@ -98,7 +99,6 @@ import {
   HookTypeToContractNameMap,
   IgpHookConfig,
   IgpVersion,
-  MUTABLE_HOOK_TYPE,
   OFFCHAIN_QUOTED_IGP_VERSION,
   OpStackHookConfig,
   PausableHookConfig,
@@ -271,7 +271,7 @@ export class EvmHookModule extends HyperlaneModule<
       rateLimitedDurationChanged ||
       typeof normalizedCurrentConfig === 'string' ||
       normalizedCurrentConfig.type !== normalizedTargetConfig.type ||
-      !MUTABLE_HOOK_TYPE.includes(normalizedTargetConfig.type)
+      !isMutableHookConfig(normalizedTargetConfig)
     ) {
       const contract = await this.deploy({
         config: normalizedTargetConfig,
@@ -376,7 +376,7 @@ export class EvmHookModule extends HyperlaneModule<
       `Mutable hook update requires both hook configs to be of the same type. Expected ${current.type}, got ${target.type}`,
     );
     assert(
-      MUTABLE_HOOK_TYPE.includes(current.type),
+      isMutableHookConfig(current),
       'Expected update config to be of mutable hook type',
     );
     // Checking both objects type fields to help typescript narrow the type down correctly

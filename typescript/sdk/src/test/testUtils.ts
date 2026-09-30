@@ -3,7 +3,13 @@ import { Keypair } from '@solana/web3.js';
 import { BigNumber, ethers } from 'ethers';
 import { bytesToHex } from 'viem';
 
-import { Address, exclude, objMap, randomElement } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  exclude,
+  nonEmptyArray,
+  objMap,
+  randomElement,
+} from '@hyperlane-xyz/utils';
 
 import { testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
@@ -336,7 +342,7 @@ export const randomWeightedMultisigIsmConfig = (
   const thresholdWeight = Math.floor(Math.random() * totalWeight);
   return {
     type: IsmType.WEIGHTED_MESSAGE_ID_MULTISIG,
-    validators,
+    validators: nonEmptyArray(validators),
     thresholdWeight,
   };
 };
@@ -394,19 +400,21 @@ export const randomIsmConfig = (
     case ModuleType.AGGREGATION: {
       const n = randomInt(2, 1);
       const moduleTypes = new Set();
-      const modules = Array.from({ length: n }, () => {
-        let moduleConfig: Exclude<IsmConfig, string>;
-        let moduleType: IsmType;
+      const modules = nonEmptyArray(
+        Array.from({ length: n }, () => {
+          let moduleConfig: Exclude<IsmConfig, string>;
+          let moduleType: IsmType;
 
-        // Ensure that we do not add the same module type more than once per level
-        do {
-          moduleConfig = randomIsmConfig(depth + 1, maxDepth);
-          moduleType = moduleConfig.type;
-        } while (moduleTypes.has(moduleType));
+          // Ensure that we do not add the same module type more than once per level
+          do {
+            moduleConfig = randomIsmConfig(depth + 1, maxDepth);
+            moduleType = moduleConfig.type;
+          } while (moduleTypes.has(moduleType));
 
-        moduleTypes.add(moduleType);
-        return moduleConfig;
-      });
+          moduleTypes.add(moduleType);
+          return moduleConfig;
+        }),
+      );
       const config: AggregationIsmConfig = {
         type: IsmType.AGGREGATION,
         threshold: randomInt(n, 1),
@@ -513,11 +521,13 @@ export const randomDeployableIsmConfig = (
     return config;
   } else if (moduleType === ModuleType.AGGREGATION) {
     const n = randomInt(5, 2);
-    const modules = Array.from({ length: n }, () =>
-      randomDeployableIsmConfig(
-        maxDepth - 1,
-        validatorAddresses,
-        relayerAddress,
+    const modules = nonEmptyArray(
+      Array.from({ length: n }, () =>
+        randomDeployableIsmConfig(
+          maxDepth - 1,
+          validatorAddresses,
+          relayerAddress,
+        ),
       ),
     );
     const config: AggregationIsmConfig = {

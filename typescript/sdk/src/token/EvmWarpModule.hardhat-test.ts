@@ -33,6 +33,7 @@ import {
   XERC20Test,
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
+import { CctpVersion } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   HookConfig,
   HookType,
@@ -3377,7 +3378,7 @@ describe('EvmWarpModule', async () => {
         token: TOKEN_ADDRESS,
         tokenMessenger: MESSENGER_ADDRESS,
         messageTransmitter: TRANSMITTER_ADDRESS,
-        cctpVersion: 'V2',
+        cctpVersion: CctpVersion.V2,
         urls: ['https://fake-cctp-url.com'],
         maxFeeBps,
         ...overrides,
@@ -3397,7 +3398,9 @@ describe('EvmWarpModule', async () => {
 
     it('returns empty when cctpVersion is V1', () => {
       const actual = makeCctpV2Config(100) as DerivedTokenRouterConfig;
-      const expected = makeCctpV2Config(200, { cctpVersion: 'V1' });
+      const expected = makeCctpV2Config(200, {
+        cctpVersion: CctpVersion.V1,
+      });
       expect(warpModule.createSetMaxFeePpmTxs(actual, expected)).to.deep.equal(
         [],
       );

@@ -11,7 +11,7 @@ import {
   TokenFeeType,
 } from '../fee/types.js';
 import { HookType } from '../hook/types.js';
-import { IsmType } from '../ism/types.js';
+import { IsmConfig, IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { test1, test2 } from '../consts/testChains.js';
 import type { WarpCoreConfig } from '../warp/types.js';
@@ -111,7 +111,7 @@ describe('configUtils', () => {
           },
         ],
       };
-      const ism = {
+      const ism: IsmConfig = {
         type: IsmType.AGGREGATION,
         threshold: 1,
         modules: [

@@ -8,6 +8,7 @@ import {
   isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
+import { HookType as ProviderHookType } from '@hyperlane-xyz/provider-sdk/hook';
 
 import {
   ProtocolAgnositicGasOracleConfigSchema,
@@ -49,53 +50,7 @@ export enum OnchainHookType {
   PREDICATE_ROUTER_WRAPPER,
 }
 
-export const HookType = {
-  /**
-   * Retained for backwards compatibility with pre-deployed hooks that don't fit
-   * a named type. Excluded from `DeployableHookType` — cannot be deployed via
-   * `HyperlaneHookDeployer`. New code should use a specific named hook type.
-   */
-  CUSTOM: 'custom',
-  MERKLE_TREE: 'merkleTreeHook',
-  INTERCHAIN_GAS_PAYMASTER: 'interchainGasPaymaster',
-  AGGREGATION: 'aggregationHook',
-  PROTOCOL_FEE: 'protocolFee',
-  OP_STACK: 'opStackHook',
-  ROUTING: 'domainRoutingHook',
-  FALLBACK_ROUTING: 'fallbackRoutingHook',
-  AMOUNT_ROUTING: 'amountRoutingHook',
-  PAUSABLE: 'pausableHook',
-  ARB_L2_TO_L1: 'arbL2ToL1Hook',
-  MAILBOX_DEFAULT: 'defaultHook',
-  CCIP: 'ccipHook',
-  /**
-   * References a pre-deployed CCTP hook by address. Excluded from
-   * `DeployableHookType` — not deployed via `HyperlaneHookDeployer`; the
-   * `EvmHookModule.deploy` path just connects to `config.address`.
-   */
-  CCTP: 'cctpHook',
-  /**
-   * Rate-limits outbound token volume on the origin chain at dispatch time.
-   * Warp-route only. Not valid for core required/default hooks.
-   */
-  RATE_LIMITED: 'rateLimitedHook',
-  /**
-   * Hook view of the NetFlowRateLimitedHookIsm hybrid: one contract instance
-   * is installed as BOTH the hook and the ISM of a single warp router.
-   * Read-only on the hook side — deployed via the ISM config surface
-   * (IsmType.NET_FLOW_RATE_LIMITED) and referenced by address as the hook.
-   * Excluded from `DeployableHookType`.
-   */
-  NET_FLOW_RATE_LIMITED: 'netFlowRateLimitedHookIsm',
-  /**
-   * Hook view of the DelayedFlowRouterHookIsm hybrid (see
-   * NET_FLOW_RATE_LIMITED above; ISM-side type is
-   * IsmType.DELAYED_FLOW_ROUTER). Excluded from `DeployableHookType`.
-   */
-  DELAYED_FLOW_ROUTER: 'delayedFlowRouterHookIsm',
-  UNKNOWN: 'unknownHook',
-  PREDICATE: 'predicateHook',
-} as const;
+export const HookType = ProviderHookType;
 
 export type HookType = (typeof HookType)[keyof typeof HookType];
 
@@ -212,16 +167,6 @@ const FeeTokenAddressSchema = z
   .refine((feeToken) => !isZeroishAddress(feeToken), {
     message: 'fee token must not be the zero address',
   });
-
-// Hook types that can be updated in-place
-export const MUTABLE_HOOK_TYPE: HookType[] = [
-  HookType.INTERCHAIN_GAS_PAYMASTER,
-  HookType.PROTOCOL_FEE,
-  HookType.ROUTING,
-  HookType.FALLBACK_ROUTING,
-  HookType.PAUSABLE,
-  HookType.RATE_LIMITED,
-];
 
 export const ProtocolFeeSchema = OwnableSchema.extend({
   type: z.literal(HookType.PROTOCOL_FEE),

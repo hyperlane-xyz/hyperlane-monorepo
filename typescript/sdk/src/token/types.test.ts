@@ -1,6 +1,10 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
+import {
+  CctpVersion,
+  NativeOpL1Version,
+} from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { TokenFeeType } from '../fee/types.js';
@@ -8,6 +12,8 @@ import { IsmType } from '../ism/types.js';
 
 import { TokenType } from './config.js';
 import {
+  CctpTokenConfigSchema,
+  OpL1TokenConfigSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
@@ -22,6 +28,53 @@ const COLLATERAL_TYPES = [
 ];
 
 const NON_COLLATERAL_TYPES = [TokenType.synthetic, TokenType.syntheticUri];
+
+describe('offchain lookup token config', () => {
+  it('requires at least one URL', () => {
+    expect(
+      OpL1TokenConfigSchema.safeParse({
+        type: TokenType.nativeOpL1,
+        portal: SOME_ADDRESS,
+        version: NativeOpL1Version.V1,
+        urls: [],
+      }).success,
+    ).to.be.false;
+
+    expect(
+      CctpTokenConfigSchema.safeParse({
+        type: TokenType.collateralCctp,
+        token: SOME_ADDRESS,
+        messageTransmitter: SOME_ADDRESS,
+        tokenMessenger: SOME_ADDRESS,
+        cctpVersion: CctpVersion.V1,
+        urls: [],
+      }).success,
+    ).to.be.false;
+  });
+
+  it('restricts OP L1 bridge versions to deployed variants', () => {
+    const config = {
+      type: TokenType.nativeOpL1,
+      portal: SOME_ADDRESS,
+      urls: ['https://example.com'],
+    };
+
+    expect(
+      OpL1TokenConfigSchema.safeParse({
+        ...config,
+        version: NativeOpL1Version.V1,
+      }).success,
+    ).to.be.true;
+    expect(
+      OpL1TokenConfigSchema.safeParse({
+        ...config,
+        version: NativeOpL1Version.V2,
+      }).success,
+    ).to.be.true;
+    expect(OpL1TokenConfigSchema.safeParse({ ...config, version: 3 }).success)
+      .to.be.false;
+  });
+});
 
 describe('WarpRouteDeployConfigSchema refine', () => {
   let config: WarpRouteDeployConfig;

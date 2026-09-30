@@ -102,8 +102,7 @@ export {
   isContractAddress,
   assertIsContractAddress,
 } from './contracts/contracts.js';
-export { MUTABLE_HOOK_TYPE, OnchainHookType } from './hook/types.js';
-export { MUTABLE_ISM_TYPE } from './ism/types.js';
+export { OnchainHookType } from './hook/types.js';
 
 export { HyperlaneApp } from './app/HyperlaneApp.js';
 export {
@@ -429,7 +428,6 @@ export {
   collectValidators,
   isIsmCompatible,
   isStaticDeploymentSupported,
-  isStaticIsm,
   moduleCanCertainlyVerify,
   offchainLookupRequestMessageHash,
 } from './ism/utils.js';

@@ -2,6 +2,11 @@ import { compareVersions } from 'compare-versions';
 import { z } from 'zod';
 
 import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
+import {
+  CctpVersion,
+  NativeOpL1Version,
+  Xerc20LimitType as ProviderXERC20Type,
+} from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, isAddressEvm, objMap } from '@hyperlane-xyz/utils';
 
 import { TokenFeeConfigInput, TokenFeeType } from '../fee/types.js';
@@ -143,7 +148,10 @@ export const OpL1TokenConfigSchema = NativeTokenConfigSchema.omit({
   .extend({
     type: z.literal(TokenType.nativeOpL1),
     portal: z.string(),
-    version: z.number(),
+    version: z.union([
+      z.literal(NativeOpL1Version.V1),
+      z.literal(NativeOpL1Version.V2),
+    ]),
   })
   .extend(
     OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }).shape,
@@ -177,10 +185,8 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
 export type CollateralTokenConfig = z.infer<typeof CollateralTokenConfigSchema>;
 export const isCollateralTokenConfig = isCompliant(CollateralTokenConfigSchema);
 
-export enum XERC20Type {
-  Velo = 'velo',
-  Standard = 'standard',
-}
+export const XERC20Type = ProviderXERC20Type;
+export type XERC20Type = ProviderXERC20Type;
 
 // Velo variant
 const XERC20VSLimitConfigSchema = z.object({
@@ -242,7 +248,7 @@ export const CctpTokenConfigSchema = TokenMetadataSchema.partial()
     tokenMessenger: z
       .string()
       .describe('CCTP Token Messenger contract address'),
-    cctpVersion: z.enum(['V1', 'V2']),
+    cctpVersion: z.enum([CctpVersion.V1, CctpVersion.V2]),
     minFinalityThreshold: z.number().optional(),
     maxFeeBps: z
       .number()

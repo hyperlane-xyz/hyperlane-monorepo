@@ -8,6 +8,7 @@ import {
   PausableHook__factory,
   RateLimitedHook__factory,
 } from '@hyperlane-xyz/core';
+import { MUTABLE_HOOK_TYPE } from '@hyperlane-xyz/provider-sdk/hook';
 import {
   Address,
   WithAddress,
@@ -45,7 +46,6 @@ import {
   HookType,
   IgpHookConfig,
   IgpVersion,
-  MUTABLE_HOOK_TYPE,
   PausableHookConfig,
   ProtocolFeeHookConfig,
   RateLimitedHookConfig,
@@ -1217,11 +1217,9 @@ describe('EvmHookModule', async () => {
     });
 
     // generate a random config for each ownable hook type
-    const ownableHooks = hookTypes
-      .filter((hookType) => MUTABLE_HOOK_TYPE.includes(hookType))
-      .map((hookType) => {
-        return randomHookConfig(0, 1, hookType);
-      });
+    const ownableHooks = MUTABLE_HOOK_TYPE.map((hookType) => {
+      return randomHookConfig(0, 1, hookType);
+    });
 
     for (const config of ownableHooks) {
       assert(

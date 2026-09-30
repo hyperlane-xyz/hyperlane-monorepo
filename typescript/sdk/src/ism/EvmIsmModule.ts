@@ -12,6 +12,7 @@ import {
   RateLimitedIsm__factory,
   StaticAggregationIsm__factory,
 } from '@hyperlane-xyz/core';
+import { isMutableIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   Address,
   Domain,
@@ -57,7 +58,6 @@ import {
   IsmConfig,
   IsmConfigSchema,
   IsmType,
-  MUTABLE_ISM_TYPE,
   NetFlowRateLimitedHookIsmConfig,
   OffchainLookupIsmConfig,
   PausableIsmConfig,
@@ -361,7 +361,7 @@ export class EvmIsmModule extends HyperlaneModule<
       hybridImmutableChanged ||
       typeof normalizedCurrentConfig === 'string' ||
       normalizedCurrentConfig.type !== normalizedTargetConfig.type ||
-      !MUTABLE_ISM_TYPE.includes(normalizedTargetConfig.type)
+      !isMutableIsmConfig(normalizedTargetConfig)
     ) {
       // For container ISM types (AGGREGATION, AMOUNT_ROUTING), attempt to update
       // sub-modules in-place before falling back to full redeployment. If all
@@ -427,7 +427,7 @@ export class EvmIsmModule extends HyperlaneModule<
     const updateTxs: AnnotatedEV5Transaction[] = [];
 
     assert(
-      MUTABLE_ISM_TYPE.includes(current.type),
+      isMutableIsmConfig(current),
       `Expected mutable ISM type but got ${current.type}`,
     );
     assert(
@@ -1099,7 +1099,7 @@ export class EvmIsmModule extends HyperlaneModule<
       return true;
     }
 
-    if (!MUTABLE_ISM_TYPE.includes(normalizedTargetConfig.type)) {
+    if (!isMutableIsmConfig(normalizedTargetConfig)) {
       return false;
     }
 

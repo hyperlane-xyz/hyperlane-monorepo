@@ -1,30 +1,6 @@
-export const TokenType = {
-  synthetic: 'synthetic',
-  syntheticRebase: 'syntheticRebase',
-  syntheticUri: 'syntheticUri',
-  collateral: 'collateral',
-  collateralVault: 'collateralVault',
-  collateralVaultRebase: 'collateralVaultRebase',
-  XERC20: 'xERC20',
-  XERC20Lockbox: 'xERC20Lockbox',
-  collateralFiat: 'collateralFiat',
-  collateralUri: 'collateralUri',
-  collateralCctp: 'collateralCctp',
-  collateralEverclear: 'collateralEverclear',
-  collateralDepositAddress: 'collateralDepositAddress',
-  collateralOft: 'collateralOft',
-  // Same-chain atomic local rebalancing bridge (bare ITokenBridge adapter)
-  atomicLocalRebalancing: 'atomicLocalRebalancing',
-  native: 'native',
-  nativeOpL2: 'nativeOpL2',
-  nativeOpL1: 'nativeOpL1',
-  ethEverclear: 'ethEverclear',
-  // backwards compatible alias to native
-  nativeScaled: 'nativeScaled',
-  // Canonical value for cross-collateral routing tokens
-  crossCollateral: 'crossCollateral',
-  unknown: 'unknown',
-} as const;
+import { TokenType as ProviderTokenType } from '@hyperlane-xyz/provider-sdk/warp';
+
+export const TokenType = ProviderTokenType;
 
 export type TokenType = (typeof TokenType)[keyof typeof TokenType];
 

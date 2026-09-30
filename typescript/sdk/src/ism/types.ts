@@ -23,6 +23,7 @@ import {
 import type {
   Address,
   Domain,
+  NonEmptyArray,
   ValueOf,
   WithAddress,
 } from '@hyperlane-xyz/utils';
@@ -31,8 +32,13 @@ import {
   isEmptyAddress,
   isNullish,
   isValidAddressSealevel,
+  nonEmptyArray,
   rootLogger,
 } from '@hyperlane-xyz/utils';
+import {
+  CompositeIsmNodeType as ProviderCompositeIsmNodeType,
+  IsmType as ProviderIsmType,
+} from '@hyperlane-xyz/provider-sdk/ism';
 
 import {
   ZBigNumberish,
@@ -71,42 +77,7 @@ export enum ModuleType {
 
 // this const object can be adjusted as per deployments necessary
 // meant for the deployer and checker
-export const IsmType = {
-  CUSTOM: 'custom',
-  OP_STACK: 'opStackIsm',
-  ROUTING: 'domainRoutingIsm',
-  INCREMENTAL_ROUTING: 'incrementalDomainRoutingIsm',
-  FALLBACK_ROUTING: 'defaultFallbackRoutingIsm',
-  AMOUNT_ROUTING: 'amountRoutingIsm',
-  INTERCHAIN_ACCOUNT_ROUTING: 'interchainAccountRouting',
-  AGGREGATION: 'staticAggregationIsm',
-  STORAGE_AGGREGATION: 'storageAggregationIsm',
-  MERKLE_ROOT_MULTISIG: 'merkleRootMultisigIsm',
-  MESSAGE_ID_MULTISIG: 'messageIdMultisigIsm',
-  STORAGE_MERKLE_ROOT_MULTISIG: 'storageMerkleRootMultisigIsm',
-  STORAGE_MESSAGE_ID_MULTISIG: 'storageMessageIdMultisigIsm',
-  TEST_ISM: 'testIsm',
-  PAUSABLE: 'pausableIsm',
-  TRUSTED_RELAYER: 'trustedRelayerIsm',
-  ARB_L2_TO_L1: 'arbL2ToL1Ism',
-  WEIGHTED_MERKLE_ROOT_MULTISIG: 'weightedMerkleRootMultisigIsm',
-  WEIGHTED_MESSAGE_ID_MULTISIG: 'weightedMessageIdMultisigIsm',
-  CCIP: 'ccipIsm',
-  OFFCHAIN_LOOKUP: 'offchainLookupIsm',
-  RATE_LIMITED: 'rateLimitedIsm',
-  COMPOSITE: 'compositeIsm',
-  BLACKLIST: 'blacklistIsm',
-  // Ownerless routing ISM that always defers to the mailbox's default ISM.
-  // Distinct from provider-sdk/AltVM's "default ISM" notion (the zero-address
-  // mailbox field): this is a deployed contract with its own address.
-  MAILBOX_DEFAULT: 'defaultIsm',
-  // Hybrid hook/ISM: one contract instance is installed as BOTH the hook and
-  // the ISM of a single warp router (shared bucket state). Deployed via the
-  // ISM config surface; the hook side is referenced by address.
-  NET_FLOW_RATE_LIMITED: 'netFlowRateLimitedHookIsm',
-  DELAYED_FLOW_ROUTER: 'delayedFlowRouterHookIsm',
-  UNKNOWN: 'unknownIsm',
-} as const;
+export const IsmType = ProviderIsmType;
 
 export type IsmType = (typeof IsmType)[keyof typeof IsmType];
 
@@ -114,36 +85,6 @@ export type DeployableIsmType = Exclude<
   IsmType,
   typeof IsmType.CUSTOM | typeof IsmType.UNKNOWN
 >;
-
-// ISM types that can be updated in-place on EVM chains (consumed by
-// EvmIsmModule and its test fixtures). COMPOSITE is Sealevel-only and never
-// appears as an EVM ISM config, so it's intentionally excluded here — its
-// mutability is handled separately by SvmCompositeIsmWriter/deploy-sdk.
-export const MUTABLE_ISM_TYPE: IsmType[] = [
-  IsmType.ROUTING,
-  IsmType.FALLBACK_ROUTING,
-  IsmType.PAUSABLE,
-  IsmType.OFFCHAIN_LOOKUP,
-  IsmType.INCREMENTAL_ROUTING,
-  IsmType.RATE_LIMITED,
-  IsmType.BLACKLIST,
-  // owner is the only mutable field; rate params force a redeploy
-  IsmType.NET_FLOW_RATE_LIMITED,
-  // owner + remote router enrollment are mutable; rate params force a redeploy
-  IsmType.DELAYED_FLOW_ROUTER,
-];
-
-/**
- * @notice Statically deployed ISM types
- * @dev ISM types with immutable config embedded in contract bytecode via MetaProxy
- */
-export const STATIC_ISM_TYPES: IsmType[] = [
-  IsmType.AGGREGATION,
-  IsmType.MERKLE_ROOT_MULTISIG,
-  IsmType.MESSAGE_ID_MULTISIG,
-  IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG,
-  IsmType.WEIGHTED_MESSAGE_ID_MULTISIG,
-];
 
 export const DYNAMICALLY_ROUTED_ISM_TYPES = [
   IsmType.AMOUNT_ROUTING,
@@ -294,7 +235,7 @@ export type RoutingIsmConfig =
 
 export type AggregationIsmConfig = {
   type: typeof IsmType.AGGREGATION | typeof IsmType.STORAGE_AGGREGATION;
-  modules: Array<IsmConfig>;
+  modules: NonEmptyArray<IsmConfig>;
   threshold: number;
 };
 
@@ -385,7 +326,7 @@ export const MultisigConfigSchema = z.object({
 });
 
 export const WeightedMultisigConfigSchema = z.object({
-  validators: z.array(ValidatorInfoSchema),
+  validators: z.array(ValidatorInfoSchema).nonempty().transform(nonEmptyArray),
   thresholdWeight: z.number(),
 });
 
@@ -521,7 +462,7 @@ export const CCIPIsmConfigSchema = z.object({
 
 export const OffchainLookupIsmConfigSchema = OwnableSchema.extend({
   type: z.literal(IsmType.OFFCHAIN_LOOKUP),
-  urls: z.array(z.url()),
+  urls: z.array(z.url()).nonempty().transform(nonEmptyArray),
 });
 
 export const isOffchainLookupIsmConfig = isCompliant(
@@ -604,7 +545,7 @@ export const AggregationIsmConfigSchema: z.ZodType<
         z.literal(IsmType.AGGREGATION),
         z.literal(IsmType.STORAGE_AGGREGATION),
       ]),
-      modules: z.array(BaseIsmConfigSchema),
+      modules: z.array(BaseIsmConfigSchema).nonempty().transform(nonEmptyArray),
       threshold: z.number(),
     }),
   )
@@ -662,19 +603,8 @@ function decimalStringBoundedBy(max: bigint, label: string) {
 // Discriminants for nodes inside a compositeIsm tree (Sealevel-only).
 // Distinct namespace from IsmType: these tag inline Borsh nodes within a
 // single composite-ism PDA, not separately deployed/addressed ISMs.
-export const CompositeIsmNodeType = {
-  TRUSTED_RELAYER: 'trustedRelayer',
-  MULTISIG_MESSAGE_ID: 'multisigMessageId',
-  AGGREGATION: 'aggregation',
-  TEST: 'test',
-  PAUSABLE: 'pausable',
-  AMOUNT_ROUTING: 'amountRouting',
-  RATE_LIMITED: 'rateLimited',
-  ROUTING: 'routing',
-  FALLBACK_ROUTING: 'fallbackRouting',
-} as const;
-export type CompositeIsmNodeType =
-  (typeof CompositeIsmNodeType)[keyof typeof CompositeIsmNodeType];
+export const CompositeIsmNodeType = ProviderCompositeIsmNodeType;
+export type CompositeIsmNodeType = ProviderCompositeIsmNodeType;
 
 export interface CompositeTrustedRelayerNodeConfig {
   type: typeof CompositeIsmNodeType.TRUSTED_RELAYER;
@@ -682,13 +612,13 @@ export interface CompositeTrustedRelayerNodeConfig {
 }
 export interface CompositeMultisigMessageIdNodeConfig {
   type: typeof CompositeIsmNodeType.MULTISIG_MESSAGE_ID;
-  validators: Address[];
+  validators: NonEmptyArray<Address>;
   threshold: number;
 }
 export interface CompositeAggregationNodeConfig {
   type: typeof CompositeIsmNodeType.AGGREGATION;
   threshold: number;
-  subIsms: CompositeIsmNodeConfig[];
+  subIsms: NonEmptyArray<CompositeIsmNodeConfig>;
 }
 export interface CompositeTestNodeConfig {
   type: typeof CompositeIsmNodeType.TEST;
@@ -747,13 +677,16 @@ export const CompositeIsmNodeConfigSchema: z.ZodType<CompositeIsmNodeConfig> =
       }),
       z.object({
         type: z.literal(CompositeIsmNodeType.MULTISIG_MESSAGE_ID),
-        validators: z.array(ZH160Hex),
+        validators: z.array(ZH160Hex).nonempty().transform(nonEmptyArray),
         threshold: ZU8Threshold,
       }),
       z.object({
         type: z.literal(CompositeIsmNodeType.AGGREGATION),
         threshold: ZU8Threshold,
-        subIsms: z.array(CompositeIsmNodeConfigSchema),
+        subIsms: z
+          .array(CompositeIsmNodeConfigSchema)
+          .nonempty()
+          .transform(nonEmptyArray),
       }),
       z.object({
         type: z.literal(CompositeIsmNodeType.TEST),

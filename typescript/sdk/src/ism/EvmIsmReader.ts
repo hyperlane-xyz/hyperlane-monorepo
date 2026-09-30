@@ -29,6 +29,7 @@ import {
   assert,
   concurrentMap,
   getLogLevel,
+  nonEmptyArray,
   objMap,
   promiseObjAll,
   rootLogger,
@@ -191,7 +192,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     return {
       address,
       type: IsmType.OFFCHAIN_LOOKUP,
-      urls,
+      urls: nonEmptyArray(urls),
       owner,
     };
   }
@@ -215,11 +216,13 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         break;
       case IsmType.AGGREGATION:
       case IsmType.STORAGE_AGGREGATION:
-        config.modules = await Promise.all(
-          config.modules.map(async (ism) => {
-            const derived = await this.deriveIsmConfig(ism);
-            return this.preserveUnredeployableIsm(ism, derived);
-          }),
+        config.modules = nonEmptyArray(
+          await Promise.all(
+            config.modules.map(async (ism) => {
+              const derived = await this.deriveIsmConfig(ism);
+              return this.preserveUnredeployableIsm(ism, derived);
+            }),
+          ),
         );
         break;
       case IsmType.AMOUNT_ROUTING: {
@@ -540,7 +543,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     return {
       address,
       type: ismType,
-      modules: ismConfigs,
+      modules: nonEmptyArray(ismConfigs),
       threshold,
     };
   }

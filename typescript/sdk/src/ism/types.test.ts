@@ -18,7 +18,9 @@ import {
   ModuleType,
   RateLimitedIsmConfigSchema,
   NetFlowRateLimitedHookIsmConfigSchema,
+  OffchainLookupIsmConfigSchema,
   ismTypeToModuleType,
+  WeightedMultisigConfigSchema,
 } from './types.js';
 
 const SOME_ADDRESS = ethers.Wallet.createRandom().address;
@@ -33,7 +35,38 @@ const SEALEVEL_ZERO_ADDRESS = '1'.repeat(32);
 const H256_ADDRESS = '0x' + '5'.repeat(64);
 const H256_ZERO = '0x' + '0'.repeat(64);
 
+describe('non-empty ISM collections', () => {
+  it('rejects weighted multisig configs without validators', () => {
+    expect(
+      WeightedMultisigConfigSchema.safeParse({
+        validators: [],
+        thresholdWeight: 1,
+      }).success,
+    ).to.be.false;
+  });
+
+  it('rejects offchain lookup configs without URLs', () => {
+    expect(
+      OffchainLookupIsmConfigSchema.safeParse({
+        type: IsmType.OFFCHAIN_LOOKUP,
+        owner: SOME_ADDRESS,
+        urls: [],
+      }).success,
+    ).to.be.false;
+  });
+});
+
 describe('AggregationIsmConfigSchema refine', () => {
+  it('should require at least one module', () => {
+    expect(
+      AggregationIsmConfigSchema.safeParse({
+        type: IsmType.AGGREGATION,
+        modules: [],
+        threshold: 0,
+      }).success,
+    ).to.be.false;
+  });
+
   it('should require threshold to be below modules length', () => {
     const IsmConfig = {
       type: IsmType.AGGREGATION,
@@ -638,6 +671,24 @@ describe('CompositeIsmConfigSchema', () => {
       root: { type: 'notARealNodeType', foo: 'bar' },
     };
     expect(CompositeIsmConfigSchema.safeParse(invalid).success).to.be.false;
+  });
+
+  it('rejects aggregation and multisig nodes with empty members', () => {
+    for (const root of [
+      {
+        type: CompositeIsmNodeType.AGGREGATION,
+        threshold: 1,
+        subIsms: [],
+      },
+      {
+        type: CompositeIsmNodeType.MULTISIG_MESSAGE_ID,
+        threshold: 1,
+        validators: [],
+      },
+    ]) {
+      expect(CompositeIsmConfigSchema.safeParse({ ...sample, root }).success).to
+        .be.false;
+    }
   });
 
   it('rejects an aggregation node with an out-of-range threshold', () => {

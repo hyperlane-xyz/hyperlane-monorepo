@@ -8,7 +8,7 @@ import {
   StaticAggregationIsm,
   StaticAggregationIsm__factory,
 } from '@hyperlane-xyz/core';
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, eqAddress, nonEmptyArray } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -118,7 +118,7 @@ describe('EvmIsmModule blacklist enumeration probe', () => {
           address: aggregationAddress,
           type: IsmType.AGGREGATION,
           threshold: config.threshold,
-          modules: await Promise.all(config.modules.map(derive)),
+          modules: nonEmptyArray(await Promise.all(config.modules.map(derive))),
         };
       }
 

@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
+import { nonEmptyArray } from '@hyperlane-xyz/utils';
+
 import { test1, test2, test3 } from '../consts/testChains.js';
 import { CompositeIsmNodeType, IsmConfig, IsmType } from '../ism/types.js';
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
@@ -70,7 +72,7 @@ function aggregationOf(...modules: IsmConfig[]): IsmConfig {
   return {
     type: IsmType.AGGREGATION,
     threshold: modules.length,
-    modules,
+    modules: nonEmptyArray(modules),
   };
 }
 

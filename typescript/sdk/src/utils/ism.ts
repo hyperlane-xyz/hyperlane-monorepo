@@ -5,6 +5,7 @@ import {
   assert,
   deepEquals,
   eqAddress,
+  nonEmptyArray,
   pick,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -169,8 +170,10 @@ export function setRateLimitedIsmRecipient(
   ) {
     return {
       ...ismConfig,
-      modules: ismConfig.modules.map((m) =>
-        setRateLimitedIsmRecipient(m, recipient, defaultOwner),
+      modules: nonEmptyArray(
+        ismConfig.modules.map((m) =>
+          setRateLimitedIsmRecipient(m, recipient, defaultOwner),
+        ),
       ),
     };
   }
@@ -308,7 +311,9 @@ export function mapHybridIsmNodes(
   ) {
     return {
       ...ismConfig,
-      modules: ismConfig.modules.map((m) => mapHybridIsmNodes(m, mapNode)),
+      modules: nonEmptyArray(
+        ismConfig.modules.map((m) => mapHybridIsmNodes(m, mapNode)),
+      ),
     };
   }
 

@@ -20,6 +20,7 @@ import {
   StaticAggregationIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
+import { isStaticIsmType } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   Address,
   deepEquals,
@@ -53,7 +54,6 @@ import {
   ModuleType,
   RoutingIsmConfig,
   RoutingIsmDelta,
-  STATIC_ISM_TYPES,
   ismTypeToModuleType,
 } from './types.js';
 
@@ -851,16 +851,6 @@ export function collectValidators(
 }
 
 /**
- * Checks if the given ISM type requires static deployment
- *
- * @param {IsmType} ismType - The type of Interchain Security Module (ISM)
- * @returns {boolean} True if the ISM type requires static deployment, false otherwise
- */
-export function isStaticIsm(ismType: IsmType): boolean {
-  return STATIC_ISM_TYPES.includes(ismType);
-}
-
-/**
  * Determines if static ISM deployment is supported on a given chain's technical stack
  * @dev Currently, only ZkSync does not support static deployments
  * @param chainTechnicalStack - The technical stack of the target chain
@@ -887,7 +877,7 @@ export function isIsmCompatible({
   ismType: IsmType;
 }): boolean {
   // Skip compatibility check for non-static ISMs as they're always supported
-  if (!isStaticIsm(ismType)) return true;
+  if (!isStaticIsmType(ismType)) return true;
   return isStaticDeploymentSupported(chainTechnicalStack);
 }
 

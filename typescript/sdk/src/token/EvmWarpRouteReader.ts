@@ -32,6 +32,10 @@ import {
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
+  CctpVersion,
+  NativeOpL1Version,
+} from '@hyperlane-xyz/provider-sdk/warp';
+import {
   Address,
   addressToBytes32,
   arrayToObject,
@@ -40,6 +44,7 @@ import {
   getLogLevel,
   isZeroish,
   isZeroishAddress,
+  nonEmptyArray,
   objFilter,
   objMap,
   promiseObjAll,
@@ -1078,7 +1083,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     // Convert ppm to bps for CCTP V2 contracts that store fees in ppm (>= 10.2.0)
     if (
       config.type === TokenType.collateralCctp &&
-      config.cctpVersion === 'V2' &&
+      config.cctpVersion === CctpVersion.V2 &&
       config.maxFeeBps !== undefined &&
       config.contractVersion &&
       compareVersions(config.contractVersion, CCTP_PPM_STORAGE_VERSION) >= 0
@@ -1164,10 +1169,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       return {
         ...collateralConfig,
         type: TokenType.collateralCctp,
-        cctpVersion: 'V1',
+        cctpVersion: CctpVersion.V1,
         messageTransmitter,
         tokenMessenger,
-        urls,
+        urls: nonEmptyArray(urls),
       };
     } else if (onchainCctpVersion === 1) {
       const tokenBridgeV2 = TokenBridgeCctpV2__factory.connect(
@@ -1196,10 +1201,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       return {
         ...collateralConfig,
         type: TokenType.collateralCctp,
-        cctpVersion: 'V2',
+        cctpVersion: CctpVersion.V2,
         messageTransmitter,
         tokenMessenger,
-        urls,
+        urls: nonEmptyArray(urls),
         minFinalityThreshold,
         maxFeeBps: maxFeePpm.toNumber(),
       };
@@ -1448,10 +1453,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     return {
       ...config,
       type: TokenType.nativeOpL1,
-      urls,
+      urls: nonEmptyArray(urls),
       portal,
       // assume version 1 for now
-      version: 1,
+      version: NativeOpL1Version.V1,
     };
   }
 

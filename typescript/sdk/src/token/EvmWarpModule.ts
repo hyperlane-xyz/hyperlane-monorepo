@@ -18,6 +18,7 @@ import {
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { CctpVersion } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   Address,
   Domain,
@@ -3040,7 +3041,7 @@ export class EvmWarpModule extends HyperlaneModule<
   ): AnnotatedEV5Transaction[] {
     if (
       !isCctpTokenConfig(expectedConfig) ||
-      expectedConfig.cctpVersion !== 'V2' ||
+      expectedConfig.cctpVersion !== CctpVersion.V2 ||
       expectedConfig.maxFeeBps === undefined
     ) {
       return [];

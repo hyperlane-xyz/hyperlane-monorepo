@@ -33,6 +33,7 @@ import {
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { CctpVersion } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   ContractVerifier,
   ExplorerFamily,
@@ -651,9 +652,9 @@ describe('EvmWarpRouteReader', async () => {
     });
   }
 
-  for (const cctpVersion of ['V1' as const, 'V2' as const]) {
+  for (const cctpVersion of Object.values(CctpVersion)) {
     it(`should derive CCTP ${cctpVersion} token correctly`, async () => {
-      const rawVersion = cctpVersion === 'V2' ? 1 : 0;
+      const rawVersion = cctpVersion === CctpVersion.V2 ? 1 : 0;
       await mockCircleMessageTransmitter.setVersion(rawVersion);
       await mockCircleTokenMessenger.setVersion(rawVersion);
 
@@ -668,7 +669,7 @@ describe('EvmWarpRouteReader', async () => {
         urls: ['https://fake-cctp-url.com'],
       };
 
-      if (cctpVersion === 'V2') {
+      if (cctpVersion === CctpVersion.V2) {
         cctpConfig.maxFeeBps = 1;
         cctpConfig.minFinalityThreshold = 1000;
       }

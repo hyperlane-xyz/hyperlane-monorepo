@@ -18,6 +18,7 @@ import {
   TokenRouter,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
+import { CctpVersion } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   addressToBytes32,
   isEVMLike,
@@ -237,14 +238,14 @@ abstract class TokenDeployer<
       ];
     } else if (isCctpTokenConfig(config)) {
       switch (config.cctpVersion) {
-        case 'V1':
+        case CctpVersion.V1:
           return [
             config.token,
             config.mailbox,
             config.messageTransmitter,
             config.tokenMessenger,
           ];
-        case 'V2': {
+        case CctpVersion.V2: {
           assert(
             config.maxFeeBps !== undefined,
             'maxFeeBps is undefined for CCTP V2 config',
@@ -393,7 +394,7 @@ abstract class TokenDeployer<
       configMap,
       (_, config): config is CctpTokenConfig =>
         isCctpTokenConfig(config) &&
-        config.cctpVersion === 'V2' &&
+        config.cctpVersion === CctpVersion.V2 &&
         config.maxFeeBps !== undefined,
     );
 
@@ -1199,9 +1200,12 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
   ): Promise<any> {
     // For CCTP contracts, use the version-specific factory
     if (contractName.startsWith('TokenBridgeCctp')) {
-      factory = getCctpFactory(
-        contractName.split('TokenBridgeCctp')[1] as 'V1' | 'V2',
+      const cctpVersion = contractName.slice('TokenBridgeCctp'.length);
+      assert(
+        cctpVersion === CctpVersion.V1 || cctpVersion === CctpVersion.V2,
+        `Unsupported CCTP version ${cctpVersion}`,
       );
+      factory = getCctpFactory(cctpVersion);
     }
 
     // Use the default deployment for other types

@@ -25,6 +25,7 @@ import {
   TokenBridgeCctpV2__factory,
   TokenBridgeDepositAddress__factory,
 } from '@hyperlane-xyz/core';
+import { CctpVersion } from '@hyperlane-xyz/provider-sdk/warp';
 
 import { DeployableTokenType, TokenType } from './config.js';
 
@@ -88,8 +89,8 @@ export const hypERC20factories = {
 export type HypERC20Factories = typeof hypERC20factories;
 
 // Helper function to get the appropriate CCTP factory based on version
-export function getCctpFactory(version: 'V1' | 'V2') {
-  return version === 'V1'
+export function getCctpFactory(version: CctpVersion) {
+  return version === CctpVersion.V1
     ? new TokenBridgeCctpV1__factory()
     : new TokenBridgeCctpV2__factory();
 }
