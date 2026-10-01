@@ -3,6 +3,7 @@ import {
   assert,
   deepEquals,
   eqAddressSol,
+  isEmptyAddress,
   isNullish,
   normalizeConfig,
   type NonEmptyArray,
@@ -392,6 +393,12 @@ export interface IRawIsmArtifactManager extends IArtifactManager<
  * domain. A domain present on chain and absent from the expected config would
  * otherwise keep verifying with its old validators, so a new ISM is deployed
  * (and the router repointed) when the expected domains drop any current one.
+ * Only domains of chains known to the ChainLookup are detected, since the
+ * program's per-domain accounts cannot be enumerated.
+ *
+ * A routingMessageIdMultisigIsm whose on-chain owner is renounced cannot be
+ * updated in place, so a new ISM is also deployed when its expected domains or
+ * owner differ from the current ones. An unchanged renounced ISM is kept.
  *
  * @param actual The current deployed ISM configuration
  * @param expected The desired ISM configuration
@@ -413,10 +420,24 @@ export function shouldDeployNewIsm(
     actual.type === IsmType.ROUTING_MESSAGE_ID_MULTISIG &&
     expected.type === IsmType.ROUTING_MESSAGE_ID_MULTISIG
   ) {
-    return Object.keys(actual.domains).some(
+    const droppedDomain = Object.keys(actual.domains).some(
       (domainId) =>
         !Object.prototype.hasOwnProperty.call(expected.domains, domainId),
     );
+    if (droppedDomain) return true;
+
+    if (!isEmptyAddress(actual.owner)) return false;
+
+    const expectedDomainIds = Object.keys(expected.domains);
+    const domainsChanged = expectedDomainIds.some(
+      (domainId) =>
+        !Object.prototype.hasOwnProperty.call(actual.domains, domainId) ||
+        !deepEquals(
+          normalizeConfig(actual.domains[Number(domainId)]),
+          normalizeConfig(expected.domains[Number(domainId)]),
+        ),
+    );
+    return domainsChanged || !isEmptyAddress(expected.owner);
   }
 
   // Normalize and compare configs (handles address casing, validator order, etc.)
@@ -1513,12 +1534,10 @@ export function ismConfigToArtifact(
     const domains: Record<number, DomainMultisigConfig> = {};
     for (const [chainName, domainConfig] of Object.entries(config.domains)) {
       const domainId = chainLookup.getDomainId(chainName);
-      if (isNullish(domainId)) {
-        logger.warn(
-          `Skipping unknown chain ${chainName} in ${IsmType.ROUTING_MESSAGE_ID_MULTISIG}`,
-        );
-        continue;
-      }
+      assert(
+        !isNullish(domainId),
+        `Unknown chain ${chainName} in ${IsmType.ROUTING_MESSAGE_ID_MULTISIG}`,
+      );
       domains[domainId] = domainConfig;
     }
     return {
