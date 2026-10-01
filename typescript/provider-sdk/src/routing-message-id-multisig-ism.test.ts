@@ -40,6 +40,7 @@ const chainLookup: ChainLookup = {
 
 const OWNER = 'Vote111111111111111111111111111111111111111';
 const PROGRAM_ADDRESS = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+const OTHER_PROGRAM_ADDRESS = 'Vote111111111111111111111111111111111111111';
 const V1 = '0x1111111111111111111111111111111111111111';
 const V2 = '0x2222222222222222222222222222222222222222';
 const DOMAIN_1: DomainMultisigConfig = { validators: [V1, V2], threshold: 2 };
@@ -240,6 +241,35 @@ describe('routingMessageIdMultisigIsm', () => {
         artifactState: ArtifactState.DEPLOYED,
         config: expected,
         deployed: { address: PROGRAM_ADDRESS },
+      });
+    });
+
+    it('keeps an explicitly deployed ISM at a different address instead of deploying a new one', () => {
+      const expected = artifactConfig({ 1: DOMAIN_1 });
+      const merged = mergeIsmArtifacts(deployedArtifact(current), {
+        artifactState: ArtifactState.DEPLOYED,
+        config: expected,
+        deployed: { address: OTHER_PROGRAM_ADDRESS },
+      });
+
+      expect(merged).to.deep.equal({
+        artifactState: ArtifactState.DEPLOYED,
+        config: expected,
+        deployed: { address: OTHER_PROGRAM_ADDRESS },
+      });
+    });
+
+    it('deploys a new ISM when the explicitly deployed target is the current ISM and drops a domain', () => {
+      const expected = artifactConfig({ 1: DOMAIN_1 });
+      const merged = mergeIsmArtifacts(deployedArtifact(current), {
+        artifactState: ArtifactState.DEPLOYED,
+        config: expected,
+        deployed: { address: PROGRAM_ADDRESS },
+      });
+
+      expect(merged).to.deep.equal({
+        artifactState: ArtifactState.NEW,
+        config: expected,
       });
     });
   });

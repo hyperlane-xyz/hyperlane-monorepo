@@ -2,6 +2,7 @@ import {
   WithAddress,
   assert,
   deepEquals,
+  eqAddressSol,
   isNullish,
   normalizeConfig,
   type NonEmptyArray,
@@ -492,8 +493,16 @@ export function mergeIsmArtifacts(
   // Like composite, the per-domain sets are diffed by the writer's update()
   // (it re-reads on-chain state directly); only a dropped domain forces a
   // fresh deployment because the program cannot remove one.
+  // An explicitly deployed ISM at a different address is the update target
+  // itself, so its own writer diffs it against its own on-chain state.
   if (expectedConfig.type === IsmType.ROUTING_MESSAGE_ID_MULTISIG) {
-    if (shouldDeployNewIsm(currentConfig, expectedConfig)) {
+    const targetsCurrent =
+      !isArtifactDeployed(expectedArtifact) ||
+      eqAddressSol(
+        expectedArtifact.deployed.address,
+        currentArtifact.deployed.address,
+      );
+    if (targetsCurrent && shouldDeployNewIsm(currentConfig, expectedConfig)) {
       return {
         artifactState: ArtifactState.NEW,
         config: expectedConfig,
