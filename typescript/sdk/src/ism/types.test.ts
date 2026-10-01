@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { ZERO_ADDRESS_HEX_32, assert } from '@hyperlane-xyz/utils';
 
 import { RATE_LIMIT_DEFAULT_DURATION_SECONDS } from '../types.js';
 
@@ -697,21 +697,37 @@ describe('RoutingMessageIdMultisigIsmConfigSchema', () => {
     expect(IsmConfigSchema.safeParse(base).success).to.be.true;
   });
 
-  interface InvalidCase {
+  interface OwnerCase {
     name: string;
-    config: unknown;
+    owner: string;
   }
-  const invalidCases: InvalidCase[] = [
+  const ownerCases: OwnerCase[] = [
+    { name: 'a base58 Sealevel owner', owner: SEALEVEL_ADDRESS },
     {
-      name: 'an EVM-format owner',
-      config: { ...base, owner: SOME_ADDRESS },
+      name: 'the reader renounced-owner sentinel',
+      owner: ZERO_ADDRESS_HEX_32,
     },
   ];
-  for (const c of invalidCases) {
-    it(`rejects ${c.name}`, () => {
-      expect(
-        RoutingMessageIdMultisigIsmConfigSchema.safeParse(c.config).success,
-      ).to.be.false;
+  it('rejects an EVM-format owner', () => {
+    const result = RoutingMessageIdMultisigIsmConfigSchema.safeParse({
+      ...base,
+      owner: SOME_ADDRESS,
+    });
+    expect(result.success).to.be.false;
+    assert(!result.success, 'expected the config to be rejected');
+    expect(result.error.issues.map((i) => i.path.join('.'))).to.deep.equal([
+      'owner',
+    ]);
+  });
+
+  for (const c of ownerCases) {
+    it(`parses ${c.name}`, () => {
+      const result = RoutingMessageIdMultisigIsmConfigSchema.safeParse({
+        ...base,
+        owner: c.owner,
+      });
+      assert(result.success, 'expected the config to parse');
+      expect(result.data.owner).to.equal(c.owner);
     });
   }
 });
