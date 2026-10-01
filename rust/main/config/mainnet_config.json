@@ -602,7 +602,7 @@
         }
       ],
       "validatorAnnounce": "Hqnn593pqDZWLy6bKZ4NbY767wFhUNBShDrLktuQa3Q2",
-      "interchainSecurityModule": "7SmtXCUTTbRzN57z1dFbgpCPxooRdc7zxdSeUorY7MAQ",
+      "interchainSecurityModule": "478haCzeegyyzMEsjtwdkxYyHP7ULSkFVo9BHZVQETAe",
       "technicalStack": "other"
     },
     "ethereum": {
@@ -1581,7 +1581,7 @@
         }
       ],
       "validatorAnnounce": "pRgs5vN4Pj7WvFbxf6QDHizo2njq2uksqEUbaSghVA8",
-      "interchainSecurityModule": "CSRz3AFRv1GcVgF4kAsKF63gUbkhDoyH468KfPtx6aG",
+      "interchainSecurityModule": "CaLiNiZpuWz9ddBqthAdX22QMRELEiw2pm1UQnsRnC91",
       "technicalStack": "other",
       "mailboxProcessAlt": "5iPyGCTQ2xHaCxv9A8GDJzt2tHWL8t9FK8UwG3KoQsYo",
       "urReveal": {
@@ -2530,7 +2530,7 @@
       ],
       "technicalStack": "other",
       "interchainGasPaymaster": "Bxof4ZpgLtoHoxBq6AGDCJUtVxUoE9LXkx8iizkDGQPz",
-      "interchainSecurityModule": "BzoXB92D7DqhXDcHyoXCYE2LhnRbBt5mVKAoqwNksTCU",
+      "interchainSecurityModule": "DRNdCPxXDKZ9qWXWTcuwNW96wVa4oQGUTPam5NvLNynU",
       "mailbox": "4MaM9GQZ753NhUcXH1pPsQwof1Mf3ZnjeNF4yx6S3p3N",
       "merkleTreeHook": "4MaM9GQZ753NhUcXH1pPsQwof1Mf3ZnjeNF4yx6S3p3N",
       "validatorAnnounce": "4LxdrQjqUzueko4MEn3cYCniEtcAZ6AxuHot2Fp3jskH"
@@ -3159,7 +3159,7 @@
       ],
       "technicalStack": "other",
       "interchainGasPaymaster": "3SDcBbfZUF9ykR3yudYN198ja3KJSq17Q3rKw7JKfJR6",
-      "interchainSecurityModule": "5eXy53gKgvzX8tEXvFShN4fxv1WdFeJytqzk2b9hcN6b",
+      "interchainSecurityModule": "9BcYMDFvE6nxaFAuorxxErKbqhZYbJiMYxEBCt5ryhNr",
       "mailbox": "6VdnmP8MfYkPNMwyU2ZY9S3ickYyewF58LPC38y9FAVU",
       "merkleTreeHook": "6VdnmP8MfYkPNMwyU2ZY9S3ickYyewF58LPC38y9FAVU",
       "validatorAnnounce": "28S9ToSehVxdE7rTGEAA3vAX3AchHJh1MXcq9AeM1rL8"

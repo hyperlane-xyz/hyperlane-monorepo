@@ -10,6 +10,7 @@ mod fallback;
 mod lander;
 mod metric;
 mod traits;
+mod vm_thread;
 
 #[cfg(test)]
 pub(crate) mod mock;

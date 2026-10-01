@@ -138,7 +138,7 @@ impl LatestCheckpointReorgReporter {
                 Url::parse(&rpc.url).map_err(|_| eyre::eyre!("Invalid rpcUrls[{i}] URL"))
             })
             .collect::<eyre::Result<Vec<_>>>()?;
-        let (source, urls) = state_read_urls(chain, rpc_urls)?;
+        let (source, urls) = state_read_urls(chain, rpc_urls);
         let mut merkle_tree_hooks = HashMap::new();
         for url in dedupe_rpc_urls(urls, source) {
             let hook = chain_conf_for_read_url(chain, url.clone(), RpcRole::Primary)

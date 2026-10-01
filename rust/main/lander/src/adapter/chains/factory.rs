@@ -45,7 +45,6 @@ impl AdapterFactory {
                 )
                 .await?,
             ),
-            ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => Arc::new(SealevelAdapter::new(
                 conf.clone(),
                 raw_conf.clone(),

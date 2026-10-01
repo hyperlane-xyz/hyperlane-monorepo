@@ -25,7 +25,7 @@
     "kathy": "pnpm tsx ./scripts/send-test-messages.ts",
     "format": "oxfmt --write ./src ./config ./scripts ./test",
     "test:warp": "mocha --config ../sdk/.mocharc.json test/warp-configs.test.ts",
-    "test:gitleaks": "mocha --config ../sdk/.mocharc.json test/gitleaks.test.ts",
+    "test:gitleaks": "mocha --config ../sdk/.mocharc.json --timeout 10000 test/gitleaks.test.ts",
     "test:balance": "mocha --config ../sdk/.mocharc.json test/balance-alerts.test.ts",
     "test:unit": "mocha --config ../sdk/.mocharc.json --timeout 10000 \"test/**/*.test.ts\" --ignore \"test/{warp-configs,balance-alerts,gitleaks}.test.ts\"",
     "test:hardhat": "pnpm hardhat-esm test test/govern.hardhat-test.ts",

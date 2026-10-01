@@ -48,7 +48,7 @@ function getOracleConfigWithOverrides(origin: ChainName) {
   // the svm-igp-gas-oracle-update skill's two-signer path).
   if (origin === 'solaxy') {
     oracleConfig.ethereum = {
-      gasPrice: '51695712',
+      gasPrice: '2000000000',
       tokenExchangeRate: '691771710368053885013231',
       tokenDecimals: 18,
     };

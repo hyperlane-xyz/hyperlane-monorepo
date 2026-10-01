@@ -20,7 +20,7 @@ use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
     git_sha,
     metrics::AgentMetrics,
-    settings::{ChainConf, CheckpointSyncerBuildError},
+    settings::ChainConf,
     BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, CheckpointSyncer, ContractSyncMetrics,
     ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetadataFromSettings, RuntimeMetrics,
     SequencedDataContractSync,
@@ -438,27 +438,20 @@ impl BaseAgent for Validator {
 
         let core = settings.build_hyperlane_core(metrics.clone());
 
+        // A reorg flag or an unreadable status must stop startup before any
+        // diagnostic RPC setup or reads, which can stall indefinitely.
+        let checkpoint_syncer: Arc<dyn CheckpointSyncer> = settings
+            .checkpoint_syncer
+            .build_and_validate(None)
+            .await
+            .expect("Failed to build checkpoint syncer")
+            .into();
+
         let reorg_reporter = if settings.lightweight {
             None
         } else {
             Some(LatestCheckpointReorgReporter::from_settings(&settings, &metrics).await?)
         };
-
-        let checkpoint_syncer_result = settings.checkpoint_syncer.build_and_validate(None).await;
-
-        if let Some(reorg_reporter) = &reorg_reporter {
-            Self::report_latest_checkpoints_from_each_endpoint(
-                reorg_reporter,
-                &checkpoint_syncer_result,
-            )
-            .await;
-        }
-
-        // Be extra sure to panic when checkpoint syncer fails, which indicates
-        // a fatal startup error.
-        let checkpoint_syncer: Arc<dyn CheckpointSyncer> = checkpoint_syncer_result
-            .expect("Failed to build checkpoint syncer")
-            .into();
 
         // If checkpoint syncer initialization was successful, use a reorg-reporter which
         // writes to the storage location in addition to the logs.
@@ -480,7 +473,7 @@ impl BaseAgent for Validator {
                 .enumerate()
                 .map(|(i, rpc)| Url::parse(&rpc.url).map_err(|_| eyre!("Invalid rpcUrls[{i}] URL")))
                 .collect::<Result<Vec<_>>>()?;
-            let (source, urls) = state_read_urls(&origin_chain_conf, rpc_urls)?;
+            let (source, urls) = state_read_urls(&origin_chain_conf, rpc_urls);
             let urls = dedupe_rpc_urls(urls, source);
             let hooks = build_validator_per_url_hooks(
                 &origin_chain_conf,
@@ -1182,31 +1175,6 @@ impl Validator {
         AnnouncementRetryBackoff::jittered(delay, jitter_permille)
     }
 
-    async fn report_latest_checkpoints_from_each_endpoint(
-        reorg_reporter: &dyn ReorgReporter,
-        checkpoint_syncer_result: &Result<Box<dyn CheckpointSyncer>, CheckpointSyncerBuildError>,
-    ) {
-        if let Err(CheckpointSyncerBuildError::ReorgFlag(reorg_resp)) =
-            checkpoint_syncer_result.as_ref()
-        {
-            match reorg_resp.event.as_ref() {
-                Some(reorg_event) => {
-                    reorg_reporter
-                        .report_with_reorg_period(&reorg_event.reorg_period)
-                        .await;
-                }
-                None => {
-                    tracing::error!(
-                        "Failed to parse reorg event, reporting with default reorg period"
-                    );
-                    reorg_reporter
-                        .report_with_reorg_period(&ReorgPeriod::None)
-                        .await;
-                }
-            }
-        }
-    }
-
     fn announcement_location(&self) -> Result<String> {
         let location = self.checkpoint_syncer.announcement_location();
         if self.origin_chain.domain_protocol() == hyperlane_core::HyperlaneDomainProtocol::Aleo {
@@ -1562,7 +1530,7 @@ mod tests {
                 Url::parse("https://rpc-a.example").unwrap(),
                 Url::parse("https://rpc-b.example").unwrap(),
             ];
-            let (selected_source, urls) = state_read_urls(chain, raw_rpc_urls).unwrap();
+            let (selected_source, urls) = state_read_urls(chain, raw_rpc_urls);
             assert_eq!(selected_source, source, "{protocol}");
             assert_eq!(urls.len(), 2, "{protocol}");
             for url in urls {
@@ -1578,7 +1546,6 @@ mod tests {
                     ChainConnectionConf::Radix(conn) => conn.core,
                     #[cfg(feature = "aleo")]
                     ChainConnectionConf::Aleo(conn) => conn.rpcs,
-                    ChainConnectionConf::Fuel(_) => panic!("unsupported protocol"),
                 };
                 assert_eq!(
                     actual,

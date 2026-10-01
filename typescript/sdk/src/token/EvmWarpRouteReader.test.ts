@@ -1,4 +1,12 @@
-import { PackageVersioned__factory } from '@hyperlane-xyz/core';
+import {
+  CrossCollateralRouter__factory,
+  EverclearTokenBridge__factory,
+  HypERC20Collateral__factory,
+  IFiatToken__factory,
+  IXERC20__factory,
+  PackageVersioned__factory,
+  TokenRouter__factory,
+} from '@hyperlane-xyz/core';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { ethers } from 'ethers';
@@ -7,14 +15,24 @@ import sinon from 'sinon';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
-import { EIP1967_IMPLEMENTATION_SLOT } from '../deploy/proxy.js';
+import {
+  EIP1967_BEACON_SLOT,
+  EIP1967_IMPLEMENTATION_SLOT,
+} from '../deploy/proxy.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { GetEventLogsResponse } from '../rpc/evm/types.js';
-import { missingSelectorError, networkError } from '../test/errors.js';
+import {
+  errorStringRevertError,
+  lsp17NoExtensionError,
+  missingSelectorError,
+  networkError,
+  panicRevertError,
+} from '../test/errors.js';
 import { randomAddress } from '../test/testUtils.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
+import { TokenType } from './config.js';
 import { XERC20Type } from './types.js';
 import { CONFIGURATION_CHANGED_EVENT_SELECTOR } from './xerc20-abi.js';
 
@@ -59,6 +77,445 @@ describe('EvmWarpRouteReader', () => {
     }
 
     expect(thrown).to.equal(transientError);
+  });
+
+  describe('fetchTokenFee', () => {
+    function stubFeeRecipient(feeRecipient: sinon.SinonStub): void {
+      sandbox.stub(TokenRouter__factory, 'connect').returns({
+        feeRecipient,
+      } as unknown as ReturnType<typeof TokenRouter__factory.connect>);
+    }
+
+    it('skips feeRecipient for routers without the token fee interface', async () => {
+      const feeRecipient = sandbox.stub().rejects(panicRevertError());
+      stubFeeRecipient(feeRecipient);
+      sandbox.stub(reader, 'fetchPackageVersion').resolves('8.1.2');
+
+      const result = await reader.fetchTokenFee(randomAddress());
+
+      expect(result).to.equal(undefined);
+      expect(feeRecipient.called).to.equal(false);
+    });
+
+    const failureCases = [
+      { name: 'a network error', error: networkError },
+      { name: 'an LSP17 revert', error: lsp17NoExtensionError },
+    ];
+
+    for (const c of failureCases) {
+      it(`rejects when feeRecipient fails with ${c.name} on a fee-capable router`, async () => {
+        const error = c.error();
+        stubFeeRecipient(sandbox.stub().rejects(error));
+        sandbox.stub(reader, 'fetchPackageVersion').resolves('10.0.0');
+
+        await expect(reader.fetchTokenFee(randomAddress())).to.be.rejectedWith(
+          error.message,
+        );
+      });
+    }
+  });
+
+  describe('fetchFeeHook', () => {
+    const feeHookSelector = TokenRouter__factory.createInterface()
+      .getSighash('feeHook()')
+      .slice(2);
+
+    function stubProxyProvider(implBytecode: string): {
+      call: sinon.SinonStub;
+      getCode: sinon.SinonStub;
+    } {
+      const provider = multiProvider.getProvider(TestChainName.test1);
+      const impl = randomAddress();
+      const getCode = sandbox
+        .stub(provider, 'getCode')
+        .callsFake(async (address) =>
+          (await address) === ethers.utils.getAddress(impl)
+            ? implBytecode
+            : '0x60',
+        );
+      sandbox
+        .stub(provider, 'getStorageAt')
+        .resolves(`0x${'00'.repeat(12)}${impl.slice(2)}`);
+      const call = sandbox
+        .stub(provider, 'call')
+        .rejects(lsp17NoExtensionError());
+      return { call, getCode };
+    }
+
+    it('skips feeHook() when bytecode has no feeHook() selector', async () => {
+      const { call } = stubProxyProvider('0x6080604052deadbeef');
+
+      expect(await reader.fetchFeeHook(randomAddress())).to.equal(undefined);
+      expect(call.called).to.equal(false);
+    });
+
+    it('rejects an LSP17-style revert when bytecode has the feeHook() selector', async () => {
+      const { call } = stubProxyProvider(`0x6080604052${feeHookSelector}`);
+
+      await expect(reader.fetchFeeHook(randomAddress())).to.be.rejectedWith(
+        'call revert exception',
+      );
+      expect(call.called).to.equal(true);
+    });
+
+    it('makes the call when bytecode is empty', async () => {
+      const { call } = stubProxyProvider('0x');
+
+      await expect(reader.fetchFeeHook(randomAddress())).to.be.rejectedWith(
+        'call revert exception',
+      );
+      expect(call.called).to.equal(true);
+    });
+
+    it('caches implementation bytecode per address', async () => {
+      const { getCode } = stubProxyProvider('0x6080604052deadbeef');
+      const router = randomAddress();
+
+      await reader.fetchFeeHook(router);
+      const callsAfterFirst = getCode.callCount;
+      await reader.fetchFeeHook(router.toLowerCase());
+
+      expect(getCode.callCount).to.equal(callsAfterFirst);
+    });
+  });
+
+  describe('implementation bytecode resolution', () => {
+    const feeHookSelector = TokenRouter__factory.createInterface()
+      .getSighash('feeHook()')
+      .slice(2);
+    const ZERO_SLOT = `0x${'00'.repeat(32)}`;
+    const WITH_SELECTOR = `0x6080604052${feeHookSelector}`;
+    const WITHOUT_SELECTOR = '0x6080604052deadbeef';
+
+    const router = randomAddress();
+    const impl = ethers.utils.getAddress(randomAddress());
+    const addressSlot = (address: string) =>
+      `0x${'00'.repeat(12)}${address.slice(2).toLowerCase()}`;
+    const minimalProxyCode = (address: string) =>
+      `0x363d3d373d3d3d363d73${address.slice(2).toLowerCase()}5af43d82803e903d91602b57fd5bf3`;
+
+    interface Case {
+      name: string;
+      routerCode: string | Error;
+      implCode?: string;
+      implSlot: string | Error;
+      beaconSlot: string | Error;
+      expectCall: boolean;
+    }
+
+    const cases: Case[] = [
+      {
+        name: 'reads the EIP-1967 implementation without the selector',
+        routerCode: '0x60',
+        implCode: WITHOUT_SELECTOR,
+        implSlot: addressSlot(impl),
+        beaconSlot: ZERO_SLOT,
+        expectCall: false,
+      },
+      {
+        name: 'reads the EIP-1967 implementation with the selector',
+        routerCode: '0x60',
+        implCode: WITH_SELECTOR,
+        implSlot: addressSlot(impl),
+        beaconSlot: ZERO_SLOT,
+        expectCall: true,
+      },
+      {
+        name: 'uses the own code of a non-proxy without the selector',
+        routerCode: WITHOUT_SELECTOR,
+        implSlot: ZERO_SLOT,
+        beaconSlot: ZERO_SLOT,
+        expectCall: false,
+      },
+      {
+        name: 'uses the own code of a non-proxy with the selector',
+        routerCode: WITH_SELECTOR,
+        implSlot: '0x0',
+        beaconSlot: '0x',
+        expectCall: true,
+      },
+      {
+        name: 'probes an address without code',
+        routerCode: '0x',
+        implSlot: ZERO_SLOT,
+        beaconSlot: ZERO_SLOT,
+        expectCall: true,
+      },
+      {
+        name: 'resolves an EIP-1167 minimal proxy without the selector',
+        routerCode: minimalProxyCode(impl),
+        implCode: WITHOUT_SELECTOR,
+        implSlot: ZERO_SLOT,
+        beaconSlot: ZERO_SLOT,
+        expectCall: false,
+      },
+      {
+        name: 'resolves an EIP-1167 minimal proxy with the selector',
+        routerCode: minimalProxyCode(impl),
+        implCode: WITH_SELECTOR,
+        implSlot: ZERO_SLOT,
+        beaconSlot: ZERO_SLOT,
+        expectCall: true,
+      },
+      {
+        name: 'probes a beacon proxy',
+        routerCode: WITHOUT_SELECTOR,
+        implSlot: ZERO_SLOT,
+        beaconSlot: addressSlot(impl),
+        expectCall: true,
+      },
+      {
+        name: 'probes when the implementation slot read fails',
+        routerCode: WITHOUT_SELECTOR,
+        implSlot: new Error('rpc unavailable'),
+        beaconSlot: ZERO_SLOT,
+        expectCall: true,
+      },
+      {
+        name: 'probes when the beacon slot read fails',
+        routerCode: WITHOUT_SELECTOR,
+        implSlot: ZERO_SLOT,
+        beaconSlot: new Error('rpc unavailable'),
+        expectCall: true,
+      },
+      {
+        name: 'probes when reading the own code fails',
+        routerCode: new Error('rpc unavailable'),
+        implSlot: ZERO_SLOT,
+        beaconSlot: ZERO_SLOT,
+        expectCall: true,
+      },
+      {
+        name: 'probes when reading the implementation code fails',
+        routerCode: '0x60',
+        implCode: undefined,
+        implSlot: addressSlot(impl),
+        beaconSlot: ZERO_SLOT,
+        expectCall: true,
+      },
+    ];
+
+    function stubProvider(c: Case): {
+      call: sinon.SinonStub;
+      getCode: sinon.SinonStub;
+    } {
+      const provider = multiProvider.getProvider(TestChainName.test1);
+      const getCode = sandbox
+        .stub(provider, 'getCode')
+        .callsFake(async (address) => {
+          const resolved = await address;
+          const code =
+            resolved.toLowerCase() === router.toLowerCase()
+              ? c.routerCode
+              : c.implCode;
+          if (code === undefined) throw new Error('rpc unavailable');
+          if (code instanceof Error) throw code;
+          return code;
+        });
+      sandbox
+        .stub(provider, 'getStorageAt')
+        .callsFake(async (_address, slot) => {
+          const value =
+            slot === EIP1967_BEACON_SLOT ? c.beaconSlot : c.implSlot;
+          if (value instanceof Error) throw value;
+          return value;
+        });
+      const call = sandbox
+        .stub(provider, 'call')
+        .rejects(lsp17NoExtensionError());
+      return { call, getCode };
+    }
+
+    for (const c of cases) {
+      it(c.name, async () => {
+        const { call } = stubProvider(c);
+
+        if (c.expectCall) {
+          await expect(reader.fetchFeeHook(router)).to.be.rejectedWith(
+            'call revert exception',
+          );
+        } else {
+          expect(await reader.fetchFeeHook(router)).to.equal(undefined);
+        }
+        expect(call.called).to.equal(c.expectCall);
+      });
+    }
+
+    it('does not cache unknown bytecode', async () => {
+      const c = cases.find((x) => x.name.includes('implementation slot read'));
+      assert(c, 'case exists');
+      const { getCode } = stubProvider(c);
+
+      await expect(reader.fetchFeeHook(router)).to.be.rejectedWith(
+        'call revert exception',
+      );
+      const callsAfterFirst = getCode.callCount;
+      await expect(reader.fetchFeeHook(router)).to.be.rejectedWith(
+        'call revert exception',
+      );
+
+      expect(getCode.callCount).to.be.greaterThan(callsAfterFirst);
+    });
+
+    it('shares one bytecode read between deriveTokenType and the getters', async () => {
+      const { getCode } = stubProvider(cases[2]);
+
+      await reader.deriveTokenType(router).catch(() => undefined);
+      const callsAfterDerive = getCode.callCount;
+      await reader.fetchFeeHook(router);
+
+      expect(getCode.callCount).to.equal(callsAfterDerive);
+    });
+  });
+
+  describe('fetchScale', () => {
+    const scaleSelector = new ethers.utils.Interface([
+      'function scale() view returns (uint256)',
+    ])
+      .getSighash('scale()')
+      .slice(2);
+
+    interface Case {
+      name: string;
+      bytecode: string;
+      expectCall: boolean;
+    }
+
+    const cases: Case[] = [
+      {
+        name: 'skips scale() when bytecode has no scale() selector',
+        bytecode: '0x6080604052deadbeef',
+        expectCall: false,
+      },
+      {
+        name: 'calls scale() when bytecode is empty',
+        bytecode: '0x',
+        expectCall: true,
+      },
+    ];
+
+    function stubProxyProvider(implBytecode: string): sinon.SinonStub {
+      const provider = multiProvider.getProvider(TestChainName.test1);
+      const impl = randomAddress();
+      sandbox
+        .stub(provider, 'getCode')
+        .callsFake(async (address) =>
+          (await address) === ethers.utils.getAddress(impl)
+            ? implBytecode
+            : '0x60',
+        );
+      sandbox
+        .stub(provider, 'getStorageAt')
+        .resolves(`0x${'00'.repeat(12)}${impl.slice(2)}`);
+      sandbox.stub(reader, 'fetchPackageVersion').resolves('8.0.0');
+      return sandbox
+        .stub(provider, 'call')
+        .rejects(new Error('Invalid response from provider'));
+    }
+
+    for (const c of cases) {
+      it(c.name, async () => {
+        const router = randomAddress();
+        const call = stubProxyProvider(c.bytecode);
+
+        if (c.expectCall) {
+          await expect(reader.fetchScale(router)).to.be.rejectedWith(
+            'Invalid response from provider',
+          );
+        } else {
+          expect(await reader.fetchScale(router)).to.equal(undefined);
+        }
+        expect(call.called).to.equal(c.expectCall);
+      });
+    }
+
+    it('rejects when the legacy scale() read gets an empty provider response and bytecode has the selector', async () => {
+      const router = randomAddress();
+      const call = stubProxyProvider(`0x6080604052${scaleSelector}`);
+
+      await expect(reader.fetchScale(router)).to.be.rejectedWith(
+        'Invalid response from provider',
+      );
+      expect(call.called).to.equal(true);
+    });
+  });
+
+  describe('deriveTokenType xERC20 probe', () => {
+    async function deriveWithXERC20Probe(
+      probeError: Error,
+    ): Promise<TokenType> {
+      const selector = HypERC20Collateral__factory.createInterface()
+        .getSighash('wrappedToken')
+        .slice(2);
+      const provider = multiProvider.getProvider(TestChainName.test1);
+      sandbox.stub(provider, 'getCode').resolves(`0x${selector}`);
+      sandbox.stub(provider, 'getStorageAt').resolves(`0x${'00'.repeat(32)}`);
+      sandbox.stub(HypERC20Collateral__factory, 'connect').returns({
+        wrappedToken: sandbox.stub().resolves(randomAddress()),
+      } as unknown as ReturnType<typeof HypERC20Collateral__factory.connect>);
+      sandbox.stub(IXERC20__factory, 'connect').returns({
+        'mintingCurrentLimitOf(address)': sandbox.stub().rejects(probeError),
+      } as unknown as ReturnType<typeof IXERC20__factory.connect>);
+      sandbox.stub(IFiatToken__factory, 'connect').returns({
+        callStatic: { mint: sandbox.stub().rejects(missingSelectorError()) },
+      } as unknown as ReturnType<typeof IFiatToken__factory.connect>);
+      sandbox.stub(EverclearTokenBridge__factory, 'connect').returns({
+        callStatic: {
+          everclearAdapter: sandbox.stub().rejects(missingSelectorError()),
+        },
+      } as unknown as ReturnType<typeof EverclearTokenBridge__factory.connect>);
+      sandbox.stub(CrossCollateralRouter__factory, 'connect').returns({
+        getCrossCollateralRouters: sandbox
+          .stub()
+          .rejects(missingSelectorError()),
+      } as unknown as ReturnType<
+        typeof CrossCollateralRouter__factory.connect
+      >);
+
+      return reader.deriveTokenType(randomAddress());
+    }
+
+    const fallThroughCases = [
+      { name: 'a panic revert', error: panicRevertError },
+      { name: 'a missing selector', error: missingSelectorError },
+    ];
+
+    for (const c of fallThroughCases) {
+      it(`treats ${c.name} as not xERC20`, async () => {
+        expect(await deriveWithXERC20Probe(c.error())).to.equal(
+          TokenType.collateral,
+        );
+      });
+    }
+
+    const surfacedCases = [
+      { name: 'an Error(string) revert', error: errorStringRevertError },
+      { name: 'an LSP17 revert', error: lsp17NoExtensionError },
+    ];
+
+    for (const c of surfacedCases) {
+      it(`rethrows ${c.name} from the xERC20 probe`, async () => {
+        const error = c.error();
+        let thrown: unknown;
+        try {
+          await deriveWithXERC20Probe(error);
+        } catch (e) {
+          thrown = e;
+        }
+        expect(thrown).to.equal(error);
+      });
+    }
+
+    it('rethrows transient xERC20 probe failures', async () => {
+      const error = networkError();
+      let thrown: unknown;
+      try {
+        await deriveWithXERC20Probe(error);
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown).to.equal(error);
+    });
   });
 
   describe('fetchXERC20Config', () => {

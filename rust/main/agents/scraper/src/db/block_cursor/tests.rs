@@ -9,7 +9,7 @@ use super::*;
 
 // The CCR caller forces persistence only if update did not already succeed.
 async fn update_and_persist(cursor: &BlockCursor, height: u64) -> Result<()> {
-    if !cursor.update(height).await {
+    if !matches!(cursor.update(height).await, Ok(true)) {
         cursor.flush().await?;
     }
     Ok(())
@@ -44,7 +44,8 @@ async fn cursor_updates_report_success_without_losing_retry_or_throttle_behavior
             event_type: "ccr_swap".to_owned(),
             inner: RwLock::new(BlockCursorInner {
                 height: 50,
-                last_saved_at,
+                last_saved_height: 50,
+                last_saved_at: Some(last_saved_at),
             }),
         };
         let result = update_and_persist(&cursor, height).await;
@@ -52,9 +53,9 @@ async fn cursor_updates_report_success_without_losing_retry_or_throttle_behavior
         assert_eq!(cursor.height().await, height.max(50));
         let saved = cursor.inner.read().await.last_saved_at;
         if failures == 2 {
-            assert_eq!(saved, last_saved_at);
+            assert_eq!(saved, Some(last_saved_at));
         } else {
-            assert!(saved > last_saved_at);
+            assert!(saved > Some(last_saved_at));
         }
         let log = cursor.db.into_transaction_log();
         assert_eq!(log.len(), attempts);
@@ -77,12 +78,48 @@ async fn cursor_throttled_update_alone_does_not_write() {
         event_type: String::new(),
         inner: RwLock::new(BlockCursorInner {
             height: 50,
-            last_saved_at: Instant::now(),
+            last_saved_height: 50,
+            last_saved_at: Some(Instant::now()),
         }),
     };
-    assert!(!cursor.update(100).await);
+    assert!(!cursor.update(100).await.expect("throttled update"));
     assert_eq!(cursor.height().await, 100);
     assert!(cursor.db.into_transaction_log().is_empty());
+}
+
+#[tokio::test]
+async fn first_progress_failure_propagates_and_retries_the_same_height() {
+    let cursor = BlockCursor {
+        db: MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_errors([DbErr::Custom("write failed".to_owned())])
+            .append_query_results([vec![BTreeMap::from([(
+                "id".to_owned(),
+                Value::BigInt(Some(1)),
+            )])]])
+            .into_connection(),
+        domain: 1,
+        event_type: "delivery".to_owned(),
+        inner: RwLock::new(BlockCursorInner {
+            height: 50,
+            last_saved_height: 50,
+            last_saved_at: None,
+        }),
+    };
+    assert!(cursor
+        .update(100)
+        .await
+        .expect_err("first checkpoint write fails")
+        .to_string()
+        .contains("write failed"));
+    assert_eq!(cursor.height().await, 100);
+    assert!(cursor.inner.read().await.last_saved_at.is_none());
+    assert!(cursor.update(100).await.expect("checkpoint update"));
+    assert_eq!(cursor.inner.read().await.last_saved_height, 100);
+    assert!(
+        !cursor.update(101).await.expect("checkpoint update"),
+        "subsequent writes stay throttled"
+    );
+    assert_eq!(cursor.db.into_transaction_log().len(), 2);
 }
 
 #[tokio::test]
@@ -99,7 +136,7 @@ async fn cursor_persistence_is_monotonic_scoped_and_survives_reopen_in_postgres(
     let other_domain = BlockCursor::new(connection.clone_connection(), 137, "ccr_swap", 20).await?;
     update_and_persist(&messages, 11).await?;
     update_and_persist(&other_domain, 21).await?;
-    first.inner.write().await.last_saved_at = Instant::now() - Duration::from_secs(11);
+    first.inner.write().await.last_saved_at = Some(Instant::now() - Duration::from_secs(11));
     let (a, b) = tokio::join!(
         update_and_persist(&first, 100),
         update_and_persist(&second, 80)

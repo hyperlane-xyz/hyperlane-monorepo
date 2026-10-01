@@ -31,10 +31,6 @@ const DEFAULT_TESSELLATED_VALIDATOR: ValidatorConfig = {
   address: '0x0d4c1394a255568ec0ecd11795b28d1bda183ca4',
   alias: 'Tessellated',
 };
-const DEFAULT_ZKV_VALIDATOR: ValidatorConfig = {
-  address: '0x761980c3debdc8ddb69a2713cf5126d4db900f0f',
-  alias: 'ZKV',
-};
 const DEFAULT_BLOCKPI_VALIDATOR: ValidatorConfig = {
   address: '0x6d113ae51bfea7b63a8828f97e9dce393b25c189',
   alias: 'BlockPI',
@@ -232,7 +228,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     threshold: 3,
     validators: [
       DEFAULT_AW_VALIDATOR,
-      DEFAULT_ZKV_VALIDATOR,
+      {
+        address: '0x9a8e2a9726ea990b5770830bd32d27b1e0434ee4',
+        alias: 'Qubelabs',
+      },
+      {
+        address: '0xe3a63fcd0348b0caee7894664e9ce5815e21362d',
+        alias: 'NodesGuru',
+      },
       DEFAULT_POPS_VALIDATOR,
       {
         address: '0x21e93a81920b73c0e98aed8e6b058dae409e4909',
@@ -304,6 +307,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     threshold: 3,
     validators: [
       DEFAULT_AW_VALIDATOR,
+      {
+        address: '0x7ade04268d07acb06f65096a56e0f7d3bb9a8f53',
+        alias: 'NodesGuru',
+      },
       DEFAULT_POPS_VALIDATOR,
       {
         address: '0xE95a08Ef009be3Fbc7FDfa4739AB2428910C285f',
@@ -366,15 +373,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   forma: {
-    threshold: 3,
+    threshold: 2,
     validators: [
       {
         address: '0xE74c7632aF1De54D208f1b9e18B22988dDc8C4CE',
         alias: 'Imperator',
-      },
-      {
-        address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
-        alias: 'Everstake',
       },
       {
         address: '0x1734abc14f0e68cdaf64f072831f6a6c8f622c37',
@@ -382,7 +385,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       {
         address: '0xb6536d1b52969d6c66bb85533b9ab04d886b3401',
-        alias: 'Engima',
+        alias: 'Enigma',
       },
     ],
   },
