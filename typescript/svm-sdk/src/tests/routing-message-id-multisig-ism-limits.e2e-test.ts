@@ -179,6 +179,10 @@ function buildVerifyFixture(
   };
 }
 
+// Error::ThresholdNotMet = 7 in
+// rust/sealevel/programs/ism/multisig-ism-message-id/src/error.rs
+const THRESHOLD_NOT_MET_LOG = 'custom program error: 0x7';
+
 interface SimulationResult {
   err: unknown;
   unitsConsumed: bigint | undefined;
@@ -402,10 +406,10 @@ describe('SVM routing message-id multisig ISM limits (measurements)', function (
         [privateKeyFor(50), privateKeyFor(51)],
         2,
       );
-      expect(outsider.err).to.not.equal(null);
+      expect(outsider.logs.join('\n')).to.contain(THRESHOLD_NOT_MET_LOG);
 
       const tooFew = await verifyUnits(domain, keys, 1);
-      expect(tooFew.err).to.not.equal(null);
+      expect(tooFew.logs.join('\n')).to.contain(THRESHOLD_NOT_MET_LOG);
     });
 
     it('measures compute units by threshold and validator count', async () => {

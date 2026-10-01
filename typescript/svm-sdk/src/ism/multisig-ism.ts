@@ -66,7 +66,6 @@ import {
 const INIT_RETRY_ATTEMPTS = 8;
 const INIT_RETRY_BASE_MS = 1000;
 const MAX_DOMAIN_ID = 0xffffffffn;
-const MAX_THRESHOLD = 255;
 
 type ProgramDeploymentError = Error & {
   context?: { logs?: string[] };
@@ -101,7 +100,7 @@ export type SvmRoutingMessageIdMultisigIsmWriterConfig = Readonly<{
  * (rust/sealevel/programs/ism/multisig-ism-message-id/src/instruction.rs),
  * plus the caps derived from the measured transaction-size limits.
  */
-function assertValidDomainMultisig(
+function assertValidDomainRoutingMultisig(
   domain: string,
   { validators, threshold }: DomainMultisigConfig,
 ): void {
@@ -116,9 +115,8 @@ function assertValidDomainMultisig(
   assert(
     Number.isInteger(threshold) &&
       threshold >= 1 &&
-      threshold <= MAX_THRESHOLD &&
       threshold <= validators.length,
-    `Multisig ISM domain ${domain} threshold (${threshold}) must be an integer between 1 and min(${MAX_THRESHOLD}, validators.length)`,
+    `Multisig ISM domain ${domain} threshold (${threshold}) must be an integer between 1 and validators.length`,
   );
   assert(
     threshold <= MAX_ROUTING_MESSAGE_ID_MULTISIG_THRESHOLD,
@@ -151,7 +149,7 @@ export function assertValidRoutingMessageIdMultisigIsmArtifact(
     `Multisig ISM owner must be a Sealevel address or empty (renounced), got: ${config.owner}`,
   );
   for (const [domain, domainConfig] of Object.entries(config.domains)) {
-    assertValidDomainMultisig(domain, domainConfig);
+    assertValidDomainRoutingMultisig(domain, domainConfig);
   }
 }
 

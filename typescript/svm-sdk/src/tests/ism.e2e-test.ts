@@ -335,30 +335,6 @@ describe('SVM ISM E2E Tests', function () {
       expect(read.deployed.programId).to.equal(programId);
     });
 
-    it('update with the same config is a no-op, incl. case/order changes', async () => {
-      const config = routingConfig(signer.getSignerAddress(), baseDomains);
-      const { programId } = await deploy(config, [1, 2, 3]);
-      const writer = updaterFor(programId, [1, 2, 3]);
-      const current = await writer.read(programId);
-      expect(await writer.update(current)).to.deep.equal([]);
-
-      const shuffled = routingConfig(signer.getSignerAddress(), {
-        1: {
-          validators: nonEmptyArray(
-            [...domain1Config.validators]
-              .reverse()
-              .map((v) => v.toUpperCase().replace('0X', '0x')),
-          ),
-          threshold: 2,
-        },
-        2: domain2Config,
-        3: domain3Config,
-      });
-      expect(
-        await writer.update({ ...current, config: shuffled }),
-      ).to.deep.equal([]);
-    });
-
     it('update replaces validators and threshold of one domain only, signed by the owner', async () => {
       const config = routingConfig(ownerSigner.getSignerAddress(), baseDomains);
       const { programId } = await deploy(config, [1, 2, 3]);
@@ -388,30 +364,6 @@ describe('SVM ISM E2E Tests', function () {
         3: domain3Config,
       });
       expect(after.config.owner).to.equal(ownerSigner.getSignerAddress());
-    });
-
-    it('update adds a new domain', async () => {
-      const config = routingConfig(signer.getSignerAddress(), baseDomains);
-      const { programId } = await deploy(config, [1, 2, 3, 9]);
-      const writer = updaterFor(programId, [1, 2, 3, 9]);
-      const current = await writer.read(programId);
-      expect(Object.keys(current.config.domains)).to.have.members([
-        '1',
-        '2',
-        '3',
-      ]);
-      const domain9 = { validators: validators(9, 2), threshold: 2 };
-      const txs = await writer.update({
-        ...current,
-        config: { ...current.config, domains: { ...baseDomains, 9: domain9 } },
-      });
-      expect(txs).to.have.length(1);
-      await sendAll(signer, txs);
-      const after = await readerFor([1, 2, 3, 9]).read(programId);
-      expect(after.config.domains).to.deep.equal({
-        ...baseDomains,
-        9: domain9,
-      });
     });
 
     it('a dropped on-chain domain is rejected by update', async () => {

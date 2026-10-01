@@ -11,6 +11,7 @@ import {
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { before, describe, it } from 'mocha';
+import sinon from 'sinon';
 
 chai.use(chaiAsPromised);
 
@@ -648,10 +649,25 @@ describe('SvmRoutingMessageIdMultisigIsmWriter.create', () => {
     race.context = { logs: ['Program is not deployed'] };
     signer.failures.push(race);
 
-    await writer.create({
-      artifactState: ArtifactState.NEW,
-      config: artifactConfig(signer.signer.address, {}),
-    });
+    const clock = sinon.useFakeTimers({ toFake: ['setTimeout'] });
+    try {
+      let settled = false;
+      const created = writer
+        .create({
+          artifactState: ArtifactState.NEW,
+          config: artifactConfig(signer.signer.address, {}),
+        })
+        .finally(() => {
+          settled = true;
+        });
+      while (!settled) {
+        await clock.tickAsync(1000);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      await created;
+    } finally {
+      clock.restore();
+    }
 
     expect(signer.sendAttempts).to.equal(2);
     expect(signer.kinds).to.deep.equal(['initialize']);
