@@ -16,6 +16,7 @@ import {
 import {
   type DeployedIsmAddress,
   type DomainMultisigConfig,
+  assertValidDomainRoutingMultisig as assertValidSharedDomainRoutingMultisig,
   type RoutingMessageIdMultisigIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
@@ -103,19 +104,17 @@ export type SvmRoutingMessageIdMultisigIsmWriterConfig = Readonly<{
  */
 function assertValidDomainStructure(
   domain: string,
-  { validators, threshold }: DomainMultisigConfig,
+  domainConfig: DomainMultisigConfig,
 ): void {
+  const { validators } = domainConfig;
   assert(
     /^(0|[1-9]\d*)$/.test(domain) && BigInt(domain) <= MAX_DOMAIN_ID,
     `Invalid multisig ISM domain: '${domain}'`,
   );
-  assert(
-    Number.isInteger(threshold) &&
-      threshold >= 1 &&
-      threshold <= validators.length,
-    `Multisig ISM domain ${domain} threshold (${threshold}) must be an integer between 1 and validators.length`,
+  assertValidSharedDomainRoutingMultisig(
+    domainConfig,
+    `Multisig ISM domain ${domain}`,
   );
-  const seen = new Set<string>();
   for (const validator of validators) {
     try {
       encodeH160(validator);
@@ -125,12 +124,6 @@ function assertValidDomainStructure(
         `Multisig ISM domain ${domain} has an invalid H160 validator address: ${validator}`,
       );
     }
-    const normalized = validator.toLowerCase();
-    assert(
-      !seen.has(normalized),
-      `Multisig ISM domain ${domain} has a duplicate validator address: ${validator}`,
-    );
-    seen.add(normalized);
   }
 }
 

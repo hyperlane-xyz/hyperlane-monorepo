@@ -1,22 +1,22 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { assertNoNestedCompositeIsm } from './HyperlaneIsmFactory.js';
+import { assertNoSealevelOnlyIsm } from './HyperlaneIsmFactory.js';
 import { type IsmConfig, IsmType } from './types.js';
 
 const SOME_ADDRESS = ethers.Wallet.createRandom().address;
 
-describe('assertNoNestedCompositeIsm', () => {
+describe('assertNoSealevelOnlyIsm', () => {
   it('allows a plain EVM ISM config', () => {
     expect(() =>
-      assertNoNestedCompositeIsm({
+      assertNoSealevelOnlyIsm({
         type: IsmType.TRUSTED_RELAYER,
         relayer: SOME_ADDRESS,
       }),
     ).to.not.throw();
   });
 
-  const nestedCompositeCases: Array<[label: string, config: IsmConfig]> = [
+  const sealevelOnlyCases: Array<[label: string, config: IsmConfig]> = [
     [
       'a top-level compositeIsm config',
       {
@@ -67,13 +67,38 @@ describe('assertNoNestedCompositeIsm', () => {
         },
       },
     ],
+    [
+      'a top-level routingMessageIdMultisigIsm config',
+      {
+        type: IsmType.ROUTING_MESSAGE_ID_MULTISIG,
+        owner: SOME_ADDRESS,
+        domains: {
+          ethereum: { validators: [SOME_ADDRESS], threshold: 1 },
+        },
+      },
+    ],
+    [
+      'a routingMessageIdMultisigIsm nested inside an aggregation',
+      {
+        type: IsmType.AGGREGATION,
+        threshold: 2,
+        modules: [
+          { type: IsmType.TEST_ISM },
+          {
+            type: IsmType.ROUTING_MESSAGE_ID_MULTISIG,
+            owner: SOME_ADDRESS,
+            domains: {
+              ethereum: { validators: [SOME_ADDRESS], threshold: 1 },
+            },
+          },
+        ],
+      },
+    ],
   ];
 
-  for (const [label, config] of nestedCompositeCases) {
+  for (const [label, config] of sealevelOnlyCases) {
     it(`rejects ${label}`, () => {
-      expect(() => assertNoNestedCompositeIsm(config)).to.throw(
-        /Sealevel-only/,
-      );
+      expect(() => assertNoSealevelOnlyIsm(config)).to.throw(/Sealevel-only/);
     });
   }
 });

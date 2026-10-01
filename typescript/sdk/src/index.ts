@@ -415,6 +415,8 @@ export {
   PausableIsmConfigSchema,
   RoutingIsmConfig,
   RoutingIsmConfigSchema,
+  RoutingMessageIdMultisigIsmConfig,
+  RoutingMessageIdMultisigIsmConfigSchema,
   SafeParseIsmConfigSchema,
   RateLimitedIsmConfig,
   RateLimitedIsmConfigSchema,

@@ -92,6 +92,7 @@ import {
   PausableIsmConfig,
   RoutingIsmConfig,
   RoutingIsmDelta,
+  RoutingMessageIdMultisigIsmConfig,
   WeightedMultisigIsmConfig,
 } from './types.js';
 import { isIsmCompatible, routingModuleDelta } from './utils.js';
@@ -158,36 +159,41 @@ const domainRoutingSetGasBuffer = (destination: ChainName) => {
 };
 
 /**
- * Recursively rejects a Composite ISM (Sealevel-only) anywhere in an EVM ISM
- * config tree, including nested under AGGREGATION/ROUTING/AMOUNT_ROUTING —
- * called once up front so an invalid nested config is caught before any
- * sibling module in the tree is deployed on-chain.
+ * Recursively rejects Sealevel-only ISMs (Composite, RoutingMessageIdMultisig)
+ * anywhere in an EVM ISM config tree, including nested under
+ * AGGREGATION/ROUTING/AMOUNT_ROUTING — called once up front so an invalid
+ * nested config is caught before any sibling module in the tree is deployed
+ * on-chain.
  */
-export function assertNoNestedCompositeIsm(
+export function assertNoSealevelOnlyIsm(
   config: IsmConfig,
-): asserts config is Exclude<IsmConfig, CompositeIsmConfig> {
+): asserts config is Exclude<
+  IsmConfig,
+  CompositeIsmConfig | RoutingMessageIdMultisigIsmConfig
+> {
   if (typeof config === 'string') {
     return;
   }
 
   assert(
-    config.type !== IsmType.COMPOSITE,
-    `Cannot deploy compositeIsm via the EVM ISM factory — it is Sealevel-only.`,
+    config.type !== IsmType.COMPOSITE &&
+      config.type !== IsmType.ROUTING_MESSAGE_ID_MULTISIG,
+    `Cannot deploy ${config.type} via the EVM ISM factory — it is Sealevel-only.`,
   );
 
   switch (config.type) {
     case IsmType.AGGREGATION:
     case IsmType.STORAGE_AGGREGATION:
-      config.modules.forEach(assertNoNestedCompositeIsm);
+      config.modules.forEach(assertNoSealevelOnlyIsm);
       break;
     case IsmType.ROUTING:
     case IsmType.FALLBACK_ROUTING:
     case IsmType.INCREMENTAL_ROUTING:
-      Object.values(config.domains).forEach(assertNoNestedCompositeIsm);
+      Object.values(config.domains).forEach(assertNoSealevelOnlyIsm);
       break;
     case IsmType.AMOUNT_ROUTING:
-      assertNoNestedCompositeIsm(config.lowerIsm);
-      assertNoNestedCompositeIsm(config.upperIsm);
+      assertNoSealevelOnlyIsm(config.lowerIsm);
+      assertNoSealevelOnlyIsm(config.upperIsm);
       break;
     default:
       break;
@@ -334,10 +340,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
     BaseIsmConfigSchema.parse(config);
 
-    // Reject a nested Composite ISM (Sealevel-only) before deploying any
+    // Reject a nested Sealevel-only ISM before deploying any
     // sibling module in the tree — a leaf-only check would let earlier
     // siblings in e.g. an AGGREGATION deploy before this is caught.
-    assertNoNestedCompositeIsm(config);
+    assertNoSealevelOnlyIsm(config);
 
     if (typeof config === 'string') {
       // @ts-ignore

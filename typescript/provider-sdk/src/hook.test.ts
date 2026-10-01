@@ -17,6 +17,7 @@ const chainLookup: ChainLookup = {
   getDomainId: (chain) => (chain === 'ethereum' ? 1 : null),
   getChainName: (domainId: number) => (domainId === 1 ? 'ethereum' : null),
   getKnownChainNames: () => ['ethereum'],
+  getKnownDomainIds: () => new Set([1]),
 };
 
 describe('hook protocolFee support', () => {

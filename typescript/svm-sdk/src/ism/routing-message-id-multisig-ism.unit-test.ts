@@ -497,26 +497,9 @@ describe('assertValidRoutingMessageIdMultisigIsmArtifact', () => {
       error: /owner/,
     },
     {
-      name: 'rejects an empty validator set from untyped input',
-      domains: { 3: { validators: JSON.parse('[]'), threshold: 1 } },
-      error: /domain 3 threshold \(1\)/,
-    },
-    {
-      name: 'rejects a zero threshold',
-      domains: { 4: { validators: [V1], threshold: 0 } },
-      error: /domain 4 threshold \(0\)/,
-    },
-    {
       name: 'rejects a threshold above the validator count',
       domains: { 5: { validators: [V1], threshold: 2 } },
-      error: /domain 5 threshold \(2\)/,
-    },
-    {
-      name: 'rejects duplicate validators regardless of case',
-      domains: {
-        6: { validators: [VA, upper(VA)], threshold: 1 },
-      },
-      error: /domain 6 has a duplicate validator/,
+      error: /domain 5 has threshold 2/,
     },
     {
       name: 'rejects a malformed validator',
@@ -581,29 +564,7 @@ describe('SvmRoutingMessageIdMultisigIsmWriter.create', () => {
           7: { validators: [V1, V2], threshold: 3 },
         }),
       }),
-    ).to.be.rejectedWith(/domain 7 threshold \(3\)/);
-
-    expect(signer.sent).to.have.length(0);
-  });
-
-  it('names the domain whose validator set is above the enforced cap, before any transaction', async () => {
-    const chain = new FakeChain();
-    const { writer, signer } = await makeWriter(chain);
-    const validators = validatorSet(200);
-
-    await expect(
-      writer.create({
-        artifactState: ArtifactState.NEW,
-        config: artifactConfig(OWNER, {
-          1: { validators: [V1], threshold: 1 },
-          9: { validators, threshold: 100 },
-        }),
-      }),
-    ).to.be.rejectedWith(
-      new RegExp(
-        `Multisig ISM domain 9 has 200 validators, above the enforced cap of ${MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN}`,
-      ),
-    );
+    ).to.be.rejectedWith(/domain 7 has threshold 3/);
 
     expect(signer.sent).to.have.length(0);
   });
@@ -1316,7 +1277,7 @@ describe('SvmRoutingMessageIdMultisigIsmWriter.update', () => {
             }),
           ),
         ),
-      ).to.be.rejectedWith(/domain 7 threshold/);
+      ).to.be.rejectedWith(/domain 7 has threshold/);
     });
   });
 });

@@ -19,7 +19,7 @@ import {
   RawRoutingIsmArtifactConfig,
   RoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import { Logger, rootLogger } from '@hyperlane-xyz/utils';
+import { Logger, rootLogger, isNonEmptyArray } from '@hyperlane-xyz/utils';
 
 /**
  * Factory function to create an IsmReader instance.
@@ -41,8 +41,12 @@ export function createIsmReader(
   chainLookup: ChainLookup,
 ): IsmReader {
   const protocolProvider = getProtocolProvider(chainMetadata.protocol);
+  const knownDomainIds = [...chainLookup.getKnownDomainIds()];
   const artifactManager: IRawIsmArtifactManager =
-    protocolProvider.createIsmArtifactManager(chainMetadata);
+    protocolProvider.createIsmArtifactManager(
+      chainMetadata,
+      isNonEmptyArray(knownDomainIds) ? { knownDomainIds } : undefined,
+    );
 
   return new IsmReader(artifactManager, chainLookup);
 }

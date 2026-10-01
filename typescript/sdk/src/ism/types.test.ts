@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { ZERO_ADDRESS_HEX_32, assert } from '@hyperlane-xyz/utils';
 
 import { RATE_LIMIT_DEFAULT_DURATION_SECONDS } from '../types.js';
 
@@ -17,6 +17,7 @@ import {
   MAX_SAFE_UINT48,
   ModuleType,
   RateLimitedIsmConfigSchema,
+  RoutingMessageIdMultisigIsmConfigSchema,
   NetFlowRateLimitedHookIsmConfigSchema,
   ismTypeToModuleType,
 } from './types.js';
@@ -579,6 +580,144 @@ describe('ModuleType', () => {
       ModuleType.COMPOSITE,
     );
   });
+});
+
+describe('RoutingMessageIdMultisigIsmConfigSchema', () => {
+  const VALIDATOR_A = '0x' + 'a'.repeat(40);
+  const VALIDATOR_B = '0x' + 'b'.repeat(40);
+  const base = {
+    type: IsmType.ROUTING_MESSAGE_ID_MULTISIG,
+    owner: SEALEVEL_ADDRESS,
+    domains: {
+      ethereum: { validators: [VALIDATOR_A, VALIDATOR_B], threshold: 2 },
+      test2: { validators: [VALIDATOR_A], threshold: 1 },
+    },
+  };
+
+  it('maps to ModuleType.MESSAGE_ID_MULTISIG', () => {
+    expect(ismTypeToModuleType(IsmType.ROUTING_MESSAGE_ID_MULTISIG)).to.equal(
+      ModuleType.MESSAGE_ID_MULTISIG,
+    );
+  });
+
+  interface ValidatorsIssueCase {
+    name: string;
+    validators: unknown;
+    threshold?: number;
+    issues: { path: (string | number)[]; message: string }[];
+  }
+  const THRESHOLD_ISSUE = {
+    path: ['domains', 'ethereum', 'threshold'],
+    message:
+      'Threshold must be between 1 and the number of validators (inclusive)',
+  };
+  const validatorsIssueCases: ValidatorsIssueCase[] = [
+    {
+      name: 'threshold 0',
+      validators: [VALIDATOR_A],
+      threshold: 0,
+      issues: [THRESHOLD_ISSUE],
+    },
+    {
+      name: 'a threshold greater than the validator count',
+      validators: [VALIDATOR_A],
+      threshold: 2,
+      issues: [THRESHOLD_ISSUE],
+    },
+    {
+      name: 'duplicate validators differing by case',
+      validators: ['0x' + 'ab'.repeat(20), '0x' + 'AB'.repeat(20)],
+      issues: [
+        {
+          path: ['domains', 'ethereum', 'validators'],
+          message: `Duplicate validator address: 0x${'AB'.repeat(20)}`,
+        },
+      ],
+    },
+    {
+      name: 'an empty validator set',
+      validators: [],
+      issues: [
+        {
+          path: ['domains', 'ethereum', 'validators'],
+          message: 'At least one validator is required',
+        },
+        {
+          path: ['domains', 'ethereum', 'threshold'],
+          message:
+            'Threshold must be between 1 and the number of validators (inclusive)',
+        },
+      ],
+    },
+    {
+      name: 'a non-array validator set',
+      validators: VALIDATOR_A,
+      issues: [
+        {
+          path: ['domains', 'ethereum', 'validators'],
+          message: 'Invalid input: expected array, received string',
+        },
+      ],
+    },
+    {
+      name: 'a bad validator address',
+      validators: ['0x1234'],
+      issues: [
+        {
+          path: ['domains', 'ethereum', 'validators', 0],
+          message: 'must be a 20-byte (0x + 40 hex chars) address',
+        },
+      ],
+    },
+  ];
+  for (const c of validatorsIssueCases) {
+    it(`reports the exact issue for ${c.name}`, () => {
+      const result = RoutingMessageIdMultisigIsmConfigSchema.safeParse({
+        ...base,
+        domains: {
+          ethereum: {
+            validators: c.validators,
+            threshold: c.threshold ?? 1,
+          },
+        },
+      });
+      assert(!result.success, 'expected the config to be rejected');
+      expect(
+        result.error.issues.map((i) => ({ path: i.path, message: i.message })),
+      ).to.deep.equal(c.issues);
+    });
+  }
+
+  it('parses via the schema and the top-level IsmConfigSchema union', () => {
+    const direct = RoutingMessageIdMultisigIsmConfigSchema.safeParse(base);
+    expect(direct.success).to.be.true;
+    if (direct.success) {
+      expect(direct.data.domains.ethereum.threshold).to.equal(2);
+    }
+    expect(IsmConfigSchema.safeParse(base).success).to.be.true;
+  });
+
+  interface OwnerCase {
+    name: string;
+    owner: string;
+  }
+  const ownerCases: OwnerCase[] = [
+    { name: 'a base58 Sealevel owner', owner: SEALEVEL_ADDRESS },
+    {
+      name: 'the reader renounced-owner sentinel',
+      owner: ZERO_ADDRESS_HEX_32,
+    },
+  ];
+  for (const c of ownerCases) {
+    it(`parses ${c.name}`, () => {
+      const result = RoutingMessageIdMultisigIsmConfigSchema.safeParse({
+        ...base,
+        owner: c.owner,
+      });
+      assert(result.success, 'expected the config to parse');
+      expect(result.data.owner).to.equal(c.owner);
+    });
+  }
 });
 
 describe('CompositeIsmConfigSchema', () => {

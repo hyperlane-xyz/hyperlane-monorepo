@@ -264,6 +264,9 @@ describe('CoreWriter', () => {
         .stub<[string | number], number>()
         .returns(mockDomainId),
       getKnownChainNames: sinon.stub<[], string[]>().returns([chainName]),
+      getKnownDomainIds: sinon
+        .stub<[], Set<number>>()
+        .returns(new Set([mockDomainId])),
     } satisfies ChainLookup;
 
     coreWriter = new CoreWriter(

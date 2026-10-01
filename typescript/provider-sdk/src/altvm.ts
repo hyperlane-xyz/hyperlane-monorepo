@@ -69,6 +69,7 @@ export enum IsmType {
   CCIP = 'ccipIsm',
   OFFCHAIN_LOOKUP = 'offchainLookupIsm',
   COMPOSITE = 'compositeIsm',
+  ROUTING_MESSAGE_ID_MULTISIG = 'routingMessageIdMultisigIsm',
 }
 
 export enum HookType {

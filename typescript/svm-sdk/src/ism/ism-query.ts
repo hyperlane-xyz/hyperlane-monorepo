@@ -136,7 +136,7 @@ export async function detectIsmType(
   }
 
   if (accessControl !== null) {
-    return IsmType.MESSAGE_ID_MULTISIG;
+    return IsmType.ROUTING_MESSAGE_ID_MULTISIG;
   }
 
   // Checked last: composite ISM's storage PDA uses the shared VAM seed
