@@ -61,6 +61,20 @@ const ROUTES_TO_SKIP: string[] = [
   // post-#9329 reader flags a false ConfigMismatch on the real on-chain
   // limits. Excluded until ENG-4414 lands (backfill limits or ignore missing).
   WarpRouteIds.BaseEthereumREZ,
+  // Retired route on the old `nesa` chain (domain 41443). The `nesa` RPC now
+  // serves nesachain (chainId 41444), so the legacy router has no code there and
+  // the read fails with "chain unknown". The route stays in the registry only
+  // so the relayer blacklist can match its routers and avoid delivering
+  // messages that originated from it (registry#1696), not to be checked.
+  WarpRouteIds.NesaLegacyNES,
+  // Every sei RPC prunes history (they retain days), while this route's xERC20
+  // was set up in 2024. The xERC20 reader needs the token's deployment block
+  // and logs from that period, which no configured sei endpoint can serve, and
+  // Seitrace is not a working alternative. A registry start block cannot fix
+  // this: it would either still hit pruned state or silently skip the original
+  // bridge configuration. Re-enable with an archive RPC, or drop when sei is
+  // deprecated.
+  WarpRouteIds.EthereumSeiFastUSD,
 ];
 
 // Name segments that mark a warp route as a non-production (staging/test)
