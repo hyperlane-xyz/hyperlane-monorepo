@@ -412,12 +412,17 @@ export function estimateTransactionWireSize(
  * Greedily groups items into batches whose instructions fit within Solana's
  * transaction size limit, using the real serialized size (not a fixed
  * per-item count) since domain instructions are variable-sized.
+ *
+ * `reservedBytes` is subtracted from the limit for every batch, for callers
+ * whose batches are later wrapped in a larger transaction.
  */
 export function chunkInstructionsBySize<T>(
   items: readonly T[],
   toInstruction: (item: T) => Instruction,
   feePayer: Address,
+  reservedBytes = 0,
 ): T[][] {
+  const maxSize = SOLANA_MAX_TRANSACTION_SIZE - reservedBytes;
   const chunks: T[][] = [];
   let current: T[] = [];
   for (const item of items) {
@@ -430,9 +435,10 @@ export function chunkInstructionsBySize<T>(
       toInstruction(item),
     ]);
     assert(
-      soloSize <= SOLANA_MAX_TRANSACTION_SIZE,
+      soloSize <= maxSize,
       `Instruction alone (${soloSize} bytes) exceeds Solana's ` +
-        `${SOLANA_MAX_TRANSACTION_SIZE}-byte transaction size limit — it is too ` +
+        `${SOLANA_MAX_TRANSACTION_SIZE}-byte transaction size limit` +
+        `${reservedBytes > 0 ? ` less ${reservedBytes} reserved bytes` : ''} — it is too ` +
         `large to submit in a single transaction.`,
     );
 
@@ -441,7 +447,7 @@ export function chunkInstructionsBySize<T>(
       feePayer,
       candidate.map(toInstruction),
     );
-    if (current.length > 0 && size > SOLANA_MAX_TRANSACTION_SIZE) {
+    if (current.length > 0 && size > maxSize) {
       chunks.push(current);
       current = [item];
     } else {

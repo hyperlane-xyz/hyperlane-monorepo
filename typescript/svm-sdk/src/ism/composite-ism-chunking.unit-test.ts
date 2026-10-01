@@ -10,6 +10,7 @@ import chaiAsPromised from 'chai-as-promised';
 
 chai.use(chaiAsPromised);
 
+import { assert } from '@hyperlane-xyz/utils';
 import type { CompositeIsmArtifactConfig } from '@hyperlane-xyz/provider-sdk/ism';
 
 import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
@@ -91,6 +92,51 @@ describe('chunkInstructionsBySize', () => {
         owner.address,
       ),
     ).to.throw(/exceeds Solana's/);
+  });
+
+  it('applies reservedBytes to every chunk and to the alone-exceeds check', async () => {
+    const items = await Promise.all(
+      Array.from({ length: 8 }, (_, domain) =>
+        getSetCompositeIsmDomainInstruction(PROGRAM_ADDRESS, owner, domain, {
+          kind: 'multisigMessageId',
+          validators: manyValidators(10).map((v) =>
+            Uint8Array.from(Buffer.from(v.slice(2), 'hex')),
+          ),
+          threshold: 5,
+        }),
+      ),
+    );
+    const reservedBytes = 300;
+    const [first] = items;
+    assert(first, 'items must not be empty');
+
+    const unreserved = chunkInstructionsBySize(
+      items,
+      (ix) => ix,
+      owner.address,
+    );
+    const reserved = chunkInstructionsBySize(
+      items,
+      (ix) => ix,
+      owner.address,
+      reservedBytes,
+    );
+
+    expect(reserved.length).to.be.greaterThan(unreserved.length);
+    expect(reserved.flat()).to.have.length(items.length);
+    for (const chunk of reserved) {
+      expect(estimateTransactionWireSize(owner.address, chunk)).to.be.at.most(
+        SOLANA_MAX_TRANSACTION_SIZE - reservedBytes,
+      );
+    }
+    expect(() =>
+      chunkInstructionsBySize(
+        [first],
+        (ix: Instruction) => ix,
+        owner.address,
+        SOLANA_MAX_TRANSACTION_SIZE - 100,
+      ),
+    ).to.throw(/less 1132 reserved bytes/);
   });
 
   it('undercounts size when the placeholder program ID collides with an explicit instruction account', async () => {

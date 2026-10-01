@@ -38,6 +38,7 @@ import {
   getInitializeMultisigIsmMessageIdInstruction,
   MAX_ROUTING_MESSAGE_ID_MULTISIG_THRESHOLD,
   MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN,
+  ROUTING_MESSAGE_ID_MULTISIG_SQUADS_WRAPPING_RESERVED_BYTES,
   getSetValidatorsAndThresholdInstruction,
   getTransferOwnershipInstruction,
   type MultisigIsmMessageIdProgramInstruction,
@@ -329,7 +330,7 @@ function makeDomains(
             '0x' + (domain * 100 + i + 1).toString(16).padStart(40, '0'),
         ),
       ),
-      threshold: 6,
+      threshold: Math.min(6, validatorsPerDomain),
     };
   }
   return domains;
@@ -719,7 +720,10 @@ describe('SvmRoutingMessageIdMultisigIsmWriter.create', () => {
     for (const tx of setTxs) {
       expect(
         estimateTransactionWireSize(signer.signer.address, tx.instructions),
-      ).to.be.at.most(SOLANA_MAX_TRANSACTION_SIZE);
+      ).to.be.at.most(
+        SOLANA_MAX_TRANSACTION_SIZE -
+          ROUTING_MESSAGE_ID_MULTISIG_SQUADS_WRAPPING_RESERVED_BYTES,
+      );
     }
     const lastTx = signer.sent[signer.sent.length - 1];
     expect(lastTx?.decoded.map((d) => d.kind)).to.deep.equal([
@@ -937,7 +941,7 @@ describe('SvmRoutingMessageIdMultisigIsmWriter.update', () => {
     ).to.deep.equal({ kind: 'transferOwnership', newOwner: null });
   });
 
-  it('splits updates into transactions that fit the wire size limit', async () => {
+  it('splits updates into transactions that fit the wire size limit with room for Squads wrapping', async () => {
     const chain = new FakeChain();
     await chain.setAccessControl(OWNER);
     const domains = makeDomains(30, 10);
@@ -951,25 +955,114 @@ describe('SvmRoutingMessageIdMultisigIsmWriter.update', () => {
     expect(txs.flatMap((tx) => tx.instructions)).to.have.length(30);
     for (const tx of txs) {
       expect(estimateTransactionWireSize(OWNER, tx.instructions)).to.be.at.most(
-        SOLANA_MAX_TRANSACTION_SIZE,
+        SOLANA_MAX_TRANSACTION_SIZE -
+          ROUTING_MESSAGE_ID_MULTISIG_SQUADS_WRAPPING_RESERVED_BYTES,
       );
     }
   });
 
-  it('asserts when the on-chain owner is unset', async () => {
-    const chain = new FakeChain();
-    await chain.setAccessControl(null);
-    const { writer } = await makeWriter(chain, [1]);
+  interface UpdateChunkCase {
+    name: string;
+    validatorsPerDomain: number;
+    domainCount: number;
+  }
+  const updateChunkCases: UpdateChunkCase[] = [
+    { name: '1-validator domains', validatorsPerDomain: 1, domainCount: 30 },
+    { name: '5-validator domains', validatorsPerDomain: 5, domainCount: 20 },
+    { name: '10-validator domains', validatorsPerDomain: 10, domainCount: 15 },
+    { name: '20-validator domains', validatorsPerDomain: 20, domainCount: 6 },
+    {
+      name: 'domains at the enforced cap',
+      validatorsPerDomain:
+        MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN,
+      domainCount: 4,
+    },
+  ];
+  for (const c of updateChunkCases) {
+    it(`keeps multi-domain updates of ${c.name} within the limit less the Squads reservation`, async () => {
+      const chain = new FakeChain();
+      await chain.setAccessControl(OWNER);
+      await chain.setDomain(1, [V1], 1);
+      const { writer } = await makeWriter(chain, [1]);
 
-    await expect(
-      writer.update(
+      const txs = await writer.update(
         deployed(
-          artifactConfig(OWNER, { 1: { validators: [V1], threshold: 1 } }),
+          artifactConfig(
+            OWNER,
+            makeDomains(c.domainCount, c.validatorsPerDomain),
+          ),
         ),
-      ),
-    ).to.be.rejectedWith(
-      `Cannot update multisig ISM ${PROGRAM_ID}: ISM has no owner`,
-    );
+      );
+
+      await applyUpdateTxs(chain, txs);
+      expect(txs.flatMap((tx) => tx.instructions)).to.have.length(
+        c.domainCount,
+      );
+      for (const tx of txs) {
+        expect(
+          estimateTransactionWireSize(OWNER, tx.instructions),
+        ).to.be.at.most(
+          SOLANA_MAX_TRANSACTION_SIZE -
+            ROUTING_MESSAGE_ID_MULTISIG_SQUADS_WRAPPING_RESERVED_BYTES,
+        );
+      }
+    });
+  }
+
+  describe('when the on-chain owner is unset', () => {
+    async function renouncedChain(): Promise<FakeChain> {
+      const chain = new FakeChain();
+      await chain.setAccessControl(null);
+      await chain.setDomain(1, [V1], 1);
+      return chain;
+    }
+
+    it('returns no transactions when the state already matches', async () => {
+      const chain = await renouncedChain();
+      const { writer } = await makeWriter(chain, [1]);
+
+      const txs = await writer.update(
+        deployed(
+          artifactConfig(ZERO_ADDRESS_HEX_32, {
+            1: { validators: [V1], threshold: 1 },
+          }),
+        ),
+      );
+
+      expect(txs).to.deep.equal([]);
+    });
+
+    it('rejects a domain change naming the domains', async () => {
+      const chain = await renouncedChain();
+      const { writer } = await makeWriter(chain, [1]);
+
+      await expect(
+        writer.update(
+          deployed(
+            artifactConfig(ZERO_ADDRESS_HEX_32, {
+              1: { validators: [V2], threshold: 1 },
+            }),
+          ),
+        ),
+      ).to.be.rejectedWith(
+        `Cannot update domains 1 of multisig ISM ${PROGRAM_ID}: ownership was renounced`,
+      );
+    });
+
+    it('rejects an ownership transfer', async () => {
+      const chain = await renouncedChain();
+      const { writer } = await makeWriter(chain, [1]);
+
+      await expect(
+        writer.update(
+          deployed(
+            artifactConfig(OWNER, { 1: { validators: [V1], threshold: 1 } }),
+          ),
+        ),
+      ).to.be.rejectedWith(
+        `Cannot transfer ownership of multisig ISM ${PROGRAM_ID}: ownership was renounced`,
+      );
+    });
   });
 
   it('rejects an update that would drop a domain configured on chain', async () => {
@@ -1261,7 +1354,7 @@ describe('chunkSetDomainItems', () => {
 
     expect(() => chunkSetDomainItems(items, OWNER)).to.throw(
       new RegExp(
-        `^Multisig ISM domain 9 instruction \\(\\d+ bytes\\) exceeds Solana's ${SOLANA_MAX_TRANSACTION_SIZE}-byte transaction size limit$`,
+        `^Multisig ISM domain 9 instruction \\(\\d+ bytes\\) exceeds the ${SOLANA_MAX_TRANSACTION_SIZE - ROUTING_MESSAGE_ID_MULTISIG_SQUADS_WRAPPING_RESERVED_BYTES}-byte limit that keeps it within Solana's ${SOLANA_MAX_TRANSACTION_SIZE}-byte transaction size limit when wrapped in a Squads proposal$`,
       ),
     );
   });
@@ -1272,5 +1365,29 @@ describe('chunkSetDomainItems', () => {
     const chunks = chunkSetDomainItems(items, OWNER);
 
     expect(chunks.flat()).to.have.length(2);
+  });
+
+  it('fits a domain at the enforced cap alone', async () => {
+    const capItem = await setItem(
+      5,
+      MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN,
+    );
+
+    expect(chunkSetDomainItems([capItem], OWNER)).to.have.length(1);
+  });
+
+  it('splits a batch that fits the plain limit but not the Squads reservation', async () => {
+    const items = [await setItem(1, 20), await setItem(2, 20)];
+    const plainSize = estimateTransactionWireSize(
+      OWNER,
+      items.map((item) => item.instruction),
+    );
+    expect(plainSize).to.be.at.most(SOLANA_MAX_TRANSACTION_SIZE);
+
+    const chunks = chunkSetDomainItems(items, OWNER);
+
+    expect(
+      chunks.map((chunk) => chunk.map((item) => item.domain)),
+    ).to.deep.equal([[1], [2]]);
   });
 });

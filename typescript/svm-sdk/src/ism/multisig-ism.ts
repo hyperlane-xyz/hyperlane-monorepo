@@ -39,6 +39,7 @@ import {
   MAX_ROUTING_MESSAGE_ID_MULTISIG_THRESHOLD,
   MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN,
   ROUTING_MESSAGE_ID_MULTISIG_SIGNATURES_HARD_LIMIT,
+  ROUTING_MESSAGE_ID_MULTISIG_SQUADS_WRAPPING_RESERVED_BYTES,
   ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_HARD_LIMIT,
   getInitializeMultisigIsmMessageIdInstruction,
   getSetValidatorsAndThresholdInstruction,
@@ -159,19 +160,31 @@ export interface SetDomainItem {
   instruction: Instruction;
 }
 
-/** Defense in depth behind the caps: fails naming the domain, not at send time. */
+/**
+ * Batches fit both a direct transaction and a Squads proposal wrapping them
+ * (see {@link ROUTING_MESSAGE_ID_MULTISIG_SQUADS_WRAPPING_RESERVED_BYTES}).
+ * Defense in depth behind the caps: fails naming the domain, not at send time.
+ */
 export function chunkSetDomainItems(
   items: readonly SetDomainItem[],
   feePayer: Address,
 ) {
+  const maxSize =
+    SOLANA_MAX_TRANSACTION_SIZE -
+    ROUTING_MESSAGE_ID_MULTISIG_SQUADS_WRAPPING_RESERVED_BYTES;
   for (const item of items) {
     const size = estimateTransactionWireSize(feePayer, [item.instruction]);
     assert(
-      size <= SOLANA_MAX_TRANSACTION_SIZE,
-      `Multisig ISM domain ${item.domain} instruction (${size} bytes) exceeds Solana's ${SOLANA_MAX_TRANSACTION_SIZE}-byte transaction size limit`,
+      size <= maxSize,
+      `Multisig ISM domain ${item.domain} instruction (${size} bytes) exceeds the ${maxSize}-byte limit that keeps it within Solana's ${SOLANA_MAX_TRANSACTION_SIZE}-byte transaction size limit when wrapped in a Squads proposal`,
     );
   }
-  return chunkInstructionsBySize(items, (item) => item.instruction, feePayer);
+  return chunkInstructionsBySize(
+    items,
+    (item) => item.instruction,
+    feePayer,
+    ROUTING_MESSAGE_ID_MULTISIG_SQUADS_WRAPPING_RESERVED_BYTES,
+  );
 }
 
 function expectedDomainEntries(
@@ -279,10 +292,10 @@ export class SvmRoutingMessageIdMultisigIsmWriter
    * initialized program is reused, domains already on chain are left untouched
    * and not reported.
    *
-   * Transactions are chunked by their direct size (one transaction including
-   * the compute-budget instruction). A multi-domain batch can exceed a Squads
-   * proposal packet even though each domain (within
-   * `MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN`) fits on its own.
+   * Transactions are chunked so that each also fits a Squads proposal wrapping
+   * it (see {@link ROUTING_MESSAGE_ID_MULTISIG_SQUADS_WRAPPING_RESERVED_BYTES}),
+   * so a direct submission may use slightly more transactions than its own
+   * size limit requires.
    *
    * Transfers OWNERSHIP (`config.owner`) but not the program upgrade
    * authority, which stays with the deploying key like the other SVM writers.
@@ -409,11 +422,15 @@ export class SvmRoutingMessageIdMultisigIsmWriter
    * and is missing from the expected config is rejected; callers deploy a new
    * ISM in that case (see `shouldDeployNewIsm` in provider-sdk).
    *
-   * Chunking measures the direct transaction size (one transaction including
-   * the compute-budget instruction). A multi-domain batch can exceed a Squads
-   * proposal packet even though each domain (within
-   * `MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN`) fits on its own. The on-chain OWNER pays the rent for new DomainData
+   * Transactions are chunked so that each also fits a Squads proposal wrapping
+   * it (see {@link ROUTING_MESSAGE_ID_MULTISIG_SQUADS_WRAPPING_RESERVED_BYTES}),
+   * so a direct submission may use slightly more transactions than its own
+   * size limit requires. The on-chain OWNER pays the rent for new DomainData
    * PDAs, so it must hold lamports when the returned transactions are sent.
+   *
+   * A renounced (zero-owner) ISM can no longer be changed: update() returns no
+   * transactions when it already matches the expected config and throws
+   * when any change (domain or ownership) would be needed.
    */
   async update(
     artifact: ArtifactDeployed<
@@ -426,11 +443,6 @@ export class SvmRoutingMessageIdMultisigIsmWriter
     assertValidRoutingMessageIdMultisigIsmArtifact(expected);
     const current = await this.read(programId);
 
-    assert(
-      !isZeroishAddress(current.config.owner),
-      `Cannot update multisig ISM ${programId}: ISM has no owner`,
-    );
-    const ownerAddress = parseAddress(current.config.owner);
     const expectedOwner = isEmptyAddress(expected.owner)
       ? null
       : parseAddress(expected.owner);
@@ -454,6 +466,29 @@ export class SvmRoutingMessageIdMultisigIsmWriter
         ),
     );
 
+    const ownerChanged = !eqOptionalAddress(
+      current.config.owner,
+      expected.owner,
+      eqAddressSol,
+    );
+
+    // A renounced ISM is terminal: the only reconcile is a no-op, like a
+    // frozen ALT.
+    if (isZeroishAddress(current.config.owner)) {
+      assert(
+        changedEntries.length === 0,
+        `Cannot update domains ${changedEntries
+          .map(([domain]) => domain)
+          .join(', ')} of multisig ISM ${programId}: ownership was renounced`,
+      );
+      assert(
+        !ownerChanged,
+        `Cannot transfer ownership of multisig ISM ${programId}: ownership was renounced`,
+      );
+      return [];
+    }
+
+    const ownerAddress = parseAddress(current.config.owner);
     const transactions: AnnotatedSvmTransaction[] = [];
     const chunks = chunkSetDomainItems(
       await buildSetDomainItems(programId, ownerAddress, changedEntries),
@@ -470,9 +505,7 @@ export class SvmRoutingMessageIdMultisigIsmWriter
     }
 
     // Last: the instructions above require the current owner as signer.
-    if (
-      !eqOptionalAddress(current.config.owner, expected.owner, eqAddressSol)
-    ) {
+    if (ownerChanged) {
       transactions.push({
         feePayer: ownerAddress,
         instructions: [

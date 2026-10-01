@@ -123,7 +123,7 @@ export function decodeMultisigIsmMessageIdProgramInstruction(
  * Measured hard limit on the validators of one origin domain: the most that fit
  * in a direct `SetValidatorsAndThreshold` transaction. A Squads
  * vault-transaction proposal wrapping it fits only 33 (31 with a
- * compute-unit-price instruction). See
+ * compute-unit-price instruction), with the default memo. See
  * {@link MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN} for the
  * measurement.
  */
@@ -159,7 +159,10 @@ export const ROUTING_MESSAGE_ID_MULTISIG_SIGNATURES_HARD_LIMIT = 12;
  *   instruction adds about 238 bytes. Measured 2026-10-01 with the real
  *   `@sqds/multisig` builders, direct / Squads-bundled bytes: N=20: 730/968,
  *   N=30: 930/1168, N=35: 1030/1268, N=40: 1130/1368, N=45: 1230/1468. Only 33
- *   validators fit (31 with a compute-unit-price instruction).
+ *   validators fit (31 with a compute-unit-price instruction). Multi-domain
+ *   batches are chunked with
+ *   {@link ROUTING_MESSAGE_ID_MULTISIG_SQUADS_WRAPPING_RESERVED_BYTES} so they
+ *   fit both forms.
  *
  * At most 12 validators (signatures) can verify a message in one execution
  * ({@link ROUTING_MESSAGE_ID_MULTISIG_SIGNATURES_HARD_LIMIT}; the enforced
@@ -169,6 +172,32 @@ export const ROUTING_MESSAGE_ID_MULTISIG_SIGNATURES_HARD_LIMIT = 12;
  * 33 only with buffered Squads proposals, which the repo does not support.
  */
 export const MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN = 24;
+
+/**
+ * Bytes reserved per `SetValidatorsAndThreshold` batch so that the batch also
+ * fits a Squads vault-transaction proposal. The proposal wraps the batch in an
+ * inner message and bundles `vaultTransactionCreate` and `proposalCreate` in
+ * one legacy transaction (`buildSquadsVaultTransactionProposal` in
+ * typescript/infra/src/utils/squads.ts), with a compute-unit-price instruction
+ * prepended (`buildTransaction` in
+ * typescript/sdk/src/signers/svm/solana-web3js.ts).
+ *
+ * Measured 2026-10-01 with the real `@sqds/multisig` builders: the wrapped
+ * transaction minus the direct transaction (compute-budget instruction
+ * included) is at most 294 bytes with the 29-byte default memo, over batches of
+ * 1 to 45 domains with 1 to 45 validators each (worst case 12 domains of 1
+ * validator, with the compute-unit-price instruction), and grows by 1 byte per
+ * memo character: 329 at the 64-character memo of
+ * `submitReceiptTxsToSquads` callers (typescript/infra/scripts/squads/propose-warp-batch.ts,
+ * "Hyperlane warp apply batch (N tx) for <chain> (i/N)"). 340 covers memos of
+ * up to 75 characters; a longer memo can overflow a batch that fills the
+ * reservation. A 24-validator domain (the enforced cap) is 809 bytes direct and
+ * always fits alone.
+ *
+ * Trade-off: direct submissions use slightly more transactions than the 1232
+ * byte limit alone would need.
+ */
+export const ROUTING_MESSAGE_ID_MULTISIG_SQUADS_WRAPPING_RESERVED_BYTES = 340;
 
 /**
  * Enforced cap on the threshold of one origin domain of a

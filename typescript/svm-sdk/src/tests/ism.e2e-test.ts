@@ -479,15 +479,27 @@ describe('SVM ISM E2E Tests', function () {
       expect(after.config.domains[7]).to.deep.equal(domain7);
     });
 
-    it('renounced ownership reads as the zero sentinel and update asserts', async () => {
+    it('renounced ownership reads as the zero sentinel, update is a no-op when unchanged and rejects changes', async () => {
       const config = routingConfig(ZERO_OWNER, baseDomains);
       const { programId } = await deploy(config, [1, 2, 3]);
       const writer = updaterFor(programId, [1, 2, 3]);
       const read = await writer.read(programId);
       expect(read.config.owner).to.equal(ZERO_OWNER);
       expect(read.config.domains).to.deep.equal(baseDomains);
-      const err = await rejection(writer.update(read));
-      expect(err.message).to.contain('has no owner');
+      expect(await writer.update(read)).to.deep.equal([]);
+      const err = await rejection(
+        writer.update({
+          ...read,
+          config: {
+            ...read.config,
+            domains: {
+              ...baseDomains,
+              1: { validators: validators(9, 3), threshold: 2 },
+            },
+          },
+        }),
+      );
+      expect(err.message).to.contain('ownership was renounced');
     });
 
     it('chunks many large domains across several txs within the size limit', async () => {
