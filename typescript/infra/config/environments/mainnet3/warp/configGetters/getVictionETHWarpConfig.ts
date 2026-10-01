@@ -13,6 +13,7 @@ import {
 
 import { legacyEthIcaRouter } from '../../../../../src/config/chain.js';
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { getWarpFeeOwner } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
@@ -27,6 +28,7 @@ const awProxyAdminOwners: ChainMap<string | undefined> = {
   base: awSafes.base,
   ethereum: awSafes.ethereum,
   optimism: awSafes.optimism,
+  robinhood: awIcas.robinhood,
 } as const;
 
 const deploymentChains = [
@@ -34,6 +36,7 @@ const deploymentChains = [
   'base',
   'ethereum',
   'optimism',
+  'robinhood',
   'viction',
 ] as const;
 
@@ -44,19 +47,21 @@ const nativeChains = [
   'base',
   'ethereum',
   'optimism',
+  'robinhood',
 ] as const satisfies DeploymentChain[];
 
 const ownersByChain: Record<DeploymentChain, string> = {
   ethereum: awSafes.ethereum,
-  arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45', // ICA on ethereum
-  base: '0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7', // ICA on ethereum
-  optimism: '0x1E2afA8d1B841c53eDe9474D188Cd4FcfEd40dDC', // ICA on ethereum
-  viction: awSafes.viction,
+  arbitrum: awIcas.arbitrum,
+  base: awIcas.base,
+  optimism: awIcas.optimism,
+  robinhood: awIcas.robinhood,
+  viction: awIcas.viction,
 };
 
 export const getVictionETHWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
 
@@ -93,7 +98,6 @@ export const getVictionETHWarpConfig = async (
     'viction',
     {
       ...routerConfig.viction,
-      ...abacusWorksEnvOwnerConfig.viction,
       owner: ownersByChain.viction,
       type: TokenType.synthetic,
       name: 'ETH',
