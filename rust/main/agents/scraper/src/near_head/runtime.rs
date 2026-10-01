@@ -72,6 +72,7 @@ impl Worker {
         self.store
             .claim(confirmation_lease(self.poll_interval))
             .await?;
+        self.source.begin_cycle().await;
         let observed = match observe(self.source.as_ref(), &self.store).await {
             Ok(state) => state,
             Err(error) => {

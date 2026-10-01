@@ -10142,7 +10142,6 @@ dependencies = [
  "hyperlane-base",
  "hyperlane-core",
  "hyperlane-ethereum",
- "hyperlane-sealevel",
  "hyperlane-test",
  "itertools 0.14.0",
  "migration",

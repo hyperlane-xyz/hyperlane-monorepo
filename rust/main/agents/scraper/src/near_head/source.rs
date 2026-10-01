@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use async_trait::async_trait;
 use ethers::{
@@ -20,6 +20,7 @@ use hyperlane_ethereum::{
     event_filters::{DispatchFilter, GasPaymentFilter, InsertedIntoTreeFilter, ProcessIdFilter},
     BuildableWithProvider, ConnectionConf,
 };
+use tokio::sync::RwLock;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Header {
@@ -86,10 +87,17 @@ impl From<u64> for BlockSelector {
 
 #[async_trait]
 pub(super) trait Source: Send + Sync {
+    async fn begin_cycle(&self) {}
     async fn header(&self, block: BlockSelector) -> Result<Header>;
+    async fn fresh_header(&self, block: BlockSelector) -> Result<Header> {
+        self.header(block).await
+    }
     async fn range_end(&self, after: u64, through: u64, _head: u64) -> Result<Header> {
         ensure!(after < through, "Empty indexing range");
         self.header(BlockSelector::Height(through)).await
+    }
+    async fn fresh_range_end(&self, after: u64, through: u64, head: u64) -> Result<Header> {
+        self.range_end(after, through, head).await
     }
     async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>>;
     async fn events_after(
@@ -342,6 +350,7 @@ pub(super) struct GenericSource {
     sequence_mode: bool,
     derive_insertions_from_messages: bool,
     chunk_size: u32,
+    headers: RwLock<HashMap<u64, Header>>,
 }
 
 impl GenericSource {
@@ -370,6 +379,7 @@ impl GenericSource {
                 HyperlaneDomainProtocol::Sealevel
             ),
             chunk_size: conf.index.chunk_size,
+            headers: RwLock::new(HashMap::new()),
         }))
     }
 
@@ -512,7 +522,7 @@ impl GenericSource {
         });
     }
 
-    async fn header_at(&self, height: u64) -> hyperlane_core::ChainResult<Header> {
+    async fn fetch_header_at(&self, height: u64) -> hyperlane_core::ChainResult<Header> {
         let block = self.provider.get_block_by_height(height).await?;
         if block.number != height {
             return Err(
@@ -530,37 +540,56 @@ impl GenericSource {
             parent: EthersH256::zero(),
         })
     }
-}
 
-#[async_trait]
-impl Source for GenericSource {
-    async fn header(&self, selector: BlockSelector) -> Result<Header> {
-        let height = match selector {
-            BlockSelector::Height(height) => height,
-            BlockSelector::Latest => {
-                self.provider
-                    .get_chain_metrics()
-                    .await?
-                    .ok_or_else(|| eyre!("Provider omitted chain height"))?
-                    .block_height
-            }
-            BlockSelector::Safe | BlockSelector::Finalized => {
-                u64::from(self.messages.latest_sequence_count_and_tip().await?.1)
-            }
-        };
-        Ok(self.header_at(height).await?)
+    async fn header_at(&self, height: u64) -> hyperlane_core::ChainResult<Header> {
+        if let Some(header) = self.headers.read().await.get(&height).cloned() {
+            return Ok(header);
+        }
+        let header = self.fetch_header_at(height).await?;
+        self.headers.write().await.insert(height, header.clone());
+        Ok(header)
     }
 
-    async fn range_end(&self, after: u64, through: u64, head: u64) -> Result<Header> {
+    async fn fresh_header_at(&self, height: u64) -> hyperlane_core::ChainResult<Header> {
+        let header = self.fetch_header_at(height).await?;
+        self.headers.write().await.insert(height, header.clone());
+        Ok(header)
+    }
+
+    async fn selected_height(&self, selector: BlockSelector) -> Result<u64> {
+        match selector {
+            BlockSelector::Height(height) => Ok(height),
+            BlockSelector::Latest => Ok(self
+                .provider
+                .get_chain_metrics()
+                .await?
+                .ok_or_else(|| eyre!("Provider omitted chain height"))?
+                .block_height),
+            BlockSelector::Safe | BlockSelector::Finalized => Ok(u64::from(
+                self.messages.latest_sequence_count_and_tip().await?.1,
+            )),
+        }
+    }
+
+    async fn range_end_with_freshness(
+        &self,
+        after: u64,
+        through: u64,
+        head: u64,
+        fresh: bool,
+    ) -> Result<Header> {
         ensure!(after < through, "Empty indexing range");
         ensure!(through <= head, "Range boundary is ahead of head");
         let mut first_error = None;
         for height in (after.saturating_add(1)..=through).rev() {
-            match self.header_at(height).await {
+            let result = if fresh {
+                self.fresh_header_at(height).await
+            } else {
+                self.header_at(height).await
+            };
+            match result {
                 Ok(header) => return Ok(header),
-                Err(error)
-                    if hyperlane_sealevel::is_get_block_unresolvable_after_retries(&error) =>
-                {
+                Err(error) if self.provider.is_block_unavailable(&error) => {
                     first_error.get_or_insert(eyre::Report::new(error));
                 }
                 Err(error) => return Err(error.into()),
@@ -570,17 +599,47 @@ impl Source for GenericSource {
         // real block after it without treating nonexistent slots as headers.
         let limit = head.min(through.saturating_add(through.saturating_sub(after)));
         for height in through.saturating_add(1)..=limit {
-            match self.header_at(height).await {
+            let result = if fresh {
+                self.fresh_header_at(height).await
+            } else {
+                self.header_at(height).await
+            };
+            match result {
                 Ok(header) => return Ok(header),
-                Err(error)
-                    if hyperlane_sealevel::is_get_block_unresolvable_after_retries(&error) =>
-                {
+                Err(error) if self.provider.is_block_unavailable(&error) => {
                     first_error.get_or_insert(eyre::Report::new(error));
                 }
                 Err(error) => return Err(error.into()),
             }
         }
         Err(first_error.unwrap_or_else(|| eyre!("No canonical block in indexing range")))
+    }
+}
+
+#[async_trait]
+impl Source for GenericSource {
+    async fn begin_cycle(&self) {
+        self.headers.write().await.clear();
+    }
+
+    async fn header(&self, selector: BlockSelector) -> Result<Header> {
+        let height = self.selected_height(selector).await?;
+        Ok(self.header_at(height).await?)
+    }
+
+    async fn fresh_header(&self, selector: BlockSelector) -> Result<Header> {
+        let height = self.selected_height(selector).await?;
+        Ok(self.fresh_header_at(height).await?)
+    }
+
+    async fn range_end(&self, after: u64, through: u64, head: u64) -> Result<Header> {
+        self.range_end_with_freshness(after, through, head, false)
+            .await
+    }
+
+    async fn fresh_range_end(&self, after: u64, through: u64, head: u64) -> Result<Header> {
+        self.range_end_with_freshness(after, through, head, true)
+            .await
     }
 
     async fn counts(&self, _hash: EthersH256) -> Result<[u32; 2]> {
@@ -757,7 +816,14 @@ impl Source for GenericSource {
 
 #[cfg(test)]
 mod tests {
-    use std::{ops::RangeInclusive, sync::Mutex};
+    use std::{
+        marker::PhantomData,
+        ops::RangeInclusive,
+        sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc, Mutex,
+        },
+    };
 
     use ethers::{
         abi::{encode, Token},
@@ -765,6 +831,131 @@ mod tests {
     };
 
     use super::*;
+
+    #[derive(Debug)]
+    struct EmptyIndexer<T>(PhantomData<T>);
+
+    #[async_trait]
+    impl<T: Send + Sync + std::fmt::Debug> hyperlane_core::Indexer<T> for EmptyIndexer<T> {
+        async fn fetch_logs_in_range(
+            &self,
+            _range: RangeInclusive<u32>,
+        ) -> hyperlane_core::ChainResult<Vec<(Indexed<T>, LogMeta)>> {
+            Ok(Vec::new())
+        }
+
+        async fn get_finalized_block_number(&self) -> hyperlane_core::ChainResult<u32> {
+            Ok(7)
+        }
+    }
+
+    #[async_trait]
+    impl<T: Send + Sync + std::fmt::Debug> SequenceAwareIndexer<T> for EmptyIndexer<T> {
+        async fn latest_sequence_count_and_tip(
+            &self,
+        ) -> hyperlane_core::ChainResult<(Option<u32>, u32)> {
+            Ok((Some(0), 7))
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    struct CountingProvider {
+        domain: hyperlane_core::HyperlaneDomain,
+        calls: Arc<AtomicUsize>,
+    }
+
+    impl hyperlane_core::HyperlaneChain for CountingProvider {
+        fn domain(&self) -> &hyperlane_core::HyperlaneDomain {
+            &self.domain
+        }
+
+        fn provider(&self) -> Box<dyn HyperlaneProvider> {
+            Box::new(self.clone())
+        }
+    }
+
+    #[async_trait]
+    impl HyperlaneProvider for CountingProvider {
+        async fn get_block_by_height(
+            &self,
+            height: u64,
+        ) -> hyperlane_core::ChainResult<hyperlane_core::BlockInfo> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            Ok(hyperlane_core::BlockInfo {
+                hash: H256::from_low_u64_be(height),
+                timestamp: height,
+                number: height,
+            })
+        }
+
+        async fn get_txn_by_hash(
+            &self,
+            _hash: &H512,
+        ) -> hyperlane_core::ChainResult<hyperlane_core::TxnInfo> {
+            Err(hyperlane_core::ChainCommunicationError::from_other_str(
+                "unused test RPC",
+            ))
+        }
+
+        async fn is_contract(&self, _address: &H256) -> hyperlane_core::ChainResult<bool> {
+            Err(hyperlane_core::ChainCommunicationError::from_other_str(
+                "unused test RPC",
+            ))
+        }
+
+        async fn get_balance(
+            &self,
+            _address: String,
+        ) -> hyperlane_core::ChainResult<hyperlane_core::U256> {
+            Err(hyperlane_core::ChainCommunicationError::from_other_str(
+                "unused test RPC",
+            ))
+        }
+
+        async fn get_chain_metrics(
+            &self,
+        ) -> hyperlane_core::ChainResult<Option<hyperlane_core::ChainInfo>> {
+            Ok(Some(hyperlane_core::ChainInfo::new(7, None)))
+        }
+    }
+
+    #[tokio::test]
+    async fn generic_headers_are_cached_per_cycle_with_explicit_fresh_reads() -> Result<()> {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let source = GenericSource {
+            provider: Box::new(CountingProvider {
+                domain: hyperlane_core::HyperlaneDomain::new_test_domain("header-cache"),
+                calls: calls.clone(),
+            }),
+            messages: Box::new(EmptyIndexer::<HyperlaneMessage>(PhantomData)),
+            deliveries: Box::new(EmptyIndexer::<H256>(PhantomData)),
+            payments: Box::new(EmptyIndexer::<InterchainGasPayment>(PhantomData)),
+            insertions: Box::new(EmptyIndexer::<MerkleTreeInsertion>(PhantomData)),
+            contracts: Contracts {
+                mailbox: H256::zero(),
+                hook: H256::zero(),
+                paymaster: H256::zero(),
+            },
+            sequence_mode: false,
+            derive_insertions_from_messages: false,
+            chunk_size: 1,
+            headers: RwLock::new(HashMap::new()),
+        };
+
+        source.begin_cycle().await;
+        source.header(BlockSelector::Height(7)).await?;
+        source.header(BlockSelector::Height(7)).await?;
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+
+        source.fresh_header(BlockSelector::Height(7)).await?;
+        source.header(BlockSelector::Height(7)).await?;
+        assert_eq!(calls.load(Ordering::Relaxed), 2);
+
+        source.begin_cycle().await;
+        source.header(BlockSelector::Height(7)).await?;
+        assert_eq!(calls.load(Ordering::Relaxed), 3);
+        Ok(())
+    }
 
     #[derive(Debug)]
     struct SequenceIndexer {

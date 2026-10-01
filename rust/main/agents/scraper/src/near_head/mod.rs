@@ -372,7 +372,7 @@ async fn ingest_cached(
         .await?;
     ensure!(
         source
-            .header(BlockSelector::Height(state.indexed))
+            .fresh_header(BlockSelector::Height(state.indexed))
             .await?
             .hash
             == state.hash,
@@ -411,7 +411,7 @@ fn advance_sequences(events: &[source::Event], mut next: [u32; 4]) -> Result<[u3
 async fn verify(source: &dyn Source, header: &Header) -> Result<()> {
     ensure!(
         source
-            .header(BlockSelector::Height(header.height))
+            .fresh_header(BlockSelector::Height(header.height))
             .await?
             .hash
             == header.hash,
@@ -499,7 +499,7 @@ async fn confirm_leased(
         Some(header) if header.height == through => header,
         _ => {
             let after = checkpoint.map_or(state.confirmed, |height| height.saturating_sub(1));
-            source.range_end(after, through, through).await?
+            source.fresh_range_end(after, through, through).await?
         }
     };
     let through = boundary.height;
