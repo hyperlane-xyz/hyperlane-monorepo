@@ -4,13 +4,13 @@ pragma solidity ^0.8.20;
 import {Test, StdStorage, stdStorage} from "forge-std/Test.sol";
 
 import {ILayerZeroEndpointV2, Origin as LayerZeroOrigin} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroEndpointV2.sol";
-import {SetConfigParam as LayerZeroSetConfigParam} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/IMessageLibManager.sol";
 import {MessageLibManager} from "@layerzerolabs/lz-evm-protocol-v2/contracts/MessageLibManager.sol";
 import {GUID} from "@layerzerolabs/lz-evm-protocol-v2/contracts/libs/GUID.sol";
+import {ExecutorConfig} from "@layerzerolabs/lz-evm-messagelib-v2/contracts/SendLibBase.sol";
 import {IReceiveUlnE2} from "@layerzerolabs/lz-evm-messagelib-v2/contracts/uln/interfaces/IReceiveUlnE2.sol";
 import {ReceiveUlnBase} from "@layerzerolabs/lz-evm-messagelib-v2/contracts/uln/ReceiveUlnBase.sol";
 import {UlnConfig} from "@layerzerolabs/lz-evm-messagelib-v2/contracts/uln/UlnBase.sol";
-import {LayerZeroV2OffchainLookupHookIsm} from "contracts/hooks/layerzero/LayerZeroV2OffchainLookupHookIsm.sol";
+import {LayerZeroV2HookIsm} from "contracts/hooks/layerzero/LayerZeroV2HookIsm.sol";
 import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {LayerZeroMessage} from "contracts/libs/LayerZeroMessage.sol";
 import {Message} from "contracts/libs/Message.sol";
@@ -19,7 +19,7 @@ import {TestMailbox} from "contracts/test/TestMailbox.sol";
 import {TestPostDispatchHook} from "contracts/test/TestPostDispatchHook.sol";
 import {TestRecipient} from "contracts/test/TestRecipient.sol";
 
-contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
+contract LayerZeroV2HookIsmForkTest is Test {
     using Message for bytes;
     using TypeCasts for address;
     using stdStorage for StdStorage;
@@ -38,7 +38,7 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
         0xc02Ab410f0734EFa3F14628780e6e695156024C2;
 
     TestMailbox internal mailbox;
-    LayerZeroV2OffchainLookupHookIsm internal router;
+    LayerZeroV2HookIsm internal router;
 
     function setUp() public {
         vm.createSelectFork("mainnet", ETHEREUM_FORK_BLOCK);
@@ -54,43 +54,56 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
         mailbox.setRequiredHook(address(noopHook));
         string[] memory urls = new string[](1);
         urls[0] = "https://example.com/layerzero";
-        router = new LayerZeroV2OffchainLookupHookIsm(
+        router = new LayerZeroV2HookIsm(
             address(mailbox),
             address(ENDPOINT),
             urls
         );
-        LayerZeroSetConfigParam[]
-            memory emptyConfig = new LayerZeroSetConfigParam[](0);
         _enrollSingleRoute(
             router,
-            LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
+            LayerZeroV2HookIsm.RemoteRouterConfig({
                 domainId: ARBITRUM_DOMAIN,
                 domainIsm: address(0xBEEF).addressToBytes32(),
                 endpointId: ARBITRUM_ENDPOINT_ID,
                 sendLibrary: SEND_ULN_302,
                 receiveLibrary: RECEIVE_ULN_302,
-                sendConfig: emptyConfig,
-                receiveConfig: emptyConfig
+                executorConfig: _defaultExecutorConfig(),
+                ulnConfig: _defaultUlnConfig()
             })
         );
     }
 
     function _enrollSingleRoute(
-        LayerZeroV2OffchainLookupHookIsm targetRouter,
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig memory config
+        LayerZeroV2HookIsm targetRouter,
+        LayerZeroV2HookIsm.RemoteRouterConfig memory config
     ) internal {
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig[]
-            memory configs = new LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig[](
-                1
-            );
+        LayerZeroV2HookIsm.RemoteRouterConfig[]
+            memory configs = new LayerZeroV2HookIsm.RemoteRouterConfig[](1);
         configs[0] = config;
         targetRouter.enrollRemoteRouters(configs);
     }
 
-    function testProductionEndpointReplacementAndQuote() public {
-        LayerZeroSetConfigParam[]
-            memory emptyConfig = new LayerZeroSetConfigParam[](0);
+    function _defaultExecutorConfig()
+        internal
+        pure
+        returns (ExecutorConfig memory)
+    {
+        return ExecutorConfig({maxMessageSize: 0, executor: address(0)});
+    }
 
+    function _defaultUlnConfig() internal pure returns (UlnConfig memory) {
+        return
+            UlnConfig({
+                confirmations: 0,
+                requiredDVNCount: 0,
+                optionalDVNCount: 0,
+                optionalDVNThreshold: 0,
+                requiredDVNs: new address[](0),
+                optionalDVNs: new address[](0)
+            });
+    }
+
+    function testProductionEndpointReplacementAndQuote() public {
         assertEq(
             ENDPOINT.getSendLibrary(address(router), ARBITRUM_ENDPOINT_ID),
             SEND_ULN_302
@@ -113,29 +126,21 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
             (uint32, address)
         );
         assertGt(maxMessageSize, 1);
-        bytes memory updatedExecutorConfig = abi.encode(
-            maxMessageSize - 1,
-            executor
-        );
-        LayerZeroSetConfigParam[]
-            memory sendConfig = new LayerZeroSetConfigParam[](1);
-        sendConfig[0] = LayerZeroSetConfigParam({
-            eid: ARBITRUM_ENDPOINT_ID,
-            configType: 1,
-            config: updatedExecutorConfig
+        ExecutorConfig memory updatedExecutorConfig = ExecutorConfig({
+            maxMessageSize: maxMessageSize - 1,
+            executor: executor
         });
 
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig
-            memory newRemoteConfig = LayerZeroV2OffchainLookupHookIsm
-                .RemoteRouterConfig({
-                    domainId: ARBITRUM_DOMAIN,
-                    domainIsm: address(0xCAFE).addressToBytes32(),
-                    endpointId: ARBITRUM_ENDPOINT_ID,
-                    sendLibrary: SEND_ULN_302,
-                    receiveLibrary: RECEIVE_ULN_302,
-                    sendConfig: sendConfig,
-                    receiveConfig: emptyConfig
-                });
+        LayerZeroV2HookIsm.RemoteRouterConfig
+            memory newRemoteConfig = LayerZeroV2HookIsm.RemoteRouterConfig({
+                domainId: ARBITRUM_DOMAIN,
+                domainIsm: address(0xCAFE).addressToBytes32(),
+                endpointId: ARBITRUM_ENDPOINT_ID,
+                sendLibrary: SEND_ULN_302,
+                receiveLibrary: RECEIVE_ULN_302,
+                executorConfig: updatedExecutorConfig,
+                ulnConfig: _defaultUlnConfig()
+            });
         _enrollSingleRoute(router, newRemoteConfig);
 
         assertEq(
@@ -145,7 +150,7 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
                 ARBITRUM_ENDPOINT_ID,
                 1
             ),
-            updatedExecutorConfig
+            abi.encode(updatedExecutorConfig)
         );
         assertEq(
             router.routers(ARBITRUM_DOMAIN),
@@ -156,7 +161,7 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
         assertEq(timeoutLibrary, address(0));
         assertEq(timeoutExpiry, 0);
 
-        newRemoteConfig.sendConfig = emptyConfig;
+        newRemoteConfig.executorConfig = _defaultExecutorConfig();
         _enrollSingleRoute(router, newRemoteConfig);
         assertEq(
             ENDPOINT.getConfig(
@@ -182,7 +187,7 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
         assertGt(router.quoteDispatch("", message), 0);
     }
 
-    function testProductionEndpointUnenrollmentClearsCustomConfig() public {
+    function testProductionEndpointUnenrollmentRetainsInactiveConfig() public {
         bytes memory defaultExecutorConfig = ENDPOINT.getConfig(
             address(router),
             SEND_ULN_302,
@@ -193,26 +198,20 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
             defaultExecutorConfig,
             (uint32, address)
         );
-        LayerZeroSetConfigParam[]
-            memory sendConfig = new LayerZeroSetConfigParam[](1);
-        sendConfig[0] = LayerZeroSetConfigParam({
-            eid: ARBITRUM_ENDPOINT_ID,
-            configType: 1,
-            config: abi.encode(maxMessageSize - 1, executor)
+        ExecutorConfig memory customExecutorConfig = ExecutorConfig({
+            maxMessageSize: maxMessageSize - 1,
+            executor: executor
         });
-        LayerZeroSetConfigParam[]
-            memory emptyConfig = new LayerZeroSetConfigParam[](0);
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig
-            memory config = LayerZeroV2OffchainLookupHookIsm
-                .RemoteRouterConfig({
-                    domainId: ARBITRUM_DOMAIN,
-                    domainIsm: address(0xBEEF).addressToBytes32(),
-                    endpointId: ARBITRUM_ENDPOINT_ID,
-                    sendLibrary: SEND_ULN_302,
-                    receiveLibrary: RECEIVE_ULN_302,
-                    sendConfig: sendConfig,
-                    receiveConfig: emptyConfig
-                });
+        LayerZeroV2HookIsm.RemoteRouterConfig memory config = LayerZeroV2HookIsm
+            .RemoteRouterConfig({
+                domainId: ARBITRUM_DOMAIN,
+                domainIsm: address(0xBEEF).addressToBytes32(),
+                endpointId: ARBITRUM_ENDPOINT_ID,
+                sendLibrary: SEND_ULN_302,
+                receiveLibrary: RECEIVE_ULN_302,
+                executorConfig: customExecutorConfig,
+                ulnConfig: _defaultUlnConfig()
+            });
         router.unenrollRemoteRouter(ARBITRUM_DOMAIN);
         _enrollSingleRoute(router, config);
 
@@ -240,10 +239,10 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
                 ARBITRUM_ENDPOINT_ID,
                 1
             ),
-            defaultExecutorConfig
+            abi.encode(customExecutorConfig)
         );
 
-        config.sendConfig = emptyConfig;
+        config.executorConfig = _defaultExecutorConfig();
         _enrollSingleRoute(router, config);
         assertEq(
             ENDPOINT.getConfig(
@@ -289,23 +288,21 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
 
         string[] memory urls = new string[](1);
         urls[0] = "https://example.com/layerzero";
-        LayerZeroV2OffchainLookupHookIsm newRouter = new LayerZeroV2OffchainLookupHookIsm(
-                address(mailbox),
-                address(ENDPOINT),
-                urls
-            );
-        LayerZeroSetConfigParam[]
-            memory emptyConfig = new LayerZeroSetConfigParam[](0);
+        LayerZeroV2HookIsm newRouter = new LayerZeroV2HookIsm(
+            address(mailbox),
+            address(ENDPOINT),
+            urls
+        );
         _enrollSingleRoute(
             newRouter,
-            LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
+            LayerZeroV2HookIsm.RemoteRouterConfig({
                 domainId: ARBITRUM_DOMAIN,
                 domainIsm: address(0xBEEF).addressToBytes32(),
                 endpointId: ARBITRUM_ENDPOINT_ID,
                 sendLibrary: SEND_ULN_302,
                 receiveLibrary: RECEIVE_ULN_302,
-                sendConfig: emptyConfig,
-                receiveConfig: emptyConfig
+                executorConfig: _defaultExecutorConfig(),
+                ulnConfig: _defaultUlnConfig()
             })
         );
 
@@ -319,14 +316,14 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
         newRouter.unenrollRemoteRouter(ARBITRUM_DOMAIN);
         _enrollSingleRoute(
             newRouter,
-            LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
+            LayerZeroV2HookIsm.RemoteRouterConfig({
                 domainId: ARBITRUM_DOMAIN,
                 domainIsm: address(0xBEEF).addressToBytes32(),
                 endpointId: ARBITRUM_ENDPOINT_ID,
                 sendLibrary: SEND_ULN_302,
                 receiveLibrary: RECEIVE_ULN_302,
-                sendConfig: emptyConfig,
-                receiveConfig: emptyConfig
+                executorConfig: _defaultExecutorConfig(),
+                ulnConfig: _defaultUlnConfig()
             })
         );
         (receiveLibrary, isDefault) = ENDPOINT.getReceiveLibrary(
@@ -348,25 +345,16 @@ contract LayerZeroV2OffchainLookupHookIsmForkTest is Test {
             requiredDVNs: requiredDvns,
             optionalDVNs: new address[](0)
         });
-        LayerZeroSetConfigParam[]
-            memory receiveConfig = new LayerZeroSetConfigParam[](1);
-        receiveConfig[0] = LayerZeroSetConfigParam({
-            eid: ARBITRUM_ENDPOINT_ID,
-            configType: 2,
-            config: abi.encode(ulnConfig)
-        });
-        LayerZeroSetConfigParam[]
-            memory emptyConfig = new LayerZeroSetConfigParam[](0);
         _enrollSingleRoute(
             router,
-            LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
+            LayerZeroV2HookIsm.RemoteRouterConfig({
                 domainId: ARBITRUM_DOMAIN,
                 domainIsm: address(0xBEEF).addressToBytes32(),
                 endpointId: ARBITRUM_ENDPOINT_ID,
                 sendLibrary: SEND_ULN_302,
                 receiveLibrary: RECEIVE_ULN_302,
-                sendConfig: emptyConfig,
-                receiveConfig: receiveConfig
+                executorConfig: _defaultExecutorConfig(),
+                ulnConfig: ulnConfig
             })
         );
 

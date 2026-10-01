@@ -5,12 +5,17 @@ import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 
 import {Origin as LayerZeroOrigin} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroEndpointV2.sol";
-import {IMessageLibManager, SetConfigParam as LayerZeroSetConfigParam} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/IMessageLibManager.sol";
+import {IMessageLibManager} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/IMessageLibManager.sol";
 import {GUID} from "@layerzerolabs/lz-evm-protocol-v2/contracts/libs/GUID.sol";
+import {Errors} from "@layerzerolabs/lz-evm-protocol-v2/contracts/libs/Errors.sol";
 import {PacketV1Codec} from "@layerzerolabs/lz-evm-protocol-v2/contracts/messagelib/libs/PacketV1Codec.sol";
+import {Transfer} from "@layerzerolabs/lz-evm-protocol-v2/contracts/libs/Transfer.sol";
+import {ExecutorConfig} from "@layerzerolabs/lz-evm-messagelib-v2/contracts/SendLibBase.sol";
 import {UlnConfig} from "@layerzerolabs/lz-evm-messagelib-v2/contracts/uln/UlnBase.sol";
-import {LayerZeroV2OffchainLookupHookIsm} from "contracts/hooks/layerzero/LayerZeroV2OffchainLookupHookIsm.sol";
+import {LayerZeroV2HookIsm} from "contracts/hooks/layerzero/LayerZeroV2HookIsm.sol";
 import {LayerZeroConfigTypeLib} from "contracts/hooks/layerzero/libs/LayerZeroConfigType.sol";
+import {StaticAggregationHookFactory} from "contracts/hooks/aggregation/StaticAggregationHookFactory.sol";
+import {AbstractPostDispatchHook} from "contracts/hooks/libs/AbstractPostDispatchHook.sol";
 import {IInterchainSecurityModule} from "contracts/interfaces/IInterchainSecurityModule.sol";
 import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {ICcipReadIsm} from "contracts/interfaces/isms/ICcipReadIsm.sol";
@@ -34,7 +39,33 @@ contract RejectingLayerZeroRefund {
     }
 }
 
-contract LayerZeroV2OffchainLookupHookIsmTest is Test {
+contract MetadataValueHook is AbstractPostDispatchHook {
+    using StandardHookMetadata for bytes;
+
+    uint256 public receivedValue;
+
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.HookTypes.UNUSED);
+    }
+
+    function _postDispatch(
+        bytes calldata metadata,
+        bytes calldata
+    ) internal override {
+        uint256 destinationValue = metadata.msgValue(0);
+        require(msg.value == destinationValue, "unexpected value");
+        receivedValue += msg.value;
+    }
+
+    function _quoteDispatch(
+        bytes calldata metadata,
+        bytes calldata
+    ) internal pure override returns (uint256) {
+        return metadata.msgValue(0);
+    }
+}
+
+contract LayerZeroV2HookIsmTest is Test {
     using Message for bytes;
     using TypeCasts for address;
 
@@ -56,8 +87,8 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
     MockLayerZeroReceiveUln internal destinationUln;
     TestPostDispatchHook internal noopHook;
     TestRecipient internal recipient;
-    LayerZeroV2OffchainLookupHookIsm internal originRouter;
-    LayerZeroV2OffchainLookupHookIsm internal destinationRouter;
+    LayerZeroV2HookIsm internal originRouter;
+    LayerZeroV2HookIsm internal destinationRouter;
     string[] internal lookupUrls;
 
     function setUp() public {
@@ -117,42 +148,37 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
     function _deploy(
         address mailbox,
         address endpoint
-    ) internal returns (LayerZeroV2OffchainLookupHookIsm) {
-        return
-            new LayerZeroV2OffchainLookupHookIsm(mailbox, endpoint, lookupUrls);
+    ) internal returns (LayerZeroV2HookIsm) {
+        return new LayerZeroV2HookIsm(mailbox, endpoint, lookupUrls);
     }
 
     function _enrollSingleRoute(
-        LayerZeroV2OffchainLookupHookIsm router,
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig memory config
+        LayerZeroV2HookIsm router,
+        LayerZeroV2HookIsm.RemoteRouterConfig memory config
     ) internal {
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig[]
-            memory configs = new LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig[](
-                1
-            );
+        LayerZeroV2HookIsm.RemoteRouterConfig[]
+            memory configs = new LayerZeroV2HookIsm.RemoteRouterConfig[](1);
         configs[0] = config;
         router.enrollRemoteRouters(configs);
     }
 
     function _configure(
-        LayerZeroV2OffchainLookupHookIsm router,
+        LayerZeroV2HookIsm router,
         MockLayerZeroReceiveUln uln,
         uint32 domain,
         uint32 endpointId,
         address remote
     ) internal {
-        LayerZeroSetConfigParam[]
-            memory emptyConfig = new LayerZeroSetConfigParam[](0);
         _enrollSingleRoute(
             router,
-            LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
+            LayerZeroV2HookIsm.RemoteRouterConfig({
                 domainId: domain,
                 domainIsm: remote.addressToBytes32(),
                 endpointId: endpointId,
                 sendLibrary: address(uln),
                 receiveLibrary: address(uln),
-                sendConfig: emptyConfig,
-                receiveConfig: emptyConfig
+                executorConfig: _defaultExecutorConfig(),
+                ulnConfig: _defaultUlnConfig()
             })
         );
     }
@@ -180,41 +206,65 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
     function _defaultRemoteRouterConfig()
         internal
         view
-        returns (LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig memory)
+        returns (LayerZeroV2HookIsm.RemoteRouterConfig memory)
     {
-        LayerZeroSetConfigParam[]
-            memory emptyConfig = new LayerZeroSetConfigParam[](0);
         return
-            LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
+            LayerZeroV2HookIsm.RemoteRouterConfig({
                 domainId: DESTINATION,
                 domainIsm: address(destinationRouter).addressToBytes32(),
                 endpointId: DESTINATION_ENDPOINT_ID,
                 sendLibrary: address(originUln),
                 receiveLibrary: address(originUln),
-                sendConfig: emptyConfig,
-                receiveConfig: emptyConfig
+                executorConfig: _defaultExecutorConfig(),
+                ulnConfig: _defaultUlnConfig()
+            });
+    }
+
+    function _defaultExecutorConfig()
+        internal
+        pure
+        returns (ExecutorConfig memory)
+    {
+        return ExecutorConfig({maxMessageSize: 0, executor: address(0)});
+    }
+
+    function _defaultUlnConfig() internal pure returns (UlnConfig memory) {
+        return
+            UlnConfig({
+                confirmations: 0,
+                requiredDVNCount: 0,
+                optionalDVNCount: 0,
+                optionalDVNThreshold: 0,
+                requiredDVNs: new address[](0),
+                optionalDVNs: new address[](0)
+            });
+    }
+
+    function _customUlnConfig() internal pure returns (UlnConfig memory) {
+        address[] memory requiredDvns = new address[](1);
+        requiredDvns[0] = address(0xA11CE);
+        return
+            UlnConfig({
+                confirmations: 5,
+                requiredDVNCount: 1,
+                optionalDVNCount: type(uint8).max,
+                optionalDVNThreshold: 0,
+                requiredDVNs: requiredDvns,
+                optionalDVNs: new address[](0)
             });
     }
 
     function testLayerZeroConfigTypeTags() public {
-        assertFalse(LayerZeroConfigTypeLib.isValid(0));
-        assertTrue(
-            LayerZeroConfigTypeLib.isValid(LayerZeroConfigTypeLib.EXECUTOR)
-        );
-        assertTrue(LayerZeroConfigTypeLib.isValid(LayerZeroConfigTypeLib.ULN));
-        assertFalse(LayerZeroConfigTypeLib.isValid(3));
+        assertEq(LayerZeroConfigTypeLib.EXECUTOR, 1);
+        assertEq(LayerZeroConfigTypeLib.ULN, 2);
     }
 
     function testConstructorRejectsInvalidEndpoints() public {
-        vm.expectRevert(
-            LayerZeroV2OffchainLookupHookIsm.InvalidLayerZeroEndpoint.selector
-        );
+        vm.expectRevert(LayerZeroV2HookIsm.InvalidLayerZeroEndpoint.selector);
         _deploy(address(originMailbox), address(0));
 
         MockLayerZeroEndpointV2 zeroIdEndpoint = new MockLayerZeroEndpointV2(0);
-        vm.expectRevert(
-            LayerZeroV2OffchainLookupHookIsm.InvalidLocalEndpointId.selector
-        );
+        vm.expectRevert(LayerZeroV2HookIsm.InvalidLocalEndpointId.selector);
         _deploy(address(originMailbox), address(zeroIdEndpoint));
 
         MockLayerZeroEndpointV2 tokenEndpoint = new MockLayerZeroEndpointV2(
@@ -223,9 +273,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         tokenEndpoint.setNativeToken(address(0xBEEF));
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm
-                    .UnsupportedNativeTokenEndpoint
-                    .selector,
+                LayerZeroV2HookIsm.UnsupportedNativeTokenEndpoint.selector,
                 address(0xBEEF)
             )
         );
@@ -271,9 +319,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
     function testRejectsPartialEnrollmentAndUnsupportedHandle() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm
-                    .IncompleteLayerZeroRoute
-                    .selector,
+                LayerZeroV2HookIsm.IncompleteLayerZeroRoute.selector,
                 SECOND_DESTINATION
             )
         );
@@ -283,9 +329,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         );
 
         vm.prank(address(originMailbox));
-        vm.expectRevert(
-            LayerZeroV2OffchainLookupHookIsm.HyperlaneHandleUnsupported.selector
-        );
+        vm.expectRevert(LayerZeroV2HookIsm.HyperlaneHandleUnsupported.selector);
         originRouter.handle(
             DESTINATION,
             address(destinationRouter).addressToBytes32(),
@@ -305,30 +349,23 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm.UnknownLayerZeroRoute.selector,
+                LayerZeroV2HookIsm.UnknownLayerZeroRoute.selector,
                 DESTINATION
             )
         );
         originRouter.unenrollRemoteRouter(DESTINATION);
     }
 
-    function testUnenrollClearsEndpointPolicyAndReenrollmentStartsClean()
+    function testUnenrollBlocksEndpointPolicyAndReenrollmentReplacesConfig()
         public
     {
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig
+        LayerZeroV2HookIsm.RemoteRouterConfig
             memory config = _defaultRemoteRouterConfig();
-        config.sendConfig = new LayerZeroSetConfigParam[](1);
-        config.sendConfig[0] = LayerZeroSetConfigParam({
-            eid: DESTINATION_ENDPOINT_ID,
-            configType: 1,
-            config: hex"1234"
+        config.executorConfig = ExecutorConfig({
+            maxMessageSize: 1234,
+            executor: address(0xBEEF)
         });
-        config.receiveConfig = new LayerZeroSetConfigParam[](1);
-        config.receiveConfig[0] = LayerZeroSetConfigParam({
-            eid: DESTINATION_ENDPOINT_ID,
-            configType: 2,
-            config: hex"abcd"
-        });
+        config.ulnConfig = _customUlnConfig();
         originRouter.unenrollRemoteRouter(DESTINATION);
         _enrollSingleRoute(originRouter, config);
 
@@ -358,17 +395,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
                 DESTINATION_ENDPOINT_ID,
                 1
             ),
-            abi.encode(uint32(0), address(0))
-        );
-        bytes memory defaultUlnConfig = abi.encode(
-            UlnConfig({
-                confirmations: 0,
-                requiredDVNCount: 0,
-                optionalDVNCount: 0,
-                optionalDVNThreshold: 0,
-                requiredDVNs: new address[](0),
-                optionalDVNs: new address[](0)
-            })
+            abi.encode(config.executorConfig)
         );
         assertEq(
             originEndpoint.getConfig(
@@ -377,11 +404,11 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
                 DESTINATION_ENDPOINT_ID,
                 2
             ),
-            defaultUlnConfig
+            abi.encode(config.ulnConfig)
         );
 
-        config.sendConfig = new LayerZeroSetConfigParam[](0);
-        config.receiveConfig = new LayerZeroSetConfigParam[](0);
+        config.executorConfig = _defaultExecutorConfig();
+        config.ulnConfig = _defaultUlnConfig();
         _enrollSingleRoute(originRouter, config);
         assertEq(
             originEndpoint.getSendLibrary(
@@ -397,15 +424,20 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
                 DESTINATION_ENDPOINT_ID,
                 2
             ),
-            defaultUlnConfig
+            abi.encode(_defaultUlnConfig())
         );
     }
 
-    function testUnenrollmentRollsBackIfEndpointCleanupFails() public {
+    function testUnenrollmentRollsBackIfEndpointBlockingFails() public {
         bytes32 currentRouter = originRouter.routers(DESTINATION);
         vm.mockCallRevert(
             address(originEndpoint),
-            abi.encodeWithSelector(IMessageLibManager.setConfig.selector),
+            abi.encodeWithSelector(
+                IMessageLibManager.setSendLibrary.selector,
+                address(originRouter),
+                DESTINATION_ENDPOINT_ID,
+                originEndpoint.blockedLibrary()
+            ),
             abi.encodeWithSelector(
                 MockLayerZeroEndpointV2.Unauthorized.selector
             )
@@ -421,7 +453,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
     }
 
     function testEnrollmentOverwritesPeerAtomically() public {
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig
+        LayerZeroV2HookIsm.RemoteRouterConfig
             memory config = _defaultRemoteRouterConfig();
         config.domainIsm = address(0x1234).addressToBytes32();
         _enrollSingleRoute(originRouter, config);
@@ -432,25 +464,18 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         );
     }
 
-    function testOverwriteWithOmittedConfigRestoresDefaults() public {
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig
+    function testOverwriteWithZeroConfigRestoresDefaults() public {
+        LayerZeroV2HookIsm.RemoteRouterConfig
             memory config = _defaultRemoteRouterConfig();
-        config.sendConfig = new LayerZeroSetConfigParam[](1);
-        config.sendConfig[0] = LayerZeroSetConfigParam({
-            eid: DESTINATION_ENDPOINT_ID,
-            configType: 1,
-            config: hex"1234"
+        config.executorConfig = ExecutorConfig({
+            maxMessageSize: 1234,
+            executor: address(0xBEEF)
         });
-        config.receiveConfig = new LayerZeroSetConfigParam[](1);
-        config.receiveConfig[0] = LayerZeroSetConfigParam({
-            eid: DESTINATION_ENDPOINT_ID,
-            configType: 2,
-            config: hex"abcd"
-        });
+        config.ulnConfig = _customUlnConfig();
         _enrollSingleRoute(originRouter, config);
 
-        config.sendConfig = new LayerZeroSetConfigParam[](0);
-        config.receiveConfig = new LayerZeroSetConfigParam[](0);
+        config.executorConfig = _defaultExecutorConfig();
+        config.ulnConfig = _defaultUlnConfig();
         _enrollSingleRoute(originRouter, config);
 
         assertEq(
@@ -483,18 +508,16 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
     }
 
     function testOverwriteBlocksOldEndpointWithoutResettingItsConfig() public {
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig
+        LayerZeroV2HookIsm.RemoteRouterConfig
             memory config = _defaultRemoteRouterConfig();
-        config.sendConfig = new LayerZeroSetConfigParam[](1);
-        config.sendConfig[0] = LayerZeroSetConfigParam({
-            eid: DESTINATION_ENDPOINT_ID,
-            configType: 1,
-            config: hex"1234"
+        config.executorConfig = ExecutorConfig({
+            maxMessageSize: 1234,
+            executor: address(0xBEEF)
         });
         _enrollSingleRoute(originRouter, config);
 
         config.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
-        config.sendConfig = new LayerZeroSetConfigParam[](0);
+        config.executorConfig = _defaultExecutorConfig();
         _enrollSingleRoute(originRouter, config);
 
         assertEq(
@@ -523,13 +546,18 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
                 DESTINATION_ENDPOINT_ID,
                 1
             ),
-            hex"1234"
+            abi.encode(
+                ExecutorConfig({
+                    maxMessageSize: 1234,
+                    executor: address(0xBEEF)
+                })
+            )
         );
     }
 
     function testOverwriteRollsBackIfOldEndpointBlockingFails() public {
         bytes32 currentPeer = originRouter.routers(DESTINATION);
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig
+        LayerZeroV2HookIsm.RemoteRouterConfig
             memory config = _defaultRemoteRouterConfig();
         config.domainIsm = address(0x1234).addressToBytes32();
         config.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
@@ -619,13 +647,13 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
                 })
             )
         );
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig
+        LayerZeroV2HookIsm.RemoteRouterConfig
             memory aliasConfig = _defaultRemoteRouterConfig();
         aliasConfig.domainId = SECOND_DESTINATION;
         aliasConfig.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm
+                LayerZeroV2HookIsm
                     .LayerZeroEndpointIdAssignedToAnotherDomain
                     .selector,
                 SECOND_DESTINATION_ENDPOINT_ID,
@@ -661,7 +689,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
     }
 
     function testEndpointIdCanBeReusedAfterRouteMoves() public {
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig
+        LayerZeroV2HookIsm.RemoteRouterConfig
             memory remoteConfig = _defaultRemoteRouterConfig();
         remoteConfig.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
         _enrollSingleRoute(originRouter, remoteConfig);
@@ -686,13 +714,13 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
     }
 
     function testEnrollmentValidation() public {
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig
+        LayerZeroV2HookIsm.RemoteRouterConfig
             memory remoteConfig = _defaultRemoteRouterConfig();
 
         remoteConfig.domainId = ORIGIN;
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm.InvalidRemoteDomain.selector,
+                LayerZeroV2HookIsm.InvalidRemoteDomain.selector,
                 ORIGIN
             )
         );
@@ -702,9 +730,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         remoteConfig.endpointId = ORIGIN_ENDPOINT_ID;
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm
-                    .InvalidRemoteEndpointId
-                    .selector,
+                LayerZeroV2HookIsm.InvalidRemoteEndpointId.selector,
                 ORIGIN_ENDPOINT_ID
             )
         );
@@ -714,7 +740,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         remoteConfig.domainIsm = bytes32(0);
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm.InvalidLayerZeroPeer.selector,
+                LayerZeroV2HookIsm.InvalidLayerZeroPeer.selector,
                 bytes32(0)
             )
         );
@@ -737,7 +763,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         remoteConfig.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm
+                LayerZeroV2HookIsm
                     .LayerZeroEndpointIdAssignedToAnotherDomain
                     .selector,
                 SECOND_DESTINATION_ENDPOINT_ID,
@@ -745,28 +771,10 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
             )
         );
         _enrollSingleRoute(originRouter, remoteConfig);
-
-        originRouter.unenrollRemoteRouter(DESTINATION);
-        remoteConfig = _defaultRemoteRouterConfig();
-        remoteConfig.receiveConfig = new LayerZeroSetConfigParam[](1);
-        remoteConfig.receiveConfig[0] = LayerZeroSetConfigParam({
-            eid: DESTINATION_ENDPOINT_ID,
-            configType: 1,
-            config: hex""
-        });
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm
-                    .InvalidLayerZeroConfigType
-                    .selector,
-                1
-            )
-        );
-        _enrollSingleRoute(originRouter, remoteConfig);
     }
 
     function testEnrollsExplicitReceiveLibraryWithoutEndpointDefault() public {
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig
+        LayerZeroV2HookIsm.RemoteRouterConfig
             memory remoteConfig = _defaultRemoteRouterConfig();
         remoteConfig.domainId = SECOND_DESTINATION;
         remoteConfig.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
@@ -791,19 +799,17 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
 
     function testFullWidthPeerAuthentication() public {
         bytes32 nonEvmPeer = bytes32(type(uint256).max);
-        LayerZeroSetConfigParam[]
-            memory emptyConfig = new LayerZeroSetConfigParam[](0);
         destinationRouter.unenrollRemoteRouter(ORIGIN);
         _enrollSingleRoute(
             destinationRouter,
-            LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
+            LayerZeroV2HookIsm.RemoteRouterConfig({
                 domainId: ORIGIN,
                 domainIsm: nonEvmPeer,
                 endpointId: ORIGIN_ENDPOINT_ID,
                 sendLibrary: address(destinationUln),
                 receiveLibrary: address(destinationUln),
-                sendConfig: emptyConfig,
-                receiveConfig: emptyConfig
+                executorConfig: _defaultExecutorConfig(),
+                ulnConfig: _defaultUlnConfig()
             })
         );
         assertTrue(
@@ -836,31 +842,30 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         _expectPacketRevert(
             message,
             _replace(packet, 13, abi.encodePacked(truncatedPeer)),
-            LayerZeroV2OffchainLookupHookIsm.WrongPacketSender.selector
+            LayerZeroV2HookIsm.WrongPacketSender.selector
         );
         _expectPacketRevert(
             message,
             _replace(packet, 81, abi.encodePacked(bytes32(0))),
-            LayerZeroV2OffchainLookupHookIsm.WrongPacketGuid.selector
+            LayerZeroV2HookIsm.WrongPacketGuid.selector
         );
 
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig
-            memory newRemoteConfig = LayerZeroV2OffchainLookupHookIsm
-                .RemoteRouterConfig({
-                    domainId: ORIGIN,
-                    domainIsm: bytes32(uint256(1) << 255),
-                    endpointId: ORIGIN_ENDPOINT_ID,
-                    sendLibrary: address(destinationUln),
-                    receiveLibrary: address(destinationUln),
-                    sendConfig: emptyConfig,
-                    receiveConfig: emptyConfig
-                });
+        LayerZeroV2HookIsm.RemoteRouterConfig
+            memory newRemoteConfig = LayerZeroV2HookIsm.RemoteRouterConfig({
+                domainId: ORIGIN,
+                domainIsm: bytes32(uint256(1) << 255),
+                endpointId: ORIGIN_ENDPOINT_ID,
+                sendLibrary: address(destinationUln),
+                receiveLibrary: address(destinationUln),
+                executorConfig: _defaultExecutorConfig(),
+                ulnConfig: _defaultUlnConfig()
+            });
         destinationRouter.unenrollRemoteRouter(ORIGIN);
         _enrollSingleRoute(destinationRouter, newRemoteConfig);
         _expectPacketRevert(
             message,
             packet,
-            LayerZeroV2OffchainLookupHookIsm.WrongPacketSender.selector
+            LayerZeroV2HookIsm.WrongPacketSender.selector
         );
         newRemoteConfig.domainIsm = nonEvmPeer;
         destinationRouter.unenrollRemoteRouter(ORIGIN);
@@ -894,7 +899,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
 
     function testNonEvmPeerCanBeUpdatedAndSentTo() public {
         bytes32 nonEvmPeer = bytes32(type(uint256).max);
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig
+        LayerZeroV2HookIsm.RemoteRouterConfig
             memory newRemoteConfig = _defaultRemoteRouterConfig();
         newRemoteConfig.domainIsm = nonEvmPeer;
         originRouter.unenrollRemoteRouter(DESTINATION);
@@ -920,9 +925,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         bytes32 messageId = message.id();
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm
-                    .MessageNotLatestDispatched
-                    .selector,
+                LayerZeroV2HookIsm.MessageNotLatestDispatched.selector,
                 messageId
             )
         );
@@ -930,10 +933,10 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm
-                    .InsufficientLayerZeroFee
-                    .selector,
+                Errors.LZ_InsufficientFee.selector,
                 NATIVE_FEE,
+                0,
+                0,
                 0
             )
         );
@@ -952,9 +955,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         );
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm
-                    .LayerZeroAuthorizationAlreadySent
-                    .selector,
+                LayerZeroV2HookIsm.LayerZeroAuthorizationAlreadySent.selector,
                 messageId
             )
         );
@@ -996,9 +997,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         bytes32 firstMessageId = firstMessage.id();
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm
-                    .MessageNotLatestDispatched
-                    .selector,
+                LayerZeroV2HookIsm.MessageNotLatestDispatched.selector,
                 firstMessageId
             )
         );
@@ -1070,6 +1069,22 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         assertEq(originEndpoint.lastPacket().length, 0);
     }
 
+    function testZeroRefundAddressRevertsLikeProductionEndpoint() public {
+        bytes memory body = bytes("zero refund address");
+        bytes memory metadata = StandardHookMetadata.overrideRefundAddress(
+            address(0)
+        );
+
+        vm.expectRevert(Transfer.Transfer_ToAddressIsZero.selector);
+        originMailbox.dispatch{value: NATIVE_FEE + 1}(
+            DESTINATION,
+            address(recipient).addressToBytes32(),
+            body,
+            metadata,
+            IPostDispatchHook(address(originRouter))
+        );
+    }
+
     function testRejectsLayerZeroTokenFees() public {
         bytes memory message = originMailbox.buildOutboundMessage(
             DESTINATION,
@@ -1079,9 +1094,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         originEndpoint.setLzTokenFee(1);
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm
-                    .UnsupportedLayerZeroTokenFee
-                    .selector,
+                LayerZeroV2HookIsm.UnsupportedLayerZeroTokenFee.selector,
                 1
             )
         );
@@ -1089,10 +1102,11 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm
-                    .UnsupportedLayerZeroTokenFee
-                    .selector,
-                1
+                Errors.LZ_InsufficientFee.selector,
+                NATIVE_FEE,
+                NATIVE_FEE,
+                1,
+                0
             )
         );
         originMailbox.dispatch{value: NATIVE_FEE}(
@@ -1104,7 +1118,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         );
     }
 
-    function testRejectsUnsupportedMetadata() public view {
+    function testRejectsNonNativeFeeTokenMetadata() public view {
         bytes memory metadata = StandardHookMetadata.formatWithFeeToken(
             0,
             0,
@@ -1112,8 +1126,49 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
             address(0xBEEF)
         );
         assertFalse(originRouter.supportsMetadata(metadata));
-        metadata = StandardHookMetadata.overrideMsgValue(1);
-        assertFalse(originRouter.supportsMetadata(metadata));
+    }
+
+    function testSupportsMetadataWithDestinationValue() public view {
+        bytes memory metadata = StandardHookMetadata.overrideMsgValue(1);
+        assertTrue(originRouter.supportsMetadata(metadata));
+    }
+
+    function testAggregationDispatchSupportsMetadataDestinationValue() public {
+        uint256 destinationValue = 0.25 ether;
+        MetadataValueHook valueHook = new MetadataValueHook();
+        address[] memory hooks = new address[](2);
+        hooks[0] = address(originRouter);
+        hooks[1] = address(valueHook);
+        StaticAggregationHookFactory factory = new StaticAggregationHookFactory();
+        IPostDispatchHook aggregationHook = IPostDispatchHook(
+            factory.deploy(hooks)
+        );
+        bytes memory metadata = StandardHookMetadata.format(
+            destinationValue,
+            0,
+            address(this)
+        );
+        bytes memory body = bytes("aggregated destination value");
+
+        uint256 quote = originMailbox.quoteDispatch(
+            DESTINATION,
+            address(recipient).addressToBytes32(),
+            body,
+            metadata,
+            aggregationHook
+        );
+        assertEq(quote, NATIVE_FEE + destinationValue);
+
+        originMailbox.dispatch{value: quote}(
+            DESTINATION,
+            address(recipient).addressToBytes32(),
+            body,
+            metadata,
+            aggregationHook
+        );
+
+        assertEq(valueHook.receivedValue(), destinationValue);
+        assertGt(originEndpoint.lastPacket().length, 0);
     }
 
     function testConfigurationRemainsMutable() public {
@@ -1121,19 +1176,17 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
             address(originEndpoint)
         );
         originEndpoint.registerMockLibrary(address(replacement));
-        LayerZeroSetConfigParam[]
-            memory emptyConfig = new LayerZeroSetConfigParam[](0);
         originRouter.unenrollRemoteRouter(DESTINATION);
         _enrollSingleRoute(
             originRouter,
-            LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
+            LayerZeroV2HookIsm.RemoteRouterConfig({
                 domainId: DESTINATION,
                 domainIsm: address(destinationRouter).addressToBytes32(),
                 endpointId: DESTINATION_ENDPOINT_ID,
                 sendLibrary: address(replacement),
                 receiveLibrary: address(originUln),
-                sendConfig: emptyConfig,
-                receiveConfig: emptyConfig
+                executorConfig: _defaultExecutorConfig(),
+                ulnConfig: _defaultUlnConfig()
             })
         );
         assertEq(
@@ -1152,25 +1205,14 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
 
     function testEnrollmentInstallsCompletePolicy() public {
         bytes32 newRouter = address(0x1234).addressToBytes32();
-        LayerZeroSetConfigParam[]
-            memory sendConfig = new LayerZeroSetConfigParam[](1);
-        sendConfig[0] = LayerZeroSetConfigParam({
-            eid: DESTINATION_ENDPOINT_ID,
-            configType: 1,
-            config: hex"1234"
-        });
-        LayerZeroSetConfigParam[]
-            memory receiveConfig = new LayerZeroSetConfigParam[](1);
-        receiveConfig[0] = LayerZeroSetConfigParam({
-            eid: DESTINATION_ENDPOINT_ID,
-            configType: 2,
-            config: hex"abcd"
-        });
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig
+        LayerZeroV2HookIsm.RemoteRouterConfig
             memory newRemoteConfig = _defaultRemoteRouterConfig();
         newRemoteConfig.domainIsm = newRouter;
-        newRemoteConfig.sendConfig = sendConfig;
-        newRemoteConfig.receiveConfig = receiveConfig;
+        newRemoteConfig.executorConfig = ExecutorConfig({
+            maxMessageSize: 1234,
+            executor: address(0xBEEF)
+        });
+        newRemoteConfig.ulnConfig = _customUlnConfig();
         originRouter.unenrollRemoteRouter(DESTINATION);
         _enrollSingleRoute(originRouter, newRemoteConfig);
 
@@ -1194,7 +1236,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
                 DESTINATION_ENDPOINT_ID,
                 1
             ),
-            hex"1234"
+            abi.encode(newRemoteConfig.executorConfig)
         );
         assertEq(
             originEndpoint.getConfig(
@@ -1203,35 +1245,41 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
                 DESTINATION_ENDPOINT_ID,
                 2
             ),
-            hex"abcd"
+            abi.encode(newRemoteConfig.ulnConfig)
         );
     }
 
-    function testEnrollmentRollsBackOnInvalidConfigEndpointId() public {
-        bytes32 currentRouter = originRouter.routers(DESTINATION);
-        LayerZeroSetConfigParam[]
-            memory sendConfig = new LayerZeroSetConfigParam[](1);
-        sendConfig[0] = LayerZeroSetConfigParam({
-            eid: ORIGIN_ENDPOINT_ID,
-            configType: 1,
-            config: hex"1234"
-        });
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm
-                    .InvalidLayerZeroConfigEndpointId
-                    .selector,
-                ORIGIN_ENDPOINT_ID
-            )
+    function testEnrollmentAppliesSharedUlnPolicyToSeparateLibraries() public {
+        MockLayerZeroReceiveUln sendLibrary = new MockLayerZeroReceiveUln(
+            address(originEndpoint)
         );
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig
-            memory newRemoteConfig = _defaultRemoteRouterConfig();
-        newRemoteConfig.domainId = SECOND_DESTINATION;
-        newRemoteConfig.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
-        newRemoteConfig.domainIsm = address(0x1234).addressToBytes32();
-        newRemoteConfig.sendConfig = sendConfig;
-        _enrollSingleRoute(originRouter, newRemoteConfig);
-        assertEq(originRouter.routers(DESTINATION), currentRouter);
+        originEndpoint.registerMockLibrary(address(sendLibrary));
+
+        LayerZeroV2HookIsm.RemoteRouterConfig
+            memory config = _defaultRemoteRouterConfig();
+        config.sendLibrary = address(sendLibrary);
+        config.ulnConfig = _customUlnConfig();
+        _enrollSingleRoute(originRouter, config);
+
+        bytes memory encodedUlnConfig = abi.encode(config.ulnConfig);
+        assertEq(
+            originEndpoint.getConfig(
+                address(originRouter),
+                address(sendLibrary),
+                DESTINATION_ENDPOINT_ID,
+                LayerZeroConfigTypeLib.ULN
+            ),
+            encodedUlnConfig
+        );
+        assertEq(
+            originEndpoint.getConfig(
+                address(originRouter),
+                address(originUln),
+                DESTINATION_ENDPOINT_ID,
+                LayerZeroConfigTypeLib.ULN
+            ),
+            encodedUlnConfig
+        );
     }
 
     function testBatchEnrollmentIsAtomic() public {
@@ -1244,8 +1292,8 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         );
         originRouter.unenrollRemoteRouter(DESTINATION);
         originRouter.unenrollRemoteRouter(SECOND_DESTINATION);
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig[]
-            memory newRemoteConfigs = new LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig[](
+        LayerZeroV2HookIsm.RemoteRouterConfig[]
+            memory newRemoteConfigs = new LayerZeroV2HookIsm.RemoteRouterConfig[](
                 2
             );
         newRemoteConfigs[0] = _defaultRemoteRouterConfig();
@@ -1276,8 +1324,8 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         );
         originRouter.unenrollRemoteRouter(DESTINATION);
         originRouter.unenrollRemoteRouter(SECOND_DESTINATION);
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig[]
-            memory newRemoteConfigs = new LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig[](
+        LayerZeroV2HookIsm.RemoteRouterConfig[]
+            memory newRemoteConfigs = new LayerZeroV2HookIsm.RemoteRouterConfig[](
                 2
             );
         newRemoteConfigs[0] = _defaultRemoteRouterConfig();
@@ -1289,7 +1337,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm.InvalidLayerZeroPeer.selector,
+                LayerZeroV2HookIsm.InvalidLayerZeroPeer.selector,
                 bytes32(0)
             )
         );
@@ -1305,30 +1353,26 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
     }
 
     function testAtomicEnrollmentRollsBackIncompleteRoute() public {
-        LayerZeroV2OffchainLookupHookIsm router = _deploy(
+        LayerZeroV2HookIsm router = _deploy(
             address(originMailbox),
             address(originEndpoint)
         );
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm
-                    .UnregisteredLayerZeroLibrary
-                    .selector,
+                LayerZeroV2HookIsm.UnregisteredLayerZeroLibrary.selector,
                 address(0)
             )
         );
-        LayerZeroSetConfigParam[]
-            memory emptyConfig = new LayerZeroSetConfigParam[](0);
         _enrollSingleRoute(
             router,
-            LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
+            LayerZeroV2HookIsm.RemoteRouterConfig({
                 domainId: DESTINATION,
                 domainIsm: address(destinationRouter).addressToBytes32(),
                 endpointId: DESTINATION_ENDPOINT_ID,
                 sendLibrary: address(0),
                 receiveLibrary: address(originUln),
-                sendConfig: emptyConfig,
-                receiveConfig: emptyConfig
+                executorConfig: _defaultExecutorConfig(),
+                ulnConfig: _defaultUlnConfig()
             })
         );
         assertEq(router.routers(DESTINATION), bytes32(0));
@@ -1518,18 +1562,16 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         MockLayerZeroReceiveUln replacement
     ) internal {
         destinationEndpoint.registerMockLibrary(address(replacement));
-        LayerZeroSetConfigParam[]
-            memory emptyConfig = new LayerZeroSetConfigParam[](0);
         _enrollSingleRoute(
             destinationRouter,
-            LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
+            LayerZeroV2HookIsm.RemoteRouterConfig({
                 domainId: ORIGIN,
                 domainIsm: address(originRouter).addressToBytes32(),
                 endpointId: ORIGIN_ENDPOINT_ID,
                 sendLibrary: address(destinationUln),
                 receiveLibrary: address(replacement),
-                sendConfig: emptyConfig,
-                receiveConfig: emptyConfig
+                executorConfig: _defaultExecutorConfig(),
+                ulnConfig: _defaultUlnConfig()
             })
         );
     }
@@ -1834,7 +1876,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm.InvalidReceiveLibrary.selector,
+                LayerZeroV2HookIsm.InvalidReceiveLibrary.selector,
                 address(destinationUln)
             )
         );
@@ -1895,11 +1937,11 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
     function testPullRejectsUnauthorizedCallback() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm.UnauthorizedCaller.selector,
+                LayerZeroV2HookIsm.UnauthorizedCaller.selector,
                 address(this)
             )
         );
-        LayerZeroV2OffchainLookupHookIsm(address(destinationRouter)).lzReceive(
+        LayerZeroV2HookIsm(address(destinationRouter)).lzReceive(
             LayerZeroOrigin({
                 srcEid: ORIGIN_ENDPOINT_ID,
                 sender: bytes32(0),
@@ -1926,7 +1968,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         });
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm.MessageNotDelivered.selector,
+                LayerZeroV2HookIsm.MessageNotDelivered.selector,
                 messageId
             )
         );
@@ -1956,13 +1998,11 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         );
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm
-                    .MessageNotBeingProcessed
-                    .selector,
+                LayerZeroV2HookIsm.MessageNotBeingProcessed.selector,
                 Message.id(message)
             )
         );
-        LayerZeroV2OffchainLookupHookIsm(address(destinationRouter)).verify(
+        LayerZeroV2HookIsm(address(destinationRouter)).verify(
             metadata,
             message
         );
@@ -2105,9 +2145,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         );
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm
-                    .ConflictingPayloadHash
-                    .selector,
+                LayerZeroV2HookIsm.ConflictingPayloadHash.selector,
                 bytes32(uint256(1)),
                 packetPayloadHash
             )
@@ -2115,12 +2153,36 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         destinationMailbox.process(metadata, message);
     }
 
-    function testPullRejectsNonCanonicalMetadata() public {
+    function testPullRejectsMetadataWithTrailingBytes() public {
         (bytes memory message, ) = _dispatch();
         bytes memory metadata = bytes.concat(
             abi.encode(address(destinationUln), originEndpoint.lastPacket()),
             hex"00"
         );
+        vm.expectRevert(LayerZeroMetadata.InvalidLayerZeroMetadata.selector);
+        destinationMailbox.process(metadata, message);
+    }
+
+    function testPullRejectsMetadataWithDirtyAddressPrefix() public {
+        (bytes memory message, ) = _dispatch();
+        bytes memory metadata = abi.encode(
+            address(destinationUln),
+            originEndpoint.lastPacket()
+        );
+        metadata[0] = 0x01;
+
+        vm.expectRevert(LayerZeroMetadata.InvalidLayerZeroMetadata.selector);
+        destinationMailbox.process(metadata, message);
+    }
+
+    function testPullRejectsMetadataWithDirtyPacketPadding() public {
+        (bytes memory message, ) = _dispatch();
+        bytes memory metadata = abi.encode(
+            address(destinationUln),
+            originEndpoint.lastPacket()
+        );
+        metadata[metadata.length - 1] = 0x01;
+
         vm.expectRevert(LayerZeroMetadata.InvalidLayerZeroMetadata.selector);
         destinationMailbox.process(metadata, message);
     }
@@ -2135,7 +2197,7 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         );
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm.WrongPacketSender.selector,
+                LayerZeroV2HookIsm.WrongPacketSender.selector,
                 address(0xBEEF).addressToBytes32(),
                 address(originRouter).addressToBytes32()
             )
@@ -2165,23 +2227,22 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
     }
 
     function testPullBatchEnrollmentAndOffchainLookup() public {
-        LayerZeroSetConfigParam[]
-            memory emptyConfig = new LayerZeroSetConfigParam[](0);
-        LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig[]
-            memory remoteConfigs = new LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig[](
+        LayerZeroV2HookIsm.RemoteRouterConfig[]
+            memory remoteConfigs = new LayerZeroV2HookIsm.RemoteRouterConfig[](
                 1
             );
-        remoteConfigs[0] = LayerZeroV2OffchainLookupHookIsm.RemoteRouterConfig({
+        remoteConfigs[0] = LayerZeroV2HookIsm.RemoteRouterConfig({
             domainId: SECOND_DESTINATION,
             domainIsm: address(0xBEEF).addressToBytes32(),
             endpointId: SECOND_DESTINATION_ENDPOINT_ID,
             sendLibrary: address(originUln),
             receiveLibrary: address(originUln),
-            sendConfig: emptyConfig,
-            receiveConfig: emptyConfig
+            executorConfig: _defaultExecutorConfig(),
+            ulnConfig: _defaultUlnConfig()
         });
-        LayerZeroV2OffchainLookupHookIsm(address(originRouter))
-            .enrollRemoteRouters(remoteConfigs);
+        LayerZeroV2HookIsm(address(originRouter)).enrollRemoteRouters(
+            remoteConfigs
+        );
         assertEq(
             originRouter.routers(SECOND_DESTINATION),
             address(0xBEEF).addressToBytes32()
@@ -2210,23 +2271,17 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         _expectPacketRevert(
             message,
             bytes.concat(packet, hex"00"),
-            LayerZeroV2OffchainLookupHookIsm
-                .InvalidLayerZeroPacketLength
-                .selector
+            LayerZeroV2HookIsm.InvalidLayerZeroPacketLength.selector
         );
         _expectPacketRevert(
             message,
             _replace(packet, 0, abi.encodePacked(uint8(2))),
-            LayerZeroV2OffchainLookupHookIsm
-                .InvalidLayerZeroPacketVersion
-                .selector
+            LayerZeroV2HookIsm.InvalidLayerZeroPacketVersion.selector
         );
         _expectPacketRevert(
             message,
             _replace(packet, 9, abi.encodePacked(uint32(123))),
-            LayerZeroV2OffchainLookupHookIsm
-                .WrongPacketSourceEndpointId
-                .selector
+            LayerZeroV2HookIsm.WrongPacketSourceEndpointId.selector
         );
         _expectPacketRevert(
             message,
@@ -2235,14 +2290,12 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
                 13,
                 abi.encodePacked(address(0xBEEF).addressToBytes32())
             ),
-            LayerZeroV2OffchainLookupHookIsm.WrongPacketSender.selector
+            LayerZeroV2HookIsm.WrongPacketSender.selector
         );
         _expectPacketRevert(
             message,
             _replace(packet, 45, abi.encodePacked(uint32(123))),
-            LayerZeroV2OffchainLookupHookIsm
-                .WrongPacketDestinationEndpointId
-                .selector
+            LayerZeroV2HookIsm.WrongPacketDestinationEndpointId.selector
         );
         _expectPacketRevert(
             message,
@@ -2251,22 +2304,22 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
                 49,
                 abi.encodePacked(address(0xBEEF).addressToBytes32())
             ),
-            LayerZeroV2OffchainLookupHookIsm.WrongPacketReceiver.selector
+            LayerZeroV2HookIsm.WrongPacketReceiver.selector
         );
         _expectPacketRevert(
             message,
             _replace(packet, 113, abi.encodePacked(uint8(2))),
-            LayerZeroV2OffchainLookupHookIsm.WrongPacketMessage.selector
+            LayerZeroV2HookIsm.WrongPacketMessage.selector
         );
         _expectPacketRevert(
             message,
             _replace(packet, 81, abi.encodePacked(bytes32(uint256(123)))),
-            LayerZeroV2OffchainLookupHookIsm.WrongPacketGuid.selector
+            LayerZeroV2HookIsm.WrongPacketGuid.selector
         );
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm.InvalidReceiveLibrary.selector,
+                LayerZeroV2HookIsm.InvalidReceiveLibrary.selector,
                 address(0xBEEF)
             )
         );
@@ -2299,13 +2352,11 @@ contract LayerZeroV2OffchainLookupHookIsmTest is Test {
         vm.prank(address(destinationMailbox));
         vm.expectRevert(
             abi.encodeWithSelector(
-                LayerZeroV2OffchainLookupHookIsm
-                    .MessageNotBeingProcessed
-                    .selector,
+                LayerZeroV2HookIsm.MessageNotBeingProcessed.selector,
                 messageId
             )
         );
-        LayerZeroV2OffchainLookupHookIsm(address(destinationRouter)).verify(
+        LayerZeroV2HookIsm(address(destinationRouter)).verify(
             metadata,
             message
         );

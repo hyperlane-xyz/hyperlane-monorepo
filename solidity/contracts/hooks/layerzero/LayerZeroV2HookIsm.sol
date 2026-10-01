@@ -27,7 +27,7 @@ import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
 import {LayerZeroConfigTypeLib} from "./libs/LayerZeroConfigType.sol";
 
 /**
- * @title LayerZeroV2OffchainLookupHookIsm
+ * @title LayerZeroV2HookIsm
  * @notice Combined Hyperlane hook and ISM that authenticates messages against
  * LayerZero V2 DVN-verified packets obtained through offchain lookup.
  * @dev The origin hook sends a LayerZero packet committing to the Hyperlane
@@ -38,7 +38,7 @@ import {LayerZeroConfigTypeLib} from "./libs/LayerZeroConfigType.sol";
  */
 // `Router` already provides enumerable remote-domain storage.
 // solhint-disable-next-line hyperlane/enumerable-domain-mapping
-contract LayerZeroV2OffchainLookupHookIsm is
+contract LayerZeroV2HookIsm is
     Router,
     AbstractPostDispatchHook,
     AbstractCcipReadIsm,
@@ -85,11 +85,8 @@ contract LayerZeroV2OffchainLookupHookIsm is
         uint32 assignedDomainId
     );
     error UnregisteredLayerZeroLibrary(address libraryAddress);
-    error InvalidLayerZeroConfigEndpointId(uint32 endpointId);
-    error InvalidLayerZeroConfigType(uint32 configType);
     error MessageNotLatestDispatched(bytes32 messageId);
     error LayerZeroAuthorizationAlreadySent(bytes32 messageId);
-    error InsufficientLayerZeroFee(uint256 required, uint256 supplied);
     error UnsupportedLayerZeroTokenFee(uint256 fee);
     error HyperlaneHandleUnsupported();
 
@@ -183,12 +180,13 @@ contract LayerZeroV2OffchainLookupHookIsm is
         /// from this source before committing them to the local Endpoint.
         /// Must support `IReceiveUlnE2.commitVerification` for pull verification.
         address receiveLibrary;
-        /// @notice Endpoint config entries for outbound Executor/DVN policy.
-        /// Omitted types use the selected library's ULN302 defaults.
-        LayerZeroSetConfigParam[] sendConfig;
-        /// @notice Endpoint config entries for inbound DVN policy.
-        /// Omission uses the selected library's ULN302 default.
-        LayerZeroSetConfigParam[] receiveConfig;
+        /// @notice Executor policy applied only to outbound packets.
+        /// An all-zero value selects the send library's default.
+        ExecutorConfig executorConfig;
+        /// @notice DVN and confirmation policy applied in both directions.
+        /// An all-zero value selects each library's mutable, owner-controlled
+        /// default and therefore extends trust to that library's governance.
+        UlnConfig ulnConfig;
     }
 
     /// @dev Fields retained for packet verification and cleanup.
@@ -263,14 +261,16 @@ contract LayerZeroV2OffchainLookupHookIsm is
         return uint8(IPostDispatchHook.HookTypes.LAYER_ZERO);
     }
 
-    /// @notice Accepts only native-fee, zero-destination-value hook metadata.
+    /// @notice Accepts valid hook metadata using native fees.
+    /// @dev `msgValue` is intentionally ignored because aggregations pass the
+    /// same metadata to every child. This hook always encodes zero destination
+    /// native value; transaction `msg.value` pays its LayerZero messaging fee.
     function supportsMetadata(
         bytes calldata metadata
     ) public view override returns (bool) {
         return
             super.supportsMetadata(metadata) &&
-            metadata.feeToken(address(0)) == address(0) &&
-            metadata.msgValue(0) == 0;
+            metadata.feeToken(address(0)) == address(0);
     }
 
     // ============ IInterchainSecurityModule ============
@@ -340,13 +340,14 @@ contract LayerZeroV2OffchainLookupHookIsm is
     }
 
     /// @notice Installs or replaces remote routes and their LayerZero policies atomically.
-    /// @dev Omitted config entries select the library defaults. An abandoned
+    /// @dev All-zero configs select the library defaults. An abandoned
     /// endpoint ID is blocked, but an unchanged path stays selected.
     function enrollRemoteRouters(
         RemoteRouterConfig[] calldata newRemoteConfigs
     ) external onlyOwner {
         for (uint256 i = 0; i < newRemoteConfigs.length; ++i) {
             _validateRemoteRouterConfig(newRemoteConfigs[i]);
+            _configureLayerZeroPath(newRemoteConfigs[i]);
             _enrollLayerZeroRemoteRouter(newRemoteConfigs[i]);
         }
     }
@@ -360,9 +361,30 @@ contract LayerZeroV2OffchainLookupHookIsm is
         revert IncompleteLayerZeroRoute(domainId);
     }
 
-    /// @dev Writes the complete new policy. If the endpoint ID changes, the
-    /// previous path is blocked before the reverse mapping is reassigned.
+    /// @dev Records the Hyperlane peer and its one-to-one endpoint ID binding.
     function _enrollLayerZeroRemoteRouter(
+        RemoteRouterConfig calldata newRemoteConfig
+    ) internal {
+        // The reverse lookup lets incoming packets find the Hyperlane domain.
+        super._enrollRemoteRouter(
+            newRemoteConfig.domainId,
+            newRemoteConfig.domainIsm
+        );
+        remoteEndpointIds.assign(
+            newRemoteConfig.domainId,
+            newRemoteConfig.endpointId
+        );
+
+        emit LayerZeroRemoteRouterEnrolled(
+            newRemoteConfig.domainId,
+            newRemoteConfig.endpointId,
+            newRemoteConfig.domainIsm
+        );
+    }
+
+    /// @dev Installs the complete LayerZero policy. If the endpoint ID changes,
+    /// the previous path is blocked before the new path is configured.
+    function _configureLayerZeroPath(
         RemoteRouterConfig calldata newRemoteConfig
     ) internal {
         uint32 previousEndpointId = remoteEndpointIds.reverseKeyOf(
@@ -390,34 +412,7 @@ contract LayerZeroV2OffchainLookupHookIsm is
             newRemoteConfig.endpointId,
             newRemoteConfig.receiveLibrary
         );
-
-        // Write both config types, using explicit defaults for omitted entries.
-        _setSendConfig(
-            newRemoteConfig.endpointId,
-            newRemoteConfig.sendLibrary,
-            newRemoteConfig.sendConfig
-        );
-        _setReceiveConfig(
-            newRemoteConfig.endpointId,
-            newRemoteConfig.receiveLibrary,
-            newRemoteConfig.receiveConfig
-        );
-
-        // The reverse lookup lets incoming packets find the Hyperlane domain.
-        super._enrollRemoteRouter(
-            newRemoteConfig.domainId,
-            newRemoteConfig.domainIsm
-        );
-        remoteEndpointIds.assign(
-            newRemoteConfig.domainId,
-            newRemoteConfig.endpointId
-        );
-
-        emit LayerZeroRemoteRouterEnrolled(
-            newRemoteConfig.domainId,
-            newRemoteConfig.endpointId,
-            newRemoteConfig.domainIsm
-        );
+        _setLayerZeroConfig(newRemoteConfig);
     }
 
     /// @dev Rejects endpoint IDs assigned to another domain and invalid policy.
@@ -455,21 +450,12 @@ contract LayerZeroV2OffchainLookupHookIsm is
 
         _validateRegisteredLibrary(newRemoteConfig.sendLibrary);
         _validateRegisteredLibrary(newRemoteConfig.receiveLibrary);
-        _validateRemoteConfigParams(
-            newRemoteConfig.endpointId,
-            newRemoteConfig.sendConfig,
-            false
-        );
-        _validateRemoteConfigParams(
-            newRemoteConfig.endpointId,
-            newRemoteConfig.receiveConfig,
-            true
-        );
     }
 
     /// @dev Router's owner-gated unenrollment methods call this override.
-    /// Endpoint library selections and worker config persist independently of
-    /// Hyperlane's route, so both must be retired when the route is removed.
+    /// Endpoint library selections persist independently of Hyperlane's route,
+    /// so both must be blocked when the route is removed. Library config may
+    /// remain because every enrollment replaces it completely.
     function _unenrollRemoteRouter(uint32 domainId) internal override {
         uint32 endpointId = remoteEndpointIds.reverseKeyOf(domainId);
         if (endpointId == 0) {
@@ -477,22 +463,6 @@ contract LayerZeroV2OffchainLookupHookIsm is
         }
 
         bytes32 domainIsm = _mustHaveRemoteRouter(domainId);
-        // Save the selected libraries before replacing them with blockedLibrary.
-        address sendLibrary = endpointContract.getSendLibrary(
-            address(this),
-            endpointId
-        );
-        (address receiveLibrary, ) = endpointContract.getReceiveLibrary(
-            address(this),
-            endpointId
-        );
-
-        LayerZeroSetConfigParam[]
-            memory emptyConfig = new LayerZeroSetConfigParam[](0);
-        // Empty config arrays restore ULN302 defaults on both libraries.
-        _setSendConfig(endpointId, sendLibrary, emptyConfig);
-        _setReceiveConfig(endpointId, receiveLibrary, emptyConfig);
-
         // Deleting Hyperlane's mappings alone would leave an initialized
         // Endpoint path able to accept DVN commitments, so block both libraries.
         address blockedLibrary = MessageLibManager(address(endpointContract))
@@ -550,7 +520,8 @@ contract LayerZeroV2OffchainLookupHookIsm is
     }
 
     /// @dev Sends one authorization packet for the latest Mailbox dispatch.
-    /// The latest published ID write rolls back if sending or refunding fails.
+    /// The Endpoint validates the supplied fee and refunds any excess. The
+    /// latest published ID write rolls back if sending or refunding fails.
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
@@ -568,11 +539,6 @@ contract LayerZeroV2OffchainLookupHookIsm is
             message,
             messageId
         );
-        uint256 nativeFee = _quoteLzNativeFee(params);
-
-        if (msg.value < nativeFee) {
-            revert InsufficientLayerZeroFee(nativeFee, msg.value);
-        }
 
         // Effect before the Endpoint call; a later failure reverts this write.
         latestPublishedAuthorizationMessageId = messageId;
@@ -581,7 +547,7 @@ contract LayerZeroV2OffchainLookupHookIsm is
             Message.senderAddress(message)
         );
         LayerZeroMessagingReceipt memory receipt = endpointContract.send{
-            value: nativeFee
+            value: msg.value
         }(params, refundAddress);
 
         emit LayerZeroAuthorizationSent(
@@ -590,10 +556,8 @@ contract LayerZeroV2OffchainLookupHookIsm is
             params.dstEid,
             receipt.guid,
             receipt.nonce,
-            nativeFee
+            receipt.fee.nativeFee
         );
-
-        _refund(metadata, message, msg.value - nativeFee);
     }
 
     /// @dev Builds the same message-ID commitment and one-gas Executor option
@@ -633,102 +597,59 @@ contract LayerZeroV2OffchainLookupHookIsm is
         }
     }
 
-    /// @dev Only ULN302's Executor and DVN config types are supported.
-    function _validateRemoteConfigParams(
-        uint32 endpointId,
-        LayerZeroSetConfigParam[] calldata params,
-        bool isReceiveConfig
-    ) internal pure {
-        for (uint256 i = 0; i < params.length; ++i) {
-            if (params[i].eid != endpointId) {
-                revert InvalidLayerZeroConfigEndpointId(params[i].eid);
-            }
-
-            if (
-                !LayerZeroConfigTypeLib.isValid(params[i].configType) ||
-                (isReceiveConfig &&
-                    params[i].configType != LayerZeroConfigTypeLib.ULN)
-            ) {
-                revert InvalidLayerZeroConfigType(params[i].configType);
-            }
-        }
-    }
-
-    /// @dev Replace every supported send setting; omitted entries use defaults.
-    function _setSendConfig(
-        uint32 endpointId,
-        address libraryAddress,
-        LayerZeroSetConfigParam[] memory suppliedConfig
+    /// @dev Applies one symmetric ULN policy in both directions and the
+    /// Executor policy only on sends. A shared library is configured once.
+    function _setLayerZeroConfig(
+        RemoteRouterConfig calldata remoteConfig
     ) internal {
-        LayerZeroSetConfigParam[] memory params = _defaultSendConfigParams(
-            endpointId
+        LayerZeroSetConfigParam[] memory sendParams = _sendConfigParams(
+            remoteConfig
         );
-        for (uint256 i = 0; i < suppliedConfig.length; ++i) {
-            params[
-                suppliedConfig[i].configType - LayerZeroConfigTypeLib.EXECUTOR
-            ] = suppliedConfig[i];
+        endpointContract.setConfig(
+            address(this),
+            remoteConfig.sendLibrary,
+            sendParams
+        );
+
+        if (remoteConfig.receiveLibrary == remoteConfig.sendLibrary) {
+            return;
         }
 
-        endpointContract.setConfig(address(this), libraryAddress, params);
-    }
-
-    /// @dev Replace inbound DVN settings; omission uses the library default.
-    function _setReceiveConfig(
-        uint32 endpointId,
-        address libraryAddress,
-        LayerZeroSetConfigParam[] memory suppliedConfig
-    ) internal {
-        LayerZeroSetConfigParam[] memory params = _defaultReceiveConfigParams(
-            endpointId
+        LayerZeroSetConfigParam[] memory receiveParams = _receiveConfigParams(
+            remoteConfig
         );
-        if (suppliedConfig.length != 0) {
-            params[0] = suppliedConfig[suppliedConfig.length - 1];
-        }
-
-        endpointContract.setConfig(address(this), libraryAddress, params);
+        endpointContract.setConfig(
+            address(this),
+            remoteConfig.receiveLibrary,
+            receiveParams
+        );
     }
 
-    function _defaultSendConfigParams(
-        uint32 endpointId
+    function _sendConfigParams(
+        RemoteRouterConfig calldata remoteConfig
     ) internal pure returns (LayerZeroSetConfigParam[] memory params) {
         params = new LayerZeroSetConfigParam[](2);
         params[0] = LayerZeroSetConfigParam({
-            eid: endpointId,
+            eid: remoteConfig.endpointId,
             configType: LayerZeroConfigTypeLib.EXECUTOR,
-            config: abi.encode(
-                ExecutorConfig({maxMessageSize: 0, executor: address(0)})
-            )
+            config: abi.encode(remoteConfig.executorConfig)
         });
         params[1] = LayerZeroSetConfigParam({
-            eid: endpointId,
+            eid: remoteConfig.endpointId,
             configType: LayerZeroConfigTypeLib.ULN,
-            config: _defaultUlnConfig()
+            config: abi.encode(remoteConfig.ulnConfig)
         });
     }
 
-    function _defaultReceiveConfigParams(
-        uint32 endpointId
+    function _receiveConfigParams(
+        RemoteRouterConfig calldata remoteConfig
     ) internal pure returns (LayerZeroSetConfigParam[] memory params) {
         params = new LayerZeroSetConfigParam[](1);
         params[0] = LayerZeroSetConfigParam({
-            eid: endpointId,
+            eid: remoteConfig.endpointId,
             configType: LayerZeroConfigTypeLib.ULN,
-            config: _defaultUlnConfig()
+            config: abi.encode(remoteConfig.ulnConfig)
         });
-    }
-
-    function _defaultUlnConfig() internal pure returns (bytes memory) {
-        return
-            abi.encode(
-                UlnConfig({
-                    confirmations: 0,
-                    requiredDVNCount: 0,
-                    optionalDVNCount: 0,
-                    optionalDVNThreshold: 0,
-                    requiredDVNs: new address[](0),
-                    optionalDVNs: new address[](0)
-                })
-            );
     }
 
     /// @dev Selects the send library unless an enrolled path already uses it.
@@ -755,7 +676,10 @@ contract LayerZeroV2OffchainLookupHookIsm is
     }
 
     /// @dev Selects the receive library unless an enrolled path already uses it.
-    /// Zero grace clears any previous receive-library timeout on rotation.
+    /// A zero grace period immediately invalidates the previous library on
+    /// rotation, avoiding two concurrently authorized receive libraries.
+    /// Operators must first drain in-flight packets or have them re-attested
+    /// against the replacement library.
     function _setReceiveLibrary(
         uint32 endpointId,
         address libraryAddress

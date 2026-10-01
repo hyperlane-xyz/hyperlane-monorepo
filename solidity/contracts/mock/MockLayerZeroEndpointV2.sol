@@ -6,6 +6,7 @@ import {ILayerZeroReceiver} from "@layerzerolabs/lz-evm-protocol-v2/contracts/in
 import {SetConfigParam as LayerZeroSetConfigParam} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/IMessageLibManager.sol";
 import {GUID} from "@layerzerolabs/lz-evm-protocol-v2/contracts/libs/GUID.sol";
 import {Errors} from "@layerzerolabs/lz-evm-protocol-v2/contracts/libs/Errors.sol";
+import {Transfer} from "@layerzerolabs/lz-evm-protocol-v2/contracts/libs/Transfer.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 
 contract MockLayerZeroEndpointV2 {
@@ -85,9 +86,16 @@ contract MockLayerZeroEndpointV2 {
 
     function send(
         LayerZeroMessagingParams calldata params,
-        address
+        address refundAddress
     ) external payable returns (LayerZeroMessagingReceipt memory receipt) {
-        require(msg.value >= nativeFee, "fee");
+        if (msg.value < nativeFee || lzTokenFee != 0) {
+            revert Errors.LZ_InsufficientFee(
+                nativeFee,
+                msg.value,
+                lzTokenFee,
+                0
+            );
+        }
         uint64 nonce = ++outboundNonces[msg.sender][params.dstEid][
             params.receiver
         ];
@@ -123,6 +131,10 @@ contract MockLayerZeroEndpointV2 {
                 lzTokenFee: lzTokenFee
             })
         });
+
+        if (msg.value > nativeFee) {
+            Transfer.native(refundAddress, msg.value - nativeFee);
+        }
     }
 
     function clear(

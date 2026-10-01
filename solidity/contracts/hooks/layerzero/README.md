@@ -13,7 +13,7 @@ can share one deployment when they accept its owner, peer set, LayerZero
 libraries, DVN configuration, and operational blast radius. Separate
 deployments provide independent policy and ownership.
 
-[`LayerZeroV2OffchainLookupHookIsm`](./LayerZeroV2OffchainLookupHookIsm.sol) verifies a
+[`LayerZeroV2HookIsm`](./LayerZeroV2HookIsm.sol) verifies a
 LayerZero packet during `Mailbox.process`. Its ISM metadata ABI-encodes
 `(address receiveLibrary, bytes encodedPacket)`.
 
@@ -34,14 +34,14 @@ For a message from A to B:
 1. A's Endpoint uses the selected
    [send library](https://docs.layerzero.network/v2/concepts/protocol/message-send-library)
    to encode the packet, quote the fee, and assign work to the configured DVNs
-   and Executor. `sendConfig` holds that library's outbound Executor and DVN
-   settings for B's endpoint ID.
+   and Executor. `executorConfig` holds its outbound Executor settings for B's
+   endpoint ID.
 2. DVNs submit packet attestations to B's selected
    [receive library](https://docs.layerzero.network/v2/concepts/protocol/message-receive-library).
-   `receiveConfig` holds its inbound DVN and confirmation requirements for A's
-   endpoint ID. Once those requirements are met, anyone can call the receive
-   library's `commitVerification`; it records the packet's payload hash in B's
-   Endpoint.
+   `ulnConfig` holds the DVN and confirmation requirements applied to both the
+   send and receive libraries. Once those requirements are met, anyone can call
+   the receive library's `commitVerification`; it records the packet's payload
+   hash in B's Endpoint.
 3. A configured Executor normally submits the verified packet to
    `Endpoint.lzReceive`, but the Endpoint does not restrict that call to the
    configured Executor; anyone can submit it. Here, the Hyperlane relayer
@@ -51,9 +51,12 @@ For a message from A to B:
 
 Selecting a library and setting its configuration are different Endpoint
 operations. A library address chooses the implementation for this OApp and
-remote endpoint ID; `setConfig` supplies that library's worker policy. Empty
-config arrays use the selected ULN302 libraries' defaults. The owner must check
-that the send policy on A and receive policy on B are compatible. See LayerZero's
+remote endpoint ID; `setConfig` supplies that library's worker policy. All-zero
+configuration structs use the selected ULN302 libraries' defaults. Those
+defaults are mutable and controlled by each message library's owner, so using
+them extends the route's trust assumptions to that governance. The hook/ISM
+owner must check that the send policy on A and receive policy on B are
+compatible. See LayerZero's
 [pathway configuration guide](https://docs.layerzero.network/v2/get-started/create-lz-oapp/configuring-pathways).
 
 This pull verifier decodes Endpoint V2 PacketV1 data and calls
@@ -188,9 +191,8 @@ undelivered authorization.
 
 ## Fees
 
-The hook calls `Endpoint.quote` immediately before sending and pays its
-reported native fee. The send library calculates that quote using the
-configured DVN and Executor fees.
+`quoteDispatch` asks the Endpoint for the current native fee. The send library
+calculates that quote using the configured DVN and Executor fees.
 
 DVNs are independent verifiers that observe packets and submit attestations to
 the receive library. Their attestations are not produced by Hyperlane
@@ -213,13 +215,15 @@ These fees are separate from:
 
 Only native-fee LayerZero Endpoints are supported. The constructor rejects an
 Endpoint whose `nativeToken()` is nonzero. Hook metadata with an ERC-20 fee
-token or nonzero destination `msg.value` is also rejected. The LayerZero send
-always sets `payInLzToken` to false.
+token is rejected, and the LayerZero send always sets `payInLzToken` to false.
+The hook ignores metadata destination `msgValue` because hook aggregations pass
+the same metadata to every child; this hook's Executor option always specifies
+zero destination native value.
 
-`quoteDispatch` is a point-in-time quote. `postDispatch` quotes again, so a fee
-increase between the two calls can revert an underpaid dispatch. Excess payment
-is returned to the hook metadata's refund address, or the Hyperlane sender when
-no explicit refund address is supplied. A refund failure reverts the dispatch.
+`quoteDispatch` is a point-in-time quote. During `postDispatch`, the Endpoint
+calculates the current fee and reverts an underpaid dispatch. It returns excess
+payment to the hook metadata's refund address, or the Hyperlane sender when no
+explicit refund address is supplied. A refund failure reverts the dispatch.
 
 All children of a hook aggregation receive the same metadata. An aggregation
 containing this native-only hook cannot simultaneously use a nonzero ERC-20 fee
@@ -239,7 +243,8 @@ Rich enrollment configures a route atomically with:
 - exact remote Hook/ISM address;
 - LayerZero remote endpoint ID;
 - explicit send and receive libraries;
-- send-library and receive-library configuration entries.
+- one symmetric ULN policy; and
+- one outbound Executor policy.
 
 Enrollment rejects the local domain, zero/local endpoint IDs, a zero peer, and
 reuse of one endpoint ID by multiple Hyperlane domains. Peers are arbitrary
@@ -248,14 +253,15 @@ is accepted only after its send and receive libraries are selected explicitly
 for this OApp, rather than inheriting the Endpoint's mutable library defaults.
 
 The inherited basic `Router.enrollRemoteRouter` path is disabled because it
-cannot install the required LayerZero policy. Use the typed singular or batch
-functions on the concrete contract. Batch operations are atomic.
+cannot install the required LayerZero policy. Use the typed
+`enrollRemoteRouters` function on the concrete contract. Batch operations are
+atomic.
 
 Calling rich enrollment for an existing domain replaces its route in one
 transaction. The contract sets the supplied peer, endpoint ID, libraries, and
-policy directly. It writes each supported config type, using the selected
-library's default for an omitted entry rather than retaining its old value.
-Custom entries support ULN302 Executor (send type 1) and DVN (type 2) settings.
+policy directly. It writes the Executor and ULN config types, using the selected
+library's default for an all-zero config rather than retaining its old value.
+When one library handles both directions, the contract configures it once.
 If the endpoint ID changes, the old Endpoint path is blocked and its reverse
 lookup removed. No old library config is reset during overwrite: it is inactive
 once deselected, and a later selection writes a complete policy. If any step
@@ -265,7 +271,10 @@ the Endpoint remain verifiable if the peer and endpoint ID are unchanged.
 Uncommitted packets may no longer verify after a peer, endpoint ID, or
 receive-library change. Changing only the receive DVNs or confirmation count
 can also strand uncommitted packets: the receive library checks them against
-the current policy, even when its address is unchanged.
+the current policy, even when its address is unchanged. Receive-library
+rotation uses zero grace so the previous library becomes invalid immediately.
+Operators should drain in-flight packets before rotating or ensure DVNs
+re-attest them through the replacement library.
 
 Endpoint configuration is directional. A to B and B to A may use different
 libraries, DVNs, confirmation counts, and Executors. A LayerZero
@@ -292,14 +301,15 @@ Destination authentication checks bind together:
 GUID validation hashes the complete 32-byte LayerZero sender, including any
 non-EVM address bytes.
 
-| Component                                                | Security role                                                                                                |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| LayerZero Endpoint and selected message libraries        | Commit and expose authenticated packet state according to the configured pathway                             |
-| Configured DVNs                                          | Attest packets under the configured threshold and confirmation policy                                        |
-| Hook/ISM owner                                           | Select peers, endpoint IDs, libraries, DVNs, confirmations, and Executor policy                              |
-| Hyperlane Mailbox                                        | Supplies the canonical message and final replay protection                                                   |
-| Application configuration                                | Ensures this hook runs on dispatch and this ISM participates in delivery policy                              |
-| Executor, offchain lookup service, and Hyperlane relayer | Transport data and transactions; can delay or omit work but cannot satisfy packet checks with different data |
+| Component                                                 | Security role                                                                                                |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| LayerZero Endpoint and selected message libraries         | Commit and expose authenticated packet state according to the configured pathway                             |
+| Message-library owner, when library defaults are selected | Can change the default DVN, confirmation, or Executor policy inherited by an all-zero configuration          |
+| Configured DVNs                                           | Attest packets under the configured threshold and confirmation policy                                        |
+| Hook/ISM owner                                            | Select peers, endpoint IDs, libraries, DVNs, confirmations, and Executor policy                              |
+| Hyperlane Mailbox                                         | Supplies the canonical message and final replay protection                                                   |
+| Application configuration                                 | Ensures this hook runs on dispatch and this ISM participates in delivery policy                              |
+| Executor, offchain lookup service, and Hyperlane relayer  | Transport data and transactions; can delay or omit work but cannot satisfy packet checks with different data |
 
 A matching LayerZero packet proves that the enrolled remote Hook/ISM sent an
 authorization for the exact Hyperlane message ID. It does not prove that the
@@ -323,8 +333,9 @@ Route changes affect in-flight messages by stage:
 | Pull packet awaiting `Mailbox.process`           | Verification uses current route identity; old peer or endpoint ID data is rejected                                                 |
 | Hyperlane message delivered                      | Mailbox replay protection remains final                                                                                            |
 
-Unenrollment removes the peer and endpoint ID mappings, blocks both Endpoint
-directions, and restores the selected libraries' configuration to defaults.
+Unenrollment removes the peer and endpoint ID mappings and blocks both Endpoint
+directions. Inactive library configuration remains stored; every later
+enrollment replaces it completely.
 
 ## Pull packet cleanup and LayerZero nonces
 
@@ -338,7 +349,7 @@ though packets can be verified and executed out of order.
 After pull verification succeeds, the ISM calls `Endpoint.clear` with a
 50,000-gas safety budget. This is our cap, not a LayerZero requirement: a
 single-packet clear used 26,610 gas on the production Endpoint at Ethereum fork
-block 25,878,200. The [fork test](../../../test/hooks/LayerZeroV2OffchainLookupHookIsm.fork.t.sol)
+block 25,878,200. The [fork test](../../../test/hooks/LayerZeroV2HookIsm.fork.t.sol)
 checks it fits the cap. A longer verified backlog can require more gas, so
 cleanup is optimistic: failure emits
 `LayerZeroPayloadClearFailed` and does not block the Hyperlane message. This

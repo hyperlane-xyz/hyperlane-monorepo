@@ -107,7 +107,7 @@ module.exports = {
             },
         ],
         overrides: {
-            "contracts/hooks/layerzero/LayerZeroV2OffchainLookupHookIsm.sol": {
+            "contracts/hooks/layerzero/LayerZeroV2HookIsm.sol": {
                 ...rootHardhatConfig.solidity,
                 version: "0.8.24",
                 settings: {

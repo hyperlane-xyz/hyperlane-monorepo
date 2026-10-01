@@ -8,9 +8,4 @@ pragma solidity >=0.8.20;
 library LayerZeroConfigTypeLib {
     uint32 internal constant EXECUTOR = 1;
     uint32 internal constant ULN = 2;
-
-    /// @notice Whether `configType` is a recognized ULN302 tag.
-    function isValid(uint32 configType) internal pure returns (bool) {
-        return configType == EXECUTOR || configType == ULN;
-    }
 }
