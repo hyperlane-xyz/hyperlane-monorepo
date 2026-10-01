@@ -832,6 +832,10 @@ export function collectValidators(
     config.type === IsmType.MESSAGE_ID_MULTISIG
   ) {
     validators = config.validators;
+  } else if (config.type === IsmType.ROUTING_MESSAGE_ID_MULTISIG) {
+    if (Object.keys(config.domains).includes(origin)) {
+      validators = [...config.domains[origin].validators];
+    }
   } else if (config.type === IsmType.ROUTING) {
     if (Object.keys(config.domains).includes(origin)) {
       const domainValidators = collectValidators(
