@@ -12,6 +12,7 @@ import { randomAddress } from '../test/testUtils.js';
 import { BlacklistIsmConfig, IsmConfig, IsmType } from './types.js';
 import {
   SAMPLE_VERIFY_ADDRESS,
+  collectValidators,
   moduleCanCertainlyVerify,
   moduleMatchesConfig,
 } from './utils.js';
@@ -183,6 +184,8 @@ describe('ism utils', () => {
           },
         },
       };
+      // CAST: test double; the Sealevel-only type short-circuits before any
+      // factory contract is read.
       const contractsDouble =
         {} as unknown as HyperlaneContracts<ProxyFactoryFactories>;
 
@@ -195,6 +198,31 @@ describe('ism utils', () => {
       );
 
       expect(result).to.be.false;
+    });
+  });
+
+  describe('collectValidators', () => {
+    const validatorA = randomAddress();
+    const validatorB = randomAddress();
+    const config: IsmConfig = {
+      type: IsmType.ROUTING_MESSAGE_ID_MULTISIG,
+      owner: randomAddress(),
+      domains: {
+        [TestChainName.test2]: {
+          validators: [validatorA, validatorB],
+          threshold: 1,
+        },
+      },
+    };
+
+    it('returns the validators of the origin domain for routingMessageIdMultisigIsm', () => {
+      expect([
+        ...collectValidators(TestChainName.test2, config),
+      ]).to.have.members([validatorA, validatorB]);
+    });
+
+    it('returns an empty set when the origin is absent from routingMessageIdMultisigIsm', () => {
+      expect(collectValidators(TestChainName.test1, config).size).to.equal(0);
     });
   });
 });

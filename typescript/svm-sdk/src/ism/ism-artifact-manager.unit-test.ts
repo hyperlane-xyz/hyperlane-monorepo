@@ -17,6 +17,8 @@ const ROUTING_ERROR = 'routingMessageIdMultisigIsm requires known domain ids';
 
 describe('SvmIsmArtifactManager', () => {
   const rpc = createRpc('http://127.0.0.1:8899');
+  // CAST: test double; the ISM readers and writers built here only store the
+  // signer and never call it.
   const signer = {} as unknown as SvmSigner;
 
   it('creates a test ISM reader and writer without known domain ids', () => {

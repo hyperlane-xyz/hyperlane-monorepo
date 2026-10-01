@@ -20,6 +20,8 @@ import { ProtocolProvider } from '@hyperlane-xyz/provider-sdk/protocol';
 import { createIsmReader } from './generic-ism.js';
 import { IsmWriter, createIsmWriter } from './generic-ism-writer.js';
 
+// CAST: registers a synthetic protocol so the test cannot collide with a real
+// protocol provider registered by another suite in the same process.
 const TestProtocol = 'test-ism-context' as ProtocolType;
 
 const createIsmArtifactManager = sinon.stub();
