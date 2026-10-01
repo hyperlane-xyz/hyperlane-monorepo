@@ -732,4 +732,34 @@ describe('transformDeployConfigForDisplay', () => {
     expect(upperRow?.Accept).to.equal(false);
     expect(relayerRow?.Relayer).to.equal(RELAYER);
   });
+
+  it('emits one row per domain for a routingMessageIdMultisigIsm', () => {
+    const VALIDATOR = `0x${'1'.repeat(40)}`;
+    const deployConfig: WarpRouteDeployConfigMailboxRequired = {
+      solanamainnet: {
+        type: TokenType.synthetic,
+        owner: OWNER,
+        mailbox: MAILBOX,
+        interchainSecurityModule: {
+          type: IsmType.ROUTING_MESSAGE_ID_MULTISIG,
+          owner: OWNER,
+          domains: {
+            ethereum: { validators: [VALIDATOR], threshold: 1 },
+          },
+        },
+      },
+    };
+
+    const { transformedIsmConfigs } =
+      transformDeployConfigForDisplay(deployConfig);
+
+    const rows = transformedIsmConfigs.solanamainnet;
+    expect(rows[0].Type).to.equal(IsmType.ROUTING_MESSAGE_ID_MULTISIG);
+    expect(rows[0].Owner).to.equal(OWNER);
+    expect(rows[1]).to.deep.equal({
+      Path: 'domains.ethereum',
+      Validators: [VALIDATOR],
+      Threshold: 1,
+    });
+  });
 });
