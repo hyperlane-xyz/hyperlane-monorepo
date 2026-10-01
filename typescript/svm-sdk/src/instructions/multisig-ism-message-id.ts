@@ -191,7 +191,7 @@ export const MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN = 24;
  * `submitReceiptTxsToSquads` callers (typescript/infra/scripts/squads/propose-warp-batch.ts,
  * "Hyperlane warp apply batch (N tx) for <chain> (i/N)"). 340 covers memos of
  * up to 75 characters; a longer memo can overflow a batch that fills the
- * reservation. A 24-validator domain (the enforced cap) is 809 bytes direct and
+ * reservation. A 24-validator domain (the enforced cap) is 810 bytes direct and
  * always fits alone.
  *
  * Trade-off: direct submissions use slightly more transactions than the 1232

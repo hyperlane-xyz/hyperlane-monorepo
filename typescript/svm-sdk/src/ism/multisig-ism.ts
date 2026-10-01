@@ -315,6 +315,10 @@ export class SvmRoutingMessageIdMultisigIsmWriter
   }
 
   /**
+   * Rerunning with `{ programBytes }` after a partial failure deploys a fresh
+   * program and orphans the half-configured one; rerunning with `{ programId }`
+   * resumes it (an initialized program owned by the signer skips init).
+   *
    * Only the configured domains are written and returned: when an already
    * initialized program is reused, domains already on chain are left untouched
    * and not reported.
@@ -383,8 +387,11 @@ export class SvmRoutingMessageIdMultisigIsmWriter
       receipts.push(initReceipt);
     } else {
       assert(
-        accessControl.owner !== null &&
-          eqAddressSol(accessControl.owner, signerAddress),
+        accessControl.owner !== null,
+        `Multisig ISM ${programAddress} is already initialized and its ownership was renounced`,
+      );
+      assert(
+        eqAddressSol(accessControl.owner, signerAddress),
         `Multisig ISM ${programAddress} is already initialized and not owned by the deploying signer`,
       );
     }
@@ -491,7 +498,9 @@ export class SvmRoutingMessageIdMultisigIsmWriter
     );
 
     // normalizeConfig ignores validator order and case: an order-only change
-    // is never applied, matching the other ISM diffs.
+    // is never applied, matching the other ISM diffs. The on-chain order still
+    // matters: verification wants signatures in it, and a fresh write keeps the
+    // given order.
     const changedEntries = expectedDomainEntries(expected).filter(
       ([domain, domainConfig]) =>
         !deepEquals(

@@ -627,11 +627,28 @@ describe('SvmRoutingMessageIdMultisigIsmWriter.create', () => {
     expect(artifact.config.owner).to.equal(NEW_OWNER);
   });
 
-  for (const existingOwner of [NEW_OWNER, null]) {
-    it(`rejects before any transaction when already initialized with owner ${existingOwner}`, async () => {
+  interface RejectCase {
+    name: string;
+    existingOwner: typeof NEW_OWNER | null;
+    message: string;
+  }
+  const rejectCases: RejectCase[] = [
+    {
+      name: 'a different owner',
+      existingOwner: NEW_OWNER,
+      message: `Multisig ISM ${PROGRAM_ID} is already initialized and not owned by the deploying signer`,
+    },
+    {
+      name: 'a renounced owner',
+      existingOwner: null,
+      message: `Multisig ISM ${PROGRAM_ID} is already initialized and its ownership was renounced`,
+    },
+  ];
+  for (const c of rejectCases) {
+    it(`rejects before any transaction when already initialized with ${c.name}`, async () => {
       const chain = new FakeChain();
       const { writer, signer } = await makeWriter(chain);
-      await chain.setAccessControl(existingOwner);
+      await chain.setAccessControl(c.existingOwner);
 
       await expect(
         writer.create({
@@ -640,9 +657,7 @@ describe('SvmRoutingMessageIdMultisigIsmWriter.create', () => {
             1: { validators: [V1], threshold: 1 },
           }),
         }),
-      ).to.be.rejectedWith(
-        `Multisig ISM ${PROGRAM_ID} is already initialized and not owned by the deploying signer`,
-      );
+      ).to.be.rejectedWith(c.message);
 
       expect(signer.sent).to.have.length(0);
       expect(signer.sendAttempts).to.equal(0);

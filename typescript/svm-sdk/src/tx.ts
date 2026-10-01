@@ -415,12 +415,16 @@ export function estimateTransactionWireSize(
  *
  * `reservedBytes` is subtracted from the limit for every batch, for callers
  * whose batches are later wrapped in a larger transaction.
+ *
+ * `oversizedItemDetail` is appended to the error thrown when a single item
+ * alone exceeds the limit.
  */
 export function chunkInstructionsBySize<T>(
   items: readonly T[],
   toInstruction: (item: T) => Instruction,
   feePayer: Address,
   reservedBytes = 0,
+  oversizedItemDetail = '',
 ): T[][] {
   const maxSize = SOLANA_MAX_TRANSACTION_SIZE - reservedBytes;
   const chunks: T[][] = [];
@@ -439,7 +443,7 @@ export function chunkInstructionsBySize<T>(
       `Instruction alone (${soloSize} bytes) exceeds Solana's ` +
         `${SOLANA_MAX_TRANSACTION_SIZE}-byte transaction size limit` +
         `${reservedBytes > 0 ? ` less ${reservedBytes} reserved bytes` : ''} — it is too ` +
-        `large to submit in a single transaction.`,
+        `large to submit in a single transaction.${oversizedItemDetail}`,
     );
 
     const candidate = [...current, item];

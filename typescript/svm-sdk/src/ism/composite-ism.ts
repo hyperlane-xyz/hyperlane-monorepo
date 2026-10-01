@@ -510,6 +510,9 @@ export async function assertCompositeIsmFitsSizeLimit(
   }
 }
 
+const COMPOSITE_OVERSIZED_DOMAIN_DETAIL =
+  ' The nested ISM tree for this domain is too large.';
+
 export class SvmCompositeIsmReader implements ArtifactReader<
   CompositeIsmArtifactConfig,
   SvmDeployedIsm
@@ -672,6 +675,8 @@ export class SvmCompositeIsmWriter
         domainInstructions,
         (ix) => ix,
         this.svmSigner.signer.address,
+        0,
+        COMPOSITE_OVERSIZED_DOMAIN_DETAIL,
       );
       for (const chunk of chunks) {
         receipts.push(await this.svmSigner.send({ instructions: chunk }));
@@ -783,6 +788,8 @@ export class SvmCompositeIsmWriter
       domainIxs,
       (item) => item.instruction,
       this.svmSigner.signer.address,
+      0,
+      COMPOSITE_OVERSIZED_DOMAIN_DETAIL,
     );
     const domainTxs: AnnotatedSvmTransaction[] = domainIxChunks.map(
       (chunk) => ({

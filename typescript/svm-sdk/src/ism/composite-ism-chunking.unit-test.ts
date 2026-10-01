@@ -92,6 +92,16 @@ describe('chunkInstructionsBySize', () => {
         owner.address,
       ),
     ).to.throw(/exceeds Solana's/);
+
+    expect(() =>
+      chunkInstructionsBySize(
+        [hugeInstruction],
+        (ix: Instruction) => ix,
+        owner.address,
+        0,
+        ' The nested ISM tree for this domain is too large.',
+      ),
+    ).to.throw(/The nested ISM tree for this domain is too large\.$/);
   });
 
   it('applies reservedBytes to every chunk and to the alone-exceeds check', async () => {
