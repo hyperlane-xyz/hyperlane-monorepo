@@ -15,8 +15,14 @@ import sinon from 'sinon';
 
 chai.use(chaiAsPromised);
 
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import type { RoutingMessageIdMultisigIsmArtifactConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  type ArtifactDeployed,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import type {
+  DeployedIsmAddress,
+  RoutingMessageIdMultisigIsmArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/ism';
 import {
   type NonEmptyArray,
   ZERO_ADDRESS_HEX_32,
