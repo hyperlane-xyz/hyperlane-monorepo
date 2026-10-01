@@ -39,6 +39,15 @@ const PROTOCOL_SPECIFIC_ISM_TYPES: Readonly<
   [IsmType.ROUTING_MESSAGE_ID_MULTISIG]: ProtocolType.Sealevel,
 };
 
+/** ISM types otherwise supported but rejected on a specific protocol, with the type to use instead. */
+const PROTOCOL_UNSUPPORTED_ISM_TYPES: Readonly<
+  Partial<Record<ProtocolType, Readonly<Record<string, IsmType>>>>
+> = {
+  [ProtocolType.Sealevel]: {
+    [IsmType.MESSAGE_ID_MULTISIG]: IsmType.ROUTING_MESSAGE_ID_MULTISIG,
+  },
+};
+
 /**
  * Validates that an ISM type is supported by provider-sdk for the given protocol.
  *
@@ -61,17 +70,40 @@ export function validateIsmType(
   protocol?: ProtocolType,
 ): void {
   const requiredProtocol = PROTOCOL_SPECIFIC_ISM_TYPES[ismType];
+  const protocolUnsupported =
+    protocol === undefined
+      ? {}
+      : (PROTOCOL_UNSUPPORTED_ISM_TYPES[protocol] ?? {});
   const supported =
     SUPPORTED_ISM_TYPES.has(ismType) &&
-    (requiredProtocol === undefined || requiredProtocol === protocol);
+    (requiredProtocol === undefined || requiredProtocol === protocol) &&
+    !Object.prototype.hasOwnProperty.call(protocolUnsupported, ismType);
 
   if (!supported) {
     const supportedTypes = Array.from(SUPPORTED_ISM_TYPES)
       .filter((type) => {
         const required = PROTOCOL_SPECIFIC_ISM_TYPES[type];
-        return required === undefined || required === protocol;
+        return (
+          (required === undefined || required === protocol) &&
+          !Object.prototype.hasOwnProperty.call(protocolUnsupported, type)
+        );
       })
       .join(', ');
+
+    const replacement = Object.prototype.hasOwnProperty.call(
+      protocolUnsupported,
+      ismType,
+    )
+      ? protocolUnsupported[ismType]
+      : undefined;
+    if (replacement !== undefined) {
+      throw new UnsupportedIsmTypeError(
+        ismType,
+        chain,
+        context,
+        `${supportedTypes} (${ismType} is unsupported on ${protocol}, use ${replacement} instead)`,
+      );
+    }
 
     if (
       SUPPORTED_ISM_TYPES.has(ismType) &&

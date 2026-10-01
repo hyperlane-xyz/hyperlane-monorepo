@@ -68,6 +68,59 @@ describe('validateIsmType', () => {
     });
   }
 
+  it('rejects messageIdMultisigIsm on Sealevel with a pointer to routingMessageIdMultisigIsm', () => {
+    expect(() => {
+      validateIsmType(
+        'messageIdMultisigIsm',
+        'solanamainnet',
+        'configuration',
+        ProtocolType.Sealevel,
+      );
+    }).to.throw(
+      UnsupportedIsmTypeError,
+      /messageIdMultisigIsm is unsupported on sealevel, use routingMessageIdMultisigIsm instead/,
+    );
+  });
+
+  it('does not list messageIdMultisigIsm as supported on Sealevel', () => {
+    expect(() => {
+      validateIsmType(
+        'notARealIsm',
+        'solanamainnet',
+        'configuration',
+        ProtocolType.Sealevel,
+      );
+    }).to.throw(
+      UnsupportedIsmTypeError,
+      /Supported types: (?!.*\bmessageIdMultisigIsm\b)/,
+    );
+  });
+
+  for (const protocol of [
+    ProtocolType.Radix,
+    ProtocolType.Aleo,
+    ProtocolType.Cosmos,
+    ProtocolType.CosmosNative,
+    ProtocolType.Starknet,
+  ]) {
+    it(`still accepts messageIdMultisigIsm on ${protocol}`, () => {
+      expect(() => {
+        validateIsmType(
+          'messageIdMultisigIsm',
+          'somechain',
+          'configuration',
+          protocol,
+        );
+      }).to.not.throw();
+    });
+  }
+
+  it('accepts messageIdMultisigIsm when no protocol is given', () => {
+    expect(() => {
+      validateIsmType('messageIdMultisigIsm', 'somechain');
+    }).to.not.throw();
+  });
+
   it('accepts protocol-agnostic ISM types on any Alt-VM protocol', () => {
     expect(() => {
       validateIsmType(
