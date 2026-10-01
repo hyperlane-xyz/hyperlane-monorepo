@@ -196,10 +196,10 @@ describe('hyperlane warp routingMessageIdMultisigIsm CLI e2e tests (Sealevel)', 
     expect(deployed.ism.owner).to.equal(signer.getSignerAddress());
     expect(deployed.ism.domains).to.deep.equal(INITIAL_DOMAINS);
 
-    // `warp check` compares altVM ISMs by address only, so exiting 0 proves the
-    // router points at the ISM but not what its domains contain. The content
-    // proof is the `readIsm()` deep-equal on the domains, so keep it next to
-    // every check.
+    // `warp check` does not compare the contents of an object-valued altVM ISM
+    // (both sides drop it), so exiting 0 says nothing about its validators or
+    // threshold. The content proof is the `readIsm()` deep-equal on the
+    // domains, so keep it next to every check.
     const checkOutput = await warpCommands.checkRaw({ warpRouteId }).nothrow();
     expect(checkOutput.exitCode).to.equal(0);
 
