@@ -67,13 +67,16 @@ const ROUTES_TO_SKIP: string[] = [
   // so the relayer blacklist can match its routers and avoid delivering
   // messages that originated from it (registry#1696), not to be checked.
   WarpRouteIds.NesaLegacyNES,
-  // Every sei RPC prunes history (they retain days), while this route's xERC20
-  // was set up in 2024. The xERC20 reader needs the token's deployment block
-  // and logs from that period, which no configured sei endpoint can serve, and
-  // Seitrace is not a working alternative. A registry start block cannot fix
-  // this: it would either still hit pruned state or silently skip the original
-  // bridge configuration. Re-enable with an archive RPC, or drop when sei is
-  // deprecated.
+  // Route on sei, a chain scheduled for deprecation on 2026-09-30 whose
+  // Elixir fastUSD route is dormant (last message 2026-06-03). Reading it fails
+  // for two reasons that would both need fixing to re-enable it:
+  // - The sei registry explorer (Seitrace) is down and is marked as an Etherscan
+  //   explorer, so the SDK sends its API key to the Etherscan V2 API, which
+  //   rejects it. Etherscan V2 itself serves sei (chain id 1329).
+  // - The xERC20 token never emits BridgeLimitsSet/ConfigurationChanged (its
+  //   limits are unlimited), so the explorer answers with no bridges, the SDK
+  //   treats that as an explorer failure and re-reads over the RPC, and every
+  //   sei RPC prunes the 2024 history that read needs.
   WarpRouteIds.EthereumSeiFastUSD,
 ];
 
