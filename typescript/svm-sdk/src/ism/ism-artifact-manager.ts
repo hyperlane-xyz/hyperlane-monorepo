@@ -47,7 +47,7 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
       // FIXME: SVM multisig ISM has a completely different shape from other msig ISMs
       messageIdMultisigIsm: () => {
         throw new Error(
-          'Multisig ISM reading not supported via artifact manager on SVM (different config shape). Use SvmMessageIdMultisigIsmReader directly.',
+          'Multisig ISM reading not supported via artifact manager on SVM (different config shape). Use SvmRoutingMessageIdMultisigIsmReader directly.',
         );
       },
     };
@@ -83,7 +83,7 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
       // FIXME: SVM multisig ISM has a completely different shape from other msig ISMs
       messageIdMultisigIsm: () => {
         throw new Error(
-          'Multisig ISM deployment not supported via artifact manager on SVM (different config shape). Use SvmMessageIdMultisigIsmWriter directly.',
+          'Multisig ISM deployment not supported via artifact manager on SVM (different config shape). Use SvmRoutingMessageIdMultisigIsmWriter directly.',
         );
       },
     };

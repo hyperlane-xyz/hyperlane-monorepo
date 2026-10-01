@@ -31,7 +31,7 @@ import path from 'path';
 
 import {
   HYPERLANE_SVM_PROGRAM_BYTES,
-  SealevelMessageIdMultisigIsmWriter,
+  SealevelRoutingMessageIdMultisigIsmWriter,
   SealevelSigner,
   createRpc,
   fetchMultisigIsmAccessControl,
@@ -39,13 +39,17 @@ import {
   getProgramUpgradeAuthority,
   getSetUpgradeAuthorityInstruction,
 } from '@hyperlane-xyz/sealevel-sdk';
-import type { SealevelMultisigIsmConfig } from '@hyperlane-xyz/sealevel-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import { ChainName, IsmType } from '@hyperlane-xyz/sdk';
+import {
+  type DomainMultisigConfig,
+  type RoutingMessageIdMultisigIsmArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/ism';
+import { ChainName } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
   assert,
   eqAddressSol,
+  nonEmptyArray,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
@@ -90,18 +94,17 @@ async function loadDeployerKey(
 
 /**
  * Convert the hyperlane-context multisig config (keyed by chain name with
- * IsmType) into the svm-sdk's SvmMultisigIsmConfig domains map (keyed by
- * domain ID).
+ * IsmType) into the svm-sdk's routing message-id multisig ISM domains map
+ * (keyed by domain ID).
  */
 function buildDomainMap(
   config: SvmMultisigConfigMap,
-): Record<number, { validators: string[]; threshold: number }> {
-  const domains: Record<number, { validators: string[]; threshold: number }> =
-    {};
+): Record<number, DomainMultisigConfig> {
+  const domains: Record<number, DomainMultisigConfig> = {};
   for (const [remoteChain, entry] of Object.entries(config)) {
     const meta = getChain(remoteChain);
     domains[meta.domainId] = {
-      validators: entry.validators,
+      validators: nonEmptyArray(entry.validators),
       threshold: entry.threshold,
     };
   }
@@ -161,7 +164,7 @@ async function processChain(
   logger.info(chalk.gray(`  Squads vault: ${vaultAddress}`));
   logger.info(chalk.gray(`  Deployer:     ${deployerAddress}`));
 
-  // ── Step 1-2-3: Deploy + Init + Configure via SvmMessageIdMultisigIsmWriter
+  // ── Step 1-2-3: Deploy + Init + Configure via SvmRoutingMessageIdMultisigIsmWriter
   logger.info(chalk.yellow('\n[1-3/6] Deploy, initialize, and configure ISM'));
 
   const rcDir = path.resolve(
@@ -195,12 +198,15 @@ async function processChain(
     logger.info(chalk.gray(`  Already deployed: ${programAddress}`));
   } else {
     // Use the Writer to deploy + init + configure in one shot
-    const writer = new SealevelMessageIdMultisigIsmWriter(rpc, signer);
-    const ismConfig: SealevelMultisigIsmConfig = {
-      type: IsmType.MESSAGE_ID_MULTISIG,
-      validators: [],
-      threshold: 0,
-      program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.multisigIsm },
+    const writer = new SealevelRoutingMessageIdMultisigIsmWriter(
+      { program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.multisigIsm } },
+      rpc,
+      signer,
+      nonEmptyArray(Object.keys(domains).map(Number)),
+    );
+    const ismConfig: RoutingMessageIdMultisigIsmArtifactConfig = {
+      type: 'routingMessageIdMultisigIsm',
+      owner: deployerAddress,
       domains,
     };
 
@@ -240,7 +246,7 @@ async function processChain(
   } else {
     const transferIx = await getMultisigIsmTransferOwnershipInstruction(
       programAddress,
-      signer.signer,
+      deployerAddress,
       vaultAddress,
     );
     const transferReceipt = await signer.send({ instructions: [transferIx] });

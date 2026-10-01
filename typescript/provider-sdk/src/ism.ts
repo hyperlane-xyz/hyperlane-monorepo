@@ -4,6 +4,7 @@ import {
   deepEquals,
   isNullish,
   normalizeConfig,
+  type NonEmptyArray,
 } from '@hyperlane-xyz/utils';
 
 import { IsmType as AltVMIsmType } from './altvm.js';
@@ -158,6 +159,12 @@ export interface CompositeIsmConfig {
   root: CompositeIsmNodeConfig;
 }
 
+/** At least one validator and the threshold of a single origin domain. */
+export interface DomainMultisigConfig {
+  validators: NonEmptyArray<string>;
+  threshold: number;
+}
+
 export type IsmModuleAddresses = {
   deployedIsm: string;
   mailbox: string;
@@ -267,6 +274,13 @@ export interface CompositeIsmArtifactConfig {
   type: typeof IsmType.COMPOSITE;
   owner: string;
   root: CompositeIsmNodeArtifactConfig;
+}
+
+/** A message-id multisig ISM with an independent validator set per origin domain ID. */
+export interface RoutingMessageIdMultisigIsmArtifactConfig {
+  type: 'routingMessageIdMultisigIsm';
+  owner: string;
+  domains: Record<number, DomainMultisigConfig>;
 }
 
 export interface RawIsmArtifactConfigs {
