@@ -60,7 +60,7 @@ import {
  *   validator order, as `MultisigIsm::verify` requires.
  *
  * Findings (see the `MAX_ROUTING_MESSAGE_ID_MULTISIG_*` constants in
- * instructions/multisig-ism-message-id.ts for the enforced caps: 40 validators,
+ * instructions/multisig-ism-message-id.ts for the enforced caps: 24 validators,
  * threshold 8)
  *
  * | Limit                                   | Measured                          |
@@ -388,7 +388,7 @@ describe('SVM routing message-id multisig ISM limits (measurements)', function (
       expect(message).to.contain('exceeds limit');
     });
 
-    it('enforced validator cap leaves headroom below the measured maximum', () => {
+    it('enforced validator cap is below the measured maximum', () => {
       expect(
         MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN,
       ).to.be.lessThan(MEASURED_MAX_VALIDATORS_PER_TRANSACTION);

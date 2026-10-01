@@ -14,6 +14,7 @@ import {
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
+  type DeployedIsmAddress,
   type DomainMultisigConfig,
   type RoutingMessageIdMultisigIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
@@ -278,9 +279,10 @@ export class SvmRoutingMessageIdMultisigIsmWriter
    * initialized program is reused, domains already on chain are left untouched
    * and not reported.
    *
-   * Transactions are sized for direct or export submission (one transaction
-   * including the compute-budget instruction); a Squads proposal wraps
-   * instructions and has different limits.
+   * Transactions are chunked by their direct size (one transaction including
+   * the compute-budget instruction). A multi-domain batch can exceed a Squads
+   * proposal packet even though each domain (within
+   * `MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN`) fits on its own.
    *
    * Transfers OWNERSHIP (`config.owner`) but not the program upgrade
    * authority, which stays with the deploying key like the other SVM writers.
@@ -407,15 +409,19 @@ export class SvmRoutingMessageIdMultisigIsmWriter
    * and is missing from the expected config is rejected; callers deploy a new
    * ISM in that case (see `shouldDeployNewIsm` in provider-sdk).
    *
-   * Chunking assumes direct or export submission (one transaction including
-   * the compute-budget instruction); a Squads proposal wraps instructions and
-   * has different limits. The on-chain OWNER pays the rent for new DomainData
+   * Chunking measures the direct transaction size (one transaction including
+   * the compute-budget instruction). A multi-domain batch can exceed a Squads
+   * proposal packet even though each domain (within
+   * `MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN`) fits on its own. The on-chain OWNER pays the rent for new DomainData
    * PDAs, so it must hold lamports when the returned transactions are sent.
    */
   async update(
-    artifact: RoutingMessageIdMultisigIsmArtifact,
+    artifact: ArtifactDeployed<
+      RoutingMessageIdMultisigIsmArtifactConfig,
+      DeployedIsmAddress
+    >,
   ): Promise<AnnotatedSvmTransaction[]> {
-    const programId = artifact.deployed.programId;
+    const programId = parseAddress(artifact.deployed.address);
     const expected = artifact.config;
     assertValidRoutingMessageIdMultisigIsmArtifact(expected);
     const current = await this.read(programId);

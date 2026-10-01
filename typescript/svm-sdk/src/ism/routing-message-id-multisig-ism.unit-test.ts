@@ -15,8 +15,14 @@ import sinon from 'sinon';
 
 chai.use(chaiAsPromised);
 
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import type { RoutingMessageIdMultisigIsmArtifactConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  type ArtifactDeployed,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import type {
+  DeployedIsmAddress,
+  RoutingMessageIdMultisigIsmArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/ism';
 import {
   type NonEmptyArray,
   ZERO_ADDRESS_HEX_32,
@@ -593,7 +599,9 @@ describe('SvmRoutingMessageIdMultisigIsmWriter.create', () => {
         }),
       }),
     ).to.be.rejectedWith(
-      /Multisig ISM domain 9 has 200 validators, above the enforced cap of 40/,
+      new RegExp(
+        `Multisig ISM domain 9 has 200 validators, above the enforced cap of ${MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN}`,
+      ),
     );
 
     expect(signer.sent).to.have.length(0);
@@ -843,6 +851,39 @@ describe('SvmRoutingMessageIdMultisigIsmWriter.update', () => {
     for (const ix of tx?.instructions ?? []) {
       expect(ix.accounts?.[0]?.address).to.equal(OWNER);
     }
+  });
+
+  it('updates the program named by an address-only deployed artifact', async () => {
+    const chain = await seededChain();
+    const { writer } = await makeWriter(chain, [1, 137]);
+    const artifact: ArtifactDeployed<
+      RoutingMessageIdMultisigIsmArtifactConfig,
+      DeployedIsmAddress
+    > = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: artifactConfig(OWNER, {
+        1: { validators: [V1, V2, V3], threshold: 2 },
+        137: { validators: [VA, VB], threshold: 2 },
+      }),
+      deployed: { address: PROGRAM_ID },
+    };
+
+    const txs = await writer.update(artifact);
+
+    expect(txs).to.have.length(1);
+    const decoded = (txs[0]?.instructions ?? []).map((ix) =>
+      decodeMultisigIsmMessageIdProgramInstruction(
+        Uint8Array.from(ix.data ?? []),
+      ),
+    );
+    expect(decoded.map((d) => d?.kind)).to.deep.equal([
+      'setValidatorsAndThreshold',
+    ]);
+    expect(
+      decoded[0]?.kind === 'setValidatorsAndThreshold'
+        ? decoded[0].value.domain
+        : null,
+    ).to.equal(137);
   });
 
   it('transfers ownership as the final transaction', async () => {

@@ -121,7 +121,9 @@ export function decodeMultisigIsmMessageIdProgramInstruction(
 
 /**
  * Measured hard limit on the validators of one origin domain: the most that fit
- * in the single `SetValidatorsAndThreshold` transaction. See
+ * in a direct `SetValidatorsAndThreshold` transaction. A Squads
+ * vault-transaction proposal wrapping it fits only 33 (31 with a
+ * compute-unit-price instruction). See
  * {@link MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN} for the
  * measurement.
  */
@@ -151,11 +153,22 @@ export const ROUTING_MESSAGE_ID_MULTISIG_SIGNATURES_HARD_LIMIT = 12;
  * - Verifying deserializes the whole set at about 55 compute units per
  *   validator (about 2.4k units at 45), which is negligible.
  *
- * The cap is 40, leaving 5 validators (100 bytes) below the hard limit for the
- * price instruction and signer variations, so a valid config is always
- * settable by the writers.
+ * - Wrapped in a Squads vault-transaction proposal (the repo's
+ *   `buildSquadsVaultTransactionProposal` in infra/src/utils/squads.ts bundles
+ *   `vaultTransactionCreate` and `proposalCreate` in one transaction), the same
+ *   instruction adds about 238 bytes. Measured 2026-10-01 with the real
+ *   `@sqds/multisig` builders, direct / Squads-bundled bytes: N=20: 730/968,
+ *   N=30: 930/1168, N=35: 1030/1268, N=40: 1130/1368, N=45: 1230/1468. Only 33
+ *   validators fit (31 with a compute-unit-price instruction).
+ *
+ * At most 12 validators (signatures) can verify a message in one execution
+ * ({@link ROUTING_MESSAGE_ID_MULTISIG_SIGNATURES_HARD_LIMIT}; the enforced
+ * threshold cap stays 8). The cap is 24, twice that: a deliberately
+ * conservative practical cap, well below the actual hard limits above (45
+ * direct, 33 Squads-wrapped). It can be raised later up to those limits; above
+ * 33 only with buffered Squads proposals, which the repo does not support.
  */
-export const MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN = 40;
+export const MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN = 24;
 
 /**
  * Enforced cap on the threshold of one origin domain of a
