@@ -54,7 +54,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   checkWarpDeploy: 'main',
   validatorMonitor: '17dd7ac-20260928-093912',
   // standalone services
-  keyFunder: 'fc544bf-20260908-174702',
+  keyFunder: '112541b-20261001-141255',
   warpMonitor: 'fc544bf-20260908-174702',
   rebalancer: 'fc544bf-20260908-174702',
   scraperProxy: 'ec4aedc-20260925-093728',
@@ -71,6 +71,6 @@ export const testnetDockerTags: BaseDockerTags = {
   validatorFastPath: '524aac0-20260925-195006',
   scraper: '524aac0-20260925-195006',
   // standalone services
-  keyFunder: 'fc544bf-20260908-174702',
+  keyFunder: '112541b-20261001-141255',
   scraperProxy: 'ec4aedc-20260925-093728',
 };
