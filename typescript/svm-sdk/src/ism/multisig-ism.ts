@@ -99,10 +99,9 @@ export type SvmRoutingMessageIdMultisigIsmWriterConfig = Readonly<{
 
 /**
  * Mirrors the program's per-domain ValidatorsAndThreshold::validate()
- * (rust/sealevel/programs/ism/multisig-ism-message-id/src/instruction.rs),
- * plus the caps derived from the measured transaction-size limits.
+ * (rust/sealevel/programs/ism/multisig-ism-message-id/src/instruction.rs).
  */
-function assertValidDomainRoutingMultisig(
+function assertValidDomainStructure(
   domain: string,
   { validators, threshold }: DomainMultisigConfig,
 ): void {
@@ -111,18 +110,10 @@ function assertValidDomainRoutingMultisig(
     `Invalid multisig ISM domain: '${domain}'`,
   );
   assert(
-    validators.length <= MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN,
-    `Multisig ISM domain ${domain} has ${validators.length} validators, above the enforced cap of ${MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN} (a set of more than ${ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_HARD_LIMIT} cannot be written in one transaction)`,
-  );
-  assert(
     Number.isInteger(threshold) &&
       threshold >= 1 &&
       threshold <= validators.length,
     `Multisig ISM domain ${domain} threshold (${threshold}) must be an integer between 1 and validators.length`,
-  );
-  assert(
-    threshold <= MAX_ROUTING_MESSAGE_ID_MULTISIG_THRESHOLD,
-    `Multisig ISM domain ${domain} threshold (${threshold}) is above the enforced cap of ${MAX_ROUTING_MESSAGE_ID_MULTISIG_THRESHOLD} (a Verify transaction fits at most ${ROUTING_MESSAGE_ID_MULTISIG_SIGNATURES_HARD_LIMIT} signatures)`,
   );
   const seen = new Set<string>();
   for (const validator of validators) {
@@ -143,7 +134,25 @@ function assertValidDomainRoutingMultisig(
   }
 }
 
-export function assertValidRoutingMessageIdMultisigIsmArtifact(
+/**
+ * Caps derived from the measured transaction-size limits. They only constrain
+ * what is written, so they are not applied to domains already on chain.
+ */
+function assertDomainWithinTransactionCaps(
+  domain: string,
+  { validators, threshold }: DomainMultisigConfig,
+): void {
+  assert(
+    validators.length <= MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN,
+    `Multisig ISM domain ${domain} has ${validators.length} validators, above the enforced cap of ${MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN} (a set of more than ${ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_HARD_LIMIT} cannot be written in one transaction)`,
+  );
+  assert(
+    threshold <= MAX_ROUTING_MESSAGE_ID_MULTISIG_THRESHOLD,
+    `Multisig ISM domain ${domain} threshold (${threshold}) is above the enforced cap of ${MAX_ROUTING_MESSAGE_ID_MULTISIG_THRESHOLD} (a Verify transaction fits at most ${ROUTING_MESSAGE_ID_MULTISIG_SIGNATURES_HARD_LIMIT} signatures)`,
+  );
+}
+
+export function assertValidRoutingMessageIdMultisigIsmStructure(
   config: RoutingMessageIdMultisigIsmArtifactConfig,
 ): void {
   assert(
@@ -151,7 +160,17 @@ export function assertValidRoutingMessageIdMultisigIsmArtifact(
     `Multisig ISM owner must be a Sealevel address or empty (renounced), got: ${config.owner}`,
   );
   for (const [domain, domainConfig] of Object.entries(config.domains)) {
-    assertValidDomainRoutingMultisig(domain, domainConfig);
+    assertValidDomainStructure(domain, domainConfig);
+  }
+}
+
+/** Structure plus the transaction-size caps on every domain, for new ISMs. */
+export function assertValidRoutingMessageIdMultisigIsmArtifact(
+  config: RoutingMessageIdMultisigIsmArtifactConfig,
+): void {
+  assertValidRoutingMessageIdMultisigIsmStructure(config);
+  for (const [domain, domainConfig] of Object.entries(config.domains)) {
+    assertDomainWithinTransactionCaps(domain, domainConfig);
   }
 }
 
@@ -422,6 +441,10 @@ export class SvmRoutingMessageIdMultisigIsmWriter
    * and is missing from the expected config is rejected; callers deploy a new
    * ISM in that case (see `shouldDeployNewIsm` in provider-sdk).
    *
+   * The transaction-size caps on validators and threshold apply only to the
+   * domains being added or changed: a domain already on chain above them (set
+   * under an older cap or by other tooling) is left alone when unchanged.
+   *
    * Transactions are chunked so that each also fits a Squads proposal wrapping
    * it (see {@link ROUTING_MESSAGE_ID_MULTISIG_SQUADS_WRAPPING_RESERVED_BYTES}),
    * so a direct submission may use slightly more transactions than its own
@@ -440,7 +463,7 @@ export class SvmRoutingMessageIdMultisigIsmWriter
   ): Promise<AnnotatedSvmTransaction[]> {
     const programId = parseAddress(artifact.deployed.address);
     const expected = artifact.config;
-    assertValidRoutingMessageIdMultisigIsmArtifact(expected);
+    assertValidRoutingMessageIdMultisigIsmStructure(expected);
     const current = await this.read(programId);
 
     const expectedOwner = isEmptyAddress(expected.owner)
@@ -465,6 +488,9 @@ export class SvmRoutingMessageIdMultisigIsmWriter
           normalizeConfig(domainConfig),
         ),
     );
+    for (const [domain, domainConfig] of changedEntries) {
+      assertDomainWithinTransactionCaps(String(domain), domainConfig);
+    }
 
     const ownerChanged = !eqOptionalAddress(
       current.config.owner,

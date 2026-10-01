@@ -1079,6 +1079,181 @@ describe('SvmRoutingMessageIdMultisigIsmWriter.update', () => {
       ),
     ).to.be.rejectedWith(/Cannot remove domain 137/);
   });
+
+  describe('with an existing domain above the enforced validator cap', () => {
+    const OVER_CAP = MAX_ROUTING_MESSAGE_ID_MULTISIG_VALIDATORS_PER_DOMAIN + 1;
+    const overCapValidators = validatorSet(OVER_CAP);
+    const replacementValidators = nonEmptyArray(
+      Array.from(
+        { length: OVER_CAP },
+        (_, i) => '0x' + (i + 0x1000).toString(16).padStart(40, '0'),
+      ),
+    );
+    const capMessage = new RegExp(
+      `^Multisig ISM domain 7 has ${OVER_CAP} validators, above the enforced cap`,
+    );
+
+    async function overCapChain(): Promise<FakeChain> {
+      const chain = await seededChain();
+      await chain.setDomain(7, [...overCapValidators], 2);
+      return chain;
+    }
+
+    it('reads the over-cap domain', async () => {
+      const chain = await overCapChain();
+      const reader = new SvmRoutingMessageIdMultisigIsmReader(chain.rpc, [7]);
+
+      const artifact = await reader.read(PROGRAM_ID);
+
+      expect(artifact.config.domains[7]?.validators).to.have.length(OVER_CAP);
+    });
+
+    it('returns no transactions for a no-op update', async () => {
+      const chain = await overCapChain();
+      const { writer } = await makeWriter(chain, [1, 137, 7]);
+
+      const txs = await writer.update(
+        deployed(
+          artifactConfig(OWNER, {
+            1: { validators: [V1, V2, V3], threshold: 2 },
+            137: { validators: [VA, VB], threshold: 1 },
+            7: { validators: overCapValidators, threshold: 2 },
+          }),
+        ),
+      );
+
+      expect(txs).to.deep.equal([]);
+    });
+
+    it('permits an ownership-only update', async () => {
+      const chain = await overCapChain();
+      const { writer } = await makeWriter(chain, [7]);
+
+      const txs = await writer.update(
+        deployed(
+          artifactConfig(NEW_OWNER, {
+            7: { validators: overCapValidators, threshold: 2 },
+          }),
+        ),
+      );
+
+      await applyUpdateTxs(chain, txs);
+      expect(txs).to.have.length(1);
+      const [decoded] = (txs[0]?.instructions ?? []).map((ix) =>
+        decodeMultisigIsmMessageIdProgramInstruction(
+          Uint8Array.from(ix.data ?? []),
+        ),
+      );
+      expect(decoded?.kind).to.equal('transferOwnership');
+    });
+
+    it('permits changing an unrelated domain and leaves the over-cap domain untouched', async () => {
+      const chain = await overCapChain();
+      const { writer } = await makeWriter(chain, [1, 137, 7]);
+
+      const txs = await writer.update(
+        deployed(
+          artifactConfig(OWNER, {
+            1: { validators: [V1, V2, V3], threshold: 2 },
+            137: { validators: [VA, VB], threshold: 2 },
+            7: { validators: overCapValidators, threshold: 2 },
+          }),
+        ),
+      );
+
+      await applyUpdateTxs(chain, txs);
+      const domains = txs
+        .flatMap((tx) => tx.instructions)
+        .map((ix) =>
+          decodeMultisigIsmMessageIdProgramInstruction(
+            Uint8Array.from(ix.data ?? []),
+          ),
+        )
+        .map((d) =>
+          d?.kind === 'setValidatorsAndThreshold' ? d.value.domain : null,
+        );
+      expect(domains).to.deep.equal([137]);
+    });
+
+    it('rejects replacing the over-cap domain with another oversized set', async () => {
+      const chain = await overCapChain();
+      const { writer } = await makeWriter(chain, [7]);
+
+      await expect(
+        writer.update(
+          deployed(
+            artifactConfig(OWNER, {
+              7: { validators: replacementValidators, threshold: 2 },
+            }),
+          ),
+        ),
+      ).to.be.rejectedWith(capMessage);
+    });
+
+    it('rejects adding a new oversized domain', async () => {
+      const chain = await overCapChain();
+      const { writer } = await makeWriter(chain, [7, 8]);
+
+      await expect(
+        writer.update(
+          deployed(
+            artifactConfig(OWNER, {
+              7: { validators: overCapValidators, threshold: 2 },
+              8: { validators: overCapValidators, threshold: 2 },
+            }),
+          ),
+        ),
+      ).to.be.rejectedWith(/^Multisig ISM domain 8 has \d+ validators, above/);
+    });
+
+    it('treats an order and case only difference on the over-cap domain as unchanged', async () => {
+      const chain = await overCapChain();
+      const { writer } = await makeWriter(chain, [7]);
+      const reordered = nonEmptyArray(
+        [...overCapValidators].reverse().map((v, i) => (i % 2 ? upper(v) : v)),
+      );
+
+      const txs = await writer.update(
+        deployed(
+          artifactConfig(OWNER, {
+            7: { validators: reordered, threshold: 2 },
+          }),
+        ),
+      );
+
+      expect(txs).to.deep.equal([]);
+    });
+
+    it('rejects a threshold-only change on the over-cap domain', async () => {
+      const chain = await overCapChain();
+      const { writer } = await makeWriter(chain, [7]);
+
+      await expect(
+        writer.update(
+          deployed(
+            artifactConfig(OWNER, {
+              7: { validators: overCapValidators, threshold: 3 },
+            }),
+          ),
+        ),
+      ).to.be.rejectedWith(capMessage);
+    });
+
+    it('rejects a structurally invalid unchanged domain', async () => {
+      const chain = await overCapChain();
+      const { writer } = await makeWriter(chain, [7]);
+
+      await expect(
+        writer.update(
+          deployed(
+            artifactConfig(OWNER, {
+              7: { validators: overCapValidators, threshold: OVER_CAP + 1 },
+            }),
+          ),
+        ),
+      ).to.be.rejectedWith(/domain 7 threshold/);
+    });
+  });
 });
 
 describe('fake chain account constraints', () => {
