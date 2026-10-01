@@ -708,18 +708,6 @@ describe('RoutingMessageIdMultisigIsmConfigSchema', () => {
       owner: ZERO_ADDRESS_HEX_32,
     },
   ];
-  it('rejects an EVM-format owner', () => {
-    const result = RoutingMessageIdMultisigIsmConfigSchema.safeParse({
-      ...base,
-      owner: SOME_ADDRESS,
-    });
-    expect(result.success).to.be.false;
-    assert(!result.success, 'expected the config to be rejected');
-    expect(result.error.issues.map((i) => i.path.join('.'))).to.deep.equal([
-      'owner',
-    ]);
-  });
-
   for (const c of ownerCases) {
     it(`parses ${c.name}`, () => {
       const result = RoutingMessageIdMultisigIsmConfigSchema.safeParse({

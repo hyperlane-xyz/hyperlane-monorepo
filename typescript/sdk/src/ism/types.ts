@@ -994,15 +994,6 @@ export type RoutingMessageIdMultisigIsmConfig = OwnableConfig & {
 export const RoutingMessageIdMultisigIsmConfigSchema: z.ZodType<RoutingMessageIdMultisigIsmConfig> =
   OwnableSchema.extend({
     type: z.literal(IsmType.ROUTING_MESSAGE_ID_MULTISIG),
-    owner: z
-      .string()
-      .refine(
-        (value) => isEmptyAddress(value) || isValidAddressSealevel(value),
-        {
-          message:
-            'must be a valid base58-encoded Sealevel address or an empty (renounced) address',
-        },
-      ),
     domains: z.record(
       z.string(),
       z
