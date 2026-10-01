@@ -1453,7 +1453,7 @@ fn automatic_anchors_respect_protocol_minimum_heights() {
         minimum_auto_anchor(HyperlaneDomainProtocol::CosmosNative),
         1
     );
-    assert_eq!(minimum_auto_anchor(HyperlaneDomainProtocol::Radix), 1);
+    assert_eq!(minimum_auto_anchor(HyperlaneDomainProtocol::Radix), 0);
     assert_eq!(minimum_auto_anchor(HyperlaneDomainProtocol::Sealevel), 0);
     assert_eq!(minimum_auto_anchor(HyperlaneDomainProtocol::Starknet), 0);
 }

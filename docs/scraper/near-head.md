@@ -24,13 +24,14 @@ Select chains with `chainsToScrape` as before. No `nearHead` setting or per-chai
 The old `HYP_NEARHEAD` and `HYP_NEARHEAD_<DOMAIN>_FROMBLOCK` variables are no longer
 used and can be removed.
 
-An empty block-indexed domain starts automatically at `index.from`. Cosmos,
-Cosmos Native, and Radix cannot query height zero, so `index.from <= 1` anchors
-at height one and starts at height two. An empty
-sequence-indexed domain starts at the minimum event-stream tip after all four
-sequence counts report zero. A domain with existing events and no `scraper_head`
-state fails closed. Neither the greatest stored height nor the shared legacy
-cursor proves that all four legacy streams completed that height.
+An empty block-indexed domain starts automatically at `index.from`. Cosmos and
+Cosmos Native cannot query height zero, so `index.from <= 1` anchors at height
+one and starts at height two. Radix anchors at the minimum event-stream tip
+after all four sequence counts report zero because its provider cannot build a
+header for a state version without a transaction. Empty sequence-indexed
+domains use the same zero-count tip rule. A domain with existing events and no
+`scraper_head` state fails closed. Neither the greatest stored height nor the
+shared legacy cursor proves that all four legacy streams completed that height.
 
 Existing domains require the verified cutover below. Startup rechecks that an
 automatically initialized domain is still empty after RPC preflight. Restarts

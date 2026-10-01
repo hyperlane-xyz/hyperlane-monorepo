@@ -23,9 +23,7 @@ use store::{State, Store};
 
 fn minimum_auto_anchor(protocol: HyperlaneDomainProtocol) -> u64 {
     match protocol {
-        HyperlaneDomainProtocol::Cosmos
-        | HyperlaneDomainProtocol::CosmosNative
-        | HyperlaneDomainProtocol::Radix => 1,
+        HyperlaneDomainProtocol::Cosmos | HyperlaneDomainProtocol::CosmosNative => 1,
         _ => 0,
     }
 }
@@ -94,13 +92,18 @@ pub async fn spawn(
         domain: conf.domain.id(),
     };
     let initialized = store.state().await?.is_some();
+    let protocol = conf.connection.protocol();
     let anchor = if initialized {
         None
+    } else if protocol == HyperlaneDomainProtocol::Radix {
+        Some(source.empty_anchor().await?.ok_or_else(|| {
+            eyre::eyre!("Radix near-head indexing requires an explicit scraper_head cutover when event history exists")
+        })?)
     } else if source.has_historical_counts() || !source.indexes_by_sequence() {
         let anchor_height = store
             .anchor_height(u32::try_from(conf.index.from)?)
             .await?
-            .max(minimum_auto_anchor(conf.connection.protocol()));
+            .max(minimum_auto_anchor(protocol));
         Some(source.header(BlockSelector::Height(anchor_height)).await?)
     } else {
         Some(source.empty_anchor().await?.ok_or_else(|| {
