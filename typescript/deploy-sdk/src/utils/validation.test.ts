@@ -1,7 +1,10 @@
 import { expect } from 'chai';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { type IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  type DomainMultisigConfig,
+  type IsmConfig,
+} from '@hyperlane-xyz/provider-sdk/ism';
 
 import {
   UnsupportedIsmTypeError,
@@ -31,6 +34,36 @@ describe('validateIsmType', () => {
     it(`rejects compositeIsm on ${protocol}`, () => {
       expect(() => {
         validateIsmType('compositeIsm', 'somechain', 'configuration', protocol);
+      }).to.throw(UnsupportedIsmTypeError);
+    });
+  }
+
+  it('accepts routingMessageIdMultisigIsm on Sealevel', () => {
+    expect(() => {
+      validateIsmType(
+        'routingMessageIdMultisigIsm',
+        'solanamainnet',
+        'configuration',
+        ProtocolType.Sealevel,
+      );
+    }).to.not.throw();
+  });
+
+  for (const protocol of [
+    ProtocolType.Radix,
+    ProtocolType.Aleo,
+    ProtocolType.Cosmos,
+    ProtocolType.CosmosNative,
+    ProtocolType.Starknet,
+  ]) {
+    it(`rejects routingMessageIdMultisigIsm on ${protocol}`, () => {
+      expect(() => {
+        validateIsmType(
+          'routingMessageIdMultisigIsm',
+          'somechain',
+          'configuration',
+          protocol,
+        );
       }).to.throw(UnsupportedIsmTypeError);
     });
   }
@@ -116,4 +149,45 @@ describe('validateIsmConfig', () => {
       validateIsmConfig({ type: 'testIsm' }, 'somechain');
     }).to.not.throw();
   });
+});
+
+describe('validateIsmConfig routingMessageIdMultisigIsm', () => {
+  const V1 = '0x1111111111111111111111111111111111111111';
+  const V2 = '0x2222222222222222222222222222222222222222';
+  interface Case {
+    name: string;
+    domains: DomainMultisigConfig;
+    error?: RegExp;
+  }
+  const cases: Case[] = [
+    {
+      name: 'accepts a valid domain',
+      domains: { validators: [V1, V2], threshold: 2 },
+    },
+    {
+      name: 'rejects an invalid domain, labelled with domain, chain and context',
+      domains: { validators: [V1], threshold: 2 },
+      error:
+        /^routingMessageIdMultisigIsm domain 'ethereum' on solanamainnet in configuration.*threshold 2/,
+    },
+  ];
+  for (const c of cases) {
+    it(c.name, () => {
+      const config: IsmConfig = {
+        type: 'routingMessageIdMultisigIsm',
+        owner: 'owner',
+        domains: { ethereum: c.domains },
+      };
+      const run = () => {
+        validateIsmConfig(
+          config,
+          'solanamainnet',
+          'configuration',
+          ProtocolType.Sealevel,
+        );
+      };
+      if (c.error) expect(run).to.throw(c.error);
+      else expect(run).to.not.throw();
+    });
+  }
 });

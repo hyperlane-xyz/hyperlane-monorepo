@@ -5,7 +5,11 @@
  * These utilities validate ISM configs and provide clear error messages for unsupported types.
  */
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { IsmConfig, IsmType } from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  IsmConfig,
+  IsmType,
+  assertValidDomainRoutingMultisig,
+} from '@hyperlane-xyz/provider-sdk/ism';
 
 /**
  * ISM types supported by provider-sdk for Alt-VM chains.
@@ -24,6 +28,7 @@ const SUPPORTED_ISM_TYPES: ReadonlySet<string> = new Set<IsmType>([
   IsmType.MESSAGE_ID_MULTISIG,
   IsmType.TEST_ISM,
   IsmType.COMPOSITE,
+  IsmType.ROUTING_MESSAGE_ID_MULTISIG,
 ]);
 
 /** ISM types restricted to a single Alt-VM protocol (Sealevel program, no cross-VM equivalent). */
@@ -31,6 +36,7 @@ const PROTOCOL_SPECIFIC_ISM_TYPES: Readonly<
   Partial<Record<string, ProtocolType>>
 > = {
   [IsmType.COMPOSITE]: ProtocolType.Sealevel,
+  [IsmType.ROUTING_MESSAGE_ID_MULTISIG]: ProtocolType.Sealevel,
 };
 
 /**
@@ -114,6 +120,16 @@ export function validateIsmConfig(
         chain,
         `${context} (domain routing for ${domain})`,
         protocol,
+      );
+    }
+  }
+
+  // Fail before any deployment transaction is sent.
+  if (config.type === IsmType.ROUTING_MESSAGE_ID_MULTISIG) {
+    for (const [domain, domainConfig] of Object.entries(config.domains)) {
+      assertValidDomainRoutingMultisig(
+        domainConfig,
+        `${IsmType.ROUTING_MESSAGE_ID_MULTISIG} domain '${domain}' on ${chain} in ${context}`,
       );
     }
   }
