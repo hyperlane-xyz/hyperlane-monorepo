@@ -1277,7 +1277,7 @@ describe('SvmRoutingMessageIdMultisigIsmWriter.update', () => {
             }),
           ),
         ),
-      ).to.be.rejectedWith(/domain 7 threshold/);
+      ).to.be.rejectedWith(/domain 7 has threshold/);
     });
   });
 });
