@@ -85,15 +85,15 @@ pub async fn spawn(
         domain: conf.domain.id(),
     };
     let initialized = store.state().await?.is_some();
-    ensure!(
-        source.has_historical_counts() || initialized,
-        "Non-EVM near-head indexing requires an explicit verified scraper_head cutover"
-    );
     let anchor = if initialized {
         None
-    } else {
+    } else if source.has_historical_counts() {
         let anchor_height = store.anchor_height(u32::try_from(conf.index.from)?).await?;
         Some(source.header(BlockSelector::Height(anchor_height)).await?)
+    } else {
+        Some(source.empty_anchor().await?.ok_or_else(|| {
+            eyre::eyre!("Sealevel near-head indexing requires an explicit scraper_head cutover when event history exists")
+        })?)
     };
     let period = conf.reorg_period.clone();
     ensure!(conf.index.chunk_size > 0, "index.chunk must be positive");
@@ -311,48 +311,9 @@ async fn ingest_cached(
     let validated_counts = advance_sequences(&events, start_counts)?;
     if let Some(end_counts) = end_counts {
         if validated_counts[0] != end_counts[0] || validated_counts[3] != end_counts[1] {
-            if !source.has_historical_counts() {
-                store.rewind_to_confirmed(state).await?;
-            }
             eyre::bail!("Incomplete event range");
         }
     }
-    let stored_counts_at_tips = match batch.watermarks {
-        Some(watermarks) => {
-            store
-                .sequence_counts_through(watermarks.map(|(_, tip)| tip))
-                .await?
-        }
-        None => [0; 4],
-    };
-    let counts_at_tips = counts_at_watermarks(
-        &events,
-        start_counts,
-        stored_counts_at_tips,
-        state.indexed,
-        batch.watermarks,
-    );
-    let verified_through = batch
-        .watermarks
-        .zip(batch.complete_through)
-        .map(|(watermarks, complete_through)| {
-            validate_watermarks(
-                counts_at_tips,
-                boundary.height,
-                watermarks,
-                complete_through,
-            )
-        })
-        .transpose();
-    let verified_through = match verified_through {
-        Ok(verified) => verified.flatten(),
-        Err(error) => {
-            if !source.has_historical_counts() {
-                store.rewind_to_confirmed(state).await?;
-            }
-            return Err(error);
-        }
-    };
     for event in events {
         ensure!(
             event.block_number > state.indexed && event.block_number <= end,
@@ -395,69 +356,9 @@ async fn ingest_cached(
         "Indexed boundary changed during range fetch"
     );
     verify(source, &boundary).await?;
-    store.append(state, &blocks, verified_through).await?;
+    store.append(state, &blocks).await?;
     *count_cache = Some((boundary.hash, validated_counts));
     Ok(end < state.head)
-}
-
-fn validate_watermarks(
-    counts: [u32; 4],
-    indexed_height: u64,
-    watermarks: [(Option<u32>, u32); 4],
-    complete_through: [bool; 4],
-) -> Result<Option<u64>> {
-    let mut verified_through = indexed_height;
-    for (stream, (expected, tip)) in watermarks.into_iter().enumerate() {
-        if u64::from(tip) > indexed_height {
-            if expected.is_some() && !complete_through[stream] {
-                return Ok(None);
-            }
-            continue;
-        }
-        let Some(expected) = expected else {
-            verified_through = verified_through.min(u64::from(tip));
-            continue;
-        };
-        ensure!(
-            counts[stream] == expected,
-            "Incomplete finalized event sequence"
-        );
-        verified_through = verified_through.min(u64::from(tip));
-    }
-    Ok(Some(verified_through))
-}
-
-fn counts_at_watermarks(
-    events: &[source::Event],
-    start: [u32; 4],
-    stored: [u32; 4],
-    indexed_height: u64,
-    watermarks: Option<[(Option<u32>, u32); 4]>,
-) -> [u32; 4] {
-    let Some(watermarks) = watermarks else {
-        return start;
-    };
-    let mut counts = start;
-    for (stream, (_, tip)) in watermarks.into_iter().enumerate() {
-        if u64::from(tip) <= indexed_height {
-            counts[stream] = stored[stream];
-        }
-    }
-    for event in events {
-        let (stream, sequence) = match &event.data {
-            source::EventData::Dispatch(message) => (0, Some(message.nonce)),
-            source::EventData::Delivery(_) => (1, event.sequence),
-            source::EventData::Gas { .. } => (2, event.sequence),
-            source::EventData::Insertion { index, .. } => (3, Some(*index)),
-        };
-        if u64::from(watermarks[stream].1) > indexed_height
-            && event.block_number <= u64::from(watermarks[stream].1)
-            && sequence.is_some()
-        {
-            counts[stream] = counts[stream].saturating_add(1);
-        }
-    }
-    counts
 }
 
 #[cfg(test)]
@@ -574,12 +475,8 @@ async fn confirm_leased(
     let boundary = match tagged {
         Some(header) if header.height == through => header,
         _ => {
-            let after = checkpoint.unwrap_or(state.confirmed);
-            if after == through {
-                source.header(BlockSelector::Height(through)).await?
-            } else {
-                source.range_end(after, through, through).await?
-            }
+            let after = checkpoint.map_or(state.confirmed, |height| height.saturating_sub(1));
+            source.range_end(after, through, through).await?
         }
     };
     let through = boundary.height;

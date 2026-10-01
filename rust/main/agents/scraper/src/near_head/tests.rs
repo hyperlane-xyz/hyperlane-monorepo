@@ -213,7 +213,7 @@ async fn checkpoint_migration_backfills_an_existing_frontier() -> Result<()> {
     ))
     .await?;
     migration::Migrator::up(&db, None).await?;
-    migration::Migrator::down(&db, Some(3)).await?;
+    migration::Migrator::down(&db, Some(2)).await?;
     db.execute_unprepared(
         r#"
         INSERT INTO block(domain,height,hash,timestamp) VALUES
@@ -252,7 +252,7 @@ async fn checkpoint_migration_backfills_an_existing_frontier() -> Result<()> {
         .db
         .execute_unprepared("DELETE FROM block WHERE domain=1 AND height=8")
         .await?;
-    migration::Migrator::down(&store.db, Some(2)).await?;
+    migration::Migrator::down(&store.db, Some(1)).await?;
     let restored_confirmed = store
         .db
         .query_one(Statement::from_string(
@@ -283,7 +283,7 @@ async fn checkpoint_migration_rejects_a_missing_indexed_boundary() -> Result<()>
     ))
     .await?;
     migration::Migrator::up(&db, None).await?;
-    migration::Migrator::down(&db, Some(3)).await?;
+    migration::Migrator::down(&db, Some(2)).await?;
     db.execute_unprepared(
         r#"
         INSERT INTO block(domain,height,hash,timestamp)
@@ -321,23 +321,6 @@ async fn frontier_migration_preserves_legacy_null_heights_and_rolls_back() -> Re
     let db = Database::connect(&url).await?;
     migration::Migrator::up(&db, None).await?;
     migration::Migrator::down(&db, Some(1)).await?;
-    let applied = db
-        .query_one(Statement::from_string(
-            DbBackend::Postgres,
-            "SELECT count(*) AS n FROM seaql_migrations WHERE version='m20260924_000016_frontier_publication'".to_owned(),
-        ))
-        .await?
-        .unwrap();
-    assert_eq!(applied.try_get::<i64>("", "n")?, 1);
-    assert!(db
-        .query_one(Statement::from_string(
-            DbBackend::Postgres,
-            "SELECT verified_height FROM scraper_head LIMIT 0".to_owned(),
-        ))
-        .await
-        .is_err());
-    migration::Migrator::up(&db, None).await?;
-    migration::Migrator::down(&db, Some(2)).await?;
     db.execute_unprepared(
         r#"
         INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,
@@ -369,7 +352,7 @@ async fn frontier_migration_preserves_legacy_null_heights_and_rolls_back() -> Re
     }
     let mut head_listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
     head_listener.listen("scraper_head").await?;
-    migration::Migrator::down(&db, Some(2)).await?;
+    migration::Migrator::down(&db, Some(1)).await?;
     for relation in ["delivered_message", "gas_payment"] {
         let row = db
             .query_one(Statement::from_string(
@@ -759,7 +742,6 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     assert_eq!(count(&store, "confirmed_gas_payment").await?, 1);
     migration::Migrator::down(&store.db, Some(1)).await?;
     migration::Migrator::down(&store.db, Some(1)).await?;
-    migration::Migrator::down(&store.db, Some(1)).await?;
     assert!(
         migration::Migrator::down(&store.db, Some(1)).await.is_err(),
         "Base near-head rollback must not expose provisional or halted history"
@@ -852,11 +834,7 @@ async fn append_refreshes_the_confirmation_lease_after_a_slow_fetch() -> Result<
         )
         .await?;
     store
-        .append(
-            &observed,
-            &[(chain.header(1u64.into()).await?, vec![])],
-            None,
-        )
+        .append(&observed, &[(chain.header(1u64.into()).await?, vec![])])
         .await?;
     assert_eq!(confirm(&chain, &store, &ReorgPeriod::None).await?, [0; 4]);
     assert_eq!(store.state().await?.unwrap().confirmed, 1);
@@ -896,46 +874,6 @@ async fn finality_tag_ahead_of_observed_head_confirms_observed_history() -> Resu
     assert_eq!(confirm(&chain, &store, &finalized).await?, [1; 4]);
     let state = store.state().await?.unwrap();
     assert_eq!((state.head, state.confirmed), (3, 3));
-    Ok(())
-}
-
-#[tokio::test]
-async fn publication_cap_holds_unverified_generic_ranges() -> Result<()> {
-    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
-    let db = Database::connect(format!(
-        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
-        postgres.get_host_port_ipv4(5432).await?
-    ))
-    .await?;
-    migration::Migrator::up(&db, None).await?;
-    let store = Store { db, domain: 1 };
-    let chain = Chain::new(3);
-    store
-        .initialize(&chain.header(0u64.into()).await?, &contracts())
-        .await?;
-    ingest_head(&chain, &store).await?;
-
-    confirm_leased(
-        &chain,
-        &store,
-        &ReorgPeriod::None,
-        MIN_CONFIRMATION_LEASE,
-        Some(0),
-    )
-    .await?;
-    assert_eq!(store.state().await?.unwrap().confirmed, 0);
-    assert_eq!(count(&store, "confirmed_raw_message_dispatch").await?, 0);
-
-    confirm_leased(
-        &chain,
-        &store,
-        &ReorgPeriod::None,
-        MIN_CONFIRMATION_LEASE,
-        Some(3),
-    )
-    .await?;
-    assert_eq!(store.state().await?.unwrap().confirmed, 3);
-    assert_eq!(count(&store, "confirmed_raw_message_dispatch").await?, 1);
     Ok(())
 }
 
@@ -1105,7 +1043,7 @@ async fn incomplete_sequences_retry_after_restart_and_dense_ranges_batch_atomica
     let mut invalid = events.clone();
     invalid.push(events[0].clone());
     assert!(store
-        .append(&state, &[(header.clone(), invalid)], None)
+        .append(&state, &[(header.clone(), invalid)])
         .await
         .is_err());
     assert_eq!(store.state().await?.unwrap().indexed, 0);
@@ -1241,7 +1179,7 @@ async fn receipt_timeouts_do_not_starve_cached_neighbors_across_sweeps() -> Resu
     poison.tx_hash = Some(H256::repeat_byte(99).into());
     events.push(poison);
     store
-        .append(&state, &[(chain.header(2u64.into()).await?, events)], None)
+        .append(&state, &[(chain.header(2u64.into()).await?, events)])
         .await?;
     confirm(&chain, &store, &ReorgPeriod::from_blocks(0)).await?;
     store
@@ -1292,61 +1230,6 @@ fn missing_entire_sequences_and_regressing_counts_are_rejected() {
     assert!(validate_sequences(&[], [4, 5], [5, 5]).is_err());
     assert!(validate_sequences(&[], [4, 5], [4, 6]).is_err());
     assert!(validate_sequences(&[], [4, 5], [3, 5]).is_err());
-}
-
-#[test]
-fn finalized_sequence_watermarks_reject_missing_tail_events() {
-    let watermarks = [(Some(4), 20), (Some(6), 19), (Some(7), 18), (Some(5), 17)];
-    assert_eq!(
-        validate_watermarks([4, 6, 7, 5], 20, watermarks, [false; 4]).unwrap(),
-        Some(17)
-    );
-    assert!(validate_watermarks([3, 6, 7, 5], 20, watermarks, [false; 4]).is_err());
-    assert!(validate_watermarks([4, 6, 6, 5], 20, watermarks, [false; 4]).is_err());
-    assert!(validate_watermarks([5, 6, 7, 5], 20, watermarks, [false; 4]).is_err());
-    // A watermark ahead of the indexed boundary cannot describe this range yet.
-    assert_eq!(
-        validate_watermarks([3, 4, 5, 6], 20, [(Some(4), 21); 4], [false; 4]).unwrap(),
-        None
-    );
-    // Contiguous sequence pages can prove the boundary even when the sampled
-    // watermark includes newer events that were deferred to the next range.
-    assert_eq!(
-        validate_watermarks([3, 4, 5, 6], 20, [(Some(100), 21); 4], [true; 4]).unwrap(),
-        Some(20)
-    );
-    // Streams without counts still cap publication at their reported tip.
-    assert_eq!(
-        validate_watermarks([0; 4], 20, [(None, 17); 4], [false; 4]).unwrap(),
-        Some(17)
-    );
-    let gas = |block_number, sequence| Event {
-        block_number,
-        block_hash: H256::zero(),
-        address: H160::zero().into(),
-        tx_hash: None,
-        tx_index: 0,
-        log_index: u64::from(sequence),
-        sequence: Some(sequence),
-        data: EventData::Gas {
-            message_id: H256::zero().into(),
-            destination: 1,
-            gas: "1".into(),
-            payment: "1".into(),
-        },
-    };
-    let counts = counts_at_watermarks(
-        &[gas(19, 7), gas(21, 8)],
-        [0, 0, 7, 0],
-        [0; 4],
-        0,
-        Some([(None, 20); 4]),
-    );
-    assert_eq!(counts[2], 8);
-    assert_eq!(
-        counts_at_watermarks(&[], [10; 4], [4, 5, 6, 7], 100, Some([(Some(0), 50); 4]),),
-        [4, 5, 6, 7]
-    );
 }
 
 struct CountedChain {

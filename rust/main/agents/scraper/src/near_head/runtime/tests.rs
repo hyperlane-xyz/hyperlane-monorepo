@@ -26,9 +26,7 @@ struct Chain {
     fail_events: AtomicBool,
     wrong_tag: AtomicBool,
     observations: AtomicUsize,
-    generic: AtomicBool,
     sequence: AtomicBool,
-    publication_tip: AtomicU64,
     events: Mutex<Vec<Event>>,
 }
 
@@ -41,9 +39,7 @@ impl Chain {
             fail_events: AtomicBool::new(false),
             wrong_tag: AtomicBool::new(false),
             observations: AtomicUsize::new(0),
-            generic: AtomicBool::new(false),
             sequence: AtomicBool::new(false),
-            publication_tip: AtomicU64::new(0),
             events: Mutex::new(Vec::new()),
         }
     }
@@ -94,16 +90,11 @@ impl Source for Arc<Chain> {
         if !self.sequence.load(Ordering::SeqCst) {
             return Ok(EventBatch {
                 events,
-                watermarks: None,
-                complete_through: None,
                 indexed_through: None,
             });
         }
-        let tip = u32::try_from(self.publication_tip.load(Ordering::SeqCst))?;
         Ok(EventBatch {
             events,
-            watermarks: Some([(Some(0), tip); 4]),
-            complete_through: Some([true; 4]),
             indexed_through: Some(end),
         })
     }
@@ -113,18 +104,11 @@ impl Source for Arc<Chain> {
     }
 
     fn has_historical_counts(&self) -> bool {
-        !self.generic.load(Ordering::SeqCst)
+        true
     }
 
     fn indexes_by_sequence(&self) -> bool {
         self.sequence.load(Ordering::SeqCst)
-    }
-
-    async fn publication_tip(&self) -> Result<Option<u64>> {
-        Ok(self
-            .generic
-            .load(Ordering::SeqCst)
-            .then(|| self.publication_tip.load(Ordering::SeqCst)))
     }
 }
 
@@ -203,37 +187,6 @@ async fn newly_ingested_events_publish_immediately_and_full_pages_keep_draining(
     assert_eq!((first.indexed, first.confirmed), (2, 1));
     assert!(!worker.cycle(&mut cache).await?.more);
     assert_eq!(worker.store.state().await?.unwrap().confirmed, 2);
-    Ok(())
-}
-
-#[tokio::test]
-async fn moving_sequence_tip_publishes_before_the_provisional_cap() -> Result<()> {
-    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
-    let db = Database::connect(format!(
-        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
-        postgres.get_host_port_ipv4(5432).await?
-    ))
-    .await?;
-    let chain = Arc::new(Chain::new(20_000, false));
-    chain.generic.store(true, Ordering::SeqCst);
-    chain.sequence.store(true, Ordering::SeqCst);
-    chain.publication_tip.store(20_000, Ordering::SeqCst);
-    chain.tag.store(20_000, Ordering::SeqCst);
-    let worker = worker(db, chain).await?;
-    let mut cache = None;
-
-    worker.cycle(&mut cache).await?;
-    let state = worker.store.state().await?.unwrap();
-    assert_eq!(
-        (state.indexed, state.confirmed, state.verified),
-        (10_000, 10_000, Some(10_000))
-    );
-    worker.cycle(&mut cache).await?;
-    let state = worker.store.state().await?.unwrap();
-    assert_eq!(
-        (state.indexed, state.confirmed, state.verified),
-        (20_000, 20_000, Some(20_000))
-    );
     Ok(())
 }
 

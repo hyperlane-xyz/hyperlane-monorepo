@@ -80,7 +80,6 @@ async fn unavailable_transaction_hashes_are_not_enrichment_work() -> Result<()> 
         .append(
             &store.state().await?.unwrap(),
             &[(header(1), vec![payment])],
-            None,
         )
         .await?;
     store
@@ -152,7 +151,6 @@ async fn confirmation_budget_preserves_blocks_and_measures_gas_dense_publication
                 (header(40), payments(40, 1000, contracts.paymaster)),
                 (header(10_000), vec![]),
             ],
-            None,
         )
         .await?;
 

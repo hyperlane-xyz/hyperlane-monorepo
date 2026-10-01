@@ -6,8 +6,8 @@ use std::{ops::RangeInclusive, sync::Arc};
 use async_trait::async_trait;
 use hyperlane_sealevel_mailbox::{
     accounts::{
-        DispatchedMessageAccount, ProcessedMessageAccount, DISPATCHED_MESSAGE_DISCRIMINATOR,
-        PROCESSED_MESSAGE_DISCRIMINATOR,
+        DispatchedMessageAccount, InboxAccount, OutboxAccount, ProcessedMessageAccount,
+        DISPATCHED_MESSAGE_DISCRIMINATOR, PROCESSED_MESSAGE_DISCRIMINATOR,
     },
     mailbox_dispatched_message_pda_seeds, mailbox_processed_message_pda_seeds,
 };
@@ -16,8 +16,7 @@ use tracing::{debug, info, warn};
 
 use hyperlane_core::{
     config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator, Decode as _,
-    HyperlaneMessage, Indexed, Indexer, LogMeta, Mailbox, ReorgPeriod, SequenceAwareIndexer, H256,
-    H512, U256,
+    HyperlaneMessage, Indexed, Indexer, LogMeta, SequenceAwareIndexer, H256, H512, U256,
 };
 
 use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
@@ -371,10 +370,19 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = self.mailbox.get_provider().rpc_client().get_slot().await?;
-        // TODO: need to make sure the call and tip are at the same height?
-        let count = Mailbox::count(&self.mailbox, &ReorgPeriod::None).await?;
-        Ok((Some(count), tip))
+        let response = self
+            .mailbox
+            .get_provider()
+            .rpc_client()
+            .get_account_with_finalized_commitment_and_context(self.mailbox.outbox().0)
+            .await?;
+        let outbox = OutboxAccount::fetch(&mut response.value.data.as_ref())
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
+        Ok((
+            Some(outbox.tree.count().try_into()?),
+            response.context.slot.try_into()?,
+        ))
     }
 }
 
@@ -408,13 +416,20 @@ impl Indexer<H256> for SealevelMailboxIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<H256> for SealevelMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = self.mailbox.get_provider().rpc_client().get_slot().await?;
-        let inbox = self.mailbox.get_inbox().await?;
+        let response = self
+            .mailbox
+            .get_provider()
+            .rpc_client()
+            .get_account_with_finalized_commitment_and_context(self.mailbox.inbox().0)
+            .await?;
+        let inbox = InboxAccount::fetch(&mut response.value.data.as_ref())
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
         let sequence = inbox
             .processed_count
             .try_into()
             .map_err(StrOrIntParseError::from)?;
 
-        Ok((Some(sequence), tip))
+        Ok((Some(sequence), response.context.slot.try_into()?))
     }
 }

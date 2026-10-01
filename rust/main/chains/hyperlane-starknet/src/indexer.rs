@@ -215,20 +215,7 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer
 
 /// A reference to a InterchainGasPaymasterIndexer contract on some Starknet chain
 #[derive(Debug, Clone)]
-pub struct StarknetInterchainGasPaymasterIndexer {
-    provider: JsonProvider,
-    reorg_period: ReorgPeriod,
-}
-
-impl StarknetInterchainGasPaymasterIndexer {
-    /// Creates the placeholder IGP indexer with a real chain-height source.
-    pub fn new(provider: StarknetProvider, reorg_period: &ReorgPeriod) -> Self {
-        Self {
-            provider: provider.rpc_client().clone(),
-            reorg_period: reorg_period.clone(),
-        }
-    }
-}
+pub struct StarknetInterchainGasPaymasterIndexer {}
 
 #[async_trait]
 impl Indexer<InterchainGasPayment> for StarknetInterchainGasPaymasterIndexer {
@@ -240,7 +227,7 @@ impl Indexer<InterchainGasPayment> for StarknetInterchainGasPaymasterIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        get_block_height_u32(&self.provider, &self.reorg_period).await
+        Ok(0)
     }
 }
 

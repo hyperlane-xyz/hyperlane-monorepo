@@ -1,7 +1,8 @@
 # Near-head scraper ingestion
 
 The scraper indexes dispatch, delivery, gas-payment and Merkle-insertion events
-at the current head by default on every selected supported chain except Fuel.
+at the current head on EVM and Sealevel chains. Other protocols retain the
+legacy indexers until they can prove complete event ranges at a block boundary.
 Each event is stored once in its existing table. Permanent headers for event
 blocks remain in `block`; the current confirmation boundary and sparse unconfirmed
 range checkpoints live in `scraper_checkpoint`. `scraper_head` contains only
@@ -20,19 +21,15 @@ head boundary rather than one notification for every deleted event. Notification
 are wake-up hints; reconnect and catch-up must read the persisted rows and head.
 
 Select chains with `chainsToScrape` as before. No `nearHead` setting or per-chain
-`fromBlock` values are needed. Fuel retains its existing path because its delivery,
-gas-payment, and Merkle indexers are not implemented.
+`fromBlock` values are needed.
 The old `HYP_NEARHEAD` and `HYP_NEARHEAD_<DOMAIN>_FROMBLOCK` variables are no longer
 used and can be removed.
 
-An empty EVM domain starts automatically at `index.from`. Non-EVM domains require
-an explicit verified `scraper_head` cutover even when their event tables are empty,
-because their indexers cannot provide historical counts pinned immediately before
-`index.from`; this also avoids treating a sequence-mode starting index as a block
-height. A domain with existing block or event rows and no `scraper_head` state
-fails closed. Neither the greatest stored height nor the shared legacy cursor proves
-that all four legacy streams completed that height: choosing either can skip a
-slower gas-payment or delivery backlog.
+An empty EVM domain starts automatically at `index.from`. An empty Sealevel domain
+starts at the latest slot after all four sequence counts report zero. A domain with
+existing events and no `scraper_head` state fails closed. Neither the greatest
+stored height nor the shared legacy cursor proves that all four legacy streams
+completed that height.
 
 Existing domains require the verified cutover below. Startup rechecks that an
 automatically initialized domain is still empty after RPC preflight. Restarts
@@ -41,33 +38,29 @@ boundary from stored maxima. Contract changes are rejected.
 
 ## Behavior
 
-- EVM uses one combined RPC log query for all four event types. Other protocols
-  use their existing four range indexers concurrently. Both use the existing
+- EVM uses one combined RPC log query for all four event types. Sealevel uses
+  its four sequence indexers concurrently. Both use the existing
   `index.chunk` limit. Headers are fetched only for blocks
   containing events and range boundaries, not every empty block. Events and the
   end checkpoint commit atomically, including when the range has no events.
 - Each returned log must match its block header. The previous indexed boundary
   and the range end are checked again before commit; changed forks are retried.
   On EVM, dispatch nonces and Merkle leaf indexes must exactly cover counts read
-  from their contracts at both boundary hashes. Other protocols anchor continuity
-  to the database cutover and compare ingested counts with each indexer’s reported
-  sequence count once its reported tip is covered. Sequence-mode protocols page
+  from their contracts at both boundary hashes. Sealevel anchors continuity to
+  the database cutover. Its indexers page
   from the durable count until they pass the current block boundary and prove each
   requested page complete before filtering by block. Missing first, middle, tail,
   or entire sequences reject the range without advancing progress. The last
   successfully committed counts are reused only for the same boundary hash;
-  restart or changed ancestry reloads them from durable rows. Delivery and gas
-  streams receive the same check when their indexers expose sequence counts;
-  otherwise completeness depends on the RPC returning all matching logs.
-  Non-EVM publication is capped at the minimum current event-stream tip.
-  Sequence-mode streams additionally require contiguous pages through each
-  indexed boundary; a lagging sequence tip rejects the range before commit.
+  restart or changed ancestry reloads them from durable rows. All four Sealevel
+  streams require sequence counts; a lagging sequence tip rejects the range
+  before commit.
   Generic adapters preserve provider transaction and log positions. The
   provisional database key includes both positions and the event identity so
   protocols without a globally unique log index remain collision-safe.
 - Polling uses `index.interval`, with the legacy range cursor's 30-second default.
   An unchanged EVM head costs one RPC call and no log query. Generic adapters
-  read chain metrics and then the latest block header, so an unchanged non-EVM
+  read chain metrics and then the latest block header, so an unchanged Sealevel
   head normally costs two provider calls. Catch-up ranges run
   without an idle delay. Each cycle ingests before publishing, so newly indexed
   events do not wait for another poll. Page-limited publication repeats without
@@ -156,7 +149,7 @@ boundary from stored maxima. Contract changes are rejected.
 For a caught-up unchanged EVM head: one header request per poll. For a normal EVM new
 range containing events in `B` distinct blocks: at most `B + 6` header requests
 and one combined log request plus two new contract-count reads on consecutive
-committed ranges. Non-EVM ranges make one sequence-watermark request per stream
+committed ranges. Sealevel ranges make one sequence-count request per stream
 and one or more bounded, paged event requests per stream; sparse numbering can require
 additional boundary lookups. The
 first range after startup or a changed boundary hash requires four count reads;
@@ -213,9 +206,9 @@ hangs, and verify uncached successful receipts survive a neighboring timeout.
    migration binary built from this PR for both upgrades and rollbacks; older
    binaries do not know checkpoint migration 15. After stopping writers, wait at
    least 90 seconds before migrating so the migration's activity gate can pass.
-3. For each existing supported domain, complete the verified cutover below.
-   Empty EVM domains need no seed; non-EVM domains still require an explicit
-   verified cutover. Start the scraper and matching proxy only afterwards.
+3. For each existing EVM or Sealevel domain, complete the verified cutover below.
+   Empty EVM and Sealevel domains need no seed. Start the scraper and matching
+   proxy only afterwards.
 4. Check `scraper_head` for advancing `indexed_height` and `confirmed_height`,
    verify the chain critical-error metric is clear, and check consumer streams.
 

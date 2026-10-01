@@ -114,29 +114,12 @@ impl Worker {
             );
         }
 
-        let publication_cap = if self.source.has_historical_counts() {
-            None
-        } else {
-            let state = self
-                .store
-                .state()
-                .await?
-                .ok_or_else(|| eyre::eyre!("Missing head state"))?;
-            let verified = state.verified.unwrap_or(state.confirmed);
-            Some(
-                self.source
-                    .publication_tip()
-                    .await?
-                    .map_or(verified, |tip| verified.min(tip))
-                    .min(state.indexed),
-            )
-        };
         let confirmation = confirm_leased(
             self.source.as_ref(),
             &self.store,
             &self.period,
             confirmation_lease(self.poll_interval),
-            publication_cap,
+            None,
         )
         .await?;
         for (label, count) in [
