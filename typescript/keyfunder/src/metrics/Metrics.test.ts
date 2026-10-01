@@ -115,6 +115,21 @@ describe('KeyFunderMetrics', () => {
     });
   });
 
+  describe('recordChainFundingSuccess', () => {
+    it('should record chain funding success metric', async () => {
+      const metrics = new KeyFunderMetrics(undefined);
+      metrics.recordChainFundingSuccess('base', true);
+      metrics.recordChainFundingSuccess('ethereum', false);
+
+      const metricsOutput = await metrics.getRegistry().metrics();
+      expect(metricsOutput).to.include(
+        'hyperlane_keyfunder_chain_funding_success',
+      );
+      expect(metricsOutput).to.include('chain="base"} 1');
+      expect(metricsOutput).to.include('chain="ethereum"} 0');
+    });
+  });
+
   describe('push', () => {
     // eslint-disable-next-line jest/expect-expect -- testing no-throw behavior
     it('should not throw when no push gateway configured', async () => {
