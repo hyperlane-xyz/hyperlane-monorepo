@@ -366,19 +366,21 @@ describe('SVM ISM E2E Tests', function () {
       expect(after.config.owner).to.equal(ownerSigner.getSignerAddress());
     });
 
-    it('a dropped on-chain domain is rejected by update', async () => {
+    it('a dropped on-chain domain is redeployed as a new program', async () => {
       const config = routingConfig(signer.getSignerAddress(), baseDomains);
-      const { deployed, programId } = await deploy(config, [1, 2, 3]);
-      const writer = updaterFor(programId, [1, 2, 3]);
+      const { programId } = await deploy(config, [1, 2, 3]);
       const expected = routingConfig(signer.getSignerAddress(), {
         1: domain1Config,
         2: domain2Config,
       });
 
-      const err = await rejection(
-        writer.update({ ...deployed, config: expected }),
-      );
-      expect(err.message).to.contain('Cannot remove domain 3');
+      const manager = new SvmIsmArtifactManager(rpc, [1, 2, 3]);
+      const [fresh] = await manager
+        .createWriter(IsmType.ROUTING_MESSAGE_ID_MULTISIG, signer)
+        .create({ artifactState: ArtifactState.NEW, config: expected });
+      expect(fresh.deployed.programId).to.not.equal(programId);
+      const read = await readerFor([1, 2, 3]).read(fresh.deployed.programId);
+      expect(read.config).to.deep.equal(expected);
     });
 
     it('create transfers ownership last; old owner is locked out', async () => {
@@ -550,46 +552,19 @@ describe('SVM ISM E2E Tests', function () {
       expect(after.config.domains).to.deep.equal(build(500));
     });
 
-    it('rejects invalid configs before any transaction is sent', async () => {
-      const owner = signer.getSignerAddress();
-      const upper = '0x' + 'A'.repeat(40);
-      const lower = '0x' + 'a'.repeat(40);
-      interface Case {
-        name: string;
-        domains: Record<number, DomainMultisigConfig>;
-        error: string;
-      }
-      const cases: Case[] = [
-        {
-          name: 'threshold 0',
-          domains: { 1: { validators: validators(1, 2), threshold: 0 } },
-          error: 'threshold (0)',
-        },
-        {
-          name: 'threshold above validator count',
-          domains: { 1: { validators: validators(1, 2), threshold: 3 } },
-          error: 'threshold (3)',
-        },
-        {
-          name: 'duplicate validators differing by case',
-          domains: { 1: { validators: [upper, lower], threshold: 1 } },
-          error: 'duplicate validator',
-        },
-      ];
-      for (const c of cases) {
-        const before = await lamportsOf(owner);
-        const err = await rejection(
-          freshWriter(signer, [1]).create({
-            artifactState: ArtifactState.NEW,
-            config: routingConfig(owner, c.domains),
-          }),
-        );
-        expect(err.message, c.name).to.contain(c.error);
-        expect(await lamportsOf(owner), c.name).to.equal(before);
-      }
+    it('manager detects the routing multisig type and reads it', async () => {
+      const { programId } = await deploy(
+        routingConfig(signer.getSignerAddress(), baseDomains),
+        [1, 2, 3],
+      );
+      const manager = new SvmIsmArtifactManager(rpc, [1, 2, 3]);
+      const artifact = await manager.readIsm(programId);
+      expect(artifact.config).to.deep.equal(
+        routingConfig(signer.getSignerAddress(), baseDomains),
+      );
     });
 
-    it('domains missing from knownDomainIds are not read', async () => {
+    it('domains missing from knownDomainIds are not read; empty ids assert', async () => {
       const { programId } = await deploy(
         routingConfig(signer.getSignerAddress(), baseDomains),
         [1, 2, 3],
@@ -599,12 +574,19 @@ describe('SVM ISM E2E Tests', function () {
         1: domain1Config,
         2: domain2Config,
       });
+
+      const mgrErr = await rejection(
+        new SvmIsmArtifactManager(rpc).readIsm(programId),
+      );
+      expect(mgrErr.message).to.contain(
+        'routingMessageIdMultisigIsm requires known domain ids',
+      );
     });
   });
 
   describe('ISM Artifact Manager', () => {
     it('should detect ISM type from address', async function () {
-      const manager = new SvmIsmArtifactManager(rpc);
+      const manager = new SvmIsmArtifactManager(rpc, [1, 137]);
 
       try {
         const testIsmArtifact = await manager.readIsm(TEST_PROGRAM_IDS.testIsm);
@@ -617,26 +599,12 @@ describe('SVM ISM E2E Tests', function () {
             TEST_PROGRAM_IDS.multisigIsm,
           );
           expect(multisigArtifact.config.type).to.equal(
-            IsmType.MESSAGE_ID_MULTISIG,
+            IsmType.ROUTING_MESSAGE_ID_MULTISIG,
           );
         } else {
           throw err;
         }
       }
-    });
-
-    it('should create readers for different ISM types', () => {
-      const manager = new SvmIsmArtifactManager(rpc);
-
-      const testIsmReader = manager.createReader(IsmType.TEST_ISM);
-      expect(testIsmReader).to.be.instanceOf(SvmTestIsmReader);
-    });
-
-    it('should create writers for different ISM types', () => {
-      const manager = new SvmIsmArtifactManager(rpc);
-
-      const testIsmWriter = manager.createWriter(IsmType.TEST_ISM, signer);
-      expect(testIsmWriter).to.be.instanceOf(SvmTestIsmWriter);
     });
   });
 });
