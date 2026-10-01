@@ -15,6 +15,7 @@ import {
   RawHookArtifactConfigs,
   throwUnsupportedHookType,
 } from '@hyperlane-xyz/provider-sdk/hook';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixSigner } from '../clients/signer.js';
 import { RadixBase } from '../utils/base.js';
@@ -30,7 +31,7 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
   constructor(
     private readonly gateway: GatewayApiClient,
     private readonly base: RadixBase,
-    private readonly mailboxAddress: string,
+    private readonly mailboxAddress: string | undefined,
     private readonly nativeTokenDenom: string,
   ) {}
 
@@ -80,13 +81,20 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
     const baseSigner = signer.getBaseSigner();
 
     const writers: HookArtifactWriterFactories = {
-      merkleTreeHook: () =>
-        new RadixMerkleTreeHookWriter(
+      merkleTreeHook: () => {
+        const mailboxAddress = this.mailboxAddress;
+        assert(
+          mailboxAddress,
+          'mailbox address required for Radix merkle tree hook deployment',
+        );
+
+        return new RadixMerkleTreeHookWriter(
           this.gateway,
           baseSigner,
           this.base,
-          this.mailboxAddress,
-        ),
+          mailboxAddress,
+        );
+      },
       interchainGasPaymaster: () =>
         new RadixIgpHookWriter(
           this.gateway,

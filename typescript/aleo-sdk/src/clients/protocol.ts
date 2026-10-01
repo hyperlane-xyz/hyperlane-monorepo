@@ -6,6 +6,7 @@ import {
   type ChainMetadataForAltVM,
   type ITransactionSubmitter,
   type MinimumRequiredGasByAction,
+  type ProtocolArtifactManagerContext,
   type ProtocolProvider,
   type SignerConfig,
   type TransactionSubmitterConfig,
@@ -91,7 +92,7 @@ export class AleoProtocolProvider implements ProtocolProvider {
 
   createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    context?: { mailbox?: string },
+    context?: ProtocolArtifactManagerContext,
   ): IRawHookArtifactManager {
     const chainId = parseInt(chainMetadata.chainId.toString());
     assert(
@@ -107,12 +108,12 @@ export class AleoProtocolProvider implements ProtocolProvider {
         ? new AleoMainnetNetworkClient(rpcUrl)
         : new AleoTestnetNetworkClient(rpcUrl);
 
-    return new AleoHookArtifactManager(aleoClient, context?.mailbox);
+    return new AleoHookArtifactManager(aleoClient, context?.addresses?.mailbox);
   }
 
   createWarpArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    context?: { mailbox?: string },
+    context?: ProtocolArtifactManagerContext,
   ): IRawWarpArtifactManager {
     const chainId = parseInt(chainMetadata.chainId.toString());
     assert(
@@ -136,11 +137,12 @@ export class AleoProtocolProvider implements ProtocolProvider {
 
     // Prefer deriving hook manager from mailbox suffix if mailbox is provided.
     // Fall back to unsuffixed hook manager when context is unavailable.
-    const hookManagerAddress = context?.mailbox
+    const mailboxAddress = context?.addresses?.mailbox;
+    const hookManagerAddress = mailboxAddress
       ? getProgramIdFromSuffix(
           prefix,
           'hook_manager',
-          getProgramSuffix(fromAleoAddress(context.mailbox).programId),
+          getProgramSuffix(fromAleoAddress(mailboxAddress).programId),
         )
       : `${prefix}_hook_manager.aleo`;
 

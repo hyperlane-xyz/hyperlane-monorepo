@@ -3,6 +3,7 @@ import {
   type ChainMetadataForAltVM,
   type ITransactionSubmitter,
   type MinimumRequiredGasByAction,
+  type ProtocolArtifactManagerContext,
   type ProtocolProvider,
   type SignerConfig,
   type TransactionSubmitterConfig,
@@ -69,7 +70,7 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
 
   createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    context?: { mailbox?: string },
+    context?: ProtocolArtifactManagerContext,
   ): IRawHookArtifactManager {
     const [mainRpcUrl, ...otherRpcUrls] = (chainMetadata.rpcUrls ?? []).map(
       (rpc) => rpc.http,
@@ -78,7 +79,7 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
     assert(mainRpcUrl, 'At least one rpc url is required');
     assert(chainMetadata.nativeToken?.denom, 'native token denom undefined');
 
-    const mailboxAddress = context?.mailbox;
+    const mailboxAddress = context?.addresses?.mailbox;
     const nativeTokenDenom = chainMetadata.nativeToken.denom;
 
     return new CosmosHookArtifactManager({
@@ -90,7 +91,7 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
 
   createWarpArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    _context?: { mailbox?: string },
+    _context?: ProtocolArtifactManagerContext,
   ): IRawWarpArtifactManager {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);

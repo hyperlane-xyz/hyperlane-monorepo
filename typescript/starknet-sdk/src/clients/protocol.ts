@@ -3,6 +3,7 @@ import {
   ChainMetadataForAltVM,
   ITransactionSubmitter,
   MinimumRequiredGasByAction,
+  ProtocolArtifactManagerContext,
   ProtocolProvider,
   SignerConfig,
   TransactionSubmitterConfig,
@@ -68,14 +69,16 @@ export class StarknetProtocolProvider implements ProtocolProvider {
 
   createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    context?: { mailbox?: string },
+    context?: ProtocolArtifactManagerContext,
   ): IRawHookArtifactManager {
-    return new StarknetHookArtifactManager(chainMetadata, context);
+    return new StarknetHookArtifactManager(chainMetadata, {
+      mailbox: context?.addresses?.mailbox,
+    });
   }
 
   createWarpArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    _context?: { mailbox?: string },
+    _context?: ProtocolArtifactManagerContext,
   ): IRawWarpArtifactManager {
     return new StarknetWarpArtifactManager(chainMetadata);
   }

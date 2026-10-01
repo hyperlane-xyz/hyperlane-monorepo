@@ -130,7 +130,7 @@ async function main() {
 
       // Create the core module connected to the existing deployment
       const reader = createHookReader(metadata, multiProvider, {
-        mailbox: chainAddresses.mailbox,
+        addresses: chainAddresses,
       });
 
       // Read current on-chain config
@@ -192,7 +192,7 @@ async function main() {
       }
 
       const writer = createHookWriter(metadata, multiProvider, signer, {
-        mailbox: chainAddresses.mailbox,
+        addresses: chainAddresses,
       });
 
       const { transactions } = await writer.deployOrUpdate({

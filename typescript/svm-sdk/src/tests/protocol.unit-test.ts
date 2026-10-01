@@ -36,7 +36,7 @@ describe('SvmProtocolProvider', () => {
   describe('createHookArtifactManager', () => {
     it('returns SvmHookArtifactManager with mailbox from context', () => {
       const manager = provider.createHookArtifactManager(FAKE_METADATA, {
-        mailbox: FAKE_MAILBOX,
+        addresses: { mailbox: FAKE_MAILBOX },
       });
       expect(manager).to.be.instanceOf(SvmHookArtifactManager);
     });
@@ -47,7 +47,9 @@ describe('SvmProtocolProvider', () => {
     });
 
     it('returns SvmHookArtifactManager when context has no mailbox', () => {
-      const manager = provider.createHookArtifactManager(FAKE_METADATA, {});
+      const manager = provider.createHookArtifactManager(FAKE_METADATA, {
+        addresses: {},
+      });
       expect(manager).to.be.instanceOf(SvmHookArtifactManager);
     });
   });

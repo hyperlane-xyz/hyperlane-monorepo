@@ -187,7 +187,7 @@ export class CoreWriter extends CoreArtifactReader {
       this.chainMetadata,
       this.chainLookup,
       this.signer,
-      { mailbox: mailboxAddress },
+      { addresses: { mailbox: mailboxAddress } },
     );
 
     // Step 3: Deploy hooks if NEW (hooks need mailbox address)
@@ -416,7 +416,7 @@ export class CoreWriter extends CoreArtifactReader {
       this.chainMetadata,
       this.chainLookup,
       this.signer,
-      { mailbox: mailboxAddress },
+      { addresses: { mailbox: mailboxAddress } },
     );
 
     // Merge current with expected

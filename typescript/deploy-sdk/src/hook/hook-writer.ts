@@ -1,5 +1,6 @@
 import {
   ChainMetadataForAltVM,
+  ProtocolArtifactManagerContext,
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -26,28 +27,19 @@ import { Address, assert, isEmptyAddress } from '@hyperlane-xyz/utils';
 import { HookReader } from './hook-reader.js';
 
 /**
- * Deployment context for hooks that need environment information.
- * Different protocols may require different context fields.
- */
-export type HookDeploymentContext = {
-  /** Mailbox address on the chain where hooks are being deployed */
-  mailbox?: string;
-};
-
-/**
  * Factory function to create a HookWriter instance.
  *
  * @param chainMetadata Chain metadata for the target chain
  * @param chainLookup Chain lookup interface for resolving chain names and domain IDs
  * @param signer Signer interface for signing transactions
- * @param context Optional deployment context (mailbox address, etc.) required by some protocols
+ * @param context Optional known addresses for the target chain
  * @returns A HookWriter instance
  *
  * @example
  * ```typescript
  * // Creating hooks during core deployment (with mailbox context)
  * const writer = createHookWriter(chainMetadata, chainLookup, signer, {
- *   mailbox: mailboxAddress
+ *   addresses: { mailbox: mailboxAddress },
  * });
  * const [deployed] = await writer.create(hookArtifact);
  *
@@ -60,7 +52,7 @@ export function createHookWriter(
   chainMetadata: ChainMetadataForAltVM,
   chainLookup: ChainLookup,
   signer: ISigner<AnnotatedTx, TxReceipt>,
-  context?: HookDeploymentContext,
+  context?: ProtocolArtifactManagerContext,
 ): HookWriter {
   const protocolProvider = getProtocolProvider(chainMetadata.protocol);
   const artifactManager: IRawHookArtifactManager =

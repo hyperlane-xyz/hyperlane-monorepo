@@ -159,7 +159,7 @@ async function generateNonEvmHookUpdateTxs({
   const chainMetadata = chainLookup.getChainMetadata(chain);
 
   const writer = createHookWriter(chainMetadata, chainLookup, signer, {
-    mailbox: chainAddresses.mailbox,
+    addresses: chainAddresses,
   });
 
   // deployOrUpdate handles both 'update existing' and 'redeploy when type

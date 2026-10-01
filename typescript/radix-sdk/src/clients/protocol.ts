@@ -5,6 +5,7 @@ import {
   ChainMetadataForAltVM,
   ITransactionSubmitter,
   MinimumRequiredGasByAction,
+  ProtocolArtifactManagerContext,
   ProtocolProvider,
   SignerConfig,
   TransactionSubmitterConfig,
@@ -70,15 +71,14 @@ export class RadixProtocolProvider implements ProtocolProvider {
 
   createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    context?: { mailbox?: string },
+    context?: ProtocolArtifactManagerContext,
   ): IRawHookArtifactManager {
     const { gateway, base } = this.configureNetworkConnection(chainMetadata);
 
     // Get native token denom from chain metadata
     const nativeTokenDenom = chainMetadata.nativeToken?.denom || '';
 
-    // Get mailbox from context if provided, otherwise empty string for read-only operations
-    const mailboxAddress = context?.mailbox || '';
+    const mailboxAddress = context?.addresses?.mailbox;
 
     return new RadixHookArtifactManager(
       gateway,
@@ -90,7 +90,7 @@ export class RadixProtocolProvider implements ProtocolProvider {
 
   createWarpArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    _context?: { mailbox?: string },
+    _context?: ProtocolArtifactManagerContext,
   ): IRawWarpArtifactManager {
     const { gateway, base } = this.configureNetworkConnection(chainMetadata);
     return new RadixWarpArtifactManager(gateway, base);

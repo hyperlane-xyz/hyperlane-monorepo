@@ -207,7 +207,7 @@ async function deployNonEvmHook({
   const chainMetadata = chainLookup.getChainMetadata(chain);
 
   const writer = createHookWriter(chainMetadata, chainLookup, signer, {
-    mailbox: chainAddresses.mailbox,
+    addresses: chainAddresses,
   });
 
   const validatedConfig = validateHookConfigForAltVM(hookConfig, chain);

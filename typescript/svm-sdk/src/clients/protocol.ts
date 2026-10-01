@@ -3,6 +3,7 @@ import type {
   ChainMetadataForAltVM,
   ITransactionSubmitter,
   MinimumRequiredGasByAction,
+  ProtocolArtifactManagerContext,
   ProtocolProvider,
   SignerConfig,
   TransactionSubmitterConfig,
@@ -95,18 +96,17 @@ export class SvmProtocolProvider implements ProtocolProvider {
 
   createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    context?: { mailbox?: string },
+    context?: ProtocolArtifactManagerContext,
   ): IRawHookArtifactManager {
     const rpc = createRpc(this.getRpcUrl(chainMetadata));
-    const mailbox = context?.mailbox
-      ? parseAddress(context.mailbox)
-      : undefined;
+    const mailboxAddress = context?.addresses?.mailbox;
+    const mailbox = mailboxAddress ? parseAddress(mailboxAddress) : undefined;
     return new SvmHookArtifactManager(rpc, chainMetadata.domainId, mailbox);
   }
 
   createWarpArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    _context?: { mailbox?: string },
+    _context?: ProtocolArtifactManagerContext,
   ): IRawWarpArtifactManager {
     const rpc = createRpc(this.getRpcUrl(chainMetadata));
     return new SvmWarpArtifactManager(rpc, {

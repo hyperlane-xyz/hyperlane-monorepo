@@ -123,7 +123,9 @@ export class WarpTokenWriter
     super(artifactManager, chainMetadata, chainLookup);
     this.ismWriter = createIsmWriter(chainMetadata, chainLookup, signer);
     this.hookWriterFactory = (mailbox) =>
-      createHookWriter(chainMetadata, chainLookup, signer, { mailbox });
+      createHookWriter(chainMetadata, chainLookup, signer, {
+        addresses: { mailbox },
+      });
   }
 
   /**

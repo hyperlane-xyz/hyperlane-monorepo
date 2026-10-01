@@ -1,5 +1,6 @@
 import {
   ChainMetadataForAltVM,
+  ProtocolArtifactManagerContext,
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactReader } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -21,21 +22,23 @@ import { Logger, assert, rootLogger } from '@hyperlane-xyz/utils';
  * This helper centralizes the creation of artifact managers and hook readers,
  * making it easier to instantiate readers across the codebase.
  *
- * @param chainMetadata Chain metadata for the target chain (protocol type is extracted from metadata.protocol)
+ * @param chainMetadata Chain metadata for the target chain
  * @param chainLookup Chain lookup interface for resolving chain names and domain IDs
- * @param context Optional deployment context (e.g. mailbox address needed by SVM for merkle tree hook detection)
+ * @param context Optional known addresses for the target chain
  * @returns A HookReader instance
  *
  * @example
  * ```typescript
- * const reader = createHookReader(chainMetadata, chainLookup, { mailbox: mailboxAddress });
+ * const reader = createHookReader(chainMetadata, chainLookup, {
+ *   addresses: { mailbox: mailboxAddress },
+ * });
  * const hookConfig = await reader.read(hookAddress);
  * ```
  */
 export function createHookReader(
   chainMetadata: ChainMetadataForAltVM,
   chainLookup: ChainLookup,
-  context?: { mailbox?: string },
+  context?: ProtocolArtifactManagerContext,
 ): HookReader {
   const protocolProvider = getProtocolProvider(chainMetadata.protocol);
   const artifactManager: IRawHookArtifactManager =

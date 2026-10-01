@@ -82,7 +82,9 @@ export class CoreArtifactReader implements ArtifactReader<
   ) {
     this.ismReader = createIsmReader(this.chainMetadata, this.chainLookup);
     this.hookReaderFactory = (mailbox) =>
-      createHookReader(this.chainMetadata, this.chainLookup, { mailbox });
+      createHookReader(this.chainMetadata, this.chainLookup, {
+        addresses: { mailbox },
+      });
   }
 
   /**

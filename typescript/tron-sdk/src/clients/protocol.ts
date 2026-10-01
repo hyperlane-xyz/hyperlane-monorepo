@@ -3,6 +3,7 @@ import {
   type ChainMetadataForAltVM,
   type ITransactionSubmitter,
   type MinimumRequiredGasByAction,
+  type ProtocolArtifactManagerContext,
   type ProtocolProvider,
   type SignerConfig,
   type TransactionSubmitterConfig,
@@ -61,7 +62,7 @@ export class TronProtocolProvider implements ProtocolProvider {
 
   createHookArtifactManager(
     _chainMetadata: ChainMetadataForAltVM,
-    _context?: { mailbox?: string; proxyAdmin?: string },
+    _context?: ProtocolArtifactManagerContext,
   ): IRawHookArtifactManager {
     // @TODO Implement in a follow up PR
     throw Error('Not implemented');
@@ -69,7 +70,7 @@ export class TronProtocolProvider implements ProtocolProvider {
 
   createWarpArtifactManager(
     _chainMetadata: ChainMetadataForAltVM,
-    _context?: { mailbox?: string },
+    _context?: ProtocolArtifactManagerContext,
   ): IRawWarpArtifactManager {
     // @TODO Implement in a follow up PR
     throw Error('Not implemented');

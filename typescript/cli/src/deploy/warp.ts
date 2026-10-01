@@ -15,6 +15,7 @@ import {
   ProtocolType,
   SubmitterType,
   getProtocolProvider,
+  isProtocolChainAddresses,
 } from '@hyperlane-xyz/provider-sdk';
 import {
   type AnnotatedTx,
@@ -1390,11 +1391,13 @@ function buildAltVmSubmitterFactories({
   protocol,
   chain,
   multiProvider,
+  addresses,
   signer,
 }: {
   protocol: ProtocolType;
   chain: ChainName;
   multiProvider: MultiProvider;
+  addresses?: ChainAddresses;
   signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
 }): AltVmSubmitterFactories {
   return {
@@ -1407,12 +1410,18 @@ function buildAltVmSubmitterFactories({
         metadata.type === CustomTxSubmitterType.IMPERSONATED_ACCOUNT,
         `Invalid metadata type: ${metadata.type}, expected ${CustomTxSubmitterType.IMPERSONATED_ACCOUNT}`,
       );
+      assert(
+        !addresses || isProtocolChainAddresses(addresses),
+        `Incomplete core addresses for ${chain}`,
+      );
+
       return getProtocolProvider(protocol).createSubmitter(
         multiProvider.getChainMetadata(chain),
         {
           type: SubmitterType.ImpersonatedAccount,
           chain,
           userAddress: metadata.userAddress,
+          addresses,
         },
       );
     },
@@ -1449,6 +1458,7 @@ async function getFeeSubmitterByStrategy<T extends ProtocolType>({
   };
 
   const protocol = multiProvider.getProtocol(chain);
+  const coreAddressesByChain = await registry.getAddresses();
   const additionalSubmitterFactories: any = {
     [ProtocolType.Tron]: {
       file: (_multiProvider: MultiProvider, metadata: any) =>
@@ -1466,6 +1476,7 @@ async function getFeeSubmitterByStrategy<T extends ProtocolType>({
       protocol,
       chain,
       multiProvider,
+      addresses: coreAddressesByChain[chain],
       signer,
     });
   }
@@ -1473,7 +1484,7 @@ async function getFeeSubmitterByStrategy<T extends ProtocolType>({
   return getSubmitterBuilder<T>({
     submissionStrategy: auxiliaryStrategy as SubmissionStrategy,
     multiProvider,
-    coreAddressesByChain: await registry.getAddresses(),
+    coreAddressesByChain,
     additionalSubmitterFactories,
   });
 }
@@ -1917,6 +1928,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
 
   const strategyToUse = submissionStrategy ?? defaultSubmitter;
   const protocol = multiProvider.getProtocol(chain);
+  const coreAddressesByChain = await registry.getAddresses();
 
   const additionalSubmitterFactories: any = {
     [ProtocolType.Tron]: {
@@ -1938,6 +1950,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
       protocol,
       chain,
       multiProvider,
+      addresses: coreAddressesByChain[chain],
       signer,
     });
   }
@@ -1946,7 +1959,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
     submitter: await getSubmitterBuilder<T>({
       submissionStrategy: strategyToUse as SubmissionStrategy, // TODO: fix this
       multiProvider,
-      coreAddressesByChain: await registry.getAddresses(),
+      coreAddressesByChain,
       additionalSubmitterFactories,
     }),
     config: submissionStrategy,

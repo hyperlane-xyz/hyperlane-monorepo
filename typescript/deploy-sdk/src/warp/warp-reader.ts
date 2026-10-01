@@ -63,7 +63,7 @@ export class WarpTokenReader implements ArtifactReader<
 
     // Create hook reader with mailbox context from the warp config
     const hookReader = createHookReader(this.chainMetadata, this.chainLookup, {
-      mailbox: rawArtifact.config.mailbox,
+      addresses: { mailbox: rawArtifact.config.mailbox },
     });
 
     // Expand nested ISM artifact if present
