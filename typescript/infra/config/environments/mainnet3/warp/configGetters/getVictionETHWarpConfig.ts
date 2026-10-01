@@ -15,7 +15,7 @@ import { legacyEthIcaRouter } from '../../../../../src/config/chain.js';
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
-import { getWarpFeeOwner } from '../../governance/utils.js';
+import { WARP_FEES_TURNKEY_OWNER } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
 
 import {
@@ -81,7 +81,7 @@ export const getVictionETHWarpConfig = async (
         ...baseConfig,
         decimals: 18,
         tokenFee: getFixedRoutingFeeConfig(
-          getWarpFeeOwner(currentChain),
+          WARP_FEES_TURNKEY_OWNER,
           feeDestinations,
           10,
         ),
