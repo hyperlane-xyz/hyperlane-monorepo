@@ -12,7 +12,7 @@ use hyperlane_base::{
     settings::{ChainConf, ChainConnectionConf},
     ChainMetrics, ContractSyncMetrics, CoreMetrics,
 };
-use hyperlane_core::{ContractLocator, ReorgPeriod};
+use hyperlane_core::{ContractLocator, HyperlaneDomainProtocol, ReorgPeriod};
 use tokio::task::JoinHandle;
 
 use crate::store::HyperlaneDbStore;
@@ -20,6 +20,15 @@ use source::{
     BlockSelector, Contracts, EvmContracts, GenericSource, Header, Source, SourceBuilder,
 };
 use store::{State, Store};
+
+fn minimum_auto_anchor(protocol: HyperlaneDomainProtocol) -> u64 {
+    match protocol {
+        HyperlaneDomainProtocol::Cosmos
+        | HyperlaneDomainProtocol::CosmosNative
+        | HyperlaneDomainProtocol::Radix => 1,
+        _ => 0,
+    }
+}
 
 /// Prevent accidental fallback to legacy writers while provisional state exists.
 pub async fn ensure_legacy_mode(legacy: &HyperlaneDbStore) -> Result<()> {
@@ -88,7 +97,10 @@ pub async fn spawn(
     let anchor = if initialized {
         None
     } else if source.has_historical_counts() || !source.indexes_by_sequence() {
-        let anchor_height = store.anchor_height(u32::try_from(conf.index.from)?).await?;
+        let anchor_height = store
+            .anchor_height(u32::try_from(conf.index.from)?)
+            .await?
+            .max(minimum_auto_anchor(conf.connection.protocol()));
         Some(source.header(BlockSelector::Height(anchor_height)).await?)
     } else {
         Some(source.empty_anchor().await?.ok_or_else(|| {

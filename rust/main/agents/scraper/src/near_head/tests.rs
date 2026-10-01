@@ -1445,3 +1445,15 @@ async fn automatic_cutover_rejects_partial_legacy_history_and_reuses_verified_bo
     assert_eq!(count(&store, "scraper_head").await?, 1);
     Ok(())
 }
+
+#[test]
+fn automatic_anchors_respect_protocol_minimum_heights() {
+    assert_eq!(minimum_auto_anchor(HyperlaneDomainProtocol::Cosmos), 1);
+    assert_eq!(
+        minimum_auto_anchor(HyperlaneDomainProtocol::CosmosNative),
+        1
+    );
+    assert_eq!(minimum_auto_anchor(HyperlaneDomainProtocol::Radix), 1);
+    assert_eq!(minimum_auto_anchor(HyperlaneDomainProtocol::Sealevel), 0);
+    assert_eq!(minimum_auto_anchor(HyperlaneDomainProtocol::Starknet), 0);
+}
