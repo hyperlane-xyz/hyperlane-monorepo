@@ -235,10 +235,11 @@ async function buildSetDomainItems(
 }
 
 /**
- * Domain PDAs can't be enumerated, so only `knownDomainIds` are probed. Reads
- * and the writer's `update()` domain-drop detection are only as complete as
- * that list: a domain that is configured on chain but omitted stays configured
- * silently.
+ * Domain PDAs can't be enumerated, so only `knownDomainIds` are probed (the
+ * writer's `update()` additionally probes the domains named by the expected
+ * config). Reads and `update()` domain-drop detection are only as complete as
+ * those lists: a domain that is configured on chain but in neither stays
+ * configured silently.
  */
 export class SvmRoutingMessageIdMultisigIsmReader implements ArtifactReader<
   RoutingMessageIdMultisigIsmArtifactConfig,
@@ -250,6 +251,13 @@ export class SvmRoutingMessageIdMultisigIsmReader implements ArtifactReader<
   ) {}
 
   async read(address: string): Promise<RoutingMessageIdMultisigIsmArtifact> {
+    return this.readDomains(address, this.knownDomainIds);
+  }
+
+  protected async readDomains(
+    address: string,
+    domainIds: readonly number[],
+  ): Promise<RoutingMessageIdMultisigIsmArtifact> {
     const programId = parseAddress(address);
     const accessControl = await fetchMultisigIsmAccessControl(
       this.rpc,
@@ -263,7 +271,7 @@ export class SvmRoutingMessageIdMultisigIsmReader implements ArtifactReader<
     const domainsData = await fetchMultisigIsmDomainsData(
       this.rpc,
       programId,
-      this.knownDomainIds,
+      domainIds,
     );
     const domains: Record<number, DomainMultisigConfig> = {};
     for (const [domain, data] of Object.entries(domainsData)) {
@@ -464,7 +472,10 @@ export class SvmRoutingMessageIdMultisigIsmWriter
     const programId = parseAddress(artifact.deployed.address);
     const expected = artifact.config;
     assertValidRoutingMessageIdMultisigIsmStructure(expected);
-    const current = await this.read(programId);
+    const current = await this.readDomains(programId, [
+      ...this.knownDomainIds,
+      ...Object.keys(expected.domains).map(Number),
+    ]);
 
     const expectedOwner = isEmptyAddress(expected.owner)
       ? null

@@ -857,6 +857,56 @@ describe('SvmRoutingMessageIdMultisigIsmWriter.update', () => {
     }
   });
 
+  describe('with domains outside the constructor candidate list', () => {
+    const config = artifactConfig(OWNER, {
+      1: { validators: [V1, V2, V3], threshold: 2 },
+      137: { validators: [VA, VB], threshold: 1 },
+    });
+
+    it('returns no transactions on a second update of the created config', async () => {
+      const chain = new FakeChain();
+      const { writer } = await makeWriter(chain, [1]);
+      await writer.create({ artifactState: ArtifactState.NEW, config });
+
+      expect(await writer.update(deployed(config))).to.deep.equal([]);
+    });
+
+    it('returns no transactions on a second update of a renounced config', async () => {
+      const chain = new FakeChain();
+      const { writer } = await makeWriter(chain, [1]);
+      await writer.create({
+        artifactState: ArtifactState.NEW,
+        config: artifactConfig(ZERO_ADDRESS_HEX_32, config.domains),
+      });
+      const renounced = artifactConfig(ZERO_ADDRESS_HEX_32, config.domains);
+
+      expect(await writer.update(deployed(renounced))).to.deep.equal([]);
+    });
+
+    it('emits a set for only the changed out-of-list domain', async () => {
+      const chain = await seededChain();
+      const { writer } = await makeWriter(chain, [1]);
+
+      const txs = await writer.update(
+        deployed(
+          artifactConfig(OWNER, {
+            1: { validators: [V1, V2, V3], threshold: 2 },
+            137: { validators: [VA, VB], threshold: 2 },
+          }),
+        ),
+      );
+
+      expect(txs).to.have.length(1);
+      const domains = (txs[0]?.instructions ?? []).map((ix) => {
+        const d = decodeMultisigIsmMessageIdProgramInstruction(
+          Uint8Array.from(ix.data ?? []),
+        );
+        return d?.kind === 'setValidatorsAndThreshold' ? d.value.domain : null;
+      });
+      expect(domains).to.deep.equal([137]);
+    });
+  });
+
   it('updates the program named by an address-only deployed artifact', async () => {
     const chain = await seededChain();
     const { writer } = await makeWriter(chain, [1, 137]);
