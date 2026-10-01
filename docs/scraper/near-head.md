@@ -1,8 +1,7 @@
 # Near-head scraper ingestion
 
 The scraper indexes dispatch, delivery, gas-payment and Merkle-insertion events
-at the current head on EVM and Sealevel chains. Other protocols retain the
-legacy indexers until they can prove complete event ranges at a block boundary.
+near the current head on every supported protocol.
 Each event is stored once in its existing table. Permanent headers for event
 blocks remain in `block`; the current confirmation boundary and sparse unconfirmed
 range checkpoints live in `scraper_checkpoint`. `scraper_head` contains only
@@ -25,11 +24,11 @@ Select chains with `chainsToScrape` as before. No `nearHead` setting or per-chai
 The old `HYP_NEARHEAD` and `HYP_NEARHEAD_<DOMAIN>_FROMBLOCK` variables are no longer
 used and can be removed.
 
-An empty EVM domain starts automatically at `index.from`. An empty Sealevel domain
-starts at the latest slot after all four sequence counts report zero. A domain with
-existing events and no `scraper_head` state fails closed. Neither the greatest
-stored height nor the shared legacy cursor proves that all four legacy streams
-completed that height.
+An empty block-indexed domain starts automatically at `index.from`. An empty
+sequence-indexed domain starts at the minimum event-stream tip after all four
+sequence counts report zero. A domain with existing events and no `scraper_head`
+state fails closed. Neither the greatest stored height nor the shared legacy
+cursor proves that all four legacy streams completed that height.
 
 Existing domains require the verified cutover below. Startup rechecks that an
 automatically initialized domain is still empty after RPC preflight. Restarts
@@ -38,29 +37,30 @@ boundary from stored maxima. Contract changes are rejected.
 
 ## Behavior
 
-- EVM uses one combined RPC log query for all four event types. Sealevel uses
-  its four sequence indexers concurrently. Both use the existing
+- EVM uses one combined RPC log query for all four event types. Other protocols
+  use their four existing indexers concurrently. All use the existing
   `index.chunk` limit. Headers are fetched only for blocks
   containing events and range boundaries, not every empty block. Events and the
   end checkpoint commit atomically, including when the range has no events.
 - Each returned log must match its block header. The previous indexed boundary
   and the range end are checked again before commit; changed forks are retried.
   On EVM, dispatch nonces and Merkle leaf indexes must exactly cover counts read
-  from their contracts at both boundary hashes. Sealevel anchors continuity to
-  the database cutover. Its indexers page
-  from the durable count until they pass the current block boundary and prove each
-  requested page complete before filtering by block. Missing first, middle, tail,
-  or entire sequences reject the range without advancing progress. The last
+  from their contracts at both boundary hashes. Sequence-indexed protocols anchor
+  continuity to the database cutover. Their indexers page from the durable count
+  until they pass the current block boundary and prove each requested page complete
+  before filtering by block. Missing first, middle, tail, or entire sequences reject
+  the range without advancing progress. Block-indexed protocols only ingest through
+  the minimum finalized tip reported by all four indexers. The last
   successfully committed counts are reused only for the same boundary hash;
-  restart or changed ancestry reloads them from durable rows. All four Sealevel
-  streams require sequence counts; a lagging sequence tip rejects the range
+  restart or changed ancestry reloads them from durable rows. All four streams in
+  sequence mode require sequence counts; a lagging sequence tip rejects the range
   before commit.
   Generic adapters preserve provider transaction and log positions. The
   provisional database key includes both positions and the event identity so
   protocols without a globally unique log index remain collision-safe.
 - Polling uses `index.interval`, with the legacy range cursor's 30-second default.
   An unchanged EVM head costs one RPC call and no log query. Generic adapters
-  read chain metrics and then the latest block header, so an unchanged Sealevel
+  read chain metrics and then the latest block header, so an unchanged non-EVM
   head normally costs two provider calls. Catch-up ranges run
   without an idle delay. Each cycle ingests before publishing, so newly indexed
   events do not wait for another poll. Page-limited publication repeats without
@@ -112,7 +112,7 @@ boundary from stored maxima. Contract changes are rejected.
   persistent halt, preventing auxiliary writes into the provisional suffix.
 - Near-head dispatch reconciliation starts immediately and discovers newly
   confirmed dispatches every 30 seconds, rather than the legacy five-minute
-  fallback cadence. Legacy chains retain their existing reconciliation schedule.
+  fallback cadence.
 - Confirmation does not wait for receipt enrichment. Gas/delivery transaction
   metadata is filled in by independent gas and delivery loops. Each page contains
   at most 100 event rows; healthy full pages drain immediately with a scheduler
@@ -149,9 +149,9 @@ boundary from stored maxima. Contract changes are rejected.
 For a caught-up unchanged EVM head: one header request per poll. For a normal EVM new
 range containing events in `B` distinct blocks: at most `B + 6` header requests
 and one combined log request plus two new contract-count reads on consecutive
-committed ranges. Sealevel ranges make one sequence-count request per stream
-and one or more bounded, paged event requests per stream; sparse numbering can require
-additional boundary lookups. The
+committed ranges. Generic ranges make one tip request per stream plus one bounded
+event request per block-indexed stream or one or more bounded pages per
+sequence-indexed stream; sparse numbering can require additional boundary lookups. The
 first range after startup or a changed boundary hash requires four count reads;
 startup capability probes are additional. Numeric confirmation needs up to two header reads when it advances;
 finality tags also require a tag read while provisional progress exists. Count
@@ -206,9 +206,8 @@ hangs, and verify uncached successful receipts survive a neighboring timeout.
    migration binary built from this PR for both upgrades and rollbacks; older
    binaries do not know checkpoint migration 15. After stopping writers, wait at
    least 90 seconds before migrating so the migration's activity gate can pass.
-3. For each existing EVM or Sealevel domain, complete the verified cutover below.
-   Empty EVM and Sealevel domains need no seed. Start the scraper and matching
-   proxy only afterwards.
+3. For each existing domain, complete the verified cutover below. Empty domains
+   need no seed. Start the scraper and matching proxy only afterwards.
 4. Check `scraper_head` for advancing `indexed_height` and `confirmed_height`,
    verify the chain critical-error metric is clear, and check consumer streams.
 

@@ -35,9 +35,9 @@ retrying. If index creation fails, schema migrations remain committed; rerunning
 
 The indexes are not removed by migration rollback.
 
-Near-head indexing is enabled for EVM and Sealevel. Empty domains initialize
-automatically; existing domains need a verified common boundary for all four
-legacy event streams before seeding `scraper_head`. Follow the
+Near-head indexing is enabled for every supported protocol. Empty domains
+initialize automatically; existing domains need a verified common boundary for
+all four legacy event streams before seeding `scraper_head`. Follow the
 [cutover runbook](../../../../docs/scraper/near-head.md#verified-legacy-cutover) with
 writers stopped before starting the new binary.
 

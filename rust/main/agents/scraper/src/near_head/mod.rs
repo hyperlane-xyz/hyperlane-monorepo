@@ -87,12 +87,12 @@ pub async fn spawn(
     let initialized = store.state().await?.is_some();
     let anchor = if initialized {
         None
-    } else if source.has_historical_counts() {
+    } else if source.has_historical_counts() || !source.indexes_by_sequence() {
         let anchor_height = store.anchor_height(u32::try_from(conf.index.from)?).await?;
         Some(source.header(BlockSelector::Height(anchor_height)).await?)
     } else {
         Some(source.empty_anchor().await?.ok_or_else(|| {
-            eyre::eyre!("Sealevel near-head indexing requires an explicit scraper_head cutover when event history exists")
+            eyre::eyre!("Sequence near-head indexing requires an explicit scraper_head cutover when event history exists")
         })?)
     };
     let period = conf.reorg_period.clone();
@@ -242,16 +242,24 @@ async fn ingest_cached(
     if state.indexed == state.head {
         return Ok(false);
     }
+    let available_head = source
+        .indexing_tip()
+        .await?
+        .unwrap_or(state.head)
+        .min(state.head);
+    if available_head <= state.indexed {
+        return Ok(false);
+    }
     let requested_end = if source.indexes_by_sequence() {
         // Sequence paging is already bounded by its configured page size. Use
         // the observed head as the block boundary so sparse-slot chains do not
         // turn a sequence page into thousands of one-slot ingestion cycles.
-        state.head
+        available_head
     } else {
-        state.head.min(state.indexed.saturating_add(chunk_size))
+        available_head.min(state.indexed.saturating_add(chunk_size))
     };
     let mut boundary = source
-        .range_end(state.indexed, requested_end, state.head)
+        .range_end(state.indexed, requested_end, available_head)
         .await?;
     let mut end = boundary.height;
     let mut by_block = BTreeMap::<u64, Vec<source::Event>>::new();
@@ -302,7 +310,7 @@ async fn ingest_cached(
         );
         if indexed_through < end {
             boundary = source
-                .range_end(state.indexed, indexed_through, state.head)
+                .range_end(state.indexed, indexed_through, available_head)
                 .await?;
             end = boundary.height;
         }

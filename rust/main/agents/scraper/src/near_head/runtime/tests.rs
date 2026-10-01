@@ -27,6 +27,7 @@ struct Chain {
     wrong_tag: AtomicBool,
     observations: AtomicUsize,
     sequence: AtomicBool,
+    indexing_tip: AtomicU64,
     events: Mutex<Vec<Event>>,
 }
 
@@ -40,6 +41,7 @@ impl Chain {
             wrong_tag: AtomicBool::new(false),
             observations: AtomicUsize::new(0),
             sequence: AtomicBool::new(false),
+            indexing_tip: AtomicU64::new(u64::MAX),
             events: Mutex::new(Vec::new()),
         }
     }
@@ -109,6 +111,11 @@ impl Source for Arc<Chain> {
 
     fn indexes_by_sequence(&self) -> bool {
         self.sequence.load(Ordering::SeqCst)
+    }
+
+    async fn indexing_tip(&self) -> Result<Option<u64>> {
+        let tip = self.indexing_tip.load(Ordering::SeqCst);
+        Ok((tip != u64::MAX).then_some(tip))
     }
 }
 
@@ -454,5 +461,23 @@ async fn restart_waits_for_an_rpc_behind_saved_progress() -> Result<()> {
         .is_err());
     chain.head.store(5, Ordering::SeqCst);
     crate::near_head::observe(&chain, &worker.store).await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn block_mode_ingestion_stops_at_the_common_stream_tip() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(5, false));
+    chain.indexing_tip.store(3, Ordering::SeqCst);
+    let worker = worker(db, chain.clone()).await?;
+    let state = crate::near_head::observe(&chain, &worker.store).await?;
+    assert!(crate::near_head::ingest(&chain, &worker.store, &state, 20_000).await?);
+    let state = worker.store.state().await?.expect("initialized state");
+    assert_eq!((state.indexed, state.head), (3, 5));
     Ok(())
 }

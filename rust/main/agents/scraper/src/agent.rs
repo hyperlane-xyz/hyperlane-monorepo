@@ -42,6 +42,21 @@ const RAW_DISPATCH_RECONCILIATION_BATCH_SIZE: u64 = 100;
 // recovery prompt while cutting steady-state anti-join scans by 80% relative to the old minute.
 const RAW_DISPATCH_RECONCILIATION_IDLE_SLEEP: Duration = Duration::from_secs(5 * 60);
 const RAW_DISPATCH_RECONCILIATION_BACKLOG_SLEEP: Duration = Duration::from_secs(2);
+
+/// Every currently supported protocol uses near-head ingestion.
+fn near_head_enabled(domain: &HyperlaneDomain) -> bool {
+    matches!(
+        domain.domain_protocol(),
+        HyperlaneDomainProtocol::Ethereum
+            | HyperlaneDomainProtocol::Sealevel
+            | HyperlaneDomainProtocol::Cosmos
+            | HyperlaneDomainProtocol::CosmosNative
+            | HyperlaneDomainProtocol::Starknet
+            | HyperlaneDomainProtocol::Radix
+            | HyperlaneDomainProtocol::Aleo
+            | HyperlaneDomainProtocol::Tron
+    )
+}
 // A full sweep is only a correctness fallback for sequence commit-order races and old rows whose
 // body is populated after the incremental watermark passes them. Start sweeps on a fixed cadence
 // so a long-running generation does not add another full interval before its successor starts.
@@ -543,10 +558,7 @@ impl Scraper {
         let domain = scraper.domain.clone();
 
         let mut tasks = Vec::with_capacity(2);
-        if matches!(
-            domain.domain_protocol(),
-            HyperlaneDomainProtocol::Ethereum | HyperlaneDomainProtocol::Sealevel
-        ) {
+        if near_head_enabled(&domain) {
             tasks.push(
                 crate::near_head::spawn(
                     self.settings.chain_setup(&domain)?,
@@ -571,19 +583,19 @@ impl Scraper {
                 .await?;
             tasks.push(message_indexer);
 
-            let delivery_indexer = self
-                .build_delivery_indexer(
+            tasks.push(
+                self.build_delivery_indexer(
                     domain.clone(),
                     self.core_metrics.clone(),
                     self.contract_sync_metrics.clone(),
                     store.clone(),
                     index_settings.clone(),
                 )
-                .await?;
-            tasks.push(delivery_indexer);
+                .await?,
+            );
 
-            let gas_payment_indexer = self
-                .build_interchain_gas_payment_indexer(
+            tasks.push(
+                self.build_interchain_gas_payment_indexer(
                     domain.clone(),
                     self.core_metrics.clone(),
                     self.contract_sync_metrics.clone(),
@@ -594,8 +606,8 @@ impl Scraper {
                     )
                     .await,
                 )
-                .await?;
-            tasks.push(gas_payment_indexer);
+                .await?,
+            );
 
             tasks.push(
                 self.build_merkle_tree_insertion_indexer(
@@ -757,10 +769,7 @@ impl Scraper {
         reconciliation_metrics: RawDispatchReconciliationMetrics,
         store: HyperlaneDbStore,
     ) -> JoinHandle<()> {
-        let near_head = matches!(
-            domain.domain_protocol(),
-            HyperlaneDomainProtocol::Ethereum | HyperlaneDomainProtocol::Sealevel
-        );
+        let near_head = near_head_enabled(&domain);
         let domain_name = domain.name().to_owned();
         let span_domain_name = domain_name.clone();
         tokio::spawn(
@@ -1245,10 +1254,7 @@ impl Scraper {
             _ => return Ok(None),
         };
 
-        let near_head = matches!(
-            domain.domain_protocol(),
-            HyperlaneDomainProtocol::Ethereum | HyperlaneDomainProtocol::Sealevel
-        );
+        let near_head = near_head_enabled(&domain);
         let ccr_to_erc20 = ccr_router_map.clone();
         let local_domain = domain.id();
 

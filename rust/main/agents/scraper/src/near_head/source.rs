@@ -111,6 +111,10 @@ pub(super) trait Source: Send + Sync {
     fn indexes_by_sequence(&self) -> bool {
         false
     }
+    /// Highest block for which every event stream can return a complete range.
+    async fn indexing_tip(&self) -> Result<Option<u64>> {
+        Ok(None)
+    }
     async fn empty_anchor(&self) -> Result<Option<Header>> {
         Ok(None)
     }
@@ -335,6 +339,7 @@ pub(super) struct GenericSource {
     payments: Box<dyn SequenceAwareIndexer<InterchainGasPayment>>,
     insertions: Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>,
     contracts: Contracts,
+    sequence_mode: bool,
     derive_insertions_from_messages: bool,
     chunk_size: u32,
 }
@@ -345,10 +350,6 @@ impl GenericSource {
         metrics: &CoreMetrics,
         contracts: Contracts,
     ) -> Result<Box<dyn Source>> {
-        ensure!(
-            matches!(conf.index.mode, IndexMode::Sequence),
-            "Generic near-head indexing requires sequence mode"
-        );
         let provider = conf.build_provider(metrics).await?;
         let messages = conf.build_message_indexer(metrics, true).await?;
         let deliveries = conf.build_delivery_indexer(metrics, true).await?;
@@ -363,6 +364,7 @@ impl GenericSource {
             payments,
             insertions,
             contracts,
+            sequence_mode: matches!(conf.index.mode, IndexMode::Sequence),
             derive_insertions_from_messages: matches!(
                 conf.connection.protocol(),
                 HyperlaneDomainProtocol::Sealevel
@@ -394,14 +396,21 @@ impl GenericSource {
         indexer: &dyn SequenceAwareIndexer<T>,
         blocks: std::ops::RangeInclusive<u32>,
         next_sequence: u32,
+        sequence_mode: bool,
         chunk_size: u32,
     ) -> Result<(Vec<(Indexed<T>, LogMeta)>, u32)> {
         let (count, tip) = indexer.latest_sequence_count_and_tip().await?;
-        let count = count.ok_or_else(|| eyre!("Indexer does not expose a sequence count"))?;
         ensure!(
             tip >= *blocks.end(),
-            "Indexer sequence tip is behind the range boundary"
+            "Event-stream tip is behind the range boundary"
         );
+        if !sequence_mode {
+            return Ok((
+                indexer.fetch_logs_in_range(blocks.clone()).await?,
+                *blocks.end(),
+            ));
+        }
+        let count = count.ok_or_else(|| eyre!("Indexer does not expose a sequence count"))?;
         ensure!(
             count >= next_sequence,
             "Provider sequence count is behind durable history"
@@ -494,10 +503,10 @@ impl GenericSource {
             };
             (
                 event.block_number,
-                event.tx_index,
-                event.log_index,
                 stream,
                 sequence,
+                event.tx_index,
+                event.log_index,
                 id,
             )
         });
@@ -583,11 +592,23 @@ impl Source for GenericSource {
     }
 
     fn indexes_by_sequence(&self) -> bool {
-        true
+        self.sequence_mode
+    }
+
+    async fn indexing_tip(&self) -> Result<Option<u64>> {
+        let (messages, deliveries, payments, insertions) = tokio::try_join!(
+            self.messages.latest_sequence_count_and_tip(),
+            self.deliveries.latest_sequence_count_and_tip(),
+            self.payments.latest_sequence_count_and_tip(),
+            self.insertions.latest_sequence_count_and_tip(),
+        )?;
+        Ok([messages.1, deliveries.1, payments.1, insertions.1]
+            .into_iter()
+            .min()
+            .map(u64::from))
     }
 
     async fn empty_anchor(&self) -> Result<Option<Header>> {
-        let anchor = self.header(BlockSelector::Latest).await?;
         let (messages, deliveries, payments, insertions) = tokio::try_join!(
             self.messages.latest_sequence_count_and_tip(),
             self.deliveries.latest_sequence_count_and_tip(),
@@ -595,16 +616,17 @@ impl Source for GenericSource {
             self.insertions.latest_sequence_count_and_tip(),
         )?;
         let streams = [messages, deliveries, payments, insertions];
-        ensure!(
-            streams
-                .iter()
-                .all(|(_, tip)| u64::from(*tip) >= anchor.height),
-            "Indexer sequence tip is behind the empty-history anchor"
-        );
-        Ok(streams
+        if !streams.iter().all(|(count, _)| *count == Some(0)) {
+            return Ok(None);
+        }
+        let tip = streams
             .into_iter()
-            .all(|(count, _)| count == Some(0))
-            .then_some(anchor))
+            .map(|(_, tip)| tip)
+            .min()
+            .ok_or_else(|| eyre!("Missing event-stream tip"))?;
+        Ok(Some(
+            self.header(BlockSelector::Height(u64::from(tip))).await?,
+        ))
     }
 
     async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
@@ -630,18 +652,21 @@ impl Source for GenericSource {
                 self.messages.as_ref(),
                 range.clone(),
                 sequences[0],
+                self.sequence_mode,
                 self.chunk_size,
             ),
             Self::logs(
                 self.deliveries.as_ref(),
                 range.clone(),
                 sequences[1],
+                self.sequence_mode,
                 self.chunk_size,
             ),
             Self::logs(
                 self.payments.as_ref(),
                 range.clone(),
                 sequences[2],
+                self.sequence_mode,
                 self.chunk_size,
             ),
             async {
@@ -652,6 +677,7 @@ impl Source for GenericSource {
                         self.insertions.as_ref(),
                         range,
                         sequences[3],
+                        self.sequence_mode,
                         self.chunk_size,
                     )
                     .await
@@ -797,13 +823,24 @@ mod tests {
             truncate_last: false,
             requests: Mutex::new(Vec::new()),
         };
-        GenericSource::logs(&indexer, 100..=200, 7, 2).await?;
+        GenericSource::logs(&indexer, 100..=200, 7, true, 2).await?;
         assert_eq!(
             *indexer.requests.lock().expect("request mutex poisoned"),
             vec![7..=8]
         );
+        indexer
+            .requests
+            .lock()
+            .expect("request mutex poisoned")
+            .clear();
+        let (_, indexed_through) = GenericSource::logs(&indexer, 100..=200, 7, false, 2).await?;
+        assert_eq!(indexed_through, 200);
+        assert_eq!(
+            *indexer.requests.lock().expect("request mutex poisoned"),
+            vec![100..=200]
+        );
 
-        assert!(GenericSource::logs(&indexer, 100..=200, 11, 2)
+        assert!(GenericSource::logs(&indexer, 100..=200, 11, true, 2)
             .await
             .is_err());
 
@@ -813,7 +850,7 @@ mod tests {
             truncate_last: true,
             requests: Mutex::new(Vec::new()),
         };
-        assert!(GenericSource::logs(&partial, 100..=200, 7, 10)
+        assert!(GenericSource::logs(&partial, 100..=200, 7, true, 10)
             .await
             .is_err());
 
@@ -823,7 +860,7 @@ mod tests {
             truncate_last: false,
             requests: Mutex::new(Vec::new()),
         };
-        let bounded_result = GenericSource::logs(&bounded, 0..=3, 0, 2).await?;
+        let bounded_result = GenericSource::logs(&bounded, 0..=3, 0, true, 2).await?;
         assert_eq!(bounded_result.1, 0);
         assert_eq!(
             *bounded.requests.lock().expect("request mutex poisoned"),
@@ -835,7 +872,7 @@ mod tests {
             truncate_last: false,
             requests: Mutex::new(Vec::new()),
         };
-        assert!(GenericSource::logs(&lagging, 100..=200, 7, 2)
+        assert!(GenericSource::logs(&lagging, 100..=200, 7, true, 2)
             .await
             .is_err());
         assert!(lagging
@@ -879,6 +916,26 @@ mod tests {
                 .map(|event| event.log_index)
                 .collect::<Vec<_>>(),
             vec![0, 0, 0]
+        );
+
+        let delivery = |sequence, tx_index| Event {
+            block_number: 9,
+            block_hash: EthersH256::zero(),
+            address: H256::zero(),
+            tx_hash: None,
+            tx_index,
+            log_index: 0,
+            sequence: Some(sequence),
+            data: EventData::Delivery(H256::from_low_u64_be(u64::from(sequence))),
+        };
+        let mut mixed_metadata = vec![delivery(7, 2), delivery(8, 0)];
+        GenericSource::normalize_events(&mut mixed_metadata);
+        assert_eq!(
+            mixed_metadata
+                .into_iter()
+                .map(|event| event.sequence)
+                .collect::<Vec<_>>(),
+            vec![Some(7), Some(8)]
         );
         Ok(())
     }
