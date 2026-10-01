@@ -9,6 +9,10 @@ export {
 } from './protocolType.js';
 export {
   SignerConfig,
+  ProtocolChainAddresses,
+  isProtocolChainAddresses,
+  ProtocolArtifactManagerContext,
+  ProtocolProviderContext,
   ProtocolProvider,
   registerProtocol,
   getProtocolProvider,

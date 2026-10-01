@@ -17,6 +17,48 @@ import { type FeeReadContext, IRawFeeArtifactManager } from './fee.js';
 import { IRawWarpArtifactManager } from './warp.js';
 import { IRawValidatorAnnounceArtifactManager } from './validator-announce.js';
 
+/**
+ * Protocol-agnostic addresses produced by a completed core deployment.
+ *
+ * Unknown registry entries remain supported without coupling provider-sdk to
+ * the registry package. Protocol implementations must validate additional
+ * addresses before narrowing this interface with protocol-specific fields.
+ */
+export interface ProtocolChainAddresses {
+  mailbox: string;
+  validatorAnnounce: string;
+  interchainSecurityModule: string;
+  merkleTreeHook: string;
+  [address: string]: string | undefined;
+}
+
+export function isProtocolChainAddresses(
+  addresses: Record<string, string | undefined>,
+): addresses is ProtocolChainAddresses {
+  return (
+    typeof addresses['mailbox'] === 'string' &&
+    typeof addresses['validatorAnnounce'] === 'string' &&
+    typeof addresses['interchainSecurityModule'] === 'string' &&
+    typeof addresses['merkleTreeHook'] === 'string'
+  );
+}
+
+/**
+ * Optional complete chain context supplied to protocol operations.
+ * When addresses are provided, every shared core address must be present.
+ */
+export interface ProtocolProviderContext {
+  addresses?: ProtocolChainAddresses;
+}
+
+/**
+ * Context for artifact managers created while a deployment is in progress.
+ * Unlike ProtocolProviderContext, its address set may be incomplete.
+ */
+export interface ProtocolArtifactManagerContext {
+  addresses?: Partial<ProtocolChainAddresses>;
+}
+
 export type SignerConfig = Pick<
   JsonRpcSubmitterConfig,
   'privateKey' | 'accountAddress'
@@ -35,7 +77,7 @@ export interface ProtocolProvider {
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(
     chainMetadata: ChainMetadataForAltVM,
-    config: TConfig,
+    config: TConfig & ProtocolProviderContext,
   ): Promise<ITransactionSubmitter>;
 
   /**
@@ -56,12 +98,12 @@ export interface ProtocolProvider {
    * that handle Hook operations using the Artifact API pattern.
    *
    * @param chainMetadata Chain metadata for the target chain
-   * @param context Optional deployment context (mailbox address, etc.) needed by some hook types
+   * @param context Optional known addresses for the target chain
    * @returns A protocol-specific Hook artifact manager
    */
   createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    context?: { mailbox?: string },
+    context?: ProtocolArtifactManagerContext,
   ): IRawHookArtifactManager;
 
   /**
@@ -70,12 +112,12 @@ export interface ProtocolProvider {
    * that handle warp token operations using the Artifact API pattern.
    *
    * @param chainMetadata Chain metadata for the target chain
-   * @param context Optional deployment context (mailbox address, etc.)
+   * @param context Optional known addresses for the target chain
    * @returns A protocol-specific Warp artifact manager
    */
   createWarpArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    context?: { mailbox?: string },
+    context?: ProtocolArtifactManagerContext,
   ): IRawWarpArtifactManager;
 
   /**
@@ -112,12 +154,12 @@ export interface ProtocolProvider {
    * Not all protocols support fee programs.
    *
    * @param chainMetadata Chain metadata for the target chain
-   * @param context Fee read context with known routers per domain
+   * @param context Fee read context and optional known addresses
    * @returns A protocol-specific Fee artifact manager, or null if not supported
    */
   createFeeArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    context: FeeReadContext,
+    context: FeeReadContext & ProtocolArtifactManagerContext,
   ): IRawFeeArtifactManager | null;
 
   getMinGas(): MinimumRequiredGasByAction;
