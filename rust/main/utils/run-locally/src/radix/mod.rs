@@ -11,6 +11,7 @@ use hyperlane_core::{ReorgPeriod, SubmitterType};
 use hyperlane_radix::{ConnectionConf, RadixProvider, RadixSigner};
 
 use macro_rules_attribute::apply;
+use maplit::hashmap;
 use scrypto::network::NetworkDefinition;
 use tempfile::tempdir;
 use url::Url;
@@ -33,7 +34,7 @@ use crate::radix::cli::RadixCli;
 use crate::radix::radix_termination_invariants::radix_termination_invariants_met;
 use crate::radix::types::{AgentConfig, AgentConfigOut, Deployment};
 
-use crate::utils::download;
+use crate::utils::{download, poll_until};
 use crate::AGENT_LOGGING_DIR;
 use crate::{
     log,
@@ -361,8 +362,6 @@ pub async fn run_locally() {
 
     // count all the dispatched messages
     let mut dispatched_messages = 0;
-    // dispatch the first batch of messages (before agents start)
-    dispatched_messages += dispatch(&deployments, dispatched_messages).await;
     let config_dir = tempdir().expect("Failed to create temporary directory for agent config");
     // export agent config
     let agent_config_out = AgentConfigOut {
@@ -391,6 +390,24 @@ pub async fn run_locally() {
         .run()
         .join();
 
+    let chains = agent_config_out.chains.keys().cloned().collect::<Vec<_>>();
+    let path = agent_config_path
+        .to_str()
+        .expect("Failed to convert agent config path to string");
+
+    // Start the scraper against empty contracts so it can persist a verified
+    // Radix cutover before the pre-relayer backfill batch is dispatched.
+    let hpl_scr = launch_radix_scraper(path.to_owned(), chains.clone());
+    poll_until("Radix scraper cutovers", Duration::from_secs(60), || {
+        crate::fetch_metric::<u32, _>(
+            SCRAPER_METRICS_PORT,
+            "hyperlane_critical_error",
+            &hashmap! {},
+        )
+        .is_ok_and(|values| values.len() == chains.len() && values.iter().all(|value| *value == 0))
+    });
+    dispatched_messages += dispatch(&deployments, dispatched_messages).await;
+
     let hpl_val = agent_config_out
         .chains
         .clone()
@@ -398,13 +415,7 @@ pub async fn run_locally() {
         .map(|agent_config| launch_radix_validator(agent_config, agent_config_path.clone()))
         .collect::<Vec<_>>();
 
-    let chains = agent_config_out.chains.into_keys().collect::<Vec<_>>();
-    let path = agent_config_path
-        .to_str()
-        .expect("Failed to convert agent config path to string");
-
     let hpl_rly = launch_radix_relayer(path.to_owned(), chains.clone());
-    let hpl_scr = launch_radix_scraper(path.to_owned(), chains.clone());
 
     // give things a chance to fully start.
     sleep(Duration::from_secs(20));
