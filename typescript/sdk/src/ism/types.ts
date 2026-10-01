@@ -23,12 +23,14 @@ import {
 import type {
   Address,
   Domain,
+  NonEmptyArray,
   ValueOf,
   WithAddress,
 } from '@hyperlane-xyz/utils';
 import {
   addressToBytes32,
   isEmptyAddress,
+  isNonEmptyArray,
   isNullish,
   isValidAddressSealevel,
   rootLogger,
@@ -95,6 +97,7 @@ export const IsmType = {
   OFFCHAIN_LOOKUP: 'offchainLookupIsm',
   RATE_LIMITED: 'rateLimitedIsm',
   COMPOSITE: 'compositeIsm',
+  ROUTING_MESSAGE_ID_MULTISIG: 'routingMessageIdMultisigIsm',
   BLACKLIST: 'blacklistIsm',
   // Ownerless routing ISM that always defers to the mailbox's default ISM.
   // Distinct from provider-sdk/AltVM's "default ISM" notion (the zero-address
@@ -199,6 +202,8 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
       return ModuleType.CCIP_READ;
     case IsmType.COMPOSITE:
       return ModuleType.COMPOSITE;
+    case IsmType.ROUTING_MESSAGE_ID_MULTISIG:
+      return ModuleType.MESSAGE_ID_MULTISIG;
     case IsmType.UNKNOWN:
       return ModuleType.UNUSED;
   }
@@ -323,6 +328,7 @@ export type IsmConfig =
   | RoutingIsmConfig
   | AggregationIsmConfig
   | CompositeIsmConfig
+  | RoutingMessageIdMultisigIsmConfig
   | ArbL2ToL1IsmConfig
   | OffchainLookupIsmConfig
   | InterchainAccountRouterIsm
@@ -978,6 +984,59 @@ export const CompositeIsmConfigSchema: z.ZodType<CompositeIsmConfig> =
     );
   });
 
+// Sealevel-only. Reports MESSAGE_ID_MULTISIG to the relayer: it verifies like
+// a message-id multisig, with the validator set looked up per origin domain.
+export type RoutingMessageIdMultisigIsmConfig = OwnableConfig & {
+  type: typeof IsmType.ROUTING_MESSAGE_ID_MULTISIG;
+  domains: ChainMap<{ validators: NonEmptyArray<Address>; threshold: number }>;
+};
+
+export const RoutingMessageIdMultisigIsmConfigSchema: z.ZodType<RoutingMessageIdMultisigIsmConfig> =
+  OwnableSchema.extend({
+    type: z.literal(IsmType.ROUTING_MESSAGE_ID_MULTISIG),
+    owner: ZSealevelPubkey,
+    domains: z.record(
+      z.string(),
+      z
+        .object({
+          validators: z
+            .array(ZH160Hex)
+            .refine(
+              (validators): validators is [string, ...string[]] =>
+                isNonEmptyArray(validators),
+              'At least one validator is required',
+            ),
+          threshold: ZU8Threshold,
+        })
+        .superRefine((domain, ctx) => {
+          if (
+            domain.threshold < 1 ||
+            domain.threshold > domain.validators.length
+          ) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message:
+                'Threshold must be between 1 and the number of validators (inclusive)',
+              path: ['threshold'],
+            });
+          }
+          const seen = new Set<string>();
+          for (const validator of domain.validators) {
+            const normalized = validator.toLowerCase();
+            if (seen.has(normalized)) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: `Duplicate validator address: ${validator}`,
+                path: ['validators'],
+              });
+              break;
+            }
+            seen.add(normalized);
+          }
+        }),
+    ),
+  });
+
 export const UnknownIsmConfigSchema = z.looseObject({
   type: z.literal(IsmType.UNKNOWN),
 });
@@ -1040,6 +1099,7 @@ export const BaseIsmConfigSchema: z.ZodType<IsmConfig, unknown> = z.union([
   RoutingIsmConfigSchema,
   AggregationIsmConfigSchema,
   CompositeIsmConfigSchema,
+  RoutingMessageIdMultisigIsmConfigSchema,
   ArbL2ToL1IsmConfigSchema,
   OffchainLookupIsmConfigSchema,
   InterchainAccountRouterIsmSchema,
