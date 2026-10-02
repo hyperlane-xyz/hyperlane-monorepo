@@ -11,7 +11,9 @@ import {
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../../src/config/deploy-environment.js';
-import { getSquadsKeys, squadsConfigs } from '../../src/config/squads.js';
+import { getSquadsConfig, getSquadsKeys } from '../../src/config/squads.js';
+import { withGovernanceType } from '../../src/governance.js';
+import { GovernanceType } from '../../src/governanceTypes.js';
 import {
   readAttachedTransactionIndexes,
   submitReceiptTxsToSquads,
@@ -58,15 +60,18 @@ async function proposeFile({
   mpp,
   signerAdapter,
   dryRun,
+  governanceType,
 }: {
   parsed: ParsedReceipt;
   mpp: MultiProtocolProvider;
   signerAdapter: SvmMultiProtocolSignerAdapter;
   dryRun: boolean;
+  governanceType: GovernanceType;
 }): Promise<ProposeOutcome> {
   const { chain, txs } = parsed;
 
-  const { vault, multisigPda } = getSquadsKeys(chain);
+  const squadsKeys = getSquadsKeys(chain, governanceType);
+  const { vault, multisigPda } = squadsKeys;
 
   // Fail closed only on receipts the automated path cannot faithfully
   // propose: execution-time slot ordering (waitForSlotAdvance). The proposer
@@ -118,6 +123,7 @@ async function proposeFile({
     mpp,
     signerAdapter,
     memoBase,
+    squadsKeys,
   );
 
   return {
@@ -166,34 +172,36 @@ function logResult(result: FileResult): void {
 }
 
 async function main(): Promise<void> {
-  const argv = await yargs(process.argv.slice(2))
-    .option('directory', {
-      type: 'string',
-      describe:
-        'Directory containing <chain>-file-<timestamp>-receipts.json files emitted by AltVMFileSubmitter',
-      demandOption: true,
-      alias: 'd',
-    })
-    .option('dry-run', {
-      type: 'boolean',
-      describe:
-        'Deserialize + verify vault authority + log what would be proposed; skip on-chain action',
-      default: false,
-    })
-    .option('chain-filter', {
-      type: 'string',
-      describe:
-        'Comma-separated list of chain names to limit which files are proposed',
-    })
-    .strict().argv;
+  const argv = await withGovernanceType(
+    yargs(process.argv.slice(2))
+      .option('directory', {
+        type: 'string',
+        describe:
+          'Directory containing <chain>-file-<timestamp>-receipts.json files emitted by AltVMFileSubmitter',
+        demandOption: true,
+        alias: 'd',
+      })
+      .option('dry-run', {
+        type: 'boolean',
+        describe:
+          'Deserialize + verify vault authority + log what would be proposed; skip on-chain action',
+        default: false,
+      })
+      .option('chain-filter', {
+        type: 'string',
+        describe:
+          'Comma-separated list of chain names to limit which files are proposed',
+      }),
+  ).strict().argv;
 
-  // To switch governance contexts (e.g., AW Squads vs the currently-active
-  // multisig on solanamainnet/eclipsemainnet), edit
-  // typescript/infra/src/config/squads.ts. The vault-authority check in
-  // proposeFile fails closed if the receipt's authority does not match the
-  // configured vault for the chain.
   const { directory } = argv;
   const dryRun = argv['dry-run'];
+  const governanceType = argv.governanceType;
+  assert(
+    governanceType === GovernanceType.Regular ||
+      governanceType === GovernanceType.AbacusWorks,
+    `Squads proposals only support governance types ${GovernanceType.Regular} and ${GovernanceType.AbacusWorks}`,
+  );
   const chainFilter = argv['chain-filter']
     ? new Set(
         argv['chain-filter']
@@ -242,7 +250,7 @@ async function main(): Promise<void> {
       const result: FileResult = {
         file,
         chain: parsed.chain,
-        multisigPda: squadsConfigs[parsed.chain]?.multisigPda,
+        multisigPda: getSquadsConfig(parsed.chain, governanceType)?.multisigPda,
         txCount: parsed.txs.length,
         status: ProposalResultStatus.Skipped,
         reason: `Chain ${parsed.chain} not in --chain-filter`,
@@ -265,11 +273,12 @@ async function main(): Promise<void> {
         mpp,
         signerAdapter,
         dryRun,
+        governanceType,
       });
       const result: FileResult = {
         file,
         chain: parsed.chain,
-        multisigPda: squadsConfigs[parsed.chain]?.multisigPda,
+        multisigPda: getSquadsConfig(parsed.chain, governanceType)?.multisigPda,
         txCount: outcome.txCount,
         status: outcome.status,
         transactionIndexes:
@@ -287,7 +296,7 @@ async function main(): Promise<void> {
       const result: FileResult = {
         file,
         chain: parsed.chain,
-        multisigPda: squadsConfigs[parsed.chain]?.multisigPda,
+        multisigPda: getSquadsConfig(parsed.chain, governanceType)?.multisigPda,
         txCount: parsed.txs.length,
         status: ProposalResultStatus.Failed,
         reason: error instanceof Error ? error.message : String(error),
