@@ -85,11 +85,26 @@ strategy:
 
     unichain:
       weighted:
-        weight: 10
-        tolerance: 5
+        weight: 5
+        tolerance: 3
       bridgeLockTime: 1800
-      bridgeMinAcceptedAmount: 3500
+      bridgeMinAcceptedAmount: 2500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+      override:
+        bsc:
+          executionType: inventory
+          externalBridge: lifi
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
+
+    arc:
+      weighted:
+        weight: 5
+        tolerance: 3
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 2500
+      bridge: '0x16BF93e259ee7f7074453a2948379C35C6851b71'
       override:
         bsc:
           executionType: inventory

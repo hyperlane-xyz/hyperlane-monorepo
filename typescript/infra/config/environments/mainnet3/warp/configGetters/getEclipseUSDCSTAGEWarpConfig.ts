@@ -77,6 +77,7 @@ const stagingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
 };
 
 const stagingOwnersByChain: Record<DeploymentChain, string> = {
+  arc: DEPLOYER,
   ethereum: DEPLOYER,
   arbitrum: DEPLOYER,
   base: DEPLOYER,
@@ -92,7 +93,6 @@ const stagingOwnersByChain: Record<DeploymentChain, string> = {
   linea: DEPLOYER,
   monad: DEPLOYER,
   bsc: DEPLOYER,
-  katana: DEPLOYER,
 };
 
 // EIP-712 quote signer for this route's OffchainQuotedLinearFee. Matches the
