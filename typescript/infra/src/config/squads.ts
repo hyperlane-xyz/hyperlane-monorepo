@@ -49,17 +49,16 @@ export const abacusWorksSquadsConfigs: ChainMap<SquadConfig> = {
   },
 };
 
+const SQUADS_CONFIGS: Partial<Record<GovernanceType, ChainMap<SquadConfig>>> = {
+  [GovernanceType.AbacusWorks]: abacusWorksSquadsConfigs,
+  [GovernanceType.Regular]: squadsConfigs,
+};
+
 export function getSquadsConfig(
   chainName: ChainName,
   governanceType: GovernanceType = GovernanceType.Regular,
 ): SquadConfig | undefined {
-  const configs =
-    governanceType === GovernanceType.AbacusWorks
-      ? abacusWorksSquadsConfigs
-      : governanceType === GovernanceType.Regular
-        ? squadsConfigs
-        : undefined;
-  return configs?.[chainName];
+  return SQUADS_CONFIGS[governanceType]?.[chainName];
 }
 
 export function getSquadsKeys(
