@@ -1,5 +1,107 @@
 # @hyperlane-xyz/sdk
 
+## 45.0.0
+
+### Major Changes
+
+- 28eda66: Added lightweight validator configuration and the validator `majority` RPC consensus option. Removed `additionalQuorumRpcUrls` and `customAdditionalQuorumRpcUrls`. Existing configs must move those endpoints into the protocol's primary RPC pool (`rpcUrls`/`customRpcUrls` for EVM).
+- 43f89c6: Added the Sealevel-only `routingMessageIdMultisigIsm` ISM type, a single deployment holding an independent message-id multisig (validators and threshold) per origin domain, keyed by chain name in config.
+
+  - `@hyperlane-xyz/sealevel-sdk`: the ISM artifact manager reads and writes the new type with `SealevelRoutingMessageIdMultisigIsmReader` and `SealevelRoutingMessageIdMultisigIsmWriter` from the known domain ids it is given, and reports a deployed multisig ISM program as the new type. The flat `messageIdMultisigIsm` type is rejected with an error pointing at the new one.
+  - `@hyperlane-xyz/provider-sdk`: `IsmType.ROUTING_MESSAGE_ID_MULTISIG` and `RoutingMessageIdMultisigIsmConfig` were added to the ISM config union, and `createIsmArtifactManager` accepts an optional context carrying a non-empty `knownDomainIds` array. A new ISM is deployed when the expected config drops a domain that exists on chain, since the program cannot remove one. Only domains of chains known to the `ChainLookup` are detected, since the program's domain accounts cannot be enumerated. A new ISM is also deployed when the on-chain owner was renounced and the expected domains or owner differ, since the ISM can no longer be updated. `ChainLookup` gained a required `getKnownDomainIds` member returning the set of domain ids of all known chains. The shared `assertValidDomainRoutingMultisig` validator was added for a single domain's threshold and duplicate-validator invariants. Converting a config with a chain name unknown to the `ChainLookup` into an artifact now throws instead of skipping the domain.
+  - `@hyperlane-xyz/deploy-sdk`: ISM validation accepts the new type on Sealevel only and rejects the flat `messageIdMultisigIsm` type there up front, and the known domain ids from `ChainLookup.getKnownDomainIds()` are passed to the ISM artifact manager.
+  - `@hyperlane-xyz/sdk`: `IsmType.ROUTING_MESSAGE_ID_MULTISIG` was added with `RoutingMessageIdMultisigIsmConfig` and `RoutingMessageIdMultisigIsmConfigSchema` as new `IsmConfig` members. The EVM ISM factory rejects the type. `altVmChainLookup` and `ChainMetadataResolver` expose `getKnownDomainIds`.
+  - `@hyperlane-xyz/cli`: `warp deploy`, `warp apply`, `warp read`, `warp check` and `core deploy` work with the new ISM from config files. Removing a domain from the config deploys a fresh ISM and repoints the router.
+
+### Minor Changes
+
+- e0d3394: Added an opt-in relayer cutover from direct RPC indexing to scraper-proxy streams with automatic RPC fallback.
+- 9b9de8d: Added relayer scraper WebSocket shadow-stream configuration.
+- d02c93e: Added validator WebSocket indexing configuration with automatic RPC fallback.
+- ee50f43: A composite ISM's `rateLimited.recipient` was resolved from its warp router instead of being hand-written. Tooling derived the value on both deploy and apply because a wrong recipient failed at delivery time indistinguishably from a rate-limit trip. Resolution covered expanded compound artifacts such as `domainRoutingIsm.domains` and composite nodes nested under `aggregation`, `amountRouting`, and `routing`/`fallbackRouting` domain overrides. Exhaustive artifact traversal was added so future compound artifact types must declare their nested ISMs before compiling.
+
+  `CompositeIsmConfigSchema` was changed to accept a `rateLimited` node without a `recipient` while continuing to reject an explicitly zero value. `WarpTokenWriter.create` was changed to reject any written-out recipient on a new composite ISM, since the router address only became available during deployment. `WarpTokenWriter.update` was changed to reject a recipient that differed from the router while accepting a matching value, preserving `warp read` → apply idempotency.
+
+  AltVM warp routes were created without an ISM, then the configured ISM was resolved and attached through the regular update path, matching the existing fee flow. The high-level SDK preserved declarative AltVM ISM configs for this artifact path instead of pre-deploying them. NEW ISMs were deployed after the router address became available; DEPLOYED and UNDERIVED roots were reused without deployment.
+
+  The generic warp writer retained signer ownership through deferred ISM and fee attachment, then transferred ownership to the configured owner as the final protocol-writer update. This kept direct Artifact API creation working when the configured owner differed from the signer.
+
+  Nested artifact states within a NEW parent were preserved independently: NEW descendants were resolved and deployed, DEPLOYED descendants were validated and retained as references, and UNDERIVED descendants remained opaque. DEPLOYED roots were reused unchanged during warp creation and rejected if their declarative config contained a NEW descendant that would otherwise be silently ignored.
+
+  A `rateLimited` node was rejected outright in a mailbox default ISM at two layers: `CoreConfigSchema` failed parsing, and `CoreWriter.create`/`CoreWriter.update` asserted before emitting a transaction. The SDK schema guard used one typed, exhaustive visitor across SDK ISM containers and composite-node containers, while retaining distinct predicates for EVM `rateLimitedIsm` and composite `rateLimited` nodes.
+
+  `assertValidCompositeIsmArtifact` in sealevel-sdk continued requiring a non-zero recipient as the last line of defence, and its message was updated to explain automatic warp-route resolution.
+
+  provider-sdk gained canonical `IsmType` discriminants plus contextual `resolveIsmArtifact`, `resolveRateLimitedIsmRecipients`, `assertRateLimitedIsmRecipientsUnset`, and `assertIsmSupportedAsMailboxDefault` from `@hyperlane-xyz/provider-sdk/ism`. Contextual address conversion used the shared protocol-detecting `addressToBytes32` utility, keeping provider-sdk free of Sealevel address assumptions.
+
+- f05bb6d: Added opt-in EVM near-head scraper configuration and retained the configured confirmation delay for existing readers while storing provisional events in place.
+- 11d5de3: The unimplemented `defaultFuelProviderBuilder` export was removed along with the rest of the unused Fuel integration.
+- 2a938f3: Wired `HyperlaneIsmFactory` to use chunked routing ISM `setIsms` and `removeIsms` transactions for contracts at version 12.0.0 or newer, while preserving per-domain calls for older deployments. Atomic fallback routing ISM deployments were initialized with one chunk before enrolling the remainder and transferring ownership, limiting constructor gas without reopening the initialization race.
+- 4c644c0: Sealevel process configuration was extended to support multiple address lookup tables, and warp ALT generation was updated to include custom ISM accounts.
+
+### Patch Changes
+
+- b83bac5: Added a Kit-native mailbox claim builder that composes with v0 and v1 signers. Used the legacy adapter's configured mailbox and documented replenishing rent backing after a rent increase.
+- 4975a40: The EVM warp route reader now skips xERC20 probing when the wrapped token bytecode does not contain the required selector.
+- 12678bc: Added opt-in Sealevel v1 sending and configurable receipt reads per chain. V1 transactions moved compute limits and priority fees into the header and enforced version-specific size limits, while other SVMs retained v0 defaults.
+
+  Separated v1 sending activation from RPC read support, preserved v0 offline governance, and carried caller-configured heap and loaded-data budgets across transaction versions.
+
+- 9a59116: Updated Solana clients to versions with transaction v1 codecs while preserving existing transaction-version defaults.
+- d26e4c4: Added optional agent chain metadata settings for hedging immutable fallback RPC reads.
+- 87b2c63: Rotated the default AW signing keys and removed Luganodes, Stakecito, Everclear, and Imperator from affected default ISMs.
+- 8373a74: Adjusted ethers v5 polling to the chain's estimated block time, capped at four seconds, reducing confirmation detection latency on fast chains including those with sub-second blocks. Providers using only loopback RPC URLs used 100ms polling for local deployments and CLI E2E tests. Chains without a block-time estimate retained the four-second default.
+- 0015102: The altVM warp check was changed to ignore on-chain destination gas for domains without an enrolled router, matching the expected-config expansion.
+- 6f7b511: The EVM warp route reader was made reliable for non-standard routers:
+
+  - The xERC20 probe treats a `Panic(uint256)` revert (e.g. Fluent) as "not xERC20"; other data-carrying reverts still propagate.
+  - Implementation bytecode is resolved for EIP-1967 proxies and EIP-1167 clones before selector checks; beacon proxies and failed reads yield unknown and are not cached.
+  - `feeRecipient()` is only read for routers with the token fee interface, and `feeHook()` and the legacy `scale()` are skipped when the router bytecode lacks the selector.
+  - SmartProvider keeps an empty-response error as the cause when another provider times out or returns a server error, and combines every late provider error instead of only the first to arrive, so missing-selector handling no longer depends on provider latency.
+  - Missing-selector detection no longer classifies RPC transport failures (HTTP errors, dropped connections, `header not found`) as an absent selector, while Nethermind `-32015` reverts count as one.
+
+- 249517a: Removed the scraper near-head opt-in configuration as EVM scraping was made automatic, with cutovers selected from existing database history and reused on restart.
+- 2762075: Added per-chain transaction-version configuration for Sealevel agent JSON reads so Solana v1 activation can be enabled independently of other SVM chains.
+- f9cf910: Validator signing concurrency configuration was added and constrained to a safe positive range.
+- 323faae: Added public subpath exports for EVM and Sealevel quoted-transfer providers and their shared interface so consumers could import them without loading the SDK root entry point.
+- 55e6699: Fixed Radix provider builders to use configured gateway URLs for both Node and browser consumers.
+- e994943: Diamond `FacetNotFound` reverts were recognized as missing function selectors, allowing optional interface probes on diamond tokens.
+- 6eaa8c6: Removed the deprecated appchain, immutablezkevmmainnet, flowmainnet, soon, and superseed domains and their default multisig validator configurations.
+- 98ec7d5: Removed default multisig ISM configs for deprecated testnets.
+- d26e4c4: The Ethereum test chain configuration now lists Routescan as a fallback block explorer so full-history log reads stay on indexed explorer APIs, and keeps the archive-capable Tenderly public RPC as a last-resort endpoint.
+- 692cdb4: Rotated Abacus Works testnets to new shared GCP-signer validators.
+- ea5b010: The default multisig validator sets for Celestia, Eden, and Forma were rotated.
+- b83bac5: Added a Sealevel mailbox protocol-fee claim instruction builder to recover accrued fees and excess rent deposits to the configured beneficiary using each chain's current rent minimum. Clarified that IGP claims also recover all excess lamports.
+- 67f3cd3: Agent chain metadata indexing configuration was updated to accept negative relative starting block offsets.
+- Updated dependencies [c52b728]
+- Updated dependencies [a90a845]
+- Updated dependencies [4975a40]
+- Updated dependencies [ee50f43]
+- Updated dependencies [12678bc]
+- Updated dependencies [0aeb76a]
+- Updated dependencies [1c1737e]
+- Updated dependencies [9a59116]
+- Updated dependencies [ebf3922]
+- Updated dependencies [28eda66]
+- Updated dependencies [43f89c6]
+- Updated dependencies [4e2ab65]
+- Updated dependencies [4ad4577]
+- Updated dependencies [1925ccb]
+- Updated dependencies [8d0af67]
+- Updated dependencies [fc8ee9a]
+- Updated dependencies [f64f992]
+- Updated dependencies [9488623]
+- Updated dependencies [47d25a1]
+  - @hyperlane-xyz/aleo-sdk@45.0.0
+  - @hyperlane-xyz/provider-sdk@11.0.0
+  - @hyperlane-xyz/deploy-sdk@11.0.0
+  - @hyperlane-xyz/core@12.2.0
+  - @hyperlane-xyz/starknet-core@45.0.0
+  - @hyperlane-xyz/utils@45.0.0
+  - @hyperlane-xyz/cosmos-sdk@45.0.0
+  - @hyperlane-xyz/radix-sdk@45.0.0
+  - @hyperlane-xyz/tron-sdk@26.0.0
+
 ## 44.0.2
 
 ### Patch Changes
