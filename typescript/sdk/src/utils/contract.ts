@@ -19,6 +19,13 @@ import { getNestedJsonRpcError } from '../providers/SmartProvider/jsonRpcError.j
 // arguments, so the revert data is exactly the selector.
 const FACET_NOT_FOUND_REVERT_DATA = '0x800ab12c';
 
+// LSP17 extendable contracts revert with
+// NoExtensionFoundForFunctionSelector(bytes4) when no extension handles the
+// requested selector. The revert data is the error selector (first 4 bytes of
+// keccak256 of the signature) followed by the requested bytes4 selector
+// left-aligned in one 32-byte word.
+const LSP17_NO_EXTENSION_REVERT_DATA_PATTERN = /^0xbb370b2b[0-9a-f]{8}0{56}$/i;
+
 /**
  * Returns true when the deployed contract version is already at or above the
  * target version.
@@ -121,7 +128,8 @@ function nestedErrorReportsRevert(callException: unknown): boolean {
  * other code (SERVER_ERROR, 429, -32000 "header not found") or with a
  * non-revert message ("socket hang up", "timeout") is a transport failure.
  * Failures that are not reverts (out of gas, invalid opcode) are not missing
- * selectors.
+ * selectors. A diamond FacetNotFound() or an LSP17
+ * NoExtensionFoundForFunctionSelector(bytes4) revert is a missing selector.
  */
 export function isMissingSelectorRevert(error: unknown): boolean {
   const callException = findCallException(error);
@@ -134,11 +142,12 @@ export function isMissingSelectorRevert(error: unknown): boolean {
     typeof callException.data === 'string'
       ? callException.data
       : nestedError?.data;
-  // A diamond miss is a known "no such function" revert, so unlike empty data
+  // A diamond or LSP17 miss is a known "no such function" revert, so unlike empty data
   // it needs no transport gating.
   if (
     typeof data === 'string' &&
-    data.toLowerCase() === FACET_NOT_FOUND_REVERT_DATA
+    (data.toLowerCase() === FACET_NOT_FOUND_REVERT_DATA ||
+      LSP17_NO_EXTENSION_REVERT_DATA_PATTERN.test(data))
   ) {
     return true;
   }

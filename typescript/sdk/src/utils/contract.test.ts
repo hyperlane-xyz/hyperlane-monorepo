@@ -109,6 +109,58 @@ describe('contract utils', () => {
     });
   });
 
+  describe('isMissingSelectorRevert LSP17 NoExtensionFoundForFunctionSelector', () => {
+    const NO_EXTENSION_SELECTOR = '0xbb370b2b';
+    const FEE_HOOK_SELECTOR = 'f11f4461';
+
+    interface Case {
+      name: string;
+      data: string;
+      expected: boolean;
+    }
+
+    const cases: Case[] = [
+      {
+        name: 'a left-aligned bytes4 argument',
+        data: `${NO_EXTENSION_SELECTOR}${FEE_HOOK_SELECTOR}${'00'.repeat(28)}`,
+        expected: true,
+      },
+      {
+        name: 'a different 4+32 byte custom error',
+        data: `0xdeadbeef${FEE_HOOK_SELECTOR}${'00'.repeat(28)}`,
+        expected: false,
+      },
+      {
+        name: 'the error selector without the argument',
+        data: NO_EXTENSION_SELECTOR,
+        expected: false,
+      },
+      {
+        name: 'the error selector with a truncated argument',
+        data: `${NO_EXTENSION_SELECTOR}${FEE_HOOK_SELECTOR}${'00'.repeat(27)}`,
+        expected: false,
+      },
+      {
+        name: 'the error selector with trailing bytes',
+        data: `${NO_EXTENSION_SELECTOR}${FEE_HOOK_SELECTOR}${'00'.repeat(29)}`,
+        expected: false,
+      },
+    ];
+
+    for (const c of cases) {
+      it(`returns ${c.expected} for ${c.name}`, () => {
+        const error = Object.assign(new Error('call revert exception'), {
+          code: 'CALL_EXCEPTION',
+          data: c.data,
+        });
+        expect(isMissingSelectorRevert(error)).to.equal(c.expected);
+        expect(isMissingSelectorRevert(wrappedError(error))).to.equal(
+          c.expected,
+        );
+      });
+    }
+  });
+
   describe('isMissingSelectorCallException with nested ethers errors', () => {
     interface Case {
       name: string;

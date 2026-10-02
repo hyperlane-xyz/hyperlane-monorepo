@@ -1910,12 +1910,11 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       };
     } else {
       // Read old format (single scale value) using low-level call
-      if (
-        (await this.implementationHasSelector(
-          tokenRouterAddress,
-          LEGACY_SCALE_INTERFACE.getSighash('scale()'),
-        )) === false
-      ) {
+      const hasScaleSelector = await this.implementationHasSelector(
+        tokenRouterAddress,
+        LEGACY_SCALE_INTERFACE.getSighash('scale()'),
+      );
+      if (hasScaleSelector === false) {
         this.logger.debug(
           `Router at address "${tokenRouterAddress}" on chain "${this.chain}" reports ${packageVersion} but has no scale() getter; treating as identity`,
         );
@@ -1927,7 +1926,20 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         LEGACY_SCALE_INTERFACE,
         this.provider,
       );
-      const scale: BigNumber = await legacyContract.scale();
+      let scale: BigNumber;
+      try {
+        scale = await legacyContract.scale();
+      } catch (error: unknown) {
+        // An empty provider response is only a missing getter when the
+        // bytecode does not prove scale() exists.
+        if (hasScaleSelector === true) throwIfNotMissingSelectorRevert(error);
+        else throwIfNotMissingSelector(error);
+        this.logger.debug(
+          `Router at address "${tokenRouterAddress}" on chain "${this.chain}" reports ${packageVersion} but scale() reverted or returned nothing; treating as identity`,
+          error,
+        );
+        return undefined;
+      }
       result = { numerator: scale.toBigInt(), denominator: 1n };
     }
 
