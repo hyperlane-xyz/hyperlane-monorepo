@@ -19,7 +19,7 @@ import { getTronIgpConfig } from './tron.js';
 import gasPrices from './gasPrices.json' with { type: 'json' };
 import { DEPLOYER, chainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
-import { tokenGasOracleConfigs } from './tokenGasOracles.js';
+import { getTokenGasOracleConfigs } from './tokenGasOracles.js';
 import rawTokenPrices from './tokenPrices.json' with { type: 'json' };
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
@@ -121,6 +121,7 @@ export function getIgp(): ChainMap<IgpConfig> {
   if (igpCache) {
     return igpCache;
   }
+  const tokenGasOracleConfigs = getTokenGasOracleConfigs();
   igpCache = objMap(chainOwners, (local, owner): IgpConfig => {
     const tokenOracleConfig = tokenGasOracleConfigs[local];
     if (local === 'eden') {
@@ -158,7 +159,7 @@ export function getIgp(): ChainMap<IgpConfig> {
       ),
       oracleConfig: getOracleConfigWithOverrides(local),
       // Per-fee-token gas oracles for token-denominated IGP fees; configured in
-      // tokenGasOracles.ts (empty by default).
+      // tokenGasOracles.ts.
       ...(tokenOracleConfig ? { tokenOracleConfig } : {}),
     };
   });
