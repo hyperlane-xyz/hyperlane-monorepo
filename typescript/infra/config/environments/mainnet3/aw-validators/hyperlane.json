@@ -20,19 +20,10 @@
   "base": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
-  "berachain": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
-  "blast": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
   "bob": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "bsc": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
-  "carrchain": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "celestia": {
@@ -113,9 +104,6 @@
   "mantra": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
-  "megaeth": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
   "metal": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
@@ -159,9 +147,6 @@
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "robinhood": {
-    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
-  },
-  "sei": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
   "solanamainnet": {

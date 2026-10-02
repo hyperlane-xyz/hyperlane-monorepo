@@ -46,14 +46,6 @@
       "isProxy": false
     }
   ],
-  "blast": [
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0x3e419fA7267b9A3fF0358Ef16467B095d9E8d8AE",
-      "constructorArguments": "",
-      "isProxy": false
-    }
-  ],
   "base": [
     {
       "name": "InterchainGasPaymaster",

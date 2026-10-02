@@ -149,28 +149,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [DEFAULT_AW_TESTNET_VALIDATOR],
   },
 
-  berachain: {
-    threshold: 3,
-    validators: [
-      DEFAULT_AW_VALIDATOR,
-      {
-        address: '0xae09cb3febc4cad59ef5a56c1df741df4eb1f4b6',
-        alias: 'Renzo',
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
-  blast: {
-    threshold: 2,
-    validators: [
-      DEFAULT_AW_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-      { address: '0x54bb0036f777202371429e062fe6aee0d59442f9', alias: 'Renzo' },
-    ],
-  },
-
   bob: {
     threshold: 3,
     validators: [
@@ -212,11 +190,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   bsctestnet: {
     threshold: 1,
     validators: [DEFAULT_AW_TESTNET_VALIDATOR],
-  },
-
-  carrchain: {
-    threshold: 2,
-    validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
   },
 
   celestia: {
@@ -550,11 +523,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
   },
 
-  megaeth: {
-    threshold: 2,
-    validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
-  },
-
   metal: {
     threshold: 3,
     validators: [
@@ -729,15 +697,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
   },
 
-  sei: {
-    threshold: 2,
-    validators: [
-      DEFAULT_AW_VALIDATOR,
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
   seismictestnet: {
     threshold: 1,
     validators: [DEFAULT_AW_TESTNET_VALIDATOR],
@@ -858,24 +817,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
       DEFAULT_ZEE_PRIME_VALIDATOR,
-    ],
-  },
-
-  tac: {
-    threshold: 2,
-    validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
-  },
-
-  taiko: {
-    threshold: 3,
-    validators: [
-      DEFAULT_AW_VALIDATOR,
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-      {
-        address: '0x2F007c82672F2Bb97227D4e3F80Ac481bfB40A2a',
-        alias: 'Luganodes',
-      },
     ],
   },
 
