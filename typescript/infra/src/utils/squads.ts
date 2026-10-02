@@ -85,6 +85,7 @@ export async function getSquadProposal(
   chain: ChainName,
   mpp: MultiProtocolProvider,
   transactionIndex: number,
+  squadsKeys: SquadsKeys = getSquadsKeys(chain),
 ): Promise<
   | {
       proposal: accounts.Proposal;
@@ -97,6 +98,7 @@ export async function getSquadProposal(
     const { svmProvider, multisigPda, programId } = await getSquadAndProvider(
       chain,
       mpp,
+      squadsKeys,
     );
 
     // Fetch the deserialized Multisig account
@@ -694,10 +696,15 @@ export async function buildSquadsProposalRejection(
   mpp: MultiProtocolProvider,
   transactionIndex: bigint,
   member: PublicKey,
+  squadsKeys: SquadsKeys = getSquadsKeys(chain),
 ): Promise<{
   instruction: TransactionInstruction;
 }> {
-  const { multisigPda, programId } = await getSquadAndProvider(chain, mpp);
+  const { multisigPda, programId } = await getSquadAndProvider(
+    chain,
+    mpp,
+    squadsKeys,
+  );
 
   const rejectIx = instructions.proposalReject({
     multisigPda,
@@ -726,10 +733,15 @@ export async function buildSquadsProposalCancellation(
   mpp: MultiProtocolProvider,
   transactionIndex: bigint,
   member: PublicKey,
+  squadsKeys: SquadsKeys = getSquadsKeys(chain),
 ): Promise<{
   instruction: TransactionInstruction;
 }> {
-  const { multisigPda, programId } = await getSquadAndProvider(chain, mpp);
+  const { multisigPda, programId } = await getSquadAndProvider(
+    chain,
+    mpp,
+    squadsKeys,
+  );
 
   const cancelIx = createProposalCancelInstruction(
     multisigPda,
