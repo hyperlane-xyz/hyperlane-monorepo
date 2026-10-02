@@ -12,6 +12,7 @@ import {ReceiveUlnBase} from "@layerzerolabs/lz-evm-messagelib-v2/contracts/uln/
 import {UlnConfig} from "@layerzerolabs/lz-evm-messagelib-v2/contracts/uln/UlnBase.sol";
 import {LayerZeroV2HookIsm} from "contracts/hooks/layerzero/LayerZeroV2HookIsm.sol";
 import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
+import {StaticAggregationIsmFactory} from "contracts/isms/aggregation/StaticAggregationIsmFactory.sol";
 import {LayerZeroMessage} from "contracts/libs/LayerZeroMessage.sol";
 import {Message} from "contracts/libs/Message.sol";
 import {TypeCasts} from "contracts/libs/TypeCasts.sol";
@@ -334,7 +335,16 @@ contract LayerZeroV2HookIsmForkTest is Test {
         assertFalse(isDefault);
     }
 
-    function testProductionReceiveUlnPullVerification() public {
+    struct InboundPacket {
+        bytes hyperlaneMessage;
+        bytes header;
+        bytes payload;
+        bytes32 guid;
+        bytes32 payloadHash;
+        bytes metadata;
+    }
+
+    function _enrollInboundRoute() internal {
         address[] memory requiredDvns = new address[](1);
         requiredDvns[0] = address(this);
         UlnConfig memory ulnConfig = UlnConfig({
@@ -357,49 +367,130 @@ contract LayerZeroV2HookIsmForkTest is Test {
                 ulnConfig: ulnConfig
             })
         );
+    }
 
-        TestRecipient recipient = new TestRecipient();
-        recipient.setInterchainSecurityModule(address(router));
-        bytes memory hyperlaneMessage = mailbox.buildInboundMessage(
+    function _inboundPacket(
+        address recipient
+    ) internal view returns (InboundPacket memory inbound) {
+        inbound.hyperlaneMessage = mailbox.buildInboundMessage(
             ARBITRUM_DOMAIN,
-            address(recipient).addressToBytes32(),
+            recipient.addressToBytes32(),
             address(0xCAFE).addressToBytes32(),
             bytes("fork inbound verification")
         );
-        bytes memory payload = LayerZeroMessage.encode(
+        inbound.payload = LayerZeroMessage.encode(
             ARBITRUM_DOMAIN,
             ETHEREUM_DOMAIN,
-            hyperlaneMessage.id()
+            inbound.hyperlaneMessage.id()
         );
-        bytes32 remoteSender = address(0xBEEF).addressToBytes32();
         bytes32 localReceiver = address(router).addressToBytes32();
         uint64 nonce = 1;
-        bytes32 guid = GUID.generate(
+        inbound.guid = GUID.generate(
             nonce,
             ARBITRUM_ENDPOINT_ID,
             address(0xBEEF),
             ETHEREUM_ENDPOINT_ID,
             localReceiver
         );
-        bytes memory header = abi.encodePacked(
+        inbound.header = abi.encodePacked(
             uint8(1),
             nonce,
             ARBITRUM_ENDPOINT_ID,
-            remoteSender,
+            address(0xBEEF).addressToBytes32(),
             ETHEREUM_ENDPOINT_ID,
             localReceiver
         );
-        bytes memory packet = abi.encodePacked(header, guid, payload);
-        bytes32 payloadHash = keccak256(abi.encodePacked(guid, payload));
-        bytes memory metadata = abi.encode(RECEIVE_ULN_302, packet);
+        inbound.payloadHash = keccak256(
+            abi.encodePacked(inbound.guid, inbound.payload)
+        );
+        inbound.metadata = abi.encode(
+            RECEIVE_ULN_302,
+            abi.encodePacked(inbound.header, inbound.guid, inbound.payload)
+        );
+    }
+
+    function testProductionReceiveUlnVerificationAndPostDeliveryCleanup()
+        public
+    {
+        _enrollInboundRoute();
+        TestRecipient recipient = new TestRecipient();
+        recipient.setInterchainSecurityModule(address(router));
+        InboundPacket memory inbound = _inboundPacket(address(recipient));
+        bytes32 remoteSender = address(0xBEEF).addressToBytes32();
+        uint64 nonce = 1;
 
         vm.expectRevert(ReceiveUlnBase.LZ_ULN_Verifying.selector);
-        mailbox.process(metadata, hyperlaneMessage);
+        mailbox.process(inbound.metadata, inbound.hyperlaneMessage);
 
-        IReceiveUlnE2(RECEIVE_ULN_302).verify(header, payloadHash, 1);
-        mailbox.process(metadata, hyperlaneMessage);
+        IReceiveUlnE2(RECEIVE_ULN_302).verify(
+            inbound.header,
+            inbound.payloadHash,
+            1
+        );
 
-        assertTrue(mailbox.delivered(hyperlaneMessage.id()));
+        // Direct verification may commit the packet repeatedly but never
+        // consumes it.
+        assertTrue(router.verify(inbound.metadata, inbound.hyperlaneMessage));
+        assertTrue(router.verify(inbound.metadata, inbound.hyperlaneMessage));
+        assertFalse(mailbox.delivered(inbound.hyperlaneMessage.id()));
+        assertEq(
+            ENDPOINT.inboundPayloadHash(
+                address(router),
+                ARBITRUM_ENDPOINT_ID,
+                remoteSender,
+                nonce
+            ),
+            inbound.payloadHash
+        );
+
+        LayerZeroOrigin memory origin = LayerZeroOrigin({
+            srcEid: ARBITRUM_ENDPOINT_ID,
+            sender: remoteSender,
+            nonce: nonce
+        });
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LayerZeroV2HookIsm.MessageNotDelivered.selector,
+                inbound.hyperlaneMessage.id()
+            )
+        );
+        ENDPOINT.lzReceive(
+            origin,
+            address(router),
+            inbound.guid,
+            inbound.payload,
+            ""
+        );
+        assertEq(
+            ENDPOINT.inboundPayloadHash(
+                address(router),
+                ARBITRUM_ENDPOINT_ID,
+                remoteSender,
+                nonce
+            ),
+            inbound.payloadHash
+        );
+
+        mailbox.process(inbound.metadata, inbound.hyperlaneMessage);
+
+        assertTrue(mailbox.delivered(inbound.hyperlaneMessage.id()));
+        assertEq(
+            ENDPOINT.inboundPayloadHash(
+                address(router),
+                ARBITRUM_ENDPOINT_ID,
+                remoteSender,
+                nonce
+            ),
+            inbound.payloadHash
+        );
+
+        ENDPOINT.lzReceive(
+            origin,
+            address(router),
+            inbound.guid,
+            inbound.payload,
+            ""
+        );
         assertEq(
             ENDPOINT.inboundPayloadHash(
                 address(router),
@@ -411,50 +502,33 @@ contract LayerZeroV2HookIsmForkTest is Test {
         );
     }
 
-    function testProductionEndpointSinglePacketClearFitsBudget() public {
-        bytes32 remoteSender = address(0xBEEF).addressToBytes32();
-        LayerZeroOrigin memory origin = LayerZeroOrigin({
-            srcEid: ARBITRUM_ENDPOINT_ID,
-            sender: remoteSender,
-            nonce: 1
-        });
-        bytes32 guid = GUID.generate(
-            origin.nonce,
-            origin.srcEid,
-            address(0xBEEF),
-            ETHEREUM_ENDPOINT_ID,
-            address(router).addressToBytes32()
+    function testProductionReceiveUlnSameIsmRepeatedInAggregationDelivers()
+        public
+    {
+        _enrollInboundRoute();
+        TestRecipient recipient = new TestRecipient();
+        address[] memory modules = new address[](2);
+        modules[0] = address(router);
+        modules[1] = address(router);
+        recipient.setInterchainSecurityModule(
+            new StaticAggregationIsmFactory().deploy(modules, 2)
         );
-        bytes memory payload = LayerZeroMessage.encode(
-            ARBITRUM_DOMAIN,
-            ETHEREUM_DOMAIN,
-            bytes32(uint256(1))
+        InboundPacket memory inbound = _inboundPacket(address(recipient));
+        IReceiveUlnE2(RECEIVE_ULN_302).verify(
+            inbound.header,
+            inbound.payloadHash,
+            1
         );
-
-        // Isolate the production Endpoint's clear cost from DVN verification.
-        vm.prank(RECEIVE_ULN_302);
-        ENDPOINT.verify(
-            origin,
-            address(router),
-            keccak256(abi.encodePacked(guid, payload))
+        bytes memory metadata = abi.encodePacked(
+            uint32(16),
+            uint32(16 + inbound.metadata.length),
+            uint32(16),
+            uint32(16 + inbound.metadata.length),
+            inbound.metadata
         );
 
-        vm.startPrank(address(router));
-        uint256 gasBefore = gasleft();
-        ENDPOINT.clear(address(router), origin, guid, payload);
-        uint256 clearGasUsed = gasBefore - gasleft();
-        vm.stopPrank();
+        mailbox.process(metadata, inbound.hyperlaneMessage);
 
-        emit log_named_uint("Endpoint.clear single-packet gas", clearGasUsed);
-        assertLt(clearGasUsed, 50_000);
-        assertEq(
-            ENDPOINT.inboundPayloadHash(
-                address(router),
-                ARBITRUM_ENDPOINT_ID,
-                remoteSender,
-                origin.nonce
-            ),
-            bytes32(0)
-        );
+        assertTrue(mailbox.delivered(inbound.hyperlaneMessage.id()));
     }
 }

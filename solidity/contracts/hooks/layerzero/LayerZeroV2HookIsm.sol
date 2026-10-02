@@ -34,7 +34,8 @@ import {LayerZeroConfigTypeLib} from "./libs/LayerZeroConfigType.sol";
  * message ID. On the destination, `verify` checks the packet against the
  * enrolled peer and commits DVN verification through the receive library if
  * the Endpoint has not already stored its payload hash. LayerZero execution
- * is not required for Hyperlane delivery.
+ * is not required for Hyperlane delivery, and `verify` never clears the
+ * stored payload hash.
  */
 // `Router` already provides enumerable remote-domain storage.
 // solhint-disable-next-line hyperlane/enumerable-domain-mapping
@@ -63,10 +64,6 @@ contract LayerZeroV2HookIsm is
     bytes22 internal constant PULL_EXECUTOR_OPTIONS =
         hex"00030100110100000000000000000000000000000001";
 
-    // Optional Endpoint.clear gas cap. 50k exceeds the 26,610 gas measured
-    // for a single-packet clear in the Ethereum fork test (block 25,878,200),
-    // while bounding cleanup work when a long nonce backlog accumulates.
-    uint256 internal constant CLEAR_GAS_LIMIT = 50_000;
     uint256 internal constant PACKET_MESSAGE_OFFSET = 113;
     uint8 internal constant PACKET_VERSION = 1;
 
@@ -91,7 +88,6 @@ contract LayerZeroV2HookIsm is
     error HyperlaneHandleUnsupported();
 
     error UnauthorizedCaller(address caller);
-    error MessageNotBeingProcessed(bytes32 messageId);
     error WrongPacketSourceEndpointId(uint32 actual, uint32 expected);
     error WrongPacketSender(bytes32 actual, bytes32 expected);
     error WrongPacketDestinationEndpointId(uint32 actual, uint32 expected);
@@ -152,15 +148,6 @@ contract LayerZeroV2HookIsm is
         uint64 nonce
     );
 
-    /// @notice Emitted when bounded Endpoint cleanup fails after verification.
-    event LayerZeroPayloadClearFailed(
-        bytes32 indexed messageId,
-        uint32 indexed originDomain,
-        uint32 indexed srcEndpointId,
-        bytes32 guid,
-        uint64 nonce
-    );
-
     // ============ Types ============
 
     /// @notice Complete remote hook/ISM configuration and LayerZero pathway policy.
@@ -189,7 +176,7 @@ contract LayerZeroV2HookIsm is
         UlnConfig ulnConfig;
     }
 
-    /// @dev Fields retained for packet verification and cleanup.
+    /// @dev Fields retained for packet verification.
     struct PacketContext {
         /// @dev Receive library supplied in metadata; checked against Endpoint
         /// policy only if the payload hash has not already been committed.
@@ -207,8 +194,6 @@ contract LayerZeroV2HookIsm is
         bytes32 guid;
         /// @dev Exact hash expected in the destination Endpoint.
         bytes32 payloadHash;
-        /// @dev Authorization payload encoded in the packet.
-        bytes message;
         /// @dev Packet header passed to the receive library if commitment is needed.
         bytes header;
     }
@@ -275,21 +260,17 @@ contract LayerZeroV2HookIsm is
 
     // ============ IInterchainSecurityModule ============
 
-    /// @notice Authenticates the LayerZero packet for a message being processed
-    /// by the Mailbox, then returns true without requiring Executor delivery.
+    /// @notice Authenticates the LayerZero packet for a Hyperlane message
+    /// without requiring Executor delivery.
     /// @dev Packet and route checks precede any receive-library or Endpoint call.
+    /// Verification is permissionless and idempotent: it commits the packet if
+    /// needed but never consumes the Endpoint payload hash, so repeated calls
+    /// succeed, including from the same deployment in one ISM tree.
     function verify(
         bytes calldata metadata,
         bytes calldata message
     ) external override returns (bool) {
         bytes32 messageId = Message.id(message);
-        // Prevent direct callers from clearing the packet before Mailbox
-        // delivery. `clear` deletes the Endpoint payload hash after ULN has
-        // deleted the DVN attestations, which would leave the corresponding
-        // Hyperlane message without a proof and therefore undeliverable.
-        if (!_isProcessing(messageId)) {
-            revert MessageNotBeingProcessed(messageId);
-        }
 
         // Offchain metadata is untrusted. Bind its packet to the enrolled
         // source, this receiver, and the exact Hyperlane message ID.
@@ -309,10 +290,6 @@ contract LayerZeroV2HookIsm is
             context.guid,
             context.nonce
         );
-
-        // Keep the Endpoint's payload/nonce backlog short when affordable;
-        // packet authentication above is sufficient for Hyperlane delivery.
-        _tryClearPacket(context, messageId);
 
         return true;
     }
@@ -736,8 +713,8 @@ contract LayerZeroV2HookIsm is
     /// Hyperlane message has been delivered.
     /// @dev Endpoint V2 clears before calling this receiver (LayerZero v2.0.2):
     /// https://github.com/LayerZero-Labs/LayerZero-v2/blob/9c741e7f9790639537b1710a203bcdfd73b0b9ac/packages/layerzero-v2/evm/protocol/contracts/EndpointV2.sol#L179-L181
-    /// Reverting here rolls that clear back; `verify` can separately clear
-    /// its authenticated packet.
+    /// Reverting here rolls that clear back. After Mailbox delivery, any caller
+    /// may use this normal Endpoint path to consume the stored payload.
     function lzReceive(
         LayerZeroOrigin calldata,
         bytes32,
@@ -810,12 +787,12 @@ contract LayerZeroV2HookIsm is
 
         // The versioned payload commits to both Hyperlane domains and the ID
         // of the entire Hyperlane message, not just its body.
-        context.message = LayerZeroMessage.encode(
+        bytes memory expectedMessage = LayerZeroMessage.encode(
             context.originDomain,
             localDomain,
             messageId
         );
-        if (keccak256(lzPacket.message()) != keccak256(context.message)) {
+        if (keccak256(lzPacket.message()) != keccak256(expectedMessage)) {
             revert WrongPacketMessage();
         }
 
@@ -857,12 +834,13 @@ contract LayerZeroV2HookIsm is
     }
 
     /// @dev A matching stored payload hash proves prior verification without
-    /// consuming the packet. Otherwise the receive library checks the DVNs'
-    /// recorded attestations and commits the hash to the Endpoint.
+    /// consuming the packet, making repeated calls idempotent. Otherwise the
+    /// receive library checks the DVNs' attestations and commits the hash.
     /// ULN302 deletes those attestations on commitment, so calling
     /// `commitVerification` again without fresh attestations reverts:
     /// https://github.com/LayerZero-Labs/LayerZero-v2/blob/9c741e7f9790639537b1710a203bcdfd73b0b9ac/packages/layerzero-v2/evm/messagelib/contracts/uln/ReceiveUlnBase.sol#L59-L75
-    /// Only the uncommitted path uses the metadata-supplied library address.
+    /// The stored hash is never cleared here; `lzReceive` clears it only after
+    /// delivery. Only the uncommitted path uses the metadata-supplied library.
     function _commitPacketVerification(PacketContext memory context) internal {
         bytes32 currentPayloadHash = endpointContract.inboundPayloadHash(
             address(this),
@@ -900,45 +878,6 @@ contract LayerZeroV2HookIsm is
                 context.payloadHash
             );
         }
-    }
-
-    /// @dev Attempts Endpoint cleanup with bounded gas. `clear` calls `_clearPayload`,
-    /// which scans from the lazy inbound nonce through this packet's nonce:
-    /// https://github.com/LayerZero-Labs/LayerZero-v2/blob/9c741e7f9790639537b1710a203bcdfd73b0b9ac/packages/layerzero-v2/evm/protocol/contracts/EndpointV2.sol#L211-L215
-    /// https://github.com/LayerZero-Labs/LayerZero-v2/blob/9c741e7f9790639537b1710a203bcdfd73b0b9ac/packages/layerzero-v2/evm/protocol/contracts/MessagingChannel.sol#L129-L141
-    /// A long verified backlog can exhaust the budget. Failure must not block
-    /// Hyperlane delivery.
-    function _tryClearPacket(
-        PacketContext memory context,
-        bytes32 messageId
-    ) internal {
-        (bool cleared, ) = address(endpointContract).call{gas: CLEAR_GAS_LIMIT}(
-            abi.encodeCall(
-                ILayerZeroEndpointV2.clear,
-                (address(this), _origin(context), context.guid, context.message)
-            )
-        );
-
-        if (!cleared) {
-            emit LayerZeroPayloadClearFailed(
-                messageId,
-                context.originDomain,
-                context.sourceEndpointId,
-                context.guid,
-                context.nonce
-            );
-        }
-    }
-
-    function _origin(
-        PacketContext memory context
-    ) internal pure returns (LayerZeroOrigin memory) {
-        return
-            LayerZeroOrigin({
-                srcEid: context.sourceEndpointId,
-                sender: context.sender,
-                nonce: context.nonce
-            });
     }
 
     // ============ AbstractCcipReadIsm ============

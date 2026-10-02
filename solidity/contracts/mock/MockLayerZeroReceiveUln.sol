@@ -6,6 +6,7 @@ import {MockLayerZeroEndpointV2} from "./MockLayerZeroEndpointV2.sol";
 contract MockLayerZeroReceiveUln {
     MockLayerZeroEndpointV2 public immutable endpoint;
     bool public ready = true;
+    mapping(bytes32 => bool) internal committed;
 
     constructor(address _endpointAddress) {
         endpoint = MockLayerZeroEndpointV2(_endpointAddress);
@@ -21,6 +22,13 @@ contract MockLayerZeroReceiveUln {
     ) external {
         require(ready, "DVNs pending");
         require(packetHeader.length == 81, "header");
+        // ULN302 deletes the DVN attestations on commitment, so a second
+        // commitment of the same packet reverts.
+        bytes32 attestation = keccak256(
+            abi.encodePacked(packetHeader, payloadHash)
+        );
+        require(!committed[attestation], "DVNs pending");
+        committed[attestation] = true;
         uint64 nonce;
         uint32 sourceEndpointId;
         bytes32 sender;

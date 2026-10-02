@@ -166,7 +166,6 @@ sequenceDiagram
         Ism->>Library: commitVerification(header, payloadHash)
         Library->>Endpoint: verify(origin, receiver, payloadHash)
     end
-    Ism->>Endpoint: clear(...) with bounded gas
     Ism-->>Mailbox: true
     Mailbox->>Recipient: handle(message)
 ```
@@ -182,12 +181,14 @@ hash, `verify` requires the metadata-supplied receive library to be currently
 valid and asks it to commit verification. A different stored hash reverts with
 `ConflictingPayloadHash`.
 
+`verify` never clears the stored hash. It is therefore idempotent: it can be
+called repeatedly, outside `Mailbox.process`, and more than once for the same
+message, including when one deployment appears several times in an ISM tree.
+
 The hook sends a one-gas `lzReceive` option because standard LayerZero
 Executors reject missing and zero-gas receive options. Normal Executor callback
-delivery cannot complete with that budget. `lzReceive` additionally accepts a
-clear only after the corresponding Hyperlane message is delivered, allowing
-permissionless post-delivery cleanup without letting an Executor consume an
-undelivered authorization.
+delivery cannot complete with that budget. Neither direct verification nor
+`Mailbox.process` clears the payload hash from the Endpoint.
 
 ## Fees
 
@@ -346,33 +347,25 @@ nonce, `Endpoint.clear` checks that every intervening nonce has a verified
 payload hash. This prevents a clear from skipping an unverified packet, even
 though packets can be verified and executed out of order.
 
-After pull verification succeeds, the ISM calls `Endpoint.clear` with a
-50,000-gas safety budget. This is our cap, not a LayerZero requirement: a
-single-packet clear used 26,610 gas on the production Endpoint at Ethereum fork
-block 25,878,200. The [fork test](../../../test/hooks/LayerZeroV2HookIsm.fork.t.sol)
-checks it fits the cap. A longer verified backlog can require more gas, so
-cleanup is optimistic: failure emits
-`LayerZeroPayloadClearFailed` and does not block the Hyperlane message. This
-limits the gas a nonce scan can add to `Mailbox.process`.
+`verify` only commits the payload hash; it never calls `Endpoint.clear`. The
+Endpoint keeps the hash and its lazy inbound nonce does not advance until
+someone clears the packet. Hyperlane delivery does not read either: the Mailbox
+delivery record is the replay guard, and the packet commits to the Hyperlane
+message ID.
 
-`verify` may clear the packet it just authenticated before Mailbox delivery.
-It never clears an earlier, undelivered packet merely to advance a LayerZero
-nonce. An undelivered message may be blocked by another security module or
-application policy, and this ISM cannot safely decide to consume it.
+After Mailbox delivery, any caller can invoke the normal LayerZero Endpoint
+`lzReceive` path for that exact packet with sufficient gas. The Endpoint clears
+first and calls this contract's `lzReceive`; the callback accepts only delivered
+message IDs. Before Mailbox delivery, that callback reverts and atomically rolls
+back the Endpoint clear. Because the hook requests only one gas for Executor
+delivery, operators that need Endpoint cleanup should submit it separately.
 
-Consequences:
-
-- a successfully verified pull packet may remain in Endpoint storage;
-- later clear attempts may repeatedly reach the 50,000-gas limit when the
-  Endpoint must scan a large committed nonce prefix; and
-- Endpoint storage and cleanup work may accumulate without blocking Hyperlane
-  delivery through this ISM.
-
-After the Hyperlane message is delivered, any caller can invoke the normal
-LayerZero Endpoint execution path for that exact packet with sufficient gas.
-The Endpoint clears first and calls this contract's `lzReceive`; the callback
-accepts only delivered message IDs. Operators should monitor failed-clear events
-and retry cleanup after confirming Mailbox delivery.
+Cleanup is optional and does not affect Hyperlane verification or delivery.
+Each clear walks every nonce from the lazy inbound nonce through the cleared
+one, so clearing packets in nonce order keeps each call cheap. A nonce whose
+packet was never committed, such as a message dispatched through this hook to a
+recipient that does not use this ISM, makes clears of later nonces revert until
+that packet is committed.
 
 ## Observability
 
@@ -382,7 +375,6 @@ and retry cleanup after confirming Mailbox delivery.
 | `LayerZeroAuthorizationSent`                                        | Origin Hook/ISM paid the Endpoint and obtained a GUID and nonce |
 | LayerZero Endpoint `PacketSent`                                     | Endpoint emitted the complete encoded packet                    |
 | `LayerZeroPayloadVerified`                                          | ISM matched or committed the exact Endpoint payload hash        |
-| `LayerZeroPayloadClearFailed`                                       | Pull verification succeeded but bounded cleanup failed          |
 | Mailbox `ProcessId`                                                 | ISM verification and recipient handling completed               |
 | `LayerZeroRemoteRouterEnrolled` / `LayerZeroRemoteRouterUnenrolled` | Owner changed route identity                                    |
 | `LayerZeroSendLibrarySet` / `LayerZeroReceiveLibrarySet`            | Owner selected an Endpoint library                              |
