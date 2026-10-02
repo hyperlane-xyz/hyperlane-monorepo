@@ -77,10 +77,6 @@ export const chainsToSkip: ChainName[] = [
   'forma',
   'eden',
 
-  // Deprecated mainnets not yet covered by the pinned registry.
-  'adichain',
-  'zksync',
-
   // ZKSync stack chains
   'abstract',
 
