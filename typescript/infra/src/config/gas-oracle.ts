@@ -172,6 +172,30 @@ export function getLocalStorageGasOracleConfigOverride(
     remote: ChainName,
     gasOracleConfig: ProtocolAgnositicGasOracleConfig,
   ): Parameters<typeof BigNumberJs>[0] => {
+    if (feeToken && isEVMLike(localProtocolType)) {
+      const { gasPrice, nativeToken } = gasOracleParams[remote];
+      // The SDK has already rounded/rebalanced the exchange rate. Recover the
+      // unrounded gasPrice * exchangeRate product from the snapshots, then
+      // compensate in gasPrice before checking the USD floor. This preserves
+      // the margin even for scaled rates >= 1 (e.g. 3.5352 rounded to 3).
+      const unroundedGasCost = new BigNumberJs(gasPrice.amount)
+        .times(new BigNumberJs(10).pow(gasPrice.decimals))
+        .times(nativeToken.price)
+        .times(100 + EXCHANGE_RATE_MARGIN_PCT)
+        .div(100)
+        .div(feeToken.price)
+        .times(
+          new BigNumberJs(10).pow(feeToken.decimals - nativeToken.decimals),
+        )
+        .times(localExchangeRateScale.toString());
+      gasOracleConfig = {
+        ...gasOracleConfig,
+        gasPrice: unroundedGasCost
+          .div(gasOracleConfig.tokenExchangeRate)
+          .integerValue(BigNumberJs.ROUND_CEIL)
+          .toFixed(0),
+      };
+    }
     if (!applyMinUsdCost) {
       return gasOracleConfig.gasPrice;
     }

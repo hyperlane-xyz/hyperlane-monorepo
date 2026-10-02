@@ -1,11 +1,19 @@
 import { expect } from 'chai';
 import { BigNumber } from 'ethers';
+import { BigNumber as BigNumberJs } from 'bignumber.js';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { getTokenGasOracleConfigs } from '../config/environments/mainnet3/tokenGasOracles.js';
 import { getIgp } from '../config/environments/mainnet3/igp.js';
+import gasPrices from '../config/environments/mainnet3/gasPrices.json' with { type: 'json' };
 import { supportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
+import tokenPrices from '../config/environments/mainnet3/tokenPrices.json' with { type: 'json' };
 import { tokens } from '../src/config/warp.js';
-import { getLocalStorageGasOracleConfigOverride } from '../src/config/gas-oracle.js';
+import {
+  getLocalStorageGasOracleConfigOverride,
+  getOverheadWithOverrides,
+  getTypicalRemoteGasAmount,
+} from '../src/config/gas-oracle.js';
 
 const feeTokens = {
   arc: [tokens.arc.USDC],
@@ -63,6 +71,88 @@ describe('mainnet3 stablecoin IGP gas oracles', () => {
     // 100k gas * 1 gwei * $3000/ETH * 1.5 margin = $0.45.
     expect(quote.toString()).to.equal('450000');
     expect(tokenPrices).to.deep.equal({ base: '2000', ethereum: '3000' });
+  });
+
+  it('preserves non-round remote prices when scaled exchange rates exceed one', () => {
+    const configs = getLocalStorageGasOracleConfigOverride(
+      'base',
+      ['ethereum', 'subtensor'],
+      { base: '2438.28', ethereum: '2438.28', subtensor: '235.68' },
+      {
+        base: { amount: '1', decimals: 9 },
+        ethereum: { amount: '2', decimals: 9 },
+        subtensor: { amount: '10', decimals: 9 },
+      },
+      () => 166_887,
+      true,
+      undefined,
+      { price: '1', decimals: 6 },
+    );
+    for (const [remote, expectedUsd] of [
+      ['ethereum', '1.58649370308'],
+      ['subtensor', '0.7667389224'],
+    ]) {
+      const config = configs[remote];
+      const quote = BigNumber.from(config.gasPrice)
+        .mul(config.tokenExchangeRate)
+        .mul(216_887)
+        .div(exchangeRateScale);
+      const expected = new BigNumberJs(expectedUsd)
+        .times(1_000_000)
+        .integerValue(BigNumberJs.ROUND_FLOOR)
+        .toFixed(0);
+      expect(quote.toString(), remote).to.equal(expected);
+    }
+  });
+
+  it('preserves the snapshot margin for every selected token on Ethereum and Subtensor lanes', () => {
+    const configs = getTokenGasOracleConfigs();
+    for (const [local, addresses] of Object.entries(feeTokens)) {
+      for (const address of addresses) {
+        for (const remote of ['ethereum', 'subtensor'] as const) {
+          if (remote === local) continue;
+          const config = configs[local][address][remote];
+          const gas = getTypicalRemoteGasAmount(
+            local,
+            remote,
+            ProtocolType.Ethereum,
+            getOverheadWithOverrides,
+          );
+          const quote = BigNumber.from(config.gasPrice)
+            .mul(config.tokenExchangeRate)
+            .mul(gas)
+            .div(exchangeRateScale);
+          // Both remotes have 18 native decimals; fee payments have 6.
+          const expected = new BigNumberJs(gasPrices[remote].amount)
+            .times(new BigNumberJs(10).pow(gasPrices[remote].decimals))
+            .times(gas)
+            .times(tokenPrices[remote])
+            .times(1.5)
+            .times(new BigNumberJs(10).pow(6 - 18))
+            .integerValue(BigNumberJs.ROUND_FLOOR)
+            .toFixed(0);
+          expect(quote.toString(), `${local}/${address}->${remote}`).to.equal(
+            expected,
+          );
+        }
+      }
+    }
+  });
+
+  it('keeps native-fee gas price and exchange rate unchanged', () => {
+    const config = getLocalStorageGasOracleConfigOverride(
+      'base',
+      ['ethereum'],
+      { base: '2438.28', ethereum: '2438.28' },
+      {
+        base: { amount: '1', decimals: 9 },
+        ethereum: { amount: '2', decimals: 9 },
+      },
+      () => 0,
+      false,
+    ).ethereum;
+    expect(config.gasPrice).to.equal('2000000000');
+    expect(config.tokenExchangeRate).to.equal('15000000000');
   });
 
   it('uses six decimals for Arc fee payments and eighteen for Arc destination gas', () => {
