@@ -1928,7 +1928,12 @@ export async function enrollCrossChainRouters(
         ...userRemoteRouters,
         ...Object.fromEntries(
           Object.entries(deployedContracts)
-            .filter(([chain, _address]) => chain !== currentChain)
+            .filter(
+              ([chain]) =>
+                chain !== currentChain &&
+                resolvedConfigMap[chain].type !==
+                  TokenType.atomicLocalRebalancing,
+            )
             .map(([chain, address]) => [
               multiProvider.getDomainId(chain).toString(),
               {
@@ -1956,7 +1961,12 @@ export async function enrollCrossChainRouters(
         ...defaultGasForUserRouters,
         ...Object.fromEntries(
           Object.entries(deployedContracts)
-            .filter(([chain, _address]) => chain !== currentChain)
+            .filter(
+              ([chain]) =>
+                chain !== currentChain &&
+                resolvedConfigMap[chain].type !==
+                  TokenType.atomicLocalRebalancing,
+            )
             .map(([chain, _address]) => [
               multiProvider.getDomainId(chain).toString(),
               resolvedConfigMap[chain].gas.toString(),

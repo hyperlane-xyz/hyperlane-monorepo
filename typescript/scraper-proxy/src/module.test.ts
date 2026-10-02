@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { it } from 'node:test';
+import { connect } from 'node:net';
 
 process.env.DATABASE_URL ??= 'postgresql://unused:unused@localhost/unused';
 
@@ -16,7 +17,7 @@ void it('serves GraphQL through Mercurius with compatibility validation', async 
     { jit: 1 },
   );
   try {
-    assert.equal(app.server.requestTimeout, 300_000);
+    assert.equal(app.server.requestTimeout, 10_000);
     const response = await app.inject({
       headers: { origin: 'https://example.com' },
       method: 'POST',
@@ -474,6 +475,40 @@ void it('does not cache pathological resolver failures', async () => {
     assert.deepEqual(succeeded.json(), { data: { domain: [] } });
     assert.equal(queries, 2);
   } finally {
+    await app.close();
+  }
+});
+
+void it('keeps incomplete uploads outside GraphQL execution admission', async () => {
+  const { createScraperProxyApp } = await import('./module.js');
+  const { config } = await import('./config.js');
+  const app = await createScraperProxyApp({
+    async query<T extends Record<string, unknown>>(): Promise<T[]> {
+      return [];
+    },
+  });
+  const sockets = [];
+  try {
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    const address = app.server.address();
+    assert(address && typeof address !== 'string');
+    for (let i = 0; i < config.GRAPHQL_MAX_ACTIVE_REQUESTS; i++) {
+      const socket = connect(address.port, '127.0.0.1');
+      sockets.push(socket);
+      await new Promise<void>((resolve) => socket.once('connect', resolve));
+      socket.write(
+        'POST /graphql HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{',
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    const healthy = await app.inject({
+      method: 'POST',
+      url: '/graphql',
+      payload: { query: '{ domain(limit: 1) { id } }' },
+    });
+    assert.equal(healthy.statusCode, 200);
+  } finally {
+    sockets.forEach((socket) => socket.destroy());
     await app.close();
   }
 });

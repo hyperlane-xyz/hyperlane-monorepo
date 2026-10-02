@@ -13,7 +13,8 @@ use tonic::async_trait;
 use tracing::{debug, trace, warn};
 
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, ChainResult, Indexed, Indexer, LogMeta, H256, H512, U256,
+    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, Indexed, Indexer,
+    LogMeta, H256, H512, U256,
 };
 
 use crate::RpcProvider;
@@ -102,7 +103,9 @@ where
         let result = future::join_all(futures)
             .await
             .into_iter()
-            .flatten()
+            .map(|result| result.map_err(ChainCommunicationError::from_other))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
             .map(|(logs, block_number)| {
                 if let Err(err) = &logs {
                     warn!(?err, ?block_number, "Failed to fetch logs for block");

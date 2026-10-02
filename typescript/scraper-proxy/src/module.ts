@@ -95,7 +95,7 @@ export async function createScraperProxyApp(
   const app = Fastify({
     bodyLimit: MAX_REQUEST_BYTES,
     logger: false,
-    requestTimeout: 300_000,
+    requestTimeout: 10_000,
     routerOptions: { caseSensitive: false, ignoreTrailingSlash: true },
   });
   let activeRequests = 0;
@@ -107,7 +107,7 @@ export async function createScraperProxyApp(
     origin: true,
   });
 
-  app.addHook('onRequest', async (request, reply) => {
+  app.addHook('preHandler', async (request, reply) => {
     if (!isGraphqlRequest(request)) return;
     const started = Date.now();
     if (activeRequests >= config.GRAPHQL_MAX_ACTIVE_REQUESTS) {

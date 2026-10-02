@@ -1,7 +1,10 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
 
 use async_trait::async_trait;
 use tracing::{instrument, warn};
@@ -45,6 +48,7 @@ impl TronInterchainSecurityModule {
         message: &HyperlaneMessage,
         metadata: &Metadata,
         depth: usize,
+        remaining_nodes: &AtomicUsize,
     ) -> ChainResult<Option<U256>> {
         if depth == 0 {
             warn!("Max ISM depth reached in dry_run_verify");
@@ -54,6 +58,15 @@ impl TronInterchainSecurityModule {
         let mut current_address = self.contract.address();
 
         for _ in 0..MAX_ISM_DEPTH {
+            if remaining_nodes
+                .fetch_update(Ordering::AcqRel, Ordering::Acquire, |remaining| {
+                    remaining.checked_sub(1)
+                })
+                .is_err()
+            {
+                warn!("Max ISM node budget reached in dry_run_verify");
+                return Ok(None);
+            }
             let locator = ContractLocator {
                 domain: &self.domain,
                 address: current_address.into(),
@@ -138,6 +151,10 @@ impl TronInterchainSecurityModule {
                 if let Ok((sub_addrs, thresh)) =
                     aggregation.modules_and_threshold(raw_msg).call().await
                 {
+                    if sub_addrs.len() > MAX_ISM_NODES {
+                        warn!("Aggregation exceeds dry-run ISM node budget");
+                        return Ok(None);
+                    }
                     let threshold = thresh as usize;
                     let sub_isps: Vec<_> = sub_addrs
                         .into_iter()
@@ -163,6 +180,7 @@ impl TronInterchainSecurityModule {
                                 message,
                                 &sub_metadata,
                                 depth.saturating_sub(1),
+                                remaining_nodes,
                             ))
                             .await
                         }
@@ -222,9 +240,9 @@ impl HyperlaneContract for TronInterchainSecurityModule {
     }
 }
 
-// Caps both routing hops per level and aggregation nesting depth, preventing
-// multiplicative fan-out from nested AggregationISMs and cycles.
+// Bound nesting and total RPC work across all aggregation branches and routing hops.
 const MAX_ISM_DEPTH: usize = 10;
+const MAX_ISM_NODES: usize = 100;
 
 // Byte width of each range field in AggregationIsmMetadata: (start: u32, end: u32) per sub-ISM.
 const AGGREGATION_RANGE_SIZE: usize = 4;
@@ -269,7 +287,12 @@ impl InterchainSecurityModule for TronInterchainSecurityModule {
         message: &HyperlaneMessage,
         metadata: &Metadata,
     ) -> ChainResult<Option<U256>> {
-        self.dry_run_verify_inner(message, metadata, MAX_ISM_DEPTH)
-            .await
+        self.dry_run_verify_inner(
+            message,
+            metadata,
+            MAX_ISM_DEPTH,
+            &AtomicUsize::new(MAX_ISM_NODES),
+        )
+        .await
     }
 }

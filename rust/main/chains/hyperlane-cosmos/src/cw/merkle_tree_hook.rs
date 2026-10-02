@@ -243,19 +243,21 @@ impl CwMerkleTreeHookIndexer {
                         }
 
                         MESSAGE_ID_ATTRIBUTE_KEY => {
-                            insertion.message_id =
-                                Some(H256::from_slice(hex::decode(value)?.as_slice()));
+                            insertion.message_id = Some(
+                                H256::from_str(value)
+                                    .map_err(ChainCommunicationError::from_other)?,
+                            );
                             debug!(message_id = ?insertion.message_id, "parsed message_id from plain text");
                         }
                         v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
-                            insertion.message_id = Some(H256::from_slice(
-                                hex::decode(String::from_utf8(
+                            insertion.message_id = Some(
+                                H256::from_str(&String::from_utf8(
                                     BASE64
                                         .decode(value)
                                         .map_err(Into::<HyperlaneCosmosError>::into)?,
-                                )?)?
-                                .as_slice(),
-                            ));
+                                )?)
+                                .map_err(ChainCommunicationError::from_other)?,
+                            );
                             debug!(message_id = ?insertion.message_id, "parsed message_id from base64");
                         }
 
@@ -393,6 +395,28 @@ mod tests {
     use crate::CosmosAddress;
 
     use super::*;
+
+    #[test]
+    fn rejects_malformed_message_ids_without_panicking() {
+        for value in ["00".to_owned(), "zz".to_owned(), "11".repeat(33)] {
+            for encoded in [false, true] {
+                let key = if encoded {
+                    BASE64.encode(MESSAGE_ID_ATTRIBUTE_KEY)
+                } else {
+                    MESSAGE_ID_ATTRIBUTE_KEY.to_owned()
+                };
+                let value = if encoded {
+                    BASE64.encode(&value)
+                } else {
+                    value.clone()
+                };
+                let attrs = event_attributes_from_str(&format!(
+                    r#"[{{"key":"{key}","value":"{value}","index":true}}]"#
+                ));
+                assert!(CwMerkleTreeHookIndexer::merkle_tree_insertion_parser(&attrs).is_err());
+            }
+        }
+    }
 
     #[test]
     fn test_merkle_tree_insertion_parser() {

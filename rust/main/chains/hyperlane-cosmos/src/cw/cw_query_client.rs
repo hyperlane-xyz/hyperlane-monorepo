@@ -68,6 +68,18 @@ impl BuildableQueryClient for CwQueryClient {
     // extract the message recipient contract address from the tx
     // this is implementation specific
     fn parse_tx_message_recipient(&self, tx: &Tx, tx_hash: &H512) -> ChainResult<Option<H256>> {
+        // Batched executions have no unique recipient, but remain valid transactions
+        // whose event enrichment must not prevent the scraper from advancing.
+        if tx
+            .body
+            .messages
+            .iter()
+            .filter(|message| message.type_url == "/cosmwasm.wasm.v1.MsgExecuteContract")
+            .count()
+            > 1
+        {
+            return Ok(None);
+        }
         Self::contract(tx, tx_hash).map(Some)
     }
 
@@ -253,6 +265,57 @@ mod test {
 
     use super::{BuildableQueryClient, CwQueryClient};
     use crate::{ConnectionConf, CosmosAddress, GrpcProvider, RawCosmosAmount};
+
+    #[tokio::test]
+    async fn batched_contract_executions_have_no_unique_recipient() {
+        use cosmrs::{
+            proto::traits::MessageExt,
+            tx::{AuthInfo, Body, Fee},
+            Any, Tx,
+        };
+        use hyperlane_core::H512;
+        let address = "neutron1dwnrgwsf5c9vqjxsax04pdm0mx007yrre4yyvm";
+        let client = provider(address);
+        let message = super::MsgExecuteContract {
+            sender: address.to_owned(),
+            contract: address.to_owned(),
+            ..Default::default()
+        };
+        let mut tx = Tx {
+            body: Body::new(
+                [Any {
+                    type_url: "/cosmwasm.wasm.v1.MsgExecuteContract".to_owned(),
+                    value: message.to_bytes().unwrap(),
+                }],
+                "",
+                0u8,
+            ),
+            auth_info: AuthInfo {
+                signer_infos: vec![],
+                fee: Fee {
+                    amount: vec![],
+                    gas_limit: 0,
+                    payer: None,
+                    granter: None,
+                },
+            },
+            signatures: vec![],
+        };
+        let expected = CosmosAddress::from_str(address).unwrap().digest();
+        assert_eq!(
+            client
+                .parse_tx_message_recipient(&tx, &H512::zero())
+                .unwrap(),
+            Some(expected)
+        );
+        tx.body.messages.push(tx.body.messages[0].clone());
+        assert_eq!(
+            client
+                .parse_tx_message_recipient(&tx, &H512::zero())
+                .unwrap(),
+            None
+        );
+    }
 
     #[ignore]
     #[tokio::test]
