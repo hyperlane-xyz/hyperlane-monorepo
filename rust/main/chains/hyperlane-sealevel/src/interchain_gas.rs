@@ -425,20 +425,19 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
 impl SequenceAwareIndexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let program_data_account = self
+        let response = self
             .provider
             .rpc_client()
-            .get_account_with_finalized_commitment(self.igp.data_pda_pubkey)
+            .get_account_with_finalized_commitment_and_context(self.igp.data_pda_pubkey)
             .await?;
-        let program_data = ProgramDataAccount::fetch(&mut program_data_account.data.as_ref())
+        let program_data = ProgramDataAccount::fetch(&mut response.value.data.as_ref())
             .map_err(ChainCommunicationError::from_other)?
             .into_inner();
         let payment_count = program_data
             .payment_count
             .try_into()
             .map_err(StrOrIntParseError::from)?;
-        let tip = self.igp.provider.rpc_client().get_slot().await?;
-        Ok((Some(payment_count), tip))
+        Ok((Some(payment_count), response.context.slot.try_into()?))
     }
 }
 

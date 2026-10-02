@@ -9,7 +9,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use ethers::types::H256;
+use ethers::types::{H160, H256};
 use hyperlane_core::HyperlaneMessage;
 use migration::MigratorTrait;
 use sea_orm::{ConnectionTrait, Database, DbBackend, Statement, TransactionTrait};
@@ -80,12 +80,12 @@ impl Source for Chain {
         Ok([u32::from(header.height >= 2); 2])
     }
 
-    async fn header(&self, block: BlockNumber) -> Result<Header> {
+    async fn header(&self, block: BlockSelector) -> Result<Header> {
         self.header_calls.fetch_add(1, Ordering::Relaxed);
         let headers = self.headers.lock().unwrap();
         let header = match block {
-            BlockNumber::Number(height) => headers.get(&height.as_u64()),
-            BlockNumber::Safe | BlockNumber::Finalized => {
+            BlockSelector::Height(height) => headers.get(&height),
+            BlockSelector::Safe | BlockSelector::Finalized => {
                 ensure!(!*self.fail_tag.lock().unwrap(), "Tag unavailable");
                 headers.last_key_value().map(|(_, header)| header)
             }
@@ -121,15 +121,15 @@ impl Source for Chain {
         };
         Ok(vec![
             EventData::Dispatch(message),
-            EventData::Delivery(header.hash),
+            EventData::Delivery(header.hash.into()),
             EventData::Gas {
-                message_id: header.hash,
+                message_id: header.hash.into(),
                 destination: 1,
                 gas: "100".into(),
                 payment: "10".into(),
             },
             EventData::Insertion {
-                message_id: header.hash,
+                message_id: header.hash.into(),
                 index: 0,
             },
         ]
@@ -142,10 +142,11 @@ impl Source for Chain {
             } else {
                 header.hash
             },
-            address: H160::repeat_byte(1),
-            tx_hash: header.hash,
+            address: H160::repeat_byte(1).into(),
+            tx_hash: Some(header.hash.into()),
             tx_index: 0,
             log_index: u64::try_from(index).unwrap(),
+            sequence: None,
             data,
         })
         .collect())
@@ -154,9 +155,9 @@ impl Source for Chain {
 
 fn contracts() -> Contracts {
     Contracts {
-        mailbox: H160::repeat_byte(1),
-        hook: H160::repeat_byte(1),
-        paymaster: H160::repeat_byte(1),
+        mailbox: H160::repeat_byte(1).into(),
+        hook: H160::repeat_byte(1).into(),
+        paymaster: H160::repeat_byte(1).into(),
     }
 }
 
@@ -174,7 +175,7 @@ async fn seed_verified_cutover(store: &Store, anchor: &Header) -> Result<()> {
     tx.execute(Statement::from_sql_and_values(
         DbBackend::Postgres,
         "INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster) VALUES($1,$2,$2,$3,$2,$2,$4,$5,$6)",
-        [domain.into(), height.into(), anchor.hash.as_bytes().to_vec().into(), contracts.mailbox.as_bytes().to_vec().into(), contracts.hook.as_bytes().to_vec().into(), contracts.paymaster.as_bytes().to_vec().into()],
+        [domain.into(), height.into(), anchor.hash.as_bytes().to_vec().into(), hyperlane_core::address_to_bytes(&contracts.mailbox).into(), hyperlane_core::address_to_bytes(&contracts.hook).into(), hyperlane_core::address_to_bytes(&contracts.paymaster).into()],
     )).await?;
     tx.execute(Statement::from_sql_and_values(
         DbBackend::Postgres,
@@ -780,6 +781,38 @@ async fn confirmation_bounds_temporary_checkpoints_without_scanning_blocks() -> 
 }
 
 #[tokio::test]
+async fn confirmation_uses_retained_checkpoint_before_scanning_sparse_slots() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let chain = Chain::new(100);
+    store
+        .initialize(&chain.header(0u64.into()).await?, &contracts())
+        .await?;
+    ingest_head(&chain, &store).await?;
+    let checkpoint = chain.header(40u64.into()).await?;
+    store
+        .db
+        .execute(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "INSERT INTO scraper_checkpoint(domain,height,hash,timestamp) VALUES(1,40,$1,now())",
+            [checkpoint.hash.as_bytes().to_vec().into()],
+        ))
+        .await?;
+
+    chain.header_calls.store(0, Ordering::Relaxed);
+    confirm(&chain, &store, &ReorgPeriod::from_blocks(50)).await?;
+    assert_eq!(store.state().await?.unwrap().confirmed, 50);
+    assert_eq!(chain.header_calls.load(Ordering::Relaxed), 2);
+    Ok(())
+}
+
+#[tokio::test]
 async fn append_refreshes_the_confirmation_lease_after_a_slow_fetch() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let db = Database::connect(format!(
@@ -833,7 +866,7 @@ async fn finality_tag_ahead_of_observed_head_confirms_observed_history() -> Resu
         .await?;
     let finalized = ReorgPeriod::Tag("finalized".into());
     assert!(
-        confirm_leased(&chain, &store, &finalized, Duration::from_secs(30))
+        confirm_leased(&chain, &store, &finalized, Duration::from_secs(30), None,)
             .await
             .is_err(),
         "An expired observation cannot confirm"
@@ -925,7 +958,7 @@ struct DenseChain {
 
 #[async_trait]
 impl Source for DenseChain {
-    async fn header(&self, number: BlockNumber) -> Result<Header> {
+    async fn header(&self, number: BlockSelector) -> Result<Header> {
         self.chain.header(number).await
     }
 
@@ -956,7 +989,7 @@ impl Source for DenseChain {
                         message_id,
                     } => {
                         *leaf = index;
-                        *message_id = H256::from_low_u64_be(u64::from(index));
+                        *message_id = H256::from_low_u64_be(u64::from(index)).into();
                     }
                     _ => unreachable!(),
                 }
@@ -980,6 +1013,7 @@ async fn incomplete_sequences_retry_after_restart_and_dense_ranges_batch_atomica
     );
     let db = Database::connect(&url).await?;
     migration::Migrator::up(&db, None).await?;
+    migration::indexes::create_indexes(&db).await?;
     let store = Store { db, domain: 1 };
     let source = DenseChain {
         chain: Chain::new(3),
@@ -1073,7 +1107,7 @@ async fn incomplete_sequences_retry_after_restart_and_dense_ranges_batch_atomica
         .unwrap();
     assert!(index
         .try_get::<String>("", "indexdef")?
-        .contains("WHERE (block_hash IS NOT NULL)"));
+        .contains("transaction_hash"));
     Ok(())
 }
 
@@ -1142,7 +1176,7 @@ async fn receipt_timeouts_do_not_starve_cached_neighbors_across_sweeps() -> Resu
         .unwrap()
         .clone();
     poison.log_index = 99;
-    poison.tx_hash = H256::repeat_byte(99);
+    poison.tx_hash = Some(H256::repeat_byte(99).into());
     events.push(poison);
     store
         .append(&state, &[(chain.header(2u64.into()).await?, events)])
@@ -1206,7 +1240,7 @@ struct CountedChain {
 
 #[async_trait]
 impl Source for CountedChain {
-    async fn header(&self, block: BlockNumber) -> Result<Header> {
+    async fn header(&self, block: BlockSelector) -> Result<Header> {
         self.chain.header(block).await
     }
     async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
@@ -1283,7 +1317,7 @@ async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Resul
     prepare(
         &source,
         &store,
-        &anchor,
+        None,
         &contracts(),
         &ReorgPeriod::from_blocks(0),
     )
@@ -1294,7 +1328,7 @@ async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Resul
     prepare(
         &source,
         &store,
-        &anchor,
+        None,
         &contracts(),
         &ReorgPeriod::from_blocks(0),
     )
@@ -1410,4 +1444,16 @@ async fn automatic_cutover_rejects_partial_legacy_history_and_reuses_verified_bo
     .await?;
     assert_eq!(count(&store, "scraper_head").await?, 1);
     Ok(())
+}
+
+#[test]
+fn automatic_anchors_respect_protocol_minimum_heights() {
+    assert_eq!(minimum_auto_anchor(HyperlaneDomainProtocol::Cosmos), 1);
+    assert_eq!(
+        minimum_auto_anchor(HyperlaneDomainProtocol::CosmosNative),
+        1
+    );
+    assert_eq!(minimum_auto_anchor(HyperlaneDomainProtocol::Radix), 0);
+    assert_eq!(minimum_auto_anchor(HyperlaneDomainProtocol::Sealevel), 0);
+    assert_eq!(minimum_auto_anchor(HyperlaneDomainProtocol::Starknet), 0);
 }

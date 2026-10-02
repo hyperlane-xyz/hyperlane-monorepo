@@ -9,6 +9,7 @@ use tracing::warn;
 
 use super::{
     confirm_leased, confirmation_lease, ingest_cached, observe, source::Source, store::Store,
+    CountCache,
 };
 
 pub(super) struct Worker {
@@ -67,13 +68,11 @@ impl Worker {
         }
     }
 
-    async fn cycle(
-        &self,
-        count_cache: &mut Option<(ethers::types::H256, [u32; 2])>,
-    ) -> eyre::Result<CycleOutcome> {
+    async fn cycle(&self, count_cache: &mut CountCache) -> eyre::Result<CycleOutcome> {
         self.store
             .claim(confirmation_lease(self.poll_interval))
             .await?;
+        self.source.begin_cycle().await;
         let observed = match observe(self.source.as_ref(), &self.store).await {
             Ok(state) => state,
             Err(error) => {
@@ -121,6 +120,7 @@ impl Worker {
             &self.store,
             &self.period,
             confirmation_lease(self.poll_interval),
+            None,
         )
         .await?;
         for (label, count) in [
