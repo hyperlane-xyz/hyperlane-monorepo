@@ -294,12 +294,6 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     // mitosis
     mitosis: 0.1,
 
-    // For all SVM chains, min cost is 0.50 USD to cover rent needs
-    // For Ethereum L2s, we need to account for the L1 DA costs that
-    // aren't accounted for directly in the gas price.
-    blast: 0.5,
-    taiko: 0.5,
-
     // Tron uses an energy model, not gas. Delivery costs 80-110K energy
     // ≈ 9-12 TRX ≈ $2.60-$3.50. Standard EVM gas math underestimates Tron costs.
     tron: 4.0,
@@ -396,10 +390,6 @@ export function getOverheadWithOverrides(
 ): number {
   let overhead = getOverhead(local, remote);
 
-  if (remote === 'megaeth') {
-    overhead *= 10;
-  }
-
   // Somnia gas usage is higher than the EVM and tends to give high
   // estimates. We double the overhead to help account for this.
   if (remote === 'somnia') {
@@ -408,10 +398,7 @@ export function getOverheadWithOverrides(
 
   // ZkSync gas usage is different from the EVM and tends to give high
   // estimates. We double the overhead to help account for this.
-  if (
-    getChain(remote).technicalStack === ChainTechnicalStack.ZkSync ||
-    remote === 'adichain'
-  ) {
+  if (getChain(remote).technicalStack === ChainTechnicalStack.ZkSync) {
     overhead *= 2;
   }
 

@@ -72,18 +72,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   // Generally, we run all production validators in the Hyperlane context.
   [Role.Validator]: {
     abstract: true,
-    adichain: true,
     aleo: true,
     apechain: true,
     arbitrum: true,
     arc: true,
     avalanche: true,
     base: true,
-    berachain: true,
-    blast: true,
     bob: true,
     bsc: true,
-    carrchain: true,
     celestia: true,
     celo: true,
     citrea: true,
@@ -111,7 +107,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lukso: true,
     mantle: true,
     mantra: true,
-    megaeth: true,
     metal: true,
     metis: true,
     mitosis: true,
@@ -128,7 +123,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     pulsechain: true,
     radix: false, // disabled — removed from agent operations per request
     robinhood: true,
-    sei: true,
     solanamainnet: true,
     solaxy: true,
     somnia: true,
@@ -139,8 +133,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     starknet: true,
     subtensor: true,
 
-    tac: true, // re-enabled 2026-09-07 — block production resumed
-    taiko: false, // temporarily disabled out of caution (Taiko network incident)
     tea: true,
     tron: true,
     unichain: true,
@@ -148,22 +140,17 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     worldchain: true,
     xlayer: true,
     zerogravity: true,
-    zksync: true,
   },
   [Role.Relayer]: {
     abstract: true,
-    adichain: true,
     aleo: true,
     apechain: true,
     arbitrum: true,
     arc: true,
     avalanche: true,
     base: true,
-    berachain: true,
-    blast: true,
     bob: true,
     bsc: true,
-    carrchain: true,
     celestia: true,
     celo: true,
     citrea: true,
@@ -191,7 +178,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lukso: true,
     mantle: true,
     mantra: true,
-    megaeth: true,
     metal: true,
     metis: true,
     mitosis: true,
@@ -208,7 +194,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     pulsechain: true,
     radix: false, // disabled — removed from agent operations per request
     robinhood: true,
-    sei: true,
     solanamainnet: true,
     solaxy: true,
     somnia: true,
@@ -219,8 +204,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     starknet: true,
     subtensor: true,
 
-    tac: true, // re-enabled 2026-09-07 — block production resumed
-    taiko: false, // temporarily disabled out of caution (Taiko network incident)
     tea: true,
     tron: true,
     unichain: true,
@@ -228,22 +211,17 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     worldchain: true,
     xlayer: true,
     zerogravity: true,
-    zksync: true,
   },
   [Role.Scraper]: {
     abstract: true,
-    adichain: true,
     aleo: true,
     apechain: true,
     arbitrum: true,
     arc: true,
     avalanche: true,
     base: true,
-    berachain: true,
-    blast: true,
     bob: true,
     bsc: true,
-    carrchain: true,
     celestia: true,
     celo: true,
     citrea: true,
@@ -271,7 +249,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lukso: true,
     mantle: true,
     mantra: true,
-    megaeth: true,
     metal: true,
     metis: true,
     mitosis: true,
@@ -288,7 +265,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     pulsechain: true,
     radix: false, // disabled — removed from agent operations per request
     robinhood: true,
-    sei: true,
     solanamainnet: true,
     solaxy: true,
     somnia: true,
@@ -299,8 +275,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     starknet: true,
     subtensor: true,
 
-    tac: true, // re-enabled 2026-09-07 — block production resumed
-    taiko: true,
     tea: true,
     tron: true,
     unichain: true,
@@ -309,7 +283,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     worldchain: true,
     xlayer: true,
     zerogravity: true,
-    zksync: true,
   },
 };
 
@@ -681,9 +654,7 @@ const mediumValidatorChains = [
   'tron',
   'mode',
   'avalanche',
-  'blast',
   'soneium',
-  'taiko',
   'paradex',
   'gnosis',
   'mitosis',

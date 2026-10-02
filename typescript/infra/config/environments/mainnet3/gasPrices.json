@@ -3,10 +3,6 @@
     "amount": "0.04525",
     "decimals": 9
   },
-  "adichain": {
-    "amount": "1104.0",
-    "decimals": 9
-  },
   "aleo": {
     "amount": "0.00001",
     "decimals": 1
@@ -31,24 +27,12 @@
     "amount": "0.006",
     "decimals": 9
   },
-  "berachain": {
-    "amount": "1.030812584",
-    "decimals": 9
-  },
-  "blast": {
-    "amount": "0.001001723",
-    "decimals": 9
-  },
   "bob": {
     "amount": "0.001000252",
     "decimals": 9
   },
   "bsc": {
     "amount": "0.1",
-    "decimals": 9
-  },
-  "carrchain": {
-    "amount": "100000.0",
     "decimals": 9
   },
   "celestia": {
@@ -159,10 +143,6 @@
     "amount": "11.25",
     "decimals": 9
   },
-  "megaeth": {
-    "amount": "0.002",
-    "decimals": 9
-  },
   "metal": {
     "amount": "0.001000252",
     "decimals": 9
@@ -227,10 +207,6 @@
     "amount": "0.1",
     "decimals": 9
   },
-  "sei": {
-    "amount": "11.0",
-    "decimals": 9
-  },
   "solanamainnet": {
     "amount": "1.05555556",
     "decimals": 1
@@ -267,14 +243,6 @@
     "amount": "10.0",
     "decimals": 9
   },
-  "tac": {
-    "amount": "450.0",
-    "decimals": 9
-  },
-  "taiko": {
-    "amount": "0.125",
-    "decimals": 9
-  },
   "tea": {
     "amount": "0.0011",
     "decimals": 9
@@ -301,10 +269,6 @@
   },
   "zerogravity": {
     "amount": "19.15210198",
-    "decimals": 9
-  },
-  "zksync": {
-    "amount": "0.04525",
     "decimals": 9
   }
 }

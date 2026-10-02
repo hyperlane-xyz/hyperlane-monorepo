@@ -2,18 +2,14 @@
 // Placing them here instead of adjacent chains file to avoid circular dep
 export const mainnet3SupportedChainNames = [
   'abstract',
-  'adichain',
   'aleo',
   'apechain',
   'arbitrum',
   'arc',
   'avalanche',
   'base',
-  'berachain',
-  'blast',
   'bob',
   'bsc',
-  'carrchain',
   'celestia',
   'celo',
   'citrea',
@@ -41,7 +37,6 @@ export const mainnet3SupportedChainNames = [
   'lukso',
   'mantle',
   'mantra',
-  'megaeth',
   'metal',
   'metis',
   'mitosis',
@@ -58,7 +53,6 @@ export const mainnet3SupportedChainNames = [
   'pulsechain',
   'radix',
   'robinhood',
-  'sei',
   'solanamainnet',
   'solaxy',
   'somnia',
@@ -68,8 +62,6 @@ export const mainnet3SupportedChainNames = [
   'stable',
   'starknet',
   'subtensor',
-  'tac',
-  'taiko',
   'tea',
   'tron',
   'unichain',
@@ -77,7 +69,6 @@ export const mainnet3SupportedChainNames = [
   'worldchain',
   'xlayer',
   'zerogravity',
-  'zksync',
 ] as const;
 
 export const supportedChainNames = [...mainnet3SupportedChainNames];
