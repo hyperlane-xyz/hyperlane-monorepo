@@ -68,19 +68,10 @@ impl BuildableQueryClient for CwQueryClient {
     // extract the message recipient contract address from the tx
     // this is implementation specific
     fn parse_tx_message_recipient(&self, tx: &Tx, tx_hash: &H512) -> ChainResult<Option<H256>> {
-        // Batched executions have no unique recipient, but remain valid transactions
-        // whose event enrichment must not prevent the scraper from advancing.
-        if tx
-            .body
-            .messages
-            .iter()
-            .filter(|message| message.type_url == "/cosmwasm.wasm.v1.MsgExecuteContract")
-            .count()
-            > 1
-        {
-            return Ok(None);
-        }
-        Self::contract(tx, tx_hash).map(Some)
+        // The recipient is optional enrichment. Transactions without a single
+        // attributable contract (batched executions, authz or ICA wrappers) remain
+        // valid and must not prevent the scraper from advancing; `contract` logs why.
+        Ok(Self::contract(tx, tx_hash).ok())
     }
 
     /// Returns the Block height of the query client
@@ -267,7 +258,7 @@ mod test {
     use crate::{ConnectionConf, CosmosAddress, GrpcProvider, RawCosmosAmount};
 
     #[tokio::test]
-    async fn batched_contract_executions_have_no_unique_recipient() {
+    async fn unattributable_transactions_have_no_recipient() {
         use cosmrs::{
             proto::traits::MessageExt,
             tx::{AuthInfo, Body, Fee},
@@ -309,6 +300,17 @@ mod test {
             Some(expected)
         );
         tx.body.messages.push(tx.body.messages[0].clone());
+        assert_eq!(
+            client
+                .parse_tx_message_recipient(&tx, &H512::zero())
+                .unwrap(),
+            None
+        );
+        // No contract execution at all, e.g. an authz `MsgExec` wrapper.
+        tx.body.messages = vec![Any {
+            type_url: "/cosmos.authz.v1beta1.MsgExec".to_owned(),
+            value: vec![],
+        }];
         assert_eq!(
             client
                 .parse_tx_message_recipient(&tx, &H512::zero())

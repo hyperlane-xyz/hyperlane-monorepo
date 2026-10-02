@@ -119,18 +119,20 @@ impl CwInterchainGasPaymasterIndexer {
                         }
 
                         MESSAGE_ID_ATTRIBUTE_KEY => {
-                            gas_payment.message_id =
-                                Some(H256::from_slice(hex::decode(value)?.as_slice()));
+                            gas_payment.message_id = Some(
+                                H256::from_str(value)
+                                    .map_err(ChainCommunicationError::from_other)?,
+                            );
                         }
                         v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
-                            gas_payment.message_id = Some(H256::from_slice(
-                                hex::decode(String::from_utf8(
+                            gas_payment.message_id = Some(
+                                H256::from_str(&String::from_utf8(
                                     BASE64
                                         .decode(value)
                                         .map_err(Into::<HyperlaneCosmosError>::into)?,
-                                )?)?
-                                .as_slice(),
-                            ));
+                                )?)
+                                .map_err(ChainCommunicationError::from_other)?,
+                            );
                         }
 
                         PAYMENT_ATTRIBUTE_KEY => {
@@ -288,6 +290,30 @@ mod tests {
     use crate::utils::event_attributes_from_str;
 
     use super::*;
+
+    #[test]
+    fn rejects_malformed_message_ids_without_panicking() {
+        for value in ["00".to_owned(), "zz".to_owned(), "11".repeat(33)] {
+            for encoded in [false, true] {
+                let key = if encoded {
+                    BASE64.encode(MESSAGE_ID_ATTRIBUTE_KEY)
+                } else {
+                    MESSAGE_ID_ATTRIBUTE_KEY.to_owned()
+                };
+                let value = if encoded {
+                    BASE64.encode(&value)
+                } else {
+                    value.clone()
+                };
+                let attrs = event_attributes_from_str(&format!(
+                    r#"[{{"key":"{key}","value":"{value}","index":true}}]"#
+                ));
+                assert!(
+                    CwInterchainGasPaymasterIndexer::interchain_gas_payment_parser(&attrs).is_err()
+                );
+            }
+        }
+    }
 
     #[test]
     fn test_interchain_gas_payment_parser() {

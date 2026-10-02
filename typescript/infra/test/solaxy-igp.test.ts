@@ -7,10 +7,13 @@ import { getChain } from '../config/registry.js';
 
 describe('Solaxy IGP decimal compensation', () => {
   it('keeps both deployment paths above the fee floor in six-decimal SOLX', () => {
-    const oracle = getIgp().solaxy.oracleConfig.solanamainnet;
-    expect(oracle).to.deep.equal(
-      oracleConfigs.solaxy.solanamainnet.oracleConfig,
-    );
+    const solaxyOracles = getIgp().solaxy.oracleConfig;
+    for (const remote of ['ethereum', 'solanamainnet'] as const) {
+      expect(solaxyOracles[remote]).to.deep.equal(
+        oracleConfigs.solaxy[remote].oracleConfig,
+      );
+    }
+    const oracle = solaxyOracles.solanamainnet;
     expect(getChain('solaxy').nativeToken?.decimals).to.equal(6);
     expect(oracle.tokenDecimals).to.equal(9);
     // Matches the Sealevel compute_gas_fee integer arithmetic. The remote
