@@ -419,33 +419,17 @@ describe('EvmWarpRouteReader', () => {
     });
   });
 
-  describe('fetchScale', () => {
+  describe('fetchScale legacy scale() read', () => {
     const scaleSelector = new ethers.utils.Interface([
       'function scale() view returns (uint256)',
     ])
       .getSighash('scale()')
       .slice(2);
 
-    interface Case {
-      name: string;
-      bytecode: string;
-      expectCall: boolean;
-    }
-
-    const cases: Case[] = [
-      {
-        name: 'skips scale() when bytecode has no scale() selector',
-        bytecode: '0x6080604052deadbeef',
-        expectCall: false,
-      },
-      {
-        name: 'calls scale() when bytecode is empty',
-        bytecode: '0x',
-        expectCall: true,
-      },
-    ];
-
-    function stubProxyProvider(implBytecode: string): sinon.SinonStub {
+    function stubProxyProvider(
+      implBytecode: string,
+      error: Error,
+    ): sinon.SinonStub {
       const provider = multiProvider.getProvider(TestChainName.test1);
       const impl = randomAddress();
       sandbox
@@ -463,125 +447,97 @@ describe('EvmWarpRouteReader', () => {
             : `0x${'00'.repeat(12)}${impl.slice(2)}`,
         );
       sandbox.stub(reader, 'fetchPackageVersion').resolves('8.0.0');
-      return sandbox
-        .stub(provider, 'call')
-        .rejects(new Error('Invalid response from provider'));
+      return sandbox.stub(provider, 'call').rejects(error);
     }
+
+    it('skips scale() when bytecode has no scale() selector and no DELEGATECALL', async () => {
+      const call = stubProxyProvider(
+        '0x6080604052deadbeef',
+        new Error('Invalid response from provider'),
+      );
+
+      expect(await reader.fetchScale(randomAddress())).to.equal(undefined);
+      expect(call.called).to.equal(false);
+    });
+
+    const revert = () =>
+      ethersCallExceptionWithNestedError({
+        code: 3,
+        message: 'execution reverted',
+      });
+    const transport = () =>
+      ethersCallExceptionWithNestedError(
+        Object.assign(new Error('Too Many Requests'), {
+          code: 'SERVER_ERROR',
+          status: 429,
+          data: '0x',
+        }),
+      );
+    const empty = () => new Error('Invalid response from provider');
+
+    interface Case {
+      status: string;
+      bytecode: string;
+      errorName: string;
+      error: () => Error;
+      identity: boolean;
+    }
+
+    // status: how implementationSelectorStatus classifies the bytecode
+    interface StatusCase {
+      status: string;
+      bytecode: string;
+      identityOn: string[];
+    }
+
+    const statuses: StatusCase[] = [
+      {
+        status: 'present',
+        bytecode: `0x6080604052${scaleSelector}`,
+        identityOn: [],
+      },
+      {
+        status: 'forwarding',
+        bytecode: '0x6080604052f4deadbeef',
+        identityOn: ['a revert', 'an LSP17 revert', 'an empty response'],
+      },
+      {
+        status: 'unresolved',
+        bytecode: '0x',
+        identityOn: ['a revert', 'an LSP17 revert'],
+      },
+    ];
+    const errors = [
+      { name: 'a revert', error: revert },
+      { name: 'an LSP17 revert', error: lsp17NoExtensionError },
+      { name: 'an empty response', error: empty },
+      { name: 'a transport error', error: transport },
+    ];
+    const cases: Case[] = statuses.flatMap((s) =>
+      errors.map((e) => ({
+        status: s.status,
+        bytecode: s.bytecode,
+        errorName: e.name,
+        error: e.error,
+        identity: s.identityOn.includes(e.name),
+      })),
+    );
 
     for (const c of cases) {
-      it(c.name, async () => {
-        const router = randomAddress();
-        const call = stubProxyProvider(c.bytecode);
+      it(`${c.identity ? 'reads identity' : 'rejects'} for ${c.errorName} from a ${c.status} implementation`, async () => {
+        const error = c.error();
+        const call = stubProxyProvider(c.bytecode, error);
 
-        expect(await reader.fetchScale(router)).to.equal(undefined);
-        expect(call.called).to.equal(c.expectCall);
+        if (c.identity) {
+          expect(await reader.fetchScale(randomAddress())).to.equal(undefined);
+        } else {
+          await expect(reader.fetchScale(randomAddress())).to.be.rejectedWith(
+            error.message,
+          );
+        }
+        expect(call.called).to.equal(true);
       });
     }
-
-    it('treats an empty provider response as identity when a DELEGATECALL-bearing bytecode lacks the scale() selector', async () => {
-      const router = randomAddress();
-      const call = stubProxyProvider('0x6080604052f4deadbeef');
-
-      expect(await reader.fetchScale(router)).to.equal(undefined);
-      expect(call.called).to.equal(true);
-    });
-
-    it('rejects an empty provider response when the bytecode has the scale() selector', async () => {
-      const router = randomAddress();
-      const call = stubProxyProvider(`0x6080604052${scaleSelector}`);
-
-      await expect(reader.fetchScale(router)).to.be.rejectedWith(
-        'Invalid response from provider',
-      );
-      expect(call.called).to.equal(true);
-    });
-  });
-
-  describe('fetchScale legacy scale() reverts', () => {
-    const scaleSelector = new ethers.utils.Interface([
-      'function scale() view returns (uint256)',
-    ])
-      .getSighash('scale()')
-      .slice(2);
-
-    const SELECTOR_AND_NO_DELEGATECALL = `0x6080604052${scaleSelector}`;
-    const SELECTOR_AND_DELEGATECALL = `0x6080604052f4${scaleSelector}`;
-    const NO_SELECTOR_AND_DELEGATECALL = '0x6080604052f4deadbeef';
-
-    function stubScaleCall(
-      error: Error,
-      bytecode = SELECTOR_AND_DELEGATECALL,
-    ): void {
-      const provider = multiProvider.getProvider(TestChainName.test1);
-      const impl = randomAddress();
-      sandbox
-        .stub(provider, 'getCode')
-        .callsFake(async (address) =>
-          (await address) === ethers.utils.getAddress(impl) ? bytecode : '0x60',
-        );
-      sandbox
-        .stub(provider, 'getStorageAt')
-        .callsFake(async (address) =>
-          (await address) === ethers.utils.getAddress(impl)
-            ? `0x${'00'.repeat(32)}`
-            : `0x${'00'.repeat(12)}${impl.slice(2)}`,
-        );
-      sandbox.stub(reader, 'fetchPackageVersion').resolves('8.0.0');
-      sandbox.stub(provider, 'call').rejects(error);
-    }
-
-    it('treats an execution reverted scale() call without data as identity', async () => {
-      stubScaleCall(
-        ethersCallExceptionWithNestedError({
-          code: 3,
-          message: 'execution reverted',
-        }),
-      );
-
-      expect(await reader.fetchScale(randomAddress())).to.equal(undefined);
-    });
-
-    it('treats a code 3 revert as identity when the bytecode has the selector and no DELEGATECALL', async () => {
-      stubScaleCall(
-        ethersCallExceptionWithNestedError({
-          code: 3,
-          message: 'execution reverted',
-        }),
-        SELECTOR_AND_NO_DELEGATECALL,
-      );
-
-      expect(await reader.fetchScale(randomAddress())).to.equal(undefined);
-    });
-
-    it('rejects a transport error from the scale() call of a forwarding implementation', async () => {
-      const error = ethersCallExceptionWithNestedError(
-        Object.assign(new Error('Too Many Requests'), {
-          code: 'SERVER_ERROR',
-          status: 429,
-          data: '0x',
-        }),
-      );
-      stubScaleCall(error, NO_SELECTOR_AND_DELEGATECALL);
-
-      await expect(reader.fetchScale(randomAddress())).to.be.rejectedWith(
-        error.message,
-      );
-    });
-
-    it('rejects a transport error from the scale() call', async () => {
-      const error = ethersCallExceptionWithNestedError(
-        Object.assign(new Error('Too Many Requests'), {
-          code: 'SERVER_ERROR',
-          status: 429,
-          data: '0x',
-        }),
-      );
-      stubScaleCall(error);
-
-      await expect(reader.fetchScale(randomAddress())).to.be.rejectedWith(
-        error.message,
-      );
-    });
   });
 
   describe('forwarding implementations without the selector', () => {

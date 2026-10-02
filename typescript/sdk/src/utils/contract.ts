@@ -24,7 +24,8 @@ const FACET_NOT_FOUND_REVERT_DATA = '0x800ab12c';
 // requested selector. The revert data is the error selector (first 4 bytes of
 // keccak256 of the signature) followed by the requested bytes4 selector
 // left-aligned in one 32-byte word.
-const LSP17_NO_EXTENSION_REVERT_DATA_PATTERN = /^0xbb370b2b[0-9a-f]{8}0{56}$/i;
+const LSP17_NO_EXTENSION_REVERT_DATA_PATTERN =
+  /^0xbb370b2b([0-9a-f]{8})0{56}$/i;
 
 /**
  * Returns true when the deployed contract version is already at or above the
@@ -72,6 +73,26 @@ function findCallException(
     current = current.cause;
   }
   return undefined;
+}
+
+/**
+ * True for LSP17 NoExtensionFoundForFunctionSelector(bytes4) revert data. When
+ * the CALL_EXCEPTION carries the call (`transaction.data`), the embedded
+ * selector must be the called one, otherwise a getter that exists but reaches
+ * another contract's missing extension would read as absent. Without the call
+ * data the embedded selector cannot be verified and the revert is accepted.
+ */
+function isLsp17NoExtensionRevert(
+  data: string,
+  callException: Record<string, unknown>,
+): boolean {
+  const match = LSP17_NO_EXTENSION_REVERT_DATA_PATTERN.exec(data);
+  if (!match) return false;
+  const callData = isRecord(callException.transaction)
+    ? callException.transaction.data
+    : undefined;
+  if (typeof callData !== 'string') return true;
+  return callData.slice(0, 10).toLowerCase() === `0x${match[1].toLowerCase()}`;
 }
 
 export function isMissingSelectorCallException(error: unknown): boolean {
@@ -147,7 +168,7 @@ export function isMissingSelectorRevert(error: unknown): boolean {
   if (
     typeof data === 'string' &&
     (data.toLowerCase() === FACET_NOT_FOUND_REVERT_DATA ||
-      LSP17_NO_EXTENSION_REVERT_DATA_PATTERN.test(data))
+      isLsp17NoExtensionRevert(data, callException))
   ) {
     return true;
   }

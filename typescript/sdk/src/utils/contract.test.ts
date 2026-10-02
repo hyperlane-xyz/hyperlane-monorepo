@@ -116,10 +116,32 @@ describe('contract utils', () => {
     interface Case {
       name: string;
       data: string;
+      // call data carried by the CALL_EXCEPTION; omitted when unavailable
+      callData?: string;
       expected: boolean;
     }
 
+    const lsp17Data = `${NO_EXTENSION_SELECTOR}${FEE_HOOK_SELECTOR}${'00'.repeat(28)}`;
+
     const cases: Case[] = [
+      {
+        name: 'an embedded selector equal to the called selector',
+        data: lsp17Data,
+        callData: `0x${FEE_HOOK_SELECTOR}`,
+        expected: true,
+      },
+      {
+        name: 'an embedded selector equal to the called selector, case-insensitively',
+        data: lsp17Data,
+        callData: `0x${FEE_HOOK_SELECTOR.toUpperCase()}${'00'.repeat(32)}`,
+        expected: true,
+      },
+      {
+        name: 'an embedded selector of another call than the one made',
+        data: lsp17Data,
+        callData: '0x46904840',
+        expected: false,
+      },
       {
         name: 'a left-aligned bytes4 argument',
         data: `${NO_EXTENSION_SELECTOR}${FEE_HOOK_SELECTOR}${'00'.repeat(28)}`,
@@ -153,6 +175,9 @@ describe('contract utils', () => {
           code: 'CALL_EXCEPTION',
           data: c.data,
         });
+        if (c.callData !== undefined) {
+          Object.assign(error, { transaction: { data: c.callData } });
+        }
         expect(isMissingSelectorRevert(error)).to.equal(c.expected);
         expect(isMissingSelectorRevert(wrappedError(error))).to.equal(
           c.expected,
