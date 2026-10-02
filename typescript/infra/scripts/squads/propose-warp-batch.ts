@@ -29,6 +29,7 @@ import {
   ParsedReceipt,
   assertAuthorizedByVault,
   assertSimpleReceipt,
+  combineReceiptProposals,
   parseReceiptFile,
   planReceiptProposals,
   resolveWireAddressLookupTables,
@@ -61,12 +62,14 @@ async function proposeFile({
   signerAdapter,
   dryRun,
   governanceType,
+  batch,
 }: {
   parsed: ParsedReceipt;
   mpp: MultiProtocolProvider;
   signerAdapter: SvmMultiProtocolSignerAdapter;
   dryRun: boolean;
   governanceType: GovernanceType;
+  batch: boolean;
 }): Promise<ProposeOutcome> {
   const { chain, txs } = parsed;
 
@@ -95,6 +98,8 @@ async function proposeFile({
   );
   const plans = planReceiptProposals(txs, altAccountsPerTx);
 
+  const proposalPlans = batch ? [combineReceiptProposals(plans)] : plans;
+
   // Fail closed if any instruction authority is not this chain's configured
   // Squads vault: a route governed by a different vault (e.g. an AbacusWorks
   // Squad routed against the regular Squad) is a misrouted receipt, so we throw
@@ -105,21 +110,21 @@ async function proposeFile({
     throw new Error(authorization.reason);
   }
 
-  const proposalCount = plans.length;
+  const proposalCount = proposalPlans.length;
 
   if (dryRun) {
     rootLogger.info(
       chalk.gray(
-        `[dry-run] Would create ${proposalCount} ordered proposal(s) on ${chain} multisig ${multisigPda.toBase58()}`,
+        `[dry-run] Would create ${proposalCount} proposal(s) containing ${plans.length} source transaction(s) on ${chain} multisig ${multisigPda.toBase58()}`,
       ),
     );
-    return { status: ProposalResultStatus.DryRun, txCount: proposalCount };
+    return { status: ProposalResultStatus.DryRun, txCount: plans.length };
   }
 
-  const memoBase = `Hyperlane warp apply batch (${proposalCount} tx) for ${chain}`;
+  const memoBase = `Hyperlane warp apply batch (${plans.length} source tx) for ${chain}`;
   const { transactionIndexes } = await submitReceiptTxsToSquads(
     chain,
-    plans,
+    proposalPlans,
     mpp,
     signerAdapter,
     memoBase,
@@ -128,7 +133,7 @@ async function proposeFile({
 
   return {
     status: ProposalResultStatus.Proposed,
-    txCount: proposalCount,
+    txCount: plans.length,
     transactionIndexes,
   };
 }
@@ -191,11 +196,18 @@ async function main(): Promise<void> {
         type: 'string',
         describe:
           'Comma-separated list of chain names to limit which files are proposed',
+      })
+      .option('batch', {
+        type: 'boolean',
+        describe:
+          'Combine every source transaction in each receipt file into one Squads proposal',
+        default: false,
       }),
   ).strict().argv;
 
   const { directory } = argv;
   const dryRun = argv['dry-run'];
+  const batch = argv.batch;
   const governanceType = argv.governanceType;
   assert(
     governanceType === GovernanceType.Regular ||
@@ -274,6 +286,7 @@ async function main(): Promise<void> {
         signerAdapter,
         dryRun,
         governanceType,
+        batch,
       });
       const result: FileResult = {
         file,
