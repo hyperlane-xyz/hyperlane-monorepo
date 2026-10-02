@@ -1,5 +1,24 @@
 # @hyperlane-xyz/forking-sdk
 
+## 10.0.0
+
+### Major Changes
+
+- e3844b0: The forking SDK was migrated to the stricter shared TypeScript configuration.
+
+### Patch Changes
+
+- Updated dependencies [ee50f43]
+- Updated dependencies [12678bc]
+- Updated dependencies [9a59116]
+- Updated dependencies [28eda66]
+- Updated dependencies [43f89c6]
+- Updated dependencies [4e2ab65]
+- Updated dependencies [4ad4577]
+- Updated dependencies [f64f992]
+  - @hyperlane-xyz/provider-sdk@11.0.0
+  - @hyperlane-xyz/utils@45.0.0
+
 ## 9.0.2
 
 ### Patch Changes
