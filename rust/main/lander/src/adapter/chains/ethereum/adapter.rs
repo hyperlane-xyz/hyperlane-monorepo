@@ -37,6 +37,7 @@ use hyperlane_ethereum::{
 use crate::adapter::chains::ethereum::metrics::{
     LABEL_BATCHED_TRANSACTION_FAILED, LABEL_BATCHED_TRANSACTION_SUCCESS,
 };
+use crate::error::IsRetryable;
 use crate::AdaptsChainAction;
 use crate::{
     adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
@@ -57,8 +58,9 @@ mod tx_status_checker;
 
 /// Error strings that indicate a nonce conflict or duplicate transaction.
 /// Matched case-insensitively against the lowercased error message.
-const NONCE_TOO_LOW_ERRORS: [&str; 4] = [
+const NONCE_TOO_LOW_ERRORS: [&str; 5] = [
     "nonce too low",
+    "already known",
     // Ethermint/CometBFT chains (e.g. ENI) return non-standard errors for nonce conflicts.
     "gas wanted -1, gas fee is insufficient",
     "tx already exists in tx pool cache",
@@ -192,18 +194,17 @@ impl EthereumAdapter {
             return Ok(());
         }
 
-        // Transaction has been submitted before, check if the new gas price has not
-        // reached limit yet
-
         if gas_price == &tx_gas_price {
-            // If new gas price is the same as the old one, no point in resubmitting
+            // Missing receipts put the transaction back in PendingInclusion, even if it
+            // was previously accepted by the node. Rebroadcast at the same price so a
+            // transaction evicted from the mempool cannot leave a permanent nonce gap.
             info!(
                 ?tx,
-                "not resubmitting transaction since new gas price is the same as the old one"
+                "transaction gas price is unchanged; checking status before rebroadcasting"
             );
 
             return match &tx.status {
-                PendingInclusion => Err(LanderError::TxGasCapReached),
+                PendingInclusion => Ok(()),
                 Dropped(reason) => Err(LanderError::TxDropped(reason.clone())),
                 Mempool | Included | Finalized => Err(LanderError::TxAlreadyExists),
             };
@@ -658,6 +659,7 @@ impl AdaptsChain for EthereumAdapter {
         use LanderError::TxAlreadyExists;
 
         let (nonce, gas_price) = try_join!(self.calculate_nonce(tx), self.estimate_gas_price(tx))?;
+        let gas_price_unchanged = tx.precursor().extract_gas_price() == gas_price;
 
         let previous_nonce: Option<U256> = tx.precursor().tx.nonce().map(|n| (*n).into());
         let nonce_changed = previous_nonce != Some(nonce);
@@ -704,12 +706,24 @@ impl AdaptsChain for EthereumAdapter {
                 return if NONCE_TOO_LOW_ERRORS.iter().any(|s| err_str.contains(s)) {
                     Err(TxAlreadyExists)
                 } else {
-                    Err(e.into())
+                    let error = LanderError::from(e);
+                    if gas_price_unchanged && error.is_retryable() {
+                        // A fee rejection at the cap cannot be fixed by the immediate
+                        // escalation loop. Return to status polling before trying again.
+                        Err(LanderError::TxGasCapReached)
+                    } else {
+                        Err(error)
+                    }
                 };
             }
         };
 
-        tx.tx_hashes.push(hash.into());
+        // A rebroadcast can return an existing hash. Avoid reading its receipt more
+        // than once in each status scan, while retaining distinct replacement hashes.
+        let hash = hash.into();
+        if !tx.tx_hashes.contains(&hash) {
+            tx.tx_hashes.push(hash);
+        }
 
         info!(?tx, "submitted transaction");
 

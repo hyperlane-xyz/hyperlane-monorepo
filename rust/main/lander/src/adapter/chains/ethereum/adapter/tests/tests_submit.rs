@@ -423,6 +423,7 @@ async fn test_multiple_submissions_after_reset() {
 async fn test_submit_treats_ethermint_nonce_errors_as_tx_already_exists() {
     let send_errors = [
         "nonce too low",
+        "already known",
         "gas wanted -1, gas fee is insufficient",
         "tx already exists in tx pool cache",
         "Tx already exist in the fetch queue",
@@ -819,4 +820,148 @@ async fn failed_nonce_read_keeps_transaction_and_nonce_state_unchanged() {
         .await
         .unwrap()
         .is_none());
+}
+
+#[tokio::test]
+async fn legacy_gas_capped_transaction_is_rebroadcast_after_missing_receipts() {
+    assert_gas_capped_transaction_is_rebroadcast(
+        crate::adapter::chains::ethereum::tests::ExpectedTxType::Legacy,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn eip1559_gas_capped_transaction_is_rebroadcast_after_missing_receipts() {
+    assert_gas_capped_transaction_is_rebroadcast(
+        crate::adapter::chains::ethereum::tests::ExpectedTxType::Eip1559,
+    )
+    .await;
+}
+
+async fn assert_gas_capped_transaction_is_rebroadcast(
+    tx_type: crate::adapter::chains::ethereum::tests::ExpectedTxType,
+) {
+    use crate::adapter::chains::ethereum::gas_price::GasPrice;
+    use crate::adapter::chains::ethereum::tests::{dummy_evm_tx, ExpectedTxType};
+    use crate::adapter::chains::ethereum::EthereumAdapter;
+    use crate::TransactionStatus;
+
+    let (payload_db, tx_db, nonce_db) = tmp_dbs();
+    let signer = Address::random();
+    let gas_price = match tx_type {
+        ExpectedTxType::Legacy => GasPrice::NonEip1559 {
+            gas_price: 1_000.into(),
+        },
+        ExpectedTxType::Eip1559 => GasPrice::Eip1559 {
+            max_fee: 1_000.into(),
+            max_priority_fee: 1_000.into(),
+        },
+        ExpectedTxType::Eip2930 => unreachable!(),
+    };
+    let mut tx = dummy_evm_tx(tx_type, vec![], TransactionStatus::Mempool, signer);
+    tx.precursor_mut().tx.set_nonce(51);
+    tx.precursor_mut().tx.set_gas(21_000);
+    EthereumAdapter::update_tx_gas_price(&mut tx, gas_price.clone());
+    let replacement_hash = H256::random();
+    tx.tx_hashes = vec![H256::random().into(), replacement_hash.into()];
+    let original = tx.clone();
+
+    let mut provider = MockEvmProvider::new();
+    provider
+        .expect_get_next_nonce_on_finalized_block()
+        .returning(|_, _| Ok(51.into()));
+    provider
+        .expect_get_transaction_receipt()
+        .times(2)
+        .returning(|_| Ok(None));
+    provider.expect_get_block().returning(|_| {
+        Ok(Some(ethers::types::Block {
+            base_fee_per_gas: Some(100.into()),
+            ..Default::default()
+        }))
+    });
+    provider
+        .expect_fee_history()
+        .returning(|_, _, _| Ok(crate::tests::evm::test_utils::mock_fee_history(100, 10)));
+    let expected_tx = tx.precursor().tx.clone();
+    provider
+        .expect_send()
+        .withf(move |tx, _| *tx == expected_tx)
+        .once()
+        .returning(move |_, _| Ok(replacement_hash));
+    provider.expect_send().once().returning(|_, _| {
+        Err(ChainCommunicationError::CustomError(
+            "temporary send failure".to_owned(),
+        ))
+    });
+    provider.expect_send().once().returning(|_, _| {
+        Err(ChainCommunicationError::CustomError(
+            "already known".to_owned(),
+        ))
+    });
+    for error in [
+        "replacement transaction underpriced",
+        "insufficient fee",
+        "Fair pubdata price too high",
+    ] {
+        provider
+            .expect_send()
+            .once()
+            .returning(move |_, _| Err(ChainCommunicationError::CustomError(error.to_owned())));
+    }
+    provider
+        .expect_send()
+        .once()
+        .returning(move |_, _| Ok(replacement_hash));
+
+    let mut adapter = mock_ethereum_adapter(
+        provider,
+        payload_db,
+        tx_db.clone(),
+        nonce_db,
+        signer,
+        Duration::from_millis(100),
+        Duration::from_millis(100),
+    );
+    adapter.transaction_overrides.gas_price_cap_multiplier = Some(1.into());
+    match tx_type {
+        ExpectedTxType::Legacy => adapter.transaction_overrides.gas_price = Some(1_000.into()),
+        ExpectedTxType::Eip1559 => {
+            adapter.transaction_overrides.max_fee_per_gas = Some(1_000.into());
+            adapter.transaction_overrides.max_priority_fee_per_gas = Some(1_000.into());
+        }
+        ExpectedTxType::Eip2930 => unreachable!(),
+    }
+    adapter
+        .nonce_manager
+        .state
+        .set_tracked_tx_uuid_test(&51.into(), &tx.uuid)
+        .await
+        .unwrap();
+    tx_db.store_transaction_by_uuid(&tx).await.unwrap();
+
+    // Receipt absence after a successful broadcast transitions the transaction back
+    // to pending. It must still send when escalation cannot increase either fee.
+    tx.status = adapter.tx_statuses(&[tx.clone()]).await[0]
+        .as_ref()
+        .unwrap()
+        .clone();
+    assert_eq!(tx.status, TransactionStatus::PendingInclusion);
+    adapter.submit(&mut tx).await.unwrap();
+    assert!(adapter.submit(&mut tx).await.is_err());
+    assert!(matches!(
+        adapter.submit(&mut tx).await,
+        Err(LanderError::TxAlreadyExists)
+    ));
+    for _ in 0..3 {
+        assert!(matches!(
+            adapter.submit(&mut tx).await,
+            Err(LanderError::TxGasCapReached)
+        ));
+    }
+    adapter.submit(&mut tx).await.unwrap();
+
+    assert_eq!(tx.precursor().tx, original.precursor().tx);
+    assert_eq!(tx.precursor().extract_gas_price(), gas_price);
+    assert_eq!(tx.tx_hashes, original.tx_hashes);
 }
