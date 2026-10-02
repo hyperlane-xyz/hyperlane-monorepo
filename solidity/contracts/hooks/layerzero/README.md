@@ -35,11 +35,12 @@ For a message from A to B:
    [send library](https://docs.layerzero.network/v2/concepts/protocol/message-send-library)
    to encode the packet, quote the fee, and assign work to the configured DVNs
    and Executor. `executorConfig` holds its outbound Executor settings for B's
-   endpoint ID.
+   endpoint ID, and `sendUlnConfig` holds the DVN and confirmation requirements
+   it assigns.
 2. DVNs submit packet attestations to B's selected
    [receive library](https://docs.layerzero.network/v2/concepts/protocol/message-receive-library).
-   `ulnConfig` holds the DVN and confirmation requirements applied to both the
-   send and receive libraries. Once those requirements are met, anyone can call
+   `receiveUlnConfig` holds the DVN and confirmation requirements the receive
+   library checks. Once those requirements are met, anyone can call
    the receive library's `commitVerification`; it records the packet's payload
    hash in B's Endpoint.
 3. A configured Executor normally submits the verified packet to
@@ -244,7 +245,7 @@ Rich enrollment configures a route atomically with:
 - exact remote Hook/ISM address;
 - LayerZero remote endpoint ID;
 - explicit send and receive libraries;
-- one symmetric ULN policy; and
+- separate send and receive ULN policies; and
 - one outbound Executor policy.
 
 Enrollment rejects the local domain, zero/local endpoint IDs, a zero peer, and
@@ -260,9 +261,11 @@ atomic.
 
 Calling rich enrollment for an existing domain replaces its route in one
 transaction. The contract sets the supplied peer, endpoint ID, libraries, and
-policy directly. It writes the Executor and ULN config types, using the selected
-library's default for an all-zero config rather than retaining its old value.
-When one library handles both directions, the contract configures it once.
+policy directly. It writes the Executor and send ULN config types to the send
+library and the receive ULN config type to the receive library, using the
+selected library's default for an all-zero config rather than retaining its old
+value. ULN302 libraries are send-only or receive-only and the Endpoint rejects a
+library selected in the wrong direction, so the two writes do not overlap.
 If the endpoint ID changes, the old Endpoint path is blocked and its reverse
 lookup removed. No old library config is reset during overwrite: it is inactive
 once deselected, and a later selection writes a complete policy. If any step
@@ -278,8 +281,12 @@ Operators should drain in-flight packets before rotating or ensure DVNs
 re-attest them through the replacement library.
 
 Endpoint configuration is directional. A to B and B to A may use different
-libraries, DVNs, confirmation counts, and Executors. A LayerZero
-endpoint ID is not an EVM chain ID or Hyperlane domain:
+libraries, DVNs, confirmation counts, and Executors, and within one deployment
+the send and receive ULN policies are independent. For each direction, the
+origin's `sendUlnConfig` must assign DVNs and a confirmation count that satisfy
+the destination's `receiveUlnConfig`; otherwise packets stay pending until the
+policies are corrected. A LayerZero endpoint ID is not an EVM chain ID or
+Hyperlane domain:
 
 ```text
 EVM chain ID != Hyperlane domain != LayerZero endpoint ID

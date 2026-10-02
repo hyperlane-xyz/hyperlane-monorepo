@@ -84,6 +84,8 @@ contract LayerZeroV2HookIsmTest is Test {
     MockLayerZeroEndpointV2 internal destinationEndpoint;
     MockLayerZeroReceiveUln internal originUln;
     MockLayerZeroReceiveUln internal destinationUln;
+    address internal originSendLibrary;
+    address internal destinationSendLibrary;
     TestPostDispatchHook internal noopHook;
     TestRecipient internal recipient;
     LayerZeroV2HookIsm internal originRouter;
@@ -104,6 +106,10 @@ contract LayerZeroV2HookIsmTest is Test {
         );
         originEndpoint.registerMockLibrary(address(originUln));
         destinationEndpoint.registerMockLibrary(address(destinationUln));
+        originSendLibrary = makeAddr("originSendLibrary");
+        destinationSendLibrary = makeAddr("destinationSendLibrary");
+        originEndpoint.registerMockLibrary(originSendLibrary);
+        destinationEndpoint.registerMockLibrary(destinationSendLibrary);
         originEndpoint.setDefaultReceiveLibrary(
             DESTINATION_ENDPOINT_ID,
             address(originUln)
@@ -128,6 +134,7 @@ contract LayerZeroV2HookIsmTest is Test {
         );
         _configure(
             originRouter,
+            originSendLibrary,
             originUln,
             DESTINATION,
             DESTINATION_ENDPOINT_ID,
@@ -135,6 +142,7 @@ contract LayerZeroV2HookIsmTest is Test {
         );
         _configure(
             destinationRouter,
+            destinationSendLibrary,
             destinationUln,
             ORIGIN,
             ORIGIN_ENDPOINT_ID,
@@ -163,6 +171,7 @@ contract LayerZeroV2HookIsmTest is Test {
 
     function _configure(
         LayerZeroV2HookIsm router,
+        address sendLibrary,
         MockLayerZeroReceiveUln uln,
         uint32 domain,
         uint32 endpointId,
@@ -174,10 +183,11 @@ contract LayerZeroV2HookIsmTest is Test {
                 domainId: domain,
                 domainIsm: remote.addressToBytes32(),
                 endpointId: endpointId,
-                sendLibrary: address(uln),
+                sendLibrary: sendLibrary,
                 receiveLibrary: address(uln),
                 executorConfig: _defaultExecutorConfig(),
-                ulnConfig: _defaultUlnConfig()
+                sendUlnConfig: _defaultUlnConfig(),
+                receiveUlnConfig: _defaultUlnConfig()
             })
         );
     }
@@ -212,10 +222,11 @@ contract LayerZeroV2HookIsmTest is Test {
                 domainId: DESTINATION,
                 domainIsm: address(destinationRouter).addressToBytes32(),
                 endpointId: DESTINATION_ENDPOINT_ID,
-                sendLibrary: address(originUln),
+                sendLibrary: originSendLibrary,
                 receiveLibrary: address(originUln),
                 executorConfig: _defaultExecutorConfig(),
-                ulnConfig: _defaultUlnConfig()
+                sendUlnConfig: _defaultUlnConfig(),
+                receiveUlnConfig: _defaultUlnConfig()
             });
     }
 
@@ -245,6 +256,24 @@ contract LayerZeroV2HookIsmTest is Test {
         return
             UlnConfig({
                 confirmations: 5,
+                requiredDVNCount: 1,
+                optionalDVNCount: type(uint8).max,
+                optionalDVNThreshold: 0,
+                requiredDVNs: requiredDvns,
+                optionalDVNs: new address[](0)
+            });
+    }
+
+    function _customReceiveUlnConfig()
+        internal
+        pure
+        returns (UlnConfig memory)
+    {
+        address[] memory requiredDvns = new address[](1);
+        requiredDvns[0] = address(0xB0B);
+        return
+            UlnConfig({
+                confirmations: 7,
                 requiredDVNCount: 1,
                 optionalDVNCount: type(uint8).max,
                 optionalDVNThreshold: 0,
@@ -364,7 +393,8 @@ contract LayerZeroV2HookIsmTest is Test {
             maxMessageSize: 1234,
             executor: address(0xBEEF)
         });
-        config.ulnConfig = _customUlnConfig();
+        config.sendUlnConfig = _customUlnConfig();
+        config.receiveUlnConfig = _customReceiveUlnConfig();
         originRouter.unenrollRemoteRouter(DESTINATION);
         _enrollSingleRoute(originRouter, config);
 
@@ -390,7 +420,7 @@ contract LayerZeroV2HookIsmTest is Test {
         assertEq(
             originEndpoint.getConfig(
                 address(originRouter),
-                address(originUln),
+                originSendLibrary,
                 DESTINATION_ENDPOINT_ID,
                 1
             ),
@@ -399,22 +429,41 @@ contract LayerZeroV2HookIsmTest is Test {
         assertEq(
             originEndpoint.getConfig(
                 address(originRouter),
+                originSendLibrary,
+                DESTINATION_ENDPOINT_ID,
+                2
+            ),
+            abi.encode(config.sendUlnConfig)
+        );
+        assertEq(
+            originEndpoint.getConfig(
+                address(originRouter),
                 address(originUln),
                 DESTINATION_ENDPOINT_ID,
                 2
             ),
-            abi.encode(config.ulnConfig)
+            abi.encode(config.receiveUlnConfig)
         );
 
         config.executorConfig = _defaultExecutorConfig();
-        config.ulnConfig = _defaultUlnConfig();
+        config.sendUlnConfig = _defaultUlnConfig();
+        config.receiveUlnConfig = _defaultUlnConfig();
         _enrollSingleRoute(originRouter, config);
         assertEq(
             originEndpoint.getSendLibrary(
                 address(originRouter),
                 DESTINATION_ENDPOINT_ID
             ),
-            address(originUln)
+            originSendLibrary
+        );
+        assertEq(
+            originEndpoint.getConfig(
+                address(originRouter),
+                originSendLibrary,
+                DESTINATION_ENDPOINT_ID,
+                2
+            ),
+            abi.encode(_defaultUlnConfig())
         );
         assertEq(
             originEndpoint.getConfig(
@@ -470,17 +519,19 @@ contract LayerZeroV2HookIsmTest is Test {
             maxMessageSize: 1234,
             executor: address(0xBEEF)
         });
-        config.ulnConfig = _customUlnConfig();
+        config.sendUlnConfig = _customUlnConfig();
+        config.receiveUlnConfig = _customReceiveUlnConfig();
         _enrollSingleRoute(originRouter, config);
 
         config.executorConfig = _defaultExecutorConfig();
-        config.ulnConfig = _defaultUlnConfig();
+        config.sendUlnConfig = _defaultUlnConfig();
+        config.receiveUlnConfig = _defaultUlnConfig();
         _enrollSingleRoute(originRouter, config);
 
         assertEq(
             originEndpoint.getConfig(
                 address(originRouter),
-                address(originUln),
+                originSendLibrary,
                 DESTINATION_ENDPOINT_ID,
                 1
             ),
@@ -489,20 +540,20 @@ contract LayerZeroV2HookIsmTest is Test {
         assertEq(
             originEndpoint.getConfig(
                 address(originRouter),
+                originSendLibrary,
+                DESTINATION_ENDPOINT_ID,
+                2
+            ),
+            abi.encode(_defaultUlnConfig())
+        );
+        assertEq(
+            originEndpoint.getConfig(
+                address(originRouter),
                 address(originUln),
                 DESTINATION_ENDPOINT_ID,
                 2
             ),
-            abi.encode(
-                UlnConfig({
-                    confirmations: 0,
-                    requiredDVNCount: 0,
-                    optionalDVNCount: 0,
-                    optionalDVNThreshold: 0,
-                    requiredDVNs: new address[](0),
-                    optionalDVNs: new address[](0)
-                })
-            )
+            abi.encode(_defaultUlnConfig())
         );
     }
 
@@ -541,7 +592,7 @@ contract LayerZeroV2HookIsmTest is Test {
         assertEq(
             originEndpoint.getConfig(
                 address(originRouter),
-                address(originUln),
+                originSendLibrary,
                 DESTINATION_ENDPOINT_ID,
                 1
             ),
@@ -595,7 +646,7 @@ contract LayerZeroV2HookIsmTest is Test {
                 address(originRouter),
                 DESTINATION_ENDPOINT_ID
             ),
-            address(originUln)
+            originSendLibrary
         );
         assertEq(
             originEndpoint.receiveLibraries(
@@ -625,6 +676,7 @@ contract LayerZeroV2HookIsmTest is Test {
     {
         _configure(
             originRouter,
+            originSendLibrary,
             originUln,
             0,
             SECOND_DESTINATION_ENDPOINT_ID,
@@ -805,10 +857,11 @@ contract LayerZeroV2HookIsmTest is Test {
                 domainId: ORIGIN,
                 domainIsm: nonEvmPeer,
                 endpointId: ORIGIN_ENDPOINT_ID,
-                sendLibrary: address(destinationUln),
+                sendLibrary: destinationSendLibrary,
                 receiveLibrary: address(destinationUln),
                 executorConfig: _defaultExecutorConfig(),
-                ulnConfig: _defaultUlnConfig()
+                sendUlnConfig: _defaultUlnConfig(),
+                receiveUlnConfig: _defaultUlnConfig()
             })
         );
         assertTrue(
@@ -854,10 +907,11 @@ contract LayerZeroV2HookIsmTest is Test {
                 domainId: ORIGIN,
                 domainIsm: bytes32(uint256(1) << 255),
                 endpointId: ORIGIN_ENDPOINT_ID,
-                sendLibrary: address(destinationUln),
+                sendLibrary: destinationSendLibrary,
                 receiveLibrary: address(destinationUln),
                 executorConfig: _defaultExecutorConfig(),
-                ulnConfig: _defaultUlnConfig()
+                sendUlnConfig: _defaultUlnConfig(),
+                receiveUlnConfig: _defaultUlnConfig()
             });
         destinationRouter.unenrollRemoteRouter(ORIGIN);
         _enrollSingleRoute(destinationRouter, newRemoteConfig);
@@ -1185,7 +1239,8 @@ contract LayerZeroV2HookIsmTest is Test {
                 sendLibrary: address(replacement),
                 receiveLibrary: address(originUln),
                 executorConfig: _defaultExecutorConfig(),
-                ulnConfig: _defaultUlnConfig()
+                sendUlnConfig: _defaultUlnConfig(),
+                receiveUlnConfig: _defaultUlnConfig()
             })
         );
         assertEq(
@@ -1211,7 +1266,8 @@ contract LayerZeroV2HookIsmTest is Test {
             maxMessageSize: 1234,
             executor: address(0xBEEF)
         });
-        newRemoteConfig.ulnConfig = _customUlnConfig();
+        newRemoteConfig.sendUlnConfig = _customUlnConfig();
+        newRemoteConfig.receiveUlnConfig = _customReceiveUlnConfig();
         originRouter.unenrollRemoteRouter(DESTINATION);
         _enrollSingleRoute(originRouter, newRemoteConfig);
 
@@ -1221,7 +1277,7 @@ contract LayerZeroV2HookIsmTest is Test {
                 address(originRouter),
                 DESTINATION_ENDPOINT_ID
             ),
-            address(originUln)
+            originSendLibrary
         );
         (address receiveLibrary, ) = originEndpoint.getReceiveLibrary(
             address(originRouter),
@@ -1231,7 +1287,7 @@ contract LayerZeroV2HookIsmTest is Test {
         assertEq(
             originEndpoint.getConfig(
                 address(originRouter),
-                address(originUln),
+                originSendLibrary,
                 DESTINATION_ENDPOINT_ID,
                 1
             ),
@@ -1240,35 +1296,44 @@ contract LayerZeroV2HookIsmTest is Test {
         assertEq(
             originEndpoint.getConfig(
                 address(originRouter),
+                originSendLibrary,
+                DESTINATION_ENDPOINT_ID,
+                2
+            ),
+            abi.encode(newRemoteConfig.sendUlnConfig)
+        );
+        assertEq(
+            originEndpoint.getConfig(
+                address(originRouter),
                 address(originUln),
                 DESTINATION_ENDPOINT_ID,
                 2
             ),
-            abi.encode(newRemoteConfig.ulnConfig)
+            abi.encode(newRemoteConfig.receiveUlnConfig)
         );
     }
 
-    function testEnrollmentAppliesSharedUlnPolicyToSeparateLibraries() public {
-        MockLayerZeroReceiveUln sendLibrary = new MockLayerZeroReceiveUln(
-            address(originEndpoint)
-        );
-        originEndpoint.registerMockLibrary(address(sendLibrary));
-
+    function testEnrollmentAppliesIndependentUlnPoliciesToSendAndReceive()
+        public
+    {
         LayerZeroV2HookIsm.RemoteRouterConfig
             memory config = _defaultRemoteRouterConfig();
-        config.sendLibrary = address(sendLibrary);
-        config.ulnConfig = _customUlnConfig();
+        config.executorConfig = ExecutorConfig({
+            maxMessageSize: 1234,
+            executor: address(0xBEEF)
+        });
+        config.sendUlnConfig = _customUlnConfig();
+        config.receiveUlnConfig = _customReceiveUlnConfig();
         _enrollSingleRoute(originRouter, config);
 
-        bytes memory encodedUlnConfig = abi.encode(config.ulnConfig);
         assertEq(
             originEndpoint.getConfig(
                 address(originRouter),
-                address(sendLibrary),
+                originSendLibrary,
                 DESTINATION_ENDPOINT_ID,
                 LayerZeroConfigTypeLib.ULN
             ),
-            encodedUlnConfig
+            abi.encode(config.sendUlnConfig)
         );
         assertEq(
             originEndpoint.getConfig(
@@ -1277,13 +1342,26 @@ contract LayerZeroV2HookIsmTest is Test {
                 DESTINATION_ENDPOINT_ID,
                 LayerZeroConfigTypeLib.ULN
             ),
-            encodedUlnConfig
+            abi.encode(config.receiveUlnConfig)
+        );
+        // The Executor policy is outbound-only.
+        assertEq(
+            originEndpoint
+                .getConfig(
+                    address(originRouter),
+                    address(originUln),
+                    DESTINATION_ENDPOINT_ID,
+                    LayerZeroConfigTypeLib.EXECUTOR
+                )
+                .length,
+            0
         );
     }
 
     function testBatchEnrollmentIsAtomic() public {
         _configure(
             originRouter,
+            originSendLibrary,
             originUln,
             SECOND_DESTINATION,
             SECOND_DESTINATION_ENDPOINT_ID,
@@ -1316,6 +1394,7 @@ contract LayerZeroV2HookIsmTest is Test {
     function testBatchEnrollmentRollsBackTogether() public {
         _configure(
             originRouter,
+            originSendLibrary,
             originUln,
             SECOND_DESTINATION,
             SECOND_DESTINATION_ENDPOINT_ID,
@@ -1371,7 +1450,8 @@ contract LayerZeroV2HookIsmTest is Test {
                 sendLibrary: address(0),
                 receiveLibrary: address(originUln),
                 executorConfig: _defaultExecutorConfig(),
-                ulnConfig: _defaultUlnConfig()
+                sendUlnConfig: _defaultUlnConfig(),
+                receiveUlnConfig: _defaultUlnConfig()
             })
         );
         assertEq(router.routers(DESTINATION), bytes32(0));
@@ -1567,10 +1647,11 @@ contract LayerZeroV2HookIsmTest is Test {
                 domainId: ORIGIN,
                 domainIsm: address(originRouter).addressToBytes32(),
                 endpointId: ORIGIN_ENDPOINT_ID,
-                sendLibrary: address(destinationUln),
+                sendLibrary: destinationSendLibrary,
                 receiveLibrary: address(replacement),
                 executorConfig: _defaultExecutorConfig(),
-                ulnConfig: _defaultUlnConfig()
+                sendUlnConfig: _defaultUlnConfig(),
+                receiveUlnConfig: _defaultUlnConfig()
             })
         );
     }
@@ -2274,10 +2355,11 @@ contract LayerZeroV2HookIsmTest is Test {
             domainId: SECOND_DESTINATION,
             domainIsm: address(0xBEEF).addressToBytes32(),
             endpointId: SECOND_DESTINATION_ENDPOINT_ID,
-            sendLibrary: address(originUln),
+            sendLibrary: originSendLibrary,
             receiveLibrary: address(originUln),
             executorConfig: _defaultExecutorConfig(),
-            ulnConfig: _defaultUlnConfig()
+            sendUlnConfig: _defaultUlnConfig(),
+            receiveUlnConfig: _defaultUlnConfig()
         });
         LayerZeroV2HookIsm(address(originRouter)).enrollRemoteRouters(
             remoteConfigs

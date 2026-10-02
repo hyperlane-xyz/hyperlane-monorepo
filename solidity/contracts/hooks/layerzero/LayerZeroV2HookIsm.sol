@@ -170,10 +170,15 @@ contract LayerZeroV2HookIsm is
         /// @notice Executor policy applied only to outbound packets.
         /// An all-zero value selects the send library's default.
         ExecutorConfig executorConfig;
-        /// @notice DVN and confirmation policy applied in both directions.
-        /// An all-zero value selects each library's mutable, owner-controlled
-        /// default and therefore extends trust to that library's governance.
-        UlnConfig ulnConfig;
+        /// @notice DVN and confirmation policy written to the send library for
+        /// outbound packets. An all-zero value selects the library's mutable,
+        /// owner-controlled default and therefore extends trust to that
+        /// library's governance.
+        UlnConfig sendUlnConfig;
+        /// @notice DVN and confirmation policy written to the receive library
+        /// and checked for inbound packets. The same default-selection and
+        /// trust caveat as `sendUlnConfig` applies.
+        UlnConfig receiveUlnConfig;
     }
 
     /// @dev Fields retained for packet verification.
@@ -574,8 +579,10 @@ contract LayerZeroV2HookIsm is
         }
     }
 
-    /// @dev Applies one symmetric ULN policy in both directions and the
-    /// Executor policy only on sends. A shared library is configured once.
+    /// @dev Writes the send policy (Executor and ULN) to the send library and
+    /// the receive policy (ULN only) to the receive library. ULN302 libraries
+    /// are send-only or receive-only and the Endpoint rejects the wrong
+    /// direction, so the two writes do not overlap.
     function _setLayerZeroConfig(
         RemoteRouterConfig calldata remoteConfig
     ) internal {
@@ -587,10 +594,6 @@ contract LayerZeroV2HookIsm is
             remoteConfig.sendLibrary,
             sendParams
         );
-
-        if (remoteConfig.receiveLibrary == remoteConfig.sendLibrary) {
-            return;
-        }
 
         LayerZeroSetConfigParam[] memory receiveParams = _receiveConfigParams(
             remoteConfig
@@ -614,7 +617,7 @@ contract LayerZeroV2HookIsm is
         params[1] = LayerZeroSetConfigParam({
             eid: remoteConfig.endpointId,
             configType: LayerZeroConfigTypeLib.ULN,
-            config: abi.encode(remoteConfig.ulnConfig)
+            config: abi.encode(remoteConfig.sendUlnConfig)
         });
     }
 
@@ -625,7 +628,7 @@ contract LayerZeroV2HookIsm is
         params[0] = LayerZeroSetConfigParam({
             eid: remoteConfig.endpointId,
             configType: LayerZeroConfigTypeLib.ULN,
-            config: abi.encode(remoteConfig.ulnConfig)
+            config: abi.encode(remoteConfig.receiveUlnConfig)
         });
     }
 

@@ -69,7 +69,8 @@ contract LayerZeroV2HookIsmForkTest is Test {
                 sendLibrary: SEND_ULN_302,
                 receiveLibrary: RECEIVE_ULN_302,
                 executorConfig: _defaultExecutorConfig(),
-                ulnConfig: _defaultUlnConfig()
+                sendUlnConfig: _defaultUlnConfig(),
+                receiveUlnConfig: _defaultUlnConfig()
             })
         );
     }
@@ -140,7 +141,8 @@ contract LayerZeroV2HookIsmForkTest is Test {
                 sendLibrary: SEND_ULN_302,
                 receiveLibrary: RECEIVE_ULN_302,
                 executorConfig: updatedExecutorConfig,
-                ulnConfig: _defaultUlnConfig()
+                sendUlnConfig: _defaultUlnConfig(),
+                receiveUlnConfig: _defaultUlnConfig()
             });
         _enrollSingleRoute(router, newRemoteConfig);
 
@@ -211,7 +213,8 @@ contract LayerZeroV2HookIsmForkTest is Test {
                 sendLibrary: SEND_ULN_302,
                 receiveLibrary: RECEIVE_ULN_302,
                 executorConfig: customExecutorConfig,
-                ulnConfig: _defaultUlnConfig()
+                sendUlnConfig: _defaultUlnConfig(),
+                receiveUlnConfig: _defaultUlnConfig()
             });
         router.unenrollRemoteRouter(ARBITRUM_DOMAIN);
         _enrollSingleRoute(router, config);
@@ -303,7 +306,8 @@ contract LayerZeroV2HookIsmForkTest is Test {
                 sendLibrary: SEND_ULN_302,
                 receiveLibrary: RECEIVE_ULN_302,
                 executorConfig: _defaultExecutorConfig(),
-                ulnConfig: _defaultUlnConfig()
+                sendUlnConfig: _defaultUlnConfig(),
+                receiveUlnConfig: _defaultUlnConfig()
             })
         );
 
@@ -324,7 +328,8 @@ contract LayerZeroV2HookIsmForkTest is Test {
                 sendLibrary: SEND_ULN_302,
                 receiveLibrary: RECEIVE_ULN_302,
                 executorConfig: _defaultExecutorConfig(),
-                ulnConfig: _defaultUlnConfig()
+                sendUlnConfig: _defaultUlnConfig(),
+                receiveUlnConfig: _defaultUlnConfig()
             })
         );
         (receiveLibrary, isDefault) = ENDPOINT.getReceiveLibrary(
@@ -333,6 +338,65 @@ contract LayerZeroV2HookIsmForkTest is Test {
         );
         assertEq(receiveLibrary, RECEIVE_ULN_302);
         assertFalse(isDefault);
+    }
+
+    function testProductionEnrollmentAppliesIndependentUlnPolicies() public {
+        address[] memory sendDvns = new address[](1);
+        sendDvns[0] = address(0xA11CE);
+        address[] memory receiveDvns = new address[](1);
+        receiveDvns[0] = address(0xB0B);
+        _enrollSingleRoute(
+            router,
+            LayerZeroV2HookIsm.RemoteRouterConfig({
+                domainId: ARBITRUM_DOMAIN,
+                domainIsm: address(0xBEEF).addressToBytes32(),
+                endpointId: ARBITRUM_ENDPOINT_ID,
+                sendLibrary: SEND_ULN_302,
+                receiveLibrary: RECEIVE_ULN_302,
+                executorConfig: _defaultExecutorConfig(),
+                sendUlnConfig: _explicitUlnConfig(3, sendDvns),
+                receiveUlnConfig: _explicitUlnConfig(7, receiveDvns)
+            })
+        );
+
+        UlnConfig memory sendUln = abi.decode(
+            ENDPOINT.getConfig(
+                address(router),
+                SEND_ULN_302,
+                ARBITRUM_ENDPOINT_ID,
+                2
+            ),
+            (UlnConfig)
+        );
+        UlnConfig memory receiveUln = abi.decode(
+            ENDPOINT.getConfig(
+                address(router),
+                RECEIVE_ULN_302,
+                ARBITRUM_ENDPOINT_ID,
+                2
+            ),
+            (UlnConfig)
+        );
+
+        assertEq(sendUln.confirmations, 3);
+        assertEq(sendUln.requiredDVNs[0], address(0xA11CE));
+        assertEq(receiveUln.confirmations, 7);
+        assertEq(receiveUln.requiredDVNs[0], address(0xB0B));
+    }
+
+    function _explicitUlnConfig(
+        uint64 confirmations,
+        address[] memory requiredDvns
+    ) internal pure returns (UlnConfig memory) {
+        return
+            UlnConfig({
+                confirmations: confirmations,
+                requiredDVNCount: uint8(requiredDvns.length),
+                optionalDVNCount: type(uint8).max,
+                optionalDVNThreshold: 0,
+                requiredDVNs: requiredDvns,
+                optionalDVNs: new address[](0)
+            });
     }
 
     struct InboundPacket {
@@ -364,7 +428,8 @@ contract LayerZeroV2HookIsmForkTest is Test {
                 sendLibrary: SEND_ULN_302,
                 receiveLibrary: RECEIVE_ULN_302,
                 executorConfig: _defaultExecutorConfig(),
-                ulnConfig: ulnConfig
+                sendUlnConfig: _defaultUlnConfig(),
+                receiveUlnConfig: ulnConfig
             })
         );
     }
