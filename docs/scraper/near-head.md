@@ -348,6 +348,44 @@ Record the verification evidence, canonical hash and timestamp of `H`, and the
 configured mailbox, Merkle hook and gas-paymaster addresses. `H` must be at least
 `index.from - 1`. All writers must remain stopped.
 
+Use the same byte representation as `HyperlaneProvider::get_block_by_height`.
+Do not paste a chain explorer's display value without checking its encoding:
+
+| Protocol               | Valid `H` and stored 32-byte hash                                                                                                                                     | Cutover sequence prerequisite                                                                                        |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Ethereum               | A canonical block number and its RPC block hash.                                                                                                                      | Stored dispatch nonce and Merkle leaf index must be contiguous through the contract counts at `H`.                   |
+| Sealevel               | An existing finalized slot, not a skipped slot; base58-decode its blockhash to the raw 32 bytes before hex encoding it.                                               | Stored dispatch nonce and Merkle leaf index maxima must agree because insertions are derived from dispatches.        |
+| Cosmos / Cosmos Native | A queryable height of at least 1 and the Tendermint/Comet block ID hash bytes.                                                                                        | Verify every available contract count at `H`; range-only delivery and gas streams still require the log audit above. |
+| Starknet               | A confirmed block number and its felt block hash, left-padded to 32 bytes.                                                                                            | Verify mailbox nonce and Merkle count at `H`; delivery and gas streams still require the log audit above.            |
+| Radix                  | A committed state version containing a transaction; the stored hash is that state version as a 32-byte big-endian integer. The Gateway must be caught up through `H`. | All four component sequence counts must match durable history at `H`.                                                |
+| Aleo                   | A canonical block height and the native block hash decoded by the configured provider to 32 bytes.                                                                    | All four program mapping counts must match durable history at `H`.                                                   |
+| Tron                   | A solidified block number and its 32-byte `blockID`.                                                                                                                  | Verify mailbox nonce and Merkle count at `H`; delivery and gas streams still require the log audit above.            |
+
+When legacy `block` already contains `H`, this read-only query prints the exact
+hex encoding the Hyperlane provider previously stored. It must match a fresh
+canonical RPC lookup; absence of a row requires deriving the value using the
+protocol rule above rather than guessing:
+
+```sql
+SELECT domain,height,encode(hash,'hex') AS provider_block_hash,
+       extract(epoch FROM timestamp)::bigint AS timestamp
+FROM block
+WHERE domain=:'domain'::integer AND height=:'height'::bigint;
+```
+
+For Sealevel, also require this read-only precondition before seeding. Both
+values are next-sequence counts, so equality proves the two derived streams end
+at the same durable sequence (not that either stream is otherwise complete):
+
+```sql
+SELECT
+  coalesce(max(nonce::bigint & 4294967295)+1,0) AS dispatch_count,
+  (SELECT coalesce(max(leaf_index::bigint & 4294967295)+1,0)
+   FROM merkle_tree_insertion WHERE domain=:'domain'::integer) AS insertion_count
+FROM raw_message_dispatch
+WHERE origin_domain=:'domain'::integer;
+```
+
 #### Check overlap
 
 Run these read-only checks before seeding, outside any transaction or lock. They
@@ -451,6 +489,23 @@ repeat verification rather than moving the saved boundary forwards.
 
 On a shared database, check its headroom before starting the scraper. Every
 seeded domain starts catching up from its `H` at once.
+
+Development or test databases that ran an earlier build of this branch may
+still record the now-removed migration
+`m20260925_000017_verified_frontier`. Before running this branch's migration
+binary against any database that records it, stop its writers and remove the
+abandoned schema change and migration record:
+
+```sql
+BEGIN;
+SET LOCAL lock_timeout='5s';
+ALTER TABLE scraper_head
+  DROP CONSTRAINT IF EXISTS scraper_head_verified_height_check,
+  DROP COLUMN IF EXISTS verified_height;
+DELETE FROM seaql_migrations
+WHERE version='m20260925_000017_verified_frontier';
+COMMIT;
+```
 
 SELECT grants on existing event tables are copied to the confirmed views. External
 SQL consumers wanting the old visibility must use `confirmed_raw_message_dispatch`,

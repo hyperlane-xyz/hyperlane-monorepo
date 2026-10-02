@@ -28,16 +28,6 @@ fn minimum_auto_anchor(protocol: HyperlaneDomainProtocol) -> u64 {
     }
 }
 
-/// Prevent accidental fallback to legacy writers while provisional state exists.
-pub async fn ensure_legacy_mode(legacy: &HyperlaneDbStore) -> Result<()> {
-    let store = Store {
-        db: legacy.db.clone_connection(),
-        domain: legacy.domain.id(),
-    };
-    ensure!(store.state().await?.is_none(), "Cannot use legacy indexers with retained near-head state; drain and clear scraper_head before switching protocols");
-    Ok(())
-}
-
 /// Keep auxiliary writers out of the provisional suffix, including after a halt.
 pub async fn confirmed_height(db: &crate::db::ScraperDb, domain: u32) -> Result<u32> {
     let state = Store {
@@ -309,14 +299,23 @@ async fn ingest_cached(
         end_counts,
     )?;
     let (batch, start_counts) = events;
-    if source.indexes_by_sequence()
-        && batch
+    if source.indexes_by_sequence() {
+        if batch
+            .events
+            .iter()
+            .any(|event| event.block_number <= state.confirmed)
+        {
+            store.pause(true).await?;
+            eyre::bail!("Sequence gap crossed confirmed history; operator repair required");
+        }
+        if batch
             .events
             .iter()
             .any(|event| event.block_number <= state.indexed)
-    {
-        store.rewind_to_confirmed(state).await?;
-        eyre::bail!("Sequence gap crossed the provisional frontier; rewound for retry");
+        {
+            store.rewind_to_confirmed(state).await?;
+            eyre::bail!("Sequence gap crossed the provisional frontier; rewound for retry");
+        }
     }
     if let Some(indexed_through) = batch.indexed_through {
         ensure!(
@@ -331,7 +330,23 @@ async fn ingest_cached(
         }
     }
     let events = batch.events;
-    let validated_counts = advance_sequences(&events, start_counts)?;
+    let validated_counts = match advance_sequences(&events, start_counts) {
+        Ok(counts) => counts,
+        Err(error) if !source.indexes_by_sequence() => {
+            store.rewind_to_confirmed(state).await?;
+            return Err(error.wrap_err("Block-mode sequence gap; rewound for retry"));
+        }
+        Err(error) => return Err(error),
+    };
+    if batch
+        .end_counts
+        .iter()
+        .enumerate()
+        .any(|(stream, count)| count.is_some_and(|count| count != validated_counts[stream]))
+    {
+        store.rewind_to_confirmed(state).await?;
+        eyre::bail!("Incomplete block-mode event range; rewound for retry");
+    }
     if let Some(end_counts) = end_counts {
         if validated_counts[0] != end_counts[0] || validated_counts[3] != end_counts[1] {
             eyre::bail!("Incomplete event range");
@@ -510,14 +525,10 @@ async fn confirm_leased(
         );
     }
     // A sparse boundary must be checked against the indexed range's canonical tip.
-    let indexed_hash = if through == state.indexed {
-        boundary.hash
-    } else {
-        source
-            .header(BlockSelector::Height(state.indexed))
-            .await?
-            .hash
-    };
+    let indexed_hash = source
+        .fresh_header(BlockSelector::Height(state.indexed))
+        .await?
+        .hash;
     ensure!(
         indexed_hash == state.hash,
         "Indexed fork changed before confirmation"

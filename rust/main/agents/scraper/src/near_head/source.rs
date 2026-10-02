@@ -62,6 +62,10 @@ pub(super) enum EventData {
 pub(super) struct EventBatch {
     pub events: Vec<Event>,
     pub indexed_through: Option<u64>,
+    /// Stream counts at `indexed_through`, when the indexer can prove them at
+    /// that exact boundary. Block-mode ingestion uses these to reject a
+    /// silently truncated range.
+    pub end_counts: [Option<u32>; 4],
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -109,6 +113,7 @@ pub(super) trait Source: Send + Sync {
         Ok(EventBatch {
             events: self.events(from, through).await?,
             indexed_through: None,
+            end_counts: [None; 4],
         })
     }
     /// Dispatch nonce and Merkle count, pinned to the range boundary fork.
@@ -408,7 +413,7 @@ impl GenericSource {
         next_sequence: u32,
         sequence_mode: bool,
         chunk_size: u32,
-    ) -> Result<(Vec<(Indexed<T>, LogMeta)>, u32)> {
+    ) -> Result<(Vec<(Indexed<T>, LogMeta)>, u32, Option<u32>)> {
         let (count, tip) = indexer.latest_sequence_count_and_tip().await?;
         ensure!(
             tip >= *blocks.end(),
@@ -418,6 +423,7 @@ impl GenericSource {
             return Ok((
                 indexer.fetch_logs_in_range(blocks.clone()).await?,
                 *blocks.end(),
+                (tip == *blocks.end()).then_some(count).flatten(),
             ));
         }
         let count = count.ok_or_else(|| eyre!("Indexer does not expose a sequence count"))?;
@@ -426,7 +432,7 @@ impl GenericSource {
             "Provider sequence count is behind durable history"
         );
         if count == next_sequence {
-            return Ok((Vec::new(), tip.min(*blocks.end())));
+            return Ok((Vec::new(), tip.min(*blocks.end()), None));
         }
         ensure!(chunk_size > 0, "index.chunk must be positive");
         let mut logs = Vec::new();
@@ -493,6 +499,7 @@ impl GenericSource {
         Ok((
             logs,
             indexed_through.ok_or_else(|| eyre!("Sequence page made no progress"))?,
+            None,
         ))
     }
 
@@ -730,7 +737,7 @@ impl Source for GenericSource {
             ),
             async {
                 if self.derive_insertions_from_messages {
-                    Ok((Vec::new(), u32::try_from(through)?))
+                    Ok((Vec::new(), u32::try_from(through)?, None))
                 } else {
                     Self::logs(
                         self.insertions.as_ref(),
@@ -743,12 +750,13 @@ impl Source for GenericSource {
                 }
             },
         )?;
-        let (messages, message_through) = messages;
-        let (deliveries, delivery_through) = deliveries;
-        let (payments, payment_through) = payments;
-        let (insertions, mut insertion_through) = insertions;
+        let (messages, message_through, message_count) = messages;
+        let (deliveries, delivery_through, delivery_count) = deliveries;
+        let (payments, payment_through, payment_count) = payments;
+        let (insertions, mut insertion_through, mut insertion_count) = insertions;
         if self.derive_insertions_from_messages {
             insertion_through = message_through;
+            insertion_count = message_count;
         }
         let indexed_through = [
             message_through,
@@ -810,6 +818,12 @@ impl Source for GenericSource {
         Ok(EventBatch {
             events,
             indexed_through: Some(u64::from(indexed_through)),
+            end_counts: [
+                message_count,
+                delivery_count,
+                payment_count,
+                insertion_count,
+            ],
         })
     }
 }
@@ -957,6 +971,41 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn empty_anchor_uses_the_zero_count_common_tip() -> Result<()> {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let source = GenericSource {
+            provider: Box::new(CountingProvider {
+                domain: hyperlane_core::HyperlaneDomain::new_test_domain("empty-anchor"),
+                calls,
+            }),
+            messages: Box::new(EmptyIndexer::<HyperlaneMessage>(PhantomData)),
+            deliveries: Box::new(EmptyIndexer::<H256>(PhantomData)),
+            payments: Box::new(EmptyIndexer::<InterchainGasPayment>(PhantomData)),
+            insertions: Box::new(EmptyIndexer::<MerkleTreeInsertion>(PhantomData)),
+            contracts: Contracts {
+                mailbox: H256::zero(),
+                hook: H256::zero(),
+                paymaster: H256::zero(),
+            },
+            sequence_mode: true,
+            derive_insertions_from_messages: false,
+            chunk_size: 1,
+            headers: RwLock::new(HashMap::new()),
+        };
+
+        assert_eq!(
+            source.empty_anchor().await?,
+            Some(Header {
+                height: 7,
+                timestamp: 7,
+                hash: EthersH256::from_low_u64_be(7),
+                parent: EthersH256::zero(),
+            })
+        );
+        Ok(())
+    }
+
     #[derive(Debug)]
     struct SequenceIndexer {
         count: u32,
@@ -1024,8 +1073,10 @@ mod tests {
             .lock()
             .expect("request mutex poisoned")
             .clear();
-        let (_, indexed_through) = GenericSource::logs(&indexer, 100..=200, 7, false, 2).await?;
+        let (_, indexed_through, end_count) =
+            GenericSource::logs(&indexer, 100..=200, 7, false, 2).await?;
         assert_eq!(indexed_through, 200);
+        assert_eq!(end_count, Some(10));
         assert_eq!(
             *indexer.requests.lock().expect("request mutex poisoned"),
             vec![100..=200]
@@ -1053,6 +1104,7 @@ mod tests {
         };
         let bounded_result = GenericSource::logs(&bounded, 0..=3, 0, true, 2).await?;
         assert_eq!(bounded_result.1, 0);
+        assert_eq!(bounded_result.2, None);
         assert_eq!(
             *bounded.requests.lock().expect("request mutex poisoned"),
             vec![0..=1]

@@ -7,7 +7,6 @@
 #![deny(clippy::arithmetic_side_effects)]
 
 pub use crate::composite_ism::{MetadataSpec as CompositeIsmMetadataSpec, SealevelCompositeIsm};
-pub use crate::error::is_get_block_unresolvable_after_retries;
 pub use crate::multisig_ism::*;
 pub use alt::{NonEmptyAltAddresses, SealevelTransactionFormat};
 pub use interchain_gas::*;

@@ -424,6 +424,14 @@ impl RadixProvider {
                 })
                 .await?;
 
+            if (response.ledger_state.state_version as u64) < end_state_version {
+                return Err(HyperlaneRadixError::Other(format!(
+                    "Gateway state version {} is behind requested range end {end_state_version}",
+                    response.ledger_state.state_version
+                ))
+                .into());
+            }
+
             for item in response.items {
                 // the cursor is open end and will go up to the most recent state version
                 // dismiss all the txs that are not in the specified state version range
@@ -725,6 +733,13 @@ impl HyperlaneProvider for RadixProvider {
         if tx.items.is_empty() {
             return Err(HyperlaneRadixError::Other(format!(
                 "Expected at least one tx for state version: {height}"
+            ))
+            .into());
+        }
+        if tx.ledger_state.state_version as u64 != height {
+            return Err(HyperlaneRadixError::Other(format!(
+                "Gateway returned state version {} for requested state version {height}",
+                tx.ledger_state.state_version
             ))
             .into());
         }
