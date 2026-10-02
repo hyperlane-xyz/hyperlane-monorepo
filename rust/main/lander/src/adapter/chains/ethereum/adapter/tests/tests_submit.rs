@@ -419,75 +419,101 @@ async fn test_multiple_submissions_after_reset() {
     );
 }
 
+/// Submits a fresh transaction whose first broadcast fails with `send_error`.
+async fn submit_first_send_with_error(
+    send_error: &str,
+) -> (Result<(), LanderError>, crate::transaction::Transaction) {
+    let (payload_db, tx_db, nonce_db) = tmp_dbs();
+
+    let mut provider = MockEvmProvider::new();
+
+    provider
+        .expect_get_finalized_block_number()
+        .returning(|_| Ok(43));
+
+    provider
+        .expect_get_next_nonce_on_finalized_block()
+        .returning(|_, _| Ok(hyperlane_core::U256::from(51)));
+
+    provider.expect_get_block().returning(|_| {
+        Ok(Some(ethers::types::Block {
+            number: Some(42.into()),
+            base_fee_per_gas: Some(100.into()),
+            gas_limit: 30000000.into(),
+            ..Default::default()
+        }))
+    });
+
+    provider.expect_fee_history().returning(|_, _, _| {
+        Ok(ethers::types::FeeHistory {
+            oldest_block: 0.into(),
+            reward: vec![vec![10.into()]],
+            base_fee_per_gas: vec![200000.into()],
+            gas_used_ratio: vec![0.0],
+        })
+    });
+
+    let send_error_str = send_error.to_string();
+    provider
+        .expect_send()
+        .returning(move |_, _| Err(ChainCommunicationError::CustomError(send_error_str.clone())));
+
+    let signer = Address::random();
+    let block_time = Duration::from_millis(100);
+    let minimum_time_between_resubmissions = Duration::from_millis(100);
+
+    let adapter = mock_ethereum_adapter(
+        provider,
+        payload_db.clone(),
+        tx_db,
+        nonce_db,
+        signer,
+        block_time,
+        minimum_time_between_resubmissions,
+    );
+
+    let mut tx = build_and_store_transaction(&adapter, &payload_db).await;
+    let result = adapter.submit(&mut tx).await;
+    (result, tx)
+}
+
 #[tokio::test]
 async fn test_submit_treats_ethermint_nonce_errors_as_tx_already_exists() {
     let send_errors = [
         "nonce too low",
-        "already known",
         "gas wanted -1, gas fee is insufficient",
         "tx already exists in tx pool cache",
         "Tx already exist in the fetch queue",
     ];
 
     for send_error in send_errors {
-        let (payload_db, tx_db, nonce_db) = tmp_dbs();
-
-        let mut provider = MockEvmProvider::new();
-
-        provider
-            .expect_get_finalized_block_number()
-            .returning(|_| Ok(43));
-
-        provider
-            .expect_get_next_nonce_on_finalized_block()
-            .returning(|_, _| Ok(hyperlane_core::U256::from(51)));
-
-        provider.expect_get_block().returning(|_| {
-            Ok(Some(ethers::types::Block {
-                number: Some(42.into()),
-                base_fee_per_gas: Some(100.into()),
-                gas_limit: 30000000.into(),
-                ..Default::default()
-            }))
-        });
-
-        provider.expect_fee_history().returning(|_, _, _| {
-            Ok(ethers::types::FeeHistory {
-                oldest_block: 0.into(),
-                reward: vec![vec![10.into()]],
-                base_fee_per_gas: vec![200000.into()],
-                gas_used_ratio: vec![0.0],
-            })
-        });
-
-        let send_error_str = send_error.to_string();
-        let send_error_display = send_error_str.clone();
-        provider.expect_send().returning(move |_, _| {
-            Err(ChainCommunicationError::CustomError(send_error_str.clone()))
-        });
-
-        let signer = Address::random();
-        let block_time = Duration::from_millis(100);
-        let minimum_time_between_resubmissions = Duration::from_millis(100);
-
-        let adapter = mock_ethereum_adapter(
-            provider,
-            payload_db.clone(),
-            tx_db,
-            nonce_db,
-            signer,
-            block_time,
-            minimum_time_between_resubmissions,
-        );
-
-        let mut tx = build_and_store_transaction(&adapter, &payload_db).await;
-        let result = adapter.submit(&mut tx).await;
-
+        let (result, _) = submit_first_send_with_error(send_error).await;
         assert!(
             matches!(result, Err(LanderError::TxAlreadyExists)),
-            "Expected TxAlreadyExists for send error: {send_error_display:?}, got: {result:?}"
+            "Expected TxAlreadyExists for send error: {send_error:?}, got: {result:?}"
         );
     }
+}
+
+/// "already known" on a first send can follow a lost response, before any hash was
+/// recorded. It must stay a retryable submission error rather than mark the
+/// transaction as already broadcast with nothing to poll.
+#[tokio::test]
+async fn test_submit_keeps_first_send_already_known_retryable() {
+    use crate::error::IsRetryable;
+
+    let (result, tx) = submit_first_send_with_error("already known").await;
+    let error = result.expect_err("first send must fail");
+    assert!(
+        !matches!(
+            error,
+            LanderError::TxAlreadyExists | LanderError::TxGasCapReached
+        ),
+        "unexpected classification: {error:?}"
+    );
+    assert!(error.is_retryable(), "expected retryable, got: {error:?}");
+    assert!(tx.precursor().tx.nonce().is_none());
+    assert!(tx.tx_hashes.is_empty());
 }
 
 /// Test that submit handles nonce reset to finalized + 1
@@ -948,7 +974,12 @@ async fn assert_gas_capped_transaction_is_rebroadcast(
         .clone();
     assert_eq!(tx.status, TransactionStatus::PendingInclusion);
     adapter.submit(&mut tx).await.unwrap();
-    assert!(adapter.submit(&mut tx).await.is_err());
+    // A failed identical rebroadcast parks the transaction for status polling; it
+    // must never surface as a non-retryable error that drops it and frees the nonce.
+    assert!(matches!(
+        adapter.submit(&mut tx).await,
+        Err(LanderError::TxGasCapReached)
+    ));
     assert!(matches!(
         adapter.submit(&mut tx).await,
         Err(LanderError::TxAlreadyExists)

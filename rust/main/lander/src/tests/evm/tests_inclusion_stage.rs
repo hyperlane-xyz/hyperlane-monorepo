@@ -1289,6 +1289,18 @@ async fn run_and_expect_successful_inclusion(
 #[tokio::test]
 #[traced_test]
 async fn test_tx_kept_pending_when_gas_reaches_3x_cap() {
+    assert_capped_rebroadcast_failure_keeps_tx("replacement transaction underpriced").await;
+}
+
+/// A transport failure on an identical capped rebroadcast must not drop the
+/// transaction: it was broadcast before and its nonce must stay reserved.
+#[tokio::test]
+#[traced_test]
+async fn test_capped_tx_kept_pending_when_rebroadcast_send_fails() {
+    assert_capped_rebroadcast_failure_keeps_tx("connection reset by peer").await;
+}
+
+async fn assert_capped_rebroadcast_failure_keeps_tx(send_error: &'static str) {
     let block_time = TEST_BLOCK_TIME;
     let signer = H160::random();
 
@@ -1318,9 +1330,7 @@ async fn test_tx_kept_pending_when_gas_reaches_3x_cap() {
     mock_evm_provider.expect_send().once().returning(|tx, _| {
         assert_eq!(tx.nonce(), Some(&EthersU256::from(1)));
         assert_eq!(tx.gas_price(), Some(EthersU256::from(600000)));
-        Err(ChainCommunicationError::CustomError(
-            "replacement transaction underpriced".to_owned(),
-        ))
+        Err(ChainCommunicationError::CustomError(send_error.to_owned()))
     });
 
     let (payload_db, tx_db, nonce_db) = tmp_dbs();

@@ -56,11 +56,13 @@ mod gas_limit_estimator;
 mod gas_price;
 mod tx_status_checker;
 
+/// Geth's reply when the exact signed transaction is already in its pool.
+const ALREADY_KNOWN_ERROR: &str = "already known";
+
 /// Error strings that indicate a nonce conflict or duplicate transaction.
 /// Matched case-insensitively against the lowercased error message.
-const NONCE_TOO_LOW_ERRORS: [&str; 5] = [
+const NONCE_TOO_LOW_ERRORS: [&str; 4] = [
     "nonce too low",
-    "already known",
     // Ethermint/CometBFT chains (e.g. ENI) return non-standard errors for nonce conflicts.
     "gas wanted -1, gas fee is insufficient",
     "tx already exists in tx pool cache",
@@ -200,7 +202,7 @@ impl EthereumAdapter {
             // transaction evicted from the mempool cannot leave a permanent nonce gap.
             info!(
                 ?tx,
-                "transaction gas price is unchanged; checking status before rebroadcasting"
+                "transaction gas price is unchanged; rebroadcasting if still pending"
             );
 
             return match &tx.status {
@@ -659,7 +661,8 @@ impl AdaptsChain for EthereumAdapter {
         use LanderError::TxAlreadyExists;
 
         let (nonce, gas_price) = try_join!(self.calculate_nonce(tx), self.estimate_gas_price(tx))?;
-        let gas_price_unchanged = tx.precursor().extract_gas_price() == gas_price;
+        let gas_price_unchanged =
+            gas_price != GasPrice::None && tx.precursor().extract_gas_price() == gas_price;
 
         let previous_nonce: Option<U256> = tx.precursor().tx.nonce().map(|n| (*n).into());
         let nonce_changed = previous_nonce != Some(nonce);
@@ -702,12 +705,20 @@ impl AdaptsChain for EthereumAdapter {
                         None => clear_nonce(&mut tx.precursor_mut().tx),
                     }
                 }
+                // Resending identical signed bytes whose hash is already recorded. A
+                // failed resend is never a reason to drop the transaction or free its
+                // nonce: it was broadcast before and may still land.
+                let rebroadcast = !nonce_changed && gas_price_unchanged;
                 let err_str = e.to_string().to_lowercase();
-                return if NONCE_TOO_LOW_ERRORS.iter().any(|s| err_str.contains(s)) {
+                // "already known" only proves an existing hash for a rebroadcast. On a
+                // first send it can follow a lost response, with no hash recorded yet.
+                let already_exists = NONCE_TOO_LOW_ERRORS.iter().any(|s| err_str.contains(s))
+                    || (rebroadcast && err_str.contains(ALREADY_KNOWN_ERROR));
+                return if already_exists {
                     Err(TxAlreadyExists)
                 } else {
                     let error = LanderError::from(e);
-                    if gas_price_unchanged && error.is_retryable() {
+                    if rebroadcast || (gas_price_unchanged && error.is_retryable()) {
                         // A fee rejection at the cap cannot be fixed by the immediate
                         // escalation loop. Return to status polling before trying again.
                         Err(LanderError::TxGasCapReached)
@@ -718,8 +729,9 @@ impl AdaptsChain for EthereumAdapter {
             }
         };
 
-        // A rebroadcast can return an existing hash. Avoid reading its receipt more
-        // than once in each status scan, while retaining distinct replacement hashes.
+        // A rebroadcast from a deterministic signer returns an existing hash. Avoid
+        // reading its receipt more than once per status scan, while retaining
+        // distinct replacement hashes.
         let hash = hash.into();
         if !tx.tx_hashes.contains(&hash) {
             tx.tx_hashes.push(hash);
