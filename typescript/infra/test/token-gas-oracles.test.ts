@@ -8,16 +8,18 @@ import { tokens } from '../src/config/warp.js';
 import { getLocalStorageGasOracleConfigOverride } from '../src/config/gas-oracle.js';
 
 const feeTokens = {
+  arc: [tokens.arc.USDC],
   arbitrum: [tokens.arbitrum.USDC, tokens.arbitrum.USDT],
   base: [tokens.base.USDC, tokens.base.USDT],
   ethereum: [tokens.ethereum.USDC, tokens.ethereum.USDT],
+  ink: [tokens.ink.USDC, tokens.ink.USDT0],
   optimism: [tokens.optimism.USDC, tokens.optimism.USDT],
 };
 
 const exchangeRateScale = BigNumber.from(10).pow(10);
 
 describe('mainnet3 stablecoin IGP gas oracles', () => {
-  it('configures both tokens only on the four rollout chains, for every remote', () => {
+  it('configures the selected tokens on six origins for every remote', () => {
     const configs = getTokenGasOracleConfigs();
     expect(Object.keys(configs).sort()).to.deep.equal(
       Object.keys(feeTokens).sort(),
@@ -32,9 +34,10 @@ describe('mainnet3 stablecoin IGP gas oracles', () => {
         );
       }
     }
-    for (const chain of ['arc', 'ink', 'robinhood']) {
-      expect(igp[chain].tokenOracleConfig).to.equal(undefined);
-    }
+    expect(Object.keys(configs.arc)).to.deep.equal([
+      '0x3600000000000000000000000000000000000000',
+    ]);
+    expect(igp.robinhood.tokenOracleConfig).to.equal(undefined);
   });
 
   it('prices a remote ETH token in six-decimal dollars without changing remote prices', () => {
@@ -60,6 +63,44 @@ describe('mainnet3 stablecoin IGP gas oracles', () => {
     // 100k gas * 1 gwei * $3000/ETH * 1.5 margin = $0.45.
     expect(quote.toString()).to.equal('450000');
     expect(tokenPrices).to.deep.equal({ base: '2000', ethereum: '3000' });
+  });
+
+  it('uses six decimals for Arc fee payments and eighteen for Arc destination gas', () => {
+    const tokenPrices = { arc: '1', ethereum: '3000' };
+    const gasPrices = {
+      arc: { amount: '20', decimals: 9 },
+      ethereum: { amount: '1', decimals: 9 },
+    };
+    const arcOrigin = getLocalStorageGasOracleConfigOverride(
+      'arc',
+      ['ethereum'],
+      tokenPrices,
+      gasPrices,
+      () => 0,
+      false,
+      undefined,
+      { price: '1', decimals: 6 },
+    ).ethereum;
+    const arcDestination = getLocalStorageGasOracleConfigOverride(
+      'ethereum',
+      ['arc'],
+      tokenPrices,
+      gasPrices,
+      () => 0,
+      false,
+      undefined,
+      { price: '1', decimals: 6 },
+    ).arc;
+    const quote = (config: typeof arcOrigin) =>
+      BigNumber.from(config.gasPrice)
+        .mul(config.tokenExchangeRate)
+        .mul(100_000)
+        .div(exchangeRateScale);
+    // Arc pays $0.45 in ERC20 USDC for Ethereum delivery, including margin.
+    expect(quote(arcOrigin).toString()).to.equal('450000');
+    // Arc delivery costs 100k * 20 gwei * $1/native USDC * 1.5 = $0.003.
+    expect(quote(arcDestination).toString()).to.equal('3000');
+    expect(arcDestination.tokenDecimals).to.equal(18);
   });
 
   it('keeps the L2 USD floor in stablecoin quotes at low remote gas prices', () => {

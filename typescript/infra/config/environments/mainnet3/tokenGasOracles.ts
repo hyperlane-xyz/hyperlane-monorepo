@@ -13,11 +13,15 @@ import tokenPrices from './tokenPrices.json' with { type: 'json' };
 
 // Existing USDC and USDT deployments, including bridged USDT on Base/Optimism
 // and the USDT address upgraded to USD₮0 on Arbitrum.
-// Arc, Ink and Robinhood are excluded from this rollout.
+// Ink uses native USDC and USDT0. Arc uses only its 6-decimal USDC ERC20
+// interface; its native USDC gas token uses 18 decimals. Arc USDT and Robinhood
+// are excluded until their token addresses are verified.
 const feeTokens: ChainMap<string[]> = {
+  arc: [tokens.arc.USDC],
   arbitrum: [tokens.arbitrum.USDC, tokens.arbitrum.USDT],
   base: [tokens.base.USDC, tokens.base.USDT],
   ethereum: [tokens.ethereum.USDC, tokens.ethereum.USDT],
+  ink: [tokens.ink.USDC, tokens.ink.USDT0],
   optimism: [tokens.optimism.USDC, tokens.optimism.USDT],
 };
 
