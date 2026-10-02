@@ -11,7 +11,7 @@ describe('Solaxy IGP decimal compensation', () => {
     expect(oracle).to.deep.equal(
       oracleConfigs.solaxy.solanamainnet.oracleConfig,
     );
-    expect(getChain('solaxy').nativeToken.decimals).to.equal(6);
+    expect(getChain('solaxy').nativeToken?.decimals).to.equal(6);
     expect(oracle.tokenDecimals).to.equal(9);
     // Matches the Sealevel compute_gas_fee integer arithmetic. The remote
     // and hardcoded local decimals are both nine, so no conversion occurs.
