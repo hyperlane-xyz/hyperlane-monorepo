@@ -79,6 +79,8 @@ import {
   PredicateWrapperConfig,
   OftTokenConfig,
   WarpRouteDeployConfig,
+  assertFeeHookSupported,
+  assertTokenFeeDeploySupported,
   assertTimelockConfigHasNoProxyAdminOwnerOverride,
   isAtomicLocalRebalancingBridgeTokenConfig,
   isCctpTokenConfig,
@@ -960,6 +962,8 @@ abstract class TokenDeployer<
   ): Promise<HyperlaneContractsMap<Factories & ProxiedFactories>> {
     for (const [chain, config] of Object.entries(configMap)) {
       assertTimelockConfigHasNoProxyAdminOwnerOverride(config, chain);
+      assertTokenFeeDeploySupported(config, chain);
+      assertFeeHookSupported(config, chain);
     }
 
     // Fail fast if any chain requires a predicate wrapper but lacks the factory.

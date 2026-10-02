@@ -2,7 +2,12 @@ import { compareVersions } from 'compare-versions';
 import { z } from 'zod';
 
 import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
-import { assert, isAddressEvm, objMap } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  isAddressEvm,
+  isZeroishAddress,
+  objMap,
+} from '@hyperlane-xyz/utils';
 
 import { TokenFeeConfigInput, TokenFeeType } from '../fee/types.js';
 import { HookConfig, HookType } from '../hook/types.js';
@@ -25,6 +30,10 @@ import { TokenType } from './config.js';
 export const WarpRouteDeployConfigSchemaErrors = {
   ONLY_SYNTHETIC_REBASE: `Config with ${TokenType.collateralVaultRebase} must be deployed with ${TokenType.syntheticRebase}`,
   NO_SYNTHETIC_ONLY: `Config must include Native or Collateral OR all synthetics must define token metadata`,
+  TOKEN_FEE_UNSUPPORTED: 'Token fees are not supported for token type',
+  TOKEN_FEE_UPGRADE_UNSUPPORTED:
+    'Token fee must be removed when upgrading token type',
+  FEE_HOOK_UNSUPPORTED: 'Fee hooks are not supported for token type',
 };
 
 export const contractVersionMatchesDependency = (version: string) => {
@@ -569,11 +578,125 @@ function addTimelockProxyAdminOwnerOverrideIssue(
   });
 }
 
+const tokenFeeUnsupportedTokenTypes = new Set<TokenType>([
+  TokenType.collateralFiat,
+  TokenType.collateralVault,
+  TokenType.collateralVaultRebase,
+  TokenType.syntheticRebase,
+]);
+
+const tokenFeeLegacyOnlyTokenTypes = new Set<TokenType>([
+  TokenType.XERC20,
+  TokenType.XERC20Lockbox,
+]);
+
+const tokenFeeDeploymentUnsupportedTokenTypes = new Set<TokenType>([
+  ...tokenFeeUnsupportedTokenTypes,
+  ...tokenFeeLegacyOnlyTokenTypes,
+]);
+
+const feeHookUnsupportedTokenTypes = new Set<TokenType>([
+  TokenType.collateralFiat,
+  TokenType.collateralVault,
+  TokenType.collateralVaultRebase,
+  ...tokenFeeLegacyOnlyTokenTypes,
+]);
+
+type TokenFeeSupportConfig = {
+  type: TokenType;
+  tokenFee?: TokenFeeConfigInput;
+};
+
+function addTokenFeeSupportIssue(
+  config: TokenFeeSupportConfig,
+  ctx: z.RefinementCtx,
+) {
+  if (!config.tokenFee || !tokenFeeUnsupportedTokenTypes.has(config.type))
+    return;
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path: ['tokenFee'],
+    message: `${WarpRouteDeployConfigSchemaErrors.TOKEN_FEE_UNSUPPORTED} ${config.type}`,
+  });
+}
+
+type FeeHookSupportConfig = {
+  type: TokenType;
+  feeHook?: string;
+};
+
+function hasUnsupportedFeeHook(
+  config: FeeHookSupportConfig,
+  currentFeeHook?: string,
+) {
+  const effectiveFeeHook = config.feeHook ?? currentFeeHook;
+  return (
+    effectiveFeeHook !== undefined &&
+    !isZeroishAddress(effectiveFeeHook) &&
+    feeHookUnsupportedTokenTypes.has(config.type)
+  );
+}
+
+function addFeeHookSupportIssue(
+  config: FeeHookSupportConfig,
+  ctx: z.RefinementCtx,
+) {
+  if (!hasUnsupportedFeeHook(config)) return;
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path: ['feeHook'],
+    message: `${WarpRouteDeployConfigSchemaErrors.FEE_HOOK_UNSUPPORTED} ${config.type}`,
+  });
+}
+
+export function assertFeeHookSupported(
+  config: FeeHookSupportConfig,
+  chain?: string,
+  currentFeeHook?: string,
+) {
+  assert(
+    !hasUnsupportedFeeHook(config, currentFeeHook),
+    `${WarpRouteDeployConfigSchemaErrors.FEE_HOOK_UNSUPPORTED} ${config.type}${chain ? ` on ${chain}` : ''}`,
+  );
+}
+
+export function assertTokenFeeDeploySupported(
+  config: TokenFeeSupportConfig,
+  chain?: string,
+) {
+  assert(
+    !config.tokenFee ||
+      !tokenFeeDeploymentUnsupportedTokenTypes.has(config.type),
+    `${WarpRouteDeployConfigSchemaErrors.TOKEN_FEE_UNSUPPORTED} ${config.type}${chain ? ` on ${chain}` : ''}`,
+  );
+}
+
+export function assertTokenFeeUpgradeSupported(
+  config: TokenFeeSupportConfig & { contractVersion?: string },
+  actualContractVersion?: string,
+  chain?: string,
+) {
+  if (
+    !config.contractVersion ||
+    !actualContractVersion ||
+    compareVersions(config.contractVersion, actualContractVersion) <= 0
+  )
+    return;
+
+  // Omitting tokenFee requests its removal, so the upgrade may proceed.
+  assert(
+    !config.tokenFee || !tokenFeeLegacyOnlyTokenTypes.has(config.type),
+    `${WarpRouteDeployConfigSchemaErrors.TOKEN_FEE_UPGRADE_UNSUPPORTED} ${config.type}${chain ? ` on ${chain}` : ''}`,
+  );
+}
+
 export const HypTokenRouterConfigSchema = z.preprocess(
   preprocessWarpRouteDeployConfig,
   HypTokenConfigSchema.and(GasRouterConfigSchema)
     .and(HypTokenRouterVirtualConfigSchema.partial())
-    .superRefine(addTimelockProxyAdminOwnerOverrideIssue),
+    .superRefine(addTimelockProxyAdminOwnerOverrideIssue)
+    .superRefine(addTokenFeeSupportIssue)
+    .superRefine(addFeeHookSupportIssue),
 );
 
 export type HypTokenRouterConfig = z.infer<typeof HypTokenRouterConfigSchema>;
@@ -601,7 +724,9 @@ export const HypTokenRouterConfigMailboxOptionalBaseSchema =
     }),
   )
     .and(HypTokenRouterVirtualConfigSchema.partial())
-    .superRefine(addTimelockProxyAdminOwnerOverrideIssue);
+    .superRefine(addTimelockProxyAdminOwnerOverrideIssue)
+    .superRefine(addTokenFeeSupportIssue)
+    .superRefine(addFeeHookSupportIssue);
 
 export type HypTokenRouterConfigMailboxOptionalBase = z.infer<
   typeof HypTokenRouterConfigMailboxOptionalBaseSchema

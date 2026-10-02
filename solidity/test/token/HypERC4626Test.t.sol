@@ -19,7 +19,7 @@ import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transpa
 import {ERC4626Test} from "../../contracts/test/ERC4626/ERC4626Test.sol";
 import {MockERC4626YieldSharing} from "../../contracts/mock/MockERC4626YieldSharing.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
-import {HypTokenTest} from "./HypERC20.t.sol";
+import {TokenFeeUnsupportedTest} from "./HypERC20.t.sol";
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypERC4626Collateral} from "../../contracts/token/extensions/HypERC4626Collateral.sol";
@@ -28,7 +28,7 @@ import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetad
 import "../../contracts/test/ERC4626/ERC4626Test.sol";
 import {ProtocolFee} from "../../contracts/hooks/ProtocolFee.sol";
 
-contract HypERC4626CollateralTest is HypTokenTest {
+contract HypERC4626CollateralTest is TokenFeeUnsupportedTest {
     using TypeCasts for address;
 
     uint32 internal constant PEER_DESTINATION = 13;
@@ -135,6 +135,10 @@ contract HypERC4626CollateralTest is HypTokenTest {
             remoteRebasingToken.collateralDomain(),
             localToken.localDomain()
         );
+    }
+
+    function testSyntheticTokenFeeUnsupported() public {
+        _assertTokenFeeUnsupported(remoteRebasingToken, ORIGIN);
     }
 
     function testRemoteTransfer_rebaseAfter() public {
