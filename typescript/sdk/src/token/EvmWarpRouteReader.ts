@@ -123,6 +123,18 @@ import {
 const EIP1167_PREFIX = '0x363d3d373d3d3d363d73';
 const EIP1167_ADDRESS_HEX_LENGTH = 40;
 
+function containsDelegateCall(bytecode: string): boolean {
+  const hex = strip0x(bytecode);
+  for (let offset = 0; offset + 2 <= hex.length; offset += 2) {
+    const opcode = Number.parseInt(hex.slice(offset, offset + 2), 16);
+    if (opcode === 0xf4) return true;
+    if (opcode >= 0x60 && opcode <= 0x7f) {
+      offset += (opcode - 0x5f) * 2;
+    }
+  }
+  return false;
+}
+
 const REBALANCING_CONTRACT_VERSION = '8.0.0';
 export const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
 
@@ -800,8 +812,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
   /**
    * Checks whether the implementation bytecode contains the selector.
-   * Returns undefined when the bytecode is empty/unreadable (unknown), so
-   * callers proceed with the call and its normal error handling.
+   * Returns undefined when the bytecode is empty/unreadable or is unresolved
+   * forwarding code, so callers proceed with the call and its normal error
+   * handling.
    */
   private async implementationHasSelector(
     address: Address,
@@ -809,7 +822,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
   ): Promise<boolean | undefined> {
     const bytecode = await this.fetchImplementationBytecodeCached(address);
     if (isNullish(bytecode) || isStorageEmpty(bytecode)) return undefined;
-    return bytecode.includes(strip0x(selector));
+    if (bytecode.includes(strip0x(selector))) return true;
+    if (containsDelegateCall(bytecode)) return undefined;
+    return false;
   }
 
   /**

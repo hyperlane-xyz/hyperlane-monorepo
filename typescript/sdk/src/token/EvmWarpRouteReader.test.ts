@@ -442,8 +442,8 @@ describe('EvmWarpRouteReader', () => {
 
   describe('deriveTokenType xERC20 probe', () => {
     async function deriveWithXERC20Probe(
-      probeError: Error,
-      wrappedTokenHasSelector = true,
+      probeError?: Error,
+      wrappedTokenCode?: string,
     ): Promise<TokenType> {
       const wrappedTokenSelector = HypERC20Collateral__factory.createInterface()
         .getSighash('wrappedToken')
@@ -457,17 +457,18 @@ describe('EvmWarpRouteReader', () => {
         .stub(provider, 'getCode')
         .callsFake(async (address) =>
           (await address).toLowerCase() === wrappedToken.toLowerCase()
-            ? wrappedTokenHasSelector
-              ? `0x${xerc20Selector}`
-              : '0x6080604052deadbeef'
+            ? (wrappedTokenCode ?? `0x${xerc20Selector}`)
             : `0x${wrappedTokenSelector}`,
         );
       sandbox.stub(provider, 'getStorageAt').resolves(`0x${'00'.repeat(32)}`);
       sandbox.stub(HypERC20Collateral__factory, 'connect').returns({
         wrappedToken: sandbox.stub().resolves(wrappedToken),
       } as unknown as ReturnType<typeof HypERC20Collateral__factory.connect>);
+      const probe = sandbox.stub();
+      if (probeError) probe.rejects(probeError);
+      else probe.resolves(42);
       sandbox.stub(IXERC20__factory, 'connect').returns({
-        'mintingCurrentLimitOf(address)': sandbox.stub().rejects(probeError),
+        'mintingCurrentLimitOf(address)': probe,
       } as unknown as ReturnType<typeof IXERC20__factory.connect>);
       sandbox.stub(IFiatToken__factory, 'connect').returns({
         callStatic: { mint: sandbox.stub().rejects(missingSelectorError()) },
@@ -498,8 +499,17 @@ describe('EvmWarpRouteReader', () => {
         },
       );
 
-      expect(await deriveWithXERC20Probe(invalidOpcodeError, false)).to.equal(
-        TokenType.collateral,
+      expect(
+        await deriveWithXERC20Probe(invalidOpcodeError, '0x6080604052deadbeef'),
+      ).to.equal(TokenType.collateral);
+    });
+
+    it('probes an xERC20 behind an unresolved PUSH0 clone', async () => {
+      const implementation = randomAddress().slice(2).toLowerCase();
+      const push0Clone = `0x5f5f365f5f37365f73${implementation}5af43d5f5f3e6029573d5ffd5b3d5ff3`;
+
+      expect(await deriveWithXERC20Probe(undefined, push0Clone)).to.equal(
+        TokenType.XERC20,
       );
     });
 
