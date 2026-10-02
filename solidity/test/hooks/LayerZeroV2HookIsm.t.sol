@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, Vm} from "forge-std/Test.sol";
 
 import {Origin as LayerZeroOrigin} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroEndpointV2.sol";
 import {IMessageLibManager} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/IMessageLibManager.sol";
@@ -18,6 +18,7 @@ import {AbstractPostDispatchHook} from "contracts/hooks/libs/AbstractPostDispatc
 import {IInterchainSecurityModule} from "contracts/interfaces/IInterchainSecurityModule.sol";
 import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {ICcipReadIsm} from "contracts/interfaces/isms/ICcipReadIsm.sol";
+import {ILayerZeroPacketService} from "contracts/interfaces/layerzero/ILayerZeroPacketService.sol";
 import {StaticAggregationIsmFactory} from "contracts/isms/aggregation/StaticAggregationIsmFactory.sol";
 import {DomainRoutingIsm} from "contracts/isms/routing/DomainRoutingIsm.sol";
 import {LayerZeroMessage} from "contracts/libs/LayerZeroMessage.sol";
@@ -91,6 +92,9 @@ contract LayerZeroV2HookIsmTest is Test {
     LayerZeroV2HookIsm internal originRouter;
     LayerZeroV2HookIsm internal destinationRouter;
     string[] internal lookupUrls;
+
+    // Receives refunds of overpaid LayerZero fees.
+    receive() external payable {}
 
     function setUp() public {
         lookupUrls.push("http://localhost:3000/layerzero");
@@ -1513,12 +1517,7 @@ contract LayerZeroV2HookIsmTest is Test {
 
         assertEq(
             LayerZeroMessage.encode(origin, destination, messageId),
-            abi.encodePacked(
-                LayerZeroMessage.VERSION,
-                origin,
-                destination,
-                messageId
-            )
+            abi.encodePacked(uint8(1), origin, destination, messageId)
         );
     }
 
@@ -2461,6 +2460,396 @@ contract LayerZeroV2HookIsmTest is Test {
         destinationMailbox.process(
             abi.encode(address(destinationUln), new bytes(4097)),
             message
+        );
+    }
+
+    function testPullRejectsMetadataWithZeroReceiveLibrary() public {
+        (bytes memory message, ) = _dispatch();
+        bytes memory metadata = abi.encode(
+            address(0),
+            originEndpoint.lastPacket()
+        );
+
+        vm.expectRevert(LayerZeroMetadata.InvalidLayerZeroMetadata.selector);
+        destinationMailbox.process(metadata, message);
+    }
+
+    function testPullRejectsMetadataWithNonCanonicalPacketOffset() public {
+        (bytes memory message, ) = _dispatch();
+        bytes memory metadata = abi.encode(
+            address(destinationUln),
+            originEndpoint.lastPacket()
+        );
+        // The dynamic packet must start right after the two head words.
+        metadata = _replace(metadata, 32, abi.encode(uint256(0x80)));
+
+        vm.expectRevert(LayerZeroMetadata.InvalidLayerZeroMetadata.selector);
+        destinationMailbox.process(metadata, message);
+    }
+
+    function testPullRejectsMessageFromUnenrolledOrigin() public {
+        uint32 unenrolledOrigin = 9999;
+        _dispatch();
+        bytes memory metadata = abi.encode(
+            address(destinationUln),
+            originEndpoint.lastPacket()
+        );
+        bytes memory message = destinationMailbox.buildInboundMessage(
+            unenrolledOrigin,
+            address(recipient).addressToBytes32(),
+            address(originRouter).addressToBytes32(),
+            bytes("unenrolled origin")
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LayerZeroV2HookIsm.UnknownLayerZeroRoute.selector,
+                unenrolledOrigin
+            )
+        );
+        destinationMailbox.process(metadata, message);
+    }
+
+    function testDispatchRejectsUnenrolledDestination() public {
+        uint32 unenrolledDestination = 9999;
+        bytes memory body = bytes("unenrolled destination");
+        bytes memory message = originMailbox.buildOutboundMessage(
+            unenrolledDestination,
+            address(recipient).addressToBytes32(),
+            body
+        );
+        bytes memory unknownRoute = abi.encodeWithSelector(
+            LayerZeroV2HookIsm.UnknownLayerZeroRoute.selector,
+            unenrolledDestination
+        );
+
+        vm.expectRevert(unknownRoute);
+        originRouter.quoteDispatch("", message);
+
+        vm.expectRevert(unknownRoute);
+        originMailbox.dispatch{value: NATIVE_FEE}(
+            unenrolledDestination,
+            address(recipient).addressToBytes32(),
+            body,
+            "",
+            IPostDispatchHook(address(originRouter))
+        );
+    }
+
+    function testEnrollmentRejectsZeroEndpointIdAndUnusableLibraries() public {
+        LayerZeroV2HookIsm.RemoteRouterConfig
+            memory config = _defaultRemoteRouterConfig();
+        config.endpointId = 0;
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LayerZeroV2HookIsm.InvalidRemoteEndpointId.selector,
+                uint32(0)
+            )
+        );
+        _enrollSingleRoute(originRouter, config);
+
+        config = _defaultRemoteRouterConfig();
+        config.receiveLibrary = address(0);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LayerZeroV2HookIsm.UnregisteredLayerZeroLibrary.selector,
+                address(0)
+            )
+        );
+        _enrollSingleRoute(originRouter, config);
+
+        config = _defaultRemoteRouterConfig();
+        config.sendLibrary = address(0xDEAD);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LayerZeroV2HookIsm.UnregisteredLayerZeroLibrary.selector,
+                address(0xDEAD)
+            )
+        );
+        _enrollSingleRoute(originRouter, config);
+
+        config = _defaultRemoteRouterConfig();
+        config.receiveLibrary = address(0xDEAD);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LayerZeroV2HookIsm.UnregisteredLayerZeroLibrary.selector,
+                address(0xDEAD)
+            )
+        );
+        _enrollSingleRoute(originRouter, config);
+    }
+
+    function testEnrollmentAndUnenrollmentEmitRouteEvents() public {
+        LayerZeroV2HookIsm.RemoteRouterConfig
+            memory config = _defaultRemoteRouterConfig();
+        config.domainId = SECOND_DESTINATION;
+        config.endpointId = SECOND_DESTINATION_ENDPOINT_ID;
+        config.domainIsm = address(0xBEEF).addressToBytes32();
+
+        vm.expectEmit(true, true, false, false, address(originRouter));
+        emit LayerZeroV2HookIsm.LayerZeroSendLibrarySet(
+            SECOND_DESTINATION_ENDPOINT_ID,
+            originSendLibrary
+        );
+        vm.expectEmit(true, true, false, false, address(originRouter));
+        emit LayerZeroV2HookIsm.LayerZeroReceiveLibrarySet(
+            SECOND_DESTINATION_ENDPOINT_ID,
+            address(originUln)
+        );
+        vm.expectEmit(true, true, false, true, address(originRouter));
+        emit LayerZeroV2HookIsm.LayerZeroRemoteRouterEnrolled(
+            SECOND_DESTINATION,
+            SECOND_DESTINATION_ENDPOINT_ID,
+            config.domainIsm
+        );
+        _enrollSingleRoute(originRouter, config);
+
+        address blockedLibrary = originEndpoint.blockedLibrary();
+        vm.expectEmit(true, true, false, false, address(originRouter));
+        emit LayerZeroV2HookIsm.LayerZeroSendLibrarySet(
+            SECOND_DESTINATION_ENDPOINT_ID,
+            blockedLibrary
+        );
+        vm.expectEmit(true, true, false, false, address(originRouter));
+        emit LayerZeroV2HookIsm.LayerZeroReceiveLibrarySet(
+            SECOND_DESTINATION_ENDPOINT_ID,
+            blockedLibrary
+        );
+        vm.expectEmit(true, true, false, true, address(originRouter));
+        emit LayerZeroV2HookIsm.LayerZeroRemoteRouterUnenrolled(
+            SECOND_DESTINATION,
+            SECOND_DESTINATION_ENDPOINT_ID,
+            config.domainIsm
+        );
+        originRouter.unenrollRemoteRouter(SECOND_DESTINATION);
+    }
+
+    function testConfigOnlyReenrollmentKeepsSelectedLibraries() public {
+        LayerZeroV2HookIsm.RemoteRouterConfig
+            memory config = _defaultRemoteRouterConfig();
+        config.sendUlnConfig = _customUlnConfig();
+
+        vm.recordLogs();
+        _enrollSingleRoute(originRouter, config);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        // An unchanged path is neither blocked nor selected again.
+        for (uint256 i = 0; i < logs.length; ++i) {
+            assertTrue(
+                logs[i].topics[0] !=
+                    LayerZeroV2HookIsm.LayerZeroSendLibrarySet.selector &&
+                    logs[i].topics[0] !=
+                    LayerZeroV2HookIsm.LayerZeroReceiveLibrarySet.selector,
+                "unchanged library was reselected"
+            );
+        }
+        assertEq(
+            originEndpoint.sendLibraries(
+                address(originRouter),
+                DESTINATION_ENDPOINT_ID
+            ),
+            originSendLibrary
+        );
+    }
+
+    function testOverpaymentRefundsMessageSenderAndReportsActualFee() public {
+        bytes memory body = bytes("overpaid dispatch");
+        bytes memory message = originMailbox.buildOutboundMessage(
+            DESTINATION,
+            address(recipient).addressToBytes32(),
+            body
+        );
+        uint256 overpayment = 1 ether;
+        uint256 balanceBefore = address(this).balance;
+
+        vm.recordLogs();
+        originMailbox.dispatch{value: NATIVE_FEE + overpayment}(
+            DESTINATION,
+            address(recipient).addressToBytes32(),
+            body,
+            "",
+            IPostDispatchHook(address(originRouter))
+        );
+        Vm.Log memory sent = _authorizationSentLog(vm.getRecordedLogs());
+
+        assertEq(sent.topics[1], message.id());
+        assertEq(sent.topics[2], bytes32(uint256(DESTINATION)));
+        assertEq(sent.topics[3], bytes32(uint256(DESTINATION_ENDPOINT_ID)));
+        (bytes32 guid, uint64 nonce, uint256 nativeFee) = abi.decode(
+            sent.data,
+            (bytes32, uint64, uint256)
+        );
+        assertEq(
+            guid,
+            GUID.generate(
+                1,
+                ORIGIN_ENDPOINT_ID,
+                address(originRouter),
+                DESTINATION_ENDPOINT_ID,
+                address(destinationRouter).addressToBytes32()
+            )
+        );
+        assertEq(nonce, 1);
+        // The event reports the fee the Endpoint charged, not the payment.
+        assertEq(nativeFee, NATIVE_FEE);
+
+        // Without a refund override the Hyperlane message sender is refunded.
+        assertEq(balanceBefore - address(this).balance, NATIVE_FEE);
+    }
+
+    function _authorizationSentLog(
+        Vm.Log[] memory logs
+    ) internal view returns (Vm.Log memory) {
+        for (uint256 i = 0; i < logs.length; ++i) {
+            if (
+                logs[i].emitter == address(originRouter) &&
+                logs[i].topics[0] ==
+                LayerZeroV2HookIsm.LayerZeroAuthorizationSent.selector
+            ) return logs[i];
+        }
+        revert("no LayerZeroAuthorizationSent event");
+    }
+
+    function testRejectsUnsupportedMetadataVariant() public {
+        bytes memory metadata = hex"0002";
+        bytes memory message = originMailbox.buildOutboundMessage(
+            DESTINATION,
+            address(recipient).addressToBytes32(),
+            bytes("variant")
+        );
+
+        assertFalse(originRouter.supportsMetadata(metadata));
+
+        vm.expectRevert(
+            bytes("AbstractPostDispatchHook: invalid metadata variant")
+        );
+        originRouter.postDispatch{value: NATIVE_FEE}(metadata, message);
+    }
+
+    function testConstructorSetsLookupUrls() public view {
+        string[] memory urls = destinationRouter.urls();
+
+        assertEq(urls.length, 1);
+        assertEq(urls[0], lookupUrls[0]);
+    }
+
+    function testOffchainLookupRequestsPacketForMessage() public {
+        bytes memory message = originMailbox.buildOutboundMessage(
+            DESTINATION,
+            address(recipient).addressToBytes32(),
+            "lookup"
+        );
+
+        (bool success, bytes memory returnData) = address(destinationRouter)
+            .staticcall(
+                abi.encodeCall(ICcipReadIsm.getOffchainVerifyInfo, (message))
+            );
+        (
+            address sender,
+            string[] memory urls,
+            bytes memory callData,
+            bytes4 callbackFunction,
+            bytes memory extraData
+        ) = this.decodeOffchainLookup(returnData);
+
+        assertFalse(success);
+        assertEq(sender, address(destinationRouter));
+        assertEq(urls.length, 1);
+        assertEq(urls[0], lookupUrls[0]);
+        assertEq(
+            callData,
+            abi.encodeCall(
+                ILayerZeroPacketService.getLayerZeroPacket,
+                (message)
+            )
+        );
+        assertEq(callbackFunction, destinationRouter.verify.selector);
+        assertEq(extraData, message);
+    }
+
+    function decodeOffchainLookup(
+        bytes calldata revertData
+    )
+        external
+        pure
+        returns (address, string[] memory, bytes memory, bytes4, bytes memory)
+    {
+        return
+            abi.decode(
+                revertData[4:],
+                (address, string[], bytes, bytes4, bytes)
+            );
+    }
+
+    function testPullEmitsPayloadVerified() public {
+        (bytes memory message, bytes32 messageId) = _dispatch();
+        bytes memory packet = originEndpoint.lastPacket();
+        (uint64 nonce, bytes32 guid, ) = this.decodeLayerZeroPacket(packet);
+
+        vm.expectEmit(true, true, true, true, address(destinationRouter));
+        emit LayerZeroV2HookIsm.LayerZeroPayloadVerified(
+            messageId,
+            ORIGIN,
+            ORIGIN_ENDPOINT_ID,
+            guid,
+            nonce
+        );
+        destinationMailbox.process(
+            abi.encode(address(destinationUln), packet),
+            message
+        );
+    }
+
+    function testPullRejectsReceiveLibraryThatDoesNotCommit() public {
+        (bytes memory message, ) = _dispatch();
+        bytes memory packet = originEndpoint.lastPacket();
+        (, , bytes32 payloadHash) = this.decodeLayerZeroPacket(packet);
+        // A selected library that reports success without storing the payload
+        // hash must not authenticate the message.
+        vm.mockCall(
+            address(destinationUln),
+            abi.encodeWithSelector(
+                MockLayerZeroReceiveUln.commitVerification.selector
+            ),
+            ""
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LayerZeroV2HookIsm.ConflictingPayloadHash.selector,
+                bytes32(0),
+                payloadHash
+            )
+        );
+        destinationRouter.verify(
+            abi.encode(address(destinationUln), packet),
+            message
+        );
+    }
+
+    function testVerifyRejectsPayloadForAnotherDestinationDomain() public {
+        _dispatch();
+        bytes memory otherMessage = originMailbox.buildOutboundMessage(
+            SECOND_DESTINATION,
+            address(recipient).addressToBytes32(),
+            bytes("other destination")
+        );
+        // Everything else is valid for this OApp; only the payload commits to
+        // a destination domain other than this chain's.
+        bytes memory packet = _replace(
+            originEndpoint.lastPacket(),
+            113,
+            LayerZeroMessage.encode(
+                ORIGIN,
+                SECOND_DESTINATION,
+                otherMessage.id()
+            )
+        );
+
+        vm.expectRevert(LayerZeroV2HookIsm.WrongPacketMessage.selector);
+        destinationRouter.verify(
+            abi.encode(address(destinationUln), packet),
+            otherMessage
         );
     }
 }

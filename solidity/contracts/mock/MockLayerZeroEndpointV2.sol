@@ -41,6 +41,7 @@ contract MockLayerZeroEndpointV2 {
         public outboundNonces;
 
     error Unauthorized();
+    error InvalidQuoteSender();
     error InvalidPayloadHash();
     error SameValue();
     error OnlyNonDefaultLibrary();
@@ -74,9 +75,13 @@ contract MockLayerZeroEndpointV2 {
     }
 
     function quote(
-        LayerZeroMessagingParams calldata,
-        address
+        LayerZeroMessagingParams calldata params,
+        address sender
     ) external view returns (LayerZeroMessagingFee memory) {
+        if (params.payInLzToken) revert Errors.LZ_LzTokenUnavailable();
+        // The send library prices by OApp config, so the hook must quote as
+        // itself rather than as whoever called it.
+        if (sender != msg.sender) revert InvalidQuoteSender();
         return
             LayerZeroMessagingFee({
                 nativeFee: nativeFee,
@@ -88,6 +93,7 @@ contract MockLayerZeroEndpointV2 {
         LayerZeroMessagingParams calldata params,
         address refundAddress
     ) external payable returns (LayerZeroMessagingReceipt memory receipt) {
+        if (params.payInLzToken) revert Errors.LZ_LzTokenUnavailable();
         if (msg.value < nativeFee || lzTokenFee != 0) {
             revert Errors.LZ_InsufficientFee(
                 nativeFee,

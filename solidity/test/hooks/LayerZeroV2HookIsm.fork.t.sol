@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity ^0.8.20;
 
-import {Test, StdStorage, stdStorage} from "forge-std/Test.sol";
+import {Test, Vm, StdStorage, stdStorage} from "forge-std/Test.sol";
 
 import {ILayerZeroEndpointV2, Origin as LayerZeroOrigin} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroEndpointV2.sol";
 import {MessageLibManager} from "@layerzerolabs/lz-evm-protocol-v2/contracts/MessageLibManager.sol";
+import {Errors} from "@layerzerolabs/lz-evm-protocol-v2/contracts/libs/Errors.sol";
 import {GUID} from "@layerzerolabs/lz-evm-protocol-v2/contracts/libs/GUID.sol";
 import {ExecutorConfig} from "@layerzerolabs/lz-evm-messagelib-v2/contracts/SendLibBase.sol";
 import {IReceiveUlnE2} from "@layerzerolabs/lz-evm-messagelib-v2/contracts/uln/interfaces/IReceiveUlnE2.sol";
@@ -109,6 +110,15 @@ contract LayerZeroV2HookIsmForkTest is Test {
         assertEq(
             ENDPOINT.getSendLibrary(address(router), ARBITRUM_ENDPOINT_ID),
             SEND_ULN_302
+        );
+        // SEND_ULN_302 is also the Endpoint default here; the path must still
+        // be pinned explicitly rather than inherit the mutable default.
+        assertEq(
+            ENDPOINT.defaultSendLibrary(ARBITRUM_ENDPOINT_ID),
+            SEND_ULN_302
+        );
+        assertFalse(
+            ENDPOINT.isDefaultSendLibrary(address(router), ARBITRUM_ENDPOINT_ID)
         );
         (address receiveLibrary, bool isDefault) = ENDPOINT.getReceiveLibrary(
             address(router),
@@ -268,6 +278,8 @@ contract LayerZeroV2HookIsmForkTest is Test {
         uint256 fee = router.quoteDispatch("", message);
         assertGt(fee, 0);
         vm.deal(address(this), fee);
+
+        vm.recordLogs();
         mailbox.dispatch{value: fee}(
             ARBITRUM_DOMAIN,
             address(0x1234).addressToBytes32(),
@@ -275,7 +287,88 @@ contract LayerZeroV2HookIsmForkTest is Test {
             "",
             IPostDispatchHook(address(router))
         );
+
         assertEq(router.latestPublishedAuthorizationMessageId(), message.id());
+
+        // The packet the real Endpoint emits must be exactly the layout the
+        // destination side validates and the inbound tests below construct.
+        (bytes memory sentPacket, bytes memory sentOptions) = _packetSent();
+        (, , bytes memory expectedPacket) = _encodePacket(
+            1,
+            ETHEREUM_ENDPOINT_ID,
+            address(router),
+            ARBITRUM_ENDPOINT_ID,
+            address(0xBEEF),
+            LayerZeroMessage.encode(
+                ETHEREUM_DOMAIN,
+                ARBITRUM_DOMAIN,
+                message.id()
+            )
+        );
+        assertEq(sentPacket, expectedPacket);
+        assertEq(
+            sentOptions,
+            abi.encodePacked(
+                uint16(3),
+                uint8(1),
+                uint16(17),
+                uint8(1),
+                uint128(1)
+            )
+        );
+    }
+
+    function _packetSent()
+        internal
+        returns (bytes memory packet, bytes memory options)
+    {
+        bytes32 topic = keccak256("PacketSent(bytes,bytes,address)");
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i = 0; i < logs.length; ++i) {
+            if (
+                logs[i].emitter == address(ENDPOINT) &&
+                logs[i].topics[0] == topic
+            ) {
+                (packet, options, ) = abi.decode(
+                    logs[i].data,
+                    (bytes, bytes, address)
+                );
+                return (packet, options);
+            }
+        }
+        revert("no PacketSent event");
+    }
+
+    // PacketV1 layout: header (version, nonce, srcEid, sender, dstEid,
+    // receiver), then GUID, then payload.
+    function _encodePacket(
+        uint64 nonce,
+        uint32 srcEid,
+        address sender,
+        uint32 dstEid,
+        address receiver,
+        bytes memory payload
+    )
+        internal
+        pure
+        returns (bytes memory header, bytes32 guid, bytes memory packet)
+    {
+        guid = GUID.generate(
+            nonce,
+            srcEid,
+            sender,
+            dstEid,
+            receiver.addressToBytes32()
+        );
+        header = abi.encodePacked(
+            uint8(1),
+            nonce,
+            srcEid,
+            sender.addressToBytes32(),
+            dstEid,
+            receiver.addressToBytes32()
+        );
+        packet = abi.encodePacked(header, guid, payload);
     }
 
     function testProductionEndpointEnrollmentWithoutDefaultReceiveLibrary()
@@ -435,43 +528,33 @@ contract LayerZeroV2HookIsmForkTest is Test {
     }
 
     function _inboundPacket(
-        address recipient
+        address recipient,
+        uint64 nonce
     ) internal view returns (InboundPacket memory inbound) {
         inbound.hyperlaneMessage = mailbox.buildInboundMessage(
             ARBITRUM_DOMAIN,
             recipient.addressToBytes32(),
             address(0xCAFE).addressToBytes32(),
-            bytes("fork inbound verification")
+            abi.encodePacked("fork inbound verification ", nonce)
         );
         inbound.payload = LayerZeroMessage.encode(
             ARBITRUM_DOMAIN,
             ETHEREUM_DOMAIN,
             inbound.hyperlaneMessage.id()
         );
-        bytes32 localReceiver = address(router).addressToBytes32();
-        uint64 nonce = 1;
-        inbound.guid = GUID.generate(
+        bytes memory packet;
+        (inbound.header, inbound.guid, packet) = _encodePacket(
             nonce,
             ARBITRUM_ENDPOINT_ID,
             address(0xBEEF),
             ETHEREUM_ENDPOINT_ID,
-            localReceiver
-        );
-        inbound.header = abi.encodePacked(
-            uint8(1),
-            nonce,
-            ARBITRUM_ENDPOINT_ID,
-            address(0xBEEF).addressToBytes32(),
-            ETHEREUM_ENDPOINT_ID,
-            localReceiver
+            address(router),
+            inbound.payload
         );
         inbound.payloadHash = keccak256(
             abi.encodePacked(inbound.guid, inbound.payload)
         );
-        inbound.metadata = abi.encode(
-            RECEIVE_ULN_302,
-            abi.encodePacked(inbound.header, inbound.guid, inbound.payload)
-        );
+        inbound.metadata = abi.encode(RECEIVE_ULN_302, packet);
     }
 
     function testProductionReceiveUlnVerificationAndPostDeliveryCleanup()
@@ -480,7 +563,7 @@ contract LayerZeroV2HookIsmForkTest is Test {
         _enrollInboundRoute();
         TestRecipient recipient = new TestRecipient();
         recipient.setInterchainSecurityModule(address(router));
-        InboundPacket memory inbound = _inboundPacket(address(recipient));
+        InboundPacket memory inbound = _inboundPacket(address(recipient), 1);
         bytes32 remoteSender = address(0xBEEF).addressToBytes32();
         uint64 nonce = 1;
 
@@ -578,7 +661,7 @@ contract LayerZeroV2HookIsmForkTest is Test {
         recipient.setInterchainSecurityModule(
             new StaticAggregationIsmFactory().deploy(modules, 2)
         );
-        InboundPacket memory inbound = _inboundPacket(address(recipient));
+        InboundPacket memory inbound = _inboundPacket(address(recipient), 1);
         IReceiveUlnE2(RECEIVE_ULN_302).verify(
             inbound.header,
             inbound.payloadHash,
@@ -595,5 +678,95 @@ contract LayerZeroV2HookIsmForkTest is Test {
         mailbox.process(metadata, inbound.hyperlaneMessage);
 
         assertTrue(mailbox.delivered(inbound.hyperlaneMessage.id()));
+    }
+
+    // Verification never depends on nonce order; only optional cleanup does.
+    function testProductionOutOfOrderDeliveryAndPostDeliveryCleanup() public {
+        _enrollInboundRoute();
+        TestRecipient recipient = new TestRecipient();
+        recipient.setInterchainSecurityModule(address(router));
+        InboundPacket memory first = _inboundPacket(address(recipient), 1);
+        InboundPacket memory second = _inboundPacket(address(recipient), 2);
+        bytes32 remoteSender = address(0xBEEF).addressToBytes32();
+        IReceiveUlnE2(RECEIVE_ULN_302).verify(
+            first.header,
+            first.payloadHash,
+            1
+        );
+        IReceiveUlnE2(RECEIVE_ULN_302).verify(
+            second.header,
+            second.payloadHash,
+            1
+        );
+
+        // Deliver nonce 2 while nonce 1 is still uncommitted.
+        mailbox.process(second.metadata, second.hyperlaneMessage);
+
+        assertTrue(mailbox.delivered(second.hyperlaneMessage.id()));
+        assertEq(
+            ENDPOINT.inboundPayloadHash(
+                address(router),
+                ARBITRUM_ENDPOINT_ID,
+                remoteSender,
+                2
+            ),
+            second.payloadHash
+        );
+
+        // Endpoint cleanup walks every earlier nonce, so it waits for nonce 1.
+        LayerZeroOrigin memory secondOrigin = LayerZeroOrigin({
+            srcEid: ARBITRUM_ENDPOINT_ID,
+            sender: remoteSender,
+            nonce: 2
+        });
+        vm.expectRevert(
+            abi.encodeWithSelector(Errors.LZ_InvalidNonce.selector, uint64(1))
+        );
+        ENDPOINT.lzReceive(
+            secondOrigin,
+            address(router),
+            second.guid,
+            second.payload,
+            ""
+        );
+
+        mailbox.process(first.metadata, first.hyperlaneMessage);
+        ENDPOINT.lzReceive(
+            secondOrigin,
+            address(router),
+            second.guid,
+            second.payload,
+            ""
+        );
+        ENDPOINT.lzReceive(
+            LayerZeroOrigin({
+                srcEid: ARBITRUM_ENDPOINT_ID,
+                sender: remoteSender,
+                nonce: 1
+            }),
+            address(router),
+            first.guid,
+            first.payload,
+            ""
+        );
+
+        assertEq(
+            ENDPOINT.inboundPayloadHash(
+                address(router),
+                ARBITRUM_ENDPOINT_ID,
+                remoteSender,
+                1
+            ),
+            bytes32(0)
+        );
+        assertEq(
+            ENDPOINT.inboundPayloadHash(
+                address(router),
+                ARBITRUM_ENDPOINT_ID,
+                remoteSender,
+                2
+            ),
+            bytes32(0)
+        );
     }
 }
