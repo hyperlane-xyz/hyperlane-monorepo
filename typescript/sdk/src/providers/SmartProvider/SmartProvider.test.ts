@@ -96,8 +96,9 @@ class TestableSmartProvider extends HyperlaneSmartProvider {
   public testGetCombinedProviderError(
     errors: any[],
     fallbackMsg: string,
+    method: string = ProviderMethod.Call,
   ): new () => Error {
-    return this.getCombinedProviderError(errors, fallbackMsg);
+    return this.getCombinedProviderError(errors, fallbackMsg, method);
   }
 
   public get testLogger() {
@@ -1078,6 +1079,17 @@ describe('SmartProvider', () => {
       expect(e.cause).to.equal(error);
       expect(isMissingSelectorCallException(e)).to.equal(true);
       expect(warnStub.called).to.equal(false);
+    });
+
+    it('warns for empty responses to non-call methods', () => {
+      const warnStub = sinon.stub(provider.testLogger, 'warn');
+      provider.testGetCombinedProviderError(
+        [new Error('Invalid response from provider')],
+        'Test fallback message',
+        ProviderMethod.GetBalance,
+      );
+
+      expect(warnStub.calledOnce).to.equal(true);
     });
 
     it('uses the most diagnostic unhandled provider error as the cause', () => {

@@ -519,6 +519,7 @@ export class HyperlaneSmartProvider
         `All providers failed on chain ${
           this.network.name
         } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
+        method,
       );
       throw new CombinedError();
     }
@@ -538,6 +539,7 @@ export class HyperlaneSmartProvider
         const CombinedError = this.getCombinedProviderError(
           [result, ...providerResultErrors],
           `All providers timed out on chain ${this.network.name} for method ${method}`,
+          method,
         );
         throw new CombinedError();
       }
@@ -551,6 +553,7 @@ export class HyperlaneSmartProvider
           `All providers failed on chain ${
             this.network.name
           } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
+          method,
         );
         throw new CombinedError();
       }
@@ -624,6 +627,7 @@ export class HyperlaneSmartProvider
   protected getCombinedProviderError(
     errors: any[],
     fallbackMsg: string,
+    method: string,
   ): new () => Error {
     this.logger.debug(fallbackMsg);
     if (errors.length === 0) {
@@ -739,7 +743,10 @@ export class HyperlaneSmartProvider
         }
       };
     } else {
-      if (!errors.every(isEmptyProviderResponse)) {
+      if (
+        method !== ProviderMethod.Call ||
+        !errors.every(isEmptyProviderResponse)
+      ) {
         this.logger.warn(
           {
             errors: errors.map((e) => ({
