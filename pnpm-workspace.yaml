@@ -203,7 +203,7 @@ overrides:
   # aleo-tools devnode still uses 17 consensus heights; keep TEST_ALEO_ENV in
   # typescript/aleo-sdk/src/testing/constants.ts unchanged until that image is
   # rebuilt on snarkVM 4.10.
-  '@provablehq/wasm': 0.11.11
+  '@provablehq/wasm': 0.12.0
   '@types/react': 18.3.27
   '@types/react-dom': 18.3.7
   async: ^2.6.4

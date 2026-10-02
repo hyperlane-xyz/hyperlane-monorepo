@@ -443,15 +443,28 @@ describe('EvmWarpRouteReader', () => {
   describe('deriveTokenType xERC20 probe', () => {
     async function deriveWithXERC20Probe(
       probeError: Error,
+      wrappedTokenHasSelector = true,
     ): Promise<TokenType> {
-      const selector = HypERC20Collateral__factory.createInterface()
+      const wrappedTokenSelector = HypERC20Collateral__factory.createInterface()
         .getSighash('wrappedToken')
         .slice(2);
+      const xerc20Selector = IXERC20__factory.createInterface()
+        .getSighash('mintingCurrentLimitOf(address)')
+        .slice(2);
+      const wrappedToken = randomAddress();
       const provider = multiProvider.getProvider(TestChainName.test1);
-      sandbox.stub(provider, 'getCode').resolves(`0x${selector}`);
+      sandbox
+        .stub(provider, 'getCode')
+        .callsFake(async (address) =>
+          (await address).toLowerCase() === wrappedToken.toLowerCase()
+            ? wrappedTokenHasSelector
+              ? `0x${xerc20Selector}`
+              : '0x6080604052deadbeef'
+            : `0x${wrappedTokenSelector}`,
+        );
       sandbox.stub(provider, 'getStorageAt').resolves(`0x${'00'.repeat(32)}`);
       sandbox.stub(HypERC20Collateral__factory, 'connect').returns({
-        wrappedToken: sandbox.stub().resolves(randomAddress()),
+        wrappedToken: sandbox.stub().resolves(wrappedToken),
       } as unknown as ReturnType<typeof HypERC20Collateral__factory.connect>);
       sandbox.stub(IXERC20__factory, 'connect').returns({
         'mintingCurrentLimitOf(address)': sandbox.stub().rejects(probeError),
@@ -474,6 +487,21 @@ describe('EvmWarpRouteReader', () => {
 
       return reader.deriveTokenType(randomAddress());
     }
+
+    it('skips the probe when a legacy wrapped token lacks the xERC20 selector', async () => {
+      const invalidOpcodeError = Object.assign(
+        new Error('missing revert data in call exception'),
+        {
+          code: 'CALL_EXCEPTION',
+          data: '0x',
+          error: { code: -32003, message: 'EVM error: InvalidFEOpcode' },
+        },
+      );
+
+      expect(await deriveWithXERC20Probe(invalidOpcodeError, false)).to.equal(
+        TokenType.collateral,
+      );
+    });
 
     const fallThroughCases = [
       { name: 'a panic revert', error: panicRevertError },

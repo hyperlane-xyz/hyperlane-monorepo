@@ -891,23 +891,40 @@ export class EvmWarpRouteReader extends EvmRouterReader {
           }
           if (tokenType === TokenType.collateral) {
             const wrappedToken = await warpRoute.wrappedToken();
-            try {
-              const xerc20 = IXERC20__factory.connect(
+            const xerc20Selector =
+              IXERC20__factory.createInterface().getSighash(
+                'mintingCurrentLimitOf(address)',
+              );
+            if (
+              (await this.implementationHasSelector(
                 wrappedToken,
-                this.provider,
-              );
-              await xerc20['mintingCurrentLimitOf(address)'](warpRouteAddress);
-              return TokenType.XERC20;
-            } catch (error) {
-              // Fluent's universal-token runtime answers an unknown selector
-              // with Panic(uint256). An xERC20 that reverts with Error(string)
-              // or a custom error (paused, bug) must surface rather than be
-              // read as plain collateral.
-              if (!isPanicRevert(error)) throwIfNotMissingSelector(error);
+                xerc20Selector,
+              )) === false
+            ) {
               this.logger.debug(
-                `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.XERC20}`,
-                error,
+                `Wrapped token at address "${wrappedToken}" on chain "${this.chain}" has no mintingCurrentLimitOf(address) getter; skipping ${TokenType.XERC20} probe`,
               );
+            } else {
+              try {
+                const xerc20 = IXERC20__factory.connect(
+                  wrappedToken,
+                  this.provider,
+                );
+                await xerc20['mintingCurrentLimitOf(address)'](
+                  warpRouteAddress,
+                );
+                return TokenType.XERC20;
+              } catch (error) {
+                // Fluent's universal-token runtime answers an unknown selector
+                // with Panic(uint256). An xERC20 that reverts with Error(string)
+                // or a custom error (paused, bug) must surface rather than be
+                // read as plain collateral.
+                if (!isPanicRevert(error)) throwIfNotMissingSelector(error);
+                this.logger.debug(
+                  `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.XERC20}`,
+                  error,
+                );
+              }
             }
 
             try {
