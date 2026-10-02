@@ -135,6 +135,16 @@ function containsDelegateCall(bytecode: string): boolean {
   return false;
 }
 
+const SelectorStatus = {
+  Present: 'present',
+  Absent: 'absent',
+  // selector absent but the bytecode contains DELEGATECALL, so it may forward
+  Forwarding: 'forwarding',
+  // beacon proxy, unreadable or empty code
+  Unresolved: 'unresolved',
+} as const;
+type SelectorStatus = (typeof SelectorStatus)[keyof typeof SelectorStatus];
+
 const REBALANCING_CONTRACT_VERSION = '8.0.0';
 export const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
 
@@ -810,6 +820,18 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     return pending;
   }
 
+  private async implementationSelectorStatus(
+    address: Address,
+    selector: string,
+  ): Promise<SelectorStatus> {
+    const bytecode = await this.fetchImplementationBytecodeCached(address);
+    if (isNullish(bytecode) || isStorageEmpty(bytecode))
+      return SelectorStatus.Unresolved;
+    if (bytecode.includes(strip0x(selector))) return SelectorStatus.Present;
+    if (containsDelegateCall(bytecode)) return SelectorStatus.Forwarding;
+    return SelectorStatus.Absent;
+  }
+
   /**
    * Checks whether the implementation bytecode contains the selector.
    * Returns undefined when the bytecode is empty/unreadable or is unresolved
@@ -820,11 +842,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     address: Address,
     selector: string,
   ): Promise<boolean | undefined> {
-    const bytecode = await this.fetchImplementationBytecodeCached(address);
-    if (isNullish(bytecode) || isStorageEmpty(bytecode)) return undefined;
-    if (bytecode.includes(strip0x(selector))) return true;
-    if (containsDelegateCall(bytecode)) return undefined;
-    return false;
+    const status = await this.implementationSelectorStatus(address, selector);
+    if (status === SelectorStatus.Present) return true;
+    if (status === SelectorStatus.Absent) return false;
+    return undefined;
   }
 
   /**
@@ -1910,12 +1931,11 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       };
     } else {
       // Read old format (single scale value) using low-level call
-      if (
-        (await this.implementationHasSelector(
-          tokenRouterAddress,
-          LEGACY_SCALE_INTERFACE.getSighash('scale()'),
-        )) === false
-      ) {
+      const scaleStatus = await this.implementationSelectorStatus(
+        tokenRouterAddress,
+        LEGACY_SCALE_INTERFACE.getSighash('scale()'),
+      );
+      if (scaleStatus === SelectorStatus.Absent) {
         this.logger.debug(
           `Router at address "${tokenRouterAddress}" on chain "${this.chain}" reports ${packageVersion} but has no scale() getter; treating as identity`,
         );
@@ -1927,7 +1947,24 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         LEGACY_SCALE_INTERFACE,
         this.provider,
       );
-      const scale: BigNumber = await legacyContract.scale();
+      let scale: BigNumber;
+      try {
+        scale = await legacyContract.scale();
+      } catch (error: unknown) {
+        // scale() is immutable, so a getter the bytecode proves present must
+        // answer. An empty provider response only reads as a missing getter
+        // when the code is known to forward; for unresolved code it may hide
+        // a real scale.
+        if (scaleStatus === SelectorStatus.Present) throw error;
+        if (scaleStatus === SelectorStatus.Forwarding)
+          throwIfNotMissingSelector(error);
+        else throwIfNotMissingSelectorRevert(error);
+        this.logger.debug(
+          `Router at address "${tokenRouterAddress}" on chain "${this.chain}" reports ${packageVersion} but scale() reverted or returned nothing (${scaleStatus} implementation); treating as identity`,
+          error,
+        );
+        return undefined;
+      }
       result = { numerator: scale.toBigInt(), denominator: 1n };
     }
 
