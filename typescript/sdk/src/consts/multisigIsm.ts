@@ -51,11 +51,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  adichain: {
-    threshold: 2,
-    validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
-  },
-
   aleo: {
     threshold: 3,
     validators: [
@@ -981,15 +976,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xd3e6a4e61b5d902a63df6dac9db5585d9f319b09',
         alias: 'Substance Labs',
       },
-    ],
-  },
-
-  zksync: {
-    threshold: 2,
-    validators: [
-      DEFAULT_AW_VALIDATOR,
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 };

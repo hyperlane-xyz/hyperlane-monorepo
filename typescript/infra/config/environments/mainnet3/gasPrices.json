@@ -3,10 +3,6 @@
     "amount": "0.04525",
     "decimals": 9
   },
-  "adichain": {
-    "amount": "1104.0",
-    "decimals": 9
-  },
   "aleo": {
     "amount": "0.00001",
     "decimals": 1
@@ -301,10 +297,6 @@
   },
   "zerogravity": {
     "amount": "19.15210198",
-    "decimals": 9
-  },
-  "zksync": {
-    "amount": "0.04525",
     "decimals": 9
   }
 }

@@ -79,9 +79,7 @@ export const chainsToSkip: ChainName[] = [
   'forma',
   'eden',
 
-  // TODO: remove once zksync PR is merged into main
-  // mainnets
-  'zksync',
+  // ZKSync stack chains
   'abstract',
 
   // temp during downtime

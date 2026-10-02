@@ -72,7 +72,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   // Generally, we run all production validators in the Hyperlane context.
   [Role.Validator]: {
     abstract: true,
-    adichain: true,
     aleo: true,
     apechain: true,
     arbitrum: true,
@@ -148,11 +147,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     worldchain: true,
     xlayer: true,
     zerogravity: true,
-    zksync: true,
   },
   [Role.Relayer]: {
     abstract: true,
-    adichain: true,
     aleo: true,
     apechain: true,
     arbitrum: true,
@@ -228,11 +225,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     worldchain: true,
     xlayer: true,
     zerogravity: true,
-    zksync: true,
   },
   [Role.Scraper]: {
     abstract: true,
-    adichain: true,
     aleo: true,
     apechain: true,
     arbitrum: true,
@@ -309,7 +304,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     worldchain: true,
     xlayer: true,
     zerogravity: true,
-    zksync: true,
   },
 };
 

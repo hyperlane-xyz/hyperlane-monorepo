@@ -2,7 +2,6 @@
 // Placing them here instead of adjacent chains file to avoid circular dep
 export const mainnet3SupportedChainNames = [
   'abstract',
-  'adichain',
   'aleo',
   'apechain',
   'arbitrum',
@@ -77,7 +76,6 @@ export const mainnet3SupportedChainNames = [
   'worldchain',
   'xlayer',
   'zerogravity',
-  'zksync',
 ] as const;
 
 export const supportedChainNames = [...mainnet3SupportedChainNames];

@@ -1,6 +1,5 @@
 {
   "abstract": 0.00856,
-  "adichain": 0.588,
   "aleo": 150,
   "apechain": 44.8,
   "arbitrum": 0.0688,
@@ -14,7 +13,7 @@
   "carrchain": 1250,
   "celestia": 18,
   "celo": 69.4,
-  "citrea": 0.0000804,
+  "citrea": 8.04e-5,
   "coti": 0.25,
   "eclipsemainnet": 0.125,
   "eden": 0.0125,
@@ -74,6 +73,5 @@
   "viction": 111,
   "worldchain": 0.0054,
   "xlayer": 0.228,
-  "zerogravity": 11.8,
-  "zksync": 0.00962
+  "zerogravity": 11.8
 }

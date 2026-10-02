@@ -349,16 +349,6 @@ export const validatorChainConfig = (
         'metis',
       ),
     },
-    zksync: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('zksync'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'zksync',
-      ),
-    },
     apechain: {
       interval: 5,
       reorgPeriod: getReorgPeriod('apechain'),
@@ -669,16 +659,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'megaeth',
-      ),
-    },
-    adichain: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('adichain'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'adichain',
       ),
     },
     stable: {

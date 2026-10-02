@@ -1,6 +1,5 @@
 {
   "abstract": 0.0514,
-  "adichain": 3.53,
   "aleo": 900,
   "apechain": 269,
   "arbitrum": 0.413,
@@ -74,6 +73,5 @@
   "viction": 664,
   "worldchain": 0.0324,
   "xlayer": 1.37,
-  "zerogravity": 70.8,
-  "zksync": 0.0577
+  "zerogravity": 70.8
 }
