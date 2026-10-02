@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { it } from 'node:test';
 import { connect } from 'node:net';
+import { once } from 'node:events';
 
 process.env.DATABASE_URL ??= 'postgresql://unused:unused@localhost/unused';
 
@@ -512,3 +513,90 @@ void it('keeps incomplete uploads outside GraphQL execution admission', async ()
     await app.close();
   }
 });
+
+void it(
+  'bounds near-limit uploads and recovers capacity after cancellation and parsing errors',
+  { timeout: 10_000 },
+  async () => {
+    const { createScraperProxyApp } = await import('./module.js');
+    const { config } = await import('./config.js');
+    let queries = 0;
+    const app = await createScraperProxyApp({
+      async query<T extends Record<string, unknown>>(): Promise<T[]> {
+        queries++;
+        return [];
+      },
+    });
+    const sockets = [];
+    const healthy = () =>
+      app.inject({
+        method: 'POST',
+        url: '/graphql',
+        payload: { query: '{ domain(limit: 1) { id } }' },
+      });
+    try {
+      await app.listen({ port: 0, host: '127.0.0.1' });
+      const address = app.server.address();
+      assert(address && typeof address !== 'string');
+      const payload = Buffer.alloc(102_399, ' ');
+      payload[0] = '{'.charCodeAt(0);
+      for (let i = 0; i < config.GRAPHQL_MAX_ACTIVE_UPLOADS; i++) {
+        const socket = connect(address.port, '127.0.0.1');
+        sockets.push(socket);
+        await once(socket, 'connect');
+        socket.write(
+          'POST /GraphQL/ HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 102400\r\n\r\n',
+        );
+        socket.write(payload);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      // Excess near-limit uploads receive an error and a closed connection.
+      for (let i = 0; i < 4; i++) {
+        const socket = connect(address.port, '127.0.0.1');
+        sockets.push(socket);
+        await once(socket, 'connect');
+        let response = '';
+        socket.on('data', (chunk) => {
+          response += chunk.toString();
+        });
+        socket.on('error', (error) => {
+          assert.equal(error.message, 'read ECONNRESET');
+        });
+        const closed = new Promise<void>((resolve) =>
+          socket.once('close', () => resolve()),
+        );
+        socket.write(
+          'POST /graphql HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 102400\r\n\r\n',
+        );
+        socket.write(payload);
+        await closed;
+        assert.match(response, /HTTP\/1.1 503/);
+        assert.match(response, /connection: close/i);
+      }
+      assert.equal((await healthy()).statusCode, 503);
+      assert.equal(queries, 0);
+      const withoutUpload = await app.inject({
+        method: 'GET',
+        headers: { 'mercurius-require-preflight': 'true' },
+        url: `/graphql?${new URLSearchParams({ query: '{ domain(limit: 1) { id } }' })}`,
+      });
+      assert.equal(withoutUpload.statusCode, 200);
+
+      // Completing an invalid body releases its upload slot despite parser failure.
+      const parsed = once(sockets[0], 'data');
+      sockets[0].write(']');
+      await parsed;
+      assert.equal((await healthy()).statusCode, 200);
+
+      // Aborted uploads also return capacity; completed requests can reuse it.
+      sockets.forEach((socket) => socket.destroy());
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      for (let i = 0; i < config.GRAPHQL_MAX_ACTIVE_UPLOADS + 1; i++) {
+        assert.equal((await healthy()).statusCode, 200);
+      }
+    } finally {
+      sockets.forEach((socket) => socket.destroy());
+      await app.close();
+    }
+  },
+);

@@ -293,23 +293,39 @@ mod tests {
 
     #[test]
     fn rejects_malformed_message_ids_without_panicking() {
-        for value in ["00".to_owned(), "zz".to_owned(), "11".repeat(33)] {
+        // The valid control proves companion fields cannot mask ID regressions.
+        for (value, valid) in [
+            ("11".repeat(32), true),
+            ("00".to_owned(), false),
+            ("zz".to_owned(), false),
+            ("11".repeat(33), false),
+        ] {
             for encoded in [false, true] {
-                let key = if encoded {
-                    BASE64.encode(MESSAGE_ID_ATTRIBUTE_KEY)
-                } else {
-                    MESSAGE_ID_ATTRIBUTE_KEY.to_owned()
-                };
-                let value = if encoded {
-                    BASE64.encode(&value)
-                } else {
-                    value.clone()
-                };
-                let attrs = event_attributes_from_str(&format!(
-                    r#"[{{"key":"{key}","value":"{value}","index":true}}]"#
-                ));
-                assert!(
-                    CwInterchainGasPaymasterIndexer::interchain_gas_payment_parser(&attrs).is_err()
+                let attrs: Vec<_> = [
+                    (
+                        "_contract_address",
+                        "neutron12p8wntzra3vpfcqv05scdx5sa3ftaj6gjcmtm7ynkl0e6crtt4ns8cnrmx",
+                    ),
+                    ("payment", "2"),
+                    ("gas_amount", "25000"),
+                    (DESTINATION_ATTRIBUTE_KEY, "169"),
+                    (MESSAGE_ID_ATTRIBUTE_KEY, value.as_str()),
+                ]
+                .into_iter()
+                .map(|(key, value)| {
+                    let (key, value) = if encoded {
+                        (BASE64.encode(key), BASE64.encode(value))
+                    } else {
+                        (key.to_owned(), value.to_owned())
+                    };
+                    serde_json::json!({"key": key, "value": value, "index": true})
+                })
+                .collect();
+                let attrs = event_attributes_from_str(&serde_json::to_string(&attrs).unwrap());
+                assert_eq!(
+                    CwInterchainGasPaymasterIndexer::interchain_gas_payment_parser(&attrs).is_ok(),
+                    valid,
+                    "message ID {value:?}, encoded={encoded}",
                 );
             }
         }

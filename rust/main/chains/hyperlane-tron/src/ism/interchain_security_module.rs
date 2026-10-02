@@ -296,3 +296,30 @@ impl InterchainSecurityModule for TronInterchainSecurityModule {
         .await
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::arithmetic_side_effects)]
+mod tests {
+    use super::*;
+
+    fn make_test_ism(url: url::Url) -> TronInterchainSecurityModule {
+        let domain = HyperlaneDomain::new_test_domain("tron");
+        let locator = ContractLocator {
+            domain: &domain,
+            address: H256::from_low_u64_be(1),
+        };
+        let provider = TronProvider::new(
+            &crate::ConnectionConf::new(vec![url.clone()], vec![url.clone()], vec![url], None),
+            &locator,
+            None,
+            hyperlane_metric::prometheus_metric::PrometheusClientMetricsBuilder::default()
+                .build()
+                .unwrap(),
+            None,
+        )
+        .unwrap();
+        TronInterchainSecurityModule::new(provider, &locator)
+    }
+
+    include!("../../../ism-dry-run-tests.rs");
+}

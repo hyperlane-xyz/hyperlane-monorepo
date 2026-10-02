@@ -369,3 +369,25 @@ impl HyperlaneAbi for EthereumInterchainSecurityModuleAbi {
         crate::extract_fn_map(&IINTERCHAINSECURITYMODULE_ABI)
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::arithmetic_side_effects)]
+mod tests {
+    use super::*;
+
+    fn make_test_ism(
+        url: url::Url,
+    ) -> EthereumInterchainSecurityModule<ethers::providers::Provider<ethers::providers::Http>>
+    {
+        let domain = HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Ethereum);
+        EthereumInterchainSecurityModule::new(
+            Arc::new(ethers::providers::Provider::try_from(url.as_str()).unwrap()),
+            &ContractLocator {
+                domain: &domain,
+                address: H256::from_low_u64_be(1),
+            },
+        )
+    }
+
+    include!("../../../ism-dry-run-tests.rs");
+}

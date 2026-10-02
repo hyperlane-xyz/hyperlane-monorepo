@@ -99,12 +99,49 @@ export async function createScraperProxyApp(
     routerOptions: { caseSensitive: false, ignoreTrailingSlash: true },
   });
   let activeRequests = 0;
+  let activeUploads = 0;
+  const uploadReleases = new WeakMap<FastifyRequest, () => void>();
   const responseCache = new GraphqlResponseCache();
   const requestStates = new WeakMap<FastifyRequest, RequestState>();
 
   await app.register(cors, {
     credentials: false,
     origin: true,
+  });
+
+  // Fastify buffers bodies before preHandler. Bound that memory independently
+  // of execution slots; each admitted upload retains at most MAX_REQUEST_BYTES.
+  app.addHook('onRequest', async (request, reply) => {
+    if (!isGraphqlRequest(request) || request.method === 'GET') return;
+    if (activeUploads >= config.GRAPHQL_MAX_ACTIVE_UPLOADS) {
+      reply.code(503).header('retry-after', '1').header('connection', 'close');
+      reply.raw.once('finish', () => request.raw.destroy());
+      return reply.send('GraphQL upload capacity exceeded');
+    }
+    activeUploads++;
+    const release = () => {
+      if (!uploadReleases.delete(request)) return;
+      activeUploads--;
+      request.raw.off('close', release);
+    };
+    uploadReleases.set(request, release);
+    request.raw.once('close', release);
+  });
+
+  app.addHook('preValidation', async (request) => {
+    uploadReleases.get(request)?.();
+  });
+
+  app.addHook('onSend', async (request, reply, payload) => {
+    if (!uploadReleases.has(request)) return payload;
+    if (request.raw.complete) {
+      uploadReleases.get(request)?.();
+    } else {
+      // Rejected/oversized uploads must stop buffering before returning capacity.
+      reply.header('connection', 'close');
+      reply.raw.once('finish', () => request.raw.destroy());
+    }
+    return payload;
   });
 
   app.addHook('preHandler', async (request, reply) => {
