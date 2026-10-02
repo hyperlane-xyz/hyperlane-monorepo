@@ -9,10 +9,14 @@ import {
   type ReplayServer,
   createReplayReader,
   loadReplayFixture,
+  parseReplayFixture,
+  serializeReplayFixture,
   recordedCode,
   startReplayServer,
+  withCallError,
   withCallResult,
   withCodeSuffix,
+  withStorage,
 } from '../test/replayRpc.js';
 import {
   REPLAY_SCENARIOS,
@@ -25,6 +29,11 @@ import {
 } from '../utils/contract.js';
 
 import type { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
+import {
+  EIP1967_BEACON_SLOT,
+  EIP1967_IMPLEMENTATION_SLOT,
+} from '../deploy/proxy.js';
+
 import { TokenType } from './config.js';
 
 chai.use(chaiAsPromised);
@@ -98,6 +107,29 @@ function assertForwardedGetters(
   const code = codeOf(fixture, implementation);
   expect(hasOpcode(code, OPCODE_DELEGATECALL)).to.equal(true);
   expect(code).to.not.include(selector.slice(2));
+}
+
+const unresolvedMagic = (fixture: ReplayFixture): ReplayFixture =>
+  withStorage(
+    withStorage(
+      fixture,
+      MAGIC_ROUTER,
+      EIP1967_IMPLEMENTATION_SLOT,
+      abiWord(0n),
+    ),
+    MAGIC_ROUTER,
+    EIP1967_BEACON_SLOT,
+    abiWord(MAGIC_IMPLEMENTATION),
+  );
+
+function assertMagicUnresolved(fixture: ReplayFixture): void {
+  const beacon = fixture.requests.find(
+    (r) =>
+      r.method === 'eth_getStorageAt' &&
+      r.address === MAGIC_ROUTER &&
+      BigInt(r.slot ?? '0x0') === BigInt(EIP1967_BEACON_SLOT),
+  );
+  expect(BigInt(beacon?.result ?? '0x0')).to.not.equal(0n);
 }
 
 const USDC_FEE_HOOK = '0x1111111111111111111111111111111111111111';
@@ -185,6 +217,36 @@ const cases: Case[] = [
       ),
   },
   {
+    // Derived: the implementation slot is cleared and the beacon slot set, so
+    // the implementation cannot be resolved; an empty answer from scale() may
+    // hide a real scale and must surface.
+    name: 'magic-abstract-base-router (derived: unresolved beacon proxy, empty data)',
+    scenario: 'magic-abstract-base-router',
+    derive: (fixture) =>
+      withCallResult(
+        unresolvedMagic(fixture),
+        MAGIC_ROUTER,
+        SCALE_SELECTOR,
+        '0x',
+      ),
+    assertResult: () => undefined,
+    expectedError: 'All providers failed',
+    requiredCalls: [`${MAGIC_ROUTER}:${SCALE_SELECTOR}`],
+    forbiddenCalls: [],
+    assertFixtureProperty: assertMagicUnresolved,
+  },
+  {
+    // Derived: same unresolved proxy with the recorded code 3 revert, which is
+    // tolerated.
+    name: 'magic-abstract-base-router (derived: unresolved beacon proxy, recorded revert)',
+    scenario: 'magic-abstract-base-router',
+    derive: unresolvedMagic,
+    assertResult: (result) => expect(result).to.equal(undefined),
+    requiredCalls: [`${MAGIC_ROUTER}:${SCALE_SELECTOR}`],
+    forbiddenCalls: [],
+    assertFixtureProperty: assertMagicUnresolved,
+  },
+  {
     // EIP-1967 proxy whose implementation contains DELEGATECALL bytes but no
     // feeHook() getter; the node reverts feeHook() with LSP17
     // NoExtensionFoundForFunctionSelector(bytes4). scale() answers 1.
@@ -205,6 +267,29 @@ const cases: Case[] = [
       ),
     assertProbeError: (error) =>
       expect(isMissingSelectorCallException(error)).to.equal(true),
+  },
+  {
+    // Derived: feeHook() reverts with LSP17 NoExtensionFound for ANOTHER
+    // selector, i.e. the getter exists but reaches a missing extension of
+    // another contract. It must not read as an absent feeHook().
+    name: 'usdc-lukso-router (derived: LSP17 revert for another selector)',
+    scenario: 'usdc-lukso-router',
+    derive: (fixture) =>
+      withCallError(fixture, USDC_LUKSO_ROUTER, FEE_HOOK_SELECTOR, {
+        code: 3,
+        message: 'execution reverted',
+        data: `0xbb370b2b46904840${'00'.repeat(28)}`,
+      }),
+    assertResult: () => undefined,
+    expectedError: 'call revert exception',
+    requiredCalls: [`${USDC_LUKSO_ROUTER}:${FEE_HOOK_SELECTOR}`],
+    forbiddenCalls: [],
+    assertFixtureProperty: (fixture) =>
+      assertForwardedGetters(
+        fixture,
+        USDC_LUKSO_IMPLEMENTATION,
+        FEE_HOOK_SELECTOR,
+      ),
   },
   {
     // Derived: same bytecode and storage, but the forwarded feeHook() answers
@@ -448,6 +533,54 @@ describe('EvmWarpRouteReader production route replay', () => {
           c.assertProbeError?.(thrown);
         });
       }
+    });
+  }
+});
+
+describe('replay fixture serialization', () => {
+  const word = `0x${'ab'.repeat(32)}`;
+  const base: ReplayFixture = {
+    scenario: 'serialization',
+    chain: 'test',
+    chainId: 1,
+    blockNumber: 1,
+    capturedAt: '2026-01-01T00:00:00.000Z',
+    requests: [{ method: 'eth_getStorageAt', address: '0x01', slot: word }],
+  };
+
+  it('splits 64-nibble words and joins them back on load', () => {
+    const text = serializeReplayFixture(base);
+
+    expect(text).to.not.match(/\b(0x)?[0-9a-fA-F]{64}\b/);
+    expect(text).to.include(`${word.slice(0, 34)}_${word.slice(34)}`);
+    expect(parseReplayFixture(text)).to.deep.equal(base);
+  });
+
+  const secretCases = [
+    { name: 'a URL', text: 'https://rpc.example/path' },
+    { name: 'an api key query', text: 'x?key=abc' },
+    { name: 'an apikey field', text: 'ApiKey' },
+  ];
+
+  for (const c of secretCases) {
+    it(`refuses to serialize ${c.name}`, () => {
+      expect(() =>
+        serializeReplayFixture({
+          scenario: base.scenario,
+          chain: base.chain,
+          chainId: base.chainId,
+          blockNumber: base.blockNumber,
+          capturedAt: base.capturedAt,
+          requests: [
+            {
+              method: 'eth_call',
+              to: '0x01',
+              data: '0x02',
+              error: { code: -32000, message: c.text },
+            },
+          ],
+        }),
+      ).to.throw('refusing to serialize');
     });
   }
 });

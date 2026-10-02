@@ -30,9 +30,7 @@ try {
     recorder.url,
     scenario.chainId,
   );
-  const result = await scenario
-    .run(reader, scenario.router)
-    .catch((error: unknown) => `threw: ${String(error)}`);
+  const result = await scenario.run(reader, scenario.router);
   console.log(`${scenario.scenario}:`, result);
   for (const probe of scenario.probes) {
     await runProbe(provider, probe).catch((error: unknown) =>
@@ -41,6 +39,10 @@ try {
       ),
     );
   }
+  assert(
+    recorder.failures.length === 0,
+    `Recording server failures: ${recorder.failures.join('; ')}`,
+  );
   writeFileSync(
     new URL(`${scenario.scenario}.json`, REPLAY_FIXTURE_DIR),
     serializeReplayFixture(recorder.fixture),
