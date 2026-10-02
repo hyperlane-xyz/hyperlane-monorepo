@@ -1,21 +1,61 @@
 import { ChainMap, IgpConfig } from '@hyperlane-xyz/sdk';
+import { objMap, rootLogger } from '@hyperlane-xyz/utils';
 
-/**
- * Per-fee-token IGP gas oracle configs for ERC20-denominated interchain gas
- * payments, keyed by:
- *
- *   local chain -> fee token address -> remote chain -> oracle config
- *
- * The wiring in `igp.ts` merges the entry for each local chain into that
- * chain's `IgpConfig.tokenOracleConfig`, which the SDK turns into per-fee-token
- * `StorageGasOracle` deployments + `setTokenGasOracles` calls on the IGP.
- *
- * Empty by default — keeping all token-IGP rollout changes contained to this
- * file. To enable a token on a chain, add an entry here. Only applies to
- * non-legacy IGPs (>= 11.3.0, EIP-1153 transient storage); legacy chains reject
- * it. The exchange rate is denominated in the fee token (price of the remote
- * native token quoted in the fee token), not the local native token.
- */
-export const tokenGasOracleConfigs: ChainMap<
+import {
+  getLocalStorageGasOracleConfigOverride,
+  getOverheadWithOverrides,
+} from '../../../src/config/gas-oracle.js';
+import { tokens } from '../../../src/config/warp.js';
+
+import gasPrices from './gasPrices.json' with { type: 'json' };
+import { supportedChainNames } from './supportedChainNames.js';
+import tokenPrices from './tokenPrices.json' with { type: 'json' };
+
+// Existing USDC and USDT deployments, including bridged USDT on Base/Optimism
+// and the USDT address upgraded to USD₮0 on Arbitrum.
+// Arc, Ink and Robinhood are excluded from this rollout.
+const feeTokens: ChainMap<string[]> = {
+  arbitrum: [tokens.arbitrum.USDC, tokens.arbitrum.USDT],
+  base: [tokens.base.USDC, tokens.base.USDT],
+  ethereum: [tokens.ethereum.USDC, tokens.ethereum.USDT],
+  optimism: [tokens.optimism.USDC, tokens.optimism.USDT],
+};
+
+// Price both stablecoins at their $1 peg; these are deployment-time quotes,
+// using the same remote gas/native-price snapshots as the native IGP config.
+// Reconcile the oracles if either stablecoin departs from its peg.
+const feeToken = { price: '1', decimals: 6 };
+
+let tokenGasOracleConfigsCache:
+  | ChainMap<NonNullable<IgpConfig['tokenOracleConfig']>>
+  | undefined;
+
+/** Builds per-token oracles lazily, preserving native IGP margins and USD floors. */
+export function getTokenGasOracleConfigs(): ChainMap<
   NonNullable<IgpConfig['tokenOracleConfig']>
-> = {};
+> {
+  if (!tokenGasOracleConfigsCache) {
+    const flooredPairs = new Set<string>();
+    tokenGasOracleConfigsCache = objMap(feeTokens, (local, addresses) => {
+      const oracleConfig = getLocalStorageGasOracleConfigOverride(
+        local,
+        supportedChainNames.filter((remote) => remote !== local),
+        tokenPrices,
+        gasPrices,
+        getOverheadWithOverrides,
+        true,
+        ({ local, remote }) => flooredPairs.add(`${local} -> ${remote}`),
+        feeToken,
+      );
+      return Object.fromEntries(
+        addresses.map((address) => [address, oracleConfig]),
+      );
+    });
+    if (flooredPairs.size > 0) {
+      rootLogger.warn(
+        `${flooredPairs.size} stablecoin gas oracle pair(s) floored the exchange rate to 1 after precision rebalance: ${[...flooredPairs].join(', ')}`,
+      );
+    }
+  }
+  return tokenGasOracleConfigsCache;
+}
