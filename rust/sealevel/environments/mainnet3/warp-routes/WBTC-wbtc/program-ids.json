@@ -1,0 +1,14 @@
+{
+  "solanamainnet": {
+    "hex": "0x930ced03848a3d63c5cfd37b8f12d57f764e3e79517e9dca3ac3a05070fb7990",
+    "base58": "Au2N4xRm5q6fm5htyeB1xxcSjUFq9Wxa4gEDy9W5qUbq"
+  },
+  "optimism": {
+    "hex": "0x000000000000000000000000e6936c72cd3ce5a8cac4c55abd82b4be1d5bcd18",
+    "base58": "1111111111114DKD8DNohmYqVUJJy9DEYhvvSsrX"
+  },
+  "ethereum": {
+    "hex": "0x000000000000000000000000e0891f43050eb6db8aa353dbebf5bf4c27e30e67",
+    "base58": "11111111111148S8KALkAvRCbKsqr6BJhobgBQia"
+  }
+}
