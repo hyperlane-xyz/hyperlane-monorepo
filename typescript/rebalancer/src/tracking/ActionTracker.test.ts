@@ -569,6 +569,42 @@ describe('ActionTracker', () => {
     });
   });
 
+  describe('batched action queries', () => {
+    it('groups requested intents with one store scan', async () => {
+      const getAll = Sinon.spy(rebalanceActionStore, 'getAll');
+      const createAction = (id: string, intentId: string): RebalanceAction => ({
+        id,
+        intentId,
+        type: 'rebalance_message',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      await rebalanceActionStore.save(createAction('action-1', 'intent-1'));
+      await rebalanceActionStore.save(createAction('action-2', 'intent-2'));
+      await rebalanceActionStore.save(createAction('action-3', 'other'));
+
+      const actionsByIntent = await tracker.getActionsForIntents([
+        'intent-1',
+        'intent-2',
+        'missing',
+      ]);
+
+      expect(getAll.calledOnce).to.equal(true);
+      expect(actionsByIntent.get('intent-1')?.map(({ id }) => id)).to.eql([
+        'action-1',
+      ]);
+      expect(actionsByIntent.get('intent-2')?.map(({ id }) => id)).to.eql([
+        'action-2',
+      ]);
+      expect(actionsByIntent.get('missing')).to.eql([]);
+      expect(actionsByIntent.has('other')).to.equal(false);
+    });
+  });
+
   describe('syncInventoryMovementActions', () => {
     it('stores pending status on in-progress movement', async () => {
       await rebalanceActionStore.save({
@@ -1468,6 +1504,122 @@ describe('ActionTracker', () => {
   });
 
   describe('delivery check synchronization', () => {
+    it('limits delivery reads and reuses the destination block tag', async () => {
+      for (let index = 0; index < 10; index += 1) {
+        await transferStore.save({
+          id: `0xmsg${index}`,
+          status: 'in_progress',
+          messageId: `0xmsg${index}`,
+          origin: 1,
+          destination: 2,
+          amount: 100n,
+          sender: '0xuser1',
+          recipient: '0xuser2',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      }
+      explorerClient.getInflightUserTransfers.resolves([]);
+      core.multiProvider.getChainMetadata = Sinon.stub().throws(
+        new Error('no metadata'),
+      );
+
+      let active = 0;
+      let maxActive = 0;
+      let started = 0;
+      let releaseReads: () => void;
+      const readsReleased = new Promise<void>((resolve) => {
+        releaseReads = resolve;
+      });
+      let resolveLimitReached: () => void;
+      const limitReached = new Promise<void>((resolve) => {
+        resolveLimitReached = resolve;
+      });
+      mailboxStub.isDelivered.callsFake(async () => {
+        active += 1;
+        started += 1;
+        maxActive = Math.max(maxActive, active);
+        if (started === 8) resolveLimitReached();
+        await readsReleased;
+        active -= 1;
+        return false;
+      });
+
+      const syncPromise = tracker.syncTransfers();
+      await limitReached;
+      expect(started).to.equal(8);
+      releaseReads!();
+      await syncPromise;
+
+      expect(mailboxStub.isDelivered.callCount).to.equal(10);
+      expect(maxActive).to.equal(8);
+      expect(core.multiProvider.getChainMetadata.calledOnce).to.equal(true);
+    });
+
+    it('shares the delivery limit across concurrent tracker syncs', async () => {
+      for (let index = 0; index < 8; index += 1) {
+        await transferStore.save({
+          id: `0xtransfer${index}`,
+          status: 'in_progress',
+          messageId: `0xtransfer${index}`,
+          origin: 1,
+          destination: 2,
+          amount: 100n,
+          sender: '0xuser1',
+          recipient: '0xuser2',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+        await rebalanceActionStore.save({
+          id: `action-${index}`,
+          intentId: `intent-${index}`,
+          status: 'in_progress',
+          type: 'rebalance_message',
+          messageId: `0xaction${index}`,
+          origin: 1,
+          destination: 2,
+          amount: 100n,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      }
+      explorerClient.getInflightUserTransfers.resolves([]);
+      explorerClient.getInflightRebalanceActions.resolves([]);
+
+      let active = 0;
+      let maxActive = 0;
+      let started = 0;
+      let releaseReads: () => void;
+      const readsReleased = new Promise<void>((resolve) => {
+        releaseReads = resolve;
+      });
+      let resolveLimitReached: () => void;
+      const limitReached = new Promise<void>((resolve) => {
+        resolveLimitReached = resolve;
+      });
+      mailboxStub.isDelivered.callsFake(async () => {
+        active += 1;
+        started += 1;
+        maxActive = Math.max(maxActive, active);
+        if (started === 8) resolveLimitReached();
+        await readsReleased;
+        active -= 1;
+        return false;
+      });
+
+      const syncPromise = Promise.all([
+        tracker.syncTransfers({ chain2: 123 }),
+        tracker.syncRebalanceActions({ chain2: 123 }),
+      ]);
+      await limitReached;
+      expect(started).to.equal(8);
+      releaseReads!();
+      await syncPromise;
+
+      expect(mailboxStub.isDelivered.callCount).to.equal(16);
+      expect(maxActive).to.equal(8);
+    });
+
     it('should check delivery status in syncTransfers using adapter', async () => {
       await transferStore.save({
         id: '0xmsg1',
@@ -1731,6 +1883,74 @@ describe('ActionTracker', () => {
       const call = mailboxStub.isDelivered.firstCall;
       expect(call.args[0]).to.equal('0xmsg1');
       expect(call.args[1]).to.be.undefined;
+    });
+  });
+
+  describe('logStoreContents', () => {
+    it('keeps the summary at info and item details at debug', async () => {
+      await transferStore.save({
+        id: 'transfer-1',
+        status: 'in_progress',
+        messageId: '0xmsg1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        sender: '0xsender1',
+        recipient: '0xrecipient1',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      await rebalanceIntentStore.save({
+        id: 'intent-1',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      await rebalanceActionStore.save({
+        id: 'action-1',
+        status: 'in_progress',
+        type: 'rebalance_message',
+        intentId: 'intent-1',
+        messageId: '0xmsg1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      const logger = {
+        info: Sinon.stub(),
+        debug: Sinon.stub(),
+      };
+      const trackerWithLogger = new ActionTracker(
+        transferStore,
+        rebalanceIntentStore,
+        rebalanceActionStore,
+        explorerClient,
+        core,
+        config,
+        logger as any,
+      );
+
+      await trackerWithLogger.logStoreContents();
+
+      expect(logger.info.calledOnce).to.equal(true);
+      expect(
+        logger.info.calledWithMatch(Sinon.match.any, 'Store summary'),
+      ).to.equal(true);
+      expect(logger.debug.callCount).to.equal(3);
+      expect(
+        logger.debug.calledWithMatch(Sinon.match.any, 'In-progress transfer'),
+      ).to.equal(true);
+      expect(
+        logger.debug.calledWithMatch(Sinon.match.any, 'Active intent'),
+      ).to.equal(true);
+      expect(
+        logger.debug.calledWithMatch(Sinon.match.any, 'In-progress action'),
+      ).to.equal(true);
     });
   });
 });
