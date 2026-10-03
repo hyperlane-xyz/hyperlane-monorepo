@@ -212,7 +212,7 @@ async fn checkpoint_migration_backfills_an_existing_frontier() -> Result<()> {
     ))
     .await?;
     migration::Migrator::up(&db, None).await?;
-    migration::Migrator::down(&db, Some(3)).await?;
+    migration::Migrator::down(&db, Some(4)).await?;
     db.execute_unprepared(
         r#"
         INSERT INTO block(domain,height,hash,timestamp) VALUES
@@ -251,7 +251,7 @@ async fn checkpoint_migration_backfills_an_existing_frontier() -> Result<()> {
         .db
         .execute_unprepared("DELETE FROM block WHERE domain=1 AND height=8")
         .await?;
-    migration::Migrator::down(&store.db, Some(2)).await?;
+    migration::Migrator::down(&store.db, Some(3)).await?;
     let restored_confirmed = store
         .db
         .query_one(Statement::from_string(
@@ -282,7 +282,7 @@ async fn checkpoint_migration_rejects_a_missing_indexed_boundary() -> Result<()>
     ))
     .await?;
     migration::Migrator::up(&db, None).await?;
-    migration::Migrator::down(&db, Some(3)).await?;
+    migration::Migrator::down(&db, Some(4)).await?;
     db.execute_unprepared(
         r#"
         INSERT INTO block(domain,height,hash,timestamp)
@@ -319,7 +319,7 @@ async fn frontier_migration_preserves_legacy_null_heights_and_rolls_back() -> Re
     );
     let db = Database::connect(&url).await?;
     migration::Migrator::up(&db, None).await?;
-    migration::Migrator::down(&db, Some(2)).await?;
+    migration::Migrator::down(&db, Some(3)).await?;
     db.execute_unprepared(
         r#"
         INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,
@@ -351,7 +351,7 @@ async fn frontier_migration_preserves_legacy_null_heights_and_rolls_back() -> Re
     }
     let mut head_listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
     head_listener.listen("scraper_head").await?;
-    migration::Migrator::down(&db, Some(2)).await?;
+    migration::Migrator::down(&db, Some(3)).await?;
     for relation in ["delivered_message", "gas_payment"] {
         let row = db
             .query_one(Statement::from_string(
@@ -739,7 +739,7 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     store.initialize(&anchor, &contracts()).await?;
     assert!(observe(&chain, &store).await.is_err());
     assert_eq!(count(&store, "confirmed_gas_payment").await?, 1);
-    migration::Migrator::down(&store.db, Some(2)).await?;
+    migration::Migrator::down(&store.db, Some(3)).await?;
     migration::Migrator::down(&store.db, Some(1)).await?;
     assert!(
         migration::Migrator::down(&store.db, Some(1)).await.is_err(),
