@@ -5,19 +5,9 @@ pub struct Migration;
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
-    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .get_connection()
-            .execute_unprepared(
-                r#"
-                SET LOCAL lock_timeout = '5s';
-                DROP INDEX gas_payment_block_log;
-                CREATE UNIQUE INDEX gas_payment_block_log
-                  ON gas_payment(domain, block_hash, transaction_index, log_index)
-                  WHERE block_hash IS NOT NULL;
-                "#,
-            )
-            .await?;
+    async fn up(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
+        // init-db builds and verifies the replacement index concurrently, then
+        // drops the legacy index concurrently outside this transaction.
         Ok(())
     }
 
@@ -27,10 +17,10 @@ impl MigrationTrait for Migration {
             .execute_unprepared(
                 r#"
                 SET LOCAL lock_timeout = '5s';
-                DROP INDEX gas_payment_block_log;
-                CREATE UNIQUE INDEX gas_payment_block_log
+                CREATE UNIQUE INDEX IF NOT EXISTS gas_payment_block_log
                   ON gas_payment(domain, block_hash, log_index)
                   WHERE block_hash IS NOT NULL;
+                DROP INDEX IF EXISTS gas_payment_transaction_log;
                 "#,
             )
             .await?;
@@ -72,13 +62,16 @@ mod tests {
         db.execute_unprepared(&payment(0, "01")).await?;
 
         Migrator::up(&db, None).await?;
+        crate::indexes::create_indexes(&db)
+            .await
+            .map_err(|err| DbErr::Custom(err.to_string()))?;
 
         db.execute_unprepared(&payment(1, "02")).await?;
         assert!(db.execute_unprepared(&payment(1, "03")).await.is_err());
         let index = db
             .query_one(Statement::from_string(
                 DbBackend::Postgres,
-                "SELECT pg_get_indexdef('gas_payment_block_log'::regclass) AS definition"
+                "SELECT pg_get_indexdef('gas_payment_transaction_log'::regclass) AS definition"
                     .to_owned(),
             ))
             .await?
@@ -86,6 +79,14 @@ mod tests {
         assert!(index
             .try_get::<String>("", "definition")?
             .contains("transaction_index"));
+        let legacy_index = db
+            .query_one(Statement::from_string(
+                DbBackend::Postgres,
+                "SELECT to_regclass('gas_payment_block_log') IS NULL AS removed".to_owned(),
+            ))
+            .await?
+            .expect("legacy gas payment position index check");
+        assert!(legacy_index.try_get::<bool>("", "removed")?);
         Ok(())
     }
 }
