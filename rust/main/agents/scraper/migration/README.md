@@ -18,7 +18,14 @@ retain matching valid indexes and reject invalid or conflicting definitions. If
 index setup fails, the schema migrations stay committed; repair the reported index
 and rerun the same command. Concurrent indexes survive schema rollback, except the
 three frontier indexes and gas payment transaction-log index, which their down
-migrations drop.
+migrations drop. Scraper startup refuses to run until the transaction-log index
+is valid and the legacy `gas_payment_block_log` index is gone.
+
+Rolling back past `m20261003_000017` recreates the legacy unique
+`(domain, block_hash, log_index)` index without `CONCURRENTLY`, so it blocks
+gas payment writes while it builds. It fails once a chain that numbers logs per
+transaction (e.g. ENI) has stored two payments at the same log index in one
+block; such rows are valid and must not be deleted to force a downgrade.
 
 For migration development and rollback operations, the SeaORM CLI remains
 available from this directory:

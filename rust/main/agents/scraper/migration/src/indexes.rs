@@ -136,15 +136,30 @@ pub async fn create_index(db: &DatabaseConnection, index: ScraperIndex) -> eyre:
 }
 
 /// Fail scraper startup when an interrupted or mismatched frontier index would
-/// turn bounded near-head work into a full-table scan.
+/// turn bounded near-head work into a full-table scan, or when the gas payment
+/// position cutover is incomplete.
 pub async fn verify_frontier_indexes(db: &DatabaseConnection) -> eyre::Result<()> {
     for index in [
         DELIVERY_FRONTIER_UNENRICHED,
         GAS_PAYMENT_FRONTIER_UNENRICHED,
         GAS_PAYMENT_FRONTIER_HEIGHT,
+        GAS_PAYMENT_TRANSACTION_LOG,
     ] {
         verify_index(db, index).await?;
     }
+    // The legacy block-scoped key rejects valid payments on chains that number
+    // logs per transaction, so ingestion would retry forever behind it.
+    let legacy = db
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT to_regclass('gas_payment_block_log') IS NOT NULL AS present".to_owned(),
+        ))
+        .await?
+        .ok_or_else(|| eyre::eyre!("Legacy gas payment index check returned no row"))?;
+    ensure!(
+        !legacy.try_get::<bool>("", "present")?,
+        "Legacy gas_payment_block_log index still exists; run init-db to finish the gas payment index cutover"
+    );
     Ok(())
 }
 
@@ -215,6 +230,27 @@ mod tests {
         create_indexes(&db).await?;
         verify_frontier_indexes(&db).await?;
         create_indexes(&db).await?;
+        // An incomplete gas payment position cutover must block startup.
+        db.execute_unprepared(
+            "CREATE UNIQUE INDEX gas_payment_block_log ON gas_payment(domain, block_hash, log_index) WHERE block_hash IS NOT NULL",
+        )
+        .await?;
+        assert!(verify_frontier_indexes(&db)
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("gas_payment_block_log"));
+        db.execute_unprepared("DROP INDEX gas_payment_block_log")
+            .await?;
+        db.execute_unprepared("DROP INDEX gas_payment_transaction_log")
+            .await?;
+        assert!(verify_frontier_indexes(&db)
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("gas_payment_transaction_log"));
+        create_indexes(&db).await?;
+        verify_frontier_indexes(&db).await?;
         db.execute_unprepared("DROP INDEX gas_payment_frontier_height")
             .await?;
         assert!(verify_frontier_indexes(&db)

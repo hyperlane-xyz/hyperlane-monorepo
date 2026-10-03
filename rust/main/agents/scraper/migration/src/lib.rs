@@ -28,6 +28,7 @@ mod m20260922_000014_near_head;
 mod m20260924_000015_near_head_checkpoints;
 mod m20260924_000016_frontier_publication;
 mod m20261003_000017_gas_payment_transaction_log;
+mod m20261003_000018_gas_payment_cursor_order;
 
 pub struct Migrator;
 
@@ -57,6 +58,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260924_000015_near_head_checkpoints::Migration),
             Box::new(m20260924_000016_frontier_publication::Migration),
             Box::new(m20261003_000017_gas_payment_transaction_log::Migration),
+            Box::new(m20261003_000018_gas_payment_cursor_order::Migration),
         ]
     }
 }

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use ethers::{
     abi::RawLog,
@@ -191,6 +193,16 @@ impl<M: Middleware + 'static> Source for EvmSource<M> {
             }),
             "Duplicate event position"
         );
+        // Positions include the transaction index, so one transaction reported at
+        // two indexes would otherwise store the same log twice.
+        let mut tx_positions = HashMap::new();
+        for event in &events {
+            let previous = tx_positions.insert((event.block_hash, event.tx_hash), event.tx_index);
+            ensure!(
+                previous.is_none_or(|index| index == event.tx_index),
+                "RPC reported one transaction at two indexes"
+            );
+        }
         Ok(events)
     }
 }
@@ -367,6 +379,66 @@ mod tests {
         Ok(())
     }
 
+    /// RPCs such as ENI number logs within each transaction. Ordering by log index
+    /// alone would put nonce 1 (tx 1, log 0) before nonce 0 (tx 0, log 1).
+    #[tokio::test]
+    async fn dispatch_nonces_follow_chain_order_with_per_transaction_log_indexes() -> Result<()> {
+        use hyperlane_core::Encode;
+
+        let (provider, rpc) = Provider::mocked();
+        let contracts = Contracts {
+            mailbox: H160::repeat_byte(1),
+            hook: H160::repeat_byte(2),
+            paymaster: H160::repeat_byte(3),
+        };
+        let source = EvmSource {
+            provider,
+            contracts: contracts.clone(),
+            domain: 1,
+        };
+        let sender = H160::repeat_byte(9);
+        let dispatch = |nonce: u32, tx_index: u64, log_index: u64| {
+            let message = HyperlaneMessage {
+                version: 3,
+                nonce,
+                origin: 1,
+                sender: H256::from(sender).0.into(),
+                destination: 2,
+                recipient: hyperlane_core::H256::repeat_byte(2),
+                body: vec![],
+            };
+            Log {
+                address: contracts.mailbox,
+                topics: vec![
+                    DispatchFilter::signature(),
+                    H256::from(sender),
+                    H256::from_low_u64_be(2),
+                    H256::repeat_byte(2),
+                ],
+                data: encode(&[Token::Bytes(message.to_vec())]).into(),
+                block_hash: Some(H256::repeat_byte(4)),
+                block_number: Some(10.into()),
+                transaction_hash: Some(H256::from_low_u64_be(100 + tx_index)),
+                transaction_index: Some(tx_index.into()),
+                log_index: Some(log_index.into()),
+                removed: Some(false),
+                ..Default::default()
+            }
+        };
+        rpc.push::<Vec<Log>, _>(vec![dispatch(1, 1, 0), dispatch(0, 0, 1)])?;
+        let events = source.events(10, 10).await?;
+        let nonces = events
+            .iter()
+            .map(|event| match &event.data {
+                EventData::Dispatch(message) => message.nonce,
+                _ => unreachable!("only dispatches were returned"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(nonces, vec![0, 1]);
+        super::super::validate_sequences(&events, [0, 0], [2, 0])?;
+        Ok(())
+    }
+
     #[tokio::test]
     async fn gas_logs_require_the_requested_occurrence_and_unique_positions() -> Result<()> {
         let (provider, rpc) = Provider::mocked();
@@ -470,11 +542,26 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![(0, 1), (1, 1)]
         );
-        rpc.push::<Vec<Log>, _>(vec![log.clone(), log])?;
+        rpc.push::<Vec<Log>, _>(vec![log.clone(), log.clone()])?;
         assert!(source
             .events(header.height, header.height + 100)
             .await
             .is_err());
+        // The same transaction must not appear at two indexes, which would store
+        // one log twice under different positions.
+        rpc.push::<Vec<Log>, _>(vec![
+            log.clone(),
+            Log {
+                transaction_index: Some(1.into()),
+                ..log
+            },
+        ])?;
+        assert!(source
+            .events(header.height, header.height + 100)
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("one transaction at two indexes"));
         Ok(())
     }
 }
