@@ -56,6 +56,126 @@ fn payments(height: u64, count: u64, address: H160) -> Vec<Event> {
 }
 
 #[tokio::test]
+async fn events_allow_transaction_scoped_log_indexes() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let contracts = Contracts {
+        mailbox: H160::repeat_byte(1),
+        hook: H160::repeat_byte(2),
+        paymaster: H160::repeat_byte(3),
+    };
+    store.initialize(&header(0), &contracts).await?;
+    let initial = store.state().await?.unwrap();
+    store.observe(&initial, &header(0), &header(1)).await?;
+    let state = store.state().await?.unwrap();
+    let message = |nonce| HyperlaneMessage {
+        version: 3,
+        nonce,
+        origin: 1,
+        sender: hyperlane_core::H256::repeat_byte(1),
+        destination: 2,
+        recipient: hyperlane_core::H256::repeat_byte(2),
+        body: vec![],
+    };
+    let messages = [message(0), message(1)];
+    let message_ids = messages
+        .iter()
+        .map(|message| H256::from_slice(message.id().as_bytes()))
+        .collect::<Vec<_>>();
+    let mut events = vec![
+        event(
+            1,
+            0,
+            contracts.mailbox,
+            EventData::Dispatch(messages[0].clone()),
+        ),
+        event(
+            1,
+            1,
+            contracts.mailbox,
+            EventData::Dispatch(messages[1].clone()),
+        ),
+        event(1, 2, contracts.mailbox, EventData::Delivery(message_ids[0])),
+        event(1, 3, contracts.mailbox, EventData::Delivery(message_ids[1])),
+        event(
+            1,
+            4,
+            contracts.hook,
+            EventData::Insertion {
+                message_id: message_ids[0],
+                index: 0,
+            },
+        ),
+        event(
+            1,
+            5,
+            contracts.hook,
+            EventData::Insertion {
+                message_id: message_ids[1],
+                index: 1,
+            },
+        ),
+        event(
+            1,
+            6,
+            contracts.paymaster,
+            EventData::Gas {
+                message_id: message_ids[0],
+                destination: 2,
+                gas: "1".into(),
+                payment: "1".into(),
+            },
+        ),
+        event(
+            1,
+            7,
+            contracts.paymaster,
+            EventData::Gas {
+                message_id: message_ids[1],
+                destination: 2,
+                gas: "1".into(),
+                payment: "1".into(),
+            },
+        ),
+    ];
+    events.iter_mut().for_each(|event| event.log_index = 0);
+
+    store.append(&state, &[(header(1), events)]).await?;
+
+    let counts = store
+        .db
+        .query_all(sql(
+            "SELECT 'delivery' AS event_type,count(*) AS count FROM delivered_message WHERE domain=1 UNION ALL SELECT 'dispatch',count(*) FROM raw_message_dispatch WHERE origin_domain=1 UNION ALL SELECT 'gas',count(*) FROM gas_payment WHERE domain=1 UNION ALL SELECT 'insertion',count(*) FROM merkle_tree_insertion WHERE domain=1 ORDER BY event_type",
+            vec![],
+        ))
+        .await?
+        .iter()
+        .map(|row| {
+            Ok((
+                row.try_get::<String>("", "event_type")?,
+                row.try_get::<i64>("", "count")?,
+            ))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    assert_eq!(
+        counts,
+        vec![
+            ("delivery".into(), 2),
+            ("dispatch".into(), 2),
+            ("gas".into(), 2),
+            ("insertion".into(), 2),
+        ]
+    );
+    Ok(())
+}
+
+#[tokio::test]
 async fn confirmation_budget_preserves_blocks_and_measures_gas_dense_publication() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let url = format!(
