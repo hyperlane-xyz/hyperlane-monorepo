@@ -1,0 +1,112 @@
+[
+  {
+    "nonce": 1979,
+    "height": "8537428",
+    "sequence": "10",
+    "public_key": {
+      "@type": "/cosmos.crypto.multisig.LegacyAminoPubKey",
+      "threshold": 1,
+      "public_keys": [
+        {
+          "@type": "/cosmos.crypto.secp256k1.PubKey",
+          "key": "AgWNmqhtJkIEJJolRyUtMxFToHkZMuwkayXX6/V2T0CE"
+        },
+        {
+          "@type": "/cosmos.crypto.secp256k1.PubKey",
+          "key": "As8uguvNTRAUEhwGl+Fc+WjG+jh/0wgPyI9aeTltk4kF"
+        }
+      ]
+    },
+    "address": "celestia18y9jtqqaxhx787536ysqhx5x5swat8vtcsqmhw",
+    "signer_bits": 64,
+    "legacy_amino_json": false
+  },
+  {
+    "nonce": 1980,
+    "height": "8539315",
+    "sequence": "11",
+    "public_key": {
+      "@type": "/cosmos.crypto.multisig.LegacyAminoPubKey",
+      "threshold": 1,
+      "public_keys": [
+        {
+          "@type": "/cosmos.crypto.secp256k1.PubKey",
+          "key": "AgWNmqhtJkIEJJolRyUtMxFToHkZMuwkayXX6/V2T0CE"
+        },
+        {
+          "@type": "/cosmos.crypto.secp256k1.PubKey",
+          "key": "As8uguvNTRAUEhwGl+Fc+WjG+jh/0wgPyI9aeTltk4kF"
+        }
+      ]
+    },
+    "address": "celestia18y9jtqqaxhx787536ysqhx5x5swat8vtcsqmhw",
+    "signer_bits": 64,
+    "legacy_amino_json": true
+  },
+  {
+    "nonce": 1981,
+    "height": "8544063",
+    "sequence": "13",
+    "public_key": {
+      "@type": "/cosmos.crypto.multisig.LegacyAminoPubKey",
+      "threshold": 1,
+      "public_keys": [
+        {
+          "@type": "/cosmos.crypto.secp256k1.PubKey",
+          "key": "AgWNmqhtJkIEJJolRyUtMxFToHkZMuwkayXX6/V2T0CE"
+        },
+        {
+          "@type": "/cosmos.crypto.secp256k1.PubKey",
+          "key": "As8uguvNTRAUEhwGl+Fc+WjG+jh/0wgPyI9aeTltk4kF"
+        }
+      ]
+    },
+    "address": "celestia18y9jtqqaxhx787536ysqhx5x5swat8vtcsqmhw",
+    "signer_bits": 64,
+    "legacy_amino_json": true
+  },
+  {
+    "nonce": 1982,
+    "height": "8546716",
+    "sequence": "0",
+    "public_key": {
+      "@type": "/cosmos.crypto.multisig.LegacyAminoPubKey",
+      "threshold": 1,
+      "public_keys": [
+        {
+          "@type": "/cosmos.crypto.secp256k1.PubKey",
+          "key": "A0dBrBVPP5wmMbNhF5qyxO6S08hPE8T5R1R8O17L4omM"
+        },
+        {
+          "@type": "/cosmos.crypto.secp256k1.PubKey",
+          "key": "AlNscAfiLR8wxvTup6FiwN+MBu2/m5vdrcOpZPNouUmX"
+        }
+      ]
+    },
+    "address": "celestia1frflhvg28v5qgvsy7ep08f5lp6rjvj8echsas0",
+    "signer_bits": 128,
+    "legacy_amino_json": true
+  },
+  {
+    "nonce": 1983,
+    "height": "8546743",
+    "sequence": "1",
+    "public_key": {
+      "@type": "/cosmos.crypto.multisig.LegacyAminoPubKey",
+      "threshold": 1,
+      "public_keys": [
+        {
+          "@type": "/cosmos.crypto.secp256k1.PubKey",
+          "key": "A0dBrBVPP5wmMbNhF5qyxO6S08hPE8T5R1R8O17L4omM"
+        },
+        {
+          "@type": "/cosmos.crypto.secp256k1.PubKey",
+          "key": "AlNscAfiLR8wxvTup6FiwN+MBu2/m5vdrcOpZPNouUmX"
+        }
+      ]
+    },
+    "address": "celestia1frflhvg28v5qgvsy7ep08f5lp6rjvj8echsas0",
+    "signer_bits": 128,
+    "legacy_amino_json": true
+  }
+]
