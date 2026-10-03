@@ -1127,3 +1127,90 @@ async fn assert_gas_capped_transaction_is_rebroadcast(
     assert_eq!(tx.precursor().extract_gas_price(), gas_price);
     assert_eq!(tx.tx_hashes, original.tx_hashes);
 }
+
+/// Once the nonce manager reassigns an outdated nonce it has already persisted the
+/// new one, so `submit` must broadcast it even at unchanged fees and in `Mempool`.
+/// Skipping the send would leave the new nonce unused and stall every later
+/// transaction; a duplicate delivery only reverts on the Mailbox.
+#[tokio::test]
+async fn reassigned_nonce_is_broadcast_even_when_fees_are_unchanged() {
+    use crate::adapter::chains::ethereum::gas_price::GasPrice;
+    use crate::adapter::chains::ethereum::tests::{dummy_evm_tx, ExpectedTxType};
+    use crate::adapter::chains::ethereum::EthereumAdapter;
+    use crate::TransactionStatus;
+
+    let (payload_db, tx_db, nonce_db) = tmp_dbs();
+    let signer = Address::random();
+    let gas_price = GasPrice::Eip1559 {
+        max_fee: 1_000.into(),
+        max_priority_fee: 1_000.into(),
+    };
+    let mut tx = dummy_evm_tx(
+        ExpectedTxType::Eip1559,
+        vec![],
+        TransactionStatus::Mempool,
+        signer,
+    );
+    tx.precursor_mut().tx.set_nonce(51);
+    tx.precursor_mut().tx.set_gas(21_000);
+    EthereumAdapter::update_tx_gas_price(&mut tx, gas_price.clone());
+    tx.tx_hashes = vec![H256::random().into()];
+
+    let mut provider = MockEvmProvider::new();
+    // Finalized nonce 59 is past the transaction's nonce 51.
+    provider
+        .expect_get_next_nonce_on_finalized_block()
+        .returning(|_, _| Ok(60.into()));
+    provider.expect_get_block().returning(|_| {
+        Ok(Some(ethers::types::Block {
+            base_fee_per_gas: Some(100.into()),
+            ..Default::default()
+        }))
+    });
+    provider
+        .expect_fee_history()
+        .returning(|_, _, _| Ok(crate::tests::evm::test_utils::mock_fee_history(100, 10)));
+    let new_hash = H256::random();
+    provider
+        .expect_send()
+        .withf(|tx, _| tx.nonce().is_some_and(|nonce| *nonce != 51.into()))
+        .once()
+        .returning(move |_, _| Ok(new_hash));
+
+    let mut adapter = mock_ethereum_adapter(
+        provider,
+        payload_db,
+        tx_db.clone(),
+        nonce_db,
+        signer,
+        Duration::from_millis(100),
+        Duration::from_millis(100),
+    );
+    adapter.transaction_overrides.gas_price_cap_multiplier = Some(1.into());
+    adapter.transaction_overrides.max_fee_per_gas = Some(1_000.into());
+    adapter.transaction_overrides.max_priority_fee_per_gas = Some(1_000.into());
+    adapter
+        .nonce_manager
+        .state
+        .set_finalized_nonce_test(&59.into())
+        .await
+        .unwrap();
+    adapter
+        .nonce_manager
+        .state
+        .set_upper_nonce_test(&60.into())
+        .await
+        .unwrap();
+    adapter
+        .nonce_manager
+        .state
+        .set_tracked_tx_uuid_test(&51.into(), &tx.uuid)
+        .await
+        .unwrap();
+    tx_db.store_transaction_by_uuid(&tx).await.unwrap();
+
+    adapter.submit(&mut tx).await.unwrap();
+    assert_ne!(tx.precursor().tx.nonce(), Some(&51.into()));
+    assert_eq!(tx.precursor().extract_gas_price(), gas_price);
+    assert_eq!(tx.tx_hashes.last(), Some(&new_hash.into()));
+}

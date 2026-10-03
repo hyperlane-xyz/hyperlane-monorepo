@@ -671,7 +671,9 @@ impl AdaptsChain for EthereumAdapter {
         Self::update_tx_nonce(tx, nonce);
 
         // Existing hashes were signed for the previous nonce, so an unchanged gas price
-        // does not mean this nonce has been broadcast.
+        // does not mean this nonce has been broadcast. The nonce manager has already
+        // persisted the reassigned nonce: skipping this send would leave it unused and
+        // stall later transactions, while a duplicate delivery only reverts.
         if nonce_changed {
             info!(
                 ?tx,
