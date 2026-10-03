@@ -1,5 +1,12 @@
 warpRouteId: USDC/radix
 
+inventorySigners:
+  ethereum: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
+  sealevel: '4ZJoMHQPEMkeExtFQLbuh8nB21dxHj741dSo6oJ5BcMo'
+externalBridges:
+  lifi:
+    integrator: rebalancer
+
 strategy:
   rebalanceStrategy: weighted
   chains:
@@ -10,6 +17,10 @@ strategy:
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 10000
       bridge: '0x8a82186EA618b91D13A2041fb7aC31Bf01C02aD2'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
 
     base:
       weighted:
@@ -18,11 +29,28 @@ strategy:
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 10000
       bridge: '0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
 
     ethereum:
       weighted:
-        weight: 50
+        weight: 40
         tolerance: 10
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 10000
       bridge: '0xedCBAa585FD0F80f20073F9958246476466205b8'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
+
+    solanamainnet:
+      weighted:
+        weight: 10
+        tolerance: 10
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridgeMinAcceptedAmount: 10000
+      executionType: inventory
+      externalBridge: lifi
