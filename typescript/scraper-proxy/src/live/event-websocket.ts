@@ -402,6 +402,10 @@ export class EventWebSocketServer {
   }
 
   private connectAgent(socket: WebSocket): void {
+    this.watch(socket, this.clients, (client) => {
+      client.subscriptions.clear();
+      this.cancelCatchUp(socket);
+    });
     if (!this.accept(socket, 'agent')) return;
     this.clients.set(socket, {
       alive: true,
@@ -415,10 +419,6 @@ export class EventWebSocketServer {
       historicalStreaming: true,
       streamCursorVersions: STREAM_CURSOR_VERSIONS,
       type: 'ready',
-    });
-    this.watch(socket, this.clients, (client) => {
-      client.subscriptions.clear();
-      this.cancelCatchUp(socket);
     });
     socket.on('message', (data) => void this.onMessage(socket, rawData(data)));
   }
@@ -445,6 +445,10 @@ export class EventWebSocketServer {
   };
 
   private connectExplorer(socket: WebSocket, request: IncomingMessage): void {
+    this.watch(socket, this.explorerClients, (client) => {
+      this.clearExplorerQueue(client);
+      this.releaseExplorerClient(client.ip);
+    });
     if (!this.accept(socket, 'explorer')) return;
     const ip = clientIp(request);
     if (!ip) {
@@ -476,10 +480,6 @@ export class EventWebSocketServer {
     this.send(socket, {
       eventTypes: ['message_upsert'],
       type: 'ready',
-    });
-    this.watch(socket, this.explorerClients, (client) => {
-      this.clearExplorerQueue(client);
-      this.releaseExplorerClient(client.ip);
     });
   }
 

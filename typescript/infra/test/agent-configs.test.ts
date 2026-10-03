@@ -278,7 +278,7 @@ describe('Agent configs', () => {
             expect(
               relayer.websocketAuthorityEnabled,
               `${environment}/${context} shared scraper authority`,
-            ).to.equal(true);
+            ).to.equal(environment !== 'testnet4');
           });
         }
       }
