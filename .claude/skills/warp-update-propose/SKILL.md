@@ -14,6 +14,12 @@ The heavy lifting lives in two infra scripts:
 
 This skill orchestrates running both, surfaces a CONFIRM gate before any propose call lands on chain, and writes a summary the human can use to find proposals in Heimdall / Squads UI.
 
+## Run Log (mandatory)
+
+Open-or-create the run log at entry, then maintain it, per `/warp-run-log` (never assume a previous step created it). Use `warp-update-propose` as the skill name in each entry; don't report complete until the URL is surfaced.
+
+**Log at least:** skill entry (ticket ID + receipts dir), each batch's detected signer/governance context, every `[CONFIRM:]` gate, each proposal landed (signer, chain, URL or nonce), skill exit.
+
 ## Input
 
 - **Linear ticket ID** (required, e.g. `AW-123`) — namespaces the proposal summary artifact.
