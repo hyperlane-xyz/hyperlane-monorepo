@@ -1,3 +1,11 @@
+## [3.0.0] - 2026-10-03
+
+* fix(core): avoid HyperlaneMessage::from panics in indexer paths (#9181)
+* fix(rust): allow recipient-less native Cosmos transactions (#9220)
+* fix(security): bound remote inputs and preserve chain-specific safety checks (#9767)
+* fix: add Cosmos gas floor for validator announcements (#9202)
+* perf(metrics): avoid redundant block detail reads (#9442)
+
 ## [2.2.0] - 2026-03-09
 
 * chore: migrate spellchecker from codespell to typos (#8214)
