@@ -66,6 +66,7 @@ import {
   chainCommandOption,
   forkCommandOptions,
   outputFileCommandOption,
+  skipChainsCommandOption,
   strategyCommandOption,
   stringArrayOptionConfig,
   warpRouteIdCommandOption,
@@ -194,12 +195,14 @@ export const apply: CommandModuleWithWarpApplyContext<
     strategy?: string;
     receiptsDir: string;
     relay?: boolean;
+    skipChains?: string[];
   }
 > = {
   command: 'apply',
   describe: 'Update Warp Route contracts',
   builder: {
     ...WARP_ROUTE_OPTIONS,
+    'skip-chains': skipChainsCommandOption,
     strategy: { ...strategyCommandOption, demandOption: false },
     'receipts-dir': {
       type: 'string',
@@ -229,6 +232,7 @@ export const apply: CommandModuleWithWarpApplyContext<
     await runWarpRouteApply({
       context,
       warpDeployConfig: context.warpDeployConfig,
+      referenceWarpDeployConfig: context.referenceWarpDeployConfig,
       warpCoreConfig: context.warpCoreConfig,
       strategyUrl,
       receiptsDir,
@@ -239,16 +243,22 @@ export const apply: CommandModuleWithWarpApplyContext<
   },
 };
 
-export const deploy: CommandModuleWithWarpDeployContext<WarpRouteOptions> = {
+export const deploy: CommandModuleWithWarpDeployContext<
+  WarpRouteOptions & { skipChains?: string[] }
+> = {
   command: 'deploy',
   describe: 'Deploy Warp Route contracts',
-  builder: WARP_ROUTE_OPTIONS,
+  builder: {
+    ...WARP_ROUTE_OPTIONS,
+    'skip-chains': skipChainsCommandOption,
+  },
   handler: async ({ context, warpRouteId }) => {
     logCommandHeader(`Hyperlane Warp Route Deployment`);
 
     await runWarpRouteDeploy({
       context,
       warpDeployConfig: context.warpDeployConfig,
+      referenceWarpDeployConfig: context.referenceWarpDeployConfig,
       warpRouteId: context.resolvedWarpRouteId ?? warpRouteId,
     });
 
@@ -332,12 +342,14 @@ export const read: CommandModuleWithContext<
     chain?: string;
     address?: string;
     out?: string;
+    skipChains?: string[];
   }
 > = {
   command: 'read',
   describe: 'Derive the warp route config from onchain artifacts',
   builder: {
     ...WARP_ROUTE_OPTIONS,
+    'skip-chains': skipChainsCommandOption,
     chain: {
       ...chainCommandOption,
       demandOption: false,
@@ -595,6 +607,7 @@ export const check: CommandModuleWithContext<
     origin?: string;
     originOwner?: string;
     chains?: string[];
+    skipChains?: string[];
   }
 > = {
   command: 'check',
@@ -602,11 +615,11 @@ export const check: CommandModuleWithContext<
     'Verifies that a warp route configuration matches the on chain configuration.',
   builder: {
     ...WARP_ROUTE_OPTIONS,
+    'skip-chains': skipChainsCommandOption,
     ica: {
       type: 'boolean',
       description:
         'Check that destination chain owners match expected ICA addresses derived from origin chain owner',
-      default: false,
     },
     origin: {
       type: 'string',
@@ -624,6 +637,7 @@ export const check: CommandModuleWithContext<
       description:
         'List of chains to check. Defaults to all chains except origin when using --ica.',
       implies: 'ica',
+      conflicts: 'skip-chains',
     }),
   },
   handler: async ({
@@ -662,8 +676,7 @@ export const check: CommandModuleWithContext<
         warpRouteId,
       });
 
-    // If --ica flag is set, run ICA owner check instead of the regular config check
-    // Note: ICA check uses full warpDeployConfig (not filtered) to support pre-deployed chains
+    // If --ica is set, run the owner check on the selected active chains.
     if (ica) {
       assert(origin, '--origin is required when using --ica');
 
@@ -686,7 +699,11 @@ export const check: CommandModuleWithContext<
     const result = await checkWarpRouteDeployConfig({
       multiProvider: context.multiProvider,
       warpCoreConfig,
+      referenceWarpCoreConfig:
+        context.referenceWarpCoreConfig ?? warpCoreConfig,
       warpDeployConfig,
+      referenceWarpDeployConfig:
+        context.referenceWarpDeployConfig ?? warpDeployConfig,
     });
 
     await runWarpRouteCheck({
