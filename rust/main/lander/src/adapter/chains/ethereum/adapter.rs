@@ -37,7 +37,6 @@ use hyperlane_ethereum::{
 use crate::adapter::chains::ethereum::metrics::{
     LABEL_BATCHED_TRANSACTION_FAILED, LABEL_BATCHED_TRANSACTION_SUCCESS,
 };
-use crate::error::IsRetryable;
 use crate::AdaptsChainAction;
 use crate::{
     adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
@@ -718,9 +717,10 @@ impl AdaptsChain for EthereumAdapter {
                     Err(TxAlreadyExists)
                 } else {
                     let error = LanderError::from(e);
-                    if rebroadcast || (gas_price_unchanged && error.is_retryable()) {
-                        // A fee rejection at the cap cannot be fixed by the immediate
-                        // escalation loop. Return to status polling before trying again.
+                    if rebroadcast {
+                        // Poll recorded hashes after a failed same-nonce rebroadcast.
+                        // A changed-nonce failure must keep retrying its reservation
+                        // before an older hash can finalize the transaction.
                         Err(LanderError::TxGasCapReached)
                     } else {
                         Err(error)

@@ -864,6 +864,137 @@ async fn eip1559_gas_capped_transaction_is_rebroadcast_after_missing_receipts() 
     .await;
 }
 
+/// A failed send at a newly reserved nonce must stay in the submission retry
+/// loop. Polling an older hash could finalize its UUID and strand the reservation.
+#[tokio::test]
+async fn capped_fee_rejection_after_renonce_keeps_submission_retryable() {
+    use crate::adapter::chains::ethereum::gas_price::GasPrice;
+    use crate::adapter::chains::ethereum::tests::{dummy_evm_tx, ExpectedTxType};
+    use crate::adapter::chains::ethereum::EthereumAdapter;
+    use crate::error::IsRetryable;
+    use crate::TransactionStatus;
+
+    for tx_type in [ExpectedTxType::Legacy, ExpectedTxType::Eip1559] {
+        for send_error in [
+            "insufficient fee",
+            "replacement transaction underpriced",
+            "already known",
+        ] {
+            let (payload_db, tx_db, nonce_db) = tmp_dbs();
+            let signer = Address::random();
+            let old_hash = H256::random();
+            let new_hash = H256::random();
+            let mut provider = MockEvmProvider::new();
+            provider.expect_get_block().returning(|_| {
+                Ok(Some(ethers::types::Block {
+                    base_fee_per_gas: Some(100.into()),
+                    ..Default::default()
+                }))
+            });
+            provider
+                .expect_fee_history()
+                .returning(|_, _, _| Ok(crate::tests::evm::test_utils::mock_fee_history(100, 10)));
+            // Nonce 51 finalized, but the receipt lookup temporarily misses it.
+            provider
+                .expect_get_next_nonce_on_finalized_block()
+                .returning(|_, _| Ok(52.into()));
+            provider
+                .expect_get_transaction_receipt()
+                .once()
+                .returning(|_| Ok(None));
+            let mut send_sequence = mockall::Sequence::new();
+            provider
+                .expect_send()
+                .withf(|tx, _| {
+                    tx.nonce() == Some(&EthersU256::from(52))
+                        && tx.gas_price() == Some(EthersU256::from(1_000))
+                })
+                .once()
+                .in_sequence(&mut send_sequence)
+                .returning(move |_, _| {
+                    Err(ChainCommunicationError::CustomError(send_error.to_owned()))
+                });
+            provider
+                .expect_send()
+                .withf(|tx, _| tx.nonce() == Some(&EthersU256::from(52)))
+                .once()
+                .in_sequence(&mut send_sequence)
+                .returning(move |_, _| Ok(new_hash));
+
+            let mut adapter = mock_ethereum_adapter(
+                provider,
+                payload_db,
+                tx_db.clone(),
+                nonce_db,
+                signer,
+                Duration::ZERO,
+                Duration::ZERO,
+            );
+            adapter.transaction_overrides.gas_price_cap_multiplier = Some(1.into());
+            let gas_price = match tx_type {
+                ExpectedTxType::Legacy => {
+                    adapter.transaction_overrides.gas_price = Some(1_000.into());
+                    GasPrice::NonEip1559 {
+                        gas_price: 1_000.into(),
+                    }
+                }
+                ExpectedTxType::Eip1559 => {
+                    adapter.transaction_overrides.max_fee_per_gas = Some(1_000.into());
+                    adapter.transaction_overrides.max_priority_fee_per_gas = Some(1_000.into());
+                    GasPrice::Eip1559 {
+                        max_fee: 1_000.into(),
+                        max_priority_fee: 1_000.into(),
+                    }
+                }
+                ExpectedTxType::Eip2930 => unreachable!(),
+            };
+            let mut tx = dummy_evm_tx(tx_type, vec![], TransactionStatus::Mempool, signer);
+            tx.precursor_mut().tx.set_nonce(51);
+            tx.precursor_mut().tx.set_gas(21_000);
+            EthereumAdapter::update_tx_gas_price(&mut tx, gas_price);
+            tx.tx_hashes.push(old_hash.into());
+            adapter
+                .nonce_manager
+                .state
+                .set_tracked_tx_uuid_test(&51.into(), &tx.uuid)
+                .await
+                .unwrap();
+            tx_db.store_transaction_by_uuid(&tx).await.unwrap();
+
+            tx.status = adapter.tx_statuses(&[tx.clone()]).await[0]
+                .as_ref()
+                .unwrap()
+                .clone();
+            assert_eq!(tx.status, TransactionStatus::PendingInclusion);
+            let error = adapter.submit(&mut tx).await.unwrap_err();
+            assert!(error.is_retryable(), "{tx_type:?}: {send_error}: {error:?}");
+            assert_eq!(tx.precursor().tx.nonce(), Some(&EthersU256::from(51)));
+            assert_eq!(tx.tx_hashes, vec![old_hash.into()]);
+            assert_eq!(
+                adapter
+                    .nonce_manager
+                    .state
+                    .get_tracked_tx_uuid(&52.into())
+                    .await
+                    .unwrap(),
+                tx.uuid
+            );
+
+            // The inclusion stage retries this error instead of parking the tx and
+            // polling the old hash. Retry the same reserved nonce until accepted.
+            adapter.submit(&mut tx).await.unwrap();
+            assert_eq!(tx.precursor().tx.nonce(), Some(&EthersU256::from(52)));
+            assert_eq!(tx.tx_hashes, vec![old_hash.into(), new_hash.into()]);
+            tx_db.store_transaction_by_uuid(&tx).await.unwrap();
+            let fresh = dummy_evm_tx(tx_type, vec![], TransactionStatus::PendingInclusion, signer);
+            assert_eq!(
+                adapter.calculate_nonce(&fresh).await.unwrap(),
+                U256::from(53)
+            );
+        }
+    }
+}
+
 async fn assert_gas_capped_transaction_is_rebroadcast(
     tx_type: crate::adapter::chains::ethereum::tests::ExpectedTxType,
 ) {
