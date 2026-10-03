@@ -100,7 +100,7 @@ fn resubmission_with_same_gas_price_is_rejected_for_included() {
 }
 
 #[test]
-fn resubmission_with_same_gas_price_is_rejected_for_pending_inclusion() {
+fn resubmission_with_same_gas_price_is_allowed_for_pending_inclusion() {
     // Transaction with existing gas price in PendingInclusion status
     let mut tx = dummy_evm_tx(
         ExpectedTxType::Eip1559,
@@ -130,7 +130,7 @@ fn resubmission_with_same_gas_price_is_rejected_for_pending_inclusion() {
     };
 
     let result = EthereumAdapter::check_if_resubmission_makes_sense(&tx, &new_gas_price);
-    assert!(matches!(result, Err(LanderError::TxGasCapReached)));
+    assert!(result.is_ok());
 }
 
 #[test]
@@ -305,7 +305,7 @@ fn legacy_tx_resubmission_with_same_gas_price_is_rejected_for_included() {
 }
 
 #[test]
-fn legacy_tx_resubmission_with_same_gas_price_is_rejected_for_pending_inclusion() {
+fn legacy_tx_resubmission_with_same_gas_price_is_allowed_for_pending_inclusion() {
     // Transaction with existing legacy gas price in PendingInclusion status
     let mut tx = dummy_evm_tx(
         ExpectedTxType::Legacy,
@@ -333,7 +333,7 @@ fn legacy_tx_resubmission_with_same_gas_price_is_rejected_for_pending_inclusion(
     };
 
     let result = EthereumAdapter::check_if_resubmission_makes_sense(&tx, &new_gas_price);
-    assert!(matches!(result, Err(LanderError::TxGasCapReached)));
+    assert!(result.is_ok());
 }
 
 #[test]
