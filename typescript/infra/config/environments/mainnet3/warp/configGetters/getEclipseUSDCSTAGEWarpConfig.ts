@@ -92,7 +92,6 @@ const stagingOwnersByChain: Record<DeploymentChain, string> = {
   linea: DEPLOYER,
   monad: DEPLOYER,
   bsc: DEPLOYER,
-  katana: DEPLOYER,
 };
 
 // EIP-712 quote signer for this route's OffchainQuotedLinearFee. Matches the
