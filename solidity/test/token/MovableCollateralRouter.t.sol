@@ -35,12 +35,16 @@ contract MockMovableCollateralRouter is MovableCollateralRouter {
 contract MockITokenBridge is ITokenBridge {
     using TypeCasts for bytes32;
 
-    ERC20Test token;
+    ERC20Test internal _token;
     uint256 collateralFee;
     uint256 nativeFee;
 
-    constructor(ERC20Test _token) {
-        token = _token;
+    constructor(ERC20Test __token) {
+        _token = __token;
+    }
+
+    function token() external view override returns (address) {
+        return address(_token);
     }
 
     function transferRemote(
@@ -49,7 +53,7 @@ contract MockITokenBridge is ITokenBridge {
         uint256 amountOut
     ) external payable override returns (bytes32 transferId) {
         require(msg.value >= nativeFee);
-        token.transferFrom(
+        _token.transferFrom(
             msg.sender,
             address(this),
             amountOut + collateralFee
@@ -72,7 +76,7 @@ contract MockITokenBridge is ITokenBridge {
     ) public view override returns (Quote[] memory) {
         Quote[] memory quotes = new Quote[](2);
         quotes[0] = Quote(address(0), nativeFee);
-        quotes[1] = Quote(address(token), amountOut + collateralFee);
+        quotes[1] = Quote(address(_token), amountOut + collateralFee);
         return quotes;
     }
 }
