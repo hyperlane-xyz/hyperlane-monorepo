@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {ICrossCollateralFee} from "./interfaces/ICrossCollateralFee.sol";
-import {ITokenFee, Quote} from "../interfaces/ITokenBridge.sol";
+import {ITokenFee, IExactInFee, Quote} from "../interfaces/ITokenBridge.sol";
 import {PackageVersioned} from "../PackageVersioned.sol";
 import {FeeType} from "./fees/BaseFee.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -21,6 +21,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 contract CrossCollateralRoutingFee is
     ICrossCollateralFee,
     ITokenFee,
+    IExactInFee,
     Ownable,
     PackageVersioned
 {
@@ -136,6 +137,73 @@ contract CrossCollateralRoutingFee is
                     _destination,
                     _recipient,
                     _amount
+                );
+        }
+        // 3. No fee configured for router or destination default
+        revert("CCRF: no fee contract");
+    }
+
+    /**
+     * @inheritdoc IExactInFee
+     * @dev Exact-in quote using DEFAULT_ROUTER sentinel.
+     */
+    function quoteTransferRemoteFrom(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _maxSpend
+    ) external view override returns (uint256) {
+        return
+            _quoteTransferRemoteFrom(
+                _destination,
+                _recipient,
+                _maxSpend,
+                DEFAULT_ROUTER
+            );
+    }
+
+    /**
+     * @inheritdoc ICrossCollateralFee
+     * @dev Routes: specific router → destination default (DEFAULT_ROUTER).
+     */
+    function quoteTransferRemoteFromTo(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _maxSpend,
+        bytes32 _targetRouter
+    ) external view override returns (uint256) {
+        return
+            _quoteTransferRemoteFrom(
+                _destination,
+                _recipient,
+                _maxSpend,
+                _targetRouter
+            );
+    }
+
+    function _quoteTransferRemoteFrom(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _maxSpend,
+        bytes32 _targetRouter
+    ) internal view returns (uint256) {
+        // 1. Check per-router fee
+        address routerFee = feeContracts[_destination][_targetRouter];
+        if (routerFee != address(0)) {
+            return
+                IExactInFee(routerFee).quoteTransferRemoteFrom(
+                    _destination,
+                    _recipient,
+                    _maxSpend
+                );
+        }
+        // 2. Fallback to destination default
+        address destFee = feeContracts[_destination][DEFAULT_ROUTER];
+        if (destFee != address(0)) {
+            return
+                IExactInFee(destFee).quoteTransferRemoteFrom(
+                    _destination,
+                    _recipient,
+                    _maxSpend
                 );
         }
         // 3. No fee configured for router or destination default
