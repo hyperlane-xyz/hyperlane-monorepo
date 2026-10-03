@@ -30,7 +30,7 @@ contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
         address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) external initializer {
+    ) external virtual initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
         __ERC721_init(_name, _symbol);
         for (uint256 i = 0; i < _mintAmount; i++) {
