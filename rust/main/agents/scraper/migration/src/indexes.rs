@@ -7,6 +7,7 @@ pub struct ScraperIndex {
     table: &'static str,
     keys: &'static [&'static str],
     predicate: Option<&'static str>,
+    unique: bool,
 }
 
 pub const RAW_DISPATCH_RECONCILIATION: ScraperIndex = ScraperIndex {
@@ -14,18 +15,21 @@ pub const RAW_DISPATCH_RECONCILIATION: ScraperIndex = ScraperIndex {
     table: "raw_message_dispatch",
     keys: &["origin_domain", "origin_mailbox", "id"],
     predicate: Some("(msg_body IS NOT NULL)"),
+    unique: false,
 };
 pub const RAW_DISPATCH_NATIVE_SEQUENCE: ScraperIndex = ScraperIndex {
     name: "raw_message_dispatch_native_sequence_idx",
     table: "raw_message_dispatch",
     keys: &["origin_domain", "origin_mailbox", "nonce"],
     predicate: None,
+    unique: false,
 };
 pub const DELIVERY_SCOPE: ScraperIndex = ScraperIndex {
     name: "delivered_message_domain_mailbox_id_idx",
     table: "delivered_message",
     keys: &["domain", "destination_mailbox", "id"],
     predicate: None,
+    unique: false,
 };
 
 pub const MERKLE_BLOCK_HEIGHT: ScraperIndex = ScraperIndex {
@@ -33,6 +37,15 @@ pub const MERKLE_BLOCK_HEIGHT: ScraperIndex = ScraperIndex {
     table: "merkle_tree_insertion",
     keys: &["domain", "block_number"],
     predicate: None,
+    unique: false,
+};
+
+pub const GAS_PAYMENT_TRANSACTION_LOG: ScraperIndex = ScraperIndex {
+    name: "gas_payment_transaction_log",
+    table: "gas_payment",
+    keys: &["domain", "block_hash", "transaction_index", "log_index"],
+    predicate: Some("(block_hash IS NOT NULL)"),
+    unique: true,
 };
 
 /// Ordered range scans for the proxy's legacy gas payment replay.
@@ -41,6 +54,7 @@ pub const GAS_PAYMENT_SCOPE: ScraperIndex = ScraperIndex {
     table: "gas_payment",
     keys: &["domain", "interchain_gas_paymaster", "id"],
     predicate: None,
+    unique: false,
 };
 
 pub const DELIVERY_FRONTIER_UNENRICHED: ScraperIndex = ScraperIndex {
@@ -48,24 +62,31 @@ pub const DELIVERY_FRONTIER_UNENRICHED: ScraperIndex = ScraperIndex {
     table: "delivered_message",
     keys: &["domain", "id"],
     predicate: Some("((destination_tx_id IS NULL) AND (block_hash IS NOT NULL))"),
+    unique: false,
 };
 pub const GAS_PAYMENT_FRONTIER_UNENRICHED: ScraperIndex = ScraperIndex {
     name: "gas_payment_frontier_unenriched",
     table: "gas_payment",
     keys: &["domain", "id"],
     predicate: Some("((tx_id IS NULL) AND (block_hash IS NOT NULL))"),
+    unique: false,
 };
 pub const GAS_PAYMENT_FRONTIER_HEIGHT: ScraperIndex = ScraperIndex {
     name: "gas_payment_frontier_height",
     table: "gas_payment",
     keys: &["domain", "block_number"],
     predicate: Some("(block_number IS NOT NULL)"),
+    unique: false,
 };
 
 /// Run after transactional migrations have committed. Concurrent index creation
 /// cannot run inside the SeaORM migration transaction.
 pub async fn create_indexes(db: &DatabaseConnection) -> eyre::Result<()> {
     let build_result = async {
+        create_index(db, GAS_PAYMENT_TRANSACTION_LOG).await?;
+        db.execute_unprepared("DROP INDEX CONCURRENTLY IF EXISTS gas_payment_block_log")
+            .await
+            .wrap_err("Dropping legacy gas payment position index")?;
         for index in [
             RAW_DISPATCH_RECONCILIATION,
             RAW_DISPATCH_NATIVE_SEQUENCE,
@@ -98,11 +119,13 @@ pub async fn create_index(db: &DatabaseConnection, index: ScraperIndex) -> eyre:
         table,
         keys,
         predicate,
+        unique,
     } = index;
     let columns = keys.join(", ");
     let filter = predicate.map(|p| format!(" WHERE {p}")).unwrap_or_default();
+    let unique = if unique { "UNIQUE " } else { "" };
     db.execute_unprepared(&format!(
-        "CREATE INDEX CONCURRENTLY IF NOT EXISTS {name} ON {table} ({columns}){filter}"
+        "CREATE {unique}INDEX CONCURRENTLY IF NOT EXISTS {name} ON {table} ({columns}){filter}"
     ))
     .await
     .wrap_err_with(|| {
@@ -131,6 +154,7 @@ async fn verify_index(db: &DatabaseConnection, index: ScraperIndex) -> eyre::Res
         table,
         keys,
         predicate,
+        unique,
     } = index;
     // IF NOT EXISTS also skips invalid or differently defined indexes. Never
     // report those as successfully installed, and never drop them automatically.
@@ -139,7 +163,7 @@ async fn verify_index(db: &DatabaseConnection, index: ScraperIndex) -> eyre::Res
             DbBackend::Postgres,
             r#"
             SELECT i.indisvalid AND i.indisready
-                AND NOT i.indisunique
+                AND i.indisunique = $6
                 AND i.indnkeyatts = $5 AND i.indnatts = $5
                 AND pg_get_expr(i.indpred, i.indrelid) IS NOT DISTINCT FROM $4::text
                 AND i.indexprs IS NULL
@@ -158,6 +182,7 @@ async fn verify_index(db: &DatabaseConnection, index: ScraperIndex) -> eyre::Res
                 keys.join(",").into(),
                 predicate.map(str::to_owned).into(),
                 i16::try_from(keys.len())?.into(),
+                unique.into(),
             ],
         ))
         .await?;

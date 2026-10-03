@@ -183,12 +183,12 @@ impl<M: Middleware + 'static> Source for EvmSource<M> {
                 events.push(event);
             }
         }
-        events.sort_by_key(|event| (event.block_number, event.log_index));
+        events.sort_by_key(|event| (event.block_number, event.tx_index, event.log_index));
         ensure!(
-            events
-                .windows(2)
-                .all(|pair| (pair[0].block_number, pair[0].log_index)
-                    != (pair[1].block_number, pair[1].log_index)),
+            events.windows(2).all(|pair| {
+                (pair[0].block_number, pair[0].tx_index, pair[0].log_index)
+                    != (pair[1].block_number, pair[1].tx_index, pair[1].log_index)
+            }),
             "Duplicate event position"
         );
         Ok(events)
@@ -452,6 +452,23 @@ mod tests {
                 .await?
                 .len(),
             2
+        );
+        // Some RPCs number logs within each transaction rather than across the block.
+        rpc.push::<Vec<Log>, _>(vec![
+            Log {
+                transaction_hash: Some(H256::repeat_byte(8)),
+                transaction_index: Some(1.into()),
+                ..log.clone()
+            },
+            log.clone(),
+        ])?;
+        let events = source.events(header.height, header.height + 100).await?;
+        assert_eq!(
+            events
+                .iter()
+                .map(|event| (event.tx_index, event.log_index))
+                .collect::<Vec<_>>(),
+            vec![(0, 1), (1, 1)]
         );
         rpc.push::<Vec<Log>, _>(vec![log.clone(), log])?;
         assert!(source
