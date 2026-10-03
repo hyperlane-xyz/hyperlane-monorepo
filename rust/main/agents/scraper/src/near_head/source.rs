@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use ethers::{
     abi::RawLog,
@@ -191,6 +193,16 @@ impl<M: Middleware + 'static> Source for EvmSource<M> {
             }),
             "Duplicate event position"
         );
+        // Positions include the transaction index, so one transaction reported at
+        // two indexes would otherwise store the same log twice.
+        let mut tx_positions = HashMap::new();
+        for event in &events {
+            let previous = tx_positions.insert((event.block_hash, event.tx_hash), event.tx_index);
+            ensure!(
+                previous.is_none_or(|index| index == event.tx_index),
+                "RPC reported one transaction at two indexes"
+            );
+        }
         Ok(events)
     }
 }
@@ -470,11 +482,26 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![(0, 1), (1, 1)]
         );
-        rpc.push::<Vec<Log>, _>(vec![log.clone(), log])?;
+        rpc.push::<Vec<Log>, _>(vec![log.clone(), log.clone()])?;
         assert!(source
             .events(header.height, header.height + 100)
             .await
             .is_err());
+        // The same transaction must not appear at two indexes, which would store
+        // one log twice under different positions.
+        rpc.push::<Vec<Log>, _>(vec![
+            log.clone(),
+            Log {
+                transaction_index: Some(1.into()),
+                ..log
+            },
+        ])?;
+        assert!(source
+            .events(header.height, header.height + 100)
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("one transaction at two indexes"));
         Ok(())
     }
 }
