@@ -1,4 +1,4 @@
-import { PublicKey } from '@solana/web3.js';
+import { PublicKey, Connection } from '@solana/web3.js';
 
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
@@ -18,6 +18,10 @@ export class SealevelRouterAdapter
     public readonly addresses: { router: Address },
   ) {
     super(chainName, multiProvider, addresses);
+  }
+
+  protected getConnection(): Connection {
+    return this.multiProvider.getProvider(this.chainName) as Connection;
   }
 
   async interchainSecurityModule(): Promise<Address> {
@@ -57,13 +61,62 @@ export class SealevelRouterAdapter
     }));
   }
 
-  getRouterAccountInfo(): Promise<{
+  async getRouterAccountInfo(): Promise<{
     owner_pub_key?: PublicKey;
     interchain_security_module?: Uint8Array;
     interchain_security_module_pubkey?: PublicKey;
     remote_router_pubkeys: Map<Domain, PublicKey>;
   }> {
-    throw new Error('TODO getRouterAccountInfo not yet implemented');
+    const connection = this.getConnection();
+    const routerPubKey = new PublicKey(this.addresses.router);
+
+    // Fetch the router account data
+    const accountInfo = await connection.getAccountInfo(routerPubKey);
+    if (!accountInfo) {
+      throw new Error('Router account not found');
+    }
+
+    // Initialize empty map for remote router pubkeys
+    const remote_router_pubkeys = new Map<Domain, PublicKey>();
+
+    // Get all remote domains
+    const domains = await this.remoteDomains();
+
+    // Fetch remote router pubkeys for each domain
+    for (const domain of domains) {
+      const remoteRouterAddress = await this.remoteRouter(domain);
+      remote_router_pubkeys.set(domain, new PublicKey(remoteRouterAddress));
+    }
+
+    // Get owner if available
+    let owner_pub_key: PublicKey | undefined;
+    try {
+      const ownerAddress = await this.owner();
+      owner_pub_key = new PublicKey(ownerAddress);
+    } catch {
+      // Owner is optional, so we can ignore errors
+    }
+
+    // Get ISM if available
+    let interchain_security_module: Uint8Array | undefined;
+    let interchain_security_module_pubkey: PublicKey | undefined;
+    try {
+      const ismAddress = await this.interchainSecurityModule();
+      interchain_security_module_pubkey = new PublicKey(ismAddress);
+      const ismAccountInfo = await connection.getAccountInfo(interchain_security_module_pubkey);
+      if (ismAccountInfo) {
+        interchain_security_module = ismAccountInfo.data;
+      }
+    } catch {
+      // ISM is optional, so we can ignore errors
+    }
+
+    return {
+      owner_pub_key,
+      interchain_security_module,
+      interchain_security_module_pubkey,
+      remote_router_pubkeys,
+    };
   }
 
   // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs
