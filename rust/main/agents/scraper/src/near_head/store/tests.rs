@@ -64,6 +64,7 @@ async fn events_allow_transaction_scoped_log_indexes() -> Result<()> {
     ))
     .await?;
     migration::Migrator::up(&db, None).await?;
+    migration::indexes::create_indexes(&db).await?;
     let store = Store { db, domain: 1 };
     let contracts = Contracts {
         mailbox: H160::repeat_byte(1),
