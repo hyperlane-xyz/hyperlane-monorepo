@@ -13,6 +13,7 @@ import {ExecutorConfig} from "@layerzerolabs/lz-evm-messagelib-v2/contracts/Send
 import {UlnConfig} from "@layerzerolabs/lz-evm-messagelib-v2/contracts/uln/UlnBase.sol";
 import {LayerZeroV2HookIsm} from "contracts/hooks/layerzero/LayerZeroV2HookIsm.sol";
 import {LayerZeroConfigTypeLib} from "contracts/hooks/layerzero/libs/LayerZeroConfigType.sol";
+import {LayerZeroPacketV1} from "contracts/hooks/layerzero/libs/LayerZeroPacketV1.sol";
 import {StaticAggregationHookFactory} from "contracts/hooks/aggregation/StaticAggregationHookFactory.sol";
 import {AbstractPostDispatchHook} from "contracts/hooks/libs/AbstractPostDispatchHook.sol";
 import {IInterchainSecurityModule} from "contracts/interfaces/IInterchainSecurityModule.sol";
@@ -1521,6 +1522,76 @@ contract LayerZeroV2HookIsmTest is Test {
         );
     }
 
+    function testLayerZeroPacketV1AcceptsFixedLengthMessage() public view {
+        this.validateLayerZeroPacketV1(
+            _shapedPacket(1, LayerZeroMessage.LENGTH),
+            LayerZeroMessage.LENGTH
+        );
+    }
+
+    function testFuzzLayerZeroPacketV1LengthMustMatchExactly(
+        uint8 messageLength,
+        uint8 expectedMessageLength
+    ) public {
+        bytes memory packet = _shapedPacket(1, messageLength);
+
+        if (messageLength != expectedMessageLength) {
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    LayerZeroPacketV1.InvalidLayerZeroPacketLength.selector,
+                    packet.length
+                )
+            );
+        }
+        this.validateLayerZeroPacketV1(packet, expectedMessageLength);
+    }
+
+    function testLayerZeroPacketV1RejectsTruncatedHeader() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LayerZeroPacketV1.InvalidLayerZeroPacketLength.selector,
+                LayerZeroPacketV1.MESSAGE_OFFSET - 1
+            )
+        );
+        this.validateLayerZeroPacketV1(new bytes(112), 0);
+    }
+
+    function testFuzzLayerZeroPacketV1RejectsOtherVersions(
+        uint8 version
+    ) public {
+        vm.assume(version != 1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LayerZeroPacketV1.InvalidLayerZeroPacketVersion.selector,
+                version
+            )
+        );
+        this.validateLayerZeroPacketV1(
+            _shapedPacket(version, LayerZeroMessage.LENGTH),
+            LayerZeroMessage.LENGTH
+        );
+    }
+
+    function validateLayerZeroPacketV1(
+        bytes calldata packet,
+        uint256 expectedMessageLength
+    ) external pure {
+        LayerZeroPacketV1.validate(packet, expectedMessageLength);
+    }
+
+    // Right length and version byte; every other field is left zeroed.
+    function _shapedPacket(
+        uint8 version,
+        uint256 messageLength
+    ) internal pure returns (bytes memory) {
+        return
+            bytes.concat(
+                bytes1(version),
+                new bytes(LayerZeroPacketV1.MESSAGE_OFFSET - 1 + messageLength)
+            );
+    }
+
     function testLayerZeroPayloadRejectsInvalidLength() public {
         bytes memory payload = LayerZeroMessage.encode(
             ORIGIN,
@@ -2391,12 +2462,12 @@ contract LayerZeroV2HookIsmTest is Test {
         _expectPacketRevert(
             message,
             bytes.concat(packet, hex"00"),
-            LayerZeroV2HookIsm.InvalidLayerZeroPacketLength.selector
+            LayerZeroPacketV1.InvalidLayerZeroPacketLength.selector
         );
         _expectPacketRevert(
             message,
             _replace(packet, 0, abi.encodePacked(uint8(2))),
-            LayerZeroV2HookIsm.InvalidLayerZeroPacketVersion.selector
+            LayerZeroPacketV1.InvalidLayerZeroPacketVersion.selector
         );
         _expectPacketRevert(
             message,

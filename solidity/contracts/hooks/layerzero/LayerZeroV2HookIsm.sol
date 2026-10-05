@@ -25,6 +25,7 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
 import {LayerZeroConfigTypeLib} from "./libs/LayerZeroConfigType.sol";
+import {LayerZeroPacketV1} from "./libs/LayerZeroPacketV1.sol";
 
 /**
  * @title LayerZeroV2HookIsm
@@ -64,9 +65,6 @@ contract LayerZeroV2HookIsm is
     bytes22 internal constant PULL_EXECUTOR_OPTIONS =
         hex"00030100110100000000000000000000000000000001";
 
-    uint256 internal constant PACKET_MESSAGE_OFFSET = 113;
-    uint8 internal constant PACKET_VERSION = 1;
-
     // ============ Errors ============
 
     error InvalidLayerZeroEndpoint();
@@ -96,8 +94,6 @@ contract LayerZeroV2HookIsm is
     error WrongPacketGuid(bytes32 actual, bytes32 expected);
     error InvalidReceiveLibrary(address libraryAddress);
     error ConflictingPayloadHash(bytes32 current, bytes32 expected);
-    error InvalidLayerZeroPacketLength(uint256 length);
-    error InvalidLayerZeroPacketVersion(uint8 version);
     error MessageNotDelivered(bytes32 messageId);
 
     // ============ Events ============
@@ -750,7 +746,7 @@ contract LayerZeroV2HookIsm is
         // The supplied receive library is only a hint; the Endpoint checks it
         // later if this packet still needs a verification commitment.
         (context.receiveLibrary, lzPacket) = metadata.decode();
-        _validatePacketEncoding(lzPacket);
+        LayerZeroPacketV1.validate(lzPacket, LayerZeroMessage.LENGTH);
 
         // The endpoint ID identifies the origin chain; the sender must be its
         // enrolled hook/ISM. Both must match the Hyperlane message's origin.
@@ -819,21 +815,6 @@ contract LayerZeroV2HookIsm is
         // ULN commitment uses the packet header and hash of GUID + message.
         context.payloadHash = lzPacket.payloadHash();
         context.header = lzPacket.header();
-    }
-
-    /// @dev Accepts only the packet version and exact fixed-length payload
-    /// used by `LayerZeroMessage`; rejects any trailing data.
-    function _validatePacketEncoding(bytes calldata lzPacket) internal pure {
-        if (
-            lzPacket.length != PACKET_MESSAGE_OFFSET + LayerZeroMessage.LENGTH
-        ) {
-            revert InvalidLayerZeroPacketLength(lzPacket.length);
-        }
-
-        uint8 version = lzPacket.version();
-        if (version != PACKET_VERSION) {
-            revert InvalidLayerZeroPacketVersion(version);
-        }
     }
 
     /// @dev A matching stored payload hash proves prior verification without
