@@ -1,5 +1,23 @@
 # @hyperlane-xyz/sdk
 
+## 45.0.1
+
+### Patch Changes
+
+- 4efffd5: Removed the deprecated zkSync, ADI Chain, TAC, Carrchain, Blast, Sei, Taiko, MegaETH, and Berachain domains and their default multisig validator configurations so new core configurations exclude unsupported origins. Added Carrchain to the deprecated core handoff script.
+- 35d3002: Prevented atomic local rebalancing bridges from replacing trusted remote token routers during enrollment. Preserved standing-quote reads when an uninitialized SVM quote PDA was prefunded with an empty system account.
+- fe26a26: SmartProvider warnings were suppressed when every provider returned an empty response during optional contract interface probes.
+- 19dbb59: The warp route reader failed `warp read` and `warp check` for routers whose implementation contains a DELEGATECALL byte but no `scale()` or `feeHook()` getter, because the optional calls that the reader then makes against such forwarding code reverted in ways it did not tolerate. The legacy `scale()` read was changed to tolerate a revert without data as the identity scale, and to tolerate an empty provider response only for a forwarding implementation, while a getter the bytecode proves present, or an empty response from an unresolvable proxy, still surfaces. The LSP17 `NoExtensionFoundForFunctionSelector` revert was recognized as a missing selector, provided the embedded selector matches the call when the call data is known, so optional reads such as `feeHook()`, `feeRecipient()` and the xERC20 probe treat it as an absent getter.
+  - @hyperlane-xyz/deploy-sdk@11.0.1
+  - @hyperlane-xyz/aleo-sdk@45.0.1
+  - @hyperlane-xyz/starknet-core@45.0.1
+  - @hyperlane-xyz/cosmos-sdk@45.0.1
+  - @hyperlane-xyz/radix-sdk@45.0.1
+  - @hyperlane-xyz/utils@45.0.1
+  - @hyperlane-xyz/core@12.2.0
+  - @hyperlane-xyz/provider-sdk@11.0.1
+  - @hyperlane-xyz/tron-sdk@26.0.1
+
 ## 45.0.0
 
 ### Major Changes
