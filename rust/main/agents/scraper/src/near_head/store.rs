@@ -84,7 +84,7 @@ impl Store {
 
     /// Only empty domains can start automatically. Neither stored maxima nor the
     /// shared legacy cursor prove that all four streams completed a cutover.
-    pub async fn anchor_height(&self, index_from: u32) -> Result<u64> {
+    pub async fn anchor_height(&self, index_from: u64) -> Result<u64> {
         if let Some(row) = self
             .db
             .query_one(sql(
@@ -96,7 +96,7 @@ impl Store {
             return Ok(u64::try_from(row.try_get::<i64>("", "start_height")?)?);
         }
         self.ensure_empty_history(&self.db).await?;
-        Ok(u64::from(index_from.saturating_sub(1)))
+        Ok(index_from.saturating_sub(1))
     }
 
     async fn ensure_empty_history<C: ConnectionTrait>(&self, db: &C) -> Result<()> {

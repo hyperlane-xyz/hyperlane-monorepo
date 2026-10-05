@@ -90,8 +90,14 @@ pub async fn spawn(
             eyre::eyre!("Radix near-head indexing requires an explicit scraper_head cutover when event history exists")
         })?)
     } else if source.has_historical_counts() || !source.indexes_by_sequence() {
+        let index_from = if conf.index.from < 0 {
+            let tip = source.header(BlockSelector::Latest).await?.height;
+            resolve_index_from(conf.index.from, tip)?
+        } else {
+            resolve_index_from(conf.index.from, 0)?
+        };
         let anchor_height = store
-            .anchor_height(u32::try_from(conf.index.from)?)
+            .anchor_height(index_from)
             .await?
             .max(minimum_auto_anchor(protocol));
         Some(source.header(BlockSelector::Height(anchor_height)).await?)
@@ -104,10 +110,13 @@ pub async fn spawn(
     ensure!(conf.index.chunk_size > 0, "index.chunk must be positive");
     let chunk_size = u64::from(conf.index.chunk_size);
     // Match the legacy range cursor's near-tip refresh cadence.
-    let poll_interval = conf
-        .index
-        .configured_interval
-        .unwrap_or(Duration::from_secs(30));
+    let poll_interval = conf.index.configured_interval.unwrap_or_else(|| {
+        if source.indexes_by_sequence() {
+            conf.index.idle_sleep_duration
+        } else {
+            Duration::from_secs(30)
+        }
+    });
     prepare(
         source.as_ref(),
         &store,
@@ -299,22 +308,6 @@ async fn ingest_cached(
         end_counts,
     )?;
     let (batch, start_counts) = events;
-    if !source.has_historical_counts() {
-        let confirmed_counts = store.confirmed_sequence_counts().await?;
-        let crosses_confirmed = batch.events.iter().any(|event| {
-            let (stream, sequence) = match &event.data {
-                source::EventData::Dispatch(message) => (0, Some(message.nonce)),
-                source::EventData::Delivery(_) => (1, event.sequence),
-                source::EventData::Gas { .. } => (2, event.sequence),
-                source::EventData::Insertion { index, .. } => (3, Some(*index)),
-            };
-            sequence.is_some_and(|sequence| sequence < confirmed_counts[stream])
-        });
-        if crosses_confirmed {
-            store.pause(true).await?;
-            eyre::bail!("Sequence gap crossed confirmed history; operator repair required");
-        }
-    }
     if source.indexes_by_sequence() || !source.has_historical_counts() {
         if batch
             .events
@@ -358,14 +351,29 @@ async fn ingest_cached(
     let validated_counts = match advance_sequences(&events, start_counts) {
         Ok(counts) => counts,
         Err(error) if !source.indexes_by_sequence() && !source.has_historical_counts() => {
-            if state.indexed == state.confirmed {
+            // This query is intentionally off the successful ingestion path: it
+            // can scan a large published prefix on chains with signed counters.
+            let confirmed_counts = store.confirmed_sequence_counts().await?;
+            let crosses_confirmed = events.iter().any(|event| {
+                let (stream, sequence) = match &event.data {
+                    source::EventData::Dispatch(message) => (0, Some(message.nonce)),
+                    source::EventData::Delivery(_) => (1, event.sequence),
+                    source::EventData::Gas { .. } => (2, event.sequence),
+                    source::EventData::Insertion { index, .. } => (3, Some(*index)),
+                };
+                sequence.is_some_and(|sequence| sequence < confirmed_counts[stream])
+            });
+            if crosses_confirmed {
                 store.pause(true).await?;
                 return Err(error.wrap_err(
                     "Block-mode sequence gap crossed confirmed history; operator repair required",
                 ));
             }
-            store.rewind_to_confirmed(state).await?;
-            return Err(error.wrap_err("Block-mode sequence gap; rewound for retry"));
+            if state.indexed > state.confirmed {
+                store.rewind_to_confirmed(state).await?;
+                return Err(error.wrap_err("Block-mode sequence gap; rewound for retry"));
+            }
+            return Err(error.wrap_err("Block-mode sequence gap; retrying range"));
         }
         Err(error) if !source.indexes_by_sequence() => {
             return Err(error.wrap_err("Block-mode sequence gap; retrying range"));
@@ -584,6 +592,14 @@ fn tag_selector(tag: &str) -> Result<BlockSelector> {
         "finalized" => Ok(BlockSelector::Finalized),
         _ => eyre::bail!("Unsupported reorgPeriod tag"),
     }
+}
+
+fn resolve_index_from(index_from: i64, tip: u64) -> Result<u64> {
+    Ok(u64::try_from(
+        i128::from(tip)
+            .saturating_add(i128::from(index_from))
+            .max(0),
+    )?)
 }
 
 #[cfg(test)]

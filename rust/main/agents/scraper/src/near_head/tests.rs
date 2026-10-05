@@ -20,6 +20,13 @@ use tokio::time::timeout;
 use super::*;
 use source::{Event, EventData};
 
+#[test]
+fn relative_index_start_resolves_from_the_tip() {
+    assert_eq!(resolve_index_from(-100, 1_000).unwrap(), 900);
+    assert_eq!(resolve_index_from(-2_000, 1_000).unwrap(), 0);
+    assert_eq!(resolve_index_from(123, 0).unwrap(), 123);
+}
+
 struct Chain {
     headers: Mutex<BTreeMap<u64, Header>>,
     fail_logs: Mutex<bool>,

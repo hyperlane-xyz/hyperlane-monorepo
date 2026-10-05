@@ -87,13 +87,20 @@ impl Worker {
             ReorgPeriod::Blocks(depth) => u64::from(depth.get()),
             _ => 0,
         };
+        let verifies_intermediate_boundaries = self.source.has_historical_counts()
+            || self.source.block_ranges_are_complete()
+            || self.source.indexes_by_sequence();
+        let cap_applies =
+            verifies_intermediate_boundaries || observed.verified == Some(observed.indexed);
         let mut bounded = observed.clone();
-        bounded.head = bounded.head.min(
-            bounded
-                .confirmed
-                .saturating_add(depth)
-                .saturating_add(10_000),
-        );
+        if cap_applies {
+            bounded.head = bounded.head.min(
+                bounded
+                    .confirmed
+                    .saturating_add(depth)
+                    .saturating_add(10_000),
+            );
+        }
         let ingestion = if bounded.indexed < bounded.head {
             ingest_cached(
                 self.source.as_ref(),
@@ -168,10 +175,9 @@ impl Worker {
             });
         }
         let more_ingestion = ingestion?;
-        let capped_head = observed
-            .head
-            .min(state.confirmed.saturating_add(depth).saturating_add(10_000));
-        let at_provisional_cap = capped_head < observed.head && state.indexed >= capped_head;
+        let capped_head = state.confirmed.saturating_add(depth).saturating_add(10_000);
+        let at_provisional_cap =
+            cap_applies && capped_head < observed.head && state.indexed >= capped_head;
         if at_provisional_cap {
             eyre::bail!(
                 "Provisional suffix reached its 10,000-block limit; confirmation is lagging"
