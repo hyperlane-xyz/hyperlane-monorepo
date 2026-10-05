@@ -13,6 +13,7 @@ import {
   type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigMailboxRequiredSchema,
   checkWarpRouteDeployConfig,
+  resolveWarpDeployConfigRouterKeys,
 } from '@hyperlane-xyz/sdk';
 import { assert, objFilter } from '@hyperlane-xyz/utils';
 
@@ -243,6 +244,7 @@ async function main() {
       const result = await withTimeout(
         runWarpRouteCheckFromRegistry({
           chains,
+          chainMetadataMultiProvider: getterInputsMultiProvider,
           multiProvider,
           registry,
           registryUris: registries,
@@ -338,6 +340,7 @@ main()
 
 async function runWarpRouteCheckFromRegistry({
   multiProvider,
+  chainMetadataMultiProvider,
   warpRouteId,
   registryUris,
   registry,
@@ -348,6 +351,7 @@ async function runWarpRouteCheckFromRegistry({
 }: {
   chains?: string[];
   multiProvider: Awaited<ReturnType<EnvironmentConfig['getMultiProvider']>>;
+  chainMetadataMultiProvider: MultiProvider;
   registry?: ReturnType<typeof getRegistry>;
   registryUris: string[];
   warpCoreConfig?: WarpCoreConfig;
@@ -362,6 +366,11 @@ async function runWarpRouteCheckFromRegistry({
     warpCoreConfig,
     warpDeployConfig,
   });
+
+  loadedConfigs.warpDeployConfig = resolveWarpDeployConfigRouterKeys(
+    chainMetadataMultiProvider,
+    loadedConfigs.warpDeployConfig,
+  );
 
   const filteredConfigs = filterWarpConfigsByChains({
     chains,

@@ -13,7 +13,8 @@ import {
 import { HookType } from '../hook/types.js';
 import { IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { test1, test2 } from '../consts/testChains.js';
+import { DestinationGas, RemoteRouters } from '../router/types.js';
+import { test1, test2, test3 } from '../consts/testChains.js';
 import type { WarpCoreConfig } from '../warp/types.js';
 
 import { TokenType } from './config.js';
@@ -27,6 +28,7 @@ import {
   getDefaultRemoteRouterAndDestinationGasConfig,
   getChainsFromWarpCoreConfig,
   normalizeWarpDeployConfigForCheck,
+  resolveWarpDeployConfigRouterKeys,
   resolveTokenFeeAddress,
   transformConfigToCheck,
   warpCoreConfigMatchesChains,
@@ -35,10 +37,12 @@ import { TokenStandard } from './TokenStandard.js';
 import {
   HypTokenConfig,
   HypTokenRouterConfig,
+  MovableTokenConfig,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
   XERC20TokenExtraBridgesLimits,
   XERC20Type,
+  isMovableCollateralTokenConfig,
   isXERC20TokenConfig,
 } from './types.js';
 
@@ -46,6 +50,7 @@ function buildMultiProvider(): MultiProvider {
   return new MultiProvider({
     [test1.name]: test1,
     [test2.name]: test2,
+    [test3.name]: test3,
   });
 }
 
@@ -88,6 +93,158 @@ describe('configUtils', () => {
 
       expect(remoteRouters).to.deep.equal({});
       expect(destinationGas).to.deep.equal({});
+    });
+  });
+
+  describe(resolveWarpDeployConfigRouterKeys.name, () => {
+    const owner = '0x1111111111111111111111111111111111111111';
+    const mailbox = '0x2222222222222222222222222222222222222222';
+    const token = '0x3333333333333333333333333333333333333333';
+    const router = '0x4444444444444444444444444444444444444444';
+    const bridge = '0x5555555555555555555555555555555555555555';
+
+    interface RouterKeyOverrides {
+      destinationGas?: DestinationGas;
+      remoteRouters?: RemoteRouters;
+      allowedRebalancingBridges?: MovableTokenConfig['allowedRebalancingBridges'];
+    }
+
+    function config(
+      chainConfig: WarpRouteDeployConfigMailboxRequired[string],
+    ): WarpRouteDeployConfigMailboxRequired {
+      return {
+        [test1.name]: chainConfig,
+      };
+    }
+
+    function collateralConfig(
+      overrides: RouterKeyOverrides = {},
+    ): WarpRouteDeployConfigMailboxRequired[string] {
+      return {
+        type: TokenType.collateral,
+        owner,
+        mailbox,
+        token,
+        ...overrides,
+      };
+    }
+
+    it('resolves chain name keys to domain ids', () => {
+      const warpDeployConfig = config(
+        collateralConfig({
+          destinationGas: {
+            [test2.name]: '123',
+          },
+          remoteRouters: {
+            [test2.name]: { address: router },
+          },
+          allowedRebalancingBridges: {
+            [test2.name]: [{ bridge }],
+          },
+        }),
+      );
+
+      const resolved = resolveWarpDeployConfigRouterKeys(
+        buildMultiProvider(),
+        warpDeployConfig,
+      );
+
+      expect(resolved[test1.name].destinationGas).to.deep.equal({
+        [test2.domainId]: '123',
+      });
+      expect(resolved[test1.name].remoteRouters).to.deep.equal({
+        [test2.domainId]: { address: router },
+      });
+      const resolvedChainConfig = resolved[test1.name];
+      if (!isMovableCollateralTokenConfig(resolvedChainConfig)) {
+        throw new Error('Expected movable collateral config');
+      }
+      expect(resolvedChainConfig.allowedRebalancingBridges).to.deep.equal({
+        [test2.domainId]: [{ bridge }],
+      });
+    });
+
+    it('preserves numeric keys', () => {
+      const warpDeployConfig = config(
+        collateralConfig({
+          destinationGas: {
+            [test2.domainId]: '123',
+          },
+        }),
+      );
+
+      const resolved = resolveWarpDeployConfigRouterKeys(
+        buildMultiProvider(),
+        warpDeployConfig,
+      );
+
+      expect(resolved[test1.name].destinationGas).to.deep.equal({
+        [test2.domainId]: '123',
+      });
+    });
+
+    it('resolves mixed chain name and numeric keys', () => {
+      const warpDeployConfig = config(
+        collateralConfig({
+          destinationGas: {
+            [test2.name]: '123',
+            [test3.domainId]: '456',
+          },
+        }),
+      );
+
+      const resolved = resolveWarpDeployConfigRouterKeys(
+        buildMultiProvider(),
+        warpDeployConfig,
+      );
+
+      expect(resolved[test1.name].destinationGas).to.deep.equal({
+        [test2.domainId]: '123',
+        [test3.domainId]: '456',
+      });
+    });
+
+    it('does not mutate the input config', () => {
+      const warpDeployConfig = config(
+        collateralConfig({
+          destinationGas: {
+            [test2.name]: '123',
+          },
+          remoteRouters: {
+            [test2.name]: { address: router },
+          },
+          allowedRebalancingBridges: {
+            [test2.name]: [{ bridge }],
+          },
+        }),
+      );
+      const original = structuredClone(warpDeployConfig);
+
+      const resolved = resolveWarpDeployConfigRouterKeys(
+        buildMultiProvider(),
+        warpDeployConfig,
+      );
+
+      expect(warpDeployConfig).to.deep.equal(original);
+      expect(resolved).not.to.equal(warpDeployConfig);
+      expect(resolved[test1.name]).not.to.equal(warpDeployConfig[test1.name]);
+    });
+
+    it('throws for unknown chain name keys', () => {
+      const warpDeployConfig = config(
+        collateralConfig({
+          destinationGas: {
+            unknownchain: '123',
+          },
+        }),
+      );
+
+      expect(() =>
+        resolveWarpDeployConfigRouterKeys(
+          buildMultiProvider(),
+          warpDeployConfig,
+        ),
+      ).to.throw('No chain metadata set for unknownchain');
     });
   });
 
