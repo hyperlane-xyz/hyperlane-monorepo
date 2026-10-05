@@ -15,6 +15,9 @@ import {
   InterchainQueryChecker,
   IsmType,
   MultiProvider,
+  type WarpRouteDeployConfigMailboxRequired,
+  isMovableCollateralTokenConfig,
+  resolveRouterMapConfig,
 } from '@hyperlane-xyz/sdk';
 import { objFilter, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -57,6 +60,54 @@ export function getCheckWarpDeployArgs() {
 
 export function getCheckDeployArgs() {
   return withRegistryUris(withModule(getCheckBaseArgs()));
+}
+
+export function resolveWarpDeployConfigRouterKeys(
+  multiProvider: MultiProvider,
+  warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
+): WarpRouteDeployConfigMailboxRequired {
+  const resolvedWarpDeployConfig: WarpRouteDeployConfigMailboxRequired = {};
+
+  for (const [chain, chainConfig] of Object.entries(warpDeployConfig)) {
+    const resolvedChainConfig = {
+      ...chainConfig,
+      ...(chainConfig.destinationGas
+        ? {
+            destinationGas: resolveRouterMapConfig(
+              multiProvider,
+              chainConfig.destinationGas,
+            ),
+          }
+        : {}),
+      ...(chainConfig.remoteRouters
+        ? {
+            remoteRouters: resolveRouterMapConfig(
+              multiProvider,
+              chainConfig.remoteRouters,
+            ),
+          }
+        : {}),
+    };
+
+    if (
+      isMovableCollateralTokenConfig(chainConfig) &&
+      chainConfig.allowedRebalancingBridges
+    ) {
+      const resolvedMovableChainConfig = {
+        ...resolvedChainConfig,
+        allowedRebalancingBridges: resolveRouterMapConfig(
+          multiProvider,
+          chainConfig.allowedRebalancingBridges,
+        ),
+      };
+      resolvedWarpDeployConfig[chain] = resolvedMovableChainConfig;
+      continue;
+    }
+
+    resolvedWarpDeployConfig[chain] = resolvedChainConfig;
+  }
+
+  return resolvedWarpDeployConfig;
 }
 
 const ICA_ENABLED_MODULES = [Modules.INTERCHAIN_ACCOUNTS, Modules.HAAS];
