@@ -9,7 +9,7 @@ impl MigrationTrait for Migration {
         manager
             .get_connection()
             .execute_unprepared(
-                "ALTER TABLE scraper_head ADD COLUMN verified_height bigint; ALTER TABLE scraper_head ADD CONSTRAINT scraper_head_verified_height_check CHECK(verified_height IS NULL OR (verified_height>=confirmed_height AND verified_height<=indexed_height))",
+                "ALTER TABLE scraper_head ADD COLUMN verified_height bigint, ADD COLUMN legacy_on_downgrade boolean NOT NULL DEFAULT false; ALTER TABLE scraper_head ADD CONSTRAINT scraper_head_verified_height_check CHECK(verified_height IS NULL OR (verified_height>=confirmed_height AND verified_height<=indexed_height))",
             )
             .await?;
         Ok(())
@@ -28,13 +28,30 @@ impl MigrationTrait for Migration {
                   ) THEN
                     RAISE EXCEPTION 'Cannot downgrade: gas payments collide under the previous transaction-scoped identity';
                   END IF;
+                  IF EXISTS (
+                    SELECT 1 FROM scraper_head WHERE legacy_on_downgrade
+                      AND (halted OR indexed_height<>confirmed_height
+                           OR verified_height IS DISTINCT FROM confirmed_height)
+                  ) THEN
+                    RAISE EXCEPTION 'Cannot downgrade: non-EVM near-head history is not fully published';
+                  END IF;
                 END $$;
+                INSERT INTO cursor(domain,event_type,height,time_created)
+                  SELECT h.domain,event_type,h.confirmed_height,now()
+                  FROM scraper_head h
+                  CROSS JOIN (VALUES ('delivery'),('interchain_gas_payment')) AS streams(event_type)
+                  WHERE h.legacy_on_downgrade
+                  ON CONFLICT(domain,event_type) DO UPDATE
+                    SET height=greatest(cursor.height,excluded.height),time_created=now();
+                DELETE FROM scraper_checkpoint WHERE domain IN
+                  (SELECT domain FROM scraper_head WHERE legacy_on_downgrade);
+                DELETE FROM scraper_head WHERE legacy_on_downgrade;
                 CREATE UNIQUE INDEX IF NOT EXISTS gas_payment_transaction_log
                   ON gas_payment(domain,block_hash,transaction_index,log_index)
                   WHERE block_hash IS NOT NULL;
                 DROP INDEX IF EXISTS gas_payment_block_log;
                 ALTER TABLE scraper_head DROP CONSTRAINT scraper_head_verified_height_check,
-                  DROP COLUMN verified_height;
+                  DROP COLUMN verified_height,DROP COLUMN legacy_on_downgrade;
                 "#,
             )
             .await?;
@@ -88,6 +105,72 @@ mod tests {
 
         assert!(index_exists(&db, "gas_payment_transaction_log").await?);
         assert!(!index_exists(&db, "gas_payment_block_log").await?);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn downgrade_hands_published_altvm_history_to_legacy_cursors() -> Result<(), DbErr> {
+        let (db, _postgres) = database().await?;
+        db.execute_unprepared(
+            r#"
+            INSERT INTO scraper_head
+              (domain,start_height,indexed_height,indexed_hash,head_height,
+               confirmed_height,verified_height,mailbox,merkle_tree_hook,
+               interchain_gas_paymaster,halted,legacy_on_downgrade)
+            VALUES
+              (1399811149,10,10,decode(repeat('aa',32),'hex'),10,10,10,
+               decode(repeat('01',32),'hex'),decode(repeat('02',32),'hex'),
+               decode(repeat('03',32),'hex'),false,true);
+            INSERT INTO scraper_checkpoint(domain,height,hash,timestamp)
+            VALUES(1399811149,10,decode(repeat('aa',32),'hex'),now());
+            "#,
+        )
+        .await?;
+
+        Migrator::down(&db, Some(1)).await?;
+
+        let row = db
+            .query_one(Statement::from_string(
+                DbBackend::Postgres,
+                r#"
+                SELECT NOT EXISTS(
+                         SELECT 1 FROM scraper_head WHERE domain=1399811149
+                       ) AS legacy_mode,
+                       (SELECT count(*) FROM cursor
+                        WHERE domain=1399811149
+                          AND event_type IN ('delivery','interchain_gas_payment')
+                          AND height=10) AS cursors
+                "#
+                .to_owned(),
+            ))
+            .await?
+            .expect("AltVM rollback state");
+        assert!(row.try_get::<bool>("", "legacy_mode")?);
+        assert_eq!(row.try_get::<i64>("", "cursors")?, 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn downgrade_refuses_unpublished_altvm_history() -> Result<(), DbErr> {
+        let (db, _postgres) = database().await?;
+        db.execute_unprepared(
+            r#"
+            INSERT INTO scraper_head
+              (domain,start_height,indexed_height,indexed_hash,head_height,
+               confirmed_height,verified_height,mailbox,merkle_tree_hook,
+               interchain_gas_paymaster,halted,legacy_on_downgrade)
+            VALUES
+              (1399811149,10,11,decode(repeat('aa',32),'hex'),11,10,NULL,
+               decode(repeat('01',32),'hex'),decode(repeat('02',32),'hex'),
+               decode(repeat('03',32),'hex'),false,true)
+            "#,
+        )
+        .await?;
+
+        let error = Migrator::down(&db, Some(1))
+            .await
+            .expect_err("unpublished AltVM history cannot be handed to legacy writers");
+        assert!(error.to_string().contains("not fully published"));
         Ok(())
     }
 

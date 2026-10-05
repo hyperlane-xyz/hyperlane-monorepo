@@ -163,6 +163,9 @@ async fn prepare<'a>(
     // indexed height. The observation loop waits for lagging providers and
     // checks retained ancestry before publishing anything.
     let state = store.state().await?;
+    if state.is_some() && !source.has_historical_counts() {
+        store.mark_legacy_on_downgrade().await?;
+    }
     let hash = match state {
         Some(_) => {
             store.validate_checkpoints().await?;
@@ -179,7 +182,9 @@ async fn prepare<'a>(
         source.counts(hash).await?;
     }
     if let Some(anchor) = anchor {
-        store.initialize(anchor, contracts).await?;
+        store
+            .initialize_with_rollback(anchor, contracts, !source.has_historical_counts())
+            .await?;
     }
     Ok(())
 }

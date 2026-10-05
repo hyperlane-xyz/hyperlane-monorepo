@@ -111,7 +111,18 @@ impl Store {
         Ok(())
     }
 
+    #[cfg(test)]
     pub async fn initialize(&self, anchor: &Header, contracts: &Contracts) -> Result<()> {
+        self.initialize_with_rollback(anchor, contracts, false)
+            .await
+    }
+
+    pub async fn initialize_with_rollback(
+        &self,
+        anchor: &Header,
+        contracts: &Contracts,
+        legacy_on_downgrade: bool,
+    ) -> Result<()> {
         let tx = self.db.begin().await?;
         tx.execute(sql(
             "SELECT pg_advisory_xact_lock($1)",
@@ -135,8 +146,8 @@ impl Store {
             // since anchor selection. Existing domains require operator cutover.
             self.ensure_empty_history(&tx).await?;
             tx.execute(sql(
-                "INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster) VALUES($1,$2,$2,$3,$2,$2,$4,$5,$6)",
-                vec![self.domain(), number(anchor.height)?, bytes(anchor.hash), address_to_bytes(&contracts.mailbox).into(), address_to_bytes(&contracts.hook).into(), address_to_bytes(&contracts.paymaster).into()],
+                "INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster,legacy_on_downgrade) VALUES($1,$2,$2,$3,$2,$2,$4,$5,$6,$7)",
+                vec![self.domain(), number(anchor.height)?, bytes(anchor.hash), address_to_bytes(&contracts.mailbox).into(), address_to_bytes(&contracts.hook).into(), address_to_bytes(&contracts.paymaster).into(), legacy_on_downgrade.into()],
             )).await?;
             tx.execute(sql(
                 "INSERT INTO scraper_checkpoint(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC')",
@@ -144,6 +155,16 @@ impl Store {
             )).await?;
         }
         tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn mark_legacy_on_downgrade(&self) -> Result<()> {
+        self.db
+            .execute(sql(
+                "UPDATE scraper_head SET legacy_on_downgrade=true WHERE domain=$1 AND NOT legacy_on_downgrade",
+                vec![self.domain()],
+            ))
+            .await?;
         Ok(())
     }
 
