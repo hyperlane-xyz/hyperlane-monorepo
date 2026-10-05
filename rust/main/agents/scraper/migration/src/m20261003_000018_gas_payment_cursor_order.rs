@@ -127,7 +127,7 @@ mod tests {
             "DELETE FROM gas_payment_stream_cursor; DELETE FROM gas_payment_stream_head",
         )
         .await?;
-        Migrator::down(&db, Some(1)).await?;
+        Migrator::down(&db, Some(2)).await?;
         db.execute_unprepared("SELECT assign_confirmed_gas_payment_cursors(1,0,10)")
             .await?;
         assert_eq!(cursors_in_tx_order(&db).await?, vec![1, 0]);
