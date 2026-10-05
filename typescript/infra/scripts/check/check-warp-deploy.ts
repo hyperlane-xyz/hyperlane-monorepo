@@ -13,6 +13,7 @@ import {
   type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigMailboxRequiredSchema,
   checkWarpRouteDeployConfig,
+  resolveWarpDeployConfigRouterKeys,
 } from '@hyperlane-xyz/sdk';
 import { assert, objFilter } from '@hyperlane-xyz/utils';
 
@@ -32,7 +33,6 @@ import {
   allAttemptedRoutesFailed,
   getCheckWarpDeployArgs,
   getCheckWarpDeployExitCode,
-  resolveWarpDeployConfigRouterKeys,
   buildWarpRouteErrorMetricEntries,
   getCheckRouteErrorGaugeObj,
   getCheckerViolationsGaugeObj,

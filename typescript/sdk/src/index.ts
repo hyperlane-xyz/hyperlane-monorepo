@@ -862,6 +862,7 @@ export {
   filterWarpCoreConfigMapByChains,
   getChainsFromWarpCoreConfig,
   getRouterAddressesFromWarpCoreConfig,
+  resolveWarpDeployConfigRouterKeys,
   splitWarpCoreAndExtendedConfigs,
   transformConfigToCheck,
   warpCoreConfigMatchesChains,
