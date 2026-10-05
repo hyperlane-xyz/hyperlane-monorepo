@@ -1,6 +1,9 @@
 import { expect } from 'chai';
 
-import { getCheckWarpDeployExitCode } from '../scripts/check/check-utils.js';
+import {
+  allAttemptedRoutesFailed,
+  getCheckWarpDeployExitCode,
+} from '../scripts/check/check-utils.js';
 
 interface Case {
   name: string;
@@ -71,6 +74,53 @@ describe('getCheckWarpDeployExitCode', () => {
           attemptedRoutes: c.attemptedRoutes,
           failedRoutes: c.failedRoutes,
           failedMetricPublications: c.failedMetricPublications ?? 0,
+        }),
+      ).to.equal(c.expected);
+    });
+  }
+});
+
+describe('allAttemptedRoutesFailed', () => {
+  interface PredicateCase {
+    name: string;
+    attemptedRoutes: number;
+    failedRoutes: number;
+    expected: boolean;
+  }
+
+  const cases: PredicateCase[] = [
+    {
+      name: 'false when no route was attempted',
+      attemptedRoutes: 0,
+      failedRoutes: 0,
+      expected: false,
+    },
+    {
+      name: 'true when every attempted route failed',
+      attemptedRoutes: 5,
+      failedRoutes: 5,
+      expected: true,
+    },
+    {
+      name: 'false when only some routes failed',
+      attemptedRoutes: 5,
+      failedRoutes: 4,
+      expected: false,
+    },
+    {
+      name: 'false when no route failed',
+      attemptedRoutes: 5,
+      failedRoutes: 0,
+      expected: false,
+    },
+  ];
+
+  for (const c of cases) {
+    it(c.name, () => {
+      expect(
+        allAttemptedRoutesFailed({
+          attemptedRoutes: c.attemptedRoutes,
+          failedRoutes: c.failedRoutes,
         }),
       ).to.equal(c.expected);
     });

@@ -29,6 +29,7 @@ import { type EnvironmentConfig } from '../../src/config/environment.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 import {
+  allAttemptedRoutesFailed,
   getCheckWarpDeployArgs,
   getCheckWarpDeployExitCode,
   buildWarpRouteErrorMetricEntries,
@@ -312,7 +313,12 @@ async function main() {
     );
   }
 
-  if (attemptedRoutes > 0 && failedWarpRoutesChecks.length >= attemptedRoutes) {
+  if (
+    allAttemptedRoutesFailed({
+      attemptedRoutes,
+      failedRoutes: failedWarpRoutesChecks.length,
+    })
+  ) {
     console.error(
       chalk.red(
         `No warp route could be checked: all ${attemptedRoutes} attempted routes errored`,

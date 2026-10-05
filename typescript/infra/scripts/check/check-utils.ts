@@ -393,6 +393,16 @@ export function buildWarpRouteErrorMetricEntries({
   }));
 }
 
+export function allAttemptedRoutesFailed({
+  attemptedRoutes,
+  failedRoutes,
+}: {
+  attemptedRoutes: number;
+  failedRoutes: number;
+}): boolean {
+  return attemptedRoutes > 0 && failedRoutes >= attemptedRoutes;
+}
+
 // Per-route execution errors (timeouts, RPC failures, config load failures) do
 // not fail the job; config problems are alerted per route via violation
 // metrics. The job only fails when no attempted route could be checked at all,
@@ -408,5 +418,5 @@ export function getCheckWarpDeployExitCode({
   failedMetricPublications: number;
 }): 0 | 1 {
   if (failedMetricPublications > 0) return 1;
-  return attemptedRoutes > 0 && failedRoutes >= attemptedRoutes ? 1 : 0;
+  return allAttemptedRoutesFailed({ attemptedRoutes, failedRoutes }) ? 1 : 0;
 }
