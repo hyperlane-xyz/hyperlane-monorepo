@@ -360,16 +360,53 @@ export function warpViolationGroupings(
   };
 }
 
+export function getCheckRouteErrorGaugeObj(metricsRegister: Registry) {
+  return {
+    name: 'hyperlane_check_route_error',
+    help: 'Warp route could not be checked this run (1) or was checked (0)',
+    registers: [metricsRegister],
+    labelNames: ['module', 'warp_route_id'],
+  };
+}
+
+// warp_route_id contains "/", so the grouping uses a base64url `route_key`
+// (distinct from the per-violation `alert_key`) to stay a single path segment.
+export function warpRouteErrorGroupings(
+  warpRouteId: string,
+): Record<string, string> {
+  return {
+    route_key: Buffer.from(warpRouteId, 'utf8').toString('base64url'),
+  };
+}
+
+export function buildWarpRouteErrorMetricEntries({
+  attemptedRouteIds,
+  failedRouteIds,
+}: {
+  attemptedRouteIds: string[];
+  failedRouteIds: string[];
+}): { warpRouteId: string; value: 0 | 1 }[] {
+  const failed = new Set(failedRouteIds);
+  return [...new Set(attemptedRouteIds)].map((warpRouteId) => ({
+    warpRouteId,
+    value: failed.has(warpRouteId) ? 1 : 0,
+  }));
+}
+
 // Per-route execution errors (timeouts, RPC failures, config load failures) do
 // not fail the job; config problems are alerted per route via violation
 // metrics. The job only fails when no attempted route could be checked at all,
-// which indicates an outage rather than a route-specific problem.
+// which indicates an outage rather than a route-specific problem. Failing to
+// publish route-error metrics is a monitoring failure and always fails the job.
 export function getCheckWarpDeployExitCode({
   attemptedRoutes,
   failedRoutes,
+  failedMetricPublications,
 }: {
   attemptedRoutes: number;
   failedRoutes: number;
+  failedMetricPublications: number;
 }): 0 | 1 {
+  if (failedMetricPublications > 0) return 1;
   return attemptedRoutes > 0 && failedRoutes >= attemptedRoutes ? 1 : 0;
 }

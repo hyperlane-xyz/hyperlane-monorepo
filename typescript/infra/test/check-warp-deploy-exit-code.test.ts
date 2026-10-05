@@ -6,6 +6,7 @@ interface Case {
   name: string;
   attemptedRoutes: number;
   failedRoutes: number;
+  failedMetricPublications?: number;
   expected: 0 | 1;
 }
 
@@ -47,6 +48,20 @@ describe('getCheckWarpDeployExitCode', () => {
       failedRoutes: 0,
       expected: 0,
     },
+    {
+      name: 'exits 1 when metric publication failed but routes passed',
+      attemptedRoutes: 5,
+      failedRoutes: 0,
+      failedMetricPublications: 1,
+      expected: 1,
+    },
+    {
+      name: 'exits 1 when metric publication failed and some routes failed',
+      attemptedRoutes: 5,
+      failedRoutes: 2,
+      failedMetricPublications: 3,
+      expected: 1,
+    },
   ];
 
   for (const c of cases) {
@@ -55,6 +70,7 @@ describe('getCheckWarpDeployExitCode', () => {
         getCheckWarpDeployExitCode({
           attemptedRoutes: c.attemptedRoutes,
           failedRoutes: c.failedRoutes,
+          failedMetricPublications: c.failedMetricPublications ?? 0,
         }),
       ).to.equal(c.expected);
     });

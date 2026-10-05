@@ -31,7 +31,10 @@ import { getEnvironmentConfig } from '../core-utils.js';
 import {
   getCheckWarpDeployArgs,
   getCheckWarpDeployExitCode,
+  buildWarpRouteErrorMetricEntries,
+  getCheckRouteErrorGaugeObj,
   getCheckerViolationsGaugeObj,
+  warpRouteErrorGroupings,
   warpViolationGroupings,
 } from './check-utils.js';
 import { isContractVerificationViolation } from './contract-verification-skip.js';
@@ -273,8 +276,20 @@ async function main() {
     }
   }
 
+  // Routes that went through the loop plus routes whose config failed to load (disjoint).
   const attemptedRoutes =
     warpIdsToCheck.length + failedWarpRouteConfigLoads.length;
+  let failedMetricPublications: string[] = [];
+  if (pushMetrics) {
+    failedMetricPublications = await pushWarpRouteErrorMetrics(
+      buildWarpRouteErrorMetricEntries({
+        attemptedRouteIds: [...warpIdsToCheck, ...failedWarpRouteConfigLoads],
+        failedRouteIds: failedWarpRoutesChecks,
+      }),
+      environment,
+    );
+  }
+
   if (failedWarpRoutesChecks.length > 0) {
     console.warn(
       chalk.yellow(
@@ -286,8 +301,18 @@ async function main() {
   const exitCode = getCheckWarpDeployExitCode({
     attemptedRoutes,
     failedRoutes: failedWarpRoutesChecks.length,
+    failedMetricPublications: failedMetricPublications.length,
   });
-  if (exitCode !== 0) {
+
+  if (failedMetricPublications.length > 0) {
+    console.error(
+      chalk.red(
+        `Route-error metric publication failed for ${failedMetricPublications.length} routes (monitoring failure, not a route/config problem): ${failedMetricPublications.join(', ')}`,
+      ),
+    );
+  }
+
+  if (attemptedRoutes > 0 && failedWarpRoutesChecks.length >= attemptedRoutes) {
     console.error(
       chalk.red(
         `No warp route could be checked: all ${attemptedRoutes} attempted routes errored`,
@@ -678,6 +703,37 @@ async function isTestnetRoute(
     }
   }
   return false;
+}
+
+// Pushes 1/0 per attempted route, each in its own route_key group, so it
+// auto-resets every run. Series for removed/skipped routes persist until
+// deleted via deleteMetrics with the route_key grouping.
+async function pushWarpRouteErrorMetrics(
+  entries: { warpRouteId: string; value: 0 | 1 }[],
+  environment: string,
+): Promise<string[]> {
+  const failedPublications: string[] = [];
+  for (const { warpRouteId, value } of entries) {
+    try {
+      const register = new Registry();
+      const gauge = new Gauge(getCheckRouteErrorGaugeObj(register));
+      register.registerMetric(gauge);
+      gauge.labels({ module: 'warp', warp_route_id: warpRouteId }).set(value);
+
+      // PUT only replaces this route's group (route_key), not the whole job.
+      await submitMetrics(register, `check-warp-deploy-${environment}`, {
+        groupings: warpRouteErrorGroupings(warpRouteId),
+        overwriteAllMetrics: true,
+        throwOnError: true,
+      });
+    } catch (e) {
+      console.error(
+        chalk.red(`Failed to push route error metric for ${warpRouteId}: ${e}`),
+      );
+      failedPublications.push(warpRouteId);
+    }
+  }
+  return failedPublications;
 }
 
 // Each violation is pushed to PushGateway under its own group, keyed by an
