@@ -61,6 +61,23 @@ const ROUTES_TO_SKIP: string[] = [
   // post-#9329 reader flags a false ConfigMismatch on the real on-chain
   // limits. Excluded until ENG-4414 lands (backfill limits or ignore missing).
   WarpRouteIds.BaseEthereumREZ,
+  // Retired route on the old `nesa` chain (domain 41443). The `nesa` RPC now
+  // serves nesachain (chainId 41444), so the legacy router has no code there and
+  // the read fails with "chain unknown". The route stays in the registry only
+  // so the relayer blacklist can match its routers and avoid delivering
+  // messages that originated from it (registry#1696), not to be checked.
+  WarpRouteIds.NesaLegacyNES,
+  // Route on sei, a chain scheduled for deprecation on 2026-09-30 whose
+  // Elixir fastUSD route is dormant (last message 2026-06-03). Reading it fails
+  // for two reasons that would both need fixing to re-enable it:
+  // - The sei registry explorer (Seitrace) is down and is marked as an Etherscan
+  //   explorer, so the SDK sends its API key to the Etherscan V2 API, which
+  //   rejects it. Etherscan V2 itself serves sei (chain id 1329).
+  // - The xERC20 token never emits BridgeLimitsSet/ConfigurationChanged (its
+  //   limits are unlimited), so the explorer answers with no bridges, the SDK
+  //   treats that as an explorer failure and re-reads over the RPC, and every
+  //   sei RPC prunes the 2024 history that read needs.
+  WarpRouteIds.EthereumSeiFastUSD,
 ];
 
 // Name segments that mark a warp route as a non-production (staging/test)

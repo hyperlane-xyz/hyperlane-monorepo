@@ -31,6 +31,7 @@ struct Chain {
     historical_counts: AtomicBool,
     indexing_tip: AtomicU64,
     end_counts: Mutex<[Option<u32>; 4]>,
+    count_capable: Mutex<[bool; 4]>,
     events: Mutex<Vec<Event>>,
 }
 
@@ -48,6 +49,7 @@ impl Chain {
             historical_counts: AtomicBool::new(true),
             indexing_tip: AtomicU64::new(u64::MAX),
             end_counts: Mutex::new([None; 4]),
+            count_capable: Mutex::new([false; 4]),
             events: Mutex::new(Vec::new()),
         }
     }
@@ -106,12 +108,17 @@ impl Source for Arc<Chain> {
                 events,
                 indexed_through: None,
                 end_counts: *self.end_counts.lock().expect("end-count mutex poisoned"),
+                count_capable: *self
+                    .count_capable
+                    .lock()
+                    .expect("count-capable mutex poisoned"),
             });
         }
         Ok(EventBatch {
             events,
             indexed_through: Some(end),
             end_counts: [None; 4],
+            count_capable: [true; 4],
         })
     }
 
@@ -567,6 +574,32 @@ async fn block_mode_rewinds_a_range_with_a_truncated_sequence_tail() -> Result<(
 }
 
 #[tokio::test]
+async fn block_mode_does_not_publish_an_unverified_counted_stream() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(5, false));
+    chain.historical_counts.store(false, Ordering::SeqCst);
+    chain.count_capable.lock().unwrap()[0] = true;
+    chain.events.lock().unwrap().push(dispatch_event(2, 0));
+    let worker = worker(db, chain.clone()).await?;
+    let state = crate::near_head::observe(&chain, &worker.store).await?;
+
+    crate::near_head::ingest(&chain, &worker.store, &state, 20_000).await?;
+    crate::near_head::confirm(&chain, &worker.store, &ReorgPeriod::from_blocks(0)).await?;
+
+    let state = worker.store.state().await?.expect("initialized state");
+    assert_eq!(
+        (state.confirmed, state.indexed, state.verified),
+        (0, 5, None)
+    );
+    Ok(())
+}
+
+#[tokio::test]
 async fn block_mode_rewinds_after_a_sequence_gap() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let db = Database::connect(format!(
@@ -611,7 +644,7 @@ async fn block_mode_rewinds_after_a_sequence_gap() -> Result<()> {
 }
 
 #[tokio::test]
-async fn sequence_gap_in_confirmed_history_halts_the_domain() -> Result<()> {
+async fn block_mode_sequence_gap_in_confirmed_history_halts_the_domain() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let db = Database::connect(format!(
         "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
@@ -626,12 +659,11 @@ async fn sequence_gap_in_confirmed_history_halts_the_domain() -> Result<()> {
     crate::near_head::confirm(&chain, &worker.store, &ReorgPeriod::from_blocks(0)).await?;
 
     chain.head.store(10, Ordering::SeqCst);
-    chain.sequence.store(true, Ordering::SeqCst);
     chain
         .events
         .lock()
         .expect("event mutex poisoned")
-        .push(dispatch_event(4, 0));
+        .push(dispatch_event(10, 2));
     let state = crate::near_head::observe(&chain, &worker.store).await?;
     let error = crate::near_head::ingest(&chain, &worker.store, &state, 20_000)
         .await

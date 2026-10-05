@@ -41,7 +41,17 @@ export function lsp17NoExtensionError(): Error & {
 } {
   return Object.assign(new Error('call revert exception'), {
     code: 'CALL_EXCEPTION',
-    data: `0xbb370b2b${'0'.repeat(56)}46904840`,
+    data: `0xbb370b2b46904840${'0'.repeat(56)}`,
+  });
+}
+
+export function unrecognisedCustomRevertError(): Error & {
+  code: string;
+  data: string;
+} {
+  return Object.assign(new Error('call revert exception'), {
+    code: 'CALL_EXCEPTION',
+    data: `0xdeadbeef${'0'.repeat(64)}`,
   });
 }
 

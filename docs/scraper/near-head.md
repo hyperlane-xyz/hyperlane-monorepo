@@ -373,17 +373,32 @@ FROM block
 WHERE domain=:'domain'::integer AND height=:'height'::bigint;
 ```
 
-For Sealevel, also require this read-only precondition before seeding. Both
-values are next-sequence counts, so equality proves the two derived streams end
-at the same durable sequence (not that either stream is otherwise complete):
+Before seeding, compare every available on-chain count at `H` with the matching
+scoped durable count below. The mailbox, hook, and paymaster filters must match
+the runtime configuration; unscoped maxima can include rows from old contracts.
+For Radix, all four values must equal the four component counts at `H`. For
+Sealevel, dispatch and insertion must match each other and their account counts.
 
 ```sql
 SELECT
-  coalesce(max(nonce::bigint & 4294967295)+1,0) AS dispatch_count,
-  (SELECT coalesce(max(leaf_index::bigint & 4294967295)+1,0)
-   FROM merkle_tree_insertion WHERE domain=:'domain'::integer) AS insertion_count
-FROM raw_message_dispatch
-WHERE origin_domain=:'domain'::integer;
+  (SELECT count(*)
+   FROM raw_message_dispatch
+   WHERE origin_domain=:'domain'::integer
+     AND origin_mailbox=decode(:'mailbox','hex')
+     AND origin_block_height<=:'height'::bigint) AS dispatch_count,
+  (SELECT count(*) FROM delivered_message
+   WHERE domain=:'domain'::integer
+     AND destination_mailbox=decode(:'mailbox','hex')
+     AND block_number<=:'height'::bigint) AS delivery_count,
+  (SELECT count(*) FROM gas_payment
+   WHERE domain=:'domain'::integer
+     AND interchain_gas_paymaster=decode(:'paymaster','hex')
+     AND block_number<=:'height'::bigint) AS gas_payment_count,
+  (SELECT count(*)
+   FROM merkle_tree_insertion
+   WHERE domain=:'domain'::integer
+     AND merkle_tree_hook=decode(:'hook','hex')
+     AND block_number<=:'height'::bigint) AS insertion_count;
 ```
 
 #### Check overlap
@@ -491,10 +506,10 @@ On a shared database, check its headroom before starting the scraper. Every
 seeded domain starts catching up from its `H` at once.
 
 Development or test databases that ran an earlier build of this branch may
-still record the now-removed migration
+still record the obsolete migration name
 `m20260925_000017_verified_frontier`. Before running this branch's migration
-binary against any database that records it, stop its writers and remove the
-abandoned schema change and migration record:
+binary against any database that records it, stop its writers and remove that
+old migration record; the current m19 migration recreates the column safely:
 
 ```sql
 BEGIN;

@@ -48,5 +48,4 @@ export const awSafes: ChainMap<Address> = {
   // sonic: '0x7f56412491D8E77331Ff0300d3C8E42A6D233FdC',
   // taiko: '0xa4864301d3fa2a3e68256309F9F0F570270a1BD0',
   // unichain: '0x028C71E99e23fD393DE4207486D1aF7FA2b26b33',
-  // zksync: '0x9C81aA0cC233e9BddeA426F5d395Ab5B65135450',
 };

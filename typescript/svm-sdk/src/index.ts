@@ -30,10 +30,10 @@ export { SvmHookArtifactManager as SealevelHookArtifactManager } from './hook/ho
 
 // ISM readers/writers
 export {
-  SvmMessageIdMultisigIsmReader as SealevelMessageIdMultisigIsmReader,
-  SvmMessageIdMultisigIsmWriter as SealevelMessageIdMultisigIsmWriter,
+  SvmRoutingMessageIdMultisigIsmReader as SealevelRoutingMessageIdMultisigIsmReader,
+  SvmRoutingMessageIdMultisigIsmWriter as SealevelRoutingMessageIdMultisigIsmWriter,
 } from './ism/multisig-ism.js';
-export type { SvmMultisigIsmConfig as SealevelMultisigIsmConfig } from './ism/multisig-ism.js';
+export type { SvmRoutingMessageIdMultisigIsmWriterConfig as SealevelRoutingMessageIdMultisigIsmWriterConfig } from './ism/multisig-ism.js';
 
 // Program bytes (auto-generated from compiled .so binaries)
 export { HYPERLANE_SVM_PROGRAM_BYTES } from './hyperlane/program-bytes.js';

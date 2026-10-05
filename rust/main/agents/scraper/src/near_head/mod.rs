@@ -299,7 +299,23 @@ async fn ingest_cached(
         end_counts,
     )?;
     let (batch, start_counts) = events;
-    if source.indexes_by_sequence() {
+    if !source.has_historical_counts() {
+        let confirmed_counts = store.confirmed_sequence_counts().await?;
+        let crosses_confirmed = batch.events.iter().any(|event| {
+            let (stream, sequence) = match &event.data {
+                source::EventData::Dispatch(message) => (0, Some(message.nonce)),
+                source::EventData::Delivery(_) => (1, event.sequence),
+                source::EventData::Gas { .. } => (2, event.sequence),
+                source::EventData::Insertion { index, .. } => (3, Some(*index)),
+            };
+            sequence.is_some_and(|sequence| sequence < confirmed_counts[stream])
+        });
+        if crosses_confirmed {
+            store.pause(true).await?;
+            eyre::bail!("Sequence gap crossed confirmed history; operator repair required");
+        }
+    }
+    if source.indexes_by_sequence() || !source.has_historical_counts() {
         if batch
             .events
             .iter()
@@ -308,15 +324,23 @@ async fn ingest_cached(
             store.pause(true).await?;
             eyre::bail!("Sequence gap crossed confirmed history; operator repair required");
         }
-        if batch
-            .events
-            .iter()
-            .any(|event| event.block_number <= state.indexed)
+        if source.indexes_by_sequence()
+            && batch
+                .events
+                .iter()
+                .any(|event| event.block_number <= state.indexed)
         {
             store.rewind_to_confirmed(state).await?;
             eyre::bail!("Sequence gap crossed the provisional frontier; rewound for retry");
         }
     }
+    let boundary_verified = source.indexes_by_sequence()
+        || source.has_historical_counts()
+        || batch
+            .count_capable
+            .iter()
+            .zip(&batch.end_counts)
+            .all(|(capable, count)| !capable || count.is_some());
     if let Some(indexed_through) = batch.indexed_through {
         ensure!(
             indexed_through > state.indexed,
@@ -332,9 +356,18 @@ async fn ingest_cached(
     let events = batch.events;
     let validated_counts = match advance_sequences(&events, start_counts) {
         Ok(counts) => counts,
-        Err(error) if !source.indexes_by_sequence() => {
+        Err(error) if !source.indexes_by_sequence() && !source.has_historical_counts() => {
+            if state.indexed == state.confirmed {
+                store.pause(true).await?;
+                return Err(error.wrap_err(
+                    "Block-mode sequence gap crossed confirmed history; operator repair required",
+                ));
+            }
             store.rewind_to_confirmed(state).await?;
             return Err(error.wrap_err("Block-mode sequence gap; rewound for retry"));
+        }
+        Err(error) if !source.indexes_by_sequence() => {
+            return Err(error.wrap_err("Block-mode sequence gap; retrying range"));
         }
         Err(error) => return Err(error),
     };
@@ -394,7 +427,9 @@ async fn ingest_cached(
         "Indexed boundary changed during range fetch"
     );
     verify(source, &boundary).await?;
-    store.append(state, &blocks).await?;
+    store
+        .append(state, &blocks, boundary_verified.then_some(end))
+        .await?;
     *count_cache = Some((boundary.hash, validated_counts));
     Ok(end < state.head)
 }
@@ -501,7 +536,9 @@ async fn confirm_leased(
             page_limited: false,
         });
     }
-    let target = through.min(state.indexed);
+    let target = through
+        .min(state.indexed)
+        .min(state.verified.unwrap_or(state.confirmed));
     let through = store.confirmation_boundary(state.confirmed, target).await?;
     if through <= state.confirmed {
         return Ok(Confirmation {

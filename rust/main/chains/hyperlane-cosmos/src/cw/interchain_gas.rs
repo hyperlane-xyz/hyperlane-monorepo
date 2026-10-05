@@ -119,18 +119,20 @@ impl CwInterchainGasPaymasterIndexer {
                         }
 
                         MESSAGE_ID_ATTRIBUTE_KEY => {
-                            gas_payment.message_id =
-                                Some(H256::from_slice(hex::decode(value)?.as_slice()));
+                            gas_payment.message_id = Some(
+                                H256::from_str(value)
+                                    .map_err(ChainCommunicationError::from_other)?,
+                            );
                         }
                         v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
-                            gas_payment.message_id = Some(H256::from_slice(
-                                hex::decode(String::from_utf8(
+                            gas_payment.message_id = Some(
+                                H256::from_str(&String::from_utf8(
                                     BASE64
                                         .decode(value)
                                         .map_err(Into::<HyperlaneCosmosError>::into)?,
-                                )?)?
-                                .as_slice(),
-                            ));
+                                )?)
+                                .map_err(ChainCommunicationError::from_other)?,
+                            );
                         }
 
                         PAYMENT_ATTRIBUTE_KEY => {
@@ -288,6 +290,46 @@ mod tests {
     use crate::utils::event_attributes_from_str;
 
     use super::*;
+
+    #[test]
+    fn rejects_malformed_message_ids_without_panicking() {
+        // The valid control proves companion fields cannot mask ID regressions.
+        for (value, valid) in [
+            ("11".repeat(32), true),
+            ("00".to_owned(), false),
+            ("zz".to_owned(), false),
+            ("11".repeat(33), false),
+        ] {
+            for encoded in [false, true] {
+                let attrs: Vec<_> = [
+                    (
+                        "_contract_address",
+                        "neutron12p8wntzra3vpfcqv05scdx5sa3ftaj6gjcmtm7ynkl0e6crtt4ns8cnrmx",
+                    ),
+                    ("payment", "2"),
+                    ("gas_amount", "25000"),
+                    (DESTINATION_ATTRIBUTE_KEY, "169"),
+                    (MESSAGE_ID_ATTRIBUTE_KEY, value.as_str()),
+                ]
+                .into_iter()
+                .map(|(key, value)| {
+                    let (key, value) = if encoded {
+                        (BASE64.encode(key), BASE64.encode(value))
+                    } else {
+                        (key.to_owned(), value.to_owned())
+                    };
+                    serde_json::json!({"key": key, "value": value, "index": true})
+                })
+                .collect();
+                let attrs = event_attributes_from_str(&serde_json::to_string(&attrs).unwrap());
+                assert_eq!(
+                    CwInterchainGasPaymasterIndexer::interchain_gas_payment_parser(&attrs).is_ok(),
+                    valid,
+                    "message ID {value:?}, encoded={encoded}",
+                );
+            }
+        }
+    }
 
     #[test]
     fn test_interchain_gas_payment_parser() {

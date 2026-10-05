@@ -5,6 +5,7 @@ import {
   type SolanaRpcApi,
   createSolanaRpc,
   fetchEncodedAccount,
+  fetchEncodedAccounts,
 } from '@solana/kit';
 
 export function createRpc(url: string): Rpc<SolanaRpcApi> {
@@ -32,6 +33,28 @@ export async function fetchAccountDataRaw(
   });
   if (!maybeAccount.exists) return null;
   return maybeAccount.data;
+}
+
+// getMultipleAccounts rejects requests for more than 100 accounts.
+const MAX_MULTIPLE_ACCOUNTS = 100;
+
+/** The result is aligned with `addresses`; null for accounts that do not exist. */
+export async function fetchAccountDataRawBatch(
+  rpc: Rpc<SolanaRpcApi>,
+  addresses: readonly Address[],
+): Promise<(Uint8Array | null)[]> {
+  const out: (Uint8Array | null)[] = [];
+  for (let i = 0; i < addresses.length; i += MAX_MULTIPLE_ACCOUNTS) {
+    const accounts = await fetchEncodedAccounts(
+      rpc,
+      addresses.slice(i, i + MAX_MULTIPLE_ACCOUNTS),
+      { commitment: 'confirmed' },
+    );
+    for (const account of accounts) {
+      out.push(account.exists ? account.data : null);
+    }
+  }
+  return out;
 }
 
 export type SolanaRpcClient = Rpc<SolanaRpcApi>;

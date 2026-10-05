@@ -96,8 +96,13 @@ class TestableSmartProvider extends HyperlaneSmartProvider {
   public testGetCombinedProviderError(
     errors: any[],
     fallbackMsg: string,
+    method: string = ProviderMethod.Call,
   ): new () => Error {
-    return this.getCombinedProviderError(errors, fallbackMsg);
+    return this.getCombinedProviderError(errors, fallbackMsg, method);
+  }
+
+  public get testLogger() {
+    return this.logger;
   }
 
   public async simplePerform(method: string, reqId: number): Promise<any> {
@@ -746,6 +751,8 @@ describe('SmartProvider', () => {
   });
 
   describe('getCombinedProviderError', () => {
+    afterEach(() => sinon.restore());
+
     const blockchainErrorTestCases = [
       {
         code: EthersError.INSUFFICIENT_FUNDS,
@@ -1059,9 +1066,36 @@ describe('SmartProvider', () => {
       expect(isMissingSelectorCallException(e)).to.equal(true);
     });
 
+    it('does not warn when every provider returned an empty response', () => {
+      const error = new Error('Invalid response from provider');
+      const warnStub = sinon.stub(provider.testLogger, 'warn');
+      const CombinedError = provider.testGetCombinedProviderError(
+        [error, new Error('Invalid response from provider')],
+        'Test fallback message',
+      );
+
+      const e = new CombinedError();
+
+      expect(e.cause).to.equal(error);
+      expect(isMissingSelectorCallException(e)).to.equal(true);
+      expect(warnStub.called).to.equal(false);
+    });
+
+    it('warns for empty responses to non-call methods', () => {
+      const warnStub = sinon.stub(provider.testLogger, 'warn');
+      provider.testGetCombinedProviderError(
+        [new Error('Invalid response from provider')],
+        'Test fallback message',
+        ProviderMethod.GetBalance,
+      );
+
+      expect(warnStub.calledOnce).to.equal(true);
+    });
+
     it('uses the most diagnostic unhandled provider error as the cause', () => {
       const genericError = new Error('generic provider error');
       const emptyResponseError = new Error('Invalid response from provider');
+      const warnStub = sinon.stub(provider.testLogger, 'warn');
       const CombinedError = provider.testGetCombinedProviderError(
         [genericError, emptyResponseError],
         'Test fallback message',
@@ -1072,6 +1106,7 @@ describe('SmartProvider', () => {
       expect(e).to.be.instanceOf(Error);
       expect(e.cause).to.equal(emptyResponseError);
       expect(isMissingSelectorCallException(e)).to.equal(true);
+      expect(warnStub.calledOnce).to.equal(true);
     });
 
     describe('when another provider timed out', () => {

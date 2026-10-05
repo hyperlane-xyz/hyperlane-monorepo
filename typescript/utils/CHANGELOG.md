@@ -1,5 +1,23 @@
 # @hyperlane-xyz/utils
 
+## 45.0.1
+
+## 45.0.0
+
+### Major Changes
+
+- 28eda66: Removed `ValidatorMetadata.additional_quorum_rpcs`.
+
+### Minor Changes
+
+- 4e2ab65: Added `SealevelRoutingMessageIdMultisigIsmReader`, `SealevelRoutingMessageIdMultisigIsmWriter` and `SealevelRoutingMessageIdMultisigIsmWriterConfig` to the Sealevel SDK, which read and write a message-id multisig ISM holding an independent validator set and threshold per origin domain. The writer enforces per-domain caps of 24 validators and a threshold of 8 when writing a domain (on create, and for added or changed domains on update, not for unchanged on-chain domains), and the reader and writer take a non-empty list of candidate domain ids. They replace `SealevelMessageIdMultisigIsmReader`, `SealevelMessageIdMultisigIsmWriter` and `SealevelMultisigIsmConfig`, which were removed. The multisig ISM set-validators and transfer-ownership instruction builders now take `Address` owners.
+
+  `NonEmptyArray`, `nonEmptyArray` and `isNonEmptyArray` were added to `@hyperlane-xyz/utils`. `@hyperlane-xyz/provider-sdk/ism` exports `DomainMultisigConfig` and `RoutingMessageIdMultisigIsmArtifactConfig`.
+
+### Patch Changes
+
+- 9a59116: Updated Solana clients to versions with transaction v1 codecs while preserving existing transaction-version defaults.
+
 ## 44.0.2
 
 ## 44.0.1
