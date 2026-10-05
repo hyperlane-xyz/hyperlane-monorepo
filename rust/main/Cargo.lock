@@ -10136,6 +10136,7 @@ name = "scraper"
 version = "2.3.0"
 dependencies = [
  "async-trait",
+ "clap",
  "config",
  "console-subscriber",
  "derive_more 0.99.18",

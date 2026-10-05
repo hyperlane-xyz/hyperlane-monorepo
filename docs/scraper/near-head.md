@@ -265,6 +265,109 @@ Run the post-migration boundary check above before restarting. If `block` lacks 
 full retained range or its indexed hash differs, restore or reseed from a separately
 verified canonical boundary instead of using this repair.
 
+### Published-history reorg repair
+
+Use `scraper-repair` for an EVM domain with a persisted `halted=true` after a
+reorg crossed its confirmed boundary. The checkpoint-copy SQL above only fixes
+checkpoint migration inconsistencies; it does **not** repair published forks.
+The command has two phases and does not change deployments or consumer state.
+
+Build from this checkout:
+
+```bash
+cd rust/main
+cargo build --release -p scraper --bin scraper-repair
+```
+
+Provide `DATABASE_URL` and `REPAIR_RPC_URL` through your normal secret environment.
+The RPC must serve canonical historical headers and hash-pinned mailbox
+`localDomain()` calls. Neither URL is included in the plan or archive.
+
+**Inspect (read-only):**
+
+```bash
+target/release/scraper-repair inspect \
+  --domain 38833 --max-rewind 1000 --out igra-repair-plan.json
+```
+
+`1000` is an example search bound, not an Igra finality recommendation. The command
+searches retained checkpoints and event-block headers backwards, at or below the
+saved confirmed height, without crossing `start_height` or `max-rewind` below the
+saved indexed height. It selects the newest retained header matching the RPC.
+Because retained headers are sparse, `rewind_blocks` can exceed the actual reorg
+depth. No match means restore/audit older history; do not fabricate an anchor.
+
+Review the ancestor, saved/observed heads, chain ID, rewind distances, affected
+table counts and message IDs. The plan fingerprints every affected row, including
+enrichment and gas cursor mappings. Inspection uses a consistent read-only
+snapshot and changes no database rows. `--max-rows` defaults to 100,000 total rows;
+raise it only after reviewing archive size, memory and maintenance-window needs.
+Unlocated legacy records, conflicting ancestor hashes and unsupported cursor
+kinds require a separate audit and cause the command to refuse repair.
+
+Before apply:
+
+1. Pause affected proxy/stream consumers and record how their caches, dispatch /
+   Merkle state and accumulated gas accounting will be reset and replayed. Even
+   consumers whose processes are healthy may have consumed orphaned events.
+   Repairing SQL cannot retract an executed cross-chain transaction.
+2. Stop **all** scraper deployments sharing the database, including other
+   environments, and wait for writer leases to expire. Keep them stopped until
+   the repair commits. Use the explicit kube context and writer checks above.
+3. Take the normal database backup. Choose an archive path on durable storage;
+   a container's temporary filesystem is insufficient. Use an administrative
+   connection with table write/lock permissions and visibility into writer
+   sessions. Supply every scraper login role used by every environment.
+
+**Apply the reviewed plan:**
+
+```bash
+target/release/scraper-repair apply \
+  --plan igra-repair-plan.json \
+  --archive /durable/repairs/igra-before.json \
+  --writers-stopped \
+  --writer-role '<mainnet-scraper-login>' \
+  --writer-role '<testnet-scraper-login>' \
+  --consumer-recovery-reference '<incident URL with reset/replay procedure>'
+```
+
+Apply checks writer sessions and all near-head leases, locks the affected tables
+against concurrent writes, then compares the database and canonical chain with
+the plan. The locks cover shared tables, so the maintenance window affects all
+scraper writers. A changed head, affected row or observed block hash requires a
+new inspection. A normally advancing chain head is allowed if the observed block
+remains canonical. Lock acquisition times out after five seconds; individual SQL
+statements time out after sixty seconds.
+
+Before deleting anything, apply writes and fsyncs a new archive containing the
+plan, original head, complete affected rows and consumer-recovery reference.
+Rows are encoded as JSON **strings** to preserve PostgreSQL numeric values exactly.
+Plans and archives are never overwritten; Unix files are created with mode 0600.
+
+In one database transaction it removes the domain's suffix from all four event
+streams, dependent enriched messages (including CCR), transactions and blocks;
+rewinds forward legacy/CCR cursors; replaces retained checkpoints with the verified
+ancestor; and rewinds indexed/confirmed/head heights. It clears the halt and
+writer lease and leaves `healthy=false`, requiring a fresh observation on restart.
+Gas-payment cursor mappings for removed rows are archived and deleted, but stream
+allocation heads never decrease: replay receives fresh cursors. Other domains'
+on-chain occurrences remain intact, including destination deliveries of removed
+origin dispatches; include these message IDs in the consumer reconciliation.
+
+A final canonical-chain check precedes commit. Any SQL/RPC failure rolls back all
+database changes. A pre-apply archive can remain after failure; its existence is
+**not** proof of commit. If the connection is lost during commit, inspect
+`scraper_head` and checkpoints before restarting or retrying. An already-applied
+plan is rejected instead of applying the rewind twice. There is no automatic
+archive restore or consumer reset in this version.
+
+After commit, complete the recorded consumer reset/replay procedure and restart
+the scraper under supervision. Verify the saved boundary/checkpoint hash,
+advancing indexed and confirmed heights, clear critical-error metrics and canonical
+events across all four streams before resuming normal consumption. Adjust the
+chain's confirmation policy separately using its finality guarantees; the repair
+command does not choose a new `reorgPeriod` or disable the deep-reorg halt.
+
 ### Verified legacy cutover
 
 There is no automatic completeness proof in the legacy database. Before seeding

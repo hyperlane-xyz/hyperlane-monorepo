@@ -1,5 +1,6 @@
 [package]
 name = "scraper"
+default-run = "scraper"
 documentation.workspace = true
 edition.workspace = true
 homepage.workspace = true
@@ -9,6 +10,7 @@ version.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+clap = { workspace = true, features = ["derive", "env"] }
 config.workspace = true
 console-subscriber.workspace = true
 derive_more.workspace = true
