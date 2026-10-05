@@ -46,6 +46,28 @@ The private `/agents` endpoint always supports historical WebSocket catch-up.
 Replay is paginated without a total row limit. Concurrent catch-ups, session
 duration, database query timeouts, and outbound buffering remain bounded.
 
+EVM subscribers may set `confirmations` on a stream to receive events once they
+are that many blocks behind the observed chain head. Custom confirmations
+require an explicit `domains` list (or sequence cursors that imply one), and
+every domain must use the EVM near-head scraper. Example:
+
+```json
+{
+  "type": "subscribe",
+  "streams": [
+    {
+      "eventType": "dispatch",
+      "domains": [1, 42161],
+      "confirmations": 12
+    }
+  ]
+}
+```
+
+Gas-payment cursors cannot be combined with custom confirmations because their
+durable cursor is assigned only at the scraper's canonical confirmation
+frontier. Non-cursored gas-payment streams support custom confirmations.
+
 Outbound WebSocket buffering is limited to 1 MiB per socket and 32 MiB across
 all sockets. GraphQL is limited to 25 concurrent requests; Cloudflare owns
 public per-client request-rate enforcement.

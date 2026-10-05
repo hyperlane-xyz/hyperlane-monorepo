@@ -161,6 +161,64 @@ void describe('event websocket protocol', () => {
     assert.equal(message.streams[0]?.cursors, undefined);
   });
 
+  void it('parses an EVM confirmation count', () => {
+    const message = parseClientMessage(
+      JSON.stringify({
+        streams: [
+          {
+            domains: [1, 42161],
+            eventType: 'dispatch',
+            confirmations: 12,
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+
+    assert.equal(message.type, 'subscribe');
+    if (message.type !== 'subscribe') return;
+    assert.equal(message.streams[0]?.confirmations, 12);
+  });
+
+  void it('rejects invalid or unscoped confirmation counts', () => {
+    for (const stream of [
+      { eventType: 'dispatch', confirmations: 1 },
+      { domains: [1], eventType: 'dispatch', confirmations: -1 },
+      { domains: [1], eventType: 'dispatch', confirmations: '1' },
+    ]) {
+      assert.throws(() =>
+        parseClientMessage(
+          JSON.stringify({ streams: [stream], type: 'subscribe' }),
+        ),
+      );
+    }
+  });
+
+  void it('rejects custom confirmations with gas payment cursors', () => {
+    assert.throws(
+      () =>
+        parseClientMessage(
+          JSON.stringify({
+            streams: [
+              {
+                cursors: [
+                  {
+                    address: '0x0000000000000000000000000000000000000001',
+                    domain: 1,
+                  },
+                ],
+                eventType: 'gas_payment',
+                confirmations: 1,
+                streamCursorVersion: 3,
+              },
+            ],
+            type: 'subscribe',
+          }),
+        ),
+      /confirmations is unsupported with gas payment cursors/,
+    );
+  });
+
   void it('rejects physical row ID and unversioned gas cursors', () => {
     for (const stream of [
       {
@@ -372,6 +430,18 @@ void describe('event websocket protocol', () => {
         '{"domain":42161,"confirmedHeight":"102","previousConfirmedHeight":"99"}',
       ),
       { confirmedHeight: 102n, domain: 42161, previousConfirmedHeight: 99n },
+    );
+    assert.deepEqual(
+      parseHeadNotification(
+        '{"domain":1,"confirmedHeight":"90","headHeight":"102","indexedHeight":"101","previousIndexedHeight":"100"}',
+      ),
+      {
+        confirmedHeight: 90n,
+        domain: 1,
+        headHeight: 102n,
+        indexedHeight: 101n,
+        previousIndexedHeight: 100n,
+      },
     );
   });
 

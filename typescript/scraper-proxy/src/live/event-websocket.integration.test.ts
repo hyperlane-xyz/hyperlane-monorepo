@@ -31,6 +31,9 @@ const rows = new Map([
 const deliveryRows = new Map<string, Record<string, unknown>>();
 const dispatchRows = new Map<string, Record<string, unknown>>();
 const gasPaymentRows = new Map<string, Record<string, unknown>>();
+const headStates = new Map<number, { head: string; indexed: string }>([
+  [1, { head: '10', indexed: '10' }],
+]);
 const databaseDomainFilters: unknown[] = [];
 let notify: (channel: string, payload?: string) => void;
 const explorerBatchSizes: number[] = [];
@@ -53,6 +56,23 @@ const db: EventDatabase = {
     return async () => undefined;
   },
   async queryLive<T>(sql, values = []) {
+    if (sql.includes('FROM "scraper_head"')) {
+      return queryRows<T>(
+        numberArray(values[0]).flatMap((stored) => {
+          const domain = stored < 0 ? stored + 0x1_0000_0000 : stored;
+          const state = headStates.get(domain);
+          return state
+            ? [
+                {
+                  domain: stored,
+                  head_height: state.head,
+                  indexed_height: state.indexed,
+                },
+              ]
+            : [];
+        }),
+      );
+    }
     if (sql.includes('"gas_payment_stream_head"')) {
       databaseDomainFilters.push(values[0]);
       const durable = [...gasPaymentRows.entries()].filter(
@@ -153,13 +173,11 @@ const db: EventDatabase = {
       (sql.includes('"frontier_row"."block_number">') ||
         sql.includes('"frontier_row"."origin_block_height">'))
     ) {
-      const eventType: EventType = sql.includes(
-        '"confirmed_merkle_tree_insertion"',
-      )
+      const eventType: EventType = sql.includes('merkle_tree_insertion')
         ? 'merkle_tree_insertion'
-        : sql.includes('"confirmed_delivered_message"')
+        : sql.includes('delivered_message')
           ? 'delivery'
-          : sql.includes('"confirmed_gas_payment"')
+          : sql.includes('gas_payment')
             ? 'gas_payment'
             : 'dispatch';
       if (
@@ -1547,6 +1565,90 @@ void it('accepts a legacy non-cursored live gas payment subscription', async () 
   ]);
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
+});
+
+void it('publishes EVM events after each subscriber confirmation count', async () => {
+  const id = '9101';
+  rows.set(id, { ...row(hookA, 7), block_number: '9' });
+  headStates.set(1, { head: '10', indexed: '10' });
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [
+          {
+            domains: [1],
+            eventType: 'merkle_tree_insertion',
+            confirmations: 2,
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    const subscribed = await waitFor(messages, 'subscribed');
+    assert.deepEqual(subscribed.streams, [
+      {
+        domains: [1],
+        eventType: 'merkle_tree_insertion',
+        confirmations: 2,
+      },
+    ]);
+
+    notify('scraper_event', notification(id));
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(
+      messages.some(({ type }) => type === 'event'),
+      false,
+    );
+
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '11',
+        indexedHeight: '10',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '10',
+      }),
+    );
+    const event = await waitFor(messages, 'event');
+    assert.equal(event.eventType, 'merkle_tree_insertion');
+    assert.equal(record(event.data).block_number, '9');
+    assert.equal(event.sequence, '7');
+  } finally {
+    rows.delete(id);
+    headStates.set(1, { head: '10', indexed: '10' });
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('rejects confirmations for domains without EVM head state', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [{ confirmations: 2, domains: [2], eventType: 'dispatch' }],
+        type: 'subscribe',
+      }),
+    );
+    const error = await waitFor(messages, 'error');
+    assert.match(String(error.error), /unsupported for domains: 2/);
+    assert.equal(
+      messages.some(({ type }) => type === 'subscribed'),
+      false,
+    );
+  } finally {
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
 });
 
 void it('completes gas payment stream cursor replay without a total row budget', async () => {
@@ -3256,6 +3358,13 @@ function record(value: unknown): Record<string, unknown> {
 function stringArray(value: unknown): string[] {
   assert(
     Array.isArray(value) && value.every((item) => typeof item === 'string'),
+  );
+  return value;
+}
+
+function numberArray(value: unknown): number[] {
+  assert(
+    Array.isArray(value) && value.every((item) => typeof item === 'number'),
   );
   return value;
 }

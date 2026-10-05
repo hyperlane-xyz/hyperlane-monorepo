@@ -35,6 +35,7 @@ export type StreamRequest = {
   cursors?: StreamCursor[];
   domains?: Set<number>;
   eventType: EventType;
+  confirmations?: number;
   streamCursorVersion?: number;
 };
 export type ClientMessage =
@@ -49,7 +50,10 @@ export type ExplorerNotification = { messageId: string };
 export type HeadNotification = {
   confirmedHeight: bigint;
   domain: number;
+  headHeight?: bigint;
+  indexedHeight?: bigint;
   previousConfirmedHeight?: bigint;
+  previousIndexedHeight?: bigint;
 };
 
 export function parseClientMessage(raw: string): ClientMessage {
@@ -138,11 +142,22 @@ export function parseHeadNotification(
       value.domain,
       'Invalid scraper head notification',
     ),
-    previousConfirmedHeight:
-      value.previousConfirmedHeight === null ||
-      value.previousConfirmedHeight === undefined
-        ? undefined
-        : parseId(value.previousConfirmedHeight),
+    ...(value.headHeight === undefined
+      ? {}
+      : { headHeight: parseId(value.headHeight) }),
+    ...(value.indexedHeight === undefined
+      ? {}
+      : { indexedHeight: parseId(value.indexedHeight) }),
+    ...(value.previousConfirmedHeight === null ||
+    value.previousConfirmedHeight === undefined
+      ? {}
+      : {
+          previousConfirmedHeight: parseId(value.previousConfirmedHeight),
+        }),
+    ...(value.previousIndexedHeight === null ||
+    value.previousIndexedHeight === undefined
+      ? {}
+      : { previousIndexedHeight: parseId(value.previousIndexedHeight) }),
   };
 }
 
@@ -231,6 +246,14 @@ function parseStream(value: unknown): StreamRequest {
     domains = new Set(value.domains);
   }
 
+  let confirmations: number | undefined;
+  if (value.confirmations !== undefined) {
+    if (!isDomain(value.confirmations)) {
+      throw new Error('confirmations must be an integer number of EVM blocks');
+    }
+    confirmations = value.confirmations;
+  }
+
   let cursors: StreamCursor[] | undefined;
   if (value.cursors !== undefined) {
     if (!Array.isArray(value.cursors) || !value.cursors.length) {
@@ -252,10 +275,21 @@ function parseStream(value: unknown): StreamRequest {
     }
     domains ??= cursorDomains;
   }
+  if (confirmations !== undefined && !domains) {
+    throw new Error('confirmations requires explicit domains or cursors');
+  }
+  if (
+    confirmations !== undefined &&
+    value.eventType === 'gas_payment' &&
+    cursors
+  ) {
+    throw new Error('confirmations is unsupported with gas payment cursors');
+  }
   return {
     cursors,
     domains,
     eventType: value.eventType,
+    confirmations,
     streamCursorVersion,
   };
 }
