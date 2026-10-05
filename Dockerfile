@@ -69,6 +69,8 @@ COPY typescript ./typescript
 COPY solidity ./solidity
 COPY solhint-plugin ./solhint-plugin
 COPY starknet ./starknet
+# infra test/solaxy-igp.test.ts imports this file and the infra build compiles tests
+COPY rust/sealevel/environments/mainnet3/gas-oracle-configs.json ./rust/sealevel/environments/mainnet3/gas-oracle-configs.json
 
 # Pre-download solc compiler to avoid flaky network issues during build.
 # Hardhat downloads this on-demand, but the network request can timeout in CI.
