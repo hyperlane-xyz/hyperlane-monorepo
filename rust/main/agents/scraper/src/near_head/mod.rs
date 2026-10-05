@@ -336,6 +336,7 @@ async fn ingest_cached(
     }
     let boundary_verified = source.indexes_by_sequence()
         || source.has_historical_counts()
+        || source.block_ranges_are_complete()
         || batch
             .count_capable
             .iter()

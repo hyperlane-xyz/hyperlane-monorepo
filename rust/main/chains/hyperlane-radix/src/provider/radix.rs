@@ -839,7 +839,15 @@ impl HyperlaneProvider for RadixProvider {
 
     /// Fetch metrics related to this chain
     async fn get_chain_metrics(&self) -> ChainResult<Option<hyperlane_core::ChainInfo>> {
-        let state_version = self.get_state_version(None).await?;
+        // Headers and event ranges come from the Gateway API. Its indexed
+        // ledger can lag Core, so advertising Core's tip makes callers request
+        // state versions the Gateway cannot serve yet.
+        let state_version = self
+            .provider
+            .gateway_status()
+            .await?
+            .ledger_state
+            .state_version as u64;
         Ok(Some(hyperlane_core::ChainInfo::new(state_version, None)))
     }
 }

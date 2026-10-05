@@ -128,6 +128,11 @@ pub(super) trait Source: Send + Sync {
     fn indexes_by_sequence(&self) -> bool {
         false
     }
+    /// Whether a successful block-range query proves it scanned through the
+    /// requested boundary without relying on a boundary sequence count.
+    fn block_ranges_are_complete(&self) -> bool {
+        false
+    }
     /// Highest block for which every event stream can return a complete range.
     async fn indexing_tip(&self) -> Result<Option<u64>> {
         Ok(None)
@@ -368,6 +373,7 @@ pub(super) struct GenericSource {
     contracts: Contracts,
     sequence_mode: bool,
     derive_insertions_from_messages: bool,
+    complete_block_ranges: bool,
     chunk_size: u32,
     headers: RwLock<HashMap<u64, Header>>,
 }
@@ -396,6 +402,12 @@ impl GenericSource {
             derive_insertions_from_messages: matches!(
                 conf.connection.protocol(),
                 HyperlaneDomainProtocol::Sealevel
+            ),
+            // Radix's paginated transaction stream rejects a range until the
+            // Gateway API has reached its end, then scans every page through it.
+            complete_block_ranges: matches!(
+                conf.connection.protocol(),
+                HyperlaneDomainProtocol::Radix
             ),
             chunk_size: conf.index.chunk_size,
             headers: RwLock::new(HashMap::new()),
@@ -676,6 +688,10 @@ impl Source for GenericSource {
 
     fn indexes_by_sequence(&self) -> bool {
         self.sequence_mode
+    }
+
+    fn block_ranges_are_complete(&self) -> bool {
+        self.complete_block_ranges
     }
 
     async fn indexing_tip(&self) -> Result<Option<u64>> {
@@ -977,6 +993,7 @@ mod tests {
             },
             sequence_mode: false,
             derive_insertions_from_messages: false,
+            complete_block_ranges: false,
             chunk_size: 1,
             headers: RwLock::new(HashMap::new()),
         };
@@ -1015,6 +1032,7 @@ mod tests {
             },
             sequence_mode: true,
             derive_insertions_from_messages: false,
+            complete_block_ranges: false,
             chunk_size: 1,
             headers: RwLock::new(HashMap::new()),
         };
