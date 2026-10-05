@@ -359,3 +359,17 @@ export function warpViolationGroupings(
     alert_key: warpViolationAlertKey(warpRouteId, chain, contractName, type),
   };
 }
+
+// Per-route execution errors (timeouts, RPC failures, config load failures) do
+// not fail the job; config problems are alerted per route via violation
+// metrics. The job only fails when no attempted route could be checked at all,
+// which indicates an outage rather than a route-specific problem.
+export function getCheckWarpDeployExitCode({
+  attemptedRoutes,
+  failedRoutes,
+}: {
+  attemptedRoutes: number;
+  failedRoutes: number;
+}): 0 | 1 {
+  return attemptedRoutes > 0 && failedRoutes >= attemptedRoutes ? 1 : 0;
+}

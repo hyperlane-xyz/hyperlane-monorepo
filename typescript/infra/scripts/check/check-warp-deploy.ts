@@ -30,6 +30,7 @@ import { getEnvironmentConfig } from '../core-utils.js';
 
 import {
   getCheckWarpDeployArgs,
+  getCheckWarpDeployExitCode,
   getCheckerViolationsGaugeObj,
   warpViolationGroupings,
 } from './check-utils.js';
@@ -272,16 +273,29 @@ async function main() {
     }
   }
 
+  const attemptedRoutes =
+    warpIdsToCheck.length + failedWarpRouteConfigLoads.length;
   if (failedWarpRoutesChecks.length > 0) {
-    console.error(
-      chalk.red(
-        `Failed to check warp routes: ${failedWarpRoutesChecks.join(', ')}`,
+    console.warn(
+      chalk.yellow(
+        `Could not check ${failedWarpRoutesChecks.length} of ${attemptedRoutes} warp routes (execution errors, not config violations): ${failedWarpRoutesChecks.join(', ')}`,
       ),
     );
-    process.exit(1);
   }
 
-  process.exit(0);
+  const exitCode = getCheckWarpDeployExitCode({
+    attemptedRoutes,
+    failedRoutes: failedWarpRoutesChecks.length,
+  });
+  if (exitCode !== 0) {
+    console.error(
+      chalk.red(
+        `No warp route could be checked: all ${attemptedRoutes} attempted routes errored`,
+      ),
+    );
+  }
+
+  process.exit(exitCode);
 }
 
 main()
