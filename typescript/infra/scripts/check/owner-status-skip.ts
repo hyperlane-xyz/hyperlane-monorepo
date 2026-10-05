@@ -42,6 +42,18 @@ export const OWNER_STATUS_SKIP: OwnerStatusSkip[] = [
     chain: 'coti',
     owner: '0xdF2E2886d23ba57F996C203D2Ccd9dCa6373590C',
   },
+  // Aleo BAT/USDG: the ethereum routers are owned by addresses that have never
+  // sent a transaction (nonce 0, no code, zero balance).
+  {
+    warpRouteId: 'BAT/aleo',
+    chain: 'ethereum',
+    owner: '0x2E652F84c4826dF6030363B7a0A3e46C60fA7127',
+  },
+  {
+    warpRouteId: 'USDG/aleo',
+    chain: 'ethereum',
+    owner: '0x1c5f2949C55890F776f7441dfEFc00534508e194',
+  },
 ];
 
 // ownerStatus virtual-config violations carry a field path of the form
