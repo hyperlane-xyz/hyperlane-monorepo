@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
+use std::str::FromStr;
 
 use cometbft::abci::{Event, EventAttribute};
 use cometbft::hash::Algorithm;
@@ -17,7 +18,30 @@ use hyperlane_core::{
     LogMeta, H256, H512, U256,
 };
 
-use crate::RpcProvider;
+use crate::utils::CONTRACT_ADDRESS_ATTRIBUTE_KEY;
+use crate::{CosmosAddress, RpcProvider};
+
+fn belongs_to_indexer(event: &Event, address: &H256) -> ChainResult<bool> {
+    if !event.kind.as_str().starts_with("wasm-") {
+        return Ok(true);
+    }
+
+    for attribute in &event.attributes {
+        let key = attribute
+            .key_str()
+            .map_err(ChainCommunicationError::from_other)?;
+        if key == CONTRACT_ADDRESS_ATTRIBUTE_KEY {
+            let value = attribute
+                .value_str()
+                .map_err(ChainCommunicationError::from_other)?;
+            return Ok(CosmosAddress::from_str(value)?.digest() == *address);
+        }
+    }
+
+    Err(ChainCommunicationError::from_other_str(
+        "missing contract_address",
+    ))
+}
 
 #[derive(Debug, Eq, PartialEq)]
 /// An event parsed from the RPC response.
@@ -207,6 +231,9 @@ where
             if event.kind.as_str() != Self::target_type() {
                 continue;
             }
+            if !belongs_to_indexer(&event, self.address())? {
+                continue;
+            }
             let parsed_event = self.parse(&event.attributes)?;
             logs.push((
                 parsed_event.event,
@@ -236,6 +263,9 @@ where
             if event.kind.as_str() != Self::target_type() {
                 continue;
             }
+            if !belongs_to_indexer(&event, self.address())? {
+                continue;
+            }
             let parsed_event = self.parse(&event.attributes)?;
             logs.push((
                 parsed_event.event,
@@ -250,5 +280,31 @@ where
             ));
         }
         Ok(logs)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cosmwasm_events_are_filtered_by_emitter_before_parsing() -> ChainResult<()> {
+        let configured = H256::repeat_byte(1);
+        let foreign = H256::repeat_byte(2);
+        let foreign_address = CosmosAddress::from_h256(foreign, "neutron", 32)?.address();
+        let configured_address = CosmosAddress::from_h256(configured, "neutron", 32)?.address();
+
+        let foreign_event = Event::new(
+            "wasm-mailbox_dispatch",
+            [(CONTRACT_ADDRESS_ATTRIBUTE_KEY, foreign_address)],
+        );
+        assert!(!belongs_to_indexer(&foreign_event, &configured)?);
+
+        let configured_event = Event::new(
+            "wasm-mailbox_dispatch",
+            [(CONTRACT_ADDRESS_ATTRIBUTE_KEY, configured_address)],
+        );
+        assert!(belongs_to_indexer(&configured_event, &configured)?);
+        Ok(())
     }
 }
