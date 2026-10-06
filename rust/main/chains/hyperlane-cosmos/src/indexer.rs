@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
 
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use cometbft::abci::{Event, EventAttribute};
 use cometbft::hash::Algorithm;
 use cometbft::Hash;
@@ -18,7 +19,7 @@ use hyperlane_core::{
     LogMeta, H256, H512, U256,
 };
 
-use crate::utils::CONTRACT_ADDRESS_ATTRIBUTE_KEY;
+use crate::utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64};
 use crate::{CosmosAddress, RpcProvider};
 
 fn belongs_to_indexer(event: &Event, address: &H256) -> ChainResult<bool> {
@@ -35,6 +36,18 @@ fn belongs_to_indexer(event: &Event, address: &H256) -> ChainResult<bool> {
                 .value_str()
                 .map_err(ChainCommunicationError::from_other)?;
             return Ok(CosmosAddress::from_str(value)?.digest() == *address);
+        }
+        if key == *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 {
+            let value = attribute
+                .value_str()
+                .map_err(ChainCommunicationError::from_other)?;
+            let contract_address = String::from_utf8(
+                BASE64
+                    .decode(value)
+                    .map_err(ChainCommunicationError::from_other)?,
+            )
+            .map_err(ChainCommunicationError::from_other)?;
+            return Ok(CosmosAddress::from_str(&contract_address)?.digest() == *address);
         }
     }
 
@@ -305,6 +318,16 @@ mod tests {
             [(CONTRACT_ADDRESS_ATTRIBUTE_KEY, configured_address)],
         );
         assert!(belongs_to_indexer(&configured_event, &configured)?);
+
+        let configured_address = CosmosAddress::from_h256(configured, "neutron", 32)?.address();
+        let encoded_event = Event::new(
+            "wasm-mailbox_dispatch",
+            [(
+                CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64.as_str(),
+                BASE64.encode(configured_address),
+            )],
+        );
+        assert!(belongs_to_indexer(&encoded_event, &configured)?);
         Ok(())
     }
 }
