@@ -182,7 +182,6 @@
     "@aws-sdk/client-s3": "catalog:",
     "@chain-registry/types": "catalog:",
     "@cosmjs/amino": "catalog:",
-    "@cosmjs/cosmwasm-stargate": "catalog:",
     "@cosmjs/crypto": "catalog:",
     "@cosmjs/encoding": "catalog:",
     "@cosmjs/math": "catalog:",

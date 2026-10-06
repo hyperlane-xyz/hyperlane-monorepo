@@ -47,7 +47,7 @@ const addressToBytes32Command: CommandModule<{}, AddressToBytes32Args> = {
       .option('protocol', {
         type: 'string',
         description:
-          'Protocol type (ethereum, sealevel, cosmos, cosmosnative, starknet, radix, aleo, tron). Auto-detected if not specified.',
+          'Protocol type (ethereum, sealevel, cosmosnative, starknet, radix, aleo, tron). Auto-detected if not specified.',
         choices: Object.values(ProtocolType),
         alias: 'p',
       }),
@@ -76,8 +76,6 @@ function getProtocolDisplayName(protocol: ProtocolType): string {
       return 'Ethereum (EVM)';
     case ProtocolType.Tron:
       return 'Tron';
-    case ProtocolType.Cosmos:
-      return 'Cosmos';
     case ProtocolType.CosmosNative:
       return 'CosmosNative';
     default:
@@ -89,10 +87,7 @@ function getProtocolDisplayName(protocol: ProtocolType): string {
  * Get additional padding info for protocols that support module IDs
  */
 function getAdditionalPaddingInfo(protocol: ProtocolType): string {
-  if (
-    protocol === ProtocolType.CosmosNative ||
-    protocol === ProtocolType.Cosmos
-  ) {
+  if (protocol === ProtocolType.CosmosNative) {
     return '\n\nIf this is a Hyperlane Cosmos module ID (not an account address), the bytes32 will be returned as-is in hex format.';
   }
   return '';
@@ -167,8 +162,7 @@ const bytes32ToAddressCommand: CommandModuleWithContext<Bytes32ToAddressArgs> =
 
         // Check if prefix is required
         if (
-          (protocol === ProtocolType.Cosmos ||
-            protocol === ProtocolType.CosmosNative ||
+          (protocol === ProtocolType.CosmosNative ||
             protocol === ProtocolType.Radix) &&
           !resolvedPrefix
         ) {
@@ -186,7 +180,6 @@ const bytes32ToAddressCommand: CommandModuleWithContext<Bytes32ToAddressArgs> =
         if (
           (protocol === ProtocolType.Ethereum ||
             protocol === ProtocolType.Tron ||
-            protocol === ProtocolType.Cosmos ||
             protocol === ProtocolType.CosmosNative) &&
           bytes.length === 32
         ) {

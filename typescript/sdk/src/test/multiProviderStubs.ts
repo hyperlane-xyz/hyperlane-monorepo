@@ -18,12 +18,6 @@ export function stubMultiProtocolProvider(
   sandbox.stub(multiProvider, 'getCosmJsProvider').returns({
     getBalance: async () => ({ amount: '100' }),
   } as any);
-  sandbox.stub(multiProvider, 'getCosmJsWasmProvider').returns({
-    getBalance: async () => ({ amount: '100' }),
-    queryContractSmart: async () => ({
-      type: { native: { fungible: { denom: 'denom' } } },
-    }),
-  } as any);
   sandbox.stub(multiProvider, 'getSolanaWeb3Provider').returns({
     getBalance: async () => '100',
     getTokenAccountBalance: async () => ({ value: { amount: '100' } }),

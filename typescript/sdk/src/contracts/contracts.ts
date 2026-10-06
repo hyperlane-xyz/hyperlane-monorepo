@@ -203,7 +203,6 @@ export function attachContractsMapAndGetForeignDeployments<
         case ProtocolType.Ethereum:
           throw new Error('EVM-like chain should not have foreign deployments');
 
-        case ProtocolType.Cosmos:
         case ProtocolType.CosmosNative:
         case ProtocolType.Starknet:
           return router;

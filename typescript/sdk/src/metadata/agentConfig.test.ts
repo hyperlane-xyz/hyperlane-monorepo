@@ -459,7 +459,6 @@ describe('ValidatorAgentConfigSchema lightweight mode', () => {
     for (const protocol of [
       ProtocolType.Ethereum,
       ProtocolType.Sealevel,
-      ProtocolType.Cosmos,
       ProtocolType.CosmosNative,
       ProtocolType.Starknet,
       ProtocolType.Radix,
@@ -474,8 +473,7 @@ describe('ValidatorAgentConfigSchema lightweight mode', () => {
           test: {
             ...config.chains.test,
             protocol,
-            ...(protocol === ProtocolType.Cosmos ||
-            protocol === ProtocolType.CosmosNative
+            ...(protocol === ProtocolType.CosmosNative
               ? {
                   signer: {
                     type: AgentSignerKeyType.Cosmos,

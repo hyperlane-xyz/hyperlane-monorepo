@@ -18,6 +18,7 @@ const ETH_NON_ZERO_ADDR = '0x0000000000000000000000000000000000000001';
 const COS_ZERO_ADDR = 'cosmos1000';
 const COS_NON_ZERO_ADDR =
   'neutron1jyyjd3x0jhgswgm6nnctxvzla8ypx50tew3ayxxwkrjfxhvje6kqzvzudq';
+const COSMOS_ACCOUNT_ADDR = 'cosmos1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5lzv7xu';
 const COSMOS_PREFIX = 'neutron';
 const COSMOS_NATIVE_ZERO_ADDR =
   '0x0000000000000000000000000000000000000000000000000000000000000000';
@@ -77,6 +78,8 @@ describe('Address utilities', () => {
   describe('addressToBytes', () => {
     it('Converts addresses to bytes', () => {
       expect(addressToBytes(ETH_NON_ZERO_ADDR).length).to.equal(32);
+      expect(addressToBytes(COSMOS_ACCOUNT_ADDR).length).to.equal(20);
+      expect(addressToBytes(COSMOS_NATIVE_NON_ZERO_ADDR).length).to.equal(32);
       expect(addressToBytes(STARKNET_NON_ZERO_ADDR).length).to.equal(32);
     });
     it('Rejects zeroish addresses', () => {
@@ -109,6 +112,13 @@ describe('Address utilities', () => {
           ProtocolType.Ethereum,
         ),
       ).to.equal(ETH_NON_ZERO_ADDR);
+      expect(
+        bytesToProtocolAddress(
+          addressToBytes(COSMOS_ACCOUNT_ADDR),
+          ProtocolType.CosmosNative,
+          'cosmos',
+        ),
+      ).to.equal(COSMOS_ACCOUNT_ADDR);
       expect(
         bytesToProtocolAddress(
           addressToBytes(COSMOS_NATIVE_NON_ZERO_ADDR),

@@ -58,9 +58,6 @@ mod program;
 mod server;
 mod utils;
 
-#[cfg(feature = "cosmos")]
-mod cosmos;
-
 #[cfg(feature = "sealevel")]
 mod sealevel;
 

@@ -27,7 +27,6 @@ describe('validateIsmType', () => {
   for (const protocol of [
     ProtocolType.Radix,
     ProtocolType.Aleo,
-    ProtocolType.Cosmos,
     ProtocolType.CosmosNative,
     ProtocolType.Starknet,
   ]) {
@@ -52,7 +51,6 @@ describe('validateIsmType', () => {
   for (const protocol of [
     ProtocolType.Radix,
     ProtocolType.Aleo,
-    ProtocolType.Cosmos,
     ProtocolType.CosmosNative,
     ProtocolType.Starknet,
   ]) {
@@ -99,7 +97,6 @@ describe('validateIsmType', () => {
   for (const protocol of [
     ProtocolType.Radix,
     ProtocolType.Aleo,
-    ProtocolType.Cosmos,
     ProtocolType.CosmosNative,
     ProtocolType.Starknet,
   ]) {

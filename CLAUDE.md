@@ -201,7 +201,7 @@ cd rust/main && cargo test <test_name>  # Single test
 cd rust/main && cargo run --release --bin run-locally
 
 # VM-specific e2e
-cd rust/main && cargo test --release --package run-locally --features cosmos -- cosmos::test --nocapture
+cd rust/main && cargo test --release --package run-locally --features cosmosnative -- cosmosnative::test --nocapture
 cd rust/main && cargo test --release --package run-locally --features sealevel -- sealevel::test --nocapture
 ```
 

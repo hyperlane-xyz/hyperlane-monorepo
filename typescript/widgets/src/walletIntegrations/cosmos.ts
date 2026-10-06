@@ -1,5 +1,5 @@
 import type { AssetList, Chain as CosmosChain } from '@chain-registry/types';
-import type { DeliverTxResponse } from '@cosmjs/cosmwasm-stargate';
+import type { DeliverTxResponse } from '@cosmjs/stargate';
 import { useChains } from '@cosmos-kit/react';
 import { useCallback } from 'react';
 
@@ -91,28 +91,11 @@ export function useCosmosTransactionFns(
         await switchNetwork(chainName);
 
       logger.debug(`Sending tx on chain ${chainName}`);
-      const {
-        getSigningCosmWasmClient,
-        getSigningStargateClient,
-        getOfflineSigner,
-        chain,
-      } = chainContext;
+      const { getSigningStargateClient, getOfflineSigner, chain } =
+        chainContext;
       let receipt: DeliverTxResponse;
 
-      if (tx.type === ProviderType.CosmJsWasm) {
-        const client = await getSigningCosmWasmClient();
-        const executionResult = await client.executeMultiple(
-          chainContext.address,
-          [tx.transaction],
-          'auto',
-        );
-        const txDetails = await client.getTx(executionResult.transactionHash);
-        assert(txDetails, `Cosmos tx failed: ${JSON.stringify(txDetails)}`);
-        receipt = {
-          ...txDetails,
-          transactionHash: executionResult.transactionHash,
-        };
-      } else if (tx.type === ProviderType.CosmJs) {
+      if (tx.type === ProviderType.CosmJs) {
         const client = await getSigningStargateClient();
         // The fee param of 'auto' here stopped working for Neutron-based IBC transfers
         // It seems the signAndBroadcast method uses a default fee multiplier of 1.4

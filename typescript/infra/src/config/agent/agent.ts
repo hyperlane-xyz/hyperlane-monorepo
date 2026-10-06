@@ -279,7 +279,6 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
   const metadata = getChain(chainName);
 
   switch (metadata?.protocol) {
-    case ProtocolType.Cosmos:
     case ProtocolType.CosmosNative:
       if (metadata.bech32Prefix === undefined) {
         throw new Error(

@@ -85,7 +85,6 @@ export function createQuoteArtifactManagerForChain(
       );
     }
 
-    case ProtocolType.Cosmos:
     case ProtocolType.CosmosNative:
     case ProtocolType.Starknet:
     case ProtocolType.Radix:
@@ -125,7 +124,6 @@ export function resolveTxSignerForChain(args: {
       }
       return signer;
     }
-    case ProtocolType.Cosmos:
     case ProtocolType.CosmosNative:
     case ProtocolType.Starknet:
     case ProtocolType.Radix:
@@ -155,7 +153,6 @@ export function createDefaultQuoteSignerForChain(
         Uint8Array.from(Buffer.from(strip0x(quoteSignerKey), 'hex')),
       );
 
-    case ProtocolType.Cosmos:
     case ProtocolType.CosmosNative:
     case ProtocolType.Starknet:
     case ProtocolType.Radix:

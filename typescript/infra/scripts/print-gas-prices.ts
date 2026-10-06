@@ -133,7 +133,6 @@ async function getGasPrice(
         decimals: 9,
       };
     }
-    case ProtocolType.Cosmos:
     case ProtocolType.CosmosNative: {
       try {
         const { amount } = await getCosmosChainGasPrice(chain, mpp);

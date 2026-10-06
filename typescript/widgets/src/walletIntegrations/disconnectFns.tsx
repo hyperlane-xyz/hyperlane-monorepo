@@ -49,10 +49,6 @@ export function useDisconnectFns(): Record<
         ProtocolType.Sealevel,
         disconnectSol,
       ),
-      [ProtocolType.Cosmos]: onClickDisconnect(
-        ProtocolType.Cosmos,
-        disconnectCosmos,
-      ),
       [ProtocolType.CosmosNative]: onClickDisconnect(
         ProtocolType.CosmosNative,
         disconnectCosmos,

@@ -37,7 +37,7 @@ describe(ChainMetadataManager.name, () => {
     chainId: 'cosmoshub-4',
     domainId: 118,
     name: 'cosmos',
-    protocol: ProtocolType.Cosmos,
+    protocol: ProtocolType.CosmosNative,
     rpcUrls: [{ http: 'https://cosmos.example.com' }],
     bech32Prefix: 'cosmos',
     slip44: 118,

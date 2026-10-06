@@ -12,7 +12,6 @@ import { ChainMap, ChainName } from '../types.js';
 
 import { AleoCoreAdapter } from './adapters/AleoCoreAdapter.js';
 import { CosmNativeCoreAdapter } from './adapters/CosmNativeCoreAdapter.js';
-import { CosmWasmCoreAdapter } from './adapters/CosmWasmCoreAdapter.js';
 import { EvmCoreAdapter } from './adapters/EvmCoreAdapter.js';
 import { RadixCoreAdapter } from './adapters/RadixCoreAdapter.js';
 import { SealevelCoreAdapter } from './adapters/SealevelCoreAdapter.js';
@@ -47,7 +46,6 @@ export class MultiProtocolCore extends MultiProtocolApp<
   ): AdapterClassType<ICoreAdapter> {
     if (isEVMLike(protocol)) return EvmCoreAdapter;
     if (protocol === ProtocolType.Sealevel) return SealevelCoreAdapter;
-    if (protocol === ProtocolType.Cosmos) return CosmWasmCoreAdapter;
     if (protocol === ProtocolType.CosmosNative) return CosmNativeCoreAdapter;
     if (protocol === ProtocolType.Starknet) return StarknetCoreAdapter;
     if (protocol === ProtocolType.Radix) return RadixCoreAdapter;

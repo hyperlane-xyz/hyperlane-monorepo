@@ -53,7 +53,6 @@ export async function getGasPrice(
         decimals: 9,
       };
     }
-    case ProtocolType.Cosmos:
     case ProtocolType.CosmosNative: {
       const { amount } = await getCosmosChainGasPrice(chain, mpp);
       return {
@@ -81,10 +80,7 @@ export async function getCosmosChainGasPrice(
   if (!metadata) {
     throw new Error(`No metadata found for Cosmos chain ${chain}`);
   }
-  if (
-    metadata.protocol !== ProtocolType.Cosmos &&
-    metadata.protocol !== ProtocolType.CosmosNative
-  ) {
+  if (metadata.protocol !== ProtocolType.CosmosNative) {
     throw new Error(`Chain ${chain} is not a Cosmos chain`);
   }
 

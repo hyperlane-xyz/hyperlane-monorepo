@@ -10,7 +10,6 @@ import { type AccountInfo, type ChainAddress } from './types.js';
 const WALLET_ADDRESS_PROTOCOLS: ReadonlyArray<KnownProtocolType> = [
   ProtocolType.Ethereum,
   ProtocolType.Sealevel,
-  ProtocolType.Cosmos,
   ProtocolType.CosmosNative,
   ProtocolType.Starknet,
   ProtocolType.Radix,
@@ -27,10 +26,7 @@ export function getAddressForChain(
   const chainAddress = addresses.find(
     (address) => address.chainName === chainName,
   )?.address;
-  if (
-    protocol === ProtocolType.Cosmos ||
-    protocol === ProtocolType.CosmosNative
-  ) {
+  if (protocol === ProtocolType.CosmosNative) {
     return chainAddress;
   }
   // Intentional fallback: non-Cosmos wallets often reuse one address across chains.

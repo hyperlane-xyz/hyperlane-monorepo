@@ -527,12 +527,12 @@ Refer to this resolved value as `<warp-route-id>` in the commands below (Steps 7
 
 For each chain in the route, determine its VM protocol type:
 
-| Protocol       | Example chains                                              | Key flag         |
-| -------------- | ----------------------------------------------------------- | ---------------- |
-| EVM (ethereum) | ethereum, arbitrum, base, optimism, polygon, avalanche, bsc | `--key.ethereum` |
-| Sealevel       | solana, eclipsemainnet                                      | `--key.sealevel` |
-| Cosmos         | neutron, osmosis                                            | `--key.cosmos`   |
-| Starknet       | starknet                                                    | `--key.starknet` |
+| Protocol       | Example chains                                              | Key flag             |
+| -------------- | ----------------------------------------------------------- | -------------------- |
+| EVM (ethereum) | ethereum, arbitrum, base, optimism, polygon, avalanche, bsc | `--key.ethereum`     |
+| Sealevel       | solana, eclipsemainnet                                      | `--key.sealevel`     |
+| CosmosNative   | neutron, osmosis                                            | `--key.cosmosnative` |
+| Starknet       | starknet                                                    | `--key.starknet`     |
 
 If all chains are EVM, only one key is needed. If the route spans multiple VM types, a separate key flag is needed per protocol.
 
@@ -544,7 +544,7 @@ For each unique protocol in the route, read `keys.<protocol>.name` and `keys.<pr
 
 Assemble the full deploy command and **show it to the user as a preview** for the `[CONFIRM:]` gate below. Do NOT execute the deploy in this step — Step 8 starts the HTTP registry first and then runs the deploy. Running the command here against the filesystem registry would skip the private-RPC injection, exposing the deploy to flaky public-RPC gas estimates (stale-gas underflow → mid-deploy out-of-gas on opstack chains in particular).
 
-The command must be run from `typescript/cli`. Always include `--yes` to skip the interactive confirmation prompt. Include exactly one `--key.<protocol>` flag for each protocol actually present in the route (EVM, tron, sealevel, cosmos, starknet) and drop the rest — a Sealevel-only route needs no `--key.ethereum`, a route with a starknet chain needs `--key.starknet`, and a route with a tron chain needs `--key.tron` (the CLI keys tron separately from EVM — do not rely on the ethereum key for a tron chain). The preview (7d) and execution (8b) commands must use the same protocol set. For each included protocol, expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field using the canonical key-value expansion legend in `/warp-key-value-expansion`.
+The command must be run from `typescript/cli`. Always include `--yes` to skip the interactive confirmation prompt. Include exactly one `--key.<protocol>` flag for each protocol actually present in the route (EVM, tron, sealevel, cosmosnative, starknet) and drop the rest — a Sealevel-only route needs no `--key.ethereum`, a route with a starknet chain needs `--key.starknet`, and a route with a tron chain needs `--key.tron` (the CLI keys tron separately from EVM — do not rely on the ethereum key for a tron chain). The preview (7d) and execution (8b) commands must use the same protocol set. For each included protocol, expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field using the canonical key-value expansion legend in `/warp-key-value-expansion`.
 
 ```bash
 pnpm --silent -C typescript/cli hyperlane warp deploy \
@@ -553,7 +553,7 @@ pnpm --silent -C typescript/cli hyperlane warp deploy \
   [--key.ethereum <KEY_ETHEREUM_VALUE>]   # only if EVM chains present
   [--key.tron <KEY_TRON_VALUE>]           # only if tron chains present (CLI keys tron separately)
   [--key.sealevel <KEY_SEALEVEL_VALUE>]   # only if sealevel chains present
-  [--key.cosmos <KEY_COSMOS_VALUE>]       # only if cosmos chains present
+  [--key.cosmosnative <KEY_COSMOSNATIVE_VALUE>] # only if CosmosNative chains present
   [--key.starknet <KEY_STARKNET_VALUE>]   # only if starknet chains present
   --yes
 ```
@@ -594,7 +594,7 @@ pnpm --silent -C typescript/cli hyperlane warp deploy \
   [--key.ethereum <KEY_ETHEREUM_VALUE>]   # only if EVM chains present
   [--key.tron <KEY_TRON_VALUE>]           # only if tron chains present (CLI keys tron separately)
   [--key.sealevel <KEY_SEALEVEL_VALUE>]   # only if sealevel chains present
-  [--key.cosmos <KEY_COSMOS_VALUE>]       # only if cosmos chains present
+  [--key.cosmosnative <KEY_COSMOSNATIVE_VALUE>] # only if CosmosNative chains present
   [--key.starknet <KEY_STARKNET_VALUE>]   # only if starknet chains present
   --yes
 ```

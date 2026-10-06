@@ -6,7 +6,6 @@ import { defaultAleoProviderBuilder } from './builders/aleo.js';
 import {
   defaultCosmJsNativeProviderBuilder,
   defaultCosmJsProviderBuilder,
-  defaultCosmJsWasmProviderBuilder,
 } from './builders/cosmos.js';
 import {
   defaultEthersV5ProviderBuilder,
@@ -31,7 +30,6 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.Viem]: defaultViemProviderBuilder,
   [ProviderType.SolanaWeb3]: defaultSolProviderBuilder,
   [ProviderType.CosmJs]: defaultCosmJsProviderBuilder,
-  [ProviderType.CosmJsWasm]: defaultCosmJsWasmProviderBuilder,
   [ProviderType.CosmJsNative]: defaultCosmJsNativeProviderBuilder,
   [ProviderType.Starknet]: defaultStarknetJsProviderBuilder,
   [ProviderType.ZkSync]: defaultZKSyncProviderBuilder,
@@ -46,7 +44,6 @@ export const protocolToDefaultProviderBuilder: Record<
 > = {
   [ProtocolType.Ethereum]: defaultEthersV5ProviderBuilder,
   [ProtocolType.Sealevel]: defaultSolProviderBuilder,
-  [ProtocolType.Cosmos]: defaultCosmJsWasmProviderBuilder,
   [ProtocolType.CosmosNative]: defaultCosmJsNativeProviderBuilder,
   [ProtocolType.Starknet]: defaultStarknetJsProviderBuilder,
   [ProtocolType.Radix]: defaultRadixProviderBuilder,

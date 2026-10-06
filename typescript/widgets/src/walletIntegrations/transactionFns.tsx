@@ -63,11 +63,6 @@ export function useTransactionFns(
         sendMultiTransaction: onSendMultiSolTx,
         switchNetwork: onSwitchSolNetwork,
       },
-      [ProtocolType.Cosmos]: {
-        sendTransaction: onSendCosmTx,
-        sendMultiTransaction: onSendMultiCosmTx,
-        switchNetwork: onSwitchCosmNetwork,
-      },
       [ProtocolType.CosmosNative]: {
         sendTransaction: onSendCosmTx,
         sendMultiTransaction: onSendMultiCosmTx,

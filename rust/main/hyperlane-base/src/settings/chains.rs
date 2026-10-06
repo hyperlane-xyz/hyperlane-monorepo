@@ -22,9 +22,7 @@ use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
 #[cfg(feature = "aleo")]
 use hyperlane_aleo::{self as h_aleo, AleoProvider};
-use hyperlane_cosmos::{
-    self as h_cosmos, cw::CwQueryClient, native::ModuleQueryClient, CosmosProvider,
-};
+use hyperlane_cosmos::{self as h_cosmos, native::ModuleQueryClient, CosmosProvider};
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
     EthereumReorgPeriod, EthereumValidatorAnnounceAbi,
@@ -180,8 +178,6 @@ pub enum ChainConnectionConf {
     Ethereum(h_eth::ConnectionConf),
     /// Sealevel configuration.
     Sealevel(h_sealevel::ConnectionConf),
-    /// Cosmos configuration.
-    Cosmos(h_cosmos::ConnectionConf),
     /// Starknet configuration.
     Starknet(h_starknet::ConnectionConf),
     /// Cosmos native configuration
@@ -201,7 +197,6 @@ impl ChainConnectionConf {
         match self {
             Self::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
             Self::Sealevel(_) => HyperlaneDomainProtocol::Sealevel,
-            Self::Cosmos(_) => HyperlaneDomainProtocol::Cosmos,
             Self::Starknet(_) => HyperlaneDomainProtocol::Starknet,
             Self::CosmosNative(_) => HyperlaneDomainProtocol::CosmosNative,
             Self::Radix(_) => HyperlaneDomainProtocol::Radix,
@@ -215,7 +210,6 @@ impl ChainConnectionConf {
     pub fn operation_submission_config(&self) -> Option<&OpSubmissionConfig> {
         match self {
             Self::Ethereum(conf) => Some(&conf.op_submission_config),
-            Self::Cosmos(conf) => Some(&conf.op_submission_config),
             Self::Sealevel(conf) => Some(&conf.op_submission_config),
             Self::Starknet(config) => Some(&config.op_submission_config),
             _ => None,
@@ -299,10 +293,6 @@ impl ChainConf {
                     h_sealevel::application::SealevelApplicationOperationVerifier::new(provider);
                 Ok(Box::new(verifier) as Box<dyn ApplicationOperationVerifier>)
             }
-            ChainConnectionConf::Cosmos(_conf) => Ok(Box::new(
-                h_cosmos::application::CosmosApplicationOperationVerifier::new(),
-            )
-                as Box<dyn ApplicationOperationVerifier>),
             ChainConnectionConf::Starknet(_conf) => Ok(Box::new(
                 h_starknet::application::StarknetApplicationOperationVerifier::new(),
             )
@@ -348,10 +338,6 @@ impl ChainConf {
                     conf,
                     metrics,
                 );
-                Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
-            }
-            ChainConnectionConf::Cosmos(conf) => {
-                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, None)?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Starknet(conf) => {
@@ -426,14 +412,6 @@ impl ChainConf {
                 .map(|m| Box::new(m) as Box<dyn Mailbox>)
                 .map_err(Into::into)
             }
-            ChainConnectionConf::Cosmos(conf) => {
-                let signer = self.cosmos_signer().await.context(ctx)?;
-                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, signer)?;
-
-                h_cosmos::cw::CwMailbox::new(provider, conf.clone(), locator.clone())
-                    .map(|m| Box::new(m) as Box<dyn Mailbox>)
-                    .map_err(Into::into)
-            }
             ChainConnectionConf::Starknet(conf) => {
                 let signer = self.starknet_signer().await.context(ctx)?;
                 let provider = build_starknet_provider(self, conf, metrics, &locator)?;
@@ -494,13 +472,6 @@ impl ChainConf {
                 h_sealevel::SealevelMailbox::new(provider, tx_submitter, conf, &locator, None, None)
                     .map(|m| Box::new(m) as Box<dyn MerkleTreeHook>)
                     .map_err(Into::into)
-            }
-            ChainConnectionConf::Cosmos(conf) => {
-                let signer = self.cosmos_signer().await.context(ctx)?;
-                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, signer)?;
-                let hook = h_cosmos::cw::CwMerkleTreeHook::new(provider, locator.clone())?;
-
-                Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
             ChainConnectionConf::Starknet(conf) => {
                 let provider = build_starknet_provider(self, conf, metrics, &locator)?;
@@ -571,18 +542,6 @@ impl ChainConf {
                     conf,
                     advanced_log_meta,
                 )?);
-                Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
-            }
-            ChainConnectionConf::Cosmos(conf) => {
-                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, None)?;
-
-                let mailbox =
-                    h_cosmos::cw::CwMailbox::new(provider.clone(), conf.clone(), locator.clone())?;
-                let indexer = Box::new(
-                    h_cosmos::cw::dispatch_indexer::CwMailboxDispatchIndexer::new(
-                        provider, mailbox, &locator,
-                    )?,
-                );
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
             ChainConnectionConf::Starknet(conf) => {
@@ -660,15 +619,6 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
-            ChainConnectionConf::Cosmos(conf) => {
-                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, None)?;
-                let indexer = Box::new(
-                    h_cosmos::cw::delivery_indexer::CwMailboxDeliveryIndexer::new(
-                        provider, &locator,
-                    ),
-                );
-                Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
-            }
             ChainConnectionConf::Starknet(conf) => {
                 let provider = build_starknet_provider(self, conf, metrics, &locator)?;
                 let indexer = Box::new(h_starknet::StarknetMailboxIndexer::new(
@@ -734,16 +684,6 @@ impl ChainConf {
                 let paymaster = Box::new(
                     h_sealevel::SealevelInterchainGasPaymaster::new(provider, &locator).await?,
                 );
-                Ok(paymaster as Box<dyn InterchainGasPaymaster>)
-            }
-            ChainConnectionConf::Cosmos(conf) => {
-                let signer = self.cosmos_signer().await.context(ctx)?;
-                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, signer)?;
-
-                let paymaster = Box::new(h_cosmos::cw::CwInterchainGasPaymaster::new(
-                    provider,
-                    locator.clone(),
-                )?);
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
             ChainConnectionConf::Starknet(conf) => {
@@ -820,14 +760,6 @@ impl ChainConf {
                     )
                     .await?,
                 );
-                Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
-            }
-            ChainConnectionConf::Cosmos(conf) => {
-                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, None)?;
-
-                let indexer = Box::new(h_cosmos::cw::CwInterchainGasPaymasterIndexer::new(
-                    provider, &locator,
-                ));
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
             ChainConnectionConf::Starknet(_) => {
@@ -944,15 +876,6 @@ impl ChainConf {
                 ));
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
-            ChainConnectionConf::Cosmos(conf) => {
-                let signer = self.cosmos_signer().await.context(ctx)?;
-
-                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, signer)?;
-                let indexer = Box::new(h_cosmos::cw::CwMerkleTreeHookIndexer::new(
-                    provider, locator,
-                )?);
-                Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
-            }
             ChainConnectionConf::Starknet(conf) => {
                 let provider = build_starknet_provider(self, conf, metrics, &locator)?;
                 let indexer = Box::new(h_starknet::StarknetMerkleTreeHookIndexer::new(
@@ -1038,17 +961,6 @@ impl ChainConf {
                 ));
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
-            ChainConnectionConf::Cosmos(conf) => {
-                let signer = self.cosmos_signer().await.context(ctx)?;
-                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, signer)?;
-
-                let va = Box::new(h_cosmos::cw::CwValidatorAnnounce::new(
-                    provider,
-                    locator.clone(),
-                )?);
-
-                Ok(va as Box<dyn ValidatorAnnounce>)
-            }
             ChainConnectionConf::Starknet(conf) => {
                 let signer = self.starknet_signer().await.context(ctx)?;
                 let provider = build_starknet_provider(self, conf, metrics, &locator)?;
@@ -1129,15 +1041,6 @@ impl ChainConf {
                 ));
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
-            ChainConnectionConf::Cosmos(conf) => {
-                let signer = self.cosmos_signer().await.context(ctx)?;
-                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, signer)?;
-
-                let ism = Box::new(h_cosmos::cw::CwInterchainSecurityModule::new(
-                    provider, locator,
-                )?);
-                Ok(ism as Box<dyn InterchainSecurityModule>)
-            }
             ChainConnectionConf::Starknet(conf) => {
                 let provider = build_starknet_provider(self, conf, metrics, &locator)?;
                 let ism = Box::new(h_starknet::StarknetInterchainSecurityModule::new(
@@ -1194,13 +1097,6 @@ impl ChainConf {
                     locator,
                     keypair.map(h_sealevel::SealevelKeypair::new),
                 ));
-                Ok(ism as Box<dyn MultisigIsm>)
-            }
-            ChainConnectionConf::Cosmos(conf) => {
-                let signer = self.cosmos_signer().await.context(ctx)?;
-                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, signer)?;
-
-                let ism = Box::new(h_cosmos::cw::CwMultisigIsm::new(provider, locator.clone())?);
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::Starknet(conf) => {
@@ -1283,13 +1179,6 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support routing ISM yet")).context(ctx)
             }
-            ChainConnectionConf::Cosmos(conf) => {
-                let signer = self.cosmos_signer().await.context(ctx)?;
-                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, signer)?;
-
-                let ism = Box::new(h_cosmos::cw::CwRoutingIsm::new(provider, locator.clone())?);
-                Ok(ism as Box<dyn RoutingIsm>)
-            }
             ChainConnectionConf::Starknet(conf) => {
                 let provider = build_starknet_provider(self, conf, metrics, &locator)?;
                 let ism = Box::new(h_starknet::StarknetRoutingIsm::new(
@@ -1342,16 +1231,6 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support aggregation ISM yet")).context(ctx)
             }
-            ChainConnectionConf::Cosmos(conf) => {
-                let signer = self.cosmos_signer().await.context(ctx)?;
-                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, signer)?;
-                let ism = Box::new(h_cosmos::cw::CwAggregationIsm::new(
-                    provider,
-                    locator.clone(),
-                )?);
-
-                Ok(ism as Box<dyn AggregationIsm>)
-            }
             ChainConnectionConf::Starknet(conf) => {
                 let provider = build_starknet_provider(self, conf, metrics, &locator)?;
                 let ism = Box::new(h_starknet::StarknetAggregationIsm::new(
@@ -1397,9 +1276,6 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support CCIP read ISM yet")).context(ctx)
             }
-            ChainConnectionConf::Cosmos(_) => {
-                Err(eyre!("Cosmos does not support CCIP read ISM yet")).context(ctx)
-            }
             ChainConnectionConf::Starknet(_) => {
                 Err(eyre!("Starknet does not support CCIP read ISM yet")).context(ctx)
             }
@@ -1437,7 +1313,7 @@ impl ChainConf {
                 ChainConnectionConf::Sealevel(_) => {
                     Box::new(conf.build::<h_sealevel::Keypair>().await?)
                 }
-                ChainConnectionConf::Cosmos(_) | ChainConnectionConf::CosmosNative(_) => {
+                ChainConnectionConf::CosmosNative(_) => {
                     Box::new(conf.build::<h_cosmos::Signer>().await?)
                 }
                 ChainConnectionConf::Starknet(_) => {
@@ -1635,24 +1511,6 @@ fn build_sealevel_tx_submitter(
         middleware_metrics.chain.clone(),
         locator.domain.clone(),
         connection_conf,
-    )
-}
-
-fn build_cosmos_wasm_provider(
-    chain_conf: &ChainConf,
-    connection_conf: &h_cosmos::ConnectionConf,
-    metrics: &CoreMetrics,
-    locator: &ContractLocator,
-    signer: Option<hyperlane_cosmos::Signer>,
-) -> ChainResult<CosmosProvider<CwQueryClient>> {
-    let middleware_metrics = chain_conf.metrics_conf();
-    let metrics = metrics.client_metrics();
-    CosmosProvider::new(
-        connection_conf,
-        locator,
-        signer,
-        metrics,
-        middleware_metrics.chain.clone(),
     )
 }
 

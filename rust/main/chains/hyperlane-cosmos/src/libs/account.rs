@@ -1,7 +1,7 @@
 use cometbft::account::Id as TendermintAccountId;
 use cometbft::public_key::PublicKey as TendermintPublicKey;
 use cosmrs::{crypto::PublicKey, AccountId};
-use hyperlane_cosmwasm_interface::types::keccak256_hash;
+use sha3::{Digest, Keccak256};
 
 use crypto::decompress_public_key;
 use hyperlane_core::{AccountAddressType, ChainCommunicationError, ChainResult, H256};
@@ -55,7 +55,7 @@ impl<'a> CosmosAccountId<'a> {
         let decompressed_public_key = decompress_public_key(&pub_key.to_bytes())
             .map_err(Into::<HyperlaneCosmosError>::into)?;
 
-        let hash = keccak256_hash(&decompressed_public_key[1..]);
+        let hash = Keccak256::digest(&decompressed_public_key[1..]);
 
         let mut bytes = [0u8; 20];
         bytes.copy_from_slice(&hash.as_slice()[12..]);

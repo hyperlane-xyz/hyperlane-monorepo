@@ -32,9 +32,6 @@ pub enum HyperlaneCosmosError {
     /// Cosmrs Tendermint Error
     #[error("{0}")]
     CosmrsTendermintError(#[from] Box<cosmrs::tendermint::Error>),
-    #[error("{0}")]
-    /// CosmWasm Error
-    CosmWasmError(#[from] Box<cosmwasm_std::StdError>),
     /// Tonic error
     #[error("{0}")]
     Tonic(#[from] tonic::transport::Error),
@@ -50,9 +47,6 @@ pub enum HyperlaneCosmosError {
     /// Prost error
     #[error("{0}")]
     Prost(#[from] prost::DecodeError),
-    /// Protobuf error
-    #[error("{0}")]
-    Protobuf(#[from] protobuf::ProtobufError),
     /// Fallback providers failed
     #[error("Fallback providers failed. (Errors: {0:?})")]
     FallbackProvidersFailed(Vec<HyperlaneCosmosError>),
@@ -94,12 +88,6 @@ impl From<tonic::Status> for HyperlaneCosmosError {
 impl From<cosmrs::Error> for HyperlaneCosmosError {
     fn from(value: cosmrs::Error) -> Self {
         HyperlaneCosmosError::CosmosError(Box::new(value))
-    }
-}
-
-impl From<cosmwasm_std::StdError> for HyperlaneCosmosError {
-    fn from(value: cosmwasm_std::StdError) -> Self {
-        HyperlaneCosmosError::CosmWasmError(Box::new(value))
     }
 }
 

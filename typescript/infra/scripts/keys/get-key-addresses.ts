@@ -20,7 +20,7 @@ async function main() {
   const argv = await getKeyArgs().argv;
   const { agentConfig, envConfig } = await getConfigsBasedOnArgs(argv);
 
-  if (argv.protocol === 'cosmos' || argv.protocol === 'cosmosnative') {
+  if (argv.protocol === ProtocolType.CosmosNative) {
     if (!argv.bech32Prefix) {
       const bech32PrefixMap = envConfig.supportedChainNames.reduce<
         Record<string, string>
@@ -28,8 +28,7 @@ async function main() {
         const chain = getChain(chainName);
         if (
           chain &&
-          (chain.protocol === ProtocolType.Cosmos ||
-            chain.protocol === ProtocolType.CosmosNative) &&
+          chain.protocol === ProtocolType.CosmosNative &&
           chain.bech32Prefix
         ) {
           acc[chainName] = chain.bech32Prefix;

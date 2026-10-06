@@ -14,8 +14,7 @@ base64 = { workspace = true }
 bech32 = { workspace = true }
 cometbft = { workspace = true, features = ["secp256k1"] }
 cometbft-rpc = { workspace = true, features = ["http-client","secp256k1"] }
-cosmrs = { workspace = true, features = ["cosmwasm", "tokio", "grpc", "rpc"] }
-cosmwasm-std = { workspace = true }
+cosmrs = { workspace = true, features = ["tokio", "grpc", "rpc"] }
 crypto = { path = "../../utils/crypto" }
 derive-new = { workspace = true }
 futures = { workspace = true }
@@ -24,16 +23,14 @@ http = { workspace = true }
 hyper = { workspace = true }
 hyper-tls = { workspace = true }
 ibc-proto = { workspace = true }
-injective-protobuf = { workspace = true }
-injective-std = { workspace = true }
 itertools = { workspace = true }
-once_cell = { workspace = true }
 pin-project.workspace = true
-protobuf = { workspace = true }
+prost = { version = "0.13", default-features = true }
 ripemd = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
+sha3 = { workspace = true }
 sha256 = { workspace = true }
 time = { workspace = true }
 thiserror = { workspace = true }
@@ -52,7 +49,6 @@ hyperlane-cosmos-rs = { workspace = true }
 
 
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
-hyperlane-cosmwasm-interface.workspace = true
 hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }

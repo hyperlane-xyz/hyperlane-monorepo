@@ -90,7 +90,7 @@ export async function writeAgentConfig(
       : testnet4ChainMetadataOverrides;
 
   // Build additional config for:
-  // - cosmos/cosmos native chains that require special gas price handling
+  // - CosmosNative chains that require special gas price handling
   // - any chains that have agent-specific overrides
   const additionalConfig = Object.fromEntries(
     await Promise.all(
@@ -98,10 +98,7 @@ export async function writeAgentConfig(
         let config: Partial<ChainMetadata> = {};
 
         // Get Cosmos gas price if applicable
-        if (
-          chainIsProtocol(chain, ProtocolType.Cosmos) ||
-          chainIsProtocol(chain, ProtocolType.CosmosNative)
-        ) {
+        if (chainIsProtocol(chain, ProtocolType.CosmosNative)) {
           // Use agent-specific gasPrice override if defined, otherwise fetch from Cosmos registry
           if (chainMetadataOverrides[chain]?.gasPrice) {
             config.gasPrice = chainMetadataOverrides[chain].gasPrice;

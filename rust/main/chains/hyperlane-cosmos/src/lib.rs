@@ -10,8 +10,6 @@
 
 /// Hyperlane Application specific functionality
 pub mod application;
-/// CosmWasm specific modules
-pub mod cw;
 mod error;
 mod indexer;
 mod libs;

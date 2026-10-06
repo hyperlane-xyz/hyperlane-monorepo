@@ -24,7 +24,6 @@ export function useWalletDetails(): Record<KnownProtocolType, WalletDetails> {
     () => ({
       [ProtocolType.Ethereum]: evmWallet,
       [ProtocolType.Sealevel]: solWallet,
-      [ProtocolType.Cosmos]: cosmosWallet,
       [ProtocolType.CosmosNative]: cosmosWallet,
       [ProtocolType.Starknet]: starknetWallet,
       [ProtocolType.Radix]: radixWallet,

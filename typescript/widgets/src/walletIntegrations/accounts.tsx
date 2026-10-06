@@ -71,7 +71,6 @@ export function useAccounts(
       accounts: {
         [ProtocolType.Ethereum]: evmAccountInfo,
         [ProtocolType.Sealevel]: solAccountInfo,
-        [ProtocolType.Cosmos]: cosmAccountInfo,
         [ProtocolType.CosmosNative]: cosmAccountInfo,
         [ProtocolType.Starknet]: starknetAccountInfo,
         [ProtocolType.Radix]: radixAccountInfo,

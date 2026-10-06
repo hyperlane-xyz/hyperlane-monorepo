@@ -294,7 +294,6 @@ pub fn build_cosmos_connection_conf(
             None
         }
         Ok(config) => match protocol {
-            HyperlaneDomainProtocol::Cosmos => Some(ChainConnectionConf::Cosmos(config)),
             HyperlaneDomainProtocol::CosmosNative => {
                 Some(ChainConnectionConf::CosmosNative(config))
             }
@@ -976,7 +975,7 @@ pub fn build_connection_conf(
             let urls = rpcs.to_vec();
             build_sealevel_connection_conf(&urls, chain, err, operation_batch)
         }
-        HyperlaneDomainProtocol::Cosmos | HyperlaneDomainProtocol::CosmosNative => {
+        HyperlaneDomainProtocol::CosmosNative => {
             build_cosmos_connection_conf(rpcs, chain, err, operation_batch, domain_protocol)
         }
         HyperlaneDomainProtocol::Starknet => {
@@ -1002,7 +1001,7 @@ pub fn build_connection_conf(
 pub fn is_protocol_supported(protocol: HyperlaneDomainProtocol) -> bool {
     use HyperlaneDomainProtocol::*;
     match protocol {
-        Ethereum | Sealevel | Cosmos | CosmosNative | Starknet | Radix | Tron => true,
+        Ethereum | Sealevel | CosmosNative | Starknet | Radix | Tron => true,
         // Aleo is feature-gated - only supported when the "aleo" feature is enabled
         Aleo => cfg!(feature = "aleo"),
     }

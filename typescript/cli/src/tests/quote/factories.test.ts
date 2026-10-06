@@ -37,7 +37,7 @@ const unsupportedChainMetadatas = [
 const FEE_ADDRESS = '0x0000000000000000000000000000000000001234';
 
 // The EVM factory branch stores multiProvider on the constructed
-// EvmQuoteArtifactManager but does not call into it; the cosmos branch
+// EvmQuoteArtifactManager but does not call into it; the CosmosNative branch
 // returns null before reaching it. A bare stub satisfies both.
 const multiProvider = sinon.createStubInstance(MultiProvider);
 

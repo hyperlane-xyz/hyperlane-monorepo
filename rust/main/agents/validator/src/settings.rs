@@ -699,7 +699,6 @@ mod test {
         for protocol in [
             "ethereum",
             "sealevel",
-            "cosmos",
             "cosmosnative",
             "starknet",
             "radix",
@@ -719,7 +718,7 @@ mod test {
                     let chain = &mut raw["chains"]["test"];
                     chain["protocol"] = protocol.into();
                     chain["rpcconsensustype"] = mode.into();
-                    chain["chainid"] = if protocol.starts_with("cosmos") {
+                    chain["chainid"] = if protocol == "cosmosnative" {
                         "test-1"
                     } else {
                         "1337"
@@ -891,13 +890,13 @@ mod test {
         use crate::validator::ValidatorMetadata;
         use hyperlane_base::MetadataFromSettings;
 
-        for protocol in ["cosmos", "cosmosnative", "tron"] {
+        for protocol in ["cosmosnative", "tron"] {
             for lightweight in [false, true] {
                 let mut raw = lightweight_settings_fixture();
                 raw["lightweight"] = lightweight.into();
                 let chain = &mut raw["chains"]["test"];
                 chain["protocol"] = protocol.into();
-                chain["chainid"] = if protocol.starts_with("cosmos") {
+                chain["chainid"] = if protocol == "cosmosnative" {
                     "test-1"
                 } else {
                     "1337"

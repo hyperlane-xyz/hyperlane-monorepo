@@ -71,7 +71,6 @@ const SUPPORTED_PROTOCOLS = new Set<ProtocolType>([
   ProtocolType.Ethereum,
   ProtocolType.Tron,
   ProtocolType.Sealevel,
-  ProtocolType.Cosmos,
   ProtocolType.CosmosNative,
   ProtocolType.Starknet,
   ProtocolType.Radix,
@@ -103,7 +102,6 @@ function toTypedAltVmReceipt(
   switch (providerType) {
     case ProviderType.SolanaWeb3:
     case ProviderType.CosmJs:
-    case ProviderType.CosmJsWasm:
     case ProviderType.CosmJsNative:
     case ProviderType.Starknet:
     case ProviderType.Radix:
@@ -531,9 +529,7 @@ async function executeDelivery({
     logGreen('Predicate attestation obtained successfully');
   }
 
-  const isCosmosOrigin =
-    originProtocol === ProtocolType.Cosmos ||
-    originProtocol === ProtocolType.CosmosNative;
+  const isCosmosOrigin = originProtocol === ProtocolType.CosmosNative;
   const skippedByUser = !!skipValidation;
   const shouldSkipTransferValidation = skippedByUser || isCosmosOrigin;
   if (isCosmosOrigin) {
@@ -633,7 +629,6 @@ async function executeDelivery({
         });
         break;
       }
-      case ProtocolType.Cosmos:
       case ProtocolType.CosmosNative:
       case ProtocolType.Starknet:
       case ProtocolType.Radix:

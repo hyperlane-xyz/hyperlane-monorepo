@@ -382,8 +382,7 @@ export const ChainMetadataSchema = ChainMetadataSchemaExtensible.refine(
     )
       return false;
     else if (
-      (metadata.protocol === ProtocolType.Cosmos ||
-        metadata.protocol === ProtocolType.CosmosNative) &&
+      metadata.protocol === ProtocolType.CosmosNative &&
       typeof metadata.chainId !== 'string'
     )
       return false;
@@ -420,8 +419,7 @@ export const ChainMetadataSchema = ChainMetadataSchemaExtensible.refine(
   .refine(
     (metadata) => {
       if (
-        (metadata.protocol === ProtocolType.Cosmos ||
-          metadata.protocol === ProtocolType.CosmosNative) &&
+        metadata.protocol === ProtocolType.CosmosNative &&
         (!metadata.bech32Prefix || !metadata.slip44)
       )
         return false;
@@ -435,8 +433,7 @@ export const ChainMetadataSchema = ChainMetadataSchemaExtensible.refine(
   .refine(
     (metadata) => {
       if (
-        (metadata.protocol === ProtocolType.Cosmos ||
-          metadata.protocol === ProtocolType.CosmosNative) &&
+        metadata.protocol === ProtocolType.CosmosNative &&
         (!metadata.restUrls || !metadata.grpcUrls)
       )
         return false;
@@ -450,8 +447,7 @@ export const ChainMetadataSchema = ChainMetadataSchemaExtensible.refine(
   .refine(
     (metadata) => {
       if (
-        (metadata.protocol === ProtocolType.Cosmos ||
-          metadata.protocol === ProtocolType.CosmosNative) &&
+        metadata.protocol === ProtocolType.CosmosNative &&
         metadata.nativeToken &&
         !metadata.nativeToken.denom
       )

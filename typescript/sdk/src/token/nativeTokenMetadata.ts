@@ -17,12 +17,6 @@ export const PROTOCOL_TO_DEFAULT_NATIVE_TOKEN: Record<
     name: 'Solana',
     symbol: 'SOL',
   },
-  [ProtocolType.Cosmos]: {
-    decimals: 6,
-    denom: 'uatom',
-    name: 'Atom',
-    symbol: 'ATOM',
-  },
   [ProtocolType.CosmosNative]: {
     decimals: 6,
     denom: 'uatom',

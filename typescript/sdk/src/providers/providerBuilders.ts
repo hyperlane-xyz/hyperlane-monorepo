@@ -6,7 +6,6 @@ export { defaultAleoProviderBuilder } from './builders/aleo.js';
 export {
   defaultCosmJsNativeProviderBuilder,
   defaultCosmJsProviderBuilder,
-  defaultCosmJsWasmProviderBuilder,
 } from './builders/cosmos.js';
 export {
   defaultEthersV5ProviderBuilder,

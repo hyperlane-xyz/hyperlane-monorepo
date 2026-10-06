@@ -54,7 +54,7 @@ export function useCosmosAccount(
     }
 
     return {
-      protocol: ProtocolType.Cosmos,
+      protocol: ProtocolType.CosmosNative,
       addresses,
       publicKey,
       isReady,
@@ -98,10 +98,7 @@ export function useCosmosActiveChain(
 export function getCosmosChains(
   multiProvider: MinimalProviderRegistry,
 ): ChainMetadata[] {
-  const chains = [
-    ...getChainsForProtocol(multiProvider, ProtocolType.Cosmos),
-    ...getChainsForProtocol(multiProvider, ProtocolType.CosmosNative),
-  ];
+  const chains = getChainsForProtocol(multiProvider, ProtocolType.CosmosNative);
   if (!chains.some((chain) => chain.name === cosmoshub.name)) {
     chains.push(cosmoshub);
   }

@@ -25,7 +25,7 @@ describe(createChainMetadataResolver.name, () => {
       chainId: 'cosmoshub-4',
       domainId: 118,
       name: 'cosmos',
-      protocol: ProtocolType.Cosmos,
+      protocol: ProtocolType.CosmosNative,
       rpcUrls: [{ http: 'https://cosmos.example.com' }],
       bech32Prefix: 'cosmos',
       slip44: 118,
@@ -45,7 +45,7 @@ describe(createChainMetadataResolver.name, () => {
   it('supports domain-id lookups', () => {
     const resolver = createChainMetadataResolver(metadata);
     expect(resolver.tryGetChainMetadata(1)).to.equal(metadata.ethereum);
-    expect(resolver.tryGetProtocol(118)).to.equal(ProtocolType.Cosmos);
+    expect(resolver.tryGetProtocol(118)).to.equal(ProtocolType.CosmosNative);
   });
 
   it('supports numeric chain-id string aliases', () => {

@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { ZChainName } from '../metadata/customZodTypes.js';
 import { ChainName } from '../types.js';
 
 import type { ITokenMetadata } from './ITokenMetadata.js';
@@ -10,7 +9,6 @@ import type { ITokenMetadata } from './ITokenMetadata.js';
 export enum TokenConnectionType {
   Hyperlane = 'hyperlane',
   Ibc = 'ibc',
-  IbcHyperlane = 'ibc-hyperlane', // a.k.a. one-click two-hop
 }
 
 interface TokenConnectionBase<TToken extends ITokenMetadata = ITokenMetadata> {
@@ -32,21 +30,9 @@ export interface IbcTokenConnection<
   sourceChannel: string;
 }
 
-export interface IbcToHyperlaneTokenConnection<
-  TToken extends ITokenMetadata = ITokenMetadata,
-> extends TokenConnectionBase<TToken> {
-  type: TokenConnectionType.IbcHyperlane;
-  sourcePort: string;
-  sourceChannel: string;
-  intermediateChainName: ChainName;
-  intermediateIbcDenom: string;
-  intermediateRouterAddress: Address;
-}
-
 export type TokenConnection<TToken extends ITokenMetadata = ITokenMetadata> =
   | HyperlaneTokenConnection<TToken>
-  | IbcTokenConnection<TToken>
-  | IbcToHyperlaneTokenConnection<TToken>;
+  | IbcTokenConnection<TToken>;
 
 const TokenConnectionRegex = /^(.+)\|(.+)\|(.+)$/;
 
@@ -64,17 +50,6 @@ export const TokenConnectionConfigSchema = z
       token: z.string().regex(TokenConnectionRegex),
       sourcePort: z.string(),
       sourceChannel: z.string(),
-    }),
-  )
-  .or(
-    z.object({
-      type: z.literal(TokenConnectionType.IbcHyperlane),
-      token: z.string().regex(TokenConnectionRegex),
-      sourcePort: z.string(),
-      sourceChannel: z.string(),
-      intermediateChainName: ZChainName,
-      intermediateIbcDenom: z.string(),
-      intermediateRouterAddress: z.string(),
     }),
   );
 

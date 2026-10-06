@@ -87,7 +87,7 @@ hyperlane address to-bytes32 --address <address> [--protocol <protocol>]
 **Flags:**
 
 - `--address, -a` - The address to convert (required)
-- `--protocol, -p` (optional) - Protocol type: ethereum, sealevel, cosmos, cosmosnative, starknet, radix, aleo, tron. Auto-detected if not specified.
+- `--protocol, -p` (optional) - Protocol type: ethereum, sealevel, cosmosnative, starknet, radix, aleo, tron. Auto-detected if not specified.
 
 **Examples:**
 
@@ -99,7 +99,7 @@ hyperlane address to-bytes32 --address 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb9226
 hyperlane address to-bytes32 -a EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v -p sealevel
 
 # Cosmos address
-hyperlane address to-bytes32 --address cosmos1wxeyh7zgn4tctjzs0vtqpc6p5cxq5t2muzl7ng --protocol cosmos
+hyperlane address to-bytes32 --address cosmos1wxeyh7zgn4tctjzs0vtqpc6p5cxq5t2muzl7ng --protocol cosmosnative
 ```
 
 ### from-bytes32
@@ -129,20 +129,19 @@ hyperlane address from-bytes32 --bytes32 0x000000000000000000000000f39fd6e51aad8
 hyperlane address from-bytes32 -b 0xc6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61 -p sealevel
 
 # Convert to Cosmos address with explicit prefix
-hyperlane address from-bytes32 --bytes32 0x00000000000000000000000071b24bf8489d5785c8507b1600e341a60c0a2d5b --protocol cosmos --prefix cosmos
+hyperlane address from-bytes32 --bytes32 <bytes32> --protocol cosmosnative --prefix cosmos
 
 # Convert to Osmosis address using chain lookup
-hyperlane address from-bytes32 -b 0x00000000000000000000000071b24bf8489d5785c8507b1600e341a60c0a2d5b -p cosmos --chain osmosis
+hyperlane address from-bytes32 -b <bytes32> -p cosmosnative --chain osmosis
 
 # Convert to Neutron address using chain name
-hyperlane address from-bytes32 -b 0x00000000000000000000000071b24bf8489d5785c8507b1600e341a60c0a2d5b -p cosmos -c neutron
+hyperlane address from-bytes32 -b <bytes32> -p cosmosnative -c neutron
 ```
 
 **Supported Protocols:**
 
 - `ethereum` - EVM-compatible chains (Ethereum, Polygon, Arbitrum, etc.)
 - `sealevel` - Solana and SVM chains
-- `cosmos` - Cosmos SDK chains using CosmWasm
 - `cosmosnative` - Cosmos SDK chains using native modules
 - `starknet` - StarkNet
 - `radix` - Radix DLT

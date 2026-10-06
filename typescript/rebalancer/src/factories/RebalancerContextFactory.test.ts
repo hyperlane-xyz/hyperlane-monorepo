@@ -612,7 +612,7 @@ describe('RebalancerContextFactory', () => {
       const evmChain = 'ethereum';
       const { multiProvider } = createMockMultiProvider([
         { name: evmChain, protocol: ProtocolType.Ethereum },
-        { name: cosmosChain, protocol: ProtocolType.Cosmos },
+        { name: cosmosChain, protocol: ProtocolType.CosmosNative },
       ]);
 
       const config = {
@@ -642,7 +642,7 @@ describe('RebalancerContextFactory', () => {
             address: TEST_ADDRESSES.ethereum,
             key: '0xabc123',
           },
-          [ProtocolType.Cosmos]: {
+          [ProtocolType.CosmosNative]: {
             address: 'cosmos1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5lzv7xu',
             key: 'cosmos_key',
           },
@@ -670,7 +670,7 @@ describe('RebalancerContextFactory', () => {
       getChainMetadataStub.callsFake((chainName: string) => ({
         protocol:
           chainName === cosmosChain
-            ? ProtocolType.Cosmos
+            ? ProtocolType.CosmosNative
             : ProtocolType.Ethereum,
       }));
 
@@ -685,7 +685,7 @@ describe('RebalancerContextFactory', () => {
       }
 
       expect(error?.message).to.contain(
-        `Inventory rebalancing does not support protocol '${ProtocolType.Cosmos}'`,
+        `Inventory rebalancing does not support protocol '${ProtocolType.CosmosNative}'`,
       );
     });
   });

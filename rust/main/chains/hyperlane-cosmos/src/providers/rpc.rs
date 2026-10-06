@@ -23,7 +23,6 @@ use cosmrs::{
     tx::{self, Fee, MessageExt, SignDoc, SignerInfo},
     Any, Coin,
 };
-use protobuf::Message as _;
 use tonic::async_trait;
 use url::Url;
 
@@ -39,6 +38,14 @@ use hyperlane_metric::prometheus_metric::{
 use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
 
 const TX_TIMEOUT_BLOCKS: u32 = 100;
+
+#[derive(Clone, PartialEq, Message)]
+struct InjectiveEthAccount {
+    #[prost(message, optional, tag = "1")]
+    base_account: Option<BaseAccount>,
+    #[prost(bytes = "vec", tag = "2")]
+    code_hash: Vec<u8>,
+}
 
 #[derive(Debug)]
 pub(crate) struct CosmosHttpClient {
@@ -327,27 +334,16 @@ impl RpcProvider {
         response: QueryAccountResponse,
     ) -> ChainResult<BaseAccount> {
         // Injective uses custom proto type for account info. The account must exist in auth module
-        let mut eth_account = injective_protobuf::proto::account::EthAccount::parse_from_bytes(
+        let eth_account = InjectiveEthAccount::decode(
             response
                 .account
                 .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?
                 .value
                 .as_slice(),
         )
-        .map_err(Into::<HyperlaneCosmosError>::into)?;
+        .map_err(HyperlaneCosmosError::from)?;
 
-        let base_account = eth_account.take_base_account();
-        let pub_key = base_account.pub_key.into_option();
-
-        Ok(BaseAccount {
-            address: base_account.address,
-            pub_key: pub_key.map(|pub_key| Any {
-                type_url: pub_key.type_url,
-                value: pub_key.value,
-            }),
-            account_number: base_account.account_number,
-            sequence: base_account.sequence,
-        })
+        Ok(eth_account.base_account.unwrap_or_default())
     }
 
     async fn get_account(&self, address: String) -> ChainResult<BaseAccount> {

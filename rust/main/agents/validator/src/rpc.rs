@@ -39,9 +39,7 @@ pub(crate) fn state_read_urls(chain: &ChainConf, rpc_urls: Vec<Url>) -> (&'stati
         ChainConnectionConf::Ethereum(_) => ("rpcUrls", rpc_urls),
         ChainConnectionConf::Sealevel(conn) => ("rpcUrls", conn.urls.clone()),
         ChainConnectionConf::Starknet(conn) => ("rpcUrls", conn.urls.clone()),
-        ChainConnectionConf::Cosmos(conn) | ChainConnectionConf::CosmosNative(conn) => {
-            ("grpcUrls", conn.grpc_urls.clone())
-        }
+        ChainConnectionConf::CosmosNative(conn) => ("grpcUrls", conn.grpc_urls.clone()),
         ChainConnectionConf::Tron(conn) => {
             ("walletSolidityUrls", conn.wallet_solidity_urls.clone())
         }
@@ -67,9 +65,7 @@ pub(crate) fn chain_conf_for_read_url(
         }
         ChainConnectionConf::Sealevel(conn) => conn.urls = vec![url],
         ChainConnectionConf::Starknet(conn) => conn.urls = vec![url],
-        ChainConnectionConf::Cosmos(conn) | ChainConnectionConf::CosmosNative(conn) => {
-            conn.grpc_urls = vec![url]
-        }
+        ChainConnectionConf::CosmosNative(conn) => conn.grpc_urls = vec![url],
         ChainConnectionConf::Tron(conn) => conn.wallet_solidity_urls = vec![url],
         ChainConnectionConf::Radix(conn) => conn.core = vec![url],
         #[cfg(feature = "aleo")]

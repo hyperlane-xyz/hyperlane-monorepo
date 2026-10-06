@@ -78,7 +78,7 @@ const NON_EVM_DOMAIN_COLLISION_CONFIG: ExternalBridgeConfig = {
     },
     cosmos: {
       chainId: 999999999,
-      protocol: ProtocolType.Cosmos,
+      protocol: ProtocolType.CosmosNative,
       name: 'cosmos',
       displayName: 'Cosmos',
       domainId: 1,
@@ -770,7 +770,9 @@ describe('LiFiBridge constructor chainMetadataByChainId', function () {
     ).getProtocolTypeForChainId.bind(bridge);
 
     expect(getProtocolTypeForChainId(1)).to.equal(ProtocolType.Ethereum);
-    expect(getProtocolTypeForChainId(999999999)).to.equal(ProtocolType.Cosmos);
+    expect(getProtocolTypeForChainId(999999999)).to.equal(
+      ProtocolType.CosmosNative,
+    );
   });
 });
 
@@ -857,7 +859,7 @@ describe('LiFiBridge source protocol handling', function () {
         chainMetadata: {
           cosmos: {
             chainId: COSMOS_CHAIN_ID,
-            protocol: ProtocolType.Cosmos,
+            protocol: ProtocolType.CosmosNative,
             name: 'cosmos',
             displayName: 'Cosmos',
             domainId: COSMOS_CHAIN_ID,
@@ -874,12 +876,12 @@ describe('LiFiBridge source protocol handling', function () {
 
     try {
       await bridge.execute(quote, {
-        [ProtocolType.Cosmos]: TEST_PRIVATE_KEY,
+        [ProtocolType.CosmosNative]: TEST_PRIVATE_KEY,
       });
       expect.fail('Should have thrown for unsupported source protocol Cosmos');
     } catch (error: unknown) {
       const msg = (error as Error).message;
-      expect(msg).to.include("Unsupported protocol type 'cosmos'");
+      expect(msg).to.include("Unsupported protocol type 'cosmosnative'");
     }
   });
 });

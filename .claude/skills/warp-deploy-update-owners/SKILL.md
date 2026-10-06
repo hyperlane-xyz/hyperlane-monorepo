@@ -135,7 +135,7 @@ Assemble the warp apply command. Use only the HTTP registry — started with `--
 
 ```bash
 
-# repeat --key.<protocol> per protocol in the route: ethereum / sealevel / cosmos / tron / starknet / radix / aleo
+# repeat --key.<protocol> per protocol in the route: ethereum / sealevel / cosmosnative / tron / starknet / radix / aleo
 pnpm --silent -C typescript/cli hyperlane warp apply \
   --registry http://localhost:<port> \
   --key.<protocol> <KEY_<PROTOCOL>_VALUE> \

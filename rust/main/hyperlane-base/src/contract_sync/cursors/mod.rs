@@ -40,7 +40,6 @@ impl Indexable for HyperlaneMessage {
         match domain {
             HyperlaneDomainProtocol::Ethereum => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
-            HyperlaneDomainProtocol::Cosmos => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Starknet => CursorType::SequenceAware,
             HyperlaneDomainProtocol::CosmosNative => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,
@@ -64,7 +63,6 @@ impl Indexable for InterchainGasPayment {
         match domain {
             HyperlaneDomainProtocol::Ethereum => CursorType::RateLimited,
             HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
-            HyperlaneDomainProtocol::Cosmos => CursorType::RateLimited,
             HyperlaneDomainProtocol::Starknet => CursorType::RateLimited,
             HyperlaneDomainProtocol::CosmosNative => CursorType::RateLimited,
             HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,
@@ -83,7 +81,6 @@ impl Indexable for MerkleTreeInsertion {
         match domain {
             HyperlaneDomainProtocol::Ethereum => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
-            HyperlaneDomainProtocol::Cosmos => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Starknet => CursorType::SequenceAware,
             HyperlaneDomainProtocol::CosmosNative => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,
@@ -102,7 +99,6 @@ impl Indexable for Delivery {
         match domain {
             HyperlaneDomainProtocol::Ethereum => CursorType::RateLimited,
             HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
-            HyperlaneDomainProtocol::Cosmos => CursorType::RateLimited,
             HyperlaneDomainProtocol::Starknet => CursorType::RateLimited,
             HyperlaneDomainProtocol::CosmosNative => CursorType::RateLimited,
             HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,

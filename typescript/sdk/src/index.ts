@@ -163,7 +163,6 @@ export {
   HyperlaneContractsMap,
   HyperlaneFactories,
 } from './contracts/types.js';
-export { CosmWasmCoreAdapter } from './core/adapters/CosmWasmCoreAdapter.js';
 export { EvmCoreAdapter } from './core/adapters/EvmCoreAdapter.js';
 export { SealevelCoreAdapter } from './core/adapters/SealevelCoreAdapter.js';
 export { StarknetCoreAdapter } from './core/adapters/StarknetCoreAdapter.js';
@@ -557,10 +556,6 @@ export {
   CosmJsProvider,
   CosmJsTransaction,
   CosmJsTransactionReceipt,
-  CosmJsWasmContract,
-  CosmJsWasmProvider,
-  CosmJsWasmTransaction,
-  CosmJsWasmTransactionReceipt,
   EthersV5Contract,
   EthersV5Provider,
   EthersV5Transaction,
@@ -782,17 +777,8 @@ export {
 } from './router/types.js';
 export {
   CosmIbcTokenAdapter,
-  CosmIbcToWarpTokenAdapter,
   CosmNativeTokenAdapter,
 } from './token/adapters/CosmosTokenAdapter.js';
-export {
-  CW20Metadata,
-  CwHypCollateralAdapter,
-  CwHypNativeAdapter,
-  CwHypSyntheticAdapter,
-  CwNativeTokenAdapter,
-  CwTokenAdapter,
-} from './token/adapters/CosmWasmTokenAdapter.js';
 export {
   EvmHypCollateralAdapter,
   EvmMovableCollateralAdapter,
@@ -912,7 +898,6 @@ export { TokenAmount } from './token/TokenAmount.js';
 export {
   getTokenConnectionId,
   HyperlaneTokenConnection,
-  IbcToHyperlaneTokenConnection,
   IbcTokenConnection,
   parseTokenConnectionId,
   TokenConnection,
@@ -929,7 +914,6 @@ export {
   PROTOCOL_TO_HYP_NATIVE_STANDARD,
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_CROSS_COLLATERAL_STANDARDS,
-  TOKEN_COSMWASM_STANDARDS,
   TOKEN_HYP_STANDARDS,
   TOKEN_MULTI_CHAIN_STANDARDS,
   TOKEN_NFT_STANDARDS,

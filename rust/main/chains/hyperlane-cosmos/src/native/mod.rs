@@ -1,6 +1,6 @@
 /// Hyperlane Cosmos Module
 /// This module contains the implementation of the Hyperlane Cosmos module.
-/// The hyperlane cosmos module shares logic for chain communication with the Cw implementation, however, parsing of events and state queries are different.
+/// Hyperlane CosmosNative module implementation.
 /// The module itself is independent to the CW implementation.
 mod indexers;
 mod ism;

@@ -158,7 +158,7 @@ export const testCosmosChain: ChainMetadata = {
   grpcUrls: [],
   name: 'testcosmos',
   nativeToken: { decimals: 6, denom: 'uatom', name: 'Atom', symbol: 'ATOM' },
-  protocol: ProtocolType.Cosmos,
+  protocol: ProtocolType.CosmosNative,
   restUrls: [],
   rpcUrls: [{ http: 'http://127.0.0.1:1317' }],
   slip44: 118,

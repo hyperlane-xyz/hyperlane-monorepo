@@ -23,7 +23,6 @@ export function useConnectFns(): Record<KnownProtocolType, () => void> {
     () => ({
       [ProtocolType.Ethereum]: onConnectEthereum,
       [ProtocolType.Sealevel]: onConnectSolana,
-      [ProtocolType.Cosmos]: onConnectCosmos,
       [ProtocolType.CosmosNative]: onConnectCosmos,
       [ProtocolType.Starknet]: onConnectStarknet,
       [ProtocolType.Radix]: onConnectRadix,

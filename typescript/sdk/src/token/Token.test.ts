@@ -212,39 +212,6 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'TIA',
     name: 'TIA',
   },
-  [TokenStandard.CW20]: null,
-  [TokenStandard.CWNative]: {
-    chainName: testCosmosChain.name,
-    standard: TokenStandard.CWNative,
-    addressOrDenom:
-      'ibc/5751B8BCDA688FD0A8EC0B292EEF1CDEAB4B766B63EC632778B196D317C40C3A',
-    decimals: 6,
-    symbol: 'ASTRO',
-    name: 'ASTRO',
-  },
-  [TokenStandard.CW721]: null,
-  [TokenStandard.CwHypNative]: {
-    chainName: testCosmosChain.name,
-    standard: TokenStandard.CwHypNative,
-    addressOrDenom: 'inj1mv9tjvkaw7x8w8y9vds8pkfq46g2vcfkjehc6k',
-    igpTokenAddressOrDenom: 'inj',
-    decimals: 18,
-    symbol: 'INJ',
-    name: 'Injective Coin',
-  },
-  [TokenStandard.CwHypCollateral]: {
-    chainName: testCosmosChain.name,
-    standard: TokenStandard.CwHypCollateral,
-    addressOrDenom:
-      'neutron1jyyjd3x0jhgswgm6nnctxvzla8ypx50tew3ayxxwkrjfxhvje6kqzvzudq',
-    collateralAddressOrDenom:
-      'ibc/773B4D0A3CD667B2275D5A4A7A2F0909C0BA0F4059C0B9181E680DDF4965DCC7',
-    decimals: 6,
-    symbol: 'TIA.n',
-    name: 'TIA.n',
-  },
-  [TokenStandard.CwHypSynthetic]: null,
-
   [TokenStandard.CosmNativeHypCollateral]: null,
   [TokenStandard.CosmNativeHypSynthetic]: null,
 
@@ -288,7 +255,7 @@ const PROTOCOL_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<
   Record<ProtocolType, Address>
 > = {
   [ProtocolType.Ethereum]: ethers.constants.AddressZero,
-  [ProtocolType.Cosmos]:
+  [ProtocolType.CosmosNative]:
     'neutron13we0myxwzlpx8l5ark8elw5gj5d59dl6cjkzmt80c5q5cv5rt54qvzkv2a',
   [ProtocolType.Sealevel]: 'EK6cs8jNnu2d9pmKTGf1Bvre9oW2xNhcCKNdLKx6t74w',
 };
@@ -297,7 +264,6 @@ const STANDARD_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<
   Record<TokenStandard, Address>
 > = {
   [TokenStandard.SealevelSpl]: 'HVSZJ2juJnMxd6yCNarTL56YmgUqzfUiwM7y7LtTXKHR',
-  [TokenStandard.CwHypNative]: 'inj1fl48vsnmsdzcv85q5d2q4z5ajdha8yu3lj7tt0',
 };
 
 describe('Token', () => {
