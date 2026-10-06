@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 45.0.2
+
+### Patch Changes
+
+- b6fdd2d: Router-map key resolution for warp deploy configs was moved into the SDK as `resolveWarpDeployConfigRouterKeys` and reused by the CLI and infra warp checker.
+
 ## 45.0.1
 
 ## 45.0.0
