@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer, InterchainGasPayment,
-    LogMeta, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, U256,
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer,
+    InterchainGasPayment, LogMeta, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
+    U256,
 };
 use starknet::core::types::{BlockId, EventFilter, Felt};
 use starknet::core::utils::get_selector_from_name;
@@ -222,11 +223,20 @@ pub struct StarknetInterchainGasPaymasterIndexer {
 
 impl StarknetInterchainGasPaymasterIndexer {
     /// Creates the placeholder IGP indexer with a real finalized-height source.
-    pub fn new(provider: StarknetProvider, reorg_period: &ReorgPeriod) -> Self {
-        Self {
+    pub fn new(
+        provider: StarknetProvider,
+        address: H256,
+        reorg_period: &ReorgPeriod,
+    ) -> ChainResult<Self> {
+        if !address.is_zero() {
+            return Err(ChainCommunicationError::from_other_str(
+                "Starknet IGP event indexing is not implemented",
+            ));
+        }
+        Ok(Self {
             provider: provider.rpc_client().clone(),
             reorg_period: reorg_period.clone(),
-        }
+        })
     }
 }
 
