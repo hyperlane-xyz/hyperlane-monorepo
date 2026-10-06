@@ -102,21 +102,20 @@ impl Source for Arc<Chain> {
         if !sequence {
             return Ok(EventBatch {
                 events,
-                indexed_through: None,
+                through: end,
             });
         }
         Ok(EventBatch {
             events,
-            indexed_through: Some(end),
+            through: end,
         })
     }
 
-    async fn counts(&self, _: H256) -> Result<[u32; 2]> {
-        Ok([0; 2])
-    }
-
-    fn has_historical_counts(&self) -> bool {
-        self.historical_counts.load(Ordering::SeqCst)
+    async fn counts(&self, _: H256) -> Result<Option<[u32; 2]>> {
+        Ok(self
+            .historical_counts
+            .load(Ordering::SeqCst)
+            .then_some([0; 2]))
     }
 
     fn indexes_by_sequence(&self) -> bool {

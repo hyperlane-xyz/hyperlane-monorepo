@@ -120,7 +120,6 @@ impl Worker {
             &self.store,
             &self.period,
             confirmation_lease(self.poll_interval),
-            None,
         )
         .await?;
         for (label, count) in [

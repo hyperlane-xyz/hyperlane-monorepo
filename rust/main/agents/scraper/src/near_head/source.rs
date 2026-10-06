@@ -61,7 +61,7 @@ pub(super) enum EventData {
 
 pub(super) struct EventBatch {
     pub events: Vec<Event>,
-    pub indexed_through: Option<u64>,
+    pub through: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -108,13 +108,12 @@ pub(super) trait Source: Send + Sync {
     ) -> Result<EventBatch> {
         Ok(EventBatch {
             events: self.events(from, through).await?,
-            indexed_through: None,
+            through,
         })
     }
     /// Dispatch nonce and Merkle count, pinned to the range boundary fork.
-    async fn counts(&self, hash: EthersH256) -> Result<[u32; 2]>;
-    fn has_historical_counts(&self) -> bool {
-        true
+    async fn counts(&self, _hash: EthersH256) -> Result<Option<[u32; 2]>> {
+        Ok(None)
     }
     fn indexes_by_sequence(&self) -> bool {
         false
@@ -223,12 +222,12 @@ impl<M: Middleware + 'static> Source for EvmSource<M> {
         })
     }
 
-    async fn counts(&self, hash: EthersH256) -> Result<[u32; 2]> {
+    async fn counts(&self, hash: EthersH256) -> Result<Option<[u32; 2]>> {
         let (dispatches, insertions) = tokio::try_join!(
             self.count(self.contracts.mailbox, "nonce()", hash),
             self.count(self.contracts.hook, "count()", hash),
         )?;
-        Ok([dispatches, insertions])
+        Ok(Some([dispatches, insertions]))
     }
 
     async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
@@ -453,7 +452,7 @@ impl GenericSource {
         let mut start = next_sequence;
         let mut previous_block = None;
         let mut first_block = None;
-        let mut indexed_through = None;
+        let mut completed_through = None;
         while start < count {
             let end = count
                 .saturating_sub(1)
@@ -498,21 +497,21 @@ impl GenericSource {
                 .checked_add(1)
                 .ok_or_else(|| eyre!("Sequence range overflow"))?;
             if beyond_boundary {
-                indexed_through = Some(*blocks.end());
+                completed_through = Some(*blocks.end());
                 break;
             }
             if start == count {
-                indexed_through = Some(tip.min(*blocks.end()));
+                completed_through = Some(tip.min(*blocks.end()));
                 break;
             }
             if Some(last_block) > first_block {
-                indexed_through = Some(last_block.saturating_sub(1).min(*blocks.end()));
+                completed_through = Some(last_block.saturating_sub(1).min(*blocks.end()));
                 break;
             }
         }
         Ok((
             logs,
-            indexed_through.ok_or_else(|| eyre!("Sequence page made no progress"))?,
+            completed_through.ok_or_else(|| eyre!("Sequence page made no progress"))?,
         ))
     }
 
@@ -600,25 +599,14 @@ impl GenericSource {
     ) -> Result<Header> {
         ensure!(after < through, "Empty indexing range");
         ensure!(through <= head, "Range boundary is ahead of head");
-        let mut first_error = None;
-        for height in (after.saturating_add(1)..=through).rev() {
-            let result = if fresh {
-                self.fresh_header_at(height).await
-            } else {
-                self.header_at(height).await
-            };
-            match result {
-                Ok(header) => return Ok(header),
-                Err(error) if self.provider.is_block_unavailable(&error) => {
-                    first_error.get_or_insert(eyre::Report::new(error));
-                }
-                Err(error) => return Err(error.into()),
-            }
-        }
         // An entire chunk may consist of skipped slots. Advance to the first
         // real block after it without treating nonexistent slots as headers.
         let limit = head.min(through.saturating_add(through.saturating_sub(after)));
-        for height in through.saturating_add(1)..=limit {
+        let heights = (after.saturating_add(1)..=through)
+            .rev()
+            .chain(through.saturating_add(1)..=limit);
+        let mut first_error = None;
+        for height in heights {
             let result = if fresh {
                 self.fresh_header_at(height).await
             } else {
@@ -660,14 +648,6 @@ impl Source for GenericSource {
     async fn fresh_range_end(&self, after: u64, through: u64, head: u64) -> Result<Header> {
         self.range_end_with_freshness(after, through, head, true)
             .await
-    }
-
-    async fn counts(&self, _hash: EthersH256) -> Result<[u32; 2]> {
-        eyre::bail!("Historical sequence counts are unsupported")
-    }
-
-    fn has_historical_counts(&self) -> bool {
-        false
     }
 
     fn indexes_by_sequence(&self) -> bool {
@@ -760,7 +740,7 @@ impl Source for GenericSource {
         if self.derive_insertions_from_messages {
             insertion_through = message_through;
         }
-        let indexed_through = [
+        let through = [
             message_through,
             delivery_through,
             payment_through,
@@ -816,10 +796,10 @@ impl Source for GenericSource {
         Self::normalize_events(&mut events);
         // Sequence tips can advance after the observed head. Defer those events
         // until their blocks are included in a later observation.
-        events.retain(|event| event.block_number <= u64::from(indexed_through));
+        events.retain(|event| event.block_number <= u64::from(through));
         Ok(EventBatch {
             events,
-            indexed_through: Some(u64::from(indexed_through)),
+            through: u64::from(through),
         })
     }
 }
@@ -1217,7 +1197,7 @@ mod tests {
         };
         assert_eq!(
             tokio::time::timeout(std::time::Duration::from_secs(1), source.counts(hash)).await??,
-            [9, 7]
+            Some([9, 7])
         );
         Ok(())
     }
@@ -1239,7 +1219,7 @@ mod tests {
         let encoded = |value: u32| Bytes::from(encode(&[Token::Uint(value.into())]));
         rpc.push::<Bytes, _>(encoded(7))?;
         rpc.push::<Bytes, _>(encoded(9))?;
-        assert_eq!(source.counts(hash).await?, [9, 7]);
+        assert_eq!(source.counts(hash).await?, Some([9, 7]));
         for (address, signature) in [
             (source.contracts.mailbox, "nonce()"),
             (source.contracts.hook, "count()"),
@@ -1258,7 +1238,7 @@ mod tests {
         rpc.push::<Bytes, _>(encoded(0))?;
         rpc.push::<Bytes, _>(Bytes::default())?;
         rpc.push::<Bytes, _>(Bytes::default())?;
-        assert_eq!(source.counts(hash).await?, [0, 0]);
+        assert_eq!(source.counts(hash).await?, Some([0, 0]));
         rpc.push::<Bytes, _>(Bytes::from(encode(&[Token::Uint(
             U256::from(u32::MAX) + 1,
         )])))?;

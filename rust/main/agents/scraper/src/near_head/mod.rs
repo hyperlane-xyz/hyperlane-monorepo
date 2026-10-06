@@ -89,7 +89,7 @@ pub async fn spawn(
         Some(source.empty_anchor().await?.ok_or_else(|| {
             eyre::eyre!("Radix near-head indexing requires an explicit scraper_head cutover when event history exists")
         })?)
-    } else if source.has_historical_counts() || !source.indexes_by_sequence() {
+    } else if !source.indexes_by_sequence() {
         let index_from = if conf.index.from < 0 {
             let tip = source.header(BlockSelector::Latest).await?.height;
             resolve_index_from(conf.index.from, tip)?
@@ -175,9 +175,7 @@ async fn prepare<'a>(
                 .hash
         }
     };
-    if source.has_historical_counts() {
-        source.counts(hash).await?;
-    }
+    source.counts(hash).await?;
     if let Some(anchor) = anchor {
         store.initialize(anchor, contracts).await?;
     }
@@ -281,20 +279,13 @@ async fn ingest_cached(
     let start_counts = async {
         match cached {
             Some((_, counts)) => Ok::<_, eyre::Report>(*counts),
-            None if source.has_historical_counts() => {
-                let exact = source.counts(state.hash).await?;
-                Ok([exact[0], 0, 0, exact[1]])
-            }
-            None => Ok(store.sequence_counts().await?),
+            None => match source.counts(state.hash).await? {
+                Some(exact) => Ok([exact[0], 0, 0, exact[1]]),
+                None => Ok(store.sequence_counts().await?),
+            },
         }
     };
-    let end_counts = async {
-        if source.has_historical_counts() {
-            Ok(Some(source.counts(boundary.hash).await?))
-        } else {
-            Ok(None)
-        }
-    };
+    let end_counts = source.counts(boundary.hash);
     let (events, end_counts) = tokio::try_join!(
         async {
             let counts = start_counts.await?;
@@ -308,7 +299,7 @@ async fn ingest_cached(
         end_counts,
     )?;
     let (batch, start_counts) = events;
-    if !source.has_historical_counts()
+    if end_counts.is_none()
         && batch
             .events
             .iter()
@@ -317,17 +308,15 @@ async fn ingest_cached(
         store.pause(true).await?;
         eyre::bail!("Sequence gap crossed confirmed history; operator repair required");
     }
-    if let Some(indexed_through) = batch.indexed_through {
-        ensure!(
-            indexed_through > state.indexed,
-            "Sequence page made no block progress"
-        );
-        if indexed_through < end {
-            boundary = source
-                .range_end(state.indexed, indexed_through, available_head)
-                .await?;
-            end = boundary.height;
-        }
+    ensure!(
+        batch.through > state.indexed,
+        "Event batch made no block progress"
+    );
+    if batch.through < end {
+        boundary = source
+            .range_end(state.indexed, batch.through, available_head)
+            .await?;
+        end = boundary.height;
     }
     let events = batch.events;
     let validated_counts = advance_sequences(&events, start_counts)?;
@@ -434,7 +423,7 @@ fn confirmation_lease(poll_interval: Duration) -> Duration {
 #[cfg(test)]
 async fn confirm(source: &dyn Source, store: &Store, period: &ReorgPeriod) -> Result<[u64; 4]> {
     Ok(
-        confirm_leased(source, store, period, MIN_CONFIRMATION_LEASE, None)
+        confirm_leased(source, store, period, MIN_CONFIRMATION_LEASE)
             .await?
             .counts,
     )
@@ -450,7 +439,6 @@ async fn confirm_leased(
     store: &Store,
     period: &ReorgPeriod,
     lease: Duration,
-    publication_cap: Option<u64>,
 ) -> Result<Confirmation> {
     let state = store
         .state()
@@ -476,9 +464,7 @@ async fn confirm_leased(
     };
     // A tag read after the head observation can be newer than it. Everything up
     // to the observed head is then final; confirm only that observed history.
-    let through = through
-        .min(state.head)
-        .min(publication_cap.unwrap_or(u64::MAX));
+    let through = through.min(state.head);
     if through <= state.confirmed {
         return Ok(Confirmation {
             counts: [0; 4],

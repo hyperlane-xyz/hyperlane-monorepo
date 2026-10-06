@@ -78,13 +78,13 @@ impl Chain {
 
 #[async_trait]
 impl Source for Chain {
-    async fn counts(&self, hash: H256) -> Result<[u32; 2]> {
+    async fn counts(&self, hash: H256) -> Result<Option<[u32; 2]>> {
         let headers = self.headers.lock().unwrap();
         let header = headers
             .values()
             .find(|h| h.hash == hash)
             .ok_or_else(|| eyre::eyre!("Unknown fork"))?;
-        Ok([u32::from(header.height >= 2); 2])
+        Ok(Some([u32::from(header.height >= 2); 2]))
     }
 
     async fn header(&self, block: BlockSelector) -> Result<Header> {
@@ -873,7 +873,7 @@ async fn finality_tag_ahead_of_observed_head_confirms_observed_history() -> Resu
         .await?;
     let finalized = ReorgPeriod::Tag("finalized".into());
     assert!(
-        confirm_leased(&chain, &store, &finalized, Duration::from_secs(30), None,)
+        confirm_leased(&chain, &store, &finalized, Duration::from_secs(30))
             .await
             .is_err(),
         "An expired observation cannot confirm"
@@ -969,8 +969,12 @@ impl Source for DenseChain {
         self.chain.header(number).await
     }
 
-    async fn counts(&self, hash: H256) -> Result<[u32; 2]> {
-        Ok(self.chain.counts(hash).await?.map(|count| count * 1001))
+    async fn counts(&self, hash: H256) -> Result<Option<[u32; 2]>> {
+        Ok(self
+            .chain
+            .counts(hash)
+            .await?
+            .map(|counts| counts.map(|count| count * 1001)))
     }
 
     async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
@@ -1253,7 +1257,7 @@ impl Source for CountedChain {
     async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
         self.chain.events(from, through).await
     }
-    async fn counts(&self, hash: H256) -> Result<[u32; 2]> {
+    async fn counts(&self, hash: H256) -> Result<Option<[u32; 2]>> {
         self.calls.lock().unwrap().push(hash);
         ensure!(
             *self.unavailable.lock().unwrap() != Some(hash),
