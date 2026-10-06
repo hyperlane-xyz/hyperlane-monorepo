@@ -27,6 +27,10 @@
     "amount": "0.006",
     "decimals": 9
   },
+  "blast": {
+    "amount": "0.001001723",
+    "decimals": 9
+  },
   "bob": {
     "amount": "0.001000252",
     "decimals": 9
