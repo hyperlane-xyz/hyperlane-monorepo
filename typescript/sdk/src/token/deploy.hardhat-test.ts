@@ -545,78 +545,6 @@ describe('TokenDeployer', async () => {
         expect(result.violations).to.deep.equal([]);
       });
 
-      it('should ignore non-EVM route members when expanding EVM configs', async () => {
-        const cosmosChain = 'testcosmos';
-        if (!multiProvider.tryGetChainMetadata(cosmosChain)) {
-          multiProvider.addChain({
-            chainId: 'testcosmos-1',
-            domainId: 919191,
-            name: cosmosChain,
-            protocol: ProtocolType.CosmosNative,
-            rpcUrls: [{ http: 'https://cosmos.example.com' }],
-            bech32Prefix: 'cosmos',
-            slip44: 118,
-            restUrls: [],
-            grpcUrls: [],
-          });
-        }
-
-        const mixedWarpDeployConfig = deepCopy(config);
-        mixedWarpDeployConfig[cosmosChain] = {
-          type: TokenType.synthetic,
-          mailbox:
-            '0x0000000000000000000000000000000000000000000000000000000000000001',
-          owner: signer.address,
-          gas: 12345,
-          name: 'Test Cosmos',
-          symbol: 'TCOSM',
-          decimals: 18,
-        };
-
-        const cosmosRouterAddress =
-          '0x0000000000000000000000000000000000000000000000000000000000000002';
-        const cosmosGas = 12345;
-
-        const mixedWarpCoreConfig = {
-          tokens: [
-            ...getWarpCoreConfig().tokens,
-            {
-              addressOrDenom: cosmosRouterAddress,
-              chainName: cosmosChain,
-            },
-          ],
-        } as WarpCoreConfig;
-        const cosmosDomain = multiProvider.getDomainId(cosmosChain);
-        for (const currentChain of Object.keys(config)) {
-          const tokenRouter = TokenRouter__factory.connect(
-            getRouterAddress(currentChain),
-            signer,
-          );
-          await tokenRouter.enrollRemoteRouter(
-            cosmosDomain,
-            cosmosRouterAddress,
-          );
-
-          const gasRouter = GasRouter__factory.connect(
-            getRouterAddress(currentChain),
-            signer,
-          );
-          await gasRouter['setDestinationGas(uint32,uint256)'](
-            cosmosDomain,
-            cosmosGas,
-          );
-        }
-
-        const result = await checkWarpRouteDeployConfig({
-          multiProvider,
-          warpCoreConfig: mixedWarpCoreConfig,
-          warpDeployConfig: mixedWarpDeployConfig,
-        });
-
-        expect(result.isValid).to.equal(true);
-        expect(result.violations).to.deep.equal([]);
-      });
-
       it('should include non-EVM route members in scale validation', async () => {
         const cosmosChain = 'testcosmos';
         if (!multiProvider.tryGetChainMetadata(cosmosChain)) {
@@ -649,8 +577,7 @@ describe('TokenDeployer', async () => {
           tokens: [
             ...getWarpCoreConfig().tokens,
             {
-              addressOrDenom:
-                '0x0000000000000000000000000000000000000000000000000000000000000002',
+              addressOrDenom: `ibc/${'0'.repeat(64)}`,
               chainName: cosmosChain,
             },
           ],
@@ -672,59 +599,6 @@ describe('TokenDeployer', async () => {
             type: 'ScaleMismatch',
           },
         ]);
-      });
-
-      it('should fail fast for pure non-EVM route subsets', async () => {
-        const cosmosChain = 'testcosmos';
-        if (!multiProvider.tryGetChainMetadata(cosmosChain)) {
-          multiProvider.addChain({
-            chainId: 'testcosmos-1',
-            domainId: 919191,
-            name: cosmosChain,
-            protocol: ProtocolType.CosmosNative,
-            rpcUrls: [{ http: 'https://cosmos.example.com' }],
-            bech32Prefix: 'cosmos',
-            slip44: 118,
-            restUrls: [],
-            grpcUrls: [],
-          });
-        }
-
-        const cosmosOnlyWarpDeployConfig = {
-          [cosmosChain]: {
-            type: TokenType.synthetic,
-            mailbox:
-              '0x0000000000000000000000000000000000000000000000000000000000000001',
-            owner: signer.address,
-            gas: 12345,
-            name: 'Test Cosmos',
-            symbol: 'TCOSM',
-            decimals: 18,
-          },
-        } as WarpRouteDeployConfigMailboxRequired;
-
-        const cosmosOnlyWarpCoreConfig = {
-          tokens: [
-            {
-              addressOrDenom:
-                '0x0000000000000000000000000000000000000000000000000000000000000002',
-              chainName: cosmosChain,
-            },
-          ],
-        } as WarpCoreConfig;
-
-        try {
-          await checkWarpRouteDeployConfig({
-            multiProvider,
-            warpCoreConfig: cosmosOnlyWarpCoreConfig,
-            warpDeployConfig: cosmosOnlyWarpDeployConfig,
-          });
-          expect.fail('Expected pure non-EVM route subset to reject');
-        } catch (error) {
-          expect((error as Error).message).to.contain(
-            'Warp route check requires at least one EVM or supported altVM chain in the selected route config',
-          );
-        }
       });
 
       it('should ignore collateral owner changes when ownerOverrides is unset', async () => {

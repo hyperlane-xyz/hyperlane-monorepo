@@ -42,6 +42,7 @@ import {
 } from './adapters/SealevelTokenAdapter.js';
 import { StarknetTokenAdapter } from './adapters/StarknetTokenAdapter.js';
 import { createAleoHypAdapter } from './adapters/aleoHyp.js';
+import { createCosmosNativeHypAdapter } from './adapters/cosmosNativeHyp.js';
 import { createEvmHypAdapter } from './adapters/evmHyp.js';
 import { hasOnlyHyperlaneConnections } from './adapters/hypTokenAdapterUtils.js';
 import { createRadixHypAdapter } from './adapters/radixHyp.js';
@@ -191,6 +192,7 @@ export class Token extends TokenMetadata implements IToken {
       createEvmHypAdapter(multiProvider, this) ||
       createTronHypAdapter(multiProvider, this) ||
       createSealevelHypAdapter(multiProvider, this, this.warpCoreOptions) ||
+      createCosmosNativeHypAdapter(multiProvider, this) ||
       createStarknetHypAdapter(multiProvider, this) ||
       createRadixHypAdapter(multiProvider, this) ||
       createAleoHypAdapter(multiProvider, this);

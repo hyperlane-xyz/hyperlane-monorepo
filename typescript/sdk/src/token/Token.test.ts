@@ -21,6 +21,10 @@ import { TokenArgs } from './IToken.js';
 import { Token } from './Token.js';
 import { TokenConnectionType } from './TokenConnection.js';
 import { TokenStandard } from './TokenStandard.js';
+import {
+  CosmNativeHypCollateralAdapter,
+  CosmNativeHypSyntheticAdapter,
+} from './adapters/CosmosModuleTokenAdapter.js';
 import { SealevelHypNativeAdapter } from './adapters/SealevelTokenAdapter.js';
 
 // null values represent TODOs here, ideally all standards should be tested
@@ -335,6 +339,41 @@ describe('Token', () => {
   });
 
   describe('getHypAdapter', () => {
+    for (const [standard, Adapter] of [
+      [TokenStandard.CosmNativeHypCollateral, CosmNativeHypCollateralAdapter],
+      [TokenStandard.CosmNativeHypSynthetic, CosmNativeHypSyntheticAdapter],
+    ] as const) {
+      it(`returns ${Adapter.name} for ${standard}`, () => {
+        const multiProvider =
+          MultiProtocolProvider.createTestMultiProtocolProvider(
+            createMailboxTestMetadata(),
+          );
+        const token = new Token({
+          chainName: testCosmosChain.name,
+          standard,
+          addressOrDenom: 'cosmos-router',
+          decimals: 6,
+          symbol: 'TIA',
+          name: 'TIA',
+          connections: [
+            {
+              token: new Token({
+                chainName: TestChainName.test1,
+                standard: TokenStandard.EvmHypSynthetic,
+                addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+                decimals: 6,
+                symbol: 'TIA',
+                name: 'TIA',
+              }),
+              type: TokenConnectionType.Hyperlane,
+            },
+          ],
+        });
+
+        expect(token.getHypAdapter(multiProvider)).to.be.instanceOf(Adapter);
+      });
+    }
+
     it('returns EvmHypNativeAdapter for EvmNative with connections', () => {
       const multiProvider =
         MultiProtocolProvider.createTestMultiProtocolProvider(
