@@ -334,7 +334,7 @@ Start it per `/start-http-registry` **with `--writeMode`**. Note the port and th
 The command runs from `typescript/cli`. Expand `<KEY_<PROTOCOL>_VALUE>` per the artifact's `source` field (see the canonical key-value expansion legend in `/warp-key-value-expansion`). Supply `--key.<protocol>` for the **new chain's protocol** — the deployer signs its deploy + atomic ownership transfer; don't assume that's ethereum (existing chains are handled through the strategy's submitters, not a direct key):
 
 ```bash
-# --key.<new-chain-protocol> is the new chain's protocol: ethereum / sealevel / cosmos / tron / starknet / radix / aleo
+# --key.<new-chain-protocol> is the new chain's protocol: ethereum / sealevel / cosmosnative / tron / starknet / radix / aleo
 pnpm --silent -C typescript/cli hyperlane warp apply \
   --registry http://localhost:<port> \
   --key.<new-chain-protocol> <KEY_<PROTOCOL>_VALUE> \

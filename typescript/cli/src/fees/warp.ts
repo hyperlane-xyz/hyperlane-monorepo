@@ -52,10 +52,7 @@ function getPlaceholderRecipient(
   protocol: ProtocolType,
   bech32Prefix?: string,
 ): string {
-  if (
-    protocol === ProtocolType.Cosmos ||
-    protocol === ProtocolType.CosmosNative
-  ) {
+  if (protocol === ProtocolType.CosmosNative) {
     if (!bech32Prefix) {
       throw new Error(`bech32Prefix required for Cosmos protocol`);
     }

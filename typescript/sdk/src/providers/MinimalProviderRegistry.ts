@@ -10,7 +10,6 @@ import {
   AleoProvider,
   CosmJsNativeProvider,
   CosmJsProvider,
-  CosmJsWasmProvider,
   EthersV5Provider,
   PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
   ProviderMap,
@@ -151,15 +150,6 @@ export class MinimalProviderRegistry<
     return this.getSpecificProvider<CosmJsProvider['provider']>(
       chainNameOrId,
       ProviderType.CosmJs,
-    );
-  }
-
-  getCosmJsWasmProvider(
-    chainNameOrId: ChainNameOrId,
-  ): CosmJsWasmProvider['provider'] {
-    return this.getSpecificProvider<CosmJsWasmProvider['provider']>(
-      chainNameOrId,
-      ProviderType.CosmJsWasm,
     );
   }
 

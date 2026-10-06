@@ -46,14 +46,6 @@ export enum TokenStandard {
   CosmosNative = 'CosmosNative',
   CosmosIbc = 'CosmosIbc',
 
-  // CosmWasm
-  CW20 = 'CW20',
-  CWNative = 'CWNative',
-  CW721 = 'CW721',
-  CwHypNative = 'CwHypNative',
-  CwHypCollateral = 'CwHypCollateral',
-  CwHypSynthetic = 'CwHypSynthetic',
-
   // Cosmos Native
   CosmNativeHypCollateral = 'CosmosNativeHypCollateral',
   CosmNativeHypSynthetic = 'CosmosNativeHypSynthetic',
@@ -134,22 +126,14 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<
   SealevelHypCrossCollateral: ProtocolType.Sealevel,
 
   // Cosmos
-  CosmosIcs20: ProtocolType.Cosmos,
-  CosmosIcs721: ProtocolType.Cosmos,
-  CosmosNative: ProtocolType.Cosmos,
-  CosmosIbc: ProtocolType.Cosmos,
+  CosmosIcs20: ProtocolType.CosmosNative,
+  CosmosIcs721: ProtocolType.CosmosNative,
+  CosmosNative: ProtocolType.CosmosNative,
+  CosmosIbc: ProtocolType.CosmosNative,
 
   // Cosmos Native
   CosmosNativeHypCollateral: ProtocolType.CosmosNative,
   CosmosNativeHypSynthetic: ProtocolType.CosmosNative,
-
-  // CosmWasm
-  CW20: ProtocolType.Cosmos,
-  CWNative: ProtocolType.Cosmos,
-  CW721: ProtocolType.Cosmos,
-  CwHypNative: ProtocolType.Cosmos,
-  CwHypCollateral: ProtocolType.Cosmos,
-  CwHypSynthetic: ProtocolType.Cosmos,
 
   // Starknet
   StarknetNative: ProtocolType.Starknet,
@@ -208,7 +192,6 @@ export const TOKEN_NFT_STANDARDS = [
   TokenStandard.ERC721,
   TokenStandard.TRC721,
   TokenStandard.CosmosIcs721,
-  TokenStandard.CW721,
   // TODO solana here
 ];
 
@@ -219,8 +202,6 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.EvmHypNative,
   TokenStandard.SealevelHypCollateral,
   TokenStandard.SealevelHypNative,
-  TokenStandard.CwHypCollateral,
-  TokenStandard.CwHypNative,
   TokenStandard.CosmNativeHypCollateral,
   TokenStandard.EvmHypXERC20Lockbox,
   TokenStandard.EvmHypVSXERC20Lockbox,
@@ -303,9 +284,6 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.SealevelHypCollateral,
   TokenStandard.SealevelHypSynthetic,
   TokenStandard.SealevelHypCrossCollateral,
-  TokenStandard.CwHypNative,
-  TokenStandard.CwHypCollateral,
-  TokenStandard.CwHypSynthetic,
   TokenStandard.CosmNativeHypCollateral,
   TokenStandard.CosmNativeHypSynthetic,
   TokenStandard.StarknetHypNative,
@@ -336,17 +314,6 @@ export const TOKEN_HYP_STANDARDS = [
 export const TOKEN_MULTI_CHAIN_STANDARDS = [
   ...TOKEN_HYP_STANDARDS,
   TokenStandard.CosmosIbc,
-];
-
-// Useful for differentiating from norma Cosmos standards
-// (e.g. for determining the appropriate cosmos client)
-export const TOKEN_COSMWASM_STANDARDS = [
-  TokenStandard.CW20,
-  TokenStandard.CWNative,
-  TokenStandard.CW721,
-  TokenStandard.CwHypNative,
-  TokenStandard.CwHypCollateral,
-  TokenStandard.CwHypSynthetic,
 ];
 
 export const tokenTypeToStandard = (
@@ -592,7 +559,6 @@ export const PROTOCOL_TO_NATIVE_STANDARD: Record<
   TokenStandard
 > = {
   [ProtocolType.Ethereum]: TokenStandard.EvmNative,
-  [ProtocolType.Cosmos]: TokenStandard.CosmosNative,
   [ProtocolType.CosmosNative]: TokenStandard.CosmosNative,
   [ProtocolType.Sealevel]: TokenStandard.SealevelNative,
   [ProtocolType.Starknet]: TokenStandard.StarknetNative,
@@ -606,7 +572,6 @@ export const PROTOCOL_TO_HYP_NATIVE_STANDARD: Record<
   TokenStandard
 > = {
   [ProtocolType.Ethereum]: TokenStandard.EvmHypNative,
-  [ProtocolType.Cosmos]: TokenStandard.CwHypNative,
   [ProtocolType.Sealevel]: TokenStandard.SealevelHypNative,
   [ProtocolType.Starknet]: TokenStandard.StarknetHypNative,
   // collateral and native are the same for cosmosnative and radix

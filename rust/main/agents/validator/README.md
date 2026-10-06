@@ -40,14 +40,14 @@ to `majority`.
 Enable `--lightweight` (alias: `--leightweigt`) with `--websocketUrl wss://...`.
 Explicit boolean values and configuration-file fields are also supported.
 
-Lightweight mode supports Ethereum, Sealevel, Cosmos Wasm, Cosmos Native,
+Lightweight mode supports Ethereum, Sealevel, Cosmos Native,
 Starknet, Radix, Aleo (with the `aleo` build feature), and Tron. Configure at least
 one public or private state-read endpoint using the chain's existing fields:
 
 | Protocol | Independently checked endpoints |
 | --- | --- |
 | Ethereum, Sealevel, Starknet, Aleo | `rpcUrls` |
-| Cosmos Wasm / Native | `grpcUrls` |
+| Cosmos Native | `grpcUrls` |
 | Radix | `rpcUrls` (Core API) |
 | Tron | `walletSolidityUrls` |
 

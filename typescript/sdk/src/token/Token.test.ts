@@ -21,6 +21,10 @@ import { TokenArgs } from './IToken.js';
 import { Token } from './Token.js';
 import { TokenConnectionType } from './TokenConnection.js';
 import { TokenStandard } from './TokenStandard.js';
+import {
+  CosmNativeHypCollateralAdapter,
+  CosmNativeHypSyntheticAdapter,
+} from './adapters/CosmosModuleTokenAdapter.js';
 import { SealevelHypNativeAdapter } from './adapters/SealevelTokenAdapter.js';
 
 // null values represent TODOs here, ideally all standards should be tested
@@ -212,39 +216,6 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'TIA',
     name: 'TIA',
   },
-  [TokenStandard.CW20]: null,
-  [TokenStandard.CWNative]: {
-    chainName: testCosmosChain.name,
-    standard: TokenStandard.CWNative,
-    addressOrDenom:
-      'ibc/5751B8BCDA688FD0A8EC0B292EEF1CDEAB4B766B63EC632778B196D317C40C3A',
-    decimals: 6,
-    symbol: 'ASTRO',
-    name: 'ASTRO',
-  },
-  [TokenStandard.CW721]: null,
-  [TokenStandard.CwHypNative]: {
-    chainName: testCosmosChain.name,
-    standard: TokenStandard.CwHypNative,
-    addressOrDenom: 'inj1mv9tjvkaw7x8w8y9vds8pkfq46g2vcfkjehc6k',
-    igpTokenAddressOrDenom: 'inj',
-    decimals: 18,
-    symbol: 'INJ',
-    name: 'Injective Coin',
-  },
-  [TokenStandard.CwHypCollateral]: {
-    chainName: testCosmosChain.name,
-    standard: TokenStandard.CwHypCollateral,
-    addressOrDenom:
-      'neutron1jyyjd3x0jhgswgm6nnctxvzla8ypx50tew3ayxxwkrjfxhvje6kqzvzudq',
-    collateralAddressOrDenom:
-      'ibc/773B4D0A3CD667B2275D5A4A7A2F0909C0BA0F4059C0B9181E680DDF4965DCC7',
-    decimals: 6,
-    symbol: 'TIA.n',
-    name: 'TIA.n',
-  },
-  [TokenStandard.CwHypSynthetic]: null,
-
   [TokenStandard.CosmNativeHypCollateral]: null,
   [TokenStandard.CosmNativeHypSynthetic]: null,
 
@@ -288,7 +259,7 @@ const PROTOCOL_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<
   Record<ProtocolType, Address>
 > = {
   [ProtocolType.Ethereum]: ethers.constants.AddressZero,
-  [ProtocolType.Cosmos]:
+  [ProtocolType.CosmosNative]:
     'neutron13we0myxwzlpx8l5ark8elw5gj5d59dl6cjkzmt80c5q5cv5rt54qvzkv2a',
   [ProtocolType.Sealevel]: 'EK6cs8jNnu2d9pmKTGf1Bvre9oW2xNhcCKNdLKx6t74w',
 };
@@ -297,7 +268,6 @@ const STANDARD_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<
   Record<TokenStandard, Address>
 > = {
   [TokenStandard.SealevelSpl]: 'HVSZJ2juJnMxd6yCNarTL56YmgUqzfUiwM7y7LtTXKHR',
-  [TokenStandard.CwHypNative]: 'inj1fl48vsnmsdzcv85q5d2q4z5ajdha8yu3lj7tt0',
 };
 
 describe('Token', () => {
@@ -369,6 +339,41 @@ describe('Token', () => {
   });
 
   describe('getHypAdapter', () => {
+    for (const [standard, Adapter] of [
+      [TokenStandard.CosmNativeHypCollateral, CosmNativeHypCollateralAdapter],
+      [TokenStandard.CosmNativeHypSynthetic, CosmNativeHypSyntheticAdapter],
+    ] as const) {
+      it(`returns ${Adapter.name} for ${standard}`, () => {
+        const multiProvider =
+          MultiProtocolProvider.createTestMultiProtocolProvider(
+            createMailboxTestMetadata(),
+          );
+        const token = new Token({
+          chainName: testCosmosChain.name,
+          standard,
+          addressOrDenom: 'cosmos-router',
+          decimals: 6,
+          symbol: 'TIA',
+          name: 'TIA',
+          connections: [
+            {
+              token: new Token({
+                chainName: TestChainName.test1,
+                standard: TokenStandard.EvmHypSynthetic,
+                addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+                decimals: 6,
+                symbol: 'TIA',
+                name: 'TIA',
+              }),
+              type: TokenConnectionType.Hyperlane,
+            },
+          ],
+        });
+
+        expect(token.getHypAdapter(multiProvider)).to.be.instanceOf(Adapter);
+      });
+    }
+
     it('returns EvmHypNativeAdapter for EvmNative with connections', () => {
       const multiProvider =
         MultiProtocolProvider.createTestMultiProtocolProvider(

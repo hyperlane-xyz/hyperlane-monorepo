@@ -51,7 +51,6 @@ export function useActiveChains(multiProvider: MinimalProviderRegistry): {
       chains: {
         [ProtocolType.Ethereum]: evmChain,
         [ProtocolType.Sealevel]: solChain,
-        [ProtocolType.Cosmos]: cosmChain,
         [ProtocolType.CosmosNative]: cosmChain,
         [ProtocolType.Starknet]: starknetChain,
         [ProtocolType.Radix]: radixChain,

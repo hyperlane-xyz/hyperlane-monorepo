@@ -34,10 +34,7 @@ export function getAddressFromAccountAndChain(
   // case we display the cosmos hub address by default. If the user
   // selects a cosmos based origin chain in the swap form that cosmos
   // address is displayed instead
-  if (
-    account.protocol === ProtocolType.Cosmos ||
-    account.protocol === ProtocolType.CosmosNative
-  ) {
+  if (account.protocol === ProtocolType.CosmosNative) {
     // chainName can be an EVM chain here, therefore if no
     // cosmos address was found we search for the cosmos hub
     // address below

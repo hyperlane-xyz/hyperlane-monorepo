@@ -43,7 +43,7 @@ describe('filterChainMetadataByProtocol', () => {
     name: 'cosmos',
     chainId: 'cosmoshub-4',
     domainId: 1234,
-    protocol: ProtocolType.Cosmos,
+    protocol: ProtocolType.CosmosNative,
     rpcUrls: [{ http: 'http://localhost:26657' }],
     bech32Prefix: 'cosmos',
     slip44: 118,

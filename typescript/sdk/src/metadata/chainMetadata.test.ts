@@ -98,7 +98,7 @@ describe('ChainMetadataSchema', () => {
     expect(
       isValidChainMetadata({
         ...minimalSchema,
-        protocol: ProtocolType.Cosmos,
+        protocol: ProtocolType.CosmosNative,
         chainId: 'cosmos',
         bech32Prefix: 'cosmos',
         slip44: 118,
@@ -177,7 +177,7 @@ describe('ChainMetadataSchema', () => {
     expect(
       isValidChainMetadata({
         ...minimalSchema,
-        protocol: ProtocolType.Cosmos,
+        protocol: ProtocolType.CosmosNative,
         chainId: 'string-id',
       }),
     ).to.eq(false);

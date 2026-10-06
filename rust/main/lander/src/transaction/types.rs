@@ -162,7 +162,7 @@ impl DropReason {
 pub enum VmSpecificTxData {
     #[cfg(feature = "aleo")]
     Aleo(Box<AleoTxPrecursor>),
-    CosmWasm,
+    CosmosNative,
     Evm(Box<EthereumTxPrecursor>),
     Radix(Box<RadixTxPrecursor>),
     Svm(Box<SealevelTxPrecursor>),

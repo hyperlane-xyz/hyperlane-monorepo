@@ -108,8 +108,8 @@ describe('WarpCore', () => {
   let evmHypXERC20Lockbox: Token;
   let evmHypCollateralFiat: Token;
   let sealevelHypSynthetic: Token;
-  let cwHypCollateral: Token;
-  let cw20: Token;
+  let cosmosNativeHypCollateral: Token;
+  let cosmosNativeToken: Token;
   let cosmosIbc: Token;
 
   before(() => {
@@ -127,8 +127,8 @@ describe('WarpCore', () => {
       evmHypNativeScale2,
       evmHypCollateralFiat,
       sealevelHypSynthetic,
-      cwHypCollateral,
-      cw20,
+      cosmosNativeHypCollateral,
+      cosmosNativeToken,
       cosmosIbc,
     ] = warpCore.tokens;
   });
@@ -202,7 +202,10 @@ describe('WarpCore', () => {
       ),
     ).to.be.instanceOf(Token);
     expect(
-      warpCore.findToken(testCosmosChain.name, cw20.addressOrDenom),
+      warpCore.findToken(
+        testCosmosChain.name,
+        cosmosNativeToken.addressOrDenom,
+      ),
     ).to.be.instanceOf(Token);
     expect(warpCore.findToken(test1.name, sealevelHypSynthetic.addressOrDenom))
       .to.be.null;
@@ -279,9 +282,14 @@ describe('WarpCore', () => {
     );
     await testQuote(cosmosIbc, test1.name, TokenStandard.CosmosNative);
     // Note, this route uses an igp quote const config
-    await testQuote(cwHypCollateral, test2.name, TokenStandard.CosmosNative, {
-      igpQuote: { amount: 1n, addressOrDenom: 'atom' },
-    });
+    await testQuote(
+      cosmosNativeHypCollateral,
+      test2.name,
+      TokenStandard.CosmosNative,
+      {
+        igpQuote: { amount: 1n, addressOrDenom: 'atom' },
+      },
+    );
 
     stubs.forEach((s) => s.restore());
   });
@@ -321,7 +329,7 @@ describe('WarpCore', () => {
     await testCollateral(evmHypNative, test2.name, true);
     await testCollateral(evmHypNative, testCosmosChain.name, false);
     await testCollateral(evmHypNative, testSealevelChain.name, true);
-    await testCollateral(cwHypCollateral, test1.name, false);
+    await testCollateral(cosmosNativeHypCollateral, test1.name, false);
     await testCollateral(evmHypXERC20, testVSXERC20.name, true);
     await testCollateral(evmHypVSXERC20, testXERC20.name, true);
     await testCollateral(evmHypXERC20Lockbox, testXERC20.name, true);
@@ -1465,10 +1473,10 @@ describe('WarpCore', () => {
       .stub(evmHypNative, 'isCrossCollateralToken')
       .returns(true);
     const destinationMultiStub = sinon
-      .stub(cwHypCollateral, 'isCrossCollateralToken')
+      .stub(cosmosNativeHypCollateral, 'isCrossCollateralToken')
       .returns(true);
     const destinationAdapterStub = sinon
-      .stub(cwHypCollateral, 'getAdapter')
+      .stub(cosmosNativeHypCollateral, 'getAdapter')
       .returns({
         getBalance: sinon.stub().resolves(10n),
       } as any);
@@ -1476,15 +1484,15 @@ describe('WarpCore', () => {
     try {
       const smallResult = await warpCore.isDestinationCollateralSufficient({
         originTokenAmount: evmHypNative.amount(9n),
-        destination: cwHypCollateral.chainName,
-        destinationToken: cwHypCollateral,
+        destination: cosmosNativeHypCollateral.chainName,
+        destinationToken: cosmosNativeHypCollateral,
       });
       expect(smallResult).to.equal(true);
 
       const bigResult = await warpCore.isDestinationCollateralSufficient({
         originTokenAmount: evmHypNative.amount(11n),
-        destination: cwHypCollateral.chainName,
-        destinationToken: cwHypCollateral,
+        destination: cosmosNativeHypCollateral.chainName,
+        destinationToken: cosmosNativeHypCollateral,
       });
       expect(bigResult).to.equal(false);
     } finally {
@@ -1857,7 +1865,11 @@ describe('WarpCore', () => {
       ProviderType.SolanaWeb3,
       true,
     );
-    await testGetTxs(cwHypCollateral, test1.name, ProviderType.CosmJsWasm);
+    await testGetTxs(
+      cosmosNativeHypCollateral,
+      test1.name,
+      ProviderType.CosmJsNative,
+    );
     await testGetTxs(cosmosIbc, test1.name, ProviderType.CosmJs);
 
     coreStub.restore();

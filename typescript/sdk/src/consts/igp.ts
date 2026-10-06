@@ -16,13 +16,6 @@ export const TOKEN_EXCHANGE_RATE_SCALE_SEALEVEL = ethers.utils.parseUnits(
   TOKEN_EXCHANGE_RATE_DECIMALS_SEALEVEL,
 );
 
-export const TOKEN_EXCHANGE_RATE_DECIMALS_COSMOS = 10;
-
-export const TOKEN_EXCHANGE_RATE_SCALE_COSMOS = ethers.utils.parseUnits(
-  '1',
-  TOKEN_EXCHANGE_RATE_DECIMALS_COSMOS,
-);
-
 export const TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM = 10;
 
 // Gets the number of decimals for the exchange rate on a particular origin protocol.
@@ -35,8 +28,6 @@ export function getProtocolExchangeRateDecimals(
       return TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM;
     case ProtocolType.Sealevel:
       return TOKEN_EXCHANGE_RATE_DECIMALS_SEALEVEL;
-    case ProtocolType.Cosmos:
-      return TOKEN_EXCHANGE_RATE_DECIMALS_COSMOS;
     case ProtocolType.CosmosNative:
       return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
     case ProtocolType.Aleo:

@@ -68,12 +68,10 @@ config = "0.13.3"
 console-subscriber = "0.2.0"
 convert_case = "0.6"
 cosmrs = { version = "0.21.0", default-features = false, features = [
-  "cosmwasm",
   "rpc",
   "tokio",
   "grpc",
 ] }
-cosmwasm-std = "*"
 crc32c = "0.6.8"
 crunchy = "0.2"
 ctrlc = "3.2"
@@ -100,11 +98,8 @@ http = "1.2.0"
 http-body-util = "0.1"
 hyper = "0.14"
 hyper-tls = "0.5.0"
-hyperlane-cosmwasm-interface = "=0.0.6-rc6"
 ibc-proto = "0.51.1"
-injective-protobuf = "0.2.2"
 moka = "0.12.8"
-injective-std = "1.13.6"
 itertools = "*"
 jobserver = "0.1.32"
 jsonrpc-core = "18.0"
@@ -126,7 +121,6 @@ pin-project = "1.1.9"
 pretty_env_logger = "0.5.0"
 primitive-types = "=0.12.1"
 prometheus = "0.14"
-protobuf = "2.28"
 rand = "0.8.5"
 regex = "1.5"
 reqwest = { version = "0.11", features = ["json"] }
@@ -216,9 +210,6 @@ sbor = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch =
 ] }
 hyperlane-cosmos-rs = "0.1.4"
 
-
-## TODO: remove this
-cosmwasm-schema = "2.2.0"
 
 # v4.11.0 plus the sequential-worker lifecycle fixes; see chains/hyperlane-aleo/VM_LIFECYCLE.md.
 snarkvm = { git = "https://github.com/hyperlane-xyz/snarkVM.git", rev = "6c5b8762d8058287d1d2ca27c391aeb0eccdf9fa", features = [

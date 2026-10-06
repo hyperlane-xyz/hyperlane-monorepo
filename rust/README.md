@@ -115,7 +115,7 @@ To run the tests for a specific VM, use the `--features` flag.
 ##### Cosmos E2E Test
 
 ```bash
-cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+cargo test --release --package run-locally --bin run-locally --features cosmosnative -- cosmosnative::test --nocapture
 ```
 
 ##### Sealevel E2E Test

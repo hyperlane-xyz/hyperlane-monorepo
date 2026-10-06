@@ -1485,7 +1485,6 @@ mod tests {
         for (protocol, source) in [
             ("ethereum", "rpcUrls"),
             ("sealevel", "rpcUrls"),
-            ("cosmos", "grpcUrls"),
             ("cosmosnative", "grpcUrls"),
             ("starknet", "rpcUrls"),
             ("radix", "rpcUrls"),
@@ -1500,7 +1499,7 @@ mod tests {
                 "checkpointsyncer": {"type": "localStorage", "path": "/tmp/lightweight-checkpoints"},
                 "chains": {"test": {
                     "name": "test", "domainid": 1337,
-                    "chainid": if protocol.starts_with("cosmos") { "test-1" } else { "1337" },
+                    "chainid": if protocol == "cosmosnative" { "test-1" } else { "1337" },
                     "protocol": protocol,
                     "rpcurls": [{"http": "https://rpc-a.example"}, {"http": "https://rpc-b.example"}],
                     "rpcconsensustype": "single",
@@ -1539,9 +1538,7 @@ mod tests {
                     ChainConnectionConf::Ethereum(conn) => conn.rpc_urls(),
                     ChainConnectionConf::Sealevel(conn) => conn.urls,
                     ChainConnectionConf::Starknet(conn) => conn.urls,
-                    ChainConnectionConf::Cosmos(conn) | ChainConnectionConf::CosmosNative(conn) => {
-                        conn.grpc_urls
-                    }
+                    ChainConnectionConf::CosmosNative(conn) => conn.grpc_urls,
                     ChainConnectionConf::Tron(conn) => conn.wallet_solidity_urls,
                     ChainConnectionConf::Radix(conn) => conn.core,
                     #[cfg(feature = "aleo")]

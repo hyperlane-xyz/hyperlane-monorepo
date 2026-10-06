@@ -4,7 +4,6 @@ import type { BigNumber, ethers } from 'ethers';
 export enum ProtocolType {
   Ethereum = 'ethereum',
   Sealevel = 'sealevel',
-  Cosmos = 'cosmos',
   CosmosNative = 'cosmosnative',
   Starknet = 'starknet',
   Radix = 'radix',
@@ -24,7 +23,6 @@ export function isEVMLike(protocol: ProtocolType): boolean {
 export const ProtocolSmallestUnit = {
   [ProtocolType.Ethereum]: 'wei',
   [ProtocolType.Sealevel]: 'lamports',
-  [ProtocolType.Cosmos]: 'uATOM',
   [ProtocolType.CosmosNative]: 'uATOM',
   [ProtocolType.Starknet]: 'fri',
   [ProtocolType.Radix]: 'attos',

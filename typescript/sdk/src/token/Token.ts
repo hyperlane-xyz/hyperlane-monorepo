@@ -19,11 +19,6 @@ import { TokenStandard } from './TokenStandard.js';
 import { TokenMetadata } from './TokenMetadata.js';
 import { AleoNativeTokenAdapter } from './adapters/AleoTokenAdapter.js';
 import {
-  CwNativeTokenAdapter,
-  CwTokenAdapter,
-} from './adapters/CosmWasmTokenAdapter.js';
-import {
-  CosmIbcToWarpTokenAdapter,
   CosmIbcTokenAdapter,
   CosmNativeTokenAdapter,
 } from './adapters/CosmosTokenAdapter.js';
@@ -47,7 +42,7 @@ import {
 } from './adapters/SealevelTokenAdapter.js';
 import { StarknetTokenAdapter } from './adapters/StarknetTokenAdapter.js';
 import { createAleoHypAdapter } from './adapters/aleoHyp.js';
-import { createCosmosHypAdapter } from './adapters/cosmosHyp.js';
+import { createCosmosNativeHypAdapter } from './adapters/cosmosNativeHyp.js';
 import { createEvmHypAdapter } from './adapters/evmHyp.js';
 import { hasOnlyHyperlaneConnections } from './adapters/hypTokenAdapterUtils.js';
 import { createRadixHypAdapter } from './adapters/radixHyp.js';
@@ -130,17 +125,6 @@ export class Token extends TokenMetadata implements IToken {
         {},
         { ibcDenom: addressOrDenom },
       );
-    } else if (standard === TokenStandard.CW20) {
-      return new CwTokenAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-      });
-    } else if (standard === TokenStandard.CWNative) {
-      return new CwNativeTokenAdapter(
-        chainName,
-        multiProvider,
-        {},
-        addressOrDenom,
-      );
     } else if (standard === TokenStandard.StarknetNative) {
       return new StarknetTokenAdapter(chainName, multiProvider, {
         tokenAddress: addressOrDenom,
@@ -208,7 +192,7 @@ export class Token extends TokenMetadata implements IToken {
       createEvmHypAdapter(multiProvider, this) ||
       createTronHypAdapter(multiProvider, this) ||
       createSealevelHypAdapter(multiProvider, this, this.warpCoreOptions) ||
-      createCosmosHypAdapter(multiProvider, this) ||
+      createCosmosNativeHypAdapter(multiProvider, this) ||
       createStarknetHypAdapter(multiProvider, this) ||
       createRadixHypAdapter(multiProvider, this) ||
       createAleoHypAdapter(multiProvider, this);
@@ -261,30 +245,6 @@ export class Token extends TokenMetadata implements IToken {
         multiProvider,
         {},
         { ibcDenom: this.addressOrDenom, sourcePort, sourceChannel },
-      );
-    } else if (connection.type === TokenConnectionType.IbcHyperlane) {
-      const {
-        sourcePort,
-        sourceChannel,
-        intermediateChainName,
-        intermediateIbcDenom,
-        intermediateRouterAddress,
-      } = connection;
-      const destinationRouterAddress = connection.token.addressOrDenom;
-      return new CosmIbcToWarpTokenAdapter(
-        this.chainName,
-        multiProvider,
-        {
-          intermediateRouterAddress,
-          destinationRouterAddress,
-        },
-        {
-          ibcDenom: this.addressOrDenom,
-          sourcePort,
-          sourceChannel,
-          intermediateIbcDenom,
-          intermediateChainName,
-        },
       );
     } else {
       throw new Error(`Unsupported IBC connection type: ${connection.type}`);

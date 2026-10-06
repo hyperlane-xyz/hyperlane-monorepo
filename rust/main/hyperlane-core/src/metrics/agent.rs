@@ -31,7 +31,7 @@ pub fn u256_as_scaled_f64_with_decimals(value: U256, decimals: u32) -> f64 {
 /// of the native token
 pub fn decimals_by_protocol(protocol: HyperlaneDomainProtocol) -> u8 {
     match protocol {
-        HyperlaneDomainProtocol::Cosmos | HyperlaneDomainProtocol::CosmosNative => COSMOS_DECIMALS,
+        HyperlaneDomainProtocol::CosmosNative => COSMOS_DECIMALS,
         HyperlaneDomainProtocol::Sealevel => SOLANA_DECIMALS,
         HyperlaneDomainProtocol::Aleo => ALEO_DECIMALS,
         _ => ETHEREUM_DECIMALS,

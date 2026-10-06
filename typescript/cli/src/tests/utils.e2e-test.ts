@@ -17,7 +17,7 @@ const TEST_ADDRESSES = {
     bytes32:
       '0xc6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61',
   },
-  [ProtocolType.Cosmos]: {
+  [ProtocolType.CosmosNative]: {
     address: 'cosmos1wxeyh7zgn4tctjzs0vtqpc6p5cxq5t2muzl7ng',
     bytes32:
       '0x00000000000000000000000071b24bf8489d5785c8507b1600e341a60c0a2d5b',
@@ -69,12 +69,16 @@ describe('hyperlane address e2e tests', async function () {
     it('should convert Cosmos address to bytes32', async () => {
       const { exitCode, stdout } =
         await $`${localTestRunCmdPrefix()} hyperlane address to-bytes32 \
-        --address ${TEST_ADDRESSES[ProtocolType.Cosmos].address} \
-        --protocol ${ProtocolType.Cosmos}`.nothrow();
+        --address ${TEST_ADDRESSES[ProtocolType.CosmosNative].address} \
+        --protocol ${ProtocolType.CosmosNative}`.nothrow();
 
       expect(exitCode).to.equal(0);
-      expect(stdout).to.include(TEST_ADDRESSES[ProtocolType.Cosmos].address);
-      expect(stdout).to.include(TEST_ADDRESSES[ProtocolType.Cosmos].bytes32);
+      expect(stdout).to.include(
+        TEST_ADDRESSES[ProtocolType.CosmosNative].address,
+      );
+      expect(stdout).to.include(
+        TEST_ADDRESSES[ProtocolType.CosmosNative].bytes32,
+      );
     });
 
     it('should handle already converted bytes32 address', async () => {
@@ -124,14 +128,16 @@ describe('hyperlane address e2e tests', async function () {
     it('should convert bytes32 to Cosmos address with prefix', async () => {
       const { exitCode, stdout } =
         await $`${localTestRunCmdPrefix()} hyperlane address from-bytes32 \
-        --bytes32 ${TEST_ADDRESSES[ProtocolType.Cosmos].bytes32} \
-        --protocol ${ProtocolType.Cosmos} \
-        --prefix ${TEST_ADDRESSES[ProtocolType.Cosmos].prefix}`.nothrow();
+        --bytes32 ${TEST_ADDRESSES[ProtocolType.CosmosNative].bytes32} \
+        --protocol ${ProtocolType.CosmosNative} \
+        --prefix ${TEST_ADDRESSES[ProtocolType.CosmosNative].prefix}`.nothrow();
 
       expect(exitCode).to.equal(0);
-      expect(stdout).to.include(TEST_ADDRESSES[ProtocolType.Cosmos].bytes32);
       expect(stdout).to.include(
-        `Prefix: ${TEST_ADDRESSES[ProtocolType.Cosmos].prefix}`,
+        TEST_ADDRESSES[ProtocolType.CosmosNative].bytes32,
+      );
+      expect(stdout).to.include(
+        `Prefix: ${TEST_ADDRESSES[ProtocolType.CosmosNative].prefix}`,
       );
       // Note: We check that an address is returned but don't validate exact match
       // due to potential encoding differences
@@ -141,12 +147,14 @@ describe('hyperlane address e2e tests', async function () {
     it('should convert bytes32 to Cosmos address with chain name', async () => {
       const { exitCode, stdout } =
         await $`${localTestRunCmdPrefix()} hyperlane address from-bytes32 \
-        --bytes32 ${TEST_ADDRESSES[ProtocolType.Cosmos].bytes32} \
-        --protocol ${ProtocolType.Cosmos} \
+        --bytes32 ${TEST_ADDRESSES[ProtocolType.CosmosNative].bytes32} \
+        --protocol ${ProtocolType.CosmosNative} \
         --chain cosmoshub`.nothrow();
 
       expect(exitCode).to.equal(0);
-      expect(stdout).to.include(TEST_ADDRESSES[ProtocolType.Cosmos].bytes32);
+      expect(stdout).to.include(
+        TEST_ADDRESSES[ProtocolType.CosmosNative].bytes32,
+      );
       expect(stdout).to.include('Chain: cosmoshub');
       expect(stdout).to.match(/Prefix: \w+/);
       expect(stdout).to.match(/Address: \w+/);
@@ -167,20 +175,20 @@ describe('hyperlane address e2e tests', async function () {
     it('should fail with clear error when prefix is missing for Cosmos', async () => {
       const { exitCode, stdout, stderr } =
         await $`${localTestRunCmdPrefix()} hyperlane address from-bytes32 \
-        --bytes32 ${TEST_ADDRESSES[ProtocolType.Cosmos].bytes32} \
-        --protocol ${ProtocolType.Cosmos}`.nothrow();
+        --bytes32 ${TEST_ADDRESSES[ProtocolType.CosmosNative].bytes32} \
+        --protocol ${ProtocolType.CosmosNative}`.nothrow();
 
       expect(exitCode).to.equal(1);
       const output = stdout + stderr;
-      expect(output).to.include('Prefix is required for cosmos');
+      expect(output).to.include('Prefix is required for cosmosnative');
       expect(output).to.match(/Use --prefix or --chain/);
     });
 
     it('should fail when both prefix and chain are provided', async () => {
       const { exitCode, stdout, stderr } =
         await $`${localTestRunCmdPrefix()} hyperlane address from-bytes32 \
-        --bytes32 ${TEST_ADDRESSES[ProtocolType.Cosmos].bytes32} \
-        --protocol ${ProtocolType.Cosmos} \
+        --bytes32 ${TEST_ADDRESSES[ProtocolType.CosmosNative].bytes32} \
+        --protocol ${ProtocolType.CosmosNative} \
         --prefix cosmos \
         --chain cosmoshub`.nothrow();
 

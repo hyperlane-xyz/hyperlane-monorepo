@@ -1,25 +1,4 @@
-use base64::{
-    engine::general_purpose::STANDARD as BASE64, prelude::BASE64_STANDARD_NO_PAD, Engine,
-};
-use once_cell::sync::Lazy;
-
-/// The event attribute key for the contract address.
-pub(crate) const CONTRACT_ADDRESS_ATTRIBUTE_KEY: &str = "_contract_address";
-/// Base64 encoded version of the contract address attribute key, i.e.
-pub(crate) static CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64: Lazy<String> =
-    Lazy::new(|| BASE64.encode(CONTRACT_ADDRESS_ATTRIBUTE_KEY));
-
-#[cfg(test)]
-/// Helper function to create a Vec<EventAttribute> from a JSON string -
-/// crate::payloads::general::EventAttribute has a Deserialize impl while
-/// cosmrs::tendermint::abci::EventAttribute does not.
-pub(crate) fn event_attributes_from_str(attrs_str: &str) -> Vec<cometbft::abci::EventAttribute> {
-    serde_json::from_str::<Vec<crate::cw::payloads::general::EventAttribute>>(attrs_str)
-        .unwrap()
-        .into_iter()
-        .map(|attr| attr.into())
-        .collect()
-}
+use base64::{prelude::BASE64_STANDARD_NO_PAD, Engine};
 
 use cometbft_rpc::endpoint::broadcast::tx_commit::Response;
 use cosmrs::{crypto::PublicKey, proto, tx::SignerPublicKey, Any};

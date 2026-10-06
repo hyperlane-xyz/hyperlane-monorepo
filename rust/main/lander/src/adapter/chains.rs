@@ -11,7 +11,6 @@ mod factory;
 // chains modules below
 #[cfg(feature = "aleo")]
 mod aleo;
-mod cosmos;
 pub mod ethereum;
 pub mod radix;
 pub mod sealevel;

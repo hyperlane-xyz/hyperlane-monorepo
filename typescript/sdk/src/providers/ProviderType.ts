@@ -1,8 +1,3 @@
-import type {
-  CosmWasmClient,
-  Contract as CosmWasmContract,
-  ExecuteInstruction,
-} from '@cosmjs/cosmwasm-stargate';
 import type { EncodeObject as CmTransaction } from '@cosmjs/proto-signing';
 import type { DeliverTxResponse, StargateClient } from '@cosmjs/stargate';
 import type {
@@ -70,7 +65,6 @@ export enum ProviderType {
   SolanaWeb3 = 'solana-web3',
   CosmJs = 'cosmjs',
   CosmJsNative = 'cosmjs-native',
-  CosmJsWasm = 'cosmjs-wasm',
   GnosisTxBuilder = 'gnosis-txBuilder',
   Starknet = 'starknet',
   ZkSync = 'zksync',
@@ -87,7 +81,6 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
 > = {
   [ProtocolType.Ethereum]: ProviderType.EthersV5,
   [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
-  [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
   [ProtocolType.CosmosNative]: ProviderType.CosmJsNative,
   [ProtocolType.Starknet]: ProviderType.Starknet,
   [ProtocolType.Radix]: ProviderType.Radix,
@@ -109,12 +102,6 @@ type ProtocolTypesMapping = {
     provider: SolanaWeb3Provider;
     contract: SolanaWeb3Contract;
     receipt: SolanaWeb3TransactionReceipt;
-  };
-  [ProtocolType.Cosmos]: {
-    transaction: CosmJsWasmTransaction;
-    provider: CosmJsWasmProvider;
-    contract: CosmJsWasmContract;
-    receipt: CosmJsWasmTransactionReceipt;
   };
   [ProtocolType.CosmosNative]: {
     transaction: CosmJsNativeTransaction;
@@ -219,13 +206,6 @@ export interface CosmJsProvider extends TypedProviderBase<
   provider: Promise<StargateClient>;
 }
 
-export interface CosmJsWasmProvider extends TypedProviderBase<
-  Promise<CosmWasmClient>
-> {
-  type: ProviderType.CosmJsWasm;
-  provider: Promise<CosmWasmClient>;
-}
-
 export interface CosmJsNativeProvider extends TypedProviderBase<
   Promise<CosmosNativeProvider>
 > {
@@ -269,7 +249,6 @@ export type TypedProvider =
   | ViemProvider
   | SolanaWeb3Provider
   | CosmJsProvider
-  | CosmJsWasmProvider
   | CosmJsNativeProvider
   | StarknetJsProvider
   | ZKSyncProvider
@@ -309,11 +288,6 @@ export interface CosmJsContract extends TypedContractBase<never> {
   contract: never;
 }
 
-export interface CosmJsWasmContract extends TypedContractBase<CosmWasmContract> {
-  type: ProviderType.CosmJsWasm;
-  contract: CosmWasmContract;
-}
-
 export interface StarknetJsContract extends TypedContractBase<StarknetContract> {
   type: ProviderType.Starknet;
   contract: StarknetContract;
@@ -330,7 +304,6 @@ export type TypedContract =
   | ViemContract
   | SolanaWeb3Contract
   | CosmJsContract
-  | CosmJsWasmContract
   | StarknetJsContract
   | ZKSyncBaseContract;
 
@@ -362,11 +335,6 @@ export interface SolanaWeb3Transaction extends TypedTransactionBase<SolTransacti
 export interface CosmJsTransaction extends TypedTransactionBase<CmTransaction> {
   type: ProviderType.CosmJs;
   transaction: CmTransaction;
-}
-
-export interface CosmJsWasmTransaction extends TypedTransactionBase<ExecuteInstruction> {
-  type: ProviderType.CosmJsWasm;
-  transaction: ExecuteInstruction;
 }
 
 export interface CosmJsNativeTransaction extends TypedTransactionBase<CmTransaction> {
@@ -405,7 +373,6 @@ export type TypedTransaction =
   | ViemTransaction
   | SolanaWeb3Transaction
   | CosmJsTransaction
-  | CosmJsWasmTransaction
   | CosmJsNativeTransaction
   | StarknetJsTransaction
   | ZKSyncTransaction
@@ -420,8 +387,6 @@ export type AnnotatedViemTransaction = Annotated<VTransaction>;
 export type AnnotatedSolanaWeb3Transaction = Annotated<SolTransaction>;
 
 export type AnnotatedCosmJsTransaction = Annotated<CmTransaction>;
-
-export type AnnotatedCosmJsWasmTransaction = Annotated<ExecuteInstruction>;
 
 export type AnnotatedCosmJsNativeTransaction = Annotated<CmTransaction>;
 
@@ -439,7 +404,6 @@ export type TypedAnnotatedTransaction =
   | AnnotatedViemTransaction
   | AnnotatedSolanaWeb3Transaction
   | AnnotatedCosmJsTransaction
-  | AnnotatedCosmJsWasmTransaction
   | AnnotatedCosmJsNativeTransaction
   | AnnotatedStarknetJsTransaction
   | AnnotatedZKSyncTransaction
@@ -472,11 +436,6 @@ export interface SolanaWeb3TransactionReceipt extends TypedTransactionReceiptBas
 
 export interface CosmJsTransactionReceipt extends TypedTransactionReceiptBase<DeliverTxResponse> {
   type: ProviderType.CosmJs;
-  receipt: DeliverTxResponse;
-}
-
-export interface CosmJsWasmTransactionReceipt extends TypedTransactionReceiptBase<DeliverTxResponse> {
-  type: ProviderType.CosmJsWasm;
   receipt: DeliverTxResponse;
 }
 
@@ -515,7 +474,6 @@ export type TypedTransactionReceipt =
   | ViemTransactionReceipt
   | SolanaWeb3TransactionReceipt
   | CosmJsTransactionReceipt
-  | CosmJsWasmTransactionReceipt
   | CosmJsNativeTransactionReceipt
   | StarknetJsTransactionReceipt
   | ZKSyncTransactionReceipt

@@ -7,7 +7,6 @@ import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.
 import { ChainName } from '../../types.js';
 import { TokenMetadata } from '../types.js';
 
-import { CwHypCollateralAdapter } from './CosmWasmTokenAdapter.js';
 import {
   IHypTokenAdapter,
   ITokenAdapter,
@@ -191,89 +190,5 @@ export class CosmIbcTokenAdapter
       typeUrl: '/ibc.applications.transfer.v1.MsgTransfer',
       value,
     };
-  }
-}
-
-// A wrapper for the CosmIbcTokenAdapter that adds support auto-initiated warp transfers
-// A.k.a. 'One-Click' cosmos to evm transfers
-export class CosmIbcToWarpTokenAdapter
-  extends CosmIbcTokenAdapter
-  implements IHypTokenAdapter<MsgTransferEncodeObject>
-{
-  constructor(
-    public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProviderAdapter,
-    public readonly addresses: {
-      intermediateRouterAddress: Address;
-      destinationRouterAddress: Address;
-    },
-    public readonly properties: CosmIbcTokenAdapter['properties'] & {
-      intermediateIbcDenom: string;
-      intermediateChainName: ChainName;
-    },
-  ) {
-    super(chainName, multiProvider, addresses, properties);
-  }
-
-  async quoteTransferRemoteGas({
-    destination: _destination,
-  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
-    // TODO implement IBC interchain transfer gas estimation here
-    return {
-      igpQuote: {
-        amount: 0n,
-        addressOrDenom: this.properties.intermediateIbcDenom,
-      },
-    };
-  }
-
-  async populateTransferRemoteTx(
-    transferParams: TransferRemoteParams,
-  ): Promise<MsgTransferEncodeObject> {
-    const cwAdapter = new CwHypCollateralAdapter(
-      this.properties.intermediateChainName,
-      this.multiProvider,
-      {
-        token: this.properties.intermediateIbcDenom,
-        warpRouter: this.addresses.intermediateRouterAddress,
-      },
-    );
-    const { interchainGas } = transferParams;
-    assert(
-      interchainGas?.igpQuote.addressOrDenom === this.properties.ibcDenom,
-      'Only same-denom interchain gas is supported for IBC to Warp transfers',
-    );
-    // This transformation is necessary to ensure the CW adapter recognizes the gas
-    // denom is the same as this adapter's denom (e.g. utia & igp/77...)
-    const intermediateInterchainGas = {
-      addressOrDenom: this.properties.intermediateIbcDenom,
-      amount: interchainGas?.igpQuote.amount || 0n,
-    };
-    const transfer = await cwAdapter.populateTransferRemoteTx({
-      ...transferParams,
-      interchainGas: { igpQuote: intermediateInterchainGas },
-    });
-    const cwMemo = {
-      wasm: {
-        contract: transfer.contractAddress,
-        msg: transfer.msg,
-        funds: transfer.funds,
-      },
-    };
-    const memo = JSON.stringify(cwMemo);
-    if (transfer.funds?.length !== 1) {
-      // Only transfers where the interchain gas denom matches the token are currently supported
-      throw new Error('Expected exactly one denom for IBC to Warp transfer');
-    }
-    // Grab amount from the funds details which accounts for interchain gas
-    const weiAmountOrId = transfer.funds[0].amount;
-    return super.populateTransferRemoteTx(
-      {
-        ...transferParams,
-        weiAmountOrId,
-        recipient: this.addresses.intermediateRouterAddress,
-      },
-      memo,
-    );
   }
 }

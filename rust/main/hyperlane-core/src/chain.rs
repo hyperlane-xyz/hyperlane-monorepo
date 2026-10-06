@@ -216,8 +216,6 @@ pub enum KnownHyperlaneDomain {
     SealevelTest2 = 13376,
     RadixTest0 = 9913374,
     RadixTest1 = 9913375,
-    CosmosTest99990 = 99990,
-    CosmosTest99991 = 99991,
     StarknetTest23448593 = 23448593,
     StarknetTest23448594 = 23448594,
     CosmosTestNative1 = 75898670,
@@ -284,8 +282,6 @@ pub enum HyperlaneDomainProtocol {
     Ethereum,
     /// A Sealevel-based chain type which uses hyperlane-sealevel.
     Sealevel,
-    /// A Cosmos-based chain type which uses hyperlane-cosmos.
-    Cosmos,
     /// A Starknet-based chain type which uses hyperlane-starknet.
     Starknet,
     /// A Cosmos based chain with uses a module instead of a contract.
@@ -360,10 +356,8 @@ impl KnownHyperlaneDomain {
             | SonicSvmTestnet
             | StarknetSepolia => HyperlaneDomainType::Testnet,
             Test1 | Test2 | Test3 | Test4 | SealevelTest1 | SealevelTest2 | RadixTest0
-            | RadixTest1 | CosmosTest99990 | CosmosTest99991 | CosmosTestNative1
-            | CosmosTestNative2 | StarknetTest23448593 | StarknetTest23448594 => {
-                HyperlaneDomainType::LocalTestChain
-            }
+            | RadixTest1 | CosmosTestNative1 | CosmosTestNative2 | StarknetTest23448593
+            | StarknetTest23448594 => HyperlaneDomainType::LocalTestChain,
             _ => HyperlaneDomainType::Mainnet,
         }
     }
@@ -372,7 +366,6 @@ impl KnownHyperlaneDomain {
         use KnownHyperlaneDomain::*;
         match self {
             // Local chains
-            CosmosTest99990 | CosmosTest99991 => HyperlaneDomainProtocol::Cosmos,
             CelestiaTestnet
             | CosmosTestNative1
             | CosmosTestNative2
@@ -603,7 +596,7 @@ impl HyperlaneDomain {
         use HyperlaneDomainProtocol::*;
         let protocol = self.domain_protocol();
         match protocol {
-            Ethereum | Cosmos | CosmosNative | Starknet | Tron => IndexMode::Block,
+            Ethereum | CosmosNative | Starknet | Tron => IndexMode::Block,
             Sealevel | Radix | Aleo => IndexMode::Sequence,
         }
     }
@@ -770,7 +763,6 @@ mod tests {
         protocol: HyperlaneDomainProtocol,
     ) {
         match (protocol_str, protocol) {
-            ("cosmos", HyperlaneDomainProtocol::Cosmos) => {}
             ("cosmosnative", HyperlaneDomainProtocol::CosmosNative) => {}
             ("ethereum", HyperlaneDomainProtocol::Ethereum) => {}
             ("sealevel", HyperlaneDomainProtocol::Sealevel) => {}

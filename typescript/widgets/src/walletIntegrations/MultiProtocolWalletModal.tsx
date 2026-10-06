@@ -51,9 +51,9 @@ export function MultiProtocolWalletModal({
             Solana
           </ProtocolButton>
         )}
-        {includesProtocol(ProtocolType.Cosmos) && (
+        {includesProtocol(ProtocolType.CosmosNative) && (
           <ProtocolButton
-            protocol={ProtocolType.Cosmos}
+            protocol={ProtocolType.CosmosNative}
             onClick={onClickProtocol}
             subTitle="a Cosmos"
           >

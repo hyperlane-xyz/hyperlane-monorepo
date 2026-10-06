@@ -387,7 +387,7 @@ function getUsdQuote(
   return quoteUsd;
 }
 
-// cosmwasm warp route somewhat arbitrarily chosen
+// Alt-VM warp route overhead somewhat arbitrarily chosen
 const FOREIGN_DEFAULT_OVERHEAD = 600_000;
 
 // Overhead for interchain messaging

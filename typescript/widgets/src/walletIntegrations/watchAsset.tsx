@@ -31,9 +31,6 @@ export function useWatchAsset(
       [ProtocolType.Sealevel]: {
         addAsset: solanaAddAsset,
       },
-      [ProtocolType.Cosmos]: {
-        addAsset: cosmosAddAsset,
-      },
       [ProtocolType.CosmosNative]: {
         addAsset: cosmosAddAsset,
       },

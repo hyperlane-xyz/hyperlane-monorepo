@@ -15,7 +15,6 @@ import {
   AleoProvider,
   CosmJsNativeProvider,
   CosmJsProvider,
-  CosmJsWasmProvider,
   EthersV5Provider,
   RadixProvider,
   SolanaWeb3Provider,
@@ -57,16 +56,8 @@ export class BaseEvmAdapter extends BaseAppAdapter {
   }
 }
 
-export class BaseCosmWasmAdapter extends BaseAppAdapter {
-  public readonly protocol: ProtocolType = ProtocolType.Cosmos;
-
-  public getProvider(): CosmJsWasmProvider['provider'] {
-    return this.multiProvider.getCosmJsWasmProvider(this.chainName);
-  }
-}
-
 export class BaseCosmosAdapter extends BaseAppAdapter {
-  public readonly protocol: ProtocolType = ProtocolType.Cosmos;
+  public readonly protocol: ProtocolType = ProtocolType.CosmosNative;
 
   public getProvider(): CosmJsProvider['provider'] {
     return this.multiProvider.getCosmJsProvider(this.chainName);

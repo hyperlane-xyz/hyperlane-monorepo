@@ -7,7 +7,6 @@ import {
   AleoProvider,
   CosmJsNativeProvider,
   CosmJsProvider,
-  CosmJsWasmProvider,
   EthersV5Provider,
   KnownProtocolType,
   ProviderType,
@@ -35,7 +34,6 @@ export async function isRpcHealthy(
   else if (provider.type === ProviderType.SolanaWeb3)
     return isSolanaWeb3ProviderHealthy(provider.provider, metadata);
   else if (
-    provider.type === ProviderType.CosmJsWasm ||
     provider.type === ProviderType.CosmJs ||
     provider.type === ProviderType.CosmJsNative
   )
@@ -94,10 +92,7 @@ export async function isSolanaWeb3ProviderHealthy(
 }
 
 export async function isCosmJsProviderHealthy(
-  provider:
-    | CosmJsProvider['provider']
-    | CosmJsWasmProvider['provider']
-    | CosmJsNativeProvider['provider'],
+  provider: CosmJsProvider['provider'] | CosmJsNativeProvider['provider'],
   metadata: ChainMetadata,
 ): Promise<boolean> {
   const readyProvider = await provider;

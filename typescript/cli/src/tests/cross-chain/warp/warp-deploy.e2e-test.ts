@@ -209,7 +209,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
     >,
     Address
   > = {
-    [ProtocolType.Cosmos]: 'hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5',
     [ProtocolType.CosmosNative]: 'hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5',
     [ProtocolType.Ethereum]: randomAddress(),
     [ProtocolType.Sealevel]: randomSvmAddress(),

@@ -1,10 +1,7 @@
 import { encodeSecp256k1Pubkey } from '@cosmjs/amino';
-import { wasmTypes } from '@cosmjs/cosmwasm-stargate';
-import { toUtf8 } from '@cosmjs/encoding';
 import { Uint53 } from '@cosmjs/math';
 import { Registry } from '@cosmjs/proto-signing';
 import { defaultRegistryTypes } from '@cosmjs/stargate';
-import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
 import { VersionedTransaction } from '@solana/web3.js';
 import {
   BigNumber,
@@ -13,11 +10,7 @@ import {
   utils as EthersV5Utils,
 } from 'ethers';
 
-import {
-  StargateClientCache,
-  disconnectStargateClient,
-  shouldCacheStargateClient,
-} from '@hyperlane-xyz/cosmos-sdk';
+import { StargateClientCache } from '@hyperlane-xyz/cosmos-sdk';
 import {
   Address,
   HexString,
@@ -37,8 +30,6 @@ import {
   CosmJsNativeTransaction,
   CosmJsProvider,
   CosmJsTransaction,
-  CosmJsWasmProvider,
-  CosmJsWasmTransaction,
   EthersV5Provider,
   ProviderType,
   RadixProvider,
@@ -76,10 +67,6 @@ const stargateClientCache = new StargateClientCache(32);
 
 export function clearCachedStargateClients(): void {
   stargateClientCache.clear();
-}
-
-function getStargateClient(url: string) {
-  return stargateClientCache.get(url);
 }
 
 export async function estimateTransactionFeeEthersV5({
@@ -283,7 +270,7 @@ export async function estimateTransactionFeeCosmJs({
 }): Promise<TransactionFeeEstimate> {
   const stargateClient = await provider.provider;
   const message = transaction.transaction;
-  const registry = new Registry([...defaultRegistryTypes, ...wasmTypes]);
+  const registry = new Registry(defaultRegistryTypes);
   const encodedMsg = registry.encodeAsAny(message);
   const encodedPubkey = encodeSecp256k1Pubkey(Buffer.from(senderPubKey, 'hex'));
   const { sequence } = await stargateClient.getSequence(sender);
@@ -301,56 +288,6 @@ export async function estimateTransactionFeeCosmJs({
     gasPrice,
     fee: Math.floor(gasUnits * gasPrice),
   };
-}
-
-export async function estimateTransactionFeeCosmJsWasm({
-  transaction,
-  provider,
-  estimatedGasPrice,
-  sender,
-  senderPubKey,
-  memo,
-}: {
-  transaction: CosmJsWasmTransaction;
-  provider: CosmJsWasmProvider;
-  estimatedGasPrice: Numberish;
-  sender: Address;
-  senderPubKey: HexString;
-  memo?: string;
-}): Promise<TransactionFeeEstimate> {
-  const message = {
-    typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
-    value: MsgExecuteContract.fromPartial({
-      sender,
-      contract: transaction.transaction.contractAddress,
-      msg: toUtf8(JSON.stringify(transaction.transaction.msg)),
-      funds: [...(transaction.transaction.funds || [])],
-    }),
-  };
-  const wasmClient = await provider.provider;
-  // @ts-ignore access a private field here to extract client URL
-  const url: string = wasmClient.cometClient.client.url;
-  const stargateClient = getStargateClient(url);
-
-  try {
-    return await estimateTransactionFeeCosmJs({
-      transaction: { type: ProviderType.CosmJs, transaction: message },
-      provider: { type: ProviderType.CosmJs, provider: stargateClient },
-      estimatedGasPrice,
-      sender,
-      senderPubKey,
-      memo,
-    });
-  } catch (error) {
-    stargateClientCache.evict(url, stargateClient);
-    throw error;
-  } finally {
-    if (!shouldCacheStargateClient(url)) {
-      disconnectStargateClient(stargateClient);
-    } else {
-      stargateClientCache.release(stargateClient);
-    }
-  }
 }
 
 export async function estimateTransactionFeeCosmJsNative({
@@ -466,21 +403,6 @@ export function estimateTransactionFee({
     assert(estimatedGasPrice, 'gasPrice required for CosmJS gas estimation');
     assert(senderPubKey, 'senderPubKey required for CosmJS gas estimation');
     return estimateTransactionFeeCosmJs({
-      transaction,
-      provider,
-      estimatedGasPrice,
-      sender,
-      senderPubKey,
-    });
-  } else if (
-    transaction.type === ProviderType.CosmJsWasm &&
-    provider.type === ProviderType.CosmJsWasm
-  ) {
-    const { transactionOverrides } = chainMetadata;
-    const estimatedGasPrice = transactionOverrides?.gasPrice as Numberish;
-    assert(estimatedGasPrice, 'gasPrice required for CosmJS gas estimation');
-    assert(senderPubKey, 'senderPubKey required for CosmJS gas estimation');
-    return estimateTransactionFeeCosmJsWasm({
       transaction,
       provider,
       estimatedGasPrice,

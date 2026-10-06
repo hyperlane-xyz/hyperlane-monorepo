@@ -168,7 +168,6 @@ export class AgentGCPKey extends CloudAgentKey {
       case ProtocolType.Starknet:
         // Assumes that the address is base58 encoded in secrets manager
         return ethers.utils.hexlify(ethers.utils.base58.decode(this.address));
-      case ProtocolType.Cosmos:
       case ProtocolType.CosmosNative: {
         const compressedPubkey = ethers.utils.computePublicKey(
           this.privateKey,

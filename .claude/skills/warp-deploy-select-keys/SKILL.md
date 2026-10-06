@@ -7,7 +7,7 @@ description: Preflight that resolves which private key(s) to use for the warp-de
 
 You are resolving which private key(s) the warp-deploy chain should use for signing across every protocol in the route. Run this BEFORE any of `/warp-deploy-fund-deployer`, `/warp-deploy-validate-owners`, `/warp-deploy-init-route`, `/warp-deploy-update-owners`, `/warp-update-extend` — or have those skills invoke this one when the artifact is missing.
 
-A single route can span multiple protocols (e.g., `ethereum` + `sealevel` + `cosmos`) — each needs its own key. This skill walks every required protocol and resolves them in one pass.
+A single route can span multiple protocols (e.g., `ethereum` + `sealevel` + `cosmosnative`) — each needs its own key. This skill walks every required protocol and resolves them in one pass.
 
 ## Input
 
@@ -29,15 +29,15 @@ If neither is supplied for a required protocol, the skill halts and asks the use
 
 Read the Linear ticket's connected chains and map each to its protocol. The protocol determines both the candidate-secret naming convention and the address-derivation command in Step 5.
 
-| Protocol   | Chain examples                                                      | CLI flag         |
-| ---------- | ------------------------------------------------------------------- | ---------------- |
-| `ethereum` | EVM: ethereum, arbitrum, base, optimism, polygon, avalanche, bsc, … | `--key.ethereum` |
-| `sealevel` | solanamainnet, eclipsemainnet                                       | `--key.sealevel` |
-| `cosmos`   | neutron, osmosis, kyve, dydx, …                                     | `--key.cosmos`   |
-| `starknet` | starknet                                                            | `--key.starknet` |
-| `tron`     | tron                                                                | `--key.tron`     |
+| Protocol       | Chain examples                                                      | CLI flag             |
+| -------------- | ------------------------------------------------------------------- | -------------------- |
+| `ethereum`     | EVM: ethereum, arbitrum, base, optimism, polygon, avalanche, bsc, … | `--key.ethereum`     |
+| `sealevel`     | solanamainnet, eclipsemainnet                                       | `--key.sealevel`     |
+| `cosmosnative` | neutron, osmosis, kyve, dydx, …                                     | `--key.cosmosnative` |
+| `starknet`     | starknet                                                            | `--key.starknet`     |
+| `tron`         | tron                                                                | `--key.tron`         |
 
-You need ONE key per unique protocol that appears in the route. A pure-EVM route (e.g. base ↔ arbitrum) needs only `ethereum`. A cross-VM route (e.g. ethereum + solanamainnet + neutron) needs `ethereum` + `sealevel` + `cosmos` — three keys, resolved in this skill in one pass.
+You need ONE key per unique protocol that appears in the route. A pure-EVM route (e.g. base ↔ arbitrum) needs only `ethereum`. A cross-VM route (e.g. ethereum + solanamainnet + neutron) needs `ethereum` + `sealevel` + `cosmosnative` — three keys, resolved in this skill in one pass.
 
 Show the user the protocol set and confirm before proceeding to enumeration / verification.
 
@@ -195,7 +195,7 @@ print(base58.b58encode(pk).decode())
 
 If `python3 -c "import nacl"` fails (`pynacl` missing), fall back to `solana-keygen pubkey` against a tmpfile with the key written as a JSON byte array; if that's also unavailable, halt the protocol resolution and ask the user to supply the SVM deployer address explicitly.
 
-#### `cosmos`
+#### `cosmosnative`
 
 Hyperlane Cosmos keys are typically hex-encoded secp256k1 private keys or BIP-39 mnemonics. For the secp256k1 hex case, derive the bech32 address (chain prefix varies per chain):
 
@@ -250,7 +250,7 @@ After Steps 4–5 have run for every required protocol, show the full table and 
 Protocol  | Source      | Name                          | Address
 ethereum  | gcp-secret  | hyp-mainnet-deployer-test     | 0xabc...0913
 sealevel  | gcp-secret  | hyp-svm-deployer              | BNGDJ1h…URwJ
-cosmos    | gcp-secret  | hyp-cosmos-signer             | neutron1abc...xyz
+cosmosnative | gcp-secret | hyp-cosmos-signer            | neutron1abc...xyz
 ```
 
 ```test
@@ -271,7 +271,7 @@ keys:
     source: gcp-secret
     name: hyp-svm-deployer
     address: 'BNGDJ1h...URwJ'
-  cosmos:
+  cosmosnative:
     source: gcp-secret
     name: hyp-cosmos-signer
     address: 'neutron1abc...xyz'
