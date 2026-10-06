@@ -169,7 +169,7 @@ fn contracts() -> Contracts {
 }
 
 /// Model the explicit operator acknowledgement used by legacy cutover fixtures.
-async fn seed_verified_cutover(store: &Store, anchor: &Header) -> Result<()> {
+async fn seed_cutover(store: &Store, anchor: &Header) -> Result<()> {
     let tx = store.db.begin().await?;
     let contracts = contracts();
     let domain = i32::from_ne_bytes(store.domain.to_ne_bytes());
@@ -503,7 +503,7 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     assert_eq!(count(&store, "confirmed_merkle_tree_insertion").await?, 1);
     let chain = Chain::new(3);
     let anchor = chain.header(0u64.into()).await?;
-    seed_verified_cutover(&store, &anchor).await?;
+    seed_cutover(&store, &anchor).await?;
     store.initialize(&anchor, &contracts()).await?;
     store.claim(Duration::from_secs(60)).await?;
     store
@@ -841,11 +841,7 @@ async fn append_refreshes_the_confirmation_lease_after_a_slow_fetch() -> Result<
         )
         .await?;
     store
-        .append(
-            &observed,
-            &[(chain.header(1u64.into()).await?, vec![])],
-            Some(1),
-        )
+        .append(&observed, &[(chain.header(1u64.into()).await?, vec![])])
         .await?;
     assert_eq!(confirm(&chain, &store, &ReorgPeriod::None).await?, [0; 4]);
     assert_eq!(store.state().await?.unwrap().confirmed, 1);
@@ -1054,7 +1050,7 @@ async fn incomplete_sequences_retry_after_restart_and_dense_ranges_batch_atomica
     let mut invalid = events.clone();
     invalid.push(events[0].clone());
     assert!(store
-        .append(&state, &[(header.clone(), invalid)], Some(header.height))
+        .append(&state, &[(header.clone(), invalid)])
         .await
         .is_err());
     assert_eq!(store.state().await?.unwrap().indexed, 0);
@@ -1190,11 +1186,7 @@ async fn receipt_timeouts_do_not_starve_cached_neighbors_across_sweeps() -> Resu
     poison.tx_hash = Some(H256::repeat_byte(99).into());
     events.push(poison);
     store
-        .append(
-            &state,
-            &[(chain.header(2u64.into()).await?, events)],
-            Some(2),
-        )
+        .append(&state, &[(chain.header(2u64.into()).await?, events)])
         .await?;
     confirm(&chain, &store, &ReorgPeriod::from_blocks(0)).await?;
     store
@@ -1370,8 +1362,8 @@ async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Resul
 }
 
 #[tokio::test]
-async fn automatic_cutover_rejects_partial_legacy_history_and_reuses_verified_boundary(
-) -> Result<()> {
+async fn automatic_cutover_rejects_partial_legacy_history_and_reuses_saved_boundary() -> Result<()>
+{
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let db = Database::connect(format!(
         "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
@@ -1421,7 +1413,7 @@ async fn automatic_cutover_rejects_partial_legacy_history_and_reuses_verified_bo
     // An operator-verified cutover explicitly seeds the saved boundary. This
     // fixture models that acknowledgement, not proof of historical completeness.
     let anchor = chain.header(30u64.into()).await?;
-    seed_verified_cutover(&store, &anchor).await?;
+    seed_cutover(&store, &anchor).await?;
     prepare(&chain, &store, &anchor, &contracts(), &ReorgPeriod::None).await?;
     store
         .db

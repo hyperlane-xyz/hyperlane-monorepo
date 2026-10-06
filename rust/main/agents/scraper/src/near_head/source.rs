@@ -62,13 +62,6 @@ pub(super) enum EventData {
 pub(super) struct EventBatch {
     pub events: Vec<Event>,
     pub indexed_through: Option<u64>,
-    /// Stream counts at `indexed_through`, when the indexer can prove them at
-    /// that exact boundary. Block-mode ingestion uses these to reject a
-    /// silently truncated range.
-    pub end_counts: [Option<u32>; 4],
-    /// Streams whose indexers expose sequence counts. A missing end count for
-    /// one of these streams makes this boundary unsafe to publish.
-    pub count_capable: [bool; 4],
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -116,8 +109,6 @@ pub(super) trait Source: Send + Sync {
         Ok(EventBatch {
             events: self.events(from, through).await?,
             indexed_through: None,
-            end_counts: [None; 4],
-            count_capable: [false; 4],
         })
     }
     /// Dispatch nonce and Merkle count, pinned to the range boundary fork.
@@ -126,11 +117,6 @@ pub(super) trait Source: Send + Sync {
         true
     }
     fn indexes_by_sequence(&self) -> bool {
-        false
-    }
-    /// Whether a successful block-range query proves it scanned through the
-    /// requested boundary without relying on a boundary sequence count.
-    fn block_ranges_are_complete(&self) -> bool {
         false
     }
     /// Highest block for which every event stream can return a complete range.
@@ -373,7 +359,6 @@ pub(super) struct GenericSource {
     contracts: Contracts,
     sequence_mode: bool,
     derive_insertions_from_messages: bool,
-    complete_block_ranges: bool,
     chunk_size: u32,
     headers: RwLock<HashMap<u64, Header>>,
 }
@@ -402,12 +387,6 @@ impl GenericSource {
             derive_insertions_from_messages: matches!(
                 conf.connection.protocol(),
                 HyperlaneDomainProtocol::Sealevel
-            ),
-            // Radix's paginated transaction stream rejects a range until the
-            // Gateway API has reached its end, then scans every page through it.
-            complete_block_ranges: matches!(
-                conf.connection.protocol(),
-                HyperlaneDomainProtocol::Radix
             ),
             chunk_size: conf.index.chunk_size,
             headers: RwLock::new(HashMap::new()),
@@ -449,74 +428,17 @@ impl GenericSource {
         next_sequence: u32,
         sequence_mode: bool,
         chunk_size: u32,
-    ) -> Result<(Vec<(Indexed<T>, LogMeta)>, u32, Option<u32>, bool)> {
+    ) -> Result<(Vec<(Indexed<T>, LogMeta)>, u32)> {
         let (count, tip) = indexer.latest_sequence_count_and_tip().await?;
-        let count_capable = count.is_some();
         ensure!(
             tip >= *blocks.end(),
             "Event-stream tip is behind the range boundary"
         );
         if !sequence_mode {
-            let Some(count) = count else {
-                return Ok((
-                    indexer.fetch_logs_in_range(blocks.clone()).await?,
-                    *blocks.end(),
-                    None,
-                    false,
-                ));
-            };
-            ensure!(
-                count >= next_sequence,
-                "Provider sequence count is behind durable history"
-            );
-            // Counts are only valid at the stream's independently sampled tip.
-            // Scan through that tip, validate every remaining sequence, then
-            // derive the count at the common block boundary. This avoids both
-            // cross-fork count reuse and starvation when stream tips differ.
-            let mut logs = indexer.fetch_logs_in_range(*blocks.start()..=tip).await?;
-            logs.sort_by_key(|(indexed, _)| indexed.sequence);
-            let mut expected = next_sequence;
-            let mut boundary_count = next_sequence;
-            let mut previous_block = None;
-            let mut previous_sequence = None;
-            for (indexed, meta) in &logs {
-                let sequence = indexed
-                    .sequence
-                    .ok_or_else(|| eyre!("Counted event omitted its sequence"))?;
-                if previous_sequence == Some(sequence) {
-                    ensure!(
-                        previous_block == Some(meta.block_number),
-                        "Duplicate sequence moved between blocks"
-                    );
-                    continue;
-                }
-                ensure!(
-                    sequence == expected,
-                    "Indexer returned an incomplete block range"
-                );
-                ensure!(
-                    previous_block.is_none_or(|height| height <= meta.block_number),
-                    "Indexer returned sequences out of block order"
-                );
-                ensure!(
-                    (u64::from(*blocks.start())..=u64::from(tip)).contains(&meta.block_number),
-                    "Indexer returned an event outside the requested range"
-                );
-                previous_block = Some(meta.block_number);
-                previous_sequence = Some(sequence);
-                expected = expected
-                    .checked_add(1)
-                    .ok_or_else(|| eyre!("Sequence range overflow"))?;
-                if meta.block_number <= u64::from(*blocks.end()) {
-                    boundary_count = expected;
-                }
-            }
-            ensure!(
-                expected == count,
-                "Indexer returned an incomplete block range"
-            );
-            logs.retain(|(_, meta)| meta.block_number <= u64::from(*blocks.end()));
-            return Ok((logs, *blocks.end(), Some(boundary_count), count_capable));
+            return Ok((
+                indexer.fetch_logs_in_range(blocks.clone()).await?,
+                *blocks.end(),
+            ));
         }
         let count = count.ok_or_else(|| eyre!("Indexer does not expose a sequence count"))?;
         ensure!(
@@ -524,7 +446,7 @@ impl GenericSource {
             "Provider sequence count is behind durable history"
         );
         if count == next_sequence {
-            return Ok((Vec::new(), tip.min(*blocks.end()), None, true));
+            return Ok((Vec::new(), tip.min(*blocks.end())));
         }
         ensure!(chunk_size > 0, "index.chunk must be positive");
         let mut logs = Vec::new();
@@ -591,8 +513,6 @@ impl GenericSource {
         Ok((
             logs,
             indexed_through.ok_or_else(|| eyre!("Sequence page made no progress"))?,
-            None,
-            true,
         ))
     }
 
@@ -754,10 +674,6 @@ impl Source for GenericSource {
         self.sequence_mode
     }
 
-    fn block_ranges_are_complete(&self) -> bool {
-        self.complete_block_ranges
-    }
-
     async fn indexing_tip(&self) -> Result<Option<u64>> {
         let [messages, deliveries, payments, insertions] = self.latest_streams().await?;
         Ok([messages.1, deliveries.1, payments.1, insertions.1]
@@ -824,7 +740,7 @@ impl Source for GenericSource {
             ),
             async {
                 if self.derive_insertions_from_messages {
-                    Ok((Vec::new(), u32::try_from(through)?, None, true))
+                    Ok((Vec::new(), u32::try_from(through)?))
                 } else {
                     Self::logs(
                         self.insertions.as_ref(),
@@ -837,15 +753,12 @@ impl Source for GenericSource {
                 }
             },
         )?;
-        let (messages, message_through, message_count, message_count_capable) = messages;
-        let (deliveries, delivery_through, delivery_count, delivery_count_capable) = deliveries;
-        let (payments, payment_through, payment_count, payment_count_capable) = payments;
-        let (insertions, mut insertion_through, mut insertion_count, mut insertion_count_capable) =
-            insertions;
+        let (messages, message_through) = messages;
+        let (deliveries, delivery_through) = deliveries;
+        let (payments, payment_through) = payments;
+        let (insertions, mut insertion_through) = insertions;
         if self.derive_insertions_from_messages {
             insertion_through = message_through;
-            insertion_count = message_count;
-            insertion_count_capable = message_count_capable;
         }
         let indexed_through = [
             message_through,
@@ -907,18 +820,6 @@ impl Source for GenericSource {
         Ok(EventBatch {
             events,
             indexed_through: Some(u64::from(indexed_through)),
-            end_counts: [
-                message_count,
-                delivery_count,
-                payment_count,
-                insertion_count,
-            ],
-            count_capable: [
-                message_count_capable,
-                delivery_count_capable,
-                payment_count_capable,
-                insertion_count_capable,
-            ],
         })
     }
 }
@@ -1047,7 +948,6 @@ mod tests {
             },
             sequence_mode: false,
             derive_insertions_from_messages: false,
-            complete_block_ranges: false,
             chunk_size: 1,
             headers: RwLock::new(HashMap::new()),
         };
@@ -1086,7 +986,6 @@ mod tests {
             },
             sequence_mode: true,
             derive_insertions_from_messages: false,
-            complete_block_ranges: false,
             chunk_size: 1,
             headers: RwLock::new(HashMap::new()),
         };
@@ -1111,119 +1010,6 @@ mod tests {
         requests: Mutex<Vec<RangeInclusive<u32>>>,
     }
 
-    #[derive(Debug)]
-    struct AdvancingTipIndexer<T> {
-        calls: AtomicUsize,
-        offset: u32,
-        marker: PhantomData<T>,
-    }
-
-    fn advancing_indexer<T>(offset: u32) -> AdvancingTipIndexer<T> {
-        AdvancingTipIndexer {
-            calls: AtomicUsize::new(0),
-            offset,
-            marker: PhantomData,
-        }
-    }
-
-    #[async_trait]
-    impl<T: Send + Sync + std::fmt::Debug> hyperlane_core::Indexer<T> for AdvancingTipIndexer<T> {
-        async fn fetch_logs_in_range(
-            &self,
-            _range: RangeInclusive<u32>,
-        ) -> hyperlane_core::ChainResult<Vec<(Indexed<T>, LogMeta)>> {
-            Ok(Vec::new())
-        }
-
-        async fn get_finalized_block_number(&self) -> hyperlane_core::ChainResult<u32> {
-            Ok(200)
-        }
-    }
-
-    #[async_trait]
-    impl<T: Send + Sync + std::fmt::Debug> SequenceAwareIndexer<T> for AdvancingTipIndexer<T> {
-        async fn latest_sequence_count_and_tip(
-            &self,
-        ) -> hyperlane_core::ChainResult<(Option<u32>, u32)> {
-            Ok((
-                Some(0),
-                200_u32.saturating_add(self.offset).saturating_add(
-                    u32::try_from(self.calls.fetch_add(1, Ordering::SeqCst)).unwrap_or(u32::MAX),
-                ),
-            ))
-        }
-    }
-
-    #[tokio::test]
-    async fn block_counts_are_derived_at_the_common_boundary() -> Result<()> {
-        let calls = Arc::new(AtomicUsize::new(0));
-        let source = GenericSource {
-            provider: Box::new(CountingProvider {
-                domain: hyperlane_core::HyperlaneDomain::new_test_domain("moving-tip"),
-                calls,
-            }),
-            messages: Box::new(advancing_indexer(0)),
-            deliveries: Box::new(advancing_indexer(1)),
-            payments: Box::new(advancing_indexer(2)),
-            insertions: Box::new(advancing_indexer(3)),
-            contracts: Contracts {
-                mailbox: H256::zero(),
-                hook: H256::zero(),
-                paymaster: H256::zero(),
-            },
-            sequence_mode: false,
-            derive_insertions_from_messages: false,
-            complete_block_ranges: false,
-            chunk_size: 1_000,
-            headers: RwLock::new(HashMap::new()),
-        };
-
-        assert_eq!(source.indexing_tip().await?, Some(200));
-        let batch = source.events_after(1, 200, [0; 4]).await?;
-        assert_eq!(batch.end_counts, [Some(0); 4]);
-        Ok(())
-    }
-
-    #[derive(Debug)]
-    struct OmittingCountIndexer<T>(PhantomData<T>);
-
-    #[async_trait]
-    impl<T: Send + Sync + std::fmt::Debug> hyperlane_core::Indexer<T> for OmittingCountIndexer<T> {
-        async fn fetch_logs_in_range(
-            &self,
-            _range: RangeInclusive<u32>,
-        ) -> hyperlane_core::ChainResult<Vec<(Indexed<T>, LogMeta)>> {
-            Ok(Vec::new())
-        }
-
-        async fn get_finalized_block_number(&self) -> hyperlane_core::ChainResult<u32> {
-            Ok(8)
-        }
-    }
-
-    #[async_trait]
-    impl<T: Send + Sync + std::fmt::Debug> SequenceAwareIndexer<T> for OmittingCountIndexer<T> {
-        async fn latest_sequence_count_and_tip(
-            &self,
-        ) -> hyperlane_core::ChainResult<(Option<u32>, u32)> {
-            Ok((Some(1), 8))
-        }
-    }
-
-    #[tokio::test]
-    async fn block_count_rejects_an_omitted_tail() {
-        let error = GenericSource::logs(
-            &OmittingCountIndexer::<HyperlaneMessage>(PhantomData),
-            7..=7,
-            0,
-            false,
-            1_000,
-        )
-        .await
-        .expect_err("counted event omission must fail");
-        assert!(error.to_string().contains("incomplete block range"));
-    }
-
     #[async_trait]
     impl hyperlane_core::Indexer<HyperlaneMessage> for SequenceIndexer {
         async fn fetch_logs_in_range(
@@ -1234,21 +1020,12 @@ mod tests {
                 .lock()
                 .expect("request mutex poisoned")
                 .push(range.clone());
-            let sequences: Vec<_> = if *range.start() >= 100 {
-                (7..self.count)
-                    .zip(range.clone())
-                    .map(|(sequence, block)| (sequence, block))
-                    .collect()
-            } else {
-                range.clone().map(|sequence| (sequence, sequence)).collect()
-            };
-            let mut logs: Vec<_> = sequences
-                .into_iter()
-                .map(|(sequence, block)| {
+            let mut logs: Vec<_> = range
+                .map(|sequence| {
                     (
                         Indexed::new(HyperlaneMessage::default()).with_sequence(sequence),
                         LogMeta {
-                            block_number: u64::from(block),
+                            block_number: u64::from(sequence),
                             ..LogMeta::default()
                         },
                     )
@@ -1287,21 +1064,6 @@ mod tests {
             *indexer.requests.lock().expect("request mutex poisoned"),
             vec![7..=8]
         );
-        indexer
-            .requests
-            .lock()
-            .expect("request mutex poisoned")
-            .clear();
-        let (_, indexed_through, end_count, count_capable) =
-            GenericSource::logs(&indexer, 100..=200, 7, false, 2).await?;
-        assert_eq!(indexed_through, 200);
-        assert_eq!(end_count, Some(10));
-        assert!(count_capable);
-        assert_eq!(
-            *indexer.requests.lock().expect("request mutex poisoned"),
-            vec![100..=200]
-        );
-
         assert!(GenericSource::logs(&indexer, 100..=200, 11, true, 2)
             .await
             .is_err());
@@ -1324,7 +1086,6 @@ mod tests {
         };
         let bounded_result = GenericSource::logs(&bounded, 0..=3, 0, true, 2).await?;
         assert_eq!(bounded_result.1, 0);
-        assert_eq!(bounded_result.2, None);
         assert_eq!(
             *bounded.requests.lock().expect("request mutex poisoned"),
             vec![0..=1]

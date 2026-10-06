@@ -13,7 +13,6 @@ use super::source::{Contracts, Event, EventData, Header};
 #[derive(Debug, Clone)]
 pub(super) struct State {
     pub indexed: u64,
-    pub verified: Option<u64>,
     pub hash: H256,
     pub confirmed: u64,
     pub head: u64,
@@ -67,14 +66,10 @@ impl Store {
 
     pub async fn state(&self) -> Result<Option<State>> {
         self.db.query_one(sql(
-            "SELECT indexed_height,verified_height,indexed_hash,confirmed_height,head_height,halted FROM scraper_head WHERE domain=$1",
+            "SELECT indexed_height,indexed_hash,confirmed_height,head_height,halted FROM scraper_head WHERE domain=$1",
             vec![self.domain()],
         )).await?.map(|row| Ok(State {
             indexed: u64::try_from(row.try_get::<i64>("", "indexed_height")?)?,
-            verified: row
-                .try_get::<Option<i64>>("", "verified_height")?
-                .map(u64::try_from)
-                .transpose()?,
             hash: H256::from_slice(&row.try_get::<Vec<u8>>("", "indexed_hash")?),
             confirmed: u64::try_from(row.try_get::<i64>("", "confirmed_height")?)?,
             head: u64::try_from(row.try_get::<i64>("", "head_height")?)?,
@@ -111,18 +106,7 @@ impl Store {
         Ok(())
     }
 
-    #[cfg(test)]
     pub async fn initialize(&self, anchor: &Header, contracts: &Contracts) -> Result<()> {
-        self.initialize_with_rollback(anchor, contracts, false)
-            .await
-    }
-
-    pub async fn initialize_with_rollback(
-        &self,
-        anchor: &Header,
-        contracts: &Contracts,
-        legacy_on_downgrade: bool,
-    ) -> Result<()> {
         let tx = self.db.begin().await?;
         tx.execute(sql(
             "SELECT pg_advisory_xact_lock($1)",
@@ -146,8 +130,8 @@ impl Store {
             // since anchor selection. Existing domains require operator cutover.
             self.ensure_empty_history(&tx).await?;
             tx.execute(sql(
-                "INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster,legacy_on_downgrade) VALUES($1,$2,$2,$3,$2,$2,$4,$5,$6,$7)",
-                vec![self.domain(), number(anchor.height)?, bytes(anchor.hash), address_to_bytes(&contracts.mailbox).into(), address_to_bytes(&contracts.hook).into(), address_to_bytes(&contracts.paymaster).into(), legacy_on_downgrade.into()],
+                "INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster) VALUES($1,$2,$2,$3,$2,$2,$4,$5,$6)",
+                vec![self.domain(), number(anchor.height)?, bytes(anchor.hash), address_to_bytes(&contracts.mailbox).into(), address_to_bytes(&contracts.hook).into(), address_to_bytes(&contracts.paymaster).into()],
             )).await?;
             tx.execute(sql(
                 "INSERT INTO scraper_checkpoint(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC')",
@@ -155,16 +139,6 @@ impl Store {
             )).await?;
         }
         tx.commit().await?;
-        Ok(())
-    }
-
-    pub async fn mark_legacy_on_downgrade(&self) -> Result<()> {
-        self.db
-            .execute(sql(
-                "UPDATE scraper_head SET legacy_on_downgrade=true WHERE domain=$1 AND NOT legacy_on_downgrade",
-                vec![self.domain()],
-            ))
-            .await?;
         Ok(())
     }
 
@@ -219,20 +193,6 @@ impl Store {
             "SELECT coalesce((SELECT max(nonce::bigint & 4294967295)+1 FROM raw_message_dispatch WHERE origin_domain=$1 AND origin_mailbox=(SELECT mailbox FROM scraper_head WHERE domain=$1)),0) AS dispatches, coalesce((SELECT max(sequence)+1 FROM delivered_message WHERE domain=$1 AND destination_mailbox=(SELECT mailbox FROM scraper_head WHERE domain=$1)),0) AS deliveries, coalesce((SELECT max(sequence)+1 FROM gas_payment WHERE domain=$1 AND interchain_gas_paymaster=(SELECT interchain_gas_paymaster FROM scraper_head WHERE domain=$1)),0) AS payments, coalesce((SELECT max(leaf_index::bigint & 4294967295)+1 FROM merkle_tree_insertion WHERE domain=$1 AND merkle_tree_hook=(SELECT merkle_tree_hook FROM scraper_head WHERE domain=$1)),0) AS insertions",
             vec![self.domain()],
         )).await?.ok_or_else(|| eyre::eyre!("Missing sequence counts"))?;
-        Ok([
-            u32::try_from(row.try_get::<i64>("", "dispatches")?)?,
-            u32::try_from(row.try_get::<i64>("", "deliveries")?)?,
-            u32::try_from(row.try_get::<i64>("", "payments")?)?,
-            u32::try_from(row.try_get::<i64>("", "insertions")?)?,
-        ])
-    }
-
-    /// Next expected sequences in already published history.
-    pub async fn confirmed_sequence_counts(&self) -> Result<[u32; 4]> {
-        let row = self.db.query_one(sql(
-            "SELECT coalesce((SELECT max(nonce::bigint & 4294967295)+1 FROM confirmed_raw_message_dispatch WHERE origin_domain=$1 AND origin_mailbox=(SELECT mailbox FROM scraper_head WHERE domain=$1)),0) AS dispatches, coalesce((SELECT max(sequence)+1 FROM confirmed_delivered_message WHERE domain=$1 AND destination_mailbox=(SELECT mailbox FROM scraper_head WHERE domain=$1)),0) AS deliveries, coalesce((SELECT max(sequence)+1 FROM confirmed_gas_payment WHERE domain=$1 AND interchain_gas_paymaster=(SELECT interchain_gas_paymaster FROM scraper_head WHERE domain=$1)),0) AS payments, coalesce((SELECT max(leaf_index::bigint & 4294967295)+1 FROM confirmed_merkle_tree_insertion WHERE domain=$1 AND merkle_tree_hook=(SELECT merkle_tree_hook FROM scraper_head WHERE domain=$1)),0) AS insertions",
-            vec![self.domain()],
-        )).await?.ok_or_else(|| eyre::eyre!("Missing confirmed sequence counts"))?;
         Ok([
             u32::try_from(row.try_get::<i64>("", "dispatches")?)?,
             u32::try_from(row.try_get::<i64>("", "deliveries")?)?,
@@ -314,17 +274,12 @@ impl Store {
             ))
             .await?;
         }
-        tx.execute(sql("UPDATE scraper_head SET indexed_height=$2,verified_height=CASE WHEN verified_height IS NULL THEN NULL ELSE least(verified_height,$2) END,indexed_hash=$3,head_height=$4,healthy=true,updated_at=clock_timestamp() WHERE domain=$1", vec![self.domain(), number(ancestor.height)?, bytes(ancestor.hash), number(head.height)?])).await?;
+        tx.execute(sql("UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3,head_height=$4,healthy=true,updated_at=clock_timestamp() WHERE domain=$1", vec![self.domain(), number(ancestor.height)?, bytes(ancestor.hash), number(head.height)?])).await?;
         tx.commit().await?;
         Ok(())
     }
 
-    pub async fn append(
-        &self,
-        expected: &State,
-        blocks: &[(Header, Vec<Event>)],
-        verified_through: Option<u64>,
-    ) -> Result<()> {
+    pub async fn append(&self, expected: &State, blocks: &[(Header, Vec<Event>)]) -> Result<()> {
         let mut previous = expected.hash;
         let mut height = expected.indexed;
         let mut batches = std::collections::BTreeMap::<&str, Vec<Vec<Value>>>::new();
@@ -380,54 +335,8 @@ impl Store {
             insert_batch(&tx, query, &rows).await?;
         }
         tx.execute(sql(
-            "UPDATE scraper_head SET indexed_height=$2,verified_height=CASE WHEN $4::bigint IS NULL THEN verified_height ELSE greatest(coalesce(verified_height,confirmed_height),$4) END,indexed_hash=$3,updated_at=clock_timestamp() WHERE domain=$1",
-            vec![self.domain(), number(height)?, bytes(previous), verified_through.map(i64::try_from).transpose()?.into()],
-        ))
-        .await?;
-        tx.commit().await?;
-        Ok(())
-    }
-
-    pub async fn rewind_to_confirmed(&self, expected: &State) -> Result<()> {
-        let tx = self.db.begin().await?;
-        let row = tx.query_one(sql(
-            "SELECT indexed_hash,confirmed_height,writer_id,(SELECT hash FROM scraper_checkpoint c WHERE c.domain=h.domain AND c.height=h.confirmed_height) AS confirmed_hash FROM scraper_head h WHERE domain=$1 FOR UPDATE",
-            vec![self.domain()],
-        )).await?.ok_or_else(|| eyre::eyre!("Missing head state"))?;
-        let confirmed = u64::try_from(row.try_get::<i64>("", "confirmed_height")?)?;
-        ensure!(
-            confirmed == expected.confirmed
-                && row.try_get::<Vec<u8>>("", "indexed_hash")? == expected.hash.as_bytes()
-                && row
-                    .try_get::<Option<String>>("", "writer_id")?
-                    .as_deref()
-                    .is_none_or(|id| id == writer_id()),
-            "Head changed before sequence recovery"
-        );
-        for (table, domain, height) in EVENTS {
-            tx.execute(sql(
-                format!("DELETE FROM {table} WHERE {domain}=$1 AND {height}>$2"),
-                vec![self.domain(), number(confirmed)?],
-            ))
-            .await?;
-        }
-        tx.execute(sql(
-            "DELETE FROM block WHERE domain=$1 AND height>$2",
-            vec![self.domain(), number(confirmed)?],
-        ))
-        .await?;
-        tx.execute(sql(
-            "DELETE FROM scraper_checkpoint WHERE domain=$1 AND height>$2",
-            vec![self.domain(), number(confirmed)?],
-        ))
-        .await?;
-        tx.execute(sql(
-            "UPDATE scraper_head SET indexed_height=$2,verified_height=CASE WHEN verified_height IS NULL THEN NULL ELSE least(verified_height,$2) END,indexed_hash=$3,updated_at=clock_timestamp() WHERE domain=$1",
-            vec![
-                self.domain(),
-                number(confirmed)?,
-                row.try_get::<Vec<u8>>("", "confirmed_hash")?.into(),
-            ],
+            "UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3,updated_at=clock_timestamp() WHERE domain=$1",
+            vec![self.domain(), number(height)?, bytes(previous)],
         ))
         .await?;
         tx.commit().await?;

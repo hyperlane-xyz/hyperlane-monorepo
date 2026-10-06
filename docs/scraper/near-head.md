@@ -52,8 +52,9 @@ boundary from stored maxima. Contract changes are rejected.
   continuity to the database cutover. Their indexers page from the durable count
   until they pass the current block boundary and prove each requested page complete
   before filtering by block. Missing first, middle, tail, or entire sequences reject
-  the range without advancing progress. Block-indexed protocols only ingest through
-  the minimum finalized tip reported by all four indexers. The last
+  the range without advancing progress. Block-indexed adapters own pagination and
+  must return the complete requested range or fail. They only ingest through the
+  minimum finalized tip reported by all four indexers. The last
   successfully committed counts are reused only for the same boundary hash;
   restart or changed ancestry reloads them from durable rows. All four streams in
   sequence mode require sequence counts; a lagging sequence tip rejects the range
@@ -476,11 +477,10 @@ BEGIN
     RAISE EXCEPTION 'Cutover hash disagrees with stored block identity';
   END IF;
   INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,
-                          head_height,confirmed_height,verified_height,mailbox,
-                          merkle_tree_hook,interchain_gas_paymaster,
-                          legacy_on_downgrade)
-    VALUES(c.domain,c.height,c.height,c.hash,c.height,c.height,c.height,
-           c.mailbox,c.hook,c.paymaster,true);
+                          head_height,confirmed_height,mailbox,
+                          merkle_tree_hook,interchain_gas_paymaster)
+    VALUES(c.domain,c.height,c.height,c.hash,c.height,c.height,
+           c.mailbox,c.hook,c.paymaster);
   INSERT INTO scraper_checkpoint(domain,height,hash,timestamp)
     VALUES(c.domain,c.height,c.hash,to_timestamp(c.timestamp) AT TIME ZONE 'UTC');
   INSERT INTO block(domain,height,hash,timestamp)
@@ -505,23 +505,6 @@ repeat verification rather than moving the saved boundary forwards.
 
 On a shared database, check its headroom before starting the scraper. Every
 seeded domain starts catching up from its `H` at once.
-
-Development or test databases that ran an earlier build of this branch may
-still record the obsolete migration name
-`m20260925_000017_verified_frontier`. Before running this branch's migration
-binary against any database that records it, stop its writers and remove that
-old migration record; the current m19 migration recreates the column safely:
-
-```sql
-BEGIN;
-SET LOCAL lock_timeout='5s';
-ALTER TABLE scraper_head
-  DROP CONSTRAINT IF EXISTS scraper_head_verified_height_check,
-  DROP COLUMN IF EXISTS verified_height;
-DELETE FROM seaql_migrations
-WHERE version='m20260925_000017_verified_frontier';
-COMMIT;
-```
 
 SELECT grants on existing event tables are copied to the confirmed views. External
 SQL consumers wanting the old visibility must use `confirmed_raw_message_dispatch`,

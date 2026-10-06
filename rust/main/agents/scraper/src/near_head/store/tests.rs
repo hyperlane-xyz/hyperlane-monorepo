@@ -80,7 +80,6 @@ async fn unavailable_transaction_hashes_are_not_enrichment_work() -> Result<()> 
         .append(
             &store.state().await?.unwrap(),
             &[(header(1), vec![payment])],
-            Some(1),
         )
         .await?;
     store
@@ -192,9 +191,7 @@ async fn events_allow_transaction_scoped_log_indexes() -> Result<()> {
     ];
     events.iter_mut().for_each(|event| event.log_index = 0);
 
-    store
-        .append(&state, &[(header(1), events)], Some(1))
-        .await?;
+    store.append(&state, &[(header(1), events)]).await?;
 
     let counts = store
         .db
@@ -275,7 +272,6 @@ async fn confirmation_budget_preserves_blocks_and_measures_gas_dense_publication
                 (header(40), payments(40, 1000, contracts.paymaster)),
                 (header(10_000), vec![]),
             ],
-            Some(10_000),
         )
         .await?;
 
