@@ -92,6 +92,11 @@ where
     /// address for the given module that will be indexed
     fn address(&self) -> &H256;
 
+    /// Whether an event belongs to this indexer.
+    fn event_belongs_to_indexer(&self, event: &Event) -> ChainResult<bool> {
+        belongs_to_indexer(event, self.address())
+    }
+
     /// Current block height
     ///
     /// used by the indexer struct
@@ -244,7 +249,7 @@ where
             if event.kind.as_str() != Self::target_type() {
                 continue;
             }
-            if !belongs_to_indexer(&event, self.address())? {
+            if !self.event_belongs_to_indexer(&event)? {
                 continue;
             }
             let parsed_event = self.parse(&event.attributes)?;
@@ -276,7 +281,7 @@ where
             if event.kind.as_str() != Self::target_type() {
                 continue;
             }
-            if !belongs_to_indexer(&event, self.address())? {
+            if !self.event_belongs_to_indexer(&event)? {
                 continue;
             }
             let parsed_event = self.parse(&event.attributes)?;
