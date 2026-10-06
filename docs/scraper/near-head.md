@@ -476,10 +476,11 @@ BEGIN
     RAISE EXCEPTION 'Cutover hash disagrees with stored block identity';
   END IF;
   INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,
-                          head_height,confirmed_height,mailbox,merkle_tree_hook,
-                          interchain_gas_paymaster)
-    VALUES(c.domain,c.height,c.height,c.hash,c.height,c.height,
-           c.mailbox,c.hook,c.paymaster);
+                          head_height,confirmed_height,verified_height,mailbox,
+                          merkle_tree_hook,interchain_gas_paymaster,
+                          legacy_on_downgrade)
+    VALUES(c.domain,c.height,c.height,c.hash,c.height,c.height,c.height,
+           c.mailbox,c.hook,c.paymaster,true);
   INSERT INTO scraper_checkpoint(domain,height,hash,timestamp)
     VALUES(c.domain,c.height,c.hash,to_timestamp(c.timestamp) AT TIME ZONE 'UTC');
   INSERT INTO block(domain,height,hash,timestamp)

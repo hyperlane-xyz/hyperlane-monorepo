@@ -29,9 +29,17 @@ impl MigrationTrait for Migration {
                     RAISE EXCEPTION 'Cannot downgrade: gas payments collide under the previous transaction-scoped identity';
                   END IF;
                   IF EXISTS (
-                    SELECT 1 FROM scraper_head WHERE legacy_on_downgrade
+                    SELECT 1 FROM scraper_head h WHERE legacy_on_downgrade
                       AND (halted OR indexed_height<>confirmed_height
-                           OR verified_height IS DISTINCT FROM confirmed_height)
+                           OR (verified_height IS DISTINCT FROM confirmed_height
+                               AND NOT (
+                                 verified_height IS NULL
+                                 AND start_height=indexed_height
+                                 AND NOT EXISTS (SELECT 1 FROM raw_message_dispatch WHERE origin_domain=h.domain)
+                                 AND NOT EXISTS (SELECT 1 FROM delivered_message WHERE domain=h.domain)
+                                 AND NOT EXISTS (SELECT 1 FROM gas_payment WHERE domain=h.domain)
+                                 AND NOT EXISTS (SELECT 1 FROM merkle_tree_insertion WHERE domain=h.domain)
+                               )))
                   ) THEN
                     RAISE EXCEPTION 'Cannot downgrade: non-EVM near-head history is not fully published';
                   END IF;
@@ -147,6 +155,38 @@ mod tests {
             .expect("AltVM rollback state");
         assert!(row.try_get::<bool>("", "legacy_mode")?);
         assert_eq!(row.try_get::<i64>("", "cursors")?, 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn downgrade_accepts_a_fresh_empty_altvm_anchor() -> Result<(), DbErr> {
+        let (db, _postgres) = database().await?;
+        db.execute_unprepared(
+            r#"
+            INSERT INTO scraper_head
+              (domain,start_height,indexed_height,indexed_hash,head_height,
+               confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster,
+               halted,legacy_on_downgrade)
+            VALUES
+              (1399811149,10,10,decode(repeat('aa',32),'hex'),10,10,
+               decode(repeat('01',32),'hex'),decode(repeat('02',32),'hex'),
+               decode(repeat('03',32),'hex'),false,true);
+            INSERT INTO scraper_checkpoint(domain,height,hash,timestamp)
+            VALUES(1399811149,10,decode(repeat('aa',32),'hex'),now());
+            "#,
+        )
+        .await?;
+
+        Migrator::down(&db, Some(1)).await?;
+
+        let row = db
+            .query_one(Statement::from_string(
+                DbBackend::Postgres,
+                "SELECT NOT EXISTS(SELECT 1 FROM scraper_head WHERE domain=1399811149) AS legacy_mode".to_owned(),
+            ))
+            .await?
+            .expect("previous binary startup predicate");
+        assert!(row.try_get::<bool>("", "legacy_mode")?);
         Ok(())
     }
 

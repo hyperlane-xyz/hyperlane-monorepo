@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
 use async_trait::async_trait;
 use ethers::{
@@ -376,12 +376,9 @@ pub(super) struct GenericSource {
     complete_block_ranges: bool,
     chunk_size: u32,
     headers: RwLock<HashMap<u64, Header>>,
-    count_checkpoints: RwLock<[BTreeMap<u32, u32>; 4]>,
 }
 
 impl GenericSource {
-    const COUNT_CHECKPOINT_LIMIT: usize = 10_000;
-
     pub async fn build(
         conf: &ChainConf,
         metrics: &CoreMetrics,
@@ -414,7 +411,6 @@ impl GenericSource {
             ),
             chunk_size: conf.index.chunk_size,
             headers: RwLock::new(HashMap::new()),
-            count_checkpoints: RwLock::new(std::array::from_fn(|_| BTreeMap::new())),
         }))
     }
 
@@ -425,22 +421,7 @@ impl GenericSource {
             self.payments.latest_sequence_count_and_tip(),
             self.insertions.latest_sequence_count_and_tip(),
         )?;
-        let streams = [messages, deliveries, payments, insertions];
-        let mut checkpoints = self.count_checkpoints.write().await;
-        for (history, (count, tip)) in checkpoints.iter_mut().zip(streams) {
-            if let Some(count) = count {
-                history.insert(tip, count);
-                while history.len() > Self::COUNT_CHECKPOINT_LIMIT {
-                    history.pop_first();
-                }
-            }
-        }
-        Ok(streams)
-    }
-
-    async fn pinned_counts(&self, height: u32) -> [Option<u32>; 4] {
-        let checkpoints = self.count_checkpoints.read().await;
-        std::array::from_fn(|stream| checkpoints[stream].get(&height).copied())
+        Ok([messages, deliveries, payments, insertions])
     }
 
     fn event<T>(
@@ -468,7 +449,6 @@ impl GenericSource {
         next_sequence: u32,
         sequence_mode: bool,
         chunk_size: u32,
-        pinned_count: Option<u32>,
     ) -> Result<(Vec<(Indexed<T>, LogMeta)>, u32, Option<u32>, bool)> {
         let (count, tip) = indexer.latest_sequence_count_and_tip().await?;
         let count_capable = count.is_some();
@@ -476,22 +456,67 @@ impl GenericSource {
             tip >= *blocks.end(),
             "Event-stream tip is behind the range boundary"
         );
-        if let (Some(count), Some(pinned_count)) = (count, pinned_count) {
-            ensure!(
-                count >= pinned_count,
-                "Provider sequence count regressed behind a pinned boundary"
-            );
-        }
         if !sequence_mode {
-            return Ok((
-                indexer.fetch_logs_in_range(blocks.clone()).await?,
-                *blocks.end(),
-                (tip == *blocks.end())
-                    .then_some(count)
-                    .flatten()
-                    .or(count.and(pinned_count)),
-                count_capable,
-            ));
+            let Some(count) = count else {
+                return Ok((
+                    indexer.fetch_logs_in_range(blocks.clone()).await?,
+                    *blocks.end(),
+                    None,
+                    false,
+                ));
+            };
+            ensure!(
+                count >= next_sequence,
+                "Provider sequence count is behind durable history"
+            );
+            // Counts are only valid at the stream's independently sampled tip.
+            // Scan through that tip, validate every remaining sequence, then
+            // derive the count at the common block boundary. This avoids both
+            // cross-fork count reuse and starvation when stream tips differ.
+            let mut logs = indexer.fetch_logs_in_range(*blocks.start()..=tip).await?;
+            logs.sort_by_key(|(indexed, _)| indexed.sequence);
+            let mut expected = next_sequence;
+            let mut boundary_count = next_sequence;
+            let mut previous_block = None;
+            let mut previous_sequence = None;
+            for (indexed, meta) in &logs {
+                let sequence = indexed
+                    .sequence
+                    .ok_or_else(|| eyre!("Counted event omitted its sequence"))?;
+                if previous_sequence == Some(sequence) {
+                    ensure!(
+                        previous_block == Some(meta.block_number),
+                        "Duplicate sequence moved between blocks"
+                    );
+                    continue;
+                }
+                ensure!(
+                    sequence == expected,
+                    "Indexer returned an incomplete block range"
+                );
+                ensure!(
+                    previous_block.is_none_or(|height| height <= meta.block_number),
+                    "Indexer returned sequences out of block order"
+                );
+                ensure!(
+                    (u64::from(*blocks.start())..=u64::from(tip)).contains(&meta.block_number),
+                    "Indexer returned an event outside the requested range"
+                );
+                previous_block = Some(meta.block_number);
+                previous_sequence = Some(sequence);
+                expected = expected
+                    .checked_add(1)
+                    .ok_or_else(|| eyre!("Sequence range overflow"))?;
+                if meta.block_number <= u64::from(*blocks.end()) {
+                    boundary_count = expected;
+                }
+            }
+            ensure!(
+                expected == count,
+                "Indexer returned an incomplete block range"
+            );
+            logs.retain(|(_, meta)| meta.block_number <= u64::from(*blocks.end()));
+            return Ok((logs, *blocks.end(), Some(boundary_count), count_capable));
         }
         let count = count.ok_or_else(|| eyre!("Indexer does not expose a sequence count"))?;
         ensure!(
@@ -775,7 +800,6 @@ impl Source for GenericSource {
             );
         }
         let range = u32::try_from(from)?..=u32::try_from(through)?;
-        let pinned_counts = self.pinned_counts(*range.end()).await;
         let (messages, deliveries, payments, insertions) = tokio::try_join!(
             Self::logs(
                 self.messages.as_ref(),
@@ -783,7 +807,6 @@ impl Source for GenericSource {
                 sequences[0],
                 self.sequence_mode,
                 self.chunk_size,
-                pinned_counts[0],
             ),
             Self::logs(
                 self.deliveries.as_ref(),
@@ -791,7 +814,6 @@ impl Source for GenericSource {
                 sequences[1],
                 self.sequence_mode,
                 self.chunk_size,
-                pinned_counts[1],
             ),
             Self::logs(
                 self.payments.as_ref(),
@@ -799,7 +821,6 @@ impl Source for GenericSource {
                 sequences[2],
                 self.sequence_mode,
                 self.chunk_size,
-                pinned_counts[2],
             ),
             async {
                 if self.derive_insertions_from_messages {
@@ -811,7 +832,6 @@ impl Source for GenericSource {
                         sequences[3],
                         self.sequence_mode,
                         self.chunk_size,
-                        pinned_counts[3],
                     )
                     .await
                 }
@@ -1030,7 +1050,6 @@ mod tests {
             complete_block_ranges: false,
             chunk_size: 1,
             headers: RwLock::new(HashMap::new()),
-            count_checkpoints: RwLock::new(std::array::from_fn(|_| BTreeMap::new())),
         };
 
         source.begin_cycle().await;
@@ -1070,7 +1089,6 @@ mod tests {
             complete_block_ranges: false,
             chunk_size: 1,
             headers: RwLock::new(HashMap::new()),
-            count_checkpoints: RwLock::new(std::array::from_fn(|_| BTreeMap::new())),
         };
 
         assert_eq!(
@@ -1096,12 +1114,14 @@ mod tests {
     #[derive(Debug)]
     struct AdvancingTipIndexer<T> {
         calls: AtomicUsize,
+        offset: u32,
         marker: PhantomData<T>,
     }
 
-    fn advancing_indexer<T>() -> AdvancingTipIndexer<T> {
+    fn advancing_indexer<T>(offset: u32) -> AdvancingTipIndexer<T> {
         AdvancingTipIndexer {
             calls: AtomicUsize::new(0),
+            offset,
             marker: PhantomData,
         }
     }
@@ -1127,7 +1147,7 @@ mod tests {
         ) -> hyperlane_core::ChainResult<(Option<u32>, u32)> {
             Ok((
                 Some(0),
-                200_u32.saturating_add(
+                200_u32.saturating_add(self.offset).saturating_add(
                     u32::try_from(self.calls.fetch_add(1, Ordering::SeqCst)).unwrap_or(u32::MAX),
                 ),
             ))
@@ -1135,17 +1155,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn block_counts_remain_pinned_when_tips_advance_during_fetch() -> Result<()> {
+    async fn block_counts_are_derived_at_the_common_boundary() -> Result<()> {
         let calls = Arc::new(AtomicUsize::new(0));
         let source = GenericSource {
             provider: Box::new(CountingProvider {
                 domain: hyperlane_core::HyperlaneDomain::new_test_domain("moving-tip"),
                 calls,
             }),
-            messages: Box::new(advancing_indexer()),
-            deliveries: Box::new(advancing_indexer()),
-            payments: Box::new(advancing_indexer()),
-            insertions: Box::new(advancing_indexer()),
+            messages: Box::new(advancing_indexer(0)),
+            deliveries: Box::new(advancing_indexer(1)),
+            payments: Box::new(advancing_indexer(2)),
+            insertions: Box::new(advancing_indexer(3)),
             contracts: Contracts {
                 mailbox: H256::zero(),
                 hook: H256::zero(),
@@ -1156,13 +1176,52 @@ mod tests {
             complete_block_ranges: false,
             chunk_size: 1_000,
             headers: RwLock::new(HashMap::new()),
-            count_checkpoints: RwLock::new(std::array::from_fn(|_| BTreeMap::new())),
         };
 
         assert_eq!(source.indexing_tip().await?, Some(200));
         let batch = source.events_after(1, 200, [0; 4]).await?;
         assert_eq!(batch.end_counts, [Some(0); 4]);
         Ok(())
+    }
+
+    #[derive(Debug)]
+    struct OmittingCountIndexer<T>(PhantomData<T>);
+
+    #[async_trait]
+    impl<T: Send + Sync + std::fmt::Debug> hyperlane_core::Indexer<T> for OmittingCountIndexer<T> {
+        async fn fetch_logs_in_range(
+            &self,
+            _range: RangeInclusive<u32>,
+        ) -> hyperlane_core::ChainResult<Vec<(Indexed<T>, LogMeta)>> {
+            Ok(Vec::new())
+        }
+
+        async fn get_finalized_block_number(&self) -> hyperlane_core::ChainResult<u32> {
+            Ok(8)
+        }
+    }
+
+    #[async_trait]
+    impl<T: Send + Sync + std::fmt::Debug> SequenceAwareIndexer<T> for OmittingCountIndexer<T> {
+        async fn latest_sequence_count_and_tip(
+            &self,
+        ) -> hyperlane_core::ChainResult<(Option<u32>, u32)> {
+            Ok((Some(1), 8))
+        }
+    }
+
+    #[tokio::test]
+    async fn block_count_rejects_an_omitted_tail() {
+        let error = GenericSource::logs(
+            &OmittingCountIndexer::<HyperlaneMessage>(PhantomData),
+            7..=7,
+            0,
+            false,
+            1_000,
+        )
+        .await
+        .expect_err("counted event omission must fail");
+        assert!(error.to_string().contains("incomplete block range"));
     }
 
     #[async_trait]
@@ -1175,12 +1234,21 @@ mod tests {
                 .lock()
                 .expect("request mutex poisoned")
                 .push(range.clone());
-            let mut logs: Vec<_> = range
-                .map(|sequence| {
+            let sequences: Vec<_> = if *range.start() >= 100 {
+                (7..self.count)
+                    .zip(range.clone())
+                    .map(|(sequence, block)| (sequence, block))
+                    .collect()
+            } else {
+                range.clone().map(|sequence| (sequence, sequence)).collect()
+            };
+            let mut logs: Vec<_> = sequences
+                .into_iter()
+                .map(|(sequence, block)| {
                     (
                         Indexed::new(HyperlaneMessage::default()).with_sequence(sequence),
                         LogMeta {
-                            block_number: u64::from(sequence),
+                            block_number: u64::from(block),
                             ..LogMeta::default()
                         },
                     )
@@ -1214,7 +1282,7 @@ mod tests {
             truncate_last: false,
             requests: Mutex::new(Vec::new()),
         };
-        GenericSource::logs(&indexer, 100..=200, 7, true, 2, None).await?;
+        GenericSource::logs(&indexer, 100..=200, 7, true, 2).await?;
         assert_eq!(
             *indexer.requests.lock().expect("request mutex poisoned"),
             vec![7..=8]
@@ -1225,7 +1293,7 @@ mod tests {
             .expect("request mutex poisoned")
             .clear();
         let (_, indexed_through, end_count, count_capable) =
-            GenericSource::logs(&indexer, 100..=200, 7, false, 2, None).await?;
+            GenericSource::logs(&indexer, 100..=200, 7, false, 2).await?;
         assert_eq!(indexed_through, 200);
         assert_eq!(end_count, Some(10));
         assert!(count_capable);
@@ -1234,7 +1302,7 @@ mod tests {
             vec![100..=200]
         );
 
-        assert!(GenericSource::logs(&indexer, 100..=200, 11, true, 2, None)
+        assert!(GenericSource::logs(&indexer, 100..=200, 11, true, 2)
             .await
             .is_err());
 
@@ -1244,7 +1312,7 @@ mod tests {
             truncate_last: true,
             requests: Mutex::new(Vec::new()),
         };
-        assert!(GenericSource::logs(&partial, 100..=200, 7, true, 10, None)
+        assert!(GenericSource::logs(&partial, 100..=200, 7, true, 10)
             .await
             .is_err());
 
@@ -1254,7 +1322,7 @@ mod tests {
             truncate_last: false,
             requests: Mutex::new(Vec::new()),
         };
-        let bounded_result = GenericSource::logs(&bounded, 0..=3, 0, true, 2, None).await?;
+        let bounded_result = GenericSource::logs(&bounded, 0..=3, 0, true, 2).await?;
         assert_eq!(bounded_result.1, 0);
         assert_eq!(bounded_result.2, None);
         assert_eq!(
@@ -1267,7 +1335,7 @@ mod tests {
             truncate_last: false,
             requests: Mutex::new(Vec::new()),
         };
-        assert!(GenericSource::logs(&lagging, 100..=200, 7, true, 2, None)
+        assert!(GenericSource::logs(&lagging, 100..=200, 7, true, 2)
             .await
             .is_err());
         assert!(lagging
