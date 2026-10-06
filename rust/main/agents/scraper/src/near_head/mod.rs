@@ -322,9 +322,7 @@ async fn ingest_cached(
     let validated_counts = match advance_sequences(&events, start_counts) {
         Ok(counts) => counts,
         Err(error) if end_counts.is_none() => {
-            if state.indexed == state.confirmed {
-                store.pause(true).await?;
-            } else {
+            if state.indexed > state.confirmed {
                 store.rewind_to_confirmed(state).await?;
             }
             *count_cache = None;
