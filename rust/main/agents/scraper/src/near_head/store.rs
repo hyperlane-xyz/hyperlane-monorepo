@@ -237,6 +237,53 @@ impl Store {
         Ok(())
     }
 
+    async fn delete_suffix<C: ConnectionTrait>(&self, db: &C, after: u64) -> Result<()> {
+        for (table, domain, height) in EVENTS {
+            db.execute(sql(
+                format!("DELETE FROM {table} WHERE {domain}=$1 AND {height}>$2"),
+                vec![self.domain(), number(after)?],
+            ))
+            .await?;
+        }
+        // Provisional blocks have no enriched transactions. FK failures stop
+        // rollback rather than deleting data owned by another writer.
+        db.execute(sql(
+            "DELETE FROM block WHERE domain=$1 AND height>$2",
+            vec![self.domain(), number(after)?],
+        ))
+        .await?;
+        db.execute(sql(
+            "DELETE FROM scraper_checkpoint WHERE domain=$1 AND height>$2",
+            vec![self.domain(), number(after)?],
+        ))
+        .await?;
+        Ok(())
+    }
+
+    pub async fn rewind_to_confirmed(&self, expected: &State) -> Result<()> {
+        let tx = self.db.begin().await?;
+        let row = tx.query_one(sql("SELECT indexed_hash,confirmed_height,halted,writer_id FROM scraper_head WHERE domain=$1 FOR UPDATE", vec![self.domain()])).await?.ok_or_else(|| eyre::eyre!("Missing head state"))?;
+        ensure!(
+            !row.try_get::<bool>("", "halted")?
+                && row
+                    .try_get::<Option<String>>("", "writer_id")?
+                    .as_deref()
+                    .is_none_or(|id| id == writer_id())
+                && row.try_get::<Vec<u8>>("", "indexed_hash")? == expected.hash.as_bytes()
+                && row.try_get::<i64>("", "confirmed_height")?
+                    == i64::try_from(expected.confirmed)?,
+            "Head state changed"
+        );
+        self.delete_suffix(&tx, expected.confirmed).await?;
+        let result = tx.execute(sql(
+            "UPDATE scraper_head h SET indexed_height=confirmed_height,indexed_hash=c.hash,healthy=false,updated_at=clock_timestamp() FROM scraper_checkpoint c WHERE h.domain=$1 AND c.domain=h.domain AND c.height=h.confirmed_height",
+            vec![self.domain()],
+        )).await?;
+        ensure!(result.rows_affected() == 1, "Missing confirmed checkpoint");
+        tx.commit().await?;
+        Ok(())
+    }
+
     pub async fn observe(&self, expected: &State, ancestor: &Header, head: &Header) -> Result<()> {
         let tx = self.db.begin().await?;
         let row = tx.query_one(sql("SELECT indexed_hash,confirmed_height,halted,writer_id FROM scraper_head WHERE domain=$1 FOR UPDATE", vec![self.domain()])).await?.ok_or_else(|| eyre::eyre!("Missing head state"))?;
@@ -254,25 +301,7 @@ impl Store {
             "Reorg crossed confirmed history"
         );
         if ancestor.hash != expected.hash {
-            for (table, domain, height) in EVENTS {
-                tx.execute(sql(
-                    format!("DELETE FROM {table} WHERE {domain}=$1 AND {height}>$2"),
-                    vec![self.domain(), number(ancestor.height)?],
-                ))
-                .await?;
-            }
-            // Provisional blocks have no enriched transactions. FK failures stop
-            // rollback rather than deleting data owned by another writer.
-            tx.execute(sql(
-                "DELETE FROM block WHERE domain=$1 AND height>$2",
-                vec![self.domain(), number(ancestor.height)?],
-            ))
-            .await?;
-            tx.execute(sql(
-                "DELETE FROM scraper_checkpoint WHERE domain=$1 AND height>$2",
-                vec![self.domain(), number(ancestor.height)?],
-            ))
-            .await?;
+            self.delete_suffix(&tx, ancestor.height).await?;
         }
         tx.execute(sql("UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3,head_height=$4,healthy=true,updated_at=clock_timestamp() WHERE domain=$1", vec![self.domain(), number(ancestor.height)?, bytes(ancestor.hash), number(head.height)?])).await?;
         tx.commit().await?;

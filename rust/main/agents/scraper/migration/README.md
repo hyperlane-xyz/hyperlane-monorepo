@@ -18,8 +18,12 @@ retain matching valid indexes and reject invalid or conflicting definitions. If
 index setup fails, the schema migrations stay committed; repair the reported index
 and rerun the same command. Concurrent indexes survive schema rollback, except the
 three frontier indexes and gas payment log index, which their down
-migrations drop. Scraper startup refuses to run until the transaction-log index
-is valid and `gas_payment_transaction_log` is gone.
+migrations drop. Scraper startup refuses to run until the collision-safe gas
+payment log index is valid and `gas_payment_transaction_log` is gone.
+
+Schema rollback does not recreate indexes managed concurrently by `init-db`.
+Before starting an older scraper image, run that image's `init-db`; it restores
+and verifies the index definitions expected by that version.
 
 Rolling back past `m20261003_000017` recreates the legacy unique
 `(domain, block_hash, log_index)` index without `CONCURRENTLY`, so it blocks

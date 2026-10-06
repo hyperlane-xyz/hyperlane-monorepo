@@ -319,7 +319,19 @@ async fn ingest_cached(
         end = boundary.height;
     }
     let events = batch.events;
-    let validated_counts = advance_sequences(&events, start_counts)?;
+    let validated_counts = match advance_sequences(&events, start_counts) {
+        Ok(counts) => counts,
+        Err(error) if end_counts.is_none() => {
+            if state.indexed == state.confirmed {
+                store.pause(true).await?;
+            } else {
+                store.rewind_to_confirmed(state).await?;
+            }
+            *count_cache = None;
+            return Err(error);
+        }
+        Err(error) => return Err(error),
+    };
     if let Some(end_counts) = end_counts {
         if validated_counts[0] != end_counts[0] || validated_counts[3] != end_counts[1] {
             eyre::bail!("Incomplete event range");

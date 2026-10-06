@@ -513,22 +513,12 @@ SQL consumers wanting the old visibility must use `confirmed_raw_message_dispatc
 both their names and output columns. Raw event tables now include provisional rows.
 Roles with `SELECT` on any event table also receive `SELECT` on `scraper_head`.
 
-To roll back to the previous near-head scraper image from this version, stop every
-scraper deployment sharing the database and pause proxy reads during a maintenance
-window, then run
-`cargo run --release -p migration --bin down 1`. This restores the transitional
-`confirmed` columns without rewriting historical confirmed rows. The transactional
-down migration takes access-exclusive table locks while rebuilding the old partial
-indexes, so production-scale tables block reads and replica replay: about 35-50s
-cold on explorer4 (15-25s with parallel workers), during which Explorer queries on
-the replica stall too. Then deploy the previous scraper image. Never start it
-before the down migration.
-
-To return to legacy indexers, stop every scraper writer, drain or explicitly
-repair/discard provisional and halted history, then run
-`cargo run --release -p migration --bin down 3`. The final down migration removes
-confirmation filtering and drops `scraper_head`; it refuses to proceed while
-provisional or halted history remains. The checkpoint migration restores and
-drops `scraper_checkpoint`, so both near-head state tables are gone before legacy
-indexing restarts. Use `down 2` only to return to the earlier near-head image that
-still stored checkpoints in `block`.
+This change adds no migration version, so do not run `migration down` to roll back
+the scraper image. Stop every scraper sharing the database, then run `init-db`
+from the previous image to restore and verify its gas-payment index definition.
+That build fails if newer rows violate the previous identity; such a database is
+not compatible with that image. The previous image also rejects AltVM
+`scraper_head` rows because it uses legacy indexers for those domains. Once an
+AltVM has entered near-head mode, returning it to a legacy indexer requires an
+operator-reviewed cursor handoff or database restore; there is no automatic
+downgrade. Never start the previous scraper until both conditions are satisfied.

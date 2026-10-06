@@ -146,6 +146,24 @@ fn gas_event(height: u64, index: u64) -> Event {
     }
 }
 
+fn dispatch_event(height: u64, nonce: u32) -> Event {
+    Event {
+        block_number: height,
+        block_hash: H256::from_low_u64_be(height.saturating_add(1)),
+        tx_hash: Some(H256::from_low_u64_be(u64::from(nonce).saturating_add(10_000)).into()),
+        tx_index: u64::from(nonce),
+        log_index: u64::from(nonce),
+        address: H160::repeat_byte(1).into(),
+        sequence: Some(nonce),
+        data: EventData::Dispatch(hyperlane_core::HyperlaneMessage {
+            nonce,
+            origin: 1,
+            destination: 2,
+            ..Default::default()
+        }),
+    }
+}
+
 async fn worker(db: DatabaseConnection, source: Arc<Chain>) -> Result<Arc<Worker>> {
     migration::Migrator::up(&db, None).await?;
     let store = Store { db, domain: 1 };
@@ -491,5 +509,34 @@ async fn block_mode_ingestion_stops_at_the_common_stream_tip() -> Result<()> {
     chain.fresh_headers.store(0, Ordering::SeqCst);
     crate::near_head::confirm(&chain, &worker.store, &ReorgPeriod::from_blocks(3)).await?;
     assert_eq!(chain.fresh_headers.load(Ordering::SeqCst), 1);
+    Ok(())
+}
+
+#[tokio::test]
+async fn block_mode_replays_provisional_history_after_a_sequence_gap() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(3, false));
+    chain.historical_counts.store(false, Ordering::SeqCst);
+    chain.events.lock().unwrap().push(dispatch_event(2, 0));
+    let worker = worker(db, chain.clone()).await?;
+    let mut cache = None;
+    worker.cycle(&mut cache).await?;
+    assert_eq!(worker.store.state().await?.unwrap().indexed, 3);
+
+    chain
+        .events
+        .lock()
+        .unwrap()
+        .extend([dispatch_event(3, 1), dispatch_event(4, 2)]);
+    chain.head.store(4, Ordering::SeqCst);
+    assert!(worker.cycle(&mut cache).await.is_err());
+    assert_eq!(worker.store.state().await?.unwrap().indexed, 0);
+    worker.cycle(&mut cache).await?;
+    assert_eq!(worker.store.state().await?.unwrap().indexed, 4);
     Ok(())
 }

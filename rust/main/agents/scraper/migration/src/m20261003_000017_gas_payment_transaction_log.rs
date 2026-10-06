@@ -17,7 +17,8 @@ impl MigrationTrait for Migration {
             .execute_unprepared(
                 r#"
                 SET LOCAL lock_timeout = '5s';
-                CREATE UNIQUE INDEX IF NOT EXISTS gas_payment_block_log
+                DROP INDEX IF EXISTS gas_payment_block_log;
+                CREATE UNIQUE INDEX gas_payment_block_log
                   ON gas_payment(domain, block_hash, log_index)
                   WHERE block_hash IS NOT NULL;
                 DROP INDEX IF EXISTS gas_payment_transaction_log;
@@ -66,6 +67,23 @@ mod tests {
             .await
             .map_err(|err| DbErr::Custom(err.to_string()))?;
 
+        Migrator::down(&db, Some(2)).await?;
+        let legacy = db
+            .query_one(Statement::from_string(
+                DbBackend::Postgres,
+                "SELECT pg_get_indexdef('gas_payment_block_log'::regclass) AS definition"
+                    .to_owned(),
+            ))
+            .await?
+            .expect("legacy gas payment position index");
+        assert!(!legacy
+            .try_get::<String>("", "definition")?
+            .contains("transaction_hash"));
+        Migrator::up(&db, None).await?;
+        crate::indexes::create_indexes(&db)
+            .await
+            .map_err(|err| DbErr::Custom(err.to_string()))?;
+
         db.execute_unprepared(&payment(1, "02")).await?;
         db.execute_unprepared(&payment(1, "03")).await?;
         let index = db
@@ -87,6 +105,10 @@ mod tests {
             .await?
             .expect("superseded gas payment position index check");
         assert!(superseded_index.try_get::<bool>("", "removed")?);
+        assert!(
+            Migrator::down(&db, Some(2)).await.is_err(),
+            "downgrade must reject rows incompatible with the legacy identity"
+        );
         Ok(())
     }
 }
