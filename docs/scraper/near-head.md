@@ -48,10 +48,11 @@ boundary from stored maxima. Contract changes are rejected.
 - Each returned log must match its block header. The previous indexed boundary
   and the range end are checked again before commit; changed forks are retried.
   EVM dispatch nonces and Merkle leaf indexes anchor continuity to durable rows.
-  When a range reaches a still-current head, they must exactly cover the latest
-  contract counts. This avoids historical state calls while retaining a current-tip
-  tail check. Sequence-indexed protocols also anchor continuity to the database cutover.
-  Their indexers page from the durable count
+  Each range also checks hash-pinned contract counts when the RPC retains that
+  state. Pruned historical counts fall back to durable sequence continuity, while
+  recent boundaries retain exact tail validation. A repeated gap after replaying
+  from the confirmed frontier halts for operator repair. Sequence-indexed protocols
+  also anchor continuity to the database cutover. Their indexers page from the durable count
   until they pass the current block boundary and prove each requested page complete
   before filtering by block. Missing first, middle, tail, or entire sequences reject
   the range without advancing progress. Block-indexed adapters own pagination and
@@ -93,7 +94,7 @@ boundary from stored maxima. Contract changes are rejected.
   logged before existing eligible history publishes; page-limited publication
   drains before the error pauses the loop. The three phases execute sequentially
   for each chain, so they do not compete for that chain's progress-row lock.
-- Startup probes the configured finality selector and, on EVM, current-state
+- Startup probes the configured finality selector and, on EVM, hash-pinned
   contract-count calls before persisting a first-time cutover. On restart it probes the provider's
   latest canonical block. Observation waits for providers behind saved progress
   and reconciles retained ancestry before publication. It fails immediately with
@@ -154,19 +155,19 @@ boundary from stored maxima. Contract changes are rejected.
 
 For a caught-up unchanged EVM head: one header request per poll. For a normal EVM new
 range containing events in `B` distinct blocks: at most `B + 6` header requests
-and one combined log request. A range that reaches a still-current EVM head adds
-two contract-count and two head reads. Generic ranges make one tip request per stream plus one bounded
+and one combined log request plus two contract-count reads. Generic ranges make one tip request per stream plus one bounded
 event request per block-indexed stream or one or more bounded pages per
 sequence-indexed stream; sparse numbering can require additional boundary lookups.
 Restart or changed ancestry reloads sequence counts from the database; startup
 current-state capability probes are additional. Numeric confirmation needs up to two header reads when it advances;
 finality tags also require a tag read while provisional progress exists. Count
-reads use latest-state `eth_call`; an empty pre-deployment result also
+reads use hash-pinned `eth_call`; an empty pre-deployment result also
 requires `eth_getCode` to distinguish an absent contract from a malformed reply. Receipt enrichment and retries are extra.
 The legacy path used up to four event range queries plus its separate tip and
 receipt/header lookups. Costs are comparable in structure, not guaranteed equal:
 chain activity, polling configuration, confirmation batches, and RPC retries
-still determine the actual total. Historical contract state is not required.
+still determine the actual total. Historical contract state improves exact range
+validation but is not required for catch-up.
 This has not been benchmarked in production.
 
 ## Validation fixture
@@ -193,10 +194,10 @@ hangs, and verify uncached successful receipts survive a neighboring timeout.
 
 1. Before stopping the legacy scraper, verify every selected provider supports
    event-range queries, block lookup, latest height, and its configured
-   finality selector. EVM additionally requires latest-state `eth_call` for
+   finality selector. EVM additionally requires hash-pinned `eth_call` for
    the mailbox nonce and Merkle hook count; empty predeployment results require
-   latest-state `eth_getCode`. Historical contract state is not required. Check
-   the actual configured endpoints. Fleet capability has not been established by
+   hash-pinned `eth_getCode`. Current state must be available; pruned historical
+   state falls back to durable sequence validation. Check the actual configured endpoints. Fleet capability has not been established by
    the local tests. There is no legacy opt-out after this hard cutover.
 2. Build this scraper and migration, and prepare the scraper image-tag update for
    every environment sharing the database. Deploy the matching proxy first so it

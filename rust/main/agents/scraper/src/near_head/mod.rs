@@ -14,6 +14,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{ContractLocator, HyperlaneDomainProtocol, ReorgPeriod};
 use tokio::task::JoinHandle;
+use tracing::warn;
 
 use crate::store::HyperlaneDbStore;
 use source::{
@@ -172,7 +173,7 @@ async fn prepare<'a>(
         }
     }
     let current = source.header(BlockSelector::Latest).await?;
-    source.current_counts(current.hash).await?;
+    source.counts(current.hash).await?;
     if let Some(anchor) = anchor {
         store.initialize(anchor, contracts).await?;
     }
@@ -235,10 +236,14 @@ async fn ingest(
     state: &State,
     chunk_size: u64,
 ) -> Result<bool> {
-    ingest_cached(source, store, state, chunk_size, &mut None).await
+    ingest_cached(source, store, state, chunk_size, &mut CountCache::default()).await
 }
 
-type CountCache = Option<(ethers::types::H256, [u32; 4])>;
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct CountCache {
+    boundary: Option<(ethers::types::H256, [u32; 4])>,
+    gap_confirmed: Option<u64>,
+}
 
 async fn ingest_cached(
     source: &dyn Source,
@@ -272,17 +277,28 @@ async fn ingest_cached(
         .await?;
     let mut end = boundary.height;
     let mut by_block = BTreeMap::<u64, Vec<source::Event>>::new();
-    let start_counts = match count_cache.as_ref().filter(|(hash, _)| *hash == state.hash) {
+    let start_counts = match count_cache
+        .boundary
+        .as_ref()
+        .filter(|(hash, _)| *hash == state.hash)
+    {
         Some((_, counts)) => *counts,
         None => store.sequence_counts().await?,
     };
-    // Current-state counts detect a missing tail without requiring archive RPC
-    // state. Older catch-up chunks rely on durable sequence continuity.
+    // Retain exact range validation where historical state is available, but do
+    // not let a pruned-state RPC prevent catch-up from durable sequence counts.
     let end_counts = async {
-        if boundary.height == state.head {
-            source.current_counts(boundary.hash).await
-        } else {
-            Ok(None)
+        match source.counts(boundary.hash).await {
+            Ok(counts) => Ok::<_, eyre::Report>(counts),
+            Err(error) => {
+                warn!(
+                    domain = store.domain,
+                    height = boundary.height,
+                    ?error,
+                    "Historical sequence counts unavailable; using durable continuity"
+                );
+                Ok(None)
+            }
         }
     };
     let (events, end_counts) = tokio::try_join!(
@@ -313,10 +329,19 @@ async fn ingest_cached(
     let validated_counts = match advance_sequences(&events, start_counts) {
         Ok(counts) => counts,
         Err(error) if end_counts.is_none() => {
+            if state.indexed == state.confirmed
+                && count_cache.gap_confirmed == Some(state.confirmed)
+            {
+                store.pause(true).await?;
+                eyre::bail!(
+                    "Sequence gap crossed confirmed history; operator repair required: {error}"
+                );
+            }
             if state.indexed > state.confirmed {
                 store.rewind_to_confirmed(state).await?;
             }
-            *count_cache = None;
+            count_cache.boundary = None;
+            count_cache.gap_confirmed = Some(state.confirmed);
             return Err(error);
         }
         Err(error) => return Err(error),
@@ -369,7 +394,10 @@ async fn ingest_cached(
     );
     verify(source, &boundary).await?;
     store.append(state, &blocks).await?;
-    *count_cache = Some((boundary.hash, validated_counts));
+    count_cache.boundary = Some((boundary.hash, validated_counts));
+    if end_counts.is_some() {
+        count_cache.gap_confirmed = None;
+    }
     Ok(end < state.head)
 }
 
