@@ -64,16 +64,23 @@ struct SharedBlockCache {
     entries: Mutex<HashMap<u32, Arc<Mutex<Option<CachedBlockData>>>>>,
 }
 
-static BLOCK_CACHES: once_cell::sync::Lazy<StdMutex<HashMap<String, Weak<SharedBlockCache>>>> =
-    once_cell::sync::Lazy::new(|| StdMutex::new(HashMap::new()));
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct BlockCacheKey {
+    chain_id: String,
+    rpc_urls: Vec<String>,
+}
 
-fn shared_block_cache(chain_id: String) -> Arc<SharedBlockCache> {
+static BLOCK_CACHES: once_cell::sync::Lazy<
+    StdMutex<HashMap<BlockCacheKey, Weak<SharedBlockCache>>>,
+> = once_cell::sync::Lazy::new(|| StdMutex::new(HashMap::new()));
+
+fn shared_block_cache(key: BlockCacheKey) -> Arc<SharedBlockCache> {
     let mut caches = BLOCK_CACHES.lock().expect("block cache mutex poisoned");
-    if let Some(cache) = caches.get(&chain_id).and_then(Weak::upgrade) {
+    if let Some(cache) = caches.get(&key).and_then(Weak::upgrade) {
         return cache;
     }
     let cache = Arc::new(SharedBlockCache::default());
-    caches.insert(chain_id, Arc::downgrade(&cache));
+    caches.insert(key, Arc::downgrade(&cache));
     cache
 }
 
@@ -181,8 +188,8 @@ impl RpcProvider {
         metrics: PrometheusClientMetrics,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
-        let clients = conf
-            .get_rpc_urls()
+        let rpc_urls = conf.get_rpc_urls();
+        let clients = rpc_urls
             .iter()
             .map(|url| {
                 let metrics_config =
@@ -194,7 +201,10 @@ impl RpcProvider {
         let provider = FallbackProvider::new(clients);
         let gas_price = CosmosAmount::try_from(conf.get_minimum_gas_price().clone())?;
 
-        let block_cache = shared_block_cache(conf.get_chain_id());
+        let block_cache = shared_block_cache(BlockCacheKey {
+            chain_id: conf.get_chain_id(),
+            rpc_urls: rpc_urls.iter().map(ToString::to_string).collect(),
+        });
         Ok(RpcProvider {
             provider,
             conf,
@@ -590,6 +600,28 @@ impl RpcProvider {
                 Box::pin(future)
             })
             .await
+    }
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::*;
+
+    #[test]
+    fn block_caches_are_scoped_to_rpc_endpoints() {
+        let key = BlockCacheKey {
+            chain_id: "shared-chain-id".to_owned(),
+            rpc_urls: vec!["http://chain-a".to_owned()],
+        };
+        let first = shared_block_cache(key.clone());
+        let same = shared_block_cache(key);
+        let other = shared_block_cache(BlockCacheKey {
+            chain_id: "shared-chain-id".to_owned(),
+            rpc_urls: vec!["http://chain-b".to_owned()],
+        });
+
+        assert!(Arc::ptr_eq(&first, &same));
+        assert!(!Arc::ptr_eq(&first, &other));
     }
 }
 
