@@ -1296,6 +1296,8 @@ async fn restart_catches_up_when_historical_state_is_pruned() -> Result<()> {
     .await
     .is_err());
     assert!(store.state().await?.is_none());
+    assert_eq!(*source.calls.lock().unwrap(), vec![latest_hash]);
+    source.calls.lock().unwrap().clear();
     *source.unavailable.lock().unwrap() = None;
     *source.chain.fail_tag.lock().unwrap() = true;
     assert!(prepare(
