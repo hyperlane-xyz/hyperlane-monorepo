@@ -44,7 +44,7 @@ let coreCache: ChainMap<CoreConfig> | undefined;
 // These deployed core hook trees predate the current deployer path. Keep this
 // list explicit so registry availability changes cannot silently opt another
 // chain into in-place recovery.
-const legacyCoreHookRecoveryChains: ChainName[] = [
+export const legacyCoreHookRecoveryChains: ChainName[] = [
   'coti',
   'electroneum',
   'krown',
