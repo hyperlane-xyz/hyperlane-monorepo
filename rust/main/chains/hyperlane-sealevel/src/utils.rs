@@ -16,16 +16,18 @@ pub fn from_base58(base58: &str) -> Result<Vec<u8>, HyperlaneSealevelError> {
 
 pub fn decode_h256(base58: &str) -> Result<H256, HyperlaneSealevelError> {
     let binary = from_base58(base58)?;
-    let hash = H256::from_slice(&binary);
+    decode_h256_bytes(&binary)
+}
 
-    Ok(hash)
+pub(crate) fn decode_h256_bytes(binary: &[u8]) -> Result<H256, HyperlaneSealevelError> {
+    let bytes: [u8; 32] = binary.try_into()?;
+    Ok(H256::from(bytes))
 }
 
 pub fn decode_h512(base58: &str) -> Result<H512, HyperlaneSealevelError> {
     let binary = from_base58(base58)?;
-    let hash = H512::from_slice(&binary);
-
-    Ok(hash)
+    let bytes: [u8; 64] = binary.as_slice().try_into()?;
+    Ok(H512::from(bytes))
 }
 
 pub fn decode_pubkey(address: &str) -> Result<Pubkey, HyperlaneSealevelError> {
@@ -80,7 +82,62 @@ pub fn sanitize_dynamic_accounts(
 mod test {
     use solana_sdk::pubkey::Pubkey;
 
-    use crate::utils::sanitize_dynamic_accounts;
+    use super::*;
+
+    #[test]
+    fn test_decode_hashes_reject_wrong_lengths() {
+        for len in [0, 1, 31, 33, 64] {
+            let bytes = vec![0; len];
+            let encoded = bs58::encode(&bytes).into_string();
+            assert!(matches!(
+                decode_h256(&encoded),
+                Err(HyperlaneSealevelError::InvalidHashLength(_))
+            ));
+            assert!(matches!(
+                decode_h256_bytes(&bytes),
+                Err(HyperlaneSealevelError::InvalidHashLength(_))
+            ));
+        }
+        for len in [0, 1, 32, 63, 65] {
+            let encoded = bs58::encode(vec![0; len]).into_string();
+            assert!(matches!(
+                decode_h512(&encoded),
+                Err(HyperlaneSealevelError::InvalidHashLength(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn test_decode_hashes_preserve_valid_bytes() {
+        let bytes = [42; 32];
+        let encoded = bs58::encode(bytes).into_string();
+        assert_eq!(
+            decode_h256(&encoded).expect("valid H256 base58"),
+            H256::from(bytes)
+        );
+        assert_eq!(
+            decode_h256_bytes(&bytes).expect("valid H256 bytes"),
+            H256::from(bytes)
+        );
+        let bytes = [42; 64];
+        let encoded = bs58::encode(bytes).into_string();
+        assert_eq!(
+            decode_h512(&encoded).expect("valid H512 base58"),
+            H512::from(bytes)
+        );
+    }
+
+    #[test]
+    fn test_decode_hashes_reject_invalid_base58() {
+        assert!(matches!(
+            decode_h256("0"),
+            Err(HyperlaneSealevelError::Decoding(_))
+        ));
+        assert!(matches!(
+            decode_h512("0"),
+            Err(HyperlaneSealevelError::Decoding(_))
+        ));
+    }
 
     #[test]
     fn test_sanitize_dynamic_accounts_forces_non_signer() {

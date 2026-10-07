@@ -27,6 +27,7 @@ use crate::log_meta_composer::{
     is_message_delivery_instruction, is_message_dispatch_instruction, LogMetaComposer,
 };
 use crate::tx_submitter::TransactionSubmitter;
+use crate::utils::decode_h256_bytes;
 use crate::{ConnectionConf, SealevelMailbox, SealevelProvider};
 
 /// Struct that retrieves event data for a Sealevel Mailbox contract
@@ -274,7 +275,7 @@ impl SealevelMailboxIndexer {
     }
 
     fn delivered_message_account(&self, account: &Account) -> ChainResult<Pubkey> {
-        let message_id = H256::from_slice(&account.data);
+        let message_id = decode_h256_bytes(&account.data)?;
         let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
             mailbox_processed_message_pda_seeds!(message_id),
             &self.mailbox.program_id,
