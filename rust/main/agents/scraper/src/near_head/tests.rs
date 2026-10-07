@@ -799,7 +799,7 @@ async fn confirmation_bounds_temporary_checkpoints_without_scanning_blocks() -> 
     let blocks = count(&store, "block").await?;
     chain.header_calls.store(0, Ordering::Relaxed);
     confirm(&chain, &store, &ReorgPeriod::from_blocks(0)).await?;
-    assert_eq!(chain.header_calls.load(Ordering::Relaxed), 1);
+    assert_eq!(chain.header_calls.load(Ordering::Relaxed), 2);
     assert_eq!(count(&store, "scraper_checkpoint").await?, 1);
     assert_eq!(store.checkpoint(10).await?, 10);
     assert_eq!(count(&store, "block").await?, blocks);
@@ -807,7 +807,7 @@ async fn confirmation_bounds_temporary_checkpoints_without_scanning_blocks() -> 
 }
 
 #[tokio::test]
-async fn idle_sequence_ingestion_skips_headers_logs_and_empty_checkpoints() -> Result<()> {
+async fn idle_sequence_ingestion_advances_with_only_an_end_checkpoint() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let db = Database::connect(format!(
         "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
@@ -826,10 +826,11 @@ async fn idle_sequence_ingestion_skips_headers_logs_and_empty_checkpoints() -> R
     let mut cache = CountCache::default();
 
     assert!(!ingest_cached(&chain, &store, &state, 100, &mut cache).await?);
-    assert_eq!(chain.header_calls.load(Ordering::Relaxed), 0);
     assert!(chain.ranges.lock().unwrap().is_empty());
-    assert_eq!(store.state().await?.unwrap().indexed, 0);
-    assert_eq!(count(&store, "scraper_checkpoint").await?, 1);
+    assert_eq!(store.state().await?.unwrap().indexed, 10);
+    assert_eq!(count(&store, "scraper_checkpoint").await?, 2);
+    confirm(&chain, &store, &ReorgPeriod::from_blocks(0)).await?;
+    assert_eq!(store.state().await?.unwrap().confirmed, 10);
     Ok(())
 }
 

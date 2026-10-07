@@ -317,9 +317,30 @@ impl RpcProvider {
         {
             return Ok(data.data.clone());
         }
-        let (block, results) =
-            tokio::try_join!(self.get_block(height), self.get_block_results(height),)?;
-        let data = Arc::new(BlockData { block, results });
+        let data = self
+            .provider
+            .call(|client| {
+                let future = async move {
+                    let (block, results) = tokio::try_join!(
+                        Self::track_metric_call(&client, "get_block", || {
+                            client.client.block(height)
+                        }),
+                        Self::track_metric_call(&client, "block_results", || {
+                            client.client.block_results(height)
+                        }),
+                    )?;
+                    if results.height.value() != u64::from(height)
+                        || block.block.header.height.value() != u64::from(height)
+                    {
+                        return Err(ChainCommunicationError::from_other_str(
+                            "Block data height does not match the requested block",
+                        ));
+                    }
+                    Ok(Arc::new(BlockData { block, results }))
+                };
+                Box::pin(future)
+            })
+            .await?;
         *cached = Some(CachedBlockData {
             fetched_at: Instant::now(),
             data: data.clone(),
