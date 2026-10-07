@@ -204,6 +204,10 @@ export enum IgpVersion {
 
 export const OFFCHAIN_QUOTED_IGP_VERSION = '11.3.0';
 
+// 11.0.0 shipped the StaticAggregationHook fix, but builds without it already
+// reported "11.0.0", so 11.0.1 is the first version that identifies a fixed hook.
+export const ERC20_FEE_AGGREGATION_HOOK_VERSION = '11.0.1';
+
 const FeeTokenAddressSchema = z
   .string()
   .refine((feeToken) => isAddressEvm(feeToken), {

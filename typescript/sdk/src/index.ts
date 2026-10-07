@@ -304,6 +304,7 @@ export {
   DerivedHookConfig,
   DomainRoutingHookConfig,
   DomainRoutingHookConfigSchema,
+  ERC20_FEE_AGGREGATION_HOOK_VERSION,
   FallbackRoutingHookConfig,
   FallbackRoutingHookConfigSchema,
   HookConfig,
