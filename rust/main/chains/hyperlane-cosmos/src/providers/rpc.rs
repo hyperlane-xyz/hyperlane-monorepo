@@ -1,6 +1,10 @@
-use std::future::Future;
-use std::ops::Mul;
-use std::time::Instant;
+use std::{
+    collections::HashMap,
+    future::Future,
+    ops::Mul,
+    sync::{Arc, Mutex as StdMutex, Weak},
+    time::{Duration, Instant},
+};
 
 use cometbft::{hash::Algorithm, Hash};
 use cometbft_rpc::{
@@ -24,6 +28,7 @@ use cosmrs::{
     Any, Coin,
 };
 use protobuf::Message as _;
+use tokio::sync::Mutex;
 use tonic::async_trait;
 use url::Url;
 
@@ -39,6 +44,38 @@ use hyperlane_metric::prometheus_metric::{
 use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
 
 const TX_TIMEOUT_BLOCKS: u32 = 100;
+const BLOCK_CACHE_TTL: Duration = Duration::from_secs(5);
+const BLOCK_CACHE_CAPACITY: usize = 32;
+
+#[derive(Debug)]
+struct CachedBlockData {
+    fetched_at: Instant,
+    data: Arc<BlockData>,
+}
+
+#[derive(Debug)]
+pub(crate) struct BlockData {
+    pub block: BlockResponse,
+    pub results: BlockResultsResponse,
+}
+
+#[derive(Debug, Default)]
+struct SharedBlockCache {
+    entries: Mutex<HashMap<u32, Arc<Mutex<Option<CachedBlockData>>>>>,
+}
+
+static BLOCK_CACHES: once_cell::sync::Lazy<StdMutex<HashMap<String, Weak<SharedBlockCache>>>> =
+    once_cell::sync::Lazy::new(|| StdMutex::new(HashMap::new()));
+
+fn shared_block_cache(chain_id: String) -> Arc<SharedBlockCache> {
+    let mut caches = BLOCK_CACHES.lock().expect("block cache mutex poisoned");
+    if let Some(cache) = caches.get(&chain_id).and_then(Weak::upgrade) {
+        return cache;
+    }
+    let cache = Arc::new(SharedBlockCache::default());
+    caches.insert(chain_id, Arc::downgrade(&cache));
+    cache
+}
 
 #[derive(Debug)]
 pub(crate) struct CosmosHttpClient {
@@ -56,6 +93,7 @@ pub struct RpcProvider {
     conf: ConnectionConf,
     signer: Option<Signer>,
     gas_price: CosmosAmount,
+    block_cache: Arc<SharedBlockCache>,
 }
 
 #[async_trait]
@@ -156,11 +194,13 @@ impl RpcProvider {
         let provider = FallbackProvider::new(clients);
         let gas_price = CosmosAmount::try_from(conf.get_minimum_gas_price().clone())?;
 
+        let block_cache = shared_block_cache(conf.get_chain_id());
         Ok(RpcProvider {
             provider,
             conf,
             signer,
             gas_price,
+            block_cache,
         })
     }
 
@@ -177,6 +217,7 @@ impl RpcProvider {
             conf,
             signer,
             gas_price,
+            block_cache: Arc::new(SharedBlockCache::default()),
         }
     }
 
@@ -255,6 +296,35 @@ impl RpcProvider {
                 Box::pin(future)
             })
             .await
+    }
+
+    /// Fetch block data once when multiple event indexers scan the same height.
+    pub(crate) async fn get_block_data(&self, height: u32) -> ChainResult<Arc<BlockData>> {
+        let entry = {
+            let mut entries = self.block_cache.entries.lock().await;
+            if entries.len() >= BLOCK_CACHE_CAPACITY {
+                entries.retain(|cached_height, _| height.abs_diff(*cached_height) < 16);
+            }
+            entries
+                .entry(height)
+                .or_insert_with(|| Arc::new(Mutex::new(None)))
+                .clone()
+        };
+        let mut cached = entry.lock().await;
+        if let Some(data) = cached
+            .as_ref()
+            .filter(|data| data.fetched_at.elapsed() < BLOCK_CACHE_TTL)
+        {
+            return Ok(data.data.clone());
+        }
+        let (block, results) =
+            tokio::try_join!(self.get_block(height), self.get_block_results(height),)?;
+        let data = Arc::new(BlockData { block, results });
+        *cached = Some(CachedBlockData {
+            fetched_at: Instant::now(),
+            data: data.clone(),
+        });
+        Ok(data)
     }
 
     /// abci query is low level function that only gets called by higher level ones like 'get_balance'

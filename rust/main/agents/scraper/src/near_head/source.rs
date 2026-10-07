@@ -122,6 +122,10 @@ pub(super) trait Source: Send + Sync {
     async fn indexing_tip(&self) -> Result<Option<u64>> {
         Ok(None)
     }
+    /// Whether a sequence-indexed source has events after the durable cursors.
+    async fn has_events_after(&self, _sequences: [u32; 4]) -> Result<Option<bool>> {
+        Ok(None)
+    }
     async fn empty_anchor(&self) -> Result<Option<Header>> {
         Ok(None)
     }
@@ -353,6 +357,9 @@ fn decode(contracts: &EvmContracts, domain: u32, log: Log) -> Result<Option<Even
     }))
 }
 
+type StreamTip = (Option<u32>, u32);
+type StreamTips = [StreamTip; 4];
+
 pub(super) struct GenericSource {
     provider: Box<dyn HyperlaneProvider>,
     messages: Box<dyn SequenceAwareIndexer<HyperlaneMessage>>,
@@ -364,6 +371,7 @@ pub(super) struct GenericSource {
     derive_insertions_from_messages: bool,
     chunk_size: u32,
     headers: RwLock<HashMap<u64, Header>>,
+    streams: RwLock<Option<StreamTips>>,
 }
 
 impl GenericSource {
@@ -393,17 +401,39 @@ impl GenericSource {
             ),
             chunk_size: conf.index.chunk_size,
             headers: RwLock::new(HashMap::new()),
+            streams: RwLock::new(None),
         }))
     }
 
-    async fn latest_streams(&self) -> Result<[(Option<u32>, u32); 4]> {
+    async fn latest_streams(&self) -> Result<StreamTips> {
+        if let Some(streams) = *self.streams.read().await {
+            return Ok(streams);
+        }
+        let mut cached = self.streams.write().await;
+        if let Some(streams) = *cached {
+            return Ok(streams);
+        }
+        let insertion = async {
+            if self.derive_insertions_from_messages {
+                Ok(None)
+            } else {
+                Ok(Some(self.insertions.latest_sequence_count_and_tip().await?))
+            }
+        };
         let (messages, deliveries, payments, insertions) = tokio::try_join!(
             self.messages.latest_sequence_count_and_tip(),
             self.deliveries.latest_sequence_count_and_tip(),
             self.payments.latest_sequence_count_and_tip(),
-            self.insertions.latest_sequence_count_and_tip(),
+            insertion,
         )?;
-        Ok([messages, deliveries, payments, insertions])
+        let streams = [
+            messages,
+            deliveries,
+            payments,
+            insertions.unwrap_or(messages),
+        ];
+        *cached = Some(streams);
+        Ok(streams)
     }
 
     fn event<T>(
@@ -427,12 +457,12 @@ impl GenericSource {
 
     async fn logs<T: Send + Sync + 'static>(
         indexer: &dyn SequenceAwareIndexer<T>,
+        (count, tip): StreamTip,
         blocks: std::ops::RangeInclusive<u32>,
         next_sequence: u32,
         sequence_mode: bool,
         chunk_size: u32,
     ) -> Result<(Vec<(Indexed<T>, LogMeta)>, u32)> {
-        let (count, tip) = indexer.latest_sequence_count_and_tip().await?;
         ensure!(
             tip >= *blocks.end(),
             "Event-stream tip is behind the range boundary"
@@ -632,6 +662,7 @@ impl GenericSource {
 impl Source for GenericSource {
     async fn begin_cycle(&self) {
         self.headers.write().await.clear();
+        *self.streams.write().await = None;
     }
 
     async fn header(&self, selector: BlockSelector) -> Result<Header> {
@@ -664,6 +695,23 @@ impl Source for GenericSource {
             .into_iter()
             .min()
             .map(u64::from))
+    }
+
+    async fn has_events_after(&self, sequences: [u32; 4]) -> Result<Option<bool>> {
+        if !self.sequence_mode {
+            return Ok(None);
+        }
+        let streams = self.latest_streams().await?;
+        let mut has_events = false;
+        for ((count, _), next) in streams.into_iter().zip(sequences) {
+            let count = count.ok_or_else(|| eyre!("Indexer does not expose a sequence count"))?;
+            ensure!(
+                count >= next,
+                "Provider sequence count is behind durable history"
+            );
+            has_events |= count > next;
+        }
+        Ok(Some(has_events))
     }
 
     async fn empty_anchor(&self) -> Result<Option<Header>> {
@@ -700,9 +748,12 @@ impl Source for GenericSource {
             );
         }
         let range = u32::try_from(from)?..=u32::try_from(through)?;
+        let [message_stream, delivery_stream, payment_stream, insertion_stream] =
+            self.latest_streams().await?;
         let (messages, deliveries, payments, insertions) = tokio::try_join!(
             Self::logs(
                 self.messages.as_ref(),
+                message_stream,
                 range.clone(),
                 sequences[0],
                 self.sequence_mode,
@@ -710,6 +761,7 @@ impl Source for GenericSource {
             ),
             Self::logs(
                 self.deliveries.as_ref(),
+                delivery_stream,
                 range.clone(),
                 sequences[1],
                 self.sequence_mode,
@@ -717,6 +769,7 @@ impl Source for GenericSource {
             ),
             Self::logs(
                 self.payments.as_ref(),
+                payment_stream,
                 range.clone(),
                 sequences[2],
                 self.sequence_mode,
@@ -728,6 +781,7 @@ impl Source for GenericSource {
                 } else {
                     Self::logs(
                         self.insertions.as_ref(),
+                        insertion_stream,
                         range,
                         sequences[3],
                         self.sequence_mode,
@@ -852,6 +906,36 @@ mod tests {
         }
     }
 
+    #[derive(Debug)]
+    struct CountingEmptyIndexer<T> {
+        calls: Arc<AtomicUsize>,
+        marker: PhantomData<T>,
+    }
+
+    #[async_trait]
+    impl<T: Send + Sync + std::fmt::Debug> hyperlane_core::Indexer<T> for CountingEmptyIndexer<T> {
+        async fn fetch_logs_in_range(
+            &self,
+            _range: RangeInclusive<u32>,
+        ) -> hyperlane_core::ChainResult<Vec<(Indexed<T>, LogMeta)>> {
+            Ok(Vec::new())
+        }
+
+        async fn get_finalized_block_number(&self) -> hyperlane_core::ChainResult<u32> {
+            Ok(7)
+        }
+    }
+
+    #[async_trait]
+    impl<T: Send + Sync + std::fmt::Debug> SequenceAwareIndexer<T> for CountingEmptyIndexer<T> {
+        async fn latest_sequence_count_and_tip(
+            &self,
+        ) -> hyperlane_core::ChainResult<(Option<u32>, u32)> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            Ok((Some(0), 7))
+        }
+    }
+
     #[derive(Clone, Debug)]
     struct CountingProvider {
         domain: hyperlane_core::HyperlaneDomain,
@@ -934,6 +1018,7 @@ mod tests {
             derive_insertions_from_messages: false,
             chunk_size: 1,
             headers: RwLock::new(HashMap::new()),
+            streams: RwLock::new(None),
         };
 
         source.begin_cycle().await;
@@ -972,6 +1057,7 @@ mod tests {
             derive_insertions_from_messages: false,
             chunk_size: 1,
             headers: RwLock::new(HashMap::new()),
+            streams: RwLock::new(None),
         };
 
         assert_eq!(
@@ -983,6 +1069,62 @@ mod tests {
                 parent: EthersH256::zero(),
             })
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn generic_stream_tips_are_cached_per_cycle_and_derive_insertions() -> Result<()> {
+        let messages = Arc::new(AtomicUsize::new(0));
+        let deliveries = Arc::new(AtomicUsize::new(0));
+        let payments = Arc::new(AtomicUsize::new(0));
+        let insertions = Arc::new(AtomicUsize::new(0));
+        let source = GenericSource {
+            provider: Box::new(CountingProvider {
+                domain: hyperlane_core::HyperlaneDomain::new_test_domain("stream-cache"),
+                calls: Arc::new(AtomicUsize::new(0)),
+            }),
+            messages: Box::new(CountingEmptyIndexer::<HyperlaneMessage> {
+                calls: messages.clone(),
+                marker: PhantomData,
+            }),
+            deliveries: Box::new(CountingEmptyIndexer::<H256> {
+                calls: deliveries.clone(),
+                marker: PhantomData,
+            }),
+            payments: Box::new(CountingEmptyIndexer::<InterchainGasPayment> {
+                calls: payments.clone(),
+                marker: PhantomData,
+            }),
+            insertions: Box::new(CountingEmptyIndexer::<MerkleTreeInsertion> {
+                calls: insertions.clone(),
+                marker: PhantomData,
+            }),
+            contracts: Contracts {
+                mailbox: H256::zero(),
+                hook: H256::zero(),
+                paymaster: H256::zero(),
+            },
+            sequence_mode: true,
+            derive_insertions_from_messages: true,
+            chunk_size: 1,
+            headers: RwLock::new(HashMap::new()),
+            streams: RwLock::new(None),
+        };
+
+        assert_eq!(source.indexing_tip().await?, Some(7));
+        assert_eq!(source.has_events_after([0; 4]).await?, Some(false));
+        assert_eq!(source.events_after(0, 7, [0; 4]).await?.through, 7);
+        assert_eq!(messages.load(Ordering::Relaxed), 1);
+        assert_eq!(deliveries.load(Ordering::Relaxed), 1);
+        assert_eq!(payments.load(Ordering::Relaxed), 1);
+        assert_eq!(insertions.load(Ordering::Relaxed), 0);
+
+        source.begin_cycle().await;
+        assert_eq!(source.indexing_tip().await?, Some(7));
+        assert_eq!(messages.load(Ordering::Relaxed), 2);
+        assert_eq!(deliveries.load(Ordering::Relaxed), 2);
+        assert_eq!(payments.load(Ordering::Relaxed), 2);
+        assert_eq!(insertions.load(Ordering::Relaxed), 0);
         Ok(())
     }
 
@@ -1043,14 +1185,16 @@ mod tests {
             truncate_last: false,
             requests: Mutex::new(Vec::new()),
         };
-        GenericSource::logs(&indexer, 100..=200, 7, true, 2).await?;
+        GenericSource::logs(&indexer, (Some(10), 200), 100..=200, 7, true, 2).await?;
         assert_eq!(
             *indexer.requests.lock().expect("request mutex poisoned"),
             vec![7..=8]
         );
-        assert!(GenericSource::logs(&indexer, 100..=200, 11, true, 2)
-            .await
-            .is_err());
+        assert!(
+            GenericSource::logs(&indexer, (Some(10), 200), 100..=200, 11, true, 2)
+                .await
+                .is_err()
+        );
 
         let partial = SequenceIndexer {
             count: 10,
@@ -1058,9 +1202,11 @@ mod tests {
             truncate_last: true,
             requests: Mutex::new(Vec::new()),
         };
-        assert!(GenericSource::logs(&partial, 100..=200, 7, true, 10)
-            .await
-            .is_err());
+        assert!(
+            GenericSource::logs(&partial, (Some(10), 200), 100..=200, 7, true, 10)
+                .await
+                .is_err()
+        );
 
         let bounded = SequenceIndexer {
             count: 100,
@@ -1068,7 +1214,8 @@ mod tests {
             truncate_last: false,
             requests: Mutex::new(Vec::new()),
         };
-        let bounded_result = GenericSource::logs(&bounded, 0..=3, 0, true, 2).await?;
+        let bounded_result =
+            GenericSource::logs(&bounded, (Some(100), 200), 0..=3, 0, true, 2).await?;
         assert_eq!(bounded_result.1, 0);
         assert_eq!(
             *bounded.requests.lock().expect("request mutex poisoned"),
@@ -1080,9 +1227,11 @@ mod tests {
             truncate_last: false,
             requests: Mutex::new(Vec::new()),
         };
-        assert!(GenericSource::logs(&lagging, 100..=200, 7, true, 2)
-            .await
-            .is_err());
+        assert!(
+            GenericSource::logs(&lagging, (Some(10), 199), 100..=200, 7, true, 2)
+                .await
+                .is_err()
+        );
         assert!(lagging
             .requests
             .lock()

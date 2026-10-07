@@ -264,6 +264,21 @@ async fn ingest_cached(
     if available_head <= state.indexed {
         return Ok(false);
     }
+    let start_counts = match count_cache
+        .boundary
+        .as_ref()
+        .filter(|(hash, _)| *hash == state.hash)
+    {
+        Some((_, counts)) => *counts,
+        None => {
+            let counts = store.sequence_counts().await?;
+            count_cache.boundary = Some((state.hash, counts));
+            counts
+        }
+    };
+    if source.has_events_after(start_counts).await? == Some(false) {
+        return Ok(false);
+    }
     let requested_end = if source.indexes_by_sequence() {
         // Sequence paging is already bounded by its configured page size. Use
         // the observed head as the block boundary so sparse-slot chains do not
@@ -277,14 +292,6 @@ async fn ingest_cached(
         .await?;
     let mut end = boundary.height;
     let mut by_block = BTreeMap::<u64, Vec<source::Event>>::new();
-    let start_counts = match count_cache
-        .boundary
-        .as_ref()
-        .filter(|(hash, _)| *hash == state.hash)
-    {
-        Some((_, counts)) => *counts,
-        None => store.sequence_counts().await?,
-    };
     // Retain exact range validation where historical state is available, but do
     // not let a pruned-state RPC prevent catch-up from durable sequence counts.
     let end_counts = async {
@@ -508,11 +515,11 @@ async fn confirm_leased(
         });
     }
     let checkpoint = store.checkpoint_between(state.confirmed, through).await?;
-    let boundary = match tagged {
-        Some(header) if header.height == through => header,
+    let (boundary, boundary_is_fresh) = match tagged {
+        Some(header) if header.height == through => (header, false),
         _ => {
             let after = checkpoint.map_or(state.confirmed, |height| height.saturating_sub(1));
-            source.fresh_range_end(after, through, through).await?
+            (source.fresh_range_end(after, through, through).await?, true)
         }
     };
     let through = boundary.height;
@@ -523,10 +530,14 @@ async fn confirm_leased(
         );
     }
     // A sparse boundary must be checked against the indexed range's canonical tip.
-    let indexed_hash = source
-        .fresh_header(BlockSelector::Height(state.indexed))
-        .await?
-        .hash;
+    let indexed_hash = if boundary_is_fresh && boundary.height == state.indexed {
+        boundary.hash
+    } else {
+        source
+            .fresh_header(BlockSelector::Height(state.indexed))
+            .await?
+            .hash
+    };
     ensure!(
         indexed_hash == state.hash,
         "Indexed fork changed before confirmation"

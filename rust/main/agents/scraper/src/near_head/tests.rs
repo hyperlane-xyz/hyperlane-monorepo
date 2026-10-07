@@ -35,6 +35,7 @@ struct Chain {
     ranges: Mutex<Vec<(u64, u64)>>,
     reorg_during_logs: Mutex<bool>,
     wrong_log_hash: Mutex<bool>,
+    idle_sequence: AtomicBool,
 }
 
 impl Chain {
@@ -47,6 +48,7 @@ impl Chain {
             ranges: Mutex::new(Vec::new()),
             reorg_during_logs: Mutex::new(false),
             wrong_log_hash: Mutex::new(false),
+            idle_sequence: AtomicBool::new(false),
         };
         chain.fork(height, 0, 0);
         chain
@@ -157,6 +159,21 @@ impl Source for Chain {
             data,
         })
         .collect())
+    }
+
+    fn indexes_by_sequence(&self) -> bool {
+        self.idle_sequence.load(Ordering::Relaxed)
+    }
+
+    async fn indexing_tip(&self) -> Result<Option<u64>> {
+        Ok(self
+            .idle_sequence
+            .load(Ordering::Relaxed)
+            .then(|| *self.headers.lock().unwrap().last_key_value().unwrap().0))
+    }
+
+    async fn has_events_after(&self, _sequences: [u32; 4]) -> Result<Option<bool>> {
+        Ok(self.idle_sequence.load(Ordering::Relaxed).then_some(false))
     }
 }
 
@@ -780,10 +797,39 @@ async fn confirmation_bounds_temporary_checkpoints_without_scanning_blocks() -> 
     assert_eq!(row.try_get::<i64>("", "last")?, 10);
     assert!(row.try_get::<i64>("", "n")? <= 3);
     let blocks = count(&store, "block").await?;
+    chain.header_calls.store(0, Ordering::Relaxed);
     confirm(&chain, &store, &ReorgPeriod::from_blocks(0)).await?;
+    assert_eq!(chain.header_calls.load(Ordering::Relaxed), 1);
     assert_eq!(count(&store, "scraper_checkpoint").await?, 1);
     assert_eq!(store.checkpoint(10).await?, 10);
     assert_eq!(count(&store, "block").await?, blocks);
+    Ok(())
+}
+
+#[tokio::test]
+async fn idle_sequence_ingestion_skips_headers_logs_and_empty_checkpoints() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let chain = Chain::new(10);
+    chain.idle_sequence.store(true, Ordering::Relaxed);
+    store
+        .initialize(&chain.header(0u64.into()).await?, &contracts())
+        .await?;
+    let state = observe(&chain, &store).await?;
+    chain.header_calls.store(0, Ordering::Relaxed);
+    let mut cache = CountCache::default();
+
+    assert!(!ingest_cached(&chain, &store, &state, 100, &mut cache).await?);
+    assert_eq!(chain.header_calls.load(Ordering::Relaxed), 0);
+    assert!(chain.ranges.lock().unwrap().is_empty());
+    assert_eq!(store.state().await?.unwrap().indexed, 0);
+    assert_eq!(count(&store, "scraper_checkpoint").await?, 1);
     Ok(())
 }
 
