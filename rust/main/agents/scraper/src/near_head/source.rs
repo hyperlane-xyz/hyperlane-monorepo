@@ -111,7 +111,7 @@ pub(super) trait Source: Send + Sync {
             through,
         })
     }
-    /// Dispatch nonce and Merkle count, pinned to the range boundary fork.
+    /// Dispatch nonce and Merkle count pinned to the range boundary fork.
     async fn counts(&self, _hash: EthersH256) -> Result<Option<[u32; 2]>> {
         Ok(None)
     }
@@ -188,6 +188,14 @@ impl<M: Middleware + 'static> EvmSource<M> {
         );
         Ok(value.as_u32())
     }
+
+    async fn counts_at(&self, hash: EthersH256) -> Result<[u32; 2]> {
+        let (dispatches, insertions) = tokio::try_join!(
+            self.count(self.contracts.mailbox, "nonce()", hash),
+            self.count(self.contracts.hook, "count()", hash),
+        )?;
+        Ok([dispatches, insertions])
+    }
 }
 
 #[async_trait]
@@ -223,11 +231,7 @@ impl<M: Middleware + 'static> Source for EvmSource<M> {
     }
 
     async fn counts(&self, hash: EthersH256) -> Result<Option<[u32; 2]>> {
-        let (dispatches, insertions) = tokio::try_join!(
-            self.count(self.contracts.mailbox, "nonce()", hash),
-            self.count(self.contracts.hook, "count()", hash),
-        )?;
-        Ok(Some([dispatches, insertions]))
+        Ok(Some(self.counts_at(hash).await?))
     }
 
     async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
@@ -1196,8 +1200,9 @@ mod tests {
             domain: 1,
         };
         assert_eq!(
-            tokio::time::timeout(std::time::Duration::from_secs(1), source.counts(hash)).await??,
-            Some([9, 7])
+            tokio::time::timeout(std::time::Duration::from_secs(1), source.counts_at(hash))
+                .await??,
+            [9, 7]
         );
         Ok(())
     }
@@ -1219,7 +1224,7 @@ mod tests {
         let encoded = |value: u32| Bytes::from(encode(&[Token::Uint(value.into())]));
         rpc.push::<Bytes, _>(encoded(7))?;
         rpc.push::<Bytes, _>(encoded(9))?;
-        assert_eq!(source.counts(hash).await?, Some([9, 7]));
+        assert_eq!(source.counts_at(hash).await?, [9, 7]);
         for (address, signature) in [
             (source.contracts.mailbox, "nonce()"),
             (source.contracts.hook, "count()"),
@@ -1234,15 +1239,15 @@ mod tests {
         // Empty results only mean zero before deployment, never for existing code.
         rpc.push::<Bytes, _>(Bytes::from(vec![1]))?;
         rpc.push::<Bytes, _>(Bytes::default())?;
-        assert!(source.counts(hash).await.is_err());
+        assert!(source.counts_at(hash).await.is_err());
         rpc.push::<Bytes, _>(encoded(0))?;
         rpc.push::<Bytes, _>(Bytes::default())?;
         rpc.push::<Bytes, _>(Bytes::default())?;
-        assert_eq!(source.counts(hash).await?, Some([0, 0]));
+        assert_eq!(source.counts_at(hash).await?, [0, 0]);
         rpc.push::<Bytes, _>(Bytes::from(encode(&[Token::Uint(
             U256::from(u32::MAX) + 1,
         )])))?;
-        assert!(source.counts(hash).await.is_err());
+        assert!(source.counts_at(hash).await.is_err());
         Ok(())
     }
 

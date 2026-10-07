@@ -28,7 +28,7 @@ struct Chain {
     observations: AtomicUsize,
     fresh_headers: AtomicUsize,
     sequence: AtomicBool,
-    historical_counts: AtomicBool,
+    counts: AtomicBool,
     indexing_tip: AtomicU64,
     events: Mutex<Vec<Event>>,
 }
@@ -44,7 +44,7 @@ impl Chain {
             observations: AtomicUsize::new(0),
             fresh_headers: AtomicUsize::new(0),
             sequence: AtomicBool::new(false),
-            historical_counts: AtomicBool::new(true),
+            counts: AtomicBool::new(true),
             indexing_tip: AtomicU64::new(u64::MAX),
             events: Mutex::new(Vec::new()),
         }
@@ -112,10 +112,7 @@ impl Source for Arc<Chain> {
     }
 
     async fn counts(&self, _: H256) -> Result<Option<[u32; 2]>> {
-        Ok(self
-            .historical_counts
-            .load(Ordering::SeqCst)
-            .then_some([0; 2]))
+        Ok(self.counts.load(Ordering::SeqCst).then_some([0; 2]))
     }
 
     fn indexes_by_sequence(&self) -> bool {
@@ -214,7 +211,7 @@ async fn newly_ingested_events_publish_immediately_and_full_pages_keep_draining(
             .chain((999..1500).map(|index| gas_event(2, index))),
     );
     let worker = worker(db, chain).await?;
-    let mut cache = None;
+    let mut cache = CountCache::default();
 
     assert!(worker.cycle(&mut cache).await?.more);
     let first = worker.store.state().await?.unwrap();
@@ -239,7 +236,7 @@ async fn ingestion_errors_do_not_block_existing_publication() -> Result<()> {
             .chain((999..1500).map(|index| gas_event(2, index))),
     );
     let worker = worker(db, chain.clone()).await?;
-    let mut cache = None;
+    let mut cache = CountCache::default();
     worker.cycle(&mut cache).await?;
     assert_eq!(worker.store.state().await?.unwrap().confirmed, 0);
 
@@ -271,7 +268,7 @@ async fn backlog_drains_without_polls_while_ingestion_fails_then_recovers() -> R
             .chain((999..1500).map(|index| gas_event(2, index))),
     );
     let worker = worker(db, chain.clone()).await?;
-    worker.cycle(&mut None).await?;
+    worker.cycle(&mut CountCache::default()).await?;
     assert_eq!(worker.store.state().await?.unwrap().confirmed, 0);
 
     // A poll interval far beyond the test timeout: draining both pages proves
@@ -331,7 +328,7 @@ async fn finality_tag_on_another_fork_releases_nothing() -> Result<()> {
     chain.tag.store(1, Ordering::SeqCst);
     chain.events.lock().unwrap().push(gas_event(1, 0));
     let worker = worker(db, chain.clone()).await?;
-    let mut cache = None;
+    let mut cache = CountCache::default();
     worker.cycle(&mut cache).await?;
     assert_eq!(worker.store.state().await?.unwrap().confirmed, 1);
 
@@ -521,10 +518,10 @@ async fn block_mode_replays_provisional_history_after_a_sequence_gap() -> Result
     ))
     .await?;
     let chain = Arc::new(Chain::new(3, false));
-    chain.historical_counts.store(false, Ordering::SeqCst);
+    chain.counts.store(false, Ordering::SeqCst);
     chain.events.lock().unwrap().push(dispatch_event(2, 0));
     let worker = worker(db, chain.clone()).await?;
-    let mut cache = None;
+    let mut cache = CountCache::default();
     worker.cycle(&mut cache).await?;
     assert_eq!(worker.store.state().await?.unwrap().indexed, 3);
 
@@ -550,10 +547,10 @@ async fn block_mode_retries_a_sequence_gap_after_the_confirmed_frontier() -> Res
     ))
     .await?;
     let chain = Arc::new(Chain::new(3, false));
-    chain.historical_counts.store(false, Ordering::SeqCst);
+    chain.counts.store(false, Ordering::SeqCst);
     chain.events.lock().unwrap().push(dispatch_event(3, 1));
     let worker = worker(db, chain.clone()).await?;
-    let mut cache = None;
+    let mut cache = CountCache::default();
 
     assert!(worker.cycle(&mut cache).await.is_err());
     let rejected = worker.store.state().await?.unwrap();
@@ -563,5 +560,28 @@ async fn block_mode_retries_a_sequence_gap_after_the_confirmed_frontier() -> Res
     chain.events.lock().unwrap().insert(0, dispatch_event(2, 0));
     worker.cycle(&mut cache).await?;
     assert_eq!(worker.store.state().await?.unwrap().indexed, 3);
+    Ok(())
+}
+
+#[tokio::test]
+async fn block_mode_halts_when_a_gap_repeats_at_the_confirmed_frontier() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(3, false));
+    chain.counts.store(false, Ordering::SeqCst);
+    chain.events.lock().unwrap().push(dispatch_event(3, 1));
+    let worker = worker(db, chain).await?;
+    let mut cache = CountCache::default();
+
+    assert!(worker.cycle(&mut cache).await.is_err());
+    assert!(!worker.store.state().await?.unwrap().halted);
+    assert!(worker.cycle(&mut cache).await.is_err());
+    let halted = worker.store.state().await?.unwrap();
+    assert_eq!((halted.indexed, halted.confirmed), (0, 0));
+    assert!(halted.halted);
     Ok(())
 }

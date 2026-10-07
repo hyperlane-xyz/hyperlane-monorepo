@@ -45,7 +45,7 @@ impl Worker {
     }
 
     async fn run_cycles(&self) {
-        let mut count_cache = None;
+        let mut count_cache = CountCache::default();
         loop {
             let result = self.cycle(&mut count_cache).await;
             // A failed log fetch stays critical even while confirmed pages keep
