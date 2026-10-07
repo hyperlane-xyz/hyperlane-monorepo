@@ -78,13 +78,13 @@ impl Chain {
 
 #[async_trait]
 impl Source for Chain {
-    async fn counts(&self, hash: H256) -> Result<Option<[u32; 2]>> {
+    async fn current_counts(&self, hash: H256) -> Result<Option<[u32; 2]>> {
         let headers = self.headers.lock().unwrap();
         let header = headers
-            .values()
-            .find(|h| h.hash == hash)
-            .ok_or_else(|| eyre::eyre!("Unknown fork"))?;
-        Ok(Some([u32::from(header.height >= 2); 2]))
+            .last_key_value()
+            .map(|(_, header)| header)
+            .ok_or_else(|| eyre::eyre!("Missing head"))?;
+        Ok((header.hash == hash).then_some([u32::from(header.height >= 2); 2]))
     }
 
     async fn header(&self, block: BlockSelector) -> Result<Header> {
@@ -969,10 +969,10 @@ impl Source for DenseChain {
         self.chain.header(number).await
     }
 
-    async fn counts(&self, hash: H256) -> Result<Option<[u32; 2]>> {
+    async fn current_counts(&self, hash: H256) -> Result<Option<[u32; 2]>> {
         Ok(self
             .chain
-            .counts(hash)
+            .current_counts(hash)
             .await?
             .map(|counts| counts.map(|count| count * 1001)))
     }
@@ -1257,18 +1257,18 @@ impl Source for CountedChain {
     async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
         self.chain.events(from, through).await
     }
-    async fn counts(&self, hash: H256) -> Result<Option<[u32; 2]>> {
+    async fn current_counts(&self, hash: H256) -> Result<Option<[u32; 2]>> {
         self.calls.lock().unwrap().push(hash);
         ensure!(
             *self.unavailable.lock().unwrap() != Some(hash),
             "State unavailable"
         );
-        self.chain.counts(hash).await
+        self.chain.current_counts(hash).await
     }
 }
 
 #[tokio::test]
-async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Result<()> {
+async fn restart_catches_up_without_historical_state_calls() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let db = Database::connect(format!(
         "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
@@ -1284,7 +1284,8 @@ async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Resul
     };
     let anchor = source.header(0u64.into()).await?;
     // Unsupported state/tag reads must not leave a new mode persisted.
-    *source.unavailable.lock().unwrap() = Some(anchor.hash);
+    let latest_hash = source.header(BlockSelector::Latest).await?.hash;
+    *source.unavailable.lock().unwrap() = Some(latest_hash);
     assert!(prepare(
         &source,
         &store,
@@ -1316,14 +1317,16 @@ async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Resul
         &ReorgPeriod::from_blocks(0),
     )
     .await?;
+    let latest_hash = source.header(BlockSelector::Latest).await?.hash;
+    assert_eq!(*source.calls.lock().unwrap(), vec![latest_hash]);
     source.calls.lock().unwrap().clear();
     let mut cache = None;
-    for expected_calls in [2, 3] {
+    for _ in 0..2 {
         let state = observe(&source, &store).await?;
         ingest_cached(&source, &store, &state, 1, &mut cache).await?;
-        assert_eq!(source.calls.lock().unwrap().len(), expected_calls);
+        assert!(source.calls.lock().unwrap().is_empty());
     }
-    // Restart preflight uses the retained boundary, even if old anchor state is pruned.
+    // Restart probes current state, never the retained boundary.
     *source.unavailable.lock().unwrap() = Some(anchor.hash);
     prepare(
         &source,
@@ -1333,6 +1336,8 @@ async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Resul
         &ReorgPeriod::from_blocks(0),
     )
     .await?;
+    let latest_hash = source.header(BlockSelector::Latest).await?.hash;
+    assert_eq!(*source.calls.lock().unwrap(), vec![latest_hash]);
     source.calls.lock().unwrap().clear();
     source.chain.fork(3, 1, 10);
     // Orphaned persisted hashes must not prevent startup from reaching rollback.
@@ -1348,7 +1353,7 @@ async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Resul
     let state = observe(&source, &store).await?;
     assert_eq!(state.indexed, 1);
     ingest_cached(&source, &store, &state, 1, &mut cache).await?;
-    assert_eq!(source.calls.lock().unwrap().len(), 2);
+    assert!(source.calls.lock().unwrap().is_empty());
     // A failed range cannot publish cached counts for an uncommitted boundary.
     let committed = cache;
     *source.chain.fail_logs.lock().unwrap() = true;
@@ -1361,7 +1366,7 @@ async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Resul
     source.calls.lock().unwrap().clear();
     let state = observe(&source, &store).await?;
     ingest_cached(&source, &store, &state, 1, &mut None).await?;
-    assert_eq!(source.calls.lock().unwrap().len(), 2);
+    assert_eq!(source.calls.lock().unwrap().len(), 1);
     Ok(())
 }
 

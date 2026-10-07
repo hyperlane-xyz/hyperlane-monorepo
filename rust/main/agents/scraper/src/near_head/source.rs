@@ -111,8 +111,9 @@ pub(super) trait Source: Send + Sync {
             through,
         })
     }
-    /// Dispatch nonce and Merkle count, pinned to the range boundary fork.
-    async fn counts(&self, _hash: EthersH256) -> Result<Option<[u32; 2]>> {
+    /// Dispatch nonce and Merkle count when `expected` is still the current head.
+    /// Implementations must not query historical contract state.
+    async fn current_counts(&self, _expected: EthersH256) -> Result<Option<[u32; 2]>> {
         Ok(None)
     }
     fn indexes_by_sequence(&self) -> bool {
@@ -165,16 +166,19 @@ struct EvmSource<M> {
 }
 
 impl<M: Middleware + 'static> EvmSource<M> {
-    async fn count(&self, address: H160, signature: &str, hash: EthersH256) -> Result<u32> {
+    async fn count(&self, address: H160, signature: &str) -> Result<u32> {
         let call = TransactionRequest::new()
             .to(address)
             .data(ethers::utils::id(signature)[..4].to_vec())
             .into();
-        let result = self.provider.call(&call, Some(BlockId::Hash(hash))).await?;
+        let result = self
+            .provider
+            .call(&call, Some(BlockId::Number(BlockNumber::Latest)))
+            .await?;
         if result.is_empty()
             && self
                 .provider
-                .get_code(address, Some(BlockId::Hash(hash)))
+                .get_code(address, Some(BlockId::Number(BlockNumber::Latest)))
                 .await?
                 .is_empty()
         {
@@ -187,6 +191,14 @@ impl<M: Middleware + 'static> EvmSource<M> {
             "Contract sequence count overflow"
         );
         Ok(value.as_u32())
+    }
+
+    async fn latest_counts(&self) -> Result<[u32; 2]> {
+        let (dispatches, insertions) = tokio::try_join!(
+            self.count(self.contracts.mailbox, "nonce()"),
+            self.count(self.contracts.hook, "count()"),
+        )?;
+        Ok([dispatches, insertions])
     }
 }
 
@@ -222,12 +234,12 @@ impl<M: Middleware + 'static> Source for EvmSource<M> {
         })
     }
 
-    async fn counts(&self, hash: EthersH256) -> Result<Option<[u32; 2]>> {
-        let (dispatches, insertions) = tokio::try_join!(
-            self.count(self.contracts.mailbox, "nonce()", hash),
-            self.count(self.contracts.hook, "count()", hash),
-        )?;
-        Ok(Some([dispatches, insertions]))
+    async fn current_counts(&self, expected: EthersH256) -> Result<Option<[u32; 2]>> {
+        if self.header(BlockSelector::Latest).await?.hash != expected {
+            return Ok(None);
+        }
+        let counts = self.latest_counts().await?;
+        Ok((self.header(BlockSelector::Latest).await?.hash == expected).then_some(counts))
     }
 
     async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
@@ -1148,7 +1160,6 @@ mod tests {
     struct ConcurrentCounts {
         inner: Provider<ethers::providers::MockProvider>,
         started: tokio::sync::Barrier,
-        hash: EthersH256,
     }
 
     #[async_trait]
@@ -1166,7 +1177,7 @@ mod tests {
             tx: &ethers::types::transaction::eip2718::TypedTransaction,
             block: Option<BlockId>,
         ) -> std::result::Result<ethers::types::Bytes, Self::Error> {
-            assert_eq!(block, Some(BlockId::Hash(self.hash)));
+            assert_eq!(block, Some(BlockId::Number(BlockNumber::Latest)));
             // Neither reply is available until both independent requests start.
             self.started.wait().await;
             let count: u32 = if tx.to() == Some(&H160::repeat_byte(1).into()) {
@@ -1179,14 +1190,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sequence_count_requests_run_concurrently() -> Result<()> {
+    async fn current_sequence_count_requests_run_concurrently() -> Result<()> {
         let (inner, _) = Provider::mocked();
-        let hash = EthersH256::repeat_byte(4);
         let source = EvmSource {
             provider: ConcurrentCounts {
                 inner,
                 started: tokio::sync::Barrier::new(2),
-                hash,
             },
             contracts: EvmContracts {
                 mailbox: H160::repeat_byte(1),
@@ -1196,14 +1205,15 @@ mod tests {
             domain: 1,
         };
         assert_eq!(
-            tokio::time::timeout(std::time::Duration::from_secs(1), source.counts(hash)).await??,
-            Some([9, 7])
+            tokio::time::timeout(std::time::Duration::from_secs(1), source.latest_counts())
+                .await??,
+            [9, 7]
         );
         Ok(())
     }
 
     #[tokio::test]
-    async fn sequence_counts_are_hash_pinned_and_reject_malformed_contract_replies() -> Result<()> {
+    async fn current_sequence_counts_reject_malformed_contract_replies() -> Result<()> {
         use ethers::types::Bytes;
         let (provider, rpc) = Provider::mocked();
         let source = EvmSource {
@@ -1215,11 +1225,10 @@ mod tests {
             },
             domain: 1,
         };
-        let hash = EthersH256::repeat_byte(4);
         let encoded = |value: u32| Bytes::from(encode(&[Token::Uint(value.into())]));
         rpc.push::<Bytes, _>(encoded(7))?;
         rpc.push::<Bytes, _>(encoded(9))?;
-        assert_eq!(source.counts(hash).await?, Some([9, 7]));
+        assert_eq!(source.latest_counts().await?, [9, 7]);
         for (address, signature) in [
             (source.contracts.mailbox, "nonce()"),
             (source.contracts.hook, "count()"),
@@ -1229,20 +1238,20 @@ mod tests {
                     .to(address)
                     .data(ethers::utils::id(signature)[..4].to_vec())
                     .into();
-            rpc.assert_request("eth_call", (call, BlockId::Hash(hash)))?;
+            rpc.assert_request("eth_call", (call, BlockId::Number(BlockNumber::Latest)))?;
         }
         // Empty results only mean zero before deployment, never for existing code.
         rpc.push::<Bytes, _>(Bytes::from(vec![1]))?;
         rpc.push::<Bytes, _>(Bytes::default())?;
-        assert!(source.counts(hash).await.is_err());
+        assert!(source.latest_counts().await.is_err());
         rpc.push::<Bytes, _>(encoded(0))?;
         rpc.push::<Bytes, _>(Bytes::default())?;
         rpc.push::<Bytes, _>(Bytes::default())?;
-        assert_eq!(source.counts(hash).await?, Some([0, 0]));
+        assert_eq!(source.latest_counts().await?, [0, 0]);
         rpc.push::<Bytes, _>(Bytes::from(encode(&[Token::Uint(
             U256::from(u32::MAX) + 1,
         )])))?;
-        assert!(source.counts(hash).await.is_err());
+        assert!(source.latest_counts().await.is_err());
         Ok(())
     }
 

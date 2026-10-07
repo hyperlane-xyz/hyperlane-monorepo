@@ -162,20 +162,17 @@ async fn prepare<'a>(
     // Capability checks must not require an RPC that is caught up to our saved
     // indexed height. The observation loop waits for lagging providers and
     // checks retained ancestry before publishing anything.
-    let state = store.state().await?;
-    let hash = match state {
+    match store.state().await? {
         Some(_) => {
             store.validate_checkpoints().await?;
             store.validate_contracts(contracts).await?;
-            source.header(BlockSelector::Latest).await?.hash
         }
         None => {
-            anchor
-                .ok_or_else(|| eyre::eyre!("Missing first-start anchor"))?
-                .hash
+            anchor.ok_or_else(|| eyre::eyre!("Missing first-start anchor"))?;
         }
-    };
-    source.counts(hash).await?;
+    }
+    let current = source.header(BlockSelector::Latest).await?;
+    source.current_counts(current.hash).await?;
     if let Some(anchor) = anchor {
         store.initialize(anchor, contracts).await?;
     }
@@ -275,30 +272,24 @@ async fn ingest_cached(
         .await?;
     let mut end = boundary.height;
     let mut by_block = BTreeMap::<u64, Vec<source::Event>>::new();
-    let cached = count_cache.as_ref().filter(|(hash, _)| *hash == state.hash);
-    let start_counts = async {
-        match cached {
-            Some((_, counts)) => Ok::<_, eyre::Report>(*counts),
-            None => match source.counts(state.hash).await? {
-                Some(exact) => Ok([exact[0], 0, 0, exact[1]]),
-                None => Ok(store.sequence_counts().await?),
-            },
+    let start_counts = match count_cache.as_ref().filter(|(hash, _)| *hash == state.hash) {
+        Some((_, counts)) => *counts,
+        None => store.sequence_counts().await?,
+    };
+    // Current-state counts detect a missing tail without requiring archive RPC
+    // state. Older catch-up chunks rely on durable sequence continuity.
+    let end_counts = async {
+        if boundary.height == state.head {
+            source.current_counts(boundary.hash).await
+        } else {
+            Ok(None)
         }
     };
-    let end_counts = source.counts(boundary.hash);
     let (events, end_counts) = tokio::try_join!(
-        async {
-            let counts = start_counts.await?;
-            Ok::<_, eyre::Report>((
-                source
-                    .events_after(state.indexed.saturating_add(1), end, counts)
-                    .await?,
-                counts,
-            ))
-        },
+        source.events_after(state.indexed.saturating_add(1), end, start_counts),
         end_counts,
     )?;
-    let (batch, start_counts) = events;
+    let batch = events;
     if end_counts.is_none()
         && batch
             .events

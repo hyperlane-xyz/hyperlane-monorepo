@@ -28,7 +28,7 @@ struct Chain {
     observations: AtomicUsize,
     fresh_headers: AtomicUsize,
     sequence: AtomicBool,
-    historical_counts: AtomicBool,
+    current_counts: AtomicBool,
     indexing_tip: AtomicU64,
     events: Mutex<Vec<Event>>,
 }
@@ -44,7 +44,7 @@ impl Chain {
             observations: AtomicUsize::new(0),
             fresh_headers: AtomicUsize::new(0),
             sequence: AtomicBool::new(false),
-            historical_counts: AtomicBool::new(true),
+            current_counts: AtomicBool::new(true),
             indexing_tip: AtomicU64::new(u64::MAX),
             events: Mutex::new(Vec::new()),
         }
@@ -111,11 +111,9 @@ impl Source for Arc<Chain> {
         })
     }
 
-    async fn counts(&self, _: H256) -> Result<Option<[u32; 2]>> {
-        Ok(self
-            .historical_counts
-            .load(Ordering::SeqCst)
-            .then_some([0; 2]))
+    async fn current_counts(&self, expected: H256) -> Result<Option<[u32; 2]>> {
+        let current = H256::from_low_u64_be(self.head.load(Ordering::SeqCst).saturating_add(1));
+        Ok((expected == current && self.current_counts.load(Ordering::SeqCst)).then_some([0; 2]))
     }
 
     fn indexes_by_sequence(&self) -> bool {
@@ -521,7 +519,7 @@ async fn block_mode_replays_provisional_history_after_a_sequence_gap() -> Result
     ))
     .await?;
     let chain = Arc::new(Chain::new(3, false));
-    chain.historical_counts.store(false, Ordering::SeqCst);
+    chain.current_counts.store(false, Ordering::SeqCst);
     chain.events.lock().unwrap().push(dispatch_event(2, 0));
     let worker = worker(db, chain.clone()).await?;
     let mut cache = None;
@@ -550,7 +548,7 @@ async fn block_mode_retries_a_sequence_gap_after_the_confirmed_frontier() -> Res
     ))
     .await?;
     let chain = Arc::new(Chain::new(3, false));
-    chain.historical_counts.store(false, Ordering::SeqCst);
+    chain.current_counts.store(false, Ordering::SeqCst);
     chain.events.lock().unwrap().push(dispatch_event(3, 1));
     let worker = worker(db, chain.clone()).await?;
     let mut cache = None;
