@@ -304,11 +304,25 @@ impl SealevelFallbackRpcClient {
         &self,
         pubkey: Pubkey,
     ) -> ChainResult<Account> {
+        Ok(self
+            .get_account_with_finalized_commitment_and_context(pubkey)
+            .await?
+            .value)
+    }
+
+    /// Get an account and the slot at which it was read.
+    pub async fn get_account_with_finalized_commitment_and_context(
+        &self,
+        pubkey: Pubkey,
+    ) -> ChainResult<Response<Account>> {
         self.fallback_provider
             .call(move |client| {
                 let pubkey = pubkey;
-                let future =
-                    async move { client.get_account_with_finalized_commitment(&pubkey).await };
+                let future = async move {
+                    client
+                        .get_account_with_finalized_commitment_and_context(&pubkey)
+                        .await
+                };
                 Box::pin(future)
             })
             .await

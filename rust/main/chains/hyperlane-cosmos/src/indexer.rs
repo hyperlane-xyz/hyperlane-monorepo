@@ -1,6 +1,8 @@
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
+use std::str::FromStr;
 
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use cometbft::abci::{Event, EventAttribute};
 use cometbft::hash::Algorithm;
 use cometbft::Hash;
@@ -10,14 +12,49 @@ use cometbft_rpc::endpoint::{
 };
 use futures::future;
 use tonic::async_trait;
-use tracing::{debug, trace, warn};
+use tracing::{debug, warn};
 
 use hyperlane_core::{
     rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, Indexed, Indexer,
     LogMeta, H256, H512, U256,
 };
 
-use crate::RpcProvider;
+use crate::utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64};
+use crate::{CosmosAddress, RpcProvider};
+
+fn belongs_to_indexer(event: &Event, address: &H256) -> ChainResult<bool> {
+    if !event.kind.as_str().starts_with("wasm-") {
+        return Ok(true);
+    }
+
+    for attribute in &event.attributes {
+        let key = attribute
+            .key_str()
+            .map_err(ChainCommunicationError::from_other)?;
+        if key == CONTRACT_ADDRESS_ATTRIBUTE_KEY {
+            let value = attribute
+                .value_str()
+                .map_err(ChainCommunicationError::from_other)?;
+            return Ok(CosmosAddress::from_str(value)?.digest() == *address);
+        }
+        if key == *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 {
+            let value = attribute
+                .value_str()
+                .map_err(ChainCommunicationError::from_other)?;
+            let contract_address = String::from_utf8(
+                BASE64
+                    .decode(value)
+                    .map_err(ChainCommunicationError::from_other)?,
+            )
+            .map_err(ChainCommunicationError::from_other)?;
+            return Ok(CosmosAddress::from_str(&contract_address)?.digest() == *address);
+        }
+    }
+
+    Err(ChainCommunicationError::from_other_str(
+        "missing contract_address",
+    ))
+}
 
 #[derive(Debug, Eq, PartialEq)]
 /// An event parsed from the RPC response.
@@ -55,6 +92,11 @@ where
     /// address for the given module that will be indexed
     fn address(&self) -> &H256;
 
+    /// Whether an event belongs to this indexer.
+    fn event_belongs_to_indexer(&self, event: &Event) -> ChainResult<bool> {
+        belongs_to_indexer(event, self.address())
+    }
+
     /// Current block height
     ///
     /// used by the indexer struct
@@ -77,7 +119,8 @@ where
         let hash = H256::from_slice(block.block_id.hash.as_bytes());
 
         let result: Vec<_> = self
-            .handle_tx(tx_response, hash)
+            .handle_tx(tx_response, hash)?
+            .into_iter()
             // only return logs for the given address
             .filter(|(_, log)| log.address == *self.address())
             .map(|(value, logs)| (value.into(), logs))
@@ -128,8 +171,7 @@ where
     async fn get_logs_in_block(&self, block_height: u32) -> ChainResult<Vec<(T, LogMeta)>> {
         let block = self.provider().get_block(block_height).await?;
         let block_results = self.provider().get_block_results(block_height).await?;
-        let result = self.handle_block(block, block_results);
-        Ok(result)
+        self.handle_block(block, block_results)
     }
 
     /// Iterate through all txs, filter out failed txs, find target events
@@ -138,7 +180,7 @@ where
         &self,
         block: BlockResponse,
         block_results: BlockResultsResponse,
-    ) -> Vec<(T, LogMeta)> {
+    ) -> ChainResult<Vec<(T, LogMeta)>> {
         let tx_results = block_results.txs_results.unwrap_or_default();
         // Cosmos can also emit events in the block itself, those events do not originate from a tx, but rather from the block
         let mut block_events = block_results.finalize_block_events;
@@ -153,48 +195,46 @@ where
 
         let block_hash = H256::from_slice(block.block_id.hash.as_bytes());
 
-        let tx_hashes: Vec<Hash> = block
-            .clone()
+        let tx_hashes = block
             .block
             .data
-            .into_iter()
-            .filter_map(|tx| hex::decode(sha256::digest(tx.as_slice())).ok())
-            .filter_map(|hash| Hash::from_bytes(Algorithm::Sha256, hash.as_slice()).ok())
-            .collect();
-
-        tx_results
-            .into_iter()
-            .enumerate()
-            .filter_map(move |(idx, tx)| {
-                let Some(tx_hash) = tx_hashes.get(idx) else {
-                    debug!(?tx, "No tx hash found for tx");
-                    return None;
-                };
-                if tx.code.is_err() {
-                    debug!(?tx_hash, "Not indexing failed transaction");
-                    return None;
-                }
-
-                // We construct a simplified structure `tx::Response` here so that we can
-                // reuse `handle_tx` method below.
-                let tx_response = tx::Response {
-                    hash: *tx_hash,
-                    height: block_results.height,
-                    index: idx as u32,
-                    tx_result: tx,
-                    tx: vec![],
-                    proof: None,
-                };
-
-                Some(self.handle_tx(tx_response, block_hash))
+            .iter()
+            .map(|tx| {
+                let digest = hex::decode(sha256::digest(tx.as_slice()))?;
+                Hash::from_bytes(Algorithm::Sha256, &digest)
+                    .map_err(ChainCommunicationError::from_other)
             })
-            .flatten()
-            .chain(self.handle_block_events(
-                block_events,
-                block_hash,
-                block.block.header.height.into(),
-            ))
-            .collect()
+            .collect::<ChainResult<Vec<_>>>()?;
+        if tx_results.len() != tx_hashes.len() {
+            return Err(ChainCommunicationError::CustomError(format!(
+                "Block transaction/result count mismatch: {} transactions, {} results",
+                tx_hashes.len(),
+                tx_results.len()
+            )));
+        }
+
+        let mut logs = Vec::new();
+        for (idx, (tx, tx_hash)) in tx_results.into_iter().zip(tx_hashes).enumerate() {
+            if tx.code.is_err() {
+                debug!(?tx_hash, "Not indexing failed transaction");
+                continue;
+            }
+            let tx_response = tx::Response {
+                hash: tx_hash,
+                height: block_results.height,
+                index: idx as u32,
+                tx_result: tx,
+                tx: vec![],
+                proof: None,
+            };
+            logs.extend(self.handle_tx(tx_response, block_hash)?);
+        }
+        logs.extend(self.handle_block_events(
+            block_events,
+            block_hash,
+            block.block.header.height.into(),
+        )?);
+        Ok(logs)
     }
 
     /// Iter through all events in the block, looking for any target events
@@ -203,58 +243,96 @@ where
         events: Vec<Event>,
         block_hash: H256,
         block_height: u64,
-    ) -> impl Iterator<Item = (T, LogMeta)> {
-        events.into_iter().enumerate().filter_map(move |(log_idx, event)| {
+    ) -> ChainResult<Vec<(T, LogMeta)>> {
+        let mut logs = Vec::new();
+        for (log_idx, event) in events.into_iter().enumerate() {
             if event.kind.as_str() != Self::target_type() {
-                return None;
+                continue;
             }
-
-            self.parse(&event.attributes)
-                .map_err(|err| {
-                    trace!(?err, block_hash=?block_hash, log_idx, ?event, "Failed to parse block event attributes");
-                })
-                .ok()
-                .map(|parsed_event| {
-                    (parsed_event.event, LogMeta {
-                        address: parsed_event.contract_address,
-                        block_number: block_height,
-                        block_hash,
-                        transaction_id: H512::zero(),
-                        transaction_index: 0,
-                        log_index: U256::from(log_idx),
-                    })
-                })
-        })
+            if !self.event_belongs_to_indexer(&event)? {
+                continue;
+            }
+            let parsed_event = self.parse(&event.attributes)?;
+            logs.push((
+                parsed_event.event,
+                LogMeta {
+                    address: parsed_event.contract_address,
+                    block_number: block_height,
+                    block_hash,
+                    transaction_id: H512::zero(),
+                    transaction_index: 0,
+                    log_index: U256::from(log_idx),
+                },
+            ));
+        }
+        Ok(logs)
     }
 
     /// Iter through all events in the tx, looking for any target events
     /// made by the contract we are indexing.
-    fn handle_tx(&self, tx: tx::Response, block_hash: H256) -> impl Iterator<Item = (T, LogMeta)> {
+    fn handle_tx(&self, tx: tx::Response, block_hash: H256) -> ChainResult<Vec<(T, LogMeta)>> {
         let tx_events = tx.tx_result.events;
         let tx_hash = tx.hash;
         let tx_index = tx.index;
         let block_height = tx.height;
 
-        tx_events.into_iter().enumerate().filter_map(move |(log_idx, event)| {
+        let mut logs = Vec::new();
+        for (log_idx, event) in tx_events.into_iter().enumerate() {
             if event.kind.as_str() != Self::target_type() {
-                return None;
+                continue;
             }
+            if !self.event_belongs_to_indexer(&event)? {
+                continue;
+            }
+            let parsed_event = self.parse(&event.attributes)?;
+            logs.push((
+                parsed_event.event,
+                LogMeta {
+                    address: parsed_event.contract_address,
+                    block_number: block_height.value(),
+                    block_hash,
+                    transaction_id: H256::from_slice(tx_hash.as_bytes()).into(),
+                    transaction_index: tx_index.into(),
+                    log_index: U256::from(log_idx),
+                },
+            ));
+        }
+        Ok(logs)
+    }
+}
 
-            self.parse(&event.attributes)
-                .map_err(|err| {
-                    trace!(?err, tx_hash=?tx_hash, log_idx, ?event, "Failed to parse event attributes");
-                })
-                .ok()
-                .map(|parsed_event| {
-                    (parsed_event.event, LogMeta {
-                        address: parsed_event.contract_address,
-                        block_number: block_height.value(),
-                        block_hash,
-                        transaction_id: H256::from_slice(tx_hash.as_bytes()).into(),
-                        transaction_index: tx_index.into(),
-                        log_index: U256::from(log_idx),
-                    })
-                })
-        })
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cosmwasm_events_are_filtered_by_emitter_before_parsing() -> ChainResult<()> {
+        let configured = H256::repeat_byte(1);
+        let foreign = H256::repeat_byte(2);
+        let foreign_address = CosmosAddress::from_h256(foreign, "neutron", 32)?.address();
+        let configured_address = CosmosAddress::from_h256(configured, "neutron", 32)?.address();
+
+        let foreign_event = Event::new(
+            "wasm-mailbox_dispatch",
+            [(CONTRACT_ADDRESS_ATTRIBUTE_KEY, foreign_address)],
+        );
+        assert!(!belongs_to_indexer(&foreign_event, &configured)?);
+
+        let configured_event = Event::new(
+            "wasm-mailbox_dispatch",
+            [(CONTRACT_ADDRESS_ATTRIBUTE_KEY, configured_address)],
+        );
+        assert!(belongs_to_indexer(&configured_event, &configured)?);
+
+        let configured_address = CosmosAddress::from_h256(configured, "neutron", 32)?.address();
+        let encoded_event = Event::new(
+            "wasm-mailbox_dispatch",
+            [(
+                CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64.as_str(),
+                BASE64.encode(configured_address),
+            )],
+        );
+        assert!(belongs_to_indexer(&encoded_event, &configured)?);
+        Ok(())
     }
 }
