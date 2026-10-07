@@ -222,7 +222,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arc: true,
     avalanche: true,
     base: true,
-    blast: false,
+    blast: true, // temporarily re-enabled so the relayer gets Blast gas payments via the scraper proxy until 2026-10-20
     bob: true,
     bsc: true,
     celestia: true,
