@@ -328,7 +328,7 @@ async fn ingest_cached(
     let events = batch.events;
     let validated_counts = match advance_sequences(&events, start_counts) {
         Ok(counts) => counts,
-        Err(error) if end_counts.is_none() => {
+        Err(error) => {
             if state.indexed == state.confirmed
                 && count_cache.gap_confirmed == Some(state.confirmed)
             {
@@ -344,7 +344,6 @@ async fn ingest_cached(
             count_cache.gap_confirmed = Some(state.confirmed);
             return Err(error);
         }
-        Err(error) => return Err(error),
     };
     if let Some(end_counts) = end_counts {
         if validated_counts[0] != end_counts[0] || validated_counts[3] != end_counts[1] {

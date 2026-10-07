@@ -1267,6 +1267,105 @@ impl Source for CountedChain {
     }
 }
 
+struct TailGapChain {
+    chain: Chain,
+    unavailable: Mutex<Option<H256>>,
+    drop_tail_once: AtomicBool,
+}
+
+#[async_trait]
+impl Source for TailGapChain {
+    async fn header(&self, block: BlockSelector) -> Result<Header> {
+        self.chain.header(block).await
+    }
+
+    async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
+        let mut events = self.chain.events(from, through).await?;
+        if (from..=through).contains(&2) && self.drop_tail_once.swap(false, Ordering::Relaxed) {
+            events.retain(|event| !matches!(event.data, EventData::Insertion { index: 0, .. }));
+        }
+        if (from..=through).contains(&3) {
+            let header = self.chain.header(3u64.into()).await?;
+            events.push(Event {
+                block_number: 3,
+                block_hash: header.hash,
+                address: H160::repeat_byte(1).into(),
+                tx_hash: Some(header.hash.into()),
+                tx_index: 0,
+                log_index: 0,
+                sequence: None,
+                data: EventData::Insertion {
+                    message_id: header.hash.into(),
+                    index: 1,
+                },
+            });
+        }
+        Ok(events)
+    }
+
+    async fn counts(&self, hash: H256) -> Result<Option<[u32; 2]>> {
+        ensure!(
+            *self.unavailable.lock().unwrap() != Some(hash),
+            "State unavailable"
+        );
+        let height = self
+            .chain
+            .headers
+            .lock()
+            .unwrap()
+            .values()
+            .find(|header| header.hash == hash)
+            .map(|header| header.height)
+            .ok_or_else(|| eyre::eyre!("Unknown fork"))?;
+        Ok(Some([
+            u32::from(height >= 2),
+            match height {
+                0 | 1 => 0,
+                2 => 1,
+                _ => 2,
+            },
+        ]))
+    }
+}
+
+#[tokio::test]
+async fn pinned_counts_halt_after_fallback_commits_a_dropped_tail() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let source = TailGapChain {
+        chain: Chain::new(3),
+        unavailable: Mutex::new(None),
+        drop_tail_once: AtomicBool::new(true),
+    };
+    store
+        .initialize(&source.header(0u64.into()).await?, &contracts())
+        .await?;
+    let pruned = source.header(2u64.into()).await?.hash;
+    *source.unavailable.lock().unwrap() = Some(pruned);
+    let mut cache = CountCache::default();
+
+    let state = observe(&source, &store).await?;
+    ingest_cached(&source, &store, &state, 2, &mut cache).await?;
+    confirm(&source, &store, &ReorgPeriod::from_blocks(0)).await?;
+    assert_eq!(store.state().await?.unwrap().confirmed, 2);
+
+    *source.unavailable.lock().unwrap() = None;
+    for halted in [false, true] {
+        let state = observe(&source, &store).await?;
+        assert!(ingest_cached(&source, &store, &state, 2, &mut cache)
+            .await
+            .is_err());
+        assert_eq!(store.state().await?.unwrap().halted, halted);
+    }
+    Ok(())
+}
+
 #[tokio::test]
 async fn restart_catches_up_when_historical_state_is_pruned() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
