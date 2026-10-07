@@ -95,6 +95,18 @@
       "constructorArguments": "",
       "isProxy": true,
       "name": "StaticMessageIdWeightedMultisigIsm"
+    },
+    {
+      "name": "StaticAggregationHookFactory",
+      "address": "0xBC03fE597c7d17422359A1856887D1d12A943bcc",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticAggregationHook",
+      "address": "0x90273af42081571Ae21eD79cC6a36D444D7EC0a9",
+      "constructorArguments": "",
+      "isProxy": true
     }
   ],
   "avalanche": [
@@ -291,6 +303,18 @@
       "constructorArguments": "",
       "isProxy": true,
       "name": "StaticMessageIdWeightedMultisigIsm"
+    },
+    {
+      "name": "StaticAggregationHookFactory",
+      "address": "0x3e7E75FA3b4EF22C8de525CbB2266Fc9Af7765B0",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticAggregationHook",
+      "address": "0xb646Cb88727Ce186A3eF87C538EDc183aADF65b8",
+      "constructorArguments": "",
+      "isProxy": true
     }
   ],
   "bob": [
@@ -671,6 +695,18 @@
       "constructorArguments": "",
       "isProxy": true,
       "name": "StaticMessageIdWeightedMultisigIsm"
+    },
+    {
+      "name": "StaticAggregationHookFactory",
+      "address": "0x14F03ccF3430Be2cc3a3EFC229BCfB1430C0A37c",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticAggregationHook",
+      "address": "0x657969f015B6ee9AA6D266f421609C622BD75b5E",
+      "constructorArguments": "",
+      "isProxy": true
     }
   ],
   "fraxtal": [
@@ -1499,6 +1535,18 @@
       "constructorArguments": "",
       "isProxy": true,
       "name": "StaticMessageIdWeightedMultisigIsm"
+    },
+    {
+      "name": "StaticAggregationHookFactory",
+      "address": "0xE54C0868A89A61f84Cf1fFdCa4e53a38F36F65Bc",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticAggregationHook",
+      "address": "0xeCB9EeaaE76a71487e6150443B3b60C3C7Ed6a5d",
+      "constructorArguments": "",
+      "isProxy": true
     }
   ],
   "polygon": [
@@ -2381,6 +2429,18 @@
     {
       "name": "StaticMessageIdWeightedMultisigIsm",
       "address": "0xDFF18Bf286c9cDd0fC653a28616460Cf7443F8EF",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticAggregationHookFactory",
+      "address": "0xD58c7808718BbbD541F6b9065d9bF7F0A9d5F317",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticAggregationHook",
+      "address": "0x74E8F2D1e252E95964552D78cAe7dE7416617272",
       "constructorArguments": "",
       "isProxy": true
     }
