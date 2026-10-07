@@ -46,6 +46,7 @@ import {
   isFixedVersion,
   planChain,
 } from '../src/aggregation-hook-upgrade/plan.js';
+import { assertForkable } from '../src/aggregation-hook-upgrade/protocol.js';
 import { createUpgradeMultiProvider } from '../src/aggregation-hook-upgrade/provider.js';
 import type { ChainReader } from '../src/aggregation-hook-upgrade/reader.js';
 import {
@@ -250,11 +251,17 @@ describe('aggregation hook upgrade', () => {
         addresses,
       },
       {
-        name: 'skips tron',
+        name: 'accepts a Tron chain with factory and mailbox',
         chain: 'tronchain',
         protocol: ProtocolType.Tron,
         addresses,
-        reason: SkipReason.Tron,
+      },
+      {
+        name: 'skips a Tron chain without a registry factory',
+        chain: 'tronchain',
+        protocol: ProtocolType.Tron,
+        addresses: { mailbox: MAILBOX },
+        reason: SkipReason.NoRegistryFactory,
       },
       {
         name: 'skips non-EVM protocols',
@@ -1023,6 +1030,36 @@ describe('aggregation hook upgrade', () => {
     });
   });
 
+  describe('assertForkable', () => {
+    interface Case {
+      protocol: ProtocolType;
+      error?: string;
+    }
+    const cases: Case[] = [
+      { protocol: ProtocolType.Ethereum },
+      {
+        protocol: ProtocolType.Tron,
+        error:
+          '--fork is not supported for forkchain: a local fork cannot emulate protocol tron',
+      },
+      {
+        protocol: ProtocolType.Sealevel,
+        error:
+          '--fork is not supported for forkchain: a local fork cannot emulate protocol sealevel',
+      },
+    ];
+    for (const c of cases) {
+      it(`${c.error === undefined ? 'accepts' : 'rejects'} ${c.protocol}`, () => {
+        const check = () => assertForkable('forkchain', c.protocol);
+        if (c.error === undefined) {
+          expect(check).to.not.throw();
+        } else {
+          expect(check).to.throw(c.error);
+        }
+      });
+    }
+  });
+
   describe('protocol-specific deployment', () => {
     const NEW_FACTORY = addr(0x500);
     // Contract nonce 1 of NEW_FACTORY: where a standard EVM chain creates the
@@ -1301,6 +1338,47 @@ describe('aggregation hook upgrade', () => {
           expect(recorded).to.deep.equal(c.inputs);
         });
       }
+    });
+
+    it('does not skip a Tron chain', async () => {
+      const provider = newProvider();
+      sinon.stub(provider, 'call').rejects(new Error('rpc unavailable'));
+      const multiProvider =
+        MultiProvider.createTestMultiProvider().extendChainMetadata({
+          test1: { protocol: ProtocolType.Tron },
+        });
+      multiProvider.setProvider('test1', provider);
+
+      const [result] = await runUpgrade(
+        {
+          environment: 'test',
+          phase: UpgradePhase.Shadow,
+          apply: false,
+          multiProvider,
+          chainAddresses: {
+            test1: { mailbox: MAILBOX, staticAggregationHookFactory: FACTORY },
+          },
+          supportedDomains: SUPPORTED,
+          registryDomainIds: REGISTRY_DOMAIN_IDS,
+          skipLists: { legacyCoreHookRecoveryChains: [], chainsToSkip: [] },
+          persist: {
+            writeRegistryAddresses: () => {},
+            writeVerificationInputs: async () => {},
+            writeVerificationRecovery: async () => '',
+            writeTransactions: async () => '',
+            exportStore: createMemoryExportStore(),
+          },
+          concurrency: 1,
+          probeConcurrency: 1,
+          logger: silentLogger(),
+          now: () => '2026-10-06T00:00:00.000Z',
+        },
+        ['test1'],
+      );
+
+      expect(result.outcome).to.equal(ChainOutcome.Error);
+      expect(result.skipReason).to.equal(undefined);
+      expect(result.detail).to.include('rpc unavailable');
     });
   });
 

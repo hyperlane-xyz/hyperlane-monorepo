@@ -22,7 +22,6 @@ export type UpgradePhase = (typeof UpgradePhase)[keyof typeof UpgradePhase];
 
 export const SkipReason = {
   NonEvm: 'non-evm',
-  Tron: 'tron',
   ZkSyncStack: 'zksync-stack',
   LegacyCoreHookRecovery: 'legacy-core-hook-recovery',
   ChainsToSkip: 'chains-to-skip',
