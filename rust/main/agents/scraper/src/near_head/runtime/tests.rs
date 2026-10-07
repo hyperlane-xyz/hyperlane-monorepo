@@ -4,7 +4,7 @@ use std::sync::{
 };
 
 use async_trait::async_trait;
-use ethers::types::{BlockNumber, H160, H256};
+use ethers::types::{H160, H256};
 use eyre::{ensure, Result};
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::KnownHyperlaneDomain;
@@ -15,7 +15,7 @@ use testcontainers_modules::postgres::Postgres;
 
 use super::*;
 use crate::near_head::{
-    source::{Contracts, Event, EventData, Header},
+    source::{BlockSelector, Contracts, Event, EventBatch, EventData, Header},
     store::State,
 };
 
@@ -26,6 +26,10 @@ struct Chain {
     fail_events: AtomicBool,
     wrong_tag: AtomicBool,
     observations: AtomicUsize,
+    fresh_headers: AtomicUsize,
+    sequence: AtomicBool,
+    historical_counts: AtomicBool,
+    indexing_tip: AtomicU64,
     events: Mutex<Vec<Event>>,
 }
 
@@ -38,6 +42,10 @@ impl Chain {
             fail_events: AtomicBool::new(false),
             wrong_tag: AtomicBool::new(false),
             observations: AtomicUsize::new(0),
+            fresh_headers: AtomicUsize::new(0),
+            sequence: AtomicBool::new(false),
+            historical_counts: AtomicBool::new(true),
+            indexing_tip: AtomicU64::new(u64::MAX),
             events: Mutex::new(Vec::new()),
         }
     }
@@ -45,19 +53,18 @@ impl Chain {
 
 #[async_trait]
 impl Source for Arc<Chain> {
-    async fn header(&self, block: BlockNumber) -> Result<Header> {
-        let tagged = matches!(&block, BlockNumber::Safe | BlockNumber::Finalized);
+    async fn header(&self, block: BlockSelector) -> Result<Header> {
+        let tagged = matches!(&block, BlockSelector::Safe | BlockSelector::Finalized);
         let height = match block {
-            BlockNumber::Number(height) => height.as_u64(),
-            BlockNumber::Safe | BlockNumber::Finalized => {
+            BlockSelector::Height(height) => height,
+            BlockSelector::Safe | BlockSelector::Finalized => {
                 ensure!(!self.fail_tag.load(Ordering::SeqCst), "Tag unavailable");
                 self.tag.load(Ordering::SeqCst)
             }
-            BlockNumber::Latest => {
+            BlockSelector::Latest => {
                 self.observations.fetch_add(1, Ordering::SeqCst);
                 self.head.load(Ordering::SeqCst)
             }
-            _ => eyre::bail!("Unexpected block selector"),
         };
         ensure!(height <= self.head.load(Ordering::SeqCst), "Unknown height");
         Ok(Header {
@@ -84,8 +91,40 @@ impl Source for Arc<Chain> {
             .collect())
     }
 
-    async fn counts(&self, _: H256) -> Result<[u32; 2]> {
-        Ok([0; 2])
+    async fn fresh_header(&self, block: BlockSelector) -> Result<Header> {
+        self.fresh_headers.fetch_add(1, Ordering::SeqCst);
+        self.header(block).await
+    }
+
+    async fn events_after(&self, start: u64, end: u64, _sequences: [u32; 4]) -> Result<EventBatch> {
+        let sequence = self.sequence.load(Ordering::SeqCst);
+        let events = self.events(if sequence { 0 } else { start }, end).await?;
+        if !sequence {
+            return Ok(EventBatch {
+                events,
+                through: end,
+            });
+        }
+        Ok(EventBatch {
+            events,
+            through: end,
+        })
+    }
+
+    async fn counts(&self, _: H256) -> Result<Option<[u32; 2]>> {
+        Ok(self
+            .historical_counts
+            .load(Ordering::SeqCst)
+            .then_some([0; 2]))
+    }
+
+    fn indexes_by_sequence(&self) -> bool {
+        self.sequence.load(Ordering::SeqCst)
+    }
+
+    async fn indexing_tip(&self) -> Result<Option<u64>> {
+        let tip = self.indexing_tip.load(Ordering::SeqCst);
+        Ok((tip != u64::MAX).then_some(tip))
     }
 }
 
@@ -93,16 +132,35 @@ fn gas_event(height: u64, index: u64) -> Event {
     Event {
         block_number: height,
         block_hash: H256::from_low_u64_be(height.saturating_add(1)),
-        tx_hash: H256::from_low_u64_be(index.saturating_add(10_000)),
+        tx_hash: Some(H256::from_low_u64_be(index.saturating_add(10_000)).into()),
         tx_index: index,
         log_index: index,
-        address: H160::repeat_byte(3),
+        address: H160::repeat_byte(3).into(),
+        sequence: None,
         data: EventData::Gas {
-            message_id: H256::from_low_u64_be(index),
+            message_id: H256::from_low_u64_be(index).into(),
             destination: 2,
             gas: "1".into(),
             payment: "1".into(),
         },
+    }
+}
+
+fn dispatch_event(height: u64, nonce: u32) -> Event {
+    Event {
+        block_number: height,
+        block_hash: H256::from_low_u64_be(height.saturating_add(1)),
+        tx_hash: Some(H256::from_low_u64_be(u64::from(nonce).saturating_add(10_000)).into()),
+        tx_index: u64::from(nonce),
+        log_index: u64::from(nonce),
+        address: H160::repeat_byte(1).into(),
+        sequence: Some(nonce),
+        data: EventData::Dispatch(hyperlane_core::HyperlaneMessage {
+            nonce,
+            origin: 1,
+            destination: 2,
+            ..Default::default()
+        }),
     }
 }
 
@@ -113,9 +171,9 @@ async fn worker(db: DatabaseConnection, source: Arc<Chain>) -> Result<Arc<Worker
         .initialize(
             &source.header(0u64.into()).await?,
             &Contracts {
-                mailbox: H160::repeat_byte(1),
-                hook: H160::repeat_byte(2),
-                paymaster: H160::repeat_byte(3),
+                mailbox: H160::repeat_byte(1).into(),
+                hook: H160::repeat_byte(2).into(),
+                paymaster: H160::repeat_byte(3).into(),
             },
         )
         .await?;
@@ -413,15 +471,14 @@ async fn restart_waits_for_an_rpc_behind_saved_progress() -> Result<()> {
     assert_eq!(worker.store.state().await?.unwrap().indexed, 5);
 
     chain.head.store(3, Ordering::SeqCst);
-    let anchor = chain.header(0u64.into()).await?;
     super::super::prepare(
         worker.source.as_ref(),
         &worker.store,
-        &anchor,
+        None,
         &Contracts {
-            mailbox: H160::repeat_byte(1),
-            hook: H160::repeat_byte(2),
-            paymaster: H160::repeat_byte(3),
+            mailbox: H160::repeat_byte(1).into(),
+            hook: H160::repeat_byte(2).into(),
+            paymaster: H160::repeat_byte(3).into(),
         },
         &worker.period,
     )
@@ -431,5 +488,80 @@ async fn restart_waits_for_an_rpc_behind_saved_progress() -> Result<()> {
         .is_err());
     chain.head.store(5, Ordering::SeqCst);
     crate::near_head::observe(&chain, &worker.store).await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn block_mode_ingestion_stops_at_the_common_stream_tip() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(5, false));
+    chain.indexing_tip.store(3, Ordering::SeqCst);
+    let worker = worker(db, chain.clone()).await?;
+    let state = crate::near_head::observe(&chain, &worker.store).await?;
+    assert!(crate::near_head::ingest(&chain, &worker.store, &state, 20_000).await?);
+    let state = worker.store.state().await?.expect("initialized state");
+    assert_eq!((state.indexed, state.head), (3, 5));
+    chain.fresh_headers.store(0, Ordering::SeqCst);
+    crate::near_head::confirm(&chain, &worker.store, &ReorgPeriod::from_blocks(3)).await?;
+    assert_eq!(chain.fresh_headers.load(Ordering::SeqCst), 1);
+    Ok(())
+}
+
+#[tokio::test]
+async fn block_mode_replays_provisional_history_after_a_sequence_gap() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(3, false));
+    chain.historical_counts.store(false, Ordering::SeqCst);
+    chain.events.lock().unwrap().push(dispatch_event(2, 0));
+    let worker = worker(db, chain.clone()).await?;
+    let mut cache = None;
+    worker.cycle(&mut cache).await?;
+    assert_eq!(worker.store.state().await?.unwrap().indexed, 3);
+
+    chain
+        .events
+        .lock()
+        .unwrap()
+        .extend([dispatch_event(3, 1), dispatch_event(4, 2)]);
+    chain.head.store(4, Ordering::SeqCst);
+    assert!(worker.cycle(&mut cache).await.is_err());
+    assert_eq!(worker.store.state().await?.unwrap().indexed, 0);
+    worker.cycle(&mut cache).await?;
+    assert_eq!(worker.store.state().await?.unwrap().indexed, 4);
+    Ok(())
+}
+
+#[tokio::test]
+async fn block_mode_retries_a_sequence_gap_after_the_confirmed_frontier() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(3, false));
+    chain.historical_counts.store(false, Ordering::SeqCst);
+    chain.events.lock().unwrap().push(dispatch_event(3, 1));
+    let worker = worker(db, chain.clone()).await?;
+    let mut cache = None;
+
+    assert!(worker.cycle(&mut cache).await.is_err());
+    let rejected = worker.store.state().await?.unwrap();
+    assert_eq!((rejected.indexed, rejected.confirmed), (0, 0));
+    assert!(!rejected.halted);
+
+    chain.events.lock().unwrap().insert(0, dispatch_event(2, 0));
+    worker.cycle(&mut cache).await?;
+    assert_eq!(worker.store.state().await?.unwrap().indexed, 3);
     Ok(())
 }

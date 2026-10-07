@@ -149,6 +149,15 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [DEFAULT_AW_TESTNET_VALIDATOR],
   },
 
+  blast: {
+    threshold: 2,
+    validators: [
+      DEFAULT_AW_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
+      { address: '0x54bb0036f777202371429e062fe6aee0d59442f9', alias: 'Renzo' },
+    ],
+  },
+
   bob: {
     threshold: 3,
     validators: [

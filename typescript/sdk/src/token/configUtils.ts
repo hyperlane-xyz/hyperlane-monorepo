@@ -65,6 +65,7 @@ import {
   OwnerStatus,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  HypTokenRouterConfigMailboxOptional,
   isAtomicLocalRebalancingBridgeTokenConfig,
   isCollateralTokenConfig,
   isCrossCollateralTokenConfig,
@@ -191,6 +192,40 @@ export function resolveAndValidateRebalanceConfig(
   }
 
   return { rebalanceTargets, rebalanceRecipients };
+}
+
+export function resolveWarpDeployConfigRouterKeys<
+  Config extends Record<string, HypTokenRouterConfigMailboxOptional>,
+>(multiProvider: MultiProvider, warpDeployConfig: Config): Config {
+  const resolvedWarpDeployConfig = structuredClone(warpDeployConfig);
+
+  for (const chainConfig of Object.values(resolvedWarpDeployConfig)) {
+    if (chainConfig.destinationGas) {
+      chainConfig.destinationGas = resolveRouterMapConfig(
+        multiProvider,
+        chainConfig.destinationGas,
+      );
+    }
+
+    if (chainConfig.remoteRouters) {
+      chainConfig.remoteRouters = resolveRouterMapConfig(
+        multiProvider,
+        chainConfig.remoteRouters,
+      );
+    }
+
+    if (
+      isMovableCollateralTokenConfig(chainConfig) &&
+      chainConfig.allowedRebalancingBridges
+    ) {
+      chainConfig.allowedRebalancingBridges = resolveRouterMapConfig(
+        multiProvider,
+        chainConfig.allowedRebalancingBridges,
+      );
+    }
+  }
+
+  return resolvedWarpDeployConfig;
 }
 
 export function getRouterAddressesFromWarpCoreConfig(

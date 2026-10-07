@@ -40,14 +40,6 @@ pub const MERKLE_BLOCK_HEIGHT: ScraperIndex = ScraperIndex {
     unique: false,
 };
 
-pub const GAS_PAYMENT_TRANSACTION_LOG: ScraperIndex = ScraperIndex {
-    name: "gas_payment_transaction_log",
-    table: "gas_payment",
-    keys: &["domain", "block_hash", "transaction_index", "log_index"],
-    predicate: Some("(block_hash IS NOT NULL)"),
-    unique: true,
-};
-
 /// Ordered range scans for the proxy's legacy gas payment replay.
 pub const GAS_PAYMENT_SCOPE: ScraperIndex = ScraperIndex {
     name: "gas_payment_domain_paymaster_id_idx",
@@ -83,10 +75,10 @@ pub const GAS_PAYMENT_FRONTIER_HEIGHT: ScraperIndex = ScraperIndex {
 /// cannot run inside the SeaORM migration transaction.
 pub async fn create_indexes(db: &DatabaseConnection) -> eyre::Result<()> {
     let build_result = async {
-        create_index(db, GAS_PAYMENT_TRANSACTION_LOG).await?;
-        db.execute_unprepared("DROP INDEX CONCURRENTLY IF EXISTS gas_payment_block_log")
+        replace_gas_payment_log_index(db).await?;
+        db.execute_unprepared("DROP INDEX CONCURRENTLY IF EXISTS gas_payment_transaction_log")
             .await
-            .wrap_err("Dropping legacy gas payment position index")?;
+            .wrap_err("Dropping superseded gas payment position index")?;
         for index in [
             RAW_DISPATCH_RECONCILIATION,
             RAW_DISPATCH_NATIVE_SEQUENCE,
@@ -111,6 +103,51 @@ pub async fn create_indexes(db: &DatabaseConnection) -> eyre::Result<()> {
     build_result?;
     analyze_result?;
     Ok(())
+}
+
+async fn replace_gas_payment_log_index(db: &DatabaseConnection) -> eyre::Result<()> {
+    if gas_payment_log_index_valid(db, "gas_payment_block_log").await? {
+        return Ok(());
+    }
+    if !gas_payment_log_index_valid(db, "gas_payment_block_log_v2").await? {
+        db.execute_unprepared("DROP INDEX CONCURRENTLY IF EXISTS gas_payment_block_log_v2")
+            .await?;
+    }
+    db.execute_unprepared(
+        "CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS gas_payment_block_log_v2 ON gas_payment(domain,block_hash,coalesce(transaction_hash,'\\x'::bytea),transaction_index,log_index,interchain_gas_paymaster,msg_id,destination,gas_amount,payment) WHERE block_hash IS NOT NULL",
+    )
+    .await
+    .wrap_err("Creating replacement gas payment log index")?;
+    let replacement = gas_payment_log_index_valid(db, "gas_payment_block_log_v2").await?;
+    ensure!(replacement, "Replacement gas payment log index is invalid");
+    db.execute_unprepared("DROP INDEX CONCURRENTLY IF EXISTS gas_payment_block_log")
+        .await?;
+    db.execute_unprepared("ALTER INDEX gas_payment_block_log_v2 RENAME TO gas_payment_block_log")
+        .await?;
+    Ok(())
+}
+
+async fn gas_payment_log_index_valid(db: &DatabaseConnection, name: &str) -> eyre::Result<bool> {
+    let row = db
+        .query_one(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            r#"
+            SELECT i.indisvalid AND i.indisready AND i.indisunique
+                AND i.indnkeyatts=10 AND i.indnatts=10
+                AND pg_get_expr(i.indpred,i.indrelid)='(block_hash IS NOT NULL)'
+                AND (SELECT string_agg(pg_get_indexdef(i.indexrelid,n,true),',' ORDER BY n)
+                     FROM generate_series(1,i.indnkeyatts) n)
+                    = 'domain,block_hash,COALESCE(transaction_hash, ''\x''::bytea),transaction_index,log_index,interchain_gas_paymaster,msg_id,destination,gas_amount,payment'
+                AS expected
+            FROM pg_index i WHERE i.indexrelid=to_regclass($1)
+            "#,
+            [name.into()],
+        ))
+        .await?;
+    Ok(row
+        .map(|row| row.try_get::<bool>("", "expected"))
+        .transpose()?
+        .unwrap_or(false))
 }
 
 pub async fn create_index(db: &DatabaseConnection, index: ScraperIndex) -> eyre::Result<()> {
@@ -139,26 +176,29 @@ pub async fn create_index(db: &DatabaseConnection, index: ScraperIndex) -> eyre:
 /// turn bounded near-head work into a full-table scan, or when the gas payment
 /// position cutover is incomplete.
 pub async fn verify_frontier_indexes(db: &DatabaseConnection) -> eyre::Result<()> {
+    ensure!(
+        gas_payment_log_index_valid(db, "gas_payment_block_log").await?,
+        "Index gas_payment_block_log is invalid or has an unexpected definition; rerun init-db"
+    );
     for index in [
         DELIVERY_FRONTIER_UNENRICHED,
         GAS_PAYMENT_FRONTIER_UNENRICHED,
         GAS_PAYMENT_FRONTIER_HEIGHT,
-        GAS_PAYMENT_TRANSACTION_LOG,
     ] {
         verify_index(db, index).await?;
     }
-    // The legacy block-scoped key rejects valid payments on chains that number
-    // logs per transaction, so ingestion would retry forever behind it.
-    let legacy = db
+    // The intermediate transaction-scoped key is stricter than the final
+    // identity key and rejects valid duplicate fallback positions.
+    let superseded = db
         .query_one(Statement::from_string(
             DbBackend::Postgres,
-            "SELECT to_regclass('gas_payment_block_log') IS NOT NULL AS present".to_owned(),
+            "SELECT to_regclass('gas_payment_transaction_log') IS NOT NULL AS present".to_owned(),
         ))
         .await?
-        .ok_or_else(|| eyre::eyre!("Legacy gas payment index check returned no row"))?;
+        .ok_or_else(|| eyre::eyre!("Superseded gas payment index check returned no row"))?;
     ensure!(
-        !legacy.try_get::<bool>("", "present")?,
-        "Legacy gas_payment_block_log index still exists; run init-db to finish the gas payment index cutover"
+        !superseded.try_get::<bool>("", "present")?,
+        "Superseded gas_payment_transaction_log index still exists; run init-db to finish the gas payment index cutover"
     );
     Ok(())
 }
@@ -230,25 +270,21 @@ mod tests {
         create_indexes(&db).await?;
         verify_frontier_indexes(&db).await?;
         create_indexes(&db).await?;
-        // An incomplete gas payment position cutover must block startup.
         db.execute_unprepared(
-            "CREATE UNIQUE INDEX gas_payment_block_log ON gas_payment(domain, block_hash, log_index) WHERE block_hash IS NOT NULL",
+            "DROP INDEX gas_payment_block_log; CREATE UNIQUE INDEX gas_payment_block_log_v2 ON gas_payment(domain)",
         )
         .await?;
-        assert!(verify_frontier_indexes(&db)
-            .await
-            .unwrap_err()
-            .to_string()
-            .contains("gas_payment_block_log"));
+        create_indexes(&db).await?;
+        assert!(gas_payment_log_index_valid(&db, "gas_payment_block_log").await?);
         db.execute_unprepared("DROP INDEX gas_payment_block_log")
             .await?;
-        db.execute_unprepared("DROP INDEX gas_payment_transaction_log")
-            .await?;
-        assert!(verify_frontier_indexes(&db)
-            .await
-            .unwrap_err()
-            .to_string()
-            .contains("gas_payment_transaction_log"));
+        assert!(verify_frontier_indexes(&db).await.is_err());
+        replace_gas_payment_log_index(&db).await?;
+        db.execute_unprepared(
+            "CREATE UNIQUE INDEX gas_payment_transaction_log ON gas_payment(domain, block_hash, transaction_index, log_index) WHERE block_hash IS NOT NULL",
+        )
+        .await?;
+        assert!(verify_frontier_indexes(&db).await.is_err());
         create_indexes(&db).await?;
         verify_frontier_indexes(&db).await?;
         db.execute_unprepared("DROP INDEX gas_payment_frontier_height")

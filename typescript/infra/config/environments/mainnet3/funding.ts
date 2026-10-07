@@ -96,6 +96,7 @@ export const keyFunderConfig: KeyFunderConfig<
     arbitrum: '0.1',
     avalanche: '2',
     base: '0.1',
+    blast: '0.1',
     bob: '0.1',
     bsc: '0.3',
     celo: '5',

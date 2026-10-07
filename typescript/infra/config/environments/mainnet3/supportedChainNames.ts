@@ -8,6 +8,7 @@ export const mainnet3SupportedChainNames = [
   'arc',
   'avalanche',
   'base',
+  'blast',
   'bob',
   'bsc',
   'celestia',
