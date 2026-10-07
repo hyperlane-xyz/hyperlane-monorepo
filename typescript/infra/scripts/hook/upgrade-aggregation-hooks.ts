@@ -15,6 +15,7 @@ import { Contexts } from '../../config/contexts.js';
 import { legacyCoreHookRecoveryChains } from '../../config/environments/mainnet3/core.js';
 import { supportedChainNames } from '../../config/environments/mainnet3/supportedChainNames.js';
 import {
+  getChain,
   getChainMetadata,
   getDomainId,
   getEnvAddresses,
@@ -23,6 +24,7 @@ import {
   createFileExportStore,
   createMemoryExportStore,
 } from '../../src/aggregation-hook-upgrade/address-export.js';
+import { assertForkable } from '../../src/aggregation-hook-upgrade/protocol.js';
 import { createUpgradeMultiProvider } from '../../src/aggregation-hook-upgrade/provider.js';
 import { describeError } from '../../src/aggregation-hook-upgrade/redact.js';
 import { runUpgrade } from '../../src/aggregation-hook-upgrade/run.js';
@@ -135,6 +137,7 @@ async function main() {
     !fork || !chains?.length || (chains.length === 1 && chains[0] === fork),
     '--fork takes a single chain; --chains must be omitted or equal to it',
   );
+  if (fork) assertForkable(fork, getChain(fork).protocol);
 
   const requested: ChainName[] | undefined = fork
     ? [fork]

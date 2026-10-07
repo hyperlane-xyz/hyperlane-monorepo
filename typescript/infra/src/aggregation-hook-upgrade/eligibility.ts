@@ -4,7 +4,7 @@ import {
   ChainTechnicalStack,
   isStaticDeploymentSupported,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, isEVMLike } from '@hyperlane-xyz/utils';
 
 import { SkipReason, SkipLists } from './types.js';
 
@@ -30,10 +30,7 @@ export function checkEligibility(
     detail,
   });
 
-  if (protocol === ProtocolType.Tron) {
-    return skip(SkipReason.Tron, `${chain} is a Tron chain`);
-  }
-  if (protocol !== ProtocolType.Ethereum) {
+  if (!isEVMLike(protocol)) {
     return skip(SkipReason.NonEvm, `${chain} uses protocol ${protocol}`);
   }
   if (!isStaticDeploymentSupported(technicalStack)) {
