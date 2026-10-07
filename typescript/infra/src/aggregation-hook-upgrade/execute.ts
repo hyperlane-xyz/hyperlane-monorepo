@@ -19,6 +19,7 @@ import {
 import {
   Address,
   Logger,
+  ProtocolType,
   addBufferToGasLimit,
   assert,
   concurrentMap,
@@ -32,6 +33,7 @@ import {
   diffRoutes,
   isFixedVersion,
 } from './plan.js';
+import { isStandardEvm } from './protocol.js';
 import type { ChainReader } from './reader.js';
 import { describeError } from './redact.js';
 import type { ChainPlan, ChainState, RouteConfig } from './types.js';
@@ -78,11 +80,12 @@ export async function ensureFactory(args: {
   plan: ChainPlan;
   adoptable?: Address;
   apply: boolean;
+  protocol: ProtocolType;
   reader: ChainReader;
   onDeployed: (deployed: DeployedContract) => Promise<void>;
   logger: Logger;
 }): Promise<EnsureFactoryResult> {
-  const { multiProvider, chain, state, plan, reader, logger } = args;
+  const { multiProvider, chain, state, plan, protocol, reader, logger } = args;
   if (!plan.needsFactory) {
     return {
       address: state.factory.address,
@@ -129,35 +132,50 @@ export async function ensureFactory(args: {
   logger.info(`[${chain}] deployed factory at ${factory.address}`);
 
   return afterDeploy('Factory', chain, factory.address, async () => {
-    // The factory creates its implementation first in its constructor (contract
-    // nonce 1), so the address is derived and asserted below rather than read
-    // first: a failed read after the deploy would lose its verification input.
-    const implementation = utils.getContractAddress({
-      from: factory.address,
-      nonce: 1,
-    });
-    await args.onDeployed({
-      address: factory.address,
-      verificationInputs: [
-        verificationUtils.getContractVerificationInput({
-          name: STATIC_AGGREGATION_HOOK_FACTORY_CONTRACT,
-          contract: factory,
-          bytecode: factoryContract.bytecode,
-        }),
-        {
-          name: STATIC_AGGREGATION_HOOK_CONTRACT,
-          address: implementation,
-          constructorArguments: '',
-          isProxy: true,
-        },
-      ],
-    });
+    if (isStandardEvm(protocol)) {
+      // The factory creates its implementation first in its constructor
+      // (contract nonce 1), so the address is derived and asserted below rather
+      // than read first: a failed read after the deploy would lose its
+      // verification input.
+      const implementation = utils.getContractAddress({
+        from: factory.address,
+        nonce: 1,
+      });
+      await args.onDeployed({
+        address: factory.address,
+        verificationInputs: [
+          verificationUtils.getContractVerificationInput({
+            name: STATIC_AGGREGATION_HOOK_FACTORY_CONTRACT,
+            contract: factory,
+            bytecode: factoryContract.bytecode,
+          }),
+          {
+            name: STATIC_AGGREGATION_HOOK_CONTRACT,
+            address: implementation,
+            constructorArguments: '',
+            isProxy: true,
+          },
+        ],
+      });
 
-    const onchainImplementation = await factory.implementation();
-    assert(
-      eqAddress(onchainImplementation, implementation),
-      `Deployed factory ${factory.address} on ${chain} reports implementation ${onchainImplementation}, expected ${implementation}`,
-    );
+      const onchainImplementation = await factory.implementation();
+      assert(
+        eqAddress(onchainImplementation, implementation),
+        `Deployed factory ${factory.address} on ${chain} reports implementation ${onchainImplementation}, expected ${implementation}`,
+      );
+    } else {
+      await args.onDeployed({
+        address: factory.address,
+        verificationInputs: [],
+      });
+
+      const implementation = await factory.implementation();
+      assert(
+        !isZeroishAddress(implementation) &&
+          (await provider.getCode(implementation)) !== '0x',
+        `Deployed factory ${factory.address} on ${chain} reports no implementation contract`,
+      );
+    }
     const version = await reader.packageVersion(factory.address);
     assert(
       isFixedVersion(version),
@@ -297,12 +315,21 @@ export async function ensureShadowRoutingHook(args: {
   existing?: Address;
   targets?: RouteConfig[];
   apply: boolean;
+  protocol: ProtocolType;
   reader: ChainReader;
   onDeployed: (deployed: DeployedContract) => Promise<void>;
   logger: Logger;
 }): Promise<EnsureShadowResult> {
-  const { multiProvider, chain, mailbox, fallback, signer, reader, logger } =
-    args;
+  const {
+    multiProvider,
+    chain,
+    mailbox,
+    fallback,
+    signer,
+    protocol,
+    reader,
+    logger,
+  } = args;
   const provider = multiProvider.getProvider(chain);
 
   const syncRoutes = async (address: Address): Promise<EnsureShadowResult> => {
@@ -385,13 +412,15 @@ export async function ensureShadowRoutingHook(args: {
   return afterDeploy('Shadow routing hook', chain, hook.address, async () => {
     await args.onDeployed({
       address: hook.address,
-      verificationInputs: [
-        verificationUtils.getContractVerificationInput({
-          name: SHADOW_HOOK_CONTRACT,
-          contract: hook,
-          bytecode: hookContract.bytecode,
-        }),
-      ],
+      verificationInputs: isStandardEvm(protocol)
+        ? [
+            verificationUtils.getContractVerificationInput({
+              name: SHADOW_HOOK_CONTRACT,
+              contract: hook,
+              bytecode: hookContract.bytecode,
+            }),
+          ]
+        : [],
     });
     return syncRoutes(hook.address);
   });

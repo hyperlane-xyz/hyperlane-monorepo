@@ -6,6 +6,10 @@ import { mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
+import {
+  FallbackDomainRoutingHook__factory,
+  StaticAggregationHookFactory__factory,
+} from '@hyperlane-xyz/core';
 import { PartialRegistry } from '@hyperlane-xyz/registry';
 import type { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
@@ -27,6 +31,11 @@ import {
 } from '../src/aggregation-hook-upgrade/address-export.js';
 import { readChainState } from '../src/aggregation-hook-upgrade/discovery.js';
 import { checkEligibility } from '../src/aggregation-hook-upgrade/eligibility.js';
+import {
+  DeployedContract,
+  ensureFactory,
+  ensureShadowRoutingHook,
+} from '../src/aggregation-hook-upgrade/execute.js';
 import {
   aggregatorKey,
   assertChildrenPreserved,
@@ -63,6 +72,8 @@ import {
 import { writeVerificationInputsToFile } from '../src/deployment/verification-inputs.js';
 import { Owner } from '../src/governance.js';
 import { Role } from '../src/roles.js';
+
+import { revertMessage } from './aggregation-hook-upgrade.helpers.js';
 
 const addr = (n: number): Address =>
   utils.getAddress(utils.hexZeroPad(utils.hexlify(n), 20));
@@ -1009,6 +1020,287 @@ describe('aggregation hook upgrade', () => {
         origin: [input(0x700, 'First'), input(0x701, 'Second')],
         other: [input(0x702, 'Third')],
       });
+    });
+  });
+
+  describe('protocol-specific deployment', () => {
+    const NEW_FACTORY = addr(0x500);
+    // Contract nonce 1 of NEW_FACTORY: where a standard EVM chain creates the
+    // factory implementation. The TVM does not follow this derivation.
+    const DERIVED_IMPLEMENTATION = '0x9E85E359401ddc7C5f6f75c1fAB7e2379919d4Bc';
+    const TVM_IMPLEMENTATION = addr(0x501);
+    const NEW_SHADOW = addr(0x502);
+    const CONTRACT_CODE = '0x6000';
+    const READ_IMPLEMENTATION = 'read implementation';
+    const ON_DEPLOYED = 'onDeployed';
+
+    interface VerificationShape {
+      name: string;
+      address: Address;
+      isProxy?: boolean;
+      constructorArguments?: string;
+    }
+
+    function silentLogger() {
+      return pino({ level: 'silent' });
+    }
+
+    function newProvider() {
+      return new providers.JsonRpcProvider('http://127.0.0.1:1', {
+        chainId: 31337,
+        name: 'test',
+      });
+    }
+
+    function recordDeployments() {
+      const events: string[] = [];
+      const deployed: DeployedContract[] = [];
+      const onDeployed = async (contract: DeployedContract) => {
+        events.push(ON_DEPLOYED);
+        deployed.push(contract);
+      };
+      return { events, deployed, onDeployed };
+    }
+
+    function shapes(deployed: DeployedContract[]): VerificationShape[] {
+      return deployed.flatMap((contract) =>
+        contract.verificationInputs.map((input) => ({
+          name: input.name,
+          address: input.address,
+          isProxy: input.isProxy,
+        })),
+      );
+    }
+
+    describe('ensureFactory', () => {
+      interface Case {
+        name: string;
+        protocol: ProtocolType;
+        reported?: Address;
+        readError?: Error;
+        codeAt: Address[];
+        error?: string;
+        inputs: VerificationShape[];
+      }
+      const cases: Case[] = [
+        {
+          name: 'accepts the on-chain implementation on Tron even when it differs from the nonce derivation',
+          protocol: ProtocolType.Tron,
+          reported: TVM_IMPLEMENTATION,
+          codeAt: [TVM_IMPLEMENTATION],
+          inputs: [],
+        },
+        {
+          name: 'rejects a Tron factory reporting no implementation',
+          protocol: ProtocolType.Tron,
+          reported: constants.AddressZero,
+          codeAt: [],
+          error: 'reports no implementation contract',
+          inputs: [],
+        },
+        {
+          name: 'rejects a Tron factory whose implementation has no code',
+          protocol: ProtocolType.Tron,
+          reported: TVM_IMPLEMENTATION,
+          codeAt: [],
+          error: 'reports no implementation contract',
+          inputs: [],
+        },
+        {
+          name: 'records a Tron factory before a failing implementation read',
+          protocol: ProtocolType.Tron,
+          readError: new Error('rpc dropped'),
+          codeAt: [],
+          error: 'rpc dropped',
+          inputs: [],
+        },
+        {
+          name: 'records the derived implementation input on a standard EVM chain',
+          protocol: ProtocolType.Ethereum,
+          reported: DERIVED_IMPLEMENTATION,
+          codeAt: [],
+          inputs: [
+            {
+              name: 'StaticAggregationHookFactory',
+              address: NEW_FACTORY,
+              isProxy: false,
+            },
+            {
+              name: 'StaticAggregationHook',
+              address: DERIVED_IMPLEMENTATION,
+              isProxy: true,
+            },
+          ],
+        },
+        {
+          name: 'rejects a standard EVM factory whose implementation differs from the derivation',
+          protocol: ProtocolType.Ethereum,
+          reported: TVM_IMPLEMENTATION,
+          codeAt: [TVM_IMPLEMENTATION],
+          error: `reports implementation ${TVM_IMPLEMENTATION}, expected ${DERIVED_IMPLEMENTATION}`,
+          inputs: [
+            {
+              name: 'StaticAggregationHookFactory',
+              address: NEW_FACTORY,
+              isProxy: false,
+            },
+            {
+              name: 'StaticAggregationHook',
+              address: DERIVED_IMPLEMENTATION,
+              isProxy: true,
+            },
+          ],
+        },
+      ];
+      for (const c of cases) {
+        it(c.name, async () => {
+          const { events, deployed, onDeployed } = recordDeployments();
+          const provider = newProvider();
+          sinon.stub(provider, 'call').callsFake(async () => {
+            events.push(READ_IMPLEMENTATION);
+            if (c.readError) throw c.readError;
+            return utils.defaultAbiCoder.encode(
+              ['address'],
+              [c.reported ?? constants.AddressZero],
+            );
+          });
+          sinon
+            .stub(provider, 'getCode')
+            .callsFake(async (address) =>
+              c.codeAt.includes(await address) ? CONTRACT_CODE : '0x',
+            );
+          const factory = StaticAggregationHookFactory__factory.connect(
+            NEW_FACTORY,
+            provider,
+          );
+          Object.defineProperty(factory, 'deployTransaction', {
+            value: {
+              data: new StaticAggregationHookFactory__factory().bytecode,
+              wait: async () => undefined,
+            },
+          });
+          const multiProvider = sinon.createStubInstance(MultiProvider);
+          multiProvider.getProvider.returns(provider);
+          multiProvider.handleDeploy.resolves(factory);
+
+          const spec = baseSpec();
+          spec.versions[key(NEW_FACTORY)] = '12.2.0';
+          const state = await stateFor(spec);
+          const deployment = ensureFactory({
+            multiProvider,
+            chain: 'origin',
+            state,
+            plan: planChain(state, UpgradePhase.Shadow),
+            apply: true,
+            protocol: c.protocol,
+            reader: fakeReader(spec),
+            onDeployed,
+            logger: silentLogger(),
+          });
+
+          if (c.error === undefined) {
+            expect(await deployment).to.deep.equal({
+              address: NEW_FACTORY,
+              version: '12.2.0',
+              deployed: true,
+              previous: { address: FACTORY, version: '9.0.10' },
+            });
+          } else {
+            const message = await revertMessage(deployment);
+            expect(message).to.include(NEW_FACTORY);
+            expect(message).to.include(c.error);
+          }
+          expect(events).to.deep.equal([ON_DEPLOYED, READ_IMPLEMENTATION]);
+          expect(deployed.map((contract) => contract.address)).to.deep.equal([
+            NEW_FACTORY,
+          ]);
+          expect(shapes(deployed)).to.deep.equal(c.inputs);
+        });
+      }
+    });
+
+    describe('ensureShadowRoutingHook', () => {
+      const constructorArguments = utils.defaultAbiCoder
+        .encode(['address', 'address', 'address'], [MAILBOX, OWNER, FALLBACK])
+        .slice(2);
+
+      interface Case {
+        name: string;
+        protocol: ProtocolType;
+        inputs: VerificationShape[];
+      }
+      const cases: Case[] = [
+        {
+          name: 'records no verification input on Tron',
+          protocol: ProtocolType.Tron,
+          inputs: [],
+        },
+        {
+          name: 'records the hook verification input on a standard EVM chain',
+          protocol: ProtocolType.Ethereum,
+          inputs: [
+            {
+              name: 'FallbackDomainRoutingHook',
+              address: NEW_SHADOW,
+              isProxy: false,
+              constructorArguments,
+            },
+          ],
+        },
+      ];
+      for (const c of cases) {
+        it(c.name, async () => {
+          const { deployed, onDeployed } = recordDeployments();
+          const provider = newProvider();
+          const hook = FallbackDomainRoutingHook__factory.connect(
+            NEW_SHADOW,
+            provider,
+          );
+          Object.defineProperty(hook, 'deployTransaction', {
+            value: {
+              data:
+                new FallbackDomainRoutingHook__factory().bytecode +
+                constructorArguments,
+            },
+          });
+          const multiProvider = sinon.createStubInstance(MultiProvider);
+          multiProvider.getProvider.returns(provider);
+          multiProvider.handleDeploy.resolves(hook);
+
+          const result = await ensureShadowRoutingHook({
+            multiProvider,
+            chain: 'origin',
+            productionRoutingHook: ROUTING,
+            mailbox: MAILBOX,
+            fallback: FALLBACK,
+            signer: OWNER,
+            apply: true,
+            protocol: c.protocol,
+            reader: fakeReader(baseSpec()),
+            onDeployed,
+            logger: silentLogger(),
+          });
+
+          expect(result).to.deep.equal({
+            address: NEW_SHADOW,
+            updatedRoutes: 0,
+          });
+          expect(deployed.map((contract) => contract.address)).to.deep.equal([
+            NEW_SHADOW,
+          ]);
+          const recorded = deployed.flatMap((contract) =>
+            contract.verificationInputs.map(
+              ({ name, address, isProxy, constructorArguments: args }) => ({
+                name,
+                address,
+                isProxy,
+                constructorArguments: args,
+              }),
+            ),
+          );
+          expect(recorded).to.deep.equal(c.inputs);
+        });
+      }
     });
   });
 

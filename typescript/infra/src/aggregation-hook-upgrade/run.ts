@@ -25,6 +25,7 @@ import {
   verifyDeployed,
 } from './execute.js';
 import { buildProdTargets, buildShadowTargets, planChain } from './plan.js';
+import { isStandardEvm } from './protocol.js';
 import { createEvmChainReader } from './reader.js';
 import { describeError } from './redact.js';
 import { RegistryAddressUpdate, buildRegistryAddresses } from './registry.js';
@@ -123,6 +124,12 @@ async function runChain(
     ? await multiProvider.getSignerAddress(chain)
     : DEPLOYERS[ctx.environment];
 
+  if (ctx.apply && !isStandardEvm(metadata.protocol)) {
+    logger.info(
+      `[${chain}] contract verification is not supported for ${metadata.protocol}; verification inputs are not recorded`,
+    );
+  }
+
   const factoryInputs: ContractVerificationInput[] = [];
   const hookInputs: ContractVerificationInput[] = [];
   const exportedAggregators: ExportedAggregator[] = [];
@@ -188,6 +195,7 @@ async function runChain(
       plan,
       adoptable: existingExport?.factory.address,
       apply: ctx.apply,
+      protocol: metadata.protocol,
       reader,
       onDeployed: async ({ address, verificationInputs }) => {
         factoryInputs.push(...verificationInputs);
@@ -299,6 +307,7 @@ async function runChain(
           ? buildShadowTargets(state, plan, aggregatorByKey)
           : undefined,
         apply: ctx.apply,
+        protocol: metadata.protocol,
         reader,
         onDeployed: async ({ address, verificationInputs }) => {
           hookInputs.push(...verificationInputs);
