@@ -53,8 +53,9 @@ type LazyVm<N> = Arc<OnceCell<VM<N, ConsensusMemory<N>>>>;
 
 const BLOCK_METADATA_CACHE_SIZE: usize = 128;
 
-// Metadata reads trust the finalized RPC response, as on other VMs. Decoding a
-// snarkVM Block also verifies consensus certificates and decodes transactions,
+// Metadata reads trust the finalized RPC response, including its outer block
+// hash without cross-checking it against the header, as on other VMs. Decoding
+// a snarkVM Block also verifies consensus certificates and decodes transactions,
 // which is unnecessary for the hash/height/timestamp used by indexing.
 #[derive(serde::Deserialize)]
 #[serde(bound = "")]
@@ -86,8 +87,10 @@ pub struct AleoProvider<C: AleoClient = FallbackHttpClient> {
     signer: Option<AleoSigner>,
     priority_fee_multiplier: f64,
     estimate_cache: Arc<RwLock<HashMap<FeeEstimateCacheKey, FeeEstimate>>>,
-    // Aleo blocks are finalized. Reuse metadata across observation, ingestion
-    // and confirmation, retaining only the highest recently requested heights.
+    // Aleo blocks are finalized. Within this provider, reuse metadata across
+    // near-head observation and confirmation. Confirmation re-reads therefore
+    // do not reach RPC; a bad hash from a fallback RPC remains until eviction.
+    // Retain only the highest recently requested heights.
     block_metadata: Arc<RwLock<BTreeMap<u32, BlockInfo>>>,
     // Read-only ISM and indexing providers never need a VM. Initialize only
     // the execution network, sharing it with provider clones. The pinned
