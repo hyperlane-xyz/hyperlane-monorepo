@@ -7,6 +7,7 @@ use hyperlane_core::{ChainCommunicationError, ChainResult, H256, H512};
 
 use crate::error::HyperlaneSealevelError;
 
+/// Decodes Base58 bytes, returning a decoding error for invalid input.
 pub fn from_base58(base58: &str) -> Result<Vec<u8>, HyperlaneSealevelError> {
     let binary = bs58::decode(base58)
         .into_vec()
@@ -14,22 +15,26 @@ pub fn from_base58(base58: &str) -> Result<Vec<u8>, HyperlaneSealevelError> {
     Ok(binary)
 }
 
+/// Decodes a Base58 hash, rejecting invalid Base58 or a length other than 32 bytes.
 pub fn decode_h256(base58: &str) -> Result<H256, HyperlaneSealevelError> {
     let binary = from_base58(base58)?;
     decode_h256_bytes(&binary)
 }
 
+/// Converts exactly 32 bytes into a hash, returning `InvalidHashLength` otherwise.
 pub(crate) fn decode_h256_bytes(binary: &[u8]) -> Result<H256, HyperlaneSealevelError> {
     let bytes: [u8; 32] = binary.try_into()?;
     Ok(H256::from(bytes))
 }
 
+/// Decodes a Base58 hash, rejecting invalid Base58 or a length other than 64 bytes.
 pub fn decode_h512(base58: &str) -> Result<H512, HyperlaneSealevelError> {
     let binary = from_base58(base58)?;
     let bytes: [u8; 64] = binary.as_slice().try_into()?;
     Ok(H512::from(bytes))
 }
 
+/// Parses a Base58 public key, returning an error for an invalid address.
 pub fn decode_pubkey(address: &str) -> Result<Pubkey, HyperlaneSealevelError> {
     Pubkey::from_str(address).map_err(Into::<HyperlaneSealevelError>::into)
 }
@@ -85,6 +90,7 @@ mod test {
     use super::*;
 
     #[test]
+    /// Rejects short and oversized inputs without panicking.
     fn test_decode_hashes_reject_wrong_lengths() {
         for len in [0, 1, 31, 33, 64] {
             let bytes = vec![0; len];
@@ -108,6 +114,7 @@ mod test {
     }
 
     #[test]
+    /// Preserves the decoded bytes of valid hashes.
     fn test_decode_hashes_preserve_valid_bytes() {
         let bytes = [42; 32];
         let encoded = bs58::encode(bytes).into_string();
@@ -128,6 +135,7 @@ mod test {
     }
 
     #[test]
+    /// Reports invalid Base58 before attempting hash conversion.
     fn test_decode_hashes_reject_invalid_base58() {
         assert!(matches!(
             decode_h256("0"),

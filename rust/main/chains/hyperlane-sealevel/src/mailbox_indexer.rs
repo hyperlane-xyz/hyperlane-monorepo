@@ -230,7 +230,7 @@ impl SealevelMailboxIndexer {
         debug!(account_len = ?accounts.len(), "Found accounts with processed message discriminator");
 
         let valid_message_storage_pda_pubkey = search_and_validate_account(accounts, |account| {
-            self.delivered_message_account(account)
+            Self::delivered_message_account(account, &self.mailbox.program_id)
         })?;
 
         // Now that we have the valid delivered message storage PDA pubkey,
@@ -274,11 +274,13 @@ impl SealevelMailboxIndexer {
         Ok((indexed, log_meta))
     }
 
-    fn delivered_message_account(&self, account: &Account) -> ChainResult<Pubkey> {
+    /// Derives the processed-message PDA from the account's 32-byte message ID slice.
+    /// Returns an error if the slice has the wrong length or no PDA can be derived.
+    fn delivered_message_account(account: &Account, program_id: &Pubkey) -> ChainResult<Pubkey> {
         let message_id = decode_h256_bytes(&account.data)?;
         let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
             mailbox_processed_message_pda_seeds!(message_id),
-            &self.mailbox.program_id,
+            program_id,
         )
         .ok_or_else(|| {
             ChainCommunicationError::from_other_str("Could not find program address for message id")
@@ -418,5 +420,45 @@ impl SequenceAwareIndexer<H256> for SealevelMailboxIndexer {
         let tip = self.mailbox.get_provider().rpc_client().get_slot().await?;
 
         Ok((Some(sequence), tip))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Invalid message ID lengths must return an error rather than panic.
+    #[test]
+    fn delivered_message_account_rejects_wrong_lengths() {
+        let program_id = Pubkey::new_unique();
+        for len in [0, 1, 31, 33, 64] {
+            let account = Account {
+                data: vec![0; len],
+                ..Account::default()
+            };
+            assert!(
+                SealevelMailboxIndexer::delivered_message_account(&account, &program_id).is_err()
+            );
+        }
+    }
+
+    /// A valid message ID still resolves to its processed-message PDA.
+    #[test]
+    fn delivered_message_account_preserves_valid_pda() {
+        let program_id = Pubkey::new_unique();
+        let message_id = H256::from([42; 32]);
+        let account = Account {
+            data: message_id.as_bytes().to_vec(),
+            ..Account::default()
+        };
+        let (expected, _) = Pubkey::find_program_address(
+            mailbox_processed_message_pda_seeds!(message_id),
+            &program_id,
+        );
+        assert_eq!(
+            SealevelMailboxIndexer::delivered_message_account(&account, &program_id)
+                .expect("valid message ID"),
+            expected
+        );
     }
 }
