@@ -28,7 +28,7 @@ type DeploymentChain = (typeof deploymentChains)[number];
 
 const syntheticChain: DeploymentChain = 'subtensor';
 
-// getUSDCRebalancingBridgesConfigFor intersects with the CCTP V1 route chains,
+// getUSDCRebalancingBridgesConfigFor intersects with the CCTP V1 and V2 route chains,
 // which excludes subtensor and solanamainnet. On-chain, each collateral leg also
 // allows rebalancing to those two chains via its own bridge, so hardcode them to
 // accept the deployed state.
@@ -47,7 +47,11 @@ export const getSubtensorUSDCWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
     deploymentChains,
-    [WarpRouteIds.MainnetCCTPV1],
+    [
+      WarpRouteIds.MainnetCCTPV1,
+      WarpRouteIds.MainnetCCTPV2Standard,
+      WarpRouteIds.MainnetCCTPV2Fast,
+    ],
   );
 
   return Object.fromEntries(
