@@ -182,9 +182,25 @@ async fn worker(db: DatabaseConnection, source: Arc<Chain>) -> Result<Arc<Worker
         period: ReorgPeriod::Tag("finalized".into()),
         chunk_size: 20_000,
         poll_interval: Duration::from_millis(20),
+        critical_failure_grace: Duration::from_millis(60),
         chain_metrics: ChainMetrics::new(&metrics)?,
         sync_metrics: Arc::new(ContractSyncMetrics::new(&metrics)),
     }))
+}
+
+#[tokio::test]
+async fn transient_failures_do_not_set_critical_error() {
+    let mut failures = FailureStreak::default();
+    let grace = Duration::from_millis(40);
+
+    assert!(!failures.record(true, grace));
+    sleep(Duration::from_millis(20)).await;
+    assert!(!failures.record(true, grace));
+    assert!(!failures.record(false, grace));
+    sleep(Duration::from_millis(40)).await;
+    assert!(!failures.record(true, grace));
+    sleep(grace).await;
+    assert!(failures.record(true, grace));
 }
 
 fn critical(worker: &Worker) -> i64 {

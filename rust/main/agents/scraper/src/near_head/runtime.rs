@@ -4,7 +4,7 @@ use std::{sync::Arc, time::Duration};
 
 use hyperlane_base::{ChainMetrics, ContractSyncMetrics};
 use hyperlane_core::{HyperlaneDomain, ReorgPeriod};
-use tokio::time::sleep;
+use tokio::time::{sleep, Instant};
 use tracing::warn;
 
 use super::{
@@ -19,8 +19,38 @@ pub(super) struct Worker {
     pub period: ReorgPeriod,
     pub chunk_size: u64,
     pub poll_interval: Duration,
+    pub critical_failure_grace: Duration,
     pub chain_metrics: ChainMetrics,
     pub sync_metrics: Arc<ContractSyncMetrics>,
+}
+
+#[derive(Debug, Default)]
+struct FailureStreak {
+    since: Option<Instant>,
+}
+
+impl FailureStreak {
+    fn record(&mut self, failed: bool, grace: Duration) -> bool {
+        if !failed {
+            self.since = None;
+            return false;
+        }
+        let now = Instant::now();
+        let since = self.since.get_or_insert(now);
+        now.duration_since(*since) >= grace
+    }
+
+    fn retry_delay(&self, poll_interval: Duration, grace: Duration) -> Duration {
+        let Some(since) = self.since else {
+            return poll_interval;
+        };
+        let remaining = grace.saturating_sub(since.elapsed());
+        if remaining.is_zero() {
+            poll_interval
+        } else {
+            poll_interval.min(remaining)
+        }
+    }
 }
 
 /// A completed cycle: whether to run again at once, and whether ingestion failed
@@ -46,13 +76,13 @@ impl Worker {
 
     async fn run_cycles(&self) {
         let mut count_cache = CountCache::default();
+        let mut failures = FailureStreak::default();
         loop {
             let result = self.cycle(&mut count_cache).await;
-            // A failed log fetch stays critical even while confirmed pages keep
-            // draining without waiting for the next poll.
-            let critical = result
+            let failed = result
                 .as_ref()
                 .map_or(true, |outcome| outcome.ingestion_failed);
+            let critical = failures.record(failed, self.critical_failure_grace);
             self.chain_metrics
                 .set_critical_error(self.domain.name(), critical);
             match result {
@@ -64,7 +94,7 @@ impl Worker {
                     "Near-head indexing paused; retrying"
                 ),
             }
-            sleep(self.poll_interval).await;
+            sleep(failures.retry_delay(self.poll_interval, self.critical_failure_grace)).await;
         }
     }
 

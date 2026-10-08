@@ -22,6 +22,8 @@ use source::{
 };
 use store::{State, Store};
 
+const CRITICAL_FAILURE_GRACE: Duration = Duration::from_secs(60);
+
 fn minimum_auto_anchor(protocol: HyperlaneDomainProtocol) -> u64 {
     match protocol {
         HyperlaneDomainProtocol::Cosmos | HyperlaneDomainProtocol::CosmosNative => 1,
@@ -133,6 +135,7 @@ pub async fn spawn(
         period,
         chunk_size,
         poll_interval,
+        critical_failure_grace: CRITICAL_FAILURE_GRACE,
         chain_metrics,
         sync_metrics,
     };
@@ -264,6 +267,18 @@ async fn ingest_cached(
     if available_head <= state.indexed {
         return Ok(false);
     }
+    let start_counts = match count_cache
+        .boundary
+        .as_ref()
+        .filter(|(hash, _)| *hash == state.hash)
+    {
+        Some((_, counts)) => *counts,
+        None => {
+            let counts = store.sequence_counts().await?;
+            count_cache.boundary = Some((state.hash, counts));
+            counts
+        }
+    };
     let requested_end = if source.indexes_by_sequence() {
         // Sequence paging is already bounded by its configured page size. Use
         // the observed head as the block boundary so sparse-slot chains do not
@@ -272,19 +287,28 @@ async fn ingest_cached(
     } else {
         available_head.min(state.indexed.saturating_add(chunk_size))
     };
+    if source.has_events_after(start_counts).await? == Some(false) {
+        let boundary = source
+            .range_end(state.indexed, requested_end, available_head)
+            .await?;
+        ensure!(
+            source
+                .fresh_header(BlockSelector::Height(state.indexed))
+                .await?
+                .hash
+                == state.hash,
+            "Indexed boundary changed during range fetch"
+        );
+        verify(source, &boundary).await?;
+        store.append(state, &[(boundary.clone(), vec![])]).await?;
+        count_cache.boundary = Some((boundary.hash, start_counts));
+        return Ok(boundary.height < state.head);
+    }
     let mut boundary = source
         .range_end(state.indexed, requested_end, available_head)
         .await?;
     let mut end = boundary.height;
     let mut by_block = BTreeMap::<u64, Vec<source::Event>>::new();
-    let start_counts = match count_cache
-        .boundary
-        .as_ref()
-        .filter(|(hash, _)| *hash == state.hash)
-    {
-        Some((_, counts)) => *counts,
-        None => store.sequence_counts().await?,
-    };
     // Retain exact range validation where historical state is available, but do
     // not let a pruned-state RPC prevent catch-up from durable sequence counts.
     let end_counts = async {
