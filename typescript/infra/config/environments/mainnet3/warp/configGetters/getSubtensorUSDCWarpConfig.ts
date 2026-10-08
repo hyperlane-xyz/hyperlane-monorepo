@@ -2,7 +2,7 @@ import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { awIcasLegacy } from '../../governance/ica/_awLegacy.js';
+import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { chainOwners } from '../../owners.js';
 import { usdcTokenAddresses } from '../cctp.js';
@@ -58,7 +58,7 @@ export const getSubtensorUSDCWarpConfig = async (
     deploymentChains.map(
       (currentChain): [DeploymentChain, HypTokenRouterConfig] => {
         const owner =
-          awIcasLegacy[currentChain] ??
+          awIcas[currentChain] ??
           awSafes[currentChain] ??
           chainOwners[currentChain].owner;
 
