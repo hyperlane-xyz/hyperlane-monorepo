@@ -86,6 +86,7 @@ export const getSubtensorUSDCWarpConfig = async (
               type: TokenType.collateral,
               token: usdcTokenAddress,
               mailbox: routerConfig[currentChain].mailbox,
+              hook: 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv', // solanamainnet IGP program (SVM_CORE_ADDRESSES igpProgramId)
               foreignDeployment: 'GPCsiXvm9NaFjrxB6sThscap6akyvRgD5V6decCk25c',
               owner,
               gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
