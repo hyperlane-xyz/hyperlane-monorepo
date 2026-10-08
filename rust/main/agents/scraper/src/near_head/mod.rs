@@ -22,6 +22,8 @@ use source::{
 };
 use store::{State, Store};
 
+const CRITICAL_FAILURE_GRACE: Duration = Duration::from_secs(60);
+
 fn minimum_auto_anchor(protocol: HyperlaneDomainProtocol) -> u64 {
     match protocol {
         HyperlaneDomainProtocol::Cosmos | HyperlaneDomainProtocol::CosmosNative => 1,
@@ -133,6 +135,7 @@ pub async fn spawn(
         period,
         chunk_size,
         poll_interval,
+        critical_failure_grace: CRITICAL_FAILURE_GRACE,
         chain_metrics,
         sync_metrics,
     };
