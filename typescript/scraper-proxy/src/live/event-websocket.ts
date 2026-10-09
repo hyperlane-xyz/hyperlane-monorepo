@@ -114,6 +114,7 @@ type Client = {
 };
 type ExplorerClient = {
   alive: boolean;
+  canonical: boolean;
   confirmations?: number;
   domains?: Set<number>;
   frontiers: Map<number, bigint>;
@@ -620,6 +621,7 @@ export class EventWebSocketServer {
     this.explorerClientsByIp.set(ip, connections + 1);
     const client: ExplorerClient = {
       alive: true,
+      canonical: custom === undefined,
       confirmations: custom?.confirmations,
       domains: custom?.domains,
       frontiers: new Map(),
@@ -632,8 +634,12 @@ export class EventWebSocketServer {
     websocketConnections.inc({ route: 'messages' });
     if (custom) {
       try {
-        const states = await this.headStates(custom.domains);
+        const states = await this.availableHeadStates(custom.domains);
         if (this.explorerClients.get(socket) !== client) return;
+        client.canonical = states.size < custom.domains.size;
+        client.domains = new Set(
+          [...custom.domains].filter((domain) => states.has(domain)),
+        );
         client.frontiers = new Map(
           [...states].map(([domain, state]) => [
             domain,
@@ -652,13 +658,13 @@ export class EventWebSocketServer {
     this.send(socket, {
       controlTypes: custom ? ['rollback'] : undefined,
       confirmations: custom?.confirmations,
-      domains: custom ? [...custom.domains] : undefined,
+      domains: custom ? [...(client.domains ?? [])] : undefined,
       eventTypes: custom ? ['message_upsert', 'rollback'] : ['message_upsert'],
       type: 'ready',
     });
     if (custom) {
       try {
-        const latest = await this.headStates(custom.domains);
+        const latest = await this.headStates(client.domains ?? new Set());
         if (this.explorerClients.get(socket) !== client) return;
         for (const [domain, state] of latest) {
           this.customHeads.set(domain, {
@@ -837,6 +843,19 @@ export class EventWebSocketServer {
   private async headStates(
     domains: ReadonlySet<number>,
   ): Promise<Map<number, HeadState>> {
+    const states = await this.availableHeadStates(domains);
+    const missing = [...domains].filter((domain) => !states.has(domain));
+    if (missing.length) {
+      throw new Error(
+        `confirmations is unsupported for domains: ${missing.join(', ')}`,
+      );
+    }
+    return states;
+  }
+
+  private async availableHeadStates(
+    domains: ReadonlySet<number>,
+  ): Promise<Map<number, HeadState>> {
     const rows = await this.db.queryLive<{
       domain: number | string;
       head_height: string;
@@ -852,12 +871,6 @@ export class EventWebSocketServer {
         head: parseId(row.head_height),
         indexed: parseId(row.indexed_height),
       });
-    }
-    const missing = [...domains].filter((domain) => !states.has(domain));
-    if (missing.length) {
-      throw new Error(
-        `confirmations is unsupported for domains: ${missing.join(', ')}`,
-      );
     }
     return states;
   }
@@ -2168,14 +2181,14 @@ export class EventWebSocketServer {
       serialize({ data: row, type: 'message_upsert' }),
     );
     for (const [socket, client] of this.explorerClients) {
-      if (client.confirmations !== undefined) continue;
+      if (!client.canonical) continue;
       this.enqueueExplorer(socket, client, messages);
     }
   }
 
   private hasCanonicalExplorer(): boolean {
     return [...this.explorerClients.values()].some(
-      ({ confirmations }) => confirmations === undefined,
+      ({ canonical }) => canonical,
     );
   }
 
@@ -2318,7 +2331,7 @@ export class EventWebSocketServer {
     this.logger.error(`Explorer event stream failed: ${formatError(error)}`);
     this.explorerNotifications.clear();
     for (const [socket, client] of this.explorerClients) {
-      if (client.confirmations !== undefined) continue;
+      if (!client.canonical) continue;
       this.clearExplorerQueue(client);
       this.disconnect(socket);
       socket.close(1013, 'Event stream read failed');

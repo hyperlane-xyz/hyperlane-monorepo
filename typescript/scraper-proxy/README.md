@@ -42,10 +42,12 @@ rows. With no query parameters, it retains the canonical-confirmation behavior.
 To opt into another depth, connect with explicit domains, for example
 `/messages?confirmations=0&domains=1,42161`. Custom-confirmation upserts also
 include top-level `confirmations`, `domain`, and `height` fields describing the
-source frontier; key provisional messages by `data.msg_id`. It does not emit raw
-gas payments or Merkle tree insertions. Production requests must arrive through
-Cloudflare with a valid `CF-Connecting-IP` header; at most five connections are
-accepted per client IP.
+source frontier; key provisional messages by `data.msg_id`. The `ready` event's
+`domains` field reports which requested domains support that depth. Requested
+domains absent from that field remain on the canonical-confirmation stream over
+the same socket. It does not emit raw gas payments or Merkle tree insertions.
+Production requests must arrive through Cloudflare with a valid
+`CF-Connecting-IP` header; at most five connections are accepted per client IP.
 
 The private `/agents` endpoint always supports historical WebSocket catch-up.
 Replay is paginated without a total row limit. Concurrent catch-ups, session

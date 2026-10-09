@@ -2112,20 +2112,66 @@ void it('rejects incomplete Explorer confirmation parameters', async () => {
   assert.equal(await closed, 1008);
 });
 
-void it('bounds Explorer close reasons for unsupported confirmation domains', async () => {
-  const domains = Array.from({ length: 40 }, (_, index) => index + 2);
-  const socket = new WebSocket(
-    `${messagesUrl}?confirmations=0&domains=${domains.join(',')}`,
-  );
-  const closed = new Promise<{ code: number; reason: string }>((resolve) =>
-    socket.once('close', (code, reason) =>
-      resolve({ code, reason: reason.toString('utf8') }),
-    ),
-  );
-  assert.deepEqual(await closed, {
-    code: 1008,
-    reason: 'Unsupported confirmation domains',
-  });
+void it('falls back to confirmed Explorer events for unsupported domains', async () => {
+  const provisionalMsgId = `\\x${'07'.repeat(32)}`;
+  const confirmedMsgId = `\\x${'08'.repeat(32)}`;
+  const previousHead = headStates.get(1);
+  headStates.set(1, { head: '10', indexed: '10' });
+  const socket = new WebSocket(`${messagesUrl}?confirmations=0&domains=1,2`);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  try {
+    const ready = await waitFor(messages, 'ready');
+    assert.equal(ready.confirmations, 0);
+    assert.deepEqual(ready.domains, [1]);
+
+    notify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: confirmedMsgId.slice(2) }),
+    );
+    await waitUntil(() =>
+      messages.some(
+        (message) =>
+          message.type === 'message_upsert' &&
+          record(message.data).msg_id === confirmedMsgId &&
+          message.confirmations === undefined,
+      ),
+    );
+
+    dispatchRows.set('22003', {
+      destination_domain: 2,
+      msg_body: '\\x',
+      msg_id: provisionalMsgId,
+      origin_block_height: '11',
+      origin_domain: 1,
+    });
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '11',
+        indexedHeight: '11',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '10',
+      }),
+    );
+    await waitUntil(() =>
+      messages.some(
+        (message) =>
+          message.type === 'message_upsert' &&
+          record(message.data).msg_id === provisionalMsgId &&
+          message.confirmations === 0,
+      ),
+    );
+    assert.equal(socket.readyState, WebSocket.OPEN);
+  } finally {
+    dispatchRows.delete('22003');
+    if (previousHead) headStates.set(1, previousHead);
+    else headStates.delete(1);
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
 });
 
 void it('completes gas payment stream cursor replay without a total row budget', async () => {
