@@ -8,8 +8,8 @@ use tokio::time::{sleep, Instant};
 use tracing::warn;
 
 use super::{
-    confirm_leased, confirmation_lease, ingest_cached, observe, source::Source, store::Store,
-    CountCache,
+    confirm_leased_through, confirmation_lease, ingest_cached, observe, source::Source,
+    store::Store, CountCache,
 };
 
 pub(super) struct Worker {
@@ -117,13 +117,34 @@ impl Worker {
             ReorgPeriod::Blocks(depth) => u64::from(depth.get()),
             _ => 0,
         };
+        let tip_counts = self.source.tip_sequence_counts().await?;
+        if tip_counts.is_some() {
+            let proof_is_canonical = match count_cache.publishable {
+                Some((hash, height))
+                    if height >= observed.confirmed && height <= observed.indexed =>
+                {
+                    self.store.hash(height).await? == Some(hash)
+                }
+                _ => false,
+            };
+            if !proof_is_canonical {
+                let hash = self
+                    .store
+                    .hash(observed.confirmed)
+                    .await?
+                    .ok_or_else(|| eyre::eyre!("Missing confirmed checkpoint"))?;
+                count_cache.publishable = Some((hash, observed.confirmed));
+            }
+        }
         let mut bounded = observed.clone();
-        bounded.head = bounded.head.min(
-            bounded
-                .confirmed
-                .saturating_add(depth)
-                .saturating_add(10_000),
-        );
+        if tip_counts.is_none() {
+            bounded.head = bounded.head.min(
+                bounded
+                    .confirmed
+                    .saturating_add(depth)
+                    .saturating_add(10_000),
+            );
+        }
         let mut ingestion = if bounded.indexed < bounded.head {
             ingest_cached(
                 self.source.as_ref(),
@@ -137,49 +158,68 @@ impl Worker {
             Ok(false)
         };
 
-        // Tip counts describe the observed head, not the bounded provisional cap.
-        // At the cap, confirmation must keep opening room for further ingestion.
-        if bounded.head == observed.head && ingestion.is_ok() {
-            if let Some(expected) = self.source.tip_sequence_counts().await? {
-                if matches!(ingestion, Ok(true)) {
-                    return Ok(CycleOutcome {
-                        more: true,
-                        ingestion_failed: false,
-                    });
+        if let Some(expected) = tip_counts.filter(|_| ingestion.is_ok()) {
+            let state = self
+                .store
+                .state()
+                .await?
+                .ok_or_else(|| eyre::eyre!("Missing head state"))?;
+            let actual = self.store.sequence_counts().await?;
+            let mut incomplete = false;
+            let mut unavailable = false;
+            let mut stale = false;
+            let mut proven = state.indexed;
+            for (((expected, tip), actual), stream) in expected.into_iter().zip(actual).zip([
+                "dispatch",
+                "delivery",
+                "gas payment",
+                "insertion",
+            ]) {
+                let Some(expected) = expected else { continue };
+                let tip = u64::from(tip);
+                if tip > state.indexed {
+                    unavailable = true;
+                    continue;
                 }
-                let state = self
-                    .store
-                    .state()
-                    .await?
-                    .ok_or_else(|| eyre::eyre!("Missing head state"))?;
-                let actual = self.store.sequence_counts().await?;
-                let mut incomplete = false;
-                let mut newer_tip = false;
-                for ((expected, tip), actual) in expected.into_iter().zip(actual) {
-                    let Some(expected) = expected else { continue };
-                    if u64::from(tip) > state.indexed {
-                        newer_tip = true;
-                        continue;
-                    }
-                    eyre::ensure!(
-                        expected >= actual,
-                        "Provider sequence count is behind durable history"
+                proven = proven.min(tip);
+                incomplete |= expected > actual;
+                if expected < actual {
+                    stale = true;
+                    warn!(
+                        stream,
+                        expected,
+                        actual,
+                        tip,
+                        "Provider sequence count is behind durable history at its tip"
                     );
-                    incomplete |= expected > actual;
                 }
-                if newer_tip {
-                    return Ok(CycleOutcome {
-                        more: false,
-                        ingestion_failed: false,
-                    });
+            }
+            if !unavailable && !stale && !incomplete {
+                let proven = self.store.checkpoint(proven).await?;
+                let previous = count_cache
+                    .publishable
+                    .map(|(_, height)| height)
+                    .unwrap_or(state.confirmed);
+                if proven > previous {
+                    let hash = self
+                        .store
+                        .hash(proven)
+                        .await?
+                        .ok_or_else(|| eyre::eyre!("Missing proven checkpoint"))?;
+                    count_cache.publishable = Some((hash, proven));
                 }
-                if incomplete {
-                    if state.indexed > state.confirmed {
-                        self.store.rewind_to_confirmed(&state).await?;
-                    }
-                    *count_cache = CountCache::default();
-                    ingestion = Err(eyre::eyre!("Incomplete event range at indexing tip"));
+            } else if !unavailable && !stale && incomplete {
+                if state.indexed > state.confirmed {
+                    self.store.rewind_to_confirmed(&state).await?;
                 }
+                count_cache.boundary = None;
+                let hash = self
+                    .store
+                    .hash(state.confirmed)
+                    .await?
+                    .ok_or_else(|| eyre::eyre!("Missing confirmed checkpoint"))?;
+                count_cache.publishable = Some((hash, state.confirmed));
+                ingestion = Err(eyre::eyre!("Incomplete event range at provider tip"));
             }
         }
         if let Err(error) = &ingestion {
@@ -191,11 +231,15 @@ impl Worker {
             );
         }
 
-        let confirmation = confirm_leased(
+        let confirmation = confirm_leased_through(
             self.source.as_ref(),
             &self.store,
             &self.period,
             confirmation_lease(self.poll_interval),
+            count_cache
+                .publishable
+                .map(|(_, height)| height)
+                .unwrap_or(u64::MAX),
         )
         .await?;
         for (label, count) in [

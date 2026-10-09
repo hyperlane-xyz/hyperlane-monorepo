@@ -245,6 +245,7 @@ async fn ingest(
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct CountCache {
     boundary: Option<(ethers::types::H256, [u32; 4])>,
+    publishable: Option<(ethers::types::H256, u64)>,
 }
 
 async fn ingest_cached(
@@ -418,6 +419,7 @@ fn validate_sequences(events: &[source::Event], next: [u32; 2], end: [u32; 2]) -
 }
 
 fn advance_sequences(events: &[source::Event], mut next: [u32; 4]) -> Result<[u32; 4]> {
+    const STREAMS: [&str; 4] = ["dispatch", "delivery", "gas payment", "insertion"];
     for event in events {
         let (stream, index) = match &event.data {
             source::EventData::Dispatch(message) => (0, Some(message.nonce)),
@@ -426,7 +428,13 @@ fn advance_sequences(events: &[source::Event], mut next: [u32; 4]) -> Result<[u3
             source::EventData::Insertion { index, .. } => (3, Some(*index)),
         };
         let Some(index) = index else { continue };
-        ensure!(index == next[stream], "Missing or unordered event sequence");
+        ensure!(
+            index == next[stream],
+            "Missing or unordered {} sequence: expected {}, received {}",
+            STREAMS[stream],
+            next[stream],
+            index
+        );
         next[stream] = index
             .checked_add(1)
             .ok_or_else(|| eyre::eyre!("Event sequence overflow"))?;
@@ -472,18 +480,29 @@ struct Confirmation {
     page_limited: bool,
 }
 
+#[cfg(test)]
 async fn confirm_leased(
     source: &dyn Source,
     store: &Store,
     period: &ReorgPeriod,
     lease: Duration,
 ) -> Result<Confirmation> {
+    confirm_leased_through(source, store, period, lease, u64::MAX).await
+}
+
+async fn confirm_leased_through(
+    source: &dyn Source,
+    store: &Store,
+    period: &ReorgPeriod,
+    lease: Duration,
+    publishable: u64,
+) -> Result<Confirmation> {
     let state = store
         .state()
         .await?
         .ok_or_else(|| eyre::eyre!("Missing head state"))?;
     ensure!(!state.halted, "Confirmed history requires operator repair");
-    if state.indexed == state.confirmed {
+    if state.indexed == state.confirmed || publishable <= state.confirmed {
         return Ok(Confirmation {
             counts: [0; 4],
             page_limited: false,
@@ -509,7 +528,7 @@ async fn confirm_leased(
             page_limited: false,
         });
     }
-    let target = through.min(state.indexed);
+    let target = through.min(state.indexed).min(publishable);
     let through = store.confirmation_boundary(state.confirmed, target).await?;
     if through <= state.confirmed {
         return Ok(Confirmation {

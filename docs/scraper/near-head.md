@@ -53,7 +53,11 @@ boundary from stored maxima. Contract changes are rejected.
   recent boundaries retain exact tail validation. Sequence gaps retry from the
   confirmed frontier; only a confirmed hash conflict halts for operator repair.
   Block-indexed generic adapters with sequence counts keep partial catch-up
-  provisional until durable rows reach the advertised counts at the observed tip.
+  provisional until durable counts match every available stream snapshot.
+  Confirmation stops at the last proven common height while newer or lagging
+  provider snapshots retry. These adapters may exceed the normal 10,000
+  block provisional cap while catching up because publishing an unproven chunk
+  would make a dropped event permanent.
   Sequence-indexed protocols also anchor continuity to the database cutover.
   Their indexers page from the durable count until they pass the current block
   boundary and prove each requested page complete before filtering by block.

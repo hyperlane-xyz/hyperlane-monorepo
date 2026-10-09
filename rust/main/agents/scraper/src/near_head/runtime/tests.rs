@@ -622,7 +622,7 @@ async fn block_mode_does_not_publish_until_tip_counts_are_complete() -> Result<(
     .await?;
     let chain = Arc::new(Chain::new(20, false));
     chain.tag.store(20, Ordering::SeqCst);
-    *chain.tip_counts.lock().unwrap() = Some([(Some(1), 21), (None, 21), (None, 21), (None, 21)]);
+    *chain.tip_counts.lock().unwrap() = Some([(Some(0), 10), (None, 10), (None, 10), (None, 10)]);
     let worker = worker(db, chain.clone()).await?;
     let worker = Worker {
         chunk_size: 10,
@@ -632,24 +632,27 @@ async fn block_mode_does_not_publish_until_tip_counts_are_complete() -> Result<(
 
     assert!(worker.cycle(&mut cache).await?.more);
     let partial = worker.store.state().await?.unwrap();
-    assert_eq!((partial.indexed, partial.confirmed), (10, 0));
+    assert_eq!((partial.indexed, partial.confirmed), (10, 10));
 
+    *chain.tip_counts.lock().unwrap() = Some([(Some(1), 21), (None, 21), (None, 21), (None, 21)]);
     assert!(!worker.cycle(&mut cache).await?.more);
     let newer_tip = worker.store.state().await?.unwrap();
-    assert_eq!((newer_tip.indexed, newer_tip.confirmed), (20, 0));
+    assert_eq!((newer_tip.indexed, newer_tip.confirmed), (20, 10));
 
     *chain.tip_counts.lock().unwrap() = Some([(Some(1), 20), (None, 20), (None, 20), (None, 20)]);
     assert!(worker.cycle(&mut cache).await.is_err());
     let rejected = worker.store.state().await?.unwrap();
-    assert_eq!((rejected.indexed, rejected.confirmed), (0, 0));
+    assert_eq!((rejected.indexed, rejected.confirmed), (10, 10));
     assert!(!rejected.halted);
 
-    chain.events.lock().unwrap().push(dispatch_event(5, 0));
-    assert!(worker.cycle(&mut cache).await?.more);
-    assert_eq!(worker.store.state().await?.unwrap().confirmed, 0);
+    chain.events.lock().unwrap().push(dispatch_event(15, 0));
     assert!(!worker.cycle(&mut cache).await?.more);
     let recovered = worker.store.state().await?.unwrap();
     assert_eq!((recovered.indexed, recovered.confirmed), (20, 20));
     assert!(!recovered.halted);
+
+    *chain.tip_counts.lock().unwrap() = Some([(Some(0), 10), (None, 10), (None, 10), (None, 10)]);
+    assert!(!worker.cycle(&mut cache).await?.more);
+    assert_eq!(worker.store.state().await?.unwrap().confirmed, 20);
     Ok(())
 }

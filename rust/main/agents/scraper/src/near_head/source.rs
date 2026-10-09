@@ -723,7 +723,11 @@ impl Source for GenericSource {
         if self.sequence_mode {
             return Ok(None);
         }
-        Ok(Some(self.latest_streams().await?))
+        let streams = self.latest_streams().await?;
+        Ok(streams
+            .iter()
+            .any(|(count, _)| count.is_some())
+            .then_some(streams))
     }
 
     async fn empty_anchor(&self) -> Result<Option<Header>> {
