@@ -348,6 +348,7 @@ void it('keeps agent capacity independent from Explorer capacity', async () => {
   await Promise.all(explorerMessages.map((items) => waitFor(items, 'ready')));
   const ready = await waitFor(agentMessages, 'ready');
   assert.equal(ready.type, 'ready');
+  assert.deepEqual(ready.confirmations, { unit: 'blocks' });
   assert.deepEqual(ready.streamCursorVersions, { gas_payment: 3 });
   assert.deepEqual(events.metricsSnapshot().connections, {
     agent: 1,
@@ -1567,67 +1568,138 @@ void it('accepts a legacy non-cursored live gas payment subscription', async () 
   await new Promise<void>((resolve) => socket.once('close', resolve));
 });
 
-void it('publishes EVM events after each subscriber confirmation count', async () => {
-  const id = '9101';
-  rows.set(id, { ...row(hookA, 7), block_number: '9' });
-  headStates.set(1, { head: '10', indexed: '10' });
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
-  try {
-    await waitFor(messages, 'ready');
-    socket.send(
-      JSON.stringify({
-        streams: [
-          {
-            domains: [1],
-            eventType: 'merkle_tree_insertion',
-            confirmations: 2,
-          },
-        ],
-        type: 'subscribe',
-      }),
-    );
-    const subscribed = await waitFor(messages, 'subscribed');
-    assert.deepEqual(subscribed.streams, [
+void it('publishes every event at different confirmation depths for every VM', async () => {
+  const protocols = [
+    ['ethereum', 1],
+    ['cosmos', 99_990],
+    ['cosmosnative', 1_128_614_981],
+    ['sealevel', 1_399_811_149],
+    ['starknet', 358_974_494],
+    ['radix', 1_633_970_780],
+    ['aleo', 1_634_493_807],
+    ['tron', 728_126_428],
+  ] as const;
+
+  for (const [protocol, domain] of protocols) {
+    const offset = protocols.findIndex(([name]) => name === protocol) * 10;
+    const fixtures: readonly {
+      confirmations: number;
+      event: Record<string, unknown>;
+      eventType: EventType;
+      id: string;
+      source: Map<string, Record<string, unknown>>;
+    }[] = [
       {
-        domains: [1],
-        eventType: 'merkle_tree_insertion',
-        confirmations: 2,
+        confirmations: 0,
+        event: {
+          block_number: '101',
+          destination_mailbox: hookB,
+          destination_tx_id: null,
+          domain,
+          msg_id: msgId,
+          sequence: '0',
+          time_created: new Date(0).toISOString(),
+        },
+        eventType: 'delivery',
+        id: String(20_000 + offset),
+        source: deliveryRows,
       },
-    ]);
+      {
+        confirmations: 1,
+        event: {
+          ...gasPaymentRow(String(20_001 + offset), null),
+          block_number: '100',
+          domain,
+          origin: domain,
+        },
+        eventType: 'gas_payment',
+        id: String(20_001 + offset),
+        source: gasPaymentRows,
+      },
+      {
+        confirmations: 3,
+        event: {
+          destination_domain: 2,
+          id: String(20_002 + offset),
+          msg_body: '\\x',
+          msg_id: msgId,
+          nonce: 0,
+          origin_block_hash: `\\x${'02'.repeat(32)}`,
+          origin_block_height: '98',
+          origin_domain: domain,
+          origin_mailbox: hookA,
+          origin_tx_hash: `\\x${'03'.repeat(32)}`,
+          recipient: hookB,
+          sender: hookA,
+          time_created: new Date(0).toISOString(),
+        },
+        eventType: 'dispatch',
+        id: String(20_002 + offset),
+        source: dispatchRows,
+      },
+      {
+        confirmations: 5,
+        event: {
+          ...row(hookA, 0),
+          block_number: '96',
+          domain,
+        },
+        eventType: 'merkle_tree_insertion',
+        id: String(20_003 + offset),
+        source: rows,
+      },
+    ];
+    for (const fixture of fixtures) {
+      const socket = new WebSocket(url);
+      const messages: Record<string, unknown>[] = [];
+      socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+      headStates.set(domain, { head: '100', indexed: '100' });
+      try {
+        await waitFor(messages, 'ready');
+        socket.send(
+          JSON.stringify({
+            streams: [
+              {
+                confirmations: fixture.confirmations,
+                domains: [domain],
+                eventType: fixture.eventType,
+              },
+            ],
+            type: 'subscribe',
+          }),
+        );
+        await waitFor(messages, 'subscribed');
+        fixture.source.set(fixture.id, fixture.event);
+        assert.equal(
+          messages.some(({ type }) => type === 'event'),
+          false,
+        );
 
-    notify('scraper_event', notification(id));
-    await new Promise((resolve) => setTimeout(resolve, 150));
-    assert.equal(
-      messages.some(({ type }) => type === 'event'),
-      false,
-    );
-
-    notify(
-      'scraper_head',
-      JSON.stringify({
-        confirmedHeight: '5',
-        domain: 1,
-        headHeight: '11',
-        indexedHeight: '10',
-        previousConfirmedHeight: '5',
-        previousIndexedHeight: '10',
-      }),
-    );
-    const event = await waitFor(messages, 'event');
-    assert.equal(event.eventType, 'merkle_tree_insertion');
-    assert.equal(record(event.data).block_number, '9');
-    assert.equal(event.sequence, '7');
-  } finally {
-    rows.delete(id);
-    headStates.set(1, { head: '10', indexed: '10' });
-    socket.close();
-    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+        notify(
+          'scraper_head',
+          JSON.stringify({
+            confirmedHeight: '90',
+            domain,
+            headHeight: '101',
+            indexedHeight: '101',
+            previousConfirmedHeight: '90',
+            previousIndexedHeight: '100',
+          }),
+        );
+        const event = await waitFor(messages, 'event');
+        assert.equal(event.eventType, fixture.eventType, protocol);
+        assert.equal(socket.readyState, WebSocket.OPEN, protocol);
+      } finally {
+        fixture.source.delete(fixture.id);
+        headStates.delete(domain);
+        socket.close();
+        await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+      }
+    }
   }
 });
 
-void it('rejects confirmations for domains without EVM head state', async () => {
+void it('rejects confirmations for domains without near-head state', async () => {
   const socket = new WebSocket(url);
   const messages: Record<string, unknown>[] = [];
   socket.on('message', (data) => messages.push(parseRecord(rawData(data))));

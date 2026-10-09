@@ -439,7 +439,7 @@ export class EventWebSocketServer {
     this.send(socket, {
       eventTypes: EVENT_TYPES,
       historicalStreaming: true,
-      confirmations: { protocol: 'ethereum', unit: 'blocks' },
+      confirmations: { unit: 'blocks' },
       streamCursorVersions: STREAM_CURSOR_VERSIONS,
       type: 'ready',
     });
@@ -1532,12 +1532,21 @@ export class EventWebSocketServer {
       const last = rows.at(-1)!;
       cursorHeight = parseId(last[FRONTIER_HEIGHT]);
       cursorId = parseId(last[FRONTIER_ID]);
+      // Custom gas streams cannot use durable cursors. Provisional payments do
+      // not have one yet, so use the row ID only for internal ordering; it is
+      // stripped from the event payload.
       const events = rows.map(
         ({
           [FRONTIER_ID]: _id,
           [FRONTIER_HEIGHT]: frontierHeight,
           ...event
-        }) => ({ event, height: parseId(frontierHeight) }),
+        }) => ({
+          event:
+            eventType === 'gas_payment' && event[STREAM_CURSOR_COLUMN] == null
+              ? { ...event, [STREAM_CURSOR_COLUMN]: _id }
+              : event,
+          height: parseId(frontierHeight),
+        }),
       );
       events.sort((left, right) =>
         compareRows(eventType, left.event, right.event),

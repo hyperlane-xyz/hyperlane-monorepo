@@ -165,7 +165,7 @@ void it('fails startup when the live user cannot read cursor state', async (cont
   await assert.rejects(db.start(), /cursor_readable/);
 });
 
-void it('fails startup when the live user cannot read EVM head state', async (context) => {
+void it('fails startup when the live user cannot read scraper head state', async (context) => {
   context.mock.method(pg.Pool.prototype, 'connect', () =>
     Promise.resolve({ release() {} }),
   );

@@ -249,7 +249,7 @@ function parseStream(value: unknown): StreamRequest {
   let confirmations: number | undefined;
   if (value.confirmations !== undefined) {
     if (!isDomain(value.confirmations)) {
-      throw new Error('confirmations must be an integer number of EVM blocks');
+      throw new Error('confirmations must be a non-negative integer');
     }
     confirmations = value.confirmations;
   }

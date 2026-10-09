@@ -161,7 +161,7 @@ void describe('event websocket protocol', () => {
     assert.equal(message.streams[0]?.cursors, undefined);
   });
 
-  void it('parses an EVM confirmation count', () => {
+  void it('parses a confirmation count for any VM', () => {
     const message = parseClientMessage(
       JSON.stringify({
         streams: [

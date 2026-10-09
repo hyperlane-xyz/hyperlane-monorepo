@@ -46,10 +46,10 @@ The private `/agents` endpoint always supports historical WebSocket catch-up.
 Replay is paginated without a total row limit. Concurrent catch-ups, session
 duration, database query timeouts, and outbound buffering remain bounded.
 
-EVM subscribers may set `confirmations` on a stream to receive events once they
-are that many blocks behind the observed chain head. Custom confirmations
-require an explicit `domains` list (or sequence cursors that imply one), and
-every domain must use the EVM near-head scraper. Example:
+Subscribers may set `confirmations` on a stream to receive events once they are
+that many chain heights behind the observed head. This works for every protocol
+indexed by the near-head scraper. Custom confirmations require an explicit
+`domains` list (or sequence cursors that imply one). Example:
 
 ```json
 {
