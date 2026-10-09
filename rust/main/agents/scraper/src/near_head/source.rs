@@ -126,6 +126,11 @@ pub(super) trait Source: Send + Sync {
     async fn has_events_after(&self, _sequences: [u32; 4]) -> Result<Option<bool>> {
         Ok(None)
     }
+    /// Latest counts that a block-indexed source must reach before publication.
+    /// `None` streams do not expose a count and retain their existing guarantees.
+    async fn tip_sequence_counts(&self) -> Result<Option<[(Option<u32>, u32); 4]>> {
+        Ok(None)
+    }
     async fn empty_anchor(&self) -> Result<Option<Header>> {
         Ok(None)
     }
@@ -712,6 +717,13 @@ impl Source for GenericSource {
             has_events |= count > next;
         }
         Ok(Some(has_events))
+    }
+
+    async fn tip_sequence_counts(&self) -> Result<Option<[(Option<u32>, u32); 4]>> {
+        if self.sequence_mode {
+            return Ok(None);
+        }
+        Ok(Some(self.latest_streams().await?))
     }
 
     async fn empty_anchor(&self) -> Result<Option<Header>> {

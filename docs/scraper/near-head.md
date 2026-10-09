@@ -50,14 +50,17 @@ boundary from stored maxima. Contract changes are rejected.
   EVM dispatch nonces and Merkle leaf indexes anchor continuity to durable rows.
   Each range also checks hash-pinned contract counts when the RPC retains that
   state. Pruned historical counts fall back to durable sequence continuity, while
-  recent boundaries retain exact tail validation. A repeated gap after replaying
-  from the confirmed frontier halts for operator repair. Sequence-indexed protocols
-  also anchor continuity to the database cutover. Their indexers page from the durable count
-  until they pass the current block boundary and prove each requested page complete
-  before filtering by block. Missing first, middle, tail, or entire sequences reject
-  the range without advancing progress. Block-indexed adapters own pagination and
-  must return the complete requested range or fail. They only ingest through the
-  minimum finalized tip reported by all four indexers. The last
+  recent boundaries retain exact tail validation. Sequence gaps retry from the
+  confirmed frontier; only a confirmed hash conflict halts for operator repair.
+  Block-indexed generic adapters with sequence counts keep partial catch-up
+  provisional until durable rows reach the advertised counts at the observed tip.
+  Sequence-indexed protocols also anchor continuity to the database cutover.
+  Their indexers page from the durable count until they pass the current block
+  boundary and prove each requested page complete before filtering by block.
+  Missing first, middle, tail, or entire sequences reject the range without
+  advancing progress. Block-indexed adapters own pagination and must return the
+  complete requested range or fail. They only ingest through the minimum finalized
+  tip reported by all four indexers. The last
   successfully committed counts are reused only for the same boundary hash;
   restart or changed ancestry reloads them from durable rows. All four streams in
   sequence mode require sequence counts; a lagging sequence tip rejects the range

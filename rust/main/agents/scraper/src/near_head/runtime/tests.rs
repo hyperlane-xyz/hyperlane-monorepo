@@ -30,6 +30,7 @@ struct Chain {
     sequence: AtomicBool,
     counts: AtomicBool,
     indexing_tip: AtomicU64,
+    tip_counts: Mutex<Option<[(Option<u32>, u32); 4]>>,
     events: Mutex<Vec<Event>>,
 }
 
@@ -46,6 +47,7 @@ impl Chain {
             sequence: AtomicBool::new(false),
             counts: AtomicBool::new(true),
             indexing_tip: AtomicU64::new(u64::MAX),
+            tip_counts: Mutex::new(None),
             events: Mutex::new(Vec::new()),
         }
     }
@@ -122,6 +124,10 @@ impl Source for Arc<Chain> {
     async fn indexing_tip(&self) -> Result<Option<u64>> {
         let tip = self.indexing_tip.load(Ordering::SeqCst);
         Ok((tip != u64::MAX).then_some(tip))
+    }
+
+    async fn tip_sequence_counts(&self) -> Result<Option<[(Option<u32>, u32); 4]>> {
+        Ok(*self.tip_counts.lock().unwrap())
     }
 }
 
@@ -580,7 +586,7 @@ async fn block_mode_retries_a_sequence_gap_after_the_confirmed_frontier() -> Res
 }
 
 #[tokio::test]
-async fn block_mode_halts_when_a_gap_repeats_at_the_confirmed_frontier() -> Result<()> {
+async fn block_mode_keeps_retrying_a_gap_at_the_confirmed_frontier() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let db = Database::connect(format!(
         "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
@@ -590,14 +596,60 @@ async fn block_mode_halts_when_a_gap_repeats_at_the_confirmed_frontier() -> Resu
     let chain = Arc::new(Chain::new(3, false));
     chain.counts.store(false, Ordering::SeqCst);
     chain.events.lock().unwrap().push(dispatch_event(3, 1));
-    let worker = worker(db, chain).await?;
+    let worker = worker(db, chain.clone()).await?;
     let mut cache = CountCache::default();
 
     assert!(worker.cycle(&mut cache).await.is_err());
     assert!(!worker.store.state().await?.unwrap().halted);
     assert!(worker.cycle(&mut cache).await.is_err());
-    let halted = worker.store.state().await?.unwrap();
-    assert_eq!((halted.indexed, halted.confirmed), (0, 0));
-    assert!(halted.halted);
+    let retried = worker.store.state().await?.unwrap();
+    assert_eq!((retried.indexed, retried.confirmed), (0, 0));
+    assert!(!retried.halted);
+
+    chain.events.lock().unwrap().insert(0, dispatch_event(2, 0));
+    worker.cycle(&mut cache).await?;
+    assert_eq!(worker.store.state().await?.unwrap().indexed, 3);
+    Ok(())
+}
+
+#[tokio::test]
+async fn block_mode_does_not_publish_until_tip_counts_are_complete() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(20, false));
+    chain.tag.store(20, Ordering::SeqCst);
+    *chain.tip_counts.lock().unwrap() = Some([(Some(1), 21), (None, 21), (None, 21), (None, 21)]);
+    let worker = worker(db, chain.clone()).await?;
+    let worker = Worker {
+        chunk_size: 10,
+        ..Arc::into_inner(worker).expect("sole worker handle")
+    };
+    let mut cache = CountCache::default();
+
+    assert!(worker.cycle(&mut cache).await?.more);
+    let partial = worker.store.state().await?.unwrap();
+    assert_eq!((partial.indexed, partial.confirmed), (10, 0));
+
+    assert!(!worker.cycle(&mut cache).await?.more);
+    let newer_tip = worker.store.state().await?.unwrap();
+    assert_eq!((newer_tip.indexed, newer_tip.confirmed), (20, 0));
+
+    *chain.tip_counts.lock().unwrap() = Some([(Some(1), 20), (None, 20), (None, 20), (None, 20)]);
+    assert!(worker.cycle(&mut cache).await.is_err());
+    let rejected = worker.store.state().await?.unwrap();
+    assert_eq!((rejected.indexed, rejected.confirmed), (0, 0));
+    assert!(!rejected.halted);
+
+    chain.events.lock().unwrap().push(dispatch_event(5, 0));
+    assert!(worker.cycle(&mut cache).await?.more);
+    assert_eq!(worker.store.state().await?.unwrap().confirmed, 0);
+    assert!(!worker.cycle(&mut cache).await?.more);
+    let recovered = worker.store.state().await?.unwrap();
+    assert_eq!((recovered.indexed, recovered.confirmed), (20, 20));
+    assert!(!recovered.halted);
     Ok(())
 }

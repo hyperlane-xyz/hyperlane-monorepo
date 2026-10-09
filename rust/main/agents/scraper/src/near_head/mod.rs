@@ -245,7 +245,6 @@ async fn ingest(
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct CountCache {
     boundary: Option<(ethers::types::H256, [u32; 4])>,
-    gap_confirmed: Option<u64>,
 }
 
 async fn ingest_cached(
@@ -336,8 +335,7 @@ async fn ingest_cached(
             .iter()
             .any(|event| event.block_number <= state.confirmed)
     {
-        store.pause(true).await?;
-        eyre::bail!("Sequence gap crossed confirmed history; operator repair required");
+        eyre::bail!("Event range crossed confirmed history");
     }
     ensure!(
         batch.through > state.indexed,
@@ -353,19 +351,10 @@ async fn ingest_cached(
     let validated_counts = match advance_sequences(&events, start_counts) {
         Ok(counts) => counts,
         Err(error) => {
-            if state.indexed == state.confirmed
-                && count_cache.gap_confirmed == Some(state.confirmed)
-            {
-                store.pause(true).await?;
-                eyre::bail!(
-                    "Sequence gap crossed confirmed history; operator repair required: {error}"
-                );
-            }
             if state.indexed > state.confirmed {
                 store.rewind_to_confirmed(state).await?;
             }
             count_cache.boundary = None;
-            count_cache.gap_confirmed = Some(state.confirmed);
             return Err(error);
         }
     };
@@ -418,9 +407,6 @@ async fn ingest_cached(
     verify(source, &boundary).await?;
     store.append(state, &blocks).await?;
     count_cache.boundary = Some((boundary.hash, validated_counts));
-    if end_counts.is_some() {
-        count_cache.gap_confirmed = None;
-    }
     Ok(end < state.head)
 }
 

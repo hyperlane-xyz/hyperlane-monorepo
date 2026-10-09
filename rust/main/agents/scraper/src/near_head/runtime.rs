@@ -124,7 +124,7 @@ impl Worker {
                 .saturating_add(depth)
                 .saturating_add(10_000),
         );
-        let ingestion = if bounded.indexed < bounded.head {
+        let mut ingestion = if bounded.indexed < bounded.head {
             ingest_cached(
                 self.source.as_ref(),
                 &self.store,
@@ -136,6 +136,52 @@ impl Worker {
         } else {
             Ok(false)
         };
+
+        // Tip counts describe the observed head, not the bounded provisional cap.
+        // At the cap, confirmation must keep opening room for further ingestion.
+        if bounded.head == observed.head && ingestion.is_ok() {
+            if let Some(expected) = self.source.tip_sequence_counts().await? {
+                if matches!(ingestion, Ok(true)) {
+                    return Ok(CycleOutcome {
+                        more: true,
+                        ingestion_failed: false,
+                    });
+                }
+                let state = self
+                    .store
+                    .state()
+                    .await?
+                    .ok_or_else(|| eyre::eyre!("Missing head state"))?;
+                let actual = self.store.sequence_counts().await?;
+                let mut incomplete = false;
+                let mut newer_tip = false;
+                for ((expected, tip), actual) in expected.into_iter().zip(actual) {
+                    let Some(expected) = expected else { continue };
+                    if u64::from(tip) > state.indexed {
+                        newer_tip = true;
+                        continue;
+                    }
+                    eyre::ensure!(
+                        expected >= actual,
+                        "Provider sequence count is behind durable history"
+                    );
+                    incomplete |= expected > actual;
+                }
+                if newer_tip {
+                    return Ok(CycleOutcome {
+                        more: false,
+                        ingestion_failed: false,
+                    });
+                }
+                if incomplete {
+                    if state.indexed > state.confirmed {
+                        self.store.rewind_to_confirmed(&state).await?;
+                    }
+                    *count_cache = CountCache::default();
+                    ingestion = Err(eyre::eyre!("Incomplete event range at indexing tip"));
+                }
+            }
+        }
         if let Err(error) = &ingestion {
             warn!(
                 domain = self.store.domain,
