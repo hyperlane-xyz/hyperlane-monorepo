@@ -47,6 +47,8 @@ let headQueryErrorDomain: number | undefined;
 let headQueryErrorEventType: EventType | undefined;
 let omitMappedGasPaymentRows = false;
 let omitExplorerRows = false;
+let provisionalQueryCount = 0;
+let provisionalQueryGate: Promise<void> | undefined;
 const notifiedIds = new Set<string>();
 const gasReplayQueries: string[] = [];
 
@@ -108,6 +110,77 @@ const db: EventDatabase = {
                 ? { first: '0', last: '1' }
                 : { first: '0', last: '0' },
       ]);
+    }
+    if (sql.includes('custom_message_ids')) {
+      const after = BigInt(String(values[1]));
+      const through = BigInt(String(values[2]));
+      const cursorHeight = BigInt(String(values[3]));
+      const cursorSource = Number(values[4]);
+      const cursorId = BigInt(String(values[5]));
+      const changes = [dispatchRows, deliveryRows, gasPaymentRows].flatMap(
+        (events, source) =>
+          [...events.entries()].flatMap(([id, event]) => {
+            const height = event.block_number ?? event.origin_block_height;
+            if (
+              typeof height !== 'bigint' &&
+              typeof height !== 'number' &&
+              typeof height !== 'string'
+            )
+              return [];
+            const changedHeight = BigInt(height);
+            return (event.domain ?? event.origin_domain) === values[0] &&
+              changedHeight > after &&
+              changedHeight <= through &&
+              (changedHeight > cursorHeight ||
+                (changedHeight === cursorHeight &&
+                  (source > cursorSource ||
+                    (source === cursorSource && BigInt(id) > cursorId)))) &&
+              typeof event.msg_id === 'string'
+              ? [
+                  {
+                    changed_height: changedHeight.toString(),
+                    id,
+                    msg_id: event.msg_id,
+                    source,
+                  },
+                ]
+              : [];
+          }),
+      );
+      return queryRows<T>(
+        changes
+          .sort((left, right) => {
+            const leftHeight = BigInt(left.changed_height);
+            const rightHeight = BigInt(right.changed_height);
+            if (leftHeight !== rightHeight)
+              return leftHeight < rightHeight ? -1 : 1;
+            if (left.source !== right.source) return left.source - right.source;
+            return BigInt(left.id) < BigInt(right.id) ? -1 : 1;
+          })
+          .slice(0, Number(values[6])),
+      );
+    }
+    if (sql.includes('provisional_message_view')) {
+      provisionalQueryCount++;
+      await provisionalQueryGate;
+      const messageIds = new Set(stringArray(values[0]));
+      return queryRows<T>(
+        [...dispatchRows.entries()].flatMap(([id, dispatch]) =>
+          typeof dispatch.msg_id === 'string' && messageIds.has(dispatch.msg_id)
+            ? [
+                {
+                  id,
+                  is_delivered: [...deliveryRows.values()].some(
+                    (delivery) => delivery.msg_id === dispatch.msg_id,
+                  ),
+                  message_body: dispatch.msg_body,
+                  msg_id: dispatch.msg_id,
+                  origin_domain_id: dispatch.origin_domain,
+                },
+              ]
+            : [],
+        ),
+      );
     }
     if (sql.includes('"message_view"')) {
       explorerQuery = sql;
@@ -1723,6 +1796,322 @@ void it('rejects confirmations for domains without near-head state', async () =>
   }
 });
 
+void it('keeps agent streams open and replays replacements after rollback', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  headStates.set(1, { head: '10', indexed: '10' });
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [
+          {
+            confirmations: 0,
+            domains: [1],
+            eventType: 'merkle_tree_insertion',
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'subscribed');
+
+    rows.set('21000', { ...row(hookA, 10), block_number: '11', domain: 1 });
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '11',
+        indexedHeight: '11',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '10',
+      }),
+    );
+    await waitUntil(() => eventSequences(messages).includes('10'));
+
+    rows.delete('21000');
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '11',
+        indexedHeight: '10',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '11',
+      }),
+    );
+    const rollback = await waitFor(messages, 'rollback');
+    assert.deepEqual(
+      {
+        confirmations: rollback.confirmations,
+        domain: rollback.domain,
+        eventType: rollback.eventType,
+        fromHeight: rollback.fromHeight,
+        toHeight: rollback.toHeight,
+      },
+      {
+        confirmations: 0,
+        domain: 1,
+        eventType: 'merkle_tree_insertion',
+        fromHeight: '11',
+        toHeight: '10',
+      },
+    );
+
+    rows.set('21001', { ...row(hookA, 10), block_number: '11', domain: 1 });
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '11',
+        indexedHeight: '11',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '10',
+      }),
+    );
+    await waitUntil(() => eventSequences(messages).length === 2);
+    assert.equal(socket.readyState, WebSocket.OPEN);
+  } finally {
+    rows.delete('21000');
+    rows.delete('21001');
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('supports Explorer confirmations and rollback replacement messages', async () => {
+  const socket = new WebSocket(`${messagesUrl}?confirmations=0&domains=1`);
+  const messages: Record<string, unknown>[] = [];
+  const orphanedMsgId = `\\x${'04'.repeat(32)}`;
+  const replacementMsgId = `\\x${'05'.repeat(32)}`;
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  headStates.set(1, { head: '10', indexed: '10' });
+  try {
+    const ready = await waitFor(messages, 'ready');
+    assert.equal(ready.confirmations, 0);
+    assert.deepEqual(ready.domains, [1]);
+    assert.deepEqual(ready.eventTypes, ['message_upsert', 'rollback']);
+
+    dispatchRows.set('22000', {
+      destination_domain: 2,
+      msg_body: '\\x',
+      msg_id: orphanedMsgId,
+      origin_block_height: '11',
+      origin_domain: 1,
+    });
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '11',
+        indexedHeight: '11',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '10',
+      }),
+    );
+    await waitUntil(() =>
+      messages.some(
+        (message) =>
+          message.type === 'message_upsert' &&
+          record(message.data).msg_id === orphanedMsgId,
+      ),
+    );
+
+    dispatchRows.delete('22000');
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '11',
+        indexedHeight: '10',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '11',
+      }),
+    );
+    const rollback = await waitFor(messages, 'rollback');
+    assert.deepEqual(
+      {
+        confirmations: rollback.confirmations,
+        domain: rollback.domain,
+        fromHeight: rollback.fromHeight,
+        toHeight: rollback.toHeight,
+      },
+      { confirmations: 0, domain: 1, fromHeight: '11', toHeight: '10' },
+    );
+
+    dispatchRows.set('22001', {
+      destination_domain: 2,
+      msg_body: '\\x',
+      msg_id: replacementMsgId,
+      origin_block_height: '11',
+      origin_domain: 1,
+    });
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '11',
+        indexedHeight: '11',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '10',
+      }),
+    );
+    await waitUntil(() =>
+      messages.some(
+        (message) =>
+          message.type === 'message_upsert' &&
+          record(message.data).msg_id === replacementMsgId,
+      ),
+    );
+    assert.equal(socket.readyState, WebSocket.OPEN);
+  } finally {
+    dispatchRows.delete('22000');
+    dispatchRows.delete('22001');
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('publishes custom-confirmation messages for every VM domain', async () => {
+  const domains = [
+    1, 99_990, 1_128_614_981, 1_399_811_149, 358_974_494, 1_633_970_780,
+    1_634_493_807, 728_126_428,
+  ];
+  const previousStates = new Map(
+    domains.map((domain) => [domain, headStates.get(domain)]),
+  );
+  domains.forEach((domain) =>
+    headStates.set(domain, { head: '100', indexed: '100' }),
+  );
+  const socket = new WebSocket(
+    `${messagesUrl}?confirmations=0&domains=${domains.join(',')}`,
+  );
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  try {
+    await waitFor(messages, 'ready');
+    for (const [index, domain] of domains.entries()) {
+      const id = String(23_000 + index);
+      const vmMsgId = `\\x${(index + 16).toString(16).padStart(2, '0').repeat(32)}`;
+      dispatchRows.set(id, {
+        destination_domain: 2,
+        msg_body: '\\x',
+        msg_id: vmMsgId,
+        origin_block_height: '101',
+        origin_domain: storedTestDomain(domain),
+      });
+      notify(
+        'scraper_head',
+        JSON.stringify({
+          confirmedHeight: '90',
+          domain,
+          headHeight: '101',
+          indexedHeight: '101',
+          previousConfirmedHeight: '90',
+          previousIndexedHeight: '100',
+        }),
+      );
+      await waitUntil(() =>
+        messages.some(
+          (message) =>
+            message.type === 'message_upsert' &&
+            message.domain === domain &&
+            record(message.data).msg_id === vmMsgId,
+        ),
+      );
+    }
+    assert.equal(socket.readyState, WebSocket.OPEN);
+  } finally {
+    domains.forEach((domain, index) => {
+      dispatchRows.delete(String(23_000 + index));
+      const previous = previousStates.get(domain);
+      if (previous) headStates.set(domain, previous);
+      else headStates.delete(domain);
+    });
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('does not publish a stale Explorer query after rollback', async () => {
+  const socket = new WebSocket(`${messagesUrl}?confirmations=0&domains=1`);
+  const messages: Record<string, unknown>[] = [];
+  const staleMsgId = `\\x${'06'.repeat(32)}`;
+  let releaseQuery: () => void = () => undefined;
+  provisionalQueryGate = new Promise<void>((resolve) => {
+    releaseQuery = resolve;
+  });
+  const queriesBefore = provisionalQueryCount;
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  headStates.set(1, { head: '10', indexed: '10' });
+  try {
+    await waitFor(messages, 'ready');
+    dispatchRows.set('22002', {
+      destination_domain: 2,
+      msg_body: '\\x',
+      msg_id: staleMsgId,
+      origin_block_height: '11',
+      origin_domain: 1,
+    });
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '11',
+        indexedHeight: '11',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '10',
+      }),
+    );
+    await waitUntil(() => provisionalQueryCount > queriesBefore);
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '11',
+        indexedHeight: '10',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '11',
+      }),
+    );
+    await waitFor(messages, 'rollback');
+    releaseQuery();
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(
+      messages.some(
+        (message) =>
+          message.type === 'message_upsert' &&
+          record(message.data).msg_id === staleMsgId,
+      ),
+      false,
+    );
+    assert.equal(socket.readyState, WebSocket.OPEN);
+  } finally {
+    releaseQuery();
+    provisionalQueryGate = undefined;
+    dispatchRows.delete('22002');
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('rejects incomplete Explorer confirmation parameters', async () => {
+  const socket = new WebSocket(`${messagesUrl}?confirmations=0`);
+  const closed = new Promise<number>((resolve) =>
+    socket.once('close', resolve),
+  );
+  assert.equal(await closed, 1008);
+});
+
 void it('completes gas payment stream cursor replay without a total row budget', async () => {
   gasPaymentRows.clear();
   gasPaymentRows.set('10', gasPaymentRow('10', '100'));
@@ -2514,7 +2903,10 @@ void it('emits normalized message upserts to Explorer', async () => {
   const socket = new WebSocket(messagesUrl);
   const messages: Record<string, unknown>[] = [];
   socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
-  await waitFor(messages, 'ready');
+  const ready = await waitFor(messages, 'ready');
+  assert.deepEqual(ready.eventTypes, ['message_upsert']);
+  assert.equal(ready.confirmations, undefined);
+  assert.equal(ready.controlTypes, undefined);
   notify(
     'scraper_explorer_event',
     JSON.stringify({ messageId: msgId.slice(2) }),
@@ -3360,6 +3752,10 @@ function eventStreamCursors(messages: Record<string, unknown>[]): unknown[] {
   return messages
     .filter(({ type }) => type === 'event')
     .map(({ streamCursor }) => streamCursor);
+}
+
+function storedTestDomain(domain: number): number {
+  return domain > 0x7fff_ffff ? domain - 0x1_0000_0000 : domain;
 }
 
 function notification(id: string): string {
