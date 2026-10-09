@@ -48,7 +48,7 @@ contract RateLimitedIsm is
 
     /**
      * Verify a message, rate limit, and increment the sender's limit.
-     * @dev ensures that this gets called by the Mailbox
+     * @dev Requires the Mailbox to have processed the message in this block.
      */
     function verify(
         bytes calldata,
@@ -59,7 +59,9 @@ contract RateLimitedIsm is
         validateMessageOnce(_message)
         returns (bool)
     {
-        require(_isDelivered(_message.id()), "InvalidDeliveredMessage");
+        // Current-block delivery and validateMessageOnce prevent replay across
+        // blocks and repeated consumption by this ISM.
+        require(_isProcessing(_message.id()), "InvalidProcessingMessage");
 
         uint256 newAmount = _message.body().amount();
         _validateAndConsumeFilledLevel(newAmount);
