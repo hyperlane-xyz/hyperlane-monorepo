@@ -27,7 +27,11 @@ const ownersByChain: DeploymentChains<Address> = {
 
 const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
   Object.keys(ownersByChain),
-  [WarpRouteIds.MainnetCCTPV1],
+  [
+    WarpRouteIds.MainnetCCTPV1,
+    WarpRouteIds.MainnetCCTPV2Standard,
+    WarpRouteIds.MainnetCCTPV2Fast,
+  ],
 );
 
 export const getElectroneumUSDCWarpConfig = async (
