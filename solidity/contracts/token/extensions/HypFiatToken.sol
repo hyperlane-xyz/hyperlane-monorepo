@@ -41,6 +41,18 @@ contract HypFiatToken is TokenRouter {
 
     /**
      * @inheritdoc TokenRouter
+     * @dev Token fees are not supported for fiat tokens. Transfers and quotes revert until a configured fee recipient is removed.
+     */
+    function feeRecipient() public view override returns (address) {
+        require(
+            super.feeRecipient() == address(0),
+            "TokenRouter: token fees unsupported"
+        );
+        return address(0);
+    }
+
+    /**
+     * @inheritdoc TokenRouter
      * @dev Overrides to burn tokens on outbound transfer.
      */
     function _transferFromSender(uint256 _amount) internal override {
