@@ -621,6 +621,7 @@ async fn block_mode_does_not_publish_an_unproven_chunk_after_ingestion_fails() -
     ))
     .await?;
     let chain = Arc::new(Chain::new(20, false));
+    chain.counts.store(false, Ordering::SeqCst);
     chain.tag.store(10, Ordering::SeqCst);
     *chain.tip_counts.lock().unwrap() = Some([(Some(1), 20), (None, 20), (None, 20), (None, 20)]);
     let worker = worker(db, chain.clone()).await?;
@@ -650,6 +651,7 @@ async fn block_mode_does_not_publish_until_tip_counts_are_complete() -> Result<(
     ))
     .await?;
     let chain = Arc::new(Chain::new(20, false));
+    chain.counts.store(false, Ordering::SeqCst);
     chain.tag.store(20, Ordering::SeqCst);
     *chain.tip_counts.lock().unwrap() = Some([(Some(0), 10), (None, 10), (None, 10), (None, 10)]);
     let worker = worker(db, chain.clone()).await?;

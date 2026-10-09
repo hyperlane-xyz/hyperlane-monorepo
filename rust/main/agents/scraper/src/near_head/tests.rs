@@ -1376,7 +1376,7 @@ impl Source for TailGapChain {
 }
 
 #[tokio::test]
-async fn pinned_counts_halt_after_fallback_commits_a_dropped_tail() -> Result<()> {
+async fn pinned_counts_retry_after_fallback_commits_a_dropped_tail() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let db = Database::connect(format!(
         "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
@@ -1403,12 +1403,15 @@ async fn pinned_counts_halt_after_fallback_commits_a_dropped_tail() -> Result<()
     assert_eq!(store.state().await?.unwrap().confirmed, 2);
 
     *source.unavailable.lock().unwrap() = None;
-    for halted in [false, true] {
+    for _ in 0..2 {
         let state = observe(&source, &store).await?;
-        assert!(ingest_cached(&source, &store, &state, 2, &mut cache)
+        let error = ingest_cached(&source, &store, &state, 2, &mut cache)
             .await
-            .is_err());
-        assert_eq!(store.state().await?.unwrap().halted, halted);
+            .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("Missing or unordered insertion sequence: expected 0, received 1"));
+        assert!(!store.state().await?.unwrap().halted);
     }
     Ok(())
 }
