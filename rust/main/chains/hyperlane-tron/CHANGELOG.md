@@ -1,3 +1,11 @@
+## [3.0.0] - 2026-10-09
+
+* feat(validators)!: migrate signing and checkpoint storage to GCP (#9160)
+* fix(core): avoid HyperlaneMessage::from panics in indexer paths (#9181)
+* fix(security): bound remote inputs and preserve chain-specific safety checks (#9767)
+* fix(tron): mirror EVM Null/aggregation/routing ISM dry-run handling (#9756)
+* perf(metrics): avoid redundant block detail reads (#9442)
+
 ## [2.3.0] - 2026-07-20
 
 * feat(infra): add Tron mainnet deployment (#8356)
