@@ -37,6 +37,7 @@ const headStates = new Map<number, { head: string; indexed: string }>([
 const databaseDomainFilters: unknown[] = [];
 let notify: (channel: string, payload?: string) => void;
 const explorerBatchSizes: number[] = [];
+const supportedExplorerMessageIds = new Set<string>();
 let explorerQuery = '';
 let explorerQueryCount = 0;
 let explorerQueryError: Error | undefined;
@@ -192,6 +193,9 @@ const db: EventDatabase = {
       if (omitExplorerRows) return [];
       return queryRows<T>(
         messageIds.map((messageId) => ({
+          destination_domain_id: supportedExplorerMessageIds.has(messageId)
+            ? 1
+            : 2,
           id: '42',
           is_delivered: false,
           msg_body: msgBody,
@@ -2115,6 +2119,7 @@ void it('rejects incomplete Explorer confirmation parameters', async () => {
 void it('falls back to confirmed Explorer events for unsupported domains', async () => {
   const provisionalMsgId = `\\x${'07'.repeat(32)}`;
   const confirmedMsgId = `\\x${'08'.repeat(32)}`;
+  const supportedConfirmedMsgId = `\\x${'09'.repeat(32)}`;
   const previousHead = headStates.get(1);
   headStates.set(1, { head: '10', indexed: '10' });
   const socket = new WebSocket(`${messagesUrl}?confirmations=0&domains=1,2`);
@@ -2136,6 +2141,21 @@ void it('falls back to confirmed Explorer events for unsupported domains', async
           record(message.data).msg_id === confirmedMsgId &&
           message.confirmations === undefined,
       ),
+    );
+
+    supportedExplorerMessageIds.add(supportedConfirmedMsgId);
+    notify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: supportedConfirmedMsgId.slice(2) }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(
+      messages.some(
+        (message) =>
+          message.type === 'message_upsert' &&
+          record(message.data).msg_id === supportedConfirmedMsgId,
+      ),
+      false,
     );
 
     dispatchRows.set('22003', {
@@ -2167,6 +2187,7 @@ void it('falls back to confirmed Explorer events for unsupported domains', async
     assert.equal(socket.readyState, WebSocket.OPEN);
   } finally {
     dispatchRows.delete('22003');
+    supportedExplorerMessageIds.delete(supportedConfirmedMsgId);
     if (previousHead) headStates.set(1, previousHead);
     else headStates.delete(1);
     socket.close();
@@ -2976,6 +2997,7 @@ void it('emits normalized message upserts to Explorer', async () => {
   const event = await waitFor(messages, 'message_upsert');
   assert.match(explorerQuery, /"send_occurred_at" IS NOT NULL/);
   assert.deepEqual(event.data, {
+    destination_domain_id: 2,
     id: '42',
     is_delivered: false,
     msg_body: msgBody,
@@ -3458,6 +3480,7 @@ void it('broadcasts UTF-8 text with byte-accurate queue accounting', async (cont
   const messageIds = ['06', '07'].map((byte) => `\\x${byte.repeat(32)}`);
   const expected = messageIds.map((messageId) => ({
     data: {
+      destination_domain_id: 2,
       id: '42',
       is_delivered: false,
       msg_body: msgBody,

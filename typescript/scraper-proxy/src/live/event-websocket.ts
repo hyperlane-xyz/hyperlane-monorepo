@@ -115,6 +115,7 @@ type Client = {
 type ExplorerClient = {
   alive: boolean;
   canonical: boolean;
+  canonicalDomains?: Set<number>;
   confirmations?: number;
   domains?: Set<number>;
   frontiers: Map<number, bigint>;
@@ -637,6 +638,9 @@ export class EventWebSocketServer {
         const states = await this.availableHeadStates(custom.domains);
         if (this.explorerClients.get(socket) !== client) return;
         client.canonical = states.size < custom.domains.size;
+        client.canonicalDomains = new Set(
+          [...custom.domains].filter((domain) => !states.has(domain)),
+        );
         client.domains = new Set(
           [...custom.domains].filter((domain) => states.has(domain)),
         );
@@ -1974,7 +1978,7 @@ export class EventWebSocketServer {
     { after, through }: HeadRange,
   ): Promise<void> {
     let agentPublished = false;
-    let explorerPending = this.hasCanonicalExplorer();
+    let explorerPending = this.hasCanonicalExplorer(domain);
     // Delivery and gas share message ids; queue each Explorer id once per range.
     const explorerIds = new Set<string>();
     for (const eventType of HEAD_PUBLICATION_ORDER) {
@@ -1984,7 +1988,7 @@ export class EventWebSocketServer {
         id: 0n,
       });
       const explorerInterested =
-        this.hasCanonicalExplorer() &&
+        this.hasCanonicalExplorer(domain) &&
         (eventType === 'delivery' || eventType === 'gas_payment');
       if (!agentInterested && !explorerInterested) continue;
       const stream = STREAMS[eventType];
@@ -2032,7 +2036,7 @@ export class EventWebSocketServer {
             agentPublished = true;
             events.forEach((row) => this.publish(eventType, row));
           }
-          if (explorerInterested && this.hasCanonicalExplorer()) {
+          if (explorerInterested && this.hasCanonicalExplorer(domain)) {
             const batch: string[] = [];
             events.forEach((row) => {
               const messageId = row.msg_id ?? row.message_id;
@@ -2177,18 +2181,35 @@ export class EventWebSocketServer {
       `SELECT ${tables.message_view.columns.map(q).join(', ')} FROM ${q('message_view')} WHERE ${q('msg_id')} = ANY($1::bytea[]) AND ${q('send_occurred_at')} IS NOT NULL`,
       [messageIds],
     );
-    const messages = rows.map((row) =>
-      serialize({ data: row, type: 'message_upsert' }),
-    );
+    const messages = rows.map((row) => ({
+      domains: [
+        rowDomain(row, 'origin_domain_id'),
+        rowDomain(row, 'destination_domain_id'),
+      ],
+      serialized: serialize({ data: row, type: 'message_upsert' }),
+    }));
     for (const [socket, client] of this.explorerClients) {
       if (!client.canonical) continue;
-      this.enqueueExplorer(socket, client, messages);
+      this.enqueueExplorer(
+        socket,
+        client,
+        messages.flatMap(({ domains, serialized }) =>
+          client.canonicalDomains === undefined ||
+          domains.some((domain) => client.canonicalDomains?.has(domain))
+            ? [serialized]
+            : [],
+        ),
+      );
     }
   }
 
-  private hasCanonicalExplorer(): boolean {
+  private hasCanonicalExplorer(domain?: number): boolean {
     return [...this.explorerClients.values()].some(
-      ({ canonical }) => canonical,
+      ({ canonical, canonicalDomains }) =>
+        canonical &&
+        (domain === undefined ||
+          canonicalDomains === undefined ||
+          canonicalDomains.has(domain)),
     );
   }
 
