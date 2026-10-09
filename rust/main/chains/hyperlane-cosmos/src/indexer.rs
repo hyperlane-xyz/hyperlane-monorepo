@@ -119,7 +119,7 @@ where
         let hash = H256::from_slice(block.block_id.hash.as_bytes());
 
         let result: Vec<_> = self
-            .handle_tx(tx_response, hash)?
+            .handle_tx(&tx_response, hash)?
             .into_iter()
             // only return logs for the given address
             .filter(|(_, log)| log.address == *self.address())
@@ -169,29 +169,18 @@ where
 
     /// Fetches all of the block txs and parses them
     async fn get_logs_in_block(&self, block_height: u32) -> ChainResult<Vec<(T, LogMeta)>> {
-        let block = self.provider().get_block(block_height).await?;
-        let block_results = self.provider().get_block_results(block_height).await?;
-        self.handle_block(block, block_results)
+        let data = self.provider().get_block_data(block_height).await?;
+        self.handle_block(&data.block, &data.results)
     }
 
     /// Iterate through all txs, filter out failed txs, find target events
     /// in successful txs, and parse them. Also iterates through all events in the block and tries to parse them.
     fn handle_block(
         &self,
-        block: BlockResponse,
-        block_results: BlockResultsResponse,
+        block: &BlockResponse,
+        block_results: &BlockResultsResponse,
     ) -> ChainResult<Vec<(T, LogMeta)>> {
-        let tx_results = block_results.txs_results.unwrap_or_default();
-        // Cosmos can also emit events in the block itself, those events do not originate from a tx, but rather from the block
-        let mut block_events = block_results.finalize_block_events;
-
-        if let Some(begin_events) = block_results.begin_block_events {
-            block_events.extend(begin_events);
-        }
-
-        if let Some(end_events) = block_results.end_block_events {
-            block_events.extend(end_events);
-        }
+        let tx_results = block_results.txs_results.as_deref().unwrap_or_default();
 
         let block_hash = H256::from_slice(block.block_id.hash.as_bytes());
 
@@ -214,42 +203,49 @@ where
         }
 
         let mut logs = Vec::new();
-        for (idx, (tx, tx_hash)) in tx_results.into_iter().zip(tx_hashes).enumerate() {
+        for (idx, (tx, tx_hash)) in tx_results.iter().zip(tx_hashes).enumerate() {
             if tx.code.is_err() {
                 debug!(?tx_hash, "Not indexing failed transaction");
                 continue;
             }
-            let tx_response = tx::Response {
-                hash: tx_hash,
-                height: block_results.height,
-                index: idx as u32,
-                tx_result: tx,
-                tx: vec![],
-                proof: None,
-            };
-            logs.extend(self.handle_tx(tx_response, block_hash)?);
+            logs.extend(self.handle_events(
+                tx.events.iter(),
+                block_hash,
+                block_results.height.value(),
+                H256::from_slice(tx_hash.as_bytes()).into(),
+                idx as u64,
+            )?);
         }
-        logs.extend(self.handle_block_events(
+        let block_events = block_results
+            .finalize_block_events
+            .iter()
+            .chain(block_results.begin_block_events.iter().flatten())
+            .chain(block_results.end_block_events.iter().flatten());
+        logs.extend(self.handle_events(
             block_events,
             block_hash,
             block.block.header.height.into(),
+            H512::zero(),
+            0,
         )?);
         Ok(logs)
     }
 
-    /// Iter through all events in the block, looking for any target events
-    fn handle_block_events(
+    /// Iterate through events, looking for the target emitted by this indexer.
+    fn handle_events<'a>(
         &self,
-        events: Vec<Event>,
+        events: impl IntoIterator<Item = &'a Event>,
         block_hash: H256,
         block_height: u64,
+        transaction_id: H512,
+        transaction_index: u64,
     ) -> ChainResult<Vec<(T, LogMeta)>> {
         let mut logs = Vec::new();
         for (log_idx, event) in events.into_iter().enumerate() {
             if event.kind.as_str() != Self::target_type() {
                 continue;
             }
-            if !self.event_belongs_to_indexer(&event)? {
+            if !self.event_belongs_to_indexer(event)? {
                 continue;
             }
             let parsed_event = self.parse(&event.attributes)?;
@@ -259,8 +255,8 @@ where
                     address: parsed_event.contract_address,
                     block_number: block_height,
                     block_hash,
-                    transaction_id: H512::zero(),
-                    transaction_index: 0,
+                    transaction_id,
+                    transaction_index,
                     log_index: U256::from(log_idx),
                 },
             ));
@@ -270,34 +266,14 @@ where
 
     /// Iter through all events in the tx, looking for any target events
     /// made by the contract we are indexing.
-    fn handle_tx(&self, tx: tx::Response, block_hash: H256) -> ChainResult<Vec<(T, LogMeta)>> {
-        let tx_events = tx.tx_result.events;
-        let tx_hash = tx.hash;
-        let tx_index = tx.index;
-        let block_height = tx.height;
-
-        let mut logs = Vec::new();
-        for (log_idx, event) in tx_events.into_iter().enumerate() {
-            if event.kind.as_str() != Self::target_type() {
-                continue;
-            }
-            if !self.event_belongs_to_indexer(&event)? {
-                continue;
-            }
-            let parsed_event = self.parse(&event.attributes)?;
-            logs.push((
-                parsed_event.event,
-                LogMeta {
-                    address: parsed_event.contract_address,
-                    block_number: block_height.value(),
-                    block_hash,
-                    transaction_id: H256::from_slice(tx_hash.as_bytes()).into(),
-                    transaction_index: tx_index.into(),
-                    log_index: U256::from(log_idx),
-                },
-            ));
-        }
-        Ok(logs)
+    fn handle_tx(&self, tx: &tx::Response, block_hash: H256) -> ChainResult<Vec<(T, LogMeta)>> {
+        self.handle_events(
+            tx.tx_result.events.iter(),
+            block_hash,
+            tx.height.value(),
+            H256::from_slice(tx.hash.as_bytes()).into(),
+            tx.index.into(),
+        )
     }
 }
 

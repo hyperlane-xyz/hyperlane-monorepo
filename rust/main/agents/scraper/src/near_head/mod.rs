@@ -14,12 +14,15 @@ use hyperlane_base::{
 };
 use hyperlane_core::{ContractLocator, HyperlaneDomainProtocol, ReorgPeriod};
 use tokio::task::JoinHandle;
+use tracing::warn;
 
 use crate::store::HyperlaneDbStore;
 use source::{
     BlockSelector, Contracts, EvmContracts, GenericSource, Header, Source, SourceBuilder,
 };
 use store::{State, Store};
+
+const CRITICAL_FAILURE_GRACE: Duration = Duration::from_secs(60);
 
 fn minimum_auto_anchor(protocol: HyperlaneDomainProtocol) -> u64 {
     match protocol {
@@ -132,6 +135,7 @@ pub async fn spawn(
         period,
         chunk_size,
         poll_interval,
+        critical_failure_grace: CRITICAL_FAILURE_GRACE,
         chain_metrics,
         sync_metrics,
     };
@@ -162,20 +166,17 @@ async fn prepare<'a>(
     // Capability checks must not require an RPC that is caught up to our saved
     // indexed height. The observation loop waits for lagging providers and
     // checks retained ancestry before publishing anything.
-    let state = store.state().await?;
-    let hash = match state {
+    match store.state().await? {
         Some(_) => {
             store.validate_checkpoints().await?;
             store.validate_contracts(contracts).await?;
-            source.header(BlockSelector::Latest).await?.hash
         }
         None => {
-            anchor
-                .ok_or_else(|| eyre::eyre!("Missing first-start anchor"))?
-                .hash
+            anchor.ok_or_else(|| eyre::eyre!("Missing first-start anchor"))?;
         }
-    };
-    source.counts(hash).await?;
+    }
+    let current = source.header(BlockSelector::Latest).await?;
+    source.counts(current.hash).await?;
     if let Some(anchor) = anchor {
         store.initialize(anchor, contracts).await?;
     }
@@ -238,10 +239,13 @@ async fn ingest(
     state: &State,
     chunk_size: u64,
 ) -> Result<bool> {
-    ingest_cached(source, store, state, chunk_size, &mut None).await
+    ingest_cached(source, store, state, chunk_size, &mut CountCache::default()).await
 }
 
-type CountCache = Option<(ethers::types::H256, [u32; 4])>;
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct CountCache {
+    boundary: Option<(ethers::types::H256, [u32; 4])>,
+}
 
 async fn ingest_cached(
     source: &dyn Source,
@@ -262,6 +266,18 @@ async fn ingest_cached(
     if available_head <= state.indexed {
         return Ok(false);
     }
+    let start_counts = match count_cache
+        .boundary
+        .as_ref()
+        .filter(|(hash, _)| *hash == state.hash)
+    {
+        Some((_, counts)) => *counts,
+        None => {
+            let counts = store.sequence_counts().await?;
+            count_cache.boundary = Some((state.hash, counts));
+            counts
+        }
+    };
     let requested_end = if source.indexes_by_sequence() {
         // Sequence paging is already bounded by its configured page size. Use
         // the observed head as the block boundary so sparse-slot chains do not
@@ -270,43 +286,56 @@ async fn ingest_cached(
     } else {
         available_head.min(state.indexed.saturating_add(chunk_size))
     };
+    if source.has_events_after(start_counts).await? == Some(false) {
+        let boundary = source
+            .range_end(state.indexed, requested_end, available_head)
+            .await?;
+        ensure!(
+            source
+                .fresh_header(BlockSelector::Height(state.indexed))
+                .await?
+                .hash
+                == state.hash,
+            "Indexed boundary changed during range fetch"
+        );
+        verify(source, &boundary).await?;
+        store.append(state, &[(boundary.clone(), vec![])]).await?;
+        count_cache.boundary = Some((boundary.hash, start_counts));
+        return Ok(boundary.height < state.head);
+    }
     let mut boundary = source
         .range_end(state.indexed, requested_end, available_head)
         .await?;
     let mut end = boundary.height;
     let mut by_block = BTreeMap::<u64, Vec<source::Event>>::new();
-    let cached = count_cache.as_ref().filter(|(hash, _)| *hash == state.hash);
-    let start_counts = async {
-        match cached {
-            Some((_, counts)) => Ok::<_, eyre::Report>(*counts),
-            None => match source.counts(state.hash).await? {
-                Some(exact) => Ok([exact[0], 0, 0, exact[1]]),
-                None => Ok(store.sequence_counts().await?),
-            },
+    // Retain exact range validation where historical state is available, but do
+    // not let a pruned-state RPC prevent catch-up from durable sequence counts.
+    let end_counts = async {
+        match source.counts(boundary.hash).await {
+            Ok(counts) => Ok::<_, eyre::Report>(counts),
+            Err(error) => {
+                warn!(
+                    domain = store.domain,
+                    height = boundary.height,
+                    ?error,
+                    "Historical sequence counts unavailable; using durable continuity"
+                );
+                Ok(None)
+            }
         }
     };
-    let end_counts = source.counts(boundary.hash);
     let (events, end_counts) = tokio::try_join!(
-        async {
-            let counts = start_counts.await?;
-            Ok::<_, eyre::Report>((
-                source
-                    .events_after(state.indexed.saturating_add(1), end, counts)
-                    .await?,
-                counts,
-            ))
-        },
+        source.events_after(state.indexed.saturating_add(1), end, start_counts),
         end_counts,
     )?;
-    let (batch, start_counts) = events;
+    let batch = events;
     if end_counts.is_none()
         && batch
             .events
             .iter()
             .any(|event| event.block_number <= state.confirmed)
     {
-        store.pause(true).await?;
-        eyre::bail!("Sequence gap crossed confirmed history; operator repair required");
+        eyre::bail!("Event range crossed confirmed history");
     }
     ensure!(
         batch.through > state.indexed,
@@ -321,14 +350,13 @@ async fn ingest_cached(
     let events = batch.events;
     let validated_counts = match advance_sequences(&events, start_counts) {
         Ok(counts) => counts,
-        Err(error) if end_counts.is_none() => {
+        Err(error) => {
             if state.indexed > state.confirmed {
                 store.rewind_to_confirmed(state).await?;
             }
-            *count_cache = None;
+            count_cache.boundary = None;
             return Err(error);
         }
-        Err(error) => return Err(error),
     };
     if let Some(end_counts) = end_counts {
         if validated_counts[0] != end_counts[0] || validated_counts[3] != end_counts[1] {
@@ -378,7 +406,7 @@ async fn ingest_cached(
     );
     verify(source, &boundary).await?;
     store.append(state, &blocks).await?;
-    *count_cache = Some((boundary.hash, validated_counts));
+    count_cache.boundary = Some((boundary.hash, validated_counts));
     Ok(end < state.head)
 }
 
@@ -390,6 +418,7 @@ fn validate_sequences(events: &[source::Event], next: [u32; 2], end: [u32; 2]) -
 }
 
 fn advance_sequences(events: &[source::Event], mut next: [u32; 4]) -> Result<[u32; 4]> {
+    const STREAMS: [&str; 4] = ["dispatch", "delivery", "gas payment", "insertion"];
     for event in events {
         let (stream, index) = match &event.data {
             source::EventData::Dispatch(message) => (0, Some(message.nonce)),
@@ -398,7 +427,13 @@ fn advance_sequences(events: &[source::Event], mut next: [u32; 4]) -> Result<[u3
             source::EventData::Insertion { index, .. } => (3, Some(*index)),
         };
         let Some(index) = index else { continue };
-        ensure!(index == next[stream], "Missing or unordered event sequence");
+        ensure!(
+            index == next[stream],
+            "Missing or unordered {} sequence: expected {}, received {}",
+            STREAMS[stream],
+            next[stream],
+            index
+        );
         next[stream] = index
             .checked_add(1)
             .ok_or_else(|| eyre::eyre!("Event sequence overflow"))?;
@@ -444,18 +479,29 @@ struct Confirmation {
     page_limited: bool,
 }
 
+#[cfg(test)]
 async fn confirm_leased(
     source: &dyn Source,
     store: &Store,
     period: &ReorgPeriod,
     lease: Duration,
 ) -> Result<Confirmation> {
+    confirm_leased_through(source, store, period, lease, u64::MAX).await
+}
+
+async fn confirm_leased_through(
+    source: &dyn Source,
+    store: &Store,
+    period: &ReorgPeriod,
+    lease: Duration,
+    publishable: u64,
+) -> Result<Confirmation> {
     let state = store
         .state()
         .await?
         .ok_or_else(|| eyre::eyre!("Missing head state"))?;
     ensure!(!state.halted, "Confirmed history requires operator repair");
-    if state.indexed == state.confirmed {
+    if state.indexed == state.confirmed || publishable <= state.confirmed {
         return Ok(Confirmation {
             counts: [0; 4],
             page_limited: false,
@@ -481,7 +527,7 @@ async fn confirm_leased(
             page_limited: false,
         });
     }
-    let target = through.min(state.indexed);
+    let target = through.min(state.indexed).min(publishable);
     let through = store.confirmation_boundary(state.confirmed, target).await?;
     if through <= state.confirmed {
         return Ok(Confirmation {
