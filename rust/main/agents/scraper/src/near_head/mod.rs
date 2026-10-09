@@ -245,8 +245,6 @@ async fn ingest(
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct CountCache {
     boundary: Option<(ethers::types::H256, [u32; 4])>,
-    publishable: Option<(ethers::types::H256, u64)>,
-    incomplete_tip: bool,
 }
 
 async fn ingest_cached(

@@ -649,7 +649,7 @@ async fn block_mode_does_not_publish_an_unproven_chunk_after_ingestion_fails() -
 }
 
 #[tokio::test]
-async fn tip_count_errors_still_publish_the_prior_proof() -> Result<()> {
+async fn tip_count_errors_leave_provisional_history_unpublished() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let db = Database::connect(format!(
         "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
@@ -672,9 +672,9 @@ async fn tip_count_errors_still_publish_the_prior_proof() -> Result<()> {
 
     chain.fail_tip_counts.store(true, Ordering::SeqCst);
     chain.tag.store(10, Ordering::SeqCst);
-    assert!(!worker.cycle(&mut cache).await?.more);
-    let published = worker.store.state().await?.unwrap();
-    assert_eq!((published.indexed, published.confirmed), (20, 10));
+    assert!(worker.cycle(&mut cache).await.is_err());
+    let unchanged = worker.store.state().await?.unwrap();
+    assert_eq!((unchanged.indexed, unchanged.confirmed), (10, 0));
     Ok(())
 }
 
@@ -707,13 +707,6 @@ async fn block_mode_does_not_publish_until_tip_counts_are_complete() -> Result<(
     assert_eq!((newer_tip.indexed, newer_tip.confirmed), (20, 10));
 
     *chain.tip_counts.lock().unwrap() = Some([(Some(1), 20), (None, 20), (None, 20), (None, 20)]);
-    assert!(worker.cycle(&mut cache).await.is_err());
-    let first_rejection = worker.store.state().await?.unwrap();
-    assert_eq!(
-        (first_rejection.indexed, first_rejection.confirmed),
-        (20, 10)
-    );
-
     assert!(worker.cycle(&mut cache).await.is_err());
     let rejected = worker.store.state().await?.unwrap();
     assert_eq!((rejected.indexed, rejected.confirmed), (10, 10));
