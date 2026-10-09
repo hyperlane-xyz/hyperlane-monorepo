@@ -8,8 +8,8 @@ use tokio::time::{sleep, Instant};
 use tracing::warn;
 
 use super::{
-    confirm_leased, confirmation_lease, ingest_cached, observe, source::Source, store::Store,
-    CountCache,
+    confirm_leased_through, confirmation_lease, ingest_cached, observe, source::Source,
+    store::Store, CountCache,
 };
 
 pub(super) struct Worker {
@@ -117,14 +117,18 @@ impl Worker {
             ReorgPeriod::Blocks(depth) => u64::from(depth.get()),
             _ => 0,
         };
+        let tip_counts = self.source.tip_sequence_counts().await?;
+        let count_protected = tip_counts.is_some();
         let mut bounded = observed.clone();
-        bounded.head = bounded.head.min(
-            bounded
-                .confirmed
-                .saturating_add(depth)
-                .saturating_add(10_000),
-        );
-        let ingestion = if bounded.indexed < bounded.head {
+        if !count_protected {
+            bounded.head = bounded.head.min(
+                bounded
+                    .confirmed
+                    .saturating_add(depth)
+                    .saturating_add(10_000),
+            );
+        }
+        let mut ingestion = if bounded.indexed < bounded.head {
             ingest_cached(
                 self.source.as_ref(),
                 &self.store,
@@ -136,6 +140,61 @@ impl Worker {
         } else {
             Ok(false)
         };
+
+        // Count-protected sources publish only history proven by this cycle's
+        // snapshot. Any failure leaves their existing confirmed frontier alone.
+        let mut publishable = if count_protected {
+            observed.confirmed
+        } else {
+            u64::MAX
+        };
+        if let Some(expected) = tip_counts.filter(|_| ingestion.is_ok()) {
+            let state = self
+                .store
+                .state()
+                .await?
+                .ok_or_else(|| eyre::eyre!("Missing head state"))?;
+            let actual = self.store.sequence_counts().await?;
+            let mut incomplete = false;
+            let mut unavailable = false;
+            let mut stale = false;
+            let mut proven = state.indexed;
+            for (((expected, tip), actual), stream) in expected.into_iter().zip(actual).zip([
+                "dispatch",
+                "delivery",
+                "gas payment",
+                "insertion",
+            ]) {
+                let Some(expected) = expected else { continue };
+                let tip = u64::from(tip);
+                if expected < actual {
+                    stale = true;
+                    warn!(
+                        stream,
+                        expected,
+                        actual,
+                        tip,
+                        "Provider sequence count is behind durable history at its tip"
+                    );
+                    continue;
+                }
+                if tip > state.indexed && expected > actual {
+                    unavailable = true;
+                    continue;
+                }
+                proven = proven.min(tip.min(state.indexed));
+                incomplete |= expected > actual;
+            }
+            if !unavailable && !stale && !incomplete {
+                publishable = self.store.checkpoint(proven).await?;
+            } else if !unavailable && !stale && incomplete {
+                if state.indexed > state.confirmed {
+                    self.store.rewind_to_confirmed(&state).await?;
+                }
+                count_cache.boundary = None;
+                ingestion = Err(eyre::eyre!("Incomplete event range at provider tip"));
+            }
+        }
         if let Err(error) = &ingestion {
             warn!(
                 domain = self.store.domain,
@@ -145,11 +204,12 @@ impl Worker {
             );
         }
 
-        let confirmation = confirm_leased(
+        let confirmation = confirm_leased_through(
             self.source.as_ref(),
             &self.store,
             &self.period,
             confirmation_lease(self.poll_interval),
+            publishable,
         )
         .await?;
         for (label, count) in [
@@ -198,7 +258,8 @@ impl Worker {
         }
         let more_ingestion = ingestion?;
         let capped_head = state.confirmed.saturating_add(depth).saturating_add(10_000);
-        let at_provisional_cap = capped_head < observed.head && state.indexed >= capped_head;
+        let at_provisional_cap =
+            !count_protected && capped_head < observed.head && state.indexed >= capped_head;
         if at_provisional_cap {
             eyre::bail!(
                 "Provisional suffix reached its 10,000-block limit; confirmation is lagging"
