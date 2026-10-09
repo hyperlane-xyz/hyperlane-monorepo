@@ -288,7 +288,8 @@ impl Worker {
         }
         let more_ingestion = ingestion?;
         let capped_head = state.confirmed.saturating_add(depth).saturating_add(10_000);
-        let at_provisional_cap = capped_head < observed.head && state.indexed >= capped_head;
+        let at_provisional_cap =
+            tip_counts.is_none() && capped_head < observed.head && state.indexed >= capped_head;
         if at_provisional_cap {
             eyre::bail!(
                 "Provisional suffix reached its 10,000-block limit; confirmation is lagging"

@@ -613,6 +613,35 @@ async fn block_mode_keeps_retrying_a_gap_at_the_confirmed_frontier() -> Result<(
 }
 
 #[tokio::test]
+async fn block_mode_does_not_publish_an_unproven_chunk_after_ingestion_fails() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(20, false));
+    chain.tag.store(10, Ordering::SeqCst);
+    *chain.tip_counts.lock().unwrap() = Some([(Some(1), 20), (None, 20), (None, 20), (None, 20)]);
+    let worker = worker(db, chain.clone()).await?;
+    let worker = Worker {
+        chunk_size: 10,
+        ..Arc::into_inner(worker).expect("sole worker handle")
+    };
+    let mut cache = CountCache::default();
+
+    assert!(worker.cycle(&mut cache).await?.more);
+    let partial = worker.store.state().await?.unwrap();
+    assert_eq!((partial.indexed, partial.confirmed), (10, 0));
+
+    chain.fail_events.store(true, Ordering::SeqCst);
+    assert!(worker.cycle(&mut cache).await.is_err());
+    let failed = worker.store.state().await?.unwrap();
+    assert_eq!((failed.indexed, failed.confirmed), (10, 0));
+    Ok(())
+}
+
+#[tokio::test]
 async fn block_mode_does_not_publish_until_tip_counts_are_complete() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let db = Database::connect(format!(
