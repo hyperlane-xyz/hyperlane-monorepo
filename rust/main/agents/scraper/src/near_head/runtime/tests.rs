@@ -30,6 +30,7 @@ struct Chain {
     sequence: AtomicBool,
     counts: AtomicBool,
     indexing_tip: AtomicU64,
+    fail_tip_counts: AtomicBool,
     tip_counts: Mutex<Option<[(Option<u32>, u32); 4]>>,
     events: Mutex<Vec<Event>>,
 }
@@ -47,6 +48,7 @@ impl Chain {
             sequence: AtomicBool::new(false),
             counts: AtomicBool::new(true),
             indexing_tip: AtomicU64::new(u64::MAX),
+            fail_tip_counts: AtomicBool::new(false),
             tip_counts: Mutex::new(None),
             events: Mutex::new(Vec::new()),
         }
@@ -127,6 +129,10 @@ impl Source for Arc<Chain> {
     }
 
     async fn tip_sequence_counts(&self) -> Result<Option<[(Option<u32>, u32); 4]>> {
+        ensure!(
+            !self.fail_tip_counts.load(Ordering::SeqCst),
+            "Tip counts unavailable"
+        );
         Ok(*self.tip_counts.lock().unwrap())
     }
 }
@@ -643,6 +649,36 @@ async fn block_mode_does_not_publish_an_unproven_chunk_after_ingestion_fails() -
 }
 
 #[tokio::test]
+async fn tip_count_errors_still_publish_the_prior_proof() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(20, false));
+    chain.counts.store(false, Ordering::SeqCst);
+    *chain.tip_counts.lock().unwrap() = Some([(Some(0), 10), (None, 10), (None, 10), (None, 10)]);
+    let worker = worker(db, chain.clone()).await?;
+    let worker = Worker {
+        chunk_size: 10,
+        ..Arc::into_inner(worker).expect("sole worker handle")
+    };
+    let mut cache = CountCache::default();
+
+    assert!(worker.cycle(&mut cache).await?.more);
+    let provisional = worker.store.state().await?.unwrap();
+    assert_eq!((provisional.indexed, provisional.confirmed), (10, 0));
+
+    chain.fail_tip_counts.store(true, Ordering::SeqCst);
+    chain.tag.store(10, Ordering::SeqCst);
+    assert!(!worker.cycle(&mut cache).await?.more);
+    let published = worker.store.state().await?.unwrap();
+    assert_eq!((published.indexed, published.confirmed), (20, 10));
+    Ok(())
+}
+
+#[tokio::test]
 async fn block_mode_does_not_publish_until_tip_counts_are_complete() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let db = Database::connect(format!(
@@ -653,7 +689,7 @@ async fn block_mode_does_not_publish_until_tip_counts_are_complete() -> Result<(
     let chain = Arc::new(Chain::new(20, false));
     chain.counts.store(false, Ordering::SeqCst);
     chain.tag.store(20, Ordering::SeqCst);
-    *chain.tip_counts.lock().unwrap() = Some([(Some(0), 10), (None, 10), (None, 10), (None, 10)]);
+    *chain.tip_counts.lock().unwrap() = Some([(Some(0), 11), (None, 11), (None, 11), (None, 11)]);
     let worker = worker(db, chain.clone()).await?;
     let worker = Worker {
         chunk_size: 10,
@@ -671,6 +707,13 @@ async fn block_mode_does_not_publish_until_tip_counts_are_complete() -> Result<(
     assert_eq!((newer_tip.indexed, newer_tip.confirmed), (20, 10));
 
     *chain.tip_counts.lock().unwrap() = Some([(Some(1), 20), (None, 20), (None, 20), (None, 20)]);
+    assert!(worker.cycle(&mut cache).await.is_err());
+    let first_rejection = worker.store.state().await?.unwrap();
+    assert_eq!(
+        (first_rejection.indexed, first_rejection.confirmed),
+        (20, 10)
+    );
+
     assert!(worker.cycle(&mut cache).await.is_err());
     let rejected = worker.store.state().await?.unwrap();
     assert_eq!((rejected.indexed, rejected.confirmed), (10, 10));

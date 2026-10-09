@@ -117,7 +117,20 @@ impl Worker {
             ReorgPeriod::Blocks(depth) => u64::from(depth.get()),
             _ => 0,
         };
-        let tip_counts = self.source.tip_sequence_counts().await?;
+        let tip_counts = match self.source.tip_sequence_counts().await {
+            Ok(counts) => counts,
+            Err(error) if count_cache.publishable.is_some() => {
+                count_cache.incomplete_tip = false;
+                warn!(
+                    domain = self.store.domain,
+                    ?error,
+                    "Tip sequence counts unavailable; retaining prior proof"
+                );
+                None
+            }
+            Err(error) => return Err(error),
+        };
+        let count_protected = tip_counts.is_some() || count_cache.publishable.is_some();
         if tip_counts.is_some() {
             let proof_is_canonical = match count_cache.publishable {
                 Some((hash, height))
@@ -137,7 +150,7 @@ impl Worker {
             }
         }
         let mut bounded = observed.clone();
-        if tip_counts.is_none() {
+        if !count_protected {
             bounded.head = bounded.head.min(
                 bounded
                     .confirmed
@@ -158,6 +171,9 @@ impl Worker {
             Ok(false)
         };
 
+        if ingestion.is_err() {
+            count_cache.incomplete_tip = false;
+        }
         if let Some(expected) = tip_counts.filter(|_| ingestion.is_ok()) {
             let state = self
                 .store
@@ -177,12 +193,6 @@ impl Worker {
             ]) {
                 let Some(expected) = expected else { continue };
                 let tip = u64::from(tip);
-                if tip > state.indexed {
-                    unavailable = true;
-                    continue;
-                }
-                proven = proven.min(tip);
-                incomplete |= expected > actual;
                 if expected < actual {
                     stale = true;
                     warn!(
@@ -192,9 +202,17 @@ impl Worker {
                         tip,
                         "Provider sequence count is behind durable history at its tip"
                     );
+                    continue;
                 }
+                if tip > state.indexed && expected > actual {
+                    unavailable = true;
+                    continue;
+                }
+                proven = proven.min(tip.min(state.indexed));
+                incomplete |= expected > actual;
             }
             if !unavailable && !stale && !incomplete {
+                count_cache.incomplete_tip = false;
                 let proven = self.store.checkpoint(proven).await?;
                 let previous = count_cache
                     .publishable
@@ -208,18 +226,28 @@ impl Worker {
                         .ok_or_else(|| eyre::eyre!("Missing proven checkpoint"))?;
                     count_cache.publishable = Some((hash, proven));
                 }
-            } else if !unavailable && !stale && incomplete {
-                if state.indexed > state.confirmed {
-                    self.store.rewind_to_confirmed(&state).await?;
+            } else if unavailable || stale {
+                count_cache.incomplete_tip = false;
+            } else if incomplete {
+                if count_cache.incomplete_tip {
+                    if state.indexed > state.confirmed {
+                        self.store.rewind_to_confirmed(&state).await?;
+                    }
+                    count_cache.boundary = None;
+                    let hash = self
+                        .store
+                        .hash(state.confirmed)
+                        .await?
+                        .ok_or_else(|| eyre::eyre!("Missing confirmed checkpoint"))?;
+                    count_cache.publishable = Some((hash, state.confirmed));
+                    count_cache.incomplete_tip = false;
+                    ingestion = Err(eyre::eyre!("Incomplete event range at provider tip"));
+                } else {
+                    count_cache.incomplete_tip = true;
+                    ingestion = Err(eyre::eyre!(
+                        "Incomplete event range at provider tip; retrying before rewind"
+                    ));
                 }
-                count_cache.boundary = None;
-                let hash = self
-                    .store
-                    .hash(state.confirmed)
-                    .await?
-                    .ok_or_else(|| eyre::eyre!("Missing confirmed checkpoint"))?;
-                count_cache.publishable = Some((hash, state.confirmed));
-                ingestion = Err(eyre::eyre!("Incomplete event range at provider tip"));
             }
         }
         if let Err(error) = &ingestion {
@@ -289,7 +317,7 @@ impl Worker {
         let more_ingestion = ingestion?;
         let capped_head = state.confirmed.saturating_add(depth).saturating_add(10_000);
         let at_provisional_cap =
-            tip_counts.is_none() && capped_head < observed.head && state.indexed >= capped_head;
+            !count_protected && capped_head < observed.head && state.indexed >= capped_head;
         if at_provisional_cap {
             eyre::bail!(
                 "Provisional suffix reached its 10,000-block limit; confirmation is lagging"
