@@ -2112,6 +2112,22 @@ void it('rejects incomplete Explorer confirmation parameters', async () => {
   assert.equal(await closed, 1008);
 });
 
+void it('bounds Explorer close reasons for unsupported confirmation domains', async () => {
+  const domains = Array.from({ length: 40 }, (_, index) => index + 2);
+  const socket = new WebSocket(
+    `${messagesUrl}?confirmations=0&domains=${domains.join(',')}`,
+  );
+  const closed = new Promise<{ code: number; reason: string }>((resolve) =>
+    socket.once('close', (code, reason) =>
+      resolve({ code, reason: reason.toString('utf8') }),
+    ),
+  );
+  assert.deepEqual(await closed, {
+    code: 1008,
+    reason: 'Unsupported confirmation domains',
+  });
+});
+
 void it('completes gas payment stream cursor replay without a total row budget', async () => {
   gasPaymentRows.clear();
   gasPaymentRows.set('10', gasPaymentRow('10', '100'));

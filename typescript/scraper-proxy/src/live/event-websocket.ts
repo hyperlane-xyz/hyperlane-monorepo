@@ -641,8 +641,11 @@ export class EventWebSocketServer {
           ]),
         );
       } catch (error) {
+        this.logger.warn(
+          `rejecting Explorer confirmation request: ${formatError(error)}`,
+        );
         this.disconnect(socket);
-        socket.close(1008, formatError(error));
+        socket.close(1008, 'Unsupported confirmation domains');
         return;
       }
     }
@@ -667,8 +670,11 @@ export class EventWebSocketServer {
         }
         this.scheduleHeadDrain();
       } catch (error) {
+        this.logger.error(
+          `Explorer confirmation initialization failed: ${formatError(error)}`,
+        );
         this.disconnect(socket);
-        socket.close(1013, formatError(error));
+        socket.close(1013, 'Event stream initialization failed');
       }
     }
   }
@@ -1899,11 +1905,11 @@ export class EventWebSocketServer {
       cursorHeight = parseId(last.changed_height);
       cursorSource = last.source;
       cursorId = parseId(last.id);
-      const domains = [...client.frontiers.keys()];
+      const frontiers = [...client.frontiers];
       const rows = await this.db.queryLive<Row>(PROVISIONAL_MESSAGE_QUERY, [
         [...new Set(changes.map(({ msg_id }) => msg_id))],
-        domains.map(storedDomain),
-        domains.map((item) => client.frontiers.get(item)!.toString()),
+        frontiers.map(([frontierDomain]) => storedDomain(frontierDomain)),
+        frontiers.map(([, height]) => height.toString()),
         storedDomain(domain),
         through.toString(),
       ]);
@@ -2303,7 +2309,7 @@ export class EventWebSocketServer {
     for (const [socket, client] of this.explorerClients) {
       if (client.confirmations !== undefined && client.domains?.has(domain)) {
         this.disconnect(socket);
-        socket.close(1013, formatError(error));
+        socket.close(1013, 'Event stream read failed');
       }
     }
   }
