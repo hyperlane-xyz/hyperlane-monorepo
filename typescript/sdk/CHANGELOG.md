@@ -1,5 +1,21 @@
 # @hyperlane-xyz/sdk
 
+## 45.0.2
+
+### Patch Changes
+
+- b6fdd2d: Router-map key resolution for warp deploy configs was moved into the SDK as `resolveWarpDeployConfigRouterKeys` and reused by the CLI and infra warp checker.
+- b43bc9f: The Blast default multisig validator configuration was restored so the mainnet3 relayer can deliver Blast-origin messages until Blast shuts down.
+  - @hyperlane-xyz/aleo-sdk@45.0.2
+  - @hyperlane-xyz/starknet-core@45.0.2
+  - @hyperlane-xyz/cosmos-sdk@45.0.2
+  - @hyperlane-xyz/radix-sdk@45.0.2
+  - @hyperlane-xyz/utils@45.0.2
+  - @hyperlane-xyz/deploy-sdk@11.0.2
+  - @hyperlane-xyz/core@12.2.0
+  - @hyperlane-xyz/provider-sdk@11.0.2
+  - @hyperlane-xyz/tron-sdk@26.0.2
+
 ## 45.0.1
 
 ### Patch Changes
