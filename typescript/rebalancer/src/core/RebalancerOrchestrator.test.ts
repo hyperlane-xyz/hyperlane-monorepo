@@ -143,6 +143,7 @@ function createMockMetrics(): Metrics {
     recordRebalancerFailure: Sinon.stub(),
     recordIntentCreated: Sinon.stub(),
     processToken: Sinon.stub().resolves(),
+    processTokens: Sinon.stub().resolves(),
   } as unknown as Metrics;
 }
 
@@ -1018,7 +1019,43 @@ describe('RebalancerOrchestrator', () => {
 
       await orchestrator.executeCycle(event);
 
-      expect((metrics.processToken as Sinon.SinonStub).calledTwice).to.be.true;
+      expect(
+        (metrics.processTokens as Sinon.SinonStub).calledOnceWithExactly(
+          event.tokensInfo,
+        ),
+      ).to.equal(true);
+    });
+
+    it('waits for batched metrics before syncing tracker state', async () => {
+      const actionTracker = createMockActionTracker();
+      const metrics = createMockMetrics();
+      let releaseMetrics: () => void;
+      (metrics.processTokens as Sinon.SinonStub).returns(
+        new Promise<void>((resolve) => {
+          releaseMetrics = resolve;
+        }),
+      );
+      const orchestrator = new RebalancerOrchestrator({
+        strategy: createMockStrategy(),
+        actionTracker,
+        inflightContextAdapter: createMockInflightContextAdapter(),
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger: testLogger,
+        rebalancers: [],
+        metrics,
+      });
+
+      const cycle = orchestrator.executeCycle(createMonitorEvent());
+      await Promise.resolve();
+      expect((actionTracker.syncTransfers as Sinon.SinonStub).called).to.equal(
+        false,
+      );
+
+      releaseMetrics!();
+      await cycle;
+      expect(
+        (actionTracker.syncTransfers as Sinon.SinonStub).calledOnce,
+      ).to.equal(true);
     });
   });
 });
