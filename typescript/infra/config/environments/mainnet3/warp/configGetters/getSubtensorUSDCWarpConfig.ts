@@ -2,7 +2,7 @@ import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { awIcasLegacy } from '../../governance/ica/_awLegacy.js';
+import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { chainOwners } from '../../owners.js';
 import { usdcTokenAddresses } from '../cctp.js';
@@ -28,7 +28,7 @@ type DeploymentChain = (typeof deploymentChains)[number];
 
 const syntheticChain: DeploymentChain = 'subtensor';
 
-// getUSDCRebalancingBridgesConfigFor intersects with the CCTP V1 route chains,
+// getUSDCRebalancingBridgesConfigFor intersects with the CCTP V1 and V2 route chains,
 // which excludes subtensor and solanamainnet. On-chain, each collateral leg also
 // allows rebalancing to those two chains via its own bridge, so hardcode them to
 // accept the deployed state.
@@ -47,14 +47,18 @@ export const getSubtensorUSDCWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
     deploymentChains,
-    [WarpRouteIds.MainnetCCTPV1],
+    [
+      WarpRouteIds.MainnetCCTPV1,
+      WarpRouteIds.MainnetCCTPV2Standard,
+      WarpRouteIds.MainnetCCTPV2Fast,
+    ],
   );
 
   return Object.fromEntries(
     deploymentChains.map(
       (currentChain): [DeploymentChain, HypTokenRouterConfig] => {
         const owner =
-          awIcasLegacy[currentChain] ??
+          awIcas[currentChain] ??
           awSafes[currentChain] ??
           chainOwners[currentChain].owner;
 
@@ -82,6 +86,7 @@ export const getSubtensorUSDCWarpConfig = async (
               type: TokenType.collateral,
               token: usdcTokenAddress,
               mailbox: routerConfig[currentChain].mailbox,
+              hook: 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv', // solanamainnet IGP program (SVM_CORE_ADDRESSES igpProgramId)
               foreignDeployment: 'GPCsiXvm9NaFjrxB6sThscap6akyvRgD5V6decCk25c',
               owner,
               gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
