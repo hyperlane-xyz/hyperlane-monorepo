@@ -32,7 +32,7 @@ The gate is **per-chain**, not per-run. If a prior session already left `ethereu
 
 ## Run Log (mandatory)
 
-Maintain the durable, per-ticket run log per `/warp-run-log` — that skill owns the storage contract (Linear-document-by-title primary, single-writer discipline, local-file fallback), the `chain | protocol | shape | floor | actual | verdict` machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-deploy-init-route` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
+**This is the skill's first action** — ahead of Step 0 and the funding preflight above, so interrupted preflight work still lands in the run record. Open-or-create the run log at entry, then maintain it, per `/warp-run-log` (never assume a previous step created it) — that skill owns the storage contract, the `chain | protocol | shape | floor | actual | verdict` machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-deploy-init-route` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
 
 **Log at least:** (a) skill entry with the ticket ID, (b) every `[CONFIRM:]` gate — before showing it to the user AND after their response, (c) every command execution, with expected vs actual (gas amounts, tx hashes, deployed addresses, wall-clock times), (d) skill exit (success or bail-out). If any number, timing, or output diverges from what this skill's text predicts, log it — the diff is the input to the next skill revision. Log smooth steps too — success data grounds the retrospective as much as failure data.
 
@@ -576,6 +576,8 @@ The HTTP registry MUST be running before the deploy command. Starting it later o
 
 Start it per `/start-http-registry` **with `--writeMode`** (the deploy persists the route config back through the server). Note the port (typically `3333`) and the background task/shell ID — you will need both to stop the server after the skill completes.
 
+Then apply the chain-metadata cushions per `/warp-chain-metadata-cushions`, and honor that skill's mandatory cleanup gate once the deploy finishes — green or failed. A mid-deploy confirmation-timeout burns gas and forces a fresh re-run, so cushion up front rather than waiting for the signature to appear.
+
 ### 8b: Run the Deploy Command
 
 Tell the user upfront:
@@ -607,18 +609,9 @@ pnpm --silent -C typescript/cli hyperlane warp deploy \
 - RPC errors → check the chain's RPC URL in the registry
 - Key not set → confirm the env variable is exported in the shell
 
-### 8c: Multi-RPC failure modes (and the mandatory cleanup gate)
+### 8c: Orphaned contracts on a failed deploy
 
-Two deploy failures come from read-after-write lag across a chain's load-balanced private RPCs, NOT from a real problem — recognize them so you don't chase a phantom or re-fund unnecessarily:
-
-- **Stale-gas OOG on the proxy `initialize`.** A fresh impl deploys, then `initialize` is gas-estimated against an RPC replica that hasn't indexed the new contract yet → it returns an EOA-sized (~25k) estimate and the tx runs out of gas. Signature: OOG on `initialize` right after a successful impl deploy, on opstack / multi-RPC chains (base, optimism). Fix: pin the affected chain to a single RPC in the local registry metadata for the duration of the deploy.
-- **Confirmation-timeout on a tx that actually landed.** `Timeout (Xms) waiting for N block confirmations for tx 0x…` where the tx already succeeded on-chain (check the receipt: `status: 1`). Root cause: the CLI's confirmation budget is `confirmations × estimateBlockTime × 2`, as low as ~6s on chains whose registry `estimateBlockTime` is 3s (bsc, tron). Fix: raise `estimateBlockTime` in the local registry metadata for those chains (e.g. eth 13→45, bsc/tron 3→30). This survives the GCP RPC-override merge, unlike re-pinning RPCs — do NOT re-pin RPCs for this one.
-
-**Prevent, don't just react.** A mid-deploy abort burns gas and forces a fresh re-run, so apply these cushions up front rather than waiting for the signature: before deploying, pin a single premium RPC per chain on opstack / multi-RPC chains (base, optimism), and raise `estimateBlockTime` on short-block / confirmation-timeout-prone chains (ethereum, bsc, tron) so the `confirmations × estimateBlockTime × 2` budget isn't razor-thin. These are the same edits described above and fall under the same cleanup gate.
-
-**Cleanup gate (mandatory).** Any single-RPC pin or `estimateBlockTime` bump above is a LOCAL registry edit. After a green deploy, **restore the original values and confirm `git -C $HYPERLANE_REGISTRY diff` is clean** before moving on — a left-behind override silently drifts the local registry from canonical for every later run.
-
-**Orphaned contracts on a failed deploy.** The `<chains>-config.yaml` is written only on FULL success, so a mid-deploy failure leaves the already-deployed contracts orphaned on chain (and the deployer nonce advanced). A clean re-run picks fresh addresses — do NOT try to salvage partial addresses; fix the cause, re-run, and note the burnt gas.
+The `<chains>-config.yaml` is written only on FULL success, so a mid-deploy failure leaves the already-deployed contracts orphaned on chain (and the deployer nonce advanced). A clean re-run picks fresh addresses — do NOT try to salvage partial addresses; fix the cause, re-run, and note the burnt gas.
 
 ---
 

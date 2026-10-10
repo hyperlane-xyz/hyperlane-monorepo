@@ -17,7 +17,7 @@ For a brand-new warp route deployment use `/warp-deploy-init-route`. For adding 
 
 ## Run Log (mandatory)
 
-Maintain the durable, per-ticket run log per `/warp-run-log` — that skill owns the storage contract (Linear-document-by-title primary, single-writer discipline, local-file fallback), the machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-update` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
+Open-or-create the run log at entry, then maintain it, per `/warp-run-log` (never assume a previous step created it) — that skill owns the storage contract, the machine-row + prose entry shape, and the surface-the-URL-as-proof hard gate. Use `warp-update` as the skill name in each prose entry, and do not report this skill complete until the run-log URL has been surfaced.
 
 **Log at least:** (a) skill entry with the ticket ID + warp route ID + the change types detected, (b) every `[CONFIRM:]` gate — before and after the response, (c) the surgical deploy.yaml edits made, (d) the `warp apply` run (any newly deployed contract addresses + tx/receipt refs), (e) the fork-simulate-verify verdict from `/warp-route-check`, (f) the propose handoff (batch → signer per `/warp-update-propose`), (g) the registry PR URL, (h) skill exit (success or bail-out). Log smooth steps too — success data grounds the retrospective as much as failure data.
 
@@ -316,7 +316,8 @@ After approval, run it. Show the full output.
 - Deployer key not funded → re-run Step 5
 - Strategy chain not in deploy.yaml → verify all chains in the strategy match the deploy.yaml
 - ICA owner mismatch → re-run `/warp-update-resolve-artifacts` and confirm the resolved owners match what the deploy.yaml expects
-- Stale-gas OOG on `initialize`, or a confirmation-timeout on a tx that already landed (`status: 1`) → multi-RPC read-after-write / short-confirmation-budget artifacts, not real failures. Apply the same cushions a deploy uses: pin a single premium RPC for opstack/multi-RPC chains, and/or raise `estimateBlockTime` in the local registry metadata for short-block chains (ethereum, bsc, tron) so the `confirmations × estimateBlockTime × 2` budget isn't razor-thin — then restore per the cleanup gate. Full mechanism in `/warp-deploy-init-route` §8c.
+- Confirmation-timeout on a tx that already landed (`status: 1`) → an observation artifact, not a real failure. Apply the cushions per `/warp-chain-metadata-cushions` up front, and restore per its cleanup gate.
+- Stale-gas OOG on `initialize` → a genuine revert from a multi-RPC read-after-write lag. The apply is incomplete; retry and reconcile what landed rather than treating it as a false positive.
 
 ---
 
