@@ -19,6 +19,7 @@ const readyEventStreamSchema = {
   legacy_boundary_exists: true,
   range_index_exists: true,
   scraper_head_exists: true,
+  scraper_head_readable: true,
 };
 
 void it('keeps replica health from gating primary live queries', async (context) => {
@@ -162,6 +163,24 @@ void it('fails startup when the live user cannot read cursor state', async (cont
   context.after(() => db.close());
 
   await assert.rejects(db.start(), /cursor_readable/);
+});
+
+void it('fails startup when the live user cannot read scraper head state', async (context) => {
+  context.mock.method(pg.Pool.prototype, 'connect', () =>
+    Promise.resolve({ release() {} }),
+  );
+  context.mock.method(pg.Pool.prototype, 'query', () =>
+    Promise.resolve({
+      rowCount: 1,
+      rows: [{ ...readyEventStreamSchema, scraper_head_readable: false }],
+    }),
+  );
+  context.mock.method(pg.Pool.prototype, 'end', () => Promise.resolve());
+  const { DbService } = await import('./db.service.js');
+  const db = new DbService();
+  context.after(() => db.close());
+
+  await assert.rejects(db.start(), /scraper_head_readable/);
 });
 
 for (const triggerMode of ['D', 'R']) {

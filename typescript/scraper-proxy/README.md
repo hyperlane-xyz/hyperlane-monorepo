@@ -37,14 +37,65 @@ The public endpoints are then:
 `ws://<scraper-proxy-service>.<namespace>.svc:8383/agents` through the
 cluster-only Kubernetes Service.
 
-`/messages` automatically streams `message_upsert` events containing normalized
-`message_view` rows. It does not emit gas payments or Merkle tree insertions.
+`/messages` streams `message_upsert` events containing normalized `message_view`
+rows. With no query parameters, it retains the canonical-confirmation behavior.
+To opt into another depth, connect with explicit domains, for example
+`/messages?confirmations=0&domains=1,42161`. Custom-confirmation upserts also
+include top-level `confirmations`, `domain`, and `height` fields describing the
+source frontier; key provisional messages by `data.msg_id`. The `ready` event's
+`domains` field reports which requested domains support that depth. Requested
+domains absent from that field remain on the canonical-confirmation stream over
+the same socket. It does not emit raw gas payments or Merkle tree insertions.
 Production requests must arrive through Cloudflare with a valid
 `CF-Connecting-IP` header; at most five connections are accepted per client IP.
 
 The private `/agents` endpoint always supports historical WebSocket catch-up.
 Replay is paginated without a total row limit. Concurrent catch-ups, session
 duration, database query timeouts, and outbound buffering remain bounded.
+
+Subscribers may set `confirmations` on a stream to receive events once they are
+that many chain heights behind the observed head. This works for every protocol
+indexed by the near-head scraper. Custom confirmations require an explicit
+`domains` list (or sequence cursors that imply one). Example:
+
+```json
+{
+  "type": "subscribe",
+  "streams": [
+    {
+      "eventType": "dispatch",
+      "domains": [1, 42161],
+      "confirmations": 12
+    }
+  ]
+}
+```
+
+Gas-payment cursors cannot be combined with custom confirmations because their
+durable cursor is assigned only at the scraper's canonical confirmation
+frontier. Non-cursored gas-payment streams support custom confirmations.
+
+Custom-confirmation `/agents` and `/messages` subscribers receive a `rollback`
+control event when a fork lowers the indexed frontier:
+
+```json
+{
+  "type": "rollback",
+  "confirmations": 0,
+  "domain": 1,
+  "fromHeight": "19400001",
+  "toHeight": "19400000"
+}
+```
+
+`/agents` also includes `eventType`. The socket stays open. The subscriber must
+undo or reload effects from that domain above `toHeight`; replacement canonical
+events/upserts are then replayed as indexing advances again. For `/messages`, a
+rollback can affect delivery or payment fields on messages originating on a
+different domain, so use the top-level source `domain` and `height`, not only
+`data.origin_domain_id`, when retaining rollback history. Canonically confirmed
+history is immutable; a fork crossing it halts the scraper instead of emitting
+a rollback.
 
 Outbound WebSocket buffering is limited to 1 MiB per socket and 32 MiB across
 all sockets. GraphQL is limited to 25 concurrent requests; Cloudflare owns

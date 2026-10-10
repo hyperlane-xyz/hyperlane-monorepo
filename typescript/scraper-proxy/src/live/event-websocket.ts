@@ -23,6 +23,7 @@ import {
   EVENT_TYPES,
   type EventNotification,
   type EventType,
+  isDomain,
   isSequencedEventType,
   normalizeSequenceAddress,
   parseDatabaseDomain,
@@ -33,6 +34,7 @@ import {
   parseId,
   parseInteger,
   type GasPaymentCursor,
+  type HeadNotification,
   type SequenceCursor,
   type StreamCursor,
   type StreamRequest,
@@ -95,8 +97,10 @@ type Subscription = {
   catchingUp: boolean;
   cursorKeys?: Set<string>;
   domains?: Set<number>;
+  frontiers: Map<number, bigint>;
   gasPaymentLegacyMaxIds: Map<string, bigint>;
   pending: Row[];
+  confirmations?: number;
   streamCursors: Map<string, bigint>;
   sequences: Map<string, bigint>;
   waiting: boolean;
@@ -105,10 +109,16 @@ type Client = {
   alive: boolean;
   messages: number;
   messageWindow: number;
+  subscribing: boolean;
   subscriptions: Map<EventType, Subscription>;
 };
 type ExplorerClient = {
   alive: boolean;
+  canonical: boolean;
+  canonicalDomains?: Set<number>;
+  confirmations?: number;
+  domains?: Set<number>;
+  frontiers: Map<number, bigint>;
   ip: string;
   queuedBytes: number;
   queue: SerializedMessage[];
@@ -129,6 +139,7 @@ type Limits = {
 };
 type SerializedMessage = Buffer;
 type HeadRange = { after: bigint; through: bigint };
+type HeadState = { head: bigint; indexed: bigint };
 export type EventDatabase = Pick<DbService, 'listen' | 'queryLive'>;
 
 class HeadPublicationError extends Error {
@@ -188,6 +199,129 @@ const STREAMS: Record<EventType, Stream> = {
   ),
 };
 
+const CUSTOM_CONFIRMATION_TABLES: Record<EventType, string> = {
+  delivery: 'delivered_message',
+  dispatch: 'raw_message_dispatch',
+  gas_payment: 'gas_payment',
+  merkle_tree_insertion: 'merkle_tree_insertion',
+};
+
+const STREAM_HEIGHTS: Record<EventType, string> = {
+  delivery: 'block_number',
+  dispatch: 'origin_block_height',
+  gas_payment: 'block_number',
+  merkle_tree_insertion: 'block_number',
+};
+
+const PROVISIONAL_MESSAGE_QUERY = `
+  /* provisional_message_view */
+  WITH supplied_frontier(domain, height) AS (
+    SELECT * FROM unnest($2::integer[], $3::bigint[])
+  ), frontier AS (
+    SELECT domain, CASE WHEN domain=$4 THEN $5::bigint ELSE height END AS height
+    FROM supplied_frontier
+  ), eligible_dispatch AS (
+    SELECT dispatch.*
+    FROM raw_message_dispatch dispatch
+    LEFT JOIN frontier ON frontier.domain=dispatch.origin_domain
+    LEFT JOIN scraper_head ON scraper_head.domain=dispatch.origin_domain
+    WHERE dispatch.msg_id=ANY($1::bytea[])
+      AND dispatch.origin_block_height<=coalesce(frontier.height,
+        scraper_head.confirmed_height, 9223372036854775807)
+  ), eligible_delivery AS (
+    SELECT DISTINCT ON (delivery.msg_id) delivery.*
+    FROM delivered_message delivery
+    LEFT JOIN frontier ON frontier.domain=delivery.domain
+    LEFT JOIN scraper_head ON scraper_head.domain=delivery.domain
+    WHERE delivery.msg_id=ANY($1::bytea[])
+      AND (delivery.block_number IS NULL OR delivery.block_number<=coalesce(
+        frontier.height, scraper_head.confirmed_height, 9223372036854775807))
+    ORDER BY delivery.msg_id, delivery.block_number DESC NULLS LAST, delivery.id DESC
+  ), eligible_payment AS (
+    SELECT payment.msg_id, count(*)::bigint AS num_payments,
+      sum(payment.payment) AS total_payment,
+      sum(payment.gas_amount) AS total_gas_amount
+    FROM gas_payment payment
+    LEFT JOIN frontier ON frontier.domain=payment.domain
+    LEFT JOIN scraper_head ON scraper_head.domain=payment.domain
+    WHERE payment.msg_id=ANY($1::bytea[])
+      AND (payment.block_number IS NULL OR payment.block_number<=coalesce(
+        frontier.height, scraper_head.confirmed_height, 9223372036854775807))
+    GROUP BY payment.msg_id
+  )
+  SELECT
+    dispatch.id,
+    dispatch.msg_id,
+    dispatch.nonce,
+    delivery.id IS NOT NULL AS is_delivered,
+    coalesce(payment.num_payments, 0) AS num_payments,
+    coalesce(payment.total_payment, 0) AS total_payment,
+    coalesce(payment.total_gas_amount, 0) AS total_gas_amount,
+    dispatch.origin_domain AS origin_domain_id,
+    origin_domain.chain_id AS origin_chain_id,
+    origin_domain.name AS origin_domain,
+    dispatch.destination_domain AS destination_domain_id,
+    destination_domain.chain_id AS destination_chain_id,
+    destination_domain.name AS destination_domain,
+    dispatch.time_created AS send_scraped_at,
+    origin_block.timestamp AS send_occurred_at,
+    delivery.time_created AS delivery_scraped_at,
+    destination_block.timestamp AS delivery_occurred_at,
+    destination_block.timestamp-origin_block.timestamp AS delivery_latency,
+    dispatch.time_created-origin_block.timestamp AS send_scape_latency,
+    delivery.time_created-destination_block.timestamp AS delivery_scape_latency,
+    dispatch.sender,
+    dispatch.recipient,
+    dispatch.origin_mailbox,
+    delivery.destination_mailbox,
+    origin_tx.id AS origin_tx_id,
+    coalesce(origin_tx.hash, dispatch.origin_tx_hash) AS origin_tx_hash,
+    origin_tx.gas_limit AS origin_tx_gas_limit,
+    origin_tx.max_priority_fee_per_gas AS origin_tx_max_priority_fee_per_gas,
+    origin_tx.max_fee_per_gas AS origin_tx_max_fee_per_gas,
+    origin_tx.gas_price AS origin_tx_gas_price,
+    origin_tx.effective_gas_price AS origin_tx_effective_gas_price,
+    origin_tx.nonce AS origin_tx_nonce,
+    origin_tx.sender AS origin_tx_sender,
+    origin_tx.recipient AS origin_tx_recipient,
+    origin_tx.gas_used AS origin_tx_gas_used,
+    origin_tx.cumulative_gas_used AS origin_tx_cumulative_gas_used,
+    origin_block.id AS origin_block_id,
+    dispatch.origin_block_height,
+    dispatch.origin_block_hash,
+    destination_tx.id AS destination_tx_id,
+    coalesce(destination_tx.hash, delivery.transaction_hash) AS destination_tx_hash,
+    destination_tx.gas_limit AS destination_tx_gas_limit,
+    destination_tx.max_priority_fee_per_gas AS destination_tx_max_priority_fee_per_gas,
+    destination_tx.max_fee_per_gas AS destination_tx_max_fee_per_gas,
+    destination_tx.gas_price AS destination_tx_gas_price,
+    destination_tx.effective_gas_price AS destination_tx_effective_gas_price,
+    destination_tx.nonce AS destination_tx_nonce,
+    destination_tx.sender AS destination_tx_sender,
+    destination_tx.recipient AS destination_tx_recipient,
+    destination_tx.gas_used AS destination_tx_gas_used,
+    destination_tx.cumulative_gas_used AS destination_tx_cumulative_gas_used,
+    destination_block.id AS destination_block_id,
+    delivery.block_number AS destination_block_height,
+    delivery.block_hash AS destination_block_hash,
+    dispatch.msg_body AS message_body
+  FROM eligible_dispatch dispatch
+  LEFT JOIN domain origin_domain ON origin_domain.id=dispatch.origin_domain
+  LEFT JOIN domain destination_domain ON destination_domain.id=dispatch.destination_domain
+  LEFT JOIN block origin_block ON origin_block.domain=dispatch.origin_domain
+    AND origin_block.hash=dispatch.origin_block_hash
+  LEFT JOIN "transaction" origin_tx ON origin_tx.block_id=origin_block.id
+    AND origin_tx.hash=dispatch.origin_tx_hash
+  LEFT JOIN eligible_delivery delivery ON delivery.msg_id=dispatch.msg_id
+  LEFT JOIN block destination_block ON destination_block.domain=delivery.domain
+    AND destination_block.hash=delivery.block_hash
+  LEFT JOIN "transaction" destination_tx ON destination_tx.id=delivery.destination_tx_id
+    OR (delivery.destination_tx_id IS NULL AND destination_tx.block_id=destination_block.id
+      AND destination_tx.hash=delivery.transaction_hash)
+  LEFT JOIN eligible_payment payment ON payment.msg_id=dispatch.msg_id
+  WHERE origin_block.timestamp IS NOT NULL
+`;
+
 const EVENT_DOMAIN_COLUMNS: Record<EventType, readonly string[]> = {
   delivery: ['domain'],
   dispatch: ['origin_domain', 'destination_domain'],
@@ -207,6 +341,8 @@ export class EventWebSocketServer {
   private readonly explorerNotifications = new Set<string>();
   private readonly notifications = new Map<string, EventNotification>();
   private readonly headRanges = new Map<number, HeadRange>();
+  private readonly customHeads = new Map<number, HeadNotification>();
+  private readonly rollbackEpochs = new Map<number, number>();
   private readonly headFailures = new Map<number, number>();
   private heartbeatTimer?: NodeJS.Timeout;
   private listenerRetryTimer?: NodeJS.Timeout;
@@ -269,8 +405,9 @@ export class EventWebSocketServer {
     this.httpServer = server;
     server.on('upgrade', this.handleUpgrade);
     this.agentServer.on('connection', (socket) => this.connectAgent(socket));
-    this.explorerServer.on('connection', (socket, request) =>
-      this.connectExplorer(socket, request),
+    this.explorerServer.on(
+      'connection',
+      (socket, request) => void this.connectExplorer(socket, request),
     );
     this.heartbeatTimer = setInterval(() => this.heartbeat(), heartbeatMs);
     this.logger.info(
@@ -290,6 +427,7 @@ export class EventWebSocketServer {
     this.explorerNotifications.clear();
     this.notifications.clear();
     this.headRanges.clear();
+    this.customHeads.clear();
     await this.stopListening?.();
     this.httpServer?.off('upgrade', this.handleUpgrade);
     this.closeClients('Server stopping', 1001);
@@ -411,12 +549,15 @@ export class EventWebSocketServer {
       alive: true,
       messages: 0,
       messageWindow: Date.now(),
+      subscribing: false,
       subscriptions: new Map(),
     });
     websocketConnections.inc({ route: 'agent' });
     this.send(socket, {
+      controlTypes: ['rollback'],
       eventTypes: EVENT_TYPES,
       historicalStreaming: true,
+      confirmations: { unit: 'blocks' },
       streamCursorVersions: STREAM_CURSOR_VERSIONS,
       type: 'ready',
     });
@@ -444,12 +585,22 @@ export class EventWebSocketServer {
     );
   };
 
-  private connectExplorer(socket: WebSocket, request: IncomingMessage): void {
+  private async connectExplorer(
+    socket: WebSocket,
+    request: IncomingMessage,
+  ): Promise<void> {
     this.watch(socket, this.explorerClients, (client) => {
       this.clearExplorerQueue(client);
       this.releaseExplorerClient(client.ip);
     });
     if (!this.accept(socket, 'explorer')) return;
+    let custom: { confirmations: number; domains: Set<number> } | undefined;
+    try {
+      custom = parseExplorerConfirmations(request.url);
+    } catch (error) {
+      socket.close(1008, formatError(error));
+      return;
+    }
     const ip = clientIp(request);
     if (!ip) {
       websocketConnectionRejections.inc({
@@ -469,18 +620,73 @@ export class EventWebSocketServer {
       return;
     }
     this.explorerClientsByIp.set(ip, connections + 1);
-    this.explorerClients.set(socket, {
+    const client: ExplorerClient = {
       alive: true,
+      canonical: custom === undefined,
+      confirmations: custom?.confirmations,
+      domains: custom?.domains,
+      frontiers: new Map(),
       ip,
       queuedBytes: 0,
       queue: [],
       sending: false,
-    });
+    };
+    this.explorerClients.set(socket, client);
     websocketConnections.inc({ route: 'messages' });
+    if (custom) {
+      try {
+        const states = await this.availableHeadStates(custom.domains);
+        if (this.explorerClients.get(socket) !== client) return;
+        client.canonical = states.size < custom.domains.size;
+        client.canonicalDomains = new Set(
+          [...custom.domains].filter((domain) => !states.has(domain)),
+        );
+        client.domains = new Set(
+          [...custom.domains].filter((domain) => states.has(domain)),
+        );
+        client.frontiers = new Map(
+          [...states].map(([domain, state]) => [
+            domain,
+            customFrontier(state, custom.confirmations),
+          ]),
+        );
+      } catch (error) {
+        this.logger.warn(
+          `rejecting Explorer confirmation request: ${formatError(error)}`,
+        );
+        this.disconnect(socket);
+        socket.close(1008, 'Unsupported confirmation domains');
+        return;
+      }
+    }
     this.send(socket, {
-      eventTypes: ['message_upsert'],
+      controlTypes: custom ? ['rollback'] : undefined,
+      confirmations: custom?.confirmations,
+      domains: custom ? [...(client.domains ?? [])] : undefined,
+      eventTypes: custom ? ['message_upsert', 'rollback'] : ['message_upsert'],
       type: 'ready',
     });
+    if (custom) {
+      try {
+        const latest = await this.headStates(client.domains ?? new Set());
+        if (this.explorerClients.get(socket) !== client) return;
+        for (const [domain, state] of latest) {
+          this.customHeads.set(domain, {
+            confirmedHeight: 0n,
+            domain,
+            headHeight: state.head,
+            indexedHeight: state.indexed,
+          });
+        }
+        this.scheduleHeadDrain();
+      } catch (error) {
+        this.logger.error(
+          `Explorer confirmation initialization failed: ${formatError(error)}`,
+        );
+        this.disconnect(socket);
+        socket.close(1013, 'Event stream initialization failed');
+      }
+    }
   }
 
   private accept(socket: WebSocket, route: 'agent' | 'explorer'): boolean {
@@ -546,12 +752,31 @@ export class EventWebSocketServer {
       this.send(socket, { type: 'pong' });
       return;
     }
-    if (client.subscriptions.size) {
+    if (client.subscribing || client.subscriptions.size) {
       this.sendError(socket, 'Already subscribed');
       return;
     }
+    client.subscribing = true;
+
+    let customHeadStates: Map<number, HeadState>;
+    try {
+      customHeadStates = await this.customHeadStates(message.streams);
+    } catch (error) {
+      client.subscribing = false;
+      this.sendError(socket, formatError(error));
+      return;
+    }
+    if (this.clients.get(socket) !== client) return;
 
     for (const request of message.streams) {
+      const frontiers = new Map<number, bigint>();
+      if (request.confirmations !== undefined) {
+        for (const domain of request.domains ?? []) {
+          const head = customHeadStates.get(domain);
+          if (!head) continue;
+          frontiers.set(domain, customFrontier(head, request.confirmations));
+        }
+      }
       client.subscriptions.set(request.eventType, {
         catchUpRows: 0,
         catchUpStartedAt: Date.now(),
@@ -564,13 +789,38 @@ export class EventWebSocketServer {
             )
           : undefined,
         domains: request.domains,
+        frontiers,
         gasPaymentLegacyMaxIds: new Map(),
         pending: [],
+        confirmations: request.confirmations,
         streamCursors: new Map(),
         sequences: new Map(),
         waiting: !!request.cursors,
       });
     }
+    if (customHeadStates.size) {
+      try {
+        const latest = await this.customHeadStates(message.streams);
+        if (this.clients.get(socket) !== client) return;
+        for (const [domain, state] of latest) {
+          if (!this.customHeads.has(domain)) {
+            this.customHeads.set(domain, {
+              confirmedHeight: 0n,
+              domain,
+              headHeight: state.head,
+              indexedHeight: state.indexed,
+            });
+          }
+        }
+        this.scheduleHeadDrain();
+      } catch (error) {
+        client.subscriptions.clear();
+        client.subscribing = false;
+        this.sendError(socket, formatError(error));
+        return;
+      }
+    }
+    client.subscribing = false;
     this.send(socket, {
       streams: message.streams.map(subscriptionResponse),
       type: 'subscribed',
@@ -580,6 +830,53 @@ export class EventWebSocketServer {
         .filter(({ cursors }) => cursors)
         .map((request) => this.catchUp(socket, client, request)),
     );
+  }
+
+  private async customHeadStates(
+    requests: StreamRequest[],
+  ): Promise<Map<number, HeadState>> {
+    const domains = new Set(
+      requests.flatMap((request) =>
+        request.confirmations === undefined ? [] : [...(request.domains ?? [])],
+      ),
+    );
+    if (!domains.size) return new Map();
+    return this.headStates(domains);
+  }
+
+  private async headStates(
+    domains: ReadonlySet<number>,
+  ): Promise<Map<number, HeadState>> {
+    const states = await this.availableHeadStates(domains);
+    const missing = [...domains].filter((domain) => !states.has(domain));
+    if (missing.length) {
+      throw new Error(
+        `confirmations is unsupported for domains: ${missing.join(', ')}`,
+      );
+    }
+    return states;
+  }
+
+  private async availableHeadStates(
+    domains: ReadonlySet<number>,
+  ): Promise<Map<number, HeadState>> {
+    const rows = await this.db.queryLive<{
+      domain: number | string;
+      head_height: string;
+      indexed_height: string;
+    }>(
+      `SELECT ${q('domain')}, ${q('indexed_height')}::text, ${q('head_height')}::text FROM ${q('scraper_head')} WHERE ${q('domain')} = ANY($1::integer[])`,
+      [[...domains].map(storedDomain)],
+    );
+    const states = new Map<number, HeadState>();
+    for (const row of rows) {
+      const domain = parseDatabaseDomain(row.domain, 'Invalid scraper head');
+      states.set(domain, {
+        head: parseId(row.head_height),
+        indexed: parseId(row.indexed_height),
+      });
+    }
+    return states;
   }
 
   private async catchUp(
@@ -720,7 +1017,11 @@ export class EventWebSocketServer {
     cursor: SequenceCursor,
   ): Promise<boolean> {
     const key = sequenceKey(cursor.domain, cursor.address);
-    const { first, last } = await this.sequenceBounds(eventType, cursor);
+    const { first, last } = await this.sequenceBounds(
+      eventType,
+      subscription,
+      cursor,
+    );
     if (last < first) {
       if (cursor.afterSequence !== undefined && cursor.afterSequence !== -1n) {
         throw new Error(
@@ -754,7 +1055,13 @@ export class EventWebSocketServer {
       }
       const current = subscription.sequences.get(key) ?? -1n;
       this.assertCatchUpBudget(subscription);
-      const rows = await this.sequenceRows(eventType, cursor, current, last);
+      const rows = await this.sequenceRows(
+        eventType,
+        subscription,
+        cursor,
+        current,
+        last,
+      );
       subscription.catchUpRows += rows.length;
       this.assertCatchUpBudget(subscription);
       if (!rows.length)
@@ -847,13 +1154,32 @@ export class EventWebSocketServer {
     return true;
   }
 
-  private publish(eventType: EventType, row: Row): void {
+  private publish(
+    eventType: EventType,
+    row: Row,
+    confirmations?: number,
+    customHeight?: bigint,
+  ): void {
     const domain = rowDomain(row, STREAMS[eventType].domain);
     const key = rowCursorKey(eventType, domain, row);
     let serialized: SerializedMessage | undefined;
     for (const [socket, client] of this.clients) {
       const subscription = client.subscriptions.get(eventType);
-      if (!subscription || !matches(subscription, domain, key)) continue;
+      if (
+        !subscription ||
+        subscription.confirmations !== confirmations ||
+        !matches(subscription, domain, key)
+      )
+        continue;
+      if (confirmations !== undefined) {
+        const frontier = subscription.frontiers.get(domain);
+        if (
+          frontier === undefined ||
+          customHeight === undefined ||
+          customHeight <= frontier
+        )
+          continue;
+      }
       if (!subscription.catchingUp) {
         const message = this.eventForDelivery(
           socket,
@@ -928,7 +1254,10 @@ export class EventWebSocketServer {
     if (sequence) {
       const sequenceCursorKey = sequenceKey(domain, sequence.address);
       const current = subscription.sequences.get(sequenceCursorKey);
-      if (current !== undefined) {
+      if (current === undefined) {
+        if (subscription.cursorKeys?.has(sequenceCursorKey))
+          subscription.sequences.set(sequenceCursorKey, sequence.value);
+      } else {
         if (sequence.value <= current) return undefined;
         if (sequence.value !== current + 1n) {
           socket.close(
@@ -970,33 +1299,50 @@ export class EventWebSocketServer {
 
   private sequenceRows(
     eventType: EventType,
+    subscription: Subscription,
     cursor: SequenceCursor,
     after: bigint,
     through: bigint,
   ): Promise<Row[]> {
-    const stream = STREAMS[eventType];
+    const stream = subscriptionStream(eventType, subscription);
     const sequence = sequenceConfig(stream);
+    const frontier = subscription.frontiers.get(cursor.domain);
+    const frontierFilter =
+      frontier === undefined
+        ? ''
+        : ` AND ${q(STREAM_HEIGHTS[eventType])} <= $6::bigint`;
     return this.db.queryLive<Row>(
-      `SELECT ${columns(stream)} FROM ${q(stream.table)} WHERE ${q(stream.domain)} = $1 AND ${q(sequence.address)} = $2::bytea AND ${q(sequence.value)} > $3::bigint AND ${q(sequence.value)} <= $4::bigint ORDER BY ${q(sequence.value)} ASC LIMIT $5`,
+      `SELECT ${columns(stream)} FROM ${q(stream.table)} WHERE ${q(stream.domain)} = $1 AND ${q(sequence.address)} = $2::bytea AND ${q(sequence.value)} > $3::bigint AND ${q(sequence.value)} <= $4::bigint${frontierFilter} ORDER BY ${q(sequence.value)} ASC LIMIT $5`,
       [
         storedDomain(cursor.domain),
         cursor.address,
         after.toString(),
         through.toString(),
         config.EVENT_STREAM_BATCH_SIZE,
+        ...(frontier === undefined ? [] : [frontier.toString()]),
       ],
     );
   }
 
   private async sequenceBounds(
     eventType: EventType,
+    subscription: Subscription,
     cursor: SequenceCursor,
   ): Promise<{ first: bigint; last: bigint }> {
-    const stream = STREAMS[eventType];
+    const stream = subscriptionStream(eventType, subscription);
     const sequence = sequenceConfig(stream);
+    const frontier = subscription.frontiers.get(cursor.domain);
+    const frontierFilter =
+      frontier === undefined
+        ? ''
+        : ` AND ${q(STREAM_HEIGHTS[eventType])} <= $3::bigint`;
     const [row] = await this.db.queryLive<{ first: string; last: string }>(
-      `SELECT COALESCE(MIN(${q(sequence.value)}), 0)::text AS first, COALESCE(MAX(${q(sequence.value)}), -1)::text AS last FROM ${q(stream.table)} WHERE ${q(stream.domain)} = $1 AND ${q(sequence.address)} = $2::bytea`,
-      [storedDomain(cursor.domain), cursor.address],
+      `SELECT COALESCE(MIN(${q(sequence.value)}), 0)::text AS first, COALESCE(MAX(${q(sequence.value)}), -1)::text AS last FROM ${q(stream.table)} WHERE ${q(stream.domain)} = $1 AND ${q(sequence.address)} = $2::bytea${frontierFilter}`,
+      [
+        storedDomain(cursor.domain),
+        cursor.address,
+        ...(frontier === undefined ? [] : [frontier.toString()]),
+      ],
     );
     return {
       first: parseSequence(row?.first ?? '0'),
@@ -1082,6 +1428,22 @@ export class EventWebSocketServer {
       if (channel === HEAD_CHANNEL) {
         if (!this.clients.size && !this.explorerClients.size) return;
         const head = parseHeadNotification(payload);
+        if (
+          head.headHeight !== undefined &&
+          head.indexedHeight !== undefined &&
+          head.previousIndexedHeight !== undefined &&
+          head.indexedHeight < head.previousIndexedHeight
+        ) {
+          this.rollbackCustomSubscribers(head);
+        }
+        if (
+          head.headHeight !== undefined &&
+          head.indexedHeight !== undefined &&
+          this.hasCustomSubscriber(head.domain)
+        ) {
+          this.customHeads.set(head.domain, head);
+          this.scheduleHeadDrain();
+        }
         if (
           head.previousConfirmedHeight === undefined ||
           head.confirmedHeight <= head.previousConfirmedHeight
@@ -1170,7 +1532,7 @@ export class EventWebSocketServer {
   }
 
   private queueExplorerNotification(messageId: string): void {
-    if (!this.explorerClients.size) return;
+    if (!this.hasCanonicalExplorer()) return;
     if (
       !this.explorerNotifications.has(messageId) &&
       this.explorerNotifications.size >= MAX_PENDING_NOTIFICATIONS
@@ -1250,12 +1612,350 @@ export class EventWebSocketServer {
         }
         this.releaseHeadRange(domain, range);
       }
+      for (const [domain, head] of this.customHeads) {
+        try {
+          await this.publishCustomHead(domain, head);
+          if (this.customHeads.get(domain) === head)
+            this.customHeads.delete(domain);
+        } catch (error) {
+          this.logger.error(
+            `custom frontier publication failed for domain ${domain}: ${formatError(error)}`,
+          );
+          this.failCustomDomain(domain, error);
+          this.customHeads.delete(domain);
+        }
+      }
     } finally {
       this.drainingHeadNotifications = false;
-      if (this.headRanges.size)
+      if (this.headRanges.size || this.customHeads.size)
         this.scheduleHeadDrain(
           this.headFailures.size ? LISTENER_RETRY_MS : NOTIFICATION_BATCH_MS,
         );
+    }
+  }
+
+  private async publishCustomHead(
+    domain: number,
+    head: HeadNotification,
+  ): Promise<void> {
+    if (head.headHeight === undefined || head.indexedHeight === undefined)
+      return;
+    const rollbackEpoch = this.rollbackEpochs.get(domain) ?? 0;
+    const periods = new Set<number>();
+    for (const client of this.clients.values()) {
+      for (const subscription of client.subscriptions.values()) {
+        if (
+          subscription.confirmations !== undefined &&
+          matchesDomain(subscription, domain)
+        )
+          periods.add(subscription.confirmations);
+      }
+    }
+    for (const client of this.explorerClients.values()) {
+      if (client.confirmations !== undefined && client.domains?.has(domain))
+        periods.add(client.confirmations);
+    }
+    for (const period of periods) {
+      const through = customFrontier(
+        { head: head.headHeight, indexed: head.indexedHeight },
+        period,
+      );
+      let after: bigint | undefined;
+      for (const client of this.clients.values()) {
+        for (const subscription of client.subscriptions.values()) {
+          if (
+            subscription.confirmations === period &&
+            matchesDomain(subscription, domain)
+          ) {
+            const frontier = subscription.frontiers.get(domain);
+            if (
+              frontier !== undefined &&
+              (after === undefined || frontier < after)
+            )
+              after = frontier;
+          }
+        }
+      }
+      if (after !== undefined && through > after) {
+        for (const eventType of HEAD_PUBLICATION_ORDER) {
+          if (!this.hasSubscriber({ domain, eventType, id: 0n }, period))
+            continue;
+          if (
+            !(await this.publishCustomRange(
+              domain,
+              eventType,
+              period,
+              after,
+              through,
+              rollbackEpoch,
+            ))
+          )
+            return;
+        }
+        for (const client of this.clients.values()) {
+          for (const subscription of client.subscriptions.values()) {
+            if (
+              subscription.confirmations === period &&
+              matchesDomain(subscription, domain)
+            )
+              subscription.frontiers.set(domain, through);
+          }
+        }
+      }
+      for (const [socket, client] of this.explorerClients) {
+        if (client.confirmations !== period || !client.domains?.has(domain))
+          continue;
+        const explorerAfter = client.frontiers.get(domain);
+        if (explorerAfter === undefined || through <= explorerAfter) continue;
+        if (
+          !(await this.publishCustomExplorerRange(
+            socket,
+            client,
+            domain,
+            explorerAfter,
+            through,
+            rollbackEpoch,
+          ))
+        )
+          return;
+        client.frontiers.set(domain, through);
+      }
+    }
+  }
+
+  private rollbackCustomSubscribers(head: HeadNotification): void {
+    if (head.headHeight === undefined || head.indexedHeight === undefined)
+      return;
+    this.rollbackEpochs.set(
+      head.domain,
+      (this.rollbackEpochs.get(head.domain) ?? 0) + 1,
+    );
+    for (const [socket, client] of this.clients) {
+      for (const [eventType, subscription] of client.subscriptions) {
+        if (
+          subscription.confirmations === undefined ||
+          !matchesDomain(subscription, head.domain)
+        )
+          continue;
+        const current = subscription.frontiers.get(head.domain);
+        const previous = customFrontier(
+          {
+            head: head.headHeight,
+            indexed: head.previousIndexedHeight ?? head.indexedHeight,
+          },
+          subscription.confirmations,
+        );
+        const from =
+          current === undefined || previous > current ? previous : current;
+        const to = customFrontier(
+          { head: head.headHeight, indexed: head.indexedHeight },
+          subscription.confirmations,
+        );
+        if (to >= from) continue;
+        subscription.frontiers.set(head.domain, to);
+        const keyPrefix = `${head.domain}:`;
+        for (const key of subscription.sequences.keys()) {
+          if (key.startsWith(keyPrefix)) subscription.sequences.delete(key);
+        }
+        this.send(socket, {
+          confirmations: subscription.confirmations,
+          domain: head.domain,
+          eventType,
+          fromHeight: from.toString(),
+          toHeight: to.toString(),
+          type: 'rollback',
+        });
+      }
+    }
+    for (const [socket, client] of this.explorerClients) {
+      if (
+        client.confirmations === undefined ||
+        !client.domains?.has(head.domain)
+      )
+        continue;
+      const current = client.frontiers.get(head.domain);
+      const previous = customFrontier(
+        {
+          head: head.headHeight,
+          indexed: head.previousIndexedHeight ?? head.indexedHeight,
+        },
+        client.confirmations,
+      );
+      const from =
+        current === undefined || previous > current ? previous : current;
+      const to = customFrontier(
+        { head: head.headHeight, indexed: head.indexedHeight },
+        client.confirmations,
+      );
+      if (to >= from) continue;
+      client.frontiers.set(head.domain, to);
+      this.enqueueExplorer(socket, client, [
+        serialize({
+          confirmations: client.confirmations,
+          domain: head.domain,
+          fromHeight: from.toString(),
+          toHeight: to.toString(),
+          type: 'rollback',
+        }),
+      ]);
+    }
+  }
+
+  private async publishCustomRange(
+    domain: number,
+    eventType: EventType,
+    confirmations: number,
+    after: bigint,
+    through: bigint,
+    rollbackEpoch: number,
+  ): Promise<boolean> {
+    const stream = {
+      ...STREAMS[eventType],
+      table: CUSTOM_CONFIRMATION_TABLES[eventType],
+    };
+    const height = STREAM_HEIGHTS[eventType];
+    const gasPaymentCursor =
+      eventType === 'gas_payment'
+        ? ` LEFT JOIN ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} ON ${q('event_cursor')}.${q('gas_payment_id')} = ${q('event_row')}.${q('id')}`
+        : '';
+    const gasPaymentMetadata =
+      eventType === 'gas_payment' ? gasPaymentMetadataJoins('LEFT JOIN') : '';
+    const eventProjection =
+      eventType === 'gas_payment'
+        ? gasPaymentColumns(stream)
+        : columns(stream, 'event_row');
+    const cursorProjection =
+      eventType === 'gas_payment'
+        ? `, ${q('event_cursor')}.${q('stream_cursor')} AS ${q(STREAM_CURSOR_COLUMN)}`
+        : '';
+    let cursorHeight = after;
+    let cursorId = 0n;
+    while (true) {
+      const rows = await this.db.queryLive<Row>(
+        `SELECT ${eventProjection}${cursorProjection}, ${q('event_row')}.${q('id')} AS ${q(FRONTIER_ID)}, ${q('event_row')}.${q(height)} AS ${q(FRONTIER_HEIGHT)} FROM (SELECT * FROM ${q(stream.table)} AS ${q('frontier_row')} WHERE ${q('frontier_row')}.${q(stream.domain)}=$1 AND ${q('frontier_row')}.${q(height)}>$2::bigint AND ${q('frontier_row')}.${q(height)}<=$3::bigint AND (${q('frontier_row')}.${q(height)}>$4::bigint OR (${q('frontier_row')}.${q(height)}=$4::bigint AND ${q('frontier_row')}.${q('id')}>$5::bigint)) ORDER BY ${q('frontier_row')}.${q(height)}, ${q('frontier_row')}.${q('id')} LIMIT $6) AS ${q('event_row')}${gasPaymentMetadata}${gasPaymentCursor} ORDER BY ${q('event_row')}.${q(height)}, ${q('event_row')}.${q('id')}`,
+        [
+          storedDomain(domain),
+          after.toString(),
+          through.toString(),
+          cursorHeight.toString(),
+          cursorId.toString(),
+          config.EVENT_STREAM_BATCH_SIZE,
+        ],
+      );
+      if (!rows.length)
+        return (this.rollbackEpochs.get(domain) ?? 0) === rollbackEpoch;
+      const last = rows.at(-1)!;
+      cursorHeight = parseId(last[FRONTIER_HEIGHT]);
+      cursorId = parseId(last[FRONTIER_ID]);
+      // Custom gas streams cannot use durable cursors. Provisional payments do
+      // not have one yet, so use the row ID only for internal ordering; it is
+      // stripped from the event payload.
+      const events = rows.map(
+        ({
+          [FRONTIER_ID]: _id,
+          [FRONTIER_HEIGHT]: frontierHeight,
+          ...event
+        }) => ({
+          event:
+            eventType === 'gas_payment' && event[STREAM_CURSOR_COLUMN] == null
+              ? { ...event, [STREAM_CURSOR_COLUMN]: _id }
+              : event,
+          height: parseId(frontierHeight),
+        }),
+      );
+      events.sort((left, right) =>
+        compareRows(eventType, left.event, right.event),
+      );
+      if ((this.rollbackEpochs.get(domain) ?? 0) !== rollbackEpoch)
+        return false;
+      events.forEach(({ event, height: eventHeight }) =>
+        this.publish(eventType, event, confirmations, eventHeight),
+      );
+      if (rows.length < config.EVENT_STREAM_BATCH_SIZE) return true;
+    }
+  }
+
+  private async publishCustomExplorerRange(
+    socket: WebSocket,
+    client: ExplorerClient,
+    domain: number,
+    after: bigint,
+    through: bigint,
+    rollbackEpoch: number,
+  ): Promise<boolean> {
+    let cursorHeight = after;
+    let cursorSource = -1;
+    let cursorId = 0n;
+    while (true) {
+      const changes = await this.db.queryLive<{
+        changed_height: string;
+        id: string;
+        msg_id: string;
+        source: number;
+      }>(
+        `/* custom_message_ids */ SELECT ${q('msg_id')}, ${q('changed_height')}, ${q('source')}, ${q('id')} FROM (
+        SELECT ${q('msg_id')}, ${q('origin_block_height')} AS ${q('changed_height')}, 0 AS ${q('source')}, ${q('id')} FROM ${q('raw_message_dispatch')} WHERE ${q('origin_domain')}=$1 AND ${q('origin_block_height')}>$2::bigint AND ${q('origin_block_height')}<=$3::bigint
+        UNION ALL
+        SELECT ${q('msg_id')}, ${q('block_number')} AS ${q('changed_height')}, 1 AS ${q('source')}, ${q('id')} FROM ${q('delivered_message')} WHERE ${q('domain')}=$1 AND ${q('block_number')}>$2::bigint AND ${q('block_number')}<=$3::bigint
+        UNION ALL
+        SELECT ${q('msg_id')}, ${q('block_number')} AS ${q('changed_height')}, 2 AS ${q('source')}, ${q('id')} FROM ${q('gas_payment')} WHERE ${q('domain')}=$1 AND ${q('block_number')}>$2::bigint AND ${q('block_number')}<=$3::bigint
+      ) AS ${q('changed_messages')}
+      WHERE (${q('changed_height')}>$4::bigint OR (${q('changed_height')}=$4::bigint AND (${q('source')}>$5 OR (${q('source')}=$5 AND ${q('id')}>$6::bigint))))
+      ORDER BY ${q('changed_height')}, ${q('source')}, ${q('id')} LIMIT $7`,
+        [
+          storedDomain(domain),
+          after.toString(),
+          through.toString(),
+          cursorHeight.toString(),
+          cursorSource,
+          cursorId.toString(),
+          config.EVENT_STREAM_BATCH_SIZE,
+        ],
+      );
+      if (
+        !changes.length ||
+        this.explorerClients.get(socket) !== client ||
+        (this.rollbackEpochs.get(domain) ?? 0) !== rollbackEpoch
+      )
+        return (this.rollbackEpochs.get(domain) ?? 0) === rollbackEpoch;
+      const last = changes.at(-1)!;
+      cursorHeight = parseId(last.changed_height);
+      cursorSource = last.source;
+      cursorId = parseId(last.id);
+      const frontiers = [...client.frontiers];
+      const rows = await this.db.queryLive<Row>(PROVISIONAL_MESSAGE_QUERY, [
+        [...new Set(changes.map(({ msg_id }) => msg_id))],
+        frontiers.map(([frontierDomain]) => storedDomain(frontierDomain)),
+        frontiers.map(([, height]) => height.toString()),
+        storedDomain(domain),
+        through.toString(),
+      ]);
+      if (
+        this.explorerClients.get(socket) !== client ||
+        (this.rollbackEpochs.get(domain) ?? 0) !== rollbackEpoch
+      )
+        return false;
+      const messages = rows.map((row) =>
+        serialize({
+          confirmations: client.confirmations,
+          data: row,
+          domain,
+          height: through.toString(),
+          type: 'message_upsert',
+        }),
+      );
+      while (
+        this.explorerClients.get(socket) === client &&
+        client.queue.length + messages.length > MAX_EXPLORER_PENDING_MESSAGES
+      ) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, NOTIFICATION_BATCH_MS),
+        );
+        if ((this.rollbackEpochs.get(domain) ?? 0) !== rollbackEpoch)
+          return false;
+      }
+      this.enqueueExplorer(socket, client, messages);
+      if (changes.length < config.EVENT_STREAM_BATCH_SIZE) return true;
     }
   }
 
@@ -1278,7 +1978,7 @@ export class EventWebSocketServer {
     { after, through }: HeadRange,
   ): Promise<void> {
     let agentPublished = false;
-    let explorerPending = this.explorerClients.size > 0;
+    let explorerPending = this.hasCanonicalExplorer(domain);
     // Delivery and gas share message ids; queue each Explorer id once per range.
     const explorerIds = new Set<string>();
     for (const eventType of HEAD_PUBLICATION_ORDER) {
@@ -1288,7 +1988,7 @@ export class EventWebSocketServer {
         id: 0n,
       });
       const explorerInterested =
-        this.explorerClients.size > 0 &&
+        this.hasCanonicalExplorer(domain) &&
         (eventType === 'delivery' || eventType === 'gas_payment');
       if (!agentInterested && !explorerInterested) continue;
       const stream = STREAMS[eventType];
@@ -1336,7 +2036,7 @@ export class EventWebSocketServer {
             agentPublished = true;
             events.forEach((row) => this.publish(eventType, row));
           }
-          if (explorerInterested && this.explorerClients.size) {
+          if (explorerInterested && this.hasCanonicalExplorer(domain)) {
             const batch: string[] = [];
             events.forEach((row) => {
               const messageId = row.msg_id ?? row.message_id;
@@ -1370,7 +2070,7 @@ export class EventWebSocketServer {
   private async waitForExplorerCapacity(count: number): Promise<void> {
     const limit = MAX_PENDING_NOTIFICATIONS - count;
     while (
-      this.explorerClients.size &&
+      this.hasCanonicalExplorer() &&
       this.explorerNotifications.size > limit
     ) {
       if (this.drainingExplorerNotifications) {
@@ -1476,17 +2176,41 @@ export class EventWebSocketServer {
   }
 
   private async publishExplorer(messageIds: string[]): Promise<void> {
-    if (!this.explorerClients.size) return;
+    if (!this.hasCanonicalExplorer()) return;
     const rows = await this.db.queryLive<Row>(
       `SELECT ${tables.message_view.columns.map(q).join(', ')} FROM ${q('message_view')} WHERE ${q('msg_id')} = ANY($1::bytea[]) AND ${q('send_occurred_at')} IS NOT NULL`,
       [messageIds],
     );
-    const messages = rows.map((row) =>
-      serialize({ data: row, type: 'message_upsert' }),
-    );
+    const messages = rows.map((row) => ({
+      domains: [
+        rowDomain(row, 'origin_domain_id'),
+        rowDomain(row, 'destination_domain_id'),
+      ],
+      serialized: serialize({ data: row, type: 'message_upsert' }),
+    }));
     for (const [socket, client] of this.explorerClients) {
-      this.enqueueExplorer(socket, client, messages);
+      if (!client.canonical) continue;
+      this.enqueueExplorer(
+        socket,
+        client,
+        messages.flatMap(({ domains, serialized }) =>
+          client.canonicalDomains === undefined ||
+          domains.some((domain) => client.canonicalDomains?.has(domain))
+            ? [serialized]
+            : [],
+        ),
+      );
     }
+  }
+
+  private hasCanonicalExplorer(domain?: number): boolean {
+    return [...this.explorerClients.values()].some(
+      ({ canonical, canonicalDomains }) =>
+        canonical &&
+        (domain === undefined ||
+          canonicalDomains === undefined ||
+          canonicalDomains.has(domain)),
+    );
   }
 
   private enqueueExplorer(
@@ -1528,10 +2252,35 @@ export class EventWebSocketServer {
     }
   }
 
-  private hasSubscriber({ domain, eventType }: EventNotification): boolean {
+  private hasSubscriber(
+    { domain, eventType }: EventNotification,
+    confirmations?: number,
+  ): boolean {
     for (const client of this.clients.values()) {
       const subscription = client.subscriptions.get(eventType);
-      if (subscription && matchesDomain(subscription, domain)) return true;
+      if (
+        subscription &&
+        subscription.confirmations === confirmations &&
+        matchesDomain(subscription, domain)
+      )
+        return true;
+    }
+    return false;
+  }
+
+  private hasCustomSubscriber(domain: number): boolean {
+    for (const client of this.clients.values()) {
+      for (const subscription of client.subscriptions.values()) {
+        if (
+          subscription.confirmations !== undefined &&
+          matchesDomain(subscription, domain)
+        )
+          return true;
+      }
+    }
+    for (const client of this.explorerClients.values()) {
+      if (client.confirmations !== undefined && client.domains?.has(domain))
+        return true;
     }
     return false;
   }
@@ -1575,9 +2324,39 @@ export class EventWebSocketServer {
     }
   }
 
+  private failCustomDomain(domain: number, error: unknown): void {
+    this.logger.error(
+      `custom event stream failed for domain ${domain}: ${formatError(error)}`,
+    );
+    for (const [socket, client] of this.clients) {
+      if (
+        [...client.subscriptions.values()].some(
+          (subscription) =>
+            subscription.confirmations !== undefined &&
+            matchesDomain(subscription, domain),
+        )
+      ) {
+        this.disconnect(socket);
+        socket.close(1013, 'Event stream read failed');
+      }
+    }
+    for (const [socket, client] of this.explorerClients) {
+      if (client.confirmations !== undefined && client.domains?.has(domain)) {
+        this.disconnect(socket);
+        socket.close(1013, 'Event stream read failed');
+      }
+    }
+  }
+
   private failExplorerStream(error: unknown): void {
     this.logger.error(`Explorer event stream failed: ${formatError(error)}`);
-    this.closeExplorerClients('Event stream read failed');
+    this.explorerNotifications.clear();
+    for (const [socket, client] of this.explorerClients) {
+      if (!client.canonical) continue;
+      this.clearExplorerQueue(client);
+      this.disconnect(socket);
+      socket.close(1013, 'Event stream read failed');
+    }
   }
 
   private closeClients(reason: string, code = 1013): void {
@@ -1588,6 +2367,7 @@ export class EventWebSocketServer {
   private closeAgentClients(reason: string, code = 1013): void {
     this.notifications.clear();
     this.headRanges.clear();
+    this.customHeads.clear();
     this.headFailures.clear();
     this.clients.forEach((_client, socket) => {
       this.cancelCatchUp(socket);
@@ -1754,8 +2534,55 @@ function subscriptionResponse(request: StreamRequest): Record<string, unknown> {
     ),
     domains: request.domains ? [...request.domains] : undefined,
     eventType: request.eventType,
+    confirmations: request.confirmations,
     streamCursorVersion: request.streamCursorVersion,
   };
+}
+
+function customFrontier(state: HeadState, confirmations: number): bigint {
+  const delayed =
+    state.head > BigInt(confirmations)
+      ? state.head - BigInt(confirmations)
+      : 0n;
+  return delayed < state.indexed ? delayed : state.indexed;
+}
+
+function parseExplorerConfirmations(
+  requestUrl: string | undefined,
+): { confirmations: number; domains: Set<number> } | undefined {
+  const query = new URL(requestUrl ?? MESSAGE_PATH, 'http://localhost')
+    .searchParams;
+  const rawConfirmations = query.get('confirmations');
+  const rawDomains = query.get('domains');
+  if (rawConfirmations === null && rawDomains === null) return undefined;
+  if (!/^\d+$/.test(rawConfirmations ?? '')) {
+    throw new Error('confirmations must be a non-negative integer');
+  }
+  const confirmations = Number(rawConfirmations);
+  if (!isDomain(confirmations)) {
+    throw new Error('confirmations must be a non-negative integer');
+  }
+  const domainValues = (rawDomains ?? '').split(',');
+  const domains = new Set(domainValues.map((domain) => Number(domain)));
+  if (
+    !rawDomains ||
+    !domains.size ||
+    domainValues.some((domain) => !/^\d+$/.test(domain)) ||
+    [...domains].some((domain) => !isDomain(domain))
+  ) {
+    throw new Error('confirmations requires comma-separated domains');
+  }
+  return { confirmations, domains };
+}
+
+function subscriptionStream(
+  eventType: EventType,
+  subscription: Subscription,
+): Stream {
+  const stream = STREAMS[eventType];
+  return subscription.confirmations === undefined
+    ? stream
+    : { ...stream, table: CUSTOM_CONFIRMATION_TABLES[eventType] };
 }
 
 function consumeMessage(client: Client): boolean {
