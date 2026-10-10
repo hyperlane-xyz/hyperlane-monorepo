@@ -376,6 +376,28 @@ describe('ActionTracker', () => {
       const transfer = await transferStore.get('0xmsg1');
       expect(transfer?.status).to.equal('complete');
     });
+
+    it('rejects the sync when an Explorer transfer cannot be parsed', async () => {
+      const inflightMessage: ExplorerMessage = {
+        msg_id: '0xinvalid',
+        origin_domain_id: 1,
+        destination_domain_id: 2,
+        sender: '0xuser1',
+        recipient: '0xuser2',
+        origin_tx_hash: '0xtx1',
+        origin_tx_sender: '0xuser1',
+        origin_tx_recipient: '0xrouter1',
+        is_delivered: false,
+        message_body: '0xinvalid',
+        send_occurred_at: null,
+      };
+      explorerClient.getInflightUserTransfers.resolves([inflightMessage]);
+
+      await expect(tracker.syncTransfers()).to.be.rejectedWith(
+        'Failed to sync 1 transfer message(s)',
+      );
+      expect(await transferStore.getAll()).to.have.lengthOf(0);
+    });
   });
 
   describe('syncRebalanceIntents', () => {
@@ -711,6 +733,33 @@ describe('ActionTracker', () => {
         'action-repeated-not-found',
       );
       expect(action?.nonPendingSince).to.equal(originalNonPendingSince);
+    });
+
+    it('rejects the sync when bridge status cannot be observed', async () => {
+      await rebalanceActionStore.save({
+        id: 'action-status-error',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        txHash: '0xtx-error',
+        externalBridgeId: ExternalBridgeType.LiFi,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const getStatus = Sinon.stub().rejects(new Error('provider unavailable'));
+
+      await expect(
+        tracker.syncInventoryMovementActions({
+          lifi: { getStatus } as any,
+        }),
+      ).to.be.rejectedWith('Failed to sync 1 inventory movement(s)');
+      expect(
+        (await rebalanceActionStore.get('action-status-error'))?.status,
+      ).to.equal('in_progress');
     });
   });
 
