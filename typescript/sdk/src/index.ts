@@ -1061,6 +1061,8 @@ export type {
 export { filterByChains } from './utils/filter.js';
 export {
   ANVIL_RPC_METHODS,
+  AnvilFork,
+  type AnvilForkConfig,
   getLocalProvider,
   impersonateAccount,
   impersonateAccounts,
