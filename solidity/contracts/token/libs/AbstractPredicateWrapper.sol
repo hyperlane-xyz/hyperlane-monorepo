@@ -56,8 +56,8 @@ abstract contract AbstractPredicateWrapper is
     /// @notice The underlying warpRoute being wrapped
     TokenRouter public immutable warpRoute;
 
-    /// @notice The ERC20 token managed by the warpRoute
-    IERC20 public immutable token;
+    /// @notice The ERC20 token managed by the warpRoute (address(0) for native)
+    address public immutable token;
 
     /// @notice The local domain ID (cached from warpRoute during construction)
     uint32 public immutable localDomain;
@@ -88,15 +88,14 @@ abstract contract AbstractPredicateWrapper is
             revert IPredicateWrapper.PredicateRouterWrapper__InvalidPolicy();
 
         warpRoute = TokenRouter(_warpRoute);
-        address tokenAddress = warpRoute.token();
-        token = IERC20(tokenAddress);
+        token = warpRoute.token();
         localDomain = warpRoute.localDomain();
 
         _initPredicateClient(_registry, _policyID);
 
         // Infinite approval to warpRoute for token transfers (skip for native)
-        if (tokenAddress != address(0)) {
-            IERC20(tokenAddress).forceApprove(_warpRoute, type(uint256).max);
+        if (token != address(0)) {
+            IERC20(token).forceApprove(_warpRoute, type(uint256).max);
         }
     }
 
@@ -108,10 +107,10 @@ abstract contract AbstractPredicateWrapper is
             revert IPredicateWrapper
                 .PredicateRouterWrapper__InsufficientValue();
 
-        if (address(token) == address(0)) return totalNativeRequired;
-        uint256 totalTokenRequired = Quotes.extract(quotes, address(token));
+        if (token == address(0)) return totalNativeRequired;
+        uint256 totalTokenRequired = Quotes.extract(quotes, token);
         if (totalTokenRequired > 0) {
-            token.safeTransferFrom(
+            IERC20(token).safeTransferFrom(
                 msg.sender,
                 address(this),
                 totalTokenRequired

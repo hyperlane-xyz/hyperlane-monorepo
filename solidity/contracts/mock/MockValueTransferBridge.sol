@@ -30,6 +30,10 @@ contract MockValueTransferBridge is Router, ITokenBridge {
         _MailboxClient_initialize(_hook, _ism, _owner);
     }
 
+    function token() external view override returns (address) {
+        return collateral;
+    }
+
     function quoteTransferRemote(
         uint32 _destinationDomain,
         bytes32 _recipient,

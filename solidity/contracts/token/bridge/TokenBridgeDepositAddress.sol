@@ -76,7 +76,7 @@ contract TokenBridgeDepositAddress is
         _transferOwnership(_owner);
     }
 
-    function token() public view returns (address) {
+    function token() public view override returns (address) {
         return address(wrappedToken);
     }
 
