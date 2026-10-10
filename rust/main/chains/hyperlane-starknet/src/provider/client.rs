@@ -102,20 +102,30 @@ impl HyperlaneProvider for StarknetProvider {
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
 
-        let receipt = self
+        // The receipt is only needed to populate the gas-paid fields below. Some
+        // Starknet RPC nodes (e.g. Paradex) can fail to serialize receipts due to
+        // node-side schema bugs (e.g. `l1_data_gas` typing), so degrade gracefully
+        // with a zero gas value instead of blocking message indexing entirely.
+        let gas_paid = match self
             .rpc_client()
             .get_transaction_receipt(tx.transaction_hash())
             .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
-
-        let receipt = match receipt.receipt {
-            TransactionReceipt::Invoke(invoke_receipt) => invoke_receipt,
-            _ => {
-                return Err(HyperlaneStarknetError::InvalidBlock.into());
+        {
+            Ok(receipt) => match receipt.receipt {
+                TransactionReceipt::Invoke(invoke_receipt) => {
+                    U256::from_big_endian(invoke_receipt.actual_fee.amount.to_bytes_be().as_slice())
+                }
+                _ => return Err(HyperlaneStarknetError::InvalidBlock.into()),
+            },
+            Err(err) => {
+                tracing::warn!(
+                    ?err,
+                    ?hash,
+                    "Failed to fetch Starknet transaction receipt; continuing with zero gas_paid"
+                );
+                U256::zero()
             }
         };
-
-        let gas_paid = U256::from_big_endian(receipt.actual_fee.amount.to_bytes_be().as_slice());
 
         let (nonce, sender, calldata) = match tx.clone() {
             Transaction::Invoke(invoke_tx) => match invoke_tx {
