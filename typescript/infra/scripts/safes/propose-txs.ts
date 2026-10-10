@@ -9,6 +9,10 @@ import { readJson } from '@hyperlane-xyz/utils/fs';
 import { Contexts } from '../../config/contexts.js';
 import { SafeMultiSend } from '../../src/govern/multisend.js';
 import { Role } from '../../src/roles.js';
+import {
+  DEFAULT_HEIMDALL_URL,
+  requestHeimdallSafeTxRefresh,
+} from '../../src/utils/heimdall.js';
 import { withPropose } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -20,7 +24,7 @@ type TxFile = {
 };
 
 async function main() {
-  const { directory, file, safeAddress, propose } = await withPropose(
+  const argv = await withPropose(
     yargs(process.argv.slice(2))
       .option('directory', {
         type: 'string',
@@ -39,6 +43,16 @@ async function main() {
         demandOption: true,
         alias: 's',
       })
+      .option('notify-heimdall', {
+        type: 'boolean',
+        describe: 'Ask Heimdall to index and parse proposed transactions',
+        default: true,
+      })
+      .option('heimdall-url', {
+        type: 'string',
+        describe: 'Heimdall base URL',
+        default: process.env.HEIMDALL_BASE_URL ?? DEFAULT_HEIMDALL_URL,
+      })
       .check((argv) => {
         if (!argv.directory && !argv.file) {
           throw new Error('Must provide either --directory or --file');
@@ -49,6 +63,8 @@ async function main() {
         return true;
       }),
   ).argv;
+  const { directory, file, safeAddress, propose, notifyHeimdall, heimdallUrl } =
+    argv;
 
   let filePaths: string[];
   if (file) {
@@ -134,6 +150,29 @@ async function main() {
       rootLogger.info(`[${chainName}] Successfully proposed transactions`);
       for (const hash of hashes) {
         rootLogger.info(`[${chainName}] safeTxHash: ${hash}`);
+      }
+      if (notifyHeimdall) {
+        await Promise.all(
+          hashes.map(async (safeTxHash) => {
+            try {
+              const canonicalUrl = await requestHeimdallSafeTxRefresh({
+                baseUrl: heimdallUrl,
+                chainName,
+                safeAddress,
+                safeTxHash,
+              });
+              rootLogger.info(
+                `[${chainName}] Requested Heimdall fast-track${canonicalUrl ? `: ${canonicalUrl}` : ''}`,
+              );
+            } catch (error: unknown) {
+              const errorMessage =
+                error instanceof Error ? error.message : String(error);
+              rootLogger.warn(
+                `[${chainName}] Failed to request Heimdall fast-track for ${safeTxHash}; the Safe transaction was proposed successfully: ${errorMessage}`,
+              );
+            }
+          }),
+        );
       }
     } catch (error) {
       rootLogger.error(
