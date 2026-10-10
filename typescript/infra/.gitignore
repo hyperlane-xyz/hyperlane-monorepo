@@ -8,6 +8,9 @@ deployment-plans/
 test/outputs
 safe-tx-output/
 igp-upgrade-output/
+aggregation-hook-upgrade-output/
+config/environments/mainnet3/aggregation-hook-upgrade/
+config/environments/mainnet3/hook/verification.json
 config/environments/test/core/
 config/environments/test/igp/
 config/environments/test/ism/
