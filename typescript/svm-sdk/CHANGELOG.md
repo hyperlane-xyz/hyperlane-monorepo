@@ -1,5 +1,77 @@
 # @hyperlane-xyz/sealevel-sdk
 
+## 45.0.1
+
+### Patch Changes
+
+- 35d3002: Prevented atomic local rebalancing bridges from replacing trusted remote token routers during enrollment. Preserved standing-quote reads when an uninitialized SVM quote PDA was prefunded with an empty system account.
+  - @hyperlane-xyz/utils@45.0.1
+  - @hyperlane-xyz/forking-sdk@10.0.1
+  - @hyperlane-xyz/provider-sdk@11.0.1
+
+## 45.0.0
+
+### Major Changes
+
+- 4e2ab65: Added `SealevelRoutingMessageIdMultisigIsmReader`, `SealevelRoutingMessageIdMultisigIsmWriter` and `SealevelRoutingMessageIdMultisigIsmWriterConfig` to the Sealevel SDK, which read and write a message-id multisig ISM holding an independent validator set and threshold per origin domain. The writer enforces per-domain caps of 24 validators and a threshold of 8 when writing a domain (on create, and for added or changed domains on update, not for unchanged on-chain domains), and the reader and writer take a non-empty list of candidate domain ids. They replace `SealevelMessageIdMultisigIsmReader`, `SealevelMessageIdMultisigIsmWriter` and `SealevelMultisigIsmConfig`, which were removed. The multisig ISM set-validators and transfer-ownership instruction builders now take `Address` owners.
+
+  `NonEmptyArray`, `nonEmptyArray` and `isNonEmptyArray` were added to `@hyperlane-xyz/utils`. `@hyperlane-xyz/provider-sdk/ism` exports `DomainMultisigConfig` and `RoutingMessageIdMultisigIsmArtifactConfig`.
+
+- 74001ec: The Sealevel SDK was migrated to the stricter shared TypeScript configuration.
+
+### Minor Changes
+
+- 43f89c6: Added the Sealevel-only `routingMessageIdMultisigIsm` ISM type, a single deployment holding an independent message-id multisig (validators and threshold) per origin domain, keyed by chain name in config.
+
+  - `@hyperlane-xyz/sealevel-sdk`: the ISM artifact manager reads and writes the new type with `SealevelRoutingMessageIdMultisigIsmReader` and `SealevelRoutingMessageIdMultisigIsmWriter` from the known domain ids it is given, and reports a deployed multisig ISM program as the new type. The flat `messageIdMultisigIsm` type is rejected with an error pointing at the new one.
+  - `@hyperlane-xyz/provider-sdk`: `IsmType.ROUTING_MESSAGE_ID_MULTISIG` and `RoutingMessageIdMultisigIsmConfig` were added to the ISM config union, and `createIsmArtifactManager` accepts an optional context carrying a non-empty `knownDomainIds` array. A new ISM is deployed when the expected config drops a domain that exists on chain, since the program cannot remove one. Only domains of chains known to the `ChainLookup` are detected, since the program's domain accounts cannot be enumerated. A new ISM is also deployed when the on-chain owner was renounced and the expected domains or owner differ, since the ISM can no longer be updated. `ChainLookup` gained a required `getKnownDomainIds` member returning the set of domain ids of all known chains. The shared `assertValidDomainRoutingMultisig` validator was added for a single domain's threshold and duplicate-validator invariants. Converting a config with a chain name unknown to the `ChainLookup` into an artifact now throws instead of skipping the domain.
+  - `@hyperlane-xyz/deploy-sdk`: ISM validation accepts the new type on Sealevel only and rejects the flat `messageIdMultisigIsm` type there up front, and the known domain ids from `ChainLookup.getKnownDomainIds()` are passed to the ISM artifact manager.
+  - `@hyperlane-xyz/sdk`: `IsmType.ROUTING_MESSAGE_ID_MULTISIG` was added with `RoutingMessageIdMultisigIsmConfig` and `RoutingMessageIdMultisigIsmConfigSchema` as new `IsmConfig` members. The EVM ISM factory rejects the type. `altVmChainLookup` and `ChainMetadataResolver` expose `getKnownDomainIds`.
+  - `@hyperlane-xyz/cli`: `warp deploy`, `warp apply`, `warp read`, `warp check` and `core deploy` work with the new ISM from config files. Removing a domain from the config deploys a fresh ISM and repoints the router.
+
+- 4c644c0: Sealevel process configuration was extended to support multiple address lookup tables, and warp ALT generation was updated to include custom ISM accounts.
+
+### Patch Changes
+
+- b83bac5: Added a Kit-native mailbox claim builder that composes with v0 and v1 signers. Used the legacy adapter's configured mailbox and documented replenishing rent backing after a rent increase.
+- ee50f43: A composite ISM's `rateLimited.recipient` was resolved from its warp router instead of being hand-written. Tooling derived the value on both deploy and apply because a wrong recipient failed at delivery time indistinguishably from a rate-limit trip. Resolution covered expanded compound artifacts such as `domainRoutingIsm.domains` and composite nodes nested under `aggregation`, `amountRouting`, and `routing`/`fallbackRouting` domain overrides. Exhaustive artifact traversal was added so future compound artifact types must declare their nested ISMs before compiling.
+
+  `CompositeIsmConfigSchema` was changed to accept a `rateLimited` node without a `recipient` while continuing to reject an explicitly zero value. `WarpTokenWriter.create` was changed to reject any written-out recipient on a new composite ISM, since the router address only became available during deployment. `WarpTokenWriter.update` was changed to reject a recipient that differed from the router while accepting a matching value, preserving `warp read` → apply idempotency.
+
+  AltVM warp routes were created without an ISM, then the configured ISM was resolved and attached through the regular update path, matching the existing fee flow. The high-level SDK preserved declarative AltVM ISM configs for this artifact path instead of pre-deploying them. NEW ISMs were deployed after the router address became available; DEPLOYED and UNDERIVED roots were reused without deployment.
+
+  The generic warp writer retained signer ownership through deferred ISM and fee attachment, then transferred ownership to the configured owner as the final protocol-writer update. This kept direct Artifact API creation working when the configured owner differed from the signer.
+
+  Nested artifact states within a NEW parent were preserved independently: NEW descendants were resolved and deployed, DEPLOYED descendants were validated and retained as references, and UNDERIVED descendants remained opaque. DEPLOYED roots were reused unchanged during warp creation and rejected if their declarative config contained a NEW descendant that would otherwise be silently ignored.
+
+  A `rateLimited` node was rejected outright in a mailbox default ISM at two layers: `CoreConfigSchema` failed parsing, and `CoreWriter.create`/`CoreWriter.update` asserted before emitting a transaction. The SDK schema guard used one typed, exhaustive visitor across SDK ISM containers and composite-node containers, while retaining distinct predicates for EVM `rateLimitedIsm` and composite `rateLimited` nodes.
+
+  `assertValidCompositeIsmArtifact` in sealevel-sdk continued requiring a non-zero recipient as the last line of defence, and its message was updated to explain automatic warp-route resolution.
+
+  provider-sdk gained canonical `IsmType` discriminants plus contextual `resolveIsmArtifact`, `resolveRateLimitedIsmRecipients`, `assertRateLimitedIsmRecipientsUnset`, and `assertIsmSupportedAsMailboxDefault` from `@hyperlane-xyz/provider-sdk/ism`. Contextual address conversion used the shared protocol-detecting `addressToBytes32` utility, keeping provider-sdk free of Sealevel address assumptions.
+
+- 12678bc: Added opt-in Sealevel v1 sending and configurable receipt reads per chain. V1 transactions moved compute limits and priority fees into the header and enforced version-specific size limits, while other SVMs retained v0 defaults.
+
+  Separated v1 sending activation from RPC read support, preserved v0 offline governance, and carried caller-configured heap and loaded-data budgets across transaction versions.
+
+- 9a59116: Updated Solana clients to versions with transaction v1 codecs while preserving existing transaction-version defaults.
+- 7e357be: Reduced RPC requests when deriving warp-route process ALTs by deriving composite ISM domain addresses without reading domain state. Preserved recursive fallback ISM coverage and per-origin accounts.
+- 5e7cc26: Regenerated the embedded Sealevel programs after the shared Rust dependency lockfile was updated.
+- 5a3ec14: The embedded Sealevel source hash was refreshed after workspace-only Rust changes; program bytes are unchanged.
+- b83bac5: Regenerated embedded programs from their production dependencies using a canonical build path and pinned compiler. Excluded host-test crates from source fingerprints and checked rebuilt ELF hashes in CI to detect stale binaries.
+- Updated dependencies [ee50f43]
+- Updated dependencies [12678bc]
+- Updated dependencies [9a59116]
+- Updated dependencies [28eda66]
+- Updated dependencies [43f89c6]
+- Updated dependencies [4e2ab65]
+- Updated dependencies [4ad4577]
+- Updated dependencies [e3844b0]
+- Updated dependencies [f64f992]
+  - @hyperlane-xyz/provider-sdk@11.0.0
+  - @hyperlane-xyz/utils@45.0.0
+  - @hyperlane-xyz/forking-sdk@10.0.0
+
 ## 44.0.2
 
 ### Patch Changes

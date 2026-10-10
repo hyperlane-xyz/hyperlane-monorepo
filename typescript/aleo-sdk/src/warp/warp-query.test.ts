@@ -10,6 +10,7 @@ import {
 
 import {
   TokenRegistryEntryNotFoundError,
+  getArc20ProgramId,
   getArc20TokenMetadata,
   localRemoteDecimalsToScale,
   nativeScaleExponentToMultiplier,
@@ -99,6 +100,75 @@ describe('isV2WarpToken / isArc20ProgramId', () => {
   it('detects arc20 program ids', () => {
     expect(isArc20ProgramId('test_arc20_usdc.aleo')).to.equal(true);
     expect(isArc20ProgramId('not-a-program-id')).to.equal(false);
+  });
+});
+
+describe('getArc20ProgramId', () => {
+  function clientWithImports(imports: string[]): AleoNetworkClient {
+    const client = new AleoNetworkClient('http://localhost:3030');
+    client.getProgramImportNames = async () => imports;
+    return client;
+  }
+
+  it('resolves an ARC-20 token import', async () => {
+    const aleoClient = clientWithImports([
+      'credits.aleo',
+      'test_arc20_usdc.aleo',
+      'arc20_multisig_core.aleo',
+    ]);
+
+    expect(
+      await getArc20ProgramId(aleoClient, 'hyp_warp_token_usdc_v2.aleo'),
+    ).to.equal('test_arc20_usdc.aleo');
+  });
+
+  it('resolves an ARC-22 token import after its helper imports', async () => {
+    const aleoClient = clientWithImports([
+      'credits.aleo',
+      'shield_arc22_freezelist.aleo',
+      'shield_arc22_multisig_core.aleo',
+      'shield_arc22_usdg.aleo',
+    ]);
+
+    expect(
+      await getArc20ProgramId(aleoClient, 'hyp_warp_token_usdg_v2.aleo'),
+    ).to.equal('shield_arc22_usdg.aleo');
+  });
+
+  it('resolves an ARC-22 token import before its helper imports', async () => {
+    const aleoClient = clientWithImports([
+      'credits.aleo',
+      'shield_arc22_bat.aleo',
+      'shield_arc22_freezelist.aleo',
+      'shield_arc22_multisig_core.aleo',
+    ]);
+
+    expect(
+      await getArc20ProgramId(aleoClient, 'hyp_warp_token_bat_v2.aleo'),
+    ).to.equal('shield_arc22_bat.aleo');
+  });
+
+  it('rejects v2 programs without an ARC token import', async () => {
+    const aleoClient = clientWithImports(['credits.aleo', 'hyp_mailbox.aleo']);
+
+    await expect(
+      getArc20ProgramId(aleoClient, 'hyp_warp_token_invalid_v2.aleo'),
+    ).to.be.rejectedWith(
+      'Expected exactly one ARC-20 or ARC-22 token import in program hyp_warp_token_invalid_v2.aleo, found 0: none',
+    );
+  });
+
+  it('rejects ambiguous ARC token imports and lists the candidates', async () => {
+    const aleoClient = clientWithImports([
+      'shield_arc22_bat.aleo',
+      'shield_arc22_usdg.aleo',
+    ]);
+
+    await expect(
+      getArc20ProgramId(aleoClient, 'hyp_warp_token_invalid_v2.aleo'),
+    ).to.be.rejectedWith(
+      'found 2: shield_arc22_bat.aleo, shield_arc22_usdg.aleo',
+    );
   });
 });
 
@@ -298,6 +368,49 @@ describe('resolveTokenMetadata', () => {
         RETRY_DELAY_MS,
       ),
     ).to.be.rejected;
+  });
+
+  it('resolves v2 ARC-22 metadata when helper imports precede the token', async () => {
+    const originalFetch = globalThis.fetch;
+    const aleoClient = new AleoNetworkClient('http://localhost:3030');
+    aleoClient.getProgramImportNames = async () => [
+      'credits.aleo',
+      'shield_arc22_freezelist.aleo',
+      'shield_arc22_multisig_core.aleo',
+      'shield_arc22_usdg.aleo',
+    ];
+    globalThis.fetch = (async (url: string) => {
+      const outputByView: Record<string, string> = {
+        name: "'Global_Dollar'",
+        symbol: "'USDG'",
+        decimals: '6u8',
+      };
+      const output = outputByView[url.split('/').pop() ?? ''];
+      return {
+        ok: output !== undefined,
+        status: output !== undefined ? 200 : 404,
+        json: async () => [output],
+      } as Response;
+    }) as typeof fetch;
+
+    try {
+      expect(
+        await resolveTokenMetadata(
+          aleoClient,
+          'hyp_warp_token_usdg_v2.aleo',
+          TOKEN_ID,
+          6,
+          RETRY_ATTEMPTS,
+          RETRY_DELAY_MS,
+        ),
+      ).to.deep.equal({
+        name: 'Global_Dollar',
+        symbol: 'USDG',
+        decimals: 6,
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it('propagates v2 ARC-20 read failures instead of falling back', async () => {

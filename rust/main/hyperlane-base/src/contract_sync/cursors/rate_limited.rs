@@ -112,7 +112,7 @@ impl<T: Indexable + Sync + Send + Debug + 'static> RateLimitedContractSyncCursor
         // if initial_height is negative, then we want to use a relative
         // height
         let index_start_height = if initial_height < 0 {
-            (tip as i64).saturating_add(initial_height)
+            i64::from(tip).saturating_add(initial_height).max(0)
         } else {
             initial_height
         };
@@ -251,8 +251,9 @@ where
         range: RangeInclusive<u32>,
     ) -> Result<()> {
         self.update_metrics().await;
-        // Store a relatively conservative view of the high watermark, which should allow a single watermark to be
-        // safely shared across multiple cursors, so long as they are running sufficiently in sync
+        // Keep a conservative replay range for this cursor. The durable store
+        // must scope its watermark to this event: another worker can lag by
+        // arbitrarily many ranges, so a shared maximum is not a safe checkpoint.
         self.store
             .store_high_watermark(u32::max(
                 self.sync_state.start_block,
@@ -444,6 +445,37 @@ pub(crate) mod test {
         )
         .await
         .unwrap()
+    }
+
+    #[tokio::test]
+    async fn relative_start_before_genesis_is_clamped_without_losing_watermark() {
+        for (tip, from, watermark, expected) in [
+            (5_000, -10_000, None, 0),
+            (5_000, -5_000, None, 0),
+            (100_000, -5_000, None, 95_000),
+            (5_000, i64::MIN, None, 0),
+            (5_000, -10_000, Some(100), 100),
+        ] {
+            let mut indexer = MockIndexer::<MockIndexable>::new();
+            indexer
+                .expect_get_finalized_block_number()
+                .returning(move || Ok(tip));
+            let cursor = RateLimitedContractSyncCursor::new(
+                Arc::new(indexer),
+                Arc::new(mock_cursor_metrics()),
+                &HyperlaneDomain::new_test_domain("test"),
+                Arc::new(MockDb::new()),
+                CHUNK_SIZE,
+                from,
+                watermark,
+                Duration::from_secs(5),
+                None,
+            )
+            .await
+            .expect("test cursor initialization");
+            assert_eq!(cursor.sync_state.start_block, expected);
+            assert_eq!(cursor.sync_state.next_block, expected);
+        }
     }
 
     #[tokio::test]

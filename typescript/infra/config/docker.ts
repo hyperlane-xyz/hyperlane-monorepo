@@ -43,34 +43,34 @@ interface MainnetDockerTags extends BaseDockerTags {
 
 export const mainnetDockerTags: MainnetDockerTags = {
   // rust agents
-  relayer: 'b83bac5-20260909-225045',
-  relayerRC: '736ace8-20260909-012244',
-  relayerFastPath: '736ace8-20260909-012244',
-  validator: '78dcf59-20260923-052203',
-  validatorRC: '78dcf59-20260923-052203',
-  validatorFastPath: '78dcf59-20260923-052203',
-  scraper: '51f3d7e-20260925-082925',
+  relayer: '1cdbf6d-20261006-164328',
+  relayerRC: '35d3002-20261003-140244',
+  relayerFastPath: '35d3002-20261003-140244',
+  validator: '524aac0-20260925-195006',
+  validatorRC: '524aac0-20260925-195006',
+  validatorFastPath: '524aac0-20260925-195006',
+  scraper: 'c776083-20261009-082029',
   // monorepo services
   checkWarpDeploy: 'main',
-  validatorMonitor: 'cfd4cae-20260911-102750',
+  validatorMonitor: '17dd7ac-20260928-093912',
   // standalone services
-  keyFunder: 'fc544bf-20260908-174702',
+  keyFunder: '112541b-20261001-141255',
   warpMonitor: 'fc544bf-20260908-174702',
   rebalancer: 'fc544bf-20260908-174702',
-  scraperProxy: 'ec4aedc-20260925-093728',
+  scraperProxy: '35d3002-20261003-140007',
   feeQuoting: '12d899d-20260325-184337',
 };
 
 export const testnetDockerTags: BaseDockerTags = {
   // rust agents
-  relayer: 'b83bac5-20260909-225045',
-  relayerRC: '736ace8-20260909-012244',
-  relayerFastPath: '736ace8-20260909-012244',
-  validator: '78dcf59-20260923-052203',
-  validatorRC: '78dcf59-20260923-052203',
-  validatorFastPath: '78dcf59-20260923-052203',
-  scraper: '51f3d7e-20260925-082925',
+  relayer: 'e830d2e-20261005-112108',
+  relayerRC: '35d3002-20261003-140244',
+  relayerFastPath: '35d3002-20261003-140244',
+  validator: '524aac0-20260925-195006',
+  validatorRC: '524aac0-20260925-195006',
+  validatorFastPath: '524aac0-20260925-195006',
+  scraper: 'c776083-20261009-082029',
   // standalone services
-  keyFunder: 'fc544bf-20260908-174702',
-  scraperProxy: 'ec4aedc-20260925-093728',
+  keyFunder: '112541b-20261001-141255',
+  scraperProxy: '35d3002-20261003-140007',
 };

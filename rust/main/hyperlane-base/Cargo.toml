@@ -24,7 +24,6 @@ derive_builder.workspace = true
 ed25519-dalek.workspace = true
 ethers.workspace = true
 eyre.workspace = true
-fuels.workspace = true
 futures.workspace = true
 futures-util.workspace = true
 itertools.workspace = true
@@ -52,6 +51,9 @@ tracing.workspace = true
 url.workspace = true
 warp.workspace = true
 ya-gcp.workspace = true
+hyper.workspace = true
+hyper-rustls = { version = "0.24.2", features = ["http2"] }
+yup-oauth2 = "8.3.1"
 moka = { workspace = true, features = ["future"] }
 chrono = { workspace = true, features = ["serde"] }
 
@@ -66,7 +68,6 @@ hyperlane-test = { path = "../hyperlane-test" }
 
 hyperlane-aleo = { path = "../chains/hyperlane-aleo", optional = true }
 hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
-hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-cosmos = { path = "../chains/hyperlane-cosmos" }
 hyperlane-starknet = { path = "../chains/hyperlane-starknet" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
@@ -82,7 +83,6 @@ google-cloud-kms-v1.workspace = true
 [dev-dependencies]
 aws-smithy-http-client = { version = "1", default-features = false, features = ["hyper-014"] }
 color-eyre.workspace = true
-hyper = "0.14"
 reqwest.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }

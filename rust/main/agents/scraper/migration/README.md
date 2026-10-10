@@ -8,15 +8,28 @@ cargo run --release -p migration --bin init-db
 
 This single command applies pending transactional migrations, then creates and
 verifies the raw-dispatch reconciliation, raw-dispatch native-sequence, delivery
-scope, Merkle block-height, gas payment paymaster-scope, and the three frontier
-indexes (`delivery_frontier_unenriched`, `gas_payment_frontier_unenriched`,
-`gas_payment_frontier_height`) concurrently, then runs `ANALYZE` on the four event
-tables (also when an index build fails). It works for both empty and existing DBs.
-Reruns retain matching valid indexes and reject invalid or conflicting
-definitions. If index setup fails, the schema migrations stay committed; repair
-the reported index and rerun the same command. Concurrent indexes survive schema
-rollback, except the three frontier indexes, which the frontier publication down
-migration drops.
+scope, Merkle block-height, gas payment paymaster-scope, gas payment transaction-log,
+and the three frontier indexes (`delivery_frontier_unenriched`,
+`gas_payment_frontier_unenriched`, `gas_payment_frontier_height`) concurrently,
+then runs `ANALYZE` on the four event tables (also when an index build fails). The
+collision-safe transaction-log index is verified before `init-db` concurrently
+drops the superseded `gas_payment_transaction_log` index. It works for both empty and existing DBs. Reruns
+retain matching valid indexes and reject invalid or conflicting definitions. If
+index setup fails, the schema migrations stay committed; repair the reported index
+and rerun the same command. Concurrent indexes survive schema rollback, except the
+three frontier indexes and gas payment log index, which their down
+migrations drop. Scraper startup refuses to run until the collision-safe gas
+payment log index is valid and `gas_payment_transaction_log` is gone.
+
+Schema rollback does not recreate indexes managed concurrently by `init-db`.
+Before starting an older scraper image, run that image's `init-db`; it restores
+and verifies the index definitions expected by that version.
+
+Rolling back past `m20261003_000017` recreates the legacy unique
+`(domain, block_hash, log_index)` index without `CONCURRENTLY`, so it blocks
+gas payment writes while it builds. It fails once a chain that numbers logs per
+transaction (e.g. ENI) has stored two payments at the same log index in one
+block; such rows are valid and must not be deleted to force a downgrade.
 
 For migration development and rollback operations, the SeaORM CLI remains
 available from this directory:
@@ -80,7 +93,8 @@ B-tree with the expected table and keys. Reruns accept a matching valid index. I
 an interrupted concurrent build leaves an invalid index, or its name belongs to
 another definition, the command fails instead of treating `IF NOT EXISTS` as
 success. Inspect `pg_index` and `pg_get_indexdef` and repair the named index
-explicitly before retrying; the command never drops indexes.
+explicitly before retrying. The only automatic removal is the superseded
+`gas_payment_transaction_log`, after its replacement has been verified.
 
 Concurrent builds permit normal writes but consume database I/O, CPU, disk and
 WAL, and can wait for existing transactions. Schedule the build accordingly and

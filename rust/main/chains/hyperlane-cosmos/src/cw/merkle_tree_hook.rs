@@ -243,19 +243,21 @@ impl CwMerkleTreeHookIndexer {
                         }
 
                         MESSAGE_ID_ATTRIBUTE_KEY => {
-                            insertion.message_id =
-                                Some(H256::from_slice(hex::decode(value)?.as_slice()));
+                            insertion.message_id = Some(
+                                H256::from_str(value)
+                                    .map_err(ChainCommunicationError::from_other)?,
+                            );
                             debug!(message_id = ?insertion.message_id, "parsed message_id from plain text");
                         }
                         v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
-                            insertion.message_id = Some(H256::from_slice(
-                                hex::decode(String::from_utf8(
+                            insertion.message_id = Some(
+                                H256::from_str(&String::from_utf8(
                                     BASE64
                                         .decode(value)
                                         .map_err(Into::<HyperlaneCosmosError>::into)?,
-                                )?)?
-                                .as_slice(),
-                            ));
+                                )?)
+                                .map_err(ChainCommunicationError::from_other)?,
+                            );
                             debug!(message_id = ?insertion.message_id, "parsed message_id from base64");
                         }
 
@@ -393,6 +395,44 @@ mod tests {
     use crate::CosmosAddress;
 
     use super::*;
+
+    #[test]
+    fn rejects_malformed_message_ids_without_panicking() {
+        // The valid control proves companion fields cannot mask ID regressions.
+        for (value, valid) in [
+            ("11".repeat(32), true),
+            ("00".to_owned(), false),
+            ("zz".to_owned(), false),
+            ("11".repeat(33), false),
+        ] {
+            for encoded in [false, true] {
+                let attrs: Vec<_> = [
+                    (
+                        "_contract_address",
+                        "neutron1e5c2qqquc86rd3q77aj2wyht40z6z3q5pclaq040ue9f5f8yuf7qnpvkzk",
+                    ),
+                    ("index", "4"),
+                    (MESSAGE_ID_ATTRIBUTE_KEY, value.as_str()),
+                ]
+                .into_iter()
+                .map(|(key, value)| {
+                    let (key, value) = if encoded {
+                        (BASE64.encode(key), BASE64.encode(value))
+                    } else {
+                        (key.to_owned(), value.to_owned())
+                    };
+                    serde_json::json!({"key": key, "value": value, "index": true})
+                })
+                .collect();
+                let attrs = event_attributes_from_str(&serde_json::to_string(&attrs).unwrap());
+                assert_eq!(
+                    CwMerkleTreeHookIndexer::merkle_tree_insertion_parser(&attrs).is_ok(),
+                    valid,
+                    "message ID {value:?}, encoded={encoded}",
+                );
+            }
+        }
+    }
 
     #[test]
     fn test_merkle_tree_insertion_parser() {

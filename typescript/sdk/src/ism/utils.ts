@@ -275,6 +275,15 @@ export async function moduleMatchesConfig(
     return eqAddress(moduleAddress, config);
   }
 
+  // Sealevel-only: ismTypeToModuleType maps it to MESSAGE_ID_MULTISIG so the
+  // relayer can verify it like one, which would let an EVM MessageIdMultisig
+  // module pass the module type check below and then hit the unsupported arm.
+  // COMPOSITE needs no such guard: its module type has no EVM counterpart, so
+  // the same type check already returns false.
+  if (config.type === IsmType.ROUTING_MESSAGE_ID_MULTISIG) {
+    return false;
+  }
+
   // If the module address is zero, it can't match any object-based config.
   // The subsequent check of what moduleType it is will throw, so we fail here.
   if (eqAddress(moduleAddress, ethers.constants.AddressZero)) {
@@ -823,6 +832,10 @@ export function collectValidators(
     config.type === IsmType.MESSAGE_ID_MULTISIG
   ) {
     validators = config.validators;
+  } else if (config.type === IsmType.ROUTING_MESSAGE_ID_MULTISIG) {
+    if (Object.keys(config.domains).includes(origin)) {
+      validators = [...config.domains[origin].validators];
+    }
   } else if (config.type === IsmType.ROUTING) {
     if (Object.keys(config.domains).includes(origin)) {
       const domainValidators = collectValidators(

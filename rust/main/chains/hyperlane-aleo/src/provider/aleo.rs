@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     fmt::Debug,
     ops::Deref,
     str::FromStr,
@@ -22,12 +22,13 @@ use snarkvm::{
     },
 };
 use snarkvm_console_account::{Address, PrivateKey};
-use tokio::sync::RwLock;
+use tokio::sync::{OnceCell, RwLock};
 use tracing::{debug, warn};
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber, HyperlaneChain,
-    HyperlaneDomain, HyperlaneProvider, TxOutcome, TxnInfo, TxnReceiptInfo, H256, H512, U256,
+    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxOutcome, TxnInfo, TxnReceiptInfo,
+    H256, H512, U256,
 };
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
@@ -35,7 +36,7 @@ use crate::{
     provider::{
         fallback::FallbackHttpClient,
         metric::{record_execution_phase, ExecutionPhase},
-        AleoClient, BaseHttpClient, JWTBaseHttpClient, ProvingClient, RpcClient,
+        vm_thread, AleoClient, BaseHttpClient, JWTBaseHttpClient, ProvingClient, RpcClient,
     },
     utils::{get_tx_id, to_h256},
     AleoSigner, ConnectionConf, CurrentNetwork, FeeEstimate, HyperlaneAleoError,
@@ -46,6 +47,32 @@ struct FeeEstimateCacheKey {
     program_id: String,
     function_name: String,
     network_id: u16,
+}
+
+type LazyVm<N> = Arc<OnceCell<VM<N, ConsensusMemory<N>>>>;
+
+const BLOCK_METADATA_CACHE_SIZE: usize = 128;
+
+// Metadata reads trust the finalized RPC response, including its outer block
+// hash without cross-checking it against the header, as on other VMs. Decoding
+// a snarkVM Block also verifies consensus certificates and decodes transactions,
+// which is unnecessary for the hash/height/timestamp used by indexing.
+#[derive(serde::Deserialize)]
+#[serde(bound = "")]
+struct BlockMetadata<N: Network> {
+    block_hash: N::BlockHash,
+    header: BlockMetadataHeader,
+}
+
+#[derive(serde::Deserialize)]
+struct BlockMetadataHeader {
+    metadata: BlockMetadataFields,
+}
+
+#[derive(serde::Deserialize)]
+struct BlockMetadataFields {
+    height: u32,
+    timestamp: u64,
 }
 
 /// Aleo Rest Client. Generic over an underlying HttpClient to allow injection of a mock for testing.
@@ -60,9 +87,17 @@ pub struct AleoProvider<C: AleoClient = FallbackHttpClient> {
     signer: Option<AleoSigner>,
     priority_fee_multiplier: f64,
     estimate_cache: Arc<RwLock<HashMap<FeeEstimateCacheKey, FeeEstimate>>>,
-    mainnet_vm: Arc<VM<MainnetV0, ConsensusMemory<MainnetV0>>>,
-    testnet_vm: Arc<VM<TestnetV0, ConsensusMemory<TestnetV0>>>,
-    canary_vm: Arc<VM<CanaryV0, ConsensusMemory<CanaryV0>>>,
+    // Aleo blocks are finalized. Within this provider, reuse metadata across
+    // near-head observation and confirmation. Confirmation re-reads therefore
+    // do not reach RPC; a bad hash from a fallback RPC remains until eviction.
+    // Retain only the highest recently requested heights.
+    block_metadata: Arc<RwLock<BTreeMap<u32, BlockInfo>>>,
+    // Read-only ISM and indexing providers never need a VM. Initialize only
+    // the execution network, sharing it with provider clones. The pinned
+    // snarkVM lifecycle fix releases its worker after the last clone drops.
+    mainnet_vm: LazyVm<MainnetV0>,
+    testnet_vm: LazyVm<TestnetV0>,
+    canary_vm: LazyVm<CanaryV0>,
 }
 
 impl<C: AleoClient> std::fmt::Debug for AleoProvider<C> {
@@ -130,17 +165,27 @@ impl AleoProvider<FallbackHttpClient> {
             signer,
             priority_fee_multiplier: conf.priority_fee_multiplier,
             estimate_cache: Default::default(),
-            mainnet_vm: get_vm()?,
-            testnet_vm: get_vm()?,
-            canary_vm: get_vm()?,
+            block_metadata: Default::default(),
+            mainnet_vm: Default::default(),
+            testnet_vm: Default::default(),
+            canary_vm: Default::default(),
         })
     }
 }
 
-fn get_vm<N: Network>() -> ChainResult<Arc<VM<N, ConsensusMemory<N>>>> {
-    let store = ConsensusStore::open(StorageMode::Production).map_err(HyperlaneAleoError::from)?;
-    let vm: VM<N, ConsensusMemory<N>> = VM::from(store).map_err(HyperlaneAleoError::from)?;
-    Ok(Arc::new(vm))
+async fn get_vm<N: Network>(
+    cell: &OnceCell<VM<N, ConsensusMemory<N>>>,
+) -> ChainResult<&VM<N, ConsensusMemory<N>>> {
+    cell.get_or_try_init(|| async {
+        tokio::task::spawn_blocking(|| {
+            let store =
+                ConsensusStore::open(StorageMode::Production).map_err(HyperlaneAleoError::from)?;
+            VM::from(store).map_err(|err| HyperlaneAleoError::from(err).into())
+        })
+        .await
+        .map_err(|err| HyperlaneAleoError::Other(format!("VM initialization task failed: {err}")))?
+    })
+    .await
 }
 
 impl<C: AleoClient> AleoProvider<C> {
@@ -162,15 +207,33 @@ impl<C: AleoClient> AleoProvider<C> {
             signer,
             priority_fee_multiplier: 0.0,
             estimate_cache: Default::default(),
-            mainnet_vm: get_vm().unwrap(),
-            testnet_vm: get_vm().unwrap(),
-            canary_vm: get_vm().unwrap(),
+            block_metadata: Default::default(),
+            mainnet_vm: Default::default(),
+            testnet_vm: Default::default(),
+            canary_vm: Default::default(),
         }
     }
 
     /// Returns the current chain id
     pub fn chain_id(&self) -> u16 {
         self.network
+    }
+
+    async fn fetch_block_metadata<N: Network>(&self, height: u32) -> ChainResult<BlockInfo> {
+        let block: BlockMetadata<N> = self.request(&format!("block/{height}"), None).await?;
+        let metadata = block.header.metadata;
+        if metadata.height != height {
+            return Err(HyperlaneProviderError::IncorrectBlockByHeight(
+                u64::from(height),
+                u64::from(metadata.height),
+            )
+            .into());
+        }
+        Ok(BlockInfo {
+            hash: to_h256(block.block_hash)?,
+            timestamp: metadata.timestamp,
+            number: u64::from(metadata.height),
+        })
     }
 
     /// Get the Aleo Signer
@@ -298,7 +361,7 @@ impl<C: AleoClient> AleoProvider<C> {
     where
         I: IntoIterator<Item = V>,
         I::IntoIter: ExactSizeIterator,
-        V: TryInto<Value<N>>,
+        V: TryInto<Value<N>> + Send + 'static,
     {
         let start = Instant::now();
         debug!(
@@ -321,16 +384,22 @@ impl<C: AleoClient> AleoProvider<C> {
             Instant::now().duration_since(start).as_secs_f32()
         );
 
-        // Create authorization.
-        let authorization = vm
-            .authorize(
+        // Create authorization. Checked authorization synthesizes the circuit.
+        let inputs: Vec<V> = input.into_iter().collect();
+        let job_vm = vm.clone();
+        let (authorization, rng) = vm_thread::run(move || {
+            let authorization = job_vm.authorize(
                 &private_key,
                 program_id_parsed,
                 function_name_parsed,
-                input.into_iter(),
+                inputs.into_iter(),
                 &mut rng,
-            )
-            .map_err(|e| HyperlaneAleoError::SnarkVmError(e.into()))?;
+            );
+            (authorization, rng)
+        })
+        .await?;
+        let authorization =
+            authorization.map_err(|e| HyperlaneAleoError::SnarkVmError(e.into()))?;
 
         // Malicious authorization check
         self.malicious_authorization_check(program_id, &authorization)?;
@@ -366,7 +435,7 @@ impl<C: AleoClient> AleoProvider<C> {
     where
         I: IntoIterator<Item = V>,
         I::IntoIter: ExactSizeIterator,
-        V: TryInto<Value<N>>,
+        V: TryInto<Value<N>> + Send + 'static,
     {
         let (authorization, program_id_parsed, function_name_parsed, _, _) = self
             .prepare_authorization::<N, I, V>(program_id, function_name, input, vm)
@@ -415,16 +484,31 @@ impl<C: AleoClient> AleoProvider<C> {
 
         let result = match self.chain_id() {
             0 => {
-                self.estimate::<MainnetV0, _, _>(program_id, function_name, input, &self.mainnet_vm)
-                    .await
+                self.estimate::<MainnetV0, _, _>(
+                    program_id,
+                    function_name,
+                    input,
+                    get_vm(&self.mainnet_vm).await?,
+                )
+                .await
             }
             1 => {
-                self.estimate::<TestnetV0, _, _>(program_id, function_name, input, &self.testnet_vm)
-                    .await
+                self.estimate::<TestnetV0, _, _>(
+                    program_id,
+                    function_name,
+                    input,
+                    get_vm(&self.testnet_vm).await?,
+                )
+                .await
             }
             2 => {
-                self.estimate::<CanaryV0, _, _>(program_id, function_name, input, &self.canary_vm)
-                    .await
+                self.estimate::<CanaryV0, _, _>(
+                    program_id,
+                    function_name,
+                    input,
+                    get_vm(&self.canary_vm).await?,
+                )
+                .await
             }
             id => Err(HyperlaneAleoError::UnknownNetwork(id).into()),
         }?;
@@ -446,7 +530,7 @@ impl<C: AleoClient> AleoProvider<C> {
     where
         I: IntoIterator<Item = V>,
         I::IntoIter: ExactSizeIterator,
-        V: TryInto<Value<N>>,
+        V: TryInto<Value<N>> + Send + 'static,
     {
         debug!("Creating ZK-Proof for: {}/{}", program_id, function_name);
 
@@ -495,18 +579,23 @@ impl<C: AleoClient> AleoProvider<C> {
         let priority_fee = self.get_priority_fee(base_fee);
         debug!(base_fee, priority_fee, "Calculated fees");
 
-        // Authorize fee payment.
-        let fee = vm
-            .authorize_fee_public(
+        // Authorize fee payment. This also synthesizes a circuit.
+        let execution_id = authorization
+            .to_execution_id()
+            .map_err(HyperlaneAleoError::from)?;
+        let job_vm = vm.clone();
+        let (fee, mut rng) = vm_thread::run(move || {
+            let fee = job_vm.authorize_fee_public(
                 &private_key,
                 base_fee,
                 priority_fee,
-                authorization
-                    .to_execution_id()
-                    .map_err(HyperlaneAleoError::from)?,
+                execution_id,
                 &mut rng,
-            )
-            .map_err(HyperlaneAleoError::SnarkVmError)?;
+            );
+            (fee, rng)
+        })
+        .await?;
+        let fee = fee.map_err(HyperlaneAleoError::SnarkVmError)?;
 
         // Use local proving only when no delegated proving service is configured. A delegated
         // prover failure is retried by the relayer; falling back here can saturate Tokio's
@@ -577,18 +666,33 @@ impl<C: AleoClient> AleoProvider<C> {
         match self.chain_id() {
             0 => {
                 // Mainnet
-                self.execute::<MainnetV0, _, _>(program_id, function_name, input, &self.mainnet_vm)
-                    .await
+                self.execute::<MainnetV0, _, _>(
+                    program_id,
+                    function_name,
+                    input,
+                    get_vm(&self.mainnet_vm).await?,
+                )
+                .await
             }
             1 => {
                 // Testnet
-                self.execute::<TestnetV0, _, _>(program_id, function_name, input, &self.testnet_vm)
-                    .await
+                self.execute::<TestnetV0, _, _>(
+                    program_id,
+                    function_name,
+                    input,
+                    get_vm(&self.testnet_vm).await?,
+                )
+                .await
             }
             2 => {
                 // Canary
-                self.execute::<CanaryV0, _, _>(program_id, function_name, input, &self.canary_vm)
-                    .await
+                self.execute::<CanaryV0, _, _>(
+                    program_id,
+                    function_name,
+                    input,
+                    get_vm(&self.canary_vm).await?,
+                )
+                .await
             }
             id => Err(HyperlaneAleoError::UnknownNetwork(id).into()),
         }
@@ -674,27 +778,22 @@ impl<C: AleoClient> HyperlaneChain for AleoProvider<C> {
 impl<C: AleoClient> HyperlaneProvider for AleoProvider<C> {
     /// Get block info for a given block height
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
-        let height = height as u32;
-        let (hash, timestamp) = match self.chain_id() {
-            0 => {
-                let block = self.get_block::<MainnetV0>(height).await?;
-                (to_h256(block.hash())?, block.timestamp())
-            }
-            1 => {
-                let block = self.get_block::<TestnetV0>(height).await?;
-                (to_h256(block.hash())?, block.timestamp())
-            }
-            2 => {
-                let block = self.get_block::<CanaryV0>(height).await?;
-                (to_h256(block.hash())?, block.timestamp())
-            }
+        let height = u32::try_from(height).map_err(ChainCommunicationError::from_other)?;
+        if let Some(block) = self.block_metadata.read().await.get(&height) {
+            return Ok(block.clone());
+        }
+        let block = match self.chain_id() {
+            0 => self.fetch_block_metadata::<MainnetV0>(height).await?,
+            1 => self.fetch_block_metadata::<TestnetV0>(height).await?,
+            2 => self.fetch_block_metadata::<CanaryV0>(height).await?,
             id => return Err(HyperlaneAleoError::UnknownNetwork(id).into()),
         };
-        Ok(BlockInfo {
-            hash,
-            timestamp: timestamp as u64,
-            number: height.into(),
-        })
+        let mut cache = self.block_metadata.write().await;
+        cache.insert(height, block.clone());
+        if cache.len() > BLOCK_METADATA_CACHE_SIZE {
+            cache.pop_first();
+        }
+        Ok(block)
     }
 
     /// Get txn info for a given txn hash
@@ -766,5 +865,129 @@ impl<C: AleoClient> HyperlaneProvider for AleoProvider<C> {
             block_height: height.into(),
             min_gas_price: None,
         }))
+    }
+}
+
+#[cfg(test)]
+mod vm_lifecycle_tests {
+    use std::path::PathBuf;
+
+    use hyperlane_core::KnownHyperlaneDomain;
+
+    use super::*;
+    use crate::provider::mock::MockHttpClient;
+
+    fn domain() -> HyperlaneDomain {
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Aleo)
+    }
+
+    #[test]
+    fn production_providers_do_not_start_vms() {
+        let conf = ConnectionConf::new(
+            vec!["http://localhost:3030".parse().expect("valid RPC URL")],
+            String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
+            0,
+            None,
+            vec![],
+            0.0,
+        );
+        for _ in 0..4 {
+            let provider = AleoProvider::new(&conf, domain(), None, Default::default(), None)
+                .expect("test fixture succeeds");
+            assert!(provider.mainnet_vm.get().is_none());
+            assert!(provider.testnet_vm.get().is_none());
+            assert!(provider.canary_vm.get().is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn read_only_queries_do_not_start_vms() {
+        let client = MockHttpClient::new(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/provider/mock_responses"),
+        );
+        client
+            .register_file("block/height/latest", "latest_height.json")
+            .expect("test fixture succeeds");
+        let provider = AleoProvider::with_client(client, domain(), 0, None);
+        assert_eq!(
+            provider
+                .get_latest_height()
+                .await
+                .expect("test fixture succeeds"),
+            1
+        );
+        assert!(provider.mainnet_vm.get().is_none());
+        assert!(provider.testnet_vm.get().is_none());
+        assert!(provider.canary_vm.get().is_none());
+    }
+
+    #[test]
+    fn first_use_waits_for_blocking_pool_and_shares_initialized_vm() {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .max_blocking_threads(1)
+            .build()
+            .expect("test runtime")
+            .block_on(async {
+                // Occupy the sole blocking thread so initialization cannot complete
+                // until both callers have yielded back to this runtime thread.
+                let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+                let (release_tx, release_rx) = std::sync::mpsc::channel();
+                let blocker = tokio::task::spawn_blocking(move || {
+                    let _ = started_tx.send(());
+                    let _ = release_rx.recv();
+                });
+                started_rx.await.expect("blocking task started");
+                let client = MockHttpClient::new(PathBuf::new());
+                let provider = AleoProvider::with_client(client, domain(), 0, None);
+                let clone = provider.clone();
+                let first = get_vm(&provider.mainnet_vm);
+                let second = get_vm(&clone.mainnet_vm);
+                tokio::pin!(first, second);
+                let first_pending = futures::poll!(first.as_mut()).is_pending();
+                let second_pending = futures::poll!(second.as_mut()).is_pending();
+                let uninitialized = provider.mainnet_vm.get().is_none();
+                // Release before asserting so a failed assertion cannot strand
+                // the blocking task during runtime shutdown.
+                release_tx.send(()).expect("release blocking task");
+                assert!(first_pending && second_pending && uninitialized);
+                let (first, second) = tokio::join!(first, second);
+                assert!(std::ptr::eq(
+                    first.expect("initialized VM"),
+                    second.expect("shared VM")
+                ));
+                assert!(provider.testnet_vm.get().is_none());
+                assert!(provider.canary_vm.get().is_none());
+                blocker.await.expect("blocking task finished");
+            });
+    }
+
+    #[tokio::test]
+    async fn provider_clones_share_only_the_initialized_network_vm() {
+        let client = MockHttpClient::new(PathBuf::new());
+        let provider = AleoProvider::with_client(client, domain(), 0, None);
+        let clone = provider.clone();
+        let (first, second) =
+            tokio::join!(get_vm(&provider.mainnet_vm), get_vm(&clone.mainnet_vm),);
+        assert!(std::ptr::eq(
+            first.expect("test fixture succeeds"),
+            second.expect("test fixture succeeds")
+        ));
+        assert!(provider.testnet_vm.get().is_none());
+        assert!(provider.canary_vm.get().is_none());
+        assert!(clone.testnet_vm.get().is_none());
+        assert!(clone.canary_vm.get().is_none());
+
+        let process = Arc::downgrade(provider.mainnet_vm.get().expect("initialized VM").process());
+        drop(provider);
+        assert!(process.upgrade().is_some());
+        drop(clone);
+        assert!(
+            process.upgrade().is_none(),
+            "worker retained the final provider VM"
+        );
     }
 }

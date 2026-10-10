@@ -94,7 +94,10 @@ export class SvmQuoteReader implements IRawWarpQuoteReader {
         const acct = response.value[j];
         if (!acct) continue;
         const encodedData = acct.data[0];
-        assert(encodedData, `Missing account data at quote index ${j}`);
+        assert(
+          encodedData !== undefined,
+          `Missing account data at quote index ${j}`,
+        );
         const decoded = decodeStandingQuotePda(
           Uint8Array.from(Buffer.from(encodedData, 'base64')),
         );

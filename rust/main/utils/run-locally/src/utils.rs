@@ -200,18 +200,42 @@ const POSTGRES_IMAGE: &str = "postgres:14";
 /// `docker run` pulls a missing image in the foreground. If it is spawned and
 /// readiness polling starts immediately, a cold pull consumes the readiness
 /// timeout before the container exists. Pulling first keeps image acquisition
-/// separate from the bounded startup check.
+/// separate from the bounded startup check. Pulls are retried because Docker
+/// Hub handshakes intermittently time out on CI runners.
 pub fn prepare_docker_image(image: &str) {
+    use std::thread::sleep;
+    use std::time::Duration;
+
+    const PULL_ATTEMPTS: u64 = 3;
     let image_available = Program::new("docker")
         .cmd("image")
         .cmd("inspect")
         .cmd(image)
         .run_to_success()
         .join();
-    if !image_available {
-        log!("Pulling {}...", image);
-        Program::new("docker").cmd("pull").cmd(image).run().join();
+    if image_available {
+        return;
     }
+    for attempt in 1..=PULL_ATTEMPTS {
+        log!(
+            "Pulling {} (attempt {}/{})...",
+            image,
+            attempt,
+            PULL_ATTEMPTS
+        );
+        if Program::new("docker")
+            .cmd("pull")
+            .cmd(image)
+            .run_to_success()
+            .join()
+        {
+            return;
+        }
+        if attempt < PULL_ATTEMPTS {
+            sleep(Duration::from_secs(attempt * 10));
+        }
+    }
+    panic!("Failed to pull {image} after {PULL_ATTEMPTS} attempts");
 }
 
 /// Start the test Postgres container after ensuring its image is available.
@@ -261,13 +285,33 @@ pub fn wait_for_postgres() {
     panic!("Postgres not ready after {MAX_ATTEMPTS} attempts");
 }
 
+/// Polls `ready` every 500ms until it returns true, panicking after `timeout`.
+#[allow(dead_code)]
+pub(crate) fn poll_until(what: &str, timeout: std::time::Duration, ready: impl Fn() -> bool) {
+    let start = std::time::Instant::now();
+    while !ready() {
+        assert!(
+            start.elapsed() < timeout,
+            "Timed out after {timeout:?} waiting for {what}"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(500));
+    }
+    log!("Ready after {:?}: {}", start.elapsed(), what);
+}
+
 #[allow(dead_code)]
 pub(crate) fn download(output: &str, uri: &str, dir: &str) {
     Program::new("curl")
         .arg("output", output)
         .flag("location")
+        .flag("fail")
+        .arg("retry", "5")
+        .arg("retry-delay", "5")
+        .arg("retry-max-time", "180")
+        .flag("retry-all-errors")
         .cmd(uri)
         .flag("silent")
+        .flag("show-error")
         .working_dir(dir)
         .run()
         .join();

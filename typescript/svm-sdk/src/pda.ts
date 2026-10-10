@@ -29,6 +29,7 @@ async function derive(
   return { pda, address: pda[0], bump: pda[1] };
 }
 
+// Seeds mirror `access_control_pda_seeds!` in rust/sealevel/programs/ism/multisig-ism-message-id/src/processor.rs.
 export async function deriveMultisigIsmAccessControlPda(
   programAddress: Address,
 ): Promise<PdaWithBump> {
@@ -39,6 +40,7 @@ export async function deriveMultisigIsmAccessControlPda(
   ]);
 }
 
+// Seeds mirror `domain_data_pda_seeds!` in rust/sealevel/programs/ism/multisig-ism-message-id/src/processor.rs.
 export async function deriveMultisigIsmDomainDataPda(
   programAddress: Address,
   domain: number,

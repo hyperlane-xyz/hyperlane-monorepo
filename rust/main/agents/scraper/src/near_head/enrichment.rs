@@ -83,7 +83,8 @@ async fn update_pending_age(
                     "SELECT coalesce((SELECT greatest(0, extract(epoch FROM \
                     ((clock_timestamp() AT TIME ZONE 'UTC') - time_created))::double precision) \
                     FROM confirmed_{table} WHERE domain=$1 AND {column} IS NULL \
-                    AND block_hash IS NOT NULL ORDER BY id LIMIT 1),0::double precision) AS age"
+                    AND block_hash IS NOT NULL AND transaction_hash IS NOT NULL
+                    ORDER BY id LIMIT 1),0::double precision) AS age"
                 ),
                 [i32::from_ne_bytes(legacy.domain.id().to_ne_bytes()).into()],
             ))

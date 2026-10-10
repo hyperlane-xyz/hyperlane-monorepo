@@ -4,11 +4,12 @@ use std::{sync::Arc, time::Duration};
 
 use hyperlane_base::{ChainMetrics, ContractSyncMetrics};
 use hyperlane_core::{HyperlaneDomain, ReorgPeriod};
-use tokio::time::sleep;
+use tokio::time::{sleep, Instant};
 use tracing::warn;
 
 use super::{
-    confirm_leased, confirmation_lease, ingest_cached, observe, source::Source, store::Store,
+    confirm_leased_through, confirmation_lease, ingest_cached, observe, source::Source,
+    store::Store, CountCache,
 };
 
 pub(super) struct Worker {
@@ -18,8 +19,38 @@ pub(super) struct Worker {
     pub period: ReorgPeriod,
     pub chunk_size: u64,
     pub poll_interval: Duration,
+    pub critical_failure_grace: Duration,
     pub chain_metrics: ChainMetrics,
     pub sync_metrics: Arc<ContractSyncMetrics>,
+}
+
+#[derive(Debug, Default)]
+struct FailureStreak {
+    since: Option<Instant>,
+}
+
+impl FailureStreak {
+    fn record(&mut self, failed: bool, grace: Duration) -> bool {
+        if !failed {
+            self.since = None;
+            return false;
+        }
+        let now = Instant::now();
+        let since = self.since.get_or_insert(now);
+        now.duration_since(*since) >= grace
+    }
+
+    fn retry_delay(&self, poll_interval: Duration, grace: Duration) -> Duration {
+        let Some(since) = self.since else {
+            return poll_interval;
+        };
+        let remaining = grace.saturating_sub(since.elapsed());
+        if remaining.is_zero() {
+            poll_interval
+        } else {
+            poll_interval.min(remaining)
+        }
+    }
 }
 
 /// A completed cycle: whether to run again at once, and whether ingestion failed
@@ -44,14 +75,14 @@ impl Worker {
     }
 
     async fn run_cycles(&self) {
-        let mut count_cache = None;
+        let mut count_cache = CountCache::default();
+        let mut failures = FailureStreak::default();
         loop {
             let result = self.cycle(&mut count_cache).await;
-            // A failed log fetch stays critical even while confirmed pages keep
-            // draining without waiting for the next poll.
-            let critical = result
+            let failed = result
                 .as_ref()
                 .map_or(true, |outcome| outcome.ingestion_failed);
+            let critical = failures.record(failed, self.critical_failure_grace);
             self.chain_metrics
                 .set_critical_error(self.domain.name(), critical);
             match result {
@@ -63,17 +94,15 @@ impl Worker {
                     "Near-head indexing paused; retrying"
                 ),
             }
-            sleep(self.poll_interval).await;
+            sleep(failures.retry_delay(self.poll_interval, self.critical_failure_grace)).await;
         }
     }
 
-    async fn cycle(
-        &self,
-        count_cache: &mut Option<(ethers::types::H256, [u32; 2])>,
-    ) -> eyre::Result<CycleOutcome> {
+    async fn cycle(&self, count_cache: &mut CountCache) -> eyre::Result<CycleOutcome> {
         self.store
             .claim(confirmation_lease(self.poll_interval))
             .await?;
+        self.source.begin_cycle().await;
         let observed = match observe(self.source.as_ref(), &self.store).await {
             Ok(state) => state,
             Err(error) => {
@@ -88,14 +117,18 @@ impl Worker {
             ReorgPeriod::Blocks(depth) => u64::from(depth.get()),
             _ => 0,
         };
+        let tip_counts = self.source.tip_sequence_counts().await?;
+        let count_protected = tip_counts.is_some();
         let mut bounded = observed.clone();
-        bounded.head = bounded.head.min(
-            bounded
-                .confirmed
-                .saturating_add(depth)
-                .saturating_add(10_000),
-        );
-        let ingestion = if bounded.indexed < bounded.head {
+        if !count_protected {
+            bounded.head = bounded.head.min(
+                bounded
+                    .confirmed
+                    .saturating_add(depth)
+                    .saturating_add(10_000),
+            );
+        }
+        let mut ingestion = if bounded.indexed < bounded.head {
             ingest_cached(
                 self.source.as_ref(),
                 &self.store,
@@ -107,6 +140,61 @@ impl Worker {
         } else {
             Ok(false)
         };
+
+        // Count-protected sources publish only history proven by this cycle's
+        // snapshot. Any failure leaves their existing confirmed frontier alone.
+        let mut publishable = if count_protected {
+            observed.confirmed
+        } else {
+            u64::MAX
+        };
+        if let Some(expected) = tip_counts.filter(|_| ingestion.is_ok()) {
+            let state = self
+                .store
+                .state()
+                .await?
+                .ok_or_else(|| eyre::eyre!("Missing head state"))?;
+            let actual = self.store.sequence_counts().await?;
+            let mut incomplete = false;
+            let mut unavailable = false;
+            let mut stale = false;
+            let mut proven = state.indexed;
+            for (((expected, tip), actual), stream) in expected.into_iter().zip(actual).zip([
+                "dispatch",
+                "delivery",
+                "gas payment",
+                "insertion",
+            ]) {
+                let Some(expected) = expected else { continue };
+                let tip = u64::from(tip);
+                if expected < actual {
+                    stale = true;
+                    warn!(
+                        stream,
+                        expected,
+                        actual,
+                        tip,
+                        "Provider sequence count is behind durable history at its tip"
+                    );
+                    continue;
+                }
+                if tip > state.indexed && expected > actual {
+                    unavailable = true;
+                    continue;
+                }
+                proven = proven.min(tip.min(state.indexed));
+                incomplete |= expected > actual;
+            }
+            if !unavailable && !stale && !incomplete {
+                publishable = self.store.checkpoint(proven).await?;
+            } else if !unavailable && !stale && incomplete {
+                if state.indexed > state.confirmed {
+                    self.store.rewind_to_confirmed(&state).await?;
+                }
+                count_cache.boundary = None;
+                ingestion = Err(eyre::eyre!("Incomplete event range at provider tip"));
+            }
+        }
         if let Err(error) = &ingestion {
             warn!(
                 domain = self.store.domain,
@@ -116,11 +204,12 @@ impl Worker {
             );
         }
 
-        let confirmation = confirm_leased(
+        let confirmation = confirm_leased_through(
             self.source.as_ref(),
             &self.store,
             &self.period,
             confirmation_lease(self.poll_interval),
+            publishable,
         )
         .await?;
         for (label, count) in [
@@ -168,10 +257,9 @@ impl Worker {
             });
         }
         let more_ingestion = ingestion?;
-        let capped_head = observed
-            .head
-            .min(state.confirmed.saturating_add(depth).saturating_add(10_000));
-        let at_provisional_cap = capped_head < observed.head && state.indexed >= capped_head;
+        let capped_head = state.confirmed.saturating_add(depth).saturating_add(10_000);
+        let at_provisional_cap =
+            !count_protected && capped_head < observed.head && state.indexed >= capped_head;
         if at_provisional_cap {
             eyre::bail!(
                 "Provisional suffix reached its 10,000-block limit; confirmation is lagging"

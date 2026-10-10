@@ -19,7 +19,7 @@ import { getTronIgpConfig } from './tron.js';
 import gasPrices from './gasPrices.json' with { type: 'json' };
 import { DEPLOYER, chainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
-import { tokenGasOracleConfigs } from './tokenGasOracles.js';
+import { getTokenGasOracleConfigs } from './tokenGasOracles.js';
 import rawTokenPrices from './tokenPrices.json' with { type: 'json' };
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
@@ -27,37 +27,23 @@ const tokenPrices: ChainMap<string> = rawTokenPrices;
 function getOracleConfigWithOverrides(origin: ChainName) {
   const oracleConfig = getStorageGasOracleConfig()[origin];
 
-  // INTENTION: correct the two underpriced solaxy IGP legs (they were drained via
-  // ATA-rent reclaim) while isolating the change to the solaxy origin only. We do
-  // NOT touch gasPrices.json or tokenPrices.json, so no sibling lane and no other
-  // origin->solanamainnet rate moves; the fix lives entirely in this per-origin
-  // override.
-  //
-  // WHY A HARDCODED PER-LEG BLOCK (not a solaxy token-price bump): the deployed
-  // Rust Sealevel IGP hardcodes local SOL_DECIMALS = 9, but solaxy's native SOLX
-  // has 6 decimals, so convert_decimals over-scales every solaxy leg by
-  // 10^(9-6)=1000. A plain token-price change would be 1000x off and could not
-  // encode the per-leg remote tokenDecimals. So each leg carries: gasPrice = the
-  // true remote gas signal; tokenExchangeRate = SOLX-price proxy x the 10^(D-9)
-  // decimal compensation; tokenDecimals = the REMOTE token's decimals (9 solana /
-  // 18 ethereum).
-  //
-  // These are exactly the values tollkeeper's (decimal-compensated, min-USD-
-  // floored) IGP logic recommends and that are set on-chain. This block MUST stay
-  // in sync with on-chain (see scripts/sealevel-helpers/update-gas-oracles.ts and
-  // the svm-igp-gas-oracle-update skill's two-signer path).
+  // Solaxy's SOLX uses six native decimals, while the deployed Sealevel IGP
+  // converts remote costs to nine decimals. These per-leg rates compensate
+  // for that difference; tokenDecimals must still describe the remote token.
+  // Keep this desired configuration in sync with the Sealevel deployment JSON.
+  // Applying changes on-chain requires a separate owner-authorized update.
   if (origin === 'solaxy') {
     oracleConfig.ethereum = {
-      gasPrice: '51695712',
+      gasPrice: '2000000000',
       tokenExchangeRate: '691771710368053885013231',
       tokenDecimals: 18,
     };
-    // solaxy -> solanamainnet must quote above the ~0.00204 SOL ATA rent the
-    // relayer fronts per delivery, otherwise it can be drained via ATA-rent
-    // reclaim. Quotes ~$0.45 (above rent + delivery gas).
+    // Sealevel divides gas * price * rate by 10^19. At 900,000 gas this
+    // quotes 15,038.681741 SOLX (six decimals), or ~$0.488 at the configured
+    // $0.00003243 SOLX price. The regression test checks the $0.45 floor.
     oracleConfig.solanamainnet = {
       gasPrice: '6',
-      tokenExchangeRate: '2784941063266778928',
+      tokenExchangeRate: '27849410632667789280000',
       tokenDecimals: 9,
     };
   }
@@ -121,6 +107,7 @@ export function getIgp(): ChainMap<IgpConfig> {
   if (igpCache) {
     return igpCache;
   }
+  const tokenGasOracleConfigs = getTokenGasOracleConfigs();
   igpCache = objMap(chainOwners, (local, owner): IgpConfig => {
     const tokenOracleConfig = tokenGasOracleConfigs[local];
     if (local === 'eden') {
@@ -158,7 +145,7 @@ export function getIgp(): ChainMap<IgpConfig> {
       ),
       oracleConfig: getOracleConfigWithOverrides(local),
       // Per-fee-token gas oracles for token-denominated IGP fees; configured in
-      // tokenGasOracles.ts (empty by default).
+      // tokenGasOracles.ts.
       ...(tokenOracleConfig ? { tokenOracleConfig } : {}),
     };
   });

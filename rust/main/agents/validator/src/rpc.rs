@@ -1,5 +1,4 @@
 //! Shared endpoint isolation for checkpoint verification and reorg diagnostics.
-use eyre::{eyre, Result};
 use futures_util::future::try_join_all;
 use hyperlane_base::{
     settings::{ChainConf, ChainConnectionConf},
@@ -35,11 +34,8 @@ pub(crate) fn dedupe_rpc_urls(urls: Vec<Url>, source: &'static str) -> Vec<Url> 
 
 /// Select the protocol's actual state-read transport. Splitting Cosmos RPC
 /// URLs or Tron JSON-RPC URLs would leave root reads on a shared fallback pool.
-pub(crate) fn state_read_urls(
-    chain: &ChainConf,
-    rpc_urls: Vec<Url>,
-) -> Result<(&'static str, Vec<Url>)> {
-    Ok(match &chain.connection {
+pub(crate) fn state_read_urls(chain: &ChainConf, rpc_urls: Vec<Url>) -> (&'static str, Vec<Url>) {
+    match &chain.connection {
         ChainConnectionConf::Ethereum(_) => ("rpcUrls", rpc_urls),
         ChainConnectionConf::Sealevel(conn) => ("rpcUrls", conn.urls.clone()),
         ChainConnectionConf::Starknet(conn) => ("rpcUrls", conn.urls.clone()),
@@ -52,10 +48,7 @@ pub(crate) fn state_read_urls(
         ChainConnectionConf::Radix(conn) => ("rpcUrls", conn.core.clone()),
         #[cfg(feature = "aleo")]
         ChainConnectionConf::Aleo(conn) => ("rpcUrls", conn.rpcs.clone()),
-        ChainConnectionConf::Fuel(_) => {
-            return Err(eyre!("Fuel does not support validator Merkle tree hooks"))
-        }
-    })
+    }
 }
 
 pub(crate) fn chain_conf_for_read_url(
@@ -81,9 +74,6 @@ pub(crate) fn chain_conf_for_read_url(
         ChainConnectionConf::Radix(conn) => conn.core = vec![url],
         #[cfg(feature = "aleo")]
         ChainConnectionConf::Aleo(conn) => conn.rpcs = vec![url],
-        ChainConnectionConf::Fuel(_) => {
-            unreachable!("Fuel rejected when selecting read endpoints")
-        }
     }
     chain_conf.metrics_conf.rpc_role = role;
     chain_conf

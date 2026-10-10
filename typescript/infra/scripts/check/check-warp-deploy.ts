@@ -13,6 +13,7 @@ import {
   type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigMailboxRequiredSchema,
   checkWarpRouteDeployConfig,
+  resolveWarpDeployConfigRouterKeys,
 } from '@hyperlane-xyz/sdk';
 import { assert, objFilter } from '@hyperlane-xyz/utils';
 
@@ -29,8 +30,13 @@ import { type EnvironmentConfig } from '../../src/config/environment.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 import {
+  allAttemptedRoutesFailed,
   getCheckWarpDeployArgs,
+  getCheckWarpDeployExitCode,
+  buildWarpRouteErrorMetricEntries,
+  getCheckRouteErrorGaugeObj,
   getCheckerViolationsGaugeObj,
+  warpRouteErrorGroupings,
   warpViolationGroupings,
 } from './check-utils.js';
 import { isContractVerificationViolation } from './contract-verification-skip.js';
@@ -61,6 +67,23 @@ const ROUTES_TO_SKIP: string[] = [
   // post-#9329 reader flags a false ConfigMismatch on the real on-chain
   // limits. Excluded until ENG-4414 lands (backfill limits or ignore missing).
   WarpRouteIds.BaseEthereumREZ,
+  // Retired route on the old `nesa` chain (domain 41443). The `nesa` RPC now
+  // serves nesachain (chainId 41444), so the legacy router has no code there and
+  // the read fails with "chain unknown". The route stays in the registry only
+  // so the relayer blacklist can match its routers and avoid delivering
+  // messages that originated from it (registry#1696), not to be checked.
+  WarpRouteIds.NesaLegacyNES,
+  // Route on sei, a chain scheduled for deprecation on 2026-09-30 whose
+  // Elixir fastUSD route is dormant (last message 2026-06-03). Reading it fails
+  // for two reasons that would both need fixing to re-enable it:
+  // - The sei registry explorer (Seitrace) is down and is marked as an Etherscan
+  //   explorer, so the SDK sends its API key to the Etherscan V2 API, which
+  //   rejects it. Etherscan V2 itself serves sei (chain id 1329).
+  // - The xERC20 token never emits BridgeLimitsSet/ConfigurationChanged (its
+  //   limits are unlimited), so the explorer answers with no bridges, the SDK
+  //   treats that as an explorer failure and re-reads over the RPC, and every
+  //   sei RPC prunes the 2024 history that read needs.
+  WarpRouteIds.EthereumSeiFastUSD,
 ];
 
 // Name segments that mark a warp route as a non-production (staging/test)
@@ -221,6 +244,7 @@ async function main() {
       const result = await withTimeout(
         runWarpRouteCheckFromRegistry({
           chains,
+          chainMetadataMultiProvider: getterInputsMultiProvider,
           multiProvider,
           registry,
           registryUris: registries,
@@ -255,16 +279,56 @@ async function main() {
     }
   }
 
-  if (failedWarpRoutesChecks.length > 0) {
-    console.error(
-      chalk.red(
-        `Failed to check warp routes: ${failedWarpRoutesChecks.join(', ')}`,
-      ),
+  // Routes that went through the loop plus routes whose config failed to load (disjoint).
+  const attemptedRoutes =
+    warpIdsToCheck.length + failedWarpRouteConfigLoads.length;
+  let failedMetricPublications: string[] = [];
+  if (pushMetrics) {
+    failedMetricPublications = await pushWarpRouteErrorMetrics(
+      buildWarpRouteErrorMetricEntries({
+        attemptedRouteIds: [...warpIdsToCheck, ...failedWarpRouteConfigLoads],
+        failedRouteIds: failedWarpRoutesChecks,
+      }),
+      environment,
     );
-    process.exit(1);
   }
 
-  process.exit(0);
+  if (failedWarpRoutesChecks.length > 0) {
+    console.warn(
+      chalk.yellow(
+        `Could not check ${failedWarpRoutesChecks.length} of ${attemptedRoutes} warp routes (execution errors, not config violations): ${failedWarpRoutesChecks.join(', ')}`,
+      ),
+    );
+  }
+
+  const exitCode = getCheckWarpDeployExitCode({
+    attemptedRoutes,
+    failedRoutes: failedWarpRoutesChecks.length,
+    failedMetricPublications: failedMetricPublications.length,
+  });
+
+  if (failedMetricPublications.length > 0) {
+    console.error(
+      chalk.red(
+        `Route-error metric publication failed for ${failedMetricPublications.length} routes (monitoring failure, not a route/config problem): ${failedMetricPublications.join(', ')}`,
+      ),
+    );
+  }
+
+  if (
+    allAttemptedRoutesFailed({
+      attemptedRoutes,
+      failedRoutes: failedWarpRoutesChecks.length,
+    })
+  ) {
+    console.error(
+      chalk.red(
+        `No warp route could be checked: all ${attemptedRoutes} attempted routes errored`,
+      ),
+    );
+  }
+
+  process.exit(exitCode);
 }
 
 main()
@@ -276,6 +340,7 @@ main()
 
 async function runWarpRouteCheckFromRegistry({
   multiProvider,
+  chainMetadataMultiProvider,
   warpRouteId,
   registryUris,
   registry,
@@ -286,6 +351,7 @@ async function runWarpRouteCheckFromRegistry({
 }: {
   chains?: string[];
   multiProvider: Awaited<ReturnType<EnvironmentConfig['getMultiProvider']>>;
+  chainMetadataMultiProvider: MultiProvider;
   registry?: ReturnType<typeof getRegistry>;
   registryUris: string[];
   warpCoreConfig?: WarpCoreConfig;
@@ -300,6 +366,11 @@ async function runWarpRouteCheckFromRegistry({
     warpCoreConfig,
     warpDeployConfig,
   });
+
+  loadedConfigs.warpDeployConfig = resolveWarpDeployConfigRouterKeys(
+    chainMetadataMultiProvider,
+    loadedConfigs.warpDeployConfig,
+  );
 
   const filteredConfigs = filterWarpConfigsByChains({
     chains,
@@ -647,6 +718,37 @@ async function isTestnetRoute(
     }
   }
   return false;
+}
+
+// Pushes 1/0 per attempted route, each in its own route_key group, so it
+// auto-resets every run. Series for removed/skipped routes persist until
+// deleted via deleteMetrics with the route_key grouping.
+async function pushWarpRouteErrorMetrics(
+  entries: { warpRouteId: string; value: 0 | 1 }[],
+  environment: string,
+): Promise<string[]> {
+  const failedPublications: string[] = [];
+  for (const { warpRouteId, value } of entries) {
+    try {
+      const register = new Registry();
+      const gauge = new Gauge(getCheckRouteErrorGaugeObj(register));
+      register.registerMetric(gauge);
+      gauge.labels({ module: 'warp', warp_route_id: warpRouteId }).set(value);
+
+      // PUT only replaces this route's group (route_key), not the whole job.
+      await submitMetrics(register, `check-warp-deploy-${environment}`, {
+        groupings: warpRouteErrorGroupings(warpRouteId),
+        overwriteAllMetrics: true,
+        throwOnError: true,
+      });
+    } catch (e) {
+      console.error(
+        chalk.red(`Failed to push route error metric for ${warpRouteId}: ${e}`),
+      );
+      failedPublications.push(warpRouteId);
+    }
+  }
+  return failedPublications;
 }
 
 // Each violation is pushed to PushGateway under its own group, keyed by an

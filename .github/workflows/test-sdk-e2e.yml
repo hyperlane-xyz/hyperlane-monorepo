@@ -173,6 +173,7 @@ jobs:
           - collateral-token
           - cross-collateral-token
           - composite-ism
+          - routing-message-id-multisig-ism-limits
           - provider
           - read-token
           - program-upgrade

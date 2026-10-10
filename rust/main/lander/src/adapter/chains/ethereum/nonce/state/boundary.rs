@@ -87,6 +87,10 @@ impl NonceManagerState {
             self.set_upper_nonce(&upper_nonce).await?;
         }
 
+        let upper_nonce = self
+            .trim_freed_upper_nonces(finalized_nonce.copied(), upper_nonce)
+            .await?;
+
         self.metrics
             .set_finalized_nonce(finalized_nonce.unwrap_or(&U256::zero()));
         self.metrics.set_upper_nonce(&upper_nonce);
@@ -106,6 +110,37 @@ impl NonceManagerState {
         }
 
         Ok(())
+    }
+
+    /// Lowers the upper nonce past trailing nonces that no live transaction holds, so the
+    /// upper boundary tracks the highest nonce still held by a non-Freed transaction.
+    /// Callers must hold `boundary_update_lock`.
+    async fn trim_freed_upper_nonces(
+        &self,
+        finalized_nonce: Option<U256>,
+        upper_nonce: U256,
+    ) -> NonceResult<U256> {
+        let floor = finalized_nonce
+            .map(|nonce| nonce.saturating_add(U256::one()))
+            .unwrap_or_default();
+        let mut trimmed = upper_nonce;
+        while trimmed > floor {
+            let candidate = trimmed.saturating_sub(U256::one());
+            if !self.nonce_available(&candidate).await? {
+                break;
+            }
+            trimmed = candidate;
+        }
+        if trimmed != upper_nonce {
+            warn!(
+                ?upper_nonce,
+                ?trimmed,
+                ?finalized_nonce,
+                "Lowering upper nonce past freed trailing nonces"
+            );
+            self.set_upper_nonce(&trimmed).await?;
+        }
+        Ok(trimmed)
     }
 
     pub(crate) async fn get_reorged_nonce_range(&self) -> NonceResult<Option<ReorgedNonceRange>> {

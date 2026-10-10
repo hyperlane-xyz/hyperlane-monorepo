@@ -116,7 +116,9 @@ impl Indexer<MerkleTreeInsertion> for TronMerkleTreeHookIndexer {
 impl SequenceAwareIndexer<MerkleTreeInsertion> for TronMerkleTreeHookIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = self.get_finalized_block_number().await?;
-        let sequence = self.contract.count().block(u64::from(tip)).call().await?;
+        // walletsolidity serves the latest solidified state and does not support
+        // historical calls. Do not pretend this count is pinned to `tip`.
+        let sequence = self.contract.count().call().await?;
         Ok((Some(sequence), tip))
     }
 }

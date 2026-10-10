@@ -47,7 +47,10 @@ import {
 } from '../utils/ism.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
-import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
+import {
+  HyperlaneIsmFactory,
+  assertNoSealevelOnlyIsm,
+} from './HyperlaneIsmFactory.js';
 import {
   BaseIsmConfigSchema,
   BlacklistIsmConfig,
@@ -201,6 +204,11 @@ export class EvmIsmModule extends HyperlaneModule<
     opaqueHybridAddresses: Address[] = [],
   ): Promise<AnnotatedEV5Transaction[]> {
     const parsedTargetConfig = BaseIsmConfigSchema.parse(targetConfig);
+
+    // Children are deployed one at a time below, so the whole target tree must
+    // be vetted first or earlier siblings are deployed before a later one is
+    // rejected.
+    assertNoSealevelOnlyIsm(parsedTargetConfig);
 
     // Nothing to do if its the default ism
     if (

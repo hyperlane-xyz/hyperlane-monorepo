@@ -546,5 +546,6 @@ export function altVmChainLookup<MetaExt = {}>(
     getDomainId: (chain: ChainNameOrId) =>
       chainMetadataManager.tryGetDomainId(chain),
     getKnownChainNames: () => chainMetadataManager.getKnownChainNames(),
+    getKnownDomainIds: () => new Set(chainMetadataManager.getKnownDomainIds()),
   };
 }

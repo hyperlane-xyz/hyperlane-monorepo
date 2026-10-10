@@ -14,6 +14,7 @@ import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awIcasLegacy } from '../../governance/ica/_awLegacy.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
+import { HAGGIS_DEPLOYER } from '../../owners.js';
 import {
   FAST_FINALITY_THRESHOLD,
   FAST_TRANSFER_FEE_BPS,
@@ -27,12 +28,56 @@ import {
 
 const SERVICE_URL = 'https://offchain-lookup.services.hyperlane.xyz';
 
-// Contract version for CCTP V2 standard routes
-const CONTRACT_VERSION_STANDARD = '11.2.0';
-// Contract version for CCTP V2 fast routes - includes updated fee config
-const CONTRACT_VERSION_FAST = '11.2.0';
+// The original CCTP V2 production legs were deployed at core 11.2.0. Legs added
+// afterwards, and every staging leg (staging is redeployed freely), track the
+// current core version. Pinning the wrong version makes `warp check`/`warp
+// apply` fail: the getter must report the version actually on-chain.
+const CONTRACT_VERSION_LEGACY = '11.2.0';
+const CONTRACT_VERSION_LATEST = '12.1.0';
 
-export const CCTP_CHAINS = Object.keys(tokenMessengerV1Addresses);
+// Production legs deployed at the latest core version rather than 11.2.0.
+const LATEST_VERSION_PRODUCTION_CHAINS = new Set<ChainName>(['arc']);
+
+const getContractVersion = (
+  chain: ChainName,
+  environment: CctpEnvironment,
+): string => {
+  if (environment === 'staging') {
+    return CONTRACT_VERSION_LATEST;
+  }
+  return LATEST_VERSION_PRODUCTION_CHAINS.has(chain)
+    ? CONTRACT_VERSION_LATEST
+    : CONTRACT_VERSION_LEGACY;
+};
+
+type CctpVersion = 'V1' | 'V2';
+// production routes are owned by the AW ICAs/Safes; staging routes are owned by
+// the Haggis deployer key so they can be iterated on without governance.
+type CctpEnvironment = 'production' | 'staging';
+
+// Route membership is declared explicitly and decoupled from the address maps
+// in cctp.ts. Adding a chain's CCTP addresses there does not implicitly extend a
+// deployed route; a chain joins a route only when it is listed here.
+const CCTP_V1_CHAINS = Object.keys(tokenMessengerV1Addresses);
+
+const CCTP_V2_CHAINS = [
+  'ethereum',
+  'avalanche',
+  'optimism',
+  'arbitrum',
+  'base',
+  'polygon',
+  'unichain',
+  'linea',
+  'sonic',
+  'worldchain',
+  'sei',
+  'hyperevm',
+  'ink',
+  'arc',
+] as const satisfies ReadonlyArray<keyof typeof tokenMessengerV2Addresses>;
+
+export const CCTP_CHAINS = CCTP_V1_CHAINS;
 
 // TODO: remove this once the route has been updated to be owned by non-legacy ownership
 const v1Owners: Record<ChainName, string> = {
@@ -45,11 +90,43 @@ const v1Owners: Record<ChainName, string> = {
   unichain: awIcasLegacy['unichain'],
 };
 
+// Ownership is declared explicitly per leg. Every V2 leg is owned by its AW
+// ICA except the ethereum home Safe. optimism's v2 ICA is intentionally left
+// commented out of the shared awIcas map (governance/ica/aw.ts) but already
+// owns the USDC/eclipsemainnet optimism leg, so it is pinned literally here.
+const v2Owners: Record<ChainName, string> = {
+  ethereum: awSafes['ethereum'],
+  optimism: '0x1E2afA8d1B841c53eDe9474D188Cd4FcfEd40dDC',
+  arbitrum: awIcas['arbitrum'],
+  avalanche: awIcas['avalanche'],
+  base: awIcas['base'],
+  polygon: awIcas['polygon'],
+  unichain: awIcas['unichain'],
+  linea: awIcas['linea'],
+  sonic: awIcas['sonic'],
+  worldchain: awIcas['worldchain'],
+  sei: awIcas['sei'],
+  hyperevm: awIcas['hyperevm'],
+  ink: awIcas['ink'],
+  arc: awIcas['arc'],
+};
+
+const getOwner = (
+  chain: string,
+  version: CctpVersion,
+  environment: CctpEnvironment,
+): string | undefined => {
+  if (environment === 'staging') {
+    return HAGGIS_DEPLOYER;
+  }
+  // TODO: restore after V1 route has been updated
+  return version === 'V1' ? v1Owners[chain] : v2Owners[chain];
+};
+
 const getCCTPWarpConfig = (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-  _warpRouteId: string,
-  version: 'V1' | 'V2' = 'V1',
+  version: CctpVersion,
+  environment: CctpEnvironment,
 ): ChainMap<HypTokenRouterConfig> => {
   const messengerAddresses =
     version === 'V1' ? tokenMessengerV1Addresses : tokenMessengerV2Addresses;
@@ -57,16 +134,16 @@ const getCCTPWarpConfig = (
     version === 'V1'
       ? messageTransmitterV1Addresses
       : messageTransmitterV2Addresses;
-  const chains = Object.keys(messengerAddresses) as Array<
-    keyof typeof messengerAddresses
-  >;
+  const routeChains: string[] =
+    version === 'V1' ? [...CCTP_V1_CHAINS] : [...CCTP_V2_CHAINS];
+
+  const chains = (
+    Object.keys(messengerAddresses) as Array<keyof typeof messengerAddresses>
+  ).filter((chain) => routeChains.includes(chain));
 
   return Object.fromEntries(
     chains.map((chain) => {
-      // TODO: restore after route has been updated
-      const owner =
-        version === 'V1' ? v1Owners[chain] : (awIcas[chain] ?? awSafes[chain]);
-
+      const owner = getOwner(chain, version, environment);
       assert(owner, `Owner not found for ${chain}`);
       const config: HypTokenRouterConfig = {
         owner,
@@ -88,26 +165,15 @@ export const getCCTPV1WarpConfig = async (
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   _warpRouteId: string,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  return getCCTPWarpConfig(
-    routerConfig,
-    _abacusWorksEnvOwnerConfig,
-    _warpRouteId,
-    'V1',
-  );
+  return getCCTPWarpConfig(routerConfig, 'V1', 'production');
 };
 
 const getCCTPV2WarpConfig = (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-  _warpRouteId: string,
-  mode: 'fast' | 'standard' = 'standard',
+  mode: 'fast' | 'standard',
+  environment: CctpEnvironment,
 ): ChainMap<HypTokenRouterConfig> => {
-  const baseConfig = getCCTPWarpConfig(
-    routerConfig,
-    _abacusWorksEnvOwnerConfig,
-    _warpRouteId,
-    'V2',
-  );
+  const baseConfig = getCCTPWarpConfig(routerConfig, 'V2', environment);
   return objMap(baseConfig, (chain, config) => {
     const maxFeeBps =
       mode === 'fast'
@@ -119,8 +185,7 @@ const getCCTPV2WarpConfig = (
 
     return {
       ...config,
-      contractVersion:
-        mode === 'fast' ? CONTRACT_VERSION_FAST : CONTRACT_VERSION_STANDARD,
+      contractVersion: getContractVersion(chain, environment),
       maxFeeBps,
       minFinalityThreshold,
     };
@@ -132,12 +197,7 @@ export const getCCTPV2FastWarpConfig = async (
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   _warpRouteId: string,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  return getCCTPV2WarpConfig(
-    routerConfig,
-    _abacusWorksEnvOwnerConfig,
-    _warpRouteId,
-    'fast',
-  );
+  return getCCTPV2WarpConfig(routerConfig, 'fast', 'production');
 };
 
 export const getCCTPV2StandardWarpConfig = async (
@@ -145,12 +205,23 @@ export const getCCTPV2StandardWarpConfig = async (
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   _warpRouteId: string,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  return getCCTPV2WarpConfig(
-    routerConfig,
-    _abacusWorksEnvOwnerConfig,
-    _warpRouteId,
-    'standard',
-  );
+  return getCCTPV2WarpConfig(routerConfig, 'standard', 'production');
+};
+
+export const getCCTPV2StandardStagingWarpConfig = async (
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
+  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+  _warpRouteId: string,
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  return getCCTPV2WarpConfig(routerConfig, 'standard', 'staging');
+};
+
+export const getCCTPV2FastStagingWarpConfig = async (
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
+  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+  _warpRouteId: string,
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  return getCCTPV2WarpConfig(routerConfig, 'fast', 'staging');
 };
 
 const safeChain = 'ethereum';
@@ -162,15 +233,18 @@ const safeSubmitter: SubmitterMetadata = {
 };
 
 const icaChainsLegacy = Object.keys(awIcasLegacy);
-const icaChainsV2 = Object.keys(awIcas);
+// Every V2 leg is submitted through the ethereum Safe's ICA except the
+// ethereum home leg, which is Safe-owned. optimism's transferOwnership(-> ICA)
+// has executed on-chain, so it is now ICA-owned like the rest.
+const icaChainsV2 = Object.keys(v2Owners).filter(
+  (chain) => v2Owners[chain] !== awSafes[chain],
+);
 
 const getCCTPStrategyConfig = (
-  version: 'V1' | 'V2' = 'V1',
+  version: CctpVersion = 'V1',
 ): ChainSubmissionStrategy => {
-  const chains =
-    version === 'V1'
-      ? Object.keys(tokenMessengerV1Addresses)
-      : Object.keys(tokenMessengerV2Addresses);
+  const chains: string[] =
+    version === 'V1' ? [...CCTP_V1_CHAINS] : [...CCTP_V2_CHAINS];
 
   // For V1, use legacy ICAs; for V2, use new ICAs
   const icaChains = version === 'V1' ? icaChainsLegacy : icaChainsV2;

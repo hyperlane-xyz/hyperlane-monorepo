@@ -415,6 +415,8 @@ export {
   PausableIsmConfigSchema,
   RoutingIsmConfig,
   RoutingIsmConfigSchema,
+  RoutingMessageIdMultisigIsmConfig,
+  RoutingMessageIdMultisigIsmConfigSchema,
   SafeParseIsmConfigSchema,
   RateLimitedIsmConfig,
   RateLimitedIsmConfigSchema,
@@ -544,7 +546,6 @@ export {
 } from './providers/defaultProviderBuilderMaps.js';
 export {
   defaultEthersV5ProviderBuilder,
-  defaultFuelProviderBuilder,
   defaultProviderBuilder,
   defaultSolProviderBuilder,
   defaultViemProviderBuilder,
@@ -861,6 +862,7 @@ export {
   filterWarpCoreConfigMapByChains,
   getChainsFromWarpCoreConfig,
   getRouterAddressesFromWarpCoreConfig,
+  resolveWarpDeployConfigRouterKeys,
   splitWarpCoreAndExtendedConfigs,
   transformConfigToCheck,
   warpCoreConfigMatchesChains,

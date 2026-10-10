@@ -40,6 +40,7 @@ export function decodeMultisigIsmAccessControlAccount(
   return wrapped.data;
 }
 
+// The account is allocated in 1024-byte steps: trailing zero bytes are expected.
 export function decodeMultisigIsmDomainDataAccount(
   raw: Uint8Array,
 ): DomainData | null {

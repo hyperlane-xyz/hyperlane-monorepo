@@ -58,14 +58,12 @@ export const legacyIgpChains: ChainName[] = Array.from(
     'coti',
     'electroneum',
     'metis',
-    'taiko',
     'torus',
 
     // Keep chains with repeatedly unreliable deployment/proposal execution on
     // legacy IGP for now.
     'krown',
     'pulsechain',
-    'sei',
     'viction',
     ...getDisabledChains(),
   ]),
@@ -79,14 +77,11 @@ export const chainsToSkip: ChainName[] = [
   'forma',
   'eden',
 
-  // TODO: remove once zksync PR is merged into main
-  // mainnets
-  'zksync',
+  // ZKSync stack chains
   'abstract',
 
   // temp during downtime
   'nesa',
-  'tac',
 
   ...getDisabledChains(),
 ];
