@@ -116,7 +116,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monad: true,
     nesa: false, // disabled — superseded by nesachain after the Nesa incident
     nesachain: true,
-    nexus: true,
+    nexus: false, // disabled — Nexus chain shut down by the Nexus team
     optimism: true,
     paradex: true,
     plasma: true,
@@ -188,7 +188,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monad: true,
     nesa: false, // disabled — superseded by nesachain after the Nesa incident
     nesachain: true,
-    nexus: true,
+    nexus: false, // disabled — Nexus chain shut down by the Nexus team
     optimism: true,
     paradex: true,
     plasma: true,
@@ -260,7 +260,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monad: true,
     nesa: false, // disabled — superseded by nesachain after the Nesa incident
     nesachain: true,
-    nexus: true,
+    nexus: false, // disabled — Nexus chain shut down by the Nexus team
     optimism: true,
     paradex: true,
     plasma: true,
