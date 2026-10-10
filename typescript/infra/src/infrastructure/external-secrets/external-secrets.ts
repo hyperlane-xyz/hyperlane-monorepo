@@ -24,6 +24,10 @@ const SECRET_ACCESSOR_ROLE = 'roles/secretmanager.secretAccessor';
 // deploying/upgrading otherwise, and performs a helm command for the separate
 // `external-secrets-gcp` Helm chart (located in ./helm), which contains some environment-specific
 // resources to allow ExternalSecrets in the cluster to read from GCP secret manager.
+//
+// Note: This function automatically patches the external-secrets CRDs with the correct CA bundle
+// to prevent GCP console warnings about invalid TLS certificates. The patching is done after
+// the Helm deployment to ensure the webhook works properly.
 export async function runExternalSecretsHelmCommand(
   helmCommand: HelmCommand,
   infraConfig: InfrastructureConfig,
@@ -135,6 +139,12 @@ async function ensureExternalSecretsRelease(infraConfig: InfrastructureConfig) {
     `helm upgrade external-secrets ${chartName} --namespace ${infraConfig.externalSecrets.namespace} --create-namespace --version ${infraConfig.externalSecrets.helmChart.version} --install --set concurrent=10 ${installCrds ? '--set installCRDs=true' : ''}`,
   );
 
+  // After Helm deployment, automatically patch the CRDs with the correct CA bundle
+  // This ensures the webhook conversion works properly and prevents GCP console warnings
+  await patchExternalSecretsCRDsWithCABundle(
+    infraConfig.externalSecrets.namespace,
+  );
+
   // Wait for the external-secrets-webhook deployment to have a ready replica.
   // The webhook deployment is required in order for subsequent deployments
   // that make use of external-secrets CRDs to be successful.
@@ -158,5 +168,75 @@ async function ensureExternalSecretsRelease(infraConfig: InfrastructureConfig) {
     }
     // Sleep a second and try again
     await sleep(1000);
+  }
+}
+
+async function patchExternalSecretsCRDsWithCABundle(namespace: string) {
+  try {
+    console.log(
+      'Retrieving cluster CA bundle for external-secrets webhook configuration...',
+    );
+
+    // Get the current cluster's CA bundle to configure the webhook properly
+    // This prevents the GCP console warning about invalid TLS certificates
+    const [caBundle, stderr] = await execCmd(
+      `kubectl config view --raw --minify --flatten -o jsonpath='{.clusters[0].cluster.certificate-authority-data}'`,
+    );
+
+    if (!caBundle || !caBundle.trim()) {
+      console.warn(
+        'Warning: Could not retrieve cluster CA bundle, skipping CRD patch.',
+      );
+      return;
+    }
+
+    // The CA bundle is already base64 encoded from kubectl config
+    const caBundleBase64 = caBundle.trim();
+
+    // Check if the CRDs already have the correct CA bundle
+    if (await areCRDsAlreadyPatched(caBundleBase64)) {
+      console.log(
+        'External-secrets CRDs already have the correct CA bundle, skipping patch.',
+      );
+      return;
+    }
+
+    console.log('Patching external-secrets CRDs with CA bundle...');
+
+    // Patch the main external-secrets CRD
+    await execCmd(
+      `kubectl patch crd externalsecrets.external-secrets.io -p '{"spec":{"conversion":{"webhook":{"clientConfig":{"caBundle":"${caBundleBase64}"}}}}}'`,
+    );
+
+    // Patch the clusterexternalsecrets CRD as well
+    await execCmd(
+      `kubectl patch crd clusterexternalsecrets.external-secrets.io -p '{"spec":{"conversion":{"webhook":{"clientConfig":{"caBundle":"${caBundleBase64}"}}}}}'`,
+    );
+
+    console.log('Successfully patched external-secrets CRDs with CA bundle.');
+  } catch (error) {
+    console.warn(
+      'Warning: Could not patch external-secrets CRDs with CA bundle:',
+      error,
+    );
+    console.warn(
+      'The webhook may not work properly and you may see GCP console warnings.',
+    );
+  }
+}
+
+async function areCRDsAlreadyPatched(
+  expectedCaBundle: string,
+): Promise<boolean> {
+  try {
+    // Check if the externalsecrets CRD already has the correct CA bundle
+    const [currentCaBundle, stderr] = await execCmd(
+      `kubectl get crd externalsecrets.external-secrets.io -o jsonpath='{.spec.conversion.webhook.clientConfig.caBundle}'`,
+    );
+
+    return currentCaBundle === expectedCaBundle;
+  } catch (error) {
+    // If we can't check, assume we need to patch
+    return false;
   }
 }
