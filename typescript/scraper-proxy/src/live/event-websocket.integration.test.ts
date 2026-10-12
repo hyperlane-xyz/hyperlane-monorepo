@@ -50,6 +50,8 @@ let omitMappedGasPaymentRows = false;
 let omitExplorerRows = false;
 let provisionalQueryCount = 0;
 let provisionalQueryGate: Promise<void> | undefined;
+let sequenceBoundsQueryCount = 0;
+let sequenceBoundsQueryGate: Promise<void> | undefined;
 const notifiedIds = new Set<string>();
 const gasReplayQueries: string[] = [];
 
@@ -99,6 +101,8 @@ const db: EventDatabase = {
       ]);
     }
     if (sql.includes('MIN(')) {
+      sequenceBoundsQueryCount++;
+      await sequenceBoundsQueryGate;
       databaseDomainFilters.push(values[0]);
       return queryRows<T>([
         values[1] === emptyHook
@@ -1200,6 +1204,57 @@ void it('publishes every frontier projection without exposing pagination columns
   }
 });
 
+void it('does not duplicate height-bearing canonical rows to custom subscribers', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  headStates.set(1, { head: '10', indexed: '10' });
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [
+          { confirmations: 0, domains: [1], eventType: 'delivery' },
+          { confirmations: 0, domains: [1], eventType: 'gas_payment' },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'subscribed');
+    deliveryRows.set('54', {
+      block_number: '10',
+      destination_mailbox: hookB,
+      destination_tx_id: null,
+      domain: 1,
+      msg_id: msgId,
+      sequence: '0',
+      time_created: new Date(0).toISOString(),
+    });
+    gasPaymentRows.set('55', {
+      ...gasPaymentRow('55', null, '1'),
+      block_number: '10',
+    });
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '10',
+        domain: 1,
+        previousConfirmedHeight: '9',
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(
+      messages.some(({ type }) => type === 'event'),
+      false,
+    );
+  } finally {
+    deliveryRows.delete('54');
+    gasPaymentRows.delete('55');
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
 void it('fails a frontier instead of inventing a missing gas cursor', async () => {
   const socket = new WebSocket(url);
   const messages: Record<string, unknown>[] = [];
@@ -1933,6 +1988,72 @@ void it('does not move an agent frontier forward during rollback', async () => {
     assert.equal(socket.readyState, WebSocket.OPEN);
   } finally {
     rows.delete('21002');
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('restarts sequence reset across consecutive rollbacks', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  let releaseBounds: () => void = () => undefined;
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  headStates.set(1, { head: '100', indexed: '90' });
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [
+          {
+            confirmations: 5,
+            cursors: [{ address: hookA, afterSequence: '0', domain: 1 }],
+            eventType: 'merkle_tree_insertion',
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'caught_up');
+
+    sequenceBoundsQueryGate = new Promise<void>((resolve) => {
+      releaseBounds = resolve;
+    });
+    const boundsBefore = sequenceBoundsQueryCount;
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '80',
+        domain: 1,
+        headHeight: '100',
+        indexedHeight: '89',
+        previousConfirmedHeight: '80',
+        previousIndexedHeight: '94',
+      }),
+    );
+    await waitUntil(() => sequenceBoundsQueryCount > boundsBefore);
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '80',
+        domain: 1,
+        headHeight: '100',
+        indexedHeight: '96',
+        previousConfirmedHeight: '80',
+        previousIndexedHeight: '97',
+      }),
+    );
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    rows.set('21003', { ...row(hookA, 1), block_number: '90', domain: 1 });
+    releaseBounds();
+    sequenceBoundsQueryGate = undefined;
+    await waitUntil(() => eventSequences(messages).includes('1'));
+    assert.equal(socket.readyState, WebSocket.OPEN);
+  } finally {
+    releaseBounds();
+    sequenceBoundsQueryGate = undefined;
+    rows.delete('21003');
+    headStates.set(1, { head: '10', indexed: '10' });
     socket.close();
     await waitUntil(() => socket.readyState === WebSocket.CLOSED);
   }

@@ -1873,7 +1873,11 @@ export class EventWebSocketServer {
           const height = rowHeight(eventType, row);
           return height === undefined || height <= to;
         });
-        if (!subscription.catchingUp && subscription.sequenceCursors?.size) {
+        if (
+          !subscription.catchingUp &&
+          subscription.sequenceCursors?.size &&
+          !subscription.resettingDomains.has(head.domain)
+        ) {
           void this.resetSubscriptionSequences(
             socket,
             client,
@@ -1937,32 +1941,42 @@ export class EventWebSocketServer {
     eventType: EventType,
     subscription: Subscription,
     domain: number,
-    through: bigint,
-    rollbackEpoch: number,
+    initialThrough: bigint,
+    initialRollbackEpoch: number,
   ): Promise<void> {
     subscription.resettingDomains.add(domain);
+    let through = initialThrough;
+    let rollbackEpoch = initialRollbackEpoch;
     try {
-      for (const [key, cursor] of subscription.sequenceCursors ?? []) {
-        if (cursor.domain !== domain) continue;
-        const current = subscription.sequences.get(key);
-        if (current === undefined) continue;
-        const { last } = await this.sequenceBounds(
-          eventType,
-          subscription,
-          cursor,
-          through,
-        );
-        if (
-          this.clients.get(socket) !== client ||
-          client.subscriptions.get(eventType) !== subscription ||
-          (this.rollbackEpochs.get(domain) ?? 0) !== rollbackEpoch
-        )
-          return;
-        if (last < current) subscription.sequences.set(key, last);
+      restart: while (true) {
+        for (const [key, cursor] of subscription.sequenceCursors ?? []) {
+          if (cursor.domain !== domain) continue;
+          const current = subscription.sequences.get(key);
+          if (current === undefined) continue;
+          const { last } = await this.sequenceBounds(
+            eventType,
+            subscription,
+            cursor,
+            through,
+          );
+          if (
+            this.clients.get(socket) !== client ||
+            client.subscriptions.get(eventType) !== subscription
+          )
+            return;
+          const latestRollbackEpoch = this.rollbackEpoch(domain);
+          if (latestRollbackEpoch !== rollbackEpoch) {
+            rollbackEpoch = latestRollbackEpoch;
+            through = subscription.frontiers.get(domain) ?? through;
+            continue restart;
+          }
+          if (last < current) subscription.sequences.set(key, last);
+        }
+        break;
       }
     } finally {
-      if ((this.rollbackEpochs.get(domain) ?? 0) === rollbackEpoch)
-        subscription.resettingDomains.delete(domain);
+      subscription.resettingDomains.delete(domain);
+      if (this.clients.get(socket) === client) this.scheduleCustomHeadDrain();
     }
   }
 
@@ -2186,9 +2200,11 @@ export class EventWebSocketServer {
           const lastByHeight = rows.at(-1)!;
           const nextHeight = parseId(lastByHeight[FRONTIER_HEIGHT]);
           const nextId = parseId(lastByHeight[FRONTIER_ID]);
-          const events = rows.map(
-            ({ [FRONTIER_ID]: _id, [FRONTIER_HEIGHT]: _height, ...event }) =>
-              event,
+          const events: Row[] = rows.map(
+            ({ [FRONTIER_ID]: _id, [FRONTIER_HEIGHT]: height, ...event }) => ({
+              ...event,
+              [NOTIFICATION_HEIGHT]: height,
+            }),
           );
           events.sort((a, b) => compareRows(eventType, a, b));
           if (agentInterested) {
