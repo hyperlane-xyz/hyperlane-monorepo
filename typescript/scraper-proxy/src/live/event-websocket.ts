@@ -125,6 +125,7 @@ type ExplorerClient = {
   frontiers: Map<number, bigint>;
   ip: string;
   pendingMessageIds: Set<string>;
+  publication: Promise<void>;
   publishingMessages: boolean;
   queuedBytes: number;
   queue: SerializedMessage[];
@@ -641,6 +642,7 @@ export class EventWebSocketServer {
       frontiers: new Map(),
       ip,
       pendingMessageIds: new Set(),
+      publication: Promise.resolve(),
       publishingMessages: false,
       queuedBytes: 0,
       queue: [],
@@ -953,7 +955,10 @@ export class EventWebSocketServer {
           return;
         }
       }
-      while (subscription.pending.length) {
+      while (
+        subscription.pending.length ||
+        subscription.sequenceResetFrontiers.size
+      ) {
         if (
           this.clients.get(socket) !== client ||
           client.subscriptions.get(request.eventType) !== subscription
@@ -961,38 +966,43 @@ export class EventWebSocketServer {
           websocketCatchUps.inc({ outcome: 'aborted' });
           return;
         }
+        if (subscription.sequenceResetFrontiers.size) {
+          const resets = [...subscription.sequenceResetFrontiers];
+          subscription.sequenceResetFrontiers.clear();
+          for (const [domain, through] of resets) {
+            await this.resetSubscriptionSequences(
+              socket,
+              client,
+              request.eventType,
+              subscription,
+              domain,
+              through,
+              this.rollbackEpoch(domain),
+            );
+          }
+          continue;
+        }
         const pending = subscription.pending.sort((a, b) =>
           compareRows(request.eventType, a, b),
         );
         subscription.pending = [];
-        for (const row of pending) {
+        for (let index = 0; index < pending.length; index++) {
+          if (subscription.sequenceResetFrontiers.size) {
+            subscription.pending.push(...pending.slice(index));
+            break;
+          }
           this.assertCatchUpBudget(subscription);
           if (
             !(await this.deliverAndWait(
               socket,
               request.eventType,
               subscription,
-              row,
+              pending[index],
             ))
           ) {
             websocketCatchUps.inc({ outcome: 'failure' });
             return;
           }
-        }
-      }
-      while (subscription.sequenceResetFrontiers.size) {
-        const resets = [...subscription.sequenceResetFrontiers];
-        subscription.sequenceResetFrontiers.clear();
-        for (const [domain, through] of resets) {
-          await this.resetSubscriptionSequences(
-            socket,
-            client,
-            request.eventType,
-            subscription,
-            domain,
-            through,
-            this.rollbackEpoch(domain),
-          );
         }
       }
       subscription.catchingUp = false;
@@ -1842,20 +1852,31 @@ export class EventWebSocketServer {
       for (const [socket, client] of this.explorerClients) {
         if (client.confirmations !== period || !client.domains?.has(domain))
           continue;
-        const explorerAfter = client.frontiers.get(domain);
-        if (explorerAfter === undefined || through <= explorerAfter) continue;
-        if (
-          !(await this.publishCustomExplorerRange(
-            socket,
-            client,
-            domain,
-            explorerAfter,
-            through,
-            rollbackEpoch,
-          ))
-        )
-          return;
-        client.frontiers.set(domain, through);
+        const published = await this.serializeExplorerPublication(
+          client,
+          async () => {
+            if (this.explorerClients.get(socket) !== client) return true;
+            if (this.rollbackEpoch(domain) !== rollbackEpoch) return false;
+            const explorerAfter = client.frontiers.get(domain);
+            if (explorerAfter === undefined || through <= explorerAfter)
+              return true;
+            if (
+              !(await this.publishCustomExplorerRange(
+                socket,
+                client,
+                domain,
+                explorerAfter,
+                through,
+                rollbackEpoch,
+              ))
+            )
+              return false;
+            if (this.explorerClients.get(socket) === client)
+              client.frontiers.set(domain, through);
+            return true;
+          },
+        );
+        if (!published) return;
       }
     }
   }
@@ -1915,7 +1936,7 @@ export class EventWebSocketServer {
               head.domain,
               to,
               rollbackEpoch,
-            ).catch((error) => this.failCustomDomain(head.domain, error));
+            ).catch((error) => this.failAgentClient(socket, error));
           }
         }
         this.send(socket, {
@@ -2467,51 +2488,70 @@ export class EventWebSocketServer {
       messageIds.forEach((messageId) =>
         client.pendingMessageIds.delete(messageId),
       );
-      while (this.explorerClients.get(socket) === client) {
-        const frontiers = [...client.frontiers];
-        if (!frontiers.length) {
-          messageIds.forEach((messageId) =>
-            client.pendingMessageIds.add(messageId),
+      await this.serializeExplorerPublication(client, async () => {
+        while (this.explorerClients.get(socket) === client) {
+          const frontiers = [...client.frontiers];
+          if (!frontiers.length) {
+            messageIds.forEach((messageId) =>
+              client.pendingMessageIds.add(messageId),
+            );
+            return;
+          }
+          const rollbackEpochs = this.snapshotRollbackEpochs(
+            frontiers.map(([domain]) => domain),
+          );
+          const [overrideDomain, overrideHeight] = frontiers[0];
+          const rows = await this.db.queryLive<Row>(
+            `/* canonical_enrichment */ ${PROVISIONAL_MESSAGE_QUERY}`,
+            [
+              messageIds,
+              frontiers.map(([domain]) => storedDomain(domain)),
+              frontiers.map(([, height]) => height.toString()),
+              storedDomain(overrideDomain),
+              overrideHeight.toString(),
+            ],
+          );
+          if (this.explorerClients.get(socket) !== client) return;
+          if (
+            !this.rollbackEpochsMatch(rollbackEpochs) ||
+            !frontiersMatch(client.frontiers, frontiers)
+          )
+            continue;
+          this.enqueueExplorer(
+            socket,
+            client,
+            rows.flatMap((row) =>
+              messageDomains(row).some((domain) => client.domains?.has(domain))
+                ? [
+                    serialize({
+                      confirmations: client.confirmations,
+                      data: row,
+                      type: 'message_upsert',
+                    }),
+                  ]
+                : [],
+            ),
           );
           return;
         }
-        const rollbackEpochs = this.snapshotRollbackEpochs(
-          frontiers.map(([domain]) => domain),
-        );
-        const [overrideDomain, overrideHeight] = frontiers[0];
-        const rows = await this.db.queryLive<Row>(
-          `/* canonical_enrichment */ ${PROVISIONAL_MESSAGE_QUERY}`,
-          [
-            messageIds,
-            frontiers.map(([domain]) => storedDomain(domain)),
-            frontiers.map(([, height]) => height.toString()),
-            storedDomain(overrideDomain),
-            overrideHeight.toString(),
-          ],
-        );
-        if (this.explorerClients.get(socket) !== client) return;
-        if (
-          !this.rollbackEpochsMatch(rollbackEpochs) ||
-          !frontiersMatch(client.frontiers, frontiers)
-        )
-          continue;
-        this.enqueueExplorer(
-          socket,
-          client,
-          rows.flatMap((row) =>
-            messageDomains(row).some((domain) => client.domains?.has(domain))
-              ? [
-                  serialize({
-                    confirmations: client.confirmations,
-                    data: row,
-                    type: 'message_upsert',
-                  }),
-                ]
-              : [],
-          ),
-        );
-        break;
-      }
+      });
+    }
+  }
+
+  private async serializeExplorerPublication<T>(
+    client: ExplorerClient,
+    publish: () => Promise<T>,
+  ): Promise<T> {
+    const previous = client.publication;
+    let release = (): void => undefined;
+    client.publication = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    try {
+      return await publish();
+    } finally {
+      release();
     }
   }
 
@@ -2629,6 +2669,13 @@ export class EventWebSocketServer {
   private failAgentStream(error: unknown): void {
     this.logger.error(`agent event stream failed: ${formatError(error)}`);
     this.closeAgentClients('Event stream read failed');
+  }
+
+  private failAgentClient(socket: WebSocket, error: unknown): void {
+    if (!this.clients.has(socket)) return;
+    this.logger.error(`agent client stream failed: ${formatError(error)}`);
+    this.disconnect(socket);
+    socket.close(1013, 'Event stream read failed');
   }
 
   private failAgentDomain(domain: number, error: unknown): void {

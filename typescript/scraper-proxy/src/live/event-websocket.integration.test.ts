@@ -44,6 +44,7 @@ let explorerQuery = '';
 let explorerQueryCount = 0;
 let explorerQueryError: Error | undefined;
 let explorerQueryGate: Promise<void> | undefined;
+let frontierQueryCount = 0;
 let notificationQueryError: Error | undefined;
 let headQueryError: Error | undefined;
 let headQueryErrorDomain: number | undefined;
@@ -59,6 +60,7 @@ let provisionalQueryGate: Promise<void> | undefined;
 let enrichmentQueryCount = 0;
 let enrichmentQueryGate: Promise<void> | undefined;
 let sequenceBoundsQueryCount = 0;
+let sequenceBoundsQueryErrorAddress: string | undefined;
 let sequenceBoundsQueryGate: Promise<void> | undefined;
 let sequenceBoundsQueryGateAddress: string | undefined;
 const notifiedIds = new Set<string>();
@@ -113,6 +115,8 @@ const db: EventDatabase = {
     }
     if (sql.includes('MIN(')) {
       sequenceBoundsQueryCount++;
+      if (values[1] === sequenceBoundsQueryErrorAddress)
+        throw new Error('sequence bounds unavailable');
       if (
         sequenceBoundsQueryGateAddress === undefined ||
         values[1] === sequenceBoundsQueryGateAddress
@@ -325,6 +329,7 @@ const db: EventDatabase = {
       (sql.includes('"frontier_row"."block_number">') ||
         sql.includes('"frontier_row"."origin_block_height">'))
     ) {
+      frontierQueryCount++;
       const eventType: EventType = sql.includes('merkle_tree_insertion')
         ? 'merkle_tree_insertion'
         : sql.includes('delivered_message')
@@ -2177,18 +2182,12 @@ void it('rewinds completed cursors after a rollback during catch-up', async () =
       }),
     );
     await waitFor(messages, 'rollback');
-    releaseBounds();
-    sequenceBoundsQueryGate = undefined;
-    sequenceBoundsQueryGateAddress = undefined;
-    await waitUntil(
-      () => messages.filter(({ type }) => type === 'caught_up').length === 2,
-    );
-
     rows.set('21005', {
       ...row(rollbackHook, 0),
       block_number: '10',
       domain: 1,
     });
+    const frontierQueriesBefore = frontierQueryCount;
     notify(
       'scraper_head',
       JSON.stringify({
@@ -2200,6 +2199,13 @@ void it('rewinds completed cursors after a rollback during catch-up', async () =
         previousIndexedHeight: '9',
       }),
     );
+    await waitUntil(() => frontierQueryCount > frontierQueriesBefore);
+    releaseBounds();
+    sequenceBoundsQueryGate = undefined;
+    sequenceBoundsQueryGateAddress = undefined;
+    await waitUntil(
+      () => messages.filter(({ type }) => type === 'caught_up').length === 2,
+    );
     await waitUntil(() => eventSequences(messages).includes('0'));
     assert.equal(socket.readyState, WebSocket.OPEN);
   } finally {
@@ -2210,6 +2216,71 @@ void it('rewinds completed cursors after a rollback during catch-up', async () =
     rows.delete('21005');
     socket.close();
     await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('isolates sequence reset failures to one agent', async () => {
+  const failing = new WebSocket(url);
+  const peer = new WebSocket(url);
+  const failingMessages: Record<string, unknown>[] = [];
+  const peerMessages: Record<string, unknown>[] = [];
+  failing.on('message', (data) =>
+    failingMessages.push(parseRecord(rawData(data))),
+  );
+  peer.on('message', (data) => peerMessages.push(parseRecord(rawData(data))));
+  headStates.set(1, { head: '10', indexed: '10' });
+  try {
+    await Promise.all([
+      waitFor(failingMessages, 'ready'),
+      waitFor(peerMessages, 'ready'),
+    ]);
+    failing.send(
+      JSON.stringify({
+        streams: [
+          {
+            confirmations: 0,
+            cursors: [{ address: hookA, afterSequence: '0', domain: 1 }],
+            eventType: 'merkle_tree_insertion',
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    peer.send(
+      JSON.stringify({
+        streams: [
+          {
+            confirmations: 0,
+            domains: [1],
+            eventType: 'merkle_tree_insertion',
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await Promise.all([
+      waitFor(failingMessages, 'caught_up'),
+      waitFor(peerMessages, 'subscribed'),
+    ]);
+    sequenceBoundsQueryErrorAddress = hookA;
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '10',
+        indexedHeight: '9',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '10',
+      }),
+    );
+    await waitUntil(() => failing.readyState === WebSocket.CLOSED);
+    assert.equal(peer.readyState, WebSocket.OPEN);
+  } finally {
+    sequenceBoundsQueryErrorAddress = undefined;
+    failing.terminate();
+    peer.close();
+    await waitUntil(() => peer.readyState === WebSocket.CLOSED);
   }
 });
 
@@ -2606,36 +2677,28 @@ void it('requeries enrichment when a custom Explorer frontier advances', async (
         previousIndexedHeight: '10',
       }),
     );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(customMessageQueryCount, customQueriesBefore);
+    releaseEnrichment();
+    enrichmentQueryGate = undefined;
     await waitUntil(() => customMessageQueryCount > customQueriesBefore);
-    await waitUntil(() =>
-      messages.some(
-        (message) =>
-          message.type === 'message_upsert' &&
-          record(message.data).msg_id === enrichmentMsgId,
-      ),
-    );
-    assert.equal(
-      record(
-        messages.find(
+    await waitUntil(
+      () =>
+        messages.filter(
           (message) =>
             message.type === 'message_upsert' &&
             record(message.data).msg_id === enrichmentMsgId,
-        )?.data,
-      ).is_delivered,
-      true,
+        ).length === 2,
     );
-    releaseEnrichment();
-    enrichmentQueryGate = undefined;
-    await waitUntil(() => enrichmentQueryCount > queriesBefore + 1);
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    assert.equal(
-      messages.some(
-        (message) =>
-          message.type === 'message_upsert' &&
-          record(message.data).msg_id === enrichmentMsgId &&
-          record(message.data).is_delivered === false,
-      ),
-      false,
+    assert.deepEqual(
+      messages
+        .filter(
+          (message) =>
+            message.type === 'message_upsert' &&
+            record(message.data).msg_id === enrichmentMsgId,
+        )
+        .map((message) => record(message.data).is_delivered),
+      [false, true],
     );
   } finally {
     releaseEnrichment();
