@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
+import { BigNumber, utils } from 'ethers';
 import sinon from 'sinon';
 
 import {
@@ -7,6 +7,7 @@ import {
   TimelockController__factory,
   TokenBridgeCctpBase__factory,
 } from '@hyperlane-xyz/core';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
@@ -217,7 +218,20 @@ describe('EvmWarpModule', () => {
       messageTransmitter: TOKEN_ADDRESS,
       cctpVersion: 'V2',
       urls: [],
-    } as HypTokenRouterConfig;
+    } satisfies HypTokenRouterConfig;
+
+    function callException(data: string, cause?: Error) {
+      return Object.assign(new Error('call reverted', cause ? { cause } : {}), {
+        code: 'CALL_EXCEPTION',
+        data,
+      });
+    }
+
+    function errorStringData(reason: string) {
+      return `0x08c379a0${utils.defaultAbiCoder
+        .encode(['string'], [reason])
+        .slice(2)}`;
+    }
 
     function stubCctpBridge(
       getCircleDomain: (hyperlaneDomain: number) => Promise<number>,
@@ -234,11 +248,11 @@ describe('EvmWarpModule', () => {
     }
 
     it('adds missing and incorrect remote mappings in one transaction', async () => {
-      const missingError = Object.assign(new Error('missing domain'), {
-        data: TokenBridgeCctpBase__factory.createInterface().getSighash(
+      const missingError = callException(
+        TokenBridgeCctpBase__factory.createInterface().getSighash(
           'CircleDomainNotConfigured()',
         ),
-      });
+      );
       stubCctpBridge(async (hyperlaneDomain) => {
         if (hyperlaneDomain === 1000) throw missingError;
         if (hyperlaneDomain === 2000) return 99;
@@ -254,10 +268,11 @@ describe('EvmWarpModule', () => {
 
       expect(txs).to.have.length(1);
       expect(txs[0].to).to.equal(ROUTER_ADDRESS);
+      assert(txs[0].data, 'Expected addDomains transaction data');
       const [domains] =
         TokenBridgeCctpBase__factory.createInterface().decodeFunctionData(
           'addDomains',
-          txs[0].data!,
+          txs[0].data,
         );
       expect(
         domains.map(
@@ -285,11 +300,11 @@ describe('EvmWarpModule', () => {
     });
 
     it('repairs a missing reverse mapping', async () => {
-      const missingError = Object.assign(new Error('missing reverse domain'), {
-        data: TokenBridgeCctpBase__factory.createInterface().getSighash(
+      const missingError = callException(
+        TokenBridgeCctpBase__factory.createInterface().getSighash(
           'HyperlaneDomainNotConfigured()',
         ),
-      });
+      );
       stubCctpBridge(
         async (hyperlaneDomain) => hyperlaneDomain / 100,
         async () => {
@@ -301,6 +316,55 @@ describe('EvmWarpModule', () => {
         { hyperlane: 1000, circle: 10 },
       ]);
       expect(txs).to.have.length(1);
+      assert(txs[0].data, 'Expected addDomains transaction data');
+      const [domains] =
+        TokenBridgeCctpBase__factory.createInterface().decodeFunctionData(
+          'addDomains',
+          txs[0].data,
+        );
+      expect(domains[0].hyperlane).to.equal(1000);
+      expect(domains[0].circle).to.equal(10);
+    });
+
+    it('recognizes legacy and SmartProvider-wrapped missing-domain errors', async () => {
+      const legacyError = callException(
+        errorStringData('Circle domain not configured'),
+      );
+      const wrappedError = new Error('provider failed', { cause: legacyError });
+      stubCctpBridge(async () => {
+        throw wrappedError;
+      });
+
+      const txs = await createModule().createAddCctpDomainsTxs(cctpConfig, [
+        { hyperlane: 1000, circle: 10 },
+      ]);
+      expect(txs).to.have.length(1);
+    });
+
+    it('propagates an unexpected error when the other lookup is missing', async () => {
+      const missingError = callException(
+        TokenBridgeCctpBase__factory.createInterface().getSighash(
+          'CircleDomainNotConfigured()',
+        ),
+      );
+      const rpcError = new Error('RPC unavailable');
+      stubCctpBridge(
+        async () => {
+          throw missingError;
+        },
+        async () => {
+          throw rpcError;
+        },
+      );
+
+      try {
+        await createModule().createAddCctpDomainsTxs(cctpConfig, [
+          { hyperlane: 1000, circle: 10 },
+        ]);
+        expect.fail('expected RPC error');
+      } catch (error) {
+        expect(error).to.equal(rpcError);
+      }
     });
 
     it('propagates unexpected RPC errors', async () => {

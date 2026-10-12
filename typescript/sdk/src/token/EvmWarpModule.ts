@@ -1,6 +1,6 @@
 // import { expect } from 'chai';
 import { compareVersions } from 'compare-versions';
-import { BigNumberish, constants, providers } from 'ethers';
+import { BigNumberish, constants, providers, utils } from 'ethers';
 
 import {
   CrossCollateralRouter__factory,
@@ -27,6 +27,7 @@ import {
   ZERO_ADDRESS_HEX_32,
   addressToBytes32,
   assert,
+  concurrentMap,
   deepEquals,
   difference,
   eqAddress,
@@ -45,6 +46,7 @@ import {
 
 import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
 import { CCIPContractCache } from '../ccip/utils.js';
+import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
 import {
@@ -83,7 +85,6 @@ import { moduleMatchesConfig } from '../ism/utils.js';
 import { PredicateWrapperDeployer } from '../predicate/PredicateDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { getNestedJsonRpcError } from '../providers/SmartProvider/jsonRpcError.js';
 import { RemoteRouters, resolveRouterMapConfig } from '../router/types.js';
 import {
   CANCELLER_ROLE,
@@ -98,6 +99,7 @@ import {
   planChainHybrid,
 } from '../deploy/warpHybridPlan.js';
 import { scalesEqual } from '../utils/decimals.js';
+import { isRevertData } from '../utils/contract.js';
 import { IsmConfig, IsmType } from '../ism/types.js';
 import {
   DelayedFlowRemoteIsmsSourceType,
@@ -166,20 +168,6 @@ export function bridgeApprovalGrantsMaxAllowance(
 ): boolean {
   return (
     compareVersions(contractVersion, MAX_LEGACY_BRIDGE_APPROVAL_VERSION) <= 0
-  );
-}
-
-function hasRevertData(error: unknown, expectedData: string): boolean {
-  const directData =
-    typeof error === 'object' &&
-    error !== null &&
-    'data' in error &&
-    typeof error.data === 'string'
-      ? error.data
-      : undefined;
-  const nestedData = getNestedJsonRpcError(error).data;
-  return [directData, nestedData].some(
-    (data) => data?.toLowerCase() === expectedData.toLowerCase(),
   );
 }
 
@@ -508,6 +496,19 @@ export class EvmWarpModule extends HyperlaneModule<
   ): Promise<WarpUpdatePhases> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
+    if (
+      isCctpTokenConfig(actualConfig) &&
+      isCctpTokenConfig(expectedConfig) &&
+      expectedConfig.cctpVersion === 'V2'
+    ) {
+      assert(
+        eqAddress(
+          actualConfig.messageTransmitter,
+          expectedConfig.messageTransmitter,
+        ),
+        `Configured CCTP message transmitter ${expectedConfig.messageTransmitter} does not match the deployed router's immutable transmitter ${actualConfig.messageTransmitter}`,
+      );
+    }
     const hybridPlan = this.planHybridUpdate(actualConfig, expectedConfig);
     const actualHasDelayedFlowRouter =
       (typeof actualConfig.hook === 'object' &&
@@ -3082,28 +3083,48 @@ export class EvmWarpModule extends HyperlaneModule<
     const missingHyperlaneDomainSelector = tokenBridge.interface.getSighash(
       'HyperlaneDomainNotConfigured()',
     );
-    const needsUpdate = await Promise.all(
-      remoteDomains.map(async (domain) => {
-        try {
-          const [configuredCircleDomain, configuredHyperlaneDomain] =
-            await Promise.all([
-              tokenBridge.hyperlaneDomainToCircleDomain(domain.hyperlane),
-              tokenBridge.circleDomainToHyperlaneDomain(domain.circle),
-            ]);
-          return (
-            configuredCircleDomain !== domain.circle ||
-            configuredHyperlaneDomain !== domain.hyperlane
-          );
-        } catch (error) {
+    const encodeErrorString = (reason: string) =>
+      `0x08c379a0${utils.defaultAbiCoder
+        .encode(['string'], [reason])
+        .slice(2)}`;
+    const missingDomainErrors = [
+      missingDomainSelector,
+      missingHyperlaneDomainSelector,
+      encodeErrorString('Circle domain not configured'),
+      encodeErrorString('Hyperlane domain not configured'),
+    ];
+    const isMissingDomainError = (error: unknown) =>
+      missingDomainErrors.some((data) => isRevertData(error, data));
+    const concurrency =
+      this.multiProvider.tryGetRpcConcurrency(this.chainName) ??
+      DEFAULT_CONTRACT_READ_CONCURRENCY;
+    const needsUpdate = await concurrentMap(
+      concurrency,
+      remoteDomains,
+      async (domain) => {
+        const [circleResult, hyperlaneResult] = await Promise.allSettled([
+          tokenBridge.hyperlaneDomainToCircleDomain(domain.hyperlane),
+          tokenBridge.circleDomainToHyperlaneDomain(domain.circle),
+        ]);
+        for (const result of [circleResult, hyperlaneResult]) {
           if (
-            hasRevertData(error, missingDomainSelector) ||
-            hasRevertData(error, missingHyperlaneDomainSelector)
+            result.status === 'rejected' &&
+            !isMissingDomainError(result.reason)
           ) {
-            return true;
+            throw result.reason;
           }
-          throw error;
         }
-      }),
+        if (
+          circleResult.status === 'rejected' ||
+          hyperlaneResult.status === 'rejected'
+        ) {
+          return true;
+        }
+        return (
+          circleResult.value !== domain.circle ||
+          hyperlaneResult.value !== domain.hyperlane
+        );
+      },
     );
     const missingDomains = remoteDomains.filter(
       (_, index) => needsUpdate[index],

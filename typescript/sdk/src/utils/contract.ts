@@ -75,6 +75,19 @@ function findCallException(
   return undefined;
 }
 
+/** True when an ethers CALL_EXCEPTION carries exactly the expected revert data. */
+export function isRevertData(error: unknown, expectedData: string): boolean {
+  const callException = findCallException(error);
+  if (!callException) return false;
+
+  const nestedData = getNestedJsonRpcError(callException).data;
+  return [callException.data, nestedData].some(
+    (data) =>
+      typeof data === 'string' &&
+      data.toLowerCase() === expectedData.toLowerCase(),
+  );
+}
+
 /**
  * True for LSP17 NoExtensionFoundForFunctionSelector(bytes4) revert data. When
  * the CALL_EXCEPTION carries the call (`transaction.data`), the embedded
