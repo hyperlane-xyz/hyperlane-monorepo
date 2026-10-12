@@ -342,6 +342,9 @@ pub struct Scraper {
     core: HyperlaneAgentCore,
     contract_sync_metrics: Arc<ContractSyncMetrics>,
     scrapers: HashMap<u32, ChainScraper>,
+    /// Configured chains whose construction failed at startup; retried by `run`.
+    unbuilt: Vec<HyperlaneDomain>,
+    db: ScraperDb,
     settings: ScraperSettings,
     core_metrics: Arc<CoreMetrics>,
     agent_metrics: AgentMetrics,
@@ -414,11 +417,19 @@ impl BaseAgent for Scraper {
         .await;
 
         trace!(domain_count = scrapers.len(), "Created scrapers");
+        let unbuilt = settings
+            .chains_to_scrape
+            .iter()
+            .filter(|domain| !scrapers.contains_key(&domain.id()))
+            .cloned()
+            .collect();
 
         Ok(Self {
             core,
             contract_sync_metrics,
             scrapers,
+            unbuilt,
+            db,
             settings,
             core_metrics: metrics,
             agent_metrics,
@@ -459,7 +470,13 @@ impl BaseAgent for Scraper {
                 .values()
                 .map(|scraper| agent.supervise_chain(scraper)),
         );
-        if let Err(err) = tokio::try_join!(try_join_all(tasks), chains) {
+        let unbuilt = try_join_all(
+            agent
+                .unbuilt
+                .iter()
+                .map(|domain| agent.supervise_unbuilt_chain(domain)),
+        );
+        if let Err(err) = tokio::try_join!(try_join_all(tasks), chains, unbuilt) {
             tracing::error!(error = ?err, "Scraper task panicked");
         }
     }
@@ -487,6 +504,36 @@ impl Scraper {
         self.chain_metrics
             .set_critical_error(scraper.domain.name(), false);
         try_join_all(tasks).await.map(|_| ())
+    }
+
+    /// Retries construction of a chain that failed at startup (e.g. provider or
+    /// cursor setup), then supervises it like any other chain.
+    async fn supervise_unbuilt_chain(
+        &self,
+        domain: &HyperlaneDomain,
+    ) -> Result<(), tokio::task::JoinError> {
+        let mut delay = RPC_RETRY_SLEEP_DURATION;
+        let scraper = loop {
+            sleep(delay).await;
+            match Self::build_chain_scraper(
+                domain,
+                &self.settings,
+                self.core_metrics.clone(),
+                self.db.clone(),
+                self.contract_sync_metrics.clone(),
+            )
+            .await
+            {
+                Ok(scraper) => break scraper,
+                Err(err) => {
+                    tracing::error!(?err, ?domain, retry_in = ?delay, "Failed to build chain scraper");
+                    self.chain_metrics.set_critical_error(domain.name(), true);
+                    delay = delay.saturating_mul(2).min(CHAIN_SETUP_MAX_RETRY_DELAY);
+                }
+            }
+        };
+        info!(domain = domain.name(), "built chain scraper after retry");
+        self.supervise_chain(&scraper).await
     }
 
     async fn start_chain(&self, scraper: &ChainScraper) -> eyre::Result<Vec<JoinHandle<()>>> {
