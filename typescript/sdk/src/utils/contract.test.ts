@@ -21,6 +21,7 @@ import {
   isMissingSelectorCallException,
   isMissingSelectorRevert,
   isPanicRevert,
+  isRevertData,
   isReturnDataEmpty,
 } from './contract.js';
 
@@ -32,6 +33,41 @@ function facetNotFoundError(): Error & { code: string; data: string } {
 }
 
 describe('contract utils', () => {
+  describe('isRevertData', () => {
+    const expectedData = '0x12345678';
+
+    it('matches direct, nested, and SmartProvider-wrapped call exceptions', () => {
+      const direct = Object.assign(new Error('call reverted'), {
+        code: 'CALL_EXCEPTION',
+        data: expectedData,
+      });
+      const nested = Object.assign(new Error('call reverted'), {
+        code: 'CALL_EXCEPTION',
+        data: '0x',
+        error: { data: expectedData },
+      });
+
+      expect(isRevertData(direct, expectedData)).to.equal(true);
+      expect(isRevertData(nested, expectedData)).to.equal(true);
+      expect(isRevertData(wrappedError(nested), expectedData)).to.equal(true);
+    });
+
+    it('rejects non-call exceptions and different revert data', () => {
+      expect(isRevertData({ data: expectedData }, expectedData)).to.equal(
+        false,
+      );
+      expect(
+        isRevertData(
+          Object.assign(new Error('call reverted'), {
+            code: 'CALL_EXCEPTION',
+            data: '0x87654321',
+          }),
+          expectedData,
+        ),
+      ).to.equal(false);
+    });
+  });
+
   describe('isMissingSelectorCallException', () => {
     it('matches empty call exceptions', () => {
       expect(isMissingSelectorCallException(missingSelectorError())).to.equal(
