@@ -35,14 +35,7 @@ export type ChainExportUpdate = Omit<
   'firstRecordedAt' | 'updatedAt'
 >;
 
-export interface ExportStore {
-  read(chain: ChainName): Promise<ChainExport | undefined>;
-  update(
-    chain: ChainName,
-    update: ChainExportUpdate,
-    now: string,
-  ): Promise<void>;
-}
+export type ExportStore = ChainStore<ChainExport, ChainExportUpdate>;
 
 function mergeAggregators(
   existing: ExportedAggregator[],
@@ -113,16 +106,28 @@ export function mergeChainExport(
   return { entry: candidate, changed };
 }
 
-export function createMemoryExportStore(
-  initial: ChainMap<ChainExport> = {},
-): ExportStore & { snapshot(): ChainMap<ChainExport> } {
-  const entries = new Map<ChainName, ChainExport>(Object.entries(initial));
+export interface ChainStore<Entry, Update> {
+  read(chain: ChainName): Promise<Entry | undefined>;
+  update(chain: ChainName, update: Update, now: string): Promise<void>;
+}
+
+export type MergeChainEntry<Entry, Update> = (
+  existing: Entry | undefined,
+  update: Update,
+  now: string,
+) => { entry: Entry; changed: boolean };
+
+export function createMemoryChainStore<Entry, Update>(
+  merge: MergeChainEntry<Entry, Update>,
+  initial: ChainMap<Entry> = {},
+): ChainStore<Entry, Update> & { snapshot(): ChainMap<Entry> } {
+  const entries = new Map<ChainName, Entry>(Object.entries(initial));
   return {
     async read(chain) {
       return entries.get(chain);
     },
     async update(chain, update, now) {
-      const { entry } = mergeChainExport(entries.get(chain), update, now);
+      const { entry } = merge(entries.get(chain), update, now);
       entries.set(chain, entry);
     },
     snapshot() {
@@ -133,11 +138,16 @@ export function createMemoryExportStore(
   };
 }
 
-export function createFileExportStore(filepath: string): ExportStore {
+// Updates are serialized because the formatter rewrites the file after each
+// write, so concurrent chains must not interleave their read-merge-write cycles.
+export function createFileChainStore<Entry, Update>(
+  filepath: string,
+  merge: MergeChainEntry<Entry, Update>,
+): ChainStore<Entry, Update> {
   let queue: Promise<void> = Promise.resolve();
 
-  const readAll = (): ChainMap<ChainExport> =>
-    pathExists(filepath) ? readJson<ChainMap<ChainExport>>(filepath) : {};
+  const readAll = (): ChainMap<Entry> =>
+    pathExists(filepath) ? readJson<ChainMap<Entry>>(filepath) : {};
 
   return {
     async read(chain) {
@@ -147,7 +157,7 @@ export function createFileExportStore(filepath: string): ExportStore {
     update(chain, update, now) {
       const run = queue.then(async () => {
         const all = readAll();
-        const { entry, changed } = mergeChainExport(all[chain], update, now);
+        const { entry, changed } = merge(all[chain], update, now);
         if (!changed) return;
         all[chain] = entry;
         const sorted = Object.fromEntries(
@@ -159,4 +169,14 @@ export function createFileExportStore(filepath: string): ExportStore {
       return run;
     },
   };
+}
+
+export function createMemoryExportStore(
+  initial: ChainMap<ChainExport> = {},
+): ExportStore & { snapshot(): ChainMap<ChainExport> } {
+  return createMemoryChainStore(mergeChainExport, initial);
+}
+
+export function createFileExportStore(filepath: string): ExportStore {
+  return createFileChainStore(filepath, mergeChainExport);
 }

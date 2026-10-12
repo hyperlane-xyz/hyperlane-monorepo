@@ -691,6 +691,24 @@ describe('aggregation hook upgrade', () => {
       );
     });
 
+    it('replaces only the ICA router and QuotedCalls keys and keeps the rest', () => {
+      const withIca: ChainAddresses = {
+        interchainAccountRouter: addr(0x703),
+        quotedCalls: addr(0x704),
+        mailbox: MAILBOX,
+      };
+      const updated = buildRegistryAddresses(withIca, {
+        interchainAccountRouter: addr(0x705),
+        quotedCalls: addr(0x706),
+      });
+      expect(updated).to.deep.equal({
+        interchainAccountRouter: addr(0x705),
+        quotedCalls: addr(0x706),
+        mailbox: MAILBOX,
+      });
+      expect(withIca.quotedCalls).to.equal(addr(0x704));
+    });
+
     it('never writes the shadow routing hook to the registry but records it in the export', async () => {
       const shadow = addr(0x800);
       const updated = buildRegistryAddresses(current, {
