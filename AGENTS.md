@@ -50,8 +50,8 @@ pnpm -C typescript/cli test:radix:e2e
 
 ```bash
 # TypeScript/Solidity
-pnpm lint          # Must pass
-pnpm format        # Auto-formats code
+pnpm lint          # Must pass (oxlint)
+pnpm format        # Auto-formats code (oxfmt + prettier for Solidity)
 pnpm test          # Run relevant tests
 pnpm changeset     # Add changeset if modifying published packages
 
@@ -62,6 +62,8 @@ cd rust/main && cargo fmt
 ```
 
 **Never skip commit hooks. Do not use `git commit --no-verify` or otherwise bypass `.husky/pre-commit`. Fix hook failures, then commit.**
+
+**Do NOT add `Co-Authored-By` trailers to commit messages.**
 
 ### Changeset Style
 
@@ -206,8 +208,8 @@ cd rust/main && cargo test --release --package run-locally --features sealevel -
 ### Linting & Formatting
 
 ```bash
-pnpm lint                               # Lint all packages
-pnpm format                             # Format all packages
+pnpm lint                               # Lint all packages (oxlint)
+pnpm format                             # Format all packages (oxfmt)
 pnpm -C solidity lint                   # Solidity linting (solhint)
 cd rust/main && cargo clippy            # Rust linting
 cd rust/main && cargo fmt               # Rust formatting
@@ -429,9 +431,42 @@ EOF
 
 **Limitation**: Can only comment on lines in the diff (changed lines). Comments on unchanged code fail.
 
+### TypeScript Review Checklist
+
+Common issues caught in code review:
+
+| Issue                       | Bad                          | Good                                      |
+| --------------------------- | ---------------------------- | ----------------------------------------- |
+| Unnecessary type assertions | `{} as SomeType`             | Let TypeScript infer or use proper typing |
+| Double-cast                 | `x as unknown as Y`          | Fix the types so they're compatible       |
+| `as any` escape hatch       | `value as any`               | `unknown` + type guard                    |
+| Bandaid cast                | `x as Partial<T>`            | Build object with correct shape           |
+| Non-null assertion          | `obj.field!`                 | `if (obj.field != null)` or `??`          |
+| `: any` annotation          | `param: any`                 | Proper type or `unknown`                  |
+| String literals for enums   | `type: 'standard'`           | `type: XERC20Type.Standard`               |
+| Duplicated constants/ABIs   | Same ABI in multiple files   | Extract to shared module                  |
+| Hardcoded discriminants     | `if (x === 'velo')`          | `if (x === XERC20Type.Velo)`              |
+| Existing utilities ignored  | `code === '0x'` check inline | Use `isContractAddress()` from SDK        |
+| Inconsistent method naming  | `detectType()`               | Follow codebase pattern: `derive*()`      |
+
+**Enum usage**: When interfaces have discriminant fields (`type: 'foo'`), use enum values:
+
+```typescript
+// Define
+export enum MyType { Foo = 'foo', Bar = 'bar' }
+
+// In interfaces - use the enum member type directly
+export interface FooConfig { type: MyType.Foo; ... }
+
+// In comparisons
+if (config.type === MyType.Foo) { ... }
+```
+
+**Deduplication**: Extract shared constants (ABIs, selectors) to dedicated files when used in 2+ places.
+
 ### What NOT to Flag
 
-- Minor style issues handled by prettier/linters
+- Minor style issues handled by oxfmt/oxlint
 - Existing intentional patterns (check git history if unsure)
 - Theoretical issues without practical exploit paths
 
@@ -443,6 +478,12 @@ EOF
 | Excessive validation layers      | Bloats code, slows review          | Validate at system boundaries only                        |
 | "Just in case" abstractions      | Premature generalization           | Build for current use case; refactor when pattern repeats |
 | Defensive defaults               | Silently fails instead of alerting | Fail fast with `assert()`                                 |
+
+## Handy CLIs
+
+| CLI      | Purpose                                                                                 |
+| -------- | --------------------------------------------------------------------------------------- |
+| `gcloud` | Interact with Google Cloud (logs, projects, etc). See `/gcp-logs` skill for log queries |
 
 ## Debugging & Operations
 
@@ -496,16 +537,27 @@ Convert addresses to names: `grep -i "[address]" typescript/sdk/src/consts/multi
 
 ## TypeScript Style
 
-### Type Safety
+### Type Safety — Zero Tolerance for Extraneous Casts
 
-- Avoid unnecessary type casts (`as` assertions), especially `as unknown as X` double-casts
-- Do not add bandaid casts like `as T['field']`; fix the function/type signatures instead
-- If types don't match, fix the underlying types rather than casting:
+**NEVER introduce `as` casts or `any` types to make code compile.** This is the single most common mistake — fix the types instead.
+
+- **No `as` assertions** — every `as` cast is a potential bug. If types don't match, fix the underlying types:
   - Adjust interface definitions to be compatible
-  - Use type guards for runtime narrowing
+  - Use type guards for runtime narrowing (`if ('field' in obj)`, `instanceof`, Zod `.parse()`)
   - Compose objects explicitly (spread + missing properties)
-- Prefer proper typing over `any` or type assertions
-- Note: spread operators (`{ ...obj }`) don't bypass type checking
+  - Use generics or overloads to express the relationship
+- **No `as unknown as X` double-casts** — this completely bypasses type checking and always indicates a design problem
+- **No `as any`** — use `unknown` with type guards if the type is truly unknown
+- **No bandaid casts** like `as T['field']`, `as Partial<T>`, `as Record<string, any>` — these mask real type errors
+- **No `!` (non-null assertions)** — use proper null checks (`if (x != null)`, `??`, optional chaining)
+- **Check before committing** — review your diff for any `as ` tokens. If you added one, find another way
+
+When you encounter a type error, the fix priority is:
+
+1. Fix the function signature or interface
+2. Add a type guard
+3. Restructure the code to avoid the mismatch
+4. As an absolute last resort, add a cast with a `// CAST:` comment explaining why it's unavoidable
 
 ### SDK Patterns
 
@@ -532,7 +584,6 @@ Available MCP servers:
 
 | Server               | Purpose                       |
 | -------------------- | ----------------------------- |
-| `google-cloud-mcp`   | GCP logging queries           |
 | `grafana`            | Grafana dashboards and alerts |
 | `hyperlane-explorer` | Message status queries        |
 | `notion`             | Documentation access          |
@@ -549,6 +600,7 @@ Available MCP servers:
 8. **Use `assert()` liberally** - For preconditions, invariants, and unexpected states
 9. **Check error patterns first** - Review existing error handling before adding new try/catch
 10. **Question fallbacks** - Undefined values often signal bugs; don't mask with defaults
+11. **Rebuild shared packages** - After changing `typescript/sdk` or `typescript/utils`, run `pnpm build` from repo root; Turbo handles deps/caching
 
 ## Verify Before Acting
 
@@ -567,3 +619,7 @@ If output seems wrong, check:
 2. **Did I search for existing patterns?** The codebase likely has examples
 3. **Am I using stale context?** Re-read files that may have changed
 4. **Did I verify the error message?** Run the command and read actual output
+
+## Agent Skills
+
+Shared skills live in `.agents/skills/<name>/SKILL.md` and follow the [Agent Skills standard](https://agentskills.io/specification). Read a matching skill before using its workflow. Claude Code discovers the same files through the `.claude/skills` symlink; edit the files in `.agents/skills`. Use Claude Code v2.1.277 or later for native `AGENTS.md` loading.
