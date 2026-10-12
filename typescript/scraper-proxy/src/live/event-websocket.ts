@@ -81,6 +81,7 @@ const GAS_PAYMENT_TRANSACTION = 'event_transaction';
 const GAS_PAYMENT_BLOCK = 'event_block';
 const FRONTIER_ID = 'frontier_id';
 const FRONTIER_HEIGHT = 'frontier_height';
+const NOTIFICATION_HEIGHT = 'notification_height';
 
 type Row = Record<string, unknown>;
 type NotifiedRow = Row & { notification_id: number | string };
@@ -101,6 +102,8 @@ type Subscription = {
   gasPaymentLegacyMaxIds: Map<string, bigint>;
   pending: Row[];
   confirmations?: number;
+  resettingDomains: Set<number>;
+  sequenceCursors?: Map<string, SequenceCursor>;
   streamCursors: Map<string, bigint>;
   sequences: Map<string, bigint>;
   waiting: boolean;
@@ -313,8 +316,12 @@ const PROVISIONAL_MESSAGE_QUERY = `
   LEFT JOIN "transaction" origin_tx ON origin_tx.block_id=origin_block.id
     AND origin_tx.hash=dispatch.origin_tx_hash
   LEFT JOIN eligible_delivery delivery ON delivery.msg_id=dispatch.msg_id
+  LEFT JOIN "transaction" identified_destination_tx
+    ON identified_destination_tx.id=delivery.destination_tx_id
   LEFT JOIN block destination_block ON destination_block.domain=delivery.domain
-    AND destination_block.hash=delivery.block_hash
+    AND (destination_block.hash=delivery.block_hash OR
+      (delivery.block_hash IS NULL AND
+        destination_block.id=identified_destination_tx.block_id))
   LEFT JOIN "transaction" destination_tx ON destination_tx.id=delivery.destination_tx_id
     OR (delivery.destination_tx_id IS NULL AND destination_tx.block_id=destination_block.id
       AND destination_tx.hash=delivery.transaction_hash)
@@ -347,9 +354,11 @@ export class EventWebSocketServer {
   private heartbeatTimer?: NodeJS.Timeout;
   private listenerRetryTimer?: NodeJS.Timeout;
   private agentNotificationTimer?: NodeJS.Timeout;
+  private customHeadNotificationTimer?: NodeJS.Timeout;
   private headNotificationTimer?: NodeJS.Timeout;
   private explorerNotificationTimer?: NodeJS.Timeout;
   private drainingAgentNotifications = false;
+  private drainingCustomHeadNotifications = false;
   private drainingHeadNotifications = false;
   private drainingExplorerNotifications = false;
   private catchUps = 0;
@@ -421,6 +430,7 @@ export class EventWebSocketServer {
       this.heartbeatTimer,
       this.listenerRetryTimer,
       this.agentNotificationTimer,
+      this.customHeadNotificationTimer,
       this.headNotificationTimer,
       this.explorerNotificationTimer,
     ].forEach((timer) => timer && clearTimeout(timer));
@@ -635,7 +645,7 @@ export class EventWebSocketServer {
     websocketConnections.inc({ route: 'messages' });
     if (custom) {
       try {
-        const states = await this.availableHeadStates(custom.domains);
+        const states = await this.stableAvailableHeadStates(custom.domains);
         if (this.explorerClients.get(socket) !== client) return;
         client.canonical = states.size < custom.domains.size;
         client.canonicalDomains = new Set(
@@ -650,6 +660,15 @@ export class EventWebSocketServer {
             customFrontier(state, custom.confirmations),
           ]),
         );
+        for (const [domain, state] of states) {
+          this.customHeads.set(domain, {
+            confirmedHeight: 0n,
+            domain,
+            headHeight: state.head,
+            indexedHeight: state.indexed,
+          });
+        }
+        this.scheduleCustomHeadDrain();
       } catch (error) {
         this.logger.warn(
           `rejecting Explorer confirmation request: ${formatError(error)}`,
@@ -666,27 +685,6 @@ export class EventWebSocketServer {
       eventTypes: custom ? ['message_upsert', 'rollback'] : ['message_upsert'],
       type: 'ready',
     });
-    if (custom) {
-      try {
-        const latest = await this.headStates(client.domains ?? new Set());
-        if (this.explorerClients.get(socket) !== client) return;
-        for (const [domain, state] of latest) {
-          this.customHeads.set(domain, {
-            confirmedHeight: 0n,
-            domain,
-            headHeight: state.head,
-            indexedHeight: state.indexed,
-          });
-        }
-        this.scheduleHeadDrain();
-      } catch (error) {
-        this.logger.error(
-          `Explorer confirmation initialization failed: ${formatError(error)}`,
-        );
-        this.disconnect(socket);
-        socket.close(1013, 'Event stream initialization failed');
-      }
-    }
   }
 
   private accept(socket: WebSocket, route: 'agent' | 'explorer'): boolean {
@@ -760,7 +758,7 @@ export class EventWebSocketServer {
 
     let customHeadStates: Map<number, HeadState>;
     try {
-      customHeadStates = await this.customHeadStates(message.streams);
+      customHeadStates = await this.stableCustomHeadStates(message.streams);
     } catch (error) {
       client.subscribing = false;
       this.sendError(socket, formatError(error));
@@ -793,33 +791,32 @@ export class EventWebSocketServer {
         gasPaymentLegacyMaxIds: new Map(),
         pending: [],
         confirmations: request.confirmations,
+        resettingDomains: new Set(),
+        sequenceCursors: request.cursors
+          ? new Map(
+              request.cursors.flatMap((cursor) =>
+                cursor.kind === 'sequence'
+                  ? [[sequenceKey(cursor.domain, cursor.address), cursor]]
+                  : [],
+              ),
+            )
+          : undefined,
         streamCursors: new Map(),
         sequences: new Map(),
         waiting: !!request.cursors,
       });
     }
-    if (customHeadStates.size) {
-      try {
-        const latest = await this.customHeadStates(message.streams);
-        if (this.clients.get(socket) !== client) return;
-        for (const [domain, state] of latest) {
-          if (!this.customHeads.has(domain)) {
-            this.customHeads.set(domain, {
-              confirmedHeight: 0n,
-              domain,
-              headHeight: state.head,
-              indexedHeight: state.indexed,
-            });
-          }
-        }
-        this.scheduleHeadDrain();
-      } catch (error) {
-        client.subscriptions.clear();
-        client.subscribing = false;
-        this.sendError(socket, formatError(error));
-        return;
+    for (const [domain, state] of customHeadStates) {
+      if (!this.customHeads.has(domain)) {
+        this.customHeads.set(domain, {
+          confirmedHeight: 0n,
+          domain,
+          headHeight: state.head,
+          indexedHeight: state.indexed,
+        });
       }
     }
+    if (customHeadStates.size) this.scheduleCustomHeadDrain();
     client.subscribing = false;
     this.send(socket, {
       streams: message.streams.map(subscriptionResponse),
@@ -832,7 +829,7 @@ export class EventWebSocketServer {
     );
   }
 
-  private async customHeadStates(
+  private async stableCustomHeadStates(
     requests: StreamRequest[],
   ): Promise<Map<number, HeadState>> {
     const domains = new Set(
@@ -841,7 +838,44 @@ export class EventWebSocketServer {
       ),
     );
     if (!domains.size) return new Map();
-    return this.headStates(domains);
+    return this.stableHeadStates(domains, () => this.headStates(domains));
+  }
+
+  private stableAvailableHeadStates(
+    domains: ReadonlySet<number>,
+  ): Promise<Map<number, HeadState>> {
+    return this.stableHeadStates(domains, () =>
+      this.availableHeadStates(domains),
+    );
+  }
+
+  private async stableHeadStates(
+    domains: ReadonlySet<number>,
+    read: () => Promise<Map<number, HeadState>>,
+  ): Promise<Map<number, HeadState>> {
+    while (true) {
+      const epochs = this.snapshotRollbackEpochs(domains);
+      const states = await read();
+      if (this.rollbackEpochsMatch(epochs)) return states;
+    }
+  }
+
+  private rollbackEpoch(domain: number): number {
+    return this.rollbackEpochs.get(domain) ?? 0;
+  }
+
+  private snapshotRollbackEpochs(
+    domains: Iterable<number>,
+  ): Map<number, number> {
+    return new Map(
+      [...domains].map((domain) => [domain, this.rollbackEpoch(domain)]),
+    );
+  }
+
+  private rollbackEpochsMatch(epochs: ReadonlyMap<number, number>): boolean {
+    return [...epochs].every(
+      ([domain, epoch]) => this.rollbackEpoch(domain) === epoch,
+    );
   }
 
   private async headStates(
@@ -1017,75 +1051,106 @@ export class EventWebSocketServer {
     cursor: SequenceCursor,
   ): Promise<boolean> {
     const key = sequenceKey(cursor.domain, cursor.address);
-    const { first, last } = await this.sequenceBounds(
-      eventType,
-      subscription,
-      cursor,
-    );
-    if (last < first) {
-      if (cursor.afterSequence !== undefined && cursor.afterSequence !== -1n) {
-        throw new Error(
-          `No ${eventType} history for domain ${cursor.domain} address ${displayAddress(cursor.address)}`,
-        );
-      }
-      subscription.sequences.set(key, last);
-      return this.sendAndWait(socket, {
-        address: displayAddress(cursor.address),
-        domain: cursor.domain,
-        eventType,
-        sequence: last.toString(),
-        type: 'caught_up',
-      });
-    }
-    const requestedAfter = cursor.afterSequence ?? last;
-    if (requestedAfter > last && !cursor.allowReplay) {
-      throw new Error(
-        `Sequence ${requestedAfter} is ahead of current ${eventType} sequence ${last}`,
-      );
-    }
-    const after = requestedAfter > last ? last : requestedAfter;
-    subscription.sequences.set(key, after);
-
-    while ((subscription.sequences.get(key) ?? -1n) < last) {
+    let initialized = subscription.sequences.has(key);
+    while (true) {
       if (
         this.clients.get(socket) !== client ||
         client.subscriptions.get(eventType) !== subscription
-      ) {
+      )
         return false;
-      }
-      const current = subscription.sequences.get(key) ?? -1n;
+      const rollbackEpoch = this.rollbackEpoch(cursor.domain);
       this.assertCatchUpBudget(subscription);
-      const rows = await this.sequenceRows(
+      const { first, last } = await this.sequenceBounds(
         eventType,
         subscription,
         cursor,
-        current,
-        last,
       );
-      subscription.catchUpRows += rows.length;
-      this.assertCatchUpBudget(subscription);
-      if (!rows.length)
-        throw new Error(`Missing ${eventType} sequence ${current + 1n}`);
-      for (const row of rows) {
-        this.assertCatchUpBudget(subscription);
+      if (this.rollbackEpoch(cursor.domain) !== rollbackEpoch) continue;
+      if (last < first) {
         if (
-          !(await this.deliverAndWait(socket, eventType, subscription, row))
+          !initialized &&
+          cursor.afterSequence !== undefined &&
+          cursor.afterSequence !== -1n
         ) {
-          throw new Error(`Gap in ${eventType} sequence after ${current}`);
+          throw new Error(
+            `No ${eventType} history for domain ${cursor.domain} address ${displayAddress(cursor.address)}`,
+          );
         }
+        subscription.sequences.set(key, last);
+        return this.sendAndWait(socket, {
+          address: displayAddress(cursor.address),
+          domain: cursor.domain,
+          eventType,
+          sequence: last.toString(),
+          type: 'caught_up',
+        });
       }
+      if (!initialized) {
+        const requestedAfter = cursor.afterSequence ?? last;
+        if (requestedAfter > last && !cursor.allowReplay) {
+          throw new Error(
+            `Sequence ${requestedAfter} is ahead of current ${eventType} sequence ${last}`,
+          );
+        }
+        subscription.sequences.set(
+          key,
+          requestedAfter > last ? last : requestedAfter,
+        );
+        initialized = true;
+      } else {
+        const current = subscription.sequences.get(key) ?? -1n;
+        if (current > last) subscription.sequences.set(key, last);
+      }
+
+      let restart = false;
+      while ((subscription.sequences.get(key) ?? -1n) < last) {
+        const current = subscription.sequences.get(key) ?? -1n;
+        const pageEpoch = this.rollbackEpoch(cursor.domain);
+        this.assertCatchUpBudget(subscription);
+        const rows = await this.sequenceRows(
+          eventType,
+          subscription,
+          cursor,
+          current,
+          last,
+        );
+        if (this.rollbackEpoch(cursor.domain) !== pageEpoch) {
+          restart = true;
+          break;
+        }
+        subscription.catchUpRows += rows.length;
+        this.assertCatchUpBudget(subscription);
+        if (!rows.length)
+          throw new Error(`Missing ${eventType} sequence ${current + 1n}`);
+        for (const row of rows) {
+          this.assertCatchUpBudget(subscription);
+          if (
+            !(await this.deliverAndWait(socket, eventType, subscription, row))
+          ) {
+            throw new Error(`Gap in ${eventType} sequence after ${current}`);
+          }
+          if (this.rollbackEpoch(cursor.domain) !== pageEpoch) {
+            restart = true;
+            break;
+          }
+        }
+        if (restart) break;
+      }
+      if (restart || this.rollbackEpoch(cursor.domain) !== rollbackEpoch)
+        continue;
+      this.assertCatchUpBudget(subscription);
+      if (
+        !(await this.sendAndWait(socket, {
+          address: displayAddress(cursor.address),
+          domain: cursor.domain,
+          eventType,
+          sequence: last.toString(),
+          type: 'caught_up',
+        }))
+      )
+        throw new Error('Websocket closed during catch-up');
+      return true;
     }
-    if (
-      !(await this.sendAndWait(socket, {
-        address: displayAddress(cursor.address),
-        domain: cursor.domain,
-        eventType,
-        sequence: last.toString(),
-        type: 'caught_up',
-      }))
-    )
-      throw new Error('Websocket closed during catch-up');
-    return true;
   }
 
   private async catchUpGasPaymentCursor(
@@ -1162,16 +1227,21 @@ export class EventWebSocketServer {
   ): void {
     const domain = rowDomain(row, STREAMS[eventType].domain);
     const key = rowCursorKey(eventType, domain, row);
+    const height = rowHeight(eventType, row);
+    const heightlessCanonical =
+      confirmations === undefined && height === undefined;
     let serialized: SerializedMessage | undefined;
     for (const [socket, client] of this.clients) {
       const subscription = client.subscriptions.get(eventType);
       if (
         !subscription ||
-        subscription.confirmations !== confirmations ||
+        (subscription.confirmations !== confirmations &&
+          !(heightlessCanonical && subscription.confirmations !== undefined)) ||
+        subscription.resettingDomains.has(domain) ||
         !matches(subscription, domain, key)
       )
         continue;
-      if (confirmations !== undefined) {
+      if (subscription.confirmations !== undefined && !heightlessCanonical) {
         const frontier = subscription.frontiers.get(domain);
         if (
           frontier === undefined ||
@@ -1210,6 +1280,16 @@ export class EventWebSocketServer {
     subscription: Subscription,
     row: Row,
   ): Promise<boolean> {
+    if (subscription.confirmations !== undefined) {
+      const domain = rowDomain(row, STREAMS[eventType].domain);
+      const height = rowHeight(eventType, row);
+      const frontier = subscription.frontiers.get(domain);
+      if (
+        subscription.resettingDomains.has(domain) ||
+        (height !== undefined && (frontier === undefined || height > frontier))
+      )
+        return true;
+    }
     const message = this.eventForDelivery(socket, eventType, subscription, row);
     if (message === false) return false;
     if (message === undefined) return true;
@@ -1277,13 +1357,16 @@ export class EventWebSocketServer {
           sequenceKey(domain, streamCursor.address),
         )
       : undefined;
+    const custom = subscription.confirmations !== undefined;
     return {
       data,
       domain,
       eventType,
-      legacyMaxStreamCursor: legacyMaxStreamCursor?.toString(),
+      legacyMaxStreamCursor: custom
+        ? undefined
+        : legacyMaxStreamCursor?.toString(),
       rowId,
-      streamCursor: streamCursor?.value.toString(),
+      streamCursor: custom ? undefined : streamCursor?.value.toString(),
       sequence: sequence?.value.toString(),
       type: 'event',
     };
@@ -1328,10 +1411,12 @@ export class EventWebSocketServer {
     eventType: EventType,
     subscription: Subscription,
     cursor: SequenceCursor,
+    frontierOverride?: bigint,
   ): Promise<{ first: bigint; last: bigint }> {
     const stream = subscriptionStream(eventType, subscription);
     const sequence = sequenceConfig(stream);
-    const frontier = subscription.frontiers.get(cursor.domain);
+    const frontier =
+      frontierOverride ?? subscription.frontiers.get(cursor.domain);
     const frontierFilter =
       frontier === undefined
         ? ''
@@ -1442,7 +1527,7 @@ export class EventWebSocketServer {
           this.hasCustomSubscriber(head.domain)
         ) {
           this.customHeads.set(head.domain, head);
-          this.scheduleHeadDrain();
+          this.scheduleCustomHeadDrain();
         }
         if (
           head.previousConfirmedHeight === undefined ||
@@ -1517,6 +1602,23 @@ export class EventWebSocketServer {
     }
   }
 
+  private scheduleCustomHeadDrain(delay = NOTIFICATION_BATCH_MS): void {
+    if (
+      !this.customHeadNotificationTimer &&
+      !this.drainingCustomHeadNotifications
+    ) {
+      this.customHeadNotificationTimer = setTimeout(() => {
+        this.customHeadNotificationTimer = undefined;
+        void this.drainCustomHeadNotifications().catch((error) => {
+          this.logger.error(
+            `custom frontier publication failed: ${formatError(error)}`,
+          );
+          this.scheduleCustomHeadDrain(LISTENER_RETRY_MS);
+        });
+      }, delay);
+    }
+  }
+
   private scheduleExplorerDrain(): void {
     if (
       !this.explorerNotificationTimer &&
@@ -1532,7 +1634,7 @@ export class EventWebSocketServer {
   }
 
   private queueExplorerNotification(messageId: string): void {
-    if (!this.hasCanonicalExplorer()) return;
+    if (!this.explorerClients.size) return;
     if (
       !this.explorerNotifications.has(messageId) &&
       this.explorerNotifications.size >= MAX_PENDING_NOTIFICATIONS
@@ -1612,7 +1714,21 @@ export class EventWebSocketServer {
         }
         this.releaseHeadRange(domain, range);
       }
+    } finally {
+      this.drainingHeadNotifications = false;
+      if (this.headRanges.size)
+        this.scheduleHeadDrain(
+          this.headFailures.size ? LISTENER_RETRY_MS : NOTIFICATION_BATCH_MS,
+        );
+    }
+  }
+
+  private async drainCustomHeadNotifications(): Promise<void> {
+    if (this.drainingCustomHeadNotifications) return;
+    this.drainingCustomHeadNotifications = true;
+    try {
       for (const [domain, head] of this.customHeads) {
+        if (this.hasResettingSubscriber(domain)) continue;
         try {
           await this.publishCustomHead(domain, head);
           if (this.customHeads.get(domain) === head)
@@ -1626,11 +1742,8 @@ export class EventWebSocketServer {
         }
       }
     } finally {
-      this.drainingHeadNotifications = false;
-      if (this.headRanges.size || this.customHeads.size)
-        this.scheduleHeadDrain(
-          this.headFailures.size ? LISTENER_RETRY_MS : NOTIFICATION_BATCH_MS,
-        );
+      this.drainingCustomHeadNotifications = false;
+      if (this.customHeads.size) this.scheduleCustomHeadDrain();
     }
   }
 
@@ -1726,10 +1839,8 @@ export class EventWebSocketServer {
   private rollbackCustomSubscribers(head: HeadNotification): void {
     if (head.headHeight === undefined || head.indexedHeight === undefined)
       return;
-    this.rollbackEpochs.set(
-      head.domain,
-      (this.rollbackEpochs.get(head.domain) ?? 0) + 1,
-    );
+    const rollbackEpoch = (this.rollbackEpochs.get(head.domain) ?? 0) + 1;
+    this.rollbackEpochs.set(head.domain, rollbackEpoch);
     for (const [socket, client] of this.clients) {
       for (const [eventType, subscription] of client.subscriptions) {
         if (
@@ -1752,10 +1863,26 @@ export class EventWebSocketServer {
           subscription.confirmations,
         );
         if (to >= from) continue;
-        subscription.frontiers.set(head.domain, to);
-        const keyPrefix = `${head.domain}:`;
-        for (const key of subscription.sequences.keys()) {
-          if (key.startsWith(keyPrefix)) subscription.sequences.delete(key);
+        subscription.frontiers.set(
+          head.domain,
+          current === undefined || to < current ? to : current,
+        );
+        subscription.pending = subscription.pending.filter((row) => {
+          if (rowDomain(row, STREAMS[eventType].domain) !== head.domain)
+            return true;
+          const height = rowHeight(eventType, row);
+          return height === undefined || height <= to;
+        });
+        if (!subscription.catchingUp && subscription.sequenceCursors?.size) {
+          void this.resetSubscriptionSequences(
+            socket,
+            client,
+            eventType,
+            subscription,
+            head.domain,
+            to,
+            rollbackEpoch,
+          ).catch((error) => this.failCustomDomain(head.domain, error));
         }
         this.send(socket, {
           confirmations: subscription.confirmations,
@@ -1788,7 +1915,10 @@ export class EventWebSocketServer {
         client.confirmations,
       );
       if (to >= from) continue;
-      client.frontiers.set(head.domain, to);
+      client.frontiers.set(
+        head.domain,
+        current === undefined || to < current ? to : current,
+      );
       this.enqueueExplorer(socket, client, [
         serialize({
           confirmations: client.confirmations,
@@ -1798,6 +1928,41 @@ export class EventWebSocketServer {
           type: 'rollback',
         }),
       ]);
+    }
+  }
+
+  private async resetSubscriptionSequences(
+    socket: WebSocket,
+    client: Client,
+    eventType: EventType,
+    subscription: Subscription,
+    domain: number,
+    through: bigint,
+    rollbackEpoch: number,
+  ): Promise<void> {
+    subscription.resettingDomains.add(domain);
+    try {
+      for (const [key, cursor] of subscription.sequenceCursors ?? []) {
+        if (cursor.domain !== domain) continue;
+        const current = subscription.sequences.get(key);
+        if (current === undefined) continue;
+        const { last } = await this.sequenceBounds(
+          eventType,
+          subscription,
+          cursor,
+          through,
+        );
+        if (
+          this.clients.get(socket) !== client ||
+          client.subscriptions.get(eventType) !== subscription ||
+          (this.rollbackEpochs.get(domain) ?? 0) !== rollbackEpoch
+        )
+          return;
+        if (last < current) subscription.sequences.set(key, last);
+      }
+    } finally {
+      if ((this.rollbackEpochs.get(domain) ?? 0) === rollbackEpoch)
+        subscription.resettingDomains.delete(domain);
     }
   }
 
@@ -1923,6 +2088,9 @@ export class EventWebSocketServer {
       cursorSource = last.source;
       cursorId = parseId(last.id);
       const frontiers = [...client.frontiers];
+      const rollbackEpochs = this.snapshotRollbackEpochs(
+        frontiers.map(([frontierDomain]) => frontierDomain),
+      );
       const rows = await this.db.queryLive<Row>(PROVISIONAL_MESSAGE_QUERY, [
         [...new Set(changes.map(({ msg_id }) => msg_id))],
         frontiers.map(([frontierDomain]) => storedDomain(frontierDomain)),
@@ -1932,7 +2100,8 @@ export class EventWebSocketServer {
       ]);
       if (
         this.explorerClients.get(socket) !== client ||
-        (this.rollbackEpochs.get(domain) ?? 0) !== rollbackEpoch
+        (this.rollbackEpochs.get(domain) ?? 0) !== rollbackEpoch ||
+        !this.rollbackEpochsMatch(rollbackEpochs)
       )
         return false;
       const messages = rows.map((row) =>
@@ -1944,16 +2113,6 @@ export class EventWebSocketServer {
           type: 'message_upsert',
         }),
       );
-      while (
-        this.explorerClients.get(socket) === client &&
-        client.queue.length + messages.length > MAX_EXPLORER_PENDING_MESSAGES
-      ) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, NOTIFICATION_BATCH_MS),
-        );
-        if ((this.rollbackEpochs.get(domain) ?? 0) !== rollbackEpoch)
-          return false;
-      }
       this.enqueueExplorer(socket, client, messages);
       if (changes.length < config.EVENT_STREAM_BATCH_SIZE) return true;
     }
@@ -2135,8 +2294,12 @@ export class EventWebSocketServer {
       eventType === 'gas_payment'
         ? `, ${gasPaymentCursorExpression()} AS ${q(STREAM_CURSOR_COLUMN)}`
         : '';
+    const heightProjection =
+      eventType === 'delivery' || eventType === 'gas_payment'
+        ? `, ${q('event_row')}.${q('block_number')} AS ${q(NOTIFICATION_HEIGHT)}`
+        : '';
     const rows = await this.db.queryLive<NotifiedRow>(
-      `SELECT ${q('event_row')}.${q('id')} AS ${q('notification_id')}, ${eventProjection}${cursorProjection} FROM ${q(stream.table)} AS ${q('event_row')}${gasPaymentMetadata}${gasPaymentCursor} WHERE ${q('event_row')}.${q('id')} = ANY($1::bigint[]) ORDER BY ${q('event_row')}.${q('id')} ASC`,
+      `SELECT ${q('event_row')}.${q('id')} AS ${q('notification_id')}, ${eventProjection}${cursorProjection}${heightProjection} FROM ${q(stream.table)} AS ${q('event_row')}${gasPaymentMetadata}${gasPaymentCursor} WHERE ${q('event_row')}.${q('id')} = ANY($1::bigint[]) ORDER BY ${q('event_row')}.${q('id')} ASC`,
       [[...expected.keys()]],
     );
     const returned = new Set<string>();
@@ -2176,27 +2339,60 @@ export class EventWebSocketServer {
   }
 
   private async publishExplorer(messageIds: string[]): Promise<void> {
-    if (!this.hasCanonicalExplorer()) return;
-    const rows = await this.db.queryLive<Row>(
-      `SELECT ${tables.message_view.columns.map(q).join(', ')} FROM ${q('message_view')} WHERE ${q('msg_id')} = ANY($1::bytea[]) AND ${q('send_occurred_at')} IS NOT NULL`,
-      [messageIds],
-    );
-    const messages = rows.map((row) => ({
-      domains: [
-        rowDomain(row, 'origin_domain_id'),
-        rowDomain(row, 'destination_domain_id'),
-      ],
-      serialized: serialize({ data: row, type: 'message_upsert' }),
-    }));
+    if (this.hasCanonicalExplorer()) {
+      const rows = await this.db.queryLive<Row>(
+        `SELECT ${tables.message_view.columns.map(q).join(', ')} FROM ${q('message_view')} WHERE ${q('msg_id')} = ANY($1::bytea[]) AND ${q('send_occurred_at')} IS NOT NULL`,
+        [messageIds],
+      );
+      const messages = rows.map((row) => ({
+        domains: messageDomains(row),
+        serialized: serialize({ data: row, type: 'message_upsert' }),
+      }));
+      for (const [socket, client] of this.explorerClients) {
+        if (!client.canonical) continue;
+        this.enqueueExplorer(
+          socket,
+          client,
+          messages.flatMap(({ domains, serialized }) =>
+            client.canonicalDomains === undefined ||
+            domains.some((domain) => client.canonicalDomains?.has(domain))
+              ? [serialized]
+              : [],
+          ),
+        );
+      }
+    }
     for (const [socket, client] of this.explorerClients) {
-      if (!client.canonical) continue;
+      if (client.confirmations === undefined || !client.domains?.size) continue;
+      const frontiers = [...client.frontiers];
+      const rollbackEpochs = this.snapshotRollbackEpochs(
+        frontiers.map(([domain]) => domain),
+      );
+      const [overrideDomain, overrideHeight] = frontiers[0];
+      const rows = await this.db.queryLive<Row>(PROVISIONAL_MESSAGE_QUERY, [
+        messageIds,
+        frontiers.map(([domain]) => storedDomain(domain)),
+        frontiers.map(([, height]) => height.toString()),
+        storedDomain(overrideDomain),
+        overrideHeight.toString(),
+      ]);
+      if (
+        this.explorerClients.get(socket) !== client ||
+        !this.rollbackEpochsMatch(rollbackEpochs)
+      )
+        continue;
       this.enqueueExplorer(
         socket,
         client,
-        messages.flatMap(({ domains, serialized }) =>
-          client.canonicalDomains === undefined ||
-          domains.some((domain) => client.canonicalDomains?.has(domain))
-            ? [serialized]
+        rows.flatMap((row) =>
+          messageDomains(row).some((domain) => client.domains?.has(domain))
+            ? [
+                serialize({
+                  confirmations: client.confirmations,
+                  data: row,
+                  type: 'message_upsert',
+                }),
+              ]
             : [],
         ),
       );
@@ -2260,7 +2456,9 @@ export class EventWebSocketServer {
       const subscription = client.subscriptions.get(eventType);
       if (
         subscription &&
-        subscription.confirmations === confirmations &&
+        (subscription.confirmations === confirmations ||
+          (confirmations === undefined &&
+            subscription.confirmations !== undefined)) &&
         matchesDomain(subscription, domain)
       )
         return true;
@@ -2281,6 +2479,15 @@ export class EventWebSocketServer {
     for (const client of this.explorerClients.values()) {
       if (client.confirmations !== undefined && client.domains?.has(domain))
         return true;
+    }
+    return false;
+  }
+
+  private hasResettingSubscriber(domain: number): boolean {
+    for (const client of this.clients.values()) {
+      for (const subscription of client.subscriptions.values()) {
+        if (subscription.resettingDomains.has(domain)) return true;
+      }
     }
     return false;
   }
@@ -2352,7 +2559,6 @@ export class EventWebSocketServer {
     this.logger.error(`Explorer event stream failed: ${formatError(error)}`);
     this.explorerNotifications.clear();
     for (const [socket, client] of this.explorerClients) {
-      if (!client.canonical) continue;
       this.clearExplorerQueue(client);
       this.disconnect(socket);
       socket.close(1013, 'Event stream read failed');
@@ -2642,8 +2848,22 @@ function rowDomain(row: Row, column: string): number {
   return parseDatabaseDomain(row[column], `Invalid ${column} in event row`);
 }
 
+function rowHeight(eventType: EventType, row: Row): bigint | undefined {
+  const value = row[NOTIFICATION_HEIGHT] ?? row[STREAM_HEIGHTS[eventType]];
+  return value === null || value === undefined ? undefined : parseId(value);
+}
+
+function messageDomains(row: Row): [number, number] {
+  return [
+    rowDomain(row, 'origin_domain_id'),
+    rowDomain(row, 'destination_domain_id'),
+  ];
+}
+
 function eventData(eventType: EventType, row: Row): Row {
-  let data = eventType === 'gas_payment' ? withoutStreamCursor(row) : row;
+  const { [NOTIFICATION_HEIGHT]: _height, ...visible } = row;
+  let data =
+    eventType === 'gas_payment' ? withoutStreamCursor(visible) : visible;
   for (const column of EVENT_DOMAIN_COLUMNS[eventType]) {
     const domain = parseDatabaseDomain(
       data[column],

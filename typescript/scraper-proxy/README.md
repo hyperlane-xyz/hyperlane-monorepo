@@ -45,7 +45,9 @@ include top-level `confirmations`, `domain`, and `height` fields describing the
 source frontier; key provisional messages by `data.msg_id`. The `ready` event's
 `domains` field reports which requested domains support that depth. Requested
 domains absent from that field remain on the canonical-confirmation stream over
-the same socket. It does not emit raw gas payments or Merkle tree insertions.
+the same socket. Later canonical enrichment updates are also emitted; because
+they do not advance a provisional frontier, they omit top-level `domain` and
+`height`. It does not emit raw gas payments or Merkle tree insertions.
 Production requests must arrive through Cloudflare with a valid
 `CF-Connecting-IP` header; at most five connections are accepted per client IP.
 

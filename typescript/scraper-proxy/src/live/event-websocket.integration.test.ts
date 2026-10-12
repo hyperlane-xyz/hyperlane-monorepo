@@ -176,6 +176,7 @@ const db: EventDatabase = {
                   ),
                   message_body: dispatch.msg_body,
                   msg_id: dispatch.msg_id,
+                  destination_domain_id: dispatch.destination_domain,
                   origin_domain_id: dispatch.origin_domain,
                 },
               ]
@@ -371,6 +372,9 @@ const db: EventDatabase = {
               {
                 notification_id: id,
                 ...event,
+                ...(sql.includes('notification_height')
+                  ? { notification_height: event.block_number }
+                  : {}),
                 scraper_stream_cursor: event.scraper_stream_cursor ?? id,
               },
             ]
@@ -1765,6 +1769,10 @@ void it('publishes every event at different confirmation depths for every VM', a
         );
         const event = await waitFor(messages, 'event');
         assert.equal(event.eventType, fixture.eventType, protocol);
+        if (fixture.eventType === 'gas_payment') {
+          assert.equal(event.streamCursor, undefined, protocol);
+          assert.equal(event.legacyMaxStreamCursor, undefined, protocol);
+        }
         assert.equal(socket.readyState, WebSocket.OPEN, protocol);
       } finally {
         fixture.source.delete(fixture.id);
@@ -1884,6 +1892,120 @@ void it('keeps agent streams open and replays replacements after rollback', asyn
     rows.delete('21001');
     socket.close();
     await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('does not move an agent frontier forward during rollback', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  headStates.set(1, { head: '10', indexed: '10' });
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [
+          {
+            confirmations: 0,
+            domains: [1],
+            eventType: 'merkle_tree_insertion',
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'subscribed');
+
+    rows.set('21002', { ...row(hookA, 11), block_number: '11', domain: 1 });
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '12',
+        indexedHeight: '11',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '12',
+      }),
+    );
+    await waitFor(messages, 'rollback');
+    await waitUntil(() => eventSequences(messages).includes('11'));
+    assert.equal(socket.readyState, WebSocket.OPEN);
+  } finally {
+    rows.delete('21002');
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('publishes heightless canonical updates to custom-only clients', async () => {
+  const agent = new WebSocket(url);
+  const explorer = new WebSocket(`${messagesUrl}?confirmations=0&domains=1`);
+  const agentMessages: Record<string, unknown>[] = [];
+  const explorerMessages: Record<string, unknown>[] = [];
+  const heightlessMsgId = `\\x${'0a'.repeat(32)}`;
+  agent.on('message', (data) => agentMessages.push(parseRecord(rawData(data))));
+  explorer.on('message', (data) =>
+    explorerMessages.push(parseRecord(rawData(data))),
+  );
+  headStates.set(1, { head: '10', indexed: '10' });
+  try {
+    await Promise.all([
+      waitFor(agentMessages, 'ready'),
+      waitFor(explorerMessages, 'ready'),
+    ]);
+    agent.send(
+      JSON.stringify({
+        streams: [{ confirmations: 0, domains: [1], eventType: 'delivery' }],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(agentMessages, 'subscribed');
+
+    deliveryRows.set('21003', {
+      block_number: null,
+      destination_mailbox: hookB,
+      destination_tx_id: '501',
+      domain: 1,
+      msg_id: heightlessMsgId,
+      sequence: '0',
+      time_created: new Date(0).toISOString(),
+    });
+    dispatchRows.set('21004', {
+      destination_domain: 2,
+      msg_body: '\\x',
+      msg_id: heightlessMsgId,
+      origin_block_height: '10',
+      origin_domain: 1,
+    });
+    notify(
+      'scraper_event',
+      JSON.stringify({ domain: 1, eventType: 'delivery', id: '21003' }),
+    );
+    notify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: heightlessMsgId.slice(2) }),
+    );
+
+    const event = await waitFor(agentMessages, 'event');
+    assert.equal(record(event.data).msg_id, heightlessMsgId);
+    await waitUntil(() =>
+      explorerMessages.some(
+        (message) =>
+          message.type === 'message_upsert' &&
+          record(message.data).msg_id === heightlessMsgId,
+      ),
+    );
+  } finally {
+    deliveryRows.delete('21003');
+    dispatchRows.delete('21004');
+    agent.close();
+    explorer.close();
+    await waitUntil(
+      () =>
+        agent.readyState === WebSocket.CLOSED &&
+        explorer.readyState === WebSocket.CLOSED,
+    );
   }
 });
 
