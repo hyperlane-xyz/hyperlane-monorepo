@@ -68,6 +68,7 @@ import {
   assertDelayedFlowRoutePreconditions,
   buildDelayedFlowEnrollmentTxs,
   deriveDelayedFlowEnrollmentTargets,
+  deriveCctpDomains,
   enrollCrossChainRouters,
   executeWarpDeploy,
   executeWarpRouteExtensionDeploy,
@@ -909,6 +910,10 @@ async function updateExistingWarpRoute(
     warpDeployConfig,
     deployedRoutersAddresses,
   });
+  const cctpDomains = await deriveCctpDomains(
+    multiProvider,
+    expandedWarpDeployConfig,
+  );
 
   await promiseObjAll(
     objMap(expandedWarpDeployConfig, async (chain, config) => {
@@ -953,7 +958,11 @@ async function updateExistingWarpRoute(
               ownershipTxs,
               hybridIsm,
               removesDelayedFlowRouter,
-            } = await evmERC20WarpModule.updatePhases(configWithMailbox);
+            } = await evmERC20WarpModule.updatePhases(
+              configWithMailbox,
+              undefined,
+              cctpDomains,
+            );
             updateTransactions[chain] = txs;
             feeUpdateTransactions[chain] = feeTxs;
             ownershipTransactions[chain] = ownershipTxs;

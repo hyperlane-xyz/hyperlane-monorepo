@@ -5,6 +5,7 @@ import sinon from 'sinon';
 import {
   ProxyAdmin__factory,
   TimelockController__factory,
+  TokenBridgeCctpBase__factory,
 } from '@hyperlane-xyz/core';
 
 import { TestChainName } from '../consts/testChains.js';
@@ -206,6 +207,117 @@ describe('EvmWarpModule', () => {
     expect(updateStub.calledOnce).to.equal(true);
     expect(updateStub.firstCall.args).to.have.length(1);
     expect(updateStub.firstCall.args[1]).to.equal(undefined);
+  });
+
+  describe('createAddCctpDomainsTxs', () => {
+    const cctpConfig = {
+      ...xERC20Config,
+      type: TokenType.collateralCctp,
+      tokenMessenger: TOKEN_ADDRESS,
+      messageTransmitter: TOKEN_ADDRESS,
+      cctpVersion: 'V2',
+      urls: [],
+    } as HypTokenRouterConfig;
+
+    function stubCctpBridge(
+      getCircleDomain: (hyperlaneDomain: number) => Promise<number>,
+      getHyperlaneDomain: (circleDomain: number) => Promise<number> = async (
+        circleDomain,
+      ) => circleDomain * 100,
+    ) {
+      return sandbox.stub(TokenBridgeCctpBase__factory, 'connect').returns({
+        interface: TokenBridgeCctpBase__factory.createInterface(),
+        hyperlaneDomainToCircleDomain: getCircleDomain,
+        circleDomainToHyperlaneDomain: getHyperlaneDomain,
+        // CAST: test stub implements only the CCTP bridge members under test.
+      } as ReturnType<typeof TokenBridgeCctpBase__factory.connect>);
+    }
+
+    it('adds missing and incorrect remote mappings in one transaction', async () => {
+      const missingError = Object.assign(new Error('missing domain'), {
+        data: TokenBridgeCctpBase__factory.createInterface().getSighash(
+          'CircleDomainNotConfigured()',
+        ),
+      });
+      stubCctpBridge(async (hyperlaneDomain) => {
+        if (hyperlaneDomain === 1000) throw missingError;
+        if (hyperlaneDomain === 2000) return 99;
+        throw new Error(`Unexpected domain ${hyperlaneDomain}`);
+      });
+
+      const module = createModule();
+      const txs = await module.createAddCctpDomainsTxs(cctpConfig, [
+        { hyperlane: module.domainId, circle: 1 },
+        { hyperlane: 1000, circle: 10 },
+        { hyperlane: 2000, circle: 20 },
+      ]);
+
+      expect(txs).to.have.length(1);
+      expect(txs[0].to).to.equal(ROUTER_ADDRESS);
+      const [domains] =
+        TokenBridgeCctpBase__factory.createInterface().decodeFunctionData(
+          'addDomains',
+          txs[0].data!,
+        );
+      expect(
+        domains.map(
+          ({ hyperlane, circle }: { hyperlane: number; circle: number }) => ({
+            hyperlane,
+            circle,
+          }),
+        ),
+      ).to.deep.equal([
+        { hyperlane: 1000, circle: 10 },
+        { hyperlane: 2000, circle: 20 },
+      ]);
+    });
+
+    it('returns no transaction when every remote mapping matches', async () => {
+      stubCctpBridge(async (hyperlaneDomain) => hyperlaneDomain / 100);
+      const module = createModule();
+
+      expect(
+        await module.createAddCctpDomainsTxs(cctpConfig, [
+          { hyperlane: 1000, circle: 10 },
+          { hyperlane: 2000, circle: 20 },
+        ]),
+      ).to.deep.equal([]);
+    });
+
+    it('repairs a missing reverse mapping', async () => {
+      const missingError = Object.assign(new Error('missing reverse domain'), {
+        data: TokenBridgeCctpBase__factory.createInterface().getSighash(
+          'HyperlaneDomainNotConfigured()',
+        ),
+      });
+      stubCctpBridge(
+        async (hyperlaneDomain) => hyperlaneDomain / 100,
+        async () => {
+          throw missingError;
+        },
+      );
+
+      const txs = await createModule().createAddCctpDomainsTxs(cctpConfig, [
+        { hyperlane: 1000, circle: 10 },
+      ]);
+      expect(txs).to.have.length(1);
+    });
+
+    it('propagates unexpected RPC errors', async () => {
+      const rpcError = new Error('RPC unavailable');
+      stubCctpBridge(async () => {
+        throw rpcError;
+      });
+
+      try {
+        await createModule().createAddCctpDomainsTxs(cctpConfig, [
+          { hyperlane: 1000, circle: 10 },
+        ]);
+        expect.fail('expected RPC error');
+      } catch (error) {
+        expect(error).to.equal(rpcError);
+      }
+    });
   });
 
   it('rejects timelock while changing ProxyAdmin address', async () => {

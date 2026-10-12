@@ -6,7 +6,6 @@ import {
   MailboxClient__factory,
   EverclearTokenBridge__factory,
   GasRouter,
-  IMessageTransmitter__factory,
   MovableCollateralRouter__factory,
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
@@ -54,6 +53,7 @@ import {
   CCTP_PPM_STORAGE_VERSION,
 } from './EvmWarpRouteReader.js';
 import { TokenMetadataMap } from './TokenMetadataMap.js';
+import { deriveCctpDomains } from './cctp.js';
 import { DeployableTokenType, gasOverhead } from './config.js';
 import {
   resolveAndValidateRebalanceConfig,
@@ -344,19 +344,7 @@ abstract class TokenDeployer<
       (_, config): config is CctpTokenConfig => isCctpTokenConfig(config),
     );
 
-    const circleDomains = await promiseObjAll(
-      objMap(cctpConfigs, (chain, config) =>
-        IMessageTransmitter__factory.connect(
-          config.messageTransmitter,
-          this.multiProvider.getProvider(chain),
-        ).localDomain(),
-      ),
-    );
-
-    const domains = Object.entries(circleDomains).map(([chain, circle]) => ({
-      hyperlane: this.multiProvider.getDomainId(chain),
-      circle,
-    }));
+    const domains = await deriveCctpDomains(this.multiProvider, cctpConfigs);
 
     if (domains.length === 0) {
       return;
