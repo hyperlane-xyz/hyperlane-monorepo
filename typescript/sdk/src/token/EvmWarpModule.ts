@@ -496,19 +496,6 @@ export class EvmWarpModule extends HyperlaneModule<
   ): Promise<WarpUpdatePhases> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
-    if (
-      isCctpTokenConfig(actualConfig) &&
-      isCctpTokenConfig(expectedConfig) &&
-      expectedConfig.cctpVersion === 'V2'
-    ) {
-      assert(
-        eqAddress(
-          actualConfig.messageTransmitter,
-          expectedConfig.messageTransmitter,
-        ),
-        `Configured CCTP message transmitter ${expectedConfig.messageTransmitter} does not match the deployed router's immutable transmitter ${actualConfig.messageTransmitter}`,
-      );
-    }
     const hybridPlan = this.planHybridUpdate(actualConfig, expectedConfig);
     const actualHasDelayedFlowRouter =
       (typeof actualConfig.hook === 'object' &&
@@ -582,6 +569,20 @@ export class EvmWarpModule extends HyperlaneModule<
       actualConfig,
       expectedConfig,
     );
+    if (
+      upgradeTxs.length === 0 &&
+      isCctpTokenConfig(actualConfig) &&
+      isCctpTokenConfig(expectedConfig) &&
+      expectedConfig.cctpVersion === 'V2'
+    ) {
+      assert(
+        eqAddress(
+          actualConfig.messageTransmitter,
+          expectedConfig.messageTransmitter,
+        ),
+        `Configured CCTP message transmitter ${expectedConfig.messageTransmitter} does not match the deployed router's immutable transmitter ${actualConfig.messageTransmitter}`,
+      );
+    }
 
     // Pure hybrid validation already ran immediately after the read. Resolve
     // (and, when needed, deploy) the shared instance for both config trees.
@@ -3102,8 +3103,10 @@ export class EvmWarpModule extends HyperlaneModule<
       concurrency,
       remoteDomains,
       async (domain) => {
-        const [circleResult, hyperlaneResult] = await Promise.allSettled([
+        const [circleResult] = await Promise.allSettled([
           tokenBridge.hyperlaneDomainToCircleDomain(domain.hyperlane),
+        ]);
+        const [hyperlaneResult] = await Promise.allSettled([
           tokenBridge.circleDomainToHyperlaneDomain(domain.circle),
         ]);
         for (const result of [circleResult, hyperlaneResult]) {

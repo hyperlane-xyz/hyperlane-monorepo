@@ -299,6 +299,26 @@ describe('EvmWarpModule', () => {
       ).to.deep.equal([]);
     });
 
+    it('keeps both mapping reads within the configured RPC concurrency', async () => {
+      let activeReads = 0;
+      let peakReads = 0;
+      const read = async (domain: number) => {
+        activeReads += 1;
+        peakReads = Math.max(peakReads, activeReads);
+        await Promise.resolve();
+        activeReads -= 1;
+        return domain < 100 ? domain * 100 : domain / 100;
+      };
+      stubCctpBridge(read, read);
+
+      await createModule().createAddCctpDomainsTxs(cctpConfig, [
+        { hyperlane: 1000, circle: 10 },
+        { hyperlane: 2000, circle: 20 },
+      ]);
+
+      expect(peakReads).to.equal(1);
+    });
+
     it('repairs a missing reverse mapping', async () => {
       const missingError = callException(
         TokenBridgeCctpBase__factory.createInterface().getSighash(
@@ -381,6 +401,51 @@ describe('EvmWarpModule', () => {
       } catch (error) {
         expect(error).to.equal(rpcError);
       }
+    });
+
+    describe('message transmitter validation', () => {
+      const changedTransmitterConfig = {
+        ...cctpConfig,
+        messageTransmitter: PROXY_ADMIN_ADDRESS,
+      } satisfies HypTokenRouterConfig;
+      const actualConfig = {
+        ...cctpConfig,
+        contractVersion: '11.2.0',
+      } as DerivedTokenRouterConfig;
+
+      function stubUpdateThroughUpgrade(
+        module: EvmWarpModule,
+        upgradeTxs: Awaited<
+          ReturnType<EvmWarpModule['upgradeWarpRouteImplementationTx']>
+        >,
+      ) {
+        sandbox.stub(module, 'read').resolves(actualConfig);
+        sandbox.stub(module, 'createTokenFeeUpdateTxs').resolves([]);
+        sandbox
+          .stub(module, 'upgradeWarpRouteImplementationTx')
+          .resolves(upgradeTxs);
+        sandbox.stub(module, 'createIsmUpdateTxs').rejects(new ShortCircuit());
+      }
+
+      it('rejects a transmitter change without an implementation upgrade', async () => {
+        const module = createModule();
+        stubUpdateThroughUpgrade(module, []);
+
+        await expect(
+          module.updatePhases(changedTransmitterConfig),
+        ).to.be.rejectedWith("does not match the deployed router's");
+      });
+
+      it('allows a transmitter change when an implementation upgrade is planned', async () => {
+        const module = createModule();
+        stubUpdateThroughUpgrade(module, [
+          { chainId: module.chainId, to: PROXY_ADMIN_ADDRESS, data: '0x' },
+        ]);
+
+        await expect(
+          module.updatePhases(changedTransmitterConfig),
+        ).to.be.rejectedWith(ShortCircuit);
+      });
     });
   });
 
