@@ -49,9 +49,15 @@ boundary from stored maxima. Contract changes are rejected.
   and the range end are checked again before commit; changed forks are retried.
   EVM dispatch nonces and Merkle leaf indexes anchor continuity to durable rows.
   Each range also checks hash-pinned contract counts when the RPC retains that
-  state. Pruned historical counts fall back to durable sequence continuity, while
-  recent boundaries retain exact tail validation. Sequence gaps retry from the
-  confirmed frontier; only a confirmed hash conflict halts for operator repair.
+  state. Pruned historical counts fall back to durable sequence continuity for
+  ingestion, but those ranges stay provisional: continuity cannot detect a dropped
+  tail, so confirmation waits until a later hash-pinned count (at a range end or
+  the indexed boundary) matches durable history. While that proof is pending,
+  ingestion may exceed the 10,000 block provisional cap to reach a boundary whose
+  state is retained; an unprovable suffix at head raises the critical metric. A
+  count that proves the suffix incomplete replays it from the confirmed frontier.
+  Sequence gaps retry from the confirmed frontier; only a confirmed hash conflict
+  halts for operator repair.
   Block-indexed generic adapters with sequence counts keep partial catch-up
   provisional until durable counts match every available stream snapshot.
   Each cycle confirms only the height proven by its current snapshot; failed,
@@ -205,8 +211,11 @@ hangs, and verify uncached successful receipts survive a neighboring timeout.
    event-range queries, block lookup, latest height, and its configured
    finality selector. EVM additionally requires hash-pinned `eth_call` for
    the mailbox nonce and Merkle hook count; empty predeployment results require
-   hash-pinned `eth_getCode`. Current state must be available; pruned historical
-   state falls back to durable sequence validation. Check the actual configured endpoints. Fleet capability has not been established by
+   hash-pinned `eth_getCode`. Current state must be available; with pruned
+   historical state, catch-up ranges stay provisional until counts near head
+   prove them. A chain whose setup fails (RPC outage, pending cutover) keeps
+   retrying with backoff up to five minutes apart and raises the critical metric
+   meanwhile. Check the actual configured endpoints. Fleet capability has not been established by
    the local tests. There is no legacy opt-out after this hard cutover.
 2. Build this scraper and migration, and prepare the scraper image-tag update for
    every environment sharing the database. Deploy the matching proxy first so it

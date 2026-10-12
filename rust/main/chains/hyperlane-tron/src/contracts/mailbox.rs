@@ -100,10 +100,12 @@ impl Indexer<HyperlaneMessage> for TronMailboxIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<HyperlaneMessage> for TronMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         // walletsolidity serves the latest solidified state and does not support
-        // historical calls. Do not pretend this count is pinned to `tip`.
+        // historical calls. Read the count before the tip so it never includes
+        // events above the reported tip; reading the tip first let a newly
+        // solidified event make a complete range look incomplete.
         let sequence = self.contract.nonce().call().await?;
+        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         Ok((Some(sequence), tip))
     }
 }
