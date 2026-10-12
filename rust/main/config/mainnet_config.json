@@ -4666,10 +4666,10 @@
     "nesachain": {
       "blockExplorers": [
         {
-          "apiUrl": "https://explorer-evm.ns.onyxpro.ai/api",
+          "apiUrl": "https://explorer-evm.nesa.ai/api",
           "family": "blockscout",
           "name": "Nesa Explorer",
-          "url": "https://explorer-evm.ns.onyxpro.ai"
+          "url": "https://explorer-evm.nesa.ai"
         }
       ],
       "blocks": {
@@ -4694,7 +4694,7 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://erpc.ns.onyxpro.ai"
+          "http": "https://erpc.nesa.ai"
         }
       ],
       "technicalStack": "other",
