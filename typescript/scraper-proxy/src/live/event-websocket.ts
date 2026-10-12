@@ -104,6 +104,7 @@ type Subscription = {
   confirmations?: number;
   resettingDomains: Set<number>;
   sequenceCursors?: Map<string, SequenceCursor>;
+  sequenceResetFrontiers: Map<number, bigint>;
   streamCursors: Map<string, bigint>;
   sequences: Map<string, bigint>;
   waiting: boolean;
@@ -123,6 +124,8 @@ type ExplorerClient = {
   domains?: Set<number>;
   frontiers: Map<number, bigint>;
   ip: string;
+  pendingMessageIds: Set<string>;
+  publishingMessages: boolean;
   queuedBytes: number;
   queue: SerializedMessage[];
   sending: boolean;
@@ -305,8 +308,8 @@ const PROVISIONAL_MESSAGE_QUERY = `
     destination_tx.gas_used AS destination_tx_gas_used,
     destination_tx.cumulative_gas_used AS destination_tx_cumulative_gas_used,
     destination_block.id AS destination_block_id,
-    delivery.block_number AS destination_block_height,
-    delivery.block_hash AS destination_block_hash,
+    coalesce(delivery.block_number, destination_block.height) AS destination_block_height,
+    coalesce(delivery.block_hash, destination_block.hash) AS destination_block_hash,
     dispatch.msg_body AS message_body
   FROM eligible_dispatch dispatch
   LEFT JOIN domain origin_domain ON origin_domain.id=dispatch.origin_domain
@@ -637,6 +640,8 @@ export class EventWebSocketServer {
       domains: custom?.domains,
       frontiers: new Map(),
       ip,
+      pendingMessageIds: new Set(),
+      publishingMessages: false,
       queuedBytes: 0,
       queue: [],
       sending: false,
@@ -669,6 +674,9 @@ export class EventWebSocketServer {
           });
         }
         this.scheduleCustomHeadDrain();
+        if (client.frontiers.size)
+          this.scheduleCustomExplorerMessages(socket, client);
+        else client.pendingMessageIds.clear();
       } catch (error) {
         this.logger.warn(
           `rejecting Explorer confirmation request: ${formatError(error)}`,
@@ -801,6 +809,7 @@ export class EventWebSocketServer {
               ),
             )
           : undefined,
+        sequenceResetFrontiers: new Map(),
         streamCursors: new Map(),
         sequences: new Map(),
         waiting: !!request.cursors,
@@ -969,6 +978,21 @@ export class EventWebSocketServer {
             websocketCatchUps.inc({ outcome: 'failure' });
             return;
           }
+        }
+      }
+      while (subscription.sequenceResetFrontiers.size) {
+        const resets = [...subscription.sequenceResetFrontiers];
+        subscription.sequenceResetFrontiers.clear();
+        for (const [domain, through] of resets) {
+          await this.resetSubscriptionSequences(
+            socket,
+            client,
+            request.eventType,
+            subscription,
+            domain,
+            through,
+            this.rollbackEpoch(domain),
+          );
         }
       }
       subscription.catchingUp = false;
@@ -1873,20 +1897,26 @@ export class EventWebSocketServer {
           const height = rowHeight(eventType, row);
           return height === undefined || height <= to;
         });
-        if (
-          !subscription.catchingUp &&
-          subscription.sequenceCursors?.size &&
-          !subscription.resettingDomains.has(head.domain)
-        ) {
-          void this.resetSubscriptionSequences(
-            socket,
-            client,
-            eventType,
-            subscription,
-            head.domain,
-            to,
-            rollbackEpoch,
-          ).catch((error) => this.failCustomDomain(head.domain, error));
+        if (subscription.sequenceCursors?.size) {
+          if (subscription.catchingUp) {
+            const pending = subscription.sequenceResetFrontiers.get(
+              head.domain,
+            );
+            subscription.sequenceResetFrontiers.set(
+              head.domain,
+              pending === undefined || to < pending ? to : pending,
+            );
+          } else if (!subscription.resettingDomains.has(head.domain)) {
+            void this.resetSubscriptionSequences(
+              socket,
+              client,
+              eventType,
+              subscription,
+              head.domain,
+              to,
+              rollbackEpoch,
+            ).catch((error) => this.failCustomDomain(head.domain, error));
+          }
         }
         this.send(socket, {
           confirmations: subscription.confirmations,
@@ -2380,38 +2410,108 @@ export class EventWebSocketServer {
     }
     for (const [socket, client] of this.explorerClients) {
       if (client.confirmations === undefined || !client.domains?.size) continue;
-      const frontiers = [...client.frontiers];
-      const rollbackEpochs = this.snapshotRollbackEpochs(
-        frontiers.map(([domain]) => domain),
+      for (const messageId of messageIds) {
+        if (
+          !client.pendingMessageIds.has(messageId) &&
+          client.pendingMessageIds.size >= MAX_PENDING_NOTIFICATIONS
+        ) {
+          this.failExplorerClient(
+            socket,
+            new Error('Explorer client notification queue limit exceeded'),
+          );
+          break;
+        }
+        client.pendingMessageIds.add(messageId);
+      }
+      this.scheduleCustomExplorerMessages(socket, client);
+    }
+  }
+
+  private scheduleCustomExplorerMessages(
+    socket: WebSocket,
+    client: ExplorerClient,
+  ): void {
+    if (
+      this.explorerClients.get(socket) !== client ||
+      client.publishingMessages ||
+      !client.frontiers.size
+    )
+      return;
+    client.publishingMessages = true;
+    void this.drainCustomExplorerMessages(socket, client)
+      .catch((error) => this.failExplorerClient(socket, error))
+      .finally(() => {
+        client.publishingMessages = false;
+        if (
+          this.explorerClients.get(socket) === client &&
+          client.pendingMessageIds.size &&
+          client.frontiers.size
+        )
+          this.scheduleCustomExplorerMessages(socket, client);
+      });
+  }
+
+  private async drainCustomExplorerMessages(
+    socket: WebSocket,
+    client: ExplorerClient,
+  ): Promise<void> {
+    while (
+      this.explorerClients.get(socket) === client &&
+      client.pendingMessageIds.size &&
+      client.frontiers.size
+    ) {
+      const messageIds = [...client.pendingMessageIds].slice(
+        0,
+        EXPLORER_NOTIFICATION_BATCH_SIZE,
       );
-      const [overrideDomain, overrideHeight] = frontiers[0];
-      const rows = await this.db.queryLive<Row>(PROVISIONAL_MESSAGE_QUERY, [
-        messageIds,
-        frontiers.map(([domain]) => storedDomain(domain)),
-        frontiers.map(([, height]) => height.toString()),
-        storedDomain(overrideDomain),
-        overrideHeight.toString(),
-      ]);
-      if (
-        this.explorerClients.get(socket) !== client ||
-        !this.rollbackEpochsMatch(rollbackEpochs)
-      )
-        continue;
-      this.enqueueExplorer(
-        socket,
-        client,
-        rows.flatMap((row) =>
-          messageDomains(row).some((domain) => client.domains?.has(domain))
-            ? [
-                serialize({
-                  confirmations: client.confirmations,
-                  data: row,
-                  type: 'message_upsert',
-                }),
-              ]
-            : [],
-        ),
+      messageIds.forEach((messageId) =>
+        client.pendingMessageIds.delete(messageId),
       );
+      while (this.explorerClients.get(socket) === client) {
+        const frontiers = [...client.frontiers];
+        if (!frontiers.length) {
+          messageIds.forEach((messageId) =>
+            client.pendingMessageIds.add(messageId),
+          );
+          return;
+        }
+        const rollbackEpochs = this.snapshotRollbackEpochs(
+          frontiers.map(([domain]) => domain),
+        );
+        const [overrideDomain, overrideHeight] = frontiers[0];
+        const rows = await this.db.queryLive<Row>(
+          `/* canonical_enrichment */ ${PROVISIONAL_MESSAGE_QUERY}`,
+          [
+            messageIds,
+            frontiers.map(([domain]) => storedDomain(domain)),
+            frontiers.map(([, height]) => height.toString()),
+            storedDomain(overrideDomain),
+            overrideHeight.toString(),
+          ],
+        );
+        if (this.explorerClients.get(socket) !== client) return;
+        if (
+          !this.rollbackEpochsMatch(rollbackEpochs) ||
+          !frontiersMatch(client.frontiers, frontiers)
+        )
+          continue;
+        this.enqueueExplorer(
+          socket,
+          client,
+          rows.flatMap((row) =>
+            messageDomains(row).some((domain) => client.domains?.has(domain))
+              ? [
+                  serialize({
+                    confirmations: client.confirmations,
+                    data: row,
+                    type: 'message_upsert',
+                  }),
+                ]
+              : [],
+          ),
+        );
+        break;
+      }
     }
   }
 
@@ -2581,6 +2681,13 @@ export class EventWebSocketServer {
     }
   }
 
+  private failExplorerClient(socket: WebSocket, error: unknown): void {
+    if (!this.explorerClients.has(socket)) return;
+    this.logger.error(`Explorer client stream failed: ${formatError(error)}`);
+    this.disconnect(socket);
+    socket.close(1013, 'Event stream read failed');
+  }
+
   private closeClients(reason: string, code = 1013): void {
     this.closeAgentClients(reason, code);
     this.closeExplorerClients(reason, code);
@@ -2718,6 +2825,7 @@ export class EventWebSocketServer {
   }
 
   private clearExplorerQueue(client: ExplorerClient): void {
+    client.pendingMessageIds.clear();
     client.queue.length = 0;
     client.queuedBytes = 0;
   }
@@ -2874,6 +2982,16 @@ function messageDomains(row: Row): [number, number] {
     rowDomain(row, 'origin_domain_id'),
     rowDomain(row, 'destination_domain_id'),
   ];
+}
+
+function frontiersMatch(
+  current: ReadonlyMap<number, bigint>,
+  snapshot: readonly (readonly [number, bigint])[],
+): boolean {
+  return (
+    current.size === snapshot.length &&
+    snapshot.every(([domain, height]) => current.get(domain) === height)
+  );
 }
 
 function eventData(eventType: EventType, row: Row): Row {

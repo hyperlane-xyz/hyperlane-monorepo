@@ -21,6 +21,8 @@ const emptyHook = '\\xcccccccccccccccccccccccccccccccccccccccc';
 const replayHook = '\\xdddddddddddddddddddddddddddddddddddddddd';
 const historyHook = '\\xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
 const pacedHook = '\\xffffffffffffffffffffffffffffffffffffffff';
+const rollbackHook = '\\x1212121212121212121212121212121212121212';
+const blockedHook = '\\x1313131313131313131313131313131313131313';
 const gasPaymaster = '\\x1111111111111111111111111111111111111111';
 const msgId = `\\x${'01'.repeat(32)}`;
 const msgBody = 'é🚀'.repeat(50);
@@ -46,12 +48,19 @@ let notificationQueryError: Error | undefined;
 let headQueryError: Error | undefined;
 let headQueryErrorDomain: number | undefined;
 let headQueryErrorEventType: EventType | undefined;
+let headStateQueryCount = 0;
+let headStateQueryGate: Promise<void> | undefined;
 let omitMappedGasPaymentRows = false;
 let omitExplorerRows = false;
+let customMessageQueryCount = 0;
 let provisionalQueryCount = 0;
+let provisionalQuery = '';
 let provisionalQueryGate: Promise<void> | undefined;
+let enrichmentQueryCount = 0;
+let enrichmentQueryGate: Promise<void> | undefined;
 let sequenceBoundsQueryCount = 0;
 let sequenceBoundsQueryGate: Promise<void> | undefined;
+let sequenceBoundsQueryGateAddress: string | undefined;
 const notifiedIds = new Set<string>();
 const gasReplayQueries: string[] = [];
 
@@ -62,6 +71,8 @@ const db: EventDatabase = {
   },
   async queryLive<T>(sql, values = []) {
     if (sql.includes('FROM "scraper_head"')) {
+      headStateQueryCount++;
+      await headStateQueryGate;
       return queryRows<T>(
         numberArray(values[0]).flatMap((stored) => {
           const domain = stored < 0 ? stored + 0x1_0000_0000 : stored;
@@ -102,8 +113,37 @@ const db: EventDatabase = {
     }
     if (sql.includes('MIN(')) {
       sequenceBoundsQueryCount++;
-      await sequenceBoundsQueryGate;
+      if (
+        sequenceBoundsQueryGateAddress === undefined ||
+        values[1] === sequenceBoundsQueryGateAddress
+      )
+        await sequenceBoundsQueryGate;
       databaseDomainFilters.push(values[0]);
+      if (values[1] === rollbackHook || values[1] === blockedHook) {
+        const frontier = BigInt(String(values[2]));
+        const sequences = [...rows.values()]
+          .filter(
+            (event) =>
+              event.domain === values[0] &&
+              event.merkle_tree_hook === values[1] &&
+              BigInt(String(event.block_number)) <= frontier,
+          )
+          .map((event) => BigInt(String(event.leaf_index)));
+        return queryRows<T>([
+          {
+            first: sequences.length
+              ? sequences
+                  .reduce((left, right) => (left < right ? left : right))
+                  .toString()
+              : '0',
+            last: sequences.length
+              ? sequences
+                  .reduce((left, right) => (left > right ? left : right))
+                  .toString()
+              : '-1',
+          },
+        ]);
+      }
       return queryRows<T>([
         values[1] === emptyHook
           ? { first: '0', last: '-1' }
@@ -117,6 +157,7 @@ const db: EventDatabase = {
       ]);
     }
     if (sql.includes('custom_message_ids')) {
+      customMessageQueryCount++;
       const after = BigInt(String(values[1]));
       const through = BigInt(String(values[2]));
       const cursorHeight = BigInt(String(values[3]));
@@ -166,18 +207,47 @@ const db: EventDatabase = {
       );
     }
     if (sql.includes('provisional_message_view')) {
+      provisionalQuery = sql;
       provisionalQueryCount++;
       await provisionalQueryGate;
+      if (sql.includes('canonical_enrichment')) {
+        enrichmentQueryCount++;
+        await enrichmentQueryGate;
+      }
       const messageIds = new Set(stringArray(values[0]));
+      const frontiers = new Map(
+        numberArray(values[1]).map((stored, index) => [
+          stored < 0 ? stored + 0x1_0000_0000 : stored,
+          BigInt(stringArray(values[2])[index] ?? '-1'),
+        ]),
+      );
+      const overrideStored = Number(values[3]);
+      frontiers.set(
+        overrideStored < 0 ? overrideStored + 0x1_0000_0000 : overrideStored,
+        BigInt(String(values[4])),
+      );
       return queryRows<T>(
         [...dispatchRows.entries()].flatMap(([id, dispatch]) =>
           typeof dispatch.msg_id === 'string' && messageIds.has(dispatch.msg_id)
             ? [
                 {
                   id,
-                  is_delivered: [...deliveryRows.values()].some(
-                    (delivery) => delivery.msg_id === dispatch.msg_id,
-                  ),
+                  is_delivered: [...deliveryRows.values()].some((delivery) => {
+                    if (delivery.msg_id !== dispatch.msg_id) return false;
+                    const blockNumber = delivery.block_number;
+                    if (blockNumber == null) return true;
+                    if (
+                      typeof blockNumber !== 'bigint' &&
+                      typeof blockNumber !== 'number' &&
+                      typeof blockNumber !== 'string'
+                    )
+                      return false;
+                    const domain = Number(delivery.domain);
+                    const frontier = frontiers.get(domain);
+                    return (
+                      frontier !== undefined && BigInt(blockNumber) <= frontier
+                    );
+                  }),
                   message_body: dispatch.msg_body,
                   msg_id: dispatch.msg_id,
                   destination_domain_id: dispatch.destination_domain,
@@ -2059,6 +2129,90 @@ void it('restarts sequence reset across consecutive rollbacks', async () => {
   }
 });
 
+void it('rewinds completed cursors after a rollback during catch-up', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  let releaseBounds: () => void = () => undefined;
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  headStates.set(1, { head: '10', indexed: '10' });
+  rows.set('21004', {
+    ...row(rollbackHook, 0),
+    block_number: '10',
+    domain: 1,
+  });
+  sequenceBoundsQueryGateAddress = blockedHook;
+  sequenceBoundsQueryGate = new Promise<void>((resolve) => {
+    releaseBounds = resolve;
+  });
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [
+          {
+            confirmations: 0,
+            cursors: [
+              { address: rollbackHook, afterSequence: '0', domain: 1 },
+              { address: blockedHook, afterSequence: '-1', domain: 1 },
+            ],
+            eventType: 'merkle_tree_insertion',
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitUntil(
+      () => messages.filter(({ type }) => type === 'caught_up').length === 1,
+    );
+    rows.delete('21004');
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '10',
+        indexedHeight: '9',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '10',
+      }),
+    );
+    await waitFor(messages, 'rollback');
+    releaseBounds();
+    sequenceBoundsQueryGate = undefined;
+    sequenceBoundsQueryGateAddress = undefined;
+    await waitUntil(
+      () => messages.filter(({ type }) => type === 'caught_up').length === 2,
+    );
+
+    rows.set('21005', {
+      ...row(rollbackHook, 0),
+      block_number: '10',
+      domain: 1,
+    });
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '10',
+        indexedHeight: '10',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '9',
+      }),
+    );
+    await waitUntil(() => eventSequences(messages).includes('0'));
+    assert.equal(socket.readyState, WebSocket.OPEN);
+  } finally {
+    releaseBounds();
+    sequenceBoundsQueryGate = undefined;
+    sequenceBoundsQueryGateAddress = undefined;
+    rows.delete('21004');
+    rows.delete('21005');
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
 void it('publishes heightless canonical updates to custom-only clients', async () => {
   const agent = new WebSocket(url);
   const explorer = new WebSocket(`${messagesUrl}?confirmations=0&domains=1`);
@@ -2346,6 +2500,148 @@ void it('does not publish a stale Explorer query after rollback', async () => {
     releaseQuery();
     provisionalQueryGate = undefined;
     dispatchRows.delete('22002');
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('isolates notifications from a negotiating custom Explorer', async () => {
+  const canonical = new WebSocket(messagesUrl);
+  const canonicalMessages: Record<string, unknown>[] = [];
+  const negotiatingMessages: Record<string, unknown>[] = [];
+  let releaseHead: () => void = () => undefined;
+  canonical.on('message', (data) =>
+    canonicalMessages.push(parseRecord(rawData(data))),
+  );
+  const headQueriesBefore = headStateQueryCount;
+  headStateQueryGate = new Promise<void>((resolve) => {
+    releaseHead = resolve;
+  });
+  const negotiating = new WebSocket(`${messagesUrl}?confirmations=0&domains=1`);
+  negotiating.on('message', (data) =>
+    negotiatingMessages.push(parseRecord(rawData(data))),
+  );
+  try {
+    await waitFor(canonicalMessages, 'ready');
+    await waitUntil(() => headStateQueryCount > headQueriesBefore);
+    dispatchRows.set('22005', {
+      destination_domain: 2,
+      msg_body: '\\x',
+      msg_id: msgId,
+      origin_block_height: '10',
+      origin_domain: 1,
+    });
+    notify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: msgId.slice(2) }),
+    );
+    await waitFor(canonicalMessages, 'message_upsert');
+    assert.equal(canonical.readyState, WebSocket.OPEN);
+
+    releaseHead();
+    headStateQueryGate = undefined;
+    await waitFor(negotiatingMessages, 'ready');
+    await waitFor(negotiatingMessages, 'message_upsert');
+  } finally {
+    releaseHead();
+    headStateQueryGate = undefined;
+    dispatchRows.delete('22005');
+    canonical.close();
+    negotiating.close();
+    await waitUntil(
+      () =>
+        canonical.readyState === WebSocket.CLOSED &&
+        negotiating.readyState === WebSocket.CLOSED,
+    );
+  }
+});
+
+void it('requeries enrichment when a custom Explorer frontier advances', async () => {
+  const socket = new WebSocket(`${messagesUrl}?confirmations=0&domains=1`);
+  const messages: Record<string, unknown>[] = [];
+  const enrichmentMsgId = `\\x${'0b'.repeat(32)}`;
+  let releaseEnrichment: () => void = () => undefined;
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  headStates.set(1, { head: '10', indexed: '10' });
+  try {
+    await waitFor(messages, 'ready');
+    dispatchRows.set('22007', {
+      destination_domain: 2,
+      msg_body: '\\x',
+      msg_id: enrichmentMsgId,
+      origin_block_height: '10',
+      origin_domain: 1,
+    });
+    deliveryRows.set('22006', {
+      block_number: '11',
+      domain: 1,
+      msg_id: enrichmentMsgId,
+    });
+    enrichmentQueryGate = new Promise<void>((resolve) => {
+      releaseEnrichment = resolve;
+    });
+    const queriesBefore = enrichmentQueryCount;
+    const customQueriesBefore = customMessageQueryCount;
+    notify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: enrichmentMsgId.slice(2) }),
+    );
+    await waitUntil(() => enrichmentQueryCount > queriesBefore);
+    assert.match(
+      provisionalQuery,
+      /coalesce\(delivery\.block_number, destination_block\.height\)/,
+    );
+    assert.match(
+      provisionalQuery,
+      /coalesce\(delivery\.block_hash, destination_block\.hash\)/,
+    );
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '11',
+        indexedHeight: '11',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '10',
+      }),
+    );
+    await waitUntil(() => customMessageQueryCount > customQueriesBefore);
+    await waitUntil(() =>
+      messages.some(
+        (message) =>
+          message.type === 'message_upsert' &&
+          record(message.data).msg_id === enrichmentMsgId,
+      ),
+    );
+    assert.equal(
+      record(
+        messages.find(
+          (message) =>
+            message.type === 'message_upsert' &&
+            record(message.data).msg_id === enrichmentMsgId,
+        )?.data,
+      ).is_delivered,
+      true,
+    );
+    releaseEnrichment();
+    enrichmentQueryGate = undefined;
+    await waitUntil(() => enrichmentQueryCount > queriesBefore + 1);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(
+      messages.some(
+        (message) =>
+          message.type === 'message_upsert' &&
+          record(message.data).msg_id === enrichmentMsgId &&
+          record(message.data).is_delivered === false,
+      ),
+      false,
+    );
+  } finally {
+    releaseEnrichment();
+    enrichmentQueryGate = undefined;
+    dispatchRows.delete('22007');
+    deliveryRows.delete('22006');
     socket.close();
     await waitUntil(() => socket.readyState === WebSocket.CLOSED);
   }
