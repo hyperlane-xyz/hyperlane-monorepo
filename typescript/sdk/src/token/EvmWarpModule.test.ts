@@ -1,11 +1,13 @@
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
+import { BigNumber, utils } from 'ethers';
 import sinon from 'sinon';
 
 import {
   ProxyAdmin__factory,
   TimelockController__factory,
+  TokenBridgeCctpBase__factory,
 } from '@hyperlane-xyz/core';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
@@ -206,6 +208,245 @@ describe('EvmWarpModule', () => {
     expect(updateStub.calledOnce).to.equal(true);
     expect(updateStub.firstCall.args).to.have.length(1);
     expect(updateStub.firstCall.args[1]).to.equal(undefined);
+  });
+
+  describe('createAddCctpDomainsTxs', () => {
+    const cctpConfig = {
+      ...xERC20Config,
+      type: TokenType.collateralCctp,
+      tokenMessenger: TOKEN_ADDRESS,
+      messageTransmitter: TOKEN_ADDRESS,
+      cctpVersion: 'V2',
+      urls: [],
+    } satisfies HypTokenRouterConfig;
+
+    function callException(data: string, cause?: Error) {
+      return Object.assign(new Error('call reverted', cause ? { cause } : {}), {
+        code: 'CALL_EXCEPTION',
+        data,
+      });
+    }
+
+    function errorStringData(reason: string) {
+      return `0x08c379a0${utils.defaultAbiCoder
+        .encode(['string'], [reason])
+        .slice(2)}`;
+    }
+
+    function stubCctpBridge(
+      getCircleDomain: (hyperlaneDomain: number) => Promise<number>,
+      getHyperlaneDomain: (circleDomain: number) => Promise<number> = async (
+        circleDomain,
+      ) => circleDomain * 100,
+    ) {
+      return sandbox.stub(TokenBridgeCctpBase__factory, 'connect').returns({
+        interface: TokenBridgeCctpBase__factory.createInterface(),
+        hyperlaneDomainToCircleDomain: getCircleDomain,
+        circleDomainToHyperlaneDomain: getHyperlaneDomain,
+        // CAST: test stub implements only the CCTP bridge members under test.
+      } as ReturnType<typeof TokenBridgeCctpBase__factory.connect>);
+    }
+
+    it('adds missing and incorrect remote mappings in one transaction', async () => {
+      const missingError = callException(
+        TokenBridgeCctpBase__factory.createInterface().getSighash(
+          'CircleDomainNotConfigured()',
+        ),
+      );
+      stubCctpBridge(async (hyperlaneDomain) => {
+        if (hyperlaneDomain === 1000) throw missingError;
+        if (hyperlaneDomain === 2000) return 99;
+        throw new Error(`Unexpected domain ${hyperlaneDomain}`);
+      });
+
+      const module = createModule();
+      const txs = await module.createAddCctpDomainsTxs(cctpConfig, [
+        { hyperlane: module.domainId, circle: 1 },
+        { hyperlane: 1000, circle: 10 },
+        { hyperlane: 2000, circle: 20 },
+      ]);
+
+      expect(txs).to.have.length(1);
+      expect(txs[0].to).to.equal(ROUTER_ADDRESS);
+      assert(txs[0].data, 'Expected addDomains transaction data');
+      const [domains] =
+        TokenBridgeCctpBase__factory.createInterface().decodeFunctionData(
+          'addDomains',
+          txs[0].data,
+        );
+      expect(
+        domains.map(
+          ({ hyperlane, circle }: { hyperlane: number; circle: number }) => ({
+            hyperlane,
+            circle,
+          }),
+        ),
+      ).to.deep.equal([
+        { hyperlane: 1000, circle: 10 },
+        { hyperlane: 2000, circle: 20 },
+      ]);
+    });
+
+    it('returns no transaction when every remote mapping matches', async () => {
+      stubCctpBridge(async (hyperlaneDomain) => hyperlaneDomain / 100);
+      const module = createModule();
+
+      expect(
+        await module.createAddCctpDomainsTxs(cctpConfig, [
+          { hyperlane: 1000, circle: 10 },
+          { hyperlane: 2000, circle: 20 },
+        ]),
+      ).to.deep.equal([]);
+    });
+
+    it('keeps both mapping reads within the configured RPC concurrency', async () => {
+      let activeReads = 0;
+      let peakReads = 0;
+      const read = async (domain: number) => {
+        activeReads += 1;
+        peakReads = Math.max(peakReads, activeReads);
+        await Promise.resolve();
+        activeReads -= 1;
+        return domain < 100 ? domain * 100 : domain / 100;
+      };
+      stubCctpBridge(read, read);
+
+      await createModule().createAddCctpDomainsTxs(cctpConfig, [
+        { hyperlane: 1000, circle: 10 },
+        { hyperlane: 2000, circle: 20 },
+      ]);
+
+      expect(peakReads).to.equal(1);
+    });
+
+    it('repairs a missing reverse mapping', async () => {
+      const missingError = callException(
+        TokenBridgeCctpBase__factory.createInterface().getSighash(
+          'HyperlaneDomainNotConfigured()',
+        ),
+      );
+      stubCctpBridge(
+        async (hyperlaneDomain) => hyperlaneDomain / 100,
+        async () => {
+          throw missingError;
+        },
+      );
+
+      const txs = await createModule().createAddCctpDomainsTxs(cctpConfig, [
+        { hyperlane: 1000, circle: 10 },
+      ]);
+      expect(txs).to.have.length(1);
+      assert(txs[0].data, 'Expected addDomains transaction data');
+      const [domains] =
+        TokenBridgeCctpBase__factory.createInterface().decodeFunctionData(
+          'addDomains',
+          txs[0].data,
+        );
+      expect(domains[0].hyperlane).to.equal(1000);
+      expect(domains[0].circle).to.equal(10);
+    });
+
+    it('recognizes legacy and SmartProvider-wrapped missing-domain errors', async () => {
+      const legacyError = callException(
+        errorStringData('Circle domain not configured'),
+      );
+      const wrappedError = new Error('provider failed', { cause: legacyError });
+      stubCctpBridge(async () => {
+        throw wrappedError;
+      });
+
+      const txs = await createModule().createAddCctpDomainsTxs(cctpConfig, [
+        { hyperlane: 1000, circle: 10 },
+      ]);
+      expect(txs).to.have.length(1);
+    });
+
+    it('propagates an unexpected error when the other lookup is missing', async () => {
+      const missingError = callException(
+        TokenBridgeCctpBase__factory.createInterface().getSighash(
+          'CircleDomainNotConfigured()',
+        ),
+      );
+      const rpcError = new Error('RPC unavailable');
+      stubCctpBridge(
+        async () => {
+          throw missingError;
+        },
+        async () => {
+          throw rpcError;
+        },
+      );
+
+      try {
+        await createModule().createAddCctpDomainsTxs(cctpConfig, [
+          { hyperlane: 1000, circle: 10 },
+        ]);
+        expect.fail('expected RPC error');
+      } catch (error) {
+        expect(error).to.equal(rpcError);
+      }
+    });
+
+    it('propagates unexpected RPC errors', async () => {
+      const rpcError = new Error('RPC unavailable');
+      stubCctpBridge(async () => {
+        throw rpcError;
+      });
+
+      try {
+        await createModule().createAddCctpDomainsTxs(cctpConfig, [
+          { hyperlane: 1000, circle: 10 },
+        ]);
+        expect.fail('expected RPC error');
+      } catch (error) {
+        expect(error).to.equal(rpcError);
+      }
+    });
+
+    describe('message transmitter validation', () => {
+      const changedTransmitterConfig = {
+        ...cctpConfig,
+        messageTransmitter: PROXY_ADMIN_ADDRESS,
+      } satisfies HypTokenRouterConfig;
+      const actualConfig = {
+        ...cctpConfig,
+        contractVersion: '11.2.0',
+      } as DerivedTokenRouterConfig;
+
+      function stubUpdateThroughUpgrade(
+        module: EvmWarpModule,
+        upgradeTxs: Awaited<
+          ReturnType<EvmWarpModule['upgradeWarpRouteImplementationTx']>
+        >,
+      ) {
+        sandbox.stub(module, 'read').resolves(actualConfig);
+        sandbox.stub(module, 'createTokenFeeUpdateTxs').resolves([]);
+        sandbox
+          .stub(module, 'upgradeWarpRouteImplementationTx')
+          .resolves(upgradeTxs);
+        sandbox.stub(module, 'createIsmUpdateTxs').rejects(new ShortCircuit());
+      }
+
+      it('rejects a transmitter change without an implementation upgrade', async () => {
+        const module = createModule();
+        stubUpdateThroughUpgrade(module, []);
+
+        await expect(
+          module.updatePhases(changedTransmitterConfig),
+        ).to.be.rejectedWith("does not match the deployed router's");
+      });
+
+      it('allows a transmitter change when an implementation upgrade is planned', async () => {
+        const module = createModule();
+        stubUpdateThroughUpgrade(module, [
+          { chainId: module.chainId, to: PROXY_ADMIN_ADDRESS, data: '0x' },
+        ]);
+
+        await expect(
+          module.updatePhases(changedTransmitterConfig),
+        ).to.be.rejectedWith(ShortCircuit);
+      });
+    });
   });
 
   it('rejects timelock while changing ProxyAdmin address', async () => {

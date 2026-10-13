@@ -112,6 +112,7 @@ impl HyperlaneDbStore {
         db_permits: &Semaphore,
     ) -> Result<bool> {
         let requested: HashMap<_, _> = log_meta
+            .filter(|meta| !meta.transaction_id.is_zero() && !meta.block_hash.is_zero())
             .map(|meta| (meta.transaction_id, meta.block_hash))
             .collect();
         if requested.is_empty() {

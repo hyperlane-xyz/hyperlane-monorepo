@@ -1,6 +1,6 @@
 // import { expect } from 'chai';
 import { compareVersions } from 'compare-versions';
-import { BigNumberish, constants, providers } from 'ethers';
+import { BigNumberish, constants, providers, utils } from 'ethers';
 
 import {
   CrossCollateralRouter__factory,
@@ -14,6 +14,7 @@ import {
   StaticAggregationHook__factory,
   StaticAggregationHookFactory__factory,
   TimelockController__factory,
+  TokenBridgeCctpBase__factory,
   TokenBridgeCctpV2__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
@@ -26,6 +27,7 @@ import {
   ZERO_ADDRESS_HEX_32,
   addressToBytes32,
   assert,
+  concurrentMap,
   deepEquals,
   difference,
   eqAddress,
@@ -44,6 +46,7 @@ import {
 
 import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
 import { CCIPContractCache } from '../ccip/utils.js';
+import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
 import {
@@ -96,6 +99,7 @@ import {
   planChainHybrid,
 } from '../deploy/warpHybridPlan.js';
 import { scalesEqual } from '../utils/decimals.js';
+import { isRevertData } from '../utils/contract.js';
 import { IsmConfig, IsmType } from '../ism/types.js';
 import {
   DelayedFlowRemoteIsmsSourceType,
@@ -115,6 +119,7 @@ import {
   EvmWarpRouteReader,
 } from './EvmWarpRouteReader.js';
 import { EvmXERC20Module } from './EvmXERC20Module.js';
+import { CctpDomain } from './cctp.js';
 import { DeployableTokenType, TokenType } from './config.js';
 import {
   resolveAndValidateRebalanceConfig,
@@ -487,6 +492,7 @@ export class EvmWarpModule extends HyperlaneModule<
   async updatePhases(
     expectedConfig: HypTokenRouterConfig,
     tokenReaderParams?: Partial<TokenFeeReaderParams>,
+    cctpDomains: CctpDomain[] = [],
   ): Promise<WarpUpdatePhases> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
@@ -563,6 +569,20 @@ export class EvmWarpModule extends HyperlaneModule<
       actualConfig,
       expectedConfig,
     );
+    if (
+      upgradeTxs.length === 0 &&
+      isCctpTokenConfig(actualConfig) &&
+      isCctpTokenConfig(expectedConfig) &&
+      expectedConfig.cctpVersion === 'V2'
+    ) {
+      assert(
+        eqAddress(
+          actualConfig.messageTransmitter,
+          expectedConfig.messageTransmitter,
+        ),
+        `Configured CCTP message transmitter ${expectedConfig.messageTransmitter} does not match the deployed router's immutable transmitter ${actualConfig.messageTransmitter}`,
+      );
+    }
 
     // Pure hybrid validation already ran immediately after the read. Resolve
     // (and, when needed, deploy) the shared instance for both config trees.
@@ -650,6 +670,7 @@ export class EvmWarpModule extends HyperlaneModule<
 
       ...this.createUpdateEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createRemoveEverclearFeeParamsTxs(actualConfig, expectedConfig),
+      ...(await this.createAddCctpDomainsTxs(expectedConfig, cctpDomains)),
       ...this.createSetMaxFeePpmTxs(actualConfig, expectedConfig),
       ...xerc20Txs,
       // Router-owner fee txs (setFeeRecipient) belong in the main batch so they
@@ -690,6 +711,7 @@ export class EvmWarpModule extends HyperlaneModule<
   async updateSplit(
     expectedConfig: HypTokenRouterConfig,
     tokenReaderParams?: Partial<TokenFeeReaderParams>,
+    cctpDomains: CctpDomain[] = [],
   ): Promise<WarpUpdateResult> {
     const {
       upgradeTxs,
@@ -700,7 +722,7 @@ export class EvmWarpModule extends HyperlaneModule<
       feeTxs,
       ownershipTxs,
       removesDelayedFlowRouter,
-    } = await this.updatePhases(expectedConfig, tokenReaderParams);
+    } = await this.updatePhases(expectedConfig, tokenReaderParams, cctpDomains);
     return {
       txs: removesDelayedFlowRouter
         ? [...upgradeTxs, ...instanceTxs, ...ismTxs, ...hookTxs, ...txs]
@@ -714,10 +736,12 @@ export class EvmWarpModule extends HyperlaneModule<
   async update(
     expectedConfig: HypTokenRouterConfig,
     tokenReaderParams?: Partial<TokenFeeReaderParams>,
+    cctpDomains: CctpDomain[] = [],
   ): Promise<AnnotatedEV5Transaction[]> {
     const { txs, feeTxs, ownershipTxs } = await this.updateSplit(
       expectedConfig,
       tokenReaderParams,
+      cctpDomains,
     );
     // feeTxs (fee-contract-owner calls) must come before ownershipTxs so they
     // execute before the router owner changes.
@@ -3032,6 +3056,94 @@ export class EvmWarpModule extends HyperlaneModule<
     });
 
     return updateTransactions;
+  }
+
+  async createAddCctpDomainsTxs(
+    expectedConfig: HypTokenRouterConfig,
+    domains: CctpDomain[],
+  ): Promise<AnnotatedEV5Transaction[]> {
+    if (
+      !isCctpTokenConfig(expectedConfig) ||
+      expectedConfig.cctpVersion !== 'V2'
+    ) {
+      return [];
+    }
+
+    const remoteDomains = domains.filter(
+      ({ hyperlane }) => hyperlane !== this.domainId,
+    );
+    if (remoteDomains.length === 0) return [];
+
+    const tokenBridge = TokenBridgeCctpBase__factory.connect(
+      this.args.addresses.deployedTokenRoute,
+      this.multiProvider.getProvider(this.chainName),
+    );
+    const missingDomainSelector = tokenBridge.interface.getSighash(
+      'CircleDomainNotConfigured()',
+    );
+    const missingHyperlaneDomainSelector = tokenBridge.interface.getSighash(
+      'HyperlaneDomainNotConfigured()',
+    );
+    const encodeErrorString = (reason: string) =>
+      `0x08c379a0${utils.defaultAbiCoder
+        .encode(['string'], [reason])
+        .slice(2)}`;
+    const missingDomainErrors = [
+      missingDomainSelector,
+      missingHyperlaneDomainSelector,
+      encodeErrorString('Circle domain not configured'),
+      encodeErrorString('Hyperlane domain not configured'),
+    ];
+    const isMissingDomainError = (error: unknown) =>
+      missingDomainErrors.some((data) => isRevertData(error, data));
+    const concurrency =
+      this.multiProvider.tryGetRpcConcurrency(this.chainName) ??
+      DEFAULT_CONTRACT_READ_CONCURRENCY;
+    const needsUpdate = await concurrentMap(
+      concurrency,
+      remoteDomains,
+      async (domain) => {
+        const [circleResult] = await Promise.allSettled([
+          tokenBridge.hyperlaneDomainToCircleDomain(domain.hyperlane),
+        ]);
+        const [hyperlaneResult] = await Promise.allSettled([
+          tokenBridge.circleDomainToHyperlaneDomain(domain.circle),
+        ]);
+        for (const result of [circleResult, hyperlaneResult]) {
+          if (
+            result.status === 'rejected' &&
+            !isMissingDomainError(result.reason)
+          ) {
+            throw result.reason;
+          }
+        }
+        if (
+          circleResult.status === 'rejected' ||
+          hyperlaneResult.status === 'rejected'
+        ) {
+          return true;
+        }
+        return (
+          circleResult.value !== domain.circle ||
+          hyperlaneResult.value !== domain.hyperlane
+        );
+      },
+    );
+    const missingDomains = remoteDomains.filter(
+      (_, index) => needsUpdate[index],
+    );
+    if (missingDomains.length === 0) return [];
+
+    return [
+      {
+        chainId: this.chainId,
+        annotation: `Adding ${missingDomains.length} CCTP domain mapping(s) on ${this.args.chain}`,
+        to: this.args.addresses.deployedTokenRoute,
+        data: tokenBridge.interface.encodeFunctionData('addDomains', [
+          missingDomains,
+        ]),
+      },
+    ];
   }
 
   createSetMaxFeePpmTxs(

@@ -1,5 +1,14 @@
 # @hyperlane-xyz/sealevel-sdk
 
+## 45.0.1
+
+### Patch Changes
+
+- 35d3002: Prevented atomic local rebalancing bridges from replacing trusted remote token routers during enrollment. Preserved standing-quote reads when an uninitialized SVM quote PDA was prefunded with an empty system account.
+  - @hyperlane-xyz/utils@45.0.1
+  - @hyperlane-xyz/forking-sdk@10.0.1
+  - @hyperlane-xyz/provider-sdk@11.0.1
+
 ## 45.0.0
 
 ### Major Changes

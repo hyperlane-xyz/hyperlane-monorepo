@@ -80,7 +80,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.ReleaseCandidate]: [Role.Relayer],
     [Contexts.FastPath]: [Role.Relayer],
   },
-  chainsToSkip: ['mocachain', 'nesa'],
+  chainsToSkip: ['forma', 'mocachain', 'nesa'],
   // desired balance config, must be set for each chain
   desiredBalancePerChain: desiredRelayerBalancePerChain,
   // desired rebalancer balance config
@@ -96,6 +96,7 @@ export const keyFunderConfig: KeyFunderConfig<
     arbitrum: '0.1',
     avalanche: '2',
     base: '0.1',
+    blast: '0.1',
     bob: '0.1',
     bsc: '0.3',
     celo: '5',

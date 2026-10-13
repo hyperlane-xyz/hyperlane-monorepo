@@ -35,6 +35,83 @@ async fn test_get_block_by_height() {
     );
 }
 
+fn block_metadata_response(height: u32) -> Value {
+    let mut block: Value = serde_json::from_str(include_str!("mock_responses/block_1.json"))
+        .expect("valid block fixture");
+    block["header"]["metadata"]["height"] = json!(height);
+    // These fields deliberately cannot deserialize into snarkVM consensus or
+    // transaction types. Metadata reads must ignore them entirely.
+    block["authority"] = Value::Null;
+    block["transactions"] = Value::Null;
+    block
+}
+
+#[tokio::test]
+async fn block_metadata_skips_consensus_and_reuses_finalized_blocks_across_clones() {
+    let provider = mock_provider();
+    provider.register_value("block/1", block_metadata_response(1));
+    let first = provider.get_block_by_height(1).await.expect("metadata");
+    assert_eq!(first.number, 1);
+    assert_eq!(first.timestamp, 1725479626);
+
+    // A second request would fail. The finalized metadata is shared with clones.
+    provider.register_value("block/1", Value::Null);
+    let cached = provider
+        .clone()
+        .get_block_by_height(1)
+        .await
+        .expect("cached metadata");
+    assert_eq!(cached.hash, first.hash);
+    assert_eq!(cached.timestamp, first.timestamp);
+
+    provider.register_value("block/2", block_metadata_response(2));
+    assert_eq!(
+        provider
+            .get_block_by_height(2)
+            .await
+            .expect("new block")
+            .number,
+        2
+    );
+}
+
+#[tokio::test]
+async fn block_metadata_rejects_incorrect_heights_without_caching_errors() {
+    let provider = mock_provider();
+    provider.register_value("block/1", block_metadata_response(2));
+    assert!(provider.get_block_by_height(1).await.is_err());
+
+    provider.register_value("block/1", block_metadata_response(1));
+    assert_eq!(
+        provider.get_block_by_height(1).await.expect("retry").number,
+        1
+    );
+    assert!(provider.get_block_by_height(u64::MAX).await.is_err());
+}
+
+#[tokio::test]
+async fn block_metadata_cache_evicts_old_heights() {
+    let provider = mock_provider();
+    for height in 1..=129 {
+        provider.register_value(format!("block/{height}"), block_metadata_response(height));
+        provider
+            .get_block_by_height(u64::from(height))
+            .await
+            .expect("metadata");
+    }
+    provider.register_value("block/1", Value::Null);
+    assert!(provider.get_block_by_height(1).await.is_err());
+    provider.register_value("block/129", Value::Null);
+    assert_eq!(
+        provider
+            .get_block_by_height(129)
+            .await
+            .expect("cached tip")
+            .number,
+        129
+    );
+}
+
 #[tokio::test]
 async fn test_get_txn_by_hash() {
     let provider = mock_provider();

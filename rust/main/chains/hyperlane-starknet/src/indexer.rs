@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer, InterchainGasPayment,
-    LogMeta, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, U256,
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer,
+    InterchainGasPayment, LogMeta, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
+    U256,
 };
 use starknet::core::types::{BlockId, EventFilter, Felt};
 use starknet::core::utils::get_selector_from_name;
@@ -215,7 +216,29 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer
 
 /// A reference to a InterchainGasPaymasterIndexer contract on some Starknet chain
 #[derive(Debug, Clone)]
-pub struct StarknetInterchainGasPaymasterIndexer {}
+pub struct StarknetInterchainGasPaymasterIndexer {
+    provider: JsonProvider,
+    reorg_period: ReorgPeriod,
+}
+
+impl StarknetInterchainGasPaymasterIndexer {
+    /// Creates the placeholder IGP indexer with a real finalized-height source.
+    pub fn new(
+        provider: StarknetProvider,
+        address: H256,
+        reorg_period: &ReorgPeriod,
+    ) -> ChainResult<Self> {
+        if !address.is_zero() {
+            return Err(ChainCommunicationError::from_other_str(
+                "Starknet IGP event indexing is not implemented",
+            ));
+        }
+        Ok(Self {
+            provider: provider.rpc_client().clone(),
+            reorg_period: reorg_period.clone(),
+        })
+    }
+}
 
 #[async_trait]
 impl Indexer<InterchainGasPayment> for StarknetInterchainGasPaymasterIndexer {
@@ -227,7 +250,7 @@ impl Indexer<InterchainGasPayment> for StarknetInterchainGasPaymasterIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Ok(0)
+        get_block_height_u32(&self.provider, &self.reorg_period).await
     }
 }
 
