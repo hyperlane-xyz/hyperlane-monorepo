@@ -101,6 +101,7 @@ type Subscription = {
   frontiers: Map<number, bigint>;
   gasPaymentLegacyMaxIds: Map<string, bigint>;
   pending: Row[];
+  pendingNeedsSort: boolean;
   confirmations?: number;
   resettingDomains: Set<number>;
   sequenceCursors?: Map<string, SequenceCursor>;
@@ -800,6 +801,7 @@ export class EventWebSocketServer {
         frontiers,
         gasPaymentLegacyMaxIds: new Map(),
         pending: [],
+        pendingNeedsSort: false,
         confirmations: request.confirmations,
         resettingDomains: new Set(),
         sequenceCursors: request.cursors
@@ -960,11 +962,14 @@ export class EventWebSocketServer {
           }
           continue;
         }
-        subscription.pending.sort((a, b) =>
-          compareRows(request.eventType, a, b),
-        );
         while (subscription.pending.length) {
           if (subscription.sequenceResetFrontiers.size) break;
+          if (subscription.pendingNeedsSort) {
+            subscription.pending.sort((a, b) =>
+              compareRows(request.eventType, a, b),
+            );
+            subscription.pendingNeedsSort = false;
+          }
           const row = subscription.pending.shift();
           if (!row) break;
           this.assertCatchUpBudget(subscription);
@@ -974,6 +979,7 @@ export class EventWebSocketServer {
               request.eventType,
               subscription,
               row,
+              true,
             ))
           ) {
             websocketCatchUps.inc({ outcome: 'failure' });
@@ -1275,12 +1281,13 @@ export class EventWebSocketServer {
             ? serialize(message)
             : (serialized ??= serialize(message));
         this.sendSerialized(socket, payload);
-      } else if (
-        !subscription.waiting &&
-        subscription.pending.push(row) > MAX_PENDING_EVENTS
-      ) {
-        this.disconnect(socket);
-        socket.close(1013, 'Event catch-up buffer exceeded');
+      } else if (!subscription.waiting) {
+        subscription.pending.push(row);
+        subscription.pendingNeedsSort = true;
+        if (subscription.pending.length > MAX_PENDING_EVENTS) {
+          this.disconnect(socket);
+          socket.close(1013, 'Event catch-up buffer exceeded');
+        }
       }
     }
   }
@@ -1290,14 +1297,19 @@ export class EventWebSocketServer {
     eventType: EventType,
     subscription: Subscription,
     row: Row,
+    fromPending = false,
   ): Promise<boolean> {
     if (subscription.confirmations !== undefined) {
       const domain = rowDomain(row, STREAMS[eventType].domain);
       const height = rowHeight(eventType, row);
       const frontier = subscription.frontiers.get(domain);
+      // Pending rows were frontier-checked before enqueueing. Rollbacks remove
+      // any that are no longer valid before the pending queue is drained.
       if (
         subscription.resettingDomains.has(domain) ||
-        (height !== undefined && (frontier === undefined || height > frontier))
+        (!fromPending &&
+          height !== undefined &&
+          (frontier === undefined || height > frontier))
       )
         return true;
     }
@@ -1861,17 +1873,17 @@ export class EventWebSocketServer {
           { head: head.headHeight, indexed: head.indexedHeight },
           subscription.confirmations,
         );
-        if (to >= from) continue;
-        subscription.frontiers.set(
-          head.domain,
-          current === undefined || to < current ? to : current,
-        );
         subscription.pending = subscription.pending.filter((row) => {
           if (rowDomain(row, STREAMS[eventType].domain) !== head.domain)
             return true;
           const height = rowHeight(eventType, row);
           return height === undefined || height <= to;
         });
+        if (to >= from) continue;
+        subscription.frontiers.set(
+          head.domain,
+          current === undefined || to < current ? to : current,
+        );
         if (subscription.sequenceCursors?.size) {
           if (subscription.catchingUp) {
             const pending = subscription.sequenceResetFrontiers.get(

@@ -46,6 +46,7 @@ let explorerQueryError: Error | undefined;
 let explorerQueryGate: Promise<void> | undefined;
 let frontierQueryCount = 0;
 let frontierQueryGate: Promise<void> | undefined;
+let frontierQueryGateEventType: EventType | undefined;
 let notificationQueryError: Error | undefined;
 let headQueryError: Error | undefined;
 let headQueryErrorDomain: number | undefined;
@@ -331,7 +332,6 @@ const db: EventDatabase = {
         sql.includes('"frontier_row"."origin_block_height">'))
     ) {
       frontierQueryCount++;
-      await frontierQueryGate;
       const eventType: EventType = sql.includes('merkle_tree_insertion')
         ? 'merkle_tree_insertion'
         : sql.includes('delivered_message')
@@ -339,6 +339,11 @@ const db: EventDatabase = {
           : sql.includes('gas_payment')
             ? 'gas_payment'
             : 'dispatch';
+      if (
+        frontierQueryGateEventType === undefined ||
+        frontierQueryGateEventType === eventType
+      )
+        await frontierQueryGate;
       if (
         headQueryError &&
         (headQueryErrorDomain === undefined ||
@@ -1180,16 +1185,25 @@ void it('drains live events arriving while the pending buffer is sent', async (c
 
   await waitUntil(() => eventSequences(messages).includes('2'));
   await waitUntil(() => completions.length === 1);
-  rows.set('4', row(pacedHook, 3));
-  notify('scraper_event', notification('4'));
-  await waitUntil(() => notifiedIds.has('4'));
+  rows.set('21011', row(pacedHook, 4));
+  notify('scraper_event', notification('21011'));
+  await waitUntil(() => notifiedIds.has('21011'));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  rows.set('21012', row(pacedHook, 3));
+  notify('scraper_event', notification('21012'));
+  await waitUntil(() => notifiedIds.has('21012'));
   await new Promise((resolve) => setTimeout(resolve, 0));
   completions.shift()?.();
 
   await waitUntil(() => eventSequences(messages).includes('3'));
   await waitUntil(() => completions.length === 1);
   completions.shift()?.();
-  assert.deepEqual(eventSequences(messages), ['0', '1', '2', '3']);
+  await waitUntil(() => eventSequences(messages).includes('4'));
+  await waitUntil(() => completions.length === 1);
+  completions.shift()?.();
+  assert.deepEqual(eventSequences(messages), ['0', '1', '2', '3', '4']);
+  rows.delete('21011');
+  rows.delete('21012');
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
 });
@@ -2130,6 +2144,198 @@ void it('restarts sequence reset across consecutive rollbacks', async () => {
     releaseBounds();
     sequenceBoundsQueryGate = undefined;
     rows.delete('21003');
+    headStates.set(1, { head: '10', indexed: '10' });
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('delivers pending custom rows before the frontier commits', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  let releaseBounds: () => void = () => undefined;
+  let releaseFrontier: () => void = () => undefined;
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  headStates.set(1, { head: '10', indexed: '9' });
+  sequenceBoundsQueryGateAddress = blockedHook;
+  sequenceBoundsQueryGate = new Promise<void>((resolve) => {
+    releaseBounds = resolve;
+  });
+  frontierQueryGateEventType = 'merkle_tree_insertion';
+  frontierQueryGate = new Promise<void>((resolve) => {
+    releaseFrontier = resolve;
+  });
+  try {
+    await waitFor(messages, 'ready');
+    const boundsBefore = sequenceBoundsQueryCount;
+    socket.send(
+      JSON.stringify({
+        streams: [
+          {
+            confirmations: 0,
+            cursors: [{ address: blockedHook, afterSequence: '-1', domain: 1 }],
+            domains: [1],
+            eventType: 'dispatch',
+          },
+          {
+            confirmations: 0,
+            domains: [1],
+            eventType: 'merkle_tree_insertion',
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'subscribed');
+    await waitUntil(() => sequenceBoundsQueryCount > boundsBefore);
+
+    dispatchRows.set('21010', {
+      destination_domain: 2,
+      id: '21010',
+      msg_body: '\\x',
+      msg_id: msgId,
+      nonce: 0,
+      origin_block_hash: `\\x${'02'.repeat(32)}`,
+      origin_block_height: '10',
+      origin_domain: 1,
+      origin_mailbox: blockedHook,
+      origin_tx_hash: `\\x${'03'.repeat(32)}`,
+      recipient: hookB,
+      sender: hookA,
+      time_created: new Date(0).toISOString(),
+    });
+    const frontierQueriesBefore = frontierQueryCount;
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '10',
+        indexedHeight: '10',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '9',
+      }),
+    );
+    await waitUntil(() => frontierQueryCount >= frontierQueriesBefore + 2);
+
+    releaseBounds();
+    sequenceBoundsQueryGate = undefined;
+    sequenceBoundsQueryGateAddress = undefined;
+    const event = await waitFor(messages, 'event');
+    assert.equal(event.eventType, 'dispatch');
+    assert.equal(event.sequence, '0');
+    assert.equal(socket.readyState, WebSocket.OPEN);
+  } finally {
+    releaseBounds();
+    releaseFrontier();
+    frontierQueryGate = undefined;
+    frontierQueryGateEventType = undefined;
+    sequenceBoundsQueryGate = undefined;
+    sequenceBoundsQueryGateAddress = undefined;
+    dispatchRows.delete('21010');
+    headStates.set(1, { head: '10', indexed: '10' });
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('drops pending rows above a rolled-back custom frontier', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  let releaseBounds: () => void = () => undefined;
+  let releaseFrontier: () => void = () => undefined;
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  headStates.set(1, { head: '10', indexed: '9' });
+  sequenceBoundsQueryGateAddress = blockedHook;
+  sequenceBoundsQueryGate = new Promise<void>((resolve) => {
+    releaseBounds = resolve;
+  });
+  frontierQueryGateEventType = 'merkle_tree_insertion';
+  frontierQueryGate = new Promise<void>((resolve) => {
+    releaseFrontier = resolve;
+  });
+  try {
+    await waitFor(messages, 'ready');
+    const boundsBefore = sequenceBoundsQueryCount;
+    socket.send(
+      JSON.stringify({
+        streams: [
+          {
+            confirmations: 5,
+            cursors: [{ address: blockedHook, afterSequence: '-1', domain: 1 }],
+            domains: [1],
+            eventType: 'dispatch',
+          },
+          {
+            confirmations: 5,
+            domains: [1],
+            eventType: 'merkle_tree_insertion',
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'subscribed');
+    await waitUntil(() => sequenceBoundsQueryCount > boundsBefore);
+
+    dispatchRows.set('21013', {
+      destination_domain: 2,
+      id: '21013',
+      msg_body: '\\x',
+      msg_id: msgId,
+      nonce: 0,
+      origin_block_hash: `\\x${'02'.repeat(32)}`,
+      origin_block_height: '10',
+      origin_domain: 1,
+      origin_mailbox: blockedHook,
+      origin_tx_hash: `\\x${'03'.repeat(32)}`,
+      recipient: hookB,
+      sender: hookA,
+      time_created: new Date(0).toISOString(),
+    });
+    const frontierQueriesBefore = frontierQueryCount;
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '15',
+        indexedHeight: '10',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '9',
+      }),
+    );
+    await waitUntil(() => frontierQueryCount >= frontierQueriesBefore + 2);
+
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '14',
+        indexedHeight: '9',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '10',
+      }),
+    );
+    releaseBounds();
+    sequenceBoundsQueryGate = undefined;
+    sequenceBoundsQueryGateAddress = undefined;
+    await waitFor(messages, 'caught_up');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(
+      messages.some(({ type }) => type === 'event'),
+      false,
+    );
+    assert.equal(socket.readyState, WebSocket.OPEN);
+  } finally {
+    releaseBounds();
+    releaseFrontier();
+    frontierQueryGate = undefined;
+    frontierQueryGateEventType = undefined;
+    sequenceBoundsQueryGate = undefined;
+    sequenceBoundsQueryGateAddress = undefined;
+    dispatchRows.delete('21013');
     headStates.set(1, { head: '10', indexed: '10' });
     socket.close();
     await waitUntil(() => socket.readyState === WebSocket.CLOSED);
