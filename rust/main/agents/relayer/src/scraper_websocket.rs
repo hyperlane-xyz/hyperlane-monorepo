@@ -2642,10 +2642,9 @@ impl ScraperWebSocketMonitor {
         let authority = self.source_authority(domain);
         // Serialize gas takeover with sequenced activation/revocation. Otherwise
         // a caught-up marker could republish gas authority after stale fallback.
-        let command = authority.sender.borrow();
+        let authority_guard = authority.sender.borrow();
         let desired = active
             && self.authority_enabled
-            && command.desired
             && authority.active.load(Ordering::Acquire)
             && self.gas_payment_enabled.load(Ordering::Acquire)
             && self
@@ -2664,7 +2663,7 @@ impl ScraperWebSocketMonitor {
                     true
                 }
             });
-        drop(command);
+        drop(authority_guard);
     }
 
     /// Fall back to RPC for one origin's gas payments until it replays cleanly.
