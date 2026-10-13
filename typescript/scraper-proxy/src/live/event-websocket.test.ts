@@ -369,9 +369,16 @@ void describe('event websocket protocol', () => {
   void it('parses confirmation frontier notifications', () => {
     assert.deepEqual(
       parseHeadNotification(
-        '{"domain":42161,"confirmedHeight":"102","previousConfirmedHeight":"99"}',
+        '{"domain":42161,"confirmedHeight":"102","previousConfirmedHeight":"99","headHeight":"110","indexedHeight":"108","previousIndexedHeight":"107"}',
       ),
-      { confirmedHeight: 102n, domain: 42161, previousConfirmedHeight: 99n },
+      {
+        confirmedHeight: 102n,
+        domain: 42161,
+        previousConfirmedHeight: 99n,
+        headHeight: 110n,
+        indexedHeight: 108n,
+        previousIndexedHeight: 107n,
+      },
     );
   });
 

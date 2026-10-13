@@ -32,6 +32,7 @@ export type GasPaymentCursor = {
 };
 export type StreamCursor = GasPaymentCursor | SequenceCursor;
 export type StreamRequest = {
+  confirmations?: number;
   cursors?: StreamCursor[];
   domains?: Set<number>;
   eventType: EventType;
@@ -49,6 +50,9 @@ export type ExplorerNotification = { messageId: string };
 export type HeadNotification = {
   confirmedHeight: bigint;
   domain: number;
+  headHeight?: bigint;
+  indexedHeight?: bigint;
+  previousIndexedHeight?: bigint;
   previousConfirmedHeight?: bigint;
 };
 
@@ -143,6 +147,14 @@ export function parseHeadNotification(
       value.previousConfirmedHeight === undefined
         ? undefined
         : parseId(value.previousConfirmedHeight),
+    headHeight:
+      value.headHeight == null ? undefined : parseId(value.headHeight),
+    indexedHeight:
+      value.indexedHeight == null ? undefined : parseId(value.indexedHeight),
+    previousIndexedHeight:
+      value.previousIndexedHeight == null
+        ? undefined
+        : parseId(value.previousIndexedHeight),
   };
 }
 
@@ -253,11 +265,48 @@ function parseStream(value: unknown): StreamRequest {
     domains ??= cursorDomains;
   }
   return {
+    confirmations: parseConfirmations(value.confirmations, domains, cursors),
     cursors,
     domains,
     eventType: value.eventType,
     streamCursorVersion,
   };
+}
+
+export function parseConfirmations(
+  value: unknown,
+  domains?: Set<number>,
+  cursors?: StreamCursor[],
+): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)
+    throw new Error('confirmations must be a non-negative safe integer');
+  if (!domains?.size)
+    throw new Error('confirmations requires explicit domains');
+  if (cursors)
+    throw new Error('Custom confirmations supports live streams only');
+  return value;
+}
+
+export function parseExplorerConfirmations(
+  url: string | undefined,
+): { confirmations: number; domains: Set<number> } | undefined {
+  const params = new URL(url ?? '/', 'http://localhost').searchParams;
+  if (!params.has('confirmations') && !params.has('domains')) return undefined;
+  const count = params.get('confirmations');
+  const domainList = params.get('domains');
+  if (
+    !count ||
+    !/^\d+$/.test(count) ||
+    !domainList ||
+    !/^\d+(,\d+)*$/.test(domainList)
+  )
+    throw new Error('Expected confirmations=N&domains=domain,...');
+  const domains = new Set(domainList.split(',').map(Number));
+  if (![...domains].every(isDomain)) throw new Error('Invalid domains');
+  const confirmations = parseConfirmations(Number(count), domains);
+  if (confirmations === undefined) throw new Error('Missing confirmations');
+  return { confirmations, domains };
 }
 
 function parseSequenceCursor(value: unknown): SequenceCursor {
