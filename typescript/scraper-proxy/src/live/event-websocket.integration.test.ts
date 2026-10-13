@@ -2776,7 +2776,7 @@ void it('isolates notifications from a negotiating custom Explorer', async () =>
   }
 });
 
-void it('requeries enrichment when a custom Explorer frontier advances', async () => {
+void it('serializes enrichment and coalesces custom Explorer heads without blocking agents', async () => {
   const socket = new WebSocket(`${messagesUrl}?confirmations=0&domains=1`);
   const agent = new WebSocket(url);
   const messages: Record<string, unknown>[] = [];
@@ -2848,6 +2848,20 @@ void it('requeries enrichment when a custom Explorer frontier advances', async (
     );
     await new Promise((resolve) => setTimeout(resolve, 100));
     assert.equal(customMessageQueryCount, customQueriesBefore);
+    for (const height of [12, 13, 14]) {
+      notify(
+        'scraper_head',
+        JSON.stringify({
+          confirmedHeight: '5',
+          domain: 1,
+          headHeight: String(height),
+          indexedHeight: String(height),
+          previousConfirmedHeight: '5',
+          previousIndexedHeight: String(height - 1),
+        }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 110));
+    }
     rows.set('22008', {
       ...row(hookA, 0),
       block_number: '11',
@@ -2887,6 +2901,8 @@ void it('requeries enrichment when a custom Explorer frontier advances', async (
         .map((message) => record(message.data).is_delivered),
       [false, true],
     );
+    assert.equal(customMessageQueryCount, customQueriesBefore + 1);
+    assert.equal(messages.at(-1)?.height, '14');
   } finally {
     releaseEnrichment();
     enrichmentQueryGate = undefined;

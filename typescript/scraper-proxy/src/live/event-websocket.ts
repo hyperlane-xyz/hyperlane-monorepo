@@ -125,7 +125,7 @@ type ExplorerClient = {
   frontiers: Map<number, bigint>;
   ip: string;
   pendingMessageIds: Set<string>;
-  publication: Promise<void>;
+  pendingHeads: Map<number, { through: bigint; epoch: number }>;
   publishingMessages: boolean;
   queuedBytes: number;
   queue: SerializedMessage[];
@@ -642,7 +642,7 @@ export class EventWebSocketServer {
       frontiers: new Map(),
       ip,
       pendingMessageIds: new Set(),
-      publication: Promise.resolve(),
+      pendingHeads: new Map(),
       publishingMessages: false,
       queuedBytes: 0,
       queue: [],
@@ -652,7 +652,7 @@ export class EventWebSocketServer {
     websocketConnections.inc({ route: 'messages' });
     if (custom) {
       try {
-        const states = await this.stableAvailableHeadStates(custom.domains);
+        const states = await this.availableHeadStates(custom.domains);
         if (this.explorerClients.get(socket) !== client) return;
         client.canonical = states.size < custom.domains.size;
         client.canonicalDomains = new Set(
@@ -849,26 +849,14 @@ export class EventWebSocketServer {
       ),
     );
     if (!domains.size) return new Map();
-    return this.stableHeadStates(domains, () => this.headStates(domains));
-  }
-
-  private stableAvailableHeadStates(
-    domains: ReadonlySet<number>,
-  ): Promise<Map<number, HeadState>> {
-    return this.stableHeadStates(domains, () =>
-      this.availableHeadStates(domains),
-    );
-  }
-
-  private async stableHeadStates(
-    domains: ReadonlySet<number>,
-    read: () => Promise<Map<number, HeadState>>,
-  ): Promise<Map<number, HeadState>> {
-    while (true) {
-      const epochs = this.snapshotRollbackEpochs(domains);
-      const states = await read();
-      if (this.rollbackEpochsMatch(epochs)) return states;
+    const states = await this.availableHeadStates(domains);
+    const missing = [...domains].filter((domain) => !states.has(domain));
+    if (missing.length) {
+      throw new Error(
+        `confirmations is unsupported for domains: ${missing.join(', ')}`,
+      );
     }
+    return states;
   }
 
   private rollbackEpoch(domain: number): number {
@@ -889,39 +877,29 @@ export class EventWebSocketServer {
     );
   }
 
-  private async headStates(
-    domains: ReadonlySet<number>,
-  ): Promise<Map<number, HeadState>> {
-    const states = await this.availableHeadStates(domains);
-    const missing = [...domains].filter((domain) => !states.has(domain));
-    if (missing.length) {
-      throw new Error(
-        `confirmations is unsupported for domains: ${missing.join(', ')}`,
-      );
-    }
-    return states;
-  }
-
   private async availableHeadStates(
     domains: ReadonlySet<number>,
   ): Promise<Map<number, HeadState>> {
-    const rows = await this.db.queryLive<{
-      domain: number | string;
-      head_height: string;
-      indexed_height: string;
-    }>(
-      `SELECT ${q('domain')}, ${q('indexed_height')}::text, ${q('head_height')}::text FROM ${q('scraper_head')} WHERE ${q('domain')} = ANY($1::integer[])`,
-      [[...domains].map(storedDomain)],
-    );
-    const states = new Map<number, HeadState>();
-    for (const row of rows) {
-      const domain = parseDatabaseDomain(row.domain, 'Invalid scraper head');
-      states.set(domain, {
-        head: parseId(row.head_height),
-        indexed: parseId(row.indexed_height),
-      });
+    while (true) {
+      const epochs = this.snapshotRollbackEpochs(domains);
+      const rows = await this.db.queryLive<{
+        domain: number | string;
+        head_height: string;
+        indexed_height: string;
+      }>(
+        `SELECT ${q('domain')}, ${q('indexed_height')}::text, ${q('head_height')}::text FROM ${q('scraper_head')} WHERE ${q('domain')} = ANY($1::integer[])`,
+        [[...domains].map(storedDomain)],
+      );
+      const states = new Map<number, HeadState>();
+      for (const row of rows) {
+        const domain = parseDatabaseDomain(row.domain, 'Invalid scraper head');
+        states.set(domain, {
+          head: parseId(row.head_height),
+          indexed: parseId(row.indexed_height),
+        });
+      }
+      if (this.rollbackEpochsMatch(epochs)) return states;
     }
-    return states;
   }
 
   private async catchUp(
@@ -1851,27 +1829,8 @@ export class EventWebSocketServer {
       for (const [socket, client] of this.explorerClients) {
         if (client.confirmations !== period || !client.domains?.has(domain))
           continue;
-        void this.serializeExplorerPublication(client, async () => {
-          if (this.explorerClients.get(socket) !== client) return true;
-          if (this.rollbackEpoch(domain) !== rollbackEpoch) return false;
-          const explorerAfter = client.frontiers.get(domain);
-          if (explorerAfter === undefined || through <= explorerAfter)
-            return true;
-          if (
-            !(await this.publishCustomExplorerRange(
-              socket,
-              client,
-              domain,
-              explorerAfter,
-              through,
-              rollbackEpoch,
-            ))
-          )
-            return false;
-          if (this.explorerClients.get(socket) === client)
-            client.frontiers.set(domain, through);
-          return true;
-        }).catch((error) => this.failExplorerClient(socket, error));
+        client.pendingHeads.set(domain, { through, epoch: rollbackEpoch });
+        this.scheduleCustomExplorerMessages(socket, client);
       }
     }
   }
@@ -2038,26 +1997,11 @@ export class EventWebSocketServer {
       ...STREAMS[eventType],
       table: CUSTOM_CONFIRMATION_TABLES[eventType],
     };
-    const height = STREAM_HEIGHTS[eventType];
-    const gasPaymentCursor =
-      eventType === 'gas_payment'
-        ? ` LEFT JOIN ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} ON ${q('event_cursor')}.${q('gas_payment_id')} = ${q('event_row')}.${q('id')}`
-        : '';
-    const gasPaymentMetadata =
-      eventType === 'gas_payment' ? gasPaymentMetadataJoins('LEFT JOIN') : '';
-    const eventProjection =
-      eventType === 'gas_payment'
-        ? gasPaymentColumns(stream)
-        : columns(stream, 'event_row');
-    const cursorProjection =
-      eventType === 'gas_payment'
-        ? `, ${q('event_cursor')}.${q('stream_cursor')} AS ${q(STREAM_CURSOR_COLUMN)}`
-        : '';
     let cursorHeight = after;
     let cursorId = 0n;
     while (true) {
       const rows = await this.db.queryLive<Row>(
-        `SELECT ${eventProjection}${cursorProjection}, ${q('event_row')}.${q('id')} AS ${q(FRONTIER_ID)}, ${q('event_row')}.${q(height)} AS ${q(FRONTIER_HEIGHT)} FROM (SELECT * FROM ${q(stream.table)} AS ${q('frontier_row')} WHERE ${q('frontier_row')}.${q(stream.domain)}=$1 AND ${q('frontier_row')}.${q(height)}>$2::bigint AND ${q('frontier_row')}.${q(height)}<=$3::bigint AND (${q('frontier_row')}.${q(height)}>$4::bigint OR (${q('frontier_row')}.${q(height)}=$4::bigint AND ${q('frontier_row')}.${q('id')}>$5::bigint)) ORDER BY ${q('frontier_row')}.${q(height)}, ${q('frontier_row')}.${q('id')} LIMIT $6) AS ${q('event_row')}${gasPaymentMetadata}${gasPaymentCursor} ORDER BY ${q('event_row')}.${q(height)}, ${q('event_row')}.${q('id')}`,
+        frontierQuery(eventType, stream),
         [
           storedDomain(domain),
           after.toString(),
@@ -2211,28 +2155,12 @@ export class EventWebSocketServer {
         (eventType === 'delivery' || eventType === 'gas_payment');
       if (!agentInterested && !explorerInterested) continue;
       const stream = STREAMS[eventType];
-      const height =
-        eventType === 'dispatch' ? 'origin_block_height' : 'block_number';
-      const gasPaymentCursor =
-        eventType === 'gas_payment'
-          ? ` LEFT JOIN ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} ON ${q('event_cursor')}.${q('gas_payment_id')} = ${q('event_row')}.${q('id')}`
-          : '';
-      const gasPaymentMetadata =
-        eventType === 'gas_payment' ? gasPaymentMetadataJoins('LEFT JOIN') : '';
-      const eventProjection =
-        eventType === 'gas_payment'
-          ? gasPaymentColumns(stream)
-          : columns(stream, 'event_row');
-      const cursorProjection =
-        eventType === 'gas_payment'
-          ? `, ${q('event_cursor')}.${q('stream_cursor')} AS ${q(STREAM_CURSOR_COLUMN)}`
-          : '';
       let cursorHeight = after;
       let cursorId = 0n;
       try {
         while (true) {
           const rows = await this.db.queryLive<Row>(
-            `SELECT ${eventProjection}${cursorProjection}, ${q('event_row')}.${q('id')} AS ${q(FRONTIER_ID)}, ${q('event_row')}.${q(height)} AS ${q(FRONTIER_HEIGHT)} FROM (SELECT * FROM ${q(stream.table)} AS ${q('frontier_row')} WHERE ${q('frontier_row')}.${q(stream.domain)}=$1 AND ${q('frontier_row')}.${q(height)}>$2::bigint AND ${q('frontier_row')}.${q(height)}<=$3::bigint AND (${q('frontier_row')}.${q(height)}>$4::bigint OR (${q('frontier_row')}.${q(height)}=$4::bigint AND ${q('frontier_row')}.${q('id')}>$5::bigint)) ORDER BY ${q('frontier_row')}.${q(height)}, ${q('frontier_row')}.${q('id')} LIMIT $6) AS ${q('event_row')}${gasPaymentMetadata}${gasPaymentCursor} ORDER BY ${q('event_row')}.${q(height)}, ${q('event_row')}.${q('id')}`,
+            frontierQuery(eventType, stream),
             [
               storedDomain(domain),
               after.toString(),
@@ -2460,7 +2388,7 @@ export class EventWebSocketServer {
         client.publishingMessages = false;
         if (
           this.explorerClients.get(socket) === client &&
-          client.pendingMessageIds.size &&
+          (client.pendingMessageIds.size || client.pendingHeads.size) &&
           client.frontiers.size
         )
           this.scheduleCustomExplorerMessages(socket, client);
@@ -2473,9 +2401,37 @@ export class EventWebSocketServer {
   ): Promise<void> {
     while (
       this.explorerClients.get(socket) === client &&
-      client.pendingMessageIds.size &&
+      (client.pendingMessageIds.size || client.pendingHeads.size) &&
       client.frontiers.size
     ) {
+      // One worker owns both range publication and enrichment. Coalesce heads
+      // by domain instead of accumulating promises while a query is stalled.
+      const heads = [...client.pendingHeads];
+      for (const [domain, head] of heads) {
+        if (client.pendingHeads.get(domain) !== head) continue;
+        client.pendingHeads.delete(domain);
+        const { through, epoch } = head;
+        const after = client.frontiers.get(domain);
+        if (
+          after === undefined ||
+          through <= after ||
+          this.rollbackEpoch(domain) !== epoch
+        )
+          continue;
+        if (
+          await this.publishCustomExplorerRange(
+            socket,
+            client,
+            domain,
+            after,
+            through,
+            epoch,
+          )
+        )
+          client.frontiers.set(domain, through);
+        if (this.explorerClients.get(socket) !== client) return;
+      }
+      if (!client.pendingMessageIds.size) continue;
       const messageIds = [...client.pendingMessageIds].slice(
         0,
         EXPLORER_NOTIFICATION_BATCH_SIZE,
@@ -2483,70 +2439,43 @@ export class EventWebSocketServer {
       messageIds.forEach((messageId) =>
         client.pendingMessageIds.delete(messageId),
       );
-      await this.serializeExplorerPublication(client, async () => {
-        while (this.explorerClients.get(socket) === client) {
-          const frontiers = [...client.frontiers];
-          if (!frontiers.length) {
-            messageIds.forEach((messageId) =>
-              client.pendingMessageIds.add(messageId),
-            );
-            return;
-          }
-          const rollbackEpochs = this.snapshotRollbackEpochs(
-            frontiers.map(([domain]) => domain),
-          );
-          const [overrideDomain, overrideHeight] = frontiers[0];
-          const rows = await this.db.queryLive<Row>(
-            `/* canonical_enrichment */ ${PROVISIONAL_MESSAGE_QUERY}`,
-            [
-              messageIds,
-              frontiers.map(([domain]) => storedDomain(domain)),
-              frontiers.map(([, height]) => height.toString()),
-              storedDomain(overrideDomain),
-              overrideHeight.toString(),
-            ],
-          );
-          if (this.explorerClients.get(socket) !== client) return;
-          if (
-            !this.rollbackEpochsMatch(rollbackEpochs) ||
-            !frontiersMatch(client.frontiers, frontiers)
-          )
-            continue;
-          this.enqueueExplorer(
-            socket,
-            client,
-            rows.flatMap((row) =>
-              messageDomains(row).some((domain) => client.domains?.has(domain))
-                ? [
-                    serialize({
-                      confirmations: client.confirmations,
-                      data: row,
-                      type: 'message_upsert',
-                    }),
-                  ]
-                : [],
-            ),
-          );
-          return;
-        }
-      });
-    }
-  }
-
-  private async serializeExplorerPublication<T>(
-    client: ExplorerClient,
-    publish: () => Promise<T>,
-  ): Promise<T> {
-    const previous = client.publication;
-    let release = (): void => undefined;
-    client.publication = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    await previous;
-    try {
-      return await publish();
-    } finally {
-      release();
+      const frontiers = [...client.frontiers];
+      const rollbackEpochs = this.snapshotRollbackEpochs(
+        frontiers.map(([domain]) => domain),
+      );
+      const [overrideDomain, overrideHeight] = frontiers[0];
+      const rows = await this.db.queryLive<Row>(
+        `/* canonical_enrichment */ ${PROVISIONAL_MESSAGE_QUERY}`,
+        [
+          messageIds,
+          frontiers.map(([domain]) => storedDomain(domain)),
+          frontiers.map(([, height]) => height.toString()),
+          storedDomain(overrideDomain),
+          overrideHeight.toString(),
+        ],
+      );
+      if (this.explorerClients.get(socket) !== client) return;
+      if (!this.rollbackEpochsMatch(rollbackEpochs)) {
+        messageIds.forEach((messageId) =>
+          client.pendingMessageIds.add(messageId),
+        );
+        continue;
+      }
+      this.enqueueExplorer(
+        socket,
+        client,
+        rows.flatMap((row) =>
+          messageDomains(row).some((domain) => client.domains?.has(domain))
+            ? [
+                serialize({
+                  confirmations: client.confirmations,
+                  data: row,
+                  type: 'message_upsert',
+                }),
+              ]
+            : [],
+        ),
+      );
     }
   }
 
@@ -2867,6 +2796,7 @@ export class EventWebSocketServer {
   }
 
   private clearExplorerQueue(client: ExplorerClient): void {
+    client.pendingHeads.clear();
     client.pendingMessageIds.clear();
     client.queue.length = 0;
     client.queuedBytes = 0;
@@ -2947,6 +2877,25 @@ function parseExplorerConfirmations(
   return { confirmations, domains };
 }
 
+function frontierQuery(eventType: EventType, stream: Stream): string {
+  const height = STREAM_HEIGHTS[eventType];
+  const gasPaymentCursor =
+    eventType === 'gas_payment'
+      ? ` LEFT JOIN ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} ON ${q('event_cursor')}.${q('gas_payment_id')} = ${q('event_row')}.${q('id')}`
+      : '';
+  const gasPaymentMetadata =
+    eventType === 'gas_payment' ? gasPaymentMetadataJoins('LEFT JOIN') : '';
+  const eventProjection =
+    eventType === 'gas_payment'
+      ? gasPaymentColumns(stream)
+      : columns(stream, 'event_row');
+  const cursorProjection =
+    eventType === 'gas_payment'
+      ? `, ${q('event_cursor')}.${q('stream_cursor')} AS ${q(STREAM_CURSOR_COLUMN)}`
+      : '';
+  return `SELECT ${eventProjection}${cursorProjection}, ${q('event_row')}.${q('id')} AS ${q(FRONTIER_ID)}, ${q('event_row')}.${q(height)} AS ${q(FRONTIER_HEIGHT)} FROM (SELECT * FROM ${q(stream.table)} AS ${q('frontier_row')} WHERE ${q('frontier_row')}.${q(stream.domain)}=$1 AND ${q('frontier_row')}.${q(height)}>$2::bigint AND ${q('frontier_row')}.${q(height)}<=$3::bigint AND (${q('frontier_row')}.${q(height)}>$4::bigint OR (${q('frontier_row')}.${q(height)}=$4::bigint AND ${q('frontier_row')}.${q('id')}>$5::bigint)) ORDER BY ${q('frontier_row')}.${q(height)}, ${q('frontier_row')}.${q('id')} LIMIT $6) AS ${q('event_row')}${gasPaymentMetadata}${gasPaymentCursor} ORDER BY ${q('event_row')}.${q(height)}, ${q('event_row')}.${q('id')}`;
+}
+
 function subscriptionStream(
   eventType: EventType,
   subscription: Subscription,
@@ -3024,16 +2973,6 @@ function messageDomains(row: Row): [number, number] {
     rowDomain(row, 'origin_domain_id'),
     rowDomain(row, 'destination_domain_id'),
   ];
-}
-
-function frontiersMatch(
-  current: ReadonlyMap<number, bigint>,
-  snapshot: readonly (readonly [number, bigint])[],
-): boolean {
-  return (
-    current.size === snapshot.length &&
-    snapshot.every(([domain, height]) => current.get(domain) === height)
-  );
 }
 
 function eventData(eventType: EventType, row: Row): Row {
