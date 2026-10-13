@@ -249,11 +249,149 @@ mod tests {
         waits.remove(&first_id).unwrap();
         assert_eq!(waits.oldest_timestamp_seconds(), 0);
     }
+
+    #[test]
+    fn pending_message_metrics_track_unique_active_messages_without_id_labels() {
+        let metrics = test_metrics();
+        let app_context = "metadex_allocate_chain";
+        let first_id = H256::from_low_u64_be(1);
+        let second_id = H256::from_low_u64_be(2);
+        let labels = [app_context, "ethereum", "arbitrum"];
+
+        metrics.record_pending_message(first_id, Some(app_context));
+        metrics.record_pending_message(first_id, Some(app_context));
+        metrics.record_pending_message(second_id, Some(app_context));
+        assert_eq!(
+            metrics
+                .pending_message_active
+                .with_label_values(&labels)
+                .get(),
+            2
+        );
+        assert!(
+            metrics
+                .pending_message_oldest_timestamp_seconds
+                .with_label_values(&labels)
+                .get()
+                > 0
+        );
+
+        metrics.finish_pending_message(first_id, Some(app_context));
+        assert_eq!(
+            metrics
+                .pending_message_active
+                .with_label_values(&labels)
+                .get(),
+            2
+        );
+        metrics.finish_pending_message(first_id, Some(app_context));
+        metrics.finish_pending_message(second_id, Some(app_context));
+        assert_eq!(
+            metrics
+                .pending_message_active
+                .with_label_values(&labels)
+                .get(),
+            0
+        );
+        assert_eq!(
+            metrics
+                .pending_message_oldest_timestamp_seconds
+                .with_label_values(&labels)
+                .get(),
+            0
+        );
+
+        let mut encoded = Vec::new();
+        TextEncoder::new()
+            .encode(&metrics.pending_message_active.collect(), &mut encoded)
+            .unwrap();
+        let encoded = String::from_utf8(encoded).unwrap();
+        assert!(!encoded.contains("message_id"));
+        assert!(!encoded.contains(&format!("{first_id:?}")));
+        assert!(!encoded.contains(&format!("{second_id:?}")));
+    }
 }
 
 #[derive(Debug, Default)]
 struct MetadataWaitTracker {
     by_app_context: Mutex<HashMap<String, AppMetadataWaits>>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct PendingMessageStart {
+    unix_timestamp_seconds: i64,
+    references: usize,
+}
+
+#[derive(Debug, Default)]
+struct AppPendingMessages {
+    by_message: HashMap<H256, PendingMessageStart>,
+    timestamp_counts: BTreeMap<i64, usize>,
+}
+
+impl AppPendingMessages {
+    fn insert(&mut self, message_id: H256, unix_timestamp_seconds: i64) -> bool {
+        if let Some(start) = self.by_message.get_mut(&message_id) {
+            start.references = start.references.saturating_add(1);
+            return false;
+        }
+        self.by_message.insert(
+            message_id,
+            PendingMessageStart {
+                unix_timestamp_seconds,
+                references: 1,
+            },
+        );
+        self.timestamp_counts
+            .entry(unix_timestamp_seconds)
+            .and_modify(|count| *count = count.saturating_add(1))
+            .or_insert(1);
+        true
+    }
+
+    fn remove(&mut self, message_id: &H256) -> bool {
+        let Some(start) = self.by_message.get_mut(message_id) else {
+            return false;
+        };
+        if start.references > 1 {
+            start.references = start.references.saturating_sub(1);
+            return false;
+        }
+        let unix_timestamp_seconds = start.unix_timestamp_seconds;
+        self.by_message.remove(message_id);
+        let remove_timestamp = self
+            .timestamp_counts
+            .get_mut(&unix_timestamp_seconds)
+            .map(|count| {
+                *count = count.saturating_sub(1);
+                *count == 0
+            })
+            .unwrap_or_default();
+        debug_assert!(
+            self.timestamp_counts.contains_key(&unix_timestamp_seconds),
+            "tracked pending-message timestamp must have a count"
+        );
+        if remove_timestamp {
+            self.timestamp_counts.remove(&unix_timestamp_seconds);
+        }
+        true
+    }
+
+    fn oldest_timestamp_seconds(&self) -> i64 {
+        self.timestamp_counts
+            .first_key_value()
+            .map(|(timestamp, _)| *timestamp)
+            .unwrap_or_default()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.by_message.is_empty()
+    }
+}
+
+#[derive(Debug, Default)]
+struct PendingMessageTracker {
+    by_app_context: Mutex<HashMap<String, AppPendingMessages>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -290,6 +428,11 @@ pub struct MessageSubmissionMetrics {
     /// Unix timestamp of the oldest active validator-signature wait.
     pub metadata_wait_oldest_timestamp_seconds: IntGaugeVec,
     metadata_wait_tracker: MetadataWaitTracker,
+    /// Messages currently pending delivery.
+    pub pending_message_active: IntGaugeVec,
+    /// Unix timestamp when the oldest active message was first observed.
+    pub pending_message_oldest_timestamp_seconds: IntGaugeVec,
+    pending_message_tracker: PendingMessageTracker,
 }
 
 impl MessageSubmissionMetrics {
@@ -316,7 +459,62 @@ impl MessageSubmissionMetrics {
             metadata_wait_oldest_timestamp_seconds: metrics
                 .metadata_wait_oldest_timestamp_seconds(),
             metadata_wait_tracker: MetadataWaitTracker::default(),
+            pending_message_active: metrics.pending_message_active(),
+            pending_message_oldest_timestamp_seconds: metrics
+                .pending_message_oldest_timestamp_seconds(),
+            pending_message_tracker: PendingMessageTracker::default(),
         }
+    }
+
+    pub(crate) fn record_pending_message(&self, message_id: H256, app_context: Option<&str>) {
+        let app_context = app_context.unwrap_or(UNKNOWN_APP_CONTEXT);
+        let unix_timestamp_seconds = i64::try_from(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        )
+        .unwrap_or(i64::MAX);
+        let mut pending = self
+            .pending_message_tracker
+            .by_app_context
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let app_pending = pending.entry(app_context.to_owned()).or_default();
+        if !app_pending.insert(message_id, unix_timestamp_seconds) {
+            return;
+        }
+
+        let labels = [app_context, self.origin.as_str(), self.destination.as_str()];
+        self.pending_message_active.with_label_values(&labels).inc();
+        self.pending_message_oldest_timestamp_seconds
+            .with_label_values(&labels)
+            .set(app_pending.oldest_timestamp_seconds());
+    }
+
+    pub(crate) fn finish_pending_message(&self, message_id: H256, app_context: Option<&str>) {
+        let app_context = app_context.unwrap_or(UNKNOWN_APP_CONTEXT);
+        let labels = [app_context, self.origin.as_str(), self.destination.as_str()];
+        let mut pending = self
+            .pending_message_tracker
+            .by_app_context
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let Some(app_pending) = pending.get_mut(app_context) else {
+            return;
+        };
+        if !app_pending.remove(&message_id) {
+            return;
+        }
+        let next_oldest = app_pending.oldest_timestamp_seconds();
+        if app_pending.is_empty() {
+            pending.remove(app_context);
+        }
+
+        self.pending_message_active.with_label_values(&labels).dec();
+        self.pending_message_oldest_timestamp_seconds
+            .with_label_values(&labels)
+            .set(next_oldest);
     }
 
     pub fn update_nonce(&self, msg: &HyperlaneMessage) {

@@ -468,6 +468,76 @@ export function multiAddressChainMapMatchingList(
   return list;
 }
 
+const metadexVoterMessageTypes = [
+  { name: 'allocate_chain', type: 1, direction: 'rootToLeaf' },
+  { name: 'allocate_gauge', type: 2, direction: 'rootToLeaf' },
+  { name: 'claim_rewards', type: 3, direction: 'rootToLeaf' },
+  { name: 'redeem', type: 4, direction: 'leafToRoot' },
+  { name: 'set_operator', type: 5, direction: 'rootToLeaf' },
+  { name: 'deallocate', type: 6, direction: 'leafToRoot' },
+  { name: 'reduce_cooldown', type: 7, direction: 'rootToLeaf' },
+  { name: 'emergency_deallocate', type: 8, direction: 'rootToLeaf' },
+] as const;
+
+export interface MetadexVoterAdapterTopology {
+  rootChain: string;
+  leaves: ChainMap<{
+    rootAdapter: Address;
+    leafAdapters: Address[];
+  }>;
+}
+
+/**
+ * Creates bounded relayer metric contexts for MetaDEX voter messages.
+ * The first byte of the adapter payload is the voter message type.
+ */
+export function metadexVoterMetricAppContexts(
+  topology: MetadexVoterAdapterTopology,
+): MetricAppContext[] {
+  const rootDomain = getDomainId(topology.rootChain);
+  const rootToLeaf: MatchingList = [];
+  const leafToRoot: MatchingList = [];
+
+  for (const [leafChain, route] of Object.entries(topology.leaves)) {
+    assert(
+      leafChain !== topology.rootChain,
+      'MetaDEX root chain cannot also be a leaf',
+    );
+    const rootAdapter = addressToBytes32(route.rootAdapter);
+    const leafAdapters = Array.from(new Set(route.leafAdapters)).map(
+      (address) => addressToBytes32(address),
+    );
+    assert(
+      leafAdapters.length > 0,
+      `No MetaDEX adapters configured for leaf ${leafChain}`,
+    );
+    const leafDomain = getDomainId(leafChain);
+    rootToLeaf.push({
+      originDomain: rootDomain,
+      senderAddress: rootAdapter,
+      destinationDomain: leafDomain,
+      recipientAddress: leafAdapters,
+    });
+    leafToRoot.push({
+      originDomain: leafDomain,
+      senderAddress: leafAdapters,
+      destinationDomain: rootDomain,
+      recipientAddress: rootAdapter,
+    });
+  }
+  assert(rootToLeaf.length > 0, 'No MetaDEX leaf routes configured');
+
+  return metadexVoterMessageTypes.map(({ name, type, direction }) => ({
+    name: `metadex_${name}`,
+    matchingList: (direction === 'rootToLeaf' ? rootToLeaf : leafToRoot).map(
+      (entry) => ({
+        ...entry,
+        bodyRegex: `^${type.toString(16).padStart(2, '0')}`,
+      }),
+    ),
+  }));
+}
+
 // Create a matching list for the given contract addresses
 export function matchingList<F extends HyperlaneFactories>(
   addressesMap: HyperlaneAddressesMap<F>,

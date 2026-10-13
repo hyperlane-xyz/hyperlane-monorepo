@@ -50,6 +50,8 @@ pub struct CoreMetrics {
     merkle_tree_ingest_message_ids_count: IntCounterVec,
 
     submitter_queue_length: IntGaugeVec,
+    pending_message_active: IntGaugeVec,
+    pending_message_oldest_timestamp_seconds: IntGaugeVec,
 
     operations_processed_count: IntCounterVec,
     messages_processed_count: IntCounterVec,
@@ -215,6 +217,26 @@ impl CoreMetrics {
                 const_labels_ref
             ),
             &["remote", "queue_name", "operation_status", "app_context"],
+            registry
+        )?;
+
+        let pending_message_active = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("pending_message_active"),
+                "Messages currently pending delivery in this relayer process",
+                const_labels_ref
+            ),
+            &["app_context", "origin", "remote"],
+            registry
+        )?;
+
+        let pending_message_oldest_timestamp_seconds = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("pending_message_oldest_timestamp_seconds"),
+                "Unix timestamp when the oldest active message was first observed by this relayer process",
+                const_labels_ref
+            ),
+            &["app_context", "origin", "remote"],
             registry
         )?;
 
@@ -386,6 +408,8 @@ impl CoreMetrics {
             merkle_tree_ingest_message_ids_count,
 
             submitter_queue_length,
+            pending_message_active,
+            pending_message_oldest_timestamp_seconds,
 
             operations_processed_count,
             messages_processed_count,
@@ -640,6 +664,21 @@ impl CoreMetrics {
     /// - `queue_name`: Which queue the message is in.
     pub fn processor_queue_length(&self) -> IntGaugeVec {
         self.submitter_queue_length.clone()
+    }
+
+    /// Number of messages currently pending delivery.
+    ///
+    /// Labels: `app_context`, `origin`, `remote`.
+    pub fn pending_message_active(&self) -> IntGaugeVec {
+        self.pending_message_active.clone()
+    }
+
+    /// Unix timestamp when the oldest active message was first observed by
+    /// this relayer process. Zero means no messages are active.
+    ///
+    /// Labels: `app_context`, `origin`, `remote`.
+    pub fn pending_message_oldest_timestamp_seconds(&self) -> IntGaugeVec {
+        self.pending_message_oldest_timestamp_seconds.clone()
     }
 
     /// The number of operations successfully submitted by this process during

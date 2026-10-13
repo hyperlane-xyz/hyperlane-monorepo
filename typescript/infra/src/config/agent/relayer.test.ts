@@ -5,6 +5,7 @@ import { addressToBytes32 } from '@hyperlane-xyz/utils';
 import {
   IcaMessageType,
   icaMatchingList,
+  metadexVoterMetricAppContexts,
   multiAddressChainMapMatchingList,
 } from './relayer.js';
 
@@ -63,6 +64,100 @@ describe('multiAddressChainMapMatchingList', () => {
     expect(ethToOp!.senderAddress).to.deep.equal(
       [addrA, addrB].map((a) => addressToBytes32(a)),
     );
+  });
+});
+
+describe('metadexVoterMetricAppContexts', () => {
+  const rootAdapter = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const leafAdapter = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  const secondRootAdapter = '0xcccccccccccccccccccccccccccccccccccccccc';
+  const secondLeafAdapter = '0xdddddddddddddddddddddddddddddddddddddddd';
+
+  it('matches every voter type only in its implemented direction', () => {
+    const contexts = metadexVoterMetricAppContexts({
+      rootChain: 'ethereum',
+      leaves: {
+        optimism: { rootAdapter, leafAdapters: [leafAdapter] },
+        arbitrum: {
+          rootAdapter: secondRootAdapter,
+          leafAdapters: [secondLeafAdapter],
+        },
+      },
+    });
+
+    expect(contexts.map(({ name }) => name)).to.deep.equal([
+      'metadex_allocate_chain',
+      'metadex_allocate_gauge',
+      'metadex_claim_rewards',
+      'metadex_redeem',
+      'metadex_set_operator',
+      'metadex_deallocate',
+      'metadex_reduce_cooldown',
+      'metadex_emergency_deallocate',
+    ]);
+    contexts.forEach((context, index) => {
+      expect(context.matchingList).to.have.lengthOf(2);
+      context.matchingList.forEach((entry) =>
+        expect(entry.bodyRegex).to.equal(
+          `^${(index + 1).toString(16).padStart(2, '0')}`,
+        ),
+      );
+    });
+
+    const rootToLeaf = contexts[0].matchingList[0];
+    expect(rootToLeaf).to.deep.include({
+      originDomain: 1,
+      senderAddress: addressToBytes32(rootAdapter),
+      destinationDomain: 10,
+    });
+    expect(rootToLeaf.recipientAddress).to.deep.equal([
+      addressToBytes32(leafAdapter),
+    ]);
+
+    const leafToRoot = contexts[3].matchingList[0];
+    expect(leafToRoot).to.deep.include({
+      originDomain: 10,
+      destinationDomain: 1,
+      recipientAddress: addressToBytes32(rootAdapter),
+    });
+    expect(leafToRoot.senderAddress).to.deep.equal([
+      addressToBytes32(leafAdapter),
+    ]);
+
+    expect(contexts[0].matchingList[1]).to.deep.include({
+      originDomain: 1,
+      senderAddress: addressToBytes32(secondRootAdapter),
+      destinationDomain: 42161,
+    });
+    expect(contexts[0].matchingList[1].recipientAddress).to.deep.equal([
+      addressToBytes32(secondLeafAdapter),
+    ]);
+
+    for (const index of [0, 1, 2, 4, 6, 7]) {
+      expect(
+        contexts[index].matchingList.some(
+          ({ originDomain, destinationDomain }) =>
+            originDomain === 10 && destinationDomain === 1,
+        ),
+      ).to.equal(false);
+    }
+    for (const index of [3, 5]) {
+      expect(
+        contexts[index].matchingList.some(
+          ({ originDomain, destinationDomain }) =>
+            originDomain === 1 && destinationDomain === 10,
+        ),
+      ).to.equal(false);
+    }
+  });
+
+  it('rejects a configuration without leaf routes', () => {
+    expect(() =>
+      metadexVoterMetricAppContexts({
+        rootChain: 'ethereum',
+        leaves: {},
+      }),
+    ).to.throw('No MetaDEX leaf routes configured');
   });
 });
 
