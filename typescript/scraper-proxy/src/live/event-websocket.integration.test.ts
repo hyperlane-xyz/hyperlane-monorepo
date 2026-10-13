@@ -45,6 +45,7 @@ let explorerQueryCount = 0;
 let explorerQueryError: Error | undefined;
 let explorerQueryGate: Promise<void> | undefined;
 let frontierQueryCount = 0;
+let frontierQueryGate: Promise<void> | undefined;
 let notificationQueryError: Error | undefined;
 let headQueryError: Error | undefined;
 let headQueryErrorDomain: number | undefined;
@@ -330,6 +331,7 @@ const db: EventDatabase = {
         sql.includes('"frontier_row"."origin_block_height">'))
     ) {
       frontierQueryCount++;
+      await frontierQueryGate;
       const eventType: EventType = sql.includes('merkle_tree_insertion')
         ? 'merkle_tree_insertion'
         : sql.includes('delivered_message')
@@ -2138,6 +2140,8 @@ void it('rewinds completed cursors after a rollback during catch-up', async () =
   const socket = new WebSocket(url);
   const messages: Record<string, unknown>[] = [];
   let releaseBounds: () => void = () => undefined;
+  let releaseFrontier: () => void = () => undefined;
+  let releaseReset: () => void = () => undefined;
   socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
   headStates.set(1, { head: '10', indexed: '10' });
   rows.set('21004', {
@@ -2187,6 +2191,9 @@ void it('rewinds completed cursors after a rollback during catch-up', async () =
       block_number: '10',
       domain: 1,
     });
+    frontierQueryGate = new Promise<void>((resolve) => {
+      releaseFrontier = resolve;
+    });
     const frontierQueriesBefore = frontierQueryCount;
     notify(
       'scraper_head',
@@ -2200,9 +2207,18 @@ void it('rewinds completed cursors after a rollback during catch-up', async () =
       }),
     );
     await waitUntil(() => frontierQueryCount > frontierQueriesBefore);
+    const boundsBefore = sequenceBoundsQueryCount;
+    sequenceBoundsQueryGateAddress = rollbackHook;
+    sequenceBoundsQueryGate = new Promise<void>((resolve) => {
+      releaseReset = resolve;
+    });
     releaseBounds();
+    await waitUntil(() => sequenceBoundsQueryCount > boundsBefore);
+    releaseFrontier();
+    frontierQueryGate = undefined;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    releaseReset();
     sequenceBoundsQueryGate = undefined;
-    sequenceBoundsQueryGateAddress = undefined;
     await waitUntil(
       () => messages.filter(({ type }) => type === 'caught_up').length === 2,
     );
@@ -2210,10 +2226,143 @@ void it('rewinds completed cursors after a rollback during catch-up', async () =
     assert.equal(socket.readyState, WebSocket.OPEN);
   } finally {
     releaseBounds();
+    releaseFrontier();
+    releaseReset();
+    frontierQueryGate = undefined;
     sequenceBoundsQueryGate = undefined;
     sequenceBoundsQueryGateAddress = undefined;
     rows.delete('21004');
     rows.delete('21005');
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('drops rolled-back rows still queued during catch-up', async (context) => {
+  const completions = delayServerSendCompletions(context);
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  let releaseBounds: () => void = () => undefined;
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  headStates.set(1, { head: '10', indexed: '9' });
+  rows.set('21006', {
+    ...row(rollbackHook, 0),
+    block_number: '9',
+    domain: 1,
+  });
+  sequenceBoundsQueryGateAddress = blockedHook;
+  sequenceBoundsQueryGate = new Promise<void>((resolve) => {
+    releaseBounds = resolve;
+  });
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [
+          {
+            confirmations: 0,
+            cursors: [
+              { address: rollbackHook, afterSequence: '0', domain: 1 },
+              { address: blockedHook, afterSequence: '-1', domain: 1 },
+            ],
+            eventType: 'merkle_tree_insertion',
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitUntil(
+      () => messages.filter(({ type }) => type === 'caught_up').length === 1,
+    );
+    await waitUntil(() => completions.length === 1);
+    completions.shift()?.();
+
+    rows.set('21007', {
+      ...row(rollbackHook, 1),
+      block_number: '10',
+      domain: 1,
+    });
+    rows.set('21008', {
+      ...row(rollbackHook, 2),
+      block_number: '10',
+      domain: 1,
+    });
+    const firstRange = frontierQueryCount;
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '10',
+        indexedHeight: '10',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '9',
+      }),
+    );
+    await waitUntil(() => frontierQueryCount > firstRange);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    releaseBounds();
+    sequenceBoundsQueryGate = undefined;
+    sequenceBoundsQueryGateAddress = undefined;
+    await waitUntil(
+      () => messages.filter(({ type }) => type === 'caught_up').length === 2,
+    );
+    await waitUntil(() => completions.length === 1);
+    completions.shift()?.();
+    await waitUntil(() => eventSequences(messages).includes('1'));
+    await waitUntil(() => completions.length === 1);
+
+    rows.delete('21007');
+    rows.delete('21008');
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '10',
+        indexedHeight: '9',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '10',
+      }),
+    );
+    await waitFor(messages, 'rollback');
+    rows.set('21009', {
+      ...row(rollbackHook, 1),
+      block_number: '10',
+      domain: 1,
+    });
+    const replacementRange = frontierQueryCount;
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '10',
+        indexedHeight: '10',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '9',
+      }),
+    );
+    await waitUntil(() => frontierQueryCount > replacementRange);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    completions.shift()?.();
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.deepEqual(eventSequences(messages), ['1', '1']);
+    const rollbackIndex = messages.findIndex(({ type }) => type === 'rollback');
+    const eventIndexes = messages.flatMap((message, index) =>
+      message.type === 'event' ? [index] : [],
+    );
+    assert(eventIndexes[0] < rollbackIndex && rollbackIndex < eventIndexes[1]);
+    assert.equal(socket.readyState, WebSocket.OPEN);
+  } finally {
+    releaseBounds();
+    sequenceBoundsQueryGate = undefined;
+    sequenceBoundsQueryGateAddress = undefined;
+    for (const complete of completions.splice(0)) complete();
+    for (const id of ['21006', '21007', '21008', '21009']) rows.delete(id);
+    headStates.set(1, { head: '10', indexed: '10' });
     socket.close();
     await waitUntil(() => socket.readyState === WebSocket.CLOSED);
   }
@@ -2629,13 +2778,33 @@ void it('isolates notifications from a negotiating custom Explorer', async () =>
 
 void it('requeries enrichment when a custom Explorer frontier advances', async () => {
   const socket = new WebSocket(`${messagesUrl}?confirmations=0&domains=1`);
+  const agent = new WebSocket(url);
   const messages: Record<string, unknown>[] = [];
+  const agentMessages: Record<string, unknown>[] = [];
   const enrichmentMsgId = `\\x${'0b'.repeat(32)}`;
   let releaseEnrichment: () => void = () => undefined;
   socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  agent.on('message', (data) => agentMessages.push(parseRecord(rawData(data))));
   headStates.set(1, { head: '10', indexed: '10' });
+  headStates.set(2, { head: '10', indexed: '10' });
   try {
-    await waitFor(messages, 'ready');
+    await Promise.all([
+      waitFor(messages, 'ready'),
+      waitFor(agentMessages, 'ready'),
+    ]);
+    agent.send(
+      JSON.stringify({
+        streams: [
+          {
+            confirmations: 0,
+            domains: [2],
+            eventType: 'merkle_tree_insertion',
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(agentMessages, 'subscribed');
     dispatchRows.set('22007', {
       destination_domain: 2,
       msg_body: '\\x',
@@ -2679,6 +2848,24 @@ void it('requeries enrichment when a custom Explorer frontier advances', async (
     );
     await new Promise((resolve) => setTimeout(resolve, 100));
     assert.equal(customMessageQueryCount, customQueriesBefore);
+    rows.set('22008', {
+      ...row(hookA, 0),
+      block_number: '11',
+      domain: 2,
+    });
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 2,
+        headHeight: '11',
+        indexedHeight: '11',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '10',
+      }),
+    );
+    const agentEvent = await waitFor(agentMessages, 'event');
+    assert.equal(record(agentEvent.data).domain, 2);
     releaseEnrichment();
     enrichmentQueryGate = undefined;
     await waitUntil(() => customMessageQueryCount > customQueriesBefore);
@@ -2705,8 +2892,15 @@ void it('requeries enrichment when a custom Explorer frontier advances', async (
     enrichmentQueryGate = undefined;
     dispatchRows.delete('22007');
     deliveryRows.delete('22006');
+    rows.delete('22008');
+    headStates.delete(2);
     socket.close();
-    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    agent.close();
+    await waitUntil(
+      () =>
+        socket.readyState === WebSocket.CLOSED &&
+        agent.readyState === WebSocket.CLOSED,
+    );
   }
 });
 

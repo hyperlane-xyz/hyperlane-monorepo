@@ -982,22 +982,20 @@ export class EventWebSocketServer {
           }
           continue;
         }
-        const pending = subscription.pending.sort((a, b) =>
+        subscription.pending.sort((a, b) =>
           compareRows(request.eventType, a, b),
         );
-        subscription.pending = [];
-        for (let index = 0; index < pending.length; index++) {
-          if (subscription.sequenceResetFrontiers.size) {
-            subscription.pending.push(...pending.slice(index));
-            break;
-          }
+        while (subscription.pending.length) {
+          if (subscription.sequenceResetFrontiers.size) break;
+          const row = subscription.pending.shift();
+          if (!row) break;
           this.assertCatchUpBudget(subscription);
           if (
             !(await this.deliverAndWait(
               socket,
               request.eventType,
               subscription,
-              pending[index],
+              row,
             ))
           ) {
             websocketCatchUps.inc({ outcome: 'failure' });
@@ -1271,7 +1269,8 @@ export class EventWebSocketServer {
         !subscription ||
         (subscription.confirmations !== confirmations &&
           !(heightlessCanonical && subscription.confirmations !== undefined)) ||
-        subscription.resettingDomains.has(domain) ||
+        (!subscription.catchingUp &&
+          subscription.resettingDomains.has(domain)) ||
         !matches(subscription, domain, key)
       )
         continue;
@@ -1852,31 +1851,27 @@ export class EventWebSocketServer {
       for (const [socket, client] of this.explorerClients) {
         if (client.confirmations !== period || !client.domains?.has(domain))
           continue;
-        const published = await this.serializeExplorerPublication(
-          client,
-          async () => {
-            if (this.explorerClients.get(socket) !== client) return true;
-            if (this.rollbackEpoch(domain) !== rollbackEpoch) return false;
-            const explorerAfter = client.frontiers.get(domain);
-            if (explorerAfter === undefined || through <= explorerAfter)
-              return true;
-            if (
-              !(await this.publishCustomExplorerRange(
-                socket,
-                client,
-                domain,
-                explorerAfter,
-                through,
-                rollbackEpoch,
-              ))
-            )
-              return false;
-            if (this.explorerClients.get(socket) === client)
-              client.frontiers.set(domain, through);
+        void this.serializeExplorerPublication(client, async () => {
+          if (this.explorerClients.get(socket) !== client) return true;
+          if (this.rollbackEpoch(domain) !== rollbackEpoch) return false;
+          const explorerAfter = client.frontiers.get(domain);
+          if (explorerAfter === undefined || through <= explorerAfter)
             return true;
-          },
-        );
-        if (!published) return;
+          if (
+            !(await this.publishCustomExplorerRange(
+              socket,
+              client,
+              domain,
+              explorerAfter,
+              through,
+              rollbackEpoch,
+            ))
+          )
+            return false;
+          if (this.explorerClients.get(socket) === client)
+            client.frontiers.set(domain, through);
+          return true;
+        }).catch((error) => this.failExplorerClient(socket, error));
       }
     }
   }
