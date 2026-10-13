@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
+import { ZERO_ADDRESS_HEX_32, addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import {
   IcaMessageType,
@@ -158,6 +158,32 @@ describe('metadexVoterMetricAppContexts', () => {
         leaves: {},
       }),
     ).to.throw('No MetaDEX leaf routes configured');
+  });
+
+  it('rejects zero adapter addresses', () => {
+    expect(() =>
+      metadexVoterMetricAppContexts({
+        rootChain: 'ethereum',
+        leaves: {
+          optimism: {
+            rootAdapter: ZERO_ADDRESS_HEX_32,
+            leafAdapters: [leafAdapter],
+          },
+        },
+      }),
+    ).to.throw('Invalid zero MetaDEX root adapter for leaf optimism');
+
+    expect(() =>
+      metadexVoterMetricAppContexts({
+        rootChain: 'ethereum',
+        leaves: {
+          optimism: {
+            rootAdapter,
+            leafAdapters: [ZERO_ADDRESS_HEX_32],
+          },
+        },
+      }),
+    ).to.throw('Invalid zero MetaDEX leaf adapter for leaf optimism');
   });
 });
 

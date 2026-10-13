@@ -15,6 +15,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
+  ZERO_ADDRESS_HEX_32,
   addressToBytes32,
   assert,
   isEVMLike,
@@ -504,12 +505,20 @@ export function metadexVoterMetricAppContexts(
       'MetaDEX root chain cannot also be a leaf',
     );
     const rootAdapter = addressToBytes32(route.rootAdapter);
-    const leafAdapters = Array.from(new Set(route.leafAdapters)).map(
-      (address) => addressToBytes32(address),
+    assert(
+      rootAdapter !== ZERO_ADDRESS_HEX_32,
+      `Invalid zero MetaDEX root adapter for leaf ${leafChain}`,
+    );
+    const leafAdapters = Array.from(
+      new Set(route.leafAdapters.map((address) => addressToBytes32(address))),
     );
     assert(
       leafAdapters.length > 0,
       `No MetaDEX adapters configured for leaf ${leafChain}`,
+    );
+    assert(
+      leafAdapters.every((address) => address !== ZERO_ADDRESS_HEX_32),
+      `Invalid zero MetaDEX leaf adapter for leaf ${leafChain}`,
     );
     const leafDomain = getDomainId(leafChain);
     rootToLeaf.push({
