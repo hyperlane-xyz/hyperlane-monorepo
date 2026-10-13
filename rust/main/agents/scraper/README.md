@@ -41,6 +41,11 @@ all four legacy event streams before seeding `scraper_head`. Follow the
 [cutover runbook](../../../../docs/scraper/near-head.md#verified-legacy-cutover) with
 writers stopped before starting the new binary.
 
+Unpublished forks recover automatically, including formerly indexed slots that
+the provider proves are now unavailable. Published-history forks halt and use
+the two-phase [`scraper-repair` workflow](../../../../docs/scraper/near-head.md#published-history-reorg-repair)
+on every supported VM (`--config agent.json --chain <chain>`).
+
 For rollback, stop or roll back scraper binaries that reference a new column
 before dropping that column.
 

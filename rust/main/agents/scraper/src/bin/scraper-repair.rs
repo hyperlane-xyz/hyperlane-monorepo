@@ -1,23 +1,89 @@
-//! Two-phase, operator-driven repair of halted EVM scraper history.
+//! Two-phase, operator-driven repair of halted scraper history on every VM.
 
 #![forbid(unsafe_code)]
 
 use std::path::PathBuf;
 
+use async_trait::async_trait;
 use clap::{Parser, Subcommand};
 use ethers::providers::{Http, Provider};
 use eyre::{ensure, Result};
+use hyperlane_base::settings::{parser::RawAgentConf, ChainConnectionConf, Settings};
+use hyperlane_core::{
+    config::{ConfigPath, FromRawConf},
+    ContractLocator,
+};
+use hyperlane_ethereum::{BuildableWithProvider, ConnectionConf};
 use sea_orm::{ConnectOptions, Database};
 
 #[path = "../repair/mod.rs"]
 mod repair;
 
 #[derive(Parser)]
-#[command(about = "Plan and apply a halted EVM scraper history repair")]
+#[command(about = "Plan and apply a halted scraper history repair on any supported VM")]
 struct Args {
+    /// Agent JSON config with the same chain providers/contracts as the scraper.
+    #[arg(long, global = true, requires = "chain")]
+    config: Option<PathBuf>,
+    /// Chain name in --config. Without these flags, use the legacy EVM RPC env.
+    #[arg(long, global = true, requires = "config")]
+    chain: Option<String>,
     // Environment-only credentials: never serialized into plans or archives.
     #[command(subcommand)]
     command: Command,
+}
+
+struct EvmRepairBuilder;
+
+#[async_trait]
+impl BuildableWithProvider for EvmRepairBuilder {
+    type Output = Box<dyn repair::RepairSource>;
+    const NEEDS_SIGNER: bool = false;
+
+    async fn build_with_provider<M: ethers::providers::Middleware + 'static>(
+        &self,
+        provider: M,
+        _conn: &ConnectionConf,
+        _locator: &ContractLocator,
+    ) -> Self::Output {
+        Box::new(provider)
+    }
+}
+
+async fn source(args: &Args) -> Result<Box<dyn repair::RepairSource>> {
+    let (Some(path), Some(chain)) = (&args.config, &args.chain) else {
+        return Ok(Box::new(Provider::<Http>::try_from(std::env::var(
+            "REPAIR_RPC_URL",
+        )?)?));
+    };
+    let raw: RawAgentConf = serde_json::from_reader(std::fs::File::open(path)?)?;
+    let filter = std::collections::HashSet::from([chain.as_str()]);
+    let settings =
+        Settings::from_config_filtered(raw, &ConfigPath::default(), Some(&filter), "scraper")?;
+    let domain = settings.lookup_domain(chain)?;
+    let conf = settings.chain_setup(&domain)?;
+    let metrics = settings.metrics("scraper-repair")?;
+    if let ChainConnectionConf::Ethereum(connection) = &conf.connection {
+        return conf
+            .build_ethereum(
+                connection,
+                &ContractLocator {
+                    domain: &domain,
+                    address: conf.addresses.mailbox,
+                },
+                &metrics,
+                EvmRepairBuilder,
+            )
+            .await;
+    }
+    Ok(Box::new(repair::ProtocolSource {
+        provider: conf.build_provider(&metrics).await?,
+        contracts: [
+            conf.addresses.mailbox,
+            conf.addresses.merkle_tree_hook,
+            conf.addresses.interchain_gas_paymaster,
+        ],
+    }))
 }
 
 #[derive(Subcommand)]
@@ -57,10 +123,10 @@ enum Command {
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let args = Args::parse();
+    let rpc = source(&args).await?;
     let mut options = ConnectOptions::new(std::env::var("DATABASE_URL")?);
     options.max_connections(1).sqlx_logging(false);
     let db = Database::connect(options).await?;
-    let rpc = Provider::<Http>::try_from(std::env::var("REPAIR_RPC_URL")?)?;
     match args.command {
         Command::Inspect {
             domain,
@@ -68,7 +134,7 @@ async fn main() -> Result<()> {
             out,
             max_rows,
         } => {
-            let plan = repair::inspect(&db, &rpc, domain, max_rewind, max_rows).await?;
+            let plan = repair::inspect(&db, rpc.as_ref(), domain, max_rewind, max_rows).await?;
             repair::write_new(&out, &plan)?;
             println!("{}", serde_json::to_string_pretty(&plan)?);
         }
@@ -83,7 +149,7 @@ async fn main() -> Result<()> {
             let plan = serde_json::from_reader(std::fs::File::open(plan)?)?;
             repair::apply(
                 &db,
-                &rpc,
+                rpc.as_ref(),
                 &plan,
                 &archive,
                 &writer_role,
@@ -99,6 +165,34 @@ async fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn configured_repair_requires_config_and_chain_together() {
+        let inspect = [
+            "scraper-repair",
+            "inspect",
+            "--domain",
+            "1",
+            "--max-rewind",
+            "10",
+            "--out",
+            "plan.json",
+        ];
+        assert!(Args::try_parse_from(inspect).is_ok());
+        assert!(
+            Args::try_parse_from(inspect.into_iter().chain(["--config", "agent.json"])).is_err()
+        );
+        assert!(
+            Args::try_parse_from(inspect.into_iter().chain(["--chain", "solanamainnet"])).is_err()
+        );
+        assert!(Args::try_parse_from(inspect.into_iter().chain([
+            "--config",
+            "agent.json",
+            "--chain",
+            "solanamainnet"
+        ]))
+        .is_ok());
+    }
 
     #[test]
     fn apply_requires_writer_acknowledgement_and_consumer_reference() {

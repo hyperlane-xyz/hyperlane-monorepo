@@ -300,7 +300,7 @@ verified canonical boundary instead of using this repair.
 
 ### Published-history reorg repair
 
-Use `scraper-repair` for an EVM domain with a persisted `halted=true` after a
+Use `scraper-repair` for any supported VM domain with a persisted `halted=true` after a
 reorg crossed its confirmed boundary. The checkpoint-copy SQL above only fixes
 checkpoint migration inconsistencies; it does **not** repair published forks.
 The command has two phases and does not change deployments or consumer state.
@@ -312,15 +312,31 @@ cd rust/main
 cargo build --release -p scraper --bin scraper-repair
 ```
 
-Provide `DATABASE_URL` and `REPAIR_RPC_URL` through your normal secret environment.
-The RPC must serve canonical historical headers and hash-pinned mailbox
-`localDomain()` calls. Neither URL is included in the plan or archive.
+Provide `DATABASE_URL` through your normal secret environment. Use `--config`
+with the agent JSON configuration and `--chain` with its chain name for EVM,
+Sealevel, Cosmos/CosmWasm, Cosmos Native, Starknet, Radix, Aleo, or Tron.
+The configured provider must serve canonical historical headers. Aleo requires
+building with `--features aleo`. Heights retain each provider's native meaning
+(slots on Sealevel, state versions on Radix).
+
+The original EVM invocation remains supported using `REPAIR_RPC_URL` without
+`--config`/`--chain`; its RPC must also serve hash-pinned mailbox `localDomain()`
+calls. Neither RPC URLs nor config contents are included in the plan/archive.
+Use a trusted config: AltVM verification binds the domain and all three saved
+contract addresses to that config and requires a matching retained canonical
+ancestor, rather than assuming every VM has an EVM chain ID or `localDomain()`.
+Only provider errors positively identifying an unavailable block/slot are
+skipped; authentication, transport, and other RPC failures abort inspection.
 
 **Inspect (read-only):**
 
 ```bash
 target/release/scraper-repair inspect \
   --domain 38833 --max-rewind 1000 --out igra-repair-plan.json
+
+# Configured provider (same config and chain are required during apply):
+target/release/scraper-repair --config agent.json --chain solanamainnet inspect \
+  --domain 1399811149 --max-rewind 1000 --out solana-repair-plan.json
 ```
 
 `1000` is an example search bound, not an Igra finality recommendation. The command
@@ -330,7 +346,7 @@ saved indexed height. It selects the newest retained header matching the RPC.
 Because retained headers are sparse, `rewind_blocks` can exceed the actual reorg
 depth. No match means restore/audit older history; do not fabricate an anchor.
 
-Review the ancestor, saved/observed heads, chain ID, rewind distances, affected
+Review the ancestor, saved/observed heads, protocol, EVM chain ID (when present), rewind distances, affected
 table counts and message IDs. The plan fingerprints every affected row, including
 enrichment and gas cursor mappings. Inspection uses a consistent read-only
 snapshot and changes no database rows. `--max-rows` defaults to 100,000 total rows;
@@ -363,6 +379,9 @@ target/release/scraper-repair apply \
   --writer-role '<testnet-scraper-login>' \
   --consumer-recovery-reference '<incident URL with reset/replay procedure>'
 ```
+
+For configured providers, add the same `--config agent.json --chain <chain>`
+flags to `apply`. Version-1 EVM plans remain readable; new plans use version 2.
 
 Apply checks writer sessions and all near-head leases, locks the affected tables
 against concurrent writes, then compares the database and canonical chain with

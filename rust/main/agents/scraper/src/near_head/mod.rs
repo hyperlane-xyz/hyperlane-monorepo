@@ -202,12 +202,14 @@ async fn observe(source: &dyn Source, store: &Store) -> Result<State> {
     let mut height = store.checkpoint(state.indexed.min(head.height)).await?;
     let ancestor = loop {
         let header = if height == head.height {
-            head.clone()
+            Some(head.clone())
         } else {
-            source.header(BlockSelector::Height(height)).await?
+            source.canonical_header(height).await?
         };
-        if store.hash(height).await? == Some(header.hash) {
-            break header;
+        if let Some(header) = header {
+            if store.hash(height).await? == Some(header.hash) {
+                break header;
+            }
         }
         store.pause(height == state.confirmed).await?;
         ensure!(

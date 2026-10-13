@@ -8,12 +8,14 @@ use std::{
     time::Duration,
 };
 
+use async_trait::async_trait;
 use ethers::{
     providers::Middleware,
     types::{BlockNumber, TransactionRequest, H160, H256, U256},
     utils::keccak256,
 };
 use eyre::{ensure, eyre, Result};
+use hyperlane_core::{HyperlaneDomainProtocol, HyperlaneProvider};
 use sea_orm::{
     AccessMode, ConnectionTrait, DatabaseConnection, DbBackend, IsolationLevel, Statement,
     TransactionTrait, Value as SqlValue,
@@ -67,7 +69,12 @@ struct Inventory {
 pub(super) struct Plan {
     version: u32,
     domain: u32,
-    chain_id: U256,
+    chain_id: Option<U256>,
+    #[serde(
+        default = "ethereum_protocol",
+        deserialize_with = "deserialize_protocol"
+    )]
+    protocol: HyperlaneDomainProtocol,
     database: String,
     head: Value,
     ancestor: Header,
@@ -78,6 +85,153 @@ pub(super) struct Plan {
     confirmed_rewind_blocks: i64,
     affected: BTreeMap<String, Inventory>,
     consumer_recovery: String,
+}
+
+fn ethereum_protocol() -> HyperlaneDomainProtocol {
+    HyperlaneDomainProtocol::Ethereum
+}
+
+fn deserialize_protocol<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<HyperlaneDomainProtocol, D::Error> {
+    use serde::de::Error;
+    String::deserialize(deserializer)?
+        .parse()
+        .map_err(D::Error::custom)
+}
+
+/// Chain reads only; the same transaction and archive logic serves every VM.
+#[async_trait]
+pub(super) trait RepairSource: Send + Sync {
+    fn protocol(&self) -> HyperlaneDomainProtocol;
+    async fn chain_id(&self) -> Result<Option<U256>>;
+    /// None means the provider positively identified a skipped/deleted block.
+    async fn header(&self, height: Option<i64>) -> Result<Option<Header>>;
+    async fn latest(&self, _max_rewind: u64) -> Result<Header> {
+        self.header(None)
+            .await?
+            .ok_or_else(|| eyre!("Latest canonical block is unavailable"))
+    }
+    async fn verify_domain(&self, head: &Value, domain: u32, hash: H256) -> Result<()>;
+}
+
+#[async_trait]
+impl<M: Middleware + 'static> RepairSource for M {
+    fn protocol(&self) -> HyperlaneDomainProtocol {
+        HyperlaneDomainProtocol::Ethereum
+    }
+
+    async fn chain_id(&self) -> Result<Option<U256>> {
+        Ok(Some(chain_id(self).await?))
+    }
+
+    async fn header(&self, height: Option<i64>) -> Result<Option<Header>> {
+        Ok(Some(match height {
+            Some(height) => at(self, height).await?,
+            None => rpc_header(self, BlockNumber::Latest).await?,
+        }))
+    }
+
+    async fn verify_domain(&self, head: &Value, domain: u32, hash: H256) -> Result<()> {
+        verify_domain(self, head, domain, hash).await
+    }
+}
+
+pub(super) struct ProtocolSource {
+    pub provider: Box<dyn HyperlaneProvider>,
+    pub contracts: [hyperlane_core::H256; 3],
+}
+
+#[async_trait]
+impl RepairSource for ProtocolSource {
+    fn protocol(&self) -> HyperlaneDomainProtocol {
+        self.provider.domain().domain_protocol()
+    }
+
+    async fn chain_id(&self) -> Result<Option<U256>> {
+        Ok(None) // Non-EVM network identities are not numeric EVM chain IDs.
+    }
+
+    async fn latest(&self, max_rewind: u64) -> Result<Header> {
+        let tip = tokio::time::timeout(Duration::from_secs(30), self.provider.get_chain_metrics())
+            .await??
+            .ok_or_else(|| eyre!("Provider omitted chain height"))?
+            .block_height;
+        for height in (tip.saturating_sub(max_rewind)..=tip).rev() {
+            if let Some(header) = self.header(Some(i64::try_from(height)?)).await? {
+                return Ok(header);
+            }
+        }
+        Err(eyre!("No canonical head inside max-rewind bound"))
+    }
+
+    async fn header(&self, height: Option<i64>) -> Result<Option<Header>> {
+        let height = match height {
+            Some(height) => u64::try_from(height)?,
+            None => {
+                tokio::time::timeout(Duration::from_secs(30), self.provider.get_chain_metrics())
+                    .await??
+                    .ok_or_else(|| eyre!("Provider omitted chain height"))?
+                    .block_height
+            }
+        };
+        let block = match tokio::time::timeout(
+            Duration::from_secs(30),
+            self.provider.get_block_by_height(height),
+        )
+        .await?
+        {
+            Ok(block) => block,
+            Err(error) if self.provider.is_block_unavailable(&error) => return Ok(None),
+            Err(error) => return Err(error.into()),
+        };
+        ensure!(
+            block.number == height,
+            "RPC returned a different block height"
+        );
+        ensure!(!block.hash.is_zero(), "RPC returned an empty block hash");
+        Ok(Some(Header {
+            height: i64::try_from(height)?,
+            hash: block.hash.into(),
+            timestamp: i64::try_from(block.timestamp)?,
+        }))
+    }
+
+    async fn verify_domain(&self, head: &Value, domain: u32, _hash: H256) -> Result<()> {
+        ensure!(
+            self.provider.domain().id() == domain,
+            "Configured domain does not match repair domain"
+        );
+        for (field, expected) in ["mailbox", "merkle_tree_hook", "interchain_gas_paymaster"]
+            .into_iter()
+            .zip(self.contracts)
+        {
+            let address = head[field]
+                .as_str()
+                .and_then(|s| s.strip_prefix("\\x"))
+                .ok_or_else(|| eyre!("Invalid saved {field}"))?;
+            let bytes = ethers::utils::hex::decode(address)?;
+            let saved = match bytes.len() {
+                20 => hyperlane_core::H256::from(hyperlane_core::H160::from_slice(&bytes)),
+                32 => hyperlane_core::H256::from_slice(&bytes),
+                _ => return Err(eyre!("Invalid saved {field} length")),
+            };
+            ensure!(
+                saved == expected,
+                "Configured {field} does not match saved contract"
+            );
+        }
+        Ok(())
+    }
+}
+
+async fn required_header(
+    rpc: &(impl RepairSource + ?Sized),
+    height: Option<i64>,
+) -> Result<Header> {
+    rpc.header(height)
+        .await?
+        .ok_or_else(|| eyre!("Required canonical block is unavailable"))
 }
 
 type Rows = BTreeMap<String, Vec<String>>;
@@ -171,20 +325,22 @@ async fn verify_domain(rpc: &impl Middleware, head: &Value, domain: u32, hash: H
     Ok(())
 }
 
-async fn verify_chain(rpc: &impl Middleware, plan: &Plan) -> Result<()> {
+async fn verify_chain(rpc: &(impl RepairSource + ?Sized), plan: &Plan) -> Result<()> {
+    ensure!(rpc.protocol() == plan.protocol, "RPC protocol changed");
     ensure!(
-        chain_id(rpc).await? == plan.chain_id,
+        rpc.chain_id().await? == plan.chain_id,
         "RPC chain ID changed"
     );
     ensure!(
-        at(rpc, plan.ancestor.height).await? == plan.ancestor,
+        required_header(rpc, Some(plan.ancestor.height)).await? == plan.ancestor,
         "Repair ancestor changed; inspect again"
     );
     ensure!(
-        at(rpc, plan.observed_head.height).await? == plan.observed_head,
+        required_header(rpc, Some(plan.observed_head.height)).await? == plan.observed_head,
         "Observed chain changed; inspect again"
     );
-    verify_domain(rpc, &plan.head, plan.domain, plan.observed_head.hash).await
+    rpc.verify_domain(&plan.head, plan.domain, plan.observed_head.hash)
+        .await
 }
 
 async fn snapshot(
@@ -266,7 +422,7 @@ fn inventory(rows: &Rows) -> Result<BTreeMap<String, Inventory>> {
 
 pub(super) async fn inspect(
     db: &DatabaseConnection,
-    rpc: &impl Middleware,
+    rpc: &(impl RepairSource + ?Sized),
     domain: u32,
     max_rewind: u64,
     max_rows: usize,
@@ -285,7 +441,7 @@ pub(super) async fn inspect(
     let confirmed = integer(&head, "confirmed_height")?;
     let lower =
         integer(&head, "start_height")?.max(indexed.saturating_sub(i64::try_from(max_rewind)?));
-    let observed_head = rpc_header(rpc, BlockNumber::Latest).await?;
+    let observed_head = rpc.latest(max_rewind).await?;
     ensure!(
         observed_head.height >= indexed,
         "RPC is behind saved progress"
@@ -296,7 +452,9 @@ pub(super) async fn inspect(
     let mut ancestor = None;
     for row in candidates {
         let height: i64 = row.try_get("", "height")?;
-        let canonical = at(rpc, height).await?;
+        let Some(canonical) = rpc.header(Some(height)).await? else {
+            continue;
+        };
         let hash: Vec<u8> = row.try_get("", "hash")?;
         if hash == canonical.hash.as_bytes() {
             ancestor = Some(canonical);
@@ -307,7 +465,7 @@ pub(super) async fn inspect(
     verify_anchor(&tx, domain, &ancestor).await?;
     let rows = snapshot(&tx, domain, ancestor.height, max_rows).await?;
     let plan = Plan {
-        version: 1, domain, chain_id: chain_id(rpc).await?, database: database_name(&tx).await?, head,
+        version: 2, domain, chain_id: rpc.chain_id().await?, protocol: rpc.protocol(), database: database_name(&tx).await?, head,
         rewind_blocks: indexed.checked_sub(ancestor.height).ok_or_else(|| eyre!("Invalid rewind"))?,
         confirmed_rewind_blocks: confirmed.checked_sub(ancestor.height).ok_or_else(|| eyre!("Invalid confirmed rewind"))?,
         ancestor, observed_head, max_rewind, max_rows, affected: inventory(&rows)?,
@@ -353,13 +511,19 @@ pub(super) fn write_new(path: &Path, value: &impl Serialize) -> Result<()> {
 
 pub(super) async fn apply(
     db: &DatabaseConnection,
-    rpc: &impl Middleware,
+    rpc: &(impl RepairSource + ?Sized),
     plan: &Plan,
     archive: &Path,
     writer_roles: &[String],
     recovery_reference: &str,
 ) -> Result<()> {
-    ensure!(plan.version == 1, "Unsupported repair plan version");
+    ensure!(
+        plan.version == 2
+            || (plan.version == 1
+                && plan.protocol == HyperlaneDomainProtocol::Ethereum
+                && plan.chain_id.is_some()),
+        "Unsupported repair plan version"
+    );
     ensure!(
         !writer_roles.is_empty() && writer_roles.iter().all(|r| !r.trim().is_empty()),
         "List every scraper writer role"
