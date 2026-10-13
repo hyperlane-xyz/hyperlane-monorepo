@@ -5,6 +5,7 @@ import { after, before, it, type TestContext } from 'node:test';
 import { WebSocket } from 'ws';
 import type { QueryResultRow } from 'pg';
 
+import { config } from '../config.js';
 import {
   metricsRegistry,
   websocketCatchUps,
@@ -56,6 +57,8 @@ let headStateQueryGate: Promise<void> | undefined;
 let omitMappedGasPaymentRows = false;
 let omitExplorerRows = false;
 let customMessageQueryCount = 0;
+let customMessageQueryGate: Promise<void> | undefined;
+let customMessageQueryGateAt: number | undefined;
 let provisionalQueryCount = 0;
 let provisionalQuery = '';
 let provisionalQueryGate: Promise<void> | undefined;
@@ -164,6 +167,8 @@ const db: EventDatabase = {
     }
     if (sql.includes('custom_message_ids')) {
       customMessageQueryCount++;
+      if (customMessageQueryCount === customMessageQueryGateAt)
+        await customMessageQueryGate;
       const after = BigInt(String(values[1]));
       const through = BigInt(String(values[2]));
       const cursorHeight = BigInt(String(values[3]));
@@ -2465,6 +2470,193 @@ void it('rolls back custom rows sent above an uncommitted frontier', async () =>
   }
 });
 
+void it('rolls back heightless delivery rows above an uncommitted frontier', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  let releaseFrontier: () => void = () => undefined;
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  headStates.set(1, { head: '9', indexed: '9' });
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [
+          { confirmations: 0, domains: [1], eventType: 'delivery' },
+          {
+            confirmations: 0,
+            domains: [1],
+            eventType: 'merkle_tree_insertion',
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'subscribed');
+
+    frontierQueryGateEventType = 'merkle_tree_insertion';
+    frontierQueryGate = new Promise<void>((resolve) => {
+      releaseFrontier = resolve;
+    });
+    deliveryRows.set('21016', {
+      block_number: '10',
+      destination_mailbox: hookB,
+      destination_tx_id: '501',
+      domain: 1,
+      msg_id: `\\x${'16'.repeat(32)}`,
+      sequence: '0',
+      time_created: new Date(0).toISOString(),
+    });
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '10',
+        indexedHeight: '10',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '9',
+      }),
+    );
+    await waitUntil(() =>
+      messages.some(
+        ({ eventType, type }) => type === 'event' && eventType === 'delivery',
+      ),
+    );
+
+    deliveryRows.delete('21016');
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '9',
+        indexedHeight: '9',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '10',
+      }),
+    );
+    const rollback = await waitFor(messages, 'rollback');
+    assert.equal(rollback.fromHeight, '10');
+    assert.equal(rollback.toHeight, '9');
+  } finally {
+    releaseFrontier();
+    frontierQueryGate = undefined;
+    frontierQueryGateEventType = undefined;
+    deliveryRows.delete('21016');
+    headStates.set(1, { head: '10', indexed: '10' });
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('rolls back a pending row before its send completes', async (context) => {
+  const completions = delayServerSendCompletions(context);
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  let releaseBounds: () => void = () => undefined;
+  let releaseFrontier: () => void = () => undefined;
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  headStates.set(1, { head: '10', indexed: '9' });
+  sequenceBoundsQueryGateAddress = blockedHook;
+  sequenceBoundsQueryGate = new Promise<void>((resolve) => {
+    releaseBounds = resolve;
+  });
+  frontierQueryGateEventType = 'merkle_tree_insertion';
+  frontierQueryGate = new Promise<void>((resolve) => {
+    releaseFrontier = resolve;
+  });
+  try {
+    await waitFor(messages, 'ready');
+    const boundsBefore = sequenceBoundsQueryCount;
+    socket.send(
+      JSON.stringify({
+        streams: [
+          {
+            confirmations: 0,
+            cursors: [{ address: blockedHook, afterSequence: '-1', domain: 1 }],
+            domains: [1],
+            eventType: 'dispatch',
+          },
+          {
+            confirmations: 0,
+            domains: [1],
+            eventType: 'merkle_tree_insertion',
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'subscribed');
+    await waitUntil(() => sequenceBoundsQueryCount > boundsBefore);
+
+    dispatchRows.set('21017', {
+      destination_domain: 2,
+      id: '21017',
+      msg_body: '\\x',
+      msg_id: `\\x${'17'.repeat(32)}`,
+      nonce: 0,
+      origin_block_hash: `\\x${'02'.repeat(32)}`,
+      origin_block_height: '10',
+      origin_domain: 1,
+      origin_mailbox: blockedHook,
+      origin_tx_hash: `\\x${'03'.repeat(32)}`,
+      recipient: hookB,
+      sender: hookA,
+      time_created: new Date(0).toISOString(),
+    });
+    const frontierQueriesBefore = frontierQueryCount;
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '10',
+        indexedHeight: '10',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '9',
+      }),
+    );
+    await waitUntil(() => frontierQueryCount >= frontierQueriesBefore + 2);
+
+    releaseBounds();
+    sequenceBoundsQueryGate = undefined;
+    sequenceBoundsQueryGateAddress = undefined;
+    await waitFor(messages, 'caught_up');
+    await waitUntil(() => completions.length === 1);
+    completions.shift()?.();
+    await waitFor(messages, 'event');
+    await waitUntil(() => completions.length === 1);
+
+    dispatchRows.delete('21017');
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '9',
+        indexedHeight: '9',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '10',
+      }),
+    );
+    const rollback = await waitFor(messages, 'rollback');
+    assert.equal(rollback.fromHeight, '10');
+    assert.equal(rollback.toHeight, '9');
+  } finally {
+    for (const complete of completions.splice(0)) complete();
+    releaseBounds();
+    releaseFrontier();
+    frontierQueryGate = undefined;
+    frontierQueryGateEventType = undefined;
+    sequenceBoundsQueryGate = undefined;
+    sequenceBoundsQueryGateAddress = undefined;
+    dispatchRows.delete('21017');
+    headStates.set(1, { head: '10', indexed: '10' });
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
 void it('rewinds completed cursors after a rollback during catch-up', async () => {
   const socket = new WebSocket(url);
   const messages: Record<string, unknown>[] = [];
@@ -2924,6 +3116,80 @@ void it('supports Explorer confirmations and rollback replacement messages', asy
   } finally {
     dispatchRows.delete('22000');
     dispatchRows.delete('22001');
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('rolls back Explorer rows sent before a multi-page range commits', async () => {
+  const previousBatchSize = config.EVENT_STREAM_BATCH_SIZE;
+  config.EVENT_STREAM_BATCH_SIZE = 1;
+  headStates.set(1, { head: '9', indexed: '9' });
+  const socket = new WebSocket(`${messagesUrl}?confirmations=0&domains=1`);
+  const messages: Record<string, unknown>[] = [];
+  let releaseQuery: () => void = () => undefined;
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  try {
+    await waitFor(messages, 'ready');
+    dispatchRows.set('22002', {
+      destination_domain: 2,
+      msg_body: '\\x',
+      msg_id: `\\x${'06'.repeat(32)}`,
+      origin_block_height: '10',
+      origin_domain: 1,
+    });
+    dispatchRows.set('22003', {
+      destination_domain: 2,
+      msg_body: '\\x',
+      msg_id: `\\x${'07'.repeat(32)}`,
+      origin_block_height: '10',
+      origin_domain: 1,
+    });
+    customMessageQueryGateAt = customMessageQueryCount + 2;
+    customMessageQueryGate = new Promise<void>((resolve) => {
+      releaseQuery = resolve;
+    });
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '10',
+        indexedHeight: '10',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '9',
+      }),
+    );
+    await waitUntil(
+      () =>
+        messages.filter(({ type }) => type === 'message_upsert').length === 1,
+    );
+    await waitUntil(() => customMessageQueryCount === customMessageQueryGateAt);
+
+    dispatchRows.delete('22002');
+    dispatchRows.delete('22003');
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '9',
+        indexedHeight: '9',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '10',
+      }),
+    );
+    const rollback = await waitFor(messages, 'rollback');
+    assert.equal(rollback.fromHeight, '10');
+    assert.equal(rollback.toHeight, '9');
+  } finally {
+    releaseQuery();
+    customMessageQueryGate = undefined;
+    customMessageQueryGateAt = undefined;
+    config.EVENT_STREAM_BATCH_SIZE = previousBatchSize;
+    dispatchRows.delete('22002');
+    dispatchRows.delete('22003');
+    headStates.set(1, { head: '10', indexed: '10' });
     socket.close();
     await waitUntil(() => socket.readyState === WebSocket.CLOSED);
   }

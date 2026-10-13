@@ -131,6 +131,7 @@ type ExplorerClient = {
   publishingMessages: boolean;
   queuedBytes: number;
   queue: SerializedMessage[];
+  sentHeights: Map<number, bigint>;
   sending: boolean;
 };
 type CatchUpWaiter = {
@@ -648,6 +649,7 @@ export class EventWebSocketServer {
       publishingMessages: false,
       queuedBytes: 0,
       queue: [],
+      sentHeights: new Map(),
       sending: false,
     };
     this.explorerClients.set(socket, client);
@@ -1955,13 +1957,16 @@ export class EventWebSocketServer {
         },
         client.confirmations,
       );
-      const from =
+      const sent = client.sentHeights.get(head.domain);
+      let from =
         current === undefined || previous > current ? previous : current;
+      if (sent !== undefined && sent > from) from = sent;
       const to = customFrontier(
         { head: head.headHeight, indexed: head.indexedHeight },
         client.confirmations,
       );
       if (to >= from) continue;
+      client.sentHeights.set(head.domain, to);
       client.frontiers.set(
         head.domain,
         current === undefined || to < current ? to : current,
@@ -2062,13 +2067,19 @@ export class EventWebSocketServer {
           [FRONTIER_ID]: _id,
           [FRONTIER_HEIGHT]: frontierHeight,
           ...event
-        }) => ({
-          event:
-            eventType === 'gas_payment' && event[STREAM_CURSOR_COLUMN] == null
-              ? { ...event, [STREAM_CURSOR_COLUMN]: _id }
-              : event,
-          height: parseId(frontierHeight),
-        }),
+        }) => {
+          const projected = {
+            ...event,
+            [NOTIFICATION_HEIGHT]: frontierHeight,
+          };
+          return {
+            event:
+              eventType === 'gas_payment' && event[STREAM_CURSOR_COLUMN] == null
+                ? { ...projected, [STREAM_CURSOR_COLUMN]: _id }
+                : projected,
+            height: parseId(frontierHeight),
+          };
+        },
       );
       events.sort((left, right) =>
         compareRows(eventType, left.event, right.event),
@@ -2155,7 +2166,8 @@ export class EventWebSocketServer {
           type: 'message_upsert',
         }),
       );
-      this.enqueueExplorer(socket, client, messages);
+      if (messages.length && this.enqueueExplorer(socket, client, messages))
+        client.sentHeights.set(domain, through);
       if (changes.length < config.EVENT_STREAM_BATCH_SIZE) return true;
     }
   }
@@ -2531,7 +2543,7 @@ export class EventWebSocketServer {
     socket: WebSocket,
     client: ExplorerClient,
     messages: SerializedMessage[],
-  ): void {
+  ): boolean {
     const bytes = messages.reduce(
       (total, message) => total + message.length,
       0,
@@ -2542,11 +2554,12 @@ export class EventWebSocketServer {
     ) {
       websocketSendFailures.inc({ reason: 'queue_limit' });
       this.failSocket(socket, 'outbound message queue limit exceeded');
-      return;
+      return false;
     }
     client.queue.push(...messages);
     client.queuedBytes += bytes;
     if (!client.sending) void this.drainExplorerClient(socket, client);
+    return true;
   }
 
   private async drainExplorerClient(
