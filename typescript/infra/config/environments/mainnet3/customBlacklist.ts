@@ -495,4 +495,7 @@ export const blacklistedMessageIds = [
   // value, recipient may have reverted". Permanently undeliverable recipient-side (~0.0001 ETH);
   // denylisting to stop endless prepare-queue retries that keep re-paging the queue-length alert.
   '0x898301d4e591195057088c29df05bb6cb5be9698f84d5b85b76831e2d80243b4',
+
+  // USDC/radix attacker message [2026-10-13]
+  '0x8960c5e41eb0d91973140ebc196892f5f07f512dd86047e8536e71424462c5d3',
 ];
