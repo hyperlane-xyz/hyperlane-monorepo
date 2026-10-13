@@ -4836,7 +4836,12 @@ mod tests {
             monitor.refresh_parity_ready(source);
             let authority = monitor.source_authority(source.domain);
             if !authority.active.load(Ordering::Acquire) {
-                let generation = authority.sender.borrow().generation + 1;
+                let generation = authority
+                    .sender
+                    .borrow()
+                    .generation
+                    .checked_add(1)
+                    .expect("authority generation");
                 authority.handoff.mark_paused(source.domain, generation);
             }
         }
