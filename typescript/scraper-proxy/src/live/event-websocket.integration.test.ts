@@ -5,7 +5,6 @@ import { after, before, it, type TestContext } from 'node:test';
 import { WebSocket } from 'ws';
 import type { QueryResultRow } from 'pg';
 
-import { config } from '../config.js';
 import {
   metricsRegistry,
   websocketCatchUps,
@@ -3122,6 +3121,7 @@ void it('supports Explorer confirmations and rollback replacement messages', asy
 });
 
 void it('rolls back Explorer rows sent before a multi-page range commits', async () => {
+  const { config } = await import('../config.js');
   const previousBatchSize = config.EVENT_STREAM_BATCH_SIZE;
   config.EVENT_STREAM_BATCH_SIZE = 1;
   headStates.set(1, { head: '9', indexed: '9' });
