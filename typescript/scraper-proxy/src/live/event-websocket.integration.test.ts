@@ -2342,6 +2342,129 @@ void it('drops pending rows above a rolled-back custom frontier', async () => {
   }
 });
 
+void it('rolls back custom rows sent above an uncommitted frontier', async () => {
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  let releaseFrontier: () => void = () => undefined;
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  headStates.set(1, { head: '9', indexed: '9' });
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [
+          {
+            confirmations: 0,
+            cursors: [{ address: blockedHook, afterSequence: '-1', domain: 1 }],
+            domains: [1],
+            eventType: 'dispatch',
+          },
+          {
+            confirmations: 0,
+            domains: [1],
+            eventType: 'merkle_tree_insertion',
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'caught_up');
+
+    frontierQueryGateEventType = 'merkle_tree_insertion';
+    frontierQueryGate = new Promise<void>((resolve) => {
+      releaseFrontier = resolve;
+    });
+    dispatchRows.set('21014', {
+      destination_domain: 2,
+      id: '21014',
+      msg_body: '\\x',
+      msg_id: `\\x${'14'.repeat(32)}`,
+      nonce: 0,
+      origin_block_hash: `\\x${'02'.repeat(32)}`,
+      origin_block_height: '10',
+      origin_domain: 1,
+      origin_mailbox: blockedHook,
+      origin_tx_hash: `\\x${'03'.repeat(32)}`,
+      recipient: hookB,
+      sender: hookA,
+      time_created: new Date(0).toISOString(),
+    });
+    const frontierQueriesBefore = frontierQueryCount;
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '10',
+        indexedHeight: '10',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '9',
+      }),
+    );
+    await waitUntil(() => eventSequences(messages).length === 1);
+    await waitUntil(() => frontierQueryCount >= frontierQueriesBefore + 2);
+
+    dispatchRows.delete('21014');
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '9',
+        indexedHeight: '9',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '10',
+      }),
+    );
+    const rollback = await waitFor(messages, 'rollback');
+    assert.equal(rollback.fromHeight, '10');
+    assert.equal(rollback.toHeight, '9');
+
+    releaseFrontier();
+    frontierQueryGate = undefined;
+    frontierQueryGateEventType = undefined;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    dispatchRows.set('21015', {
+      destination_domain: 2,
+      id: '21015',
+      msg_body: '\\x',
+      msg_id: `\\x${'15'.repeat(32)}`,
+      nonce: 0,
+      origin_block_hash: `\\x${'04'.repeat(32)}`,
+      origin_block_height: '10',
+      origin_domain: 1,
+      origin_mailbox: blockedHook,
+      origin_tx_hash: `\\x${'05'.repeat(32)}`,
+      recipient: hookB,
+      sender: hookA,
+      time_created: new Date(1).toISOString(),
+    });
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        headHeight: '10',
+        indexedHeight: '10',
+        previousConfirmedHeight: '5',
+        previousIndexedHeight: '9',
+      }),
+    );
+    await waitUntil(() => eventSequences(messages).length === 2);
+    assert.deepEqual(eventSequences(messages), ['0', '0']);
+    assert.equal(socket.readyState, WebSocket.OPEN);
+  } finally {
+    releaseFrontier();
+    frontierQueryGate = undefined;
+    frontierQueryGateEventType = undefined;
+    dispatchRows.delete('21014');
+    dispatchRows.delete('21015');
+    headStates.set(1, { head: '10', indexed: '10' });
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
 void it('rewinds completed cursors after a rollback during catch-up', async () => {
   const socket = new WebSocket(url);
   const messages: Record<string, unknown>[] = [];

@@ -104,6 +104,7 @@ type Subscription = {
   pendingNeedsSort: boolean;
   confirmations?: number;
   resettingDomains: Set<number>;
+  sentHeights: Map<number, bigint>;
   sequenceCursors?: Map<string, SequenceCursor>;
   sequenceResetFrontiers: Map<number, bigint>;
   streamCursors: Map<string, bigint>;
@@ -804,6 +805,7 @@ export class EventWebSocketServer {
         pendingNeedsSort: false,
         confirmations: request.confirmations,
         resettingDomains: new Set(),
+        sentHeights: new Map(),
         sequenceCursors: request.cursors
           ? new Map(
               request.cursors.flatMap((cursor) =>
@@ -1280,10 +1282,13 @@ export class EventWebSocketServer {
           eventType === 'gas_payment'
             ? serialize(message)
             : (serialized ??= serialize(message));
-        this.sendSerialized(socket, payload);
+        if (this.sendSerialized(socket, payload))
+          this.recordSentHeight(subscription, domain, height);
       } else if (!subscription.waiting) {
+        const tail = subscription.pending.at(-1);
+        if (tail && compareRows(eventType, row, tail) < 0)
+          subscription.pendingNeedsSort = true;
         subscription.pending.push(row);
-        subscription.pendingNeedsSort = true;
         if (subscription.pending.length > MAX_PENDING_EVENTS) {
           this.disconnect(socket);
           socket.close(1013, 'Event catch-up buffer exceeded');
@@ -1316,10 +1321,28 @@ export class EventWebSocketServer {
     const message = this.eventForDelivery(socket, eventType, subscription, row);
     if (message === false) return false;
     if (message === undefined) return true;
-    if (!(await this.sendAndWait(socket, message))) {
+    const sent = this.sendAndWait(socket, message);
+    this.recordSentHeight(
+      subscription,
+      rowDomain(row, STREAMS[eventType].domain),
+      rowHeight(eventType, row),
+    );
+    if (!(await sent)) {
       throw new Error('Websocket closed during catch-up');
     }
     return true;
+  }
+
+  private recordSentHeight(
+    subscription: Subscription,
+    domain: number,
+    height: bigint | undefined,
+  ): void {
+    if (subscription.confirmations === undefined || height === undefined)
+      return;
+    const sent = subscription.sentHeights.get(domain);
+    if (sent === undefined || height > sent)
+      subscription.sentHeights.set(domain, height);
   }
 
   private eventForDelivery(
@@ -1867,8 +1890,10 @@ export class EventWebSocketServer {
           },
           subscription.confirmations,
         );
-        const from =
+        const sent = subscription.sentHeights.get(head.domain);
+        let from =
           current === undefined || previous > current ? previous : current;
+        if (sent !== undefined && sent > from) from = sent;
         const to = customFrontier(
           { head: head.headHeight, indexed: head.indexedHeight },
           subscription.confirmations,
@@ -1880,6 +1905,7 @@ export class EventWebSocketServer {
           return height === undefined || height <= to;
         });
         if (to >= from) continue;
+        subscription.sentHeights.set(head.domain, to);
         subscription.frontiers.set(
           head.domain,
           current === undefined || to < current ? to : current,
