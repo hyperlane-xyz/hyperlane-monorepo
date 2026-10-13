@@ -64,6 +64,12 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
         metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate>;
 
+    /// Whether to estimate again immediately before submission. Disable this
+    /// when estimation is cached and cannot validate the current call.
+    fn reestimate_before_submit(&self) -> bool {
+        true
+    }
+
     /// Get the calldata for a transaction to process a message with a proof
     /// against the provided signed checkpoint
     async fn process_calldata(
