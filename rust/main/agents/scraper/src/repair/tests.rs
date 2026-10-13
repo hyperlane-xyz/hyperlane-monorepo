@@ -239,6 +239,7 @@ impl Middleware for Chain {
         let height = match id.into() {
             BlockId::Number(BlockNumber::Number(n)) => n.as_u64(),
             BlockId::Number(BlockNumber::Latest) => 12,
+            BlockId::Hash(_) => return Ok(None),
             _ => return Err(ProviderError::CustomError("unsupported block query".into())),
         };
         let hash = if height == 5 && !self.changed.load(Ordering::SeqCst) {
@@ -249,6 +250,85 @@ impl Middleware for Chain {
         Ok(Some(Block {
             number: Some(height.into()),
             hash: Some(hash),
+            timestamp: 1000.into(),
+            ..Default::default()
+        }))
+    }
+
+    async fn call(
+        &self,
+        _: &TypedTransaction,
+        _: Option<BlockId>,
+    ) -> std::result::Result<Bytes, Self::Error> {
+        Ok(ethers::abi::encode(&[ethers::abi::Token::Uint(1.into())]).into())
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ForkChain {
+    inner: Provider<MockProvider>,
+}
+
+impl ForkChain {
+    fn new() -> Self {
+        Self {
+            inner: Provider::mocked().0,
+        }
+    }
+
+    fn canonical_hash(height: u64) -> H256 {
+        if height == 5 {
+            H256::repeat_byte(5)
+        } else {
+            H256::from_low_u64_be(height + 100)
+        }
+    }
+}
+
+#[async_trait]
+impl Middleware for ForkChain {
+    type Error = ProviderError;
+    type Provider = MockProvider;
+    type Inner = Provider<MockProvider>;
+
+    fn inner(&self) -> &Self::Inner {
+        &self.inner
+    }
+
+    async fn get_chainid(&self) -> std::result::Result<U256, Self::Error> {
+        Ok(1.into())
+    }
+
+    async fn get_block<T: Into<BlockId> + Send + Sync>(
+        &self,
+        id: T,
+    ) -> std::result::Result<Option<Block<TxHash>>, Self::Error> {
+        let (height, hash, parent_hash) = match id.into() {
+            BlockId::Number(BlockNumber::Number(number)) => {
+                let height = number.as_u64();
+                (
+                    height,
+                    Self::canonical_hash(height),
+                    Self::canonical_hash(height.saturating_sub(1)),
+                )
+            }
+            BlockId::Number(BlockNumber::Latest) => {
+                (12, Self::canonical_hash(12), Self::canonical_hash(11))
+            }
+            BlockId::Hash(hash) => {
+                let byte = hash.as_bytes()[0];
+                if hash != H256::repeat_byte(byte) || !(5..=10).contains(&byte) {
+                    return Ok(None);
+                }
+                let height = u64::from(byte);
+                (height, hash, H256::repeat_byte(byte.saturating_sub(1)))
+            }
+            _ => return Err(ProviderError::CustomError("unsupported block query".into())),
+        };
+        Ok(Some(Block {
+            number: Some(height.into()),
+            hash: Some(hash),
+            parent_hash,
             timestamp: 1000.into(),
             ..Default::default()
         }))
@@ -462,6 +542,50 @@ async fn repair_rewinds_all_streams_and_dependencies_without_reusing_cursors() -
     );
     std::fs::remove_file(archive)?;
     std::fs::remove_file(failed_archive)?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn repair_inserts_an_ancestor_traced_from_orphaned_checkpoints() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    seed(&db).await?;
+    db.execute_unprepared(
+        "DELETE FROM block WHERE domain=1 AND height=5;
+         UPDATE scraper_checkpoint SET hash=decode(repeat('0a',32),'hex') WHERE domain=1 AND height=10",
+    )
+    .await?;
+
+    let chain = ForkChain::new();
+    let plan = inspect(&db, &chain, 1, 10, 1000).await?;
+    assert_eq!(plan.version, 3);
+    assert_eq!(plan.ancestor.height, 5);
+    assert_eq!(plan.ancestor.hash, H256::repeat_byte(5));
+    assert!(plan.insert_ancestor);
+
+    let archive = path("traced-ancestor");
+    apply(
+        &db,
+        &chain,
+        &plan,
+        &archive,
+        &["repair_test_writer".into()],
+        "incident/test",
+    )
+    .await?;
+    assert_eq!(
+        scalar(
+            &db,
+            "SELECT count(*) AS n FROM scraper_checkpoint WHERE domain=1 AND height=5 AND hash=decode(repeat('05',32),'hex')"
+        )
+        .await?,
+        1
+    );
+    std::fs::remove_file(archive)?;
     Ok(())
 }
 

@@ -11,7 +11,7 @@ use std::{
 use async_trait::async_trait;
 use ethers::{
     providers::Middleware,
-    types::{BlockNumber, TransactionRequest, H160, H256, U256},
+    types::{Block, BlockId, BlockNumber, TransactionRequest, H160, H256, U256},
     utils::keccak256,
 };
 use eyre::{ensure, eyre, Result};
@@ -85,6 +85,8 @@ pub(super) struct Plan {
     confirmed_rewind_blocks: i64,
     affected: BTreeMap<String, Inventory>,
     consumer_recovery: String,
+    #[serde(default)]
+    insert_ancestor: bool,
 }
 
 fn ethereum_protocol() -> HyperlaneDomainProtocol {
@@ -112,6 +114,9 @@ pub(super) trait RepairSource: Send + Sync {
             .await?
             .ok_or_else(|| eyre!("Latest canonical block is unavailable"))
     }
+    async fn trace_ancestor(&self, _forks: &[(i64, H256)], _lower: i64) -> Result<Option<Header>> {
+        Ok(None)
+    }
     async fn verify_domain(&self, head: &Value, domain: u32, hash: H256) -> Result<()>;
 }
 
@@ -130,6 +135,38 @@ impl<M: Middleware + 'static> RepairSource for M {
             Some(height) => at(self, height).await?,
             None => rpc_header(self, BlockNumber::Latest).await?,
         }))
+    }
+
+    async fn trace_ancestor(&self, forks: &[(i64, H256)], lower: i64) -> Result<Option<Header>> {
+        for &(height, hash) in forks {
+            let Some(mut block) = rpc_block_by_hash(self, hash).await? else {
+                continue;
+            };
+            ensure_block(&block, height, hash)?;
+            loop {
+                let fork = block_header(&block)?;
+                if fork.height < lower {
+                    break;
+                }
+                if required_header(self, Some(fork.height)).await?.hash == fork.hash {
+                    return Ok(Some(fork));
+                }
+                if fork.height == lower {
+                    break;
+                }
+                let parent_height = fork
+                    .height
+                    .checked_sub(1)
+                    .ok_or_else(|| eyre!("Fork height underflow"))?;
+                let parent_hash = block.parent_hash;
+                let Some(parent) = rpc_block_by_hash(self, parent_hash).await? else {
+                    break;
+                };
+                ensure_block(&parent, parent_height, parent_hash)?;
+                block = parent;
+            }
+        }
+        Ok(None)
     }
 
     async fn verify_domain(&self, head: &Value, domain: u32, hash: H256) -> Result<()> {
@@ -279,6 +316,16 @@ async fn rpc_header(rpc: &impl Middleware, number: BlockNumber) -> Result<Header
         .await?
         .map_err(|_| eyre!("RPC block lookup failed"))?
         .ok_or_else(|| eyre!("RPC block missing"))?;
+    block_header(&block)
+}
+
+async fn rpc_block_by_hash(rpc: &impl Middleware, hash: H256) -> Result<Option<Block<H256>>> {
+    tokio::time::timeout(Duration::from_secs(30), rpc.get_block(BlockId::Hash(hash)))
+        .await?
+        .map_err(|_| eyre!("RPC block lookup by hash failed"))
+}
+
+fn block_header(block: &Block<H256>) -> Result<Header> {
     Ok(Header {
         height: i64::try_from(
             block
@@ -289,6 +336,16 @@ async fn rpc_header(rpc: &impl Middleware, number: BlockNumber) -> Result<Header
         hash: block.hash.ok_or_else(|| eyre!("Block hash missing"))?,
         timestamp: i64::try_from(block.timestamp.as_u128())?,
     })
+}
+
+fn ensure_block(block: &Block<H256>, height: i64, hash: H256) -> Result<()> {
+    let header = block_header(block)?;
+    ensure!(
+        header.height == height,
+        "RPC returned a different block height"
+    );
+    ensure!(header.hash == hash, "RPC returned a different block hash");
+    Ok(())
 }
 
 async fn at(rpc: &impl Middleware, height: i64) -> Result<Header> {
@@ -448,37 +505,55 @@ pub(super) async fn inspect(
     );
     let candidates = tx.query_all(sql(
         "SELECT height,hash FROM (SELECT height,hash FROM scraper_checkpoint WHERE domain=$1 AND height BETWEEN $2 AND $3 UNION SELECT height,hash FROM block WHERE domain=$1 AND height BETWEEN $2 AND $3) c ORDER BY height DESC",
-        vec![domain_value(domain), lower.into(), confirmed.into()])).await?;
+        vec![domain_value(domain), lower.into(), confirmed.into()])).await?
+        .into_iter()
+        .map(|row| {
+            let height = row.try_get("", "height")?;
+            let hash: Vec<u8> = row.try_get("", "hash")?;
+            ensure!(hash.len() == 32, "Invalid stored block hash length");
+            Ok((height, H256::from_slice(&hash)))
+        })
+        .collect::<Result<Vec<_>>>()?;
     let mut ancestor = None;
-    for row in candidates {
-        let height: i64 = row.try_get("", "height")?;
+    for &(height, hash) in &candidates {
         let Some(canonical) = rpc.header(Some(height)).await? else {
             continue;
         };
-        let hash: Vec<u8> = row.try_get("", "hash")?;
-        if hash == canonical.hash.as_bytes() {
+        if hash == canonical.hash {
             ancestor = Some(canonical);
             break;
         }
     }
-    let ancestor = ancestor.ok_or_else(|| eyre!("No retained canonical ancestor inside max-rewind/start-height bounds; restore/audit older history"))?;
-    verify_anchor(&tx, domain, &ancestor).await?;
+    let insert_ancestor = ancestor.is_none();
+    let ancestor = match ancestor {
+        Some(ancestor) => ancestor,
+        None => rpc.trace_ancestor(&candidates, lower).await?.ok_or_else(|| eyre!("No retained canonical ancestor or traceable fork ancestor inside max-rewind/start-height bounds; restore/audit older history"))?,
+    };
+    verify_anchor(&tx, domain, &ancestor, insert_ancestor).await?;
     let rows = snapshot(&tx, domain, ancestor.height, max_rows).await?;
     let plan = Plan {
-        version: 2, domain, chain_id: rpc.chain_id().await?, protocol: rpc.protocol(), database: database_name(&tx).await?, head,
+        version: 3, domain, chain_id: rpc.chain_id().await?, protocol: rpc.protocol(), database: database_name(&tx).await?, head,
         rewind_blocks: indexed.checked_sub(ancestor.height).ok_or_else(|| eyre!("Invalid rewind"))?,
         confirmed_rewind_blocks: confirmed.checked_sub(ancestor.height).ok_or_else(|| eyre!("Invalid confirmed rewind"))?,
         ancestor, observed_head, max_rewind, max_rows, affected: inventory(&rows)?,
-        consumer_recovery: "Pause affected consumers. Reconcile dispatch/Merkle state and gas accounting, reset affected caches/cursors, then replay. Database repair cannot retract executed transactions. Keep gas stream cursor allocation monotonic.".into(),
+        consumer_recovery: "Pause affected consumers. Reconcile dispatch/Merkle state and gas accounting, reset affected caches/cursors, then replay. Database repair cannot retract executed transactions. Keep gas stream cursor allocation monotonic.".into(), insert_ancestor,
     };
     verify_chain(rpc, &plan).await?;
     tx.commit().await?;
     Ok(plan)
 }
 
-async fn verify_anchor(db: &impl ConnectionTrait, domain: u32, anchor: &Header) -> Result<()> {
+async fn verify_anchor(
+    db: &impl ConnectionTrait,
+    domain: u32,
+    anchor: &Header,
+    allow_missing: bool,
+) -> Result<()> {
     let rows = db.query_all(sql("SELECT hash FROM scraper_checkpoint WHERE domain=$1 AND height=$2 UNION SELECT hash FROM block WHERE domain=$1 AND height=$2", params(domain, anchor.height))).await?;
-    ensure!(!rows.is_empty(), "Ancestor is no longer retained");
+    ensure!(
+        allow_missing || !rows.is_empty(),
+        "Ancestor is no longer retained"
+    );
     for row in rows {
         ensure!(
             row.try_get::<Vec<u8>>("", "hash")? == anchor.hash.as_bytes(),
@@ -518,11 +593,16 @@ pub(super) async fn apply(
     recovery_reference: &str,
 ) -> Result<()> {
     ensure!(
-        plan.version == 2
+        plan.version == 3
+            || plan.version == 2
             || (plan.version == 1
                 && plan.protocol == HyperlaneDomainProtocol::Ethereum
                 && plan.chain_id.is_some()),
         "Unsupported repair plan version"
+    );
+    ensure!(
+        plan.version >= 3 || !plan.insert_ancestor,
+        "Legacy repair plans cannot insert an ancestor"
     );
     ensure!(
         !writer_roles.is_empty() && writer_roles.iter().all(|r| !r.trim().is_empty()),
@@ -569,7 +649,7 @@ pub(super) async fn apply(
         head(&tx, plan.domain).await? == plan.head,
         "Saved head changed; inspect again"
     );
-    verify_anchor(&tx, plan.domain, &plan.ancestor).await?;
+    verify_anchor(&tx, plan.domain, &plan.ancestor, plan.insert_ancestor).await?;
     let rows = snapshot(&tx, plan.domain, plan.ancestor.height, plan.max_rows).await?;
     ensure!(
         inventory(&rows)? == plan.affected,

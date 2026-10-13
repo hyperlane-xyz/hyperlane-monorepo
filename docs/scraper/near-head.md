@@ -325,6 +325,8 @@ calls. Neither RPC URLs nor config contents are included in the plan/archive.
 Use a trusted config: AltVM verification binds the domain and all three saved
 contract addresses to that config and requires a matching retained canonical
 ancestor, rather than assuming every VM has an EVM chain ID or `localDomain()`.
+For EVM only, inspection can instead trace a retained orphan block backwards by
+hash to the canonical fork point when that point is no longer retained locally.
 Only provider errors positively identifying an unavailable block/slot are
 skipped; authentication, transport, and other RPC failures abort inspection.
 
@@ -344,7 +346,11 @@ searches retained checkpoints and event-block headers backwards, at or below the
 saved confirmed height, without crossing `start_height` or `max-rewind` below the
 saved indexed height. It selects the newest retained header matching the RPC.
 Because retained headers are sparse, `rewind_blocks` can exceed the actual reorg
-depth. No match means restore/audit older history; do not fabricate an anchor.
+depth. If every retained EVM header is orphaned, inspection follows the orphan
+chain's `parentHash` links within the same bounds and plans insertion of the
+canonical fork-point checkpoint. If the RPC no longer serves the orphan blocks,
+or for other protocols, no match means restore/audit older history; do not
+fabricate an anchor.
 
 Review the ancestor, saved/observed heads, protocol, EVM chain ID (when present), rewind distances, affected
 table counts and message IDs. The plan fingerprints every affected row, including
@@ -381,7 +387,8 @@ target/release/scraper-repair apply \
 ```
 
 For configured providers, add the same `--config agent.json --chain <chain>`
-flags to `apply`. Version-1 EVM plans remain readable; new plans use version 2.
+flags to `apply`. Version-1 EVM and version-2 plans remain readable; new plans
+use version 3.
 
 Apply checks writer sessions and all near-head leases, locks the affected tables
 against concurrent writes, then compares the database and canonical chain with
