@@ -11,10 +11,6 @@ impl DelegatedProverAuthError {
     pub(crate) fn new(error: reqwest::Error) -> Self {
         Self(error)
     }
-
-    pub(crate) fn status(&self) -> Option<reqwest::StatusCode> {
-        self.0.status()
-    }
 }
 
 /// Errors from the crates specific to the hyperlane-aleo

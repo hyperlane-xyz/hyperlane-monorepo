@@ -79,6 +79,7 @@ impl<C: AleoClient> AleoMailbox<C> {
     /// The app metadata is also looked up from the recipient address.
     async fn get_process_args(
         &self,
+        recipient: &str,
         message: &HyperlaneMessage,
         metadata: &Metadata,
     ) -> ChainResult<Vec<String>> {
@@ -93,10 +94,9 @@ impl<C: AleoClient> AleoMailbox<C> {
             .map_err(HyperlaneAleoError::from)?;
         let id = hash_to_aleo_hash(&message.id())?;
 
-        let recipient = self.get_recipient(message.recipient).await?.to_string();
         let app_metadata: Plaintext<CurrentNetwork> = self
             .provider
-            .get_mapping_value(&recipient, "app_metadata", &true)
+            .get_mapping_value(recipient, "app_metadata", &true)
             .await?
             .ok_or(HyperlaneAleoError::AppUninitialized)?;
 
@@ -196,7 +196,7 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
         _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         let recipient = self.get_recipient(message.recipient).await?.to_string();
-        let args = self.get_process_args(message, metadata).await?;
+        let args = self.get_process_args(&recipient, message, metadata).await?;
 
         self.provider
             .submit_tx_and_wait(&recipient, "process", args)
@@ -213,14 +213,22 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
         metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
         let recipient = self.get_recipient(message.recipient).await?.to_string();
-        let cost = self
+        let cost = match self
             .provider
-            .estimate_tx(
-                &recipient,
-                "process",
-                self.get_process_args(message, metadata).await?,
-            )
-            .await?;
+            .cached_fee_estimate(&recipient, "process")
+            .await
+        {
+            Some(cost) => cost,
+            None => {
+                self.provider
+                    .estimate_tx(
+                        &recipient,
+                        "process",
+                        self.get_process_args(&recipient, message, metadata).await?,
+                    )
+                    .await?
+            }
+        };
         Ok(TxCostEstimate {
             gas_limit: cost.total_fee.into(),
             gas_price: FixedPointNumber::from_str("1")?,
@@ -236,7 +244,7 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
         metadata: &Metadata,
     ) -> ChainResult<Vec<u8>> {
         let recipient = self.get_recipient(message.recipient).await?.to_string();
-        let inputs = self.get_process_args(message, metadata).await?;
+        let inputs = self.get_process_args(&recipient, message, metadata).await?;
 
         let tx_data = crate::AleoTxData {
             program_id: recipient,
