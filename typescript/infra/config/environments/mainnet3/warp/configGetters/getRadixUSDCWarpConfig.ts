@@ -59,8 +59,13 @@ export const getRadixUSDCWarpConfig = async (
         {
           type: IsmType.MAILBOX_DEFAULT,
         },
-        // Reuse the Safe-owned, append-only BlacklistIsm deployed for recovery.
-        '0x435E9F0e54Af1E0C37A6075233059f7625f2CFC9',
+        {
+          type: IsmType.BLACKLIST,
+          owner: owners.ethereum,
+          blacklistedIds: [
+            '0x8960c5e41eb0d91973140ebc196892f5f07f512dd86047e8536e71424462c5d3',
+          ],
+        },
         {
           type: IsmType.PAUSABLE,
           owner: '0x60Cc386C85717CB51C2827A75e14826883dF5da4',
