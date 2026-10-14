@@ -547,32 +547,30 @@ impl PendingOperation for PendingMessage {
         // To avoid spending gas on a tx that will revert, dry-run just before submitting.
         // Note: fail_fast (relay-API) messages never reach this method — they go through
         // submit_via_lander → payload(), not submit(). This dry-run only guards the classic path.
-        if self.ctx.destination_mailbox.reestimate_before_submit() {
-            if let Some(metadata) = self.metadata.as_ref() {
-                debug!(
+        if let Some(metadata) = self.metadata.as_ref() {
+            debug!(
+                message_id = ?self.message.id(),
+                "Dry-run simulating process call before submission"
+            );
+            if let Err(e) = with_rpc_operation(
+                RpcOperation::RelayerEstimate,
+                self.ctx
+                    .destination_mailbox
+                    .process_estimate_costs(&self.message, metadata),
+            )
+            .await
+            {
+                warn!(
                     message_id = ?self.message.id(),
-                    "Dry-run simulating process call before submission"
+                    error = %e,
+                    "Dry-run simulation failed"
                 );
-                if let Err(e) = with_rpc_operation(
-                    RpcOperation::RelayerEstimate,
-                    self.ctx
-                        .destination_mailbox
-                        .process_estimate_costs(&self.message, metadata),
-                )
-                .await
-                {
-                    warn!(
-                        message_id = ?self.message.id(),
-                        error = %e,
-                        "Dry-run simulation failed"
-                    );
-                    let reason = self
-                        .clarify_reason(ReprepareReason::ErrorEstimatingGas)
-                        .await
-                        .unwrap_or(ReprepareReason::ErrorEstimatingGas);
-                    self.clear_metadata();
-                    return self.on_reprepare::<String>(None, reason);
-                }
+                let reason = self
+                    .clarify_reason(ReprepareReason::ErrorEstimatingGas)
+                    .await
+                    .unwrap_or(ReprepareReason::ErrorEstimatingGas);
+                self.clear_metadata();
+                return self.on_reprepare::<String>(None, reason);
             }
         }
 

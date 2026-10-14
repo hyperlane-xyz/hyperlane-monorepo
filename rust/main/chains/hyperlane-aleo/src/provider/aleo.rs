@@ -593,21 +593,15 @@ impl<C: AleoClient> AleoProvider<C> {
             authorization?;
 
         // Calculate fees
-        let cached_fee = self.cached_fee_estimate(program_id, function_name).await;
-        let (base_fee, priority_fee) = match cached_fee {
-            Some(fee) => (fee.base_fee, fee.priority_fee),
-            None => {
-                let base_fee = self
-                    .calculate_function_costs::<N>(
-                        vm,
-                        &authorization,
-                        &program_id_parsed,
-                        &function_name_parsed,
-                    )
-                    .await?;
-                (base_fee, self.get_priority_fee(base_fee))
-            }
-        };
+        let base_fee = self
+            .calculate_function_costs::<N>(
+                vm,
+                &authorization,
+                &program_id_parsed,
+                &function_name_parsed,
+            )
+            .await?;
+        let priority_fee = self.get_priority_fee(base_fee);
         debug!(base_fee, priority_fee, "Calculated fees");
 
         // Authorize fee payment. Delegated proving only needs the evaluated

@@ -18,13 +18,10 @@ use crate::provider::{
     JWTBaseHttpClient, RpcClient,
 };
 use crate::utils::encrypt_message;
-use crate::{
-    DelegatedProverAuthError, EncryptedProvingRequest, HyperlaneAleoError, ProvingResponse,
-    X25519PublicKey,
-};
+use crate::{EncryptedProvingRequest, HyperlaneAleoError, ProvingResponse, X25519PublicKey};
 
-const DELEGATED_PROVER_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(12);
-const DELEGATED_PROVER_TOTAL_TIMEOUT: Duration = Duration::from_secs(25);
+const DELEGATED_PROVER_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(30);
+const DELEGATED_PROVER_TOTAL_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Clone, Copy, Debug)]
 enum RetryPolicy {
@@ -32,14 +29,11 @@ enum RetryPolicy {
     DelegatedProver,
 }
 
-fn delegated_prover_status(error: &ChainCommunicationError) -> Option<reqwest::StatusCode> {
+fn delegated_prover_http_error(error: &ChainCommunicationError) -> Option<&reqwest::Error> {
     let mut source: Option<&(dyn Error + 'static)> = Some(error);
     while let Some(error) = source {
-        if let Some(error) = error.downcast_ref::<DelegatedProverAuthError>() {
-            return error.status();
-        }
         if let Some(error) = error.downcast_ref::<reqwest::Error>() {
-            return error.status();
+            return Some(error);
         }
         source = error.source();
     }
@@ -47,12 +41,28 @@ fn delegated_prover_status(error: &ChainCommunicationError) -> Option<reqwest::S
 }
 
 fn should_retry_delegated_prover(error: &ChainCommunicationError) -> bool {
-    matches!(
-        delegated_prover_status(error),
-        None | Some(
-            reqwest::StatusCode::INTERNAL_SERVER_ERROR | reqwest::StatusCode::SERVICE_UNAVAILABLE
-        )
-    )
+    let Some(error) = delegated_prover_http_error(error) else {
+        return false;
+    };
+    match error.status() {
+        Some(status) => matches!(
+            status,
+            reqwest::StatusCode::INTERNAL_SERVER_ERROR
+                | reqwest::StatusCode::SERVICE_UNAVAILABLE
+                | reqwest::StatusCode::BAD_GATEWAY
+                | reqwest::StatusCode::GATEWAY_TIMEOUT
+        ),
+        // A connection failure happens before proving starts. Timeouts and
+        // malformed responses may follow a completed proof; do not repeat it.
+        None => error.is_connect() && !error.is_timeout(),
+    }
+}
+
+fn should_retry_delegated_proof(error: &ChainCommunicationError) -> bool {
+    // The gateway may have timed out while the prover is still working.
+    delegated_prover_http_error(error).and_then(reqwest::Error::status)
+        != Some(reqwest::StatusCode::GATEWAY_TIMEOUT)
+        && should_retry_delegated_prover(error)
 }
 
 /// Fallback Http Client that tries multiple RpcClients in order
@@ -113,7 +123,8 @@ impl<C: AleoClient> FallbackHttpClient<C> {
 
 impl FallbackHttpClient<JWTBaseHttpClient> {
     /// Creates a fallback client for delegated proving. Client errors are
-    /// attempted once per endpoint; timeouts and transient server errors retry.
+    /// attempted once per endpoint; connection failures and transient server
+    /// errors retry. Timeouts and malformed responses do not retry.
     pub fn new_delegated_prover(
         urls: Vec<Url>,
         metrics: PrometheusClientMetrics,
@@ -139,27 +150,38 @@ impl FallbackHttpClient<JWTBaseHttpClient> {
             |inner| {
                 let request_bytes = request_bytes.clone();
                 Box::pin(async move {
-                    let public_key: X25519PublicKey = inner.request("pubkey", None).await?;
-                    let ciphertext =
-                        encrypt_message(&public_key.public_key, request_bytes.as_ref())?;
-                    let request = serde_json::to_value(EncryptedProvingRequest {
-                        key_id: public_key.key_id,
-                        ciphertext,
-                    })?;
-                    let response: ProvingResponse =
-                        inner.request_post("prove/authorization", &request).await?;
-                    serde_json::from_value(response.transaction)
-                        .map_err(HyperlaneAleoError::from)
-                        .map_err(Into::into)
+                    let result = async {
+                        let public_key: X25519PublicKey = inner.request("pubkey", None).await?;
+                        let ciphertext =
+                            encrypt_message(&public_key.public_key, request_bytes.as_ref())?;
+                        let request = serde_json::to_value(EncryptedProvingRequest {
+                            key_id: public_key.key_id,
+                            ciphertext,
+                        })?;
+                        inner
+                            .request_post::<ProvingResponse>("prove/authorization", &request)
+                            .await
+                    }
+                    .await;
+                    // Return terminal errors as a completed attempt so fallback
+                    // does not submit the authorization to another endpoint.
+                    match result {
+                        Err(error) if !should_retry_delegated_proof(&error) => Ok(Err(error)),
+                        result => result.map(Ok),
+                    }
                 })
             },
-            should_retry_delegated_prover,
+            should_retry_delegated_proof,
         );
-        tokio::time::timeout(DELEGATED_PROVER_TOTAL_TIMEOUT, proof)
+        let response = tokio::time::timeout(DELEGATED_PROVER_TOTAL_TIMEOUT, proof)
             .await
             .map_err(|_| {
                 ChainCommunicationError::from_other_str("delegated prover request timed out")
-            })?
+            })??;
+        let response = response?;
+        serde_json::from_value(response.transaction)
+            .map_err(HyperlaneAleoError::from)
+            .map_err(Into::into)
     }
 }
 
@@ -323,11 +345,56 @@ mod tests {
 
     #[tokio::test]
     async fn delegated_prover_retains_retries_for_server_errors() {
-        assert_auth_attempts(reqwest::StatusCode::INTERNAL_SERVER_ERROR, 4).await;
+        for status in [
+            reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+            reqwest::StatusCode::BAD_GATEWAY,
+            reqwest::StatusCode::SERVICE_UNAVAILABLE,
+            reqwest::StatusCode::GATEWAY_TIMEOUT,
+        ] {
+            assert_auth_attempts(status, 4).await;
+        }
     }
 
     #[tokio::test]
     async fn delegated_prover_fetches_a_fresh_key_for_every_retry() {
+        assert_proof_attempts(500, "", 1, 4).await;
+    }
+
+    #[tokio::test]
+    async fn delegated_prover_retries_bad_gateway_without_retrying_ambiguous_proof_responses() {
+        for (status, body, attempts) in [
+            (502, "", 4),
+            (504, "", 1),
+            (200, "not-json", 1),
+            (200, r#"{"transaction":null}"#, 1),
+        ] {
+            assert_proof_attempts(status, body, 2, attempts).await;
+        }
+    }
+
+    #[tokio::test]
+    async fn delegated_prover_does_not_retry_request_timeouts() {
+        // Keep the listener open without responding to trigger a request timeout.
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind timeout test server");
+        let address = listener.local_addr().expect("timeout test server address");
+        let error = reqwest::Client::new()
+            .get(format!("http://{address}"))
+            .timeout(Duration::from_millis(50))
+            .send()
+            .await
+            .expect_err("server should time out without a response");
+        assert!(error.is_timeout());
+        let error = crate::HyperlaneAleoError::from(error).into();
+        assert!(!super::should_retry_delegated_prover(&error));
+        assert!(!super::should_retry_delegated_proof(&error));
+    }
+
+    async fn assert_proof_attempts(
+        status: u16,
+        body: &'static str,
+        endpoint_count: usize,
+        expected_attempts: usize,
+    ) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         listener.set_nonblocking(true).unwrap();
         let address = listener.local_addr().unwrap();
@@ -362,7 +429,7 @@ mod tests {
                             )
                         } else if request.starts_with("POST /v2/mainnet/prove/authorization ") {
                             server_proof_attempts.fetch_add(1, Ordering::Relaxed);
-                            (500, "", "")
+                            (status, "Content-Type: application/json\r\n", body)
                         } else {
                             (404, "", "")
                         };
@@ -384,7 +451,7 @@ mod tests {
         ))
         .unwrap();
         let client = FallbackHttpClient::<JWTBaseHttpClient>::new_delegated_prover(
-            vec![url],
+            vec![url; endpoint_count],
             PrometheusClientMetrics::default(),
             None,
             0,
@@ -394,8 +461,11 @@ mod tests {
         assert!(client.prove::<MainnetV0>(vec![1, 2, 3]).await.is_err());
         done.store(true, Ordering::Relaxed);
         server.join().unwrap();
-        assert_eq!(auth_attempts.load(Ordering::Relaxed), 1);
-        assert_eq!(key_attempts.load(Ordering::Relaxed), 4);
-        assert_eq!(proof_attempts.load(Ordering::Relaxed), 4);
+        assert_eq!(
+            auth_attempts.load(Ordering::Relaxed),
+            endpoint_count.min(expected_attempts)
+        );
+        assert_eq!(key_attempts.load(Ordering::Relaxed), expected_attempts);
+        assert_eq!(proof_attempts.load(Ordering::Relaxed), expected_attempts);
     }
 }

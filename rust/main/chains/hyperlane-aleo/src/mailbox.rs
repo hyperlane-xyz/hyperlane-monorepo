@@ -236,10 +236,6 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
         })
     }
 
-    fn reestimate_before_submit(&self) -> bool {
-        false
-    }
-
     /// Get the calldata for a transaction to process a message with a proof
     /// against the provided signed checkpoint
     async fn process_calldata(
@@ -308,11 +304,6 @@ mod tests {
         let provider = AleoProvider::with_client(client, DOMAIN, 0u16, None);
         let locator = ContractLocator::new(&DOMAIN, H256::zero());
         AleoMailbox::new(provider, &locator, &connection_conf())
-    }
-
-    #[test]
-    fn cached_estimation_skips_reestimate_before_submit() {
-        assert!(!get_mock_mailbox().reestimate_before_submit());
     }
 
     #[tokio::test]
