@@ -1,6 +1,7 @@
 import {
   ChainMap,
   ChainSubmissionStrategy,
+  CompositeIsmNodeType,
   HypTokenRouterConfig,
   IsmConfig,
   IsmType,
@@ -9,6 +10,7 @@ import {
 import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { getChainAddresses } from '../../../../registry.js';
 import {
   DEFAULT_FASTPATH_THRESHOLD,
   DEFAULT_FASTPATH_VALIDATORS,
@@ -283,6 +285,41 @@ const buildEthereumFastpathIsm = (owner: string): IsmConfig => ({
   ],
 });
 
+const buildSvmEthereumFastpathIsm = (
+  chain: (typeof nonEvmDeploymentChains)[number],
+  owner: string,
+): IsmConfig => {
+  const fallbackIsm = getChainAddresses()[chain]?.interchainSecurityModule;
+  assert(fallbackIsm, `Missing default ISM for ${chain}`);
+
+  return {
+    type: IsmType.COMPOSITE,
+    owner,
+    root: {
+      type: CompositeIsmNodeType.FALLBACK_ROUTING,
+      fallbackIsm,
+      domains: {
+        ethereum: {
+          type: CompositeIsmNodeType.AGGREGATION,
+          threshold: 1,
+          subIsms: [
+            {
+              type: CompositeIsmNodeType.MULTISIG_MESSAGE_ID,
+              threshold: DEFAULT_FASTPATH_THRESHOLD,
+              validators: DEFAULT_FASTPATH_VALIDATORS,
+            },
+            {
+              type: CompositeIsmNodeType.FALLBACK_ROUTING,
+              fallbackIsm,
+              domains: {},
+            },
+          ],
+        },
+      },
+    },
+  };
+};
+
 export const buildEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   options: EclipseUSDCWarpConfigOptions,
@@ -310,6 +347,10 @@ export const buildEclipseUSDCWarpConfig = async (
         mailbox: routerConfig.eclipsemainnet.mailbox,
         hook: SVM_IGP_ADDRESSES.eclipsemainnet,
         foreignDeployment: programIds.eclipsemainnet,
+        interchainSecurityModule: buildSvmEthereumFastpathIsm(
+          'eclipsemainnet',
+          ownersByChain.eclipsemainnet,
+        ),
         owner: ownersByChain.eclipsemainnet,
         gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
       };
@@ -320,6 +361,10 @@ export const buildEclipseUSDCWarpConfig = async (
         mailbox: routerConfig.solanamainnet.mailbox,
         hook: SVM_IGP_ADDRESSES.solanamainnet,
         foreignDeployment: programIds.solanamainnet,
+        interchainSecurityModule: buildSvmEthereumFastpathIsm(
+          'solanamainnet',
+          ownersByChain.solanamainnet,
+        ),
         owner: ownersByChain.solanamainnet,
         gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
       };
