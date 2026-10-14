@@ -6,7 +6,7 @@ import {
   IcaMessageType,
   icaMatchingList,
   multiAddressChainMapMatchingList,
-} from './relayer.js';
+} from '../src/config/agent/relayer.js';
 
 describe('multiAddressChainMapMatchingList', () => {
   const addrA = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';

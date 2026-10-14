@@ -8,7 +8,6 @@ use std::{
 };
 
 use async_trait::async_trait;
-use derive_new::new;
 use eyre::Result;
 use parking_lot::Mutex;
 use prometheus::IntGauge;
@@ -142,7 +141,7 @@ impl Drop for LoadedMessageGuard {
 }
 
 /// A message that is pending processing and submission.
-#[derive(new, Serialize)]
+#[derive(Serialize)]
 pub struct PendingMessage {
     pub message: HyperlaneMessage,
     #[serde(skip_serializing)]
@@ -151,26 +150,18 @@ pub struct PendingMessage {
     app_context: Option<String>,
     #[serde(skip_serializing)]
     max_retries: u32,
-    #[new(default)]
     submitted: bool,
-    #[new(default)]
     #[serde(skip_serializing)]
     pub(crate) submission_data: Option<Box<MessageSubmissionData>>,
-    #[new(default)]
     num_retries: u32,
-    #[new(value = "Instant::now()")]
     #[serde(skip_serializing)]
     last_attempted_at: Instant,
-    #[new(default)]
     #[serde(skip_serializing)]
     next_attempt_after: Option<Instant>,
-    #[new(default)]
     #[serde(skip_serializing)]
     submission_outcome: Option<TxOutcome>,
-    #[new(default)]
     #[serde(skip_serializing)]
     metadata: Option<Metadata>,
-    #[new(default)]
     #[serde(skip_serializing)]
     metric: Option<Arc<IntGauge>>,
     /// When true, drop the message immediately once `num_retries > max_retries`
@@ -184,22 +175,48 @@ pub struct PendingMessage {
     /// relevant. If a message were recovered through the DB path before the indexer
     /// catches up, it would rehydrate with `fail_fast=false` and follow the normal
     /// long-backoff arm — acceptable degradation, not a correctness issue.
-    #[new(default)]
     #[serde(skip_serializing)]
     fail_fast: bool,
     /// Number of consecutive times this message has been returned to the queue
     /// due to an "ICA: Invalid Reveal" simulation failure. Tracked separately
     /// from `num_retries` so these transient waits don't consume the fail-fast
     /// retry budget.
-    #[new(default)]
     #[serde(skip_serializing)]
     ica_reveal_attempts: u32,
-    #[new(default)]
     #[serde(skip_serializing)]
     loaded_message_guard: Option<LoadedMessageGuard>,
 }
 
 impl PendingMessage {
+    pub fn new(
+        message: HyperlaneMessage,
+        ctx: Arc<MessageContext>,
+        status: PendingOperationStatus,
+        app_context: Option<String>,
+        max_retries: u32,
+    ) -> Self {
+        ctx.metrics
+            .record_pending_message(message.id(), app_context.as_deref());
+        Self {
+            message,
+            ctx,
+            status,
+            app_context,
+            max_retries,
+            submitted: false,
+            submission_data: None,
+            num_retries: 0,
+            last_attempted_at: Instant::now(),
+            next_attempt_after: None,
+            submission_outcome: None,
+            metadata: None,
+            metric: None,
+            fail_fast: false,
+            ica_reveal_attempts: 0,
+            loaded_message_guard: None,
+        }
+    }
+
     pub(super) fn set_loaded_message_guard(&mut self, guard: LoadedMessageGuard) {
         self.loaded_message_guard = Some(guard);
     }
@@ -217,6 +234,7 @@ impl PendingMessage {
 
 impl Drop for PendingMessage {
     fn drop(&mut self) {
+        self.ctx.metrics.finish_pending_message(self.message.id());
         self.ctx.metrics.finish_metadata_wait(
             self.message.id(),
             self.app_context.as_deref(),
