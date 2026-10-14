@@ -1038,6 +1038,38 @@ abstract class BaseEvmHypXERC20Adapter<X extends IXERC20 | IXERC20VS>
     return this.connectXERC20(xerc20Addr);
   }
 
+  /**
+   * HypXERC20 takes tokens with `xerc20.burn(msg.sender, amount)`, authorized by
+   * the token's bridge limits rather than an ERC20 allowance, so a direct
+   * transferRemote never needs an approval. The inherited collateral logic
+   * would still read `allowance(owner, router)` and typically queue a useless
+   * approve. A Predicate wrapper does pull tokens with transferFrom before
+   * calling the router, so approvals for that spender keep the inherited path.
+   */
+  private async routerPullsWithoutAllowance(
+    spender: Address,
+  ): Promise<boolean> {
+    if (!eqAddress(spender, this.addresses.token)) return false;
+    return (await this.getPredicateWrapperAddress()) === null;
+  }
+
+  override async isApproveRequired(
+    owner: Address,
+    spender: Address,
+    weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    if (await this.routerPullsWithoutAllowance(spender)) return false;
+    return super.isApproveRequired(owner, spender, weiAmountOrId);
+  }
+
+  override async isRevokeApprovalRequired(
+    owner: Address,
+    spender: Address,
+  ): Promise<boolean> {
+    if (await this.routerPullsWithoutAllowance(spender)) return false;
+    return super.isRevokeApprovalRequired(owner, spender);
+  }
+
   override async getBridgedSupply(options?: {
     blockTag?: number | EthJsonRpcBlockParameterTag;
   }): Promise<bigint> {
