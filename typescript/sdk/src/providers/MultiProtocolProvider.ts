@@ -61,6 +61,7 @@ export class MultiProtocolProvider<
       ...this.options,
       providers: this.providers,
       providerBuilders: this.providerBuilders,
+      seismicSigners: this.seismicSigners,
     });
   }
 
@@ -78,6 +79,7 @@ export class MultiProtocolProvider<
         ...this.options,
         providers: pick(this.providers, intersection),
         providerBuilders: this.providerBuilders,
+        seismicSigners: pick(this.seismicSigners, intersection),
       }),
     };
   }

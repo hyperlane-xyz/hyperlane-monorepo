@@ -4,7 +4,9 @@ import { BigNumber, Wallet, utils } from 'ethers';
 import {
   AesGcmCrypto,
   AesKeyDomain,
+  RESPONSE_FORMAT_VERSION,
   encodeSeismicMetadataAsAAD,
+  encodeSeismicResponseAAD,
   generateAesKey,
 } from 'seismic-viem';
 import sinon from 'sinon';
@@ -30,6 +32,67 @@ describe('SeismicSigner', () => {
   let requests: { method: string; params?: unknown[] }[];
   let rpcChainId: number;
   let estimateError: string | undefined;
+  // Plaintext return data the stubbed node encrypts into its eth_call reply.
+  let callResult: string;
+
+  /**
+   * Encrypts `plaintext` the way the TEE encrypts a signed-read response:
+   * `version || iv || AES-GCM(body)` under the response key derived from the
+   * request's ephemeral encryption pubkey and the server key, with the
+   * request metadata (+ version) as AAD.
+   */
+  async function encryptResponse(
+    typedDataMessage: Record<string, unknown>,
+    plaintext: string,
+  ): Promise<string> {
+    const message = z
+      .object({
+        encryptionPubkey: z.string().refine(isHex),
+        encryptionNonce: z.string().refine(isHex),
+        nonce: z.coerce.bigint(),
+        to: z.string().refine(isHex),
+        value: z.coerce.bigint(),
+        expiresAtBlock: z.coerce.bigint(),
+      })
+      .parse(typedDataMessage);
+    assert(isHex(SERVER_KEY) && isHex(BLOCK_HASH), 'Expected test hex');
+    assert(isHex(wallet.address), 'Expected hex wallet address');
+    const responseKey = generateAesKey(
+      {
+        privateKey: SERVER_KEY,
+        networkPublicKey: message.encryptionPubkey.slice(2),
+      },
+      AesKeyDomain.TxResponse,
+    );
+    const aad = encodeSeismicResponseAAD(
+      {
+        sender: wallet.address,
+        legacyFields: {
+          chainId: CHAIN_ID,
+          nonce: Number(message.nonce),
+          to: message.to,
+          value: message.value,
+        },
+        seismicElements: {
+          encryptionPubkey: message.encryptionPubkey,
+          encryptionNonce: message.encryptionNonce,
+          messageVersion: 2,
+          recentBlockHash: BLOCK_HASH,
+          expiresAtBlock: message.expiresAtBlock,
+          signedRead: true,
+        },
+      },
+      RESPONSE_FORMAT_VERSION,
+    );
+    const iv = `0x${'ab'.repeat(12)}`;
+    assert(isHex(iv) && isHex(plaintext), 'Expected hex');
+    const body = await new AesGcmCrypto(responseKey).encrypt(
+      plaintext,
+      iv,
+      aad,
+    );
+    return `0x${RESPONSE_FORMAT_VERSION.toString(16).padStart(2, '0')}${iv.slice(2)}${body.slice(2)}`;
+  }
 
   beforeEach(() => {
     wallet = Wallet.createRandom();
@@ -41,6 +104,7 @@ describe('SeismicSigner', () => {
     requests = [];
     rpcChainId = CHAIN_ID;
     estimateError = undefined;
+    callResult = utils.defaultAbiCoder.encode(['uint256'], [1_000_000]);
     sinon.stub(globalThis, 'fetch').callsFake(async (_url, init) => {
       assert(typeof init?.body === 'string', 'Expected JSON-RPC body');
       const request = z
@@ -63,6 +127,18 @@ describe('SeismicSigner', () => {
         },
         eth_estimateGas: '0x12345',
       };
+      if (request.method === 'eth_call') {
+        const signed = z
+          .object({
+            data: z.object({ message: z.record(z.string(), z.unknown()) }),
+            signature: z.object({ r: z.string(), s: z.string() }),
+          })
+          .parse(request.params?.[0]);
+        results.eth_call = await encryptResponse(
+          signed.data.message,
+          callResult,
+        );
+      }
       assert(request.method in results, `Unexpected RPC ${request.method}`);
       const body =
         request.method === 'eth_estimateGas' && estimateError
@@ -220,6 +296,22 @@ describe('SeismicSigner', () => {
       'requires EIP-712',
     );
     expect(requests).to.have.length(0);
+  });
+
+  it('performs a signed read via signedCall and decrypts the response', async () => {
+    const sign = sinon.spy(wallet, '_signTypedData');
+    const result = await signer.signedCall({ to: RECIPIENT, data: DATA });
+    expect(result).to.equal(callResult);
+    expect(sign.calledOnce).to.equal(true);
+    const [, , message] = sign.firstCall.args;
+    expect(message).to.include({ signedRead: true, gasPrice: 0n });
+    const call = requests.find(({ method }) => method === 'eth_call');
+    expect(call?.params).to.have.length(2);
+    expect(call?.params?.[0]).to.have.keys('data', 'signature');
+    expect(call?.params?.[1]).to.equal('latest');
+    expect(
+      requests.some(({ method }) => method === 'eth_estimateGas'),
+    ).to.equal(false);
   });
 
   it('fills a missing gasLimit with the signed estimate before sending', async () => {

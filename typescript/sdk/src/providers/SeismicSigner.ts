@@ -1,6 +1,7 @@
 import { BigNumber, Signer, providers, utils } from 'ethers';
 import {
   createShieldedWalletClient,
+  decryptRevertError,
   randomEncryptionNonce,
   signSeismicTxTypedData,
   type TxSeismicMetadata,
@@ -47,6 +48,13 @@ export interface SeismicSignerContext {
  * signer's `populateTransaction` would run an unsigned `eth_estimateGas`,
  * which Seismic executes with `msg.sender = 0x0` and therefore reverts for
  * every owner-gated call (`setDefaultHook`, `transferOwnership`, ...).
+ *
+ * `signedCall` is the matching signed `eth_call`, for reads whose result
+ * depends on `msg.sender`: shielded tokens only reveal `balanceOf`/`allowance`
+ * to the account itself, so the SDK's pre-transfer balance checks need it. It
+ * is deliberately not an override of `Signer.call`: ethers routes every view
+ * call of a signer-connected Contract through `call`, and turning all of those
+ * into encrypted multi-round-trip signed reads is neither needed nor cheap.
  */
 export class SeismicSigner extends Signer {
   // Set at runtime via defineReadOnly (ethers pattern); base Signer declares it.
@@ -105,6 +113,52 @@ export class SeismicSigner extends Signer {
   async estimateGas(
     tx: utils.Deferrable<providers.TransactionRequest>,
   ): Promise<BigNumber> {
+    const { client, typedData, signature } =
+      await this.prepareSignedRequest(tx);
+    const gas = await client.request({
+      method: 'eth_estimateGas',
+      params: [{ data: typedData, signature }],
+    });
+    return BigNumber.from(gas);
+  }
+
+  /**
+   * Signed read. Sends an encrypted EIP-712 signed read to Seismic's
+   * `eth_call` so the node executes it with the real `msg.sender`, and
+   * decrypts the response (and any revert data) with the request's key.
+   * Returns the plaintext ABI-encoded return data. Unlike `call`, which stays
+   * the inherited unsigned read, callers opt in explicitly.
+   */
+  async signedCall(
+    tx: utils.Deferrable<providers.TransactionRequest>,
+    blockTag: providers.BlockTag = 'latest',
+  ): Promise<string> {
+    const { client, metadata, typedData, signature } =
+      await this.prepareSignedRequest(tx);
+    let response: unknown;
+    try {
+      response = await client.request({
+        method: 'eth_call',
+        params: [{ data: typedData, signature }, blockTag],
+      });
+    } catch (error) {
+      throw await decryptRevertError(client, error, metadata);
+    }
+    assert(
+      typeof response === 'string' && isHex(response),
+      'Invalid Seismic signed-read response',
+    );
+    return client.decrypt(response, metadata);
+  }
+
+  /**
+   * Builds the encrypted, EIP-712-signed Seismic request shared by signed
+   * estimates and signed reads. Fees are zeroed so the request isn't gated on
+   * the signer's balance; gas is the block gas limit.
+   */
+  private async prepareSignedRequest(
+    tx: utils.Deferrable<providers.TransactionRequest>,
+  ) {
     const resolved = await utils.resolveProperties(tx);
     const inner = this.inner;
     assert(
@@ -197,10 +251,6 @@ export class SeismicSigner extends Signer {
       data: encryptedData,
       ...metadata.seismicElements,
     });
-    const gas = await client.request({
-      method: 'eth_estimateGas',
-      params: [{ data: typedData, signature }],
-    });
-    return BigNumber.from(gas);
+    return { client, metadata, typedData, signature };
   }
 }
