@@ -1,12 +1,21 @@
 import {
   ChainMap,
   ChainSubmissionStrategy,
+  CompositeIsmNodeType,
+  defaultMultisigConfigs,
   HypTokenRouterConfig,
+  IsmConfig,
+  IsmType,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { getChainAddresses } from '../../../../registry.js';
+import {
+  DEFAULT_FASTPATH_THRESHOLD,
+  DEFAULT_FASTPATH_VALIDATORS,
+} from '../../fastpath/validators.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { WARP_FEES_TURNKEY_OWNER } from '../../governance/utils.js';
@@ -254,6 +263,69 @@ const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
 
 const DEFAULT_FEE_BPS = 1.5;
 
+const buildEthereumFastpathIsm = (owner: string): IsmConfig => ({
+  type: IsmType.AGGREGATION,
+  threshold: 1,
+  modules: [
+    {
+      type: IsmType.ROUTING,
+      owner,
+      domains: {
+        ethereum: {
+          type: IsmType.MESSAGE_ID_MULTISIG,
+          threshold: DEFAULT_FASTPATH_THRESHOLD,
+          validators: DEFAULT_FASTPATH_VALIDATORS,
+        },
+      },
+    },
+    {
+      type: IsmType.FALLBACK_ROUTING,
+      owner,
+      domains: {},
+    },
+  ],
+});
+
+const buildSvmEthereumFastpathIsm = (
+  chain: (typeof nonEvmDeploymentChains)[number],
+  owner: string,
+): IsmConfig => {
+  const fallbackIsm = getChainAddresses()[chain]?.interchainSecurityModule;
+  assert(fallbackIsm, `Missing default ISM for ${chain}`);
+
+  const defaultMultisig = defaultMultisigConfigs.ethereum;
+  assert(defaultMultisig, 'Missing default Ethereum multisig config');
+
+  return {
+    type: IsmType.COMPOSITE,
+    owner,
+    root: {
+      type: CompositeIsmNodeType.FALLBACK_ROUTING,
+      fallbackIsm,
+      domains: {
+        ethereum: {
+          type: CompositeIsmNodeType.AGGREGATION,
+          threshold: 1,
+          subIsms: [
+            {
+              type: CompositeIsmNodeType.MULTISIG_MESSAGE_ID,
+              threshold: DEFAULT_FASTPATH_THRESHOLD,
+              validators: DEFAULT_FASTPATH_VALIDATORS,
+            },
+            {
+              type: CompositeIsmNodeType.MULTISIG_MESSAGE_ID,
+              threshold: defaultMultisig.threshold,
+              validators: defaultMultisig.validators.map(
+                (validator) => validator.address,
+              ),
+            },
+          ],
+        },
+      },
+    },
+  };
+};
+
 export const buildEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   options: EclipseUSDCWarpConfigOptions,
@@ -281,6 +353,10 @@ export const buildEclipseUSDCWarpConfig = async (
         mailbox: routerConfig.eclipsemainnet.mailbox,
         hook: SVM_IGP_ADDRESSES.eclipsemainnet,
         foreignDeployment: programIds.eclipsemainnet,
+        interchainSecurityModule: buildSvmEthereumFastpathIsm(
+          'eclipsemainnet',
+          ownersByChain.eclipsemainnet,
+        ),
         owner: ownersByChain.eclipsemainnet,
         gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
       };
@@ -291,6 +367,10 @@ export const buildEclipseUSDCWarpConfig = async (
         mailbox: routerConfig.solanamainnet.mailbox,
         hook: SVM_IGP_ADDRESSES.solanamainnet,
         foreignDeployment: programIds.solanamainnet,
+        interchainSecurityModule: buildSvmEthereumFastpathIsm(
+          'solanamainnet',
+          ownersByChain.solanamainnet,
+        ),
         owner: ownersByChain.solanamainnet,
         gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
       };
@@ -340,6 +420,11 @@ export const buildEclipseUSDCWarpConfig = async (
         tokenFee: feeConfig,
         scale: scaleConfig,
         contractVersion,
+        ...(currentChain !== 'ethereum' && {
+          interchainSecurityModule: buildEthereumFastpathIsm(
+            ownersByChain[currentChain],
+          ),
+        }),
       };
     }
 

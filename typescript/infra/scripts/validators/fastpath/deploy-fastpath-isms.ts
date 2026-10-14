@@ -32,7 +32,10 @@ import { mergeJson } from '@hyperlane-xyz/utils/fs';
 import { join } from 'path';
 
 import { Contexts } from '../../../config/contexts.js';
-import { DEFAULT_FASTPATH_VALIDATORS } from '../../../config/environments/mainnet3/fastpath/validators.js';
+import {
+  DEFAULT_FASTPATH_THRESHOLD,
+  DEFAULT_FASTPATH_VALIDATORS,
+} from '../../../config/environments/mainnet3/fastpath/validators.js';
 import { getRegistry as getInfraRegistry } from '../../../config/registry.js';
 import { getEnvironmentDirectory } from '../../../src/paths.js';
 import { getInfraPath } from '../../../src/utils/utils.js';
@@ -42,8 +45,6 @@ import {
   withChains,
   withOutputFile,
 } from '../../agent-utils.js';
-
-const DEFAULT_FASTPATH_THRESHOLD = 2;
 
 function getArgs() {
   return withOutputFile(withChains(getBaseArgs()))
