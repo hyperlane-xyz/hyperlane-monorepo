@@ -1,17 +1,14 @@
 import {
   ChainMap,
   ChainName,
-  DEFAULT_ROUTER_KEY,
   HookConfig,
   HookType,
   HypTokenRouterConfig,
   IsmConfig,
   IsmType,
-  TokenFeeConfigInput,
-  TokenFeeType,
   TokenType,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
 import fastpathIsms from '../../fastpath/isms.json' with { type: 'json' };
 import { awIcas } from '../../governance/ica/aw.js';
@@ -22,11 +19,16 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
-import { getDomainId, getRegistry } from '../../../../registry.js';
+import { getRegistry } from '../../../../registry.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
+import { usdcTokenAddresses } from '../cctp.js';
 import { WarpRouteIds } from '../warpIds.js';
 import {
-  getCrossCollateralTargetRoutersByChain,
+  buildCrossCollateralRoutingFee,
+  getMoonpayCrossCollateralRouters,
+  MOONPAY_ROUTE_CHAINS,
+} from './moonpay.js';
+import {
   getRebalancingBridgesConfigFor,
   getUSDCRebalancingBridgesConfigFor,
   mergeAllowedBridges,
@@ -45,24 +47,17 @@ const FASTPATH_CHAINS = [
 type FastpathChain = (typeof FASTPATH_CHAINS)[number];
 const FASTPATH_ISM_ADDRESSES = fastpathIsms as Record<FastpathChain, string>;
 
-const ROUTE_CHAINS = [
-  'solanamainnet',
-  'arbitrum',
-  'base',
-  'bsc',
-  'citrea',
-  'ethereum',
-  'katana',
-  'polygon',
-] as const satisfies readonly ChainName[];
+const ROUTE_CHAINS = MOONPAY_ROUTE_CHAINS;
 const CCTP_CHAINS = [
   'arbitrum',
+  'arc',
   'base',
   'ethereum',
   'polygon',
 ] as const satisfies readonly ChainName[];
 const EVM_CHAINS = ['arbitrum', 'base', 'ethereum', 'polygon'] as const;
 type EvmChain = (typeof EVM_CHAINS)[number];
+type CctpChain = (typeof CCTP_CHAINS)[number];
 
 const SOLANA_IGP_ADDRESS = 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv';
 const SOLANA_XO_TOKEN_MINT = 'xoUSDq85Rjsb6SbUwJyreFgeWQvxdkT7R3c3g7s6p5Y';
@@ -71,6 +66,7 @@ const SOLANA_XO_SYMBOL = 'XO';
 const ownersByChain = {
   solanamainnet: 'BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ', // Squads multisig
   arbitrum: awIcas.arbitrum,
+  arc: awIcas.arc,
   base: awIcas.base,
   bsc: awIcas.bsc,
   citrea: awIcas.citrea,
@@ -81,6 +77,7 @@ const ownersByChain = {
 
 const feeOwnersByChain = {
   arbitrum: warpFeesIcas.arbitrum,
+  arc: warpFeesIcas.arc,
   base: warpFeesIcas.base,
   bsc: warpFeesIcas.bsc,
   citrea: warpFeesIcas.citrea,
@@ -88,12 +85,8 @@ const feeOwnersByChain = {
   katana: warpFeesIcas.katana,
   polygon: warpFeesIcas.polygon,
 } as const;
-const QUOTE_SIGNERS = [
-  '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
-  '0x6bb7818bbE8d88094Cf3620e58BC6BbEd542B867',
-];
 
-function getCctpFastRouteAddresses(): Record<EvmChain, string> {
+function getCctpFastRouteAddresses(): Record<CctpChain, string> {
   const route = getRegistry().getWarpRoute(WarpRouteIds.MainnetCCTPV2Fast);
   assert(route, 'Mainnet CCTP v2 fast route not found in registry');
 
@@ -103,7 +96,7 @@ function getCctpFastRouteAddresses(): Record<EvmChain, string> {
       assert(token?.addressOrDenom, `Missing fast route address for ${chain}`);
       return [chain, token.addressOrDenom];
     }),
-  ) as Record<EvmChain, string>;
+  ) as Record<CctpChain, string>;
 }
 
 function getTBDAAddresses(): Record<
@@ -131,21 +124,11 @@ function getTBDAAddresses(): Record<
 const CCTP_FAST_ROUTE_ADDRESSES = getCctpFastRouteAddresses();
 
 function getUsdtCrossCollateralRouters(): Record<string, string[]> {
-  const route = getRegistry().getWarpRoute(WarpRouteIds.USDTCitreaMoonpay);
-  assert(route, 'USDT/moonpay route not found in registry');
-  return Object.fromEntries(
-    route.tokens.map(({ chainName, addressOrDenom }) => {
-      assert(addressOrDenom, `Missing USDT router for ${chainName}`);
-      return [
-        String(getDomainId(chainName)),
-        [addressToBytes32(addressOrDenom)],
-      ];
-    }),
-  );
+  return getMoonpayCrossCollateralRouters([WarpRouteIds.USDTCitreaMoonpay]);
 }
 
-function isCctpChain(chain: ChainName): chain is EvmChain {
-  return CCTP_CHAINS.includes(chain as EvmChain);
+function isCctpChain(chain: ChainName): chain is CctpChain {
+  return CCTP_CHAINS.includes(chain as CctpChain);
 }
 
 function buildDefaultIsm(owner: string): IsmConfig {
@@ -198,7 +181,7 @@ function buildInterchainSecurityModule(
   } as const;
 }
 
-function buildFastRouteHook(local: EvmChain, owner: string) {
+function buildFastRouteHook(local: CctpChain, owner: string) {
   return {
     type: HookType.FALLBACK_ROUTING,
     owner,
@@ -228,45 +211,6 @@ function buildHook(local: (typeof ROUTE_CHAINS)[number], owner: string) {
   return buildFastRouteHook(local, owner);
 }
 
-// Target routers (destination tokens) priced per destination, keyed by chain.
-// Union of both Moonpay routes so USDC/USDT/ctUSD/XO can each be priced distinctly.
-const TARGET_ROUTERS_BY_CHAIN = getCrossCollateralTargetRoutersByChain([
-  WarpRouteIds.USDCCitreaMoonpay,
-  WarpRouteIds.USDTCitreaMoonpay,
-]);
-
-function buildCrossCollateralRoutingFee(
-  owner: string,
-  destinations: readonly ChainName[],
-): TokenFeeConfigInput {
-  const offchainFee = (): TokenFeeConfigInput => ({
-    type: TokenFeeType.OffchainQuotedLinearFee,
-    owner,
-    bps: 3,
-    quoteSigners: QUOTE_SIGNERS,
-  });
-
-  return {
-    type: TokenFeeType.CrossCollateralRoutingFee,
-    owner,
-    feeContracts: Object.fromEntries(
-      destinations.map((dest) => {
-        const targetRouters = TARGET_ROUTERS_BY_CHAIN[dest] ?? [];
-        return [
-          dest,
-          {
-            // Per-destination-token fee slots, plus a default fallback.
-            ...Object.fromEntries(
-              targetRouters.map((routerKey) => [routerKey, offchainFee()]),
-            ),
-            [DEFAULT_ROUTER_KEY]: offchainFee(),
-          },
-        ];
-      }),
-    ),
-  };
-}
-
 export async function getUSDCCitreaMoonpayWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
@@ -274,6 +218,12 @@ export async function getUSDCCitreaMoonpayWarpConfig(
     ['arbitrum', 'base', 'ethereum', 'polygon'],
     [WarpRouteIds.MainnetCCTPV2Standard, WarpRouteIds.MainnetCCTPV2Fast],
   );
+
+  const cctpStandardRebalancingConfigByChain =
+    getUSDCRebalancingBridgesConfigFor(
+      ['arbitrum', 'arc', 'base', 'ethereum', 'polygon'],
+      [WarpRouteIds.MainnetCCTPV2Standard],
+    );
 
   const additionalRebalancingConfigByChain = getRebalancingBridgesConfigFor(
     ['arbitrum', 'base', 'bsc', 'ethereum', 'polygon'],
@@ -290,6 +240,7 @@ export async function getUSDCCitreaMoonpayWarpConfig(
   const {
     solanamainnet: solanaOwner,
     arbitrum: arbitrumOwner,
+    arc: arcOwner,
     base: baseOwner,
     bsc: bscOwner,
     citrea: citreaOwner,
@@ -299,6 +250,7 @@ export async function getUSDCCitreaMoonpayWarpConfig(
   } = ownersByChain;
   const {
     arbitrum: arbitrumFeeOwner,
+    arc: arcFeeOwner,
     base: baseFeeOwner,
     bsc: bscFeeOwner,
     citrea: citreaFeeOwner,
@@ -337,6 +289,10 @@ export async function getUSDCCitreaMoonpayWarpConfig(
         cctpRebalancingConfigByChain.arbitrum.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.arbitrum?.allowedRebalancingBridges,
         { citrea: [{ bridge: tbda.arbitrum }] },
+        {
+          arc: cctpStandardRebalancingConfigByChain.arbitrum
+            .allowedRebalancingBridges.arc,
+        },
       ),
       hook: buildHook('arbitrum', arbitrumOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
@@ -344,6 +300,17 @@ export async function getUSDCCitreaMoonpayWarpConfig(
         arbitrumOwner,
       ),
       tokenFee: buildCrossCollateralRoutingFee(arbitrumFeeOwner, ROUTE_CHAINS),
+      crossCollateralRouters,
+    },
+    arc: {
+      type: TokenType.crossCollateral,
+      token: usdcTokenAddresses.arc,
+      mailbox: routerConfig.arc.mailbox,
+      owner: arcOwner,
+      ...cctpStandardRebalancingConfigByChain.arc,
+      hook: buildHook('arc', arcOwner),
+      interchainSecurityModule: buildInterchainSecurityModule('arc', arcOwner),
+      tokenFee: buildCrossCollateralRoutingFee(arcFeeOwner, ROUTE_CHAINS),
       crossCollateralRouters,
     },
     base: {
@@ -356,6 +323,10 @@ export async function getUSDCCitreaMoonpayWarpConfig(
         cctpRebalancingConfigByChain.base.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.base?.allowedRebalancingBridges,
         { citrea: [{ bridge: tbda.base }] },
+        {
+          arc: cctpStandardRebalancingConfigByChain.base
+            .allowedRebalancingBridges.arc,
+        },
       ),
       hook: buildHook('base', baseOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
@@ -419,6 +390,10 @@ export async function getUSDCCitreaMoonpayWarpConfig(
         cctpRebalancingConfigByChain.ethereum.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.ethereum?.allowedRebalancingBridges,
         { citrea: [{ bridge: tbda.ethereum }] },
+        {
+          arc: cctpStandardRebalancingConfigByChain.ethereum
+            .allowedRebalancingBridges.arc,
+        },
       ),
       hook: buildHook('ethereum', ethereumOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
@@ -438,6 +413,10 @@ export async function getUSDCCitreaMoonpayWarpConfig(
         cctpRebalancingConfigByChain.polygon.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.polygon?.allowedRebalancingBridges,
         { citrea: [{ bridge: tbda.polygon }] },
+        {
+          arc: cctpStandardRebalancingConfigByChain.polygon
+            .allowedRebalancingBridges.arc,
+        },
       ),
       hook: buildHook('polygon', polygonOwner),
       interchainSecurityModule: buildInterchainSecurityModule(
