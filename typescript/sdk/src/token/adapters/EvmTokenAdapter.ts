@@ -2,6 +2,7 @@ import {
   BigNumber,
   PopulatedTransaction,
   constants as ethersConstants,
+  utils,
 } from 'ethers';
 
 import {
@@ -183,8 +184,40 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
   }
 
   override async getBalance(address: Address): Promise<bigint> {
-    const balance = await this.contract.balanceOf(toEvmAddress(address));
+    const balance = await this.readAs(address, 'balanceOf', [
+      toEvmAddress(address),
+    ]);
     return BigInt(balance.toString());
+  }
+
+  /**
+   * Reads a view function, as the account itself when that is possible and
+   * necessary. Seismic executes unsigned `eth_call`s with `msg.sender = 0x0`,
+   * and shielded tokens only reveal `balanceOf`/`allowance` to the account in
+   * question, so on a Seismic chain where the adapter was given that
+   * account's signer the read is sent as a signed read. Everywhere else this
+   * is the plain contract call.
+   */
+  protected async readAs(
+    account: Address,
+    functionName: 'balanceOf' | 'allowance',
+    args: string[],
+  ): Promise<BigNumber> {
+    const signer = this.multiProvider.tryGetSeismicSigner(this.chainName);
+    if (signer && eqAddress(await signer.getAddress(), account)) {
+      // Typechain's typed interface can't take a union function name; the
+      // generic ethers Interface encodes/decodes by name just fine.
+      const iface: utils.Interface = ERC20__factory.createInterface();
+      const data = iface.encodeFunctionData(functionName, args);
+      const result = await signer.call({ to: this.contract.address, data });
+      const [value] = iface.decodeFunctionResult(functionName, result);
+      return BigNumber.from(value);
+    }
+    const value =
+      functionName === 'balanceOf'
+        ? await this.contract.balanceOf(args[0])
+        : await this.contract.allowance(args[0], args[1]);
+    return BigNumber.from(value);
   }
 
   override async getMetadata(isNft?: boolean): Promise<TokenMetadata> {
@@ -201,26 +234,25 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
     spender: Address,
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
-    const allowance = await this.contract.allowance(
+    // readAs normalizes foreign BigNumberish values (e.g. a native bigint from
+    // a provider that isn't a true ethers v5 BigNumber) so the comparison
+    // methods below are always safe to call.
+    const allowance = await this.readAs(owner, 'allowance', [
       toEvmAddress(owner),
       toEvmAddress(spender),
-    );
-    // BigNumber.from() normalizes foreign BigNumberish values (e.g. a native
-    // bigint from a provider that isn't a true ethers v5 BigNumber) so the
-    // comparison methods below are always safe to call.
-    return BigNumber.from(allowance).lt(weiAmountOrId);
+    ]);
+    return allowance.lt(weiAmountOrId);
   }
 
   async isRevokeApprovalRequired(
     owner: Address,
     spender: Address,
   ): Promise<boolean> {
-    const allowance = await this.contract.allowance(
+    const allowance = await this.readAs(owner, 'allowance', [
       toEvmAddress(owner),
       toEvmAddress(spender),
-    );
-
-    return !BigNumber.from(allowance).isZero();
+    ]);
+    return !allowance.isZero();
   }
 
   override populateApproveTx({
