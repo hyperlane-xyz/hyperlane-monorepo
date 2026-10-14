@@ -62,6 +62,7 @@ import { getMitosisMITOWarpConfig } from './environments/mainnet3/warp/configGet
 import { getETHStageWarpConfig } from './environments/mainnet3/warp/configGetters/getETHStageWarpConfig.js';
 import { getParadexUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getParadexUSDCWarpConfig.js';
 import { getPulsechainUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getPulsechainUSDCWarpConfig.js';
+import { getRadixUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getRadixUSDCWarpConfig.js';
 import { getEZETHFileSubmitterStrategyConfig } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
 import { getREZBaseEthereumWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoREZBaseEthereum.js';
 import {
@@ -131,6 +132,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.MainnetCCTPV2FastStaging]: getCCTPV2FastStagingWarpConfig,
   [WarpRouteIds.MitosisMITO]: getMitosisMITOWarpConfig,
   [WarpRouteIds.PulsechainUSDC]: getPulsechainUSDCWarpConfig,
+  [WarpRouteIds.RadixUSDC]: getRadixUSDCWarpConfig,
   [WarpRouteIds.ElectroneumUSDC]: getElectroneumUSDCWarpConfig,
   [WarpRouteIds.IgraUSDC]: getIgraUSDCWarpConfig,
   [WarpRouteIds.MantraUSDC]: getMantraUSDCWarpConfig,
