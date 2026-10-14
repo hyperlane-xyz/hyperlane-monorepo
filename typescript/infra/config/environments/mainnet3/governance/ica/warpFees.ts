@@ -12,7 +12,6 @@ export const warpFeesIcas: ChainMap<Address> = {
 
   // Jan 12, 2026 - Provisioning Warp Fees ICAs
   // ----------------------------------------------------------
-  adichain: '0x54818CBcAC326d1D7C1c194BF13E038AA79327EE',
   apechain: '0x46D9c004f83D4187CEED673b65d453613A01cB74',
   avalanche: '0xDE41E9C00B8aCb0e0013Bc197560e6bA5E7c3E67',
   berachain: '0x6CdC19aABeE4E1e992f9C3e81E317ea32054EF6b',

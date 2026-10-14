@@ -24,6 +24,7 @@ const chainLookup: ChainLookup = {
   getChainName: (domain) => (domain === 1 ? 'ethereum' : null),
   getDomainId: (chain) => (chain === 'ethereum' ? 1 : null),
   getKnownChainNames: () => ['ethereum'],
+  getKnownDomainIds: () => new Set([1]),
 };
 
 const reference = (address: string) => ({

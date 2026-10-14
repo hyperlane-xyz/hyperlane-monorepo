@@ -76,7 +76,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: 'Use agent teams to run /claude-review, then use /inline-pr-comments to post findings as a consolidated PR review with inline comments'
+          prompt: 'Use agent teams to run /code-review, then use /inline-pr-comments to post findings as a consolidated PR review with inline comments'
           track_progress: true
           use_sticky_comment: false
           claude_args: |
@@ -131,7 +131,7 @@ jobs:
           PR_NUMBER: ${{ github.event.issue.number }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: 'Use agent teams to run /claude-security-review, then use /inline-pr-comments to post findings as a consolidated PR review with inline comments'
+          prompt: 'Use agent teams to run /security-review, then use /inline-pr-comments to post findings as a consolidated PR review with inline comments'
           track_progress: true
           use_sticky_comment: false
           claude_args: |
@@ -199,7 +199,7 @@ jobs:
           PR_NUMBER: ${{ github.event.issue.number }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: 'Use agent teams to run /claude-tob-review, then use /inline-pr-comments to post findings as a consolidated PR review with inline comments'
+          prompt: 'Use agent teams to run /tob-review, then use /inline-pr-comments to post findings as a consolidated PR review with inline comments'
           track_progress: true
           use_sticky_comment: false
           claude_args: |

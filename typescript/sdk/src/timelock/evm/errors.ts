@@ -1,6 +1,6 @@
 import { errors as EthersError } from 'ethers';
 
-import { getNestedJsonRpcError } from '../../providers/SmartProvider/SmartProvider.js';
+import { getNestedJsonRpcError } from '../../providers/SmartProvider/jsonRpcError.js';
 
 type EthersCallException = {
   code?: unknown;

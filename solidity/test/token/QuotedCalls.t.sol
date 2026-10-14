@@ -5,6 +5,8 @@ import {Test} from "forge-std/Test.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
@@ -16,6 +18,10 @@ import {IGasOracle} from "../../contracts/interfaces/IGasOracle.sol";
 import {GasRouter} from "../../contracts/client/GasRouter.sol";
 import {ITokenBridge} from "../../contracts/interfaces/ITokenBridge.sol";
 import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
+import {AbstractPostDispatchHook} from "../../contracts/hooks/libs/AbstractPostDispatchHook.sol";
+import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
+import {IMailbox} from "../../contracts/interfaces/IMailbox.sol";
+import {Message} from "../../contracts/libs/Message.sol";
 
 import {AbstractOffchainQuoter} from "../../contracts/libs/AbstractOffchainQuoter.sol";
 import {SignedQuote} from "../../contracts/interfaces/IOffchainQuoter.sol";
@@ -26,10 +32,149 @@ import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import {InterchainAccountRouter} from "../../contracts/middleware/InterchainAccountRouter.sol";
+import {MinimalInterchainAccountRouter} from "../../contracts/middleware/MinimalInterchainAccountRouter.sol";
 import {CallLib} from "../../contracts/middleware/libs/Call.sol";
+import {InterchainAccountMessage} from "../../contracts/middleware/libs/InterchainAccountMessage.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuardTransient} from "../../contracts/libs/ReentrancyGuardTransient.sol";
+
+/// @dev ERC20 hook whose fee binds quotes to the actual metadata, sender,
+///      recipient, destination, and body, but deliberately ignores the nonce.
+contract QuotedCallsERC20FeeHook is AbstractPostDispatchHook {
+    using Message for bytes;
+    using SafeERC20 for IERC20;
+    using StandardHookMetadata for bytes;
+
+    IERC20 public immutable feeToken;
+    uint256 public dispatchCount;
+    uint256 public totalFees;
+    bytes32 public lastRecipient;
+
+    constructor(IERC20 _feeToken) {
+        feeToken = _feeToken;
+    }
+
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.HookTypes.UNUSED);
+    }
+
+    function _postDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal override {
+        require(
+            metadata.feeToken(address(0)) == address(feeToken),
+            "unexpected fee token"
+        );
+        uint256 fee = _quoteDispatch(metadata, message);
+        feeToken.safeTransferFrom(message.senderAddress(), address(this), fee);
+        dispatchCount += 1;
+        totalFees += fee;
+        lastRecipient = message.recipient();
+    }
+
+    function _quoteDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal pure override returns (uint256) {
+        return
+            1_000_000 +
+            metadata.gasLimit() +
+            (uint256(message.recipient()) & 0xffff) *
+            1_000_000 +
+            uint256(
+                uint72(
+                    uint256(
+                        keccak256(
+                            abi.encode(
+                                message.sender(),
+                                message.destination(),
+                                message.recipient(),
+                                message.body()
+                            )
+                        )
+                    )
+                )
+            );
+    }
+}
+
+/// @dev Quote-only hook used to pin QuotedCalls' historical current-nonce
+///      behavior. Nonce-sensitive hooks are not supported for execution.
+contract QuotedCallsNonceFeeHook is AbstractPostDispatchHook {
+    using Message for bytes;
+
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.HookTypes.UNUSED);
+    }
+
+    function _postDispatch(bytes calldata, bytes calldata) internal override {}
+
+    function _quoteDispatch(
+        bytes calldata,
+        bytes calldata message
+    ) internal pure override returns (uint256) {
+        return message.nonce();
+    }
+}
+
+contract MessageEncodingHarness {
+    function icaEncodingsMatch(
+        address owner,
+        bytes32 ism,
+        CallLib.Call[] calldata calls,
+        bytes32 salt
+    ) external pure returns (bool) {
+        CallLib.Call[] memory memoryCalls = calls;
+        return
+            keccak256(
+                InterchainAccountMessage.encode(owner, ism, calls, salt)
+            ) ==
+            keccak256(
+                InterchainAccountMessage.encodeMemory(
+                    owner,
+                    ism,
+                    memoryCalls,
+                    salt
+                )
+            );
+    }
+
+    function messageEncodingsMatch(
+        uint8 version,
+        uint32 nonce,
+        uint32 origin,
+        bytes32 sender,
+        uint32 destination,
+        bytes32 recipient,
+        bytes calldata body
+    ) external pure returns (bool) {
+        bytes memory memoryBody = body;
+        return
+            keccak256(
+                Message.formatMessage(
+                    version,
+                    nonce,
+                    origin,
+                    sender,
+                    destination,
+                    recipient,
+                    body
+                )
+            ) ==
+            keccak256(
+                Message.formatMessageMemory(
+                    version,
+                    nonce,
+                    origin,
+                    sender,
+                    destination,
+                    recipient,
+                    memoryBody
+                )
+            );
+    }
+}
 
 /// @dev Contract that attempts reentrancy via the SWEEP ETH callback.
 contract ReentrantAttacker {
@@ -607,7 +752,156 @@ contract QuotedCallsTest is Test {
         inputs = ins;
     }
 
+    function _deployQuotedCallsFeeRouter()
+        internal
+        returns (
+            InterchainAccountRouter icaRouter,
+            QuotedCallsERC20FeeHook feeHook
+        )
+    {
+        feeHook = new QuotedCallsERC20FeeHook(primaryToken);
+        string[] memory icaUrls = new string[](1);
+        icaUrls[0] = "https://quoter.example.com/{data}";
+        icaRouter = new InterchainAccountRouter(
+            address(localMailbox),
+            address(feeHook),
+            address(this),
+            0,
+            icaUrls
+        );
+    }
+
+    function _singleRemoteCall(
+        bytes memory data
+    ) internal pure returns (CallLib.Call[] memory calls) {
+        calls = new CallLib.Call[](1);
+        calls[0] = CallLib.Call({
+            to: address(0xbeef).addressToBytes32(),
+            value: 0,
+            data: data
+        });
+    }
+
+    function _quoteSingleCommand(
+        bytes1 command,
+        bytes memory input
+    ) internal returns (uint256) {
+        bytes1[] memory cmds = new bytes1[](1);
+        bytes[] memory ins = new bytes[](1);
+        cmds[0] = command;
+        ins[0] = input;
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+        Quote[][] memory results = quotedCalls.quoteExecute(commands, inputs);
+        assertEq(results[0].length, 1, "ICA should return one quote");
+        assertEq(results[0][0].token, address(primaryToken));
+        return results[0][0].amount;
+    }
+
+    function _quoteCallRemoteWithOverrides(
+        InterchainAccountRouter icaRouter,
+        bytes32 targetRouter,
+        bytes32 ism,
+        CallLib.Call[] memory calls,
+        bytes memory hookMetadata,
+        bytes32 salt
+    ) internal returns (uint256) {
+        (bytes1 command, bytes memory input) = _cmdCallRemoteWithOverrides(
+            address(icaRouter),
+            DESTINATION,
+            targetRouter,
+            ism,
+            calls,
+            hookMetadata,
+            salt,
+            0,
+            address(primaryToken),
+            0
+        );
+        return _quoteSingleCommand(command, input);
+    }
+
+    function _quoteCallRemoteCommitReveal(
+        InterchainAccountRouter icaRouter,
+        QuotedCallsERC20FeeHook feeHook,
+        bytes32 targetRouter,
+        bytes32 ism,
+        bytes memory hookMetadata,
+        bytes32 salt,
+        bytes32 commitment
+    ) internal returns (uint256) {
+        (bytes1 command, bytes memory input) = _cmdCallRemoteCommitReveal(
+            address(icaRouter),
+            DESTINATION,
+            targetRouter,
+            ism,
+            hookMetadata,
+            address(feeHook),
+            salt,
+            commitment,
+            0,
+            address(primaryToken),
+            0
+        );
+        return _quoteSingleCommand(command, input);
+    }
+
+    function _executeExactErc20IcaCommand(
+        bytes1 icaCommand,
+        bytes memory icaInput,
+        uint256 fee
+    ) internal {
+        bytes1[] memory cmds = new bytes1[](3);
+        bytes[] memory ins = new bytes[](3);
+        (cmds[0], ins[0]) = _cmdTransferFrom(address(primaryToken), fee);
+        cmds[1] = icaCommand;
+        ins[1] = icaInput;
+        (cmds[2], ins[2]) = _cmdSweep(address(primaryToken));
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+        primaryToken.approve(address(quotedCalls), fee);
+        quotedCalls.execute(commands, inputs);
+    }
+
     // ============ Tests: ERC20 transferFrom path ============
+
+    function testFuzz_icaMemoryEncoding_matchesCalldata(
+        address owner,
+        bytes32 ism,
+        bytes32 salt,
+        address target,
+        uint256 value,
+        bytes calldata data
+    ) public {
+        vm.assume(data.length <= 512);
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.Call({
+            to: target.addressToBytes32(),
+            value: value,
+            data: data
+        });
+        MessageEncodingHarness harness = new MessageEncodingHarness();
+        assertTrue(harness.icaEncodingsMatch(owner, ism, calls, salt));
+    }
+
+    function testFuzz_messageMemoryEncoding_matchesCalldata(
+        uint32 nonce,
+        bytes32 sender,
+        bytes calldata body
+    ) public {
+        vm.assume(body.length <= 512);
+        MessageEncodingHarness harness = new MessageEncodingHarness();
+        assertTrue(
+            harness.messageEncodingsMatch(
+                3,
+                nonce,
+                ORIGIN,
+                sender,
+                DESTINATION,
+                BOB.addressToBytes32(),
+                body
+            )
+        );
+    }
 
     /// @dev ALICE approves QuotedCalls directly — ERC20 transferFrom succeeds on first try
     function test_transferFrom_erc20Path() public {
@@ -1584,7 +1878,7 @@ contract QuotedCallsTest is Test {
             address(0xdead).addressToBytes32(),
             bytes32(0),
             hookMetadata,
-            address(noopHook),
+            address(igp),
             bytes32(0),
             keccak256("commitment"),
             0,
@@ -1598,6 +1892,500 @@ contract QuotedCallsTest is Test {
         assertEq(results[1].length, 1, "commit-reveal should return 1 quote");
         assertEq(results[1][0].token, address(0), "fee should be native");
         assertGt(results[1][0].amount, 0, "fee should be > 0");
+    }
+
+    function test_quoteExecute_icaQuotes_useCurrentMailboxNonce() public {
+        localMailbox.dispatch(
+            DESTINATION,
+            bytes32(uint256(0xbeef)),
+            bytes(""),
+            bytes(""),
+            noopHook
+        );
+        uint32 currentNonce = localMailbox.nonce();
+        QuotedCallsNonceFeeHook nonceHook = new QuotedCallsNonceFeeHook();
+        string[] memory urls = new string[](1);
+        urls[0] = "https://quoter.example.com/{data}";
+        InterchainAccountRouter icaRouter = new InterchainAccountRouter(
+            address(localMailbox),
+            address(nonceHook),
+            address(this),
+            0,
+            urls
+        );
+        bytes memory hookMetadata = StandardHookMetadata.format(
+            0,
+            GAS_LIMIT,
+            address(quotedCalls)
+        );
+        bytes1[] memory cmds = new bytes1[](2);
+        bytes[] memory ins = new bytes[](2);
+        (cmds[0], ins[0]) = _cmdCallRemoteWithOverrides(
+            address(icaRouter),
+            DESTINATION,
+            bytes32(uint256(0xbeef)),
+            bytes32(uint256(0x1234)),
+            _singleRemoteCall(hex"123456"),
+            hookMetadata,
+            bytes32(uint256(0x5678)),
+            0,
+            address(0),
+            0
+        );
+        (cmds[1], ins[1]) = _cmdCallRemoteCommitReveal(
+            address(icaRouter),
+            DESTINATION,
+            bytes32(uint256(0xbeef)),
+            bytes32(uint256(0x1234)),
+            hookMetadata,
+            address(nonceHook),
+            bytes32(uint256(0x5678)),
+            keccak256("commitment"),
+            0,
+            address(0),
+            0
+        );
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+
+        Quote[][] memory results = quotedCalls.quoteExecute(commands, inputs);
+
+        assertEq(results[0][0].amount, currentNonce);
+        assertEq(results[1][0].amount, uint256(currentNonce) * 2);
+    }
+
+    function test_quoteExecuteThenExecute_supportsMinimalIcaRouter() public {
+        MinimalInterchainAccountRouter minimalRouter = new MinimalInterchainAccountRouter(
+                address(localMailbox),
+                address(noopHook),
+                address(this)
+            );
+        (bytes1 command, bytes memory input) = _cmdCallRemoteWithOverrides(
+            address(minimalRouter),
+            DESTINATION,
+            bytes32(uint256(0xbeef)),
+            bytes32(uint256(0x1234)),
+            _singleRemoteCall(hex"123456"),
+            StandardHookMetadata.format(0, GAS_LIMIT, address(quotedCalls)),
+            bytes32(uint256(0x5678)),
+            0,
+            address(0),
+            0
+        );
+        bytes1[] memory cmds = new bytes1[](1);
+        bytes[] memory ins = new bytes[](1);
+        cmds[0] = command;
+        ins[0] = input;
+        (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+        uint32 nonceBefore = localMailbox.nonce();
+
+        Quote[][] memory results = quotedCalls.quoteExecute(commands, inputs);
+        assertEq(results[0][0].amount, 0);
+        quotedCalls.execute(commands, inputs);
+
+        assertEq(localMailbox.nonce(), nonceBefore + 1);
+    }
+
+    function test_quoteExecute_callRemoteWithOverrides_erc20ExactInputs()
+        public
+    {
+        (
+            InterchainAccountRouter icaRouter,
+            QuotedCallsERC20FeeHook feeHook
+        ) = _deployQuotedCallsFeeRouter();
+        bytes32 targetRouter = bytes32(uint256(0xbeef));
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT,
+            address(quotedCalls),
+            address(primaryToken)
+        );
+        CallLib.Call[] memory remoteCalls = _singleRemoteCall(hex"123456");
+
+        (bytes1 command, bytes memory input) = _cmdCallRemoteWithOverrides(
+            address(icaRouter),
+            DESTINATION,
+            targetRouter,
+            bytes32(uint256(0x1234)),
+            remoteCalls,
+            hookMetadata,
+            bytes32(uint256(0x5678)),
+            0,
+            address(primaryToken),
+            0
+        );
+        uint256 fee = _quoteSingleCommand(command, input);
+        (, input) = _cmdCallRemoteWithOverrides(
+            address(icaRouter),
+            DESTINATION,
+            targetRouter,
+            bytes32(uint256(0x1234)),
+            remoteCalls,
+            hookMetadata,
+            bytes32(uint256(0x5678)),
+            0,
+            address(primaryToken),
+            fee
+        );
+
+        uint256 callerBalanceBefore = primaryToken.balanceOf(address(this));
+        assertEq(icaRouter.routers(DESTINATION), bytes32(0));
+        _executeExactErc20IcaCommand(command, input, fee);
+
+        assertEq(
+            primaryToken.balanceOf(address(this)),
+            callerBalanceBefore - fee
+        );
+        assertEq(primaryToken.balanceOf(address(feeHook)), fee);
+        assertEq(primaryToken.balanceOf(address(quotedCalls)), 0);
+        assertEq(primaryToken.balanceOf(address(icaRouter)), 0);
+        assertEq(feeHook.dispatchCount(), 1);
+        assertEq(feeHook.totalFees(), fee);
+        assertEq(feeHook.lastRecipient(), targetRouter);
+    }
+
+    function test_quoteExecute_callRemoteCommitReveal_erc20ExactInputs()
+        public
+    {
+        (
+            InterchainAccountRouter icaRouter,
+            QuotedCallsERC20FeeHook feeHook
+        ) = _deployQuotedCallsFeeRouter();
+        // Ensure quote and execution both honor the command's custom hook,
+        // rather than silently using the router's configured hook.
+        icaRouter.setHook(address(noopHook));
+        bytes32 targetRouter = bytes32(uint256(0xbeef));
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT,
+            address(quotedCalls),
+            address(primaryToken)
+        );
+
+        (bytes1 command, bytes memory input) = _cmdCallRemoteCommitReveal(
+            address(icaRouter),
+            DESTINATION,
+            targetRouter,
+            bytes32(uint256(0x1234)),
+            hookMetadata,
+            address(feeHook),
+            bytes32(uint256(0x5678)),
+            keccak256("commitment"),
+            0,
+            address(primaryToken),
+            0
+        );
+        uint256 fee = _quoteSingleCommand(command, input);
+        (, input) = _cmdCallRemoteCommitReveal(
+            address(icaRouter),
+            DESTINATION,
+            targetRouter,
+            bytes32(uint256(0x1234)),
+            hookMetadata,
+            address(feeHook),
+            bytes32(uint256(0x5678)),
+            keccak256("commitment"),
+            0,
+            address(primaryToken),
+            fee
+        );
+
+        uint256 callerBalanceBefore = primaryToken.balanceOf(address(this));
+        assertEq(icaRouter.routers(DESTINATION), bytes32(0));
+        _executeExactErc20IcaCommand(command, input, fee);
+
+        assertEq(
+            primaryToken.balanceOf(address(this)),
+            callerBalanceBefore - fee
+        );
+        assertEq(primaryToken.balanceOf(address(feeHook)), fee);
+        assertEq(primaryToken.balanceOf(address(quotedCalls)), 0);
+        assertEq(primaryToken.balanceOf(address(icaRouter)), 0);
+        assertEq(feeHook.dispatchCount(), 2);
+        assertEq(feeHook.totalFees(), fee);
+        assertEq(feeHook.lastRecipient(), targetRouter);
+    }
+
+    function test_quoteExecute_callRemoteWithOverrides_bindsExecutionInputs()
+        public
+    {
+        (InterchainAccountRouter icaRouter, ) = _deployQuotedCallsFeeRouter();
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT,
+            address(quotedCalls),
+            address(primaryToken)
+        );
+        CallLib.Call[] memory remoteCalls = _singleRemoteCall(hex"123456");
+        bytes32 targetRouter = bytes32(uint256(0xbeef));
+        bytes32 ism = bytes32(uint256(0x1234));
+        bytes32 salt = bytes32(uint256(0x5678));
+        uint256 baseQuote = _quoteCallRemoteWithOverrides(
+            icaRouter,
+            targetRouter,
+            ism,
+            remoteCalls,
+            hookMetadata,
+            salt
+        );
+
+        assertNotEq(
+            _quoteCallRemoteWithOverrides(
+                icaRouter,
+                bytes32(uint256(0xcafe)),
+                ism,
+                remoteCalls,
+                hookMetadata,
+                salt
+            ),
+            baseQuote
+        );
+        assertNotEq(
+            _quoteCallRemoteWithOverrides(
+                icaRouter,
+                targetRouter,
+                bytes32(uint256(0x9999)),
+                remoteCalls,
+                hookMetadata,
+                salt
+            ),
+            baseQuote
+        );
+        assertNotEq(
+            _quoteCallRemoteWithOverrides(
+                icaRouter,
+                targetRouter,
+                ism,
+                _singleRemoteCall(hex"abcdef"),
+                hookMetadata,
+                salt
+            ),
+            baseQuote
+        );
+        assertNotEq(
+            _quoteCallRemoteWithOverrides(
+                icaRouter,
+                targetRouter,
+                ism,
+                remoteCalls,
+                StandardHookMetadata.formatWithFeeToken(
+                    0,
+                    GAS_LIMIT + 1,
+                    address(quotedCalls),
+                    address(primaryToken)
+                ),
+                salt
+            ),
+            baseQuote
+        );
+        assertNotEq(
+            _quoteCallRemoteWithOverrides(
+                icaRouter,
+                targetRouter,
+                ism,
+                remoteCalls,
+                hookMetadata,
+                bytes32(uint256(0x7777))
+            ),
+            baseQuote
+        );
+
+        vm.startPrank(ALICE);
+        uint256 otherOwnerQuote = _quoteCallRemoteWithOverrides(
+            icaRouter,
+            targetRouter,
+            ism,
+            remoteCalls,
+            hookMetadata,
+            salt
+        );
+        vm.stopPrank();
+        assertNotEq(otherOwnerQuote, baseQuote);
+    }
+
+    function test_quoteExecute_callRemoteCommitReveal_bindsExecutionInputs()
+        public
+    {
+        (
+            InterchainAccountRouter icaRouter,
+            QuotedCallsERC20FeeHook feeHook
+        ) = _deployQuotedCallsFeeRouter();
+        icaRouter.setHook(address(noopHook));
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT,
+            address(quotedCalls),
+            address(primaryToken)
+        );
+        bytes32 targetRouter = bytes32(uint256(0xbeef));
+        bytes32 ism = bytes32(uint256(0x1234));
+        bytes32 salt = bytes32(uint256(0x5678));
+        bytes32 commitment = keccak256("commitment");
+        uint256 baseQuote = _quoteCallRemoteCommitReveal(
+            icaRouter,
+            feeHook,
+            targetRouter,
+            ism,
+            hookMetadata,
+            salt,
+            commitment
+        );
+
+        assertNotEq(
+            _quoteCallRemoteCommitReveal(
+                icaRouter,
+                feeHook,
+                bytes32(uint256(0xcafe)),
+                ism,
+                hookMetadata,
+                salt,
+                commitment
+            ),
+            baseQuote
+        );
+        assertNotEq(
+            _quoteCallRemoteCommitReveal(
+                icaRouter,
+                feeHook,
+                targetRouter,
+                bytes32(uint256(0x9999)),
+                hookMetadata,
+                salt,
+                commitment
+            ),
+            baseQuote
+        );
+        assertNotEq(
+            _quoteCallRemoteCommitReveal(
+                icaRouter,
+                feeHook,
+                targetRouter,
+                ism,
+                StandardHookMetadata.formatWithFeeToken(
+                    0,
+                    GAS_LIMIT + 1,
+                    address(quotedCalls),
+                    address(primaryToken)
+                ),
+                salt,
+                commitment
+            ),
+            baseQuote
+        );
+        assertNotEq(
+            _quoteCallRemoteCommitReveal(
+                icaRouter,
+                feeHook,
+                targetRouter,
+                ism,
+                hookMetadata,
+                bytes32(uint256(0x7777)),
+                commitment
+            ),
+            baseQuote
+        );
+        assertNotEq(
+            _quoteCallRemoteCommitReveal(
+                icaRouter,
+                feeHook,
+                targetRouter,
+                ism,
+                hookMetadata,
+                salt,
+                keccak256("other commitment")
+            ),
+            baseQuote
+        );
+
+        vm.startPrank(ALICE);
+        uint256 otherOwnerQuote = _quoteCallRemoteCommitReveal(
+            icaRouter,
+            feeHook,
+            targetRouter,
+            ism,
+            StandardHookMetadata.formatWithFeeToken(
+                0,
+                GAS_LIMIT,
+                address(quotedCalls),
+                address(primaryToken)
+            ),
+            salt,
+            commitment
+        );
+        vm.stopPrank();
+        assertNotEq(otherOwnerQuote, baseQuote);
+    }
+
+    function test_execute_callRemoteWithOverrides_erc20UnderfundRevertsAtomically()
+        public
+    {
+        (
+            InterchainAccountRouter icaRouter,
+            QuotedCallsERC20FeeHook feeHook
+        ) = _deployQuotedCallsFeeRouter();
+        uint256 callerBalanceBefore = primaryToken.balanceOf(address(this));
+        uint32 nonceBefore = localMailbox.nonce();
+        {
+            bytes1[] memory cmds = new bytes1[](2);
+            bytes[] memory ins = new bytes[](2);
+            bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+                0,
+                GAS_LIMIT,
+                address(quotedCalls),
+                address(primaryToken)
+            );
+            CallLib.Call[] memory remoteCalls = _singleRemoteCall(hex"123456");
+            (bytes1 command, bytes memory input) = _cmdCallRemoteWithOverrides(
+                address(icaRouter),
+                DESTINATION,
+                bytes32(uint256(0xbeef)),
+                bytes32(uint256(0x1234)),
+                remoteCalls,
+                hookMetadata,
+                bytes32(uint256(0x5678)),
+                0,
+                address(primaryToken),
+                0
+            );
+            uint256 fee = _quoteSingleCommand(command, input);
+            (, input) = _cmdCallRemoteWithOverrides(
+                address(icaRouter),
+                DESTINATION,
+                bytes32(uint256(0xbeef)),
+                bytes32(uint256(0x1234)),
+                remoteCalls,
+                hookMetadata,
+                bytes32(uint256(0x5678)),
+                0,
+                address(primaryToken),
+                fee
+            );
+            (cmds[0], ins[0]) = _cmdTransferFrom(
+                address(primaryToken),
+                fee - 1
+            );
+            cmds[1] = command;
+            ins[1] = input;
+            (bytes memory commands, bytes[] memory inputs) = _pack(cmds, ins);
+            primaryToken.approve(address(quotedCalls), fee - 1);
+
+            vm.expectRevert("ERC20: transfer amount exceeds balance");
+            quotedCalls.execute(commands, inputs);
+        }
+
+        assertEq(primaryToken.balanceOf(address(this)), callerBalanceBefore);
+        assertEq(primaryToken.balanceOf(address(quotedCalls)), 0);
+        assertEq(primaryToken.balanceOf(address(icaRouter)), 0);
+        assertEq(primaryToken.balanceOf(address(feeHook)), 0);
+        assertEq(feeHook.dispatchCount(), 0);
+        assertEq(localMailbox.nonce(), nonceBefore);
+        assertEq(
+            primaryToken.allowance(address(quotedCalls), address(icaRouter)),
+            0
+        );
+        assertEq(
+            primaryToken.allowance(address(icaRouter), address(feeHook)),
+            0
+        );
     }
 
     /// @dev quoteExecute skips TRANSFER_FROM, PERMIT2, and SWEEP commands

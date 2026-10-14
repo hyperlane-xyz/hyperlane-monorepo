@@ -57,6 +57,13 @@ describe(createChainMetadataResolver.name, () => {
     );
   });
 
+  it('lists the unique known domain ids', () => {
+    const resolver = createChainMetadataResolver(metadata);
+    expect(resolver.getKnownDomainIds()).to.deep.equal(
+      new Set([1, 11155111, 118]),
+    );
+  });
+
   it('does not mishandle non-numeric chain ids', () => {
     const resolver = createChainMetadataResolver(metadata);
     expect(resolver.tryGetChainMetadata('cosmoshub-4')).to.equal(

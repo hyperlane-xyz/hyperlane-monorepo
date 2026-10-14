@@ -36,6 +36,7 @@ const chainLookup: ChainLookup = {
     return null;
   },
   getKnownChainNames: () => ['ethereum', 'polygon'],
+  getKnownDomainIds: () => new Set([1, 137]),
 };
 
 const rawParams = (maxFee: string, halfAmount: string): FeeParams => ({

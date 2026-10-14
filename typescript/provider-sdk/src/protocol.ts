@@ -1,4 +1,4 @@
-import { assert } from '@hyperlane-xyz/utils';
+import { type NonEmptyArray, assert } from '@hyperlane-xyz/utils';
 
 import { IProvider, ISigner } from './altvm.js';
 import type { ChainMetadataForAltVM } from './chain.js';
@@ -44,10 +44,14 @@ export interface ProtocolProvider {
    * that handle ISM operations using the Artifact API pattern.
    *
    * @param chainMetadata Chain metadata for the target chain
+   * @param context Optional context. `knownDomainIds` lists the origin domains a
+   * reader should probe for ISMs that hold per-domain state which cannot be
+   * enumerated from chain (e.g. routingMessageIdMultisigIsm)
    * @returns A protocol-specific ISM artifact manager
    */
   createIsmArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
+    context?: { knownDomainIds?: NonEmptyArray<number> },
   ): IRawIsmArtifactManager;
 
   /**

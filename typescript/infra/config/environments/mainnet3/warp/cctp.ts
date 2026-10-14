@@ -104,7 +104,6 @@ export const usdcTokenAddresses = {
   tron: 'TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8',
   unichain: '0x078D782b760474a361dDA0AF3839290b0EF57AD6',
   worldchain: '0x79A02482A880bCE3F13e09Da970dC34db4CD24d1',
-  zksync: '0x1d17CBcF0D6D143135aE902365D2E5e2A16538D4',
   solanamainnet: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
   starknet:
     '0x053C91253BC9682c04929cA02ED00b3E423f6710D2ee7e0D5EBB06F3eCF368A8',

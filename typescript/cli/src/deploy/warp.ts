@@ -49,6 +49,7 @@ import {
   type HypTokenRouterConfig,
   type ProtocolTransaction,
   type RoutingIsmConfig,
+  type RoutingMessageIdMultisigIsmConfig,
   type SubmissionStrategy,
   type SubmitterMetadata,
   type TokenMetadataMap,
@@ -67,6 +68,7 @@ import {
   assertDelayedFlowRoutePreconditions,
   buildDelayedFlowEnrollmentTxs,
   deriveDelayedFlowEnrollmentTargets,
+  deriveCctpDomains,
   enrollCrossChainRouters,
   executeWarpDeploy,
   executeWarpRouteExtensionDeploy,
@@ -908,6 +910,10 @@ async function updateExistingWarpRoute(
     warpDeployConfig,
     deployedRoutersAddresses,
   });
+  const cctpDomains = await deriveCctpDomains(
+    multiProvider,
+    expandedWarpDeployConfig,
+  );
 
   await promiseObjAll(
     objMap(expandedWarpDeployConfig, async (chain, config) => {
@@ -952,7 +958,11 @@ async function updateExistingWarpRoute(
               ownershipTxs,
               hybridIsm,
               removesDelayedFlowRouter,
-            } = await evmERC20WarpModule.updatePhases(configWithMailbox);
+            } = await evmERC20WarpModule.updatePhases(
+              configWithMailbox,
+              undefined,
+              cctpDomains,
+            );
             updateTransactions[chain] = txs;
             feeUpdateTransactions[chain] = feeTxs;
             ownershipTransactions[chain] = ownershipTxs;
@@ -1141,7 +1151,8 @@ type IsmDisplayConfig =
   | OpStackIsmConfig // type, origin, nativeBridge
   | PausableIsmConfig // type, owner, paused, ownerOverrides
   | TrustedRelayerIsmConfig // type, relayer
-  | CompositeIsmConfig; // type, owner, root (Sealevel-only)
+  | CompositeIsmConfig // type, owner, root (Sealevel-only)
+  | RoutingMessageIdMultisigIsmConfig; // type, owner, domains (Sealevel-only)
 
 export function transformDeployConfigForDisplay(
   deployConfig: WarpRouteDeployConfigMailboxRequired,
@@ -1254,6 +1265,19 @@ function transformIsmConfigForDisplay(
           Root: 'See table(s) below.',
         },
         ...transformCompositeIsmNodeForDisplay(ismConfig.root),
+      ];
+    case IsmType.ROUTING_MESSAGE_ID_MULTISIG:
+      return [
+        {
+          Type: ismConfig.type,
+          Owner: ismConfig.owner,
+          Domains: 'See table(s) below.',
+        },
+        ...Object.entries(ismConfig.domains).map(([chain, domain]) => ({
+          Path: `domains.${chain}`,
+          Validators: domain.validators,
+          Threshold: domain.threshold,
+        })),
       ];
     default:
       return [ismConfig];

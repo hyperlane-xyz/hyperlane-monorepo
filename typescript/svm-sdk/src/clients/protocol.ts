@@ -20,7 +20,7 @@ import type {
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import { type IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
-import { assert } from '@hyperlane-xyz/utils';
+import { type NonEmptyArray, assert } from '@hyperlane-xyz/utils';
 import { address as parseAddress } from '@solana/kit';
 
 import { type IRawMailboxArtifactManager } from '@hyperlane-xyz/provider-sdk/mailbox';
@@ -88,9 +88,10 @@ export class SvmProtocolProvider implements ProtocolProvider {
 
   createIsmArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
+    context?: { knownDomainIds?: NonEmptyArray<number> },
   ): IRawIsmArtifactManager {
     const rpc = createRpc(this.getRpcUrl(chainMetadata));
-    return new SvmIsmArtifactManager(rpc);
+    return new SvmIsmArtifactManager(rpc, context?.knownDomainIds);
   }
 
   createHookArtifactManager(

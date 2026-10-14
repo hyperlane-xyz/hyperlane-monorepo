@@ -10,6 +10,7 @@ import type {
   IRawIsmArtifactManager,
   RawIsmArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/ism';
+import { type NonEmptyArray, assert } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
@@ -20,10 +21,23 @@ import {
   SvmCompositeIsmWriter,
 } from './composite-ism.js';
 import { detectIsmType } from './ism-query.js';
+import {
+  SvmRoutingMessageIdMultisigIsmReader,
+  SvmRoutingMessageIdMultisigIsmWriter,
+} from './multisig-ism.js';
 import { SvmTestIsmReader, SvmTestIsmWriter } from './test-ism.js';
 
+const UNSUPPORTED_FLAT_MULTISIG_MESSAGE = `${IsmType.MESSAGE_ID_MULTISIG} is unsupported on SVM: the program stores validators and threshold per origin domain, use ${IsmType.ROUTING_MESSAGE_ID_MULTISIG} instead`;
+
 export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
-  constructor(private readonly rpc: SvmRpc) {}
+  /**
+   * @param knownDomainIds Candidate origin domains probed when reading a
+   * routingMessageIdMultisigIsm, whose per-domain accounts can't be enumerated.
+   */
+  constructor(
+    private readonly rpc: SvmRpc,
+    private readonly knownDomainIds?: NonEmptyArray<number>,
+  ) {}
 
   async readIsm(address: string): Promise<DeployedRawIsmArtifact> {
     const programId = parseAddress(address);
@@ -44,11 +58,18 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
     } = {
       testIsm: () => new SvmTestIsmReader(this.rpc),
       compositeIsm: () => new SvmCompositeIsmReader(this.rpc),
-      // FIXME: SVM multisig ISM has a completely different shape from other msig ISMs
-      messageIdMultisigIsm: () => {
-        throw new Error(
-          'Multisig ISM reading not supported via artifact manager on SVM (different config shape). Use SvmMessageIdMultisigIsmReader directly.',
+      routingMessageIdMultisigIsm: () => {
+        assert(
+          this.knownDomainIds,
+          'routingMessageIdMultisigIsm requires known domain ids',
         );
+        return new SvmRoutingMessageIdMultisigIsmReader(
+          this.rpc,
+          this.knownDomainIds,
+        );
+      },
+      messageIdMultisigIsm: () => {
+        throw new Error(UNSUPPORTED_FLAT_MULTISIG_MESSAGE);
       },
     };
     const factory = readers[type];
@@ -80,11 +101,22 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
           this.rpc,
           signer,
         ),
-      // FIXME: SVM multisig ISM has a completely different shape from other msig ISMs
-      messageIdMultisigIsm: () => {
-        throw new Error(
-          'Multisig ISM deployment not supported via artifact manager on SVM (different config shape). Use SvmMessageIdMultisigIsmWriter directly.',
+      routingMessageIdMultisigIsm: () => {
+        assert(
+          this.knownDomainIds,
+          'routingMessageIdMultisigIsm requires known domain ids',
         );
+        return new SvmRoutingMessageIdMultisigIsmWriter(
+          {
+            program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.multisigIsm },
+          },
+          this.rpc,
+          signer,
+          this.knownDomainIds,
+        );
+      },
+      messageIdMultisigIsm: () => {
+        throw new Error(UNSUPPORTED_FLAT_MULTISIG_MESSAGE);
       },
     };
     const factory = writers[type];
@@ -96,8 +128,8 @@ export class SvmIsmArtifactManager implements IRawIsmArtifactManager {
     switch (ismType) {
       case IsmType.TEST_ISM:
         return 'testIsm';
-      case IsmType.MESSAGE_ID_MULTISIG:
-        return 'messageIdMultisigIsm';
+      case IsmType.ROUTING_MESSAGE_ID_MULTISIG:
+        return 'routingMessageIdMultisigIsm';
       case IsmType.COMPOSITE:
         return 'compositeIsm';
       default:

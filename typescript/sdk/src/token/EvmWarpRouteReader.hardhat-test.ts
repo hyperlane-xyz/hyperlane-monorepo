@@ -2,6 +2,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
 import sinon from 'sinon';
+import { ethers } from 'ethers';
 import { zeroAddress } from 'viem';
 
 import {
@@ -1508,6 +1509,17 @@ describe('EvmWarpRouteReader', async () => {
     // The legacy path converts a single uint256 scale() return to { numerator: bigint, denominator: 1n }.
 
     describe('fetchScale', () => {
+      // Returns the scale from any call; the trailing (unreachable) selector
+      // makes the reader's bytecode selector check see a scale() getter.
+      function legacyScaleBytecode(encodedScale: string): string {
+        const scaleSelector = new ethers.utils.Interface([
+          'function scale() view returns (uint256)',
+        ])
+          .getSighash('scale()')
+          .slice(2);
+        return `0x7f${encodedScale}60005260206000f3${scaleSelector}`;
+      }
+
       it('should return undefined for contracts before scaling was introduced (< 6.0.0)', async () => {
         const config: WarpRouteDeployConfigMailboxRequired = {
           [chain]: {
@@ -1539,7 +1551,7 @@ describe('EvmWarpRouteReader', async () => {
         // Deploy a minimal contract that returns expectedScale for scale()
         // Bytecode: PUSH32 <value> PUSH1 0x00 MSTORE PUSH1 0x20 PUSH1 0x00 RETURN
         const encodedScale = expectedScale.toString(16).padStart(64, '0');
-        const runtimeBytecode = `0x7f${encodedScale}60005260206000f3`;
+        const runtimeBytecode = legacyScaleBytecode(encodedScale);
         const mockAddress = '0x' + 'ab'.repeat(20);
         await hre.network.provider.send('hardhat_setCode', [
           mockAddress,
@@ -1555,6 +1567,24 @@ describe('EvmWarpRouteReader', async () => {
           numerator: expectedScale,
           denominator: 1n,
         });
+
+        fetchPackageVersionStub.restore();
+      });
+
+      it('should return undefined when legacy scale() is missing on a >= 6.0.0 contract', async () => {
+        // Bytecode: PUSH1 0x00 PUSH1 0x00 REVERT (empty revert data)
+        const mockAddress = '0x' + 'ad'.repeat(20);
+        await hre.network.provider.send('hardhat_setCode', [
+          mockAddress,
+          '0x60006000fd',
+        ]);
+
+        const fetchPackageVersionStub = sinon
+          .stub(evmERC20WarpRouteReader, 'fetchPackageVersion')
+          .resolves('8.0.0');
+
+        const result = await evmERC20WarpRouteReader.fetchScale(mockAddress);
+        expect(result).to.be.undefined;
 
         fetchPackageVersionStub.restore();
       });
@@ -1591,7 +1621,7 @@ describe('EvmWarpRouteReader', async () => {
         const expectedScale = 500n;
 
         const encodedScale = expectedScale.toString(16).padStart(64, '0');
-        const runtimeBytecode = `0x7f${encodedScale}60005260206000f3`;
+        const runtimeBytecode = legacyScaleBytecode(encodedScale);
         const mockAddress = '0x' + 'ac'.repeat(20);
         await hre.network.provider.send('hardhat_setCode', [
           mockAddress,
@@ -1649,7 +1679,7 @@ describe('EvmWarpRouteReader', async () => {
         const identityScale = 1n;
 
         const encodedScale = identityScale.toString(16).padStart(64, '0');
-        const runtimeBytecode = `0x7f${encodedScale}60005260206000f3`;
+        const runtimeBytecode = legacyScaleBytecode(encodedScale);
         const mockAddress = '0x' + 'ad'.repeat(20);
         await hre.network.provider.send('hardhat_setCode', [
           mockAddress,

@@ -9,7 +9,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use ethers::types::H256;
+use ethers::types::{H160, H256};
 use hyperlane_core::HyperlaneMessage;
 use migration::MigratorTrait;
 use sea_orm::{ConnectionTrait, Database, DbBackend, Statement, TransactionTrait};
@@ -20,6 +20,13 @@ use tokio::time::timeout;
 use super::*;
 use source::{Event, EventData};
 
+#[test]
+fn relative_index_start_resolves_from_the_tip() {
+    assert_eq!(resolve_index_from(-100, 1_000).unwrap(), 900);
+    assert_eq!(resolve_index_from(-2_000, 1_000).unwrap(), 0);
+    assert_eq!(resolve_index_from(123, 0).unwrap(), 123);
+}
+
 struct Chain {
     headers: Mutex<BTreeMap<u64, Header>>,
     fail_logs: Mutex<bool>,
@@ -28,6 +35,7 @@ struct Chain {
     ranges: Mutex<Vec<(u64, u64)>>,
     reorg_during_logs: Mutex<bool>,
     wrong_log_hash: Mutex<bool>,
+    idle_sequence: AtomicBool,
 }
 
 impl Chain {
@@ -40,6 +48,7 @@ impl Chain {
             ranges: Mutex::new(Vec::new()),
             reorg_during_logs: Mutex::new(false),
             wrong_log_hash: Mutex::new(false),
+            idle_sequence: AtomicBool::new(false),
         };
         chain.fork(height, 0, 0);
         chain
@@ -71,21 +80,21 @@ impl Chain {
 
 #[async_trait]
 impl Source for Chain {
-    async fn counts(&self, hash: H256) -> Result<[u32; 2]> {
+    async fn counts(&self, hash: H256) -> Result<Option<[u32; 2]>> {
         let headers = self.headers.lock().unwrap();
         let header = headers
             .values()
-            .find(|h| h.hash == hash)
+            .find(|header| header.hash == hash)
             .ok_or_else(|| eyre::eyre!("Unknown fork"))?;
-        Ok([u32::from(header.height >= 2); 2])
+        Ok(Some([u32::from(header.height >= 2); 2]))
     }
 
-    async fn header(&self, block: BlockNumber) -> Result<Header> {
+    async fn header(&self, block: BlockSelector) -> Result<Header> {
         self.header_calls.fetch_add(1, Ordering::Relaxed);
         let headers = self.headers.lock().unwrap();
         let header = match block {
-            BlockNumber::Number(height) => headers.get(&height.as_u64()),
-            BlockNumber::Safe | BlockNumber::Finalized => {
+            BlockSelector::Height(height) => headers.get(&height),
+            BlockSelector::Safe | BlockSelector::Finalized => {
                 ensure!(!*self.fail_tag.lock().unwrap(), "Tag unavailable");
                 headers.last_key_value().map(|(_, header)| header)
             }
@@ -121,15 +130,15 @@ impl Source for Chain {
         };
         Ok(vec![
             EventData::Dispatch(message),
-            EventData::Delivery(header.hash),
+            EventData::Delivery(header.hash.into()),
             EventData::Gas {
-                message_id: header.hash,
+                message_id: header.hash.into(),
                 destination: 1,
                 gas: "100".into(),
                 payment: "10".into(),
             },
             EventData::Insertion {
-                message_id: header.hash,
+                message_id: header.hash.into(),
                 index: 0,
             },
         ]
@@ -142,26 +151,42 @@ impl Source for Chain {
             } else {
                 header.hash
             },
-            address: H160::repeat_byte(1),
-            tx_hash: header.hash,
+            address: H160::repeat_byte(1).into(),
+            tx_hash: Some(header.hash.into()),
             tx_index: 0,
             log_index: u64::try_from(index).unwrap(),
+            sequence: None,
             data,
         })
         .collect())
+    }
+
+    fn indexes_by_sequence(&self) -> bool {
+        self.idle_sequence.load(Ordering::Relaxed)
+    }
+
+    async fn indexing_tip(&self) -> Result<Option<u64>> {
+        Ok(self
+            .idle_sequence
+            .load(Ordering::Relaxed)
+            .then(|| *self.headers.lock().unwrap().last_key_value().unwrap().0))
+    }
+
+    async fn has_events_after(&self, _sequences: [u32; 4]) -> Result<Option<bool>> {
+        Ok(self.idle_sequence.load(Ordering::Relaxed).then_some(false))
     }
 }
 
 fn contracts() -> Contracts {
     Contracts {
-        mailbox: H160::repeat_byte(1),
-        hook: H160::repeat_byte(1),
-        paymaster: H160::repeat_byte(1),
+        mailbox: H160::repeat_byte(1).into(),
+        hook: H160::repeat_byte(1).into(),
+        paymaster: H160::repeat_byte(1).into(),
     }
 }
 
 /// Model the explicit operator acknowledgement used by legacy cutover fixtures.
-async fn seed_verified_cutover(store: &Store, anchor: &Header) -> Result<()> {
+async fn seed_cutover(store: &Store, anchor: &Header) -> Result<()> {
     let tx = store.db.begin().await?;
     let contracts = contracts();
     let domain = i32::from_ne_bytes(store.domain.to_ne_bytes());
@@ -174,7 +199,7 @@ async fn seed_verified_cutover(store: &Store, anchor: &Header) -> Result<()> {
     tx.execute(Statement::from_sql_and_values(
         DbBackend::Postgres,
         "INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster) VALUES($1,$2,$2,$3,$2,$2,$4,$5,$6)",
-        [domain.into(), height.into(), anchor.hash.as_bytes().to_vec().into(), contracts.mailbox.as_bytes().to_vec().into(), contracts.hook.as_bytes().to_vec().into(), contracts.paymaster.as_bytes().to_vec().into()],
+        [domain.into(), height.into(), anchor.hash.as_bytes().to_vec().into(), hyperlane_core::address_to_bytes(&contracts.mailbox).into(), hyperlane_core::address_to_bytes(&contracts.hook).into(), hyperlane_core::address_to_bytes(&contracts.paymaster).into()],
     )).await?;
     tx.execute(Statement::from_sql_and_values(
         DbBackend::Postgres,
@@ -212,7 +237,7 @@ async fn checkpoint_migration_backfills_an_existing_frontier() -> Result<()> {
     ))
     .await?;
     migration::Migrator::up(&db, None).await?;
-    migration::Migrator::down(&db, Some(2)).await?;
+    migration::Migrator::down(&db, Some(4)).await?;
     db.execute_unprepared(
         r#"
         INSERT INTO block(domain,height,hash,timestamp) VALUES
@@ -251,7 +276,7 @@ async fn checkpoint_migration_backfills_an_existing_frontier() -> Result<()> {
         .db
         .execute_unprepared("DELETE FROM block WHERE domain=1 AND height=8")
         .await?;
-    migration::Migrator::down(&store.db, Some(1)).await?;
+    migration::Migrator::down(&store.db, Some(4)).await?;
     let restored_confirmed = store
         .db
         .query_one(Statement::from_string(
@@ -282,7 +307,7 @@ async fn checkpoint_migration_rejects_a_missing_indexed_boundary() -> Result<()>
     ))
     .await?;
     migration::Migrator::up(&db, None).await?;
-    migration::Migrator::down(&db, Some(2)).await?;
+    migration::Migrator::down(&db, Some(4)).await?;
     db.execute_unprepared(
         r#"
         INSERT INTO block(domain,height,hash,timestamp)
@@ -319,7 +344,7 @@ async fn frontier_migration_preserves_legacy_null_heights_and_rolls_back() -> Re
     );
     let db = Database::connect(&url).await?;
     migration::Migrator::up(&db, None).await?;
-    migration::Migrator::down(&db, Some(1)).await?;
+    migration::Migrator::down(&db, Some(3)).await?;
     db.execute_unprepared(
         r#"
         INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,
@@ -351,7 +376,7 @@ async fn frontier_migration_preserves_legacy_null_heights_and_rolls_back() -> Re
     }
     let mut head_listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
     head_listener.listen("scraper_head").await?;
-    migration::Migrator::down(&db, Some(1)).await?;
+    migration::Migrator::down(&db, Some(3)).await?;
     for relation in ["delivered_message", "gas_payment"] {
         let row = db
             .query_one(Statement::from_string(
@@ -495,7 +520,7 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     assert_eq!(count(&store, "confirmed_merkle_tree_insertion").await?, 1);
     let chain = Chain::new(3);
     let anchor = chain.header(0u64.into()).await?;
-    seed_verified_cutover(&store, &anchor).await?;
+    seed_cutover(&store, &anchor).await?;
     store.initialize(&anchor, &contracts()).await?;
     store.claim(Duration::from_secs(60)).await?;
     store
@@ -739,7 +764,7 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     store.initialize(&anchor, &contracts()).await?;
     assert!(observe(&chain, &store).await.is_err());
     assert_eq!(count(&store, "confirmed_gas_payment").await?, 1);
-    migration::Migrator::down(&store.db, Some(1)).await?;
+    migration::Migrator::down(&store.db, Some(3)).await?;
     migration::Migrator::down(&store.db, Some(1)).await?;
     assert!(
         migration::Migrator::down(&store.db, Some(1)).await.is_err(),
@@ -772,10 +797,72 @@ async fn confirmation_bounds_temporary_checkpoints_without_scanning_blocks() -> 
     assert_eq!(row.try_get::<i64>("", "last")?, 10);
     assert!(row.try_get::<i64>("", "n")? <= 3);
     let blocks = count(&store, "block").await?;
+    chain.header_calls.store(0, Ordering::Relaxed);
     confirm(&chain, &store, &ReorgPeriod::from_blocks(0)).await?;
+    assert_eq!(chain.header_calls.load(Ordering::Relaxed), 2);
     assert_eq!(count(&store, "scraper_checkpoint").await?, 1);
     assert_eq!(store.checkpoint(10).await?, 10);
     assert_eq!(count(&store, "block").await?, blocks);
+    Ok(())
+}
+
+#[tokio::test]
+async fn idle_sequence_ingestion_advances_with_only_an_end_checkpoint() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let chain = Chain::new(10);
+    chain.idle_sequence.store(true, Ordering::Relaxed);
+    store
+        .initialize(&chain.header(0u64.into()).await?, &contracts())
+        .await?;
+    let state = observe(&chain, &store).await?;
+    chain.header_calls.store(0, Ordering::Relaxed);
+    let mut cache = CountCache::default();
+
+    assert!(!ingest_cached(&chain, &store, &state, 100, &mut cache).await?);
+    assert!(chain.ranges.lock().unwrap().is_empty());
+    assert_eq!(store.state().await?.unwrap().indexed, 10);
+    assert_eq!(count(&store, "scraper_checkpoint").await?, 2);
+    confirm(&chain, &store, &ReorgPeriod::from_blocks(0)).await?;
+    assert_eq!(store.state().await?.unwrap().confirmed, 10);
+    Ok(())
+}
+
+#[tokio::test]
+async fn confirmation_uses_retained_checkpoint_before_scanning_sparse_slots() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let chain = Chain::new(100);
+    store
+        .initialize(&chain.header(0u64.into()).await?, &contracts())
+        .await?;
+    ingest_head(&chain, &store).await?;
+    let checkpoint = chain.header(40u64.into()).await?;
+    store
+        .db
+        .execute(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "INSERT INTO scraper_checkpoint(domain,height,hash,timestamp) VALUES(1,40,$1,now())",
+            [checkpoint.hash.as_bytes().to_vec().into()],
+        ))
+        .await?;
+
+    chain.header_calls.store(0, Ordering::Relaxed);
+    confirm(&chain, &store, &ReorgPeriod::from_blocks(50)).await?;
+    assert_eq!(store.state().await?.unwrap().confirmed, 50);
+    assert_eq!(chain.header_calls.load(Ordering::Relaxed), 2);
     Ok(())
 }
 
@@ -925,12 +1012,16 @@ struct DenseChain {
 
 #[async_trait]
 impl Source for DenseChain {
-    async fn header(&self, number: BlockNumber) -> Result<Header> {
+    async fn header(&self, number: BlockSelector) -> Result<Header> {
         self.chain.header(number).await
     }
 
-    async fn counts(&self, hash: H256) -> Result<[u32; 2]> {
-        Ok(self.chain.counts(hash).await?.map(|count| count * 1001))
+    async fn counts(&self, hash: H256) -> Result<Option<[u32; 2]>> {
+        Ok(self
+            .chain
+            .counts(hash)
+            .await?
+            .map(|counts| counts.map(|count| count * 1001)))
     }
 
     async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
@@ -956,7 +1047,7 @@ impl Source for DenseChain {
                         message_id,
                     } => {
                         *leaf = index;
-                        *message_id = H256::from_low_u64_be(u64::from(index));
+                        *message_id = H256::from_low_u64_be(u64::from(index)).into();
                     }
                     _ => unreachable!(),
                 }
@@ -980,6 +1071,7 @@ async fn incomplete_sequences_retry_after_restart_and_dense_ranges_batch_atomica
     );
     let db = Database::connect(&url).await?;
     migration::Migrator::up(&db, None).await?;
+    migration::indexes::create_indexes(&db).await?;
     let store = Store { db, domain: 1 };
     let source = DenseChain {
         chain: Chain::new(3),
@@ -1073,7 +1165,7 @@ async fn incomplete_sequences_retry_after_restart_and_dense_ranges_batch_atomica
         .unwrap();
     assert!(index
         .try_get::<String>("", "indexdef")?
-        .contains("WHERE (block_hash IS NOT NULL)"));
+        .contains("transaction_hash"));
     Ok(())
 }
 
@@ -1142,7 +1234,7 @@ async fn receipt_timeouts_do_not_starve_cached_neighbors_across_sweeps() -> Resu
         .unwrap()
         .clone();
     poison.log_index = 99;
-    poison.tx_hash = H256::repeat_byte(99);
+    poison.tx_hash = Some(H256::repeat_byte(99).into());
     events.push(poison);
     store
         .append(&state, &[(chain.header(2u64.into()).await?, events)])
@@ -1206,13 +1298,13 @@ struct CountedChain {
 
 #[async_trait]
 impl Source for CountedChain {
-    async fn header(&self, block: BlockNumber) -> Result<Header> {
+    async fn header(&self, block: BlockSelector) -> Result<Header> {
         self.chain.header(block).await
     }
     async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
         self.chain.events(from, through).await
     }
-    async fn counts(&self, hash: H256) -> Result<[u32; 2]> {
+    async fn counts(&self, hash: H256) -> Result<Option<[u32; 2]>> {
         self.calls.lock().unwrap().push(hash);
         ensure!(
             *self.unavailable.lock().unwrap() != Some(hash),
@@ -1222,8 +1314,110 @@ impl Source for CountedChain {
     }
 }
 
+struct TailGapChain {
+    chain: Chain,
+    unavailable: Mutex<Option<H256>>,
+    drop_tail_once: AtomicBool,
+}
+
+#[async_trait]
+impl Source for TailGapChain {
+    async fn header(&self, block: BlockSelector) -> Result<Header> {
+        self.chain.header(block).await
+    }
+
+    async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
+        let mut events = self.chain.events(from, through).await?;
+        if (from..=through).contains(&2) && self.drop_tail_once.swap(false, Ordering::Relaxed) {
+            events.retain(|event| !matches!(event.data, EventData::Insertion { index: 0, .. }));
+        }
+        if (from..=through).contains(&3) {
+            let header = self.chain.header(3u64.into()).await?;
+            events.push(Event {
+                block_number: 3,
+                block_hash: header.hash,
+                address: H160::repeat_byte(1).into(),
+                tx_hash: Some(header.hash.into()),
+                tx_index: 0,
+                log_index: 0,
+                sequence: None,
+                data: EventData::Insertion {
+                    message_id: header.hash.into(),
+                    index: 1,
+                },
+            });
+        }
+        Ok(events)
+    }
+
+    async fn counts(&self, hash: H256) -> Result<Option<[u32; 2]>> {
+        ensure!(
+            *self.unavailable.lock().unwrap() != Some(hash),
+            "State unavailable"
+        );
+        let height = self
+            .chain
+            .headers
+            .lock()
+            .unwrap()
+            .values()
+            .find(|header| header.hash == hash)
+            .map(|header| header.height)
+            .ok_or_else(|| eyre::eyre!("Unknown fork"))?;
+        Ok(Some([
+            u32::from(height >= 2),
+            match height {
+                0 | 1 => 0,
+                2 => 1,
+                _ => 2,
+            },
+        ]))
+    }
+}
+
 #[tokio::test]
-async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Result<()> {
+async fn pinned_counts_retry_after_fallback_commits_a_dropped_tail() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let source = TailGapChain {
+        chain: Chain::new(3),
+        unavailable: Mutex::new(None),
+        drop_tail_once: AtomicBool::new(true),
+    };
+    store
+        .initialize(&source.header(0u64.into()).await?, &contracts())
+        .await?;
+    let pruned = source.header(2u64.into()).await?.hash;
+    *source.unavailable.lock().unwrap() = Some(pruned);
+    let mut cache = CountCache::default();
+
+    let state = observe(&source, &store).await?;
+    ingest_cached(&source, &store, &state, 2, &mut cache).await?;
+    confirm(&source, &store, &ReorgPeriod::from_blocks(0)).await?;
+    assert_eq!(store.state().await?.unwrap().confirmed, 2);
+
+    *source.unavailable.lock().unwrap() = None;
+    for _ in 0..2 {
+        let state = observe(&source, &store).await?;
+        let error = ingest_cached(&source, &store, &state, 2, &mut cache)
+            .await
+            .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("Missing or unordered insertion sequence: expected 0, received 1"));
+        assert!(!store.state().await?.unwrap().halted);
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn restart_catches_up_when_historical_state_is_pruned() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let db = Database::connect(format!(
         "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
@@ -1239,7 +1433,8 @@ async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Resul
     };
     let anchor = source.header(0u64.into()).await?;
     // Unsupported state/tag reads must not leave a new mode persisted.
-    *source.unavailable.lock().unwrap() = Some(anchor.hash);
+    let latest_hash = source.header(BlockSelector::Latest).await?.hash;
+    *source.unavailable.lock().unwrap() = Some(latest_hash);
     assert!(prepare(
         &source,
         &store,
@@ -1250,6 +1445,8 @@ async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Resul
     .await
     .is_err());
     assert!(store.state().await?.is_none());
+    assert_eq!(*source.calls.lock().unwrap(), vec![latest_hash]);
+    source.calls.lock().unwrap().clear();
     *source.unavailable.lock().unwrap() = None;
     *source.chain.fail_tag.lock().unwrap() = true;
     assert!(prepare(
@@ -1271,30 +1468,48 @@ async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Resul
         &ReorgPeriod::from_blocks(0),
     )
     .await?;
+    let latest_hash = source.header(BlockSelector::Latest).await?.hash;
+    assert_eq!(*source.calls.lock().unwrap(), vec![latest_hash]);
     source.calls.lock().unwrap().clear();
-    let mut cache = None;
-    for expected_calls in [2, 3] {
+    let mut cache = CountCache::default();
+    for _ in 0..2 {
         let state = observe(&source, &store).await?;
         ingest_cached(&source, &store, &state, 1, &mut cache).await?;
-        assert_eq!(source.calls.lock().unwrap().len(), expected_calls);
+        assert_eq!(source.calls.lock().unwrap().len(), 1);
+        source.calls.lock().unwrap().clear();
     }
-    // Restart preflight uses the retained boundary, even if old anchor state is pruned.
-    *source.unavailable.lock().unwrap() = Some(anchor.hash);
+    // Restart probes current state, then catches up when the next boundary's
+    // historical contract state has been pruned.
+    source.chain.fork(4, 3, 0);
+    let pruned = source.header(3u64.into()).await?.hash;
+    *source.unavailable.lock().unwrap() = Some(pruned);
     prepare(
         &source,
         &store,
-        &anchor,
+        None,
         &contracts(),
         &ReorgPeriod::from_blocks(0),
     )
     .await?;
+    let latest_hash = source.header(BlockSelector::Latest).await?.hash;
+    assert_eq!(*source.calls.lock().unwrap(), vec![latest_hash]);
     source.calls.lock().unwrap().clear();
-    source.chain.fork(3, 1, 10);
+    let state = observe(&source, &store).await?;
+    ingest_cached(&source, &store, &state, 1, &mut cache).await?;
+    assert_eq!(source.calls.lock().unwrap().as_slice(), &[pruned]);
+    assert_eq!(store.state().await?.unwrap().indexed, 3);
+    *source.unavailable.lock().unwrap() = None;
+    source.calls.lock().unwrap().clear();
+    let state = observe(&source, &store).await?;
+    ingest_cached(&source, &store, &state, 1, &mut cache).await?;
+    assert_eq!(store.state().await?.unwrap().indexed, 4);
+
+    source.chain.fork(4, 1, 10);
     // Orphaned persisted hashes must not prevent startup from reaching rollback.
     prepare(
         &source,
         &store,
-        &anchor,
+        None,
         &contracts(),
         &ReorgPeriod::from_blocks(0),
     )
@@ -1303,7 +1518,7 @@ async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Resul
     let state = observe(&source, &store).await?;
     assert_eq!(state.indexed, 1);
     ingest_cached(&source, &store, &state, 1, &mut cache).await?;
-    assert_eq!(source.calls.lock().unwrap().len(), 2);
+    assert_eq!(source.calls.lock().unwrap().len(), 1);
     // A failed range cannot publish cached counts for an uncommitted boundary.
     let committed = cache;
     *source.chain.fail_logs.lock().unwrap() = true;
@@ -1315,14 +1530,14 @@ async fn committed_counts_are_reused_but_not_across_reorgs_or_restart() -> Resul
     *source.chain.fail_logs.lock().unwrap() = false;
     source.calls.lock().unwrap().clear();
     let state = observe(&source, &store).await?;
-    ingest_cached(&source, &store, &state, 1, &mut None).await?;
-    assert_eq!(source.calls.lock().unwrap().len(), 2);
+    ingest_cached(&source, &store, &state, 1, &mut CountCache::default()).await?;
+    assert_eq!(source.calls.lock().unwrap().len(), 1);
     Ok(())
 }
 
 #[tokio::test]
-async fn automatic_cutover_rejects_partial_legacy_history_and_reuses_verified_boundary(
-) -> Result<()> {
+async fn automatic_cutover_rejects_partial_legacy_history_and_reuses_saved_boundary() -> Result<()>
+{
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let db = Database::connect(format!(
         "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
@@ -1372,7 +1587,7 @@ async fn automatic_cutover_rejects_partial_legacy_history_and_reuses_verified_bo
     // An operator-verified cutover explicitly seeds the saved boundary. This
     // fixture models that acknowledgement, not proof of historical completeness.
     let anchor = chain.header(30u64.into()).await?;
-    seed_verified_cutover(&store, &anchor).await?;
+    seed_cutover(&store, &anchor).await?;
     prepare(&chain, &store, &anchor, &contracts(), &ReorgPeriod::None).await?;
     store
         .db
@@ -1410,4 +1625,16 @@ async fn automatic_cutover_rejects_partial_legacy_history_and_reuses_verified_bo
     .await?;
     assert_eq!(count(&store, "scraper_head").await?, 1);
     Ok(())
+}
+
+#[test]
+fn automatic_anchors_respect_protocol_minimum_heights() {
+    assert_eq!(minimum_auto_anchor(HyperlaneDomainProtocol::Cosmos), 1);
+    assert_eq!(
+        minimum_auto_anchor(HyperlaneDomainProtocol::CosmosNative),
+        1
+    );
+    assert_eq!(minimum_auto_anchor(HyperlaneDomainProtocol::Radix), 0);
+    assert_eq!(minimum_auto_anchor(HyperlaneDomainProtocol::Sealevel), 0);
+    assert_eq!(minimum_auto_anchor(HyperlaneDomainProtocol::Starknet), 0);
 }

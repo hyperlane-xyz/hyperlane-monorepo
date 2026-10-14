@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     fmt::Debug,
     ops::Deref,
     str::FromStr,
@@ -27,7 +27,8 @@ use tracing::{debug, warn};
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber, HyperlaneChain,
-    HyperlaneDomain, HyperlaneProvider, TxOutcome, TxnInfo, TxnReceiptInfo, H256, H512, U256,
+    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxOutcome, TxnInfo, TxnReceiptInfo,
+    H256, H512, U256,
 };
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
@@ -50,6 +51,30 @@ struct FeeEstimateCacheKey {
 
 type LazyVm<N> = Arc<OnceCell<VM<N, ConsensusMemory<N>>>>;
 
+const BLOCK_METADATA_CACHE_SIZE: usize = 128;
+
+// Metadata reads trust the finalized RPC response, including its outer block
+// hash without cross-checking it against the header, as on other VMs. Decoding
+// a snarkVM Block also verifies consensus certificates and decodes transactions,
+// which is unnecessary for the hash/height/timestamp used by indexing.
+#[derive(serde::Deserialize)]
+#[serde(bound = "")]
+struct BlockMetadata<N: Network> {
+    block_hash: N::BlockHash,
+    header: BlockMetadataHeader,
+}
+
+#[derive(serde::Deserialize)]
+struct BlockMetadataHeader {
+    metadata: BlockMetadataFields,
+}
+
+#[derive(serde::Deserialize)]
+struct BlockMetadataFields {
+    height: u32,
+    timestamp: u64,
+}
+
 /// Aleo Rest Client. Generic over an underlying HttpClient to allow injection of a mock for testing.
 #[derive(Clone)]
 pub struct AleoProvider<C: AleoClient = FallbackHttpClient> {
@@ -62,6 +87,11 @@ pub struct AleoProvider<C: AleoClient = FallbackHttpClient> {
     signer: Option<AleoSigner>,
     priority_fee_multiplier: f64,
     estimate_cache: Arc<RwLock<HashMap<FeeEstimateCacheKey, FeeEstimate>>>,
+    // Aleo blocks are finalized. Within this provider, reuse metadata across
+    // near-head observation and confirmation. Confirmation re-reads therefore
+    // do not reach RPC; a bad hash from a fallback RPC remains until eviction.
+    // Retain only the highest recently requested heights.
+    block_metadata: Arc<RwLock<BTreeMap<u32, BlockInfo>>>,
     // Read-only ISM and indexing providers never need a VM. Initialize only
     // the execution network, sharing it with provider clones. The pinned
     // snarkVM lifecycle fix releases its worker after the last clone drops.
@@ -135,6 +165,7 @@ impl AleoProvider<FallbackHttpClient> {
             signer,
             priority_fee_multiplier: conf.priority_fee_multiplier,
             estimate_cache: Default::default(),
+            block_metadata: Default::default(),
             mainnet_vm: Default::default(),
             testnet_vm: Default::default(),
             canary_vm: Default::default(),
@@ -176,6 +207,7 @@ impl<C: AleoClient> AleoProvider<C> {
             signer,
             priority_fee_multiplier: 0.0,
             estimate_cache: Default::default(),
+            block_metadata: Default::default(),
             mainnet_vm: Default::default(),
             testnet_vm: Default::default(),
             canary_vm: Default::default(),
@@ -185,6 +217,23 @@ impl<C: AleoClient> AleoProvider<C> {
     /// Returns the current chain id
     pub fn chain_id(&self) -> u16 {
         self.network
+    }
+
+    async fn fetch_block_metadata<N: Network>(&self, height: u32) -> ChainResult<BlockInfo> {
+        let block: BlockMetadata<N> = self.request(&format!("block/{height}"), None).await?;
+        let metadata = block.header.metadata;
+        if metadata.height != height {
+            return Err(HyperlaneProviderError::IncorrectBlockByHeight(
+                u64::from(height),
+                u64::from(metadata.height),
+            )
+            .into());
+        }
+        Ok(BlockInfo {
+            hash: to_h256(block.block_hash)?,
+            timestamp: metadata.timestamp,
+            number: u64::from(metadata.height),
+        })
     }
 
     /// Get the Aleo Signer
@@ -729,27 +778,22 @@ impl<C: AleoClient> HyperlaneChain for AleoProvider<C> {
 impl<C: AleoClient> HyperlaneProvider for AleoProvider<C> {
     /// Get block info for a given block height
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
-        let height = height as u32;
-        let (hash, timestamp) = match self.chain_id() {
-            0 => {
-                let block = self.get_block::<MainnetV0>(height).await?;
-                (to_h256(block.hash())?, block.timestamp())
-            }
-            1 => {
-                let block = self.get_block::<TestnetV0>(height).await?;
-                (to_h256(block.hash())?, block.timestamp())
-            }
-            2 => {
-                let block = self.get_block::<CanaryV0>(height).await?;
-                (to_h256(block.hash())?, block.timestamp())
-            }
+        let height = u32::try_from(height).map_err(ChainCommunicationError::from_other)?;
+        if let Some(block) = self.block_metadata.read().await.get(&height) {
+            return Ok(block.clone());
+        }
+        let block = match self.chain_id() {
+            0 => self.fetch_block_metadata::<MainnetV0>(height).await?,
+            1 => self.fetch_block_metadata::<TestnetV0>(height).await?,
+            2 => self.fetch_block_metadata::<CanaryV0>(height).await?,
             id => return Err(HyperlaneAleoError::UnknownNetwork(id).into()),
         };
-        Ok(BlockInfo {
-            hash,
-            timestamp: timestamp as u64,
-            number: height.into(),
-        })
+        let mut cache = self.block_metadata.write().await;
+        cache.insert(height, block.clone());
+        if cache.len() > BLOCK_METADATA_CACHE_SIZE {
+            cache.pop_first();
+        }
+        Ok(block)
     }
 
     /// Get txn info for a given txn hash

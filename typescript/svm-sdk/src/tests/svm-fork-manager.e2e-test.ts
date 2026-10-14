@@ -87,7 +87,7 @@ describe('SvmForkManager fork replay e2e', function () {
     const newOwner = (await generateKeyPairSigner()).address;
     const transferIx = await getTransferOwnershipInstruction(
       programId,
-      signer.signer,
+      signerAddress,
       newOwner,
     );
     const printable = await signer.transactionToPrintableJson({

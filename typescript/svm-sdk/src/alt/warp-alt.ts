@@ -20,6 +20,7 @@ import {
   assert,
   chunk,
   isNullish,
+  nonEmptyArray,
   strip0x,
   toHexString,
 } from '@hyperlane-xyz/utils';
@@ -69,7 +70,6 @@ import {
   type SvmAddressLookupTableWriter,
   type SvmAltConfig,
   type SvmDeployedAlt,
-  nonEmptyArray,
 } from './address-lookup-table.js';
 
 export interface SvmCoreDeploymentAltIgpContext {

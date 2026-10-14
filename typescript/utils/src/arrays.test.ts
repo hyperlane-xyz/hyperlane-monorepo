@@ -1,6 +1,14 @@
 import { expect } from 'chai';
 
-import { chunk, exclude, randomElement, sortArrayByKey } from './arrays.js';
+import {
+  type NonEmptyArray,
+  chunk,
+  exclude,
+  isNonEmptyArray,
+  nonEmptyArray,
+  randomElement,
+  sortArrayByKey,
+} from './arrays.js';
 
 describe('Arrays utilities', () => {
   describe('chunk', () => {
@@ -84,6 +92,36 @@ describe('Arrays utilities', () => {
     it('should return an empty array when input is empty', () => {
       const result = sortArrayByKey([], 'any');
       expect(result).to.deep.equal([]);
+    });
+  });
+
+  describe('nonEmptyArray', () => {
+    it('should return the elements as a non-empty tuple', () => {
+      const result: NonEmptyArray<number> = nonEmptyArray([1, 2, 3]);
+      const first: number = result[0];
+      expect(first).to.equal(1);
+      expect(result).to.deep.equal([1, 2, 3]);
+    });
+
+    it('should accept a single element', () => {
+      expect(nonEmptyArray(['a'])).to.deep.equal(['a']);
+    });
+
+    it('should accept an undefined first element for a nullable T', () => {
+      const input: (number | undefined)[] = [undefined, 1];
+      expect(nonEmptyArray(input)).to.deep.equal([undefined, 1]);
+    });
+
+    it('should throw on an empty array', () => {
+      expect(() => nonEmptyArray([])).to.throw('expected non-empty array');
+    });
+  });
+
+  describe('isNonEmptyArray', () => {
+    it('should be true for a non-empty array and false for an empty one', () => {
+      expect(isNonEmptyArray([1])).to.equal(true);
+      expect(isNonEmptyArray([undefined])).to.equal(true);
+      expect(isNonEmptyArray([])).to.equal(false);
     });
   });
 });

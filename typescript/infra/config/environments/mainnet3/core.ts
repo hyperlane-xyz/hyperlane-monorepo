@@ -50,9 +50,7 @@ const legacyCoreHookRecoveryChains: ChainName[] = [
   'krown',
   'metis',
   'pulsechain',
-  'sei',
   'sonic',
-  'taiko',
   'viction',
 ];
 

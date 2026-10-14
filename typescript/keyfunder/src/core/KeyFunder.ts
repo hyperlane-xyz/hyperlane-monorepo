@@ -29,6 +29,9 @@ export class KeyFunder {
     private readonly options: KeyFunderOptions,
   ) {}
 
+  /**
+   * Funds chains independently; rejects only when every attempted chain fails.
+   */
   async fundAllChains(): Promise<void> {
     const chainsToSkip = new Set(this.config.chainsToSkip ?? []);
     const chains = Object.keys(this.config.chains).filter(
@@ -38,6 +41,13 @@ export class KeyFunder {
     const results = await Promise.allSettled(
       chains.map(async (chain) => this.fundChainWithTimeout(chain)),
     );
+
+    results.forEach((result, index) => {
+      this.options.metrics?.recordChainFundingSuccess(
+        chains[index],
+        result.status === 'fulfilled',
+      );
+    });
 
     const failures = results
       .map((r, i) => ({ result: r, chain: chains[i] }))
@@ -55,9 +65,11 @@ export class KeyFunder {
         { failedChains, totalChains: chains.length },
         'Some chains failed to fund',
       );
-      throw new Error(
-        `${failures.length}/${chains.length} chains failed to fund: ${failedChains.map((f) => f.chain).join(', ')}`,
-      );
+      if (chains.length > 0 && failures.length === chains.length) {
+        throw new Error(
+          `${failures.length}/${chains.length} chains failed to fund: ${failedChains.map((f) => f.chain).join(', ')}`,
+        );
+      }
     }
   }
 

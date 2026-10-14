@@ -23,6 +23,7 @@ import { Role } from '../../src/roles.js';
 const originChain = 'ethereum';
 const handoffChains = [
   'appchain',
+  'carrchain',
   'lumiaprism',
   'matchain',
   'prom',
@@ -59,6 +60,10 @@ const handoffs: Record<
   appchain: {
     target: '0x2D3Ff22F91E5f796EeE6e864AD71385B249c34A5',
     targetType: 'safe',
+  },
+  carrchain: {
+    target: '0xAfD0Ac442c6d7E0f34476a10d4ba0bD7cffb4c72',
+    targetType: 'eoa',
   },
   lumiaprism: {
     target: '0x5FE65789a7Eb447916576aF52AefF190748c08Eb',

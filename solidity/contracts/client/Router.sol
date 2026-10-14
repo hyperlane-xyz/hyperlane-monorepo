@@ -222,7 +222,28 @@ abstract contract Router is MailboxClient, IMessageRecipient {
         bytes memory _hookMetadata,
         address _hook
     ) internal view returns (uint256) {
-        bytes32 _router = _mustHaveRemoteRouter(_destinationDomain);
+        return
+            _Router_quoteDispatch(
+                _destinationDomain,
+                _mustHaveRemoteRouter(_destinationDomain),
+                _messageBody,
+                _hookMetadata,
+                _hook
+            );
+    }
+
+    /**
+     * @dev Quotes a dispatch to an explicit router without consulting the
+     * enrolled router mapping. This keeps override dispatches and their quotes
+     * bound to the same recipient and message body.
+     */
+    function _Router_quoteDispatch(
+        uint32 _destinationDomain,
+        bytes32 _router,
+        bytes memory _messageBody,
+        bytes memory _hookMetadata,
+        address _hook
+    ) internal view returns (uint256) {
         return
             mailbox.quoteDispatch(
                 _destinationDomain,

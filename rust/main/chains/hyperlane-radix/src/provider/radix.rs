@@ -424,6 +424,14 @@ impl RadixProvider {
                 })
                 .await?;
 
+            if (response.ledger_state.state_version as u64) < end_state_version {
+                return Err(HyperlaneRadixError::Other(format!(
+                    "Gateway state version {} is behind requested range end {end_state_version}",
+                    response.ledger_state.state_version
+                ))
+                .into());
+            }
+
             for item in response.items {
                 // the cursor is open end and will go up to the most recent state version
                 // dismiss all the txs that are not in the specified state version range
@@ -728,6 +736,13 @@ impl HyperlaneProvider for RadixProvider {
             ))
             .into());
         }
+        if tx.ledger_state.state_version as u64 != height {
+            return Err(HyperlaneRadixError::Other(format!(
+                "Gateway returned state version {} for requested state version {height}",
+                tx.ledger_state.state_version
+            ))
+            .into());
+        }
 
         let datetime = DateTime::parse_from_rfc3339(&tx.ledger_state.proposer_round_timestamp)
             .map_err(HyperlaneRadixError::from)?;
@@ -824,7 +839,15 @@ impl HyperlaneProvider for RadixProvider {
 
     /// Fetch metrics related to this chain
     async fn get_chain_metrics(&self) -> ChainResult<Option<hyperlane_core::ChainInfo>> {
-        let state_version = self.get_state_version(None).await?;
+        // Headers and event ranges come from the Gateway API. Its indexed
+        // ledger can lag Core, so advertising Core's tip makes callers request
+        // state versions the Gateway cannot serve yet.
+        let state_version = self
+            .provider
+            .gateway_status()
+            .await?
+            .ledger_state
+            .state_version as u64;
         Ok(Some(hyperlane_core::ChainInfo::new(state_version, None)))
     }
 }

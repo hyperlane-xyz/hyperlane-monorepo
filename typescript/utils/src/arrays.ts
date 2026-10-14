@@ -1,6 +1,7 @@
 import { sortBy } from 'lodash-es';
 
 import { randomInt } from './math.js';
+import { assert } from './validation.js';
 
 interface Sliceable {
   length: number;
@@ -37,4 +38,16 @@ export function arrayEqual<T>(a: T[], b: T[]): boolean {
   }
 
   return a.every((item, idx) => item === b[idx]);
+}
+
+/** Non-empty tuple type — at least one element required at compile time. */
+export type NonEmptyArray<T> = readonly [T, ...T[]];
+
+export function isNonEmptyArray<T>(arr: readonly T[]): arr is NonEmptyArray<T> {
+  return arr.length > 0;
+}
+
+export function nonEmptyArray<T>(arr: readonly T[]): NonEmptyArray<T> {
+  assert(isNonEmptyArray(arr), 'expected non-empty array');
+  return arr;
 }

@@ -16,7 +16,7 @@ import {
   IsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, isNonEmptyArray } from '@hyperlane-xyz/utils';
 
 import { IsmReader } from './generic-ism.js';
 import { RoutingIsmWriter } from './routing-ism.js';
@@ -43,8 +43,12 @@ export function createIsmWriter(
   signer: ISigner<AnnotatedTx, TxReceipt>,
 ): IsmWriter {
   const protocolProvider = getProtocolProvider(chainMetadata.protocol);
+  const knownDomainIds = [...chainLookup.getKnownDomainIds()];
   const artifactManager: IRawIsmArtifactManager =
-    protocolProvider.createIsmArtifactManager(chainMetadata);
+    protocolProvider.createIsmArtifactManager(
+      chainMetadata,
+      isNonEmptyArray(knownDomainIds) ? { knownDomainIds } : undefined,
+    );
 
   return new IsmWriter(artifactManager, chainLookup, signer);
 }
@@ -109,8 +113,9 @@ export class IsmWriter
 
   /**
    * Updates an existing ISM to match the desired configuration.
-   * Only routing ISMs support updates (domain enrollment/unenrollment, owner changes).
-   * Multisig and test ISMs are immutable - returns empty array.
+   * Routing ISMs (domain enrollment/unenrollment, owner changes), composite ISMs and
+   * routing message-id multisig ISMs support updates.
+   * Static multisig and test ISMs are immutable - returns empty array.
    *
    * @param artifact The desired ISM state (must include deployed address)
    * @returns Array of transactions needed to perform the update
@@ -123,16 +128,19 @@ export class IsmWriter
       'Aggregation and pausable ISM artifacts currently support reading only',
     );
 
-    // Only routing ISMs are mutable - support domain updates and owner changes
+    // Routing ISMs are mutable - support domain updates and owner changes
     if (config.type === AltVM.IsmType.ROUTING) {
       return this.routingWriter.update({ artifactState, config, deployed });
     }
 
-    // Composite ISM is mutable too, but self-contained: it diffs its own tree
-    // against on-chain state (re-read internally), so it's delegated to
-    // directly rather than routed through RoutingIsmWriter's nested-artifact
-    // recursion.
-    if (config.type === AltVM.IsmType.COMPOSITE) {
+    // Composite and routing message-id multisig ISMs are mutable too, but
+    // self-contained: they diff their own state against on-chain state
+    // (re-read internally), so they're delegated to directly rather than
+    // routed through RoutingIsmWriter's nested-artifact recursion.
+    if (
+      config.type === AltVM.IsmType.COMPOSITE ||
+      config.type === AltVM.IsmType.ROUTING_MESSAGE_ID_MULTISIG
+    ) {
       const writer = this.artifactManager.createWriter(
         config.type,
         this.signer,
@@ -140,7 +148,7 @@ export class IsmWriter
       return writer.update({ artifactState, config, deployed });
     }
 
-    // Multisig and test ISMs are immutable - no updates possible
+    // Static multisig and test ISMs are immutable - no updates possible
     return [];
   }
 }

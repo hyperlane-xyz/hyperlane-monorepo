@@ -10,9 +10,6 @@ export const awIcas: ChainMap<Address> = {
   // owner chain
   // ethereum: '0x24c2160941cB0A75E1C2aA6B70Be3e6EC4FE3a29',
 
-  // keep safe-owned for now
-  // optimism: '0x1E2afA8d1B841c53eDe9474D188Cd4FcfEd40dDC',
-
   // Jul 2, 2025 - ICA 2.0 Migration
   // ----------------------------------------------------------
   apechain: '0x4745601a50CEE53b66221032318a2547D5741ae8',
@@ -39,6 +36,7 @@ export const awIcas: ChainMap<Address> = {
   metis: '0xd37fD87a28A5702643a0f937de248E7673594528',
   mode: '0x7Ef84bbc24118619655031f6404d6C81BC1AB534',
   monad: '0x40DdDF59209dAA5aE927207ab697e66D51581D87',
+  optimism: '0x1E2afA8d1B841c53eDe9474D188Cd4FcfEd40dDC',
   polygon: '0x8708C96f9879805c2E54818865cbFF27fb64000D',
   sei: '0xd30AF4e3786995Aa89Ef58ec5f3280b73386a944',
   soneium: '0x1472ab941e43D5D9Eadf33661D884F1A1ce0Ecb7',

@@ -398,6 +398,19 @@ export function planReceiptProposals(
   });
 }
 
+export function combineReceiptProposals(
+  plans: ReceiptProposalPlan[],
+): ReceiptProposalPlan {
+  if (plans.some((plan) => plan.computeUnits !== undefined)) {
+    throw new Error(
+      'Cannot combine source transactions with individual compute-unit requirements into one Squads proposal',
+    );
+  }
+  return {
+    instructions: plans.flatMap((plan) => plan.instructions),
+  };
+}
+
 /**
  * Collect the base58 pubkeys of every account marked as a signer across the
  * given instructions. For warp-token config updates the signer is the owning

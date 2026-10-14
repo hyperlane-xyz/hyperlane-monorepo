@@ -668,7 +668,24 @@ void it('requires the Cloudflare client IP in production', async () => {
   }
 });
 
-void it('limits Explorer connections to five per IP and releases capacity', async () => {
+void it('limits Explorer connections to five per IP and safely handles errors while rejecting', async (t) => {
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- Called below with the original socket as this.
+  const close = WebSocket.prototype.close;
+  let injected = false;
+  t.mock.method(
+    WebSocket.prototype,
+    'close',
+    function (this: WebSocket, code?: number, reason?: string | Buffer) {
+      if (code === 1008 && !injected) {
+        injected = true;
+        this.emit(
+          'error',
+          new Error('Malformed frame during rejected connection close'),
+        );
+      }
+      return close.call(this, code, reason);
+    },
+  );
   const ip = '203.0.113.1';
   const sockets = Array.from({ length: 5 }, () => explorerSocket(ip));
   const messages: Record<string, unknown>[][] = sockets.map(() => []);
@@ -686,6 +703,7 @@ void it('limits Explorer connections to five per IP and releases capacity', asyn
     ),
   );
   assert.equal(code, 1008);
+  assert.equal(injected, true);
   assert.match(reason, /Maximum connections per client reached/);
 
   const closed = new Promise<void>((resolve) =>

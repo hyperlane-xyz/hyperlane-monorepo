@@ -8,7 +8,6 @@ import {
   type DeployableTokenType,
   type DeployedOwnableConfig,
   HypERC20Deployer,
-  type HypTokenRouterConfig,
   type IsmConfig,
   IsmType,
   type MailboxClientConfig,
@@ -19,8 +18,7 @@ import {
   type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchema,
-  isMovableCollateralTokenConfig,
-  resolveRouterMapConfig,
+  resolveWarpDeployConfigRouterKeys,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
@@ -151,36 +149,9 @@ export async function readWarpRouteDeployConfig({
 
   config = await fillDefaults(context, config as any);
 
-  config = objMap(
+  config = resolveWarpDeployConfigRouterKeys(
+    context.multiProvider,
     config as any,
-    (_chain, chainConfig: HypTokenRouterConfig) => {
-      if (chainConfig.destinationGas) {
-        chainConfig.destinationGas = resolveRouterMapConfig(
-          context.multiProvider,
-          chainConfig.destinationGas,
-        );
-      }
-
-      if (chainConfig.remoteRouters) {
-        chainConfig.remoteRouters = resolveRouterMapConfig(
-          context.multiProvider,
-          chainConfig.remoteRouters,
-        );
-      }
-
-      if (!isMovableCollateralTokenConfig(chainConfig)) {
-        return chainConfig;
-      }
-
-      if (chainConfig.allowedRebalancingBridges) {
-        chainConfig.allowedRebalancingBridges = resolveRouterMapConfig(
-          context.multiProvider,
-          chainConfig.allowedRebalancingBridges,
-        );
-      }
-
-      return chainConfig;
-    },
   );
 
   //fillDefaults would have added a mailbox to the config if it was missing

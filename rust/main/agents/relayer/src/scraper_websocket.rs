@@ -65,6 +65,8 @@ const PARITY_READ_CONCURRENCY: usize = 4;
 const FRESHNESS_READ_CONCURRENCY: usize = 2;
 // Per origin stream. One origin backing up must not close the connection for every origin.
 const PARITY_QUEUE_CAPACITY: usize = 256;
+// Bound payload retained before caught-up markers permit RPC parity checks.
+const PARITY_STAGED_BODY_BYTES: usize = 16 * 1024 * 1024;
 // Process-wide bound on staged, queued and in-flight parity events. Dispatch jobs
 // retain message bodies, so per-stream limits alone would scale with origin count.
 const PARITY_PENDING_CAPACITY: usize = 4096;
@@ -626,6 +628,16 @@ impl StagedParity {
                 .sequence
                 .context("Sequenced parity event omitted its wire sequence")?,
         };
+        let retained_body_bytes: usize = self
+            .events
+            .values()
+            .flatten()
+            .map(|staged| staged.parity.body_bytes())
+            .sum();
+        if event.parity.body_bytes() > PARITY_STAGED_BODY_BYTES.saturating_sub(retained_body_bytes)
+        {
+            return Ok(false);
+        }
         self.events.entry(domain).or_default().push_back(event);
         Ok(true)
     }
@@ -712,6 +724,13 @@ struct GasPaymentInput {
 }
 
 impl ParityInput {
+    fn body_bytes(&self) -> usize {
+        match self {
+            Self::Dispatch { message, .. } => message.body.len(),
+            Self::MerkleTreeInsertion { .. } => 0,
+        }
+    }
+
     fn message_id(message: &HyperlaneMessage, missing_body_id: Option<H256>) -> H256 {
         missing_body_id.unwrap_or_else(|| message.id())
     }
@@ -2412,6 +2431,13 @@ impl ScraperWebSocketMonitor {
                                 let input = validated
                                     .gas_payment
                                     .context("Validated gas payment has no input")?;
+                                // Shadow streams observe payments but must never create
+                                // spendable credits or advance their durable replay cursor.
+                                if !self.authority_enabled {
+                                    self.record(domain, event_type, "shadow");
+                                    state.gas_payment_rows.insert(domain, input.cursor);
+                                    continue;
+                                }
                                 match source.store_gas_payment(&input) {
                                     Ok(()) => {
                                         self.record(domain, event_type, result);
@@ -2484,7 +2510,11 @@ impl ScraperWebSocketMonitor {
                             sequence.as_deref(),
                         )?;
                         state.persist_gas_payment_cursor(domain, cursor, |cursor| {
-                            source.store_gas_payment_cursor(cursor)
+                            if self.authority_enabled {
+                                source.store_gas_payment_cursor(cursor)
+                            } else {
+                                Ok(())
+                            }
                         })?;
                         if !gas_payment_caught_up.insert(domain) {
                             bail!("Received duplicate scraper caught-up marker");
@@ -3762,6 +3792,15 @@ mod tests {
 
     #[tokio::test]
     async fn trusted_gas_payment_wire_replay_closes_on_stream_integrity_error() {
+        gas_payment_wire_replay(true).await;
+    }
+
+    #[tokio::test]
+    async fn shadow_gas_payment_wire_replay_never_credits_payments() {
+        gas_payment_wire_replay(false).await;
+    }
+
+    async fn gas_payment_wire_replay(authority_enabled: bool) {
         let fixture = fixture();
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
         let url =
@@ -3772,13 +3811,15 @@ mod tests {
                 url,
                 fixture.sources.values().cloned().collect(),
                 &metrics,
-                true,
+                authority_enabled,
             )
             .expect("monitor"),
         );
         let mut authority = monitor
-            .gas_payment_authority_receiver(5)
-            .expect("gas receiver");
+            .gas_payment_authority
+            .get(&5)
+            .expect("gas sender")
+            .subscribe();
         let (release, released) = oneshot::channel();
         let (release_invalid, released_invalid) = oneshot::channel();
         let server = tokio::spawn(async move {
@@ -3836,11 +3877,26 @@ mod tests {
         .expect("subscription timeout");
         assert!(!*authority.borrow(), "ACK alone keeps gas RPC");
         release.send(()).expect("release");
-        timeout(Duration::from_secs(5), authority.changed())
+        if authority_enabled {
+            timeout(Duration::from_secs(5), authority.changed())
+                .await
+                .expect("caught-up timeout")
+                .expect("confirmed");
+        } else {
+            timeout(Duration::from_secs(5), async {
+                while monitor
+                    .caught_up
+                    .with_label_values(&["test", GAS_PAYMENT_EVENT_TYPE])
+                    .get()
+                    != 1
+                {
+                    tokio::task::yield_now().await;
+                }
+            })
             .await
-            .expect("caught-up timeout")
-            .expect("confirmed");
-        assert!(*authority.borrow());
+            .expect("shadow caught-up timeout");
+        }
+        assert_eq!(*authority.borrow(), authority_enabled);
         assert!(
             !monitor.base_authority_ready(),
             "gas must not wait for sequenced readiness"
@@ -3853,14 +3909,20 @@ mod tests {
             .is_err());
         assert!(!*authority.borrow(), "broken stream restores RPC");
         let source = &monitor.sources[&5];
-        assert_eq!(
-            source
-                .gas_payment_cursor()
-                .expect("cursor")
-                .expect("first payment persisted")
-                .stream_cursor,
-            1
-        );
+        let cursor = source.gas_payment_cursor().expect("cursor");
+        if authority_enabled {
+            assert_eq!(cursor.expect("first payment persisted").stream_cursor, 1);
+        } else {
+            assert_eq!(cursor, None);
+        }
+        let payment = source
+            .cursor_db
+            .retrieve_gas_payment_by_gas_payment_key(hyperlane_core::GasPaymentKey {
+                message_id: H256::from_low_u64_be(7),
+                destination: 6,
+            })
+            .expect("payment credits");
+        assert_eq!(payment.is_some(), authority_enabled);
         timeout(Duration::from_secs(5), server)
             .await
             .expect("server timeout")
@@ -7513,6 +7575,28 @@ mod tests {
         }
         assert!(!stage(&mut staged, EventKind::Dispatch, full));
         assert!(stage(&mut staged, EventKind::MerkleTreeInsertion, half + 1));
+    }
+
+    #[test]
+    fn parity_staging_bounds_body_bytes_and_reclaims_capacity() {
+        let sources = sources();
+        let make = |sequence, size| {
+            let mut event = sequenced_event_for(EventKind::Dispatch, sequence);
+            event.data = dispatch_data(sequence, &vec![1; size]);
+            StreamState::default()
+                .validate(event, &sources)
+                .expect("valid dispatch")
+        };
+        let mut staged = StagedParity::default();
+        assert!(staged
+            .push(5, make(0, PARITY_STAGED_BODY_BYTES))
+            .expect("stage"));
+        assert!(!staged.push(5, make(1, 1)).expect("refuse full byte budget"));
+        assert_eq!(staged.drain_all().count(), 1);
+        assert!(staged.push(5, make(1, 1)).expect("reclaimed budget"));
+        assert!(!staged
+            .push(5, make(2, PARITY_STAGED_BODY_BYTES + 1))
+            .expect("refuse oversized body"));
     }
 
     #[tokio::test]

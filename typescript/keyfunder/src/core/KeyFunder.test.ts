@@ -15,6 +15,70 @@ describe('KeyFunder', () => {
     sinon.restore();
   });
 
+  describe('fundAllChains', () => {
+    it('resolves partial failures and records per-chain success', async () => {
+      const multiProvider = sinon.createStubInstance(MultiProvider);
+      const metrics = new KeyFunderMetrics(undefined);
+      const config: KeyFunderConfig = {
+        version: '1',
+        roles: {},
+        chains: {
+          ethereum: {},
+          base: {},
+        },
+      };
+      const keyFunder = new KeyFunder(multiProvider, config, {
+        logger: pino({ level: 'silent' }),
+        metrics,
+      });
+
+      sinon.stub(keyFunder, 'fundChain').callsFake(async (chain) => {
+        if (chain === 'ethereum') {
+          return;
+        }
+        throw new Error('base failed');
+      });
+
+      await keyFunder.fundAllChains();
+
+      const metricsOutput = await metrics.getRegistry().metrics();
+      expect(metricsOutput).to.include(
+        'hyperlane_keyfunder_chain_funding_success',
+      );
+      expect(metricsOutput).to.include('chain="ethereum"} 1');
+      expect(metricsOutput).to.include('chain="base"} 0');
+    });
+
+    it('rejects when all chains fail', async () => {
+      const multiProvider = sinon.createStubInstance(MultiProvider);
+      const config: KeyFunderConfig = {
+        version: '1',
+        roles: {},
+        chains: {
+          ethereum: {},
+          base: {},
+        },
+      };
+      const keyFunder = new KeyFunder(multiProvider, config, {
+        logger: pino({ level: 'silent' }),
+      });
+
+      sinon.stub(keyFunder, 'fundChain').rejects(new Error('funding failed'));
+
+      try {
+        await keyFunder.fundAllChains();
+        expect.fail('Expected all-chain funding failure');
+      } catch (error) {
+        expect(error).to.be.instanceOf(Error);
+        if (error instanceof Error) {
+          expect(error.message).to.equal(
+            '2/2 chains failed to fund: ethereum, base',
+          );
+        }
+      }
+    });
+  });
+
   it('scales the funder balance metric by the chain native token decimals', async () => {
     const logger = {
       child: () => logger,

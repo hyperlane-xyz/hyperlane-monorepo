@@ -8,6 +8,7 @@ import { tryNormalizeNumericChainId } from './chainIdUtils.js';
 export interface ChainMetadataResolver<MetaExt = {}> {
   metadata: ChainMap<ChainMetadata<MetaExt>>;
   getKnownChainNames: () => string[];
+  getKnownDomainIds: () => Set<number>;
   tryGetChainId: (chain: ChainNameOrId) => string | number | null;
   tryGetChainMetadata: (chain: ChainNameOrId) => ChainMetadata<MetaExt> | null;
   tryGetChainName: (chain: ChainNameOrId) => string | null;
@@ -84,6 +85,7 @@ export function createChainMetadataResolver<MetaExt = {}>(
   return {
     metadata,
     getKnownChainNames: () => Object.keys(metadata),
+    getKnownDomainIds: () => new Set(byDomainId.keys()),
     tryGetChainId: (chain) => tryGetChainMetadata(chain)?.chainId ?? null,
     tryGetChainMetadata,
     tryGetChainName: (chain) => tryGetChainMetadata(chain)?.name ?? null,

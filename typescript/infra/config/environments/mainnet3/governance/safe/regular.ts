@@ -9,9 +9,8 @@ export const regularSafes: ChainMap<Address> = {
   ethereum: '0x562Dfaac27A84be6C96273F5c9594DA1681C0DA7',
   optimism: '0x890ac177Fe3052B8676A65f32C1589Bc329f3d50',
 
-  // ZKSync Governance Safes
+  // ZKSync Governance Safe
   abstract: '0xcd81ccFe7D9306849136Fa96397113345a32ECf3',
-  zksync: '0xcd81ccFe7D9306849136Fa96397113345a32ECf3',
 
   // Viction targets the Ethereum-controlled ICA in governance/ica/regular.ts.
   // The deployed Viction Safe is not the core governance owner.

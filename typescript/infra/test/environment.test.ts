@@ -128,9 +128,7 @@ describe('Environment', () => {
       'krown',
       'metis',
       'pulsechain',
-      'sei',
       'sonic',
-      'taiko',
       'viction',
     ]);
   });

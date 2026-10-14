@@ -78,7 +78,6 @@ export const regularIcas: ChainMap<Address> = {
   somnia: '0xe26f1A5681088b7dCd53c00C9a19143e8bA543Ec',
   lazai: '0xDFEa2EB38AA77EE41D50794aFaA34463EEabD4BB',
   megaeth: '0x8D628b83A2F915fab39f7F09e0cF7A3ea8F9bF42',
-  adichain: '0xD0427bD81a0cDA1AdcdFb49DFDB95Ab3e059FFff',
 
   // Jan 2, 2026
   // ----------------------------------------------------------

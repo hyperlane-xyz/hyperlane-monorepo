@@ -5,7 +5,11 @@
  * These utilities validate ISM configs and provide clear error messages for unsupported types.
  */
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { IsmConfig, IsmType } from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  IsmConfig,
+  IsmType,
+  assertValidDomainRoutingMultisig,
+} from '@hyperlane-xyz/provider-sdk/ism';
 
 /**
  * ISM types supported by provider-sdk for Alt-VM chains.
@@ -24,6 +28,7 @@ const SUPPORTED_ISM_TYPES: ReadonlySet<string> = new Set<IsmType>([
   IsmType.MESSAGE_ID_MULTISIG,
   IsmType.TEST_ISM,
   IsmType.COMPOSITE,
+  IsmType.ROUTING_MESSAGE_ID_MULTISIG,
 ]);
 
 /** ISM types restricted to a single Alt-VM protocol (Sealevel program, no cross-VM equivalent). */
@@ -31,6 +36,16 @@ const PROTOCOL_SPECIFIC_ISM_TYPES: Readonly<
   Partial<Record<string, ProtocolType>>
 > = {
   [IsmType.COMPOSITE]: ProtocolType.Sealevel,
+  [IsmType.ROUTING_MESSAGE_ID_MULTISIG]: ProtocolType.Sealevel,
+};
+
+/** ISM types otherwise supported but rejected on a specific protocol, with the type to use instead. */
+const PROTOCOL_UNSUPPORTED_ISM_TYPES: Readonly<
+  Partial<Record<ProtocolType, Readonly<Record<string, IsmType>>>>
+> = {
+  [ProtocolType.Sealevel]: {
+    [IsmType.MESSAGE_ID_MULTISIG]: IsmType.ROUTING_MESSAGE_ID_MULTISIG,
+  },
 };
 
 /**
@@ -55,17 +70,40 @@ export function validateIsmType(
   protocol?: ProtocolType,
 ): void {
   const requiredProtocol = PROTOCOL_SPECIFIC_ISM_TYPES[ismType];
+  const protocolUnsupported =
+    protocol === undefined
+      ? {}
+      : (PROTOCOL_UNSUPPORTED_ISM_TYPES[protocol] ?? {});
   const supported =
     SUPPORTED_ISM_TYPES.has(ismType) &&
-    (requiredProtocol === undefined || requiredProtocol === protocol);
+    (requiredProtocol === undefined || requiredProtocol === protocol) &&
+    !Object.prototype.hasOwnProperty.call(protocolUnsupported, ismType);
 
   if (!supported) {
     const supportedTypes = Array.from(SUPPORTED_ISM_TYPES)
       .filter((type) => {
         const required = PROTOCOL_SPECIFIC_ISM_TYPES[type];
-        return required === undefined || required === protocol;
+        return (
+          (required === undefined || required === protocol) &&
+          !Object.prototype.hasOwnProperty.call(protocolUnsupported, type)
+        );
       })
       .join(', ');
+
+    const replacement = Object.prototype.hasOwnProperty.call(
+      protocolUnsupported,
+      ismType,
+    )
+      ? protocolUnsupported[ismType]
+      : undefined;
+    if (replacement !== undefined) {
+      throw new UnsupportedIsmTypeError(
+        ismType,
+        chain,
+        context,
+        `${supportedTypes} (${ismType} is unsupported on ${protocol}, use ${replacement} instead)`,
+      );
+    }
 
     if (
       SUPPORTED_ISM_TYPES.has(ismType) &&
@@ -114,6 +152,16 @@ export function validateIsmConfig(
         chain,
         `${context} (domain routing for ${domain})`,
         protocol,
+      );
+    }
+  }
+
+  // Fail before any deployment transaction is sent.
+  if (config.type === IsmType.ROUTING_MESSAGE_ID_MULTISIG) {
+    for (const [domain, domainConfig] of Object.entries(config.domains)) {
+      assertValidDomainRoutingMultisig(
+        domainConfig,
+        `${IsmType.ROUTING_MESSAGE_ID_MULTISIG} domain '${domain}' on ${chain} in ${context}`,
       );
     }
   }

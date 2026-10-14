@@ -547,6 +547,7 @@ jobs:
         test:
           - core-deploy
           - core-composite-ism
+          - core-routing-message-id-multisig-ism
           - http-signer
     steps:
       - uses: actions/checkout@v7
@@ -576,6 +577,7 @@ jobs:
           - core-deploy
           - core-apply
           - core-composite-ism
+          - core-routing-message-id-multisig-ism
           - http-signer
           - hook-igp
           - warp-alt
@@ -587,6 +589,7 @@ jobs:
           - warp-legacy-upgrade-fee
           - warp-quote
           - warp-read
+          - warp-routing-message-id-multisig-ism
     steps:
       - uses: actions/checkout@v7
         with:

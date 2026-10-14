@@ -46,6 +46,7 @@ const chainLookup: ChainLookup = {
     return null;
   },
   getKnownChainNames: () => ['solanamainnet', 'ethereum'],
+  getKnownDomainIds: () => new Set([1399811149, 1]),
 };
 
 // Real base58 Sealevel pubkeys (not just arbitrary-length placeholder

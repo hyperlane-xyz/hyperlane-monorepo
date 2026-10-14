@@ -20,7 +20,11 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
-import { getSquadsKeys, squadsConfigs } from '../config/squads.js';
+import {
+  type SquadsKeys,
+  getSquadsKeys,
+  squadsConfigs,
+} from '../config/squads.js';
 
 import { logTable } from './log.js';
 
@@ -69,9 +73,10 @@ export enum SquadTxStatus {
 export async function getSquadAndProvider(
   chain: ChainName,
   mpp: MultiProtocolProvider,
+  squadsKeys: SquadsKeys = getSquadsKeys(chain),
 ) {
   const svmProvider = mpp.getSolanaWeb3Provider(chain);
-  const { multisigPda, programId } = getSquadsKeys(chain);
+  const { multisigPda, programId } = squadsKeys;
 
   return { svmProvider, multisigPda, programId };
 }
@@ -80,6 +85,7 @@ export async function getSquadProposal(
   chain: ChainName,
   mpp: MultiProtocolProvider,
   transactionIndex: number,
+  squadsKeys: SquadsKeys = getSquadsKeys(chain),
 ): Promise<
   | {
       proposal: accounts.Proposal;
@@ -92,6 +98,7 @@ export async function getSquadProposal(
     const { svmProvider, multisigPda, programId } = await getSquadAndProvider(
       chain,
       mpp,
+      squadsKeys,
     );
 
     // Fetch the deserialized Multisig account
@@ -449,9 +456,14 @@ export function decodePermissions(mask: number): string {
 export async function getNextSquadsTransactionIndex(
   chain: ChainName,
   mpp: MultiProtocolProvider,
+  squadsKeys: SquadsKeys = getSquadsKeys(chain),
 ): Promise<bigint> {
-  const { svmProvider, multisigPda } = await getSquadAndProvider(chain, mpp);
-  const { programId } = getSquadsKeys(chain);
+  const { svmProvider, multisigPda } = await getSquadAndProvider(
+    chain,
+    mpp,
+    squadsKeys,
+  );
+  const { programId } = squadsKeys;
 
   rootLogger.debug(
     chalk.gray(`Fetching multisig account from: ${multisigPda.toBase58()}`),
@@ -597,12 +609,17 @@ export async function buildSquadsVaultTransactionProposal(
   ixs: TransactionInstruction[],
   creator: PublicKey,
   memo?: string,
+  squadsKeys: SquadsKeys = getSquadsKeys(chain),
 ): Promise<{
   instructions: TransactionInstruction[];
   transactionIndex: bigint;
 }> {
-  const { svmProvider, multisigPda } = await getSquadAndProvider(chain, mpp);
-  const { vault, programId } = getSquadsKeys(chain);
+  const { svmProvider, multisigPda } = await getSquadAndProvider(
+    chain,
+    mpp,
+    squadsKeys,
+  );
+  const { vault, programId } = squadsKeys;
 
   rootLogger.info(
     chalk.cyan(`\n=== Debug: Building Squads Proposal for ${chain} ===`),
@@ -613,7 +630,11 @@ export async function buildSquadsVaultTransactionProposal(
   rootLogger.info(chalk.gray(`  Creator: ${creator.toBase58()}`));
 
   // 1. Get next transaction index
-  const transactionIndex = await getNextSquadsTransactionIndex(chain, mpp);
+  const transactionIndex = await getNextSquadsTransactionIndex(
+    chain,
+    mpp,
+    squadsKeys,
+  );
   rootLogger.info(chalk.gray(`  Transaction Index: ${transactionIndex}`));
 
   // Debug: Check what transaction PDA we expect
@@ -675,10 +696,15 @@ export async function buildSquadsProposalRejection(
   mpp: MultiProtocolProvider,
   transactionIndex: bigint,
   member: PublicKey,
+  squadsKeys: SquadsKeys = getSquadsKeys(chain),
 ): Promise<{
   instruction: TransactionInstruction;
 }> {
-  const { multisigPda, programId } = await getSquadAndProvider(chain, mpp);
+  const { multisigPda, programId } = await getSquadAndProvider(
+    chain,
+    mpp,
+    squadsKeys,
+  );
 
   const rejectIx = instructions.proposalReject({
     multisigPda,
@@ -707,10 +733,15 @@ export async function buildSquadsProposalCancellation(
   mpp: MultiProtocolProvider,
   transactionIndex: bigint,
   member: PublicKey,
+  squadsKeys: SquadsKeys = getSquadsKeys(chain),
 ): Promise<{
   instruction: TransactionInstruction;
 }> {
-  const { multisigPda, programId } = await getSquadAndProvider(chain, mpp);
+  const { multisigPda, programId } = await getSquadAndProvider(
+    chain,
+    mpp,
+    squadsKeys,
+  );
 
   const cancelIx = createProposalCancelInstruction(
     multisigPda,
@@ -738,6 +769,7 @@ async function createAndApproveSquadsProposal(
   mpp: MultiProtocolProvider,
   signerAdapter: SvmMultiProtocolSignerAdapter,
   memo?: string,
+  squadsKeys: SquadsKeys = getSquadsKeys(chain),
 ): Promise<bigint> {
   // Get creator public key from adapter
   const creatorPublicKey = signerAdapter.publicKey();
@@ -750,6 +782,7 @@ async function createAndApproveSquadsProposal(
       vaultInstructions,
       creatorPublicKey,
       memo,
+      squadsKeys,
     );
 
   // Build, sign, send, and confirm transaction using the adapter
@@ -770,7 +803,7 @@ async function createAndApproveSquadsProposal(
   try {
     // Approve the proposal as the proposer
     rootLogger.info(chalk.gray('Approving proposal as proposer...'));
-    const { multisigPda, programId } = getSquadsKeys(chain);
+    const { multisigPda, programId } = squadsKeys;
     const approveIx = instructions.proposalApprove({
       multisigPda,
       transactionIndex,
@@ -884,6 +917,7 @@ export async function submitReceiptTxsToSquads(
   mpp: MultiProtocolProvider,
   signerAdapter: SvmMultiProtocolSignerAdapter,
   memoBase?: string,
+  squadsKeys: SquadsKeys = getSquadsKeys(chain),
 ): Promise<{ transactionIndexes: bigint[] }> {
   rootLogger.info(chalk.cyan('\n=== Submitting receipt to Squads ==='));
   const transactionIndexes: bigint[] = [];
@@ -899,6 +933,7 @@ export async function submitReceiptTxsToSquads(
         mpp,
         signerAdapter,
         memo,
+        squadsKeys,
       );
       transactionIndexes.push(transactionIndex);
       if (proposal.computeUnits != null) {
