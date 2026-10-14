@@ -347,7 +347,211 @@ void it('keeps agent capacity independent from Explorer capacity', async () => {
   );
 });
 
-for (const eventType of [...EVENT_TYPES, 'messages']) {
+for (const kind of ['query', 'unavailable', 'delivery']) {
+  void it(`reports ${kind} confirmation negotiation errors before closing with 1008`, async (context) => {
+    if (kind === 'unavailable')
+      context.mock.method(db, 'queryLive', async () => []);
+    const socket = new WebSocket(
+      kind === 'query' ? `${messagesUrl}?confirmations=-1&domains=1` : url,
+    );
+    const messages: Record<string, unknown>[] = [];
+    socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+    const closed = new Promise<number>((resolve) =>
+      socket.once('close', resolve),
+    );
+    try {
+      if (kind !== 'query') {
+        await waitFor(messages, 'ready');
+        socket.send(
+          JSON.stringify({
+            type: 'subscribe',
+            streams: [
+              {
+                eventType: kind === 'delivery' ? 'delivery' : 'dispatch',
+                confirmations: 0,
+                domains: [1],
+              },
+            ],
+          }),
+        );
+      }
+      const error = await waitFor(messages, 'error');
+      assert.match(
+        String(error.error),
+        kind === 'query'
+          ? /Expected confirmations/
+          : /Custom confirmations unavailable/,
+      );
+      assert.equal(await closed, 1008);
+      assert.equal(
+        messages.some((message) => message.type === 'subscribed'),
+        false,
+      );
+    } finally {
+      socket.close();
+    }
+  });
+}
+
+void it('acknowledges all subscriptions before canonical events or custom rollbacks', async (context) => {
+  const original = db.queryLive.bind(db);
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let snapshots = 0;
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      if (sql.includes('SELECT domain, head_height')) {
+        snapshots++;
+        if (snapshots === 2) await held;
+        return queryRows<T>([
+          {
+            domain: 1,
+            head_height: '10',
+            indexed_height: '10',
+            confirmed_height: '5',
+          },
+        ]);
+      }
+      if (sql.includes('confirmation_events')) return [];
+      return original<T>(sql, values);
+    },
+  );
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        type: 'subscribe',
+        streams: [
+          { eventType: 'merkle_tree_insertion' },
+          { eventType: 'dispatch', confirmations: 0, domains: [1] },
+          { eventType: 'gas_payment', confirmations: 0, domains: [1] },
+        ],
+      }),
+    );
+    await waitUntil(() => snapshots === 2);
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        domain: 1,
+        confirmedHeight: '5',
+        previousConfirmedHeight: '5',
+        headHeight: '9',
+        indexedHeight: '9',
+        previousIndexedHeight: '10',
+      }),
+    );
+    notify('scraper_event', notification('1'));
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.deepEqual(
+      messages.map(({ type }) => type),
+      ['ready'],
+    );
+    release();
+    await waitFor(messages, 'subscribed');
+    notify('scraper_event', notification('1'));
+    await waitFor(messages, 'event');
+    assert.deepEqual(
+      messages.slice(0, 3).map(({ type }) => type),
+      ['ready', 'subscribed', 'event'],
+    );
+  } finally {
+    release();
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('shares equivalent Explorer enrichment and invalidates it after rollback', async (context) => {
+  let queries = 0;
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(sql: string): Promise<T[]> => {
+      if (sql.includes('SELECT domain, head_height'))
+        return queryRows<T>([
+          {
+            domain: 1,
+            head_height: '9',
+            indexed_height: '9',
+            confirmed_height: '5',
+          },
+        ]);
+      if (sql.includes('confirmation_messages')) return [];
+      if (sql.includes('provisional_message_view')) {
+        queries++;
+        return queryRows<T>([
+          { msg_id: msgId, origin_domain_id: 1, destination_domain_id: 2 },
+        ]);
+      }
+      throw new Error(`Unexpected shared enrichment query: ${sql}`);
+    },
+  );
+  const sockets = [
+    new WebSocket(`${messagesUrl}?confirmations=0&domains=1,2`),
+    new WebSocket(`${messagesUrl}?confirmations=0&domains=2,1`),
+  ];
+  const messages: Record<string, unknown>[][] = sockets.map(() => []);
+  sockets.forEach((socket, i) =>
+    socket.on('message', (data) =>
+      messages[i].push(parseRecord(rawData(data))),
+    ),
+  );
+  try {
+    await Promise.all(messages.map((frames) => waitFor(frames, 'ready')));
+    notify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: msgId.slice(2) }),
+    );
+    await Promise.all(
+      messages.map((frames) => waitFor(frames, 'message_upsert')),
+    );
+    assert.equal(queries, 1);
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        domain: 1,
+        confirmedHeight: '5',
+        previousConfirmedHeight: '5',
+        headHeight: '8',
+        indexedHeight: '8',
+        previousIndexedHeight: '9',
+      }),
+    );
+    await waitUntil(() =>
+      messages.every(
+        (frames) =>
+          frames.filter(({ type }) => type === 'message_upsert').length === 2,
+      ),
+    );
+    assert.equal(queries, 2);
+    messages.forEach((frames) =>
+      assert.deepEqual(
+        frames.map(({ type }) => type),
+        ['ready', 'message_upsert', 'rollback', 'message_upsert'],
+      ),
+    );
+  } finally {
+    sockets.forEach((socket) => socket.close());
+    await waitUntil(() =>
+      sockets.every((socket) => socket.readyState === WebSocket.CLOSED),
+    );
+  }
+});
+
+for (const eventType of [
+  ...EVENT_TYPES.filter((type) => type !== 'delivery'),
+  'messages',
+]) {
   void it(`streams custom ${eventType} with confirmations, rollback, and replacements`, async (context) => {
     const completions = delayServerSendCompletions(context);
     let replacement = false;
@@ -360,7 +564,12 @@ for (const eventType of [...EVENT_TYPES, 'messages']) {
       ): Promise<T[]> => {
         if (sql.includes('SELECT domain, head_height'))
           return queryRows<T>([
-            { domain: 1, head_height: '11', indexed_height: '9' },
+            {
+              domain: 1,
+              head_height: '11',
+              indexed_height: '9',
+              confirmed_height: '5',
+            },
           ]);
         const messageId = `\\x${(replacement ? '02' : '01').repeat(32)}`;
         const data = {
@@ -477,6 +686,7 @@ for (const eventType of [...EVENT_TYPES, 'messages']) {
       socket.close();
       for (const complete of completions.splice(0)) complete();
       await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+      for (const complete of completions.splice(0)) complete();
     }
   });
 }
@@ -494,7 +704,14 @@ for (const supported of [true, false]) {
         if (sql.includes('SELECT domain, head_height'))
           return queryRows<T>(
             supported
-              ? [{ domain: 1, head_height: '11', indexed_height: '9' }]
+              ? [
+                  {
+                    domain: 1,
+                    head_height: '11',
+                    indexed_height: '9',
+                    confirmed_height: '5',
+                  },
+                ]
               : [],
           );
         if (sql.includes('provisional_message_view')) {

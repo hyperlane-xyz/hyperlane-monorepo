@@ -41,6 +41,7 @@ import {
 } from './protocol.js';
 import {
   ConfirmationStream,
+  ConfirmationUnavailableError,
   type ConfirmationRow,
   type Position,
 } from './confirmation-stream.js';
@@ -69,6 +70,7 @@ const HEARTBEAT_MS = 30_000;
 const MAX_INTERVAL_MS = 2_147_483_647;
 const LISTENER_RETRY_MS = 1_000;
 const NOTIFICATION_BATCH_MS = 100;
+const MAX_PROVISIONAL_MESSAGE_CACHE_ENTRIES = 128;
 const NOTIFICATION_BATCH_SIZE = 1_000;
 const EXPLORER_NOTIFICATION_BATCH_SIZE = 100;
 const MAX_EXPLORER_CLIENTS = 400;
@@ -114,6 +116,7 @@ type Client = {
   messages: number;
   messageWindow: number;
   subscriptions: Map<EventType, Subscription>;
+  subscribing: boolean;
 };
 type ExplorerClient = {
   alive: boolean;
@@ -213,6 +216,7 @@ export class EventWebSocketServer {
     WebSocket,
     ConfirmationStream[]
   >();
+  private readonly provisionalMessageCache = new Map<string, Promise<Row[]>>();
   private readonly terminatedSockets = new WeakSet<WebSocket>();
   private readonly explorerClients = new Map<WebSocket, ExplorerClient>();
   private readonly explorerClientsByIp = new Map<string, number>();
@@ -429,6 +433,7 @@ export class EventWebSocketServer {
       messages: 0,
       messageWindow: Date.now(),
       subscriptions: new Map(),
+      subscribing: false,
     });
     websocketConnections.inc({ route: 'agent' });
     this.send(socket, {
@@ -471,7 +476,13 @@ export class EventWebSocketServer {
       this.releaseExplorerClient(client.ip);
     });
     if (!this.accept(socket, 'explorer')) return;
-    const custom = parseExplorerConfirmations(request.url);
+    let custom: ReturnType<typeof parseExplorerConfirmations>;
+    try {
+      custom = parseExplorerConfirmations(request.url);
+    } catch (error) {
+      this.rejectNegotiation(socket, formatError(error));
+      return;
+    }
     const ip = clientIp(request);
     if (!ip) {
       websocketConnectionRejections.inc({
@@ -500,13 +511,19 @@ export class EventWebSocketServer {
       sending: false,
     });
     websocketConnections.inc({ route: 'messages' });
-    const confirmationStream =
-      custom &&
-      (await this.createConfirmationStream(
-        socket,
-        custom.confirmations,
-        custom.domains,
-      ));
+    let confirmationStream: ConfirmationStream | undefined;
+    try {
+      if (custom)
+        confirmationStream = await this.createConfirmationStream(
+          socket,
+          custom.confirmations,
+          custom.domains,
+        );
+    } catch (error) {
+      if (!(error instanceof ConfirmationUnavailableError)) throw error;
+      this.rejectNegotiation(socket, formatError(error));
+      return;
+    }
     this.send(socket, {
       ...(custom && {
         confirmations: custom.confirmations,
@@ -567,6 +584,18 @@ export class EventWebSocketServer {
               confirmations,
             ),
       send: (message) => this.sendAndWait(socket, message),
+      messageId: eventType
+        ? undefined
+        : (message) => {
+            const data = message.data;
+            if (
+              typeof data !== 'object' ||
+              data === null ||
+              !('msg_id' in data)
+            )
+              return undefined;
+            return typeof data.msg_id === 'string' ? data.msg_id : undefined;
+          },
       enrich: eventType
         ? undefined
         : async (ids, frontiers) => {
@@ -599,8 +628,9 @@ export class EventWebSocketServer {
         domain: number;
         head_height: string;
         indexed_height: string;
+        confirmed_height: string;
       }>(
-        'SELECT domain, head_height, indexed_height FROM scraper_head WHERE domain=ANY($1::integer[])',
+        'SELECT domain, head_height, indexed_height, confirmed_height FROM scraper_head WHERE domain=ANY($1::integer[])',
         [[...domains].map(storedDomain)],
       );
       return new Map(
@@ -609,6 +639,7 @@ export class EventWebSocketServer {
           {
             head: parseId(row.head_height),
             indexed: parseId(row.indexed_height),
+            confirmed: parseId(row.confirmed_height),
           },
         ]),
       );
@@ -729,16 +760,39 @@ export class EventWebSocketServer {
     ids: string[],
     frontiers: Map<number, bigint>,
   ): Promise<Row[]> {
-    const rows = await this.db.queryLive<Row>(PROVISIONAL_MESSAGE_QUERY, [
-      ids,
-      [...frontiers.keys()].map(storedDomain),
-      [...frontiers.values()].map(String),
+    const sortedIds = [...new Set(ids)].sort();
+    const sortedFrontiers = [...frontiers].sort(([a], [b]) => a - b);
+    const key = JSON.stringify([
+      sortedIds,
+      sortedFrontiers.map(([domain, height]) => [domain, String(height)]),
     ]);
-    return rows.map((row) => ({
-      ...row,
-      origin_domain_id: rowDomain(row, 'origin_domain_id'),
-      destination_domain_id: rowDomain(row, 'destination_domain_id'),
-    }));
+    const cached = this.provisionalMessageCache.get(key);
+    if (cached) return cached;
+    // Entries survive only until the next head/message change, with a hard bound.
+    if (
+      this.provisionalMessageCache.size >= MAX_PROVISIONAL_MESSAGE_CACHE_ENTRIES
+    )
+      this.provisionalMessageCache.clear();
+    const result = this.db
+      .queryLive<Row>(PROVISIONAL_MESSAGE_QUERY, [
+        sortedIds,
+        sortedFrontiers.map(([domain]) => storedDomain(domain)),
+        sortedFrontiers.map(([, height]) => String(height)),
+      ])
+      .then((rows) =>
+        rows.map((row) => ({
+          ...row,
+          origin_domain_id: rowDomain(row, 'origin_domain_id'),
+          destination_domain_id: rowDomain(row, 'destination_domain_id'),
+        })),
+      )
+      .catch((error: unknown) => {
+        if (this.provisionalMessageCache.get(key) === result)
+          this.provisionalMessageCache.delete(key);
+        throw error;
+      });
+    this.provisionalMessageCache.set(key, result);
+    return result;
   }
 
   private watch<T extends { alive: boolean }>(
@@ -784,11 +838,41 @@ export class EventWebSocketServer {
       this.send(socket, { type: 'pong' });
       return;
     }
-    if (client.subscriptions.size) {
+    if (client.subscriptions.size || client.subscribing) {
       this.sendError(socket, 'Already subscribed');
       return;
     }
 
+    if (
+      message.streams.some(
+        ({ eventType, confirmations }) =>
+          eventType === 'delivery' && confirmations !== undefined,
+      )
+    ) {
+      this.rejectNegotiation(
+        socket,
+        'Custom confirmations unavailable for delivery streams',
+      );
+      return;
+    }
+    client.subscribing = true;
+    try {
+      for (const request of message.streams) {
+        if (request.confirmations !== undefined && request.domains)
+          await this.createConfirmationStream(
+            socket,
+            request.confirmations,
+            request.domains,
+            request.eventType,
+          );
+      }
+    } catch (error) {
+      if (error instanceof ConfirmationUnavailableError)
+        this.rejectNegotiation(socket, formatError(error));
+      else this.failSocket(socket, formatError(error));
+      return;
+    }
+    if (this.clients.get(socket) !== client) return;
     for (const request of message.streams) {
       client.subscriptions.set(request.eventType, {
         confirmations: request.confirmations,
@@ -810,20 +894,7 @@ export class EventWebSocketServer {
         waiting: !!request.cursors,
       });
     }
-    try {
-      for (const request of message.streams) {
-        if (request.confirmations !== undefined && request.domains)
-          await this.createConfirmationStream(
-            socket,
-            request.confirmations,
-            request.domains,
-            request.eventType,
-          );
-      }
-    } catch (error) {
-      this.failSocket(socket, formatError(error));
-      return;
-    }
+    client.subscribing = false;
     this.send(socket, {
       streams: message.streams.map(subscriptionResponse),
       type: 'subscribed',
@@ -1341,6 +1412,7 @@ export class EventWebSocketServer {
       if (channel === HEAD_CHANNEL) {
         if (!this.clients.size && !this.explorerClients.size) return;
         const head = parseHeadNotification(payload);
+        this.provisionalMessageCache.clear();
         for (const streams of this.confirmationStreams.values())
           for (const stream of streams) stream.notify(head);
         if (
@@ -1738,6 +1810,7 @@ export class EventWebSocketServer {
 
   private async publishExplorer(messageIds: string[]): Promise<void> {
     if (!this.explorerClients.size) return;
+    this.provisionalMessageCache.clear();
     for (const [socket, client] of this.explorerClients) {
       if (client.custom)
         this.confirmationStreams
@@ -1857,6 +1930,7 @@ export class EventWebSocketServer {
 
   private closeClients(reason: string, code = 1013): void {
     this.confirmationStreams.clear();
+    this.provisionalMessageCache.clear();
     this.closeAgentClients(reason, code);
     this.closeExplorerClients(reason, code);
   }
@@ -2002,6 +2076,12 @@ export class EventWebSocketServer {
     if (!connections) return;
     if (connections === 1) this.explorerClientsByIp.delete(ip);
     else this.explorerClientsByIp.set(ip, connections - 1);
+  }
+
+  private rejectNegotiation(socket: WebSocket, error: string): void {
+    this.sendError(socket, error);
+    this.disconnect(socket);
+    socket.close(1008, 'Invalid confirmation subscription');
   }
 
   private sendError(socket: WebSocket, error: string): void {

@@ -24,6 +24,8 @@ The `ready` frame lists `customDomains` and `canonicalDomains`. The requested
 confirmation count applies **only** to `customDomains`; canonical domains use
 their existing scraper finality. This split is negotiated again on reconnect.
 Agent custom streams still require near-head state for every requested domain.
+Custom `delivery` streams are rejected until heightless deliveries can be handled;
+canonical delivery streams remain available.
 Reconnecting starts a new live subscription; clients must reload their snapshot
 after a gap.
 
@@ -38,7 +40,9 @@ includes the range being read, even if only part of it was sent.
 The proxy has one sequential, paginated reader per custom stream. It uses the
 existing socket backpressure and interrupts stale reads on rollback; there is
 no custom historical replay or pending-event buffer. Explorer metadata updates
-are coalesced by message ID and read by that same worker.
+are coalesced by message ID and read by that same worker. Equivalent enrichment
+queries share results until a head or message changes. On rollback, previously
+sent provisional messages are refreshed across all requested domains.
 
 Explorer's `ExplorerEventsProvider` requests zero confirmations, clears its
 provisional overlay and retained message subscriptions on rollback, and refreshes

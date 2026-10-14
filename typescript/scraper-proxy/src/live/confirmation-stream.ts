@@ -6,16 +6,26 @@ export type ConfirmationRow = {
   position: Position;
   message?: Record<string, unknown>;
 };
-export type ConfirmationHead = { head: bigint; indexed: bigint };
+export type ConfirmationHead = {
+  head: bigint;
+  indexed: bigint;
+  confirmed: bigint;
+};
+export class ConfirmationUnavailableError extends Error {
+  constructor(domain: number) {
+    super(`Custom confirmations unavailable for domain ${domain}`);
+  }
+}
 type DomainState = {
   position: Position;
   target: bigint;
   through: bigint;
 };
 const END_OF_HEIGHT = 9_223_372_036_854_775_807n;
+const MAX_CUSTOM_MESSAGE_IDS = 10_000;
 
 export function confirmationHeight(
-  head: ConfirmationHead,
+  head: Pick<ConfirmationHead, 'head' | 'indexed'>,
   confirmations: number,
 ): bigint {
   const height = head.head - BigInt(confirmations);
@@ -29,6 +39,8 @@ export class ConfirmationStream {
   private running = false;
   private started = false;
   private readonly refreshIds = new Set<string>();
+  private readonly exposedIds = new Map<string, Map<number, bigint>>();
+  private readonly confirmed = new Map<number, bigint>();
 
   constructor(
     readonly confirmations: number,
@@ -44,6 +56,7 @@ export class ConfirmationStream {
       send: (message: Record<string, unknown>) => Promise<boolean>;
       rollback: (domain: number, from: bigint, to: bigint) => void;
       fail: (error: unknown) => void;
+      messageId?: (message: Record<string, unknown>) => string | undefined;
       enrich?: (
         ids: string[],
         frontiers: Map<number, bigint>,
@@ -65,11 +78,10 @@ export class ConfirmationStream {
         const head = heads.get(domain);
         if (!head) {
           if (allowCanonical) continue;
-          throw new Error(
-            `Custom confirmations unavailable for domain ${domain}`,
-          );
+          throw new ConfirmationUnavailableError(domain);
         }
         const height = confirmationHeight(head, this.confirmations);
+        this.confirmed.set(domain, head.confirmed);
         this.states.set(domain, {
           position: endOfHeight(height),
           target: height,
@@ -96,7 +108,7 @@ export class ConfirmationStream {
   refresh(ids: string[]): void {
     if (!this.io.enrich) return;
     ids.forEach((id) => this.refreshIds.add(id));
-    if (this.refreshIds.size > 10_000) {
+    if (this.refreshIds.size > MAX_CUSTOM_MESSAGE_IDS) {
       this.io.fail(new Error('Custom message notification limit exceeded'));
       return;
     }
@@ -116,8 +128,8 @@ export class ConfirmationStream {
       head.indexedHeight < head.previousIndexedHeight;
     if (!state) {
       // Capabilities are fixed until reconnect. During negotiation, retry the
-      // snapshot if a head appeared; afterwards this domain stays canonical.
-      if (!this.started) this.revision++;
+      // snapshot only if ancestry changed; afterwards this domain stays canonical.
+      if (!this.started && rollback) this.revision++;
       return;
     }
     const to = confirmationHeight(
@@ -125,13 +137,22 @@ export class ConfirmationStream {
       this.confirmations,
     );
     state.target = to;
+    this.confirmed.set(head.domain, head.confirmedHeight);
+    for (const [id, frontiers] of this.exposedIds) {
+      if (this.isCanonical(frontiers)) this.exposedIds.delete(id);
+    }
     if (rollback) {
       this.revision++;
       // through is reserved BEFORE reading/sending a range. It covers partial
       // pages, events without a public height, and pending send callbacks.
-      if (state.through > to) this.io.rollback(head.domain, state.through, to);
+      const exposedRollback = this.started && state.through > to;
+      if (exposedRollback) {
+        this.io.rollback(head.domain, state.through, to);
+      }
       state.through = to;
       if (state.position[0] > to) state.position = endOfHeight(to);
+      // Explorer clears its entire provisional overlay on any rollback.
+      if (exposedRollback) this.refresh([...this.exposedIds.keys()]);
     }
     this.schedule();
   }
@@ -151,6 +172,24 @@ export class ConfirmationStream {
       });
   }
 
+  private isCanonical(frontiers: Map<number, bigint>): boolean {
+    for (const [domain, height] of frontiers)
+      if (height > (this.confirmed.get(domain) ?? 0n)) return false;
+    return true;
+  }
+
+  private remember(
+    message: Record<string, unknown>,
+    frontiers: Map<number, bigint>,
+  ): void {
+    const id = this.io.messageId?.(message);
+    if (!id) return;
+    if (this.isCanonical(frontiers)) this.exposedIds.delete(id);
+    else this.exposedIds.set(id, frontiers);
+    if (this.exposedIds.size > MAX_CUSTOM_MESSAGE_IDS)
+      this.io.fail(new Error('Custom provisional message limit exceeded'));
+  }
+
   private async drain(): Promise<void> {
     while (this.io.active()) {
       const next = [...this.states].find(([, state]) => needsRead(state));
@@ -166,6 +205,7 @@ export class ConfirmationStream {
         for (const message of messages) {
           if (!this.io.active()) return;
           if (revision !== this.revision) break;
+          this.remember(message, frontiers);
           if (!(await this.io.send(message))) {
             this.started = false;
             return;
@@ -192,6 +232,7 @@ export class ConfirmationStream {
         if (!this.io.active()) return;
         if (revision !== this.revision) break;
         state.position = row.position;
+        if (row.message) this.remember(row.message, frontiers);
         if (row.message && !(await this.io.send(row.message))) {
           this.started = false;
           return;

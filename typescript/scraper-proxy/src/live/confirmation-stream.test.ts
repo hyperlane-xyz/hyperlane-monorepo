@@ -46,12 +46,14 @@ async function fixture(
     domain: number,
     after: Position,
     through: bigint,
+    frontiers: Map<number, bigint>,
   ) => AsyncIterable<ConfirmationRow>,
   send?: () => Promise<void>,
   enrich?: (
     ids: string[],
     frontiers: Map<number, bigint>,
   ) => Promise<Record<string, unknown>[]>,
+  initial = 9n,
 ) {
   const messages: Record<string, unknown>[] = [];
   let active = true;
@@ -59,6 +61,9 @@ async function fixture(
     active: () => active,
     read,
     enrich,
+    messageId: enrich
+      ? (message) => (typeof message.id === 'string' ? message.id : undefined)
+      : undefined,
     send: async (message) => {
       messages.push(message);
       await send?.();
@@ -73,7 +78,12 @@ async function fixture(
   });
   await stream.initialize(
     async () =>
-      new Map([1, 2].map((domain) => [domain, { head: 9n, indexed: 9n }])),
+      new Map(
+        [1, 2].map((domain) => [
+          domain,
+          { head: initial, indexed: initial, confirmed: 0n },
+        ]),
+      ),
   );
   stream.start();
   return {
@@ -242,12 +252,112 @@ void it('retries negotiation if a rollback arrives during the initial read', asy
   const initializing = stream.initialize(async () => {
     reads++;
     if (reads === 1) await held.promise;
-    return new Map([[1, { head: 9n, indexed: 9n }]]);
+    return new Map([[1, { head: 9n, indexed: 9n, confirmed: 0n }]]);
   });
   stream.notify(head(9n, 10n));
   held.release();
   await initializing;
   assert.equal(reads, 2);
+});
+
+void it('does not retry negotiation for an advancing head or emit rollback before start', async () => {
+  const held = gate();
+  let reads = 0;
+  const stream = new ConfirmationStream(0, new Set([1]), {
+    active: () => true,
+    read: async function* () {},
+    send: async () => assert.fail('not started'),
+    rollback: () => assert.fail('not started'),
+    fail: (error) => assert.fail(String(error)),
+  });
+  const initializing = stream.initialize(async () => {
+    reads++;
+    await held.promise;
+    return new Map([[1, { head: 9n, indexed: 9n, confirmed: 0n }]]);
+  });
+  stream.notify(head(10n, 9n));
+  held.release();
+  await initializing;
+  assert.equal(reads, 1);
+  stream.notify(head(8n, 9n));
+});
+
+for (const rollbackDomain of [1, 2]) {
+  void it(`refreshes previously exposed messages after domain ${rollbackDomain} rolls back`, async () => {
+    const changes = [
+      { id: 'six', height: 6n },
+      { id: 'nine', height: 9n },
+    ];
+    const f = await fixture(
+      async function* (domain, after, through) {
+        if (domain !== 1) return;
+        for (const { id, height } of changes) {
+          if (height > after[0] && height <= through)
+            yield {
+              position: [height, 0, 1n],
+              message: { id, delivered: true },
+            };
+        }
+      },
+      undefined,
+      async (ids, frontiers) =>
+        changes
+          .filter(
+            ({ id, height }) =>
+              ids.includes(id) && height <= (frontiers.get(1) ?? 0n),
+          )
+          .map(({ id }) => ({ id, delivered: (frontiers.get(2) ?? 0n) >= 6n })),
+      5n,
+    );
+    try {
+      f.stream.notify(head(6n, 5n, 6n, 2));
+      f.stream.notify(head(10n, 5n));
+      await until(() => f.messages.length === 2);
+      f.stream.notify(
+        rollbackDomain === 1 ? head(8n, 10n) : head(5n, 6n, 5n, 2),
+      );
+      await until(() => f.messages.filter((m) => m.id === 'six').length === 2);
+      assert.equal(f.messages[2].type, 'rollback');
+      assert.equal(f.messages[3].id, 'six');
+      if (rollbackDomain === 2) {
+        assert.equal(f.messages[3].delivered, false);
+        await until(
+          () => f.messages.filter((m) => m.id === 'nine').length === 2,
+        );
+      } else assert.equal(f.messages.filter((m) => m.id === 'nine').length, 1);
+    } finally {
+      f.stop();
+    }
+  });
+}
+
+void it('stops retaining messages after their exposed frontiers become canonical', async () => {
+  let enrichments = 0;
+  const f = await fixture(
+    async function* (_domain, after, through) {
+      if (after[0] < 10n && through >= 10n)
+        yield { position: [10n, 0, 1n], message: { id: 'canonical' } };
+    },
+    undefined,
+    async () => {
+      enrichments++;
+      return [];
+    },
+  );
+  try {
+    f.stream.notify(head(10n, 9n));
+    await until(() => f.messages.length === 1);
+    f.stream.notify({ ...head(10n), confirmedHeight: 10n });
+    f.stream.notify({ ...head(9n, 9n, 9n, 2), confirmedHeight: 9n });
+    f.stream.notify({ ...head(12n, 10n), confirmedHeight: 10n });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    f.stream.notify({ ...head(11n, 12n), confirmedHeight: 10n });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(f.messages.at(-1)?.type, 'rollback');
+    assert.equal(enrichments, 0);
+  } finally {
+    f.stop();
+  }
 });
 
 void it('retains the exposed snapshot height when a head-only drop interrupts a page', async () => {
