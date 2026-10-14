@@ -152,6 +152,7 @@ impl Worker {
                         );
                         self.store.rewind_to_confirmed(&observed).await?;
                         count_cache.boundary = None;
+                        count_cache.proven_through = Some(observed.confirmed);
                         // A rewind leaves the head unhealthy until it is observed again.
                         observed = observe(self.source.as_ref(), &self.store).await?;
                     }

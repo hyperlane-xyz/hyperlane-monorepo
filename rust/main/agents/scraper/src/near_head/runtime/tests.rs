@@ -871,6 +871,60 @@ async fn incomplete_range_replays_an_unproven_suffix() -> Result<()> {
     Ok(())
 }
 
+/// Rewinding an incomplete suffix also deletes its previously proven prefix.
+/// An incomplete replay must not inherit that deleted prefix's count proof.
+#[tokio::test]
+async fn indexed_boundary_rewind_invalidates_the_deleted_prefix_proof() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(20, false));
+    chain
+        .events
+        .lock()
+        .expect("events")
+        .push(dispatch_event(5, 0));
+    *chain.count_values.lock().expect("counts") = [1, 0];
+    let worker = worker(db, chain.clone()).await?;
+    let worker = Worker {
+        chunk_size: 10,
+        ..Arc::into_inner(worker).expect("sole worker handle")
+    };
+    let mut cache = CountCache::default();
+
+    // Prove 0->10 but keep it provisional while finality remains at zero.
+    assert!(worker.cycle(&mut cache).await?.more);
+    assert_eq!(cache.proven_through, Some(10));
+    let proven = worker.store.state().await?.expect("state");
+    assert_eq!((proven.indexed, proven.confirmed), (10, 0));
+    assert_eq!(worker.store.sequence_counts().await?[0], 1);
+
+    // Append an unproven 10->20 range whose final dispatch was omitted.
+    chain.counts.store(false, Ordering::SeqCst);
+    worker.cycle(&mut cache).await?;
+    let suffix = worker.store.state().await?.expect("state");
+    assert_eq!((suffix.indexed, suffix.confirmed), (20, 0));
+    assert_eq!(cache.proven_through, Some(10));
+
+    // Counts at 20 expose the gap. Replaying 0->10 now drops its dispatch,
+    // and pruned counts cannot prove that replacement range complete.
+    chain.counts.store(true, Ordering::SeqCst);
+    chain.pruned_below.store(20, Ordering::SeqCst);
+    *chain.count_values.lock().expect("counts") = [2, 0];
+    chain.events.lock().expect("events").clear();
+    chain.tag.store(10, Ordering::SeqCst);
+    assert!(worker.cycle(&mut cache).await?.more);
+    let replayed = worker.store.state().await?.expect("state");
+    assert_eq!((replayed.indexed, replayed.confirmed), (10, 0));
+    assert_eq!(worker.store.sequence_counts().await?[0], 0);
+    assert_eq!(cache.proven_through, Some(0));
+    assert!(!replayed.halted);
+    Ok(())
+}
+
 /// Sources without hash-pinned historical counts (e.g. Sealevel sequence mode)
 /// keep publishing; only sources that can prove a range wait for that proof.
 #[tokio::test]
