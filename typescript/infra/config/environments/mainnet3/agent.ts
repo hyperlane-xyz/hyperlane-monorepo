@@ -915,7 +915,12 @@ const fastPathUsdcMatchingList = chainMapMatchingList({
 
 const fastPathEclipseUsdcMatchingList = warpRouteMatchingList(
   WarpRouteIds.EclipseUSDC,
-).filter(({ originDomain }) => originDomain === getDomainId('ethereum'));
+).filter(
+  ({ originDomain, destinationDomain }) =>
+    originDomain === getDomainId('ethereum') &&
+    destinationDomain !== getDomainId('eclipsemainnet') &&
+    destinationDomain !== getDomainId('solanamainnet'),
+);
 
 // Cross Collateral USDT - https://github.com/hyperlane-xyz/hyperlane-registry/blob/codex/nambrot-cross-collateral-deploy/deployments/warp_routes/USDT/ctusd-config.yaml
 const fastPathUsdtMatchingList = chainMapMatchingList({
@@ -1001,7 +1006,6 @@ const fastPath: RootAgentConfig = {
       'base',
       'bsc',
       'citrea',
-      'eclipsemainnet',
       'ethereum',
       'hyperevm',
       'ink',
@@ -1010,7 +1014,6 @@ const fastPath: RootAgentConfig = {
       'monad',
       'optimism',
       'polygon',
-      'solanamainnet',
       'unichain',
       'worldchain',
     ],
