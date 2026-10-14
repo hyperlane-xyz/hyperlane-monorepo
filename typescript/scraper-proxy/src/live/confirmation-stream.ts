@@ -3,8 +3,13 @@ import type { HeadNotification } from './protocol.js';
 // Height, source, row ID. Source distinguishes Explorer's three event tables.
 export type Position = readonly [bigint, number, bigint];
 export type ConfirmationRow = {
+  domains?: readonly number[];
   position: Position;
   message?: Record<string, unknown>;
+};
+type EnrichedMessage = {
+  domains?: readonly number[];
+  message: Record<string, unknown>;
 };
 export type ConfirmationHead = {
   head: bigint;
@@ -60,7 +65,7 @@ export class ConfirmationStream {
       enrich?: (
         ids: string[],
         frontiers: Map<number, bigint>,
-      ) => Promise<Record<string, unknown>[]>;
+      ) => Promise<EnrichedMessage[]>;
     },
   ) {}
 
@@ -181,11 +186,17 @@ export class ConfirmationStream {
   private remember(
     message: Record<string, unknown>,
     frontiers: Map<number, bigint>,
+    domains?: readonly number[],
   ): void {
     const id = this.io.messageId?.(message);
     if (!id) return;
-    if (this.isCanonical(frontiers)) this.exposedIds.delete(id);
-    else this.exposedIds.set(id, frontiers);
+    const dependencies = new Map<number, bigint>();
+    for (const domain of domains ?? frontiers.keys()) {
+      const height = frontiers.get(domain);
+      if (height !== undefined) dependencies.set(domain, height);
+    }
+    if (this.isCanonical(dependencies)) this.exposedIds.delete(id);
+    else this.exposedIds.set(id, dependencies);
     if (this.exposedIds.size > MAX_CUSTOM_MESSAGE_IDS)
       this.io.fail(new Error('Custom provisional message limit exceeded'));
   }
@@ -202,10 +213,10 @@ export class ConfirmationStream {
           [...this.states].map(([id, state]) => [id, state.position[0]]),
         );
         const messages = await this.io.enrich(ids, frontiers);
-        for (const message of messages) {
+        for (const { message, domains } of messages) {
           if (!this.io.active()) return;
           if (revision !== this.revision) break;
-          this.remember(message, frontiers);
+          this.remember(message, frontiers, domains);
           if (!(await this.io.send(message))) {
             this.started = false;
             return;
@@ -232,7 +243,7 @@ export class ConfirmationStream {
         if (!this.io.active()) return;
         if (revision !== this.revision) break;
         state.position = row.position;
-        if (row.message) this.remember(row.message, frontiers);
+        if (row.message) this.remember(row.message, frontiers, row.domains);
         if (row.message && !(await this.io.send(row.message))) {
           this.started = false;
           return;

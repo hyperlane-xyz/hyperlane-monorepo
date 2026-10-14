@@ -54,13 +54,17 @@ async function fixture(
     frontiers: Map<number, bigint>,
   ) => Promise<Record<string, unknown>[]>,
   initial = 9n,
+  domains = new Set([1, 2]),
 ) {
   const messages: Record<string, unknown>[] = [];
   let active = true;
-  const stream = new ConfirmationStream(0, new Set([1, 2]), {
+  const stream = new ConfirmationStream(0, domains, {
     active: () => active,
     read,
-    enrich,
+    enrich: enrich
+      ? async (ids, frontiers) =>
+          (await enrich(ids, frontiers)).map((message) => ({ message }))
+      : undefined,
     messageId: enrich
       ? (message) => (typeof message.id === 'string' ? message.id : undefined)
       : undefined,
@@ -79,7 +83,7 @@ async function fixture(
   await stream.initialize(
     async () =>
       new Map(
-        [1, 2].map((domain) => [
+        [...domains].map((domain) => [
           domain,
           { head: initial, indexed: initial, confirmed: 0n },
         ]),
@@ -336,19 +340,24 @@ void it('stops retaining messages after their exposed frontiers become canonical
   const f = await fixture(
     async function* (_domain, after, through) {
       if (after[0] < 10n && through >= 10n)
-        yield { position: [10n, 0, 1n], message: { id: 'canonical' } };
+        yield {
+          domains: [1],
+          position: [10n, 0, 1n],
+          message: { id: 'canonical' },
+        };
     },
     undefined,
     async () => {
       enrichments++;
       return [];
     },
+    9n,
+    new Set([1, 2, 3]),
   );
   try {
     f.stream.notify(head(10n, 9n));
     await until(() => f.messages.length === 1);
     f.stream.notify({ ...head(10n), confirmedHeight: 10n });
-    f.stream.notify({ ...head(9n, 9n, 9n, 2), confirmedHeight: 9n });
     f.stream.notify({ ...head(12n, 10n), confirmedHeight: 10n });
     await new Promise<void>((resolve) => setImmediate(resolve));
     f.stream.notify({ ...head(11n, 12n), confirmedHeight: 10n });

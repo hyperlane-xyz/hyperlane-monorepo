@@ -39,6 +39,7 @@ export const PROVISIONAL_MESSAGE_QUERY = `
     ORDER BY delivery.msg_id, delivery.block_number DESC NULLS LAST, delivery.id DESC
   ), eligible_payment AS (
     SELECT payment.msg_id, count(*)::bigint AS num_payments,
+      array_agg(DISTINCT payment.domain) AS domains,
       sum(payment.payment) AS total_payment,
       sum(payment.gas_amount) AS total_gas_amount
     FROM gas_payment payment
@@ -57,6 +58,7 @@ export const PROVISIONAL_MESSAGE_QUERY = `
     coalesce(payment.num_payments, 0) AS num_payments,
     coalesce(payment.total_payment, 0) AS total_payment,
     coalesce(payment.total_gas_amount, 0) AS total_gas_amount,
+    payment.domains AS payment_domain_ids,
     dispatch.origin_domain AS origin_domain_id,
     origin_domain.chain_id AS origin_chain_id,
     origin_domain.name AS origin_domain,

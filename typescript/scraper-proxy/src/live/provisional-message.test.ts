@@ -57,6 +57,7 @@ void it(
           await db.query<{
             origin_domain_id: number;
             is_delivered: boolean;
+            payment_domain_ids: number[] | null;
             total_payment: string;
           }>(PROVISIONAL_MESSAGE_QUERY, [
             ['\\x01', '\\x02'],
@@ -90,8 +91,10 @@ void it(
         'canonical destination updates remain visible',
       );
       assert.equal(nearHead.total_payment, '100');
+      assert.deepEqual(nearHead.payment_domain_ids, [2]);
       assert.equal(legacy.is_delivered, true);
       assert.equal(legacy.total_payment, '300');
+      assert.deepEqual(legacy.payment_domain_ids, [1]);
 
       rows = await project('9');
       assert.equal(rows.length, 1, 'rollback removes the provisional origin');

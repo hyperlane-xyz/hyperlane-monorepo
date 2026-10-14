@@ -490,7 +490,12 @@ void it('shares equivalent Explorer enrichment and invalidates it after rollback
       if (sql.includes('provisional_message_view')) {
         queries++;
         return queryRows<T>([
-          { msg_id: msgId, origin_domain_id: 1, destination_domain_id: 2 },
+          {
+            msg_id: msgId,
+            origin_domain_id: 1,
+            destination_domain_id: 2,
+            payment_domain_ids: [3],
+          },
         ]);
       }
       throw new Error(`Unexpected shared enrichment query: ${sql}`);
@@ -516,6 +521,11 @@ void it('shares equivalent Explorer enrichment and invalidates it after rollback
       messages.map((frames) => waitFor(frames, 'message_upsert')),
     );
     assert.equal(queries, 1);
+    assert(
+      messages.every(
+        (frames) => !('payment_domain_ids' in record(frames.at(-1)?.data)),
+      ),
+    );
     notify(
       'scraper_head',
       JSON.stringify({

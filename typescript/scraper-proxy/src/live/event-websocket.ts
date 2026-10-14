@@ -141,6 +141,7 @@ type Limits = {
 };
 type SerializedMessage = Buffer;
 type HeadRange = { after: bigint; through: bigint };
+type ProvisionalMessage = { data: Row; domains: number[] };
 export type EventDatabase = Pick<DbService, 'listen' | 'queryLive'>;
 
 class HeadPublicationError extends Error {
@@ -216,7 +217,10 @@ export class EventWebSocketServer {
     WebSocket,
     ConfirmationStream[]
   >();
-  private readonly provisionalMessageCache = new Map<string, Promise<Row[]>>();
+  private readonly provisionalMessageCache = new Map<
+    string,
+    Promise<ProvisionalMessage[]>
+  >();
   private readonly terminatedSockets = new WeakSet<WebSocket>();
   private readonly explorerClients = new Map<WebSocket, ExplorerClient>();
   private readonly explorerClientsByIp = new Map<string, number>();
@@ -602,11 +606,14 @@ export class EventWebSocketServer {
             const rows = await this.provisionalMessages(ids, frontiers);
             return rows
               .filter(
-                (row) =>
-                  domains.has(rowDomain(row, 'origin_domain_id')) ||
-                  domains.has(rowDomain(row, 'destination_domain_id')),
+                ({ data }) =>
+                  domains.has(rowDomain(data, 'origin_domain_id')) ||
+                  domains.has(rowDomain(data, 'destination_domain_id')),
               )
-              .map((data) => ({ type: 'message_upsert', confirmations, data }));
+              .map(({ data, domains }) => ({
+                domains,
+                message: { type: 'message_upsert', confirmations, data },
+              }));
           },
       rollback: (domain, from, to) => {
         this.send(socket, {
@@ -737,18 +744,19 @@ export class EventWebSocketServer {
         [...new Set(changes.map((row) => row.msg_id))],
         frontiers,
       );
-      const messages = new Map(rows.map((row) => [row.msg_id, row]));
+      const messages = new Map(rows.map((row) => [row.data.msg_id, row]));
       for (const change of changes) {
         position = [parseId(change.height), change.source, parseId(change.id)];
         const row = messages.get(change.msg_id);
         yield {
+          domains: row?.domains,
           position,
           message: row && {
             type: 'message_upsert',
             domain,
             confirmations,
             height: through.toString(),
-            data: row,
+            data: row.data,
           },
         };
       }
@@ -759,7 +767,7 @@ export class EventWebSocketServer {
   private async provisionalMessages(
     ids: string[],
     frontiers: Map<number, bigint>,
-  ): Promise<Row[]> {
+  ): Promise<ProvisionalMessage[]> {
     const sortedIds = [...new Set(ids)].sort();
     const sortedFrontiers = [...frontiers].sort(([a], [b]) => a - b);
     const key = JSON.stringify([
@@ -780,11 +788,23 @@ export class EventWebSocketServer {
         sortedFrontiers.map(([, height]) => String(height)),
       ])
       .then((rows) =>
-        rows.map((row) => ({
-          ...row,
-          origin_domain_id: rowDomain(row, 'origin_domain_id'),
-          destination_domain_id: rowDomain(row, 'destination_domain_id'),
-        })),
+        rows.map((row) => {
+          const { payment_domain_ids: _, ...data } = row;
+          const origin = rowDomain(row, 'origin_domain_id');
+          const destination = rowDomain(row, 'destination_domain_id');
+          return {
+            data: {
+              ...data,
+              origin_domain_id: origin,
+              destination_domain_id: destination,
+            },
+            domains: [
+              origin,
+              destination,
+              ...rowDomains(row, 'payment_domain_ids'),
+            ],
+          };
+        }),
       )
       .catch((error: unknown) => {
         if (this.provisionalMessageCache.get(key) === result)
@@ -2171,6 +2191,15 @@ function sequenceConfig(stream: Stream): NonNullable<Stream['sequence']> {
 
 function rowDomain(row: Row, column: string): number {
   return parseDatabaseDomain(row[column], `Invalid ${column} in event row`);
+}
+
+function rowDomains(row: Row, column: string): number[] {
+  const values = row[column];
+  if (values == null) return [];
+  if (!Array.isArray(values)) throw new Error(`Invalid ${column} in event row`);
+  return values.map((value) =>
+    parseDatabaseDomain(value, `Invalid ${column} in event row`),
+  );
 }
 
 function eventData(eventType: EventType, row: Row): Row {
