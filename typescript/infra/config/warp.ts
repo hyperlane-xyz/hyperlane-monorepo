@@ -90,6 +90,7 @@ import { getCrossMoonpayLocalBridgeWarpConfig } from './environments/mainnet3/wa
 import { getUSDCCitreaMoonpayWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDCCitreaMoonpayWarpConfig.js';
 import { getUSDCCitreaMoonpayStagingWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDCCitreaMoonpayStagingWarpConfig.js';
 import { getUSDTCitreaMoonpayWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTCitreaMoonpayWarpConfig.js';
+import { getUSDGRobinhoodMoonpayWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDGRobinhoodMoonpayWarpConfig.js';
 import { getUSDTCitreaMoonpayStagingWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTCitreaMoonpayStagingWarpConfig.js';
 import { getUSDTOftWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTOftWarpConfig.js';
 import { getUSDTOftLegacyWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTOftLegacyWarpConfig.js';
@@ -146,6 +147,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.USDCCitreaIronBridge]: getUSDCCitreaIronBridgeWarpConfig,
   [WarpRouteIds.USDCCitreaMoonpay]: getUSDCCitreaMoonpayWarpConfig,
   [WarpRouteIds.USDTCitreaMoonpay]: getUSDTCitreaMoonpayWarpConfig,
+  [WarpRouteIds.USDGRobinhoodMoonpay]: getUSDGRobinhoodMoonpayWarpConfig,
   [WarpRouteIds.USDCCitreaMoonpaySTAGING]:
     getUSDCCitreaMoonpayStagingWarpConfig,
   [WarpRouteIds.USDTCitreaMoonpaySTAGING]:

@@ -1,17 +1,14 @@
 import {
   ChainMap,
   ChainName,
-  DEFAULT_ROUTER_KEY,
   HookConfig,
   HookType,
   HypTokenRouterConfig,
   IsmConfig,
   IsmType,
-  TokenFeeConfigInput,
-  TokenFeeType,
   TokenType,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
 import fastpathIsms from '../../fastpath/isms.json' with { type: 'json' };
 import { awIcas } from '../../governance/ica/aw.js';
@@ -22,12 +19,16 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
-import { getDomainId, getRegistry } from '../../../../registry.js';
+import { getRegistry } from '../../../../registry.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { usdcTokenAddresses } from '../cctp.js';
 import { WarpRouteIds } from '../warpIds.js';
 import {
-  getCrossCollateralTargetRoutersByChain,
+  buildCrossCollateralRoutingFee,
+  getMoonpayCrossCollateralRouters,
+  MOONPAY_ROUTE_CHAINS,
+} from './moonpay.js';
+import {
   getRebalancingBridgesConfigFor,
   getUSDCRebalancingBridgesConfigFor,
   mergeAllowedBridges,
@@ -46,18 +47,7 @@ const FASTPATH_CHAINS = [
 type FastpathChain = (typeof FASTPATH_CHAINS)[number];
 const FASTPATH_ISM_ADDRESSES = fastpathIsms as Record<FastpathChain, string>;
 
-const ROUTE_CHAINS = [
-  'solanamainnet',
-  'arbitrum',
-  'arc',
-  'base',
-  'bsc',
-  'citrea',
-  'ethereum',
-  'katana',
-  'polygon',
-  'robinhood',
-] as const satisfies readonly ChainName[];
+const ROUTE_CHAINS = MOONPAY_ROUTE_CHAINS;
 const CCTP_CHAINS = [
   'arbitrum',
   'arc',
@@ -73,7 +63,6 @@ const SOLANA_IGP_ADDRESS = 'BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv';
 const SOLANA_XO_TOKEN_MINT = 'xoUSDq85Rjsb6SbUwJyreFgeWQvxdkT7R3c3g7s6p5Y';
 const SOLANA_XO_NAME = 'XO Cash';
 const SOLANA_XO_SYMBOL = 'XO';
-const ROBINHOOD_USDG_TOKEN = '0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168';
 const ownersByChain = {
   solanamainnet: 'BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ', // Squads multisig
   arbitrum: awIcas.arbitrum,
@@ -84,7 +73,6 @@ const ownersByChain = {
   ethereum: awSafes.ethereum,
   katana: awIcas.katana,
   polygon: awIcas.polygon,
-  robinhood: awIcas.robinhood,
 } as const;
 
 const feeOwnersByChain = {
@@ -96,12 +84,7 @@ const feeOwnersByChain = {
   ethereum: warpFeesSafes.ethereum,
   katana: warpFeesIcas.katana,
   polygon: warpFeesIcas.polygon,
-  robinhood: warpFeesIcas.robinhood,
 } as const;
-const QUOTE_SIGNERS = [
-  '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
-  '0x6bb7818bbE8d88094Cf3620e58BC6BbEd542B867',
-];
 
 function getCctpFastRouteAddresses(): Record<CctpChain, string> {
   const route = getRegistry().getWarpRoute(WarpRouteIds.MainnetCCTPV2Fast);
@@ -141,17 +124,7 @@ function getTBDAAddresses(): Record<
 const CCTP_FAST_ROUTE_ADDRESSES = getCctpFastRouteAddresses();
 
 function getUsdtCrossCollateralRouters(): Record<string, string[]> {
-  const route = getRegistry().getWarpRoute(WarpRouteIds.USDTCitreaMoonpay);
-  assert(route, 'USDT/moonpay route not found in registry');
-  return Object.fromEntries(
-    route.tokens.map(({ chainName, addressOrDenom }) => {
-      assert(addressOrDenom, `Missing USDT router for ${chainName}`);
-      return [
-        String(getDomainId(chainName)),
-        [addressToBytes32(addressOrDenom)],
-      ];
-    }),
-  );
+  return getMoonpayCrossCollateralRouters([WarpRouteIds.USDTCitreaMoonpay]);
 }
 
 function isCctpChain(chain: ChainName): chain is CctpChain {
@@ -238,45 +211,6 @@ function buildHook(local: (typeof ROUTE_CHAINS)[number], owner: string) {
   return buildFastRouteHook(local, owner);
 }
 
-// Target routers (destination tokens) priced per destination, keyed by chain.
-// Union of both Moonpay routes so USDC/USDT/ctUSD/XO can each be priced distinctly.
-const TARGET_ROUTERS_BY_CHAIN = getCrossCollateralTargetRoutersByChain([
-  WarpRouteIds.USDCCitreaMoonpay,
-  WarpRouteIds.USDTCitreaMoonpay,
-]);
-
-function buildCrossCollateralRoutingFee(
-  owner: string,
-  destinations: readonly ChainName[],
-): TokenFeeConfigInput {
-  const offchainFee = (): TokenFeeConfigInput => ({
-    type: TokenFeeType.OffchainQuotedLinearFee,
-    owner,
-    bps: 3,
-    quoteSigners: QUOTE_SIGNERS,
-  });
-
-  return {
-    type: TokenFeeType.CrossCollateralRoutingFee,
-    owner,
-    feeContracts: Object.fromEntries(
-      destinations.map((dest) => {
-        const targetRouters = TARGET_ROUTERS_BY_CHAIN[dest] ?? [];
-        return [
-          dest,
-          {
-            // Per-destination-token fee slots, plus a default fallback.
-            ...Object.fromEntries(
-              targetRouters.map((routerKey) => [routerKey, offchainFee()]),
-            ),
-            [DEFAULT_ROUTER_KEY]: offchainFee(),
-          },
-        ];
-      }),
-    ),
-  };
-}
-
 export async function getUSDCCitreaMoonpayWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
@@ -313,7 +247,6 @@ export async function getUSDCCitreaMoonpayWarpConfig(
     ethereum: ethereumOwner,
     katana: katanaOwner,
     polygon: polygonOwner,
-    robinhood: robinhoodOwner,
   } = ownersByChain;
   const {
     arbitrum: arbitrumFeeOwner,
@@ -324,7 +257,6 @@ export async function getUSDCCitreaMoonpayWarpConfig(
     ethereum: ethereumFeeOwner,
     katana: katanaFeeOwner,
     polygon: polygonFeeOwner,
-    robinhood: robinhoodFeeOwner,
   } = feeOwnersByChain;
 
   const crossCollateralRouters = getUsdtCrossCollateralRouters();
@@ -492,18 +424,6 @@ export async function getUSDCCitreaMoonpayWarpConfig(
         polygonOwner,
       ),
       tokenFee: buildCrossCollateralRoutingFee(polygonFeeOwner, ROUTE_CHAINS),
-      crossCollateralRouters,
-    },
-    robinhood: {
-      type: TokenType.crossCollateral,
-      token: ROBINHOOD_USDG_TOKEN,
-      mailbox: routerConfig.robinhood.mailbox,
-      owner: robinhoodOwner,
-      interchainSecurityModule: buildInterchainSecurityModule(
-        'robinhood',
-        robinhoodOwner,
-      ),
-      tokenFee: buildCrossCollateralRoutingFee(robinhoodFeeOwner, ROUTE_CHAINS),
       crossCollateralRouters,
     },
   };
