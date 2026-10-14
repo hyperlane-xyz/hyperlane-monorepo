@@ -234,9 +234,7 @@ impl PendingMessage {
 
 impl Drop for PendingMessage {
     fn drop(&mut self) {
-        self.ctx
-            .metrics
-            .finish_pending_message(self.message.id(), self.app_context.as_deref());
+        self.ctx.metrics.finish_pending_message(self.message.id());
         self.ctx.metrics.finish_metadata_wait(
             self.message.id(),
             self.app_context.as_deref(),

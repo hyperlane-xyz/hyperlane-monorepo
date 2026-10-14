@@ -251,6 +251,85 @@ mod tests {
     }
 
     #[test]
+    fn pending_message_metrics_deduplicate_across_app_contexts() {
+        for first_context in [Some("test-app"), None, Some("default_ism")] {
+            let metrics = test_metrics();
+            let message_id = H256::from_low_u64_be(1);
+            let contexts = [first_context, None, Some("default_ism"), Some("test-app")];
+            let labels = [
+                first_context.unwrap_or(UNKNOWN_APP_CONTEXT),
+                "ethereum",
+                "arbitrum",
+            ];
+
+            for context in contexts {
+                metrics.record_pending_message(message_id, context);
+            }
+            for context in ["test-app", UNKNOWN_APP_CONTEXT, "default_ism"] {
+                assert_eq!(
+                    metrics
+                        .pending_message_active
+                        .with_label_values(&[context, "ethereum", "arbitrum"])
+                        .get(),
+                    i64::from(context == labels[0])
+                );
+            }
+
+            for _ in 1..contexts.len() {
+                metrics.finish_pending_message(message_id);
+                assert_eq!(
+                    metrics
+                        .pending_message_active
+                        .with_label_values(&labels)
+                        .get(),
+                    1
+                );
+                assert!(
+                    metrics
+                        .pending_message_oldest_timestamp_seconds
+                        .with_label_values(&labels)
+                        .get()
+                        > 0
+                );
+            }
+            metrics.finish_pending_message(message_id);
+            assert_eq!(
+                metrics
+                    .pending_message_active
+                    .with_label_values(&labels)
+                    .get(),
+                0
+            );
+            assert_eq!(
+                metrics
+                    .pending_message_oldest_timestamp_seconds
+                    .with_label_values(&labels)
+                    .get(),
+                0
+            );
+
+            // Once all instances finish, the message can acquire a new context.
+            metrics.record_pending_message(message_id, Some("new-app"));
+            let new_labels = ["new-app", "ethereum", "arbitrum"];
+            assert_eq!(
+                metrics
+                    .pending_message_active
+                    .with_label_values(&new_labels)
+                    .get(),
+                1
+            );
+            metrics.finish_pending_message(message_id);
+            assert_eq!(
+                metrics
+                    .pending_message_active
+                    .with_label_values(&new_labels)
+                    .get(),
+                0
+            );
+        }
+    }
+
+    #[test]
     fn pending_message_metrics_track_unique_active_messages_without_id_labels() {
         let metrics = test_metrics();
         let app_context = "metadex_allocate_chain";
@@ -276,7 +355,7 @@ mod tests {
                 > 0
         );
 
-        metrics.finish_pending_message(first_id, Some(app_context));
+        metrics.finish_pending_message(first_id);
         assert_eq!(
             metrics
                 .pending_message_active
@@ -284,8 +363,8 @@ mod tests {
                 .get(),
             2
         );
-        metrics.finish_pending_message(first_id, Some(app_context));
-        metrics.finish_pending_message(second_id, Some(app_context));
+        metrics.finish_pending_message(first_id);
+        metrics.finish_pending_message(second_id);
         assert_eq!(
             metrics
                 .pending_message_active
@@ -391,7 +470,15 @@ impl AppPendingMessages {
 
 #[derive(Debug, Default)]
 struct PendingMessageTracker {
-    by_app_context: Mutex<HashMap<String, AppPendingMessages>>,
+    messages: Mutex<PendingMessages>,
+}
+
+#[derive(Debug, Default)]
+struct PendingMessages {
+    by_app_context: HashMap<String, AppPendingMessages>,
+    // Keep the first context for every live instance of a message, even when
+    // different entrypoints classify it differently.
+    context_by_message: HashMap<H256, String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -467,7 +554,6 @@ impl MessageSubmissionMetrics {
     }
 
     pub(crate) fn record_pending_message(&self, message_id: H256, app_context: Option<&str>) {
-        let app_context = app_context.unwrap_or(UNKNOWN_APP_CONTEXT);
         let unix_timestamp_seconds = i64::try_from(
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -477,40 +563,60 @@ impl MessageSubmissionMetrics {
         .unwrap_or(i64::MAX);
         let mut pending = self
             .pending_message_tracker
-            .by_app_context
+            .messages
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let app_pending = pending.entry(app_context.to_owned()).or_default();
+        let app_context = pending
+            .context_by_message
+            .entry(message_id)
+            .or_insert_with(|| app_context.unwrap_or(UNKNOWN_APP_CONTEXT).to_owned())
+            .clone();
+        let app_pending = pending
+            .by_app_context
+            .entry(app_context.clone())
+            .or_default();
         if !app_pending.insert(message_id, unix_timestamp_seconds) {
             return;
         }
 
-        let labels = [app_context, self.origin.as_str(), self.destination.as_str()];
+        let labels = [
+            app_context.as_str(),
+            self.origin.as_str(),
+            self.destination.as_str(),
+        ];
         self.pending_message_active.with_label_values(&labels).inc();
         self.pending_message_oldest_timestamp_seconds
             .with_label_values(&labels)
             .set(app_pending.oldest_timestamp_seconds());
     }
 
-    pub(crate) fn finish_pending_message(&self, message_id: H256, app_context: Option<&str>) {
-        let app_context = app_context.unwrap_or(UNKNOWN_APP_CONTEXT);
-        let labels = [app_context, self.origin.as_str(), self.destination.as_str()];
+    pub(crate) fn finish_pending_message(&self, message_id: H256) {
         let mut pending = self
             .pending_message_tracker
-            .by_app_context
+            .messages
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let Some(app_pending) = pending.get_mut(app_context) else {
+        let Some(app_context) = pending.context_by_message.get(&message_id).cloned() else {
             return;
         };
+        let app_pending = pending
+            .by_app_context
+            .get_mut(&app_context)
+            .expect("tracked pending message must have an app-context bucket");
         if !app_pending.remove(&message_id) {
             return;
         }
         let next_oldest = app_pending.oldest_timestamp_seconds();
         if app_pending.is_empty() {
-            pending.remove(app_context);
+            pending.by_app_context.remove(&app_context);
         }
+        pending.context_by_message.remove(&message_id);
 
+        let labels = [
+            app_context.as_str(),
+            self.origin.as_str(),
+            self.destination.as_str(),
+        ];
         self.pending_message_active.with_label_values(&labels).dec();
         self.pending_message_oldest_timestamp_seconds
             .with_label_values(&labels)
