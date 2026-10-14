@@ -45,6 +45,25 @@ describe('MultiProtocolProvider', () => {
       expect(readOnly.tryGetSeismicSigner('seismic')).to.equal(undefined);
     });
 
+    it('adopts Seismic signers after construction and keeps them in derived instances', () => {
+      // The CLI builds its MultiProtocolProvider from metadata first and
+      // attaches keys later; signers are adopted in place.
+      const adapted = new MultiProtocolProvider({ test1, seismic });
+      adapted.setSeismicSigners(multiProviderWithSigners());
+      expect(adapted.tryGetSeismicSigner('seismic')).to.be.instanceOf(
+        SeismicSigner,
+      );
+      expect(adapted.tryGetSeismicSigner(TestChainName.test1)).to.equal(
+        undefined,
+      );
+      const extended = adapted.extendChainMetadata({
+        seismic: { mailbox: '0x1' },
+      });
+      expect(extended.tryGetSeismicSigner('seismic')).to.be.instanceOf(
+        SeismicSigner,
+      );
+    });
+
     it('keeps Seismic signers across extendChainMetadata and intersect', () => {
       const adapted = MultiProtocolProvider.fromMultiProvider(
         multiProviderWithSigners(),

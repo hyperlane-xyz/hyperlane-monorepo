@@ -196,6 +196,15 @@ export async function signerMiddleware(argv: ContextMiddlewareArgv) {
   argv.context.multiProvider = await multiProtocolSigner.getMultiProvider();
 
   /**
+   * @notice Lets the MultiProtocolProvider sign reads of shielded state on
+   * Seismic chains (balanceOf/allowance of the sender before a warp transfer).
+   * No-op for other chains; it stays a provider-only registry for them.
+   */
+  argv.context.multiProtocolProvider.setSeismicSigners(
+    argv.context.multiProvider,
+  );
+
+  /**
    * Creates AltVM signers
    */
   argv.context.altVmSigners = await createAltVMSigners(
