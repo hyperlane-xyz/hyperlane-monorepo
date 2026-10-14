@@ -38,7 +38,11 @@ export const getRadixUSDCWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const rebalancingConfig = getUSDCRebalancingBridgesConfigFor(
     deploymentChains,
-    [WarpRouteIds.MainnetCCTPV1],
+    [
+      WarpRouteIds.MainnetCCTPV1,
+      WarpRouteIds.MainnetCCTPV2Standard,
+      WarpRouteIds.MainnetCCTPV2Fast,
+    ],
   );
 
   const ethereum: HypTokenRouterConfig = {
@@ -50,13 +54,13 @@ export const getRadixUSDCWarpConfig = async (
     token: tokens.ethereum.USDC,
     interchainSecurityModule: {
       type: IsmType.AGGREGATION,
-      threshold: 2,
+      threshold: 3,
       modules: [
         {
-          type: IsmType.FALLBACK_ROUTING,
-          owner: '0xA365Bf3Da1f1B01E2a80f9261Ec717B305b2Eb8F',
-          domains: {},
+          type: IsmType.MAILBOX_DEFAULT,
         },
+        // Reuse the Safe-owned, append-only BlacklistIsm deployed for recovery.
+        '0x435E9F0e54Af1E0C37A6075233059f7625f2CFC9',
         {
           type: IsmType.PAUSABLE,
           owner: '0x60Cc386C85717CB51C2827A75e14826883dF5da4',
