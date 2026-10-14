@@ -1,9 +1,4 @@
-import {
-  ChainMap,
-  CrossCollateralTokenConfig,
-  HypTokenRouterConfig,
-  TokenType,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import {
@@ -13,7 +8,6 @@ import {
 import { getDomainId, getRegistry } from '../../../../registry.js';
 import { DEPLOYER } from '../../owners.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
-import { usdcTokenAddresses } from '../cctp.js';
 import { WarpRouteIds } from '../warpIds.js';
 import {
   getRebalancingBridgesConfigFor,
@@ -89,26 +83,6 @@ function getSiblingCrossCollateralRouters(): Record<string, string[]> {
   );
 }
 
-// Preserve the existing same-chain USDC -> USDT staging rebalance link so
-// extending the route does not remove unrelated on-chain configuration.
-function getBaseSiblingRebalanceConfig(): Partial<
-  Pick<CrossCollateralTokenConfig, 'rebalanceRecipients' | 'rebalanceTargets'>
-> {
-  const route = getRegistry().getWarpRoute(
-    WarpRouteIds.USDTCitreaMoonpaySTAGING,
-  );
-  if (!route) return {};
-
-  const sibling = route.tokens.find(({ chainName }) => chainName === 'base');
-  assert(sibling?.addressOrDenom, 'Missing Base USDT staging router');
-  const siblingRouter = addressToBytes32(sibling.addressOrDenom);
-
-  return {
-    rebalanceRecipients: { base: siblingRouter },
-    rebalanceTargets: { base: [siblingRouter] },
-  };
-}
-
 export async function getUSDCCitreaMoonpayStagingWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
@@ -118,12 +92,6 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
     ['arbitrum', 'base', 'ethereum', 'polygon'],
     [WarpRouteIds.MainnetCCTPV2Standard, WarpRouteIds.MainnetCCTPV2Fast],
   );
-
-  const cctpStandardRebalancingConfigByChain =
-    getUSDCRebalancingBridgesConfigFor(
-      ['arbitrum', 'arc', 'base', 'ethereum', 'polygon'],
-      [WarpRouteIds.MainnetCCTPV2Standard],
-    );
 
   const additionalRebalancingConfigByChain = getRebalancingBridgesConfigFor(
     ['arbitrum', 'base', 'bsc', 'ethereum', 'polygon'],
@@ -166,20 +134,7 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
         cctpRebalancingConfigByChain.arbitrum.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.arbitrum?.allowedRebalancingBridges,
         { citrea: [{ bridge: tbda.arbitrum }] },
-        {
-          arc: cctpStandardRebalancingConfigByChain.arbitrum
-            .allowedRebalancingBridges.arc,
-        },
       ),
-      crossCollateralRouters,
-    },
-    arc: {
-      type: TokenType.crossCollateral,
-      token: usdcTokenAddresses.arc,
-      mailbox: routerConfig.arc.mailbox,
-      owner: DEPLOYER_EVM,
-      ...cctpStandardRebalancingConfigByChain.arc,
-      allowedRebalancers: ALLOWED_REBALANCERS,
       crossCollateralRouters,
     },
     base: {
@@ -187,17 +142,12 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
       token: tokens.base.USDC,
       mailbox: routerConfig.base.mailbox,
       owner: DEPLOYER_EVM,
-      ...getBaseSiblingRebalanceConfig(),
       ...cctpRebalancingConfigByChain.base,
       allowedRebalancers: ALLOWED_REBALANCERS,
       allowedRebalancingBridges: mergeAllowedBridges(
         cctpRebalancingConfigByChain.base.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.base?.allowedRebalancingBridges,
         { citrea: [{ bridge: tbda.base }] },
-        {
-          arc: cctpStandardRebalancingConfigByChain.base
-            .allowedRebalancingBridges.arc,
-        },
       ),
       crossCollateralRouters,
     },
@@ -233,10 +183,6 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
         cctpRebalancingConfigByChain.ethereum.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.ethereum?.allowedRebalancingBridges,
         { citrea: [{ bridge: tbda.ethereum }] },
-        {
-          arc: cctpStandardRebalancingConfigByChain.ethereum
-            .allowedRebalancingBridges.arc,
-        },
       ),
       crossCollateralRouters,
     },
@@ -259,10 +205,6 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
         cctpRebalancingConfigByChain.polygon.allowedRebalancingBridges,
         additionalRebalancingConfigByChain.polygon?.allowedRebalancingBridges,
         { citrea: [{ bridge: tbda.polygon }] },
-        {
-          arc: cctpStandardRebalancingConfigByChain.polygon
-            .allowedRebalancingBridges.arc,
-        },
       ),
       crossCollateralRouters,
     },
