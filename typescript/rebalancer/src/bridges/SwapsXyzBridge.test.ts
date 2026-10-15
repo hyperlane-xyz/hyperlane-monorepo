@@ -219,6 +219,7 @@ function createBridge(
     defaultSlippage?: number;
     maxQuoteLossBps?: number;
     maxEvmNativeFeeWei?: bigint;
+    maxTronNativeFeeSun?: bigint;
     maxSolanaNativeSpendLamports?: number;
     evmProviderFactory?: (rpcUrl: string) => providers.Provider;
     solanaConnectionFactory?: (rpcUrl: string) => Connection;
@@ -234,6 +235,7 @@ function createBridge(
       defaultSlippage: overrides.defaultSlippage,
       maxQuoteLossBps: overrides.maxQuoteLossBps,
       maxEvmNativeFeeWei: overrides.maxEvmNativeFeeWei,
+      maxTronNativeFeeSun: overrides.maxTronNativeFeeSun,
       maxSolanaNativeSpendLamports: overrides.maxSolanaNativeSpendLamports,
       evmProviderFactory: overrides.evmProviderFactory,
       solanaConnectionFactory: overrides.solanaConnectionFactory,
@@ -1242,6 +1244,42 @@ describe('SwapsXyzBridge.execute', () => {
 
     expect(error.message).to.include('Tron private key');
     expect(getActionStub.callCount).to.equal(0);
+  });
+
+  it('prepares a Tron payload without keys or source submission', async () => {
+    const harness = createTronExecuteHarness();
+
+    await harness.bridge.prepare(tronBridgeQuote());
+
+    expect(harness.getActionStub.callCount).to.equal(1);
+    expect(harness.sendTransactionStub.called).to.equal(false);
+    expect(harness.registerTxsStub.called).to.equal(false);
+  });
+
+  it('rejects Tron contract-call native fees above the configured cap', async () => {
+    const response = tronActionResponse({
+      tx: {
+        to: TRON_SPENDER_BASE58,
+        toExtra: sourceOrderData(true),
+        value: '20000001',
+        chainId: TRON_CHAIN_ID,
+        chainKey: 'trx',
+      },
+    });
+    const harness = createTronExecuteHarness(response);
+    const bridge = createBridge(harness.client, {
+      tronWalletFactory: () => harness.wallet,
+      maxTronNativeFeeSun: 20_000_000n,
+    });
+
+    const error = await captureError(
+      bridge.execute(tronBridgeQuote(), {
+        [ProtocolType.Tron]: TEST_PRIVATE_KEY,
+      }),
+    );
+
+    expect(error.message).to.include('Tron native fee');
+    expect(harness.sendTransactionStub.callCount).to.equal(0);
   });
 
   it('throws before re-quoting when the Tron signer does not match', async () => {
