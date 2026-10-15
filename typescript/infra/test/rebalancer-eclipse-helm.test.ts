@@ -3,6 +3,7 @@ import { execFileSync } from 'child_process';
 import path from 'path';
 import { parse, parseAllDocuments, stringify } from 'yaml';
 
+import { DockerImageRepos, mainnetDockerTags } from '../config/docker.js';
 import { readRebalancerConfig } from '../src/rebalancer/config.js';
 import { buildRebalancerHelmValues } from '../src/rebalancer/helm.js';
 import { getInfraPath } from '../src/utils/utils.js';
@@ -15,12 +16,13 @@ describe('USDT Eclipse production manifest', () => {
         'config/environments/mainnet3/rebalancer/USDT/eclipsemainnet-config.yaml',
       ),
     );
-    const registryCommit = 'a'.repeat(40);
+    const registryCommit = loaded.deployment.registryCommit;
+    expect(registryCommit).to.equal('182e1be0c2df41b6e423b4934390daff1b6a72f9');
+    if (!registryCommit) throw new Error('Missing Eclipse registry pin');
     const chains = [
       'arbitrum',
       'bsc',
       'ethereum',
-      'plasma',
       'solanamainnet',
       'tron',
       'eclipsemainnet',
@@ -70,7 +72,7 @@ describe('USDT Eclipse production manifest', () => {
       { secretRef: { name: secret.spec.target.name } },
     ]);
     expect(container.image).to.equal(
-      'ghcr.io/hyperlane-xyz/hyperlane-node-services:3329eda-20260828-115558',
+      `${DockerImageRepos.NODE_SERVICES}:${mainnetDockerTags.rebalancer}`,
     );
     expect(container.env).to.deep.include({
       name: 'MONITOR_ONLY',
@@ -91,18 +93,31 @@ describe('USDT Eclipse production manifest', () => {
     expect(runtime.intentTTL).to.equal(1209600);
     expect(loaded.config.intentTTL).to.equal(1209600000);
     expect(runtime.externalBridges).to.deep.equal({
-      debridge: {},
       swapsxyz: {
         defaultSlippage: 0.005,
-        maxQuoteLossBps: 250,
+        maxQuoteLossBps: 50,
+        maxEvmNativeFeeWei: '10000000000000000',
+        maxTronNativeFeeSun: 20000000,
         maxSolanaNativeSpendLamports: 10000000,
       },
     });
-    expect(runtime.strategy.chains.plasma.minAmount).to.deep.equal({
-      min: 10000,
-      target: 15000,
-      type: 'absolute',
-    });
+    expect(runtime.strategy.chains).not.to.have.property('plasma');
+    expect(
+      Object.values(runtime.strategy.chains).reduce(
+        (total: number, chain) => total + chain.minAmount.target,
+        0,
+      ),
+    ).to.equal(90000);
+    for (const chain of [
+      'arbitrum',
+      'bsc',
+      'ethereum',
+      'solanamainnet',
+      'tron',
+    ])
+      expect(runtime.strategy.chains[chain].externalBridge).to.equal(
+        'swapsxyz',
+      );
     expect(
       runtime.strategy.chains.arbitrum.override.tron.statusAdapter.sourceEid,
     ).to.equal(30110);
@@ -110,5 +125,17 @@ describe('USDT Eclipse production manifest', () => {
       runtime.strategy.chains.tron.override.arbitrum.statusAdapter
         .destinationEid,
     ).to.equal(30110);
+    for (const [origin, destination] of [
+      ['arbitrum', 'ethereum'],
+      ['arbitrum', 'tron'],
+      ['ethereum', 'arbitrum'],
+      ['ethereum', 'tron'],
+      ['tron', 'arbitrum'],
+      ['tron', 'ethereum'],
+    ]) {
+      const route = runtime.strategy.chains[origin].override[destination];
+      expect(route.executionType).to.equal('movableCollateral');
+      expect(route.statusAdapter.destinationRecipient).to.equal('*');
+    }
   });
 });
