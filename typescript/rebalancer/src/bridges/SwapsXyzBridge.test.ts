@@ -1493,6 +1493,17 @@ describe('SwapsXyzBridge.execute', () => {
 describe('SwapsXyzBridge.execute Solana', () => {
   afterEach(() => sinon.restore());
 
+  it('prepares and simulates a Solana payload without signing or broadcasting', async () => {
+    const harness = createSolanaExecuteHarness();
+    const sign = sinon.spy(VersionedTransaction.prototype, 'sign');
+
+    await harness.bridge.prepare(solanaQuote());
+
+    expect(harness.simulateTransactionStub.callCount).to.equal(1);
+    expect(sign.called).to.equal(false);
+    expect(harness.sendRawTransactionStub.called).to.equal(false);
+  });
+
   it('simulates, binds, broadcasts, and registers an exact-input transfer', async () => {
     const harness = createSolanaExecuteHarness();
 
@@ -1510,7 +1521,7 @@ describe('SwapsXyzBridge.execute Solana', () => {
     expect(harness.simulateTransactionStub.callCount).to.equal(1);
     expect(harness.simulateTransactionStub.firstCall.args[1]).to.include({
       minContextSlot: 1,
-      sigVerify: true,
+      sigVerify: false,
     });
     expect(harness.sendRawTransactionStub.callCount).to.equal(1);
     expect(harness.registerTxsStub.firstCall.args[0]).to.deep.equal([
