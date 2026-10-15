@@ -220,6 +220,7 @@ export {
   ProxyFactoryFactoriesSchema,
   ViolationType,
 } from './deploy/types.js';
+export { getTxConfigBatchSize } from './deploy/utils.js';
 export { ContractVerifier } from './deploy/verify/ContractVerifier.js';
 export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier.js';
 export {
@@ -303,6 +304,7 @@ export {
   DerivedHookConfig,
   DomainRoutingHookConfig,
   DomainRoutingHookConfigSchema,
+  ERC20_FEE_AGGREGATION_HOOK_VERSION,
   FallbackRoutingHookConfig,
   FallbackRoutingHookConfigSchema,
   HookConfig,
@@ -335,6 +337,7 @@ export {
   collectHybridHookNodes,
   hookTreeContainsRateLimited,
   isHookCompatible,
+  submitRoutingHookConfigs,
 } from './hook/utils.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';

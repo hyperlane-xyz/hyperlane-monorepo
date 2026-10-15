@@ -1,0 +1,32 @@
+# ERC20 fee tokens of the token IGP test warp routes. bsc has none: its default
+# hook still routes to aggregation hooks that revert on ERC20 fee metadata, so
+# calls from bsc can only pay native fees.
+arbitrum:
+  - address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831'
+    symbol: USDC
+  - address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9'
+    symbol: USDT
+arc:
+  - address: '0x3600000000000000000000000000000000000000'
+    symbol: USDC
+base:
+  - address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+    symbol: USDC
+  - address: '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2'
+    symbol: USDT
+bsc: []
+ethereum:
+  - address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
+    symbol: USDC
+  - address: '0xdAC17F958D2ee523a2206206994597C13D831ec7'
+    symbol: USDT
+ink:
+  - address: '0x2D270e6886d130D724215A266106e6832161EAEd'
+    symbol: USDC
+  - address: '0x0200C29006150606B650577BBE7B6248F58470c1'
+    symbol: USDT
+optimism:
+  - address: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85'
+    symbol: USDC
+  - address: '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58'
+    symbol: USDT

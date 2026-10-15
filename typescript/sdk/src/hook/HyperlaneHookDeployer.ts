@@ -21,9 +21,9 @@ import {
 import {
   Address,
   ZERO_ADDRESS_HEX_32,
-  addBufferToGasLimit,
   addressToBytes32,
   assert,
+  chunk,
   deepEquals,
   eqAddress,
   isZeroishAddress,
@@ -33,7 +33,7 @@ import {
 import { HyperlaneContracts } from '../contracts/types.js';
 import { CoreAddresses } from '../core/contracts.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
-import { getTxConfigBatchSize, submitBatched } from '../deploy/utils.js';
+import { getTxConfigBatchSize } from '../deploy/utils.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer.js';
 import { IgpFactories } from '../gas/contracts.js';
@@ -57,6 +57,7 @@ import {
   PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './types.js';
+import { submitRoutingHookConfigs } from './utils.js';
 
 // Hook types that can be recovered without redeployment when the config carries
 // an existing address. Mutable recovered hooks are reconciled in place, and
@@ -419,11 +420,8 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       );
     }
 
-    const batchSize = getTxConfigBatchSize(chain);
-    for (let i = 0; i < routingConfigs.length; i += batchSize) {
-      await routingHook.estimateGas.setHooks(
-        routingConfigs.slice(i, i + batchSize),
-      );
+    for (const batch of chunk(routingConfigs, getTxConfigBatchSize(chain))) {
+      await routingHook.estimateGas.setHooks(batch);
     }
     for (const [childAddress, childConfig] of childConfigs) {
       await this.validateRecoveredHook(
@@ -637,22 +635,14 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 
     const overrides = this.multiProvider.getTransactionOverrides(chain);
     if (routingConfigs.length > 0) {
-      await submitBatched(
+      await submitRoutingHookConfigs({
+        multiProvider: this.multiProvider,
         chain,
-        routingConfigs,
-        async (batch) => {
-          const estimatedGas = await routingHook.estimateGas.setHooks(batch);
-          await this.multiProvider.handleTx(
-            chain,
-            routingHook.setHooks(batch, {
-              gasLimit: addBufferToGasLimit(estimatedGas),
-              ...overrides,
-            }),
-          );
-        },
-        this.logger,
-        'recovered routing hook configs',
-      );
+        routingHook,
+        configs: routingConfigs,
+        logger: this.logger,
+        label: 'recovered routing hook configs',
+      });
     }
     const owner = this.recoveredOwner(config);
     const currentOwner = await routingHook.owner();
@@ -949,24 +939,15 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       }
     }
 
-    const overrides = this.multiProvider.getTransactionOverrides(chain);
     await this.runIfOwner(chain, routingHook, async () => {
-      await submitBatched(
+      await submitRoutingHookConfigs({
+        multiProvider: this.multiProvider,
         chain,
-        routingConfigs,
-        async (batch) => {
-          const estimatedGas = await routingHook.estimateGas.setHooks(batch);
-          await this.multiProvider.handleTx(
-            chain,
-            routingHook.setHooks(batch, {
-              gasLimit: addBufferToGasLimit(estimatedGas),
-              ...overrides,
-            }),
-          );
-        },
-        this.logger,
-        'routing hook configs',
-      );
+        routingHook,
+        configs: routingConfigs,
+        logger: this.logger,
+        label: 'routing hook configs',
+      });
     });
 
     await this.transferOwnershipOfContracts(chain, config, {

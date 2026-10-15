@@ -1,6 +1,15 @@
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { Logger } from 'pino';
 
+import {
+  DomainRoutingHook,
+  FallbackDomainRoutingHook,
+} from '@hyperlane-xyz/core';
+import { Address, addBufferToGasLimit, eqAddress } from '@hyperlane-xyz/utils';
+
+import { submitBatched } from '../deploy/utils.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainName } from '../types.js';
 
 import {
   AggregationHookConfig,
@@ -208,6 +217,44 @@ export function collapseMatchingHybridHookNodes(
       ? address
       : node;
   });
+}
+
+/**
+ * Sends `configs` to `routingHook.setHooks` in sequential transactions sized
+ * per `chain`. See `submitBatched` for the partial-failure semantics.
+ */
+export async function submitRoutingHookConfigs({
+  multiProvider,
+  chain,
+  routingHook,
+  configs,
+  logger,
+  label,
+}: {
+  multiProvider: MultiProvider;
+  chain: ChainName;
+  routingHook: DomainRoutingHook | FallbackDomainRoutingHook;
+  configs: DomainRoutingHook.HookConfigStruct[];
+  logger: Logger;
+  label: string;
+}): Promise<void> {
+  const overrides = multiProvider.getTransactionOverrides(chain);
+  await submitBatched(
+    chain,
+    configs,
+    async (batch) => {
+      const estimatedGas = await routingHook.estimateGas.setHooks(batch);
+      await multiProvider.handleTx(
+        chain,
+        routingHook.setHooks(batch, {
+          gasLimit: addBufferToGasLimit(estimatedGas),
+          ...overrides,
+        }),
+      );
+    },
+    logger,
+    label,
+  );
 }
 
 export const isHookCompatible = ({
