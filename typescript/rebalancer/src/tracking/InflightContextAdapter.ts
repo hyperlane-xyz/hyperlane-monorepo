@@ -6,6 +6,7 @@ import type {
 } from '../interfaces/IStrategy.js';
 
 import type { IActionTracker } from './IActionTracker.js';
+import type { RebalanceAction } from './types.js';
 
 /**
  * Adapter that converts ActionTracker data to strategy-consumable InflightContext.
@@ -24,45 +25,47 @@ export class InflightContextAdapter {
   async getInflightContext(): Promise<InflightContext> {
     const intents = await this.actionTracker.getActiveRebalanceIntents();
     const transfers = await this.actionTracker.getInProgressTransfers();
+    const inventoryIntentIds = intents
+      .filter((intent) => intent.executionMethod === 'inventory')
+      .map((intent) => intent.id);
+    const actionsByIntent =
+      inventoryIntentIds.length > 0
+        ? await this.getActionsForIntents(inventoryIntentIds)
+        : new Map<string, RebalanceAction[]>();
 
-    const pendingRebalances: RouteWithContext[] = await Promise.all(
-      intents.map(async (intent) => {
-        let deliveredAmount = 0n;
-        let awaitingDeliveryAmount = 0n;
+    const pendingRebalances: RouteWithContext[] = intents.map((intent) => {
+      let deliveredAmount = 0n;
+      let awaitingDeliveryAmount = 0n;
 
-        // For inventory intents, compute delivered and awaiting amounts from actions
-        if (intent.executionMethod === 'inventory') {
-          const actions = await this.actionTracker.getActionsForIntent(
-            intent.id,
-          );
+      // For inventory intents, compute delivered and awaiting amounts from actions
+      if (intent.executionMethod === 'inventory') {
+        const actions = actionsByIntent.get(intent.id) ?? [];
 
-          // Sum of complete inventory_deposit actions (message delivered)
-          deliveredAmount = actions
-            .filter(
-              (a) => a.type === 'inventory_deposit' && a.status === 'complete',
-            )
-            .reduce((sum, a) => sum + a.amount, 0n);
+        // Sum of complete inventory_deposit actions (message delivered)
+        deliveredAmount = actions
+          .filter(
+            (a) => a.type === 'inventory_deposit' && a.status === 'complete',
+          )
+          .reduce((sum, a) => sum + a.amount, 0n);
 
-          // Sum of in_progress inventory_deposit actions (tx confirmed, message pending)
-          awaitingDeliveryAmount = actions
-            .filter(
-              (a) =>
-                a.type === 'inventory_deposit' && a.status === 'in_progress',
-            )
-            .reduce((sum, a) => sum + a.amount, 0n);
-        }
+        // Sum of in_progress inventory_deposit actions (tx confirmed, message pending)
+        awaitingDeliveryAmount = actions
+          .filter(
+            (a) => a.type === 'inventory_deposit' && a.status === 'in_progress',
+          )
+          .reduce((sum, a) => sum + a.amount, 0n);
+      }
 
-        return {
-          origin: this.multiProvider.getChainName(intent.origin),
-          destination: this.multiProvider.getChainName(intent.destination),
-          amount: intent.amount,
-          deliveredAmount,
-          awaitingDeliveryAmount,
-          executionMethod: intent.executionMethod,
-          bridge: intent.bridge,
-        };
-      }),
-    );
+      return {
+        origin: this.multiProvider.getChainName(intent.origin),
+        destination: this.multiProvider.getChainName(intent.destination),
+        amount: intent.amount,
+        deliveredAmount,
+        awaitingDeliveryAmount,
+        executionMethod: intent.executionMethod,
+        bridge: intent.bridge,
+      };
+    });
 
     const pendingTransfers = transfers.map((transfer) => ({
       origin: this.multiProvider.getChainName(transfer.origin),
@@ -71,5 +74,25 @@ export class InflightContextAdapter {
     }));
 
     return { pendingRebalances, pendingTransfers };
+  }
+
+  private async getActionsForIntents(
+    intentIds: readonly string[],
+  ): Promise<Map<string, RebalanceAction[]>> {
+    if (this.actionTracker.getActionsForIntents) {
+      return this.actionTracker.getActionsForIntents(intentIds);
+    }
+
+    return new Map(
+      await Promise.all(
+        intentIds.map(
+          async (intentId) =>
+            [
+              intentId,
+              await this.actionTracker.getActionsForIntent(intentId),
+            ] as const,
+        ),
+      ),
+    );
   }
 }
