@@ -1283,6 +1283,7 @@ describe('Rebalancer', () => {
             destinationEid: 30420,
             sourceOft: '0x1111111111111111111111111111111111111111',
             destinationOft: '0x2222222222222222222222222222222222222222',
+            destinationRecipient: '*',
           },
         }),
       ]);
@@ -1299,7 +1300,7 @@ describe('Rebalancer', () => {
       );
       expect(
         results[0].externalExecutionRef?.data.destinationRecipient,
-      ).to.equal(ctx.tokensByChainName.arbitrum.addressOrDenom);
+      ).to.equal('*');
       expect(
         results[0].externalExecutionRef?.data.minimumDestinationAmount,
       ).to.equal(ethers.utils.parseEther('100').toString());

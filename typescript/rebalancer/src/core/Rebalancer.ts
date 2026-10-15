@@ -1009,6 +1009,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
               sourceOft: transaction.route.statusAdapter.sourceOft,
               destinationOft: transaction.route.statusAdapter.destinationOft,
               destinationRecipient:
+                transaction.route.statusAdapter.destinationRecipient ??
                 this.tokensByChainName[destination].addressOrDenom,
               sourceTokenDecimals: this.tokensByChainName[origin].decimals,
               destinationTokenDecimals:
