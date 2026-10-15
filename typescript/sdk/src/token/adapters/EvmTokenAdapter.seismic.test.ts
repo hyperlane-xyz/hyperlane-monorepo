@@ -13,7 +13,7 @@ import { EvmTokenAdapter } from './EvmTokenAdapter.js';
 /**
  * Covers the signed-read branch of EvmTokenAdapter: on a Seismic chain, when
  * the adapter holds the account's own signer, shielded `balanceOf`/`allowance`
- * reads go through `SeismicSigner.call`; in every other situation the plain
+ * reads go through `SeismicSigner.signedCall`; in every other situation the plain
  * (unsigned) contract call is used.
  */
 describe('EvmTokenAdapter signed reads on Seismic', () => {
@@ -62,23 +62,26 @@ describe('EvmTokenAdapter signed reads on Seismic', () => {
         return utils.defaultAbiCoder.encode(['uint256'], [ALLOWANCE]);
       throw new Error(`unexpected selector ${selector}`);
     });
-    // Contract stand-in: real typechain interface/populateTransaction (so the
-    // signed path encodes and decodes like production), stubbed unsigned reads
-    // so each case can assert the path taken. ethers' own method properties
-    // are non-configurable, hence not stubbing a real Contract instance.
-    const real = ERC20__factory.connect(
-      TOKEN,
-      new providers.JsonRpcProvider('http://127.0.0.1:8545'),
-    );
+    // Keep the real typed contract's encoding/decoding and stub provider.call:
+    // ethers' contract methods themselves are non-configurable.
+    const provider = new providers.JsonRpcProvider('http://127.0.0.1:8545');
+    const contract = ERC20__factory.connect(TOKEN, provider);
     unsignedBalanceOf = sandbox.stub().resolves(BigNumber.from(7));
     unsignedAllowance = sandbox.stub().resolves(BigNumber.from(0));
-    sandbox.stub(ERC20__factory, 'connect').returns({
-      address: TOKEN,
-      interface: real.interface,
-      populateTransaction: real.populateTransaction,
-      balanceOf: unsignedBalanceOf,
-      allowance: unsignedAllowance,
-    } as any);
+    sandbox.stub(provider, 'call').callsFake(async (tx) => {
+      const { data } = await utils.resolveProperties(tx);
+      const selector = utils.hexlify(data ?? '0x').slice(0, 10);
+      if (selector === iface.getSighash('balanceOf'))
+        return iface.encodeFunctionResult('balanceOf', [
+          await unsignedBalanceOf(),
+        ]);
+      if (selector === iface.getSighash('allowance'))
+        return iface.encodeFunctionResult('allowance', [
+          await unsignedAllowance(),
+        ]);
+      throw new Error(`unexpected unsigned selector ${selector}`);
+    });
+    sandbox.stub(ERC20__factory, 'connect').returns(contract);
   });
 
   afterEach(() => sandbox.restore());

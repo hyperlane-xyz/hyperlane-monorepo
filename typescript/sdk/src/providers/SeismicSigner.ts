@@ -127,19 +127,30 @@ export class SeismicSigner extends Signer {
    * `eth_call` so the node executes it with the real `msg.sender`, and
    * decrypts the response (and any revert data) with the request's key.
    * Returns the plaintext ABI-encoded return data. Unlike `call`, which stays
-   * the inherited unsigned read, callers opt in explicitly.
+   * the inherited unsigned read, callers opt in explicitly. Numeric block tags
+   * must be non-negative safe integers; relative negative offsets are unsupported.
    */
   async signedCall(
     tx: utils.Deferrable<providers.TransactionRequest>,
     blockTag: providers.BlockTag = 'latest',
   ): Promise<string> {
+    if (typeof blockTag === 'number') {
+      assert(
+        Number.isSafeInteger(blockTag) && blockTag >= 0,
+        'Seismic signed-call block number must be a non-negative safe integer',
+      );
+    }
+    const rpcBlockTag =
+      typeof blockTag === 'number'
+        ? utils.hexValue(BigInt(blockTag))
+        : blockTag;
     const { client, metadata, typedData, signature } =
       await this.prepareSignedRequest(tx);
     let response: unknown;
     try {
       response = await client.request({
         method: 'eth_call',
-        params: [{ data: typedData, signature }, blockTag],
+        params: [{ data: typedData, signature }, rpcBlockTag],
       });
     } catch (error) {
       throw await decryptRevertError(client, error, metadata);

@@ -35,8 +35,9 @@ import {
 export interface MultiProviderAdapterOptions extends MinimalProviderRegistryOptions {
   /**
    * Signers for Seismic chains only, used for signed reads of shielded state
-   * (see `tryGetSeismicSigner`). Adapters are otherwise read-only and never
-   * hold key material; this is deliberately not a general signer registry.
+   * (see `tryGetSeismicSigner`). Adapters retain these supplied signers, which
+   * may be backed by wallets holding key material, without extracting raw keys.
+   * This is deliberately not a general signer registry.
    */
   seismicSigners?: ChainMap<SeismicSigner>;
 }
@@ -184,7 +185,7 @@ export class MultiProviderAdapter<
    * MultiProtocolProvider at context setup and attaches keys afterwards).
    * Only Seismic chains are considered; see `seismicSigners`.
    */
-  setSeismicSigners(mp: MultiProvider<any>): void {
+  setSeismicSigners(mp: MultiProvider<MetaExt>): void {
     this.seismicSigners = {
       ...this.seismicSigners,
       ...pickSeismicSigners(this.metadata, mp),
