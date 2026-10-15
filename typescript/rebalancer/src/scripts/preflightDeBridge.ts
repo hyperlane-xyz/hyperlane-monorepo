@@ -28,15 +28,12 @@ async function main(): Promise<void> {
       request: { type: 'string' },
       metadata: { type: 'string' },
       output: { type: 'string' },
-      'max-fee-percent': { type: 'string' },
+      'max-fee-bps': { type: 'string' },
     },
   });
   assert(
-    values.request &&
-      values.metadata &&
-      values.output &&
-      values['max-fee-percent'],
-    'Required: --request request.json --metadata chains.json --output unsigned.json --max-fee-percent <configured limit>',
+    values.request && values.metadata && values.output && values['max-fee-bps'],
+    'Required: --request request.json --metadata chains.json --output unsigned.json --max-fee-bps <configured limit>',
   );
   const request = requestSchema.parse(
     JSON.parse(await readFile(values.request, 'utf8')),
@@ -45,7 +42,7 @@ async function main(): Promise<void> {
     .record(z.string(), ChainMetadataSchema)
     .parse(JSON.parse(await readFile(values.metadata, 'utf8')));
   const bridge = new DeBridgeBridge(
-    { chainMetadata, maxFeePercent: Number(values['max-fee-percent']) },
+    { chainMetadata, maxFeeBps: Number(values['max-fee-bps']) },
     pino({ level: 'silent' }),
   );
   const quote = await bridge.quote(request);

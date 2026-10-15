@@ -682,7 +682,11 @@ export class RebalancerContextFactory {
             registry[ExternalBridgeType.DeBridge] = new DeBridgeBridge(
               {
                 chainMetadata: this.multiProvider.metadata,
-                maxFeePercent: debridgeConfig.maxFeePercent,
+                maxFeeBps: debridgeConfig.maxFeeBps,
+                maxEvmNativeValueWei: debridgeConfig.maxEvmNativeValueWei,
+                maxTronNativeValueSun: debridgeConfig.maxTronNativeValueSun,
+                maxSolanaNativeSpendLamports:
+                  debridgeConfig.maxSolanaNativeSpendLamports,
               },
               this.logger,
             );
