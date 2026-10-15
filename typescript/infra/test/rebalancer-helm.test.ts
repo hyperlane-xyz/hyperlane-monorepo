@@ -348,7 +348,7 @@ describe('oUSDT production manifest', () => {
       { secretRef: { name: secret.spec.target.name } },
     ]);
     expect(container.image).to.equal(
-      `${DockerImageRepos.NODE_SERVICES}:${mainnetDockerTags.rebalancer}`,
+      `${DockerImageRepos.NODE_SERVICES}:cb6f3ae-20261015-181203`,
     );
     expect(container.env).to.deep.include({
       name: 'MONITOR_ONLY',
