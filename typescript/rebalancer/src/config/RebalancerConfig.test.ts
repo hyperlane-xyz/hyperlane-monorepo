@@ -991,6 +991,7 @@ describe('per-chain bridge configuration', () => {
     { maxQuoteLossBps: -1 },
     { maxQuoteLossBps: 10_001 },
     { maxQuoteLossBps: 1.5 },
+    { maxTronNativeFeeSun: '-1' },
     { maxSolanaNativeSpendLamports: -1 },
     { maxSolanaNativeSpendLamports: 1.5 },
     { maxSolanaNativeSpendLamports: Number.MAX_SAFE_INTEGER + 1 },
