@@ -1,7 +1,11 @@
 import { constants, utils } from 'ethers';
 import { z } from 'zod';
 
-import type { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import {
+  ChainTechnicalStack,
+  type ChainMap,
+  type ChainName,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 import { readYaml } from '@hyperlane-xyz/utils/fs';
 
@@ -67,6 +71,7 @@ export function loadFeeTokens(
 
 export interface ChainSupport {
   protocol: ProtocolType;
+  technicalStack?: ChainTechnicalStack;
   hasMailbox: boolean;
 }
 
@@ -78,10 +83,14 @@ export function assertDeployableChains(
   support: (chain: ChainName) => ChainSupport,
 ): void {
   for (const chain of chains) {
-    const { protocol, hasMailbox } = support(chain);
+    const { protocol, technicalStack, hasMailbox } = support(chain);
     assert(
       isStandardEvm(protocol),
       `${chain} uses protocol ${protocol}: only standard EVM chains are supported`,
+    );
+    assert(
+      technicalStack !== ChainTechnicalStack.ZkSync,
+      `${chain} uses zkSync: this deployment script does not support zkSync artifacts or deployment addresses`,
     );
     assert(hasMailbox, `${chain} has no mailbox in the registry`);
   }

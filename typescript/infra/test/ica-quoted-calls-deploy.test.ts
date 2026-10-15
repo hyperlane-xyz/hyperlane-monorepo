@@ -7,6 +7,7 @@ import { BigNumber, Wallet, constants, utils } from 'ethers';
 import sinon from 'sinon';
 
 import {
+  ChainTechnicalStack,
   MultiProvider,
   OnchainHookType,
   PERMIT2_ADDRESS,
@@ -998,6 +999,18 @@ describe('ICA and QuotedCalls pair deploy', () => {
       expect(() =>
         assertDeployableChains(['osmosis'], support(ProtocolType.Cosmos)),
       ).to.throw('osmosis uses protocol cosmos: only standard EVM chains');
+    });
+
+    it('refuses zkSync before starting deployment', () => {
+      expect(() =>
+        assertDeployableChains(['abstract'], () => ({
+          protocol: ProtocolType.Ethereum,
+          technicalStack: ChainTechnicalStack.ZkSync,
+          hasMailbox: true,
+        })),
+      ).to.throw(
+        'abstract uses zkSync: this deployment script does not support zkSync artifacts or deployment addresses',
+      );
     });
 
     it('refuses a chain without a mailbox in the registry', () => {

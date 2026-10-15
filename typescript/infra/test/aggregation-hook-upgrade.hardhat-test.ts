@@ -830,8 +830,6 @@ describe('aggregation hook upgrade', () => {
     const recorded = (await exportStore.read(ORIGIN))?.factory.address;
     assert(recorded, 'expected the deployed factory in the export');
     expect(recorded).to.not.equal(legacyFactoryAddress);
-    expect(failed.detail).to.include(recorded);
-    expect(failed.detail).to.include('was deployed on test1');
     expect(failed.detail).to.include('registry unavailable');
     expect(verificationNames()).to.include('StaticAggregationHookFactory');
 
@@ -961,24 +959,41 @@ describe('aggregation hook upgrade', () => {
       }
     });
 
-    it('persists the implementation verification input before reading it back', async () => {
+    it('records verification inputs without promoting a factory until implementation checks pass, including on retry', async () => {
       const selector = utils.id('implementation()').slice(0, 10);
-      const call = signer.call.bind(signer);
-      sinon.stub(signer, 'call').callsFake(async (tx, blockTag) => {
-        const data = await tx.data;
-        if (data !== undefined && utils.hexlify(data).startsWith(selector)) {
-          throw new Error('rpc dropped');
-        }
-        return call(tx, blockTag);
-      });
+      const provider = multiProvider.getProvider(ORIGIN);
+      const call = provider.call.bind(provider);
+      const implementationRead = sinon
+        .stub(provider, 'call')
+        .callsFake(async (tx, blockTag) => {
+          const data = await tx.data;
+          if (data !== undefined && utils.hexlify(data).startsWith(selector)) {
+            throw new Error('rpc dropped');
+          }
+          return call(tx, blockTag);
+        });
 
       const failed = await run(UpgradePhase.Shadow, true);
-      sinon.restore();
-
       expect(failed.outcome).to.equal(ChainOutcome.Error);
       expect(failed.detail).to.include('rpc dropped');
+      expect(registryWrites).to.have.length(0);
+      expect(registry[ORIGIN].staticAggregationHookFactory).to.equal(
+        legacyFactoryAddress,
+      );
       const recorded = (await exportStore.read(ORIGIN))?.factory.address;
       assert(recorded, 'expected the deployed factory in the export');
+
+      const sentBeforeRetry = await sentTxCount();
+      const retry = await run(UpgradePhase.Shadow, true);
+      expect(retry.outcome).to.equal(ChainOutcome.Error);
+      expect(retry.detail).to.include('rpc dropped');
+      expect(registryWrites).to.have.length(0);
+      expect(registry[ORIGIN].staticAggregationHookFactory).to.equal(
+        legacyFactoryAddress,
+      );
+      expect(await sentTxCount()).to.equal(sentBeforeRetry);
+
+      implementationRead.restore();
       const implementation =
         await StaticAggregationHookFactory__factory.connect(
           recorded,
@@ -989,6 +1004,12 @@ describe('aggregation hook upgrade', () => {
         constructorArguments: '',
         isProxy: true,
       });
+
+      const recovered = await run(UpgradePhase.Shadow, true);
+      expect(recovered.outcome).to.equal(ChainOutcome.Applied);
+      expect(recovered.factory?.address).to.equal(recorded);
+      expect(recovered.factory?.deployed).to.equal(false);
+      expect(registry[ORIGIN].staticAggregationHookFactory).to.equal(recorded);
     });
 
     it('builds the factory and implementation verification inputs the SDK deployer produced', async () => {

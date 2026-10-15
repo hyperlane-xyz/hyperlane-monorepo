@@ -17,18 +17,21 @@ export function mergeVerificationInputs(
   for (const [chain, inputs] of Object.entries(newInputs)) {
     const chainInputs = (mergedInputs[chain] ??= []);
     for (const input of inputs) {
-      if (
-        chainInputs.some(
-          (existing) =>
-            existing.name === input.name &&
-            eqAddress(existing.address, input.address) &&
-            existing.constructorArguments === input.constructorArguments &&
-            existing.isProxy === input.isProxy,
-        )
+      const index = chainInputs.findIndex(
+        (existing) =>
+          existing.name === input.name &&
+          eqAddress(existing.address, input.address) &&
+          existing.constructorArguments === input.constructorArguments &&
+          existing.isProxy === input.isProxy,
+      );
+      if (index < 0) {
+        chainInputs.push(input);
+      } else if (
+        chainInputs[index].expectedimplementation !==
+        input.expectedimplementation
       ) {
-        continue;
+        chainInputs[index] = input;
       }
-      chainInputs.push(input);
     }
   }
   return mergedInputs;

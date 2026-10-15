@@ -215,7 +215,6 @@ async function runChain(
         changed = true;
         await recordExport();
         await persistInputs(Modules.PROXY_FACTORY, verificationInputs);
-        writeRegistry({ staticAggregationHookFactory: address });
       },
       logger,
     });
@@ -232,11 +231,7 @@ async function runChain(
       };
       if (factoryResult.previous)
         exportedFactory.previous = factoryResult.previous;
-      if (
-        ctx.apply &&
-        !factoryResult.deployed &&
-        !eqAddress(factoryAddress, state.factory.address)
-      ) {
+      if (ctx.apply && !eqAddress(factoryAddress, state.factory.address)) {
         writeRegistry({ staticAggregationHookFactory: factoryAddress });
       }
       await recordExport();

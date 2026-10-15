@@ -1242,69 +1242,83 @@ describe('aggregation hook upgrade', () => {
         },
       ];
       for (const c of cases) {
-        it(c.name, async () => {
-          const { events, deployed, onDeployed } = recordDeployments();
-          const provider = newProvider();
-          sinon.stub(provider, 'call').callsFake(async () => {
-            events.push(READ_IMPLEMENTATION);
-            if (c.readError) throw c.readError;
-            return utils.defaultAbiCoder.encode(
-              ['address'],
-              [c.reported ?? constants.AddressZero],
-            );
-          });
-          sinon
-            .stub(provider, 'getCode')
-            .callsFake(async (address) =>
-              c.codeAt.includes(await address) ? CONTRACT_CODE : '0x',
-            );
-          const factory = StaticAggregationHookFactory__factory.connect(
-            NEW_FACTORY,
-            provider,
-          );
-          Object.defineProperty(factory, 'deployTransaction', {
-            value: {
-              data: new StaticAggregationHookFactory__factory().bytecode,
-              wait: async () => undefined,
-            },
-          });
-          const multiProvider = sinon.createStubInstance(MultiProvider);
-          multiProvider.getProvider.returns(provider);
-          multiProvider.handleDeploy.resolves(factory);
-
-          const spec = baseSpec();
-          spec.versions[key(NEW_FACTORY)] = '12.2.0';
-          const state = await stateFor(spec);
-          const deployment = ensureFactory({
-            multiProvider,
-            chain: 'origin',
-            state,
-            plan: planChain(state, UpgradePhase.Shadow),
-            apply: true,
-            protocol: c.protocol,
-            reader: fakeReader(spec),
-            onDeployed,
-            logger: silentLogger(),
-          });
-
-          if (c.error === undefined) {
-            expect(await deployment).to.deep.equal({
-              address: NEW_FACTORY,
-              version: '12.2.0',
-              deployed: true,
-              previous: { address: FACTORY, version: '9.0.10' },
+        for (const adopt of [false, true]) {
+          it(`${c.name}${adopt ? ' from a recorded export' : ''}`, async () => {
+            const { events, deployed, onDeployed } = recordDeployments();
+            const provider = newProvider();
+            sinon.stub(provider, 'call').callsFake(async () => {
+              events.push(READ_IMPLEMENTATION);
+              if (c.readError) throw c.readError;
+              return utils.defaultAbiCoder.encode(
+                ['address'],
+                [c.reported ?? constants.AddressZero],
+              );
             });
-          } else {
-            const message = await revertMessage(deployment);
-            expect(message).to.include(NEW_FACTORY);
-            expect(message).to.include(c.error);
-          }
-          expect(events).to.deep.equal([ON_DEPLOYED, READ_IMPLEMENTATION]);
-          expect(deployed.map((contract) => contract.address)).to.deep.equal([
-            NEW_FACTORY,
-          ]);
-          expect(shapes(deployed)).to.deep.equal(c.inputs);
-        });
+            sinon
+              .stub(provider, 'getCode')
+              .callsFake(async (address) =>
+                (adopt && (await address) === NEW_FACTORY) ||
+                c.codeAt.includes(await address)
+                  ? CONTRACT_CODE
+                  : '0x',
+              );
+            const factory = StaticAggregationHookFactory__factory.connect(
+              NEW_FACTORY,
+              provider,
+            );
+            Object.defineProperty(factory, 'deployTransaction', {
+              value: {
+                data: new StaticAggregationHookFactory__factory().bytecode,
+                wait: async () => undefined,
+              },
+            });
+            const multiProvider = sinon.createStubInstance(MultiProvider);
+            multiProvider.getProvider.returns(provider);
+            multiProvider.handleDeploy.resolves(factory);
+
+            const spec = baseSpec();
+            spec.versions[key(NEW_FACTORY)] = '12.2.0';
+            const state = await stateFor(spec);
+            const deployment = ensureFactory({
+              multiProvider,
+              chain: 'origin',
+              state,
+              plan: planChain(state, UpgradePhase.Shadow),
+              apply: true,
+              adoptable: adopt ? NEW_FACTORY : undefined,
+              protocol: c.protocol,
+              reader: fakeReader(spec),
+              onDeployed,
+              logger: silentLogger(),
+            });
+
+            if (c.error === undefined) {
+              expect(await deployment).to.deep.equal({
+                address: NEW_FACTORY,
+                version: '12.2.0',
+                deployed: !adopt,
+                previous: { address: FACTORY, version: '9.0.10' },
+              });
+            } else {
+              const message = await revertMessage(deployment);
+              if (!adopt || !c.readError)
+                expect(message).to.include(NEW_FACTORY);
+              expect(message).to.include(c.error);
+            }
+            expect(events).to.deep.equal(
+              adopt
+                ? [READ_IMPLEMENTATION]
+                : [ON_DEPLOYED, READ_IMPLEMENTATION],
+            );
+            expect(multiProvider.handleDeploy.callCount).to.equal(
+              adopt ? 0 : 1,
+            );
+            expect(deployed.map((contract) => contract.address)).to.deep.equal(
+              adopt ? [] : [NEW_FACTORY],
+            );
+            expect(shapes(deployed)).to.deep.equal(adopt ? [] : c.inputs);
+          });
+        }
       }
     });
 

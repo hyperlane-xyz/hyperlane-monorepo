@@ -170,6 +170,7 @@ async function main() {
     assert(metadata, `${chain} has no chain metadata`);
     return {
       protocol: metadata.protocol,
+      technicalStack: metadata.technicalStack,
       hasMailbox: registryAddresses[chain]?.mailbox !== undefined,
     };
   });

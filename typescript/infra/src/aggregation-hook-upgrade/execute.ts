@@ -4,6 +4,7 @@ import {
   CONTRACTS_PACKAGE_VERSION,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook__factory,
+  StaticAggregationHookFactory,
   StaticAggregationHookFactory__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -100,11 +101,39 @@ export async function ensureFactory(args: {
   };
   const provider = multiProvider.getProvider(chain);
 
+  const validateImplementation = async (
+    factory: StaticAggregationHookFactory,
+  ) => {
+    const implementation = await factory.implementation();
+    if (isStandardEvm(protocol)) {
+      const expected = utils.getContractAddress({
+        from: factory.address,
+        nonce: 1,
+      });
+      assert(
+        eqAddress(implementation, expected),
+        `Deployed factory ${factory.address} on ${chain} reports implementation ${implementation}, expected ${expected}`,
+      );
+    } else {
+      assert(
+        !isZeroishAddress(implementation) &&
+          (await provider.getCode(implementation)) !== '0x',
+        `Deployed factory ${factory.address} on ${chain} reports no implementation contract`,
+      );
+    }
+  };
+
   if (args.adoptable && !eqAddress(args.adoptable, state.factory.address)) {
     const code = await provider.getCode(args.adoptable);
     if (code !== '0x') {
       const version = await reader.packageVersion(args.adoptable);
       if (isFixedVersion(version)) {
+        await validateImplementation(
+          StaticAggregationHookFactory__factory.connect(
+            args.adoptable,
+            provider,
+          ),
+        );
         logger.info(
           `[${chain}] adopting previously deployed factory ${args.adoptable} (${version})`,
         );
@@ -157,25 +186,13 @@ export async function ensureFactory(args: {
           },
         ],
       });
-
-      const onchainImplementation = await factory.implementation();
-      assert(
-        eqAddress(onchainImplementation, implementation),
-        `Deployed factory ${factory.address} on ${chain} reports implementation ${onchainImplementation}, expected ${implementation}`,
-      );
     } else {
       await args.onDeployed({
         address: factory.address,
         verificationInputs: [],
       });
-
-      const implementation = await factory.implementation();
-      assert(
-        !isZeroishAddress(implementation) &&
-          (await provider.getCode(implementation)) !== '0x',
-        `Deployed factory ${factory.address} on ${chain} reports no implementation contract`,
-      );
     }
+    await validateImplementation(factory);
     const version = await reader.packageVersion(factory.address);
     assert(
       isFixedVersion(version),

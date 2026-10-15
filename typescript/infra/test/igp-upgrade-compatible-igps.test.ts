@@ -98,6 +98,26 @@ describe('upgrade-compatible-igps', () => {
     ).to.deep.equal({ arbitrum: [existingInput, newInput] });
   });
 
+  it('updates implementation metadata without duplicating a proxy verification record', () => {
+    const previous: ContractVerificationInput = {
+      name: 'InterchainGasPaymaster',
+      address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      constructorArguments: '',
+      isProxy: true,
+      expectedimplementation: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    };
+    const updated: ContractVerificationInput = {
+      ...previous,
+      expectedimplementation: '0xcccccccccccccccccccccccccccccccccccccccc',
+    };
+    const existing = { arbitrum: [previous] };
+
+    expect(
+      mergeVerificationInputs(existing, { arbitrum: [updated] }),
+    ).to.deep.equal({ arbitrum: [updated] });
+    expect(existing).to.deep.equal({ arbitrum: [previous] });
+  });
+
   it('reports failed deployer-owned execution as an error', async () => {
     const multiProvider = MultiProvider.createTestMultiProvider();
     sinon
