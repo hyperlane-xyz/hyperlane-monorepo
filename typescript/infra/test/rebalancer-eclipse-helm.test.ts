@@ -3,7 +3,7 @@ import { execFileSync } from 'child_process';
 import path from 'path';
 import { parse, parseAllDocuments, stringify } from 'yaml';
 
-import { DockerImageRepos, mainnetDockerTags } from '../config/docker.js';
+import { DockerImageRepos } from '../config/docker.js';
 import { readRebalancerConfig } from '../src/rebalancer/config.js';
 import { buildRebalancerHelmValues } from '../src/rebalancer/helm.js';
 import { getInfraPath } from '../src/utils/utils.js';
@@ -72,7 +72,7 @@ describe('USDT Eclipse production manifest', () => {
       { secretRef: { name: secret.spec.target.name } },
     ]);
     expect(container.image).to.equal(
-      `${DockerImageRepos.NODE_SERVICES}:${mainnetDockerTags.rebalancer}`,
+      `${DockerImageRepos.NODE_SERVICES}:0fc12f1-20261015-181420`,
     );
     expect(container.env).to.deep.include({
       name: 'MONITOR_ONLY',
