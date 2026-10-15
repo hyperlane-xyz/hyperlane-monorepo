@@ -28,8 +28,8 @@ function describeFunds(funds: FundsReport, symbol: string | undefined): string {
 
 function describeRegistryBefore(before: ChainResult['registryBefore']): string {
   const entries = [
-    ['interchainAccountRouter', before?.interchainAccountRouter],
-    ['quotedCalls', before?.quotedCalls],
+    ['interchainAccountRouterV3', before?.interchainAccountRouterV3],
+    ['quotedCallsV3', before?.quotedCallsV3],
   ];
   return entries
     .map(([key, value]) => `${key}: ${value ?? '(absent)'}`)

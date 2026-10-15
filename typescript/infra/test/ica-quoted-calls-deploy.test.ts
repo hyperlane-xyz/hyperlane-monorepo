@@ -1135,7 +1135,7 @@ describe('ICA and QuotedCalls pair deploy', () => {
     const identity = {
       signer: SIGNER,
       owner: OWNER,
-      registryBefore: { interchainAccountRouter: addr(0x900) },
+      registryBefore: { interchainAccountRouterV3: addr(0x900) },
     };
 
     function update(
@@ -1166,7 +1166,7 @@ describe('ICA and QuotedCalls pair deploy', () => {
 
       const second = mergeIcaExport(
         first.entry,
-        update({ registryBefore: { interchainAccountRouter: addr(0x901) } }),
+        update({ registryBefore: { interchainAccountRouterV3: addr(0x901) } }),
         LATER,
       );
       expect(second.entry.registryBefore).to.deep.equal(
@@ -1424,8 +1424,8 @@ describe('ICA and QuotedCalls pair deploy', () => {
         rejected: [],
         enrolledPeers: [],
         approved: [],
-        registryKeysWritten: ['interchainAccountRouter', 'quotedCalls'],
-        registryBefore: { interchainAccountRouter: addr(0x900) },
+        registryKeysWritten: ['interchainAccountRouterV3', 'quotedCallsV3'],
+        registryBefore: { interchainAccountRouterV3: addr(0x900) },
         pending: [],
         notes: [],
         problems: [],
@@ -1434,10 +1434,10 @@ describe('ICA and QuotedCalls pair deploy', () => {
       printSummary([written]);
 
       expect(lines).to.include(
-        '  registry updated: interchainAccountRouter, quotedCalls',
+        '  registry updated: interchainAccountRouterV3, quotedCallsV3',
       );
       expect(lines.join('\n')).to.include(
-        `interchainAccountRouter: ${addr(0x900)}, quotedCalls: (absent)`,
+        `interchainAccountRouterV3: ${addr(0x900)}, quotedCallsV3: (absent)`,
       );
     });
   });

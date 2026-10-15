@@ -4,8 +4,8 @@ import { Address, objMerge } from '@hyperlane-xyz/utils';
 export interface RegistryAddressUpdate {
   staticAggregationHookFactory?: Address;
   aggregationHook?: Address;
-  interchainAccountRouter?: Address;
-  quotedCalls?: Address;
+  interchainAccountRouterV3?: Address;
+  quotedCallsV3?: Address;
 }
 
 // The registry overwrites addresses.yaml with exactly what it is given, so the
@@ -21,11 +21,11 @@ export function buildRegistryAddresses(
   if (update.aggregationHook !== undefined) {
     changes.aggregationHook = update.aggregationHook;
   }
-  if (update.interchainAccountRouter !== undefined) {
-    changes.interchainAccountRouter = update.interchainAccountRouter;
+  if (update.interchainAccountRouterV3 !== undefined) {
+    changes.interchainAccountRouterV3 = update.interchainAccountRouterV3;
   }
-  if (update.quotedCalls !== undefined) {
-    changes.quotedCalls = update.quotedCalls;
+  if (update.quotedCallsV3 !== undefined) {
+    changes.quotedCallsV3 = update.quotedCallsV3;
   }
   return objMerge<ChainAddresses>(current, changes);
 }

@@ -321,8 +321,8 @@ describe('ICA router and QuotedCalls pair deploy', () => {
       const quotedCalls = await new QuotedCalls__factory(signer).deploy(
         PERMIT2_ADDRESS,
       );
-      registry.test1.interchainAccountRouter = router.address;
-      registry.test1.quotedCalls = quotedCalls.address;
+      registry.test1.interchainAccountRouterV3 = router.address;
+      registry.test1.quotedCallsV3 = quotedCalls.address;
 
       const [test1] = await runIcaDeploy(buildContext());
 
@@ -342,9 +342,26 @@ describe('ICA router and QuotedCalls pair deploy', () => {
       );
     });
 
+    it('does not adopt a pair stored under the v2 registry keys', async () => {
+      const router = await deployRouter('test1', signerAddress);
+      const quotedCalls = await new QuotedCalls__factory(signer).deploy(
+        PERMIT2_ADDRESS,
+      );
+      registry.test1.interchainAccountRouter = router.address;
+      registry.test1.quotedCalls = quotedCalls.address;
+
+      const [result] = await runIcaDeploy(buildContext());
+
+      expect(result.router?.action).to.equal(Adoption.Deploy);
+      expect(result.quotedCalls?.action).to.equal(Adoption.Deploy);
+      expect(registry.test1.interchainAccountRouter).to.equal(router.address);
+      expect(registry.test1.quotedCalls).to.equal(quotedCalls.address);
+      expect(registryWrites).to.deep.equal([]);
+    });
+
     it('does not adopt a current router owned by someone else', async () => {
       const router = await deployRouter('test1', otherAddress);
-      registry.test1.interchainAccountRouter = router.address;
+      registry.test1.interchainAccountRouterV3 = router.address;
 
       const [test1] = await runIcaDeploy(buildContext());
 
@@ -357,7 +374,7 @@ describe('ICA router and QuotedCalls pair deploy', () => {
 
     it('adopts a current router that already has the target owner', async () => {
       const router = await deployRouter('test1', otherAddress);
-      registry.test1.interchainAccountRouter = router.address;
+      registry.test1.interchainAccountRouterV3 = router.address;
 
       const [test1] = await runIcaDeploy(buildContext({ owner: otherAddress }));
 
@@ -452,8 +469,8 @@ describe('ICA router and QuotedCalls pair deploy', () => {
 
   describe('candidates without code', () => {
     it('reports a registry address that has no code and plans a fresh deploy', async () => {
-      registry.test1.interchainAccountRouter = otherAddress;
-      registry.test1.quotedCalls = otherAddress;
+      registry.test1.interchainAccountRouterV3 = otherAddress;
+      registry.test1.quotedCallsV3 = otherAddress;
 
       const [test1] = await runIcaDeploy(buildContext());
 
@@ -627,7 +644,7 @@ describe('ICA router and QuotedCalls pair deploy', () => {
         { feeToken: token.address, spender: igp },
       ]);
       expect(entry.registryBefore).to.deep.equal({});
-      expect(registry.test1.interchainAccountRouter).to.equal(undefined);
+      expect(registry.test1.interchainAccountRouterV3).to.equal(undefined);
 
       expect(
         verificationWrites
@@ -1028,10 +1045,14 @@ describe('ICA router and QuotedCalls pair deploy', () => {
     it('leaves the registry alone unless asked', async () => {
       await deployAll();
       expect(registryWrites).to.deep.equal([]);
-      expect(registry.test1.interchainAccountRouter).to.equal(undefined);
+      expect(registry.test1.interchainAccountRouterV3).to.equal(undefined);
     });
 
-    it('moves only the two keys of every fully wired chain, keeping the rest', async () => {
+    it('adds v3 keys for fully wired chains and preserves the v2 pair', async () => {
+      for (const chain of CHAINS) {
+        registry[chain].interchainAccountRouter = otherAddress;
+        registry[chain].quotedCalls = otherAddress;
+      }
       const results = await deployAll({ writeRegistry: true });
 
       expect(registryWrites.map((write) => write.chain).sort()).to.deep.equal(
@@ -1044,12 +1065,14 @@ describe('ICA router and QuotedCalls pair deploy', () => {
         expect(written?.addresses).to.deep.equal({
           mailbox: mailboxes[result.chain],
           interchainGasPaymaster: igp,
-          interchainAccountRouter: result.router?.address,
-          quotedCalls: result.quotedCalls?.address,
+          interchainAccountRouter: otherAddress,
+          quotedCalls: otherAddress,
+          interchainAccountRouterV3: result.router?.address,
+          quotedCallsV3: result.quotedCalls?.address,
         });
         expect(result.registryKeysWritten).to.deep.equal([
-          'interchainAccountRouter',
-          'quotedCalls',
+          'interchainAccountRouterV3',
+          'quotedCallsV3',
         ]);
       }
     });
@@ -1069,15 +1092,15 @@ describe('ICA router and QuotedCalls pair deploy', () => {
 
     it('remembers the registry as it was and is a no-op once migrated', async () => {
       const foreign = await deployRouter('test1', otherAddress);
-      registry.test1.interchainAccountRouter = foreign.address;
+      registry.test1.interchainAccountRouterV3 = foreign.address;
 
       const first = await deployAll({ writeRegistry: true });
 
       expect(first[0].registryBefore).to.deep.equal({
-        interchainAccountRouter: foreign.address,
+        interchainAccountRouterV3: foreign.address,
       });
       expect((await exported('test1')).registryBefore).to.deep.equal({
-        interchainAccountRouter: foreign.address,
+        interchainAccountRouterV3: foreign.address,
       });
       const writes = registryWrites.length;
       const before = await sentTxCount();
@@ -1119,11 +1142,11 @@ describe('ICA router and QuotedCalls pair deploy', () => {
         [signed.getDomainId('test2')],
         [addressToBytes32(otherAddress)],
       );
-      registry.test1.interchainAccountRouter = router.address;
+      registry.test1.interchainAccountRouterV3 = router.address;
       const quotedCalls = await new QuotedCalls__factory(signer).deploy(
         PERMIT2_ADDRESS,
       );
-      registry.test1.quotedCalls = quotedCalls.address;
+      registry.test1.quotedCallsV3 = quotedCalls.address;
 
       const [test1] = await runIcaDeploy(
         buildContext({
@@ -1142,7 +1165,7 @@ describe('ICA router and QuotedCalls pair deploy', () => {
 
     it('refuses to wire a router the signer does not own', async () => {
       const router = await deployRouter('test1', otherAddress);
-      registry.test1.interchainAccountRouter = router.address;
+      registry.test1.interchainAccountRouterV3 = router.address;
 
       const [test1] = await runIcaDeploy(
         buildContext({

@@ -12,7 +12,6 @@ import {
 import { assert, inCIMode, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
-import { supportedChainNames } from '../../config/environments/mainnet3/supportedChainNames.js';
 import { getChainMetadata, getEnvAddresses } from '../../config/registry.js';
 import {
   createFileChainStore,
@@ -117,7 +116,7 @@ async function main() {
             type: 'boolean',
             default: false,
             describe:
-              'Also write the router and QuotedCalls addresses of fully deployed and wired chains into the local registry checkout',
+              'Also write interchainAccountRouterV3 and quotedCallsV3 for fully deployed and wired chains into the local registry checkout; existing v2 addresses are preserved',
           })
           .option('skip-verification', {
             type: 'boolean',
@@ -138,8 +137,8 @@ async function main() {
   ).argv;
 
   assert(
-    environment === 'mainnet3',
-    'This script only supports mainnet3: the chains and registry addresses are mainnet3-specific',
+    environment === 'mainnet3' || environment === 'testnet4',
+    'This script only supports mainnet3 and testnet4',
   );
   assert(concurrency > 0, '--concurrency must be greater than 0');
   assert(
@@ -159,9 +158,10 @@ async function main() {
     targetChains.length > 0,
     '--chains is required unless --fork is given: pass the chains to deploy to',
   );
-  const supported = new Set<string>(supportedChainNames);
+  const envConfig = getEnvironmentConfig(environment);
+  const supported = new Set<string>(envConfig.supportedChainNames);
   for (const chain of targetChains) {
-    assert(supported.has(chain), `${chain} is not a mainnet3 chain`);
+    assert(supported.has(chain), `${chain} is not a ${environment} chain`);
   }
   const chainMetadata = getChainMetadata();
   const registryAddresses = getEnvAddresses(environment);
@@ -183,7 +183,7 @@ async function main() {
       : loadFeeTokens(feeTokensPath, targetChains);
 
   const baseProvider = await createUpgradeMultiProvider({
-    envConfig: getEnvironmentConfig(environment),
+    envConfig,
     context: Contexts.Hyperlane,
     chains: targetChains,
     signed: apply && !fork && !wallet,

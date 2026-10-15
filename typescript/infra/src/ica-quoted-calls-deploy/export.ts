@@ -24,8 +24,8 @@ export interface ExportedApproval {
 }
 
 export interface RegistryBefore {
-  interchainAccountRouter?: Address;
-  quotedCalls?: Address;
+  interchainAccountRouterV3?: Address;
+  quotedCallsV3?: Address;
 }
 
 // A deploy whose transaction was sent but whose confirmation was not seen. The

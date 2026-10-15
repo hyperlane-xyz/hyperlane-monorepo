@@ -194,11 +194,12 @@ async function prepareChain(
       domainId: multiProvider.getDomainId(other),
     }));
   const registryBefore: RegistryBefore = {};
-  if (addresses?.interchainAccountRouter !== undefined) {
-    registryBefore.interchainAccountRouter = addresses.interchainAccountRouter;
+  if (addresses?.interchainAccountRouterV3 !== undefined) {
+    registryBefore.interchainAccountRouterV3 =
+      addresses.interchainAccountRouterV3;
   }
-  if (addresses?.quotedCalls !== undefined) {
-    registryBefore.quotedCalls = addresses.quotedCalls;
+  if (addresses?.quotedCallsV3 !== undefined) {
+    registryBefore.quotedCallsV3 = addresses.quotedCallsV3;
   }
   const recorded = await ctx.persist.exportStore.read(chain);
 
@@ -237,7 +238,7 @@ async function prepareChain(
   const routerCandidates = await readRouterCandidates(
     reader,
     candidateAddresses(
-      addresses?.interchainAccountRouter,
+      addresses?.interchainAccountRouterV3,
       recorded?.router?.address,
       pendingRouter,
     ),
@@ -245,7 +246,7 @@ async function prepareChain(
   const quotedCallsCandidates = await readQuotedCallsCandidates(
     reader,
     candidateAddresses(
-      addresses?.quotedCalls,
+      addresses?.quotedCallsV3,
       recorded?.quotedCalls?.address,
       pendingQuotedCalls,
     ),
@@ -855,16 +856,16 @@ async function writeRegistry(
   }
   const update: RegistryAddressUpdate = {};
   if (
-    current.interchainAccountRouter === undefined ||
-    !eqAddress(current.interchainAccountRouter, router)
+    current.interchainAccountRouterV3 === undefined ||
+    !eqAddress(current.interchainAccountRouterV3, router)
   ) {
-    update.interchainAccountRouter = router;
+    update.interchainAccountRouterV3 = router;
   }
   if (
-    current.quotedCalls === undefined ||
-    !eqAddress(current.quotedCalls, quotedCalls)
+    current.quotedCallsV3 === undefined ||
+    !eqAddress(current.quotedCallsV3, quotedCalls)
   ) {
-    update.quotedCalls = quotedCalls;
+    update.quotedCallsV3 = quotedCalls;
   }
   if (Object.keys(update).length === 0) return;
   try {

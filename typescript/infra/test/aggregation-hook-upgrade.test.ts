@@ -723,19 +723,21 @@ describe('aggregation hook upgrade', () => {
       );
     });
 
-    it('replaces only the ICA router and QuotedCalls keys and keeps the rest', () => {
+    it('adds v3 ICA and QuotedCalls keys while preserving v2 addresses', () => {
       const withIca: ChainAddresses = {
         interchainAccountRouter: addr(0x703),
         quotedCalls: addr(0x704),
         mailbox: MAILBOX,
       };
       const updated = buildRegistryAddresses(withIca, {
-        interchainAccountRouter: addr(0x705),
-        quotedCalls: addr(0x706),
+        interchainAccountRouterV3: addr(0x705),
+        quotedCallsV3: addr(0x706),
       });
       expect(updated).to.deep.equal({
-        interchainAccountRouter: addr(0x705),
-        quotedCalls: addr(0x706),
+        interchainAccountRouter: addr(0x703),
+        interchainAccountRouterV3: addr(0x705),
+        quotedCalls: addr(0x704),
+        quotedCallsV3: addr(0x706),
         mailbox: MAILBOX,
       });
       expect(withIca.quotedCalls).to.equal(addr(0x704));
