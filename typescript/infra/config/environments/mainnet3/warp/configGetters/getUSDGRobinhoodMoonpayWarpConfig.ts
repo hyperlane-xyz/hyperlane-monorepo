@@ -2,7 +2,7 @@ import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awIcas } from '../../governance/ica/aw.js';
-import { warpFeesIcas } from '../../governance/ica/warpFees.js';
+import { WARP_FEES_TURNKEY_OWNER } from '../../governance/utils.js';
 import { WarpRouteIds } from '../warpIds.js';
 import {
   buildCrossCollateralRoutingFee,
@@ -23,7 +23,7 @@ export async function getUSDGRobinhoodMoonpayWarpConfig(
       owner: awIcas.robinhood,
       allowedRebalancers: [REBALANCER],
       tokenFee: buildCrossCollateralRoutingFee(
-        warpFeesIcas.robinhood,
+        WARP_FEES_TURNKEY_OWNER,
         MOONPAY_ROUTE_CHAINS.filter((chain) => chain !== 'robinhood'),
       ),
       crossCollateralRouters: getMoonpayUsdgRouter()

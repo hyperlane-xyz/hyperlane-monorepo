@@ -13,9 +13,8 @@ import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import fastpathIsms from '../../fastpath/isms.json' with { type: 'json' };
 import { awIcas } from '../../governance/ica/aw.js';
-import { warpFeesIcas } from '../../governance/ica/warpFees.js';
 import { awSafes } from '../../governance/safe/aw.js';
-import { warpFeesSafes } from '../../governance/safe/warpFees.js';
+import { WARP_FEES_TURNKEY_OWNER } from '../../governance/utils.js';
 import {
   RouterConfigWithoutOwner,
   tokens,
@@ -52,15 +51,6 @@ const ownersByChain = {
   ethereum: awSafes.ethereum,
   katana: awIcas.katana,
   polygon: awIcas.polygon,
-} as const;
-
-const feeOwnersByChain = {
-  arbitrum: warpFeesIcas.arbitrum,
-  base: warpFeesIcas.base,
-  bsc: warpFeesIcas.bsc,
-  ethereum: warpFeesSafes.ethereum,
-  katana: warpFeesIcas.katana,
-  polygon: warpFeesIcas.polygon,
 } as const;
 
 const AUDITED_CONTRACT_VERSION = '12.0.0';
@@ -253,15 +243,6 @@ export async function getUSDTCitreaMoonpayWarpConfig(
     katana: katanaOwner,
     polygon: polygonOwner,
   } = ownersByChain;
-  const {
-    arbitrum: arbitrumFeeOwner,
-    base: baseFeeOwner,
-    bsc: bscFeeOwner,
-    ethereum: ethereumFeeOwner,
-    katana: katanaFeeOwner,
-    polygon: polygonFeeOwner,
-  } = feeOwnersByChain;
-
   const crossCollateralRouters = getUsdcCrossCollateralRouters();
 
   assert(oftRebalancingConfigByChain.bsc, 'missing rebalancing config for bsc');
@@ -278,7 +259,10 @@ export async function getUSDTCitreaMoonpayWarpConfig(
         'arbitrum',
         arbitrumOwner,
       ),
-      tokenFee: buildCrossCollateralRoutingFee(arbitrumFeeOwner, ROUTE_CHAINS),
+      tokenFee: buildCrossCollateralRoutingFee(
+        WARP_FEES_TURNKEY_OWNER,
+        ROUTE_CHAINS,
+      ),
       crossCollateralRouters,
     },
     base: {
@@ -292,7 +276,10 @@ export async function getUSDTCitreaMoonpayWarpConfig(
         'base',
         baseOwner,
       ),
-      tokenFee: buildCrossCollateralRoutingFee(baseFeeOwner, ROUTE_CHAINS),
+      tokenFee: buildCrossCollateralRoutingFee(
+        WARP_FEES_TURNKEY_OWNER,
+        ROUTE_CHAINS,
+      ),
       crossCollateralRouters,
     },
     bsc: {
@@ -304,7 +291,10 @@ export async function getUSDTCitreaMoonpayWarpConfig(
       scale: { numerator: 1, denominator: 1_000_000_000_000 },
       hook: buildHook('bsc', bscOwner),
       interchainSecurityModule: buildInterchainSecurityModule('bsc', bscOwner),
-      tokenFee: buildCrossCollateralRoutingFee(bscFeeOwner, ROUTE_CHAINS),
+      tokenFee: buildCrossCollateralRoutingFee(
+        WARP_FEES_TURNKEY_OWNER,
+        ROUTE_CHAINS,
+      ),
       crossCollateralRouters,
     },
     katana: {
@@ -317,7 +307,10 @@ export async function getUSDTCitreaMoonpayWarpConfig(
         'katana',
         katanaOwner,
       ),
-      tokenFee: buildCrossCollateralRoutingFee(katanaFeeOwner, ROUTE_CHAINS),
+      tokenFee: buildCrossCollateralRoutingFee(
+        WARP_FEES_TURNKEY_OWNER,
+        ROUTE_CHAINS,
+      ),
       crossCollateralRouters,
     },
     ethereum: {
@@ -331,7 +324,10 @@ export async function getUSDTCitreaMoonpayWarpConfig(
         'ethereum',
         ethereumOwner,
       ),
-      tokenFee: buildCrossCollateralRoutingFee(ethereumFeeOwner, ROUTE_CHAINS),
+      tokenFee: buildCrossCollateralRoutingFee(
+        WARP_FEES_TURNKEY_OWNER,
+        ROUTE_CHAINS,
+      ),
       crossCollateralRouters,
     },
     polygon: {
@@ -345,7 +341,10 @@ export async function getUSDTCitreaMoonpayWarpConfig(
         'polygon',
         polygonOwner,
       ),
-      tokenFee: buildCrossCollateralRoutingFee(polygonFeeOwner, ROUTE_CHAINS),
+      tokenFee: buildCrossCollateralRoutingFee(
+        WARP_FEES_TURNKEY_OWNER,
+        ROUTE_CHAINS,
+      ),
       crossCollateralRouters,
     },
   };
