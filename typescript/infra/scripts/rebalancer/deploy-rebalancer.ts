@@ -1,6 +1,7 @@
 import { checkbox, input } from '@inquirer/prompts';
 import path from 'path';
 import { pino } from 'pino';
+import yargs from 'yargs';
 
 import {
   LogFormat,
@@ -11,7 +12,11 @@ import {
   setRootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { DeployEnvironment } from '../../src/config/deploy-environment.js';
+import { getCurrentKubernetesContext } from '../../src/agents/index.js';
+import {
+  DeployEnvironment,
+  assertEnvironment,
+} from '../../src/config/deploy-environment.js';
 import { readRebalancerConfig } from '../../src/rebalancer/config.js';
 import {
   RebalancerHelmManager,
@@ -21,18 +26,38 @@ import { REBALANCER_HELM_RELEASE_PREFIX } from '../../src/utils/consts.js';
 import { validateRegistryCommit } from '../../src/utils/git.js';
 import { HelmCommand } from '../../src/utils/helm.js';
 import { getInfraPath } from '../../src/utils/utils.js';
-import {
-  assertCorrectKubeContext,
-  filterOrphanedWarpRouteIds,
-  getArgs,
-  withMetrics,
-  withRegistryCommit,
-  withWarpRouteId,
-  withYes,
-} from '../agent-utils.js';
 
 function getRebalancerConfigPathPrefix(environment: DeployEnvironment) {
   return `config/environments/${environment}/rebalancer`;
+}
+
+async function assertCorrectRebalancerKubeContext(
+  environment: DeployEnvironment,
+) {
+  const clusterName = await (async () => {
+    switch (environment) {
+      case 'mainnet3':
+        return (
+          await import('../../config/environments/mainnet3/infrastructure.js')
+        ).infrastructure.kubernetes.clusterName;
+      case 'testnet4':
+        return (
+          await import('../../config/environments/testnet4/infrastructure.js')
+        ).infrastructure.kubernetes.clusterName;
+      case 'test':
+        return (await import('../../config/environments/test/infra.js')).infra
+          .kubernetes.clusterName;
+    }
+  })();
+  const currentKubeContext = await getCurrentKubernetesContext();
+  if (!currentKubeContext.endsWith(clusterName)) {
+    rootLogger.error(
+      `Cowardly refusing to deploy using current k8s context ${currentKubeContext}; are you sure you have the right k8s context active?`,
+      `Want clusterName ${clusterName}`,
+      `Run gcloud container clusters get-credentials ${clusterName} --zone us-east1-c`,
+    );
+    process.exit(1);
+  }
 }
 
 async function main() {
@@ -45,28 +70,45 @@ async function main() {
     render,
     registryCommit: registryCommitArg,
     yes: skipConfirmation,
-  } = await withYes(
-    withMetrics(withRegistryCommit(withWarpRouteId(getArgs())))
-      .option('monitor-only', {
-        type: 'boolean',
-        default: false,
-        describe:
-          'Poll balances without constructing executors or submitting transactions',
-      })
-      .option('render', {
-        type: 'boolean',
-        default: false,
-        describe:
-          'Render the manifest locally without changing cluster resources',
-      }),
-  ).parse();
+  } = await yargs(process.argv.slice(2))
+    .option('environment', {
+      alias: 'e',
+      coerce: assertEnvironment,
+      demandOption: true,
+      describe: 'deploy environment',
+      type: 'string',
+    })
+    .option('warpRouteId', { describe: 'warp route id', type: 'string' })
+    .option('registryCommit', {
+      describe: 'Registry version (commit, branch, or tag)',
+      type: 'string',
+    })
+    .option('metrics', { default: true, type: 'boolean' })
+    .option('monitor-only', {
+      type: 'boolean',
+      default: false,
+      describe:
+        'Poll balances without constructing executors or submitting transactions',
+    })
+    .option('render', {
+      type: 'boolean',
+      default: false,
+      describe:
+        'Render the manifest locally without changing cluster resources',
+    })
+    .option('yes', {
+      alias: 'y',
+      default: false,
+      describe: 'Skip confirmations and use defaults',
+      type: 'boolean',
+    })
+    .parse();
 
   if (render) {
     setRootLogger(pino({ level: 'info' }, process.stderr));
     assert(warpRouteId, '--render requires --warp-route-id');
   } else {
-    const { getEnvironmentConfig } = await import('../core-utils.js');
-    await assertCorrectKubeContext(getEnvironmentConfig(environment));
+    await assertCorrectRebalancerKubeContext(environment);
   }
 
   let warpRouteIds: string[];
@@ -107,7 +149,9 @@ async function main() {
   // Explicit routes are validated against the selected registry revision in preflight.
   const { validIds: validWarpRouteIds, orphanedIds } = warpRouteId
     ? { validIds: warpRouteIds, orphanedIds: [] }
-    : filterOrphanedWarpRouteIds(warpRouteIds);
+    : (await import('../agent-utils.js')).filterOrphanedWarpRouteIds(
+        warpRouteIds,
+      );
 
   if (orphanedIds.length > 0) {
     rootLogger.warn(
