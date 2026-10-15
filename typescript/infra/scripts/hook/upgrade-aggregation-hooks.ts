@@ -13,7 +13,6 @@ import { assert, inCIMode, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { legacyCoreHookRecoveryChains } from '../../config/environments/mainnet3/core.js';
-import { supportedChainNames } from '../../config/environments/mainnet3/supportedChainNames.js';
 import {
   getChain,
   getChainMetadata,
@@ -128,8 +127,8 @@ async function main() {
   ).argv;
 
   assert(
-    environment === 'mainnet3',
-    'This script only supports mainnet3: the domain universe and governance config are mainnet3-specific',
+    environment === 'mainnet3' || environment === 'testnet4',
+    'This script only supports mainnet3 and testnet4',
   );
   assert(concurrency > 0, '--concurrency must be greater than 0');
   assert(probeConcurrency > 0, '--probeConcurrency must be greater than 0');
@@ -144,9 +143,9 @@ async function main() {
     : chains?.length
       ? chains
       : undefined;
-  const targetChains: ChainName[] = requested ?? [...supportedChainNames];
-
   const envConfig = getEnvironmentConfig(environment);
+  const supportedChainNames = envConfig.supportedChainNames;
+  const targetChains: ChainName[] = requested ?? [...supportedChainNames];
   let multiProvider = await createUpgradeMultiProvider({
     envConfig,
     context,
@@ -180,7 +179,10 @@ async function main() {
     domainId: getDomainId(chain),
   }));
   const registryDomainIds = Object.values(getChainMetadata())
-    .filter((metadata) => !metadata.isTestnet)
+    .filter(
+      (metadata) =>
+        Boolean(metadata.isTestnet) === (environment === 'testnet4'),
+    )
     .map((metadata) => resolveDomainId(metadata));
 
   const exportPath = join(
@@ -238,7 +240,8 @@ async function main() {
     supportedDomains,
     registryDomainIds,
     skipLists: {
-      legacyCoreHookRecoveryChains,
+      legacyCoreHookRecoveryChains:
+        environment === 'mainnet3' ? legacyCoreHookRecoveryChains : [],
       chainsToSkip,
     },
     contractVerifier,

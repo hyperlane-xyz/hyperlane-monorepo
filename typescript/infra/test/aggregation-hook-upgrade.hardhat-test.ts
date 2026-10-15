@@ -622,6 +622,31 @@ describe('aggregation hook upgrade', () => {
     expect(result.setHooks).to.deep.equal({ migrate: 1, sent: 1, emitted: 0 });
   });
 
+  it('simulates routing setters when providers reject empty eth_call results', async () => {
+    const provider = multiProvider.getProvider(ORIGIN);
+    const originalCall = provider.call.bind(provider);
+    const selector =
+      DomainRoutingHook__factory.createInterface().getSighash('setHooks');
+    sinon.stub(provider, 'call').callsFake(async (transaction, blockTag) => {
+      const resolved = await utils.resolveProperties(transaction);
+      if (
+        resolved.to &&
+        eqAddress(resolved.to, routing.address) &&
+        utils.hexlify(resolved.data ?? '0x').startsWith(selector)
+      ) {
+        throw new Error('Invalid response from provider');
+      }
+      return originalCall(transaction, blockTag);
+    });
+
+    const result = await run(UpgradePhase.Prod, true);
+    expect(result.outcome).to.equal(ChainOutcome.Applied);
+    const aggregator = result.aggregators[0].address;
+    assert(aggregator, 'expected aggregator');
+    expect(await routing.hooks(test2Domain)).to.equal(aggregator);
+    await expectFeePaid(constants.AddressZero);
+  });
+
   it('re-runs are no-ops once converged', async () => {
     await run(UpgradePhase.Shadow, true);
     const afterShadow = await sentTxCount();

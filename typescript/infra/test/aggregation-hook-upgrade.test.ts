@@ -174,7 +174,7 @@ function fakeReader(spec: FakeSpec): ChainReader {
       spec.routes[domainId] ?? constants.AddressZero,
     aggregationChildren: async (aggregator) => {
       const children = spec.children[key(aggregator)];
-      if (!children) throw new Error(`no children for ${aggregator}`);
+      if (!children) throw callException();
       return children;
     },
     packageVersion: async (address) => {
@@ -333,6 +333,38 @@ describe('aggregation hook upgrade', () => {
   });
 
   describe('readChainState', () => {
+    it('discovers legacy aggregators without hookType and preserves child order', async () => {
+      const spec = baseSpec();
+      delete spec.hookTypes[key(AGG_LEGACY)];
+      const state = await stateFor(spec, AGG_LEGACY);
+      const plan = planChain(state, UpgradePhase.Prod);
+      expect(plan.migrations).to.have.length(3);
+      expect(plan.sets[0].children).to.deep.equal([PAUSABLE, MERKLE, IGP]);
+      expect(state.registryAggregationHook?.address).to.equal(AGG_LEGACY);
+    });
+
+    it('propagates aggregation probe failures for hooks without hookType', async () => {
+      const spec = baseSpec();
+      delete spec.hookTypes[key(AGG_LEGACY)];
+      const reader = fakeReader(spec);
+      reader.aggregationChildren = async () => {
+        throw new Error('RPC unavailable');
+      };
+      const result = await readChainState({
+        chain: 'origin',
+        originDomainId: ORIGIN_DOMAIN,
+        mailbox: MAILBOX,
+        factory: FACTORY,
+        supportedDomains: SUPPORTED,
+        registryDomainIds: REGISTRY_DOMAIN_IDS,
+        reader,
+        concurrency: 4,
+      }).catch((error: unknown) => error);
+      expect(result).to.be.instanceOf(Error);
+      if (result instanceof Error)
+        expect(result.message).to.equal('RPC unavailable');
+    });
+
     it('evaluates only the supported domain universe and counts ignored domains', async () => {
       const state = await stateFor(baseSpec());
       expect(state.routes.map((route) => route.domain.domainId)).to.deep.equal([

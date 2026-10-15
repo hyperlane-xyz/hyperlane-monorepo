@@ -38,22 +38,27 @@ async function classifyHook(
   reader: ChainReader,
   hook: Address,
 ): Promise<HookClassification> {
-  let hookType: number;
+  let hookType: number | undefined;
   try {
     hookType = await reader.hookType(hook);
   } catch (error: unknown) {
-    if (isMissingSelectorCallException(error)) {
+    if (!isMissingSelectorCallException(error)) throw error;
+  }
+  if (hookType !== undefined && hookType !== OnchainHookType.AGGREGATION) {
+    return { kind: HookClassificationKind.Other, hookType };
+  }
+  // Early aggregation hooks predate hookType(); identify them by their
+  // aggregation interface while preserving errors from known aggregators.
+  let children: Address[];
+  try {
+    children = await reader.aggregationChildren(hook);
+  } catch (error: unknown) {
+    if (hookType === undefined && isMissingSelectorCallException(error)) {
       return { kind: HookClassificationKind.Unknown };
     }
     throw error;
   }
-  if (hookType !== OnchainHookType.AGGREGATION) {
-    return { kind: HookClassificationKind.Other, hookType };
-  }
-  const [children, version] = await Promise.all([
-    reader.aggregationChildren(hook),
-    reader.packageVersion(hook),
-  ]);
+  const version = await reader.packageVersion(hook);
   return {
     kind: HookClassificationKind.Aggregation,
     aggregator: { address: hook, children, version },

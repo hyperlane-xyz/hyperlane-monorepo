@@ -476,7 +476,9 @@ export async function applyProdRoutes(args: {
     multiProvider.getProvider(chain),
   );
   for (const batch of chunkRoutes(chain, pending)) {
-    await readOnly.callStatic.setHooks(batch, { from: owner });
+    // setHooks returns empty data; SmartProvider treats eth_call's 0x result
+    // as invalid. Gas estimation still simulates the exact owner-authorized call.
+    await readOnly.estimateGas.setHooks(batch, { from: owner });
   }
   if (!args.apply) return { pending: pending.length, sent: 0, emitted: [] };
 
