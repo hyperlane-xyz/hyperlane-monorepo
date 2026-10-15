@@ -5,6 +5,7 @@ import {
   type ChainName,
   type Token,
   type WarpCore,
+  TokenBalanceReader,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, fromWei, sleep } from '@hyperlane-xyz/utils';
 
@@ -32,6 +33,7 @@ export interface InventoryMonitorConfig {
  * Awaits the TokenInfo handler before starting the next cycle to prevent race conditions.
  */
 export class Monitor implements IMonitor {
+  private readonly balanceReader: TokenBalanceReader;
   private tokenInfoHandler?: (event: MonitorEvent) => void | Promise<void>;
   private errorHandler?: (event: Error) => void;
   private startHandler?: () => void;
@@ -47,7 +49,9 @@ export class Monitor implements IMonitor {
     private readonly warpCore: WarpCore,
     private readonly logger: Logger,
     private readonly inventoryConfig?: InventoryMonitorConfig,
-  ) {}
+  ) {
+    this.balanceReader = new TokenBalanceReader(warpCore.multiProvider);
+  }
 
   private async computeConfirmedBlockTags(): Promise<ConfirmedBlockTags> {
     const blockTags: ConfirmedBlockTags = {};
@@ -116,26 +120,22 @@ export class Monitor implements IMonitor {
             confirmedBlockTags,
           };
 
-          for (const token of this.warpCore.tokens) {
-            this.logger.debug(
-              {
-                chain: token.chainName,
-                tokenSymbol: token.symbol,
-                tokenAddress: token.addressOrDenom,
-              },
-              'Checking token',
-            );
-            const blockTag = confirmedBlockTags[token.chainName];
-            const bridgedSupply = await this.getTokenBridgedSupply(
+          // Multicall only combines simultaneous reads on the same chain and
+          // block tag. One-token-per-chain routes still benefit from adapter
+          // reuse, but do not reduce balance calls through batching.
+          const tokenResults = await Promise.allSettled(
+            this.warpCore.tokens.map(async (token) => ({
               token,
-              blockTag,
-            );
-
-            event.tokensInfo.push({
-              token,
-              bridgedSupply,
-            });
-          }
+              bridgedSupply: await this.getTokenBridgedSupply(
+                token,
+                confirmedBlockTags[token.chainName],
+              ),
+            })),
+          );
+          event.tokensInfo = tokenResults.map((result) => {
+            if (result.status === 'rejected') throw result.reason;
+            return result.value;
+          });
 
           const inventoryBalances = await this.fetchInventoryBalances();
           if (Object.keys(inventoryBalances).length > 0) {
@@ -228,11 +228,13 @@ export class Monitor implements IMonitor {
       return;
     }
 
-    const adapter = token.getHypAdapter(this.warpCore.multiProvider);
     let bridgedSupply: bigint | undefined;
 
     try {
-      bridgedSupply = await adapter.getBridgedSupply({ blockTag });
+      bridgedSupply = await this.balanceReader.getBridgedSupply(
+        token,
+        blockTag,
+      );
       this.logger.debug(
         { chain: token.chainName, blockTag },
         'Queried confirmed balance',
@@ -246,7 +248,7 @@ export class Monitor implements IMonitor {
         },
         'Historical block query failed, falling back to latest',
       );
-      bridgedSupply = await adapter.getBridgedSupply();
+      bridgedSupply = await this.balanceReader.getBridgedSupply(token);
     }
 
     if (bridgedSupply === undefined) {
@@ -288,8 +290,7 @@ export class Monitor implements IMonitor {
           );
           return { chainName, balance: 0n };
         }
-        const adapter = token.getAdapter(this.warpCore.multiProvider);
-        const balance = await adapter.getBalance(address);
+        const balance = await this.balanceReader.getBalance(token, address);
         this.logger.debug(
           {
             chain: chainName,
