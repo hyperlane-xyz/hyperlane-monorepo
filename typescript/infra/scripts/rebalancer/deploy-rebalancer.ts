@@ -30,7 +30,6 @@ import {
   withWarpRouteId,
   withYes,
 } from '../agent-utils.js';
-import { getEnvironmentConfig } from '../core-utils.js';
 
 function getRebalancerConfigPathPrefix(environment: DeployEnvironment) {
   return `config/environments/${environment}/rebalancer`;
@@ -66,6 +65,7 @@ async function main() {
     setRootLogger(pino({ level: 'info' }, process.stderr));
     assert(warpRouteId, '--render requires --warp-route-id');
   } else {
+    const { getEnvironmentConfig } = await import('../core-utils.js');
     await assertCorrectKubeContext(getEnvironmentConfig(environment));
   }
 
