@@ -13,6 +13,7 @@ import { getUSDTCitreaMoonpayWarpConfig } from '../config/environments/mainnet3/
 import { getUSDGRobinhoodMoonpayWarpConfig } from '../config/environments/mainnet3/warp/configGetters/getUSDGRobinhoodMoonpayWarpConfig.js';
 import { getMoonpayCrossCollateralRouters } from '../config/environments/mainnet3/warp/configGetters/moonpay.js';
 import { REBALANCER } from '../config/environments/mainnet3/warp/configGetters/utils.js';
+import { WARP_FEES_TURNKEY_OWNER } from '../config/environments/mainnet3/governance/utils.js';
 import { WarpRouteIds } from '../config/environments/mainnet3/warp/warpIds.js';
 import { getDomainId, getRegistry } from '../config/registry.js';
 
@@ -96,6 +97,22 @@ describe('Moonpay production rebalancing', () => {
       expect(config[chain])
         .to.have.nested.property('allowedRebalancingBridges.arc')
         .that.deep.includes({ bridge: localRouter });
+    }
+  });
+
+  it('uses the Turnkey owner for every EVM warp fee contract', async () => {
+    const config = await getUSDCCitreaMoonpayWarpConfig(getRouterConfig());
+
+    for (const [chain, leg] of Object.entries(config)) {
+      if (chain === 'solanamainnet') {
+        expect(leg).not.to.have.property('tokenFee');
+        continue;
+      }
+
+      expect(leg).to.have.nested.property(
+        'tokenFee.owner',
+        WARP_FEES_TURNKEY_OWNER,
+      );
     }
   });
 });
