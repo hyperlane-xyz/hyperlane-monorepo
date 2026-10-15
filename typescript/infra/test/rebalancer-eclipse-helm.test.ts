@@ -102,19 +102,21 @@ describe('USDT Eclipse production manifest', () => {
       },
     });
     expect(runtime.strategy.chains).not.to.have.property('plasma');
-    expect(
-      Object.values(runtime.strategy.chains).reduce(
-        (total: number, chain) => total + chain.minAmount.target,
-        0,
-      ),
-    ).to.equal(90000);
-    for (const chain of [
+    const strategyChains = [
       'arbitrum',
       'bsc',
       'ethereum',
       'solanamainnet',
       'tron',
-    ])
+    ];
+    expect(
+      strategyChains.reduce(
+        (total, chain) =>
+          total + runtime.strategy.chains[chain].minAmount.target,
+        0,
+      ),
+    ).to.equal(90000);
+    for (const chain of strategyChains)
       expect(runtime.strategy.chains[chain].externalBridge).to.equal(
         'swapsxyz',
       );
