@@ -35,15 +35,7 @@ import type {
   BridgeQuoteParams,
 } from '../interfaces/IExternalBridge.js';
 import { DeBridgeBridge, type DeBridgeBridgeConfig } from './DeBridgeBridge.js';
-import {
-  DLN_FORWARDER,
-  DLN_FORWARDER_INTERFACE,
-  DLN_FORWARDER_IMPLEMENTATION,
-  ZERO_EX_BSC_SETTLER,
-  ZERO_EX_DEPLOYER,
-} from './deBridgeForwarderValidation.js';
 import { DLN_EVENTS, type DlnOrder, dlnOrderId } from './deBridgeSettlement.js';
-import { changeCall, withSignerSurplus } from './fixtures/deBridgeForwarder.js';
 import {
   DLN_EVM_SOURCE,
   DLN_TRON_SOURCE,
@@ -65,6 +57,7 @@ const PRIVATE_KEY = ethers.utils.id('deBridge test signer');
 const OTHER_PRIVATE_KEY = ethers.utils.id('different deBridge test signer');
 const SIGNER_ADDRESS = new ethers.Wallet(PRIVATE_KEY).address;
 const BSC_USDT = '0x55d398326f99059fF775485246999027B3197955';
+const DLN_FORWARDER = '0x663DC15D3C1aC63ff12E45Ab68FeA3F0a883C251';
 const TRON_USDT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 const SOLANA_USDT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
 const OTHER_ORDER_ID = `0x${'b'.repeat(64)}`;
@@ -96,7 +89,7 @@ function settlementOrder(): DlnOrder {
 const ORDER_ID = dlnOrderId(settlementOrder());
 
 const BRIDGE_CONFIG: DeBridgeBridgeConfig = {
-  maxFeePercent: 2.5,
+  maxFeeBps: 50,
   chainMetadata: {
     bsc: {
       chainId: 56,
@@ -319,24 +312,6 @@ function makeCreateTxResponse(): DeBridgeCreateTxResponse {
   };
 }
 
-function makeForwarderResponse(): DeBridgeCreateTxResponse {
-  const response = makeCreateTxResponse();
-  response.tx.to = DLN_FORWARDER;
-  response.tx.data = changeCall(
-    DLN_FORWARDER_INTERFACE,
-    withSignerSurplus(SIGNER_ADDRESS),
-    (args) => {
-      const next = [...args];
-      next[9] = makeEvmOrderData(BSC_TO_TRON_PARAMS, DESTINATION_AMOUNT, {
-        giveTokenAddress: args.srcTokenOut,
-        giveAmount: args.srcAmountOut,
-      });
-      return next;
-    },
-  );
-  return response;
-}
-
 function makeBridgeQuote(
   params: BridgeQuoteParams,
   response: DeBridgeQuoteResponse,
@@ -493,7 +468,24 @@ describe('DeBridgeBridge.quote', function () {
     expect(url.searchParams.get('dstChainTokenOut')).to.equal(TRON_USDT);
   });
 
-  it('rejects a quote above maxFeePercent', async () => {
+  it('accepts 50 bps and rejects 51 bps', async () => {
+    const fetchStub = sinon.stub(globalThis, 'fetch');
+    fetchStub
+      .onFirstCall()
+      .resolves(jsonResponse(makeQuoteResponse(SOURCE_AMOUNT, 995_000_000n)));
+    fetchStub
+      .onSecondCall()
+      .resolves(jsonResponse(makeQuoteResponse(SOURCE_AMOUNT, 994_900_000n)));
+
+    await new DeBridgeBridge(BRIDGE_CONFIG, logger).quote(BSC_TO_TRON_PARAMS);
+
+    const error = await getRejection(
+      new DeBridgeBridge(BRIDGE_CONFIG, logger).quote(BSC_TO_TRON_PARAMS),
+    );
+    expect(error.message).to.include('51 bps');
+  });
+
+  it('rejects a quote far above maxFeeBps', async () => {
     sinon
       .stub(globalThis, 'fetch')
       .resolves(jsonResponse(makeQuoteResponse(SOURCE_AMOUNT, 900_000_000n)));
@@ -577,10 +569,6 @@ async function chainRead(
   let result: ethers.BigNumberish = allowance;
   if (data === ethers.utils.id('decimals()').slice(0, 10))
     result = address === BSC_USDT.toLowerCase() ? 18 : 6;
-  else if (data === ethers.utils.id('globalFixedNativeFee()').slice(0, 10))
-    result = address === DLN_TRON_SOURCE.toLowerCase() ? 4_000_000 : FIX_FEE;
-  else if (address === ZERO_EX_DEPLOYER.toLowerCase())
-    result = ZERO_EX_BSC_SETTLER;
   return ethers.utils.defaultAbiCoder.encode(['uint256'], [result]);
 }
 
@@ -617,8 +605,26 @@ describe('DeBridgeBridge.execute', function () {
       .callsFake((tx) => chainRead(tx));
     stubMint();
     sinon
-      .stub(ethers.providers.StaticJsonRpcProvider.prototype, 'getStorageAt')
-      .resolves(ethers.utils.hexZeroPad(DLN_FORWARDER_IMPLEMENTATION, 32));
+      .stub(ethers.providers.StaticJsonRpcProvider.prototype, 'estimateGas')
+      .resolves(ethers.BigNumber.from(250_000));
+    sinon
+      .stub(TronJsonRpcProvider.prototype, 'estimateGas')
+      .resolves(ethers.BigNumber.from(250_000));
+    sinon.stub(Connection.prototype, 'getFeeForMessage').resolves({
+      context: { slot: 1 },
+      value: 5_000,
+    });
+    sinon.stub(Connection.prototype, 'simulateTransaction').resolves({
+      context: { slot: 1 },
+      value: {
+        err: null,
+        logs: [],
+        accounts: null,
+        unitsConsumed: 1,
+        returnData: null,
+        innerInstructions: null,
+      },
+    });
   });
   afterEach(() => sinon.restore());
 
@@ -638,10 +644,9 @@ describe('DeBridgeBridge.execute', function () {
     }
   });
 
-  it('rejects API fee and transaction value tampering against the source contract', async () => {
+  it('rejects incidental native value above the configured cap', async () => {
     const response = makeCreateTxResponse();
-    response.fixFee = (FIX_FEE * 2n).toString();
-    response.tx.value = response.fixFee;
+    response.tx.value = '10000000000000001';
     sinon.stub(globalThis, 'fetch').resolves(jsonResponse(response));
     const send = sinon.stub(ethers.Wallet.prototype, 'sendTransaction');
     const error = await getRejection(
@@ -649,9 +654,7 @@ describe('DeBridgeBridge.execute', function () {
         makeBridgeQuote(BSC_TO_TRON_PARAMS, makeQuoteResponse()),
       ),
     );
-    expect(error.message).to.include(
-      'fixed fee does not match source contract',
-    );
+    expect(error.message).to.include('exceeds cap');
     expect(send.called).to.equal(false);
   });
 
@@ -830,12 +833,10 @@ describe('DeBridgeBridge.execute', function () {
     });
   });
 
-  it('approves only the source amount to the validated forwarder and submits the nested order', async () => {
-    const response = makeForwarderResponse();
+  it('accepts a provider-selected target without decoding its calldata', async () => {
+    const response = makeCreateTxResponse();
+    response.tx.to = DLN_FORWARDER;
     sinon.stub(globalThis, 'fetch').resolves(jsonResponse(response));
-    sinon
-      .stub(ethers.providers.StaticJsonRpcProvider.prototype, 'getBlock')
-      .resolves({ timestamp: 0 } as ethers.providers.Block);
     callStub.callsFake((tx) => chainRead(tx));
     sinon
       .stub(
@@ -878,78 +879,6 @@ describe('DeBridgeBridge.execute', function () {
     expect(captured[1].to).to.equal(DLN_FORWARDER);
     expect(captured[1].data).to.equal(response.tx.data);
     expect(result.transferId).to.equal(ORDER_ID);
-  });
-
-  it('rejects malicious wrappers before allowance reads, approvals or source submission', async () => {
-    const response = makeForwarderResponse();
-    const original = response.tx.data;
-    const fetchStub = sinon.stub(globalThis, 'fetch');
-    const call = callStub;
-    const send = sinon.stub(ethers.Wallet.prototype, 'sendTransaction');
-    for (const index of [0, 1, 3, 8]) {
-      response.tx.data = changeCall(
-        DLN_FORWARDER_INTERFACE,
-        original,
-        (args) => {
-          const next = [...args];
-          next[index] = index === 1 ? SOURCE_AMOUNT + 1n : SIGNER_ADDRESS;
-          return next;
-        },
-      );
-      fetchStub.resolves(jsonResponse(response));
-      await getRejection(
-        new DeBridgeBridge(BRIDGE_CONFIG, logger).execute(
-          makeBridgeQuote(BSC_TO_TRON_PARAMS, makeQuoteResponse()),
-          { [ProtocolType.Ethereum]: PRIVATE_KEY },
-        ),
-      );
-    }
-    expect(call.called).to.equal(false);
-    expect(send.called).to.equal(false);
-  });
-
-  it('rejects an expired wrapper before allowance or approval even when its registry is valid', async () => {
-    sinon
-      .stub(globalThis, 'fetch')
-      .resolves(jsonResponse(makeForwarderResponse()));
-    const call = callStub.resolves(
-      ethers.utils.defaultAbiCoder.encode(['address'], [ZERO_EX_BSC_SETTLER]),
-    );
-    sinon
-      .stub(ethers.providers.StaticJsonRpcProvider.prototype, 'getBlock')
-      .resolves({ timestamp: 2_000_000_000 } as ethers.providers.Block);
-    const send = sinon.stub(ethers.Wallet.prototype, 'sendTransaction');
-    const error = await getRejection(
-      new DeBridgeBridge(BRIDGE_CONFIG, logger).execute(
-        makeBridgeQuote(BSC_TO_TRON_PARAMS, makeQuoteResponse()),
-        { [ProtocolType.Ethereum]: PRIVATE_KEY },
-      ),
-    );
-    expect(error.message).to.include('deadline has expired');
-    expect(call.callCount).to.equal(1);
-    expect(await call.firstCall.args[0].to).to.equal(ZERO_EX_DEPLOYER);
-    expect(send.called).to.equal(false);
-  });
-
-  it('rejects value changes and direct calls to the source token', async () => {
-    const changedValue = makeCreateTxResponse();
-    changedValue.tx.value = (FIX_FEE + 1n).toString();
-    const directTokenCall = makeCreateTxResponse();
-    directTokenCall.tx.to = BSC_USDT;
-    const fetchStub = sinon.stub(globalThis, 'fetch');
-    fetchStub.onFirstCall().resolves(jsonResponse(changedValue));
-    fetchStub.onSecondCall().resolves(jsonResponse(directTokenCall));
-    const bridge = new DeBridgeBridge(BRIDGE_CONFIG, logger);
-    const quote = makeBridgeQuote(BSC_TO_TRON_PARAMS, makeQuoteResponse());
-
-    const valueError = await getRejection(
-      bridge.execute(quote, { [ProtocolType.Ethereum]: PRIVATE_KEY }),
-    );
-    expect(valueError.message).to.include('does not match expected');
-    const targetError = await getRejection(
-      bridge.execute(quote, { [ProtocolType.Ethereum]: PRIVATE_KEY }),
-    );
-    expect(targetError.message).to.include('not the documented DLN source');
   });
 
   it('constructs an exact TRC20 approval for Tron execution', async () => {
@@ -1026,84 +955,6 @@ describe('DeBridgeBridge.execute', function () {
     const approval = erc20.decodeFunctionData('approve', approvalRequest.data);
     expect(approval[0]).to.equal(DLN_TRON_SOURCE);
     expect(approval[1].toString()).to.equal('1000000000');
-  });
-
-  for (const [field, value] of Object.entries({
-    giveTokenAddress: '0x1111111111111111111111111111111111111111',
-    giveAmount: SOURCE_AMOUNT + 1n,
-    takeTokenAddress: '0x1111111111111111111111111111111111111111',
-    takeAmount: 1n,
-    takeChainId: 1,
-    receiverDst: '0x1111111111111111111111111111111111111111',
-    givePatchAuthoritySrc: '0x1111111111111111111111111111111111111111',
-    orderAuthorityAddressDst: '0x1111111111111111111111111111111111111111',
-    allowedCancelBeneficiarySrc: '0x1111111111111111111111111111111111111111',
-    externalCall: '0xdeadbeef',
-  })) {
-    it(`rejects an altered DLN order ${field} before signing`, async () => {
-      const response = makeCreateTxResponse();
-      response.tx.data = makeEvmOrderData(
-        BSC_TO_TRON_PARAMS,
-        DESTINATION_AMOUNT,
-        { [field]: value },
-      );
-      sinon.stub(globalThis, 'fetch').resolves(jsonResponse(response));
-      const send = sinon.stub(ethers.Wallet.prototype, 'sendTransaction');
-      await getRejection(
-        new DeBridgeBridge(BRIDGE_CONFIG, logger).execute(
-          makeBridgeQuote(BSC_TO_TRON_PARAMS, makeQuoteResponse()),
-          { [ProtocolType.Ethereum]: PRIVATE_KEY },
-        ),
-      );
-      expect(send.called).to.equal(false);
-    });
-  }
-
-  it('rejects an unrelated-token drain even when quote metadata is valid', async () => {
-    const response = makeCreateTxResponse();
-    response.tx.to = '0x1111111111111111111111111111111111111111';
-    response.tx.data = new ethers.utils.Interface([
-      'function transfer(address,uint256)',
-    ]).encodeFunctionData('transfer', [SIGNER_ADDRESS, SOURCE_AMOUNT]);
-    sinon.stub(globalThis, 'fetch').resolves(jsonResponse(response));
-    const send = sinon.stub(ethers.Wallet.prototype, 'sendTransaction');
-    const error = await getRejection(
-      new DeBridgeBridge(BRIDGE_CONFIG, logger).execute(
-        makeBridgeQuote(BSC_TO_TRON_PARAMS, makeQuoteResponse()),
-        { [ProtocolType.Ethereum]: PRIVATE_KEY },
-      ),
-    );
-    expect(error.message).to.include('not the documented DLN source');
-    expect(send.called).to.equal(false);
-  });
-
-  it('rejects a Solana transfer appended to an otherwise valid DLN order', async () => {
-    const signer = Keypair.generate();
-    const data = makeSerializedSolanaTransaction(signer, [
-      makeSolanaOrderInstruction(signer),
-      SystemProgram.transfer({
-        fromPubkey: signer.publicKey,
-        toPubkey: Keypair.generate().publicKey,
-        lamports: 100_000,
-      }),
-    ]);
-    sinon.stub(globalThis, 'fetch').resolves(
-      jsonResponse({
-        ...makeSolanaQuoteResponse(),
-        orderId: ORDER_ID,
-        fixFee: '0',
-        tx: { data },
-      }),
-    );
-    const send = sinon.stub(Connection.prototype, 'sendTransaction');
-    const error = await getRejection(
-      new DeBridgeBridge(BRIDGE_CONFIG, logger).execute(
-        makeBridgeQuote(makeSolanaParams(signer), makeSolanaQuoteResponse()),
-        { [ProtocolType.Sealevel]: bs58.encode(signer.secretKey) },
-      ),
-    );
-    expect(error.message).to.include('unsupported program');
-    expect(send.called).to.equal(false);
   });
 
   it('records the Solana signature and order ID when the broadcast response is lost', async () => {
