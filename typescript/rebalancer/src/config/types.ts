@@ -122,7 +122,7 @@ export const RebalancerStrategySchema = z
   .union([StrategyConfigSchema, z.array(StrategyConfigSchema).min(1)])
   .transform((val) => (Array.isArray(val) ? val : [val]));
 
-export const DEFAULT_INTENT_TTL_S = 604800; // 7 days
+export const DEFAULT_INTENT_TTL_S = 1_209_600; // 14 days
 export const DEFAULT_INTENT_TTL_MS = DEFAULT_INTENT_TTL_S * 1_000;
 
 export const DEFAULT_MOVEMENT_STALENESS_MS = 30 * 60 * 1_000; // 30 minutes
@@ -186,7 +186,7 @@ export const RebalancerConfigSchema = z
       .positive()
       .default(DEFAULT_INTENT_TTL_S)
       .describe(
-        'Max age in seconds before in-progress intent is expired. Default 7 days.',
+        'Max age in seconds before in-progress intent is expired. Default 14 days.',
       )
       .transform((val) => val * 1_000),
   })
