@@ -11,6 +11,7 @@ import {
   TokenFeeType,
   TokenType,
   WarpRouteDeployConfigMailboxRequiredSchema,
+  XERC20ExtraBridgeType,
   XERC20TokenExtraBridgesLimits,
   XERC20Type,
   XERC20VSLimitConfig,
@@ -259,6 +260,7 @@ const productionCCIPTokenPoolLimits: XERC20VSLimitConfig = {
 const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
   ethereum: [
     {
+      bridgeType: XERC20ExtraBridgeType.ManagedLockbox,
       lockbox: productionEthereumXERC20LockboxAddress,
       limits: {
         type: XERC20Type.Velo,
@@ -267,12 +269,14 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
       },
     },
     {
+      bridgeType: XERC20ExtraBridgeType.CcipTokenPool,
       lockbox: productionCCIPTokenPoolAddresses.ethereum,
       limits: productionCCIPTokenPoolLimits,
     },
   ],
   celo: [
     {
+      bridgeType: XERC20ExtraBridgeType.CcipTokenPool,
       lockbox: productionCCIPTokenPoolAddresses.celo,
       limits: productionCCIPTokenPoolLimits,
     },
@@ -289,6 +293,7 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
       limits: zeroLimits,
     },
     {
+      bridgeType: XERC20ExtraBridgeType.CcipTokenPool,
       lockbox: productionCCIPTokenPoolAddresses.base,
       limits: productionCCIPTokenPoolLimits,
     },
@@ -305,18 +310,21 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
       limits: zeroLimits,
     },
     {
+      bridgeType: XERC20ExtraBridgeType.CcipTokenPool,
       lockbox: productionCCIPTokenPoolAddresses.optimism,
       limits: productionCCIPTokenPoolLimits,
     },
   ],
   bob: [
     {
+      bridgeType: XERC20ExtraBridgeType.CcipTokenPool,
       lockbox: productionCCIPTokenPoolAddresses.bob,
       limits: productionCCIPTokenPoolLimits,
     },
   ],
   zerogravity: [
     {
+      bridgeType: XERC20ExtraBridgeType.CcipTokenPool,
       lockbox: productionCCIPTokenPoolAddresses.zerogravity,
       limits: productionCCIPTokenPoolLimits,
     },
