@@ -10,7 +10,7 @@ import {
   isEVMLike,
   retryAsync,
 } from '@hyperlane-xyz/utils';
-import { BigNumber, Contract, Wallet, providers } from 'ethers';
+import { BigNumber, Contract, Wallet, providers, utils } from 'ethers';
 import type { Logger } from 'pino';
 
 import { ExternalBridgeType } from '../config/types.js';
@@ -46,17 +46,14 @@ const ERC20_DECIMALS_ABI = ['function decimals() view returns (uint8)'];
 const REGISTER_TX_RETRY_DELAY_MS = 2_000;
 const MAX_TRANSACTION_AGE_MS = 30_000;
 const MAX_PREPARATION_ATTEMPTS = 3;
-const UNSAFE_SOURCE_TOKEN_SELECTORS = new Set([
-  '095ea7b3', // approve(address,uint256)
-  '23b872dd', // transferFrom(address,address,uint256)
-  'a9059cbb', // transfer(address,uint256)
-]);
+const DEFAULT_MAX_EVM_NATIVE_FEE_WEI = 10_000_000_000_000_000n;
 
 export interface SwapsXyzBridgeConfig {
   apiKey: string;
   apiUrl?: string;
   defaultSlippage?: number;
   maxQuoteLossBps?: number;
+  maxEvmNativeFeeWei?: bigint;
   chainMetadata?: ChainMap<ChainMetadata>;
   evmProviderFactory?: (rpcUrl: string) => providers.Provider;
   registerTxRetryDelayMs?: number;
@@ -84,14 +81,6 @@ function transactionValue(tx: unknown, context: string): bigint {
     `${context} transaction value is invalid`,
   );
   return value === undefined || value === '' ? 0n : BigInt(value);
-}
-
-function transactionSelector(data: string, context: string): string {
-  assert(
-    /^0x[0-9a-fA-F]+$/.test(data) && data.length >= 10 && data.length % 2 === 0,
-    `${context} transaction calldata is invalid`,
-  );
-  return data.slice(2, 10).toLowerCase();
 }
 
 export class SwapsXyzBridge implements IExternalBridge {
@@ -451,7 +440,12 @@ export class SwapsXyzBridge implements IExternalBridge {
       (response.amountInMax ?? response.amountIn).amount,
     );
     const toAmountMin = BigInt(response.amountOutMin.amount);
-    await this.validateQuoteLoss(params, response, fromAmount, toAmountMin);
+    await this.validateQuoteLoss(
+      params,
+      response,
+      fromAmount,
+      BigInt(response.amountOut.amount),
+    );
 
     return {
       id: response.txId,
@@ -521,14 +515,16 @@ export class SwapsXyzBridge implements IExternalBridge {
       if (Date.now() - preparedAt >= MAX_TRANSACTION_AGE_MS) continue;
       await this.validatePreparedEvmOrder(quote, fresh);
       if (Date.now() - preparedAt >= MAX_TRANSACTION_AGE_MS) continue;
+      const transaction = {
+        to: fresh.tx.to,
+        data: fresh.tx.data,
+        value: fresh.tx.value ? BigNumber.from(fresh.tx.value) : undefined,
+      };
+      await signer.estimateGas(transaction);
       await options?.onTransferId?.(fresh.txId);
       const txResponse = await submitEvmLikeTransaction(
         signer,
-        {
-          to: fresh.tx.to,
-          data: fresh.tx.data,
-          value: fresh.tx.value ? BigNumber.from(fresh.tx.value) : undefined,
-        },
+        transaction,
         options,
       );
       // Source-action tracking takes priority over waiting here: once a
@@ -622,17 +618,14 @@ export class SwapsXyzBridge implements IExternalBridge {
     }
     const tx = response.tx;
     assert(isEvmTx(tx), 'SwapsXyzBridge.execute EVM transaction is invalid');
-    if (this.addressesEqual(tx.to, params.fromToken, params.fromChain)) {
-      const selector = transactionSelector(
-        tx.data,
-        'SwapsXyzBridge.execute fresh',
-      );
-      assert(
-        !UNSAFE_SOURCE_TOKEN_SELECTORS.has(selector),
-        `SwapsXyzBridge.execute rejects direct source-token selector 0x${selector}`,
-      );
-    }
-
+    assert(
+      utils.isAddress(tx.to),
+      `SwapsXyzBridge.execute transaction target ${tx.to} is invalid`,
+    );
+    assert(
+      /^0x(?:[0-9a-fA-F]{2})*$/.test(tx.data),
+      'SwapsXyzBridge.execute transaction calldata is invalid',
+    );
     const freshFromAmount = BigInt(
       (response.amountInMax ?? response.amountIn).amount,
     );
@@ -645,55 +638,32 @@ export class SwapsXyzBridge implements IExternalBridge {
       freshToAmountMin >= quote.toAmountMin,
       `SwapsXyzBridge.execute fresh minimum output ${freshToAmountMin} is below accepted minimum ${quote.toAmountMin}`,
     );
-    assert(
-      isRecord(quote.route) && isRecord(quote.route.actionResponse),
-      'SwapsXyzBridge.execute accepted action response is missing',
-    );
-    const acceptedTx = quote.route.actionResponse.tx;
-    assert(
-      isEvmTx(acceptedTx),
-      'SwapsXyzBridge.execute accepted EVM transaction is invalid',
-    );
-    assert(
-      this.addressesEqual(tx.to, acceptedTx.to, params.fromChain),
-      `SwapsXyzBridge.execute fresh target ${tx.to} does not match accepted target ${acceptedTx.to}`,
-    );
-    assert(
-      transactionSelector(tx.data, 'SwapsXyzBridge.execute fresh') ===
-        transactionSelector(acceptedTx.data, 'SwapsXyzBridge.execute accepted'),
-      'SwapsXyzBridge.execute fresh calldata selector does not match accepted selector',
-    );
     const freshValue = transactionValue(
       response.tx,
       'SwapsXyzBridge.execute fresh',
     );
-    const acceptedValue = transactionValue(
-      quote.route.actionResponse.tx,
-      'SwapsXyzBridge.execute accepted',
-    );
+    const nativePrincipal = this.addressesEqual(
+      params.fromToken,
+      NATIVE_TOKEN_ADDRESS,
+      params.fromChain,
+    )
+      ? freshFromAmount
+      : 0n;
+    const nativeFee =
+      freshValue > nativePrincipal ? freshValue - nativePrincipal : 0n;
+    const maxNativeFee =
+      this.config.maxEvmNativeFeeWei ?? DEFAULT_MAX_EVM_NATIVE_FEE_WEI;
     assert(
-      freshValue >= 0n && freshValue <= acceptedValue,
-      `SwapsXyzBridge.execute fresh native value ${freshValue} exceeds accepted native value ${acceptedValue}`,
+      nativeFee <= maxNativeFee,
+      `SwapsXyzBridge.execute native fee ${nativeFee} exceeds configured maximum ${maxNativeFee}`,
     );
-    if (
-      !this.addressesEqual(
-        params.fromToken,
-        NATIVE_TOKEN_ADDRESS,
-        params.fromChain,
-      )
-    ) {
-      assert(
-        acceptedValue === 0n && freshValue === 0n,
-        'SwapsXyzBridge.execute ERC20 routes must not send native value',
-      );
-    }
   }
 
   private async validateQuoteLoss(
     params: BridgeQuoteParams,
     response: SwapsXyzActionResponse,
     fromAmount: bigint,
-    toAmountMin: bigint,
+    toAmount: bigint,
   ): Promise<void> {
     const maxQuoteLossBps = this.config.maxQuoteLossBps;
     if (maxQuoteLossBps === undefined) return;
@@ -713,13 +683,13 @@ export class SwapsXyzBridge implements IExternalBridge {
     const commonDecimals = Math.max(sourceDecimals, destinationDecimals);
     const normalizedFromAmount =
       fromAmount * 10n ** BigInt(commonDecimals - sourceDecimals);
-    const normalizedToAmountMin =
-      toAmountMin * 10n ** BigInt(commonDecimals - destinationDecimals);
+    const normalizedToAmount =
+      toAmount * 10n ** BigInt(commonDecimals - destinationDecimals);
     const lossBps =
-      normalizedToAmountMin >= normalizedFromAmount
+      normalizedToAmount >= normalizedFromAmount
         ? 0n
         : ceilDiv(
-            (normalizedFromAmount - normalizedToAmountMin) * BPS_DENOMINATOR,
+            (normalizedFromAmount - normalizedToAmount) * BPS_DENOMINATOR,
             normalizedFromAmount,
           );
     assert(

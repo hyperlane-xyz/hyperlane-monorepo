@@ -152,6 +152,7 @@ function createBridge(
     chainMetadata?: ChainMap<ChainMetadata>;
     defaultSlippage?: number;
     maxQuoteLossBps?: number;
+    maxEvmNativeFeeWei?: bigint;
     evmProviderFactory?: (rpcUrl: string) => providers.Provider;
     registerTxRetryDelayMs?: number;
     erc20ContractFactory?: Erc20ContractFactory;
@@ -163,6 +164,7 @@ function createBridge(
       chainMetadata: overrides.chainMetadata ?? CHAIN_METADATA,
       defaultSlippage: overrides.defaultSlippage,
       maxQuoteLossBps: overrides.maxQuoteLossBps,
+      maxEvmNativeFeeWei: overrides.maxEvmNativeFeeWei,
       evmProviderFactory: overrides.evmProviderFactory,
       registerTxRetryDelayMs: overrides.registerTxRetryDelayMs,
       erc20ContractFactory: overrides.erc20ContractFactory,
@@ -232,6 +234,7 @@ function createExecuteHarness(response = actionResponse()): {
   client: SwapsXyzClient;
   provider: providers.StaticJsonRpcProvider;
   getActionStub: sinon.SinonStub;
+  estimateGasStub: sinon.SinonStub;
   sendTransactionStub: sinon.SinonStub;
   waitForTransactionStub: sinon.SinonStub;
 } {
@@ -245,6 +248,9 @@ function createExecuteHarness(response = actionResponse()): {
     registerTxRetryDelayMs: 1,
   });
   const getActionStub = sinon.stub(client, 'getAction').resolves(response);
+  const estimateGasStub = sinon
+    .stub(Wallet.prototype, 'estimateGas')
+    .resolves(BigNumber.from(100_000));
   const sendTransactionStub = sinon
     .stub(Wallet.prototype, 'sendTransaction')
     .resolves(transactionResponse('0xbridge'));
@@ -256,6 +262,7 @@ function createExecuteHarness(response = actionResponse()): {
     client,
     provider,
     getActionStub,
+    estimateGasStub,
     sendTransactionStub,
     waitForTransactionStub,
   };
@@ -371,7 +378,7 @@ describe('SwapsXyzBridge.quote', () => {
     sinon.stub(client, 'getAction').resolves(actionResponse());
 
     const quote = await createBridge(client, {
-      maxQuoteLossBps: 100,
+      maxQuoteLossBps: 50,
     }).quote(quoteParams());
 
     expect(quote.toAmountMin).to.equal(990_025n);
@@ -382,11 +389,11 @@ describe('SwapsXyzBridge.quote', () => {
     sinon.stub(client, 'getAction').resolves(actionResponse());
 
     const error = await captureError(
-      createBridge(client, { maxQuoteLossBps: 99 }).quote(quoteParams()),
+      createBridge(client, { maxQuoteLossBps: 49 }).quote(quoteParams()),
     );
 
-    expect(error.message).to.include('quote loss 100 bps');
-    expect(error.message).to.include('maximum 99 bps');
+    expect(error.message).to.include('quote loss 50 bps');
+    expect(error.message).to.include('maximum 49 bps');
   });
 
   it('normalizes token decimals before enforcing quote loss', async () => {
@@ -400,7 +407,7 @@ describe('SwapsXyzBridge.quote', () => {
     );
 
     const quote = await createBridge(client, {
-      maxQuoteLossBps: 100,
+      maxQuoteLossBps: 50,
     }).quote(quoteParams());
 
     expect(quote.toAmountMin).to.equal(990_000_000_000_000_000n);
@@ -738,10 +745,11 @@ describe('SwapsXyzBridge.execute', () => {
     const result = await harness.bridge.execute(bridgeQuote(), {
       [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
     });
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     expect(result.transferId).to.equal('tx-1');
     expect(result.txHash).to.equal('0xbridge');
+    expect(harness.estimateGasStub.callCount).to.equal(1);
     expect(registerTxsStub.callCount).to.equal(3);
     expect(loggerErrorStub.callCount).to.equal(1);
     expect(loggerErrorStub.firstCall.args[0]).to.include({
@@ -848,13 +856,13 @@ describe('SwapsXyzBridge.execute', () => {
     expect(harness.waitForTransactionStub.callCount).to.equal(0);
   });
 
-  it('rejects fresh EVM native value above the accepted quote', async () => {
+  it('rejects fresh EVM native fees above the configured cap', async () => {
     const harness = createExecuteHarness(
       actionResponse({
         tx: {
           to: SPENDER,
           data: '0xdeadbeef',
-          value: '1',
+          value: '10000000000000001',
           chainId: 1,
         },
       }),
@@ -866,11 +874,11 @@ describe('SwapsXyzBridge.execute', () => {
       }),
     );
 
-    expect(error.message).to.include('fresh native value');
+    expect(error.message).to.include('native fee');
     expect(harness.sendTransactionStub.callCount).to.equal(0);
   });
 
-  it('rejects a direct EVM source-token approval', async () => {
+  it('allows direct provider payloads targeting the source token', async () => {
     const harness = createExecuteHarness(
       actionResponse({
         tx: {
@@ -882,17 +890,14 @@ describe('SwapsXyzBridge.execute', () => {
       }),
     );
 
-    const error = await captureError(
-      harness.bridge.execute(bridgeQuote(), {
-        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
-      }),
-    );
+    await harness.bridge.execute(bridgeQuote(), {
+      [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+    });
 
-    expect(error.message).to.include('direct source-token selector');
-    expect(harness.sendTransactionStub.callCount).to.equal(0);
+    expect(harness.sendTransactionStub.callCount).to.equal(1);
   });
 
-  it('rejects a fresh transaction target mismatch', async () => {
+  it('allows a fresh provider target to differ from the accepted quote', async () => {
     const harness = createExecuteHarness(
       actionResponse({
         tx: {
@@ -904,17 +909,14 @@ describe('SwapsXyzBridge.execute', () => {
       }),
     );
 
-    const error = await captureError(
-      harness.bridge.execute(bridgeQuote(), {
-        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
-      }),
-    );
+    await harness.bridge.execute(bridgeQuote(), {
+      [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+    });
 
-    expect(error.message).to.include('fresh target');
-    expect(harness.sendTransactionStub.callCount).to.equal(0);
+    expect(harness.sendTransactionStub.callCount).to.equal(1);
   });
 
-  it('rejects a fresh transaction calldata selector mismatch', async () => {
+  it('allows a fresh provider selector to differ from the accepted quote', async () => {
     const harness = createExecuteHarness(
       actionResponse({
         tx: {
@@ -926,14 +928,11 @@ describe('SwapsXyzBridge.execute', () => {
       }),
     );
 
-    const error = await captureError(
-      harness.bridge.execute(bridgeQuote(), {
-        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
-      }),
-    );
+    await harness.bridge.execute(bridgeQuote(), {
+      [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+    });
 
-    expect(error.message).to.include('calldata selector');
-    expect(harness.sendTransactionStub.callCount).to.equal(0);
+    expect(harness.sendTransactionStub.callCount).to.equal(1);
   });
 
   it('allows refreshed calldata when target and selector are unchanged', async () => {
@@ -955,7 +954,7 @@ describe('SwapsXyzBridge.execute', () => {
     expect(harness.sendTransactionStub.callCount).to.equal(1);
   });
 
-  it('rejects native value on an ERC20 route', async () => {
+  it('allows bounded native fees on an ERC20 route', async () => {
     const response = actionResponse({
       tx: { to: SPENDER, data: '0xdeadbeef', value: '1', chainId: 1 },
     });
@@ -963,14 +962,11 @@ describe('SwapsXyzBridge.execute', () => {
     acceptedQuote.route = { actionResponse: response };
     const harness = createExecuteHarness(response);
 
-    const error = await captureError(
-      harness.bridge.execute(acceptedQuote, {
-        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
-      }),
-    );
+    await harness.bridge.execute(acceptedQuote, {
+      [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+    });
 
-    expect(error.message).to.include('ERC20 routes must not send native value');
-    expect(harness.sendTransactionStub.callCount).to.equal(0);
+    expect(harness.sendTransactionStub.callCount).to.equal(1);
   });
 
   const mismatchCases: Array<{
