@@ -226,7 +226,7 @@ export async function getUSDCCitreaMoonpayWarpConfig(
     );
 
   const additionalRebalancingConfigByChain = getRebalancingBridgesConfigFor(
-    ['arbitrum', 'base', 'bsc', 'ethereum', 'polygon'],
+    ['arbitrum', 'arc', 'base', 'bsc', 'ethereum', 'polygon'],
     [
       WarpRouteIds.EclipseUSDC,
       WarpRouteIds.ParadexUSDC,
@@ -308,6 +308,10 @@ export async function getUSDCCitreaMoonpayWarpConfig(
       mailbox: routerConfig.arc.mailbox,
       owner: arcOwner,
       ...cctpStandardRebalancingConfigByChain.arc,
+      allowedRebalancingBridges: mergeAllowedBridges(
+        cctpStandardRebalancingConfigByChain.arc.allowedRebalancingBridges,
+        additionalRebalancingConfigByChain.arc?.allowedRebalancingBridges,
+      ),
       hook: buildHook('arc', arcOwner),
       interchainSecurityModule: buildInterchainSecurityModule('arc', arcOwner),
       tokenFee: buildCrossCollateralRoutingFee(arcFeeOwner, ROUTE_CHAINS),

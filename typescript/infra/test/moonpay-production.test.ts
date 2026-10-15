@@ -72,6 +72,34 @@ function getRouterConfig() {
   );
 }
 
+describe('Moonpay production rebalancing', () => {
+  it('uses the Eclipse USDC route for Arc rebalancing', async () => {
+    const registry = getRegistry();
+    const eclipseRoute = registry.getWarpRoute(WarpRouteIds.EclipseUSDC);
+    assert(eclipseRoute, 'Missing Eclipse USDC route');
+
+    const config = await getUSDCCitreaMoonpayWarpConfig(getRouterConfig());
+    const arcRouter = eclipseRoute.tokens.find(
+      ({ chainName }) => chainName === 'arc',
+    )?.addressOrDenom;
+    assert(arcRouter, 'Missing Arc router in Eclipse USDC route');
+
+    for (const chain of ['arbitrum', 'base', 'ethereum', 'polygon']) {
+      const localRouter: string | undefined = eclipseRoute.tokens.find(
+        ({ chainName }) => chainName === chain,
+      )?.addressOrDenom;
+      assert(localRouter, `Missing ${chain} router in Eclipse USDC route`);
+
+      expect(config.arc)
+        .to.have.nested.property(`allowedRebalancingBridges.${chain}`)
+        .that.deep.includes({ bridge: arcRouter });
+      expect(config[chain])
+        .to.have.nested.property('allowedRebalancingBridges.arc')
+        .that.deep.includes({ bridge: localRouter });
+    }
+  });
+});
+
 describe('Moonpay production USDG rollout', () => {
   afterEach(() => sinon.restore());
 
