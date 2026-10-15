@@ -131,7 +131,10 @@ export const LiFiBridgeConfigSchema = z.object({
 });
 
 export const DeBridgeBridgeConfigSchema = z.object({
-  maxFeePercent: z.number().min(0).max(100).optional(),
+  maxFeeBps: z.number().int().min(0).max(10_000).default(50),
+  maxEvmNativeValueWei: z.coerce.bigint().nonnegative().optional(),
+  maxTronNativeValueSun: z.coerce.bigint().nonnegative().optional(),
+  maxSolanaNativeSpendLamports: z.coerce.bigint().nonnegative().optional(),
 });
 
 export const ExternalBridgesConfigSchema = z.object({

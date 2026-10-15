@@ -844,7 +844,7 @@ describe('per-chain bridge configuration', () => {
         ethereum: '0x1234567890123456789012345678901234567890',
       },
       externalBridges: {
-        debridge: { maxFeePercent: 2.5 },
+        debridge: { maxFeeBps: 50 },
       },
     };
 
@@ -852,7 +852,7 @@ describe('per-chain bridge configuration', () => {
     const config = RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE);
 
     expect(config.externalBridges?.debridge).to.deep.equal({
-      maxFeePercent: 2.5,
+      maxFeeBps: 50,
     });
   });
 
