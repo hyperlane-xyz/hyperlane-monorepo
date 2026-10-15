@@ -12,12 +12,24 @@
       "constructorArguments": "000000000000000000000000f6cc9b10c607afb777380bf71f272e4d7037c3a900000000000000000000000002d16bc51af6bfd153d67ca61754cf912e82c4d900000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba00000000000000000000000000000000000000000000000000000000",
       "isProxy": true,
       "expectedimplementation": "0xF6CC9B10c607afB777380bF71F272E4D7037C3A9"
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x4d9D942010eB2411fF16a9d910Badbc8520a9BfF",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ],
   "avalanche": [
     {
       "name": "InterchainGasPaymaster",
       "address": "0xc0D0eF8D8BDD7395ec02617d1c705b0c6a60D6fa",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x33a7642F23a631075F837B2Ce7DE9c1b4050C7A3",
       "constructorArguments": "",
       "isProxy": false
     }
@@ -28,12 +40,24 @@
       "address": "0x8f271392b5C7728EFc6FD825FF6A200BA50040Da",
       "constructorArguments": "",
       "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x6462F94e3E9FeaDA650aA789F088C0F90E1D1D5E",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ],
   "bsc": [
     {
       "name": "InterchainGasPaymaster",
       "address": "0x284830a64E59CF85e46bA66744B2910cB4Bd9f90",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x11aAcc2894242b5D52C70cbf8061793B5470523B",
       "constructorArguments": "",
       "isProxy": false
     }
@@ -44,12 +68,24 @@
       "address": "0x2eBFE904CcbC143ac0a0c03250459Aa7140bA09D",
       "constructorArguments": "",
       "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xdb2A0E1DD968C062bDB240AD711a105Cd691fA50",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ],
   "base": [
     {
       "name": "InterchainGasPaymaster",
       "address": "0x0E025067fe1a009e39F9C3De6A9965Ee1EAeB2d2",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xc8aC5235695Ea040F099b17b6AC8ef478A2c9e5E",
       "constructorArguments": "",
       "isProxy": false
     }
@@ -60,12 +96,24 @@
       "address": "0x2761Bf59a3f129269D36676134bcaF7F6d1b7249",
       "constructorArguments": "",
       "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x9AD81058c6C3Bf552C9014CB30E824717A0ee21b",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ],
   "fraxtal": [
     {
       "name": "InterchainGasPaymaster",
       "address": "0x3129C37ea8083917E13d3351A4263E968CAfe80d",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x21336A9f273176D2068B2eD5336061d9A13407D1",
       "constructorArguments": "",
       "isProxy": false
     }
@@ -76,12 +124,24 @@
       "address": "0x4fa96B3667C276FEC8F674EcD12e09D7ff3a16A2",
       "constructorArguments": "",
       "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xa6498197F314Cfa454B8acea53BAF870709EecaA",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ],
   "linea": [
     {
       "name": "InterchainGasPaymaster",
       "address": "0xa95064E99eF2107c31bF662a118500Fd87b64D3E",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xF1517508Ed21a1507703F1a21420170C3963dfa0",
       "constructorArguments": "",
       "isProxy": false
     }
@@ -92,12 +152,24 @@
       "address": "0x284f71eBF22b7C7bf43aD20c460343D1a2d697c0",
       "constructorArguments": "",
       "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x1Bb10b2A3d4Df6383BAd4bB2E6e830b38A2Af494",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ],
   "ethereum": [
     {
       "name": "InterchainGasPaymaster",
       "address": "0xb6b16b5EEDe90e93c8E558F49EffB06193b04EdF",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x417dAFc0bfF7BE3EFb23753072F62dB31E735C5a",
       "constructorArguments": "",
       "isProxy": false
     }
@@ -108,12 +180,24 @@
       "address": "0xc1D7Ef4D477f68229c3F5AC259931C3845a80FE1",
       "constructorArguments": "",
       "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xA60b5768B06Efa9ce951749820eC444e7267510B",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ],
   "mode": [
     {
       "name": "InterchainGasPaymaster",
       "address": "0x28F5135a3bCb1673598D8C30Fc37A32441Fe6a0a",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xA981916bC2597B086384F136431b5CD1C223a8Ae",
       "constructorArguments": "",
       "isProxy": false
     }
@@ -132,12 +216,24 @@
       "address": "0xa6a280234E617dc9B5A41b2E568Afda2351467B8",
       "constructorArguments": "",
       "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x0776Fb2C753D3A880EFa2c059b36a07049903C55",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ],
   "optimism": [
     {
       "name": "InterchainGasPaymaster",
       "address": "0x69D1A90f1A6ce003E993678aC8d19717454d1467",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xA744c1B7f80911d0A7fA758952C59A63a4c122A3",
       "constructorArguments": "",
       "isProxy": false
     }
@@ -148,6 +244,12 @@
       "address": "0xF0a2d22C7064E9F5e6C7990CeA999a57EC2d0f80",
       "constructorArguments": "",
       "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x00be17B54a89220Da97831bA7F33765AfBa24f38",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ],
   "worldchain": [
@@ -156,12 +258,224 @@
       "address": "0x07359FdCE1b1Ce451B8C683F8ae1274B5Bf8266C",
       "constructorArguments": "",
       "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xD946A9aaCE2F24C72E10e93720331fAe3f668fda",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ],
   "unichain": [
     {
       "name": "InterchainGasPaymaster",
       "address": "0x322BA98FdEc849ABB965F142e30edf12e6a8cbBe",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xC2515B96526a60449D4Da69bc349bBE7E7f2D5a9",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "arc": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xde5Cf3910F43bBda9F1Ff518f40Add22E62cD7BE",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "bob": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xB5502159bF57a9CC770904D4D1486E544c9084e1",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "apechain": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x04dB778f05854f26E67e0a66b740BBbE9070D366",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "fluent": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xE81825Ec046Ecc531E1566dF4C5eDb70C72427b9",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "citrea": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x5E532F7B610618eE73C2B462978e94CB1F7995Ce",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "eni": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x75b59db05a46870Ac9aFeE1ebbAa961F5eDA0B55",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "igra": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xFceC444cfED74685765B1209002E53056dd64183",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "galactica": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x5ede707D87989b78C63424BeD67A4BE2E893380A",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "katana": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x692c8Ad4F7C90a0038e301F6e96F224A3cFbEbCe",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "lazai": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xDD76364b089488631d1c9ffe54F8D6D0a738e2FC",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "kiichain": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xE05305BC70CC856B8Ef9EcD06C101c2551F33e5b",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "lukso": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x573215AF0420c4056E37F16B4CD4752658bA6A14",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "metal": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xfd82D30865e2F16539884A4072Cea3AfeFCBD90f",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "monad": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x5c8Ff9E82C28C4D0Feb635839FbB692Be070BeAa",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "mantra": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x816CF11aDFF6De498823F739eAfe350E82ee845D",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "mocachain": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xb42497707d37C45e0D616b976F3d74D2Ab9cD858",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "mitosis": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x93c30e84614768c5E04260ca04824964B8f9a224",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "somnia": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xEB92D3f697F0d7DCbC025912e671d2A979FBFf78",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "plasma": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x25a851bF599cb8AEf00Ac1D1a9fb575EBf9d94b0",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "nesachain": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x25d668D37f20E6f396cB5DF1DFf5A3f2F568e707",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "robinhood": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xE33bF5dA3A9E1A33488FFe9548837AB24EbB53d8",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "tea": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x516aCF73a0cfcF01Acc4d0281c3de82E4f4d92c7",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "stable": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x1b6FF02C37b2Ca848A8d57Fe8665C5B603F737F1",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "subtensor": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xc55F13E1529f6cd4B377F351D82146365bBec14D",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "xlayer": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x50008d8280C1C9465e9b88a6a97e666b8B598583",
       "constructorArguments": "",
       "isProxy": false
     }
