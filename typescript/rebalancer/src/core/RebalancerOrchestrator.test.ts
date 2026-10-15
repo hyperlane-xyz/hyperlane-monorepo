@@ -216,9 +216,16 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
+      expect(result.status).to.equal('success');
       expect(result.proposedRoutes).to.have.lengthOf(0);
+      expect(result.executionResults).to.eql([]);
       expect(result.executedCount).to.equal(0);
       expect(result.failedCount).to.equal(0);
+      expect(result.trackerSync).to.deep.equal({
+        freshSources: ['transfers', 'rebalanceIntents', 'rebalanceActions'],
+        staleSources: [],
+      });
+      expect(result.errors).to.eql([]);
       expect(strategy.getRebalancingRoutes.calledOnce).to.be.true;
     });
 
@@ -300,7 +307,9 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
+      expect(result.status).to.equal('success');
       expect(result.proposedRoutes).to.have.lengthOf(1);
+      expect(result.executionResults).to.have.lengthOf(1);
       expect(result.executedCount).to.equal(1);
       expect(result.failedCount).to.equal(0);
       expect(rebalancer.rebalance.calledOnce).to.be.true;
@@ -350,9 +359,74 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
+      expect(result.status).to.equal('failed');
       expect(result.proposedRoutes).to.have.lengthOf(1);
       expect(result.executedCount).to.equal(0);
       expect(result.failedCount).to.equal(1);
+    });
+
+    it('maps executor errors to failed route results', async () => {
+      const route = {
+        origin: 'ethereum',
+        destination: 'arbitrum',
+        amount: 1000n,
+        bridge: TEST_ADDRESSES.bridge,
+        executionType: 'movableCollateral' as const,
+      };
+      const strategy = createMockStrategy();
+      strategy.getRebalancingRoutes.returns([route]);
+      const rebalancer = createMockRebalancer();
+      rebalancer.rebalance.rejects(new Error('executor unavailable'));
+
+      const orchestrator = new RebalancerOrchestrator({
+        strategy,
+        rebalancers: [rebalancer],
+        actionTracker: createMockActionTracker(),
+        inflightContextAdapter: createMockInflightContextAdapter(),
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger: testLogger,
+      });
+
+      const result = await orchestrator.executeCycle(createMonitorEvent());
+
+      expect(result.status).to.equal('failed');
+      expect(result.executedCount).to.equal(0);
+      expect(result.failedCount).to.equal(1);
+      expect(result.executionResults).to.deep.equal([
+        {
+          route,
+          success: false,
+          error: 'executor unavailable',
+          reason: 'executor_error',
+        },
+      ]);
+    });
+
+    it('reports a proposed route with no configured executor', async () => {
+      const strategy = createMockStrategy();
+      strategy.getRebalancingRoutes.returns([
+        {
+          origin: 'ethereum',
+          destination: 'arbitrum',
+          amount: 1000n,
+          bridge: TEST_ADDRESSES.bridge,
+          executionType: 'movableCollateral',
+        },
+      ]);
+      const orchestrator = new RebalancerOrchestrator({
+        strategy,
+        rebalancers: [],
+        actionTracker: createMockActionTracker(),
+        inflightContextAdapter: createMockInflightContextAdapter(),
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger: testLogger,
+      });
+
+      const result = await orchestrator.executeCycle(createMonitorEvent());
+
+      expect(result.status).to.equal('failed');
+      expect(result.failedCount).to.equal(1);
+      expect(result.executionResults[0].reason).to.equal('missing_rebalancer');
     });
   });
 
@@ -421,7 +495,10 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
+      expect(result.status).to.equal('success');
       expect(result.proposedRoutes).to.have.lengthOf(1);
+      expect(result.executedCount).to.equal(1);
+      expect(result.failedCount).to.equal(0);
       expect(inventoryRebalancer.rebalance.calledOnce).to.be.true;
     });
   });
@@ -519,8 +596,9 @@ describe('RebalancerOrchestrator', () => {
 
       const result = await orchestrator.executeCycle(event);
 
+      expect(result.status).to.equal('success');
       expect(result.proposedRoutes).to.have.lengthOf(2);
-      expect(result.executedCount).to.equal(1);
+      expect(result.executedCount).to.equal(2);
       expect(result.failedCount).to.equal(0);
       expect(rebalancer.rebalance.calledOnce).to.be.true;
       expect(inventoryRebalancer.rebalance.calledOnce).to.be.true;
@@ -672,7 +750,7 @@ describe('RebalancerOrchestrator', () => {
   });
 
   describe('syncActionTracker() Error Handling', () => {
-    it('should warn but continue when syncTransfers fails', async () => {
+    it('blocks planning when transfer state is stale', async () => {
       const strategy = createMockStrategy();
       strategy.getRebalancingRoutes.returns([]);
 
@@ -698,7 +776,50 @@ describe('RebalancerOrchestrator', () => {
       const result = await orchestrator.executeCycle(event);
 
       expect(result.proposedRoutes).to.have.lengthOf(0);
-      expect(strategy.getRebalancingRoutes.calledOnce).to.be.true;
+      expect(result.trackerSync.staleSources).to.deep.equal(['transfers']);
+      expect(result.trackerSync.freshSources).to.deep.equal([
+        'rebalanceIntents',
+        'rebalanceActions',
+      ]);
+      expect(result.status).to.equal('failed');
+      expect(result.errors).to.deep.equal([
+        'ActionTracker transfers sync failed',
+      ]);
+      expect(
+        (actionTracker.syncRebalanceIntents as Sinon.SinonStub).calledOnce,
+      ).to.equal(true);
+      expect(
+        (actionTracker.syncRebalanceActions as Sinon.SinonStub).calledOnce,
+      ).to.equal(true);
+      expect(strategy.getRebalancingRoutes.called).to.be.false;
+    });
+
+    it('blocks planning when inventory movement status is stale', async () => {
+      const strategy = createMockStrategy();
+      const actionTracker = createMockActionTracker();
+      (actionTracker.syncInventoryMovementActions as Sinon.SinonStub).rejects(
+        new Error('Bridge status unavailable'),
+      );
+      const rebalancer = createMockInventoryRebalancer();
+      const bridge = createMockBridge();
+      const orchestrator = new RebalancerOrchestrator({
+        strategy,
+        actionTracker,
+        inflightContextAdapter: createMockInflightContextAdapter(),
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger: testLogger,
+        rebalancers: [rebalancer],
+        externalBridgeRegistry: { lifi: bridge },
+      });
+
+      const result = await orchestrator.executeCycle(createMonitorEvent());
+
+      expect(result.status).to.equal('failed');
+      expect(result.trackerSync.staleSources).to.deep.equal([
+        'inventoryMovementActions',
+      ]);
+      expect(strategy.getRebalancingRoutes.called).to.equal(false);
+      expect(rebalancer.rebalance.called).to.equal(false);
     });
 
     it('should sync inventory movement actions when bridge is provided', async () => {
@@ -722,18 +843,50 @@ describe('RebalancerOrchestrator', () => {
       const orchestrator = new RebalancerOrchestrator(deps);
       const event = createMonitorEvent();
 
-      await orchestrator.executeCycle(event);
+      const result = await orchestrator.executeCycle(event);
 
       expect(
         (actionTracker.syncInventoryMovementActions as Sinon.SinonStub)
           .calledOnce,
       ).to.be.true;
+      expect(result.trackerSync).to.deep.equal({
+        freshSources: [
+          'transfers',
+          'rebalanceIntents',
+          'rebalanceActions',
+          'inventoryMovementActions',
+        ],
+        staleSources: [],
+      });
       expect(
         (
           actionTracker.syncInventoryMovementActions as Sinon.SinonStub
         ).calledWith({ lifi: bridge }),
       ).to.be.true;
     });
+  });
+
+  it('reports an inventory continuation error with no proposed route', async () => {
+    const strategy = createMockStrategy();
+    strategy.getRebalancingRoutes.returns([]);
+    const inventoryRebalancer = createMockInventoryRebalancer();
+    inventoryRebalancer.rebalance.rejects(new Error('continuation failed'));
+    const orchestrator = new RebalancerOrchestrator({
+      strategy,
+      rebalancers: [inventoryRebalancer],
+      actionTracker: createMockActionTracker(),
+      inflightContextAdapter: createMockInflightContextAdapter(),
+      rebalancerConfig: createMockRebalancerConfig(),
+      logger: testLogger,
+    });
+
+    const result = await orchestrator.executeCycle(createMonitorEvent());
+
+    expect(result.status).to.equal('failed');
+    expect(result.executionResults).to.eql([]);
+    expect(result.errors).to.deep.equal([
+      'Inventory continuation failed: continuation failed',
+    ]);
   });
 
   describe('Metrics Recording', () => {

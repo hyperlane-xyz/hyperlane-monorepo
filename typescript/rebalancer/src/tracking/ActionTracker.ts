@@ -135,6 +135,7 @@ export class ActionTracker implements IActionTracker {
 
     let newTransfers = 0;
     let completedTransfers = 0;
+    const syncErrors: Error[] = [];
 
     for (const msg of inflightMessages) {
       const transfer = await this.transferStore.get(msg.msg_id);
@@ -174,6 +175,9 @@ export class ActionTracker implements IActionTracker {
             'Created new transfer',
           );
         } catch (error) {
+          syncErrors.push(
+            new Error(`Failed to parse transfer message ${msg.msg_id}`),
+          );
           this.logger.warn(
             {
               msgId: msg.msg_id,
@@ -223,6 +227,13 @@ export class ActionTracker implements IActionTracker {
       },
       'Transfers synced',
     );
+
+    if (syncErrors.length > 0) {
+      throw new AggregateError(
+        syncErrors,
+        `Failed to sync ${syncErrors.length} transfer message(s)`,
+      );
+    }
   }
 
   async syncRebalanceIntents(): Promise<void> {
@@ -730,6 +741,7 @@ export class ActionTracker implements IActionTracker {
 
     let completed = 0;
     let failed = 0;
+    const syncErrors: Error[] = [];
 
     // Get all in-progress inventory_movement actions
     const inProgressActions =
@@ -746,6 +758,9 @@ export class ActionTracker implements IActionTracker {
     for (const action of inventoryMovements) {
       // Skip if no txHash (shouldn't happen but be safe)
       if (!action.txHash) {
+        syncErrors.push(
+          new Error(`Inventory movement ${action.id} has no txHash`),
+        );
         this.logger.warn(
           { actionId: action.id },
           'Inventory movement action has no txHash',
@@ -755,6 +770,9 @@ export class ActionTracker implements IActionTracker {
 
       // Skip if no externalBridgeId (shouldn't happen but be safe)
       if (!action.externalBridgeId) {
+        syncErrors.push(
+          new Error(`Inventory movement ${action.id} has no externalBridgeId`),
+        );
         this.logger.warn(
           { actionId: action.id },
           'Inventory movement action has no externalBridgeId',
@@ -764,6 +782,11 @@ export class ActionTracker implements IActionTracker {
 
       const externalBridge = externalBridgeRegistry[action.externalBridgeId];
       if (!externalBridge) {
+        syncErrors.push(
+          new Error(
+            `Inventory movement ${action.id} bridge ${action.externalBridgeId} is not configured`,
+          ),
+        );
         this.logger.warn(
           { actionId: action.id, bridgeId: action.externalBridgeId },
           'Bridge not found in registry',
@@ -827,6 +850,9 @@ export class ActionTracker implements IActionTracker {
           );
         }
       } catch (error) {
+        syncErrors.push(
+          new Error(`Failed to get inventory movement ${action.id} status`),
+        );
         this.logger.debug(
           {
             actionId: action.id,
@@ -846,6 +872,13 @@ export class ActionTracker implements IActionTracker {
           pending: inventoryMovements.length - completed - failed,
         },
         'Inventory movements synced',
+      );
+    }
+
+    if (syncErrors.length > 0) {
+      throw new AggregateError(
+        syncErrors,
+        `Failed to sync ${syncErrors.length} inventory movement(s)`,
       );
     }
 
