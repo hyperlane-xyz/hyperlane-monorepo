@@ -6,9 +6,8 @@ and registry commit. A digest takes precedence over the tag. Other routes keep
 the shared image and credential defaults. Deployment metadata is stripped from
 the runtime ConfigMap.
 
-The checked-in image is the archived baseline, **not a rollout candidate**. Keep
-the configuration PR in draft until the runtime stack through #9361 is merged,
-its amd64 image is built with passing CI, and both image references are updated.
+The checked-in image is the archived baseline, **not a rollout candidate**. Build
+the branch tip after review and update both image references before rollout.
 
 From `typescript/infra`, render a manifest without cluster queries or mutations:
 
@@ -38,8 +37,11 @@ collateral once. Ethereum must retain its 640,000 minimum and 650,000 target;
 Arbitrum, Celo and Tron each retain 1,000/3,000. Aggregate collateral must be
 strictly above the 659,000 aggregate target. Halt if insufficient.
 
-Validate provider access and executable quotes separately. Monitor-only startup
-skips executor construction and cannot validate execution credentials or quotes.
+The route uses USDT/OFT inventory from Ethereum, movable collateral from
+Arbitrum and Tron, and swaps.xyz for Celo. Celo/Tron is disabled. All provider
+quote-loss caps are 50 bps. Validate provider access and executable quotes
+separately: monitor-only startup skips executor construction and cannot validate
+execution credentials or quotes.
 
 Stop the old singleton after a completed cycle and audit shutdown submissions.
 Never overlap execution-enabled instances. After all gates pass, deploy the
