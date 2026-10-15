@@ -2,7 +2,6 @@ import {
   Connection,
   Keypair,
   PublicKey,
-  TransactionMessage,
   VersionedTransaction,
 } from '@solana/web3.js';
 import { getAssociatedTokenAddressSync, getMint } from '@solana/spl-token';
@@ -36,15 +35,9 @@ import type {
   IExternalBridge,
 } from '../interfaces/IExternalBridge.js';
 import {
-  DLN_FORWARDER,
-  validateDeBridgeForwarderDeployment,
-} from './deBridgeForwarderValidation.js';
-import {
   DLN_EVM_SOURCE,
   DLN_TRON_SOURCE,
   DLN_SOLANA_SOURCE,
-  validateDeBridgeEvmTransaction,
-  validateDeBridgeSolanaInstructions,
 } from './deBridgeValidation.js';
 import {
   type DlnOrder,
@@ -76,16 +69,21 @@ const MAX_TRANSACTION_AGE_MS = 30_000;
 const MAX_PREPARATION_ATTEMPTS = 3;
 const MAX_RETRIES = 3;
 const BASE_BACKOFF_MS = 1_000;
-const DEFAULT_MAX_FEE_PERCENT = 10;
-const MAX_PERCENT = 100;
-const BASIS_POINTS_PER_PERCENT = 100;
+const DEFAULT_MAX_FEE_BPS = 50;
+const MAX_BASIS_POINTS = 10_000;
+const DEFAULT_MAX_EVM_NATIVE_VALUE_WEI = 10_000_000_000_000_000n;
+const DEFAULT_MAX_TRON_NATIVE_VALUE_SUN = 20_000_000n;
+const DEFAULT_MAX_SOLANA_NATIVE_SPEND_LAMPORTS = 10_000_000n;
 const BASIS_POINTS_DENOMINATOR = 10_000n;
 
 export interface DeBridgeBridgeConfig {
   apiUrl?: string;
   statusApiUrl?: string;
   chainMetadata?: ChainMap<ChainMetadata>;
-  maxFeePercent?: number;
+  maxFeeBps?: number;
+  maxEvmNativeValueWei?: bigint;
+  maxTronNativeValueSun?: bigint;
+  maxSolanaNativeSpendLamports?: bigint;
 }
 
 export class DeBridgeBridge implements IExternalBridge {
@@ -96,6 +94,9 @@ export class DeBridgeBridge implements IExternalBridge {
   private readonly statusApiUrl: string;
   private readonly chainMetadataByChainId: Map<number, ChainMetadata>;
   private readonly maxFeeBps: number;
+  private readonly maxEvmNativeValueWei: bigint;
+  private readonly maxTronNativeValueSun: bigint;
+  private readonly maxSolanaNativeSpendLamports: bigint;
 
   constructor(config: DeBridgeBridgeConfig, logger: Logger) {
     this.logger = logger;
@@ -104,19 +105,21 @@ export class DeBridgeBridge implements IExternalBridge {
       config.statusApiUrl ?? DEBRIDGE_STATUS_API,
     );
 
-    const maxFeePercent = config.maxFeePercent ?? DEFAULT_MAX_FEE_PERCENT;
+    const maxFeeBps = config.maxFeeBps ?? DEFAULT_MAX_FEE_BPS;
     assert(
-      Number.isFinite(maxFeePercent) &&
-        maxFeePercent >= 0 &&
-        maxFeePercent <= MAX_PERCENT,
-      `maxFeePercent must be between 0 and ${MAX_PERCENT}`,
-    );
-    const maxFeeBps = maxFeePercent * BASIS_POINTS_PER_PERCENT;
-    assert(
-      Number.isInteger(maxFeeBps),
-      'maxFeePercent must have at most two decimal places',
+      Number.isInteger(maxFeeBps) &&
+        maxFeeBps >= 0 &&
+        maxFeeBps <= MAX_BASIS_POINTS,
+      `maxFeeBps must be an integer between 0 and ${MAX_BASIS_POINTS}`,
     );
     this.maxFeeBps = maxFeeBps;
+    this.maxEvmNativeValueWei =
+      config.maxEvmNativeValueWei ?? DEFAULT_MAX_EVM_NATIVE_VALUE_WEI;
+    this.maxTronNativeValueSun =
+      config.maxTronNativeValueSun ?? DEFAULT_MAX_TRON_NATIVE_VALUE_SUN;
+    this.maxSolanaNativeSpendLamports =
+      config.maxSolanaNativeSpendLamports ??
+      DEFAULT_MAX_SOLANA_NATIVE_SPEND_LAMPORTS;
 
     this.chainMetadataByChainId = new Map();
     for (const metadata of Object.values(config.chainMetadata ?? {})) {
@@ -333,7 +336,7 @@ export class DeBridgeBridge implements IExternalBridge {
     });
     this.assertFeeWithinLimit(createTx, params.fromChain, params.toChain);
 
-    await this.validatePreparedOrder(quote, createTx);
+    await this.validatePreparedTransaction(quote, createTx);
     assert(
       Date.now() - preparedAt < MAX_TRANSACTION_AGE_MS,
       'deBridge transaction expired during preparation',
@@ -378,7 +381,7 @@ export class DeBridgeBridge implements IExternalBridge {
     ).decimals();
   }
 
-  private async validatePreparedOrder(
+  private async validatePreparedTransaction(
     quote: BridgeQuote,
     response: DeBridgeCreateTxResponse,
   ): Promise<void> {
@@ -389,29 +392,31 @@ export class DeBridgeBridge implements IExternalBridge {
       await this.validateSolanaTransaction(quote, response);
     } else {
       assert(response.tx.to, 'deBridge create-tx response is missing tx.to');
-      validateDeBridgeEvmTransaction(quote, response.tx.to, response.tx.data);
-      const provider = this.getEvmProvider(fromChain);
-      if (response.tx.to.toLowerCase() === DLN_FORWARDER.toLowerCase())
-        await validateDeBridgeForwarderDeployment(provider, response.tx.data);
-      const source =
-        protocol === ProtocolType.Tron ? DLN_TRON_SOURCE : DLN_EVM_SOURCE;
-      const fee: ethers.BigNumber = await new ethers.Contract(
-        source,
-        ['function globalFixedNativeFee() view returns(uint88)'],
-        provider,
-      ).globalFixedNativeFee();
+      assert(
+        ethers.utils.isAddress(response.tx.to),
+        `deBridge returned invalid transaction target: ${response.tx.to}`,
+      );
+      assert(
+        response.tx.value !== undefined,
+        'deBridge create-tx response is missing tx.value',
+      );
       const native =
         this.getEvmLikeAddress(fromToken, protocol) ===
         ethers.constants.AddressZero;
+      const nativeInput = native ? quote.fromAmount : 0n;
+      const nativeValue = BigInt(response.tx.value);
       assert(
-        BigInt(response.fixFee) === BigInt(fee.toString()),
-        'deBridge fixed fee does not match source contract',
+        nativeValue >= nativeInput,
+        'deBridge transaction value is below the native token input',
       );
+      const incidentalNativeValue = nativeValue - nativeInput;
+      const nativeValueCap =
+        protocol === ProtocolType.Tron
+          ? this.maxTronNativeValueSun
+          : this.maxEvmNativeValueWei;
       assert(
-        response.tx.value !== undefined &&
-          BigInt(response.tx.value) ===
-            BigInt(fee.toString()) + (native ? quote.fromAmount : 0n),
-        'deBridge transaction value does not match expected contract fee and input',
+        incidentalNativeValue <= nativeValueCap,
+        `deBridge incidental native value ${incidentalNativeValue} exceeds cap ${nativeValueCap}`,
       );
     }
     const [sourceDecimals, destinationDecimals] = await Promise.all([
@@ -446,22 +451,17 @@ export class DeBridgeBridge implements IExternalBridge {
       transaction.message.staticAccountKeys[0]?.equals(signer),
       'deBridge Solana transaction signer does not match inventory signer',
     );
-    const connection = new Connection(
+    const fee = await new Connection(
       this.getRpcUrl(quote.requestParams.fromChain),
+    ).getFeeForMessage(transaction.message);
+    assert(
+      fee.value !== null,
+      'Unable to quote deBridge Solana transaction fee',
     );
-    const addressLookupTableAccounts = await Promise.all(
-      transaction.message.addressTableLookups.map(async (lookup) => {
-        const { value } = await connection.getAddressLookupTable(
-          lookup.accountKey,
-        );
-        assert(value, 'deBridge Solana address lookup table was not found');
-        return value;
-      }),
+    assert(
+      BigInt(fee.value) <= this.maxSolanaNativeSpendLamports,
+      `deBridge Solana fee ${fee.value} exceeds native spend cap ${this.maxSolanaNativeSpendLamports}`,
     );
-    const { instructions } = TransactionMessage.decompile(transaction.message, {
-      addressLookupTableAccounts,
-    });
-    validateDeBridgeSolanaInstructions(quote, signer, instructions);
     return transaction;
   }
 
@@ -747,8 +747,15 @@ export class DeBridgeBridge implements IExternalBridge {
     }
 
     if (Date.now() - preparedAt >= MAX_TRANSACTION_AGE_MS) return undefined;
-    await this.validatePreparedOrder(quote, createTx);
+    await this.validatePreparedTransaction(quote, createTx);
     if (Date.now() - preparedAt >= MAX_TRANSACTION_AGE_MS) return undefined;
+
+    await wallet.estimateGas({
+      from: wallet.address,
+      to: tx.to,
+      data: tx.data,
+      value: ethers.BigNumber.from(tx.value),
+    });
 
     this.logger.info(
       {
@@ -794,6 +801,14 @@ export class DeBridgeBridge implements IExternalBridge {
     transaction.message.recentBlockhash = blockhash;
     if (Date.now() - preparedAt >= MAX_TRANSACTION_AGE_MS) return undefined;
     transaction.sign([keypair]);
+
+    const simulation = await connection.simulateTransaction(transaction, {
+      sigVerify: true,
+    });
+    assert(
+      simulation.value.err === null,
+      `deBridge Solana transaction simulation failed: ${JSON.stringify(simulation.value.err)}`,
+    );
 
     await options?.onTransferId?.(createTx.orderId);
     const signature = await new TransactionSubmission(options).submit(

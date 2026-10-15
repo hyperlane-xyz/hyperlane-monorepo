@@ -159,12 +159,12 @@ export class TronJsonRpcProvider extends providers.StaticJsonRpcProvider {
       'post',
     );
     assert(
-      isRecord(response) && isRecord(response.block_header),
+      isRecord(response) && isRecord(response['block_header']),
       'Missing Tron finalized block header',
     );
-    const raw = response.block_header.raw_data;
+    const raw = response['block_header']['raw_data'];
     assert(isRecord(raw), 'Missing Tron finalized block data');
-    const number = raw.number;
+    const number = raw['number'];
     assert(
       typeof number === 'number' && Number.isSafeInteger(number) && number >= 0,
       'Invalid Tron finalized block number',
