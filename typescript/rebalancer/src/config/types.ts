@@ -60,6 +60,12 @@ export const TokenBridgeStatusAdapterConfigSchema = z.discriminatedUnion(
       destinationOft: z
         .string()
         .refine(isAddressEvm, 'Invalid destination OFT address'),
+      destinationRecipient: z
+        .union([
+          z.string().refine(isAddressEvm, 'Invalid destination recipient'),
+          z.literal('*'),
+        ])
+        .optional(),
     }),
   ],
 );
