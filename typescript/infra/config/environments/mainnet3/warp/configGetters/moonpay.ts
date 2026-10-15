@@ -64,7 +64,7 @@ export function getMoonpayTargetRouters(): ChainMap<string[]> {
   return targets;
 }
 
-export const MOONPAY_DEFAULT_FEE_BPS = 20;
+export const MOONPAY_DEFAULT_FEE_BPS = 3;
 
 export function buildCrossCollateralRoutingFee(
   owner: string,
