@@ -104,9 +104,7 @@ export class RebalancerOrchestrator {
 
     const { metrics } = this;
     if (metrics) {
-      await Promise.all(
-        event.tokensInfo.map((tokenInfo) => metrics.processToken(tokenInfo)),
-      );
+      await metrics.processTokens(event.tokensInfo);
     }
 
     const trackerSync = await this.syncActionTracker(event.confirmedBlockTags);
