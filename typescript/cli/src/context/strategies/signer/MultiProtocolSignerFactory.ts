@@ -15,6 +15,7 @@ import {
 } from './BaseMultiProtocolSigner.js';
 import { HttpRemoteEvmSigner } from './HttpRemoteEvmSigner.js';
 import { HttpSignerClient } from './HttpSignerClient.js';
+import { NonceRetryingSigner } from './NonceRetryingSigner.js';
 import { parseSignerSource, SignerSourceType } from './signerSource.js';
 
 export class MultiProtocolSignerFactory {
@@ -58,10 +59,12 @@ class EvmSignerStrategy extends BaseMultiProtocolSigner {
         client = new HttpSignerClient(source.url);
         this.httpClients.set(url, client);
       }
-      return HttpRemoteEvmSigner.create(
-        client,
-        config.chain,
-        source.expectedAddress,
+      return new NonceRetryingSigner(
+        await HttpRemoteEvmSigner.create(
+          client,
+          config.chain,
+          source.expectedAddress,
+        ),
       );
     }
 
@@ -74,6 +77,6 @@ class EvmSignerStrategy extends BaseMultiProtocolSigner {
       return new TronWallet(source.privateKey, rpcUrls[0].http);
     }
 
-    return new Wallet(source.privateKey);
+    return new NonceRetryingSigner(new Wallet(source.privateKey));
   }
 }
