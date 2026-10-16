@@ -1,5 +1,30 @@
 # @hyperlane-xyz/sdk
 
+## 45.1.0
+
+### Minor Changes
+
+- 4b0f32c: The `ERC20_FEE_AGGREGATION_HOOK_VERSION` constant, naming 11.0.1 as the first `@hyperlane-xyz/core` version that unambiguously identifies a `StaticAggregationHook` accepting ERC20 fee metadata (11.0.0 shipped the fix, but hooks built without it already reported 11.0.0), was exported together with the `getTxConfigBatchSize` helper and the `submitRoutingHookConfigs` helper, which sends routing hook `setHooks` configs in transactions sized per chain. `HyperlaneHookDeployer` was changed to send its routing hook configs through `submitRoutingHookConfigs`.
+- 341418a: Signed reads were added for shielded token state on Seismic chains. `SeismicSigner.signedCall` issues an encrypted, EIP-712-signed `eth_call`; `MultiProviderAdapter` can carry Seismic chains' signers (`fromMultiProvider`, `setSeismicSigners`, `tryGetSeismicSigner`); `EvmTokenAdapter` reads the sender's own `balanceOf`/`allowance` as signed reads on Seismic when that signer is available. The CLI attaches the Seismic signers in `signerMiddleware`, so `warp send` from a Seismic origin no longer fails on shielded balance checks.
+
+### Patch Changes
+
+- b6fdd2d: Router-map key resolution for warp deploy configs was moved into the SDK as `resolveWarpDeployConfigRouterKeys` and reused by the CLI and infra warp checker.
+- 447569f: CCTP V2 domain mappings were reconciled during warp route deployment and apply.
+- b43bc9f: The Blast default multisig validator configuration was restored so the mainnet3 relayer can deliver Blast-origin messages until Blast shuts down.
+- 62225a3: `SeismicSigner.sendTransaction` was updated to fill a missing `gasLimit` from the signed-read gas estimate instead of letting the inner signer run an unsigned `eth_estimateGas`, which Seismic executes with `msg.sender = 0x0` and which therefore failed for every owner-gated write during `core deploy` and `warp deploy`.
+
+  `seismic-viem` was updated to `4.0.0` to support the signed-read gas-payment format.
+  - @hyperlane-xyz/aleo-sdk@45.1.0
+  - @hyperlane-xyz/starknet-core@45.1.0
+  - @hyperlane-xyz/cosmos-sdk@45.1.0
+  - @hyperlane-xyz/radix-sdk@45.1.0
+  - @hyperlane-xyz/utils@45.1.0
+  - @hyperlane-xyz/deploy-sdk@11.0.2
+  - @hyperlane-xyz/core@12.2.0
+  - @hyperlane-xyz/provider-sdk@11.0.2
+  - @hyperlane-xyz/tron-sdk@26.0.2
+
 ## 45.0.1
 
 ### Patch Changes

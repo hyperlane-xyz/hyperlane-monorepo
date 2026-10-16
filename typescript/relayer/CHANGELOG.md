@@ -1,5 +1,20 @@
 # @hyperlane-xyz/relayer
 
+## 4.0.5
+
+### Patch Changes
+
+- Updated dependencies [b6fdd2d]
+- Updated dependencies [4b0f32c]
+- Updated dependencies [447569f]
+- Updated dependencies [b43bc9f]
+- Updated dependencies [341418a]
+- Updated dependencies [62225a3]
+  - @hyperlane-xyz/sdk@45.1.0
+  - @hyperlane-xyz/metrics@1.0.5
+  - @hyperlane-xyz/utils@45.1.0
+  - @hyperlane-xyz/core@12.2.0
+
 ## 4.0.4
 
 ### Patch Changes

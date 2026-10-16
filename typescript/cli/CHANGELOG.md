@@ -1,5 +1,16 @@
 # @hyperlane-xyz/cli
 
+## 45.1.0
+
+### Minor Changes
+
+- 341418a: Signed reads were added for shielded token state on Seismic chains. `SeismicSigner.signedCall` issues an encrypted, EIP-712-signed `eth_call`; `MultiProviderAdapter` can carry Seismic chains' signers (`fromMultiProvider`, `setSeismicSigners`, `tryGetSeismicSigner`); `EvmTokenAdapter` reads the sender's own `balanceOf`/`allowance` as signed reads on Seismic when that signer is available. The CLI attaches the Seismic signers in `signerMiddleware`, so `warp send` from a Seismic origin no longer fails on shielded balance checks.
+
+### Patch Changes
+
+- b6fdd2d: Router-map key resolution for warp deploy configs was moved into the SDK as `resolveWarpDeployConfigRouterKeys` and reused by the CLI and infra warp checker.
+- 447569f: CCTP V2 domain mappings were reconciled during warp route deployment and apply.
+
 ## 45.0.1
 
 ## 45.0.0
