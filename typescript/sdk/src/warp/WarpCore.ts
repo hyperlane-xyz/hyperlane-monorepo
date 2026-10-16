@@ -369,9 +369,10 @@ export class WarpCore {
     // Seismic's shielded execution zeroes msg.sender for unsigned eth_call/
     // eth_estimateGas, so any handler logic keyed on msg.sender (e.g. HypERC20's
     // _burn(msg.sender, ...)) reverts during this probe. Recovering msg.sender
-    // requires a signed read (see SeismicSigner), which needs real key material
-    // that this read-only MultiProviderAdapter never holds. The actual
-    // transferRemote signer is Seismic-aware, so the real send still works.
+    // requires a signed estimate (see SeismicSigner). The adapter may hold that
+    // signer for token reads, but fee estimation is not routed through it: a
+    // signed estimate costs a signature per quote. The actual transferRemote
+    // signer is Seismic-aware, so the real send still works.
     // Use the same hard-coded gas-unit estimate as the multi-tx branch below
     // (with real on-chain fee data) instead of eth_estimateGas, so callers like
     // getMaxTransferAmount/validateTransfer still get a conservative non-zero
