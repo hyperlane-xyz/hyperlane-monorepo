@@ -25,6 +25,9 @@ pub enum HyperlaneSealevelError {
     /// Decoding error
     #[error("{0}")]
     Decoding(#[from] solana_sdk::bs58::decode::Error),
+    /// Incorrect decoded hash length
+    #[error("Invalid hash length: {0}")]
+    InvalidHashLength(#[from] std::array::TryFromSliceError),
     /// No transaction in block error
     #[error("{0}")]
     NoTransactions(String),
