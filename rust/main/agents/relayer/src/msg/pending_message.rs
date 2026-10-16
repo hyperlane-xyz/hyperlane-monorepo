@@ -3,7 +3,10 @@
 use std::{
     collections::HashSet,
     fmt::{Debug, Formatter},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -185,6 +188,10 @@ pub struct PendingMessage {
     ica_reveal_attempts: u32,
     #[serde(skip_serializing)]
     loaded_message_guard: Option<LoadedMessageGuard>,
+    /// True once delivery was submitted or observed, so the message no longer
+    /// counts as pending while it waits out `CONFIRM_DELAY`.
+    #[serde(skip_serializing)]
+    pending_metric_finished: AtomicBool,
 }
 
 impl PendingMessage {
@@ -214,6 +221,7 @@ impl PendingMessage {
             fail_fast: false,
             ica_reveal_attempts: 0,
             loaded_message_guard: None,
+            pending_metric_finished: AtomicBool::new(false),
         }
     }
 
@@ -234,7 +242,7 @@ impl PendingMessage {
 
 impl Drop for PendingMessage {
     fn drop(&mut self) {
-        self.ctx.metrics.finish_pending_message(self.message.id());
+        self.finish_pending_metric();
         self.ctx.metrics.finish_metadata_wait(
             self.message.id(),
             self.app_context.as_deref(),
@@ -377,6 +385,7 @@ impl PendingOperation for PendingMessage {
             debug!("Message has already been delivered, marking as submitted.");
             self.ctx.destination_mailbox.on_delivered(&self.message);
             self.submitted = true;
+            self.finish_pending_metric();
             self.set_next_attempt_after(CONFIRM_DELAY);
             return PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted);
         }
@@ -671,6 +680,8 @@ impl PendingOperation for PendingMessage {
         submission_outcome: TxOutcome,
         submission_estimated_cost: U256,
     ) {
+        // The process tx landed, so the message is no longer pending delivery.
+        self.finish_pending_metric();
         let Some(operation_estimate) = self.get_tx_cost_estimate() else {
             warn!("Cannot set operation outcome without a cost estimate set previously");
             return;
@@ -738,6 +749,7 @@ impl PendingOperation for PendingMessage {
     }
 
     fn on_submitted_success(&self) {
+        self.finish_pending_metric();
         self.ctx
             .destination_mailbox
             .on_submitted_success(&self.message);
@@ -1171,6 +1183,7 @@ impl PendingMessage {
         reason: ReprepareReason,
     ) -> PendingOperationResult {
         self.submitted = false;
+        self.restart_pending_metric();
         self.last_attempted_at = Instant::now();
         self.next_attempt_after = self.last_attempted_at.checked_add(delay);
         self.persist_retry_state(Some(delay), Some(reason.clone()));
@@ -1184,6 +1197,7 @@ impl PendingMessage {
     ) -> PendingOperationResult {
         self.inc_attempts(Some(&reason));
         self.submitted = false;
+        self.restart_pending_metric();
         if let Some(e) = err {
             warn!(error = ?e, "Repreparing message: {}", reason.clone());
         } else {
@@ -1196,6 +1210,7 @@ impl PendingMessage {
         let reason = ReprepareReason::AwaitingValidatorSignatures;
         self.inc_attempts(Some(&reason));
         self.submitted = false;
+        self.restart_pending_metric();
         if observation.first_observation {
             warn!(
                 wait_seconds = observation.elapsed.as_secs_f64(),
@@ -1216,6 +1231,24 @@ impl PendingMessage {
             );
         }
         result
+    }
+
+    /// Stop counting this message as pending. Called once delivery is submitted
+    /// or observed on-chain, before the confirmation delay.
+    fn finish_pending_metric(&self) {
+        if !self.pending_metric_finished.swap(true, Ordering::Relaxed) {
+            self.ctx.metrics.finish_pending_message(self.message.id());
+        }
+    }
+
+    /// Count this message as pending again, e.g. after a revert or reorg sends
+    /// it back to prepare. The pending age restarts from now.
+    fn restart_pending_metric(&self) {
+        if self.pending_metric_finished.swap(false, Ordering::Relaxed) {
+            self.ctx
+                .metrics
+                .record_pending_message(self.message.id(), self.app_context.as_deref());
+        }
     }
 
     fn reprepare_or_drop(&mut self, reason: ReprepareReason) -> PendingOperationResult {
@@ -2392,6 +2425,30 @@ mod test {
             pending.submit().await,
             PendingOperationResult::Success
         ));
+    }
+
+    #[tokio::test]
+    async fn pending_metric_ends_on_delivery_and_restarts_on_reprepare() {
+        let (_dir, mut pending) = pending_with_mailbox(contract_test_mailbox(), None);
+        let metrics = &pending.ctx.metrics;
+        let gauge = metrics.pending_message_active.with_label_values(&[
+            "Unknown",
+            metrics.origin.as_str(),
+            metrics.destination.as_str(),
+        ]);
+        assert_eq!(gauge.get(), 1);
+
+        // Delivery submitted: no longer pending during the confirmation delay.
+        pending.finish_pending_metric();
+        pending.finish_pending_metric();
+        assert_eq!(gauge.get(), 0);
+
+        // Reverted or reorged: pending again.
+        let _ = pending.on_reprepare::<String>(None, ReprepareReason::RevertedOrReorged);
+        assert_eq!(gauge.get(), 1);
+
+        drop(pending);
+        assert_eq!(gauge.get(), 0);
     }
 
     #[tokio::test]
