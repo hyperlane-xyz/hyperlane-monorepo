@@ -10,7 +10,15 @@ import {
   VersionedTransaction,
 } from '@solana/web3.js';
 
-import { Address, ProtocolType, rootLogger, sleep } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  rootLogger,
+  sleep,
+  assert,
+  bufferToBase58,
+  TransactionSubmission,
+} from '@hyperlane-xyz/utils';
 
 import { SEALEVEL_PRIORITY_FEES } from '../../consts/sealevel.js';
 import type { MultiProviderAdapter } from '../../providers/MultiProviderAdapter.js';
@@ -146,9 +154,9 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
    */
   async sendAndConfirmTransaction(
     tx: SolanaWeb3Transaction,
-    _options?: SendTransactionOptions,
+    options?: SendTransactionOptions,
   ): Promise<string> {
-    return this.signAndConfirm(tx.transaction, tx.extraSigners);
+    return this.signAndConfirm(tx.transaction, tx.extraSigners, options);
   }
 
   // ============ Private Methods ============
@@ -194,47 +202,67 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
   private async signAndConfirm(
     transaction: Transaction | VersionedTransaction,
     extraSigners?: Keypair[],
+    options?: SendTransactionOptions,
   ): Promise<string> {
-    // Get initial blockhash
-    const { blockhash, lastValidBlockHeight } =
-      await this.svmProvider.getLatestBlockhash(this.config.commitment);
+    const submission = new TransactionSubmission(options);
+    const execute = async () => {
+      // Get initial blockhash
+      const { blockhash, lastValidBlockHeight } =
+        await this.svmProvider.getLatestBlockhash(this.config.commitment);
 
-    if (transaction instanceof VersionedTransaction) {
-      stampVersionedBlockhash(transaction, blockhash);
-      // `VersionedTransaction.sign([signer])` only populates the signer's
-      // slot (matches partial-sign semantics of legacy `partialSign`).
-      for (const signer of extraSigners ?? []) {
-        transaction.sign([signer]);
+      if (transaction instanceof VersionedTransaction) {
+        stampVersionedBlockhash(transaction, blockhash);
+        // `VersionedTransaction.sign([signer])` only populates the signer's
+        // slot (matches partial-sign semantics of legacy `partialSign`).
+        for (const signer of extraSigners ?? []) {
+          transaction.sign([signer]);
+        }
+      } else {
+        transaction.recentBlockhash = blockhash;
+        if (!transaction.feePayer) {
+          transaction.feePayer = this.signer.publicKey;
+        }
+        // Sign with extra signers first (e.g., randomWallet for Sealevel
+        // transferRemote). Uses partialSign to avoid clearing any existing
+        // signatures. This re-signs with the fresh blockhash, overwriting
+        // the adapter's pre-sign.
+        for (const signer of extraSigners ?? []) {
+          transaction.partialSign(signer);
+        }
       }
-    } else {
-      transaction.recentBlockhash = blockhash;
-      if (!transaction.feePayer) {
-        transaction.feePayer = this.signer.publicKey;
-      }
-      // Sign with extra signers first (e.g., randomWallet for Sealevel
-      // transferRemote). Uses partialSign to avoid clearing any existing
-      // signatures. This re-signs with the fresh blockhash, overwriting
-      // the adapter's pre-sign.
-      for (const signer of extraSigners ?? []) {
-        transaction.partialSign(signer);
-      }
-    }
 
-    // Sign with main signer (preserves extra signers' signatures)
-    const signedTx = await this.signer.signTransaction(transaction);
+      // Sign with main signer (preserves extra signers' signatures)
+      const signedTx = await this.signer.signTransaction(transaction);
 
-    // Send initial transaction
-    const signature = await this.sendRawTransaction(signedTx);
+      // Send initial transaction
+      const rawSignature =
+        signedTx instanceof VersionedTransaction
+          ? signedTx.signatures[0]
+          : signedTx.signature;
+      assert(rawSignature, 'Signed Solana transaction has no payer signature');
+      const signature =
+        options?.onSubmissionAttempt || options?.onSubmitted
+          ? await submission.submit(
+              () => this.sendRawTransaction(signedTx),
+              (hash) => hash,
+              bufferToBase58(Buffer.from(rawSignature)),
+            )
+          : await this.sendRawTransaction(signedTx);
 
-    // Poll for confirmation with optional resubmit
-    const result = await this.pollForConfirmation(
-      signature,
-      signedTx,
-      lastValidBlockHeight,
-      extraSigners,
-    );
+      // Poll for confirmation with optional resubmit
+      const result = await this.pollForConfirmation(
+        signature,
+        signedTx,
+        lastValidBlockHeight,
+        extraSigners,
+        options?.enableBlockhashResubmit,
+      );
 
-    return result;
+      return result;
+    };
+    return options?.onSubmissionAttempt || options?.onSubmitted
+      ? submission.run(execute)
+      : execute();
   }
 
   /**
@@ -245,6 +273,7 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
     transaction: Transaction | VersionedTransaction,
     lastValidBlockHeight: number,
     extraSigners?: Keypair[],
+    enableBlockhashResubmit = this.config.enableBlockhashResubmit,
   ): Promise<string> {
     let signature = initialSignature;
     let attempts = 0;
@@ -256,12 +285,14 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
 
       try {
         // Check and handle blockhash expiry
-        const resubmitResult = await this.checkAndResubmitIfExpired(
-          signature,
-          transaction,
-          currentLastValidBlockHeight,
-          extraSigners,
-        );
+        const resubmitResult = enableBlockhashResubmit
+          ? await this.checkAndResubmitIfExpired(
+              signature,
+              transaction,
+              currentLastValidBlockHeight,
+              extraSigners,
+            )
+          : null;
         if (resubmitResult) {
           signature = resubmitResult.signature;
           currentLastValidBlockHeight = resubmitResult.lastValidBlockHeight;
