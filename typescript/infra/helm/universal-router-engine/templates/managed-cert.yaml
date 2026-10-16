@@ -1,0 +1,9 @@
+{{- if .Values.ingress }}
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: {{ .Chart.Name }}--certificate--{{ .Values.hyperlane.runEnv }}
+spec:
+  domains:
+    - {{ .Values.ingress.host }}
+{{- end }}

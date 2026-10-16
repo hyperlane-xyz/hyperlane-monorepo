@@ -1,0 +1,38 @@
+import {
+  LogFormat,
+  LogLevel,
+  configureRootLogger,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
+
+import { UniversalRouterEngineHelmManager } from '../../src/universal-router-engine/helm.js';
+import { HelmCommand } from '../../src/utils/helm.js';
+import {
+  assertCorrectKubeContext,
+  getArgs,
+  withRegistryCommit,
+} from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
+
+async function main() {
+  configureRootLogger(LogFormat.Pretty, LogLevel.Info);
+
+  const { environment, registryCommit } =
+    await withRegistryCommit(getArgs()).parse();
+
+  await assertCorrectKubeContext(getEnvironmentConfig(environment));
+
+  const helmManager = new UniversalRouterEngineHelmManager(
+    environment,
+    registryCommit ?? 'main',
+  );
+
+  rootLogger.info(
+    `Deploying universal-router-engine service to ${environment}`,
+  );
+  await helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade);
+}
+
+main()
+  .then(() => rootLogger.info('Deploy successful!'))
+  .catch(rootLogger.error);
