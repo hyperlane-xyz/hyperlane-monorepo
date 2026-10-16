@@ -225,6 +225,7 @@ describe('SeismicSigner', () => {
   it('fills a missing gasLimit with the signed estimate before sending', async () => {
     const send = sinon
       .stub(wallet, 'sendTransaction')
+      // CAST: the response is never read; only the request passed to the inner signer is asserted.
       .resolves({} as Awaited<ReturnType<Wallet['sendTransaction']>>);
     const estimate = sinon.spy(signer, 'estimateGas');
     await signer.sendTransaction({ to: RECIPIENT, data: DATA });
@@ -241,6 +242,7 @@ describe('SeismicSigner', () => {
   it('sends an explicit gasLimit through without estimating', async () => {
     const send = sinon
       .stub(wallet, 'sendTransaction')
+      // CAST: the response is never read; only the request passed to the inner signer is asserted.
       .resolves({} as Awaited<ReturnType<Wallet['sendTransaction']>>);
     const estimate = sinon.spy(signer, 'estimateGas');
     await signer.sendTransaction({ to: RECIPIENT, gasLimit: 21_000 });
