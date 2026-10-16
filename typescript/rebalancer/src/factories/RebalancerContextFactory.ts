@@ -650,6 +650,25 @@ export class RebalancerContextFactory {
           }
           break;
         }
+        case ExternalBridgeType.DeBridge: {
+          const debridgeConfig = externalBridges?.debridge;
+          if (debridgeConfig) {
+            const { DeBridgeBridge } =
+              await import('../bridges/DeBridgeBridge.js');
+            registry[ExternalBridgeType.DeBridge] = new DeBridgeBridge(
+              {
+                chainMetadata: this.multiProvider.metadata,
+                maxFeeBps: debridgeConfig.maxFeeBps,
+                maxEvmNativeValueWei: debridgeConfig.maxEvmNativeValueWei,
+                maxTronNativeValueSun: debridgeConfig.maxTronNativeValueSun,
+                maxSolanaNativeSpendLamports:
+                  debridgeConfig.maxSolanaNativeSpendLamports,
+              },
+              this.logger,
+            );
+          }
+          break;
+        }
         default: {
           // Exhaustive check - TypeScript will error if new enum value added
           const _exhaustive: never = bridgeType;
