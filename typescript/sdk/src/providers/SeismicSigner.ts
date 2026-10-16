@@ -6,11 +6,14 @@ import {
   signSeismicTxTypedData,
   type TxSeismicMetadata,
 } from 'seismic-viem';
-import { http, isHex } from 'viem';
+import { RawContractError, custom, isHex, stringify } from 'viem';
 import { toAccount } from 'viem/accounts';
 import { z } from 'zod';
 
 import { addBufferToGasLimit, assert } from '@hyperlane-xyz/utils';
+
+const logger = new utils.Logger('SeismicSigner');
+type ShieldedClient = Awaited<ReturnType<SeismicSigner['createClient']>>;
 
 const SIGNED_READ_BLOCK_WINDOW = 100n;
 // Seismic's EIP-712 message version (distinct from raw-transaction signing).
@@ -25,6 +28,7 @@ const TypedDataFieldsSchema = z.record(
  */
 export interface SeismicSignerContext {
   chainId: number;
+  /** Legacy context field; signed RPC requests use the connected provider. */
   rpcUrl: string;
   name: string;
 }
@@ -59,6 +63,7 @@ export interface SeismicSignerContext {
 export class SeismicSigner extends Signer {
   // Set at runtime via defineReadOnly (ethers pattern); base Signer declares it.
   declare readonly provider?: providers.Provider;
+  private cachedClient?: { address: string; promise: Promise<ShieldedClient> };
 
   constructor(
     public readonly inner: Signer,
@@ -113,13 +118,17 @@ export class SeismicSigner extends Signer {
   async estimateGas(
     tx: utils.Deferrable<providers.TransactionRequest>,
   ): Promise<BigNumber> {
-    const { client, typedData, signature } =
+    const { client, metadata, typedData, signature } =
       await this.prepareSignedRequest(tx);
-    const gas = await client.request({
-      method: 'eth_estimateGas',
-      params: [{ data: typedData, signature }],
-    });
-    return BigNumber.from(gas);
+    try {
+      const gas = await client.request({
+        method: 'eth_estimateGas',
+        params: [{ data: typedData, signature }],
+      });
+      return BigNumber.from(gas);
+    } catch (error) {
+      return this.throwReadError(client, error, metadata, tx);
+    }
   }
 
   /**
@@ -143,7 +152,7 @@ export class SeismicSigner extends Signer {
         params: [{ data: typedData, signature }, 'latest'],
       });
     } catch (error) {
-      throw await decryptRevertError(client, error, metadata);
+      return this.throwReadError(client, error, metadata, tx);
     }
     assert(
       typeof response === 'string' && isHex(response),
@@ -164,9 +173,8 @@ export class SeismicSigner extends Signer {
     const inner = this.inner;
     assert(
       '_signTypedData' in inner && typeof inner._signTypedData === 'function',
-      'Seismic gas estimation requires EIP-712 typed-data signing',
+      'Seismic signed-read signer requires EIP-712 typed-data support',
     );
-    const signTypedData = inner._signTypedData.bind(inner);
     const address = await inner.getAddress();
     assert(isHex(address), 'Invalid Seismic signer address');
     assert(
@@ -179,36 +187,7 @@ export class SeismicSigner extends Signer {
         resolved.chainId === this.context.chainId,
       'Seismic transaction chainId does not match signer context',
     );
-    const account = toAccount({
-      address,
-      signMessage: async () => {
-        throw new Error('Seismic gas estimation only signs typed data');
-      },
-      signTransaction: async () => {
-        throw new Error('Seismic gas estimation only signs typed data');
-      },
-      signTypedData: async ({ domain, types, message }) => {
-        const ethersTypes = Object.fromEntries(
-          Object.entries(TypedDataFieldsSchema.parse(types)).filter(
-            ([name]) => name !== 'EIP712Domain',
-          ),
-        );
-        const signature: unknown = await signTypedData(
-          domain,
-          ethersTypes,
-          message,
-        );
-        assert(
-          typeof signature === 'string' && isHex(signature),
-          'Invalid Seismic typed-data signature',
-        );
-        return signature;
-      },
-    });
-    const client = await createShieldedWalletClient({
-      account,
-      transport: http(this.context.rpcUrl),
-    });
+    const client = await this.getClient(address);
     const [chainId, block, nonce, to] = await Promise.all([
       client.getChainId(),
       client.getBlock({ blockTag: 'latest' }),
@@ -253,5 +232,113 @@ export class SeismicSigner extends Signer {
       ...metadata.seismicElements,
     });
     return { client, metadata, typedData, signature };
+  }
+
+  /** Reuses client setup, never the per-request nonce, block or signature. */
+  private async getClient(address: `0x${string}`): Promise<ShieldedClient> {
+    if (!this.cachedClient || this.cachedClient.address !== address) {
+      this.cachedClient = { address, promise: this.createClient(address) };
+    }
+    const cached = this.cachedClient;
+    try {
+      return await cached.promise;
+    } catch (error) {
+      // A failed TEE-key lookup must not poison subsequent reads.
+      if (this.cachedClient === cached) this.cachedClient = undefined;
+      throw error;
+    }
+  }
+
+  private async createClient(address: `0x${string}`) {
+    const inner = this.inner;
+    assert(
+      '_signTypedData' in inner && typeof inner._signTypedData === 'function',
+      'Seismic signed-read signer requires EIP-712 typed-data support',
+    );
+    const signTypedData = inner._signTypedData.bind(inner);
+    const provider = inner.provider;
+    assert(
+      provider && 'send' in provider && typeof provider.send === 'function',
+      'Seismic signed reads require a provider with JSON-RPC send support',
+    );
+    const send = provider.send.bind(provider);
+    const account = toAccount({
+      address,
+      signMessage: async () => {
+        throw new Error('Seismic signed reads only sign typed data');
+      },
+      signTransaction: async () => {
+        throw new Error('Seismic signed reads only sign typed data');
+      },
+      signTypedData: async ({ domain, types, message }) => {
+        const ethersTypes = Object.fromEntries(
+          Object.entries(TypedDataFieldsSchema.parse(types)).filter(
+            ([name]) => name !== 'EIP712Domain',
+          ),
+        );
+        const signature: unknown = await signTypedData(
+          domain,
+          ethersTypes,
+          message,
+        );
+        assert(
+          typeof signature === 'string' && isHex(signature),
+          'Invalid Seismic typed-data signature',
+        );
+        return signature;
+      },
+    });
+    return createShieldedWalletClient({
+      account,
+      cacheTime: 0,
+      transport: custom(
+        {
+          // Match viem's HTTP encoding: typed-data fields contain bigint values,
+          // while ethers' send/logging expect JSON-compatible decimal strings.
+          request: ({ method, params }) =>
+            send(method, JSON.parse(stringify(params ?? []))),
+        },
+        { retryCount: 0 },
+      ),
+    });
+  }
+
+  private async throwReadError(
+    client: ShieldedClient,
+    error: unknown,
+    metadata: TxSeismicMetadata,
+    tx: utils.Deferrable<providers.TransactionRequest>,
+  ): Promise<never> {
+    const decrypted = await decryptRevertError(client, error, metadata);
+    if (
+      decrypted !== error &&
+      decrypted instanceof RawContractError &&
+      typeof decrypted.data === 'string'
+    ) {
+      let reason: string | null = null;
+      // Custom errors have no ABI here; preserve their plaintext bytes for callers.
+      if (decrypted.data?.startsWith('0x08c379a0')) {
+        try {
+          [reason] = utils.defaultAbiCoder.decode(
+            ['string'],
+            `0x${decrypted.data.slice(10)}`,
+          );
+        } catch {
+          // Malformed Error(string) payloads still retain the raw revert data.
+        }
+      }
+      throw logger.makeError(
+        'execution reverted',
+        utils.Logger.errors.CALL_EXCEPTION,
+        {
+          reason,
+          data: decrypted.data,
+          transaction: await utils.resolveProperties(tx),
+          error: decrypted,
+        },
+      );
+    }
+    // RPC/transport errors and undecryptable responses are not contract reverts.
+    throw error;
   }
 }

@@ -26,7 +26,11 @@ import {
   getNestedJsonRpcError,
   isCallExceptionWithTransientRpcError,
 } from './jsonRpcError.js';
-import { IProviderMethods, ProviderMethod } from './ProviderMethods.js';
+import {
+  IProviderMethods,
+  ProviderMethod,
+  ReadRpcMethods,
+} from './ProviderMethods.js';
 import { getMultiAddressLogs, isMultiAddressFilter } from './logFilters.js';
 import {
   ChainMetadataWithRpcConnectionInfo,
@@ -298,6 +302,14 @@ export class HyperlaneSmartProvider
     // the provided RPC urls are correct and returns static data here instead of
     // querying each sub-provider for network info
     return this.network;
+  }
+
+  /** Sends raw read requests, retaining RPC fallback and custom connections. */
+  async send(method: string, params: unknown[]): Promise<unknown> {
+    if (!ReadRpcMethods.has(method)) {
+      throw new Error(`Unsupported read RPC method: ${method}`);
+    }
+    return this.perform(ProviderMethod.ReadRpc, { method, params });
   }
 
   async perform(method: string, params: { [name: string]: any }): Promise<any> {
