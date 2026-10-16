@@ -107,6 +107,28 @@ describe('EvmTokenAdapter signed reads on Seismic', () => {
     expect(unsignedAllowance.called).to.equal(false);
   });
 
+  it('does not fall back to unsigned reads when authenticated reads fail', async () => {
+    signedCall.rejects(
+      new Error(
+        'Seismic signed-read signer requires EIP-712 typed-data support',
+      ),
+    );
+    const adapter = adapterFor('seismic', { seismic: signer });
+    for (const read of [
+      () => adapter.getBalance(SELF),
+      () => adapter.isApproveRequired(SELF, SPENDER, 10n),
+    ]) {
+      try {
+        await read();
+        expect.fail('Expected unsupported signer failure');
+      } catch (error) {
+        expect(String(error)).to.contain('requires EIP-712');
+      }
+    }
+    expect(unsignedBalanceOf.called).to.equal(false);
+    expect(unsignedAllowance.called).to.equal(false);
+  });
+
   it('uses unsigned reads for other accounts even with a signer', async () => {
     const adapter = adapterFor('seismic', { seismic: signer });
     expect(await adapter.getBalance(OTHER)).to.equal(7n);
