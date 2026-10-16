@@ -19,6 +19,7 @@ import {
   objMap,
 } from '@hyperlane-xyz/utils';
 
+import { createStatusAdapters } from '../bridges/status/index.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
@@ -39,6 +40,7 @@ import { RebalancerOrchestrator } from '../core/RebalancerOrchestrator.js';
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
+import type { StatusAdaptersByKind } from '../interfaces/ITokenBridgeStatusAdapter.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { type InventoryMonitorConfig, Monitor } from '../monitor/Monitor.js';
@@ -72,6 +74,8 @@ const DEFAULT_EXPLORER_URL =
   process.env.EXPLORER_API_URL || 'https://explorer4.hasura.app/v1/graphql';
 
 export class RebalancerContextFactory {
+  private readonly statusAdaptersByKind: StatusAdaptersByKind;
+
   /**
    * @param config - The rebalancer config
    * @param warpCore - An instance of `WarpCore` configured for the specified `warpRouteId`.
@@ -95,7 +99,9 @@ export class RebalancerContextFactory {
     private readonly externalBridgeApiKeys?: Partial<
       Record<ExternalBridgeType, string>
     >,
-  ) {}
+  ) {
+    this.statusAdaptersByKind = createStatusAdapters(this.logger);
+  }
 
   /**
    * @param config - The rebalancer config
@@ -307,6 +313,8 @@ export class RebalancerContextFactory {
       actionTracker,
       this.logger,
       metrics,
+      {},
+      this.statusAdaptersByKind,
     );
 
     return rebalancer;
@@ -402,6 +410,7 @@ export class RebalancerContextFactory {
       multiProtocolCore,
       trackerConfig,
       this.logger,
+      this.statusAdaptersByKind,
     );
 
     // 7. Create InflightContextAdapter
