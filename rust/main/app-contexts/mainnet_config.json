@@ -50463,6 +50463,190 @@
           "recipientAddress": "0x00000000000000000000000036f586a30502ae3afb555b8aa4dcc05d233c2ece"
         }
       ]
+    },
+    {
+      "name": "metadex_staging_allocate_chain",
+      "matchingList": [
+        {
+          "originDomain": 8453,
+          "senderAddress": "0x000000000000000000000000504e81562dafe4efe87a4b3025f805eb0e9c5c15",
+          "destinationDomain": 10,
+          "recipientAddress": [
+            "0x0000000000000000000000001733cd126a227066963e9b636ad49898d1224741"
+          ],
+          "bodyRegex": "^01"
+        },
+        {
+          "originDomain": 8453,
+          "senderAddress": "0x000000000000000000000000afb6d2686b85c795e1b9324d4cbbed269d7f01a8",
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x000000000000000000000000aaa49bd49a9be1eae5534eb35fc2c346afd7ca49"
+          ],
+          "bodyRegex": "^01"
+        }
+      ]
+    },
+    {
+      "name": "metadex_staging_allocate_gauge",
+      "matchingList": [
+        {
+          "originDomain": 8453,
+          "senderAddress": "0x000000000000000000000000504e81562dafe4efe87a4b3025f805eb0e9c5c15",
+          "destinationDomain": 10,
+          "recipientAddress": [
+            "0x0000000000000000000000001733cd126a227066963e9b636ad49898d1224741"
+          ],
+          "bodyRegex": "^02"
+        },
+        {
+          "originDomain": 8453,
+          "senderAddress": "0x000000000000000000000000afb6d2686b85c795e1b9324d4cbbed269d7f01a8",
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x000000000000000000000000aaa49bd49a9be1eae5534eb35fc2c346afd7ca49"
+          ],
+          "bodyRegex": "^02"
+        }
+      ]
+    },
+    {
+      "name": "metadex_staging_claim_rewards",
+      "matchingList": [
+        {
+          "originDomain": 8453,
+          "senderAddress": "0x000000000000000000000000504e81562dafe4efe87a4b3025f805eb0e9c5c15",
+          "destinationDomain": 10,
+          "recipientAddress": [
+            "0x0000000000000000000000001733cd126a227066963e9b636ad49898d1224741"
+          ],
+          "bodyRegex": "^03"
+        },
+        {
+          "originDomain": 8453,
+          "senderAddress": "0x000000000000000000000000afb6d2686b85c795e1b9324d4cbbed269d7f01a8",
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x000000000000000000000000aaa49bd49a9be1eae5534eb35fc2c346afd7ca49"
+          ],
+          "bodyRegex": "^03"
+        }
+      ]
+    },
+    {
+      "name": "metadex_staging_redeem",
+      "matchingList": [
+        {
+          "originDomain": 10,
+          "senderAddress": [
+            "0x0000000000000000000000001733cd126a227066963e9b636ad49898d1224741"
+          ],
+          "destinationDomain": 8453,
+          "recipientAddress": "0x000000000000000000000000504e81562dafe4efe87a4b3025f805eb0e9c5c15",
+          "bodyRegex": "^04"
+        },
+        {
+          "originDomain": 42161,
+          "senderAddress": [
+            "0x000000000000000000000000aaa49bd49a9be1eae5534eb35fc2c346afd7ca49"
+          ],
+          "destinationDomain": 8453,
+          "recipientAddress": "0x000000000000000000000000afb6d2686b85c795e1b9324d4cbbed269d7f01a8",
+          "bodyRegex": "^04"
+        }
+      ]
+    },
+    {
+      "name": "metadex_staging_set_operator",
+      "matchingList": [
+        {
+          "originDomain": 8453,
+          "senderAddress": "0x000000000000000000000000504e81562dafe4efe87a4b3025f805eb0e9c5c15",
+          "destinationDomain": 10,
+          "recipientAddress": [
+            "0x0000000000000000000000001733cd126a227066963e9b636ad49898d1224741"
+          ],
+          "bodyRegex": "^05"
+        },
+        {
+          "originDomain": 8453,
+          "senderAddress": "0x000000000000000000000000afb6d2686b85c795e1b9324d4cbbed269d7f01a8",
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x000000000000000000000000aaa49bd49a9be1eae5534eb35fc2c346afd7ca49"
+          ],
+          "bodyRegex": "^05"
+        }
+      ]
+    },
+    {
+      "name": "metadex_staging_deallocate",
+      "matchingList": [
+        {
+          "originDomain": 10,
+          "senderAddress": [
+            "0x0000000000000000000000001733cd126a227066963e9b636ad49898d1224741"
+          ],
+          "destinationDomain": 8453,
+          "recipientAddress": "0x000000000000000000000000504e81562dafe4efe87a4b3025f805eb0e9c5c15",
+          "bodyRegex": "^06"
+        },
+        {
+          "originDomain": 42161,
+          "senderAddress": [
+            "0x000000000000000000000000aaa49bd49a9be1eae5534eb35fc2c346afd7ca49"
+          ],
+          "destinationDomain": 8453,
+          "recipientAddress": "0x000000000000000000000000afb6d2686b85c795e1b9324d4cbbed269d7f01a8",
+          "bodyRegex": "^06"
+        }
+      ]
+    },
+    {
+      "name": "metadex_staging_reduce_cooldown",
+      "matchingList": [
+        {
+          "originDomain": 8453,
+          "senderAddress": "0x000000000000000000000000504e81562dafe4efe87a4b3025f805eb0e9c5c15",
+          "destinationDomain": 10,
+          "recipientAddress": [
+            "0x0000000000000000000000001733cd126a227066963e9b636ad49898d1224741"
+          ],
+          "bodyRegex": "^07"
+        },
+        {
+          "originDomain": 8453,
+          "senderAddress": "0x000000000000000000000000afb6d2686b85c795e1b9324d4cbbed269d7f01a8",
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x000000000000000000000000aaa49bd49a9be1eae5534eb35fc2c346afd7ca49"
+          ],
+          "bodyRegex": "^07"
+        }
+      ]
+    },
+    {
+      "name": "metadex_staging_emergency_deallocate",
+      "matchingList": [
+        {
+          "originDomain": 8453,
+          "senderAddress": "0x000000000000000000000000504e81562dafe4efe87a4b3025f805eb0e9c5c15",
+          "destinationDomain": 10,
+          "recipientAddress": [
+            "0x0000000000000000000000001733cd126a227066963e9b636ad49898d1224741"
+          ],
+          "bodyRegex": "^08"
+        },
+        {
+          "originDomain": 8453,
+          "senderAddress": "0x000000000000000000000000afb6d2686b85c795e1b9324d4cbbed269d7f01a8",
+          "destinationDomain": 42161,
+          "recipientAddress": [
+            "0x000000000000000000000000aaa49bd49a9be1eae5534eb35fc2c346afd7ca49"
+          ],
+          "bodyRegex": "^08"
+        }
+      ]
     }
   ]
 }
