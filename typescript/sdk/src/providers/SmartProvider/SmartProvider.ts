@@ -305,7 +305,7 @@ export class HyperlaneSmartProvider
   }
 
   /** Sends raw read requests, retaining RPC fallback and custom connections. */
-  async send(method: string, params: unknown[]): Promise<unknown> {
+  async sendReadRpc(method: string, params: unknown[]): Promise<unknown> {
     if (!ReadRpcMethods.has(method)) {
       throw new Error(`Unsupported read RPC method: ${method}`);
     }

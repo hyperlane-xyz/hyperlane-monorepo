@@ -23,6 +23,10 @@ describe('HyperlaneSmartProvider raw reads', () => {
     );
   }
 
+  it('does not advertise a general JSON-RPC send method', () => {
+    expect('send' in provider()).to.equal(false);
+  });
+
   it('preserves raw parameters and falls back only through RPC providers', async () => {
     const smart = provider();
     const explorer = sinon.stub(smart.explorerProviders[0], 'perform');
@@ -37,11 +41,30 @@ describe('HyperlaneSmartProvider raw reads', () => {
       },
       'latest',
     ];
-    expect(await smart.send('eth_call', params)).to.equal('0x1234');
+    expect(await smart.sendReadRpc('eth_call', params)).to.equal('0x1234');
     expect(first.firstCall.args).to.deep.equal(['eth_call', params]);
     expect(second.firstCall.args).to.deep.equal(['eth_call', params]);
     expect(explorer.called).to.equal(false);
   });
+
+  for (const code of [-32000, -32005]) {
+    it(`falls through rate-limit code ${code} without classifying it as a revert`, async () => {
+      const smart = provider();
+      sinon.stub(smart.rpcProviders[0], 'send').rejects(
+        Object.assign(new Error('processing response error'), {
+          code: 'SERVER_ERROR',
+          error: { code, message: 'rate limit exceeded', data: '0x1234' },
+        }),
+      );
+      const second = sinon
+        .stub(smart.rpcProviders[1], 'send')
+        .resolves('0x1234');
+      expect(
+        await smart.sendReadRpc('eth_call', [{ data: '0xab' }, 'latest']),
+      ).to.equal('0x1234');
+      expect(second.calledOnce).to.equal(true);
+    });
+  }
 
   it('rejects writes and unknown methods before contacting any RPC', async () => {
     const smart = provider();
@@ -53,7 +76,7 @@ describe('HyperlaneSmartProvider raw reads', () => {
       'unknown',
     ]) {
       try {
-        await smart.send(method, []);
+        await smart.sendReadRpc(method, []);
         expect.fail('Expected unsupported RPC method');
       } catch (error) {
         expect(String(error)).to.contain('Unsupported read RPC method');

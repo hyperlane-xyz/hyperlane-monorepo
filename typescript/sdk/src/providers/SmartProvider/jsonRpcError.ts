@@ -1,4 +1,6 @@
-import { errors as EthersError } from 'ethers';
+import { errors as EthersError, utils } from 'ethers';
+
+const EXECUTION_REVERTED_MESSAGE = /^execution reverted\b/i;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -67,6 +69,27 @@ export function getNestedJsonRpcError(error: unknown): {
       getJsonRpcErrorData(nested) ??
       nestedBody.data,
   };
+}
+
+/** Recognizes execution reverts without classifying generic -32000 RPC failures. */
+export function getReadRpcRevert(error: unknown, method: string) {
+  if (method !== 'eth_call' && method !== 'eth_estimateGas') return undefined;
+  const nested = getNestedJsonRpcError({ error });
+  const { code, message, data } =
+    typeof nested.code === 'number'
+      ? nested
+      : parseJsonRpcErrorBody(getRecord(error)?.body);
+  if (
+    code === 3 ||
+    (code === -32000 &&
+      EXECUTION_REVERTED_MESSAGE.test(message ?? '') &&
+      typeof data === 'string' &&
+      data !== '0x' &&
+      utils.isHexString(data))
+  ) {
+    return { code, message: message ?? 'execution reverted', data };
+  }
+  return undefined;
 }
 
 export function isCallExceptionWithTransientRpcError(error: unknown): boolean {

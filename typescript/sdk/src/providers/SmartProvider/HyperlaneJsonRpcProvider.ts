@@ -19,9 +19,10 @@ import {
   normalizeMultiAddress,
 } from './logFilters.js';
 import { HyperlaneLogFilter, RpcConfigWithConnectionInfo } from './types.js';
-import { getNestedJsonRpcError } from './jsonRpcError.js';
+import { getReadRpcRevert } from './jsonRpcError.js';
 
 const NUM_PARALLEL_LOG_QUERIES = 5;
+const ethersLogger = new utils.Logger('HyperlaneJsonRpcProvider');
 
 /**
  * The most chunks of `pagination.maxBlockRange` a single eth_getLogs request is
@@ -174,11 +175,11 @@ export class HyperlaneJsonRpcProvider
       try {
         return await this.send(rpcMethod, rpcParams);
       } catch (error) {
-        const rpcError = getNestedJsonRpcError({ error });
+        const rpcError = getReadRpcRevert(error, rpcMethod);
         // Preserve revert data and stop SmartProvider fallback/retries on a
         // definitive execution revert, including encrypted Seismic reverts.
-        if (rpcError.code === 3) {
-          throw new utils.Logger('HyperlaneJsonRpcProvider').makeError(
+        if (rpcError) {
+          throw ethersLogger.makeError(
             'execution reverted',
             EthersError.CALL_EXCEPTION,
             { data: rpcError.data ?? '0x', reason: rpcError.message, error },

@@ -110,7 +110,7 @@ describe('EvmTokenAdapter signed reads on Seismic', () => {
   it('does not fall back to unsigned reads when authenticated reads fail', async () => {
     signedCall.rejects(
       new Error(
-        'Seismic signed-read signing requires EIP-712 typed-data support',
+        'Seismic signed-read signer requires EIP-712 typed-data support',
       ),
     );
     const adapter = adapterFor('seismic', { seismic: signer });

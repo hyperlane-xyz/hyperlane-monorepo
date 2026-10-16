@@ -6,11 +6,14 @@ import {
   signSeismicTxTypedData,
   type TxSeismicMetadata,
 } from 'seismic-viem';
-import { RawContractError, custom, isHex, stringify } from 'viem';
+import { custom, http, isHex, stringify } from 'viem';
 import { toAccount } from 'viem/accounts';
 import { z } from 'zod';
 
-import { addBufferToGasLimit, assert } from '@hyperlane-xyz/utils';
+import { LazyAsync, addBufferToGasLimit, assert } from '@hyperlane-xyz/utils';
+
+import { HyperlaneSmartProvider } from './SmartProvider/SmartProvider.js';
+import { getReadRpcRevert } from './SmartProvider/jsonRpcError.js';
 
 const logger = new utils.Logger('SeismicSigner');
 type ShieldedClient = Awaited<ReturnType<SeismicSigner['createClient']>>;
@@ -28,7 +31,7 @@ const TypedDataFieldsSchema = z.record(
  */
 export interface SeismicSignerContext {
   chainId: number;
-  /** Legacy context field; signed RPC requests use the connected provider. */
+  /** Explicit RPC for signers without a connected JSON-RPC-capable provider. */
   rpcUrl: string;
   name: string;
 }
@@ -63,7 +66,7 @@ export interface SeismicSignerContext {
 export class SeismicSigner extends Signer {
   // Set at runtime via defineReadOnly (ethers pattern); base Signer declares it.
   declare readonly provider?: providers.Provider;
-  private cachedClient?: { address: string; promise: Promise<ShieldedClient> };
+  private cachedClient?: { address: string; client: LazyAsync<ShieldedClient> };
 
   constructor(
     public readonly inner: Signer,
@@ -237,16 +240,12 @@ export class SeismicSigner extends Signer {
   /** Reuses client setup, never the per-request nonce, block or signature. */
   private async getClient(address: `0x${string}`): Promise<ShieldedClient> {
     if (!this.cachedClient || this.cachedClient.address !== address) {
-      this.cachedClient = { address, promise: this.createClient(address) };
+      this.cachedClient = {
+        address,
+        client: new LazyAsync(() => this.createClient(address)),
+      };
     }
-    const cached = this.cachedClient;
-    try {
-      return await cached.promise;
-    } catch (error) {
-      // A failed TEE-key lookup must not poison subsequent reads.
-      if (this.cachedClient === cached) this.cachedClient = undefined;
-      throw error;
-    }
+    return this.cachedClient.client.get();
   }
 
   private async createClient(address: `0x${string}`) {
@@ -257,11 +256,12 @@ export class SeismicSigner extends Signer {
     );
     const signTypedData = inner._signTypedData.bind(inner);
     const provider = inner.provider;
-    assert(
-      provider && 'send' in provider && typeof provider.send === 'function',
-      'Seismic signed reads require a provider with JSON-RPC send support',
-    );
-    const send = provider.send.bind(provider);
+    const send =
+      provider instanceof HyperlaneSmartProvider
+        ? provider.sendReadRpc.bind(provider)
+        : provider && 'send' in provider && typeof provider.send === 'function'
+          ? provider.send.bind(provider)
+          : undefined;
     const account = toAccount({
       address,
       signMessage: async () => {
@@ -291,15 +291,30 @@ export class SeismicSigner extends Signer {
     return createShieldedWalletClient({
       account,
       cacheTime: 0,
-      transport: custom(
-        {
-          // Match viem's HTTP encoding: typed-data fields contain bigint values,
-          // while ethers' send/logging expect JSON-compatible decimal strings.
-          request: ({ method, params }) =>
-            send(method, JSON.parse(stringify(params ?? []))),
-        },
-        { retryCount: 0 },
-      ),
+      transport: send
+        ? custom(
+            {
+              // Match viem's HTTP encoding: typed-data fields contain bigint values,
+              // while ethers' send/logging expect JSON-compatible decimal strings.
+              request: async ({ method, params }) => {
+                try {
+                  return await send(
+                    method,
+                    JSON.parse(stringify(params ?? [])),
+                  );
+                } catch (error) {
+                  // ethers nests server errors under .error; viem walks .cause.
+                  // Flatten only confirmed execution reverts for decryption.
+                  const revert = getReadRpcRevert(error, method);
+                  if (revert)
+                    throw Object.assign(new Error(revert.message), revert);
+                  throw error;
+                }
+              },
+            },
+            { retryCount: 0 },
+          )
+        : http(this.context.rpcUrl),
     });
   }
 
@@ -312,7 +327,9 @@ export class SeismicSigner extends Signer {
     const decrypted = await decryptRevertError(client, error, metadata);
     if (
       decrypted !== error &&
-      decrypted instanceof RawContractError &&
+      typeof decrypted === 'object' &&
+      decrypted !== null &&
+      'data' in decrypted &&
       typeof decrypted.data === 'string'
     ) {
       let reason: string | null = null;

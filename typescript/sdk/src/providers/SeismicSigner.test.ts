@@ -1,3 +1,5 @@
+import { createServer } from 'node:http';
+
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { BigNumber, Wallet, providers, utils } from 'ethers';
@@ -36,6 +38,8 @@ describe('SeismicSigner', () => {
   let rpcNonce: number;
   let revertData: string | undefined;
   let callError: Error | undefined;
+  let revertCode: number;
+  let fetchStub: sinon.SinonStub;
   let signer: SeismicSigner;
   let requests: { method: string; params?: unknown[] }[];
   let rpcChainId: number;
@@ -102,6 +106,59 @@ describe('SeismicSigner', () => {
     return `0x${RESPONSE_FORMAT_VERSION.toString(16).padStart(2, '0')}${iv.slice(2)}${body.slice(2)}`;
   }
 
+  /** Serves JSON-RPC over HTTP so ethers performs its actual error wrapping. */
+  async function withRpcServer(run: (url: string) => Promise<void>) {
+    const rpcErrorSchema = z.object({
+      code: z.number(),
+      message: z.string(),
+      data: z.string().optional(),
+    });
+    const server = createServer(async (req, res) => {
+      try {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) chunks.push(Buffer.from(chunk));
+        const request = z
+          .object({
+            id: z.number(),
+            method: z.string(),
+            params: z.array(z.unknown()).default([]),
+          })
+          .parse(JSON.parse(Buffer.concat(chunks).toString()));
+        let reply:
+          | { result: unknown }
+          | { error: z.infer<typeof rpcErrorSchema> };
+        try {
+          reply = { result: await send(request.method, request.params) };
+        } catch (error) {
+          const nested = z.object({ error: rpcErrorSchema }).safeParse(error);
+          reply = {
+            error: nested.success
+              ? nested.data.error
+              : rpcErrorSchema.parse(error),
+          };
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ jsonrpc: '2.0', id: request.id, ...reply }));
+      } catch {
+        res.writeHead(500);
+        res.end('invalid test RPC request');
+      }
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, '127.0.0.1', resolve),
+    );
+    const address = server.address();
+    assert(address && typeof address !== 'string', 'Expected TCP server');
+    try {
+      await run(`http://127.0.0.1:${address.port}`);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+        server.closeAllConnections();
+      });
+    }
+  }
+
   beforeEach(() => {
     provider = new providers.StaticJsonRpcProvider(
       'https://configured.example',
@@ -119,9 +176,10 @@ describe('SeismicSigner', () => {
     rpcBlockNumber = 100;
     rpcNonce = 7;
     revertData = undefined;
+    revertCode = 3;
     callError = undefined;
     callResult = utils.defaultAbiCoder.encode(['uint256'], [1_000_000]);
-    sinon
+    fetchStub = sinon
       .stub(globalThis, 'fetch')
       .rejects(new Error('Unexpected direct HTTP request'));
     send = sinon
@@ -157,9 +215,12 @@ describe('SeismicSigner', () => {
             revertData ?? callResult,
           );
           if (revertData !== undefined) {
-            throw Object.assign(new Error('execution reverted'), {
-              code: 3,
-              data: encrypted,
+            throw Object.assign(new Error('processing response error'), {
+              code: 'SERVER_ERROR',
+              error: Object.assign(new Error('execution reverted'), {
+                code: revertCode,
+                data: encrypted,
+              }),
             });
           }
           results.eth_call = encrypted;
@@ -437,23 +498,6 @@ describe('SeismicSigner', () => {
     ).to.have.length(2);
   });
 
-  it('rejects a missing or non-RPC provider without using the metadata URL', async () => {
-    for (const inner of [
-      Wallet.createRandom(),
-      wallet.connect(new providers.BaseProvider(CHAIN_ID)),
-    ]) {
-      const disconnected = new SeismicSigner(inner, {
-        chainId: CHAIN_ID,
-        rpcUrl: 'https://seismic.example',
-        name: 'seismic',
-      });
-      await expect(
-        disconnected.signedCall({ to: RECIPIENT }),
-      ).to.be.rejectedWith('provider with JSON-RPC send support');
-    }
-    expect(requests).to.have.length(0);
-  });
-
   it('keeps authenticated reads on the wrapped SmartProvider when its first RPC fails', async () => {
     const smart = new HyperlaneSmartProvider(
       { chainId: CHAIN_ID, name: 'seismic' },
@@ -492,6 +536,89 @@ describe('SeismicSigner', () => {
     });
   }
 
+  for (const Provider of [
+    providers.JsonRpcProvider,
+    providers.StaticJsonRpcProvider,
+  ]) {
+    for (const code of [3, -32000]) {
+      for (const method of ['signedCall', 'estimateGas'] as const) {
+        it(`decrypts code ${code} reverts from real ${Provider.name} HTTP parsing for ${method}`, async () => {
+          revertCode = code;
+          revertData =
+            '0x08c379a0' +
+            utils.defaultAbiCoder.encode(['string'], ['wire revert']).slice(2);
+          await withRpcServer(async (url) => {
+            const realProvider = new Provider(url, {
+              chainId: CHAIN_ID,
+              name: 'seismic',
+            });
+            await expect(
+              signer
+                .connect(realProvider)
+                [method]({ to: RECIPIENT, data: DATA }),
+            ).to.be.rejected.and.eventually.include({
+              code: 'CALL_EXCEPTION',
+              reason: 'wire revert',
+              data: revertData,
+            });
+          });
+        });
+      }
+    }
+  }
+
+  for (const connected of [false, true]) {
+    it(`preserves the explicit RPC URL with ${connected ? 'an ethers FallbackProvider' : 'an offline signer'}`, async () => {
+      fetchStub.restore();
+      await withRpcServer(async (url) => {
+        const inner = connected
+          ? wallet.connect(new providers.FallbackProvider([provider]))
+          : new Wallet(wallet.privateKey);
+        const explicit = new SeismicSigner(inner, {
+          chainId: CHAIN_ID,
+          rpcUrl: url,
+          name: 'seismic',
+        });
+        expect(
+          (
+            await explicit.estimateGas({ to: RECIPIENT, data: DATA })
+          ).toNumber(),
+        ).to.equal(0x12345);
+        expect(
+          await explicit.signedCall({ to: RECIPIENT, data: DATA }),
+        ).to.equal(callResult);
+      });
+    });
+  }
+
+  for (const code of [3, -32000]) {
+    it(`decrypts code ${code} reverts through the explicit RPC URL`, async () => {
+      revertCode = code;
+      revertData =
+        '0x08c379a0' +
+        utils.defaultAbiCoder
+          .encode(['string'], ['explicit RPC revert'])
+          .slice(2);
+      fetchStub.restore();
+      await withRpcServer(async (url) => {
+        const explicit = new SeismicSigner(new Wallet(wallet.privateKey), {
+          chainId: CHAIN_ID,
+          rpcUrl: url,
+          name: 'seismic',
+        });
+        for (const method of ['signedCall', 'estimateGas'] as const) {
+          await expect(
+            explicit[method]({ to: RECIPIENT }),
+          ).to.be.rejected.and.eventually.include({
+            code: 'CALL_EXCEPTION',
+            reason: 'explicit RPC revert',
+            data: revertData,
+          });
+        }
+      });
+    });
+  }
+
   it('preserves custom-error bytes without inventing a revert reason', async () => {
     revertData =
       '0x12345678' + utils.defaultAbiCoder.encode(['uint256'], [9]).slice(2);
@@ -504,28 +631,31 @@ describe('SeismicSigner', () => {
     });
   });
 
-  it('decrypts SmartProvider reverts without falling through to another RPC', async () => {
-    const smart = new HyperlaneSmartProvider(
-      { chainId: CHAIN_ID, name: 'seismic' },
-      [{ http: 'https://first.example' }, { http: 'https://second.example' }],
-      [],
-      { maxRetries: 3, baseRetryDelayMs: 1 },
-    );
-    sinon.stub(smart.rpcProviders[0], 'send').callsFake(send);
-    const second = sinon.stub(smart.rpcProviders[1], 'send').callsFake(send);
-    revertData =
-      '0x08c379a0' +
-      utils.defaultAbiCoder.encode(['string'], ['not permitted']).slice(2);
-    await expect(
-      signer.connect(smart).signedCall({ to: RECIPIENT }),
-    ).to.be.rejected.and.eventually.include({
-      code: 'CALL_EXCEPTION',
-      reason: 'not permitted',
-      data: revertData,
+  for (const code of [3, -32000]) {
+    it(`decrypts code ${code} SmartProvider reverts without falling through to another RPC`, async () => {
+      revertCode = code;
+      const smart = new HyperlaneSmartProvider(
+        { chainId: CHAIN_ID, name: 'seismic' },
+        [{ http: 'https://first.example' }, { http: 'https://second.example' }],
+        [],
+        { maxRetries: 3, baseRetryDelayMs: 1 },
+      );
+      sinon.stub(smart.rpcProviders[0], 'send').callsFake(send);
+      const second = sinon.stub(smart.rpcProviders[1], 'send').callsFake(send);
+      revertData =
+        '0x08c379a0' +
+        utils.defaultAbiCoder.encode(['string'], ['not permitted']).slice(2);
+      await expect(
+        signer.connect(smart).signedCall({ to: RECIPIENT }),
+      ).to.be.rejected.and.eventually.include({
+        code: 'CALL_EXCEPTION',
+        reason: 'not permitted',
+        data: revertData,
+      });
+      expect(second.called).to.equal(false);
+      expect(send.withArgs('eth_call').calledOnce).to.equal(true);
     });
-    expect(second.called).to.equal(false);
-    expect(send.withArgs('eth_call').calledOnce).to.equal(true);
-  });
+  }
 
   it('does not label undecryptable revert data as a decrypted contract error', async () => {
     callError = Object.assign(new Error('unreadable revert'), {
