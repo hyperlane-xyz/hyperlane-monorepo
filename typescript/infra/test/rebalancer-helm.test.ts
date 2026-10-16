@@ -387,8 +387,8 @@ describe('oUSDT production manifest', () => {
     });
     const chains = runtime.strategy.chains;
     expect(chains.ethereum.minAmount).to.deep.equal({
-      min: 640000,
-      target: 650000,
+      min: 345000,
+      target: 365000,
       type: 'absolute',
     });
     for (const chain of ['arbitrum', 'celo', 'tron']) {
