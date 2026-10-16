@@ -570,6 +570,20 @@ describe('LzScanStatusAdapter', () => {
     }
   });
 
+  it('allows any destination recipient when configured with a wildcard', async () => {
+    stubResponse({ data: [createMessage()] });
+
+    expect(
+      await createAdapter().pollStatus(
+        createRef({ destinationRecipient: '*' }),
+        createPollContext(createDestinationReceipt({ recipient: BRIDGE })),
+      ),
+    ).to.include({
+      status: 'complete',
+      receivingTxHash: DESTINATION_TX_HASH,
+    });
+  });
+
   it('requires the destination receipt at the confirmed block tag', async () => {
     stubResponse({ data: [createMessage()] });
     expect(

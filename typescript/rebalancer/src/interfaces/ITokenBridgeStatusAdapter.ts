@@ -14,7 +14,7 @@ export interface MCRExecutionContext {
   destinationEid?: number;
   sourceOft?: Address;
   destinationOft?: Address;
-  destinationRecipient?: Address;
+  destinationRecipient?: Address | '*';
   sourceTokenDecimals?: number;
   destinationTokenDecimals?: number;
   minimumDestinationAmount?: bigint;

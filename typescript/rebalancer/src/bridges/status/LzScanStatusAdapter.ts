@@ -472,7 +472,8 @@ export class LzScanStatusAdapter implements ITokenBridgeStatusAdapter {
             equalHex(String(parsed.args.guid), guid) &&
             Number(parsed.args.srcEid) === message.pathway.srcEid &&
             Number(parsed.args.srcEid) === sourceEid &&
-            eqAddress(String(parsed.args.toAddress), destinationRecipient) &&
+            (destinationRecipient === '*' ||
+              eqAddress(String(parsed.args.toAddress), destinationRecipient)) &&
             String(parsed.args.amountReceivedLD) === amountReceivedLD
           );
         } catch {
@@ -517,7 +518,9 @@ function parseRefData(ref: MCRStatusRef): LzScanRefData {
       destinationEid: z.number().int().positive().optional(),
       sourceOft: EVM_ADDRESS_SCHEMA.optional(),
       destinationOft: EVM_ADDRESS_SCHEMA.optional(),
-      destinationRecipient: EVM_ADDRESS_SCHEMA.optional(),
+      destinationRecipient: z
+        .union([EVM_ADDRESS_SCHEMA, z.literal('*')])
+        .optional(),
       amountReceivedLD: z.string().regex(/^\d+$/).optional(),
       minimumDestinationAmount: z.string().regex(/^\d+$/).optional(),
       trackingError: z.string().optional(),
