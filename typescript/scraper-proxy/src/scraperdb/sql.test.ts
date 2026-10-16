@@ -19,6 +19,19 @@ void describe('scraper database SQL', () => {
     assert.deepEqual(query.values, [1, 'ethereum', 5, 2]);
   });
 
+  void it('preserves parameters supplied by a custom relation', () => {
+    const query = buildSelect(
+      'message_view',
+      { limit: 5, where: { origin_domain_id: { _eq: 1 } } },
+      { relation: 'provisional_message_view', values: [0] },
+    );
+    assert.match(
+      query.sql,
+      /FROM "provisional_message_view" WHERE \(\("origin_domain_id" = \$2\)\) LIMIT \$3$/,
+    );
+    assert.deepEqual(query.values, [0, 1, 5]);
+  });
+
   void it('preserves the public dispatch name while filtering every read through confirmed history', () => {
     for (const query of [
       buildSelect('raw_message_dispatch'),
@@ -46,7 +59,7 @@ void describe('scraper database SQL', () => {
     });
     assert.equal(
       count.sql,
-      'SELECT COUNT(*)::int AS count FROM (SELECT DISTINCT ON ("origin_domain") 1 FROM "message_view" LIMIT $1 OFFSET $2) AS rows',
+      'SELECT COUNT(*)::int AS count FROM (SELECT DISTINCT ON ("origin_domain") 1 FROM (SELECT *, FALSE AS is_provisional FROM "message_view") AS "message_view" LIMIT $1 OFFSET $2) AS rows',
     );
     assert.deepEqual(count.values, [2, 1]);
   });
@@ -61,7 +74,7 @@ void describe('scraper database SQL', () => {
           distinct: true,
         },
       ).sql,
-      'SELECT COUNT(DISTINCT "origin_domain")::int AS count FROM "message_view"',
+      'SELECT COUNT(DISTINCT "origin_domain")::int AS count FROM (SELECT *, FALSE AS is_provisional FROM "message_view") AS "message_view"',
     );
     assert.equal(
       buildCount(
@@ -69,7 +82,7 @@ void describe('scraper database SQL', () => {
         { limit: 10, order_by: { nonce: 'desc' } },
         { columns: ['origin_domain', 'destination_domain'], distinct: true },
       ).sql,
-      'SELECT COUNT(DISTINCT ("origin_domain", "destination_domain"))::int AS count FROM (SELECT "origin_domain", "destination_domain" FROM "message_view" ORDER BY "nonce" DESC LIMIT $1) AS rows',
+      'SELECT COUNT(DISTINCT ("origin_domain", "destination_domain"))::int AS count FROM (SELECT "origin_domain", "destination_domain" FROM (SELECT *, FALSE AS is_provisional FROM "message_view") AS "message_view" ORDER BY "nonce" DESC LIMIT $1) AS rows',
     );
   });
 

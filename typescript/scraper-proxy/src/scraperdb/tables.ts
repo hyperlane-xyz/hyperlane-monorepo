@@ -49,6 +49,7 @@ export const tables: Record<TableName, TableConfig> = {
     'destination_tx_sender',
     'id',
     'is_delivered',
+    'is_provisional',
     'message_body',
     'msg_id',
     'nonce',

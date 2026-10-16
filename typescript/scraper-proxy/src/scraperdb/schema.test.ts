@@ -5,6 +5,7 @@ import { it } from 'node:test';
 import { buildSchema, graphql, parse, validate } from 'graphql';
 
 import { sanitizeScraperDbSchema } from './schema.js';
+import { ScraperDbService } from './scraperdb.service.js';
 import { buildSelect, type SelectArgs } from './sql.js';
 import { scraperProxyValidationRule } from './validation.js';
 
@@ -90,6 +91,35 @@ void it('accepts a cursor on message queries', () => {
   );
 
   assert.deepEqual(errors, []);
+});
+
+void it('accepts optional message confirmations', () => {
+  const errors = validate(
+    schema,
+    parse(`
+      query Messages($confirmations: Int) {
+        message_view(confirmations: $confirmations, where: {is_provisional: {_eq: true}}, limit: 50) { id is_provisional origin_block_height }
+      }
+    `),
+  );
+
+  assert.deepEqual(errors, []);
+});
+
+void it('rejects invalid confirmations before querying the database', async () => {
+  const db = new ScraperDbService({
+    async query() {
+      assert.fail('Unexpected database query');
+    },
+  });
+  await assert.rejects(
+    db.selectMessages({ confirmations: -1 }),
+    /non-negative/,
+  );
+  await assert.rejects(
+    db.selectMessages({ confirmations: 0, offset: 1 }),
+    /offset/,
+  );
 });
 
 void it('rejects an empty message cursor through the resolver', async () => {
