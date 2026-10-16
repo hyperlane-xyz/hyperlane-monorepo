@@ -245,6 +245,11 @@ async fn ingest(
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct CountCache {
     boundary: Option<(ethers::types::H256, [u32; 4])>,
+    /// Highest indexed height through which stored dispatches and insertions
+    /// matched hash-pinned contract counts in this process. Counts are
+    /// cumulative, so a match proves every earlier range complete, including
+    /// ranges appended while counts were unavailable.
+    proven_through: Option<u64>,
 }
 
 async fn ingest_cached(
@@ -360,6 +365,14 @@ async fn ingest_cached(
     };
     if let Some(end_counts) = end_counts {
         if validated_counts[0] != end_counts[0] || validated_counts[3] != end_counts[1] {
+            // With an unproven provisional suffix the missing events may be in an
+            // earlier range; replay it instead of failing the same way forever.
+            // Otherwise everything before this range is proven and a retry suffices.
+            let unproven = count_cache.proven_through.unwrap_or(state.confirmed) < state.indexed;
+            if unproven && state.indexed > state.confirmed {
+                store.rewind_to_confirmed(state).await?;
+                count_cache.boundary = None;
+            }
             eyre::bail!("Incomplete event range");
         }
     }
@@ -407,6 +420,9 @@ async fn ingest_cached(
     verify(source, &boundary).await?;
     store.append(state, &blocks).await?;
     count_cache.boundary = Some((boundary.hash, validated_counts));
+    if end_counts.is_some() {
+        count_cache.proven_through = Some(end);
+    }
     Ok(end < state.head)
 }
 

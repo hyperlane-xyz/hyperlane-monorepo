@@ -5,7 +5,7 @@ use std::{sync::Arc, time::Duration};
 use hyperlane_base::{ChainMetrics, ContractSyncMetrics};
 use hyperlane_core::{HyperlaneDomain, ReorgPeriod};
 use tokio::time::{sleep, Instant};
-use tracing::warn;
+use tracing::{debug, warn};
 
 use super::{
     confirm_leased_through, confirmation_lease, ingest_cached, observe, source::Source,
@@ -103,7 +103,7 @@ impl Worker {
             .claim(confirmation_lease(self.poll_interval))
             .await?;
         self.source.begin_cycle().await;
-        let observed = match observe(self.source.as_ref(), &self.store).await {
+        let mut observed = match observe(self.source.as_ref(), &self.store).await {
             Ok(state) => state,
             Err(error) => {
                 self.store.pause(false).await?;
@@ -119,8 +119,56 @@ impl Worker {
         };
         let tip_counts = self.source.tip_sequence_counts().await?;
         let count_protected = tip_counts.is_some();
+        // Sources with hash-pinned historical counts publish only ranges those
+        // counts have proven complete.
+        let proof_gated = !count_protected && self.source.has_historical_counts();
+        // A reorg or rewind invalidates any proof above the surviving frontier.
+        count_cache.proven_through = count_cache
+            .proven_through
+            .map(|proven| proven.min(observed.indexed));
+        // Ranges appended while historical counts were unavailable stay
+        // provisional until a later hash-pinned count proves them complete;
+        // their tail cannot be checked otherwise. Let ingestion run past the
+        // provisional cap meanwhile so pruned-state RPCs can reach a boundary
+        // whose counts are still available.
+        let mut unproven_suffix = proof_gated
+            && count_cache.proven_through.unwrap_or(observed.confirmed) < observed.indexed;
+        if unproven_suffix {
+            // Proofs live in memory only, so re-prove the suffix at the indexed
+            // boundary, e.g. after a restart or while log queries fail.
+            match self.source.counts(observed.hash).await {
+                Ok(Some(counts)) => {
+                    let stored = self.store.sequence_counts().await?;
+                    if counts == [stored[0], stored[3]] {
+                        count_cache.proven_through = Some(observed.indexed);
+                    } else {
+                        // The suffix is provably incomplete; replay it rather
+                        // than waiting for a new block to expose the gap.
+                        warn!(
+                            domain = self.store.domain,
+                            height = observed.indexed,
+                            ?counts,
+                            "Unproven provisional suffix is incomplete; replaying it"
+                        );
+                        self.store.rewind_to_confirmed(&observed).await?;
+                        count_cache.boundary = None;
+                        count_cache.proven_through = Some(observed.confirmed);
+                        // A rewind leaves the head unhealthy until it is observed again.
+                        observed = observe(self.source.as_ref(), &self.store).await?;
+                    }
+                    unproven_suffix = false;
+                }
+                Ok(None) => {}
+                Err(error) => debug!(
+                    domain = self.store.domain,
+                    height = observed.indexed,
+                    ?error,
+                    "Counts unavailable at the indexed boundary; keeping the suffix provisional"
+                ),
+            }
+        }
         let mut bounded = observed.clone();
-        if !count_protected {
+        if !count_protected && !unproven_suffix {
             bounded.head = bounded.head.min(
                 bounded
                     .confirmed
@@ -145,6 +193,11 @@ impl Worker {
         // snapshot. Any failure leaves their existing confirmed frontier alone.
         let mut publishable = if count_protected {
             observed.confirmed
+        } else if proof_gated {
+            count_cache
+                .proven_through
+                .unwrap_or(observed.confirmed)
+                .max(observed.confirmed)
         } else {
             u64::MAX
         };
@@ -186,7 +239,13 @@ impl Worker {
                 incomplete |= expected > actual;
             }
             if !unavailable && !stale && !incomplete {
-                publishable = self.store.checkpoint(proven).await?;
+                // Retained checkpoints may be pruned below the confirmed
+                // frontier, and nothing below it needs publishing again.
+                publishable = if proven <= state.confirmed {
+                    state.confirmed
+                } else {
+                    self.store.checkpoint(proven).await?
+                };
             } else if !unavailable && !stale && incomplete {
                 if state.indexed > state.confirmed {
                     self.store.rewind_to_confirmed(&state).await?;
@@ -258,8 +317,26 @@ impl Worker {
         }
         let more_ingestion = ingestion?;
         let capped_head = state.confirmed.saturating_add(depth).saturating_add(10_000);
-        let at_provisional_cap =
-            !count_protected && capped_head < observed.head && state.indexed >= capped_head;
+        let unproven =
+            proof_gated && count_cache.proven_through.unwrap_or(state.confirmed) < state.indexed;
+        if unproven && !more_ingestion {
+            // Caught up but still unable to prove the suffix: counts by hash
+            // should work near head, so surface it through the critical metric.
+            warn!(
+                domain = self.store.domain,
+                confirmed = state.confirmed,
+                indexed = state.indexed,
+                "Provisional suffix is unproven at head; waiting for historical counts"
+            );
+            return Ok(CycleOutcome {
+                more: false,
+                ingestion_failed: true,
+            });
+        }
+        let at_provisional_cap = !count_protected
+            && !unproven
+            && capped_head < observed.head
+            && state.indexed >= capped_head;
         if at_provisional_cap {
             eyre::bail!(
                 "Provisional suffix reached its 10,000-block limit; confirmation is lagging"
