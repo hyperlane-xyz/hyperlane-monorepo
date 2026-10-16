@@ -669,6 +669,34 @@ export class RebalancerContextFactory {
           }
           break;
         }
+        case ExternalBridgeType.LayerZero: {
+          const layerZeroConfig = externalBridges?.layerzero;
+          if (layerZeroConfig) {
+            const warpRoutes = await Promise.all(
+              layerZeroConfig.warpRouteIds.map(async (id) => {
+                const config = await this.registry.getWarpRoute(id);
+                assert(
+                  config,
+                  `OFT warp route ${id} was not found in registry`,
+                );
+                return { id, config };
+              }),
+            );
+            const { LayerZeroBridge } =
+              await import('../bridges/LayerZeroBridge.js');
+            registry[ExternalBridgeType.LayerZero] = new LayerZeroBridge(
+              {
+                chainMetadata: this.multiProvider.metadata,
+                warpRoutes,
+                maxFeeBps: layerZeroConfig.maxFeeBps,
+                maxEvmNativeValueWei: layerZeroConfig.maxEvmNativeValueWei,
+                maxTronNativeValueSun: layerZeroConfig.maxTronNativeValueSun,
+              },
+              this.logger,
+            );
+          }
+          break;
+        }
         default: {
           // Exhaustive check - TypeScript will error if new enum value added
           const _exhaustive: never = bridgeType;
