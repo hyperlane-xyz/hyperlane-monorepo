@@ -70,8 +70,8 @@ strategy:
       executionType: inventory
       externalBridge: layerzero
       minAmount:
-        min: 640000
-        target: 650000
+        min: 345000
+        target: 365000
         type: absolute
       override:
         celo:
