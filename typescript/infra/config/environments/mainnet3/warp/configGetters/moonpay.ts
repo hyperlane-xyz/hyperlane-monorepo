@@ -64,6 +64,8 @@ export function getMoonpayTargetRouters(): ChainMap<string[]> {
   return targets;
 }
 
+export const MOONPAY_DEFAULT_FEE_BPS = 3;
+
 export function buildCrossCollateralRoutingFee(
   owner: string,
   destinations: readonly ChainName[],
@@ -72,7 +74,7 @@ export function buildCrossCollateralRoutingFee(
   const offchainFee = (): TokenFeeConfigInput => ({
     type: TokenFeeType.OffchainQuotedLinearFee,
     owner,
-    bps: 3,
+    bps: MOONPAY_DEFAULT_FEE_BPS,
     quoteSigners: [
       '0xEd1829805De615eEFC7303766D395Ea0a1B2b04d',
       '0x6bb7818bbE8d88094Cf3620e58BC6BbEd542B867',

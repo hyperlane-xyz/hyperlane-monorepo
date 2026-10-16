@@ -11,8 +11,12 @@ import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 import { getUSDCCitreaMoonpayWarpConfig } from '../config/environments/mainnet3/warp/configGetters/getUSDCCitreaMoonpayWarpConfig.js';
 import { getUSDTCitreaMoonpayWarpConfig } from '../config/environments/mainnet3/warp/configGetters/getUSDTCitreaMoonpayWarpConfig.js';
 import { getUSDGRobinhoodMoonpayWarpConfig } from '../config/environments/mainnet3/warp/configGetters/getUSDGRobinhoodMoonpayWarpConfig.js';
-import { getMoonpayCrossCollateralRouters } from '../config/environments/mainnet3/warp/configGetters/moonpay.js';
+import {
+  getMoonpayCrossCollateralRouters,
+  MOONPAY_DEFAULT_FEE_BPS,
+} from '../config/environments/mainnet3/warp/configGetters/moonpay.js';
 import { REBALANCER } from '../config/environments/mainnet3/warp/configGetters/utils.js';
+import { WARP_FEES_TURNKEY_OWNER } from '../config/environments/mainnet3/governance/utils.js';
 import { WarpRouteIds } from '../config/environments/mainnet3/warp/warpIds.js';
 import { getDomainId, getRegistry } from '../config/registry.js';
 
@@ -72,6 +76,71 @@ function getRouterConfig() {
   );
 }
 
+function expectQuotedFeesToUseTurnkey(value: unknown): void {
+  if (typeof value !== 'object' || value === null) return;
+
+  if ('bps' in value) {
+    expect(value).to.have.property('owner', WARP_FEES_TURNKEY_OWNER);
+    expect(value).to.have.property('bps', MOONPAY_DEFAULT_FEE_BPS);
+  }
+
+  for (const nested of Object.values(value)) {
+    expectQuotedFeesToUseTurnkey(nested);
+  }
+}
+
+describe('Moonpay production rebalancing', () => {
+  it('uses the Eclipse USDC route for Arc rebalancing', async () => {
+    const registry = getRegistry();
+    const eclipseRoute = registry.getWarpRoute(WarpRouteIds.EclipseUSDC);
+    assert(eclipseRoute, 'Missing Eclipse USDC route');
+
+    const config = await getUSDCCitreaMoonpayWarpConfig(getRouterConfig());
+    const arcRouter = eclipseRoute.tokens.find(
+      ({ chainName }) => chainName === 'arc',
+    )?.addressOrDenom;
+    assert(arcRouter, 'Missing Arc router in Eclipse USDC route');
+
+    for (const chain of ['arbitrum', 'base', 'ethereum', 'polygon']) {
+      const localRouter: string | undefined = eclipseRoute.tokens.find(
+        ({ chainName }) => chainName === chain,
+      )?.addressOrDenom;
+      assert(localRouter, `Missing ${chain} router in Eclipse USDC route`);
+
+      expect(config.arc)
+        .to.have.nested.property(`allowedRebalancingBridges.${chain}`)
+        .that.deep.includes({ bridge: arcRouter });
+      expect(config[chain])
+        .to.have.nested.property('allowedRebalancingBridges.arc')
+        .that.deep.includes({ bridge: localRouter });
+    }
+  });
+
+  it('uses the Turnkey owner and default fee for every MoonPay fee contract', async () => {
+    const routerConfig = getRouterConfig();
+    const configs = [
+      await getUSDCCitreaMoonpayWarpConfig(routerConfig),
+      await getUSDTCitreaMoonpayWarpConfig(routerConfig, {}),
+      await getUSDGRobinhoodMoonpayWarpConfig(routerConfig),
+    ];
+
+    for (const config of configs) {
+      for (const [chain, leg] of Object.entries(config)) {
+        if (chain === 'solanamainnet') {
+          expect(leg).not.to.have.property('tokenFee');
+          continue;
+        }
+
+        expect(leg).to.have.nested.property(
+          'tokenFee.owner',
+          WARP_FEES_TURNKEY_OWNER,
+        );
+        expectQuotedFeesToUseTurnkey(leg);
+      }
+    }
+  });
+});
+
 describe('Moonpay production USDG rollout', () => {
   afterEach(() => sinon.restore());
 
@@ -93,7 +162,7 @@ describe('Moonpay production USDG rollout', () => {
     expect(config.robinhood).not.to.have.property('remoteRouters');
     expect(config.robinhood).to.have.nested.property(
       `tokenFee.feeContracts.arc.${DEFAULT_ROUTER_KEY}.bps`,
-      3,
+      MOONPAY_DEFAULT_FEE_BPS,
     );
     expect(config.robinhood)
       .to.have.property('crossCollateralRouters')
@@ -115,11 +184,11 @@ describe('Moonpay production USDG rollout', () => {
           .that.has.all.keys(DEFAULT_ROUTER_KEY);
         expect(leg).to.have.nested.property(
           `tokenFee.feeContracts.robinhood.${DEFAULT_ROUTER_KEY}.bps`,
-          3,
+          MOONPAY_DEFAULT_FEE_BPS,
         );
         expect(leg).to.have.nested.property(
           `tokenFee.feeContracts.arc.${DEFAULT_ROUTER_KEY}.bps`,
-          3,
+          MOONPAY_DEFAULT_FEE_BPS,
         );
         if (chain !== 'arc')
           expect(leg).to.have.nested.property(
@@ -163,7 +232,7 @@ describe('Moonpay production USDG rollout', () => {
     expect(peers[String(getDomainId('arc'))]).to.deep.equal([arcRouter]);
     expect(config.robinhood).to.have.nested.property(
       `tokenFee.feeContracts.arc.${arcRouter}.bps`,
-      3,
+      MOONPAY_DEFAULT_FEE_BPS,
     );
     const usdt = await getUSDTCitreaMoonpayWarpConfig(getRouterConfig(), {});
     for (const leg of Object.values(usdt)) {
@@ -173,7 +242,7 @@ describe('Moonpay production USDG rollout', () => {
         .that.deep.equals([arcRouter]);
       expect(leg).to.have.nested.property(
         `tokenFee.feeContracts.arc.${arcRouter}.bps`,
-        3,
+        MOONPAY_DEFAULT_FEE_BPS,
       );
     }
     const fast = getRegistry().getWarpRoute(WarpRouteIds.MainnetCCTPV2Fast);
