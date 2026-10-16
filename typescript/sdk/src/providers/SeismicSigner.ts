@@ -9,7 +9,7 @@ import { http, isHex } from 'viem';
 import { toAccount } from 'viem/accounts';
 import { z } from 'zod';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { addBufferToGasLimit, assert } from '@hyperlane-xyz/utils';
 
 const SIGNED_READ_BLOCK_WINDOW = 100n;
 // Seismic's EIP-712 message version (distinct from raw-transaction signing).
@@ -41,9 +41,12 @@ export interface SeismicSignerContext {
  * signature. The official client handles encryption and EIP-712 encoding;
  * signing delegates to the wrapped signer without exporting its private key.
  *
- * Only `estimateGas` is overridden. Writes are plain transparent transactions
- * that already work on Seismic, so everything else delegates to the wrapped
- * signer.
+ * Writes are plain transparent transactions that already work on Seismic, so
+ * `sendTransaction` delegates to the wrapped signer. It first fills in a
+ * missing `gasLimit` with the signed-read estimate: otherwise the inner
+ * signer's `populateTransaction` would run an unsigned `eth_estimateGas`,
+ * which Seismic executes with `msg.sender = 0x0` and therefore reverts for
+ * every owner-gated call (`setDefaultHook`, `transferOwnership`, ...).
  */
 export class SeismicSigner extends Signer {
   // Set at runtime via defineReadOnly (ethers pattern); base Signer declares it.
@@ -75,10 +78,18 @@ export class SeismicSigner extends Signer {
     return this.inner.signTransaction(tx);
   }
 
-  sendTransaction(
+  async sendTransaction(
     tx: utils.Deferrable<providers.TransactionRequest>,
   ): Promise<providers.TransactionResponse> {
-    return this.inner.sendTransaction(tx);
+    const resolved = await utils.resolveProperties(tx);
+    if (resolved.gasLimit !== undefined && resolved.gasLimit !== null) {
+      return this.inner.sendTransaction(resolved);
+    }
+    const estimatedGas = await this.estimateGas(resolved);
+    return this.inner.sendTransaction({
+      ...resolved,
+      gasLimit: addBufferToGasLimit(estimatedGas),
+    });
   }
 
   connect(provider: providers.Provider): SeismicSigner {

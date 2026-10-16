@@ -221,4 +221,36 @@ describe('SeismicSigner', () => {
     );
     expect(requests).to.have.length(0);
   });
+
+  it('fills a missing gasLimit with the signed estimate before sending', async () => {
+    const send = sinon
+      .stub(wallet, 'sendTransaction')
+      // CAST: the response is never read; only the request passed to the inner signer is asserted.
+      .resolves({} as Awaited<ReturnType<Wallet['sendTransaction']>>);
+    const estimate = sinon.spy(signer, 'estimateGas');
+    await signer.sendTransaction({ to: RECIPIENT, data: DATA });
+    expect(estimate.calledOnce).to.equal(true);
+    expect(send.calledOnce).to.equal(true);
+    const [sent] = send.firstCall.args;
+    // 0x12345 + 10% buffer; the inner signer must not estimate again (unsigned).
+    expect(BigNumber.from(sent.gasLimit).toNumber()).to.equal(
+      Math.floor((0x12345 * 110) / 100),
+    );
+    expect(sent).to.include({ to: RECIPIENT, data: DATA });
+  });
+
+  it('sends an explicit gasLimit through without estimating', async () => {
+    const send = sinon
+      .stub(wallet, 'sendTransaction')
+      // CAST: the response is never read; only the request passed to the inner signer is asserted.
+      .resolves({} as Awaited<ReturnType<Wallet['sendTransaction']>>);
+    const estimate = sinon.spy(signer, 'estimateGas');
+    await signer.sendTransaction({ to: RECIPIENT, gasLimit: 21_000 });
+    expect(estimate.called).to.equal(false);
+    expect(send.calledOnce).to.equal(true);
+    expect(BigNumber.from(send.firstCall.args[0].gasLimit).toNumber()).to.equal(
+      21_000,
+    );
+    expect(requests).to.have.length(0);
+  });
 });

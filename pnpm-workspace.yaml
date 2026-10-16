@@ -1,6 +1,8 @@
 # Reject packages published less than 7 days ago (supply chain protection)
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
+  # Seismic signed-read support from the newly published SDK release.
+  - seismic-viem@4.0.0
   # Transaction v1 decoding ahead of Solana mainnet activation.
   - '@solana/web3.js@1.99.0'
   - '@hyperlane-xyz/*'
