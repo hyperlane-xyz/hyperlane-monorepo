@@ -1,0 +1,16 @@
+---
+hyperlane_agent_version: "latest"
+hyperlane_agent_user: "hyperlane"
+hyperlane_agent_group: "hyperlane"
+hyperlane_agent_home: "/home/{{ hyperlane_agent_user }}"
+hyperlane_agent_bin_path: "/usr/local/bin"
+
+# Agent type: relayer, validator, or scraper
+hyperlane_agent_type: "relayer"
+
+# Base configuration
+hyperlane_agent_config_dir: "/etc/hyperlane"
+hyperlane_agent_log_level: "info"
+
+# Environment variables for the agent
+hyperlane_agent_env_vars: {}
