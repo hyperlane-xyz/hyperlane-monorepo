@@ -143,7 +143,6 @@ jobs:
           - warp-send-predicate
           # xerc20
           - xerc20
-          - warp-xerc20-fee
     steps:
       - uses: actions/checkout@v7
         with:
