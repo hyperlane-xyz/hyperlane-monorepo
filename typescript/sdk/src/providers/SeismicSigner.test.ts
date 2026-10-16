@@ -32,6 +32,8 @@ describe('SeismicSigner', () => {
   let requests: { method: string; params?: unknown[] }[];
   let rpcChainId: number;
   let estimateError: string | undefined;
+  // Plaintext ABI revert data the stubbed node encrypts into an estimate failure.
+  let estimateRevertData: string | undefined;
   // Plaintext return data the stubbed node encrypts into its eth_call reply.
   let callResult: string;
 
@@ -104,6 +106,7 @@ describe('SeismicSigner', () => {
     requests = [];
     rpcChainId = CHAIN_ID;
     estimateError = undefined;
+    estimateRevertData = undefined;
     callResult = utils.defaultAbiCoder.encode(['uint256'], [1_000_000]);
     sinon.stub(globalThis, 'fetch').callsFake(async (_url, init) => {
       assert(typeof init?.body === 'string', 'Expected JSON-RPC body');
@@ -127,23 +130,39 @@ describe('SeismicSigner', () => {
         },
         eth_estimateGas: '0x12345',
       };
-      if (request.method === 'eth_call') {
-        const signed = z
+      const parseSigned = () =>
+        z
           .object({
             data: z.object({ message: z.record(z.string(), z.unknown()) }),
             signature: z.object({ r: z.string(), s: z.string() }),
           })
           .parse(request.params?.[0]);
+      if (request.method === 'eth_call') {
         results.eth_call = await encryptResponse(
-          signed.data.message,
+          parseSigned().data.message,
           callResult,
         );
       }
       assert(request.method in results, `Unexpected RPC ${request.method}`);
-      const body =
-        request.method === 'eth_estimateGas' && estimateError
-          ? { error: { code: -32602, message: estimateError } }
-          : { result: results[request.method] };
+      let body: Record<string, unknown>;
+      if (request.method === 'eth_estimateGas' && estimateRevertData) {
+        // Like the node: a signed estimate that reverts returns the revert
+        // data encrypted under the request's key.
+        body = {
+          error: {
+            code: 3,
+            message: 'execution reverted',
+            data: await encryptResponse(
+              parseSigned().data.message,
+              estimateRevertData,
+            ),
+          },
+        };
+      } else if (request.method === 'eth_estimateGas' && estimateError) {
+        body = { error: { code: -32602, message: estimateError } };
+      } else {
+        body = { result: results[request.method] };
+      }
       return new Response(
         JSON.stringify({ jsonrpc: '2.0', id: request.id, ...body }),
         { headers: { 'Content-Type': 'application/json' } },
@@ -270,6 +289,34 @@ describe('SeismicSigner', () => {
       ).to.be.rejectedWith(error);
     });
   }
+
+  it('decrypts an encrypted estimate revert so callers see the reason', async () => {
+    // RecipientAllowlistGate32.RecipientNotAllowed(uint32,bytes32) as a custom
+    // error, the way a gated transferRemote fails at estimation on Seismic.
+    const iface = new utils.Interface([
+      'error RecipientNotAllowed(uint32 destination, bytes32 recipient)',
+    ]);
+    const recipient = `0x${'f2'.repeat(32)}`;
+    estimateRevertData = iface.encodeErrorResult('RecipientNotAllowed', [
+      1399811151,
+      recipient,
+    ]);
+    const error: unknown = await signer
+      .estimateGas({ to: RECIPIENT, data: DATA })
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+    assert(error instanceof Error, 'expected a rejection');
+    // The decrypted ABI revert data is exposed, not the ciphertext.
+    const data: unknown = (error as { data?: unknown }).data;
+    assert(typeof data === 'string' && isHex(data), 'expected hex revert data');
+    expect(data).to.equal(estimateRevertData);
+    const decoded = iface.parseError(data);
+    expect(decoded.name).to.equal('RecipientNotAllowed');
+    expect(decoded.args.destination).to.equal(1399811151);
+    expect(decoded.args.recipient).to.equal(recipient);
+  });
 
   it('rejects a mismatched RPC chain before signing', async () => {
     rpcChainId = CHAIN_ID + 1;
