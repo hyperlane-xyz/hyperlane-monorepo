@@ -45,7 +45,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   // rust agents
   relayer: '7883464-20261016-124105',
   relayerRC: '35d3002-20261003-140244',
-  relayerFastPath: '35d3002-20261003-140244',
+  relayerFastPath: 'f6a7824-20261016-130803',
   validator: '524aac0-20260925-195006',
   validatorRC: '524aac0-20260925-195006',
   validatorFastPath: '524aac0-20260925-195006',
