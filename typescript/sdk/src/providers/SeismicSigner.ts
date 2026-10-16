@@ -108,17 +108,24 @@ export class SeismicSigner extends Signer {
    * Signed-read gas estimation. Sends an encrypted EIP-712 signed read to
    * Seismic's `eth_estimateGas` so it recovers the real `msg.sender`. Fees are
    * zeroed so estimation isn't gated on the signer's balance (it only needs the
-   * execution-gas estimate; the actual send uses normal fees).
+   * execution-gas estimate; the actual send uses normal fees). A revert comes
+   * back encrypted under the request's key, like a signed read's, so it is
+   * decrypted here too; otherwise callers only see ciphertext.
    */
   async estimateGas(
     tx: utils.Deferrable<providers.TransactionRequest>,
   ): Promise<BigNumber> {
-    const { client, typedData, signature } =
+    const { client, metadata, typedData, signature } =
       await this.prepareSignedRequest(tx);
-    const gas = await client.request({
-      method: 'eth_estimateGas',
-      params: [{ data: typedData, signature }],
-    });
+    let gas: unknown;
+    try {
+      gas = await client.request({
+        method: 'eth_estimateGas',
+        params: [{ data: typedData, signature }],
+      });
+    } catch (error) {
+      throw await decryptRevertError(client, error, metadata);
+    }
     return BigNumber.from(gas);
   }
 
