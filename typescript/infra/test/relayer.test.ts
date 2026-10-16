@@ -1,10 +1,11 @@
 import { expect } from 'chai';
 
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
+import { ZERO_ADDRESS_HEX_32, addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import {
   IcaMessageType,
   icaMatchingList,
+  metadexVoterMetricAppContexts,
   multiAddressChainMapMatchingList,
 } from '../src/config/agent/relayer.js';
 
@@ -384,5 +385,157 @@ describe('icaMatchingList', () => {
 
       expect(regex.test(revealMessage)).to.be.true;
     });
+  });
+});
+
+describe('metadexVoterMetricAppContexts', () => {
+  const rootAdapter = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const leafAdapter = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  const secondRootAdapter = '0xcccccccccccccccccccccccccccccccccccccccc';
+  const secondLeafAdapter = '0xdddddddddddddddddddddddddddddddddddddddd';
+
+  it('matches every voter type only in its implemented direction', () => {
+    const contexts = metadexVoterMetricAppContexts({
+      prefix: 'metadex',
+      rootChain: 'ethereum',
+      leaves: {
+        optimism: { rootAdapter, leafAdapters: [leafAdapter] },
+        arbitrum: {
+          rootAdapter: secondRootAdapter,
+          leafAdapters: [secondLeafAdapter],
+        },
+      },
+    });
+
+    expect(contexts.map(({ name }) => name)).to.deep.equal([
+      'metadex_allocate_chain',
+      'metadex_allocate_gauge',
+      'metadex_claim_rewards',
+      'metadex_redeem',
+      'metadex_set_operator',
+      'metadex_deallocate',
+      'metadex_reduce_cooldown',
+      'metadex_emergency_deallocate',
+    ]);
+    contexts.forEach((context, index) => {
+      expect(context.matchingList).to.have.lengthOf(2);
+      context.matchingList.forEach((entry) =>
+        expect(entry.bodyRegex).to.equal(
+          `^${(index + 1).toString(16).padStart(2, '0')}`,
+        ),
+      );
+    });
+
+    const rootToLeaf = contexts[0].matchingList[0];
+    expect(rootToLeaf).to.deep.include({
+      originDomain: 1,
+      senderAddress: addressToBytes32(rootAdapter),
+      destinationDomain: 10,
+    });
+    expect(rootToLeaf.recipientAddress).to.deep.equal([
+      addressToBytes32(leafAdapter),
+    ]);
+
+    const leafToRoot = contexts[3].matchingList[0];
+    expect(leafToRoot).to.deep.include({
+      originDomain: 10,
+      destinationDomain: 1,
+      recipientAddress: addressToBytes32(rootAdapter),
+    });
+    expect(leafToRoot.senderAddress).to.deep.equal([
+      addressToBytes32(leafAdapter),
+    ]);
+
+    expect(contexts[0].matchingList[1]).to.deep.include({
+      originDomain: 1,
+      senderAddress: addressToBytes32(secondRootAdapter),
+      destinationDomain: 42161,
+    });
+    expect(contexts[0].matchingList[1].recipientAddress).to.deep.equal([
+      addressToBytes32(secondLeafAdapter),
+    ]);
+
+    for (const index of [0, 1, 2, 4, 6, 7]) {
+      expect(
+        contexts[index].matchingList.some(
+          ({ originDomain, destinationDomain }) =>
+            originDomain === 10 && destinationDomain === 1,
+        ),
+      ).to.equal(false);
+    }
+    for (const index of [3, 5]) {
+      expect(
+        contexts[index].matchingList.some(
+          ({ originDomain, destinationDomain }) =>
+            originDomain === 1 && destinationDomain === 10,
+        ),
+      ).to.equal(false);
+    }
+  });
+
+  it('rejects a configuration without leaf routes', () => {
+    expect(() =>
+      metadexVoterMetricAppContexts({
+        prefix: 'metadex',
+        rootChain: 'ethereum',
+        leaves: {},
+      }),
+    ).to.throw('No MetaDEX leaf routes configured');
+  });
+
+  it('rejects zero adapter addresses', () => {
+    expect(() =>
+      metadexVoterMetricAppContexts({
+        prefix: 'metadex',
+        rootChain: 'ethereum',
+        leaves: {
+          optimism: {
+            rootAdapter: ZERO_ADDRESS_HEX_32,
+            leafAdapters: [leafAdapter],
+          },
+        },
+      }),
+    ).to.throw('Invalid zero MetaDEX root adapter for leaf optimism');
+
+    expect(() =>
+      metadexVoterMetricAppContexts({
+        prefix: 'metadex',
+        rootChain: 'ethereum',
+        leaves: {
+          optimism: {
+            rootAdapter,
+            leafAdapters: [ZERO_ADDRESS_HEX_32],
+          },
+        },
+      }),
+    ).to.throw('Invalid zero MetaDEX leaf adapter for leaf optimism');
+  });
+  it('names contexts with the configured prefix', () => {
+    const contexts = metadexVoterMetricAppContexts({
+      prefix: 'metadex_staging',
+      rootChain: 'base',
+      leaves: { optimism: { rootAdapter, leafAdapters: [leafAdapter] } },
+    });
+
+    expect(contexts.map(({ name }) => name)).to.deep.equal([
+      'metadex_staging_allocate_chain',
+      'metadex_staging_allocate_gauge',
+      'metadex_staging_claim_rewards',
+      'metadex_staging_redeem',
+      'metadex_staging_set_operator',
+      'metadex_staging_deallocate',
+      'metadex_staging_reduce_cooldown',
+      'metadex_staging_emergency_deallocate',
+    ]);
+  });
+
+  it('rejects an empty prefix', () => {
+    expect(() =>
+      metadexVoterMetricAppContexts({
+        prefix: '',
+        rootChain: 'base',
+        leaves: { optimism: { rootAdapter, leafAdapters: [leafAdapter] } },
+      }),
+    ).to.throw('MetaDEX app context prefix is required');
   });
 });

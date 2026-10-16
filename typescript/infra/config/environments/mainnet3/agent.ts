@@ -31,8 +31,10 @@ import {
   MetricAppContext,
   chainMapMatchingList,
   consistentSenderRecipientMatchingList,
+  MetadexVoterAdapterTopology,
   icaMatchingList,
   matchingList,
+  metadexVoterMetricAppContexts,
   multiAddressChainMapMatchingList,
   routerMatchingList,
   senderMatchingList,
@@ -485,6 +487,22 @@ const stagingStHyperMatchingList = chainMapMatchingList({
   ethereum: '0x0C919509663cb273E156B706f065b9F7e6331891',
 });
 
+// Aero MetaDEX staging voter adapters. Root: base. Leaves: optimism, arbitrum.
+const metadexStagingTopology: MetadexVoterAdapterTopology = {
+  prefix: 'metadex_staging',
+  rootChain: 'base',
+  leaves: {
+    optimism: {
+      rootAdapter: '0x504E81562daFe4eFE87a4b3025F805eb0e9c5c15',
+      leafAdapters: ['0x1733cD126a227066963E9B636Ad49898d1224741'],
+    },
+    arbitrum: {
+      rootAdapter: '0xAfB6d2686b85c795E1b9324d4cBBED269D7f01A8',
+      leafAdapters: ['0xAAA49BD49A9bE1EAe5534EB35FC2c346afD7CA49'],
+    },
+  },
+};
+
 // Gets metric app contexts, including:
 // - all warp routes defined in WarpRouteIds, using addresses from the registry
 // - misc important applications not defined in the registry, e.g. merkly
@@ -575,6 +593,7 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
         '0x36f586A30502AE3afb555b8aA4dCc05d233c2ecE',
       ),
     },
+    ...metadexVoterMetricAppContexts(metadexStagingTopology),
   ];
 };
 
