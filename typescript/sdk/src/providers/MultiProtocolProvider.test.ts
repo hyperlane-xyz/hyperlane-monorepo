@@ -64,6 +64,18 @@ describe('MultiProtocolProvider', () => {
       );
     });
 
+    it('drops Seismic signers the source MultiProvider no longer has', () => {
+      const source = multiProviderWithSigners();
+      const adapted = new MultiProtocolProvider({ test1, seismic });
+      adapted.setSeismicSigners(source);
+      expect(adapted.tryGetSeismicSigner('seismic')).to.be.instanceOf(
+        SeismicSigner,
+      );
+      source.setSharedSigner(null);
+      adapted.setSeismicSigners(source);
+      expect(adapted.tryGetSeismicSigner('seismic')).to.equal(undefined);
+    });
+
     it('keeps Seismic signers across extendChainMetadata and intersect', () => {
       const adapted = MultiProtocolProvider.fromMultiProvider(
         multiProviderWithSigners(),

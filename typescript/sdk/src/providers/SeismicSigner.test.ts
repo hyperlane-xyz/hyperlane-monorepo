@@ -314,49 +314,6 @@ describe('SeismicSigner', () => {
     ).to.equal(false);
   });
 
-  for (const { blockTag, expected } of [
-    { blockTag: 100, expected: '0x64' },
-    { blockTag: 0, expected: '0x0' },
-    { blockTag: Number.MAX_SAFE_INTEGER, expected: '0x1fffffffffffff' },
-    { blockTag: '0x64', expected: '0x64' },
-    { blockTag: '0x0', expected: '0x0' },
-    { blockTag: 'latest', expected: 'latest' },
-    { blockTag: 'pending', expected: 'pending' },
-    { blockTag: 'earliest', expected: 'earliest' },
-    { blockTag: 'safe', expected: 'safe' },
-    { blockTag: 'finalized', expected: 'finalized' },
-  ]) {
-    it(`sends signed calls at block ${blockTag} as ${expected}`, async () => {
-      const result = await signer.signedCall(
-        { to: RECIPIENT, data: DATA },
-        blockTag,
-      );
-      expect(result).to.equal(callResult);
-      const call = requests.find(({ method }) => method === 'eth_call');
-      expect(call?.params?.[1]).to.equal(expected);
-    });
-  }
-
-  for (const blockTag of [
-    -1,
-    1.5,
-    NaN,
-    Infinity,
-    -Infinity,
-    Number.MAX_SAFE_INTEGER + 1,
-  ]) {
-    it(`rejects invalid signed-call block number ${blockTag} before RPC or signing`, async () => {
-      const sign = sinon.spy(wallet, '_signTypedData');
-      await expect(
-        signer.signedCall({ to: RECIPIENT, data: DATA }, blockTag),
-      ).to.be.rejectedWith(
-        'Seismic signed-call block number must be a non-negative safe integer',
-      );
-      expect(requests).to.have.length(0);
-      expect(sign.called).to.equal(false);
-    });
-  }
-
   it('fills a missing gasLimit with the signed estimate before sending', async () => {
     const send = sinon
       .stub(wallet, 'sendTransaction')

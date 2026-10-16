@@ -183,13 +183,12 @@ export class MultiProviderAdapter<
    * Adopts the Seismic chains' signers of a MultiProvider, for instances that
    * were built from metadata before signers existed (the CLI creates its
    * MultiProtocolProvider at context setup and attaches keys afterwards).
-   * Only Seismic chains are considered; see `seismicSigners`.
+   * Only Seismic chains are considered; see `seismicSigners`. The snapshot is
+   * replaced, not merged, so a signer the source has since dropped is dropped
+   * here too.
    */
   setSeismicSigners(mp: MultiProvider<MetaExt>): void {
-    this.seismicSigners = {
-      ...this.seismicSigners,
-      ...pickSeismicSigners(this.metadata, mp),
-    };
+    this.seismicSigners = pickSeismicSigners(this.metadata, mp);
   }
 
   override tryGetProvider(
