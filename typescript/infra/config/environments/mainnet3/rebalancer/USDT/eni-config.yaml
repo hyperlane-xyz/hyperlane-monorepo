@@ -18,16 +18,16 @@ strategy:
   chains:
     bsc:
       minAmount:
-        min: 8000
-        target: 12000
+        min: 3000
+        target: 4500
         type: 'absolute'
       executionType: inventory
       externalBridge: debridge
 
     tron:
       minAmount:
-        min: 3000
-        target: 5000
+        min: 2000
+        target: 3500
         type: 'absolute'
       executionType: inventory
       externalBridge: debridge
