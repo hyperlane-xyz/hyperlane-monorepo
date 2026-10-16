@@ -8,9 +8,10 @@ import { assert, parseWarpRouteMessage } from '@hyperlane-xyz/utils';
 import { DEFAULT_MOVEMENT_STALENESS_MS } from '../config/types.js';
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
-import type {
-  ExplorerMessage,
-  IExplorerClient,
+import {
+  normalizeTransactionHash,
+  type ExplorerMessage,
+  type IExplorerClient,
 } from '../utils/ExplorerClient.js';
 import { getConfirmedBlockTag } from '../utils/blockTag.js';
 
@@ -273,6 +274,9 @@ export class ActionTracker implements IActionTracker {
     let discoveredActions = 0;
     let completedActions = 0;
 
+    const allActions = await this.rebalanceActionStore.getAll();
+    await this.reconcileMissingMessageIds(allActions);
+
     const inflightMessages =
       await this.explorerClient.getInflightRebalanceActions(
         {
@@ -289,10 +293,10 @@ export class ActionTracker implements IActionTracker {
       'Found inflight rebalance actions from Explorer',
     );
 
-    const allActions = await this.rebalanceActionStore.getAll();
-
     for (const msg of inflightMessages) {
-      const existingAction = allActions.find((a) => a.messageId === msg.msg_id);
+      const { action: existingAction, ambiguous } =
+        await this.findTrackedAction(msg, allActions);
+      if (ambiguous) continue;
 
       if (!existingAction) {
         this.logger.info(
@@ -304,6 +308,8 @@ export class ActionTracker implements IActionTracker {
           'Discovered new rebalance action, recovering...',
         );
         await this.recoverAction(msg);
+        const recoveredAction = await this.rebalanceActionStore.get(msg.msg_id);
+        if (recoveredAction) allActions.push(recoveredAction);
         discoveredActions++;
       }
     }
@@ -879,6 +885,126 @@ export class ActionTracker implements IActionTracker {
   }
 
   // === Private Helpers ===
+
+  private async reconcileMissingMessageIds(
+    allActions: RebalanceAction[],
+  ): Promise<void> {
+    const missingMessageIds = allActions.filter(
+      (action) =>
+        action.status === 'in_progress' &&
+        action.type !== 'inventory_movement' &&
+        action.txHash &&
+        !action.messageId,
+    );
+    if (missingMessageIds.length === 0) return;
+
+    const messages = await this.explorerClient.getMessagesByOriginTransactions(
+      {
+        transactions: missingMessageIds.map((action) => ({
+          originDomain: action.origin,
+          txHash: action.txHash!,
+        })),
+      },
+      this.logger,
+    );
+
+    for (const action of missingMessageIds) {
+      const normalizedTxHash = normalizeTransactionHash(action.txHash!);
+      const actionsForTransaction = allActions.filter(
+        (candidate) =>
+          candidate.type !== 'inventory_movement' &&
+          candidate.txHash &&
+          candidate.origin === action.origin &&
+          candidate.destination === action.destination &&
+          normalizeTransactionHash(candidate.txHash) === normalizedTxHash,
+      );
+      const matches = messages.filter(
+        (message) =>
+          message.origin_domain_id === action.origin &&
+          message.destination_domain_id === action.destination &&
+          normalizeTransactionHash(message.origin_tx_hash) === normalizedTxHash,
+      );
+      if (matches.length === 0) continue;
+      if (actionsForTransaction.length !== 1 || matches.length !== 1) {
+        this.logger.error(
+          {
+            actionId: action.id,
+            txHash: action.txHash,
+            matchingActionIds: actionsForTransaction.map(({ id }) => id),
+            messageIds: matches.map(({ msg_id }) => msg_id),
+          },
+          'Cannot reconcile message ID for an ambiguous transaction',
+        );
+        continue;
+      }
+
+      const [message] = matches;
+      const messageOwner = allActions.find(
+        (candidate) =>
+          candidate.id !== action.id &&
+          candidate.messageId?.toLowerCase() === message.msg_id.toLowerCase(),
+      );
+      if (messageOwner) {
+        this.logger.error(
+          {
+            actionId: action.id,
+            conflictingActionId: messageOwner.id,
+            messageId: message.msg_id,
+          },
+          'Cannot reconcile a message ID already assigned to another action',
+        );
+        continue;
+      }
+
+      await this.setActionMessageId(action, message.msg_id);
+    }
+  }
+
+  private async findTrackedAction(
+    message: ExplorerMessage,
+    allActions: RebalanceAction[],
+  ): Promise<{ action?: RebalanceAction; ambiguous: boolean }> {
+    const transactionHash = normalizeTransactionHash(message.origin_tx_hash);
+    const matches = allActions.filter(
+      (action) =>
+        action.messageId?.toLowerCase() === message.msg_id.toLowerCase() ||
+        (!action.messageId &&
+          action.type !== 'inventory_movement' &&
+          action.txHash &&
+          action.origin === message.origin_domain_id &&
+          action.destination === message.destination_domain_id &&
+          normalizeTransactionHash(action.txHash) === transactionHash),
+    );
+    if (matches.length > 1) {
+      this.logger.error(
+        {
+          messageId: message.msg_id,
+          txHash: message.origin_tx_hash,
+          actionIds: matches.map(({ id }) => id),
+        },
+        'Cannot match an ambiguous Explorer message to a tracked action',
+      );
+      return { ambiguous: true };
+    }
+
+    const [action] = matches;
+    if (action && !action.messageId) {
+      await this.setActionMessageId(action, message.msg_id);
+    }
+    return { action, ambiguous: false };
+  }
+
+  private async setActionMessageId(
+    action: RebalanceAction,
+    messageId: string,
+  ): Promise<void> {
+    await this.rebalanceActionStore.update(action.id, { messageId });
+    action.messageId = messageId;
+    this.logger.info(
+      { actionId: action.id, intentId: action.intentId, messageId },
+      'Recovered action message ID from Explorer',
+    );
+  }
 
   /**
    * Get the confirmed block tag for delivery checks.
