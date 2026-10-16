@@ -2,15 +2,26 @@ import { BigNumber, ethers, type providers } from 'ethers';
 import { pino, type Logger } from 'pino';
 
 import {
-  ERC20Test__factory,
   HypERC20Collateral__factory,
   HypNative__factory,
 } from '@hyperlane-xyz/core';
 import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
-import { HyperlaneCore, type MultiProvider } from '@hyperlane-xyz/sdk';
-import { assert, ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  HyperlaneCore,
+  type MultiProvider,
+  submitEvmLikeTransaction,
+} from '@hyperlane-xyz/sdk';
+import {
+  assert,
+  ProtocolType,
+  TransactionSubmission,
+  TransactionSubmissionError,
+} from '@hyperlane-xyz/utils';
+
+import { approveErc20IfNeeded } from '../../bridges/erc20Approve.js';
 
 import type {
+  BridgeExecutionOptions,
   BridgeQuote,
   BridgeQuoteParams,
   BridgeTransferResult,
@@ -40,6 +51,7 @@ export class MockExternalBridge implements IExternalBridge {
     BridgeTransferStatus
   >();
   private _failNextExecute = false;
+  private _failNextAfterBroadcast = false;
   private readonly deployedAddresses:
     | NativeDeployedAddresses
     | Erc20InventoryDeployedAddresses;
@@ -109,9 +121,20 @@ export class MockExternalBridge implements IExternalBridge {
     };
   }
 
-  async execute(
+  execute(
     quote: BridgeQuote,
     privateKeys: Partial<Record<ProtocolType, string>>,
+    options?: BridgeExecutionOptions,
+  ): Promise<BridgeTransferResult> {
+    return new TransactionSubmission(options).run(() =>
+      this.executeMock(quote, privateKeys, options),
+    );
+  }
+
+  private async executeMock(
+    quote: BridgeQuote,
+    privateKeys: Partial<Record<ProtocolType, string>>,
+    options?: BridgeExecutionOptions,
   ): Promise<BridgeTransferResult> {
     if (this._failNextExecute) {
       this._failNextExecute = false;
@@ -139,7 +162,7 @@ export class MockExternalBridge implements IExternalBridge {
       32,
     );
 
-    let tx;
+    let request;
     if (this.tokenType === 'erc20') {
       assert(
         'tokens' in this.deployedAddresses,
@@ -148,14 +171,20 @@ export class MockExternalBridge implements IExternalBridge {
       const tokenAddress = (
         this.deployedAddresses as Erc20InventoryDeployedAddresses
       ).tokens[fromChainName];
-      const token = ERC20Test__factory.connect(tokenAddress, signer);
-      await token.approve(bridgeRouteAddress, quote.fromAmount);
+      await approveErc20IfNeeded(
+        signer,
+        tokenAddress,
+        bridgeRouteAddress,
+        quote.fromAmount,
+        this.logger,
+        { onApproval: options?.onApproval },
+      );
 
       const bridgeRoute = HypERC20Collateral__factory.connect(
         bridgeRouteAddress,
         signer,
       );
-      tx = await bridgeRoute.transferRemote(
+      request = await bridgeRoute.populateTransaction.transferRemote(
         destinationDomain,
         recipientBytes32,
         quote.fromAmount,
@@ -165,7 +194,7 @@ export class MockExternalBridge implements IExternalBridge {
         bridgeRouteAddress,
         signer,
       );
-      tx = await bridgeRoute.transferRemote(
+      request = await bridgeRoute.populateTransaction.transferRemote(
         destinationDomain,
         recipientBytes32,
         quote.fromAmount,
@@ -173,10 +202,22 @@ export class MockExternalBridge implements IExternalBridge {
       );
     }
 
-    // Wait for the transaction to be mined so that getStatus() can always
-    // find the receipt via getTransactionReceipt().  Without this, there is
-    // a race on automined anvil where the receipt is not yet available.
-    await tx.wait();
+    const tx = await submitEvmLikeTransaction(signer, request, options);
+    if (this._failNextAfterBroadcast) {
+      this._failNextAfterBroadcast = false;
+      this.failStatusFor(tx.hash, { status: 'pending' });
+      throw new TransactionSubmissionError(
+        new Error('MockExternalBridge failure after broadcast'),
+        'submitted',
+        tx.hash,
+      );
+    }
+    // Keep automined fixture receipts available, but never discard the broadcast identity on failure.
+    try {
+      await tx.wait();
+    } catch (error) {
+      throw new TransactionSubmissionError(error, 'submitted', tx.hash);
+    }
 
     return {
       txHash: tx.hash,
@@ -276,9 +317,14 @@ export class MockExternalBridge implements IExternalBridge {
     this._failNextExecute = true;
   }
 
+  failNextExecuteAfterBroadcast(): void {
+    this._failNextAfterBroadcast = true;
+  }
+
   reset(): void {
     this.failStatusOverrides.clear();
     this._failNextExecute = false;
+    this._failNextAfterBroadcast = false;
   }
 
   /**

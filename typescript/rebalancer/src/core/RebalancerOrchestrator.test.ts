@@ -67,7 +67,13 @@ function createMockStrategy(): IStrategy & {
   };
 }
 
-function createMockActionTracker(): IActionTracker {
+type TestActionTracker = IActionTracker & {
+  syncRebalanceIntents: Sinon.SinonStub;
+  syncRebalanceActions: Sinon.SinonStub;
+  syncInventoryMovementActions: Sinon.SinonStub;
+};
+
+function createMockActionTracker(): TestActionTracker {
   return {
     initialize: Sinon.stub().resolves(),
     createRebalanceIntent: Sinon.stub().callsFake(async () => ({
@@ -75,6 +81,7 @@ function createMockActionTracker(): IActionTracker {
       status: 'not_started',
     })),
     createRebalanceAction: Sinon.stub().resolves(),
+    updateRebalanceActionExecution: Sinon.stub().resolves(),
     completeRebalanceAction: Sinon.stub().resolves(),
     failRebalanceAction: Sinon.stub().resolves(),
     completeRebalanceIntent: Sinon.stub().resolves(),
@@ -670,8 +677,46 @@ describe('RebalancerOrchestrator', () => {
     });
   });
 
+  describe('fresh balances after settlement', () => {
+    it('does not execute inventory work using a snapshot sampled before bridge completion', async () => {
+      const strategy = createMockStrategy();
+      strategy.getRebalancingRoutes.returns([]);
+      const actionTracker = createMockActionTracker();
+      actionTracker.syncInventoryMovementActions
+        .onFirstCall()
+        .resolves({ completed: 1, failed: 0 });
+      actionTracker.syncInventoryMovementActions
+        .onSecondCall()
+        .resolves({ completed: 0, failed: 0 });
+      const inventory = createMockInventoryRebalancer();
+      const orchestrator = new RebalancerOrchestrator({
+        strategy,
+        actionTracker,
+        inflightContextAdapter: createMockInflightContextAdapter(),
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger: testLogger,
+        rebalancers: [inventory],
+        externalBridgeRegistry: { lifi: createMockBridge() },
+      });
+      await orchestrator.executeCycle(
+        createMonitorEvent({ inventoryBalances: { ethereum: 0n } }),
+      );
+      expect(strategy.getRebalancingRoutes.called).to.equal(false);
+      expect(inventory.rebalance.called).to.equal(false);
+      await orchestrator.executeCycle(
+        createMonitorEvent({ inventoryBalances: { ethereum: 100n } }),
+      );
+      expect(inventory.rebalance.calledOnce).to.equal(true);
+      expect(
+        inventory.setInventoryBalances.calledOnceWithExactly({
+          ethereum: 100n,
+        }),
+      ).to.equal(true);
+    });
+  });
+
   describe('syncActionTracker() Error Handling', () => {
-    it('should warn but continue when syncTransfers fails', async () => {
+    it('should defer execution when tracker sync fails', async () => {
       const strategy = createMockStrategy();
       strategy.getRebalancingRoutes.returns([]);
 
@@ -697,7 +742,8 @@ describe('RebalancerOrchestrator', () => {
       const result = await orchestrator.executeCycle(event);
 
       expect(result.proposedRoutes).to.have.lengthOf(0);
-      expect(strategy.getRebalancingRoutes.calledOnce).to.be.true;
+      expect(strategy.getRebalancingRoutes.called).to.equal(false);
+      expect(strategy.getRebalancingRoutes.called).to.be.false;
     });
 
     it('should sync inventory movement actions when bridge is provided', async () => {
@@ -723,14 +769,19 @@ describe('RebalancerOrchestrator', () => {
 
       await orchestrator.executeCycle(event);
 
+      expect(actionTracker.syncInventoryMovementActions.calledOnce).to.be.true;
       expect(
-        (actionTracker.syncInventoryMovementActions as Sinon.SinonStub)
-          .calledOnce,
+        actionTracker.syncInventoryMovementActions.calledWith({ lifi: bridge }),
       ).to.be.true;
       expect(
-        (
-          actionTracker.syncInventoryMovementActions as Sinon.SinonStub
-        ).calledWith({ lifi: bridge }),
+        actionTracker.syncRebalanceActions.calledBefore(
+          actionTracker.syncRebalanceIntents,
+        ),
+      ).to.be.true;
+      expect(
+        actionTracker.syncInventoryMovementActions.calledBefore(
+          actionTracker.syncRebalanceIntents,
+        ),
       ).to.be.true;
     });
   });
