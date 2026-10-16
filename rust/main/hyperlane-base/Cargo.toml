@@ -33,6 +33,7 @@ mockall.workspace = true
 parking_lot.workspace = true
 paste.workspace = true
 prometheus.workspace = true
+reqwest.workspace = true
 rocksdb.workspace = true
 rustls.workspace = true
 serde.workspace = true
@@ -83,7 +84,6 @@ google-cloud-kms-v1.workspace = true
 [dev-dependencies]
 aws-smithy-http-client = { version = "1", default-features = false, features = ["hyper-014"] }
 color-eyre.workspace = true
-reqwest.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 tracing-test.workspace = true
