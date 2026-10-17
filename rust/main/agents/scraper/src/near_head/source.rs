@@ -92,6 +92,12 @@ pub(super) trait Source: Send + Sync {
     async fn fresh_header(&self, block: BlockSelector) -> Result<Header> {
         self.header(block).await
     }
+    /// None only when a provider proves this formerly indexed block is gone.
+    async fn canonical_header(&self, height: u64) -> Result<Option<Header>> {
+        Ok(Some(
+            self.fresh_header(BlockSelector::Height(height)).await?,
+        ))
+    }
     async fn range_end(&self, after: u64, through: u64, _head: u64) -> Result<Header> {
         ensure!(after < through, "Empty indexing range");
         self.header(BlockSelector::Height(through)).await
@@ -678,6 +684,14 @@ impl Source for GenericSource {
     async fn fresh_header(&self, selector: BlockSelector) -> Result<Header> {
         let height = self.selected_height(selector).await?;
         Ok(self.fresh_header_at(height).await?)
+    }
+
+    async fn canonical_header(&self, height: u64) -> Result<Option<Header>> {
+        match self.fresh_header_at(height).await {
+            Ok(header) => Ok(Some(header)),
+            Err(error) if self.provider.is_block_unavailable(&error) => Ok(None),
+            Err(error) => Err(error.into()),
+        }
     }
 
     async fn range_end(&self, after: u64, through: u64, head: u64) -> Result<Header> {
