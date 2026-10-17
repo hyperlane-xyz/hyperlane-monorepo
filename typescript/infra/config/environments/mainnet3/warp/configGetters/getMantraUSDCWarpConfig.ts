@@ -19,17 +19,21 @@ type DeploymentChains<T> = {
 
 const SAFE_OWNER_ADDRESS = '0x66B6FF38b988759E57509f00c7B9717b1a94DA4D';
 
-// SAFE wallets from the team
+// Team SAFE on ethereum; other chains use ICAs controlled by it
 const ownersByChain: DeploymentChains<Address> = {
-  arbitrum: SAFE_OWNER_ADDRESS,
-  base: SAFE_OWNER_ADDRESS,
+  arbitrum: '0xF9F53ba338e6460Ef48AC58d669d64422De9cad9',
+  base: '0xa8c402544A136E0a3864A9316877Bc65F31f75d2',
   ethereum: SAFE_OWNER_ADDRESS,
-  mantra: SAFE_OWNER_ADDRESS,
+  mantra: '0x6Ccf8A07682d5C317B44f654F8FacC5be8b1d930',
 };
 
 const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
   Object.keys(ownersByChain),
-  [WarpRouteIds.MainnetCCTPV1],
+  [
+    WarpRouteIds.MainnetCCTPV1,
+    WarpRouteIds.MainnetCCTPV2Standard,
+    WarpRouteIds.MainnetCCTPV2Fast,
+  ],
 );
 
 export const getMantraUSDCWarpConfig = async (
