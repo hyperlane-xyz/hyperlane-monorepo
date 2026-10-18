@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "client",
+    "interface",
     "interface/goldens",
     "libraries/access-control",
     "libraries/account-utils",
@@ -164,6 +165,9 @@ warp = "0.3"
 which = "4.3"
 ya-gcp = { version = "0.11.1", features = ["storage"] }
 
+
+[profile.release.package.hyperlane-sealevel-interface]
+overflow-checks = true
 
 [profile.release.package.access-control]
 overflow-checks = true

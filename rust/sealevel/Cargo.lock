@@ -3596,6 +3596,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-interface"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh 1.6.0",
+ "hyperlane-core",
+ "hyperlane-sealevel-interchain-security-module-interface",
+ "hyperlane-sealevel-interface-goldens",
+ "hyperlane-sealevel-message-recipient-interface",
+ "multisig-ism",
+ "num-derive",
+ "num-traits",
+ "quote-verifier",
+ "serde",
+ "serializable-account-meta",
+ "solana-program 3.0.0",
+ "solana-sdk-ids 3.1.0",
+ "solana-system-interface 2.0.0",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "hyperlane-sealevel-interface-goldens"
 version = "0.1.0"
 dependencies = [
