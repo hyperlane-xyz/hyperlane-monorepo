@@ -70,7 +70,7 @@ jobs:
         uses: ./.depot/actions/checkout-registry
       - name: Install Arc Anvil
         if: matrix.test == 'warp-fork'
-        uses: ./.github/actions/install-arc-anvil
+        uses: ./.depot/actions/install-arc-anvil
       - name: CLI e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:ethereum:e2e
         env:
@@ -150,7 +150,7 @@ jobs:
         uses: ./.depot/actions/checkout-registry
       - name: Install Arc Anvil
         if: matrix.test == 'warp-fork'
-        uses: ./.github/actions/install-arc-anvil
+        uses: ./.depot/actions/install-arc-anvil
       - name: CLI e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:ethereum:e2e
         env:
