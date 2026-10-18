@@ -3596,6 +3596,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-interface-goldens"
+version = "0.1.0"
+dependencies = [
+ "account-utils",
+ "borsh 1.6.0",
+ "hex",
+ "hyperlane-core",
+ "hyperlane-sealevel-composite-ism",
+ "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-fee",
+ "hyperlane-sealevel-hello-world",
+ "hyperlane-sealevel-igp",
+ "hyperlane-sealevel-interchain-security-module-interface",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-multisig-ism-message-id",
+ "hyperlane-sealevel-token",
+ "hyperlane-sealevel-token-collateral",
+ "hyperlane-sealevel-token-cross-collateral",
+ "hyperlane-sealevel-token-lib",
+ "hyperlane-sealevel-token-native",
+ "hyperlane-sealevel-validator-announce",
+ "multisig-ism",
+ "quote-verifier",
+ "serializable-account-meta",
+ "solana-program 3.0.0",
+]
+
+[[package]]
 name = "hyperlane-sealevel-mailbox"
 version = "0.1.0"
 dependencies = [
