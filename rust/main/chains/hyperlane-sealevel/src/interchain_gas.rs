@@ -6,7 +6,7 @@ use std::{
 
 use async_trait::async_trait;
 use derive_new::new;
-use hyperlane_sealevel_igp::{
+use hyperlane_sealevel_interface::igp::{
     accounts::{GasPaymentAccount, ProgramDataAccount},
     igp_gas_payment_pda_seeds, igp_program_data_pda_seeds,
 };
@@ -211,7 +211,7 @@ impl SealevelInterchainGasPaymasterIndexer {
         &self,
         sequence_number: u64,
     ) -> ChainResult<SealevelGasPayment> {
-        let discriminator = hyperlane_sealevel_igp::accounts::GAS_PAYMENT_DISCRIMINATOR;
+        let discriminator = hyperlane_sealevel_interface::igp::accounts::GAS_PAYMENT_DISCRIMINATOR;
         let sequence_number_bytes = sequence_number.to_le_bytes();
         let unique_gas_payment_pubkey_length = 32; // the length of the `unique_gas_payment_pubkey` field
         let accounts = search_accounts_by_discriminator(
@@ -443,7 +443,7 @@ impl SequenceAwareIndexer<InterchainGasPayment> for SealevelInterchainGasPaymast
 
 #[cfg(test)]
 mod tests {
-    use hyperlane_sealevel_igp::accounts::GasPaymentData;
+    use hyperlane_sealevel_interface::igp::accounts::GasPaymentData;
 
     use super::*;
 

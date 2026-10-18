@@ -5947,13 +5947,9 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-metric",
  "hyperlane-operation-verifier",
- "hyperlane-sealevel-composite-ism",
- "hyperlane-sealevel-igp",
  "hyperlane-sealevel-interchain-security-module-interface",
- "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-interface",
  "hyperlane-sealevel-message-recipient-interface",
- "hyperlane-sealevel-multisig-ism-message-id",
- "hyperlane-sealevel-validator-announce",
  "hyperlane-warp-route",
  "jsonrpc-core",
  "lazy_static",
@@ -5988,49 +5984,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hyperlane-sealevel-composite-ism"
-version = "0.1.0"
-dependencies = [
- "access-control",
- "account-utils",
- "borsh 1.6.0",
- "ecdsa-signature",
- "getrandom 0.2.15",
- "hyperlane-core",
- "hyperlane-sealevel-interchain-security-module-interface",
- "hyperlane-sealevel-mailbox",
- "multisig-ism",
- "num-derive",
- "num-traits",
- "package-versioned",
- "serializable-account-meta",
- "solana-loader-v3-interface 6.1.0",
- "solana-program 3.0.0",
- "solana-sdk-ids 3.1.0",
- "solana-system-interface 2.0.0",
- "thiserror 1.0.63",
-]
-
-[[package]]
-name = "hyperlane-sealevel-igp"
-version = "0.1.0"
-dependencies = [
- "access-control",
- "account-utils",
- "borsh 1.6.0",
- "getrandom 0.2.15",
- "hyperlane-core",
- "num-derive",
- "num-traits",
- "package-versioned",
- "quote-verifier",
- "serializable-account-meta",
- "solana-program 3.0.0",
- "solana-system-interface 2.0.0",
- "thiserror 1.0.63",
-]
-
-[[package]]
 name = "hyperlane-sealevel-interchain-security-module-interface"
 version = "0.1.0"
 dependencies = [
@@ -6042,25 +5995,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "hyperlane-sealevel-mailbox"
+name = "hyperlane-sealevel-interface"
 version = "0.1.0"
 dependencies = [
  "access-control",
  "account-utils",
- "blake3",
  "borsh 1.6.0",
- "getrandom 0.2.15",
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
- "hyperlane-sealevel-message-recipient-interface",
+ "multisig-ism",
  "num-derive",
  "num-traits",
- "package-versioned",
- "proc-macro-crate 3.2.0",
- "serializable-account-meta",
+ "quote-verifier",
  "solana-program 3.0.0",
+ "solana-sdk-ids 3.1.0",
  "solana-system-interface 2.0.0",
- "spl-noop",
  "thiserror 1.0.63",
 ]
 
@@ -6074,45 +6023,6 @@ dependencies = [
  "solana-program 3.0.0",
  "spl-discriminator 0.5.1",
  "spl-type-length-value 0.6.0",
-]
-
-[[package]]
-name = "hyperlane-sealevel-multisig-ism-message-id"
-version = "0.1.0"
-dependencies = [
- "access-control",
- "account-utils",
- "borsh 1.6.0",
- "ecdsa-signature",
- "getrandom 0.2.15",
- "hyperlane-core",
- "hyperlane-sealevel-interchain-security-module-interface",
- "hyperlane-sealevel-mailbox",
- "multisig-ism",
- "num-derive",
- "num-traits",
- "package-versioned",
- "serializable-account-meta",
- "solana-program 3.0.0",
- "solana-system-interface 2.0.0",
- "thiserror 1.0.63",
-]
-
-[[package]]
-name = "hyperlane-sealevel-validator-announce"
-version = "0.1.0"
-dependencies = [
- "account-utils",
- "borsh 1.6.0",
- "ecdsa-signature",
- "getrandom 0.2.15",
- "hyperlane-core",
- "hyperlane-sealevel-mailbox",
- "package-versioned",
- "serializable-account-meta",
- "solana-program 3.0.0",
- "solana-system-interface 2.0.0",
- "thiserror 1.0.63",
 ]
 
 [[package]]
@@ -7866,15 +7776,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "package-versioned"
-version = "0.1.0"
-dependencies = [
- "borsh 1.6.0",
- "serializable-account-meta",
- "solana-program 3.0.0",
-]
-
-[[package]]
 name = "parity-scale-codec"
 version = "3.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9599,8 +9500,8 @@ dependencies = [
  "hyperlane-cosmos",
  "hyperlane-cosmwasm-interface",
  "hyperlane-radix",
- "hyperlane-sealevel-composite-ism",
  "hyperlane-sealevel-interchain-security-module-interface",
+ "hyperlane-sealevel-interface",
  "hyperlane-starknet",
  "jobserver",
  "k256 0.13.4",
@@ -14616,15 +14517,6 @@ checksum = "3d4e2aedd58f858337fa609af5ad7100d4a243fdaf6a40d6eb4c28c5f19505d3"
 dependencies = [
  "solana-instruction 3.1.0",
  "solana-pubkey 3.0.0",
-]
-
-[[package]]
-name = "spl-noop"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c3bc351f7543a46f6807c231fc29ef2c4912c79bd6a4fb7d038cba6836f0fd7"
-dependencies = [
- "solana-program 2.3.0",
 ]
 
 [[package]]
