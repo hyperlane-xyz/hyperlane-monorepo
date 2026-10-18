@@ -1,0 +1,22 @@
+name: Depot benchmark access
+on:
+  push:
+    branches: [pbio/depot-ci-rebench-20261018]
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  access:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - uses: depot/setup-action@v1
+        with:
+          oidc: true
+      - name: Check Hyperlane Depot access
+        run: |
+          depot ci run list --org ptcjppsfhw --repo hyperlane-xyz/hyperlane-monorepo -n 1 -o json
+          depot ci status 2hxch5f83v --org ptcjppsfhw -o json > /tmp/depot-access.json
