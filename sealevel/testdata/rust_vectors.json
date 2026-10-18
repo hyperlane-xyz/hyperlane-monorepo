@@ -1,0 +1,436 @@
+{
+  "account-utils": {
+    "account_data_store_in_slice_zeroes_tail": {
+      "hex": "01010000",
+      "ok": true
+    },
+    "account_data_test_ism_rejecting": {
+      "hex": "0100",
+      "ok": true
+    },
+    "discriminator_prefixed_foo": {
+      "hex": "02020202020202020100000000000000",
+      "ok": true
+    },
+    "optional_discriminated_none": {
+      "hex": "05000000",
+      "ok": true
+    },
+    "optional_discriminated_short_tail": {
+      "hex": "050000000202",
+      "ok": true
+    },
+    "optional_discriminated_some": {
+      "hex": "0500000002020202020202020700000000000000",
+      "ok": true
+    },
+    "optional_discriminated_stale_tail": {
+      "hex": "05000000ffffffffffffffffffffffffffffffff",
+      "ok": true
+    },
+    "reject_discriminator_mismatch": {
+      "hex": "03030303030303030100000000000000",
+      "ok": false
+    }
+  },
+  "borsh": {
+    "array_u64_2": {
+      "hex": "0100000000000000ffffffffffffffff",
+      "ok": true
+    },
+    "array_u8_4": {
+      "hex": "09080706",
+      "ok": true
+    },
+    "bool_false": {
+      "hex": "00",
+      "ok": true
+    },
+    "bool_true": {
+      "hex": "01",
+      "ok": true
+    },
+    "btreemap_h256_u8": {
+      "hex": "020000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f200205060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232401",
+      "ok": true
+    },
+    "btreeset_h160": {
+      "hex": "020000000102030405060708090a0b0c0d0e0f1011121314090a0b0c0d0e0f101112131415161718191a1b1c",
+      "ok": true
+    },
+    "enum_struct": {
+      "hex": "0201020000000203010405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223",
+      "ok": true
+    },
+    "enum_tuple": {
+      "hex": "014d00000001",
+      "ok": true
+    },
+    "enum_unit": {
+      "hex": "00",
+      "ok": true
+    },
+    "h160": {
+      "hex": "0102030405060708090a0b0c0d0e0f1011121314",
+      "ok": true
+    },
+    "h256": {
+      "hex": "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+      "ok": true
+    },
+    "hashmap_u32_u64": {
+      "hex": "03000000010000000a00000000000000020000001400000000000000030000001e00000000000000",
+      "ok": true
+    },
+    "hashmap_unsorted_canonical": {
+      "hex": "02000000010000000500000000000000020000000900000000000000",
+      "ok": true
+    },
+    "hashmap_unsorted_input": {
+      "hex": "03000000020000000100000000000000010000000500000000000000020000000900000000000000",
+      "ok": true
+    },
+    "i16": {
+      "hex": "feff",
+      "ok": true
+    },
+    "i32": {
+      "hex": "fdffffff",
+      "ok": true
+    },
+    "i64_min": {
+      "hex": "0000000000000080",
+      "ok": true
+    },
+    "i8": {
+      "hex": "ff",
+      "ok": true
+    },
+    "option_none": {
+      "hex": "00",
+      "ok": true
+    },
+    "option_pubkey": {
+      "hex": "01090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728",
+      "ok": true
+    },
+    "option_some": {
+      "hex": "010700000000000000",
+      "ok": true
+    },
+    "pubkey": {
+      "hex": "6465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f80818283",
+      "ok": true
+    },
+    "reject_bool_2": {
+      "hex": "02",
+      "ok": false
+    },
+    "reject_enum_variant": {
+      "hex": "03",
+      "ok": false
+    },
+    "reject_option_tag_2": {
+      "hex": "0200",
+      "ok": false
+    },
+    "reject_string_utf8": {
+      "hex": "02000000fffe",
+      "ok": false
+    },
+    "reject_trailing": {
+      "hex": "0100000000",
+      "ok": false
+    },
+    "reject_u64_short": {
+      "hex": "010203",
+      "ok": false
+    },
+    "reject_vec_short": {
+      "hex": "040000000102",
+      "ok": false
+    },
+    "string": {
+      "hex": "0900000068797065726c616e65",
+      "ok": true
+    },
+    "string_empty": {
+      "hex": "00000000",
+      "ok": true
+    },
+    "string_utf8": {
+      "hex": "05000000c3a9e29c93",
+      "ok": true
+    },
+    "tuple": {
+      "hex": "0506000000",
+      "ok": true
+    },
+    "u128": {
+      "hex": "02000000000000000100000000000000",
+      "ok": true
+    },
+    "u128_max": {
+      "hex": "ffffffffffffffffffffffffffffffff",
+      "ok": true
+    },
+    "u16": {
+      "hex": "3412",
+      "ok": true
+    },
+    "u256": {
+      "hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "ok": true
+    },
+    "u256_mid": {
+      "hex": "0100000000000000000000000000000001000000000000000000000000000000",
+      "ok": true
+    },
+    "u32": {
+      "hex": "efbeadde",
+      "ok": true
+    },
+    "u64_1": {
+      "hex": "0100000000000000",
+      "ok": true
+    },
+    "u64_max": {
+      "hex": "ffffffffffffffff",
+      "ok": true
+    },
+    "u8_0": {
+      "hex": "00",
+      "ok": true
+    },
+    "u8_max": {
+      "hex": "ff",
+      "ok": true
+    },
+    "vec_pubkey": {
+      "hex": "020000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2002030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021",
+      "ok": true
+    },
+    "vec_u32": {
+      "hex": "020000000100000002000000",
+      "ok": true
+    },
+    "vec_u8": {
+      "hex": "03000000010203",
+      "ok": true
+    },
+    "vec_u8_empty": {
+      "hex": "00000000",
+      "ok": true
+    }
+  },
+  "hyperlane-core": {
+    "message_empty_body": {
+      "hex": "03ffffffff010203040102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20a0b0c0d06465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f80818283",
+      "ok": true
+    },
+    "message_vectors_json": {
+      "hex": "0300000000000003e80000000000000000000000001111111111111111111111111111111111111111000007d000000000000000000000000022222222222222222222222222222222222222221234",
+      "ok": true
+    },
+    "token_message": {
+      "hex": "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f200000000000000000000000000000000100000000000000000000000000000001",
+      "ok": true
+    },
+    "token_message_metadata": {
+      "hex": "02030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0909",
+      "ok": true
+    }
+  },
+  "interfaces": {
+    "ism_type": {
+      "hex": "696161583f7c6a12",
+      "ok": true
+    },
+    "ism_verify": {
+      "hex": "f335d600d012e743050000000504030201050000000102030405",
+      "ok": true
+    },
+    "ism_verify_account_metas": {
+      "hex": "c8419d0c59ff83d8000000000100000009",
+      "ok": true
+    },
+    "ism_verify_metadata_spec": {
+      "hex": "311816da86843f9b03000000010203",
+      "ok": true
+    },
+    "metadata_spec_result_nested": {
+      "hex": "0102020400000000020102000000030708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324252602000000000001020000000102030405060708090a0b0c0d0e0f101112131402030405060708090a0b0c0d0e0f101112131415020401000000030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122",
+      "ok": true
+    },
+    "metadata_spec_result_null": {
+      "hex": "010000000000",
+      "ok": true
+    },
+    "recipient_handle": {
+      "hex": "21d20542c4d4ef8e450000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20050000000102030405",
+      "ok": true
+    },
+    "recipient_handle_account_metas": {
+      "hex": "c28d1e52f129a934ffffffff02030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202100000000",
+      "ok": true
+    },
+    "recipient_ism": {
+      "hex": "2d12f557ea2ef60f",
+      "ok": true
+    },
+    "recipient_ism_account_metas": {
+      "hex": "bed6da814361044c",
+      "ok": true
+    },
+    "simulation_return_data_metadata_spec_null": {
+      "hex": "010000000000ff",
+      "ok": true
+    },
+    "simulation_return_data_metas": {
+      "hex": "020000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20000002030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20210101ff",
+      "ok": true
+    },
+    "simulation_return_data_u32": {
+      "hex": "00000000ff",
+      "ok": true
+    },
+    "test_ism_init": {
+      "hex": "00",
+      "ok": true
+    },
+    "test_ism_set_accept_false": {
+      "hex": "0100",
+      "ok": true
+    },
+    "test_ism_set_accept_true": {
+      "hex": "0101",
+      "ok": true
+    }
+  },
+  "svm": {
+    "error_AccountAlreadyInitialized": {
+      "hex": "0000000009000000",
+      "ok": true
+    },
+    "error_AccountBorrowFailed": {
+      "hex": "000000000c000000",
+      "ok": true
+    },
+    "error_AccountDataTooSmall": {
+      "hex": "0000000005000000",
+      "ok": true
+    },
+    "error_AccountNotRentExempt": {
+      "hex": "0000000010000000",
+      "ok": true
+    },
+    "error_ArithmeticOverflow": {
+      "hex": "0000000018000000",
+      "ok": true
+    },
+    "error_BorshIoError": {
+      "hex": "000000000f000000",
+      "ok": true
+    },
+    "error_BuiltinProgramsMustConsumeComputeUnits": {
+      "hex": "0000000016000000",
+      "ok": true
+    },
+    "error_Custom0": {
+      "hex": "0000000001000000",
+      "ok": true
+    },
+    "error_Custom69420": {
+      "hex": "2c0f010000000000",
+      "ok": true
+    },
+    "error_IllegalOwner": {
+      "hex": "0000000012000000",
+      "ok": true
+    },
+    "error_Immutable": {
+      "hex": "0000000019000000",
+      "ok": true
+    },
+    "error_IncorrectAuthority": {
+      "hex": "000000001a000000",
+      "ok": true
+    },
+    "error_IncorrectProgramId": {
+      "hex": "0000000007000000",
+      "ok": true
+    },
+    "error_InsufficientFunds": {
+      "hex": "0000000006000000",
+      "ok": true
+    },
+    "error_InvalidAccountData": {
+      "hex": "0000000004000000",
+      "ok": true
+    },
+    "error_InvalidAccountOwner": {
+      "hex": "0000000017000000",
+      "ok": true
+    },
+    "error_InvalidArgument": {
+      "hex": "0000000002000000",
+      "ok": true
+    },
+    "error_InvalidInstructionData": {
+      "hex": "0000000003000000",
+      "ok": true
+    },
+    "error_InvalidRealloc": {
+      "hex": "0000000014000000",
+      "ok": true
+    },
+    "error_InvalidSeeds": {
+      "hex": "000000000e000000",
+      "ok": true
+    },
+    "error_MaxAccountsDataAllocationsExceeded": {
+      "hex": "0000000013000000",
+      "ok": true
+    },
+    "error_MaxInstructionTraceLengthExceeded": {
+      "hex": "0000000015000000",
+      "ok": true
+    },
+    "error_MaxSeedLengthExceeded": {
+      "hex": "000000000d000000",
+      "ok": true
+    },
+    "error_MissingRequiredSignature": {
+      "hex": "0000000008000000",
+      "ok": true
+    },
+    "error_NotEnoughAccountKeys": {
+      "hex": "000000000b000000",
+      "ok": true
+    },
+    "error_UninitializedAccount": {
+      "hex": "000000000a000000",
+      "ok": true
+    },
+    "error_UnsupportedSysvar": {
+      "hex": "0000000011000000",
+      "ok": true
+    },
+    "system_allocate": {
+      "hex": "080000000028000000000000",
+      "ok": true
+    },
+    "system_assign": {
+      "hex": "01000000030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122",
+      "ok": true
+    },
+    "system_create_account": {
+      "hex": "0000000060ce0d00000000000200000000000000030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122",
+      "ok": true
+    },
+    "system_transfer": {
+      "hex": "02000000ffffffffffffffff",
+      "ok": true
+    }
+  }
+}
