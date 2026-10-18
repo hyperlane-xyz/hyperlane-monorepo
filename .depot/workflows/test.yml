@@ -528,40 +528,6 @@ jobs:
             exit 1
           fi
 
-  svm-program-bytes:
-    runs-on: macos-15
-    needs: [change-detection]
-    if: needs.change-detection.outputs.has_svm_program_inputs == 'true'
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-
-      - uses: dtolnay/rust-toolchain@1.86.0
-
-      - name: Install Solana toolchain
-        run: |
-          source rust/sealevel/programs/toolchain.env
-          sh -c "$(curl -sSfL "https://release.anza.xyz/v${SOLANA_CLI_VERSION_FOR_BUILDING_PROGRAMS}/install")"
-          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
-
-      - name: Check production source boundary
-        run: node --test typescript/svm-sdk/scripts/sealevel-source-hash.test.mjs
-
-      - name: Rebuild embedded programs
-        run: bash typescript/svm-sdk/scripts/build-program-bytes.sh
-
-      # Rebuilt bytecode is the gate; the source hash can move without it changing.
-      - name: Compare rebuilt ELF hashes with embedded bytes
-        run: node typescript/svm-sdk/scripts/check-program-elf.mjs
-
-      - name: Check program-bytes.ts source hash
-        run: node typescript/svm-sdk/scripts/check-program-bytes-hash.mjs --warn
-
   env-tests:
     needs: [change-detection]
     uses: ./.depot/workflows/test-env.yml

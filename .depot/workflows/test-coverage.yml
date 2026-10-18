@@ -21,7 +21,7 @@ jobs:
 
       - name: Determine BASE_SHA
         id: determine-sha
-        uses: ./.github/actions/determine-base-sha
+        uses: ./.depot/actions/determine-base-sha
 
       - name: Check for Solidity changes
         id: check-solidity

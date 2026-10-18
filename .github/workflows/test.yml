@@ -1,0 +1,83 @@
+name: test
+
+on:
+  # Triggers the workflow on pushes to main branch
+  push:
+    branches: [main, 'audit-*']
+  # Triggers on pull requests
+  pull_request:
+    branches:
+      # Include stacked PR bases containing slashes.
+      - '**'
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: svm-program-bytes-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
+
+jobs:
+  change-detection-svm:
+    runs-on: ubuntu-24.04
+    outputs:
+      has_svm_program_inputs: ${{ steps.check.outputs.has_svm_program_inputs }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - uses: ./.depot/actions/determine-base-sha
+        id: base
+      - uses: ./.depot/actions/ci-context-check
+        id: context
+      - name: Check production program inputs
+        id: check
+        env:
+          BASE_SHA: ${{ steps.base.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.base.outputs.current_sha }}
+        run: |
+          if [[ "${{ steps.context.outputs.should_skip }}" == "true" ]]; then
+            echo "has_svm_program_inputs=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "${{ steps.context.outputs.must_run }}" == "true" ]] || ! CHANGED_FILES=$(git diff --name-only "$BASE_SHA"..."$HEAD_SHA"); then
+            echo "has_svm_program_inputs=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          SVM_PROGRAM_INPUTS='^(rust/sealevel/(Cargo\.(toml|lock)|rust-toolchain|\.cargo/|programs/|libraries/)|rust/main/(Cargo\.toml|hyperlane-core/|applications/)|typescript/svm-sdk/(scripts/|src/hyperlane/program-bytes\.ts))'
+          has_svm_program_inputs=$(echo "$CHANGED_FILES" | grep -qE "$SVM_PROGRAM_INPUTS" && echo true || echo false)
+          echo "has_svm_program_inputs=$has_svm_program_inputs" >> "$GITHUB_OUTPUT"
+
+  svm-program-bytes:
+    runs-on: macos-15
+    needs: [change-detection-svm]
+    if: needs.change-detection-svm.outputs.has_svm_program_inputs == 'true'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - uses: dtolnay/rust-toolchain@1.86.0
+
+      - name: Install Solana toolchain
+        run: |
+          source rust/sealevel/programs/toolchain.env
+          sh -c "$(curl -sSfL "https://release.anza.xyz/v${SOLANA_CLI_VERSION_FOR_BUILDING_PROGRAMS}/install")"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Check production source boundary
+        run: node --test typescript/svm-sdk/scripts/sealevel-source-hash.test.mjs
+
+      - name: Rebuild embedded programs
+        run: bash typescript/svm-sdk/scripts/build-program-bytes.sh
+
+      # Rebuilt bytecode is the gate; the source hash can move without it changing.
+      - name: Compare rebuilt ELF hashes with embedded bytes
+        run: node typescript/svm-sdk/scripts/check-program-elf.mjs
+
+      - name: Check program-bytes.ts source hash
+        run: node typescript/svm-sdk/scripts/check-program-bytes-hash.mjs --warn
