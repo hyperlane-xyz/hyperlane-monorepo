@@ -1,0 +1,552 @@
+name: benchmark-test
+on:
+  workflow_dispatch: {}
+concurrency:
+  group: benchmark-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  LOG_LEVEL: DEBUG
+  LOG_FORMAT: PRETTY
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
+  TURBO_CACHE: local:rw
+jobs:
+  pnpm-install:
+    runs-on: depot-ubuntu-24.04-4
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: pnpm-cache
+        uses: ./.depot/actions/pnpm-cache
+      - name: pnpm-install
+        run: pnpm install --frozen-lockfile
+      - name: check-package-json
+        run: ./scripts/check-package-json.sh
+  lint-prettier-run:
+    runs-on: depot-ubuntu-24.04-8
+    needs:
+      - change-detection
+    if: needs.change-detection.outputs.run_lint_prettier == 'true'
+    timeout-minutes: 10
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: pnpm-build
+        uses: ./.depot/actions/pnpm-build-with-cache
+      - name: oxlint
+        run: pnpm run lint
+      - name: solhint
+        run: pnpm -C solidity lint
+      - name: helloworld solhint
+        run: pnpm -C typescript/helloworld lint
+      - name: Get changed PR files
+        if: github.event_name == 'pull_request'
+        run: >
+          gh pr view ${{ github.event.pull_request.number }} --json files -q
+          '.files[] | select (.status != "removed") | .path' > changed_files.txt
+
+          echo "Changed files: $(cat changed_files.txt)"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Run oxfmt (changed files)
+        if: github.event_name == 'pull_request'
+        run: >
+          mapfile -t oxfmt_files < <(
+            grep -E '\.(js|ts|jsx|tsx|json|yaml|yml|md)$' changed_files.txt || true
+          )
+
+          if ((${#oxfmt_files[@]})); then
+            pnpm exec oxfmt --ignore-path .gitignore --check --no-error-on-unmatched-pattern "${oxfmt_files[@]}"
+          fi
+      - name: Run prettier for Solidity (changed files)
+        if: github.event_name == 'pull_request'
+        run: >
+          mapfile -t prettier_files < <(grep -E '\.sol$' changed_files.txt ||
+          true)
+
+          if ((${#prettier_files[@]})); then
+            pnpm exec prettier --check --no-error-on-unmatched-pattern "${prettier_files[@]}"
+          fi
+      - name: Run oxfmt (all files)
+        if: github.event_name != 'pull_request'
+        run: pnpm exec oxfmt --ignore-path .gitignore --check .
+        continue-on-error: true
+      - name: Run prettier for Solidity (all files)
+        if: github.event_name != 'pull_request'
+        run: pnpm exec prettier --check 'solidity/**/*.sol'
+          'typescript/helloworld/contracts/**/*.sol'
+        continue-on-error: true
+      - name: Check YAML sort order
+        run: pnpm exec tsx ./scripts/sort-yaml.ts --check
+      - name: Clean up
+        if: always()
+        run: |
+          rm -f changed_files.txt
+  lint-prettier:
+    runs-on: depot-ubuntu-24.04-4
+    needs:
+      - lint-prettier-run
+    if: always()
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+      - name: Check lint-prettier status
+        uses: ./.depot/actions/check-job-status
+        with:
+          job_name: Lint Prettier
+          result: ${{ needs.lint-prettier-run.result }}
+  change-detection:
+    outputs:
+      base_sha: ${{ steps.determine-sha.outputs.base_sha }}
+      current_sha: ${{ steps.determine-sha.outputs.current_sha }}
+      skip_ts: ${{ steps.decide.outputs.skip_ts }}
+      run_lint_prettier: ${{ steps.decide.outputs.run_lint_prettier }}
+      run_cli_e2e: ${{ steps.decide.outputs.run_cli_e2e }}
+      ci_tier: ${{ steps.decide.outputs.ci_tier }}
+      has_cosmos: ${{ steps.decide.outputs.has_cosmos }}
+      has_aleo: ${{ steps.decide.outputs.has_aleo }}
+      has_radix: ${{ steps.decide.outputs.has_radix }}
+      has_starknet: ${{ steps.decide.outputs.has_starknet }}
+      has_tron: ${{ steps.decide.outputs.has_tron }}
+      has_relayer: ${{ steps.decide.outputs.has_relayer }}
+      has_rebalancer: ${{ steps.decide.outputs.has_rebalancer }}
+      has_svm: ${{ steps.decide.outputs.has_svm }}
+      has_svm_program_inputs: ${{ steps.decide.outputs.has_svm_program_inputs }}
+    runs-on: depot-ubuntu-24.04-4
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Determine BASE_SHA
+        id: determine-sha
+        uses: ./.depot/actions/determine-base-sha
+      - name: Check CI context
+        id: context
+        uses: ./.depot/actions/ci-context-check
+      - name: Check if changes are only in non-TS paths
+        id: check-skip-ts
+        uses: ./.depot/actions/check-path-changes
+        with:
+          base_sha: ${{ steps.determine-sha.outputs.base_sha }}
+          head_sha: ${{ steps.determine-sha.outputs.current_sha }}
+          path_pattern: (rust/|\.(github|depot)/|typescript/Dockerfile|typescript/docker-entrypoint\.sh)
+          path_pattern_only: 'true'
+      - name: Check if workflow files changed
+        id: check-github
+        uses: ./.depot/actions/check-path-changes
+        with:
+          base_sha: ${{ steps.determine-sha.outputs.base_sha }}
+          head_sha: ${{ steps.determine-sha.outputs.current_sha }}
+          path_pattern: \.(github|depot)/
+      - name: Categorize changes for CLI e2e and VM detection
+        id: check-vm
+        run: >
+          BASE_SHA="${{ steps.determine-sha.outputs.base_sha }}"
+
+          HEAD_SHA="${{ steps.determine-sha.outputs.current_sha }}"
+
+
+          if ! CHANGED_FILES=$(git diff --name-only "$BASE_SHA"..."$HEAD_SHA"
+          2>/dev/null); then
+            # Can't determine changes — run everything
+            echo "has_cli_changes=true" >> $GITHUB_OUTPUT
+            echo "has_radix=true" >> $GITHUB_OUTPUT
+            echo "has_aleo=true" >> $GITHUB_OUTPUT
+            echo "has_cosmos=true" >> $GITHUB_OUTPUT
+            echo "has_starknet=true" >> $GITHUB_OUTPUT
+            echo "has_tron=true" >> $GITHUB_OUTPUT
+            echo "has_relayer=true" >> $GITHUB_OUTPUT
+            echo "has_rebalancer=true" >> $GITHUB_OUTPUT
+            echo "has_svm=true" >> $GITHUB_OUTPUT
+            echo "has_svm_program_inputs=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+
+          if [[ -z "$CHANGED_FILES" ]]; then
+            echo "has_cli_changes=true" >> $GITHUB_OUTPUT
+            echo "has_radix=false" >> $GITHUB_OUTPUT
+            echo "has_aleo=false" >> $GITHUB_OUTPUT
+            echo "has_cosmos=false" >> $GITHUB_OUTPUT
+            echo "has_starknet=false" >> $GITHUB_OUTPUT
+            echo "has_tron=false" >> $GITHUB_OUTPUT
+            echo "has_relayer=false" >> $GITHUB_OUTPUT
+            echo "has_rebalancer=false" >> $GITHUB_OUTPUT
+            echo "has_svm=false" >> $GITHUB_OUTPUT
+            echo "has_svm_program_inputs=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+
+          # VM-specific SDK changes
+
+          has_radix=$(echo "$CHANGED_FILES" | grep -qE '^typescript/radix-sdk/'
+          && echo true || echo false)
+
+          has_aleo=$(echo "$CHANGED_FILES" | grep -qE '^typescript/aleo-sdk/' &&
+          echo true || echo false)
+
+          has_cosmos=$(echo "$CHANGED_FILES" | grep -qE
+          '^typescript/(cosmos-sdk|cosmos-types)/' && echo true || echo false)
+
+          has_starknet=$(echo "$CHANGED_FILES" | grep -qE
+          '^(typescript/(starknet-sdk|provider-sdk|utils)/|starknet/)' && echo
+          true || echo false)
+
+          has_tron=$(echo "$CHANGED_FILES" | grep -qE '^typescript/tron-sdk/' &&
+          echo true || echo false)
+
+          has_svm=$(echo "$CHANGED_FILES" | grep -qE
+          '^(rust/sealevel/|typescript/(svm-sdk|forking-sdk)/)' && echo true ||
+          echo false)
+
+          # Inputs to SEALEVEL_SOURCE_HASH; sealevel-source-hash.test.mjs keeps
+          this in sync.
+
+          SVM_PROGRAM_INPUTS='^(rust/sealevel/(Cargo\.(toml|lock)|rust-toolchain|\.cargo/|programs/|libraries/)|rust/main/(Cargo\.toml|hyperlane-core/|applications/)|typescript/svm-sdk/(scripts/|src/hyperlane/program-bytes\.ts))'
+
+          has_svm_program_inputs=$(echo "$CHANGED_FILES" | grep -qE
+          "$SVM_PROGRAM_INPUTS" && echo true || echo false)
+
+
+          # Package-specific changes (run only their targeted CLI e2e tests)
+
+          has_relayer=$(echo "$CHANGED_FILES" | grep -qE '^typescript/relayer/'
+          && echo true || echo false)
+
+          has_rebalancer=$(echo "$CHANGED_FILES" | grep -qE
+          '^typescript/rebalancer/' && echo true || echo false)
+
+
+          # Core CLI deps that trigger the smoke/full CLI e2e suite
+
+          # Peripheral deps (relayer, rebalancer, metrics, http-registry-server)
+          have
+
+          # their own unit tests; merge queue runs full suite
+
+          CLI_DEPS='^(typescript/(cli|sdk|utils|deploy-sdk|provider-sdk|forking-sdk)/|solidity/|starknet/)'
+
+          has_cli_changes=$(echo "$CHANGED_FILES" | grep -qE "$CLI_DEPS" && echo
+          true || echo false)
+
+
+          echo "has_cli_changes=$has_cli_changes" >> $GITHUB_OUTPUT
+
+          echo "has_radix=$has_radix" >> $GITHUB_OUTPUT
+
+          echo "has_aleo=$has_aleo" >> $GITHUB_OUTPUT
+
+          echo "has_cosmos=$has_cosmos" >> $GITHUB_OUTPUT
+
+          echo "has_starknet=$has_starknet" >> $GITHUB_OUTPUT
+
+          echo "has_tron=$has_tron" >> $GITHUB_OUTPUT
+
+          echo "has_relayer=$has_relayer" >> $GITHUB_OUTPUT
+
+          echo "has_rebalancer=$has_rebalancer" >> $GITHUB_OUTPUT
+
+
+          echo "CLI changes: $has_cli_changes"
+
+          echo "VM-specific — radix=$has_radix aleo=$has_aleo cosmos=$has_cosmos
+          starknet=$has_starknet tron=$has_tron"
+
+          echo "Package-specific — relayer=$has_relayer
+          rebalancer=$has_rebalancer"
+
+          echo "has_svm=$has_svm" >> $GITHUB_OUTPUT
+
+          echo "has_svm_program_inputs=$has_svm_program_inputs" >>
+          $GITHUB_OUTPUT
+
+
+          echo "VM-specific — radix=$has_radix aleo=$has_aleo cosmos=$has_cosmos
+          starknet=$has_starknet tron=$has_tron svm=$has_svm"
+      - name: Decide what to run
+        id: decide
+        run: |
+          echo "skip_ts=false" >> "$GITHUB_OUTPUT"
+          echo "run_lint_prettier=true" >> "$GITHUB_OUTPUT"
+          echo "run_cli_e2e=true" >> "$GITHUB_OUTPUT"
+          echo "ci_tier=full" >> "$GITHUB_OUTPUT"
+          echo "has_cosmos=true" >> "$GITHUB_OUTPUT"
+          echo "has_aleo=true" >> "$GITHUB_OUTPUT"
+          echo "has_radix=true" >> "$GITHUB_OUTPUT"
+          echo "has_starknet=true" >> "$GITHUB_OUTPUT"
+          echo "has_tron=true" >> "$GITHUB_OUTPUT"
+          echo "has_relayer=true" >> "$GITHUB_OUTPUT"
+          echo "has_rebalancer=true" >> "$GITHUB_OUTPUT"
+          echo "has_svm=true" >> "$GITHUB_OUTPUT"
+          echo "has_svm_program_inputs=false" >> "$GITHUB_OUTPUT"
+  pnpm-test-run:
+    runs-on: depot-ubuntu-24.04-4
+    needs:
+      - change-detection
+    timeout-minutes: 20
+    if: needs.change-detection.outputs.skip_ts != 'true'
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: pnpm-build
+        uses: ./.depot/actions/pnpm-build-with-cache
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: Unit Tests
+        run: pnpm run test:ci
+  pnpm-test:
+    runs-on: depot-ubuntu-24.04-4
+    needs:
+      - pnpm-test-run
+    if: always()
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+      - name: Check pnpm-test status
+        uses: ./.depot/actions/check-job-status
+        with:
+          job_name: PNPM Test
+          result: ${{ needs.pnpm-test-run.result }}
+  infra-test:
+    runs-on: depot-ubuntu-24.04-4
+    needs:
+      - change-detection
+    if: needs.change-detection.outputs.skip_ts != 'true'
+    env:
+      GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
+      BALANCE_CHANGES: false
+      WARP_CONFIG_CHANGES: false
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install gitleaks
+        id: gitleaks-install
+        if: github.event_name != 'api' && github.event_name != 'merge_group' &&
+          (github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE}}
+      - name: Check for balance/config changes
+        run: >
+          if git diff ${{ needs.change-detection.outputs.base_sha }}...${{
+          needs.change-detection.outputs.current_sha }} --name-only | grep -qE
+          '^typescript/infra/config/environments/mainnet3/balances|^.registryrc$';
+          then
+            echo "BALANCE_CHANGES=true" >> $GITHUB_ENV
+          fi
+
+          if git diff ${{ needs.change-detection.outputs.base_sha }}...${{
+          needs.change-detection.outputs.current_sha }} --name-only | grep -qE
+          '^typescript/infra/|^.registryrc$'; then
+            echo "WARP_CONFIG_CHANGES=true" >> $GITHUB_ENV
+          fi
+      - name: pnpm-build
+        uses: ./.depot/actions/pnpm-build-with-cache
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: GitLeaks Tests
+        if: steps.gitleaks-install.outcome != 'skipped'
+        run: pnpm -C typescript/infra test:gitleaks
+      - name: Balance Tests
+        if: env.BALANCE_CHANGES == 'true'
+        run: pnpm -C typescript/infra test:balance
+      - name: Warp Config Tests
+        if: env.WARP_CONFIG_CHANGES == 'true'
+        run: pnpm -C typescript/infra test:warp
+  cli-install-test-run:
+    runs-on: depot-ubuntu-24.04-4
+    needs:
+      - change-detection
+    if: needs.change-detection.outputs.skip_ts != 'true'
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: install-hyperlane-cli
+        id: install-hyperlane-cli
+        uses: ./.depot/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Test run the CLI
+        run: hyperlane --version
+  cli-install-test:
+    runs-on: depot-ubuntu-24.04-4
+    needs:
+      - cli-install-test-run
+    if: always()
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+      - name: Check cli-install-test status
+        uses: ./.depot/actions/check-job-status
+        with:
+          job_name: CLI Install Test
+          result: ${{ needs.cli-install-test-run.result }}
+  cli-e2e-tests:
+    needs:
+      - change-detection
+    uses: ./.depot/workflows/benchmark-test-cli-e2e.yml
+    secrets: inherit
+    with:
+      run_cli_e2e: ${{ needs.change-detection.outputs.run_cli_e2e }}
+      ci_tier: ${{ needs.change-detection.outputs.ci_tier }}
+      has_cosmos: ${{ needs.change-detection.outputs.has_cosmos }}
+      has_aleo: ${{ needs.change-detection.outputs.has_aleo }}
+      has_radix: ${{ needs.change-detection.outputs.has_radix }}
+      has_starknet: ${{ needs.change-detection.outputs.has_starknet }}
+      has_tron: ${{ needs.change-detection.outputs.has_tron }}
+      has_relayer: ${{ needs.change-detection.outputs.has_relayer }}
+      has_rebalancer: ${{ needs.change-detection.outputs.has_rebalancer }}
+      has_svm: ${{ needs.change-detection.outputs.has_svm }}
+  cli-e2e:
+    runs-on: depot-ubuntu-24.04-4
+    needs:
+      - cli-e2e-tests
+    if: always()
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+      - name: Check CLI E2E status
+        uses: ./.depot/actions/check-job-status
+        with:
+          job_name: CLI E2E
+          result: ${{ needs.cli-e2e-tests.result }}
+  sdk-e2e-tests:
+    needs:
+      - change-detection
+    uses: ./.depot/workflows/benchmark-test-sdk-e2e.yml
+    secrets: inherit
+    with:
+      has_cosmos: ${{ needs.change-detection.outputs.has_cosmos }}
+      has_aleo: ${{ needs.change-detection.outputs.has_aleo }}
+      has_radix: ${{ needs.change-detection.outputs.has_radix }}
+      has_starknet: ${{ needs.change-detection.outputs.has_starknet }}
+      has_tron: ${{ needs.change-detection.outputs.has_tron }}
+      has_svm: ${{ needs.change-detection.outputs.has_svm }}
+  sdk-e2e:
+    runs-on: depot-ubuntu-24.04-4
+    needs:
+      - sdk-e2e-tests
+    if: always()
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+      - name: Check SDK E2E status
+        uses: ./.depot/actions/check-job-status
+        with:
+          job_name: SDK E2E
+          result: ${{ needs.sdk-e2e-tests.result }}
+  rust-e2e-tests:
+    uses: ./.depot/workflows/benchmark-test-rust-e2e.yml
+    secrets: inherit
+    with:
+      event_name: ${{ github.event_name }}
+      base_ref: ${{ github.base_ref }}
+  coverage-tests:
+    uses: ./.depot/workflows/benchmark-test-coverage.yml
+    secrets: inherit
+  agent-configs:
+    runs-on: depot-ubuntu-24.04-4
+    needs:
+      - change-detection
+    if: needs.change-detection.outputs.skip_ts != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        environment:
+          - mainnet3
+          - testnet4
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: pnpm-build
+        uses: ./.depot/actions/pnpm-build-with-cache
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: Generate ${{ matrix.environment }} agent config
+        run: >
+          cd typescript/infra
+
+          pnpm tsx ./scripts/agents/update-agent-config.ts -e ${{
+          matrix.environment }}
+
+          CHANGES=$(git status -s . :/rust/main/config)
+
+          if [[ ! -z $CHANGES ]]; then
+            echo "Changes found in agent config: $CHANGES"
+            exit 1
+          fi
+  env-tests:
+    needs:
+      - change-detection
+    uses: ./.depot/workflows/benchmark-test-env.yml
+    secrets: inherit
+    with:
+      skip_ts: ${{ needs.change-detection.outputs.skip_ts }}

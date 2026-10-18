@@ -1,47 +1,41 @@
-name: 'PNPM Cache'
-description: 'Cache pnpm dependencies for faster installs'
-
+name: PNPM Cache
+description: Cache pnpm dependencies for faster installs
 inputs:
   cache-provider:
     description: 'Choose cache provider: buildjet or github'
     required: false
-    default: 'github'
-
+    default: github
 outputs:
   cache-hit:
-    description: 'Whether there was a cache hit'
-    value: ${{ steps.buildjet-cache.outputs.cache-hit || steps.github-cache.outputs.cache-hit }}
-
+    description: Whether there was a cache hit
+    value: ${{ steps.buildjet-cache.outputs.cache-hit ||
+      steps.github-cache.outputs.cache-hit }}
 runs:
-  using: 'composite'
+  using: composite
   steps:
-    # Depot transparently redirects GitHub Actions cache to their own for extra speed.
-    # But this is not available for non-depot runners.
-    # So we default to github, and expect the workflow to set cache-provider=buildjet if needed.
-    # https://depot.dev/docs/github-actions/overview#faster-caching
     - name: Setup pnpm
       uses: pnpm/action-setup@v6
-
     - name: Determine Cache Provider
       id: determine-cache
       shell: bash
       run: echo "cache_provider=${{ inputs.cache-provider }}" >> $GITHUB_ENV
-
     - name: Get pnpm cache metadata
       shell: bash
-      # Nested composite post steps lose sibling step outputs (actions/runner#2009).
-      # Persist metadata in the job environment for both restore and save.
-      # Computing the lockfile hash here also avoids re-evaluating a workspace-wide
-      # glob during post-job cleanup, after build artifacts have been generated.
       env:
-        PNPM_LOCKFILE_HASH: ${{ hashFiles('pnpm-lock.yaml', 'typescript/warp-widget/examples/react-app/pnpm-lock.yaml') }}
-      run: |
+        PNPM_LOCKFILE_HASH: ${{ hashFiles('pnpm-lock.yaml',
+          'typescript/warp-widget/examples/react-app/pnpm-lock.yaml') }}
+      run: >
         pnpm_store_path="$(pnpm store path)"
-        test -n "$pnpm_store_path"
-        test -n "$PNPM_LOCKFILE_HASH"
-        echo "HYP_PNPM_STORE_PATH=$pnpm_store_path" >> "$GITHUB_ENV"
-        echo "HYP_PNPM_CACHE_KEY=${RUNNER_OS}-pnpm-12-store-${PNPM_LOCKFILE_HASH}" >> "$GITHUB_ENV"
 
+        test -n "$pnpm_store_path"
+
+        test -n "$PNPM_LOCKFILE_HASH"
+
+        echo "HYP_PNPM_STORE_PATH=$pnpm_store_path" >> "$GITHUB_ENV"
+
+        echo
+        "HYP_PNPM_CACHE_KEY=pr9300-rebench-20261018-${RUNNER_OS}-pnpm-12-store-${PNPM_LOCKFILE_HASH}"
+        >> "$GITHUB_ENV"
     - name: Cache (Buildjet)
       id: buildjet-cache
       if: env.cache_provider == 'buildjet'
@@ -49,9 +43,6 @@ runs:
       with:
         path: ${{ env.HYP_PNPM_STORE_PATH }}
         key: ${{ env.HYP_PNPM_CACHE_KEY }}
-        restore-keys: |
-          ${{ runner.os }}-pnpm-12-store-
-
     - name: Cache (GitHub)
       id: github-cache
       if: env.cache_provider == 'github'
@@ -59,5 +50,3 @@ runs:
       with:
         path: ${{ env.HYP_PNPM_STORE_PATH }}
         key: ${{ env.HYP_PNPM_CACHE_KEY }}
-        restore-keys: |
-          ${{ runner.os }}-pnpm-12-store-

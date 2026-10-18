@@ -1,0 +1,80 @@
+name: benchmark-test-env
+on:
+  workflow_call:
+    inputs:
+      skip_ts:
+        type: string
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
+  TURBO_CACHE: local:rw
+jobs:
+  env-test-matrix:
+    runs-on: depot-ubuntu-24.04-4
+    if: inputs.skip_ts != 'true'
+    env:
+      MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
+      MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
+      MAINNET3_ETHEREUM_RPC_URLS: ${{ secrets.MAINNET3_ETHEREUM_RPC_URLS }}
+      TESTNET4_SEPOLIA_RPC_URLS: ${{ secrets.TESTNET4_SEPOLIA_RPC_URLS }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        environment:
+          - mainnet3
+        chain:
+          - ethereum
+          - arbitrum
+          - optimism
+        module:
+          - core
+          - igp
+        include:
+          - environment: testnet4
+            chain: sepolia
+            module: core
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: pnpm-build
+        uses: ./.depot/actions/pnpm-build-with-cache
+        with:
+          build-filter: '@hyperlane-xyz/infra...'
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name:
+          Fork test ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain
+          }} deployment with retries
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 8
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command:
+            cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{
+            matrix.module }} ${{ matrix.chain }}
+          on_retry_command: |
+            echo "Test failed, waiting before retry..."
+  env-test:
+    runs-on: depot-ubuntu-24.04-4
+    needs: env-test-matrix
+    if: always()
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+      - name: Check env-test matrix status
+        uses: ./.depot/actions/check-job-status
+        with:
+          job_name: Env Test
+          result: ${{ needs.env-test-matrix.result }}

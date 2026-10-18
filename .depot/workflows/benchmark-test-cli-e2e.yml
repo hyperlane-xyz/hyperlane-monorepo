@@ -1,0 +1,696 @@
+name: benchmark-test-cli-e2e
+on:
+  workflow_call:
+    inputs:
+      run_cli_e2e:
+        type: string
+      ci_tier:
+        type: string
+        description: "'smoke' for PR-level subset, 'full' for merge queue"
+      has_cosmos:
+        type: string
+      has_aleo:
+        type: string
+      has_radix:
+        type: string
+      has_starknet:
+        type: string
+      has_tron:
+        type: string
+      has_relayer:
+        type: string
+      has_rebalancer:
+        type: string
+      has_svm:
+        type: string
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
+  TURBO_CACHE: local:rw
+jobs:
+  cli-evm-e2e-smoke:
+    runs-on: depot-ubuntu-24.04-4
+    if: inputs.run_cli_e2e == 'true' && inputs.ci_tier == 'smoke'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-deploy
+          - http-signer
+          - warp-deploy-1
+          - warp-deploy-predicate
+          - warp-delayed-flow
+          - warp-net-flow
+          - warp-apply-simple-updates
+          - warp-apply-predicate-updates
+          - warp-apply-delayed-flow-1
+          - warp-apply-delayed-flow-2
+          - warp-apply-delayed-flow-3
+          - warp-check-1
+          - warp-send
+          - warp-fork
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.depot/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: Install Arc Anvil
+        if: matrix.test == 'warp-fork'
+        uses: ./.github/actions/install-arc-anvil
+      - name: CLI e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:ethereum:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+  cli-evm-e2e-matrix:
+    runs-on: depot-ubuntu-24.04-4
+    if: inputs.run_cli_e2e == 'true' && inputs.ci_tier == 'full'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-apply
+          - core-check
+          - core-deploy
+          - core-init
+          - core-read
+          - hook-deploy
+          - ism
+          - http-signer
+          - relay
+          - status
+          - submit
+          - ica-deploy
+          - warp-apply-delayed-flow-1
+          - warp-apply-delayed-flow-2
+          - warp-apply-delayed-flow-3
+          - warp-apply-hook-updates
+          - warp-apply-ism-updates
+          - warp-apply-ownership-updates
+          - warp-apply-predicate-updates
+          - warp-apply-rebalancing-config
+          - warp-apply-simple-updates
+          - warp-apply-submitters
+          - warp-extend-basic
+          - warp-extend-config
+          - warp-extend-recovery
+          - warp-extend-resumable
+          - warp-bridge-1
+          - warp-bridge-2
+          - warp-delayed-flow
+          - warp-net-flow
+          - warp-deploy-1
+          - warp-deploy-2
+          - warp-deploy-predicate
+          - warp-deploy-remote-routers
+          - warp-check-1
+          - warp-check-2
+          - warp-check-3
+          - warp-check-4
+          - warp-check-5
+          - warp-check-ica
+          - warp-fork
+          - warp-init
+          - warp-quote
+          - warp-read
+          - warp-rebalancer
+          - warp-send
+          - warp-send-predicate
+          - xerc20
+          - warp-xerc20-fee
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.depot/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: Install Arc Anvil
+        if: matrix.test == 'warp-fork'
+        uses: ./.github/actions/install-arc-anvil
+      - name: CLI e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:ethereum:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+  cli-cosmos-e2e-smoke:
+    runs-on: depot-ubuntu-24.04-4
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_cosmos == 'true') &&
+      inputs.ci_tier == 'smoke'
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-deploy
+          - submit
+          - warp-deploy
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.depot/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: CLI cosmosnative e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:cosmosnative:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+  cli-cosmos-e2e-matrix:
+    runs-on: depot-ubuntu-24.04-4
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_cosmos == 'true') &&
+      inputs.ci_tier == 'full'
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-apply
+          - core-check
+          - core-deploy
+          - core-read
+          - hook-deploy
+          - ism
+          - warp-apply-ism-updates
+          - warp-deploy
+          - warp-read
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.depot/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: CLI cosmosnative e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:cosmosnative:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+  cli-radix-e2e-smoke:
+    runs-on: depot-ubuntu-24.04-4
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_radix == 'true') &&
+      inputs.ci_tier == 'smoke'
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-deploy
+          - warp-deploy
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.depot/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: CLI radix e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:radix:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+  cli-radix-e2e-matrix:
+    runs-on: depot-ubuntu-24.04-4
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_radix == 'true') &&
+      inputs.ci_tier == 'full'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-deploy
+          - core-apply
+          - core-apply-updates
+          - ism
+          - warp-deploy
+          - warp-apply-ism-updates
+          - warp-apply-ownership-updates
+          - warp-apply-route-extension
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.depot/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: CLI radix e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:radix:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+  cli-starknet-e2e-smoke:
+    runs-on: depot-ubuntu-24.04-4
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_starknet == 'true') &&
+      inputs.ci_tier == 'smoke'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-deploy
+          - warp-deploy
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.depot/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: CLI starknet e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:starknet:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+          CLI_E2E_TIER: ${{ inputs.ci_tier }}
+  cli-starknet-e2e-matrix:
+    runs-on: depot-ubuntu-24.04-4
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_starknet == 'true') &&
+      inputs.ci_tier == 'full'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-apply-mailbox-owner
+          - core-apply-default-hook-protocol-fee
+          - core-apply-default-ism-redeploy
+          - core-apply-routing-ism-owner
+          - core-deploy
+          - core-read
+          - ism
+          - warp-apply-hook-add-merkle
+          - warp-apply-hook-replace-with-protocol-fee
+          - warp-apply-hook-update-protocol-fee-config
+          - warp-apply-hook-same-config
+          - warp-apply-ism-add-test-ism
+          - warp-apply-ism-replace-with-message-id-multisig
+          - warp-apply-ism-same-config
+          - warp-apply-ownership-preserve
+          - warp-apply-ownership-starknet1
+          - warp-apply-ownership-starknet2
+          - warp-apply-ownership-all
+          - warp-apply-route-extension
+          - warp-deploy
+          - warp-read
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.depot/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: CLI starknet e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:starknet:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+          CLI_E2E_TIER: ${{ inputs.ci_tier }}
+  cli-tron-e2e-matrix:
+    runs-on: depot-ubuntu-24.04-4
+    if: inputs.run_cli_e2e == 'true' || inputs.has_tron == 'true'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-deploy
+          - warp-deploy-1
+          - warp-deploy-2
+          - warp-net-flow
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.depot/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: CLI tron e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:tron:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+  cli-cross-chain-e2e-matrix:
+    runs-on: depot-ubuntu-24.04-4
+    if: inputs.run_cli_e2e == 'true'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - warp-apply
+          - warp-cc-evm-svm-1
+          - warp-cc-evm-svm-2
+          - warp-deploy
+          - warp-send
+          - warp-send-evm-svm
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.depot/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: CLI cross chain e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:cross-chain:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+  cli-cross-chain-starknet-e2e-matrix:
+    runs-on: depot-ubuntu-24.04-4
+    if: inputs.run_cli_e2e == 'true' || inputs.has_starknet == 'true'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - warp-apply-starknet
+          - warp-deploy-starknet
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.depot/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: CLI cross chain e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:cross-chain:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+  cli-aleo-e2e-smoke:
+    runs-on: depot-ubuntu-24.04-4
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_aleo == 'true') &&
+      inputs.ci_tier == 'smoke'
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-deploy
+          - warp-deploy
+          - warp-apply-ism-updates
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.depot/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: CLI aleo e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:aleo:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+  cli-aleo-e2e-matrix:
+    runs-on: depot-ubuntu-24.04-4
+    if: (inputs.run_cli_e2e == 'true' || inputs.has_aleo == 'true') &&
+      inputs.ci_tier == 'full'
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-apply-hooks
+          - core-apply-ism
+          - core-apply-mailbox
+          - core-deploy
+          - core-read
+          - ism
+          - warp-apply-hook-updates
+          - warp-apply-ism-updates
+          - warp-apply-ownership-updates
+          - warp-apply-route-extension
+          - warp-deploy
+          - warp-read
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.depot/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: CLI aleo e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:aleo:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+  cli-svm-e2e-smoke:
+    runs-on: depot-ubuntu-24.04-4
+    if:
+      (inputs.run_cli_e2e == 'true' || inputs.has_svm == 'true') && inputs.ci_tier
+      == 'smoke'
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-deploy
+          - core-composite-ism
+          - core-routing-message-id-multisig-ism
+          - http-signer
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.depot/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: CLI sealevel e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:sealevel:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+  cli-svm-e2e-matrix:
+    runs-on: depot-ubuntu-24.04-4
+    if:
+      (inputs.run_cli_e2e == 'true' || inputs.has_svm == 'true') && inputs.ci_tier
+      == 'full'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-deploy
+          - core-apply
+          - core-composite-ism
+          - core-routing-message-id-multisig-ism
+          - http-signer
+          - hook-igp
+          - warp-alt
+          - warp-composite-ism
+          - warp-cross-collateral
+          - warp-fee
+          - warp-fee-apply
+          - warp-fork
+          - warp-legacy-upgrade-fee
+          - warp-quote
+          - warp-read
+          - warp-routing-message-id-multisig-ism
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.depot/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: Install surfpool
+        if: matrix.test == 'warp-fork'
+        env:
+          TURBO_TOKEN: ''
+          SURFPOOL_VERSION: 1.5.0
+          SURFPOOL_SHA256_PREFIX: 5b20a3b46e60c4f819af7b4da5c3ea21
+          SURFPOOL_SHA256_SUFFIX: 1f76041710617841cc23247d15887ddc
+        run: >
+          URL="https://github.com/txtx/surfpool/releases/download/v${SURFPOOL_VERSION}/surfpool-linux-x64.tar.gz"
+
+          curl -sSfL "$URL" -o /tmp/surfpool.tar.gz
+
+          echo "${SURFPOOL_SHA256_PREFIX}${SURFPOOL_SHA256_SUFFIX}  /tmp/surfpool.tar.gz" | sha256sum -c -
+
+          mkdir -p "$HOME/.local/bin"
+
+          tar -xzf /tmp/surfpool.tar.gz -C "$HOME/.local/bin" surfpool
+
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+          "$HOME/.local/bin/surfpool" --version
+      - name: CLI sealevel e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:sealevel:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+  cli-evm-relayer-e2e:
+    runs-on: depot-ubuntu-24.04-4
+    if: inputs.has_relayer == 'true'
+    timeout-minutes: 20
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.depot/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: CLI relayer e2e test
+        run: pnpm -C typescript/cli test:ethereum:e2e
+        env:
+          CLI_E2E_TEST: relay
+  cli-evm-rebalancer-e2e:
+    runs-on: depot-ubuntu-24.04-4
+    if: inputs.has_rebalancer == 'true'
+    timeout-minutes: 20
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        uses: ./.depot/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.depot/actions/checkout-registry
+      - name: CLI rebalancer e2e test
+        run: pnpm -C typescript/cli test:ethereum:e2e
+        env:
+          CLI_E2E_TEST: warp-rebalancer

@@ -1,0 +1,87 @@
+name: benchmark-test-coverage
+on:
+  workflow_call: null
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
+  TURBO_CACHE: local:rw
+jobs:
+  check-solidity-changes:
+    runs-on: depot-ubuntu-24.04-4
+    outputs:
+      has_solidity_changes: ${{ steps.check-solidity.outputs.has_changes }}
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Determine BASE_SHA
+        id: determine-sha
+        uses: ./.depot/actions/determine-base-sha
+      - name: Check for Solidity changes
+        id: check-solidity
+        uses: ./.depot/actions/check-path-changes
+        with:
+          base_sha: ${{ steps.determine-sha.outputs.base_sha }}
+          head_sha: ${{ steps.determine-sha.outputs.current_sha }}
+          path_pattern: solidity/
+  coverage-run:
+    runs-on: depot-ubuntu-24.04-8
+    needs:
+      - check-solidity-changes
+    if: needs.check-solidity-changes.outputs.has_solidity_changes == 'true'
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: pnpm-build
+        uses: ./.depot/actions/pnpm-build-with-cache
+      - name: Run tests with coverage
+        run: pnpm run coverage
+      - name: Upload coverage reports to Codecov with GitHub Action
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: solidity
+          fail_ci_if_error: true
+  coverage:
+    runs-on: depot-ubuntu-24.04-4
+    needs:
+      - check-solidity-changes
+      - coverage-run
+    if: always()
+    steps:
+      - name: Benchmark runner resources
+        run: |
+          echo "BENCHMARK_CPUS=$(nproc)"
+          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+      - name: Check if coverage should have run
+        id: should-run
+        run: >
+          if [ "${{ needs.check-solidity-changes.result }}" != "success" ]; then
+            echo "Solidity change detection failed (result: ${{ needs.check-solidity-changes.result }})"
+            exit 1
+          fi
+
+          if [ "${{ needs.check-solidity-changes.outputs.has_solidity_changes
+          }}" == "true" ]; then
+            echo "Coverage should have run, checking status..."
+            if [ "${{ needs.coverage-run.result }}" != "success" ]; then
+              echo "Coverage job failed or was cancelled"
+              exit 1
+            fi
+          else
+            echo "No Solidity changes detected, skipping coverage - this is OK"
+          fi
