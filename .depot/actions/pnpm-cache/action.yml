@@ -34,7 +34,7 @@ runs:
         echo "HYP_PNPM_STORE_PATH=$pnpm_store_path" >> "$GITHUB_ENV"
 
         echo
-        "HYP_PNPM_CACHE_KEY=pr9300-20261018-depot-${RUNNER_OS}-pnpm-12-store-${PNPM_LOCKFILE_HASH}"
+        "HYP_PNPM_CACHE_KEY=pr9300-20261018-final-${RUNNER_OS}-pnpm-12-store-${PNPM_LOCKFILE_HASH}"
         >> "$GITHUB_ENV"
     - name: Cache (Buildjet)
       id: buildjet-cache
