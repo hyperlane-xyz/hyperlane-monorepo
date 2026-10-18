@@ -1,8 +1,5 @@
 name: benchmark-test
 on:
-  push:
-    branches:
-      - pbio/depot-ci-rebench-20261018
   workflow_dispatch: {}
 concurrency:
   group: benchmark-${{ github.ref }}
