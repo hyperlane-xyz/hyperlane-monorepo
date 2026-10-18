@@ -152,6 +152,25 @@ contract PredicateCrossCollateralRouterWrapper is
             );
     }
 
+    /**
+     * @notice Exact-in quote to a specific target router by delegating to the
+     * underlying cross collateral router.
+     */
+    function quoteTransferRemoteFromTo(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _maxSpend,
+        bytes32 _targetRouter
+    ) external view override returns (uint256) {
+        return
+            CrossCollateralRouter(address(warpRoute)).quoteTransferRemoteFromTo(
+                _destination,
+                _recipient,
+                _maxSpend,
+                _targetRouter
+            );
+    }
+
     // ============ Internal Overrides ============
 
     function _emitTransferAuthorized(
