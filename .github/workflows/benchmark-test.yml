@@ -1,9 +1,9 @@
 name: benchmark-test
 on:
-  workflow_dispatch: {}
   push:
     branches:
-      - pbio/depot-ci-rebench-disabled-20261018
+      - pbio/depot-ci-rebench-20261018
+  workflow_dispatch: {}
 concurrency:
   group: benchmark-${{ github.ref }}
   cancel-in-progress: false
@@ -14,15 +14,18 @@ env:
   TURBO_API: https://cache.depot.dev
   TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
   TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
-  TURBO_CACHE: local:rw
 jobs:
   pnpm-install:
     runs-on: ubuntu-24.04
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -37,6 +40,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: check-package-json
         run: ./scripts/check-package-json.sh
+    env:
+      BENCHMARK_CONTEXT: benchmark-test.yml:pnpm-install:0
   lint-prettier-run:
     runs-on: depot-ubuntu-24.04-8
     needs:
@@ -45,9 +50,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -105,6 +114,8 @@ jobs:
         if: always()
         run: |
           rm -f changed_files.txt
+    env:
+      BENCHMARK_CONTEXT: benchmark-test.yml:lint-prettier-run:0
   lint-prettier:
     runs-on: ubuntu-24.04
     needs:
@@ -112,15 +123,21 @@ jobs:
     if: always()
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
       - name: Check lint-prettier status
         uses: ./.depot/actions/check-job-status
         with:
           job_name: Lint Prettier
           result: ${{ needs.lint-prettier-run.result }}
+    env:
+      BENCHMARK_CONTEXT: benchmark-test.yml:lint-prettier:0
   change-detection:
     outputs:
       base_sha: ${{ steps.determine-sha.outputs.base_sha }}
@@ -141,9 +158,13 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -311,6 +332,8 @@ jobs:
           echo "has_rebalancer=true" >> "$GITHUB_OUTPUT"
           echo "has_svm=true" >> "$GITHUB_OUTPUT"
           echo "has_svm_program_inputs=false" >> "$GITHUB_OUTPUT"
+    env:
+      BENCHMARK_CONTEXT: benchmark-test.yml:change-detection:0
   pnpm-test-run:
     runs-on: ubuntu-24.04
     needs:
@@ -319,9 +342,13 @@ jobs:
     if: needs.change-detection.outputs.skip_ts != 'true'
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -333,6 +360,8 @@ jobs:
         uses: ./.depot/actions/checkout-registry
       - name: Unit Tests
         run: pnpm run test:ci
+    env:
+      BENCHMARK_CONTEXT: benchmark-test.yml:pnpm-test-run:0
   pnpm-test:
     runs-on: ubuntu-24.04
     needs:
@@ -340,15 +369,21 @@ jobs:
     if: always()
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
       - name: Check pnpm-test status
         uses: ./.depot/actions/check-job-status
         with:
           job_name: PNPM Test
           result: ${{ needs.pnpm-test-run.result }}
+    env:
+      BENCHMARK_CONTEXT: benchmark-test.yml:pnpm-test:0
   infra-test:
     runs-on: ubuntu-24.04
     needs:
@@ -358,11 +393,16 @@ jobs:
       GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
       BALANCE_CHANGES: false
       WARP_CONFIG_CHANGES: false
+      BENCHMARK_CONTEXT: benchmark-test.yml:infra-test:0
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -412,9 +452,13 @@ jobs:
     if: needs.change-detection.outputs.skip_ts != 'true'
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -425,6 +469,8 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Test run the CLI
         run: hyperlane --version
+    env:
+      BENCHMARK_CONTEXT: benchmark-test.yml:cli-install-test-run:0
   cli-install-test:
     runs-on: ubuntu-24.04
     needs:
@@ -432,15 +478,21 @@ jobs:
     if: always()
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
       - name: Check cli-install-test status
         uses: ./.depot/actions/check-job-status
         with:
           job_name: CLI Install Test
           result: ${{ needs.cli-install-test-run.result }}
+    env:
+      BENCHMARK_CONTEXT: benchmark-test.yml:cli-install-test:0
   cli-e2e-tests:
     needs:
       - change-detection
@@ -464,15 +516,21 @@ jobs:
     if: always()
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
       - name: Check CLI E2E status
         uses: ./.depot/actions/check-job-status
         with:
           job_name: CLI E2E
           result: ${{ needs.cli-e2e-tests.result }}
+    env:
+      BENCHMARK_CONTEXT: benchmark-test.yml:cli-e2e:0
   sdk-e2e-tests:
     needs:
       - change-detection
@@ -492,15 +550,21 @@ jobs:
     if: always()
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
       - name: Check SDK E2E status
         uses: ./.depot/actions/check-job-status
         with:
           job_name: SDK E2E
           result: ${{ needs.sdk-e2e-tests.result }}
+    env:
+      BENCHMARK_CONTEXT: benchmark-test.yml:sdk-e2e:0
   rust-e2e-tests:
     uses: ./.github/workflows/benchmark-test-rust-e2e.yml
     secrets: inherit
@@ -523,9 +587,13 @@ jobs:
           - testnet4
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -546,6 +614,8 @@ jobs:
             echo "Changes found in agent config: $CHANGES"
             exit 1
           fi
+    env:
+      BENCHMARK_CONTEXT: benchmark-test.yml:agent-configs:${{ strategy.job-index }}
   env-tests:
     needs:
       - change-detection
@@ -553,3 +623,8 @@ jobs:
     secrets: inherit
     with:
       skip_ts: ${{ needs.change-detection.outputs.skip_ts }}
+permissions:
+  contents: read
+  statuses: write
+  pull-requests: read
+  checks: read

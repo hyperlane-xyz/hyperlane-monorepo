@@ -6,7 +6,6 @@ env:
   TURBO_API: https://cache.depot.dev
   TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
   TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
-  TURBO_CACHE: local:rw
 jobs:
   check-solidity-changes:
     runs-on: depot-ubuntu-24.04-4
@@ -14,9 +13,13 @@ jobs:
       has_solidity_changes: ${{ steps.check-solidity.outputs.has_changes }}
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
@@ -30,6 +33,8 @@ jobs:
           base_sha: ${{ steps.determine-sha.outputs.base_sha }}
           head_sha: ${{ steps.determine-sha.outputs.current_sha }}
           path_pattern: solidity/
+    env:
+      BENCHMARK_CONTEXT: benchmark-test-coverage.yml:check-solidity-changes:0
   coverage-run:
     runs-on: depot-ubuntu-24.04-8
     needs:
@@ -37,9 +42,13 @@ jobs:
     if: needs.check-solidity-changes.outputs.has_solidity_changes == 'true'
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -56,6 +65,8 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: solidity
           fail_ci_if_error: true
+    env:
+      BENCHMARK_CONTEXT: benchmark-test-coverage.yml:coverage-run:0
   coverage:
     runs-on: depot-ubuntu-24.04-4
     needs:
@@ -64,9 +75,13 @@ jobs:
     if: always()
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - name: Check if coverage should have run
         id: should-run
         run: >
@@ -85,3 +100,10 @@ jobs:
           else
             echo "No Solidity changes detected, skipping coverage - this is OK"
           fi
+    env:
+      BENCHMARK_CONTEXT: benchmark-test-coverage.yml:coverage:0
+permissions:
+  contents: read
+  statuses: write
+  pull-requests: read
+  checks: read

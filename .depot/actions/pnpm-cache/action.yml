@@ -34,7 +34,7 @@ runs:
         echo "HYP_PNPM_STORE_PATH=$pnpm_store_path" >> "$GITHUB_ENV"
 
         echo
-        "HYP_PNPM_CACHE_KEY=pr9300-rebench-20261018-${RUNNER_OS}-pnpm-12-store-${PNPM_LOCKFILE_HASH}"
+        "HYP_PNPM_CACHE_KEY=pr9300-20261018-final-${RUNNER_OS}-pnpm-12-store-${PNPM_LOCKFILE_HASH}"
         >> "$GITHUB_ENV"
     - name: Cache (Buildjet)
       id: buildjet-cache
@@ -50,3 +50,17 @@ runs:
       with:
         path: ${{ env.HYP_PNPM_STORE_PATH }}
         key: ${{ env.HYP_PNPM_CACHE_KEY }}
+    - name: Benchmark cache metadata
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        BENCHMARK_CACHE_HIT: ${{ steps.github-cache.outputs.cache-hit ||
+          steps.buildjet-cache.outputs.cache-hit || 'false' }}
+      run: >
+        cache_key_hash=$(printf '%s' "$HYP_PNPM_CACHE_KEY" | sha256sum | cut
+        -c1-16)
+
+        gh api --silent --method POST
+        "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+        context="bench-cache:$BENCHMARK_CONTEXT" -f
+        description="hit=$BENCHMARK_CACHE_HIT key=$cache_key_hash"

@@ -28,7 +28,6 @@ env:
   TURBO_API: https://cache.depot.dev
   TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
   TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
-  TURBO_CACHE: local:rw
 jobs:
   cli-evm-e2e-smoke:
     runs-on: depot-ubuntu-24.04-4
@@ -54,9 +53,13 @@ jobs:
           - warp-fork
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -75,6 +78,8 @@ jobs:
         run: pnpm -C typescript/cli test:ethereum:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
+    env:
+      BENCHMARK_CONTEXT: benchmark-test-cli-e2e.yml:cli-evm-e2e-smoke:${{ strategy.job-index }}
   cli-evm-e2e-matrix:
     runs-on: depot-ubuntu-24.04-4
     if: inputs.run_cli_e2e == 'true' && inputs.ci_tier == 'full'
@@ -134,9 +139,13 @@ jobs:
           - warp-xerc20-fee
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -155,6 +164,8 @@ jobs:
         run: pnpm -C typescript/cli test:ethereum:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
+    env:
+      BENCHMARK_CONTEXT: benchmark-test-cli-e2e.yml:cli-evm-e2e-matrix:${{ strategy.job-index }}
   cli-cosmos-e2e-smoke:
     runs-on: depot-ubuntu-24.04-4
     if: (inputs.run_cli_e2e == 'true' || inputs.has_cosmos == 'true') &&
@@ -169,9 +180,13 @@ jobs:
           - warp-deploy
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -187,6 +202,8 @@ jobs:
         run: pnpm -C typescript/cli test:cosmosnative:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
+    env:
+      BENCHMARK_CONTEXT: benchmark-test-cli-e2e.yml:cli-cosmos-e2e-smoke:${{ strategy.job-index }}
   cli-cosmos-e2e-matrix:
     runs-on: depot-ubuntu-24.04-4
     if: (inputs.run_cli_e2e == 'true' || inputs.has_cosmos == 'true') &&
@@ -207,9 +224,13 @@ jobs:
           - warp-read
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -225,6 +246,9 @@ jobs:
         run: pnpm -C typescript/cli test:cosmosnative:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
+    env:
+      BENCHMARK_CONTEXT: benchmark-test-cli-e2e.yml:cli-cosmos-e2e-matrix:${{
+        strategy.job-index }}
   cli-radix-e2e-smoke:
     runs-on: depot-ubuntu-24.04-4
     if: (inputs.run_cli_e2e == 'true' || inputs.has_radix == 'true') &&
@@ -238,9 +262,13 @@ jobs:
           - warp-deploy
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -256,6 +284,8 @@ jobs:
         run: pnpm -C typescript/cli test:radix:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
+    env:
+      BENCHMARK_CONTEXT: benchmark-test-cli-e2e.yml:cli-radix-e2e-smoke:${{ strategy.job-index }}
   cli-radix-e2e-matrix:
     runs-on: depot-ubuntu-24.04-4
     if: (inputs.run_cli_e2e == 'true' || inputs.has_radix == 'true') &&
@@ -275,9 +305,13 @@ jobs:
           - warp-apply-route-extension
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -293,6 +327,8 @@ jobs:
         run: pnpm -C typescript/cli test:radix:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
+    env:
+      BENCHMARK_CONTEXT: benchmark-test-cli-e2e.yml:cli-radix-e2e-matrix:${{ strategy.job-index }}
   cli-starknet-e2e-smoke:
     runs-on: depot-ubuntu-24.04-4
     if: (inputs.run_cli_e2e == 'true' || inputs.has_starknet == 'true') &&
@@ -306,9 +342,13 @@ jobs:
           - warp-deploy
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -325,6 +365,9 @@ jobs:
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
           CLI_E2E_TIER: ${{ inputs.ci_tier }}
+    env:
+      BENCHMARK_CONTEXT: benchmark-test-cli-e2e.yml:cli-starknet-e2e-smoke:${{
+        strategy.job-index }}
   cli-starknet-e2e-matrix:
     runs-on: depot-ubuntu-24.04-4
     if: (inputs.run_cli_e2e == 'true' || inputs.has_starknet == 'true') &&
@@ -357,9 +400,13 @@ jobs:
           - warp-read
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -376,6 +423,9 @@ jobs:
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
           CLI_E2E_TIER: ${{ inputs.ci_tier }}
+    env:
+      BENCHMARK_CONTEXT: benchmark-test-cli-e2e.yml:cli-starknet-e2e-matrix:${{
+        strategy.job-index }}
   cli-tron-e2e-matrix:
     runs-on: depot-ubuntu-24.04-4
     if: inputs.run_cli_e2e == 'true' || inputs.has_tron == 'true'
@@ -390,9 +440,13 @@ jobs:
           - warp-net-flow
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -408,6 +462,8 @@ jobs:
         run: pnpm -C typescript/cli test:tron:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
+    env:
+      BENCHMARK_CONTEXT: benchmark-test-cli-e2e.yml:cli-tron-e2e-matrix:${{ strategy.job-index }}
   cli-cross-chain-e2e-matrix:
     runs-on: depot-ubuntu-24.04-4
     if: inputs.run_cli_e2e == 'true'
@@ -424,9 +480,13 @@ jobs:
           - warp-send-evm-svm
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -442,6 +502,10 @@ jobs:
         run: pnpm -C typescript/cli test:cross-chain:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
+    env:
+      BENCHMARK_CONTEXT:
+        benchmark-test-cli-e2e.yml:cli-cross-chain-e2e-matrix:${{
+        strategy.job-index }}
   cli-cross-chain-starknet-e2e-matrix:
     runs-on: depot-ubuntu-24.04-4
     if: inputs.run_cli_e2e == 'true' || inputs.has_starknet == 'true'
@@ -454,9 +518,13 @@ jobs:
           - warp-deploy-starknet
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -472,6 +540,10 @@ jobs:
         run: pnpm -C typescript/cli test:cross-chain:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
+    env:
+      BENCHMARK_CONTEXT:
+        benchmark-test-cli-e2e.yml:cli-cross-chain-starknet-e2e-matrix:${{
+        strategy.job-index }}
   cli-aleo-e2e-smoke:
     runs-on: depot-ubuntu-24.04-4
     if: (inputs.run_cli_e2e == 'true' || inputs.has_aleo == 'true') &&
@@ -486,9 +558,13 @@ jobs:
           - warp-apply-ism-updates
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -504,6 +580,8 @@ jobs:
         run: pnpm -C typescript/cli test:aleo:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
+    env:
+      BENCHMARK_CONTEXT: benchmark-test-cli-e2e.yml:cli-aleo-e2e-smoke:${{ strategy.job-index }}
   cli-aleo-e2e-matrix:
     runs-on: depot-ubuntu-24.04-4
     if: (inputs.run_cli_e2e == 'true' || inputs.has_aleo == 'true') &&
@@ -527,9 +605,13 @@ jobs:
           - warp-read
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -545,6 +627,8 @@ jobs:
         run: pnpm -C typescript/cli test:aleo:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
+    env:
+      BENCHMARK_CONTEXT: benchmark-test-cli-e2e.yml:cli-aleo-e2e-matrix:${{ strategy.job-index }}
   cli-svm-e2e-smoke:
     runs-on: depot-ubuntu-24.04-4
     if:
@@ -561,9 +645,13 @@ jobs:
           - http-signer
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -579,6 +667,8 @@ jobs:
         run: pnpm -C typescript/cli test:sealevel:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
+    env:
+      BENCHMARK_CONTEXT: benchmark-test-cli-e2e.yml:cli-svm-e2e-smoke:${{ strategy.job-index }}
   cli-svm-e2e-matrix:
     runs-on: depot-ubuntu-24.04-4
     if:
@@ -607,9 +697,13 @@ jobs:
           - warp-routing-message-id-multisig-ism
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -633,7 +727,9 @@ jobs:
 
           curl -sSfL "$URL" -o /tmp/surfpool.tar.gz
 
-          echo "${SURFPOOL_SHA256_PREFIX}${SURFPOOL_SHA256_SUFFIX}  /tmp/surfpool.tar.gz" | sha256sum -c -
+          echo
+          "${SURFPOOL_SHA256_PREFIX}${SURFPOOL_SHA256_SUFFIX}  /tmp/surfpool.tar.gz"
+          | sha256sum -c -
 
           mkdir -p "$HOME/.local/bin"
 
@@ -646,15 +742,21 @@ jobs:
         run: pnpm -C typescript/cli test:sealevel:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
+    env:
+      BENCHMARK_CONTEXT: benchmark-test-cli-e2e.yml:cli-svm-e2e-matrix:${{ strategy.job-index }}
   cli-evm-relayer-e2e:
     runs-on: depot-ubuntu-24.04-4
     if: inputs.has_relayer == 'true'
     timeout-minutes: 20
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -670,15 +772,21 @@ jobs:
         run: pnpm -C typescript/cli test:ethereum:e2e
         env:
           CLI_E2E_TEST: relay
+    env:
+      BENCHMARK_CONTEXT: benchmark-test-cli-e2e.yml:cli-evm-relayer-e2e:0
   cli-evm-rebalancer-e2e:
     runs-on: depot-ubuntu-24.04-4
     if: inputs.has_rebalancer == 'true'
     timeout-minutes: 20
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -694,3 +802,10 @@ jobs:
         run: pnpm -C typescript/cli test:ethereum:e2e
         env:
           CLI_E2E_TEST: warp-rebalancer
+    env:
+      BENCHMARK_CONTEXT: benchmark-test-cli-e2e.yml:cli-evm-rebalancer-e2e:0
+permissions:
+  contents: read
+  statuses: write
+  pull-requests: read
+  checks: read

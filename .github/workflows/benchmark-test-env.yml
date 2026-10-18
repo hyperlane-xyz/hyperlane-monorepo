@@ -9,7 +9,6 @@ env:
   TURBO_API: https://cache.depot.dev
   TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
   TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
-  TURBO_CACHE: local:rw
 jobs:
   env-test-matrix:
     runs-on: ubuntu-24.04
@@ -19,6 +18,7 @@ jobs:
       MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
       MAINNET3_ETHEREUM_RPC_URLS: ${{ secrets.MAINNET3_ETHEREUM_RPC_URLS }}
       TESTNET4_SEPOLIA_RPC_URLS: ${{ secrets.TESTNET4_SEPOLIA_RPC_URLS }}
+      BENCHMARK_CONTEXT: benchmark-test-env.yml:env-test-matrix:${{ strategy.job-index }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -38,9 +38,13 @@ jobs:
             module: core
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -69,12 +73,23 @@ jobs:
     if: always()
     steps:
       - name: Benchmark runner resources
-        run: |
-          echo "BENCHMARK_CPUS=$(nproc)"
-          echo "BENCHMARK_MEMORY_BYTES=$(free -b | awk '/^Mem:/ {print $2}')"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh api --silent --method POST
+          "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" -f state=success -f
+          context="bench-res:$BENCHMARK_CONTEXT" -f description="cpus=$(nproc)
+          mem=$(free -b | awk '/^Mem:/ {print $2}')"
       - uses: actions/checkout@v7
       - name: Check env-test matrix status
         uses: ./.depot/actions/check-job-status
         with:
           job_name: Env Test
           result: ${{ needs.env-test-matrix.result }}
+    env:
+      BENCHMARK_CONTEXT: benchmark-test-env.yml:env-test:0
+permissions:
+  contents: read
+  statuses: write
+  pull-requests: read
+  checks: read
