@@ -26,7 +26,7 @@ schema 2 can't express.
 
 ```sh
 go test ./...                       # native Go tests (from sealevel/)
-GOSVM=gosvm-int2 ./build-programs.sh # every program, fogo-v0 + solana-v3
+GOSVM=gosvm-int4 ./build-programs.sh # every program, fogo-v0 + solana-v3
 ```
 
 `build-programs.sh` writes `target/<profile>/deploy/<rust lib name>.so`
@@ -52,18 +52,26 @@ and breaks that workspace's builds.
 
 ## goSVM pin
 
-- CLI: [paulbalaji/goSVM `hyperlane-integration-2`](https://github.com/paulbalaji/goSVM/tree/hyperlane-integration-2)
-  (fe6d6b406ca1f5cf4cac17b97d583efc71b18788): upstream `79cf25c` plus the
-  fixes in draft PRs [CrocSwap/goSVM#9 to #22](https://github.com/CrocSwap/goSVM/pulls?q=is%3Apr+author%3Apaulbalaji):
-  `GetReturnData`, `Secp256k1Recover`, `Keccak256`, the memmove fix,
+- CLI: [paulbalaji/goSVM `hyperlane-integration-4`](https://github.com/paulbalaji/goSVM/tree/hyperlane-integration-4)
+  (3ddeff0): upstream `main` `939b215`, which merged our earlier PRs #9 to #24
+  in [CrocSwap/goSVM#25](https://github.com/CrocSwap/goSVM/pull/25)
+  (`GetReturnData`, `Secp256k1Recover`, `Keccak256`, the memmove fix,
   `MoveLamports`, `Log`/`Log64`/`LogPubkey`, `pda.Seeds.FindAddress`,
   `-max-accounts 64`, 64 CPI metas / 4 signer groups, bulk copies and zeroing
   on `sol_memmove_`/`sol_memset_`, System PDA-signed ops and the
-  Token/Token-2022/ATA SDK helpers. Install it with
-  `git clone -b hyperlane-integration-2 https://github.com/paulbalaji/goSVM && bash goSVM/scripts/install.sh ~/.local/bin`,
-  then point `GOSVM` at it. The build commands below call it `gosvm-int2`.
-- SDK snapshot: `sdk_sha256` 1ae01406c38ef0c2a73f5c57995c085eb52ed76688237fa1a0838d516b99c4bd
-  (copied from `gosvm-int2 new -schema 2 -sdk 2`).
+  Token/Token-2022/ATA SDK helpers), plus the open draft PRs
+  [#27](https://github.com/CrocSwap/goSVM/pull/27) (whole-word runtime loads,
+  stores and key comparisons), [#28](https://github.com/CrocSwap/goSVM/pull/28)
+  (`solana.FindAddress` on `sol_try_find_program_address`, also behind
+  `pda.Seeds.FindAddress`), [#29](https://github.com/CrocSwap/goSVM/pull/29)
+  (word-at-a-time `==` on byte arrays), [#30](https://github.com/CrocSwap/goSVM/pull/30)
+  (exact `MinimumBalanceFor` fast path at thresholds 2.0 and 1.0) and
+  [#31](https://github.com/CrocSwap/goSVM/pull/31) (word compares in
+  front of hand-written byte compare loops). Install it with
+  `git clone -b hyperlane-integration-4 https://github.com/paulbalaji/goSVM && bash goSVM/scripts/install.sh ~/.local/bin`,
+  then point `GOSVM` at it. The build commands below call it `gosvm-int4`.
+- SDK snapshot: `sdk_sha256` 6e97ac4bb6571bc2d44438fc0a1afe263f678034678e475356660f2301ca503f
+  (copied from `gosvm-int4 new -schema 2 -sdk 2`).
 - Backend: platform-tools v1.57 (`gosvm toolchain install`).
 
 To update the pin, scaffold a project with the new CLI and copy its `.gosvm/`

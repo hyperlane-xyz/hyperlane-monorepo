@@ -202,8 +202,8 @@ func InitializeAccount(c solana.Context, program, account, mint, owner, rent uin
 
 // GetAccountDataSize asks the token program for the size of a token account
 // for mint, including mint-required and up to 16 additional extension types.
-// The program returns it as a little-endian uint64 in return data; reading it
-// back needs a get_return_data boundary the SDK does not provide yet.
+// The program returns it as a little-endian uint64 in return data; read it with
+// solana.GetReturnData and validate the setting token program before decoding.
 func GetAccountDataSize(c solana.Context, program, mint uint64, extensions []uint16) uint64 {
 	if !IsProgram(c, program) {
 		return 2001

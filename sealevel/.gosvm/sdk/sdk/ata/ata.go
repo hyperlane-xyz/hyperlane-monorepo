@@ -115,7 +115,7 @@ func create(c solana.Context, opcode byte, program, payer, account, wallet, mint
 		return ErrProgram
 	}
 	tokenKey, _ := copyKey(c, tokenProgram)
-	mintKey, ok := copyKey(c, mint)
+	_, ok = copyKey(c, mint)
 	if !ok || solana.Executable(c, mint) || len(solana.Owner(c, mint)) != 32 {
 		return ErrAccount
 	}
@@ -124,18 +124,11 @@ func create(c solana.Context, opcode byte, program, payer, account, wallet, mint
 			return ErrAccount
 		}
 	}
-	walletKey, ok := copyKey(c, wallet)
+	_, ok = copyKey(c, wallet)
 	if !ok {
 		return ErrAccount
 	}
-	if account >= solana.Count(c) || !solana.Writable(c, account) {
-		return ErrAccount
-	}
-	matches, code := Matches(c, account, walletKey, tokenKey, mintKey)
-	if code != 0 {
-		return code
-	}
-	if !matches {
+	if account >= solana.Count(c) || !solana.Writable(c, account) || len(solana.Key(c, account)) != 32 {
 		return ErrAccount
 	}
 	if payer >= solana.Count(c) || !solana.Writable(c, payer) || solana.Executable(c, payer) || len(solana.Key(c, payer)) != 32 || !zero(solana.Owner(c, payer)) || len(solana.Data(c, payer)) != 0 {
@@ -172,7 +165,7 @@ func create(c solana.Context, opcode byte, program, payer, account, wallet, mint
 		return cpi.Invoke(c, program, &metas, data[:], nil)
 	}
 	var signers cpi.Signers
-	code = signers.Add(seeds)
+	code := signers.Add(seeds)
 	if code != 0 {
 		return code
 	}

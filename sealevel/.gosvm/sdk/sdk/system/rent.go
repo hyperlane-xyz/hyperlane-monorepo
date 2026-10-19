@@ -42,13 +42,40 @@ func product(x, y uint64) (uint64, uint64) {
 	return x1*y1 + w2 + w1>>32, x * y
 }
 
+// IEEE-754 bits of the exemption thresholds with an exact fast path: 2.0
+// (Fogo, and Solana before SIMD-0194) and 1.0 (Solana after it).
+const (
+	thresholdTwo uint64 = 0x4000000000000000
+	thresholdOne uint64 = 0x3ff0000000000000
+)
+
 // MinimumBalanceFor matches the pinned solana-rent 3.0.0 minimum_balance's
 // uint64 -> f64 conversion, f64 multiplication, and saturating uint64 cast.
 // Integer bit operations reproduce the two round-to-nearest-even stages without
 // floating-point runtime helpers on SBF. Unlike Rust's release-mode integer
 // wrap, overflow in (128+size)*rate is an explicit error. Sizes over 10 MiB and
 // negative/nonfinite thresholds are also rejected; signed zero is accepted.
+//
+// With a threshold of 2.0 or 1.0 and n = (128+size)*rate below 2^53, the
+// conversion and the product are exact, so the result is 2n or n and the
+// rounding emulation is skipped.
 func MinimumBalanceFor(rate, thresholdBits, size uint64) (uint64, uint64) {
+	if size > MaxDataLen || rate > ^uint64(0)/(128+size) {
+		return 0, ErrRent
+	}
+	if n := (128 + size) * rate; n < 1<<53 {
+		if thresholdBits == thresholdTwo {
+			return 2 * n, 0
+		}
+		if thresholdBits == thresholdOne {
+			return n, 0
+		}
+	}
+	return minimumBalanceExact(rate, thresholdBits, size)
+}
+
+// minimumBalanceExact is MinimumBalanceFor without the fast path.
+func minimumBalanceExact(rate, thresholdBits, size uint64) (uint64, uint64) {
 	if size > MaxDataLen || rate > ^uint64(0)/(128+size) {
 		return 0, ErrRent
 	}

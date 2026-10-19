@@ -58,30 +58,27 @@ func (s *Seeds) Address(c solana.Context, program [32]byte) ([32]byte, uint64) {
 // gives for these seeds under program: each bump from 255 down to 1 (never 0,
 // as in Solana) is appended in turn and the first off-curve address is
 // returned. The builder is unchanged; add the bump to it for signing. A
-// builder with 16 seeds has no room for the bump (ErrSeeds). Each attempt is
-// one create-program-address syscall (1,500 CU), so a bump of b costs about
+// builder with 16 seeds has no room for the bump (ErrSeeds). The search is
+// one solana.FindAddress call (sol_try_find_program_address), which the
+// runtime charges 1,500 CU per bump tried, so a bump of b costs about
 // (256-b)*1,500 CU; store the bump and use Address when it is known.
 func (s *Seeds) FindAddress(c solana.Context, program [32]byte) ([32]byte, byte, uint64) {
 	var address [32]byte
-	probe := *s
-	if probe.AddByte(255) != 0 {
+	// Room for the one-byte bump seed, as AddByte checks.
+	if s.count >= 16 || s.used > 526 {
 		return address, 0, ErrSeeds
 	}
-	seeds := probe.Bytes()
-	last := uint64(len(seeds)) - 1
-	for bump := uint64(255); bump > 0; bump-- {
-		seeds[last] = byte(bump)
-		code := solana.CreateAddress(c, seeds, program[:], address[:])
-		if code == 0 {
-			return address, byte(bump), 0
-		}
-		// The syscall returns 1 for an on-curve address; other statuses
-		// (malformed input, a missing native callback) end the search.
-		if code != 1 {
-			return address, 0, code
-		}
+	var found [33]byte
+	code := solana.FindAddress(c, s.Bytes(), program[:], found[:])
+	if code == 1 {
+		return address, 0, ErrNoAddress
 	}
-	return address, 0, ErrNoAddress
+	// Other statuses (a missing native callback) end the search.
+	if code != 0 {
+		return address, 0, code
+	}
+	copy(address[:], found[:32])
+	return address, found[32], 0
 }
 
 func (s *Seeds) Matches(c solana.Context, index uint64, program [32]byte) (bool, uint64) {

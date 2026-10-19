@@ -91,8 +91,11 @@ The u64 from `Process` reaches the runtime unchanged (`svm` constants):
 - After a CPI, call `solana.Data(c, i)` again; older slices are stale.
 - PDAs: seeds are separate segments (`[][]byte{"test_ism", "-", "storage"}`),
   never concatenated. `svm.FindProgramAddress` / `FindProgramAddressSeeds`
-  search from bump 255 with one create_program_address syscall per try, so
-  CU matches Rust. Pass the returned `svm.Seeds` to CPIs.
+  make one `sol_try_find_program_address` syscall, like Rust. Pass the
+  returned `svm.Seeds` to CPIs. Where a program-owned account stores its
+  canonical bump, check it with `accountutils.VerifyPDAWithStoredBump` (as
+  the Rust programs' `verify_pda_with_stored_bump` does) instead of a search.
+- Compare keys with `svm.KeyIs`/`OwnerIs`/`Equal32`, not a byte loop.
 - PDA creation: `accountutils.CreatePDAAccount` has both of Rust's branches
   (create, or top up + allocate + assign). Don't use `system.CreateSigned`: it
   rejects pre-funded targets.
@@ -102,16 +105,18 @@ CreateAccount`.
 - SBF frames are capped at 4 KiB. Don't keep `pda.Seeds`/`cpi.Signers` or other
   big structs as locals; heap-allocate with `new` or `make`.
 
-## goSVM integration-2 features
+## goSVM integration-4 features
 
 Available: `SetReturnData`, `GetReturnData` (check the setter key),
 `Keccak256`, `Secp256k1Recover`, `MoveLamports`, `Log` (`msg!`; use
-`svm.Msg` for Rust's value formats), `pda.Seeds.FindAddress`, `-max-accounts
+`svm.Msg` for Rust's value formats), `pda.Seeds.FindAddress`,
+`solana.FindAddress` (one `sol_try_find_program_address`), `-max-accounts
 64`, 64 CPI metas and 4 signer groups, Token-2022/ATA helpers. `copy`,
 struct/array assignment and `for i := range s { s[i] = 0 }` lower to
 `sol_memmove_`/`sol_memset_`; hand-written copy loops don't, so use `copy`.
-APIs and error codes are documented in each upstream draft PR
-([CrocSwap/goSVM#9 to #22](https://github.com/CrocSwap/goSVM/pulls?q=is%3Apr+author%3Apaulbalaji)).
+APIs and error codes are documented in each upstream PR
+([CrocSwap/goSVM#9 to #24](https://github.com/CrocSwap/goSVM/pulls?q=is%3Apr+author%3Apaulbalaji),
+merged in #25; open: #27 to #31, listed in the README).
 
 ## Tests
 
@@ -124,7 +129,7 @@ APIs and error codes are documented in each upstream draft PR
 3. Conformance: run the Rust functional suite against the Go ELF.
 
 ```sh
-GOSVM=gosvm-int2 sealevel/build-programs.sh
+GOSVM=gosvm-int4 sealevel/build-programs.sh
 mkdir -p /tmp/elf && cp <Rust ELFs for the other programs the suite loads> /tmp/elf/
 cp sealevel/target/fogo-v0/deploy/*.so /tmp/elf/   # includes spl_noop.so
 cd rust/sealevel && SBF_OUT_DIR=/tmp/elf \
