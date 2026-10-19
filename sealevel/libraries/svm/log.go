@@ -1,6 +1,10 @@
 package svm
 
-import "gosvm/solana"
+import (
+	"math/bits"
+
+	"gosvm/solana"
+)
 
 // Msg builds one msg! line. Programs append the same text and value formats
 // as the Rust format string, then Emit it with solana.Log ("Program log: "
@@ -38,6 +42,37 @@ func (m *Msg) Dec(v uint64) {
 		}
 	}
 	m.b = append(m.b, d[n:]...)
+}
+
+// U256 appends a little-endian [4]uint64 U256 in decimal.
+func (m *Msg) U256(v *[4]uint64) {
+	if v[1]|v[2]|v[3] == 0 {
+		m.Dec(v[0])
+		return
+	}
+	// Divide by 10^19 repeatedly; each remainder is 19 decimal digits.
+	const chunk = uint64(10000000000000000000)
+	q := *v
+	var parts [5]uint64
+	n := 0
+	for q[0]|q[1]|q[2]|q[3] != 0 {
+		var rem uint64
+		for i := 3; i >= 0; i-- {
+			q[i], rem = bits.Div64(rem, q[i], chunk)
+		}
+		parts[n] = rem
+		n++
+	}
+	m.Dec(parts[n-1])
+	for i := n - 2; i >= 0; i-- {
+		var d [19]byte
+		x := parts[i]
+		for j := 18; j >= 0; j-- {
+			d[j] = byte('0' + x%10)
+			x /= 10
+		}
+		m.b = append(m.b, d[:]...)
+	}
 }
 
 // U32 appends v in decimal.
@@ -139,6 +174,13 @@ func (m *Msg) Pubkey(k *[32]byte) {
 	}
 }
 
+// Key appends a 32-byte key slice (e.g. solana.Key) in base58.
+func (m *Msg) Key(b []byte) {
+	var k [32]byte
+	copy(k[:], b)
+	m.Pubkey(&k)
+}
+
 // OptionPubkey appends `{:?}` of an Option<Pubkey>: Some(<base58>) or None.
 func (m *Msg) OptionPubkey(some bool, k *[32]byte) {
 	if !some {
@@ -199,6 +241,15 @@ func LogProgramError(c solana.Context, code uint64) {
 		return
 	}
 	solana.Log(c, programErrorText(code))
+}
+
+// LogError logs a non-zero code with LogProgramError and returns it: the
+// Rust processors' .map_err(|err| { msg!("{}", err); err }).
+func LogError(c solana.Context, code uint64) uint64 {
+	if code != Success {
+		LogProgramError(c, code)
+	}
+	return code
 }
 
 func programErrorText(code uint64) string {

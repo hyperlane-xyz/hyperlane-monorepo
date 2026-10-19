@@ -2,7 +2,7 @@
 //! types the programs print. Each entry is {"hex": input bytes, "text": the
 //! formatted string}.
 
-use hyperlane_core::{H160, H256};
+use hyperlane_core::{H160, H256, U256};
 use serde_json::{json, Value};
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
@@ -61,6 +61,23 @@ pub fn extend(out: &mut Value) {
     for v in [0u64, 1, 9, 10, 1_000_000_007, u32::MAX as u64, u64::MAX] {
         text(&mut m, format!("u64_{v}"), &v.to_le_bytes(), format!("{v}"));
         text(&mut m, format!("some_u64_{v}"), &v.to_le_bytes(), format!("{:?}", Some(v)));
+    }
+    let u256s = [
+        U256::zero(),
+        U256::from(u64::MAX),
+        U256::from(u64::MAX) + 1,
+        U256::exp10(19),
+        U256::exp10(19) - 1,
+        U256::exp10(38) + 5,
+        U256::exp10(57) * 7 + 3,
+        U256::MAX,
+    ];
+    for (i, v) in u256s.iter().enumerate() {
+        let mut b = Vec::new();
+        for limb in v.0 {
+            b.extend_from_slice(&limb.to_le_bytes());
+        }
+        text(&mut m, format!("u256_{i}"), &b, format!("{v}"));
     }
     for v in [0i64, -1, 1_700_000_000, i64::MIN, i64::MAX] {
         text(&mut m, format!("i64_{v}"), &v.to_le_bytes(), format!("{v}"));

@@ -59,6 +59,12 @@ func TestMsgFormatsMatchRust(t *testing.T) {
 				m.OptionDec(true, binary.LittleEndian.Uint64(b))
 				m.Emit(c)
 			})
+		case strings.HasPrefix(name, "u256_"):
+			var u [4]uint64
+			for i := range u {
+				u[i] = binary.LittleEndian.Uint64(b[8*i:])
+			}
+			got = logged(t, func(c solana.Context) { m := svm.NewMsg(""); m.U256(&u); m.Emit(c) })
 		case strings.HasPrefix(name, "i64_"):
 			got = logged(t, func(c solana.Context) {
 				m := svm.NewMsg("")
