@@ -84,14 +84,20 @@ type HyperlaneToken[T any, P PluginData[T]] struct {
 
 func (t *HyperlaneToken[T, P]) EncodeBorsh(w *borsh.Writer) {
 	w.U8(t.Bump)
-	w.Bytes32(t.Mailbox)
-	w.Bytes32(t.MailboxProcessAuthority)
+	w.Raw(t.Mailbox[:])
+	w.Raw(t.MailboxProcessAuthority[:])
 	w.U8(t.DispatchAuthorityBump)
 	w.U8(t.Decimals)
 	w.U8(t.RemoteDecimals)
-	cc.WriteOptionalPubkey(w, t.Owner)
-	cc.WriteOptionalPubkey(w, t.InterchainSecurityModule)
-	cc.WriteOptionalIGP(w, &t.InterchainGasPaymaster)
+	writeOptionalKey(w, &t.Owner)
+	writeOptionalKey(w, &t.InterchainSecurityModule)
+	igp := &t.InterchainGasPaymaster
+	w.OptionTag(igp.Some)
+	if igp.Some {
+		w.Raw(igp.Value.Program[:])
+		w.EnumTag(igp.Value.Type.Kind)
+		w.Raw(igp.Value.Type.Key[:])
+	}
 	cc.WriteDestinationGas(w, t.DestinationGas)
 	cc.WriteRouters(w, t.RemoteRouters)
 	P(&t.PluginData).EncodeBorsh(w)
@@ -100,18 +106,47 @@ func (t *HyperlaneToken[T, P]) EncodeBorsh(w *borsh.Writer) {
 
 func (t *HyperlaneToken[T, P]) DecodeBorsh(r *borsh.Reader) {
 	t.Bump = r.U8()
-	t.Mailbox = r.Bytes32()
-	t.MailboxProcessAuthority = r.Bytes32()
+	readKey(r, &t.Mailbox)
+	readKey(r, &t.MailboxProcessAuthority)
 	t.DispatchAuthorityBump = r.U8()
 	t.Decimals = r.U8()
 	t.RemoteDecimals = r.U8()
-	t.Owner = cc.ReadOptionalPubkey(r)
-	t.InterchainSecurityModule = cc.ReadOptionalPubkey(r)
-	t.InterchainGasPaymaster = cc.ReadOptionalIGP(r)
+	readOptionalKey(r, &t.Owner)
+	readOptionalKey(r, &t.InterchainSecurityModule)
+	if r.OptionTag() {
+		t.InterchainGasPaymaster.Some = true
+		readKey(r, &t.InterchainGasPaymaster.Value.Program)
+		t.InterchainGasPaymaster.Value.Type.Kind = r.EnumTag()
+		if t.InterchainGasPaymaster.Value.Type.Kind > cc.IGPTypeOverheadIgp {
+			r.Fail()
+		}
+		readKey(r, &t.InterchainGasPaymaster.Value.Type.Key)
+	}
 	t.DestinationGas = cc.ReadDestinationGas(r)
 	t.RemoteRouters = cc.ReadRouters(r)
 	P(&t.PluginData).DecodeBorsh(r)
 	t.FeeConfig = accountutils.ReadOptionalDiscriminated[FeeConfig](r, FeeConfigDiscriminator)
+}
+
+// readKey copies 32 bytes into dst without value copies of the array.
+func readKey(r *borsh.Reader, dst *[32]byte) {
+	if b := r.Fixed(32); b != nil {
+		copy(dst[:], b)
+	}
+}
+
+func readOptionalKey(r *borsh.Reader, dst *borsh.Option[svm.Pubkey]) {
+	if r.OptionTag() {
+		dst.Some = true
+		readKey(r, &dst.Value)
+	}
+}
+
+func writeOptionalKey(w *borsh.Writer, o *borsh.Option[svm.Pubkey]) {
+	w.OptionTag(o.Some)
+	if o.Some {
+		w.Raw(o.Value[:])
+	}
 }
 
 // Size is HyperlaneToken's SizedData. It counts owner, ISM and IGP as present
