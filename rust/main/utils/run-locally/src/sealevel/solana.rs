@@ -275,7 +275,8 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
     for &path in SOLANA_HYPERLANE_PROGRAMS {
         build_sbf
             .clone()
-            .working_dir(concat_path(&sealevel_programs, path))
+            // Each program builds its ELF from a cdylib-only package so cargo applies LTO.
+            .working_dir(concat_path(concat_path(&sealevel_programs, path), "cdylib"))
             .run()
             .join();
     }

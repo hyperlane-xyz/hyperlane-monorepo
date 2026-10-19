@@ -111,7 +111,7 @@ Embedded program bytes, main vs this branch.
 
 ```bash
 bash typescript/svm-sdk/scripts/build-program-bytes.sh   # needs agave 3.0.14 on PATH, macOS arm64
-# add test_send_receiver.so (cargo build-sbf --tools-version v1.51 in programs/test-send-receiver) and spl_noop.so
+# add test_send_receiver.so (cargo build-sbf --tools-version v1.51 in programs/test-send-receiver/cdylib) and spl_noop.so
 rust/sealevel/programs/conformance.sh -j 4 -o after.json <elf-dir>
 rust/sealevel/programs/conformance/cu-diff.py before.json after.json --metric self_cu
 ```

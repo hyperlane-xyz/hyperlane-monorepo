@@ -34,4 +34,4 @@ solana-system-interface.workspace = true
 hyperlane-test-utils = { path = "../../libraries/test-utils" }
 
 [lib]
-crate-type = ["cdylib", "lib"]
+crate-type = ["lib"]

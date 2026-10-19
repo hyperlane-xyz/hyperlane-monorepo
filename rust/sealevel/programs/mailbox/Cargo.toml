@@ -43,4 +43,4 @@ log.workspace = true
 rand.workspace = true
 
 [lib]
-crate-type = ["cdylib", "lib"]
+crate-type = ["lib"]

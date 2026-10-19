@@ -17,19 +17,31 @@ members = [
     "libraries/test-transaction-utils",
     "libraries/test-utils",
     "programs/hyperlane-sealevel-fee",
+    "programs/hyperlane-sealevel-fee/cdylib",
     "programs/hyperlane-sealevel-igp",
+    "programs/hyperlane-sealevel-igp/cdylib",
     "programs/hyperlane-sealevel-igp-test",
     "programs/hyperlane-sealevel-token",
+    "programs/hyperlane-sealevel-token/cdylib",
     "programs/hyperlane-sealevel-token-collateral",
+    "programs/hyperlane-sealevel-token-collateral/cdylib",
     "programs/hyperlane-sealevel-token-cross-collateral",
+    "programs/hyperlane-sealevel-token-cross-collateral/cdylib",
     "programs/hyperlane-sealevel-token-native",
+    "programs/hyperlane-sealevel-token-native/cdylib",
     "programs/ism/composite-ism",
+    "programs/ism/composite-ism/cdylib",
     "programs/ism/multisig-ism-message-id",
+    "programs/ism/multisig-ism-message-id/cdylib",
     "programs/ism/test-ism",
+    "programs/ism/test-ism/cdylib",
     "programs/mailbox",
+    "programs/mailbox/cdylib",
     "programs/mailbox-test",
     "programs/test-send-receiver",
+    "programs/test-send-receiver/cdylib",
     "programs/validator-announce",
+    "programs/validator-announce/cdylib",
 ]
 
 [workspace.package]
@@ -164,6 +176,12 @@ warp = "0.3"
 which = "4.3"
 ya-gcp = { version = "0.11.1", features = ["storage"] }
 
+
+# Fat LTO for SBF program ELFs. Each program builds its ELF from a cdylib-only
+# package (programs/*/cdylib) because cargo skips LTO for packages that build
+# both cdylib and rlib.
+[profile.release]
+lto = "fat"
 
 [profile.release.package.access-control]
 overflow-checks = true

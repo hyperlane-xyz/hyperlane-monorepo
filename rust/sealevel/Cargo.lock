@@ -3490,6 +3490,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-composite-ism-cdylib"
+version = "0.1.0"
+dependencies = [
+ "hyperlane-sealevel-composite-ism",
+]
+
+[[package]]
 name = "hyperlane-sealevel-connection-client"
 version = "0.1.0"
 dependencies = [
@@ -3525,6 +3532,13 @@ dependencies = [
  "solana-sdk",
  "solana-system-interface 2.0.0",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "hyperlane-sealevel-fee-cdylib"
+version = "0.1.0"
+dependencies = [
+ "hyperlane-sealevel-fee",
 ]
 
 [[package]]
@@ -3567,6 +3581,13 @@ dependencies = [
  "solana-program 3.0.0",
  "solana-system-interface 2.0.0",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "hyperlane-sealevel-igp-cdylib"
+version = "0.1.0"
+dependencies = [
+ "hyperlane-sealevel-igp",
 ]
 
 [[package]]
@@ -3627,6 +3648,13 @@ dependencies = [
  "solana-system-interface 2.0.0",
  "spl-noop",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "hyperlane-sealevel-mailbox-cdylib"
+version = "0.1.0"
+dependencies = [
+ "hyperlane-sealevel-mailbox",
 ]
 
 [[package]]
@@ -3699,6 +3727,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-multisig-ism-message-id-cdylib"
+version = "0.1.0"
+dependencies = [
+ "hyperlane-sealevel-multisig-ism-message-id",
+]
+
+[[package]]
 name = "hyperlane-sealevel-test-ism"
 version = "0.1.0"
 dependencies = [
@@ -3716,6 +3751,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-test-ism-cdylib"
+version = "0.1.0"
+dependencies = [
+ "hyperlane-sealevel-test-ism",
+]
+
+[[package]]
 name = "hyperlane-sealevel-test-send-receiver"
 version = "0.1.0"
 dependencies = [
@@ -3730,6 +3772,13 @@ dependencies = [
  "solana-sdk",
  "solana-system-interface 2.0.0",
  "spl-noop",
+]
+
+[[package]]
+name = "hyperlane-sealevel-test-send-receiver-cdylib"
+version = "0.1.0"
+dependencies = [
+ "hyperlane-sealevel-test-send-receiver",
 ]
 
 [[package]]
@@ -3768,6 +3817,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-token-cdylib"
+version = "0.1.0"
+dependencies = [
+ "hyperlane-sealevel-token",
+]
+
+[[package]]
 name = "hyperlane-sealevel-token-collateral"
 version = "0.1.0"
 dependencies = [
@@ -3800,6 +3856,13 @@ dependencies = [
  "spl-token",
  "spl-token-2022",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "hyperlane-sealevel-token-collateral-cdylib"
+version = "0.1.0"
+dependencies = [
+ "hyperlane-sealevel-token-collateral",
 ]
 
 [[package]]
@@ -3838,6 +3901,13 @@ dependencies = [
  "spl-token",
  "spl-token-2022",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "hyperlane-sealevel-token-cross-collateral-cdylib"
+version = "0.1.0"
+dependencies = [
+ "hyperlane-sealevel-token-cross-collateral",
 ]
 
 [[package]]
@@ -3902,6 +3972,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-sealevel-token-native-cdylib"
+version = "0.1.0"
+dependencies = [
+ "hyperlane-sealevel-token-native",
+]
+
+[[package]]
 name = "hyperlane-sealevel-validator-announce"
 version = "0.1.0"
 dependencies = [
@@ -3920,6 +3997,13 @@ dependencies = [
  "solana-sdk",
  "solana-system-interface 2.0.0",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "hyperlane-sealevel-validator-announce-cdylib"
+version = "0.1.0"
+dependencies = [
+ "hyperlane-sealevel-validator-announce",
 ]
 
 [[package]]

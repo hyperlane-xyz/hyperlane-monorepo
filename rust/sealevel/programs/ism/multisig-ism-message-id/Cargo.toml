@@ -45,4 +45,4 @@ hex.workspace = true
 rand = "0.8.5"
 
 [lib]
-crate-type = ["cdylib", "lib"]
+crate-type = ["lib"]

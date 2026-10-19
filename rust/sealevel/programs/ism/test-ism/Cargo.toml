@@ -30,4 +30,4 @@ serializable-account-meta = { path = "../../../libraries/serializable-account-me
 hyperlane-test-transaction-utils = { path = "../../../libraries/test-transaction-utils", optional = true }
 
 [lib]
-crate-type = ["cdylib", "lib"]
+crate-type = ["lib"]

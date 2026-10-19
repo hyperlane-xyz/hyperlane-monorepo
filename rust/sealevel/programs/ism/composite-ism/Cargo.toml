@@ -49,4 +49,4 @@ rand = "0.8.5"
 workspace = true
 
 [lib]
-crate-type = ["cdylib", "lib"]
+crate-type = ["lib"]

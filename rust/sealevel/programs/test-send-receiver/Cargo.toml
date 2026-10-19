@@ -31,4 +31,4 @@ hyperlane-test-utils = { path = "../../libraries/test-utils", optional = true }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
 
 [lib]
-crate-type = ["cdylib", "lib"]
+crate-type = ["lib"]

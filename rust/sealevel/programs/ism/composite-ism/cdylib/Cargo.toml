@@ -1,0 +1,13 @@
+[package]
+name = "hyperlane-sealevel-composite-ism-cdylib"
+version = "0.1.0"
+edition = "2021"
+
+# Deployable ELF. Kept apart from the `lib` crate because cargo skips LTO for
+# packages that build both cdylib and rlib.
+[lib]
+name = "hyperlane_sealevel_composite_ism"
+crate-type = ["cdylib"]
+
+[dependencies]
+program = { package = "hyperlane-sealevel-composite-ism", path = ".." }

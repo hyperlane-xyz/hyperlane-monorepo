@@ -39,8 +39,10 @@ export function productionSourceFiles() {
   );
   const pending = [...packages.values()]
     .filter((pkg) =>
-      pkg.targets.some((target) =>
-        binaries.has(target.name.replaceAll('-', '_')),
+      pkg.targets.some(
+        (target) =>
+          target.crate_types.includes('cdylib') &&
+          binaries.has(target.name.replaceAll('-', '_')),
       ),
     )
     .map((pkg) => [pkg, ['default']]);

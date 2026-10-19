@@ -55,4 +55,4 @@ hyperlane-sealevel-test-ism = { path = "../ism/test-ism", features = [
 tarpc = "~0.29"
 
 [lib]
-crate-type = ["cdylib", "lib"]
+crate-type = ["lib"]

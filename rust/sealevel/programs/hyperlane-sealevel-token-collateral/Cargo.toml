@@ -54,4 +54,4 @@ quote-verifier = { path = "../../libraries/quote-verifier" }
 rand.workspace = true
 
 [lib]
-crate-type = ["cdylib", "lib"]
+crate-type = ["lib"]
