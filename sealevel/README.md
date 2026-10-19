@@ -67,4 +67,7 @@ and breaks that workspace's builds.
 - Backend: platform-tools v1.57 (`gosvm toolchain install`).
 
 To update the pin, scaffold a project with the new CLI and copy its `.gosvm/`
-over this one.
+over this one. `.gosvm/sdk` is goSVM source, Apache-2.0; its `LICENSE` and
+`NOTICE` are copied alongside.
+
+Benchmarks against the Rust programs: [benchmarks/2026-10-19](benchmarks/2026-10-19/README.md).
