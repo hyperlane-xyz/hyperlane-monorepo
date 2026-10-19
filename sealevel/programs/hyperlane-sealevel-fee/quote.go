@@ -2,6 +2,7 @@ package fee
 
 import (
 	accountutils "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/account-utils"
+	quoteverifier "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/quote-verifier"
 	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/svm"
 	"gosvm/solana"
 )
@@ -232,8 +233,7 @@ func resolveStandingQuote(c solana.Context, programID *Pubkey, idx uint64, feeKe
 			continue
 		}
 		value := &standing.Quotes[j].Value
-		// ValidatableQuote::validate_quote.
-		if value.IssuedAt < minIssuedAt || now > value.Expiry {
+		if quoteverifier.ValidateQuote(value.IssuedAt, value.Expiry, minIssuedAt, now) != 0 {
 			continue
 		}
 		if value.FeeData.Kind != strategy.Kind {

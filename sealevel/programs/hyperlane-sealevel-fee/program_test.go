@@ -13,6 +13,7 @@ import (
 	accountutils "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/account-utils"
 	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/borsh"
 	packageversioned "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/package-versioned"
+	quoteverifier "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/quote-verifier"
 	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/svm"
 	"gosvm/solana"
 )
@@ -240,14 +241,12 @@ func encodeInstruction(t *testing.T, variant string, raw json.RawMessage) []byte
 		w.EnumTag(IxSetWildcardQuoteSigners)
 		writeSigners(&w, jsigners(t, f["signers"]))
 	case "SubmitQuote":
-		// SvmSignedQuote's layout, until the quote-verifier library lands.
 		w.EnumTag(IxSubmitQuote)
-		w.ByteVec(jhex(t, f["context"]))
-		w.ByteVec(jhex(t, f["data"]))
-		w.Raw(jhex(t, f["issued_at"]))
-		w.Raw(jhex(t, f["expiry"]))
-		w.Raw(jhex(t, f["client_salt"]))
-		w.Raw(jhex(t, f["signature"]))
+		q := quoteverifier.SvmSignedQuote{Context: jhex(t, f["context"]), Data: jhex(t, f["data"]), ClientSalt: j32(t, f["client_salt"])}
+		copy(q.IssuedAt[:], jhex(t, f["issued_at"]))
+		copy(q.Expiry[:], jhex(t, f["expiry"]))
+		copy(q.Signature[:], jhex(t, f["signature"]))
+		q.EncodeBorsh(&w)
 	case "CloseTransientQuote":
 		w.EnumTag(IxCloseTransientQuote)
 	case "GetQuoteAccountMetas", "GetSubmitQuoteAccountMetas":
@@ -401,9 +400,6 @@ func TestGoldenInstructionsDecode(t *testing.T) {
 	}
 	for _, h := range all {
 		data := testvectors.MustHex(t, h)
-		if data[0] == IxSubmitQuote || data[0] == IxCloseTransientQuote {
-			continue // PENDING(quote-verifier)
-		}
 		if code, _ := run(data); code != svm.NotEnoughAccountKeys {
 			t.Errorf("%x: %#x, want NotEnoughAccountKeys", data, code)
 		}
@@ -425,7 +421,7 @@ func TestGoldenInstructionsDecode(t *testing.T) {
 
 func TestGetProgramVersion(t *testing.T) {
 	code, ret := run(packageversioned.GetProgramVersionDiscriminator[:])
-	if code != svm.Success || !bytes.Equal(ret, packageversioned.EncodeVersionReturnData("1.0.0")) {
+	if code != svm.Success || !bytes.Equal(ret, []byte{5, 0, 0, 0, '1', '.', '0', '.', '0', 0xff}) {
 		t.Fatalf("%#x %x", code, ret)
 	}
 }
