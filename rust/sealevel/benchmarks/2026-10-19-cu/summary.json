@@ -1,0 +1,727 @@
+{
+  "date": "2026-10-19",
+  "toolchain": {
+    "agave": "3.0.14",
+    "platform_tools": "v1.51"
+  },
+  "runs": {
+    "rust_before": 2,
+    "rust_after": 2,
+    "go": 1
+  },
+  "status": {
+    "base": [
+      {
+        "passed": 582,
+        "total": 584,
+        "failed": [
+          "mailbox::functional::test_outbox_get_latest_checkpoint",
+          "token-cross-collateral::test_cc_remote_transfer_igp_new_flow_with_fee"
+        ]
+      },
+      {
+        "passed": 581,
+        "total": 584,
+        "failed": [
+          "mailbox::functional::test_outbox_get_latest_checkpoint",
+          "token-cross-collateral::test_cc_local_transfer_with_fee",
+          "token-cross-collateral::test_cc_remote_transfer_igp_new_flow_with_fee"
+        ]
+      }
+    ],
+    "new": [
+      {
+        "passed": 584,
+        "total": 584,
+        "failed": []
+      },
+      {
+        "passed": 584,
+        "total": 584,
+        "failed": []
+      }
+    ],
+    "go": [
+      {
+        "passed": 584,
+        "total": 584,
+        "failed": []
+      }
+    ]
+  },
+  "hot_paths": [
+    {
+      "operation": "dispatch",
+      "program": "mailbox",
+      "samples": 51,
+      "base_cu_median": 53058.0,
+      "base_self_median": 53058.0,
+      "base_cu_total": 2696630.0,
+      "new_cu_median": 18745.0,
+      "new_self_median": 18745.0,
+      "new_cu_total": 970292.0,
+      "go_cu_median": 24309.0,
+      "go_self_median": 24309.0,
+      "go_cu_total": 1292026.0
+    },
+    {
+      "operation": "process",
+      "program": "mailbox",
+      "samples": 36,
+      "base_cu_median": 142783.75,
+      "base_self_median": 61277.0,
+      "base_cu_total": 3965428.5,
+      "new_cu_median": 73027.0,
+      "new_self_median": 30599.0,
+      "new_cu_total": 2213257.0,
+      "go_cu_median": 77339.0,
+      "go_self_median": 31910.0,
+      "go_cu_total": 2273523.0
+    },
+    {
+      "operation": "transfer_remote",
+      "program": "token",
+      "samples": 12,
+      "base_cu_median": 158187.0,
+      "base_self_median": 68298.0,
+      "base_cu_total": 1921324.0,
+      "new_cu_median": 78395.0,
+      "new_self_median": 30847.0,
+      "new_cu_total": 961962.0,
+      "go_cu_median": 102063.5,
+      "go_self_median": 28228.0,
+      "go_cu_total": 1246608.0
+    },
+    {
+      "operation": "transfer_remote",
+      "program": "token_collateral",
+      "samples": 11,
+      "base_cu_median": 153190.0,
+      "base_self_median": 69342.0,
+      "base_cu_total": 1712955.0,
+      "new_cu_median": 74627.0,
+      "new_self_median": 29641.0,
+      "new_cu_total": 833349.0,
+      "go_cu_median": 94307.0,
+      "go_self_median": 28061.0,
+      "go_cu_total": 1080168.0
+    },
+    {
+      "operation": "transfer_remote",
+      "program": "token_cross_collateral",
+      "samples": 14,
+      "base_cu_median": 172531.0,
+      "base_self_median": 79542.5,
+      "base_cu_total": 2327142.0,
+      "new_cu_median": 86215.5,
+      "new_self_median": 33886.5,
+      "new_cu_total": 1140766.0,
+      "go_cu_median": 114197.5,
+      "go_self_median": 37088.5,
+      "go_cu_total": 1520039.0
+    },
+    {
+      "operation": "transfer_remote",
+      "program": "token_native",
+      "samples": 13,
+      "base_cu_median": 154741.0,
+      "base_self_median": 65659.0,
+      "base_cu_total": 1850326.0,
+      "new_cu_median": 73850.0,
+      "new_self_median": 27407.0,
+      "new_cu_total": 880384.0,
+      "go_cu_median": 96036.0,
+      "go_self_median": 26239.0,
+      "go_cu_total": 1139402.0
+    },
+    {
+      "operation": "handle",
+      "program": "token",
+      "samples": 16,
+      "base_cu_median": 79629.0,
+      "base_self_median": 60541.0,
+      "base_cu_total": 1290363.0,
+      "new_cu_median": 41149.0,
+      "new_self_median": 21686.0,
+      "new_cu_total": 674083.0,
+      "go_cu_median": 41137.0,
+      "go_self_median": 22799.0,
+      "go_cu_total": 676529.0
+    },
+    {
+      "operation": "handle",
+      "program": "token_collateral",
+      "samples": 2,
+      "base_cu_median": 79758.5,
+      "base_self_median": 57284.0,
+      "base_cu_total": 159517.0,
+      "new_cu_median": 41787.5,
+      "new_self_median": 19313.0,
+      "new_cu_total": 83575.0,
+      "go_cu_median": 44579.5,
+      "go_self_median": 21730.0,
+      "go_cu_total": 89159.0
+    },
+    {
+      "operation": "handle",
+      "program": "token_cross_collateral",
+      "samples": 2,
+      "base_cu_median": 78884.5,
+      "base_self_median": 60141.5,
+      "base_cu_total": 157769.0,
+      "new_cu_median": 43172.0,
+      "new_self_median": 23679.0,
+      "new_cu_total": 86344.0,
+      "go_cu_median": 42496.0,
+      "go_self_median": 24128.0,
+      "go_cu_total": 84992.0
+    },
+    {
+      "operation": "handle",
+      "program": "token_native",
+      "samples": 1,
+      "base_cu_median": 48960.0,
+      "base_self_median": 48960.0,
+      "base_cu_total": 48960.0,
+      "new_cu_median": 10983.0,
+      "new_self_median": 10983.0,
+      "new_cu_total": 10983.0,
+      "go_cu_median": 14821.0,
+      "go_self_median": 14821.0,
+      "go_cu_total": 14821.0
+    },
+    {
+      "operation": "pay_for_gas (CPI from transfer_remote)",
+      "program": "igp",
+      "samples": 48,
+      "base_cu_median": 30478.5,
+      "base_self_median": 30478.5,
+      "base_cu_total": 1423975.0,
+      "new_cu_median": 24287.0,
+      "new_self_median": 24287.0,
+      "new_cu_total": 1107780.0,
+      "go_cu_median": 40222.5,
+      "go_self_median": 40222.5,
+      "go_cu_total": 1816802.0
+    },
+    {
+      "operation": "pay_for_gas (direct)",
+      "program": "igp",
+      "samples": 4,
+      "base_cu_median": 23056.5,
+      "base_self_median": 23056.5,
+      "base_cu_total": 92226.0,
+      "new_cu_median": 15048.0,
+      "new_self_median": 15048.0,
+      "new_cu_total": 60942.0,
+      "go_cu_median": 25183.0,
+      "go_self_median": 25183.0,
+      "go_cu_total": 99105.0
+    },
+    {
+      "operation": "multisig verify (direct)",
+      "program": "multisig_ism_message_id",
+      "samples": 1,
+      "base_cu_median": 101609.0,
+      "base_self_median": 101609.0,
+      "base_cu_total": 101609.0,
+      "new_cu_median": 54566.0,
+      "new_self_median": 54566.0,
+      "new_cu_total": 54566.0,
+      "go_cu_median": 55734.0,
+      "go_self_median": 55734.0,
+      "go_cu_total": 55734.0
+    },
+    {
+      "operation": "validator announce",
+      "program": "validator_announce",
+      "samples": 2,
+      "base_cu_median": 79031.5,
+      "base_self_median": 79031.5,
+      "base_cu_total": 158063.0,
+      "new_cu_median": 43522.5,
+      "new_self_median": 43522.5,
+      "new_cu_total": 87045.0,
+      "go_cu_median": 48428.5,
+      "go_self_median": 48428.5,
+      "go_cu_total": 96857.0
+    },
+    {
+      "operation": "root query (outbox get_latest_checkpoint)",
+      "program": "mailbox",
+      "samples": 1,
+      "base_cu_median": 200000.0,
+      "base_self_median": 200000.0,
+      "base_cu_total": 200000.0,
+      "new_cu_median": 8780.0,
+      "new_self_median": 8780.0,
+      "new_cu_total": 8780.0,
+      "go_cu_median": 9251.0,
+      "go_self_median": 9251.0,
+      "go_cu_total": 9251.0
+    }
+  ],
+  "programs_self_cu": [
+    {
+      "program": "composite_ism",
+      "cells": 124,
+      "skipped_cells": 0,
+      "base_self_total": 10038032,
+      "new_self_total": 8428962,
+      "go_self_total": 10629233,
+      "base_cu_total": 10430154,
+      "new_cu_total": 8698486,
+      "go_cu_total": 10989501
+    },
+    {
+      "program": "fee",
+      "cells": 206,
+      "skipped_cells": 3,
+      "base_self_total": 9496656,
+      "new_self_total": 8503456,
+      "go_self_total": 11224961,
+      "base_cu_total": 9496656,
+      "new_cu_total": 8503456,
+      "go_cu_total": 11224961
+    },
+    {
+      "program": "igp",
+      "cells": 155,
+      "skipped_cells": 1,
+      "base_self_total": 9562318,
+      "new_self_total": 8648932,
+      "go_self_total": 11052354,
+      "base_cu_total": 9562318,
+      "new_cu_total": 8648932,
+      "go_cu_total": 11052354
+    },
+    {
+      "program": "mailbox",
+      "cells": 148,
+      "skipped_cells": 3,
+      "base_self_total": 7366256,
+      "new_self_total": 4552893,
+      "go_self_total": 5132299,
+      "base_cu_total": 9422968,
+      "new_cu_total": 5808107,
+      "go_cu_total": 6390567
+    },
+    {
+      "program": "multisig_ism_message_id",
+      "cells": 10,
+      "skipped_cells": 0,
+      "base_self_total": 340058,
+      "new_self_total": 245963,
+      "go_self_total": 272372,
+      "base_cu_total": 340058,
+      "new_cu_total": 245963,
+      "go_cu_total": 272372
+    },
+    {
+      "program": "test_ism",
+      "cells": 150,
+      "skipped_cells": 3,
+      "base_self_total": 920238,
+      "new_self_total": 920238,
+      "go_self_total": 978528,
+      "base_cu_total": 920238,
+      "new_cu_total": 920238,
+      "go_cu_total": 978528
+    },
+    {
+      "program": "token",
+      "cells": 36,
+      "skipped_cells": 0,
+      "base_self_total": 4706320,
+      "new_self_total": 3342490,
+      "go_self_total": 3650992,
+      "base_cu_total": 6097698,
+      "new_cu_total": 4227150,
+      "go_cu_total": 4831390
+    },
+    {
+      "program": "token_collateral",
+      "cells": 34,
+      "skipped_cells": 0,
+      "base_self_total": 2858558,
+      "new_self_total": 2184528,
+      "go_self_total": 2437825,
+      "base_cu_total": 3938410,
+      "new_cu_total": 2813428,
+      "go_cu_total": 3299364
+    },
+    {
+      "program": "token_cross_collateral",
+      "cells": 60,
+      "skipped_cells": 2,
+      "base_self_total": 6275777,
+      "new_self_total": 4975306,
+      "go_self_total": 5643914,
+      "base_cu_total": 7855732,
+      "new_cu_total": 5930154,
+      "go_cu_total": 6974817
+    },
+    {
+      "program": "token_native",
+      "cells": 36,
+      "skipped_cells": 0,
+      "base_self_total": 2826341,
+      "new_self_total": 2144229,
+      "go_self_total": 2372864,
+      "base_cu_total": 3876410,
+      "new_cu_total": 2682229,
+      "go_cu_total": 3190673
+    },
+    {
+      "program": "validator_announce",
+      "cells": 4,
+      "skipped_cells": 0,
+      "base_self_total": 192512,
+      "new_self_total": 121494,
+      "go_self_total": 136378,
+      "base_cu_total": 192512,
+      "new_cu_total": 121494,
+      "go_cu_total": 136378
+    }
+  ],
+  "cu_diff_before_vs_after_run1": {
+    "cu": {
+      "overall": {
+        "pairs": 4579,
+        "median": 1.0,
+        "p90": 1.0,
+        "max": 2.8942849820604817,
+        "min": 0.0439
+      },
+      "status_changes": [
+        {
+          "suite": "mailbox",
+          "test": "functional::test_outbox_get_latest_checkpoint",
+          "a": "failed",
+          "b": "passed"
+        },
+        {
+          "suite": "token-cross-collateral",
+          "test": "test_cc_remote_transfer_igp_new_flow_with_fee",
+          "a": "failed",
+          "b": "passed"
+        }
+      ],
+      "programs": {
+        "composite_ism [8qbH..VfeR]": {
+          "pairs": 49,
+          "median": 0.9996557659208262,
+          "a_total": 387210,
+          "b_total": 310910
+        },
+        "composite_ism [Bprm..Qgau]": {
+          "pairs": 641,
+          "median": 0.9876952200662565,
+          "a_total": 10042944,
+          "b_total": 8387576
+        },
+        "fee [Fee1..1111]": {
+          "pairs": 673,
+          "median": 0.9717171717171718,
+          "a_total": 9575993,
+          "b_total": 8535899
+        },
+        "igp [BSff..M2BN]": {
+          "pairs": 895,
+          "median": 0.9824361684826801,
+          "a_total": 9702684,
+          "b_total": 8740575
+        },
+        "mailbox [692K..9iu1]": {
+          "pairs": 311,
+          "median": 1.000070871722183,
+          "a_total": 9750474,
+          "b_total": 5868863
+        },
+        "multisig_ism_message_id [2Yjt..Z2fw]": {
+          "pairs": 14,
+          "median": 1.0,
+          "a_total": 158541,
+          "b_total": 111480
+        },
+        "multisig_ism_message_id [CktR..Ezy8]": {
+          "pairs": 19,
+          "median": 1.0,
+          "a_total": 181526,
+          "b_total": 134483
+        },
+        "spl_associated_token_account [ATok..8knL]": {
+          "pairs": 88,
+          "median": 1.0,
+          "a_total": 1524952,
+          "b_total": 1557952
+        },
+        "spl_token [Toke..Q5DA]": {
+          "pairs": 8,
+          "median": 1.0,
+          "a_total": 26565,
+          "b_total": 26565
+        },
+        "spl_token_2022 [Toke..xuEb]": {
+          "pairs": 754,
+          "median": 1.0,
+          "a_total": 901184,
+          "b_total": 901184
+        },
+        "test_ism [CWVY..4tnb]": {
+          "pairs": 239,
+          "median": 1.0,
+          "a_total": 935778,
+          "b_total": 935778
+        },
+        "test_send_receiver [FZ8h..vsEm]": {
+          "pairs": 109,
+          "median": 1.0,
+          "a_total": 435743,
+          "b_total": 416579
+        },
+        "token [3MzU..pVQH]": {
+          "pairs": 242,
+          "median": 1.0,
+          "a_total": 6117095,
+          "b_total": 4218150
+        },
+        "token_collateral [G8t1..F18z]": {
+          "pairs": 148,
+          "median": 1.0,
+          "a_total": 3943165,
+          "b_total": 2798428
+        },
+        "token_cross_collateral [CCo1..1111]": {
+          "pairs": 217,
+          "median": 0.9979238754325259,
+          "a_total": 8106286,
+          "b_total": 6057227
+        },
+        "token_cross_collateral [CCo1..2222]": {
+          "pairs": 11,
+          "median": 1.0,
+          "a_total": 443317,
+          "b_total": 345349
+        },
+        "token_native [CGn8..3aga]": {
+          "pairs": 153,
+          "median": 0.9998001598721024,
+          "a_total": 3876262,
+          "b_total": 2682229
+        },
+        "validator_announce [DH43..fEnn]": {
+          "pairs": 8,
+          "median": 1.0,
+          "a_total": 192512,
+          "b_total": 121494
+        }
+      }
+    },
+    "self_cu": {
+      "overall": {
+        "pairs": 4579,
+        "median": 1.0,
+        "p90": 1.0,
+        "max": 2.8942849820604817,
+        "min": 0.0439
+      },
+      "status_changes": [
+        {
+          "suite": "mailbox",
+          "test": "functional::test_outbox_get_latest_checkpoint",
+          "a": "failed",
+          "b": "passed"
+        },
+        {
+          "suite": "token-cross-collateral",
+          "test": "test_cc_remote_transfer_igp_new_flow_with_fee",
+          "a": "failed",
+          "b": "passed"
+        }
+      ],
+      "programs": {
+        "composite_ism [8qbH..VfeR]": {
+          "pairs": 49,
+          "median": 0.9996557659208262,
+          "a_total": 387210,
+          "b_total": 310910
+        },
+        "composite_ism [Bprm..Qgau]": {
+          "pairs": 641,
+          "median": 0.9876952200662565,
+          "a_total": 9650822,
+          "b_total": 8118052
+        },
+        "fee [Fee1..1111]": {
+          "pairs": 673,
+          "median": 0.9717171717171718,
+          "a_total": 9575993,
+          "b_total": 8535899
+        },
+        "igp [BSff..M2BN]": {
+          "pairs": 895,
+          "median": 0.9824361684826801,
+          "a_total": 9702684,
+          "b_total": 8740575
+        },
+        "mailbox [692K..9iu1]": {
+          "pairs": 311,
+          "median": 1.000070871722183,
+          "a_total": 7689235,
+          "b_total": 4629399
+        },
+        "multisig_ism_message_id [2Yjt..Z2fw]": {
+          "pairs": 14,
+          "median": 1.0,
+          "a_total": 158541,
+          "b_total": 111480
+        },
+        "multisig_ism_message_id [CktR..Ezy8]": {
+          "pairs": 19,
+          "median": 1.0,
+          "a_total": 181526,
+          "b_total": 134483
+        },
+        "spl_associated_token_account [ATok..8knL]": {
+          "pairs": 88,
+          "median": 1.0,
+          "a_total": 1241706,
+          "b_total": 1274706
+        },
+        "spl_token [Toke..Q5DA]": {
+          "pairs": 8,
+          "median": 1.0,
+          "a_total": 26565,
+          "b_total": 26565
+        },
+        "spl_token_2022 [Toke..xuEb]": {
+          "pairs": 754,
+          "median": 1.0,
+          "a_total": 901184,
+          "b_total": 901184
+        },
+        "test_ism [CWVY..4tnb]": {
+          "pairs": 239,
+          "median": 1.0,
+          "a_total": 935778,
+          "b_total": 935778
+        },
+        "test_send_receiver [FZ8h..vsEm]": {
+          "pairs": 109,
+          "median": 1.0,
+          "a_total": 392483,
+          "b_total": 392537
+        },
+        "token [3MzU..pVQH]": {
+          "pairs": 242,
+          "median": 1.0,
+          "a_total": 4720332,
+          "b_total": 3337241
+        },
+        "token_collateral [G8t1..F18z]": {
+          "pairs": 148,
+          "median": 1.0,
+          "a_total": 2854726,
+          "b_total": 2179278
+        },
+        "token_cross_collateral [CCo1..1111]": {
+          "pairs": 217,
+          "median": 0.9979238754325259,
+          "a_total": 6335912,
+          "b_total": 5002153
+        },
+        "token_cross_collateral [CCo1..2222]": {
+          "pairs": 11,
+          "median": 1.0,
+          "a_total": 397761,
+          "b_total": 298293
+        },
+        "token_native [CGn8..3aga]": {
+          "pairs": 153,
+          "median": 0.9998001598721024,
+          "a_total": 2826125,
+          "b_total": 2144229
+        },
+        "validator_announce [DH43..fEnn]": {
+          "pairs": 8,
+          "median": 1.0,
+          "a_total": 192512,
+          "b_total": 121494
+        }
+      }
+    }
+  },
+  "elf_bytes": {
+    "programs": [
+      {
+        "program": "mailbox",
+        "before_bytes": 176640,
+        "after_bytes": 170448,
+        "change_pct": -3.51
+      },
+      {
+        "program": "igp",
+        "before_bytes": 359120,
+        "after_bytes": 363600,
+        "change_pct": 1.25
+      },
+      {
+        "program": "multisigIsm",
+        "before_bytes": 165976,
+        "after_bytes": 147704,
+        "change_pct": -11.01
+      },
+      {
+        "program": "testIsm",
+        "before_bytes": 94600,
+        "after_bytes": 94600,
+        "change_pct": 0.0
+      },
+      {
+        "program": "compositeIsm",
+        "before_bytes": 263904,
+        "after_bytes": 247176,
+        "change_pct": -6.34
+      },
+      {
+        "program": "validatorAnnounce",
+        "before_bytes": 130008,
+        "after_bytes": 113184,
+        "change_pct": -12.94
+      },
+      {
+        "program": "tokenSynthetic",
+        "before_bytes": 402856,
+        "after_bytes": 408408,
+        "change_pct": 1.38
+      },
+      {
+        "program": "tokenNative",
+        "before_bytes": 378040,
+        "after_bytes": 383880,
+        "change_pct": 1.54
+      },
+      {
+        "program": "tokenCollateral",
+        "before_bytes": 405000,
+        "after_bytes": 410552,
+        "change_pct": 1.37
+      },
+      {
+        "program": "tokenCrossCollateral",
+        "before_bytes": 525384,
+        "after_bytes": 529568,
+        "change_pct": 0.8
+      },
+      {
+        "program": "tokenFee",
+        "before_bytes": 349344,
+        "after_bytes": 349344,
+        "change_pct": 0.0
+      }
+    ],
+    "before_total": 3250872,
+    "after_total": 3218464
+  }
+}
