@@ -1,0 +1,15 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "log-utils"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+solana-program.workspace = true
+
+[dev-dependencies]
+hyperlane-core = { path = "../../../main/hyperlane-core" }
+
+[lib]
+crate-type = ["cdylib", "lib"]
