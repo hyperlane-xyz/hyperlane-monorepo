@@ -234,3 +234,30 @@ func VerifyAccountUninitialized(c solana.Context, i uint64) uint64 {
 	}
 	return svm.AccountAlreadyInitialized
 }
+
+// CloseAccount is AccountInfoExt::close_account: move all of account i's
+// lamports to recipient, truncate its data and assign it to the System
+// program. Rust's checks come first, with Rust's codes: i not writable or
+// i == recipient is InvalidAccountData; a lamport overflow is
+// ArithmeticOverflow.
+//
+// goSVM also requires i to be owned by this program (2012) and recipient to
+// be writable and not executable (2011). Rust lets the instruction run and
+// the runtime then rejects it (ExternalAccountLamportSpend /
+// ReadonlyLamportChange), so those cases fail with a different code.
+func CloseAccount(c solana.Context, i, recipient uint64) uint64 {
+	if !solana.Writable(c, i) {
+		return svm.InvalidAccountData
+	}
+	if svm.SameKey(c, i, recipient) {
+		return svm.InvalidAccountData
+	}
+	code := solana.CloseAccount(c, i, recipient)
+	switch code {
+	case 0:
+		return svm.Success
+	case 2014:
+		return svm.ArithmeticOverflow
+	}
+	return code
+}
