@@ -38,6 +38,7 @@ when present (`SEALEVEL_GOLDEN_DIR` overrides the directory). To regenerate
 `testdata/rust_vectors.json`:
 
 ```sh
+cp ../rust/sealevel/Cargo.lock tools/rust-vectors/   # pins the SPL crates' deps
 (cd tools/rust-vectors && cargo run -q) > testdata/rust_vectors.json
 ```
 
