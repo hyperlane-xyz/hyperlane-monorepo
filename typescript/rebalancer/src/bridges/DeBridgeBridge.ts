@@ -10,6 +10,7 @@ import type { Logger } from 'pino';
 import { v4 as uuidv4 } from 'uuid';
 
 import {
+  ChainStatus,
   type ChainMap,
   type ChainMetadata,
   submitEvmLikeTransaction,
@@ -125,6 +126,7 @@ export class DeBridgeBridge implements IExternalBridge {
     for (const metadata of Object.values(config.chainMetadata ?? {})) {
       if (
         metadata.chainId === undefined ||
+        metadata.availability?.status === ChainStatus.Disabled ||
         (metadata.protocol !== ProtocolType.Ethereum &&
           metadata.protocol !== ProtocolType.Tron &&
           metadata.protocol !== ProtocolType.Sealevel)
