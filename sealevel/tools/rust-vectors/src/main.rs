@@ -21,6 +21,7 @@ use serde_json::{json, Map, Value};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::pubkey::Pubkey;
 
+mod cc;
 mod token;
 
 fn hex(b: &[u8]) -> String {
@@ -482,6 +483,7 @@ fn main() {
         "hyperlane-core": Value::Object(core_group().0),
         "svm": Value::Object(svm_group().0),
         "token": Value::Object(token::token_group()),
+        "token-cross-collateral": Value::Object(cc::cc_group()),
     });
     println!("{}", serde_json::to_string_pretty(&out).unwrap());
 }
