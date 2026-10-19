@@ -102,13 +102,15 @@ CreateAccount`.
 - SBF frames are capped at 4 KiB. Don't keep `pda.Seeds`/`cpi.Signers` or other
   big structs as locals; heap-allocate with `new` or `make`.
 
-## Not in goSVM yet (other agents are adding these)
+## goSVM integration-2 features
 
-CPI limits above 16 metas / 2 signer groups, and `sol_memcpy_` lowering for
-unaligned copies. Available on the integration-2 CLI: `SetReturnData`,
-`GetReturnData` (check the setter key), `Keccak256`, `Secp256k1Recover`,
-`MoveLamports`, `Log` (`msg!`), `pda.Seeds.FindAddress`, `-max-accounts 64`,
-Token-2022/ATA helpers. See /tmp/gosvm-pilot/API2.md.
+Available: `SetReturnData`, `GetReturnData` (check the setter key),
+`Keccak256`, `Secp256k1Recover`, `MoveLamports`, `Log` (`msg!`; use
+`svm.Msg` for Rust's value formats), `pda.Seeds.FindAddress`, `-max-accounts
+64`, 64 CPI metas and 4 signer groups, Token-2022/ATA helpers. `copy`,
+struct/array assignment and `for i := range s { s[i] = 0 }` lower to
+`sol_memmove_`/`sol_memset_`; hand-written copy loops don't, so use `copy`.
+See /tmp/gosvm-pilot/API2.md.
 
 ## Tests
 

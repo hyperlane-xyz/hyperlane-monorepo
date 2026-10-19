@@ -513,7 +513,8 @@ func Lamports(c Context, i uint64) uint64 { return c.Accounts[i].Lamports }
 // groups. Applications should use sdk/cpi builders instead of assembling these
 // encodings. Meta records are index:uint64 LE and flags:byte (writable=1,
 // signer=2). Signer groups are count:byte, then seed-count:byte followed by each
-// length:byte and its bytes. Limits: 16 metas, 2 groups, 16 seeds/group, 32/seed.
+// length:byte and its bytes. Limits: 64 metas (duplicates count), 4 groups,
+// 16 seeds/group, 32 bytes/seed and 1,024 encoded signer bytes.
 func Invoke(c Context, program uint64, metas, data, signerSeeds []byte) uint64 {
 	if program >= uint64(len(c.Accounts)) {
 		return 2005
@@ -521,7 +522,7 @@ func Invoke(c Context, program uint64, metas, data, signerSeeds []byte) uint64 {
 	if !c.Accounts[program].Executable {
 		return 2001
 	}
-	if len(metas)%9 != 0 || len(metas) > 16*9 {
+	if len(metas)%9 != 0 || len(metas) > 64*9 {
 		return 2006
 	}
 	for off := 0; off < len(metas); off += 9 {
@@ -569,7 +570,7 @@ func validSignerSeeds(b []byte) bool {
 	if len(b) == 0 {
 		return true
 	}
-	if len(b) > 1024 || b[0] > 2 {
+	if len(b) > 1024 || b[0] > 4 {
 		return false
 	}
 	off := 1

@@ -9,18 +9,26 @@ import (
 const ErrMetas uint64 = 3002
 const ErrSigners uint64 = 3003
 
+// MaxMetas and MaxSigners match solana.Invoke: account metas per CPI
+// (repeated accounts count) and PDA signer groups per CPI.
+const (
+	MaxMetas   = 64
+	MaxSigners = 4
+)
+
+// InlineMetas records live in the builder itself. The first Add beyond them
+// moves the records to one MaxMetas-record array on the invocation heap
+// (576 bytes, allocated once), so CPIs of up to 16 metas keep the builder's
+// small frame and zeroing cost and never allocate.
+const InlineMetas = 16
+
 type Metas struct {
-	buffer [144]byte
+	buffer [InlineMetas * 9]byte
 	count  uint64
+	wide   *[MaxMetas * 9]byte
 }
 
 func (m *Metas) Add(index uint64, writable, signer bool) uint64 {
-	if m.count >= 16 {
-		return ErrMetas
-	}
-	for j := uint64(0); j < 8; j++ {
-		m.buffer[m.count*9+j] = byte(index >> (j * 8))
-	}
 	flags := byte(0)
 	if writable {
 		flags = flags | 1
@@ -28,12 +36,35 @@ func (m *Metas) Add(index uint64, writable, signer bool) uint64 {
 	if signer {
 		flags = flags | 2
 	}
-	m.buffer[m.count*9+8] = flags
+	if m.count < InlineMetas {
+		for j := uint64(0); j < 8; j++ {
+			m.buffer[m.count*9+j] = byte(index >> (j * 8))
+		}
+		m.buffer[m.count*9+8] = flags
+	} else if m.count < MaxMetas {
+		if m.wide == nil {
+			m.wide = new([MaxMetas * 9]byte)
+			copy(m.wide[:], m.buffer[:])
+		}
+		for j := uint64(0); j < 8; j++ {
+			m.wide[m.count*9+j] = byte(index >> (j * 8))
+		}
+		m.wide[m.count*9+8] = flags
+	} else {
+		return ErrMetas
+	}
 	m.count++
 	return 0
 }
 
-func (m *Metas) Bytes() []byte { return m.buffer[:m.count*9] }
+// Bytes borrows the records: inline, or the heap array after the 17th Add.
+// A Metas copied after its records moved shares that array.
+func (m *Metas) Bytes() []byte {
+	if m.count > InlineMetas {
+		return m.wide[:m.count*9]
+	}
+	return m.buffer[:m.count*9]
+}
 
 type Signers struct {
 	buffer [1024]byte
@@ -42,7 +73,7 @@ type Signers struct {
 }
 
 func (s *Signers) Add(seeds *pda.Seeds) uint64 {
-	if seeds == nil || s.count >= 2 || s.used > 1023 {
+	if seeds == nil || s.count >= MaxSigners || s.used > 1023 {
 		return ErrSigners
 	}
 	b := seeds.Bytes()
@@ -72,7 +103,7 @@ func Invoke(c solana.Context, program uint64, metas *Metas, data []byte, signers
 
 // SingleSigner encodes one signer group directly, without a Seeds-to-Signers copy.
 // It preserves the seed count/length/capacity checks of pda.Seeds. General
-// Signers and its two-group/1024-byte checks remain unchanged.
+// Signers keeps its four-group/1024-byte checks.
 // The borrowed encoding must remain alive and unmodified through InvokeSingle.
 type SingleSigner struct {
 	buffer [530]byte

@@ -52,12 +52,13 @@ and breaks that workspace's builds.
 
 ## goSVM pin
 
-- CLI: CrocSwap/goSVM `hyperlane-integration-2` (a69b95ece405530d4688f73c1465f447da3e7cb1):
+- CLI: CrocSwap/goSVM `hyperlane-integration-2` (339c328bcbac09139269319d2dfeb47c85bf7049):
   v0.1.0-alpha.3 plus `GetReturnData`, `Secp256k1Recover`, `Keccak256`, the
   memmove fix, `MoveLamports`, `Log`/`Log64`/`LogPubkey`,
-  `pda.Seeds.FindAddress`, `-max-accounts 64`, System PDA-signed ops and the
-  Token/Token-2022/ATA SDK helpers.
-- SDK snapshot: `sdk_sha256` 3766627e191caa0f0c01a97c7eab8faaff8088ae02287aff51081820b4a28699
+  `pda.Seeds.FindAddress`, `-max-accounts 64`, 64 CPI metas / 4 signer
+  groups, bulk copies and zeroing on `sol_memmove_`/`sol_memset_`, System
+  PDA-signed ops and the Token/Token-2022/ATA SDK helpers.
+- SDK snapshot: `sdk_sha256` 1ae01406c38ef0c2a73f5c57995c085eb52ed76688237fa1a0838d516b99c4bd
   (copied from `gosvm-int2 new -schema 2 -sdk 2`).
 - Backend: platform-tools v1.57 (`gosvm toolchain install`).
 
