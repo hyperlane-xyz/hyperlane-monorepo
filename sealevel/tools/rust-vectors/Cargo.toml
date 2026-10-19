@@ -20,3 +20,7 @@ hyperlane-sealevel-test-ism = { path = "../../../rust/sealevel/programs/ism/test
 serializable-account-meta = { path = "../../../rust/sealevel/libraries/serializable-account-meta" }
 solana-program = "=3.0.0"
 solana-system-interface = { version = "=2.0.0", features = ["bincode"] }
+# The SPL interface crates resolve to rustc 1.89+ crates on a fresh lock:
+# seed Cargo.lock with `cp ../../../rust/sealevel/Cargo.lock .` first.
+spl-token-2022-interface = "=2.1.0"
+spl-associated-token-account-interface = "=2.0.0"
