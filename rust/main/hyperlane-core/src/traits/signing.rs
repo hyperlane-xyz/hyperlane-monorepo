@@ -142,21 +142,17 @@ impl<T: Signable + Debug> Debug for SignedType<T> {
 
 // EIP-191 hashing without the `ethers` feature.
 mod hashes {
-    use crate::H256;
-    use tiny_keccak::{Hasher, Keccak};
+    use crate::{utils::keccak256, H256};
 
     /// Wrap a signing hash in EIP-191. Signable always supplies exactly 32 bytes.
     pub fn hash_message(message: H256) -> H256 {
-        let mut output = [0u8; 32];
-        let mut hasher = Keccak::v256();
-        hasher.update(b"\x19Ethereum Signed Message:\n32");
-        hasher.update(message.as_ref());
-        hasher.finalize(&mut output);
-        output.into()
+        keccak256(&[b"\x19Ethereum Signed Message:\n32", message.as_bytes()])
     }
 
     #[test]
     fn signed_hashes_match_legacy_envelope() {
+        use tiny_keccak::{Hasher, Keccak};
+
         // Compare the streamed implementation with the original concatenated
         // envelope for every repeated byte and every single-bit position.
         let values = (0..=u8::MAX)

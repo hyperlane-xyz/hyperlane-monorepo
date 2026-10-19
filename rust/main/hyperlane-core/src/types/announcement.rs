@@ -1,10 +1,12 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use sha3::{digest::Update, Digest, Keccak256};
 use std::fmt::{Debug, Formatter};
 
 use crate::utils::{fmt_address_for_domain, fmt_domain};
-use crate::{utils::announcement_domain_hash, Signable, SignedType, H160, H256};
+use crate::{
+    utils::{announcement_domain_hash, keccak256},
+    Signable, SignedType, H160, H256,
+};
 
 /// An Hyperlane checkpoint
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -35,16 +37,10 @@ impl Debug for Announcement {
 #[async_trait]
 impl Signable for Announcement {
     fn signing_hash(&self) -> H256 {
-        H256::from_slice(
-            Keccak256::new()
-                .chain(announcement_domain_hash(
-                    self.mailbox_address,
-                    self.mailbox_domain,
-                ))
-                .chain(&self.storage_location)
-                .finalize()
-                .as_slice(),
-        )
+        keccak256(&[
+            announcement_domain_hash(self.mailbox_address, self.mailbox_domain).as_bytes(),
+            self.storage_location.as_bytes(),
+        ])
     }
 }
 
