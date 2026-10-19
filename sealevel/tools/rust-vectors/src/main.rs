@@ -22,6 +22,7 @@ use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::pubkey::Pubkey;
 
 mod igp;
+mod va_multisig;
 
 fn hex(b: &[u8]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
@@ -483,5 +484,6 @@ fn main() {
         "svm": Value::Object(svm_group().0),
     });
     igp::extend(&mut out);
+    va_multisig::extend(&mut out);
     println!("{}", serde_json::to_string_pretty(&out).unwrap());
 }

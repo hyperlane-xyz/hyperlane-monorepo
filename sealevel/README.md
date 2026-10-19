@@ -41,6 +41,8 @@ when present (`SEALEVEL_GOLDEN_DIR` overrides the directory). To regenerate
 (cd tools/rust-vectors && cargo run -q) > testdata/rust_vectors.json
 ```
 
+If a fresh resolution picks crates that need a newer rustc, seed the tool's
+(ignored) lockfile first: `cp ../rust/sealevel/Cargo.lock tools/rust-vectors/`.
 Keep its default target dir. Sharing `rust/sealevel`'s target dir clobbers the
 unhashed cdylib rlibs (`libaccount_utils.rlib`, ...) and breaks that workspace's
 builds. The tool has no lockfile of its own; with the IGP crate in its
