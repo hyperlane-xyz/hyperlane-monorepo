@@ -66,7 +66,7 @@ func (p *CollateralPlugin) Initialize(c solana.Context, programID *svm.Pubkey, i
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, tokenProgram, tokenlib.SPLToken2022ProgramID) && !svm.KeyIs(c, tokenProgram, tokenlib.SPLTokenProgramID) {
+	if !tokenlib.KeyEq(c, tokenProgram, &tokenlib.SPLToken2022ProgramID) && !tokenlib.KeyEq(c, tokenProgram, &tokenlib.SPLTokenProgramID) {
 		return svm.IncorrectProgramID
 	}
 	tokenProgramKey := svm.Key(c, tokenProgram)
@@ -74,14 +74,14 @@ func (p *CollateralPlugin) Initialize(c solana.Context, programID *svm.Pubkey, i
 	if code != svm.Success {
 		return code
 	}
-	if !svm.OwnerIs(c, mint, tokenProgramKey) {
+	if !tokenlib.OwnerEq(c, mint, &tokenProgramKey) {
 		return svm.IllegalOwner
 	}
 	rent, code := it.Next()
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, rent, tokenlib.RentSysvarID) {
+	if !tokenlib.KeyEq(c, rent, &tokenlib.RentSysvarID) {
 		return svm.IncorrectProgramID
 	}
 	escrow, code := it.Next()
@@ -92,7 +92,7 @@ func (p *CollateralPlugin) Initialize(c solana.Context, programID *svm.Pubkey, i
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, escrow, escrowKey) {
+	if !tokenlib.KeyEq(c, escrow, &escrowKey) {
 		return svm.IncorrectProgramID
 	}
 
@@ -135,7 +135,7 @@ func (p *CollateralPlugin) Initialize(c solana.Context, programID *svm.Pubkey, i
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, ataPayer, ataPayerKey) {
+	if !tokenlib.KeyEq(c, ataPayer, &ataPayerKey) {
 		return svm.IncorrectProgramID
 	}
 	if code := accountutils.CreatePDAAccount(c, payer, 0, svm.SystemProgramID, systemProgram, ataPayer, &ataPayerSeeds); code != svm.Success {
@@ -153,7 +153,7 @@ func (p *CollateralPlugin) Initialize(c solana.Context, programID *svm.Pubkey, i
 // checkTokenProgram is the stored token program check: key
 // (IncorrectProgramId), then executable (InvalidAccountData).
 func (p *CollateralPlugin) checkTokenProgram(c solana.Context, i uint64) uint64 {
-	if !svm.KeyIs(c, i, p.SPLTokenProgram) {
+	if !tokenlib.KeyEq(c, i, &p.SPLTokenProgram) {
 		return svm.IncorrectProgramID
 	}
 	if !solana.Executable(c, i) {
@@ -178,10 +178,10 @@ func (p *CollateralPlugin) TransferIn(c solana.Context, programID *svm.Pubkey, d
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, mint, p.Mint) {
+	if !tokenlib.KeyEq(c, mint, &p.Mint) {
 		return svm.IncorrectProgramID
 	}
-	if !svm.OwnerIs(c, mint, p.SPLTokenProgram) {
+	if !tokenlib.OwnerEq(c, mint, &p.SPLTokenProgram) {
 		return svm.InvalidAccountData
 	}
 	senderATA, code := it.Next()
@@ -193,14 +193,14 @@ func (p *CollateralPlugin) TransferIn(c solana.Context, programID *svm.Pubkey, d
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, senderATA, expected) {
+	if !tokenlib.KeyEq(c, senderATA, &expected) {
 		return svm.IncorrectProgramID
 	}
 	escrow, code := it.Next()
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, escrow, p.Escrow) {
+	if !tokenlib.KeyEq(c, escrow, &p.Escrow) {
 		return svm.IncorrectProgramID
 	}
 	if code := tokenlib.TransferChecked(c, tokenProgram, senderATA, mint, escrow, sender, amount, decimals, nil); code != svm.Success {
@@ -234,7 +234,7 @@ func (p *CollateralPlugin) TransferOut(c solana.Context, programID *svm.Pubkey, 
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, ataProgram, tokenlib.AssociatedTokenProgramID) {
+	if !tokenlib.KeyEq(c, ataProgram, &tokenlib.AssociatedTokenProgramID) {
 		return svm.IncorrectProgramID
 	}
 	if !solana.Executable(c, ataProgram) {
@@ -244,7 +244,7 @@ func (p *CollateralPlugin) TransferOut(c solana.Context, programID *svm.Pubkey, 
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, mint, p.Mint) {
+	if !tokenlib.KeyEq(c, mint, &p.Mint) {
 		return svm.IncorrectProgramID
 	}
 	recipientATA, code := it.Next()
@@ -256,7 +256,7 @@ func (p *CollateralPlugin) TransferOut(c solana.Context, programID *svm.Pubkey, 
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, recipientATA, expected) {
+	if !tokenlib.KeyEq(c, recipientATA, &expected) {
 		return svm.IncorrectProgramID
 	}
 	if !solana.Writable(c, recipientATA) {
@@ -274,7 +274,7 @@ func (p *CollateralPlugin) TransferOut(c solana.Context, programID *svm.Pubkey, 
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, escrow, p.Escrow) {
+	if !tokenlib.KeyEq(c, escrow, &p.Escrow) {
 		return svm.IncorrectProgramID
 	}
 	if code := tokenlib.CreateAssociatedTokenAccountIdempotent(c, ataProgram, ataPayer, recipientATA, recipient, mint, systemProgram, tokenProgram, ataPayerSigner); code != svm.Success {
@@ -299,11 +299,11 @@ func (p *CollateralPlugin) TransferOutAccountMetas(c solana.Context, programID *
 		return nil, false, code
 	}
 	metas := make([]accountmeta.SerializableAccountMeta, 6)
-	metas[0] = accountmeta.Readonly(p.SPLTokenProgram, false)
-	metas[1] = accountmeta.Readonly(tokenlib.AssociatedTokenProgramID, false)
-	metas[2] = accountmeta.Readonly(p.Mint, false)
-	metas[3] = accountmeta.Writable(recipientATA, false)
-	metas[4] = accountmeta.Writable(ataPayer, false)
-	metas[5] = accountmeta.Writable(p.Escrow, false)
+	tokenlib.SetMeta(&metas[0], &p.SPLTokenProgram, false, false)
+	tokenlib.SetMeta(&metas[1], &tokenlib.AssociatedTokenProgramID, false, false)
+	tokenlib.SetMeta(&metas[2], &p.Mint, false, false)
+	tokenlib.SetMeta(&metas[3], &recipientATA, false, true)
+	tokenlib.SetMeta(&metas[4], &ataPayer, false, true)
+	tokenlib.SetMeta(&metas[5], &p.Escrow, false, true)
 	return metas, false, svm.Success
 }

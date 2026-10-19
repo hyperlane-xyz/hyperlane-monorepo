@@ -59,10 +59,10 @@ func VerifyOutboxAndFetchLocalDomain(c solana.Context, mailbox *svm.Pubkey, i ui
 	if code != svm.Success {
 		return 0, code
 	}
-	if !svm.KeyIs(c, i, expected) {
+	if !KeyEq(c, i, &expected) {
 		return 0, svm.InvalidArgument
 	}
-	if !svm.OwnerIs(c, i, *mailbox) {
+	if !OwnerEq(c, i, mailbox) {
 		return 0, svm.IllegalOwner
 	}
 	return localDomain, svm.Success

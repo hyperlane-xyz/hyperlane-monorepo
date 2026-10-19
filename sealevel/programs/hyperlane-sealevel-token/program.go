@@ -63,17 +63,17 @@ func (p *SyntheticPlugin) verifyMint(c solana.Context, programID *svm.Pubkey, i 
 	if code != svm.Success {
 		return nil, code
 	}
-	if !svm.KeyIs(c, i, p.Mint) {
+	if !tokenlib.KeyEq(c, i, &p.Mint) {
 		return nil, svm.InvalidArgument
 	}
-	if !svm.OwnerIs(c, i, tokenlib.SPLToken2022ProgramID) {
+	if !tokenlib.OwnerEq(c, i, &tokenlib.SPLToken2022ProgramID) {
 		return nil, svm.IncorrectProgramID
 	}
 	return signer, svm.Success
 }
 
 func token2022(c solana.Context, i uint64) bool {
-	return svm.KeyIs(c, i, tokenlib.SPLToken2022ProgramID) && solana.Executable(c, i)
+	return tokenlib.KeyEq(c, i, &tokenlib.SPLToken2022ProgramID) && solana.Executable(c, i)
 }
 
 // Initialize creates the mint PDA (owned by Token-2022, initialized by a
@@ -89,7 +89,7 @@ func (p *SyntheticPlugin) Initialize(c solana.Context, programID *svm.Pubkey, it
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, mint, mintKey) {
+	if !tokenlib.KeyEq(c, mint, &mintKey) {
 		return svm.InvalidArgument
 	}
 	if code := accountutils.CreatePDAAccount(c, payer, MintAccountSize, tokenlib.SPLToken2022ProgramID, systemProgram, mint, &mintSeeds); code != svm.Success {
@@ -103,7 +103,7 @@ func (p *SyntheticPlugin) Initialize(c solana.Context, programID *svm.Pubkey, it
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, ataPayer, ataPayerKey) {
+	if !tokenlib.KeyEq(c, ataPayer, &ataPayerKey) {
 		return svm.InvalidArgument
 	}
 	if code := accountutils.CreatePDAAccount(c, payer, 0, svm.SystemProgramID, systemProgram, ataPayer, &ataPayerSeeds); code != svm.Success {
@@ -144,7 +144,7 @@ func (p *SyntheticPlugin) TransferIn(c solana.Context, programID *svm.Pubkey, de
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, senderATA, expected) {
+	if !tokenlib.KeyEq(c, senderATA, &expected) {
 		return svm.InvalidArgument
 	}
 	if code := tokenlib.BurnCheckedWithSigner(c, tokenProgram, senderATA, mint, sender, amount, decimals); code != svm.Success {
@@ -177,7 +177,7 @@ func (p *SyntheticPlugin) TransferOut(c solana.Context, programID *svm.Pubkey, d
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, ataProgram, tokenlib.AssociatedTokenProgramID) || !solana.Executable(c, ataProgram) {
+	if !tokenlib.KeyEq(c, ataProgram, &tokenlib.AssociatedTokenProgramID) || !solana.Executable(c, ataProgram) {
 		return svm.InvalidArgument
 	}
 	mint, code := it.Next()
@@ -198,7 +198,7 @@ func (p *SyntheticPlugin) TransferOut(c solana.Context, programID *svm.Pubkey, d
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, recipientATA, expected) {
+	if !tokenlib.KeyEq(c, recipientATA, &expected) {
 		return svm.InvalidArgument
 	}
 	ataPayer, code := it.Next()
@@ -231,10 +231,10 @@ func (p *SyntheticPlugin) TransferOutAccountMetas(c solana.Context, programID *s
 		return nil, false, code
 	}
 	metas := make([]accountmeta.SerializableAccountMeta, 5)
-	metas[0] = accountmeta.Readonly(tokenlib.SPLToken2022ProgramID, false)
-	metas[1] = accountmeta.Readonly(tokenlib.AssociatedTokenProgramID, false)
-	metas[2] = accountmeta.Writable(p.Mint, false)
-	metas[3] = accountmeta.Writable(recipientATA, false)
-	metas[4] = accountmeta.Writable(ataPayer, false)
+	tokenlib.SetMeta(&metas[0], &tokenlib.SPLToken2022ProgramID, false, false)
+	tokenlib.SetMeta(&metas[1], &tokenlib.AssociatedTokenProgramID, false, false)
+	tokenlib.SetMeta(&metas[2], &p.Mint, false, true)
+	tokenlib.SetMeta(&metas[3], &recipientATA, false, true)
+	tokenlib.SetMeta(&metas[4], &ataPayer, false, true)
 	return metas, false, svm.Success
 }

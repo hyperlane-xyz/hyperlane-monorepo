@@ -162,8 +162,18 @@ func Router(routers Routers, domain uint32) (hyperlanecore.H256, bool) {
 
 // IsRemoteRouter is HyperlaneRouter::is_remote_router.
 func IsRemoteRouter(routers Routers, domain uint32, maybeRouter *hyperlanecore.H256) bool {
-	r, ok := Router(routers, domain)
-	return ok && r == *maybeRouter
+	for i := range routers {
+		if routers[i].Key == domain {
+			r := &routers[i].Value
+			for j := 0; j < 32; j++ {
+				if r[j] != maybeRouter[j] {
+					return false
+				}
+			}
+			return true
+		}
+	}
+	return false
 }
 
 // OnlyRemoteRouter is HyperlaneRouter::only_remote_router.
@@ -262,9 +272,12 @@ func ReadDestinationGas(r *borsh.Reader) DestinationGas {
 // EnsureMailboxProcessAuthoritySigner is
 // HyperlaneConnectionClientRecipient::ensure_mailbox_process_authority_signer:
 // key first (InvalidArgument), then signer (MissingRequiredSignature).
-func EnsureMailboxProcessAuthoritySigner(c solana.Context, authority svm.Pubkey, i uint64) uint64 {
-	if !svm.KeyIs(c, i, authority) {
-		return svm.InvalidArgument
+func EnsureMailboxProcessAuthoritySigner(c solana.Context, authority *svm.Pubkey, i uint64) uint64 {
+	key := solana.Key(c, i)
+	for j := 0; j < 32; j++ {
+		if key[j] != authority[j] {
+			return svm.InvalidArgument
+		}
 	}
 	if !solana.Signer(c, i) {
 		return svm.MissingRequiredSignature
@@ -274,7 +287,7 @@ func EnsureMailboxProcessAuthoritySigner(c solana.Context, authority svm.Pubkey,
 
 // EnsureValidRouterMessage is
 // HyperlaneRouterMessageRecipient::ensure_valid_router_message.
-func EnsureValidRouterMessage(c solana.Context, authority svm.Pubkey, i uint64, routers Routers, origin uint32, sender *hyperlanecore.H256) uint64 {
+func EnsureValidRouterMessage(c solana.Context, authority *svm.Pubkey, i uint64, routers Routers, origin uint32, sender *hyperlanecore.H256) uint64 {
 	if code := EnsureMailboxProcessAuthoritySigner(c, authority, i); code != svm.Success {
 		return code
 	}

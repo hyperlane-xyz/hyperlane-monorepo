@@ -194,10 +194,10 @@ func VerifyAccountAndFetch[T any, P PluginData[T]](c solana.Context, programID *
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, i, expected) {
+	if !KeyEq(c, i, &expected) {
 		return svm.InvalidArgument
 	}
-	if !svm.OwnerIs(c, i, *programID) {
+	if !OwnerEq(c, i, programID) {
 		return svm.IncorrectProgramID
 	}
 	return svm.Success

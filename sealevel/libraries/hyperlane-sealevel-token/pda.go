@@ -51,7 +51,7 @@ func (s *StaticPDA) Verify(c solana.Context, i uint64, bump uint8, program *svm.
 	if code != svm.Success {
 		return nil, code
 	}
-	if !svm.KeyIs(c, i, key) {
+	if !KeyEq(c, i, &key) {
 		return nil, svm.InvalidArgument
 	}
 	return s.buf, svm.Success
@@ -80,4 +80,27 @@ var (
 // InvokeSigned CPIs with raw signer bytes (nil for none).
 func InvokeSigned(c solana.Context, program uint64, metas *svm.Metas, data []byte, signer []byte) uint64 {
 	return solana.Invoke(c, program, metas.Bytes(), data, signer)
+}
+
+// KeyEq reports whether account i's key is *k. Unlike svm.KeyIs it copies
+// no 32-byte arrays: goSVM copies unaligned arrays byte by byte.
+func KeyEq(c solana.Context, i uint64, k *svm.Pubkey) bool {
+	b := solana.Key(c, i)
+	for j := 0; j < 32; j++ {
+		if b[j] != k[j] {
+			return false
+		}
+	}
+	return true
+}
+
+// OwnerEq reports whether account i is owned by *k, without copies.
+func OwnerEq(c solana.Context, i uint64, k *svm.Pubkey) bool {
+	b := solana.Owner(c, i)
+	for j := 0; j < 32; j++ {
+		if b[j] != k[j] {
+			return false
+		}
+	}
+	return true
 }

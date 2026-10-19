@@ -50,7 +50,7 @@ func (p *NativePlugin) Initialize(c solana.Context, programID *svm.Pubkey, it *s
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, collateral, key) {
+	if !tokenlib.KeyEq(c, collateral, &key) {
 		return svm.InvalidArgument
 	}
 	if code := accountutils.CreatePDAAccount(c, payer, 0, svm.SystemProgramID, systemProgram, collateral, &seeds); code != svm.Success {
@@ -69,7 +69,7 @@ func (p *NativePlugin) TransferIn(c solana.Context, programID *svm.Pubkey, decim
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, systemProgram, svm.SystemProgramID) {
+	if !tokenlib.KeyEq(c, systemProgram, &svm.SystemProgramID) {
 		return svm.InvalidArgument
 	}
 	collateral, code := it.Next()
@@ -102,7 +102,7 @@ func (p *NativePlugin) TransferOut(c solana.Context, programID *svm.Pubkey, deci
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, systemProgram, svm.SystemProgramID) {
+	if !tokenlib.KeyEq(c, systemProgram, &svm.SystemProgramID) {
 		return svm.InvalidArgument
 	}
 	collateral, code := it.Next()
@@ -131,7 +131,7 @@ func (p *NativePlugin) TransferOutAccountMetas(c solana.Context, programID *svm.
 		return nil, false, code
 	}
 	metas := make([]accountmeta.SerializableAccountMeta, 2)
-	metas[0] = accountmeta.Readonly(svm.SystemProgramID, false)
-	metas[1] = accountmeta.Writable(key, false)
+	tokenlib.SetMeta(&metas[0], &svm.SystemProgramID, false, false)
+	tokenlib.SetMeta(&metas[1], &key, false, true)
 	return metas, true, svm.Success
 }

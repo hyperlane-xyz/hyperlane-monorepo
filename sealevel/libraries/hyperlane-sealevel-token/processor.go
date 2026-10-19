@@ -75,7 +75,7 @@ func Initialize[T any, P Plugin[T]](c solana.Context, init *Init) uint64 {
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, systemProgram, svm.SystemProgramID) {
+	if !KeyEq(c, systemProgram, &svm.SystemProgramID) {
 		return svm.IncorrectProgramID
 	}
 
@@ -87,10 +87,10 @@ func Initialize[T any, P Plugin[T]](c solana.Context, init *Init) uint64 {
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, tokenAccount, tokenKey) {
+	if !KeyEq(c, tokenAccount, &tokenKey) {
 		return svm.IncorrectProgramID
 	}
-	if !svm.DataIsEmpty(c, tokenAccount) || !svm.OwnerIs(c, tokenAccount, svm.SystemProgramID) {
+	if !svm.DataIsEmpty(c, tokenAccount) || !OwnerEq(c, tokenAccount, &svm.SystemProgramID) {
 		return svm.AccountAlreadyInitialized
 	}
 
@@ -102,10 +102,10 @@ func Initialize[T any, P Plugin[T]](c solana.Context, init *Init) uint64 {
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, dispatchAuthority, dispatchKey) {
+	if !KeyEq(c, dispatchAuthority, &dispatchKey) {
 		return svm.IncorrectProgramID
 	}
-	if !svm.DataIsEmpty(c, dispatchAuthority) || !svm.OwnerIs(c, dispatchAuthority, svm.SystemProgramID) {
+	if !svm.DataIsEmpty(c, dispatchAuthority) || !OwnerEq(c, dispatchAuthority, &svm.SystemProgramID) {
 		return svm.AccountAlreadyInitialized
 	}
 
@@ -162,14 +162,14 @@ func TransferRemoteWithMemo[T any, P Plugin[T]](c solana.Context, xfer *Transfer
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, systemProgram, svm.SystemProgramID) {
+	if !KeyEq(c, systemProgram, &svm.SystemProgramID) {
 		return svm.InvalidArgument
 	}
 	noop, code := next(&it)
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, noop, accountutils.SPLNoopProgramID) {
+	if !KeyEq(c, noop, &accountutils.SPLNoopProgramID) {
 		return svm.InvalidArgument
 	}
 	tokenAccount, code := next(&it)
@@ -212,7 +212,7 @@ func TransferRemoteTo[T any, P Plugin[T]](c solana.Context, programID *svm.Pubke
 	if code != svm.Success {
 		return zero, code
 	}
-	if !svm.KeyIs(c, mailbox, tok.Mailbox) {
+	if !KeyEq(c, mailbox, &tok.Mailbox) {
 		return zero, svm.IncorrectProgramID
 	}
 	outbox, code := next(it)
@@ -227,7 +227,7 @@ func TransferRemoteTo[T any, P Plugin[T]](c solana.Context, programID *svm.Pubke
 	if code != svm.Success {
 		return zero, code
 	}
-	if !svm.KeyIs(c, dispatchAuthority, dispatchKey) {
+	if !KeyEq(c, dispatchAuthority, &dispatchKey) {
 		return zero, svm.InvalidArgument
 	}
 	sender, code := next(it)
@@ -325,7 +325,7 @@ func parseIGPAccounts(c solana.Context, programID *svm.Pubkey, cfg *cc.IGPConfig
 	if code != svm.Success {
 		return nil, code
 	}
-	if !svm.KeyIs(c, igpProgram, cfg.Program) {
+	if !KeyEq(c, igpProgram, &cfg.Program) {
 		return nil, svm.InvalidArgument
 	}
 	programData, code := next(it)
@@ -345,7 +345,7 @@ func parseIGPAccounts(c solana.Context, programID *svm.Pubkey, cfg *cc.IGPConfig
 		if code != svm.Success {
 			return nil, code
 		}
-		if svm.KeyIs(c, i, cfg.Type.Key) {
+		if KeyEq(c, i, &cfg.Type.Key) {
 			configured = i
 			break
 		}
@@ -389,13 +389,13 @@ func parseIGPAccounts(c solana.Context, programID *svm.Pubkey, cfg *cc.IGPConfig
 		if len(pre) < 1 {
 			return nil, ErrIgpNewFlowRequired
 		}
-		if !svm.KeyIs(c, pre[0], authorityKey) {
+		if !KeyEq(c, pre[0], &authorityKey) {
 			return nil, svm.InvalidArgument
 		}
 		if len(pre) < 2 {
 			return nil, ErrIgpNewFlowRequired
 		}
-		if !svm.KeyIs(c, pre[1], *programID) {
+		if !KeyEq(c, pre[1], programID) {
 			return nil, svm.InvalidArgument
 		}
 		for j := range pre {
@@ -437,7 +437,7 @@ func ParseFeeSectionAndQuote[T any, P Plugin[T]](c solana.Context, tok *Hyperlan
 	if code != svm.Success {
 		return fee, code
 	}
-	if !svm.KeyIs(c, feeProgram, cfg.FeeProgram) {
+	if !KeyEq(c, feeProgram, &cfg.FeeProgram) {
 		return fee, svm.InvalidArgument
 	}
 	if !solana.Executable(c, feeProgram) {
@@ -447,10 +447,10 @@ func ParseFeeSectionAndQuote[T any, P Plugin[T]](c solana.Context, tok *Hyperlan
 	if code != svm.Success {
 		return fee, code
 	}
-	if !svm.KeyIs(c, feeAccount, cfg.FeeAccount) {
+	if !KeyEq(c, feeAccount, &cfg.FeeAccount) {
 		return fee, svm.InvalidArgument
 	}
-	if !svm.OwnerIs(c, feeAccount, cfg.FeeProgram) {
+	if !OwnerEq(c, feeAccount, &cfg.FeeProgram) {
 		return fee, ErrFeeAccountOwnerMismatch
 	}
 	var prefix FeeAccountPrefix
@@ -473,7 +473,7 @@ func ParseFeeSectionAndQuote[T any, P Plugin[T]](c solana.Context, tok *Hyperlan
 		if code != svm.Success {
 			return fee, code
 		}
-		if svm.KeyIs(c, i, expected) {
+		if KeyEq(c, i, &expected) {
 			beneficiary = i
 			break
 		}
@@ -546,7 +546,7 @@ func TransferFromRemote[T any, P Plugin[T]](c solana.Context, h *recipient.Handl
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, systemProgram, svm.SystemProgramID) {
+	if !KeyEq(c, systemProgram, &svm.SystemProgramID) {
 		return svm.InvalidArgument
 	}
 	tokenAccount, code := next(&it)
@@ -561,10 +561,10 @@ func TransferFromRemote[T any, P Plugin[T]](c solana.Context, h *recipient.Handl
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, recipient, message.Recipient) {
+	if !KeyEq(c, recipient, &message.Recipient) {
 		return svm.InvalidArgument
 	}
-	if code := cc.EnsureValidRouterMessage(c, tok.MailboxProcessAuthority, processAuthority, tok.RemoteRouters, h.Origin, &h.Sender); code != svm.Success {
+	if code := cc.EnsureValidRouterMessage(c, &tok.MailboxProcessAuthority, processAuthority, tok.RemoteRouters, h.Origin, &h.Sender); code != svm.Success {
 		return code
 	}
 	local, code := tok.RemoteAmountToLocalAmount(message.AmountOrID)
@@ -604,12 +604,33 @@ func TransferFromRemoteAccountMetas[T any, P Plugin[T]](c solana.Context, h *rec
 	if code != svm.Success {
 		return code
 	}
-	metas := make([]accountmeta.SerializableAccountMeta, 0, 3+len(pluginMetas))
-	metas = append(metas, accountmeta.Readonly(svm.SystemProgramID, false))
-	metas = append(metas, accountmeta.Readonly(svm.Key(c, tokenAccount), false))
-	metas = append(metas, accountmeta.SerializableAccountMeta{Pubkey: message.Recipient, IsWritable: writableRecipient})
-	metas = append(metas, pluginMetas...)
-	return solana.SetReturnData(c, accountmeta.EncodeMetasReturnData(metas))
+	// SimulationReturnData<Vec<SerializableAccountMeta>>, written in place:
+	// system program, token PDA, recipient, then the plugin's metas.
+	w := borsh.NewWriter(4 + 34*(3+len(pluginMetas)) + 1)
+	w.Len32(3 + len(pluginMetas))
+	writeMeta(&w, &svm.SystemProgramID, false, false)
+	tokenKey := svm.Key(c, tokenAccount)
+	writeMeta(&w, &tokenKey, false, false)
+	writeMeta(&w, &message.Recipient, false, writableRecipient)
+	for i := range pluginMetas {
+		m := &pluginMetas[i]
+		writeMeta(&w, &m.Pubkey, m.IsSigner, m.IsWritable)
+	}
+	accountmeta.EndSimulationReturnData(&w)
+	return solana.SetReturnData(c, w.Bytes())
+}
+
+func writeMeta(w *borsh.Writer, key *[32]byte, signer, writable bool) {
+	w.Raw(key[:])
+	w.Bool(signer)
+	w.Bool(writable)
+}
+
+// SetMeta fills a plugin account meta in place (avoids copying the struct).
+func SetMeta(m *accountmeta.SerializableAccountMeta, key *svm.Pubkey, signer, writable bool) {
+	m.Pubkey = *key
+	m.IsSigner = signer
+	m.IsWritable = writable
 }
 
 // loadForOwnerUpdate takes [system program (when withSystem)], token PDA and
@@ -620,7 +641,7 @@ func loadForOwnerUpdate[T any, P Plugin[T]](c solana.Context, programID *svm.Pub
 		if code != svm.Success {
 			return
 		}
-		if !svm.KeyIs(c, systemProgram, svm.SystemProgramID) {
+		if !KeyEq(c, systemProgram, &svm.SystemProgramID) {
 			code = svm.InvalidArgument
 			return
 		}
@@ -776,14 +797,14 @@ func SetFeeConfig[T any, P Plugin[T]](c solana.Context, feeConfig *borsh.Option[
 		if code != svm.Success {
 			return code
 		}
-		if !svm.KeyIs(c, feeProgram, cfg.FeeProgram) || !solana.Executable(c, feeProgram) {
+		if !KeyEq(c, feeProgram, &cfg.FeeProgram) || !solana.Executable(c, feeProgram) {
 			return svm.InvalidArgument
 		}
 		feeAccount, code := next(&it)
 		if code != svm.Success {
 			return code
 		}
-		if !svm.KeyIs(c, feeAccount, cfg.FeeAccount) || !svm.OwnerIs(c, feeAccount, cfg.FeeProgram) {
+		if !KeyEq(c, feeAccount, &cfg.FeeAccount) || !OwnerEq(c, feeAccount, &cfg.FeeProgram) {
 			return svm.InvalidArgument
 		}
 		var prefix FeeAccountPrefix
