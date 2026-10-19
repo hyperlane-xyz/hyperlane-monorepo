@@ -746,13 +746,19 @@ describe('WarpCore', () => {
       } as any),
     );
 
+    // Recipient differs from sender so a dropped `recipient` in
+    // validateTokenBalances -> getLocalTransferFeeAmount is observable.
+    const localFeeSpy = sinon.spy(warpCore, 'getLocalTransferFeeAmount');
     const validResult = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
       destination: test2.name,
-      recipient: MOCK_ADDRESS,
+      recipient: MOCK_ADDRESS_2,
       sender: MOCK_ADDRESS,
     });
     expect(validResult).to.be.null;
+    sinon.assert.calledOnce(localFeeSpy);
+    expect(localFeeSpy.firstCall.args[0].recipient).to.equal(MOCK_ADDRESS_2);
+    localFeeSpy.restore();
 
     const invalidChain = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
@@ -1627,7 +1633,7 @@ describe('WarpCore', () => {
         originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
         destination: test2.name,
         sender: MOCK_ADDRESS,
-        recipient: MOCK_ADDRESS,
+        recipient: MOCK_ADDRESS_2,
         destinationToken: evmHypSynthetic,
       });
 
@@ -1636,6 +1642,9 @@ describe('WarpCore', () => {
         evmHypNative.addressOrDenom,
       );
       expect(quote.localQuote.amount).to.equal(7n);
+      expect(localFeeAmountStub.firstCall.args[0].recipient).to.equal(
+        MOCK_ADDRESS_2,
+      );
     } finally {
       localFeeAmountStub.restore();
       adapterStub.restore();
@@ -2082,11 +2091,12 @@ describe('WarpCore', () => {
           originTokenAmount: evmHypNative.amount(MOCK_BALANCE),
           destination: test2.name,
           sender: MOCK_ADDRESS,
-          recipient: MOCK_ADDRESS,
+          recipient: MOCK_ADDRESS_2,
         });
 
         sinon.assert.calledOnce(localFeeStub);
         const localFeeArgs = localFeeStub.firstCall.args[0];
+        expect(localFeeArgs.recipient).to.equal(MOCK_ADDRESS_2);
         expect(localFeeArgs.amount).to.be.undefined;
       } finally {
         interchainFeeStub.restore();
@@ -2111,12 +2121,13 @@ describe('WarpCore', () => {
           originTokenAmount: evmHypNative.amount(MOCK_BALANCE),
           destination: test2.name,
           sender: MOCK_ADDRESS,
-          recipient: MOCK_ADDRESS,
+          recipient: MOCK_ADDRESS_2,
           attestation: mockAttestation,
         });
 
         sinon.assert.calledOnce(localFeeStub);
         const localFeeArgs = localFeeStub.firstCall.args[0];
+        expect(localFeeArgs.recipient).to.equal(MOCK_ADDRESS_2);
         expect(localFeeArgs.amount).to.equal(MOCK_BALANCE);
       } finally {
         interchainFeeStub.restore();
@@ -2192,12 +2203,13 @@ describe('WarpCore', () => {
           originTokenAmount: evmHypNative.amount(MOCK_BALANCE),
           destination: test2.name,
           sender: MOCK_ADDRESS,
-          recipient: MOCK_ADDRESS,
+          recipient: MOCK_ADDRESS_2,
           destinationToken: evmHypSynthetic,
         });
 
         sinon.assert.calledOnce(localFeeStub);
         const localFeeArgs = localFeeStub.firstCall.args[0];
+        expect(localFeeArgs.recipient).to.equal(MOCK_ADDRESS_2);
         expect(localFeeArgs.amount).to.be.undefined;
       } finally {
         originCrossStub.restore();
@@ -2230,7 +2242,7 @@ describe('WarpCore', () => {
           balance,
           destination: test2.name,
           sender: MOCK_ADDRESS,
-          recipient: MOCK_ADDRESS,
+          recipient: MOCK_ADDRESS_2,
         });
 
         // First call: fee calculation pass with full balance
@@ -2243,6 +2255,7 @@ describe('WarpCore', () => {
         // getLocalTransferFeeAmount called without amount
         sinon.assert.calledOnce(localFeeStub);
         const localFeeArgs = localFeeStub.firstCall.args[0];
+        expect(localFeeArgs.recipient).to.equal(MOCK_ADDRESS_2);
         expect(localFeeArgs.amount).to.be.undefined;
       } finally {
         interchainFeeStub.restore();
