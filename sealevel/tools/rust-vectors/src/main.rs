@@ -22,6 +22,7 @@ use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::pubkey::Pubkey;
 
 mod igp;
+mod token;
 mod va_multisig;
 
 fn hex(b: &[u8]) -> String {
@@ -720,6 +721,7 @@ fn main() {
         "hyperlane-core": Value::Object(core_group().0),
         "svm": Value::Object(svm_group().0),
         "composite-ism": Value::Object(composite_group().0),
+        "token": Value::Object(token::token_group()),
     });
     igp::extend(&mut out);
     va_multisig::extend(&mut out);

@@ -9,8 +9,12 @@ import (
 	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/borsh"
 	hyperlanecore "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/hyperlane-core"
 	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/hyperlane-core/merkle"
+	cc "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/hyperlane-sealevel-connection-client"
+	tokenlib "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/hyperlane-sealevel-token"
+	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/hyperlane-sealevel-token/collateral"
 	ism "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/interchain-security-module-interface"
 	recipient "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/message-recipient-interface"
+	packageversioned "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/package-versioned"
 	accountmeta "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/serializable-account-meta"
 	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/svm"
 	"gosvm/solana"
@@ -102,6 +106,18 @@ func Process(c solana.Context) uint64 {
 	}
 	if len(m) > 9 || accountutils.InitState(c, 0, svm.ProgramID(c)) == accountutils.OwnerMismatch {
 		return 1
+	}
+	if packageversioned.IsGetProgramVersion(data) {
+		return packageversioned.ProcessGetProgramVersion(c)
+	}
+	w.Raw(cc.ISMReturnData(borsh.SomeOf(svm.Key(c, 0))))
+	if quoted, code := tokenlib.IgpQuoted(data); quoted || code != 0 {
+		return code
+	}
+	w.Raw(collateral.EscrowPDASeeds[2])
+	tix := new(tokenlib.Instruction)
+	if tokenlib.DecodeInstruction(data, tix) == 0 {
+		w.Raw(tokenlib.EncodeInstruction(tix))
 	}
 	return solana.SetReturnData(c, w.Bytes())
 }
