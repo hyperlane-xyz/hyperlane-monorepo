@@ -12,16 +12,9 @@ import (
 	"gosvm/solana"
 )
 
-// ErrCPIMetaLimit is goSVM's invalid-metas code (2006), returned when a CPI
-// would need more than the 16 account metas goSVM's Invoke encodes. Rust has
-// no such limit: this is a goSVM gap, never a Rust error.
-const ErrCPIMetaLimit uint64 = 2006
-
-// maxCPIMetas is goSVM's per-CPI account meta limit.
-const maxCPIMetas = 16
-
 // MaxFeeVariableAccounts and MaxIgpVariableAccounts bound the variable
-// account runs of transfer_remote.
+// account runs of transfer_remote, so its widest CPIs are QuoteFee with 17
+// metas and a quoted overhead-IGP PayForGas with 22, within goSVM's 64.
 const (
 	MaxFeeVariableAccounts = 15
 	MaxIgpVariableAccounts = 15
@@ -53,15 +46,6 @@ type Plugin[T any] interface {
 }
 
 func next(it *svm.AccountIter) (uint64, uint64) { return it.Next() }
-
-// addMeta appends a meta, failing with ErrCPIMetaLimit past goSVM's 16.
-func addMeta(m *svm.Metas, index uint64, writable, signer bool) bool {
-	if len(m.Bytes()) >= maxCPIMetas*9 {
-		return false
-	}
-	m.Add(index, writable, signer)
-	return true
-}
 
 // Initialize is HyperlaneSealevelToken::initialize.
 //
@@ -408,17 +392,13 @@ func parseIGPAccounts(c solana.Context, programID *svm.Pubkey, cfg *cc.IGPConfig
 			return nil, svm.InvalidArgument
 		}
 		for j := range pre {
-			ok := true
 			switch j {
 			case 0:
-				ok = addMeta(m, pre[0], false, true)
+				m.Add(pre[0], false, true)
 			case 1:
-				ok = addMeta(m, pre[1], false, false)
+				m.Add(pre[1], false, false)
 			default:
-				ok = addMeta(m, pre[j], solana.Writable(c, pre[j]), solana.Signer(c, pre[j]))
-			}
-			if !ok {
-				return nil, ErrCPIMetaLimit
+				m.Add(pre[j], solana.Writable(c, pre[j]), solana.Signer(c, pre[j]))
 			}
 		}
 		p.quoted = true
@@ -426,8 +406,8 @@ func parseIGPAccounts(c solana.Context, programID *svm.Pubkey, cfg *cc.IGPConfig
 	} else if len(pre) != 0 {
 		return nil, svm.InvalidArgument
 	}
-	if overhead && !addMeta(m, configured, false, false) {
-		return nil, ErrCPIMetaLimit
+	if overhead {
+		m.Add(configured, false, false)
 	}
 	return p, svm.Success
 }
@@ -475,7 +455,6 @@ func ParseFeeSectionAndQuote[T any, P Plugin[T]](c solana.Context, tok *Hyperlan
 	metas.Add(feeAccount, false, false)
 	metas.Add(sender, true, true)
 	variable := 0
-	overLimit := false
 	var beneficiary uint64
 	for {
 		i, code := next(it)
@@ -490,12 +469,7 @@ func ParseFeeSectionAndQuote[T any, P Plugin[T]](c solana.Context, tok *Hyperlan
 		if variable > MaxFeeVariableAccounts {
 			return fee, ErrFeeBeneficiaryNotFound
 		}
-		if !addMeta(metas, i, solana.Writable(c, i), solana.Signer(c, i)) {
-			overLimit = true
-		}
-	}
-	if overLimit {
-		return fee, ErrCPIMetaLimit
+		metas.Add(i, solana.Writable(c, i), solana.Signer(c, i))
 	}
 
 	data := QuoteFeeData(destination, recipient, amount, targetRouter)

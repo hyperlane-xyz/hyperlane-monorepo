@@ -436,8 +436,8 @@ func transferRemoteToLocal(c solana.Context, programID *svm.Pubkey, tok *Token, 
 	data := EncodeInstruction(ix)
 
 	// The CC dispatch authority (signer), then every remaining account with
-	// its writability. Rust has no meta limit; goSVM's Invoke rejects more
-	// than 16 metas (2006).
+	// its writability. The program is built with -max-accounts 64, which is
+	// also goSVM's CPI meta limit, so every incoming account fits.
 	remaining := solana.Count(c) - it.Position()
 	metas := make([]byte, 0, 9*(1+remaining))
 	metas = appendMeta(metas, ccDispatchAuthority, false, true)

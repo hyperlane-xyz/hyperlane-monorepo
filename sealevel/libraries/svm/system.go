@@ -59,10 +59,14 @@ func AllocateData(space uint64) [12]byte {
 	return d
 }
 
+// MaxCPIMetas is goSVM's per-CPI account meta limit (integration 2).
+const MaxCPIMetas = 64
+
 // Metas are CPI account metas in goSVM's encoding: index u64 LE, flags
-// (writable=1, signer=2). At most 16.
+// (writable=1, signer=2). At most MaxCPIMetas; the token programs' widest
+// CPI is a quoted overhead-IGP PayForGas with 22.
 type Metas struct {
-	buf [16 * 9]byte
+	buf [MaxCPIMetas * 9]byte
 	n   int
 }
 

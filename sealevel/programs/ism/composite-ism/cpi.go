@@ -6,9 +6,9 @@ import (
 )
 
 // errCPIAccounts is returned when a fallback-ISM CPI needs more than goSVM's
-// 16 account metas, or the callee program is not among the instruction's
-// accounts. Rust has no 16-meta limit, and a missing program fails in the
-// runtime rather than with a program error.
+// 64 account metas (more than the instruction can carry), or the callee
+// program is not among the instruction's accounts. A missing program fails
+// in the Rust runtime rather than with a program error.
 const errCPIAccounts = svm.NotEnoughAccountKeys
 
 // findAccount returns the index of the first account with key k.
@@ -25,7 +25,7 @@ func findAccount(c solana.Context, k *svm.Pubkey) (uint64, bool) {
 // invokeRange CPIs program with accounts [from, to) as metas, keeping each
 // account's signer and writable flags (account_info_to_meta).
 func invokeRange(c solana.Context, program *svm.Pubkey, from, to uint64, data []byte) uint64 {
-	if to < from || to-from > 16 {
+	if to < from || to-from > svm.MaxCPIMetas {
 		return errCPIAccounts
 	}
 	programIndex, ok := findAccount(c, program)

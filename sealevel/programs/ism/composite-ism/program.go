@@ -9,7 +9,6 @@
 // reports errors, in the same order as the Rust recursion.
 //
 // Differences from the Rust program, all outside the functional suites:
-//   - Fallback-ISM CPIs take at most 16 accounts (errCPIAccounts).
 //   - RemoveDomainIsm with a read-only refund account fails with
 //     InvalidAccountData; Rust fails afterwards in the runtime.
 //   - Trees deeper than Rust's SBF call-depth limit decode and verify (the
