@@ -1,5 +1,5 @@
 use access_control::AccessControl;
-use account_utils::{AccountData, SizedData};
+use account_utils::{verify_pda_with_bump_hint, AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H160, H256, U256};
 use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
@@ -199,6 +199,34 @@ pub type DomainIsmAccount = AccountData<DomainIsmStorage>;
 pub fn derive_domain_pda(program_id: &Pubkey, domain: u32) -> (Pubkey, u8) {
     let domain_bytes = domain.to_le_bytes();
     Pubkey::find_program_address(&[DOMAIN_ISM_SEED, &domain_bytes], program_id)
+}
+
+/// Returns whether `account` is the canonical domain ISM PDA for `domain`.
+///
+/// Same result as comparing against [`derive_domain_pda`], but an initialized
+/// domain ISM account owned by this program is checked with its stored bump
+/// (one `create_program_address`) instead of a bump search.
+pub fn is_domain_pda(program_id: &Pubkey, domain: u32, account: &AccountInfo) -> bool {
+    // DomainIsmAccount layout: [initialized: bool][bump_seed: u8][domain: u32][ism].
+    let bump_hint = if account.owner == program_id {
+        account
+            .try_borrow_data()
+            .ok()
+            .and_then(|data| match data.get(..2)? {
+                [1, bump] => Some(*bump),
+                _ => None,
+            })
+    } else {
+        None
+    };
+    let domain_bytes = domain.to_le_bytes();
+    verify_pda_with_bump_hint(
+        account.key,
+        &[DOMAIN_ISM_SEED, &domain_bytes],
+        bump_hint,
+        program_id,
+    )
+    .is_some()
 }
 
 /// Derives the per-ISM process authority PDA. The mailbox signs with this PDA

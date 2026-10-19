@@ -17,7 +17,7 @@ use multisig_ism::{multisig::MultisigIsm, MultisigIsmMessageIdMetadata};
 use crate::{
     account_metas::contains_rate_limited,
     accounts::{
-        derive_domain_pda, derive_process_authority, load_and_validate_domain_ism_storage,
+        derive_process_authority, is_domain_pda, load_and_validate_domain_ism_storage,
         DomainIsmAccount, IsmNode,
     },
     error::Error,
@@ -180,8 +180,7 @@ where
 
         IsmNode::Routing => {
             let domain_pda_info = next_account_info(accounts_iter)?;
-            let (expected_key, _) = derive_domain_pda(program_id, message.origin);
-            if *domain_pda_info.key != expected_key {
+            if !is_domain_pda(program_id, message.origin, domain_pda_info) {
                 return Err(Error::InvalidDomainPda.into());
             }
             if try_verify_domain_ism(
@@ -215,8 +214,7 @@ where
 
         IsmNode::FallbackRouting { fallback_ism } => {
             let domain_pda_info = next_account_info(accounts_iter)?;
-            let (expected_key, _) = derive_domain_pda(program_id, message.origin);
-            if *domain_pda_info.key != expected_key {
+            if !is_domain_pda(program_id, message.origin, domain_pda_info) {
                 return Err(Error::InvalidDomainPda.into());
             }
 
