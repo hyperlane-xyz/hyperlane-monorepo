@@ -24,6 +24,7 @@ use account_utils::{
     verify_rent_exempt, AccountData, AccountInfoExt, AccountInitState, DiscriminatorData,
     DiscriminatorPrefixed, SizedData,
 };
+use log_utils::LogLine;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 
 use quote_verifier::{QuoteValidationError, SvmSignedQuote, ValidatableQuote};
@@ -206,7 +207,10 @@ fn init_igp(program_id: &Pubkey, accounts: &[AccountInfo], data: InitIgp) -> Pro
         igp_pda_seeds!(data.salt),
     )?;
 
-    msg!("Initialized IGP: {}", igp_key);
+    LogLine::new()
+        .str("Initialized IGP: ")
+        .pubkey(&igp_key)
+        .log();
 
     Ok(())
 }
@@ -238,7 +242,10 @@ fn init_overhead_igp(
         overhead_igp_pda_seeds!(data.salt),
     )?;
 
-    msg!("Initialized Overhead IGP: {}", igp_key);
+    LogLine::new()
+        .str("Initialized Overhead IGP: ")
+        .pubkey(&igp_key)
+        .log();
 
     Ok(())
 }
@@ -576,13 +583,15 @@ fn pay_for_gas(program_id: &Pubkey, accounts: &[AccountInfo], payment: PayForGas
         transient_info.close_account(payer_info)?;
     }
 
-    msg!(
-        "Paid IGP {} for {} gas for message {} to {}",
-        igp_key,
-        gas_amount,
-        payment.message_id,
-        payment.destination_domain
-    );
+    LogLine::new()
+        .str("Paid IGP for ")
+        .u64(gas_amount)
+        .str(" gas for message ")
+        .hex(payment.message_id.as_bytes())
+        .str(" to ")
+        .u64(payment.destination_domain.into())
+        .str(", IGP:")
+        .log_with_keys(&[&igp_key]);
 
     Ok(())
 }
@@ -996,7 +1005,11 @@ fn set_igp_quote_config(
     )?;
 
     match new_min_issued_at {
-        Some(min) => msg!("Set IGP quote config (min_issued_at {})", min),
+        Some(min) => LogLine::new()
+            .str("Set IGP quote config (min_issued_at ")
+            .i64(min)
+            .str(")")
+            .log(),
         None => msg!("Cleared IGP quote config"),
     }
     Ok(())
@@ -1052,11 +1065,11 @@ fn set_igp_quote_signer(
         system_program_info,
     )?;
 
-    msg!(
-        "{} IGP quote signer: {:?}",
-        operation.action_to_str(),
-        operation.signer()
-    );
+    LogLine::new()
+        .str(operation.action_to_str())
+        .str(" IGP quote signer: ")
+        .hex(operation.signer().as_bytes())
+        .log();
     Ok(())
 }
 
@@ -1110,7 +1123,10 @@ fn set_igp_min_issued_at(
         system_program_info,
     )?;
 
-    msg!("Set IGP min_issued_at: {}", min_issued_at);
+    LogLine::new()
+        .str("Set IGP min_issued_at: ")
+        .i64(min_issued_at)
+        .log();
     Ok(())
 }
 

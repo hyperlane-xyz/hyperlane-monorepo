@@ -3555,6 +3555,7 @@ dependencies = [
  "borsh 1.6.0",
  "getrandom 0.2.17",
  "hyperlane-core",
+ "log-utils",
  "num-derive",
  "num-traits",
  "package-versioned",
