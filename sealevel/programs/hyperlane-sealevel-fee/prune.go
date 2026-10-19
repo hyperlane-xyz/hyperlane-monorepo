@@ -74,8 +74,22 @@ func processPruneExpiredQuotes(c solana.Context, ix *DomainRouter) uint64 {
 		}
 	}
 	standing.Quotes = standing.Quotes[:kept]
+	m := svm.NewMsg("Pruned domain ")
+	m.U32(ix.Domain)
 	if kept == 0 {
-		return accountutils.CloseAccount(c, pdaIdx, ownerIdx)
+		if code := accountutils.CloseAccount(c, pdaIdx, ownerIdx); code != svm.Success {
+			return code
+		}
+		m.Str(" — PDA closed")
+		m.Emit(c)
+		return svm.Success
 	}
-	return accountutils.StoreWithRentExemptRealloc(c, pdaIdx, standing, ownerIdx, systemIdx)
+	if code := accountutils.StoreWithRentExemptRealloc(c, pdaIdx, standing, ownerIdx, systemIdx); code != svm.Success {
+		return code
+	}
+	m.Str(" — ")
+	m.Dec(uint64(kept))
+	m.Str(" entries remaining")
+	m.Emit(c)
+	return svm.Success
 }

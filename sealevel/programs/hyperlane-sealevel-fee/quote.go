@@ -124,7 +124,7 @@ func processQuoteFee(c solana.Context, ix *QuoteFee) uint64 {
 		}
 		if !found {
 			// Unconfigured domain: zero fee.
-			return setU64ReturnData(c, 0)
+			return logQuote(c, "QuoteFee (unconfigured route): ", 0, ix.Amount, setU64ReturnData(c, 0))
 		}
 	default:
 		strategy, specificActive, code = resolveCCRouting(c, &it, &programID, &feeKey, ix.DestinationDomain, &ix.TargetRouter)
@@ -142,7 +142,7 @@ func processQuoteFee(c solana.Context, ix *QuoteFee) uint64 {
 		if code != svm.Success {
 			return code
 		}
-		return setU64ReturnData(c, fee)
+		return logQuote(c, "QuoteFee (transient): ", fee, ix.Amount, setU64ReturnData(c, fee))
 	}
 
 	// Steps 2-3: active-scope domain standing quote, then wildcard domain.
@@ -161,14 +161,14 @@ func processQuoteFee(c solana.Context, ix *QuoteFee) uint64 {
 		return code
 	}
 	if found {
-		return setU64ReturnData(c, fee)
+		return logQuote(c, "QuoteFee (standing): ", fee, ix.Amount, setU64ReturnData(c, fee))
 	}
 	fee, found, code = resolveStandingQuote(c, &programID, wildcardIdx, &feeKey, WildcardDomain, &standingTarget, &strategy, ix, fa.MinIssuedAt, now)
 	if code != svm.Success {
 		return code
 	}
 	if found {
-		return setU64ReturnData(c, fee)
+		return logQuote(c, "QuoteFee (standing): ", fee, ix.Amount, setU64ReturnData(c, fee))
 	}
 
 	// Step 4: on-chain curve.
@@ -176,7 +176,21 @@ func processQuoteFee(c solana.Context, ix *QuoteFee) uint64 {
 	if code != svm.Success {
 		return code
 	}
-	return setU64ReturnData(c, fee)
+	return logQuote(c, "QuoteFee (on-chain): ", fee, ix.Amount, setU64ReturnData(c, fee))
+}
+
+// logQuote logs "<prefix>{fee} for amount {amount}" once the return data is
+// set, and returns code.
+func logQuote(c solana.Context, prefix string, fee, amount, code uint64) uint64 {
+	if code != svm.Success {
+		return code
+	}
+	m := svm.NewMsg(prefix)
+	m.Dec(fee)
+	m.Str(" for amount ")
+	m.Dec(amount)
+	m.Emit(c)
+	return svm.Success
 }
 
 // isInitializedTransientQuote: uninitialized is false, another owner is

@@ -1,7 +1,6 @@
 // Package fee ports rust/sealevel/programs/hyperlane-sealevel-fee: on-chain
-// fee computation for warp routes with offchain-signed quotes.
-//
-// Rust's msg! logs are not emitted (goSVM has no sol_log yet).
+// fee computation for warp routes with offchain-signed quotes. Every Rust
+// msg! line is logged with the same text (svm.Msg).
 package fee
 
 import (

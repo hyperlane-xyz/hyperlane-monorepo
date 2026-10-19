@@ -82,7 +82,13 @@ func processSetRemoteFeeRoute(c solana.Context, ix *SetRemoteFeeRoute) uint64 {
 	if code := upsertPDA(c, &it, &programID, &key, empty, &seeds, ownerIdx, systemIdx); code != svm.Success {
 		return code
 	}
-	return accountutils.EnsureNoExtraneousAccounts(&it)
+	if code := accountutils.EnsureNoExtraneousAccounts(&it); code != svm.Success {
+		return code
+	}
+	m := svm.NewMsg("Set remote fee route for domain ")
+	m.U32(ix.Domain)
+	m.Emit(c)
+	return svm.Success
 }
 
 // upsertPDA is upsert_route_pda: create the PDA if uninitialized, else
@@ -174,5 +180,11 @@ func processRemoveRemoteFeeRoute(c solana.Context, ix *DomainRouter) uint64 {
 			return code
 		}
 	}
-	return accountutils.EnsureNoExtraneousAccounts(&it)
+	if code := accountutils.EnsureNoExtraneousAccounts(&it); code != svm.Success {
+		return code
+	}
+	m := svm.NewMsg("Removed remote fee route for domain ")
+	m.U32(ix.Domain)
+	m.Emit(c)
+	return svm.Success
 }

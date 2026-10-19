@@ -62,7 +62,13 @@ func processInitFee(c solana.Context, ix *InitFee) uint64 {
 	if code := accountutils.CreatePDAAccount(c, payerIdx, accountutils.AccountDataSize(fa), programID, systemIdx, feeIdx, &seeds); code != svm.Success {
 		return code
 	}
-	return accountutils.Store(c, feeIdx, fa, false)
+	if code := accountutils.Store(c, feeIdx, fa, false); code != svm.Success {
+		return code
+	}
+	m := svm.NewMsg("Initialized fee account: ")
+	m.Pubkey(&key)
+	m.Emit(c)
+	return svm.Success
 }
 
 // processSetBeneficiary (owner-only).
@@ -81,7 +87,13 @@ func processSetBeneficiary(c solana.Context, beneficiary Pubkey) uint64 {
 		return code
 	}
 	fa.Beneficiary = beneficiary
-	return accountutils.Store(c, feeIdx, fa, false)
+	if code := accountutils.Store(c, feeIdx, fa, false); code != svm.Success {
+		return code
+	}
+	m := svm.NewMsg("Set beneficiary: ")
+	m.Pubkey(&beneficiary)
+	m.Emit(c)
+	return svm.Success
 }
 
 // processTransferOwnership (owner-only).
@@ -100,7 +112,13 @@ func processTransferOwnership(c solana.Context, newOwner accesscontrol.Owner) ui
 		return code
 	}
 	fa.Owner = newOwner
-	return accountutils.Store(c, feeIdx, fa, false)
+	if code := accountutils.Store(c, feeIdx, fa, false); code != svm.Success {
+		return code
+	}
+	m := svm.NewMsg("Transferred ownership to: ")
+	m.OptionPubkey(newOwner.Some, &newOwner.Value)
+	m.Emit(c)
+	return svm.Success
 }
 
 // processUpdateFeeParams sets a Leaf account's curve params (owner-only).
@@ -125,7 +143,11 @@ func processUpdateFeeParams(c solana.Context, params FeeParams) uint64 {
 	if code := fa.FeeData.Leaf.Strategy.ValidateParams(); code != svm.Success {
 		return code
 	}
-	return accountutils.Store(c, feeIdx, fa, false)
+	if code := accountutils.Store(c, feeIdx, fa, false); code != svm.Success {
+		return code
+	}
+	svm.Log(c, "Updated fee params")
+	return svm.Success
 }
 
 // processSetMinIssuedAt raises the standing-quote revocation threshold
@@ -148,7 +170,13 @@ func processSetMinIssuedAt(c solana.Context, minIssuedAt int64) uint64 {
 		return ErrMinIssuedAtMustBeMonotonic
 	}
 	fa.MinIssuedAt = minIssuedAt
-	return accountutils.Store(c, feeIdx, fa, false)
+	if code := accountutils.Store(c, feeIdx, fa, false); code != svm.Success {
+		return code
+	}
+	m := svm.NewMsg("Set min_issued_at: ")
+	m.I64(minIssuedAt)
+	m.Emit(c)
+	return svm.Success
 }
 
 // processSetWildcardQuoteSigners replaces a Routing/CC account's wildcard
@@ -179,7 +207,11 @@ func processSetWildcardQuoteSigners(c solana.Context, signers Signers) uint64 {
 		return ErrWildcardSignersNotApplicable
 	}
 	fa.FeeData.WildcardSigners = signers
-	return accountutils.StoreWithRentExemptRealloc(c, feeIdx, fa, ownerIdx, systemIdx)
+	if code := accountutils.StoreWithRentExemptRealloc(c, feeIdx, fa, ownerIdx, systemIdx); code != svm.Success {
+		return code
+	}
+	svm.Log(c, "Set wildcard quote signers")
+	return svm.Success
 }
 
 // processSetQuoteSigner adds or removes a quote signer (owner-only). No
@@ -215,7 +247,7 @@ func processSetQuoteSigner(c solana.Context, ix *SetQuoteSigner) uint64 {
 			return ErrOffchainQuotingNotConfigured
 		}
 		applySignerOp(&fa.FeeData.Leaf.Signers, ix)
-		return accountutils.StoreWithRentExemptRealloc(c, feeIdx, fa, ownerIdx, systemIdx)
+		return logSetQuoteSigner(c, ix, accountutils.StoreWithRentExemptRealloc(c, feeIdx, fa, ownerIdx, systemIdx))
 	}
 	route := &ix.Route.Value
 	feeKey := svm.Key(c, feeIdx)
@@ -258,14 +290,26 @@ func processSetQuoteSigner(c solana.Context, ix *SetQuoteSigner) uint64 {
 			return code
 		}
 		applySignerOp(&rd.Signers, ix)
-		return accountutils.StoreWithRentExemptRealloc(c, routeIdx, &rd, ownerIdx, systemIdx)
+		return logSetQuoteSigner(c, ix, accountutils.StoreWithRentExemptRealloc(c, routeIdx, &rd, ownerIdx, systemIdx))
 	}
 	cr, _, code := accountutils.FetchAccount[CrossCollateralRoute](c, routeIdx)
 	if code != svm.Success {
 		return code
 	}
 	applySignerOp(&cr.Signers, ix)
-	return accountutils.StoreWithRentExemptRealloc(c, routeIdx, &cr, ownerIdx, systemIdx)
+	return logSetQuoteSigner(c, ix, accountutils.StoreWithRentExemptRealloc(c, routeIdx, &cr, ownerIdx, systemIdx))
+}
+
+// logSetQuoteSigner logs "SetQuoteSigner: {}" (H160 Display) once the store
+// succeeded, and returns its code.
+func logSetQuoteSigner(c solana.Context, ix *SetQuoteSigner, code uint64) uint64 {
+	if code != svm.Success {
+		return code
+	}
+	m := svm.NewMsg("SetQuoteSigner: ")
+	m.H160Short(&ix.Signer)
+	m.Emit(c)
+	return svm.Success
 }
 
 // applySignerOp: Add creates the set if absent; Remove is a no-op on None

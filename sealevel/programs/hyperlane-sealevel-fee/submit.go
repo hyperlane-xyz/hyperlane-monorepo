@@ -141,7 +141,11 @@ func processSubmitQuote(c solana.Context, q *quoteverifier.SvmSignedQuote) uint6
 		if code := accountutils.CreatePDAAccount(c, payerIdx, accountutils.AccountDataSize(tq), programID, systemIdx, transientIdx, &seeds); code != svm.Success {
 			return code
 		}
-		return accountutils.Store(c, transientIdx, tq, false)
+		if code := accountutils.Store(c, transientIdx, tq, false); code != svm.Success {
+			return code
+		}
+		svm.Log(c, "Submitted transient quote")
+		return svm.Success
 	}
 
 	// Standing quote.
@@ -198,7 +202,8 @@ func processSubmitQuote(c solana.Context, q *quoteverifier.SvmSignedQuote) uint6
 			return quoteverifier.ErrStaleQuote
 		}
 		if issuedAt == existing {
-			return svm.Success // equal issued_at: no-op
+			svm.Log(c, "Standing quote no-op (equal issued_at)")
+			return svm.Success
 		}
 	}
 	standing.insert(ctx.Recipient, FeeStandingQuoteValue{IssuedAt: issuedAt, Expiry: expiry, FeeData: quoted})
@@ -206,9 +211,19 @@ func processSubmitQuote(c solana.Context, q *quoteverifier.SvmSignedQuote) uint6
 		if code := accountutils.CreatePDAAccount(c, payerIdx, accountutils.AccountDataSize(standing), programID, systemIdx, domainIdx, &seeds); code != svm.Success {
 			return code
 		}
-		return accountutils.Store(c, domainIdx, standing, false)
+		code = accountutils.Store(c, domainIdx, standing, false)
+	} else {
+		code = accountutils.StoreWithRentExemptRealloc(c, domainIdx, standing, payerIdx, systemIdx)
 	}
-	return accountutils.StoreWithRentExemptRealloc(c, domainIdx, standing, payerIdx, systemIdx)
+	if code != svm.Success {
+		return code
+	}
+	m := svm.NewMsg("Submitted standing quote for domain ")
+	m.U32(ctx.DestinationDomain)
+	m.Str(" recipient ")
+	m.H256Short(&ctx.Recipient)
+	m.Emit(c)
+	return svm.Success
 }
 
 // routeSigners takes the exact-domain route PDA and returns its signers.
@@ -289,7 +304,11 @@ func processCloseTransientQuote(c solana.Context) uint64 {
 	if code := accountutils.EnsureNoExtraneousAccounts(&it); code != svm.Success {
 		return code
 	}
-	return accountutils.CloseAccount(c, transientIdx, payerIdx)
+	if code := accountutils.CloseAccount(c, transientIdx, payerIdx); code != svm.Success {
+		return code
+	}
+	svm.Log(c, "Closed transient quote PDA")
+	return svm.Success
 }
 
 // consumeTransientQuote is try_consume_transient_quote: validate the
