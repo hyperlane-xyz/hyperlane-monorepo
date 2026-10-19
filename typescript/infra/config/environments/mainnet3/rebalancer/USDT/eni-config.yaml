@@ -1,0 +1,39 @@
+warpRouteId: USDT/eni
+
+# Pin the reviewed branch image before deployment.
+deployment:
+  registryCommit: a24bd88a0ce60fb862a5bd5a6ba63fb7a60d79bc
+  swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key
+
+intentTTL: 1209600
+
+inventorySigners:
+  ethereum: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
+  tron: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
+
+externalBridges:
+  debridge:
+    maxFeeBps: 50
+    maxTronNativeValueSun: 20000000
+  swapsxyz:
+    defaultSlippage: 0.005
+    maxQuoteLossBps: 50
+    maxEvmNativeFeeWei: '10000000000000000'
+
+strategy:
+  rebalanceStrategy: minAmount
+  chains:
+    bsc:
+      executionType: inventory
+      externalBridge: swapsxyz
+      minAmount:
+        min: 3000
+        target: 4500
+        type: absolute
+    tron:
+      executionType: inventory
+      externalBridge: debridge
+      minAmount:
+        min: 2000
+        target: 3500
+        type: absolute
