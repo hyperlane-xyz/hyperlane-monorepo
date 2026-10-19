@@ -3610,6 +3610,7 @@ dependencies = [
  "hyperlane-sealevel-message-recipient-interface",
  "itertools 0.14.0",
  "log",
+ "log-utils",
  "num-derive",
  "num-traits",
  "package-versioned",
