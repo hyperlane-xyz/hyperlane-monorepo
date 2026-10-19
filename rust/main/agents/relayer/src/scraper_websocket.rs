@@ -2621,28 +2621,31 @@ impl ScraperWebSocketMonitor {
     }
 
     fn set_active(&self, active: bool) {
-        for domain in self.sources.keys().copied() {
-            self.refresh_gas_payment_authority(domain, active);
-        }
         let value = i64::from(active);
         for source in self.sources.values() {
             self.active
                 .with_label_values(&[source.chain.as_str()])
                 .set(value);
+            self.refresh_gas_payment_authority(source.domain, active);
         }
     }
 
     fn refresh_gas_payment_authority(&self, domain: u32, active: bool) {
         // Keep RPC gas indexing running until this connection's replay for the
         // origin reaches caught-up, so one of them always covers new payments.
-        // An ACK alone does not show how long replay will take: a reset cursor
-        // can replay millions of rows. Sequenced freshness/parity remain independent.
+        // Replay can catch up to a stale scraper database. Require this origin's
+        // canonical sequenced authority as well before pausing gas payment RPC.
         let source = self
             .sources
             .get(&domain)
             .expect("validated scraper source must exist");
+        let authority = self.source_authority(domain);
+        // Serialize gas takeover with sequenced activation/revocation. Otherwise
+        // a caught-up marker could republish gas authority after stale fallback.
+        let authority_guard = authority.sender.borrow();
         let desired = active
             && self.authority_enabled
+            && authority.active.load(Ordering::Acquire)
             && self.gas_payment_enabled.load(Ordering::Acquire)
             && self
                 .caught_up
@@ -2660,6 +2663,7 @@ impl ScraperWebSocketMonitor {
                     true
                 }
             });
+        drop(authority_guard);
     }
 
     /// Fall back to RPC for one origin's gas payments until it replays cleanly.
@@ -2744,6 +2748,13 @@ impl ScraperWebSocketMonitor {
             }
         });
         authority.handoff.notify_state_changed();
+        self.refresh_gas_payment_authority(
+            domain,
+            self.active
+                .with_label_values(&[source.chain.as_str()])
+                .get()
+                == 1,
+        );
         #[cfg(test)]
         self.wait_for_revocation_hook(false);
     }
@@ -2890,11 +2901,17 @@ impl ScraperWebSocketMonitor {
             }
             false // Activation does not change the already acknowledged command.
         });
+        self.refresh_gas_payment_authority(
+            domain,
+            self.active
+                .with_label_values(&[source.chain.as_str()])
+                .get()
+                == 1,
+        );
     }
 
-    /// Dispatch/Merkle authority depends only on those streams. Gas payments have
-    /// their own per-origin authority: RPC gas indexing keeps running until that
-    /// origin's gas replay catches up, so neither waits on the other.
+    /// Gas replay never gates Dispatch/Merkle authority. Gas payment RPC keeps
+    /// running until both sequenced authority and this origin's gas replay are ready.
     fn base_source_authority_ready(&self, source: &ScraperSource) -> bool {
         self.authority_enabled
             && self
@@ -3815,7 +3832,7 @@ mod tests {
             )
             .expect("monitor"),
         );
-        let mut authority = monitor
+        let authority = monitor
             .gas_payment_authority
             .get(&5)
             .expect("gas sender")
@@ -3877,30 +3894,20 @@ mod tests {
         .expect("subscription timeout");
         assert!(!*authority.borrow(), "ACK alone keeps gas RPC");
         release.send(()).expect("release");
-        if authority_enabled {
-            timeout(Duration::from_secs(5), authority.changed())
-                .await
-                .expect("caught-up timeout")
-                .expect("confirmed");
-        } else {
-            timeout(Duration::from_secs(5), async {
-                while monitor
-                    .caught_up
-                    .with_label_values(&["test", GAS_PAYMENT_EVENT_TYPE])
-                    .get()
-                    != 1
-                {
-                    tokio::task::yield_now().await;
-                }
-            })
-            .await
-            .expect("shadow caught-up timeout");
-        }
-        assert_eq!(*authority.borrow(), authority_enabled);
-        assert!(
-            !monitor.base_authority_ready(),
-            "gas must not wait for sequenced readiness"
-        );
+        timeout(Duration::from_secs(5), async {
+            while monitor
+                .caught_up
+                .with_label_values(&["test", GAS_PAYMENT_EVENT_TYPE])
+                .get()
+                != 1
+            {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("caught-up timeout");
+        assert!(!*authority.borrow(), "gas replay alone must not pause RPC");
+        assert!(!monitor.base_authority_ready());
         release_invalid.send(()).expect("release invalid");
         assert!(timeout(Duration::from_secs(5), client)
             .await
@@ -3977,7 +3984,7 @@ mod tests {
         let monitor = Arc::new(
             ScraperWebSocketMonitor::new_with_authority(
                 url,
-                sources_for(&[5, 9]).into_values().collect(),
+                gas_payment_sources(&[5, 9]),
                 &metrics,
                 true,
             )
@@ -4042,14 +4049,7 @@ mod tests {
             !*poisoned.borrow() && !*healthy.borrow(),
             "replaying origins keep gas RPC"
         );
-        // Sequenced readiness is exercised elsewhere; isolate the gas gate.
-        for source in monitor.sources.values() {
-            for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
-                let labels = [source.chain.as_str(), kind.label()];
-                monitor.caught_up.with_label_values(&labels).set(1);
-                monitor.parity_ready.with_label_values(&labels).set(1);
-            }
-        }
+        activate_empty_sequenced_sources(&monitor).await;
         release.send(()).expect("release");
         let dropped =
             monitor
@@ -4141,7 +4141,7 @@ mod tests {
         let monitor = Arc::new(
             ScraperWebSocketMonitor::new_with_authority(
                 url,
-                sources_for(&[5, 9]).into_values().collect(),
+                gas_payment_sources(&[5, 9]),
                 &metrics,
                 true,
             )
@@ -4219,14 +4219,7 @@ mod tests {
         })
         .await
         .expect("subscription timeout");
-        // Sequenced readiness is exercised elsewhere; isolate the gas gate.
-        for source in monitor.sources.values() {
-            for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
-                let labels = [source.chain.as_str(), kind.label()];
-                monitor.caught_up.with_label_values(&labels).set(1);
-                monitor.parity_ready.with_label_values(&labels).set(1);
-            }
-        }
+        activate_empty_sequenced_sources(&monitor).await;
         release.send(()).expect("release");
         let dropped =
             monitor
@@ -4297,7 +4290,7 @@ mod tests {
         let monitor = Arc::new(
             ScraperWebSocketMonitor::new_with_authority(
                 url,
-                sources_for(&[5, 9]).into_values().collect(),
+                gas_payment_sources(&[5, 9]),
                 &metrics,
                 true,
             )
@@ -4380,6 +4373,14 @@ mod tests {
                 .expect("connection timeout")
                 .expect("connection");
             timeout(Duration::from_secs(5), async {
+                while monitor.active.with_label_values(&["test-9"]).get() != 1 {
+                    tokio::task::yield_now().await;
+                }
+            })
+            .await
+            .expect("subscription timeout");
+            activate_empty_sequenced_sources(&monitor).await;
+            timeout(Duration::from_secs(5), async {
                 while !*healthy.borrow() {
                     tokio::task::yield_now().await;
                 }
@@ -4457,7 +4458,7 @@ mod tests {
         let monitor = Arc::new(
             ScraperWebSocketMonitor::new_with_authority(
                 url,
-                sources().into_values().collect(),
+                gas_payment_sources(&[5]),
                 &metrics,
                 true,
             )
@@ -4573,6 +4574,7 @@ mod tests {
         })
         .await
         .expect("first half replayed");
+        activate_empty_sequenced_sources(&monitor).await;
         assert!(!*authority.borrow(), "mid-replay keeps gas authority off");
         assert!(running.load(Ordering::Acquire), "mid-replay keeps gas RPC");
         assert_eq!(caught_up.get(), 0);
@@ -4621,16 +4623,18 @@ mod tests {
         let _ = server.await;
     }
 
-    #[test]
-    fn gas_payment_authority_depends_only_on_the_usable_connection() {
+    #[tokio::test]
+    async fn gas_payment_authority_requires_sequenced_authority_and_replay() {
         let metrics = CoreMetrics::new("gas-authority", 9090, Registry::new()).expect("metrics");
-        let monitor = ScraperWebSocketMonitor::new_with_authority(
-            Url::parse("ws://localhost:1").expect("URL"),
-            sources().into_values().collect(),
-            &metrics,
-            true,
-        )
-        .expect("monitor");
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new_with_authority(
+                Url::parse("ws://localhost:1").expect("URL"),
+                gas_payment_sources(&[5]),
+                &metrics,
+                true,
+            )
+            .expect("monitor"),
+        );
         let mut receiver = monitor
             .gas_payment_authority_receiver(5)
             .expect("gas receiver");
@@ -4643,26 +4647,35 @@ mod tests {
         monitor.set_source_caught_up(source, EventKind::GasPayment, true);
         monitor.set_active(true);
         assert!(
-            *receiver.borrow(),
-            "gas replay caught-up pauses gas RPC before sequenced caught-up/parity"
+            !*receiver.borrow(),
+            "caught-up stale data must not pause gas RPC"
         );
-        monitor.deactivate_source_authority(5);
+        activate_empty_sequenced_sources(&monitor).await;
         assert!(
             *receiver.borrow(),
-            "sequenced fallback must not restart gas RPC"
+            "fresh sequenced authority permits gas takeover"
         );
-        let guard = GasPaymentConnectionGuard(&monitor.gas_payment_authority);
-        drop(guard);
+        monitor.deactivate_source_authority(5);
+        assert!(!*receiver.borrow(), "sequenced fallback restores gas RPC");
+        monitor.refresh_gas_payment_authority(5, true);
+        assert!(
+            !*receiver.borrow(),
+            "stale caught-up marker cannot reclaim gas authority"
+        );
+        activate_empty_sequenced_sources(&monitor).await;
+        assert!(*receiver.borrow(), "fresh recovery restores gas authority");
+        drop(GasPaymentConnectionGuard(&monitor.gas_payment_authority));
         assert!(!*receiver.borrow(), "cancelled connection restores gas RPC");
-        // A new connection starts before its replay reaches caught-up.
+        monitor.deactivate_authority();
         monitor.set_source_caught_up(source, EventKind::GasPayment, false);
         monitor.set_active(true);
+        activate_empty_sequenced_sources(&monitor).await;
         assert!(!*receiver.borrow(), "reconnect keeps gas RPC until replay");
         monitor.set_source_caught_up(source, EventKind::GasPayment, true);
         monitor.set_active(true);
         assert!(
             *receiver.borrow(),
-            "replayed reconnect pauses gas RPC again"
+            "fresh replayed reconnect pauses gas RPC"
         );
         monitor.set_active(false);
         assert!(!*receiver.borrow(), "disconnect restores gas RPC");
@@ -4672,6 +4685,166 @@ mod tests {
             !receiver.has_changed().expect("receiver open"),
             "failed reconnect must not restart an already-running RPC indexer"
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn stale_connected_scraper_restores_gas_payment_rpc_only_for_its_origin() {
+        let metrics = CoreMetrics::new("stale-gas", 9090, Registry::new()).expect("metrics");
+        let monitor = Arc::new(
+            ScraperWebSocketMonitor::new_with_authority(
+                Url::parse("ws://localhost:1").expect("URL"),
+                gas_payment_sources(&[5, 9]),
+                &metrics,
+                true,
+            )
+            .expect("monitor"),
+        );
+        monitor.gas_payment_enabled.store(true, Ordering::Release);
+        monitor.set_active(true);
+        for source in monitor.sources.values() {
+            monitor.set_source_caught_up(source, EventKind::GasPayment, true);
+            monitor.refresh_gas_payment_authority(source.domain, true);
+        }
+        activate_empty_sequenced_sources(&monitor).await;
+        let gas_authority = monitor
+            .gas_payment_authority_receiver(5)
+            .expect("gas receiver");
+        let healthy = monitor
+            .gas_payment_authority_receiver(9)
+            .expect("healthy receiver");
+        assert!(*gas_authority.borrow());
+        assert!(*healthy.borrow());
+
+        let mut state = StreamState::load_gas_payment(&monitor.sources).expect("state");
+        let payment = state
+            .validate(gas_payment_event(1), &monitor.sources)
+            .expect("new payment")
+            .gas_payment
+            .expect("gas input");
+        let source = monitor.sources[&5].clone();
+        let gas_key = hyperlane_core::GasPaymentKey {
+            message_id: H256::from_low_u64_be(7),
+            destination: 6,
+        };
+        assert!(source
+            .cursor_db
+            .retrieve_gas_payment_by_gas_payment_key(gas_key)
+            .expect("payment lookup")
+            .is_none());
+        let starts = Arc::new(AtomicUsize::new(0));
+        let rpc_task = {
+            let starts = starts.clone();
+            let source = source.clone();
+            tokio::spawn(crate::relayer::run_gas_payment_fallback(
+                Some(gas_authority.clone()),
+                || {},
+                move || {
+                    starts.fetch_add(1, Ordering::AcqRel);
+                    source
+                        .store_gas_payment(&payment)
+                        .expect("RPC indexes payment");
+                    std::future::pending::<()>()
+                },
+            ))
+        };
+        tokio::task::yield_now().await;
+        assert_eq!(
+            starts.load(Ordering::Acquire),
+            0,
+            "caught-up authoritative origin pauses gas RPC"
+        );
+
+        // New dispatches prove that a fully replayed scraper database is stale.
+        let lagging = || {
+            (
+                5,
+                "test-5".to_owned(),
+                Ok((false, false, Some(1), Some(0), None, None)),
+            )
+        };
+        monitor.apply_freshness(lagging());
+        assert!(
+            *gas_authority.borrow(),
+            "transient lag retains the existing grace period"
+        );
+        tokio::time::advance(hyperlane_base::scraper_websocket::PROGRESS_GRACE_PERIOD).await;
+        monitor.apply_freshness(lagging());
+        assert!(!*gas_authority.borrow(), "stale origin restores gas RPC");
+        assert!(*healthy.borrow(), "healthy peer retains gas authority");
+        assert_eq!(
+            monitor.active.with_label_values(&["test-5"]).get(),
+            1,
+            "socket remains connected"
+        );
+        assert_eq!(
+            monitor
+                .caught_up
+                .with_label_values(&["test-5", GAS_PAYMENT_EVENT_TYPE])
+                .get(),
+            1,
+            "stale DB replay remains caught up"
+        );
+        monitor.refresh_gas_payment_authority(5, true);
+        assert!(
+            !*gas_authority.borrow(),
+            "caught-up alone cannot reclaim authority"
+        );
+        timeout(Duration::from_secs(1), async {
+            while starts.load(Ordering::Acquire) == 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("gas RPC resumed");
+        assert_eq!(
+            source
+                .cursor_db
+                .retrieve_gas_payment_by_gas_payment_key(gas_key)
+                .expect("payment lookup")
+                .expect("missing payment recovered")
+                .payment,
+            U256::from(1000)
+        );
+
+        activate_empty_sequenced_sources(&monitor).await;
+        assert!(
+            *gas_authority.borrow(),
+            "fresh recovery reclaims gas authority"
+        );
+        rpc_task.abort();
+        let _ = rpc_task.await;
+    }
+
+    fn gas_payment_sources(domains: &[u32]) -> Vec<ScraperSource> {
+        sources_for(domains)
+            .into_values()
+            .map(|source| {
+                source
+                    .with_freshness_indexer(Arc::new(FixedSequenceIndexer(0)))
+                    .with_merkle_freshness_indexer(Arc::new(FixedSequenceIndexer(0)))
+            })
+            .collect()
+    }
+
+    // Gas-only wire fixtures model empty, canonically fresh sequenced streams.
+    async fn activate_empty_sequenced_sources(monitor: &Arc<ScraperWebSocketMonitor>) {
+        for source in monitor.sources.values() {
+            for kind in [EventKind::Dispatch, EventKind::MerkleTreeInsertion] {
+                monitor.set_source_caught_up(source, kind, true);
+            }
+            monitor.refresh_parity_ready(source);
+            let authority = monitor.source_authority(source.domain);
+            if !authority.active.load(Ordering::Acquire) {
+                let generation = authority
+                    .sender
+                    .borrow()
+                    .generation
+                    .checked_add(1)
+                    .expect("authority generation");
+                authority.handoff.mark_paused(source.domain, generation);
+            }
+        }
+        monitor.refresh_authority_once().await;
     }
 
     #[test]
