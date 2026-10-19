@@ -1,5 +1,6 @@
 use eyre::Result;
-use sha3::{digest::Update, Digest, Keccak256};
+#[cfg(not(target_os = "solana"))]
+use sha3::{Digest, Keccak256};
 use std::str::FromStr;
 
 #[cfg(feature = "float")]
@@ -44,28 +45,42 @@ pub fn hex_or_base58_or_bech32_to_h256(string: &str) -> Result<H256> {
     Ok(h256)
 }
 
+/// Keccak-256 of the concatenation of `parts`.
+///
+/// On Sealevel (SBF) this uses the `sol_keccak256` syscall, which costs far
+/// fewer compute units than hashing in software. Everywhere else it uses the
+/// `sha3` crate.
+pub(crate) fn keccak256(parts: &[&[u8]]) -> H256 {
+    #[cfg(target_os = "solana")]
+    {
+        H256(solana_keccak_hasher::hashv(parts).to_bytes())
+    }
+    #[cfg(not(target_os = "solana"))]
+    {
+        let mut hasher = Keccak256::new();
+        for part in parts {
+            hasher.update(part);
+        }
+        H256::from_slice(hasher.finalize().as_slice())
+    }
+}
+
 /// Computes hash of domain concatenated with "HYPERLANE"
 pub fn domain_hash(address: H256, domain: impl Into<u32>) -> H256 {
-    H256::from_slice(
-        Keccak256::new()
-            .chain(domain.into().to_be_bytes())
-            .chain(address)
-            .chain("HYPERLANE")
-            .finalize()
-            .as_slice(),
-    )
+    keccak256(&[
+        &domain.into().to_be_bytes(),
+        address.as_bytes(),
+        b"HYPERLANE",
+    ])
 }
 
 /// Computes hash of domain concatenated with "HYPERLANE_ANNOUNCEMENT"
 pub fn announcement_domain_hash(address: H256, domain: impl Into<u32>) -> H256 {
-    H256::from_slice(
-        Keccak256::new()
-            .chain(domain.into().to_be_bytes())
-            .chain(address)
-            .chain("HYPERLANE_ANNOUNCEMENT")
-            .finalize()
-            .as_slice(),
-    )
+    keccak256(&[
+        &domain.into().to_be_bytes(),
+        address.as_bytes(),
+        b"HYPERLANE_ANNOUNCEMENT",
+    ])
 }
 
 /// Pretty print an address based on the domain it is for.
@@ -272,5 +287,98 @@ mod test {
         // Should have leading zeros since it's converted from H160
         assert_eq!(&h256.0[0..12], &[0u8; 12]);
         assert_eq!(&h256.0[12..32], &expected);
+    }
+
+    fn h256(hex: &str) -> H256 {
+        H256::from_str(hex).unwrap()
+    }
+
+    #[test]
+    fn keccak256_matches_one_shot_digest_of_concatenation() {
+        let data: Vec<u8> = (0..600u32).map(|i| (i % 251) as u8).collect();
+        // Split points straddle the 136-byte keccak rate, plus empty parts.
+        for splits in [
+            vec![],
+            vec![0],
+            vec![1],
+            vec![135, 136],
+            vec![136, 136, 137],
+            vec![32, 64, 272, 599],
+        ] {
+            let mut parts = vec![];
+            let mut start = 0;
+            for end in splits {
+                parts.push(&data[start..end]);
+                start = end;
+            }
+            parts.push(&data[start..]);
+            let expected = H256::from_slice(Keccak256::digest(&data).as_slice());
+            assert_eq!(keccak256(&parts), expected);
+        }
+        assert_eq!(keccak256(&[]), H256::from_slice(&Keccak256::digest([])));
+    }
+
+    #[test]
+    fn domain_hash_matches_vectors() {
+        // vectors/domainHash.json
+        let mailbox = h256("0x0000000000000000000000002222222222222222222222222222222222222222");
+        for (domain, expected) in [
+            (
+                1u32,
+                "0xbbca56eb98960a4637eb40486d9a069550dd70d9c185ed138516e8e33cf3d7e7",
+            ),
+            (
+                2,
+                "0xa6a93d86d397028e41995d521ccbc270e6db2a2fc530dcb7f0135254f30c8424",
+            ),
+            (
+                3,
+                "0xffb4fbe5142f55e07b5d44b3c7f565c5ef4b016551cbd7c23a92c91621aca06f",
+            ),
+        ] {
+            assert_eq!(domain_hash(mailbox, domain), h256(expected));
+        }
+    }
+
+    #[test]
+    fn signing_hashes_match_pinned_values() {
+        // Pinned from the sha3/tiny-keccak implementation before the keccak256
+        // helper was introduced.
+        use crate::{Announcement, Checkpoint, CheckpointWithMessageId, Signable};
+        let checkpoint = CheckpointWithMessageId {
+            checkpoint: Checkpoint {
+                merkle_tree_hook_address: H256::repeat_byte(0x22),
+                mailbox_domain: 1000,
+                root: H256::repeat_byte(0x02),
+                index: 1,
+            },
+            message_id: H256::repeat_byte(0x33),
+        };
+        assert_eq!(
+            checkpoint.signing_hash(),
+            h256("0xbcddec5480f35ff007b474914ff96bd36bd3f746181a80913c74ba2f2b68a593")
+        );
+        assert_eq!(
+            checkpoint.eth_signed_message_hash(),
+            h256("0xfddea11848c63a261e2a8db54adc979e65383cdc2d23a238aad55f469de768df")
+        );
+        let announcement = Announcement {
+            validator: H160::repeat_byte(0x44),
+            mailbox_address: H256::repeat_byte(0x22),
+            mailbox_domain: 1000,
+            storage_location: "s3://hyperlane-validator-signatures/us-east-1".to_owned(),
+        };
+        assert_eq!(
+            announcement_domain_hash(H256::repeat_byte(0x22), 1000u32),
+            h256("0xeb17b345b7d3353757e679c08fcc73f77a0b6a354ec5d889b8b5f20029a96a82")
+        );
+        assert_eq!(
+            announcement.signing_hash(),
+            h256("0xdf0ad50eda4d8898bcbca91981ae2f2259ad2c7bf1f5470f2c5d2a7fbbc1ab41")
+        );
+        assert_eq!(
+            announcement.eth_signed_message_hash(),
+            h256("0x8f52fc46d7e098e253f143980b7916eb49098e5798adbcceff5fd92814688530")
+        );
     }
 }

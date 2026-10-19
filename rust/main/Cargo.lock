@@ -5724,6 +5724,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha3",
+ "solana-keccak-hasher 3.1.0",
  "solana-sdk",
  "strum 0.26.3",
  "strum_macros 0.26.4",

@@ -12,15 +12,14 @@ use async_trait::async_trait;
 use num::CheckedDiv;
 use prometheus::IntGauge;
 use serde::{Deserialize, Serialize};
-use sha3::{digest::Update, Digest, Keccak256};
 use strum::Display;
 use tracing::warn;
 
 use hyperlane_application::ApplicationReport;
 
 use crate::{
-    ChainResult, Decode, Encode, FixedPointNumber, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProtocolError, Mailbox, TryBatchAs, TxOutcome, H256, U256,
+    utils::keccak256, ChainResult, Decode, Encode, FixedPointNumber, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProtocolError, Mailbox, TryBatchAs, TxOutcome, H256, U256,
 };
 
 /// Boxed operation that can be stored in an operation queue
@@ -402,7 +401,7 @@ impl Ord for QueueOperation {
         use Ordering::*;
 
         fn salted_hash(id: &H256, salt: &[u8]) -> H256 {
-            H256::from_slice(Keccak256::new().chain(id).chain(salt).finalize().as_slice())
+            keccak256(&[id.as_bytes(), salt])
         }
 
         match (self.next_attempt_after(), other.next_attempt_after()) {

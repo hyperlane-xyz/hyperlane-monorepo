@@ -1,6 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 
 use serde::{Deserialize, Serialize};
+#[cfg(not(target_os = "solana"))]
 use sha3::{Digest, Keccak256};
 
 use crate::{
@@ -167,6 +168,7 @@ impl Decode for HyperlaneMessage {
 
 impl HyperlaneMessage {
     /// Convert the message to a message id
+    #[cfg(not(target_os = "solana"))]
     pub fn id(&self) -> H256 {
         let mut hasher = Keccak256::new();
         // The digest writer consumes the canonical encoding without allocating
@@ -174,6 +176,22 @@ impl HyperlaneMessage {
         self.write_to(&mut hasher)
             .expect("Writing to Keccak256 cannot fail");
         H256::from_slice(hasher.finalize().as_slice())
+    }
+
+    /// Convert the message to a message id
+    #[cfg(target_os = "solana")]
+    pub fn id(&self) -> H256 {
+        // Same byte layout as `Encode::write_to`, hashed by the `sol_keccak256`
+        // syscall without building the encoded message.
+        crate::utils::keccak256(&[
+            &self.version.to_be_bytes(),
+            &self.nonce.to_be_bytes(),
+            &self.origin.to_be_bytes(),
+            self.sender.as_bytes(),
+            &self.destination.to_be_bytes(),
+            self.recipient.as_bytes(),
+            &self.body,
+        ])
     }
 }
 
