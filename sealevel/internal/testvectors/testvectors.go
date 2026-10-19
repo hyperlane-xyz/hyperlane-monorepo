@@ -3,8 +3,7 @@
 //
 //   - sealevel/testdata/rust_vectors.json: written by sealevel/tools/rust-vectors.
 //   - rust/sealevel/interface/testdata/golden/*.json: the shared Sealevel
-//     interface goldens. Tests skip when they are absent; SEALEVEL_GOLDEN_DIR
-//     overrides the directory.
+//     interface goldens (SEALEVEL_GOLDEN_DIR overrides the directory).
 package testvectors
 
 import (
@@ -109,20 +108,29 @@ type GoldenPDA struct {
 	Bump      uint8    `json:"bump"`
 }
 
-// LoadGolden reads <golden dir>/<name>.json, skipping the test if absent.
-func LoadGolden(t testing.TB, name string) Golden {
+// GoldenDir is rust/sealevel/interface/testdata/golden, or
+// SEALEVEL_GOLDEN_DIR when set.
+func GoldenDir() string {
+	if dir := os.Getenv("SEALEVEL_GOLDEN_DIR"); dir != "" {
+		return dir
+	}
+	return filepath.Join(sealevelDir(), "..", "rust", "sealevel", "interface", "testdata", "golden")
+}
+
+// ReadGolden returns the raw <golden dir>/<name>.json.
+func ReadGolden(t testing.TB, name string) []byte {
 	t.Helper()
-	dir := os.Getenv("SEALEVEL_GOLDEN_DIR")
-	if dir == "" {
-		dir = filepath.Join(sealevelDir(), "..", "rust", "sealevel", "interface", "testdata", "golden")
-	}
-	raw, err := os.ReadFile(filepath.Join(dir, name+".json"))
-	if os.IsNotExist(err) {
-		t.Skipf("golden %s not present in %s", name, dir)
-	}
+	raw, err := os.ReadFile(filepath.Join(GoldenDir(), name+".json"))
 	if err != nil {
 		t.Fatal(err)
 	}
+	return raw
+}
+
+// LoadGolden reads <golden dir>/<name>.json.
+func LoadGolden(t testing.TB, name string) Golden {
+	t.Helper()
+	raw := ReadGolden(t, name)
 	var g Golden
 	if err := json.Unmarshal(raw, &g); err != nil {
 		t.Fatal(err)

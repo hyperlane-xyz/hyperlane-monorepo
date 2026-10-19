@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"math/rand"
-	"os"
-	"path/filepath"
 	"sort"
 	"testing"
 
@@ -116,11 +114,7 @@ func TestGoldenValues(t *testing.T) {
 // The golden set_cross_collateral_routers_instruction data decodes and
 // re-encodes.
 func TestGoldenInstructionBuilder(t *testing.T) {
-	tt.LoadGolden(t, "token_cross_collateral") // resolves SEALEVEL_GOLDEN_DIR
-	raw, err := os.ReadFile(filepath.Join(os.Getenv("SEALEVEL_GOLDEN_DIR"), "token_cross_collateral.json"))
-	if err != nil {
-		t.Skip(err)
-	}
+	raw := testvectors.ReadGolden(t, "token_cross_collateral")
 	var g struct {
 		Instructions []struct {
 			Name string `json:"name"`

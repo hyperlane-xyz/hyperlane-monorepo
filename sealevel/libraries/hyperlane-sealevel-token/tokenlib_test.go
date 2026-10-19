@@ -160,7 +160,7 @@ func goldenValue(t *testing.T, g testvectors.Golden, typ, variant, name string) 
 }
 
 func TestGoldenExternalEncodings(t *testing.T) {
-	igp := tt.LoadValues(t, "igp")
+	igp := tt.LoadGolden(t, "igp")
 	v := goldenValue(t, igp, "igp.Instruction", "PayForGas", "")
 	var f struct {
 		MessageID   string `json:"message_id"`
@@ -208,7 +208,7 @@ func TestGoldenExternalEncodings(t *testing.T) {
 		t.Errorf("wrong discriminator: %#x", code)
 	}
 
-	mailbox := tt.LoadValues(t, "mailbox")
+	mailbox := tt.LoadGolden(t, "mailbox")
 	v = goldenValue(t, mailbox, "mailbox.Instruction", "OutboxDispatch", "")
 	var d struct {
 		Sender      string `json:"sender"`
@@ -224,7 +224,7 @@ func TestGoldenExternalEncodings(t *testing.T) {
 		t.Errorf("OutboxDispatch %x", got)
 	}
 
-	fee := tt.LoadValues(t, "fee")
+	fee := tt.LoadGolden(t, "fee")
 	v = goldenValue(t, fee, "fee.Instruction", "QuoteFee", "")
 	var q struct {
 		Destination  uint32 `json:"destination_domain"`

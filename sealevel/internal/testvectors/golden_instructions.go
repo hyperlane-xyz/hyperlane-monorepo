@@ -2,8 +2,6 @@ package testvectors
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"testing"
 )
 
@@ -22,21 +20,10 @@ type GoldenInstruction struct {
 	Hex       string       `json:"hex"`
 }
 
-// GoldenInstructions reads the "instructions" of <golden dir>/<name>.json,
-// skipping the test if the file is absent.
+// GoldenInstructions reads the "instructions" of <golden dir>/<name>.json.
 func GoldenInstructions(t testing.TB, name string) []GoldenInstruction {
 	t.Helper()
-	dir := os.Getenv("SEALEVEL_GOLDEN_DIR")
-	if dir == "" {
-		dir = filepath.Join(sealevelDir(), "..", "rust", "sealevel", "interface", "testdata", "golden")
-	}
-	raw, err := os.ReadFile(filepath.Join(dir, name+".json"))
-	if os.IsNotExist(err) {
-		t.Skipf("golden %s not present in %s", name, dir)
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	raw := ReadGolden(t, name)
 	var g struct {
 		Instructions []GoldenInstruction `json:"instructions"`
 	}

@@ -33,23 +33,22 @@ GOSVM=gosvm-int ./build-programs.sh # every program, fogo-v0 + solana-v3
 (e.g. `hyperlane_sealevel_test_ism.so`), so the Rust functional suites can load
 them through `SBF_OUT_DIR`. See PORTING.md for running those suites.
 
-Shared Sealevel goldens in `rust/sealevel/interface/testdata/golden` are read
-when present (`SEALEVEL_GOLDEN_DIR` overrides the directory). To regenerate
-`testdata/rust_vectors.json`:
+Golden tests read the shared Sealevel goldens in
+`rust/sealevel/interface/testdata/golden` (`SEALEVEL_GOLDEN_DIR` overrides the
+directory) and fail if a file is missing.
+
+To regenerate `testdata/rust_vectors.json`:
 
 ```sh
-cp ../rust/sealevel/Cargo.lock tools/rust-vectors/   # pins the SPL crates' deps
+cp ../rust/sealevel/Cargo.lock tools/rust-vectors/   # pins the SPL and IGP crates' deps
 (cd tools/rust-vectors && cargo run -q) > testdata/rust_vectors.json
+rm tools/rust-vectors/Cargo.lock
 ```
 
-If a fresh resolution picks crates that need a newer rustc, seed the tool's
-(ignored) lockfile first: `cp ../rust/sealevel/Cargo.lock tools/rust-vectors/`.
-Keep its default target dir. Sharing `rust/sealevel`'s target dir clobbers the
-unhashed cdylib rlibs (`libaccount_utils.rlib`, ...) and breaks that workspace's
-builds. The tool has no lockfile of its own; with the IGP crate in its
-dependencies, fresh resolution picks crates newer than rustc 1.86 allows, so
-seed it from the workspace first (and don't commit the copy):
-`cp ../rust/sealevel/Cargo.lock tools/rust-vectors/`.
+The tool has no lockfile of its own: a fresh resolution picks crates newer than
+rustc 1.86 allows. Keep its default target dir. Sharing `rust/sealevel`'s
+target dir clobbers the unhashed cdylib rlibs (`libaccount_utils.rlib`, ...)
+and breaks that workspace's builds.
 
 ## goSVM pin
 

@@ -6,10 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"math/big"
-	"os"
-	"path/filepath"
 	"reflect"
-	"runtime"
 	"strconv"
 	"testing"
 
@@ -18,10 +15,6 @@ import (
 	cc "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/hyperlane-sealevel-connection-client"
 	tokenlib "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/hyperlane-sealevel-token"
 )
-
-// GoldenDir is the shared goldens directory used when SEALEVEL_GOLDEN_DIR is
-// unset and the repo copy is absent.
-const GoldenDir = "/tmp/hm1-svm-types/rust/sealevel/interface/testdata/golden"
 
 const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
@@ -117,39 +110,10 @@ func Token[T any, P tokenlib.PluginData[T]](tok *tokenlib.HyperlaneToken[T, P], 
 	}
 }
 
-// LoadGolden loads a golden, defaulting SEALEVEL_GOLDEN_DIR to GoldenDir.
+// LoadGolden loads a shared Sealevel golden.
 func LoadGolden(t *testing.T, name string) testvectors.Golden {
 	t.Helper()
-	if os.Getenv("SEALEVEL_GOLDEN_DIR") == "" {
-		_, file, _, _ := runtime.Caller(0)
-		repo := filepath.Join(filepath.Dir(file), "..", "..", "..", "rust", "sealevel", "interface", "testdata", "golden")
-		if _, err := os.Stat(repo); err != nil {
-			t.Setenv("SEALEVEL_GOLDEN_DIR", GoldenDir)
-		}
-	}
 	return testvectors.LoadGolden(t, name)
-}
-
-// LoadValues reads only the values of a golden. testvectors.LoadGolden
-// rejects goldens with numeric constants (igp.json).
-func LoadValues(t *testing.T, name string) testvectors.Golden {
-	t.Helper()
-	LoadGolden(t, "token") // resolves the directory (or skips)
-	raw, err := os.ReadFile(filepath.Join(os.Getenv("SEALEVEL_GOLDEN_DIR"), name+".json"))
-	if os.Getenv("SEALEVEL_GOLDEN_DIR") == "" {
-		_, file, _, _ := runtime.Caller(0)
-		raw, err = os.ReadFile(filepath.Join(filepath.Dir(file), "..", "..", "..", "rust", "sealevel", "interface", "testdata", "golden", name+".json"))
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	var g struct {
-		Values []testvectors.GoldenValue `json:"values"`
-	}
-	if err := json.Unmarshal(raw, &g); err != nil {
-		t.Fatal(err)
-	}
-	return testvectors.Golden{Values: g.Values}
 }
 
 // SameJSON fails unless got marshals to the same JSON value as want.
