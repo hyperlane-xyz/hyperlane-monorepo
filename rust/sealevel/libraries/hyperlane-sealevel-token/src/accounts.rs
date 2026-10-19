@@ -10,9 +10,9 @@ use hyperlane_sealevel_connection_client::{
     HyperlaneConnectionClient, HyperlaneConnectionClientRecipient, HyperlaneConnectionClientSetter,
     HyperlaneConnectionClientSetterAccessControl,
 };
-use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
+use hyperlane_sealevel_igp::accounts::{checked_convert_decimals, InterchainGasPaymasterType};
 use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
-use std::{cmp::Ordering, collections::HashMap, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug};
 
 use crate::hyperlane_token_pda_seeds;
 
@@ -224,17 +224,7 @@ impl<T> HyperlaneGasRouter for HyperlaneToken<T> {
 
 /// Converts an amount from one decimal representation to another.
 pub fn convert_decimals(amount: U256, from_decimals: u8, to_decimals: u8) -> Option<U256> {
-    match from_decimals.cmp(&to_decimals) {
-        Ordering::Greater => {
-            let divisor = U256::from(10u64).checked_pow(U256::from(from_decimals - to_decimals));
-            divisor.and_then(|d| amount.checked_div(d))
-        }
-        Ordering::Less => {
-            let multiplier = U256::from(10u64).checked_pow(U256::from(to_decimals - from_decimals));
-            multiplier.and_then(|m| amount.checked_mul(m))
-        }
-        Ordering::Equal => Some(amount),
-    }
+    checked_convert_decimals(amount, from_decimals, to_decimals)
 }
 
 #[cfg(test)]

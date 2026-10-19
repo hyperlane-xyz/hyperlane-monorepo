@@ -59,25 +59,14 @@ impl FeeDataStrategy {
     }
 
     /// Computes the fee for the given transfer amount.
-    /// All arithmetic uses U256 intermediates. Results rounded down.
+    /// Arithmetic is exact (u128, with a U256 fallback where a u128 could
+    /// overflow). Results rounded down.
     /// Returns 0 when max_fee or half_amount is 0.
     pub fn compute_fee(&self, amount: u64) -> Result<u64, ProgramError> {
         match self {
-            Self::Linear(p) => compute_linear(
-                U256::from(p.max_fee),
-                U256::from(p.half_amount),
-                U256::from(amount),
-            ),
-            Self::Regressive(p) => compute_regressive(
-                U256::from(p.max_fee),
-                U256::from(p.half_amount),
-                U256::from(amount),
-            ),
-            Self::Progressive(p) => compute_progressive(
-                U256::from(p.max_fee),
-                U256::from(p.half_amount),
-                U256::from(amount),
-            ),
+            Self::Linear(p) => compute_linear(p.max_fee, p.half_amount, amount),
+            Self::Regressive(p) => compute_regressive(p.max_fee, p.half_amount, amount),
+            Self::Progressive(p) => compute_progressive(p.max_fee, p.half_amount, amount),
         }
     }
 
@@ -111,21 +100,20 @@ impl FeeDataStrategy {
     }
 }
 
+// The curves use u128 arithmetic: a product of two u64s and a sum of two
+// u64s both fit in a u128. U256 multiplication and division cost thousands of
+// CU on SBF. Only the progressive curve can exceed a u128, and it falls back to
+// U256 then. All paths are exact, so results match full U256 arithmetic.
+
 /// Linear: fee = min(max_fee, amount * max_fee / (2 * half_amount))
-fn compute_linear(max_fee: U256, half_amount: U256, amount: U256) -> Result<u64, ProgramError> {
-    if max_fee.is_zero() || half_amount.is_zero() {
+fn compute_linear(max_fee: u64, half_amount: u64, amount: u64) -> Result<u64, ProgramError> {
+    if max_fee == 0 || half_amount == 0 {
         return Ok(0);
     }
 
-    let denominator = U256::from(2)
-        .checked_mul(half_amount)
-        .ok_or::<ProgramError>(Error::FeeComputationOverflow.into())?;
-    let fee = amount
-        .checked_mul(max_fee)
-        .ok_or::<ProgramError>(Error::FeeComputationOverflow.into())?
-        .checked_div(denominator)
-        .ok_or::<ProgramError>(Error::FeeComputationOverflow.into())?;
-    let capped = core::cmp::min(fee, max_fee);
+    let denominator = 2 * u128::from(half_amount);
+    let fee = u128::from(amount) * u128::from(max_fee) / denominator;
+    let capped = core::cmp::min(fee, u128::from(max_fee));
 
     capped
         .try_into()
@@ -133,35 +121,54 @@ fn compute_linear(max_fee: U256, half_amount: U256, amount: U256) -> Result<u64,
 }
 
 /// Regressive: fee = max_fee * amount / (half_amount + amount)
-fn compute_regressive(max_fee: U256, half_amount: U256, amount: U256) -> Result<u64, ProgramError> {
-    if max_fee.is_zero() || half_amount.is_zero() {
+fn compute_regressive(max_fee: u64, half_amount: u64, amount: u64) -> Result<u64, ProgramError> {
+    if max_fee == 0 || half_amount == 0 {
         return Ok(0);
     }
 
-    let numerator = max_fee
-        .checked_mul(amount)
-        .ok_or::<ProgramError>(Error::FeeComputationOverflow.into())?;
-    let denominator = half_amount
-        .checked_add(amount)
-        .ok_or::<ProgramError>(Error::FeeComputationOverflow.into())?;
-    let fee = numerator
-        .checked_div(denominator)
-        .ok_or::<ProgramError>(Error::FeeComputationOverflow.into())?;
+    let numerator = u128::from(max_fee) * u128::from(amount);
+    let denominator = u128::from(half_amount) + u128::from(amount);
+    let fee = numerator / denominator;
 
     fee.try_into()
         .map_err(|_| Error::FeeComputationOverflow.into())
 }
 
 /// Progressive: fee = max_fee * amount^2 / (half_amount^2 + amount^2)
-fn compute_progressive(
+fn compute_progressive(max_fee: u64, half_amount: u64, amount: u64) -> Result<u64, ProgramError> {
+    if max_fee == 0 || half_amount == 0 {
+        return Ok(0);
+    }
+
+    let amount_sq = u128::from(amount) * u128::from(amount);
+    let half_sq = u128::from(half_amount) * u128::from(half_amount);
+    let (Some(denominator), Some(numerator)) = (
+        half_sq.checked_add(amount_sq),
+        u128::from(max_fee).checked_mul(amount_sq),
+    ) else {
+        return compute_progressive_u256(
+            U256::from(max_fee),
+            U256::from(half_amount),
+            U256::from(amount),
+        );
+    };
+
+    if denominator == 0 {
+        return Ok(0);
+    }
+
+    (numerator / denominator)
+        .try_into()
+        .map_err(|_| Error::FeeComputationOverflow.into())
+}
+
+/// U256 version of `compute_progressive`, for inputs whose intermediates
+/// overflow a u128.
+fn compute_progressive_u256(
     max_fee: U256,
     half_amount: U256,
     amount: U256,
 ) -> Result<u64, ProgramError> {
-    if max_fee.is_zero() || half_amount.is_zero() {
-        return Ok(0);
-    }
-
     let amount_sq = amount
         .checked_mul(amount)
         .ok_or::<ProgramError>(Error::FeeComputationOverflow.into())?;
@@ -189,6 +196,69 @@ fn compute_progressive(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// U256 reference for the curves, matching the pre-u128 implementation.
+    fn reference_fee(strategy: &FeeDataStrategy, amount: u64) -> Result<u64, ProgramError> {
+        let p = strategy.params();
+        let (max_fee, half_amount, amount) = (
+            U256::from(p.max_fee),
+            U256::from(p.half_amount),
+            U256::from(amount),
+        );
+        if max_fee.is_zero() || half_amount.is_zero() {
+            return Ok(0);
+        }
+        let fee = match strategy {
+            FeeDataStrategy::Linear(_) => {
+                core::cmp::min(amount * max_fee / (U256::from(2) * half_amount), max_fee)
+            }
+            FeeDataStrategy::Regressive(_) => max_fee * amount / (half_amount + amount),
+            FeeDataStrategy::Progressive(_) => {
+                max_fee * amount * amount / (half_amount * half_amount + amount * amount)
+            }
+        };
+        fee.try_into()
+            .map_err(|_| Error::FeeComputationOverflow.into())
+    }
+
+    #[test]
+    fn test_u128_paths_match_u256_reference() {
+        let values = [
+            0,
+            1,
+            2,
+            3,
+            999,
+            1_000_000,
+            u32::MAX as u64,
+            u32::MAX as u64 + 1,
+            1 << 63,
+            u64::MAX / 2,
+            u64::MAX - 1,
+            u64::MAX,
+        ];
+        for &max_fee in &values {
+            for &half_amount in &values {
+                let params = FeeParams {
+                    max_fee,
+                    half_amount,
+                };
+                for strategy in [
+                    FeeDataStrategy::Linear(params.clone()),
+                    FeeDataStrategy::Regressive(params.clone()),
+                    FeeDataStrategy::Progressive(params.clone()),
+                ] {
+                    for &amount in &values {
+                        assert_eq!(
+                            strategy.compute_fee(amount),
+                            reference_fee(&strategy, amount),
+                            "{strategy:?} amount={amount}"
+                        );
+                    }
+                }
+            }
+        }
+    }
 
     // --- Linear curve tests ---
 
