@@ -38,7 +38,7 @@ when present (`SEALEVEL_GOLDEN_DIR` overrides the directory). To regenerate
 `testdata/rust_vectors.json`:
 
 ```sh
-cargo +1.86.0 run --manifest-path tools/rust-vectors/Cargo.toml -q > testdata/rust_vectors.json
+(cd tools/rust-vectors && cargo run -q) > testdata/rust_vectors.json
 ```
 
 Keep its default target dir. Sharing `rust/sealevel`'s target dir clobbers the

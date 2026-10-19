@@ -1,0 +1,22 @@
+# Writes Borsh/byte vectors from the Rust crates for the Go ports' native
+# tests. Standalone (not in a workspace); see sealevel/README.md.
+[package]
+name = "sealevel-go-rust-vectors"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+borsh = { version = "1.5", features = ["derive"] }
+serde_json = "1"
+account-utils = { path = "../../../rust/sealevel/libraries/account-utils" }
+hyperlane-core = { path = "../../../rust/main/hyperlane-core" }
+hyperlane-warp-route = { path = "../../../rust/main/applications/hyperlane-warp-route" }
+hyperlane-sealevel-interchain-security-module-interface = { path = "../../../rust/sealevel/libraries/interchain-security-module-interface" }
+hyperlane-sealevel-message-recipient-interface = { path = "../../../rust/sealevel/libraries/message-recipient-interface" }
+hyperlane-sealevel-test-ism = { path = "../../../rust/sealevel/programs/ism/test-ism", features = ["no-entrypoint"] }
+serializable-account-meta = { path = "../../../rust/sealevel/libraries/serializable-account-meta" }
+solana-program = "=3.0.0"
+solana-system-interface = { version = "=2.0.0", features = ["bincode"] }
