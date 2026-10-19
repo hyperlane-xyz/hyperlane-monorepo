@@ -115,6 +115,47 @@ pub struct OverheadIgp {
     pub gas_overheads: HashMap<u32, u64>,
 }
 
+/// The fields of an `OverheadIgp` account that a gas payment reads, with only
+/// the gas overhead for one destination domain. See `IgpGasPaymentView`.
+#[derive(Debug, PartialEq)]
+pub struct OverheadIgpGasPaymentView {
+    /// The bump seed for the overhead IGP PDA.
+    pub bump_seed: u8,
+    /// The salt used to derive the overhead IGP PDA.
+    pub salt: H256,
+    /// The inner IGP account.
+    pub inner: Pubkey,
+    /// The gas overhead for the destination domain. 0 if not set, as in
+    /// `OverheadIgp::gas_overhead`.
+    pub gas_overhead: u64,
+}
+
+impl OverheadIgpGasPaymentView {
+    /// Parses overhead IGP account data like `OverheadIgpAccount::fetch`,
+    /// keeping the gas overhead for `destination_domain`.
+    pub fn fetch(data: &[u8], destination_domain: u32) -> Result<Self, ProgramError> {
+        let uninit = Self {
+            bump_seed: 0,
+            salt: H256::zero(),
+            inner: Pubkey::default(),
+            gas_overhead: 0,
+        };
+        fetch_prefixed_with::<OverheadIgp, _>(data, uninit, |reader| {
+            let bump_seed = u8::deserialize_reader(reader)?;
+            let salt = H256::deserialize_reader(reader)?;
+            let _owner = Option::<Pubkey>::deserialize_reader(reader)?;
+            let inner = Pubkey::deserialize_reader(reader)?;
+            let gas_overhead = read_map_value(reader, destination_domain)?.unwrap_or(0);
+            Ok(Self {
+                bump_seed,
+                salt,
+                inner,
+                gas_overhead,
+            })
+        })
+    }
+}
+
 impl OverheadIgp {
     /// Returns the gas overhead to impose on gas payments to the given
     /// destination domain. Defaults to 0 if a gas overhead is not set for the domain.
@@ -215,18 +256,121 @@ impl Igp {
         destination_domain: u32,
         gas_amount: u64,
     ) -> Result<u64, ProgramError> {
-        let oracle = self
-            .gas_oracles
-            .get(&destination_domain)
-            .ok_or(Error::NoGasOracleSetForDestinationDomain)?;
-        let GasOracle::RemoteGasData(data) = oracle;
+        quote_gas_payment_with_oracle(self.gas_oracles.get(&destination_domain), gas_amount)
+    }
+}
 
-        compute_gas_fee(
-            data.token_exchange_rate,
-            data.gas_price,
-            gas_amount,
-            data.token_decimals,
-        )
+/// Quotes a gas payment using the destination's gas oracle.
+/// Returns an error if no gas oracle is set.
+fn quote_gas_payment_with_oracle(
+    oracle: Option<&GasOracle>,
+    gas_amount: u64,
+) -> Result<u64, ProgramError> {
+    let GasOracle::RemoteGasData(data) = oracle.ok_or(Error::NoGasOracleSetForDestinationDomain)?;
+
+    compute_gas_fee(
+        data.token_exchange_rate,
+        data.gas_price,
+        gas_amount,
+        data.token_decimals,
+    )
+}
+
+/// Reads a borsh-encoded `HashMap<u32, V>` and returns the value for `key`
+/// without building the map.
+///
+/// Consumes the same bytes and fails on the same inputs as
+/// `HashMap::<u32, V>::deserialize_reader`, which reads a `Vec<(u32, V)>`
+/// and collects it. As in that collect, the last entry wins if a key repeats.
+fn read_map_value<V: BorshDeserialize, R: std::io::Read>(
+    reader: &mut R,
+    key: u32,
+) -> std::io::Result<Option<V>> {
+    let len = u32::deserialize_reader(reader)?;
+    let mut value = None;
+    for _ in 0..len {
+        let entry_key = u32::deserialize_reader(reader)?;
+        let entry_value = V::deserialize_reader(reader)?;
+        if entry_key == key {
+            value = Some(entry_value);
+        }
+    }
+    Ok(value)
+}
+
+/// Reads `AccountData<DiscriminatorPrefixed<T>>` bytes the way
+/// `AccountData::fetch` does, with `read` parsing the fields of `T`.
+/// Empty or uninitialized data yields `uninit`, as `fetch` yields
+/// `T::default()`; any parse error is `BorshIoError`.
+fn fetch_prefixed_with<T: DiscriminatorData, V>(
+    data: &[u8],
+    uninit: V,
+    read: impl FnOnce(&mut &[u8]) -> std::io::Result<V>,
+) -> Result<V, ProgramError> {
+    let buf = &mut &data[..];
+    if buf.is_empty() {
+        return Ok(uninit);
+    }
+    let initialized = bool::deserialize(buf)?;
+    if !initialized {
+        return Ok(uninit);
+    }
+    let mut discriminator = [0u8; 8];
+    std::io::Read::read_exact(buf, &mut discriminator).map_err(|_| ProgramError::BorshIoError)?;
+    if discriminator != T::DISCRIMINATOR {
+        return Err(ProgramError::BorshIoError);
+    }
+    read(buf).map_err(|_| ProgramError::BorshIoError)
+}
+
+/// The fields of an `Igp` account that a gas payment reads, with only the
+/// gas oracle for one destination domain.
+///
+/// `IgpAccount::fetch` builds the whole `gas_oracles` HashMap, which costs
+/// ~420 CU per entry on SBF; this keeps a single entry. Parsing matches
+/// `IgpAccount::fetch` field for field, so it accepts and rejects the same
+/// account data.
+#[derive(Debug, PartialEq)]
+pub struct IgpGasPaymentView {
+    /// The bump seed for the IGP PDA.
+    pub bump_seed: u8,
+    /// The salt used to derive the IGP PDA.
+    pub salt: H256,
+    /// The gas oracle for the destination domain, if set.
+    pub gas_oracle: Option<GasOracle>,
+    /// Offchain quoting configuration.
+    pub fee_config: OptionalDiscriminatedData<IgpFeeConfig>,
+}
+
+impl IgpGasPaymentView {
+    /// Parses IGP account data, keeping the gas oracle for `destination_domain`.
+    pub fn fetch(data: &[u8], destination_domain: u32) -> Result<Self, ProgramError> {
+        let uninit = Self {
+            bump_seed: 0,
+            salt: H256::zero(),
+            gas_oracle: None,
+            fee_config: OptionalDiscriminatedData(None),
+        };
+        fetch_prefixed_with::<Igp, _>(data, uninit, |reader| {
+            let bump_seed = u8::deserialize_reader(reader)?;
+            let salt = H256::deserialize_reader(reader)?;
+            let _owner = Option::<Pubkey>::deserialize_reader(reader)?;
+            let _beneficiary = Pubkey::deserialize_reader(reader)?;
+            let gas_oracle = read_map_value(reader, destination_domain)?;
+            let fee_config = OptionalDiscriminatedData::deserialize_reader(reader)?;
+            Ok(Self {
+                bump_seed,
+                salt,
+                gas_oracle,
+                fee_config,
+            })
+        })
+    }
+
+    /// Quotes a gas payment to the destination domain passed to `fetch`.
+    /// Same as `Igp::quote_gas_payment`.
+    pub fn quote_gas_payment(&self, gas_amount: u64) -> Result<u64, ProgramError> {
+        quote_gas_payment_with_oracle(self.gas_oracle.as_ref(), gas_amount)
     }
 }
 
@@ -1411,5 +1555,145 @@ mod test {
             make_igp_account_data(igp_with(&[0], Some(fee_config))),
         );
         assert_eq!(igp_quote_mode(&data).unwrap(), IgpQuoteMode::Quoted);
+    }
+
+    // --- Gas payment views ---
+
+    /// Small deterministic PRNG (xorshift64) for the view equivalence tests.
+    struct Rng(u64);
+
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+
+        fn below(&mut self, n: u64) -> u64 {
+            self.next() % n
+        }
+
+        fn bytes<const N: usize>(&mut self) -> [u8; N] {
+            core::array::from_fn(|_| self.next() as u8)
+        }
+    }
+
+    /// Domains are drawn from a small range so lookups hit and miss.
+    const VIEW_TEST_DOMAINS: u64 = 64;
+
+    fn random_igp(rng: &mut Rng) -> Igp {
+        let gas_oracles = (0..rng.below(50))
+            .map(|_| {
+                (
+                    rng.below(VIEW_TEST_DOMAINS) as u32,
+                    GasOracle::RemoteGasData(RemoteGasData {
+                        token_exchange_rate: u128::from(rng.next()),
+                        gas_price: u128::from(rng.below(1 << 40)),
+                        token_decimals: rng.below(20) as u8,
+                    }),
+                )
+            })
+            .collect();
+        let fee_config = (rng.below(2) == 1).then(|| IgpFeeConfig {
+            signers: (0..rng.below(4)).map(|_| H160(rng.bytes())).collect(),
+            domain_id: rng.next() as u32,
+            min_issued_at: rng.next() as i64,
+        });
+        Igp {
+            bump_seed: rng.next() as u8,
+            salt: H256(rng.bytes()),
+            owner: (rng.below(2) == 1).then(|| Pubkey::new_from_array(rng.bytes())),
+            beneficiary: Pubkey::new_from_array(rng.bytes()),
+            gas_oracles,
+            fee_config: fee_config.into(),
+        }
+    }
+
+    fn random_overhead_igp(rng: &mut Rng) -> OverheadIgp {
+        OverheadIgp {
+            bump_seed: rng.next() as u8,
+            salt: H256(rng.bytes()),
+            owner: (rng.below(2) == 1).then(|| Pubkey::new_from_array(rng.bytes())),
+            inner: Pubkey::new_from_array(rng.bytes()),
+            gas_overheads: (0..rng.below(50))
+                .map(|_| (rng.below(VIEW_TEST_DOMAINS) as u32, rng.next()))
+                .collect(),
+        }
+    }
+
+    /// Account data variants: as stored, with trailing bytes, truncated,
+    /// with a corrupted byte, uninitialized, and empty.
+    fn mutations(rng: &mut Rng, stored: Vec<u8>) -> Vec<Vec<u8>> {
+        let mut out = vec![stored.clone(), vec![], vec![0], vec![2]];
+        let mut padded = stored.clone();
+        padded.extend((0..rng.below(80)).map(|_| rng.next() as u8));
+        out.push(padded);
+        for _ in 0..4 {
+            out.push(stored[..rng.below(stored.len() as u64) as usize].to_vec());
+            let mut corrupted = stored.clone();
+            let i = rng.below(stored.len() as u64) as usize;
+            corrupted[i] = rng.next() as u8;
+            out.push(corrupted);
+        }
+        out
+    }
+
+    #[test]
+    fn test_igp_gas_payment_view_matches_fetch() {
+        let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+        for _ in 0..300 {
+            let account = IgpAccount::new(random_igp(&mut rng).into());
+            let mut stored = vec![0u8; account.size()];
+            account.store_in_slice(&mut stored).unwrap();
+            for data in mutations(&mut rng, stored) {
+                let full = IgpAccount::fetch(&mut &data[..]).map(|a| a.into_inner());
+                for domain in 0..VIEW_TEST_DOMAINS as u32 {
+                    let gas_amount = rng.below(1 << 32);
+                    let expected = full.as_ref().map_err(Clone::clone).map(|igp| {
+                        (
+                            igp.bump_seed,
+                            igp.salt,
+                            igp.gas_oracles.get(&domain).cloned(),
+                            igp.quote_gas_payment(domain, gas_amount),
+                            igp.fee_config.clone(),
+                        )
+                    });
+                    let actual = IgpGasPaymentView::fetch(&data, domain).map(|view| {
+                        let quote = view.quote_gas_payment(gas_amount);
+                        (
+                            view.bump_seed,
+                            view.salt,
+                            view.gas_oracle,
+                            quote,
+                            view.fee_config,
+                        )
+                    });
+                    assert_eq!(actual, expected, "data={data:?} domain={domain}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_overhead_igp_gas_payment_view_matches_fetch() {
+        let mut rng = Rng(0x2545_f491_4f6c_dd1d);
+        for _ in 0..300 {
+            let account = OverheadIgpAccount::new(random_overhead_igp(&mut rng).into());
+            let mut stored = vec![0u8; account.size()];
+            account.store_in_slice(&mut stored).unwrap();
+            for data in mutations(&mut rng, stored) {
+                let full = OverheadIgpAccount::fetch(&mut &data[..]).map(|a| a.into_inner());
+                for domain in 0..VIEW_TEST_DOMAINS as u32 {
+                    let expected = full
+                        .as_ref()
+                        .map_err(Clone::clone)
+                        .map(|igp| (igp.bump_seed, igp.salt, igp.inner, igp.gas_overhead(domain)));
+                    let actual = OverheadIgpGasPaymentView::fetch(&data, domain)
+                        .map(|view| (view.bump_seed, view.salt, view.inner, view.gas_overhead));
+                    assert_eq!(actual, expected, "data={data:?} domain={domain}");
+                }
+            }
+        }
     }
 }
