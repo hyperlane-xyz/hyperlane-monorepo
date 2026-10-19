@@ -188,6 +188,15 @@ func expectedInstruction(t *testing.T, variant string, raw json.RawMessage) *igp
 		if !isNull(f["scoped_salt"]) {
 			ix.ScopedSalt = borsh.SomeOf(h256(t, f["scoped_salt"]))
 		}
+	case "SubmitIgpQuote":
+		f := obj(t, raw)
+		ix.Kind = igp.IxSubmitIgpQuote
+		q := &ix.Quote
+		q.Context, q.Data = testvectors.MustHex(t, jsonStr(t, f["context"])), testvectors.MustHex(t, jsonStr(t, f["data"]))
+		copy(q.IssuedAt[:], testvectors.MustHex(t, jsonStr(t, f["issued_at"])))
+		copy(q.Expiry[:], testvectors.MustHex(t, jsonStr(t, f["expiry"])))
+		q.ClientSalt = h256(t, f["client_salt"])
+		copy(q.Signature[:], testvectors.MustHex(t, jsonStr(t, f["signature"])))
 	default:
 		return nil
 	}
@@ -205,9 +214,7 @@ func TestGoldenInstructions(t *testing.T) {
 		data := testvectors.MustHex(t, v.Hex)
 		want := expectedInstruction(t, variant, v.Fields)
 		if want == nil {
-			if variant != "SubmitIgpQuote" {
-				t.Errorf("unhandled variant %s", variant)
-			}
+			t.Errorf("unhandled variant %s", variant)
 			continue
 		}
 		seen++
@@ -227,7 +234,7 @@ func TestGoldenInstructions(t *testing.T) {
 			t.Errorf("%s: truncation accepted", variant)
 		}
 	}
-	if seen != 19 {
+	if seen != 20 {
 		t.Errorf("checked %d instruction vectors", seen)
 	}
 	for _, bad := range [][]byte{nil, {18}, {0xff}, {12, 2}, {11, 2}, {5, 2}, {9, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1}} {

@@ -3,6 +3,7 @@ package igp
 import (
 	accesscontrol "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/access-control"
 	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/borsh"
+	quoteverifier "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/quote-verifier"
 )
 
 // instruction::Instruction variant indices.
@@ -78,8 +79,8 @@ type Instruction struct {
 	// SetIgpMinIssuedAt.
 	MinIssuedAt int64
 
-	// SubmitIgpQuote: the raw SvmSignedQuote bytes, decoded by the handler.
-	Quote []byte
+	// SubmitIgpQuote.
+	Quote quoteverifier.SvmSignedQuote
 }
 
 func readGasOverheadConfig(r *borsh.Reader) GasOverheadConfig {
@@ -139,11 +140,7 @@ func DecodeInstruction(data []byte, ix *Instruction) bool {
 	case IxSetIgpMinIssuedAt:
 		ix.MinIssuedAt = r.I64()
 	case IxSubmitIgpQuote:
-		ix.Quote = r.Rest()
-		if ix.Quote == nil || !validSignedQuote(ix.Quote) {
-			return false
-		}
-		return true
+		ix.Quote.DecodeBorsh(&r)
 	case IxGetIgpQuoteAccountMetas:
 		ix.DestinationDomain = r.U32()
 		ix.Sender = r.Bytes32()

@@ -12,6 +12,7 @@ import (
 	accesscontrol "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/access-control"
 	accountutils "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/account-utils"
 	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/borsh"
+	packageversioned "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/package-versioned"
 	accountmeta "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/serializable-account-meta"
 	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/svm"
 	"gosvm/solana"
@@ -64,27 +65,11 @@ func u32LE(v uint32) []byte {
 	return []byte{byte(v), byte(v >> 8), byte(v >> 16), byte(v >> 24)}
 }
 
-// package_versioned's GetProgramVersion discriminator and version.
-// TODO: use the shared package-versioned Go library once it lands.
-const (
-	getProgramVersionDiscriminator = "\x96\xe6\xb0\xa2\xec\x60\xb7\xab"
-	packageVersion                 = "1.0.0"
-)
-
-// getProgramVersion returns borsh(SimulationReturnData::new("1.0.0")).
-func getProgramVersion(c solana.Context) uint64 {
-	var b [4 + len(packageVersion) + 1]byte
-	b[0] = byte(len(packageVersion))
-	copy(b[4:], packageVersion)
-	b[len(b)-1] = accountmeta.SimulationReturnDataTrailer
-	return solana.SetReturnData(c, b[:])
-}
-
 // Process is the program entrypoint (processor::process_instruction).
 func Process(c solana.Context) uint64 {
 	data := solana.Instruction(c)
-	if string(data) == getProgramVersionDiscriminator {
-		return getProgramVersion(c)
+	if packageversioned.IsGetProgramVersion(data) {
+		return packageversioned.ProcessGetProgramVersion(c)
 	}
 	ix := new(Instruction)
 	if !DecodeInstruction(data, ix) {
