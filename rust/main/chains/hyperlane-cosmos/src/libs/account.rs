@@ -1,7 +1,12 @@
 use cometbft::account::Id as TendermintAccountId;
 use cometbft::public_key::PublicKey as TendermintPublicKey;
-use cosmrs::{crypto::PublicKey, AccountId};
+use cosmrs::{
+    crypto::{LegacyAminoMultisig, PublicKey},
+    AccountId,
+};
 use hyperlane_cosmwasm_interface::types::keccak256_hash;
+use protobuf::CodedOutputStream;
+use sha2::{Digest, Sha256};
 
 use crypto::decompress_public_key;
 use hyperlane_core::{AccountAddressType, ChainCommunicationError, ChainResult, H256};
@@ -27,6 +32,57 @@ impl<'a> CosmosAccountId<'a> {
             AccountAddressType::Bitcoin => Self::bitcoin_style(pub_key, prefix),
             AccountAddressType::Ethereum => Self::ethereum_style(pub_key, prefix),
         }
+    }
+
+    /// Legacy multisig accounts use SHA256(Amino(pubkey))[..20], not the
+    /// single secp256k1 key's RIPEMD160 address derivation.
+    /// Source: <https://github.com/cosmos/cosmos-sdk/blob/v0.50.13/crypto/keys/multisig/multisig.go>
+    pub fn account_id_from_multisig(
+        key: &LegacyAminoMultisig,
+        prefix: &str,
+    ) -> ChainResult<AccountId> {
+        if key.threshold == 0 || u64::from(key.threshold) > key.public_keys.len() as u64 {
+            return Err(HyperlaneCosmosError::PublicKeyError(
+                "invalid multisig threshold".to_owned(),
+            )
+            .into());
+        }
+
+        // Amino type prefixes, including the fixed-length member key size.
+        // https://github.com/cosmos/cosmjs/blob/v0.36.0/packages/amino/src/encoding.ts
+        const MULTISIG_PREFIX: [u8; 4] = [0x22, 0xc1, 0xf7, 0xe2];
+        const SECP256K1_PREFIX: [u8; 5] = [0xeb, 0x5a, 0xe9, 0x87, 0x21];
+        const ED25519_PREFIX: [u8; 5] = [0x16, 0x24, 0xde, 0x64, 0x20];
+        let mut amino = MULTISIG_PREFIX.to_vec();
+        {
+            let mut output = CodedOutputStream::vec(&mut amino);
+            output
+                .write_uint32(1, key.threshold)
+                .map_err(HyperlaneCosmosError::from)?;
+            for member in &key.public_keys {
+                let prefix = match member.type_url() {
+                    PublicKey::SECP256K1_TYPE_URL => SECP256K1_PREFIX,
+                    PublicKey::ED25519_TYPE_URL => ED25519_PREFIX,
+                    other => {
+                        return Err(HyperlaneCosmosError::PublicKeyError(format!(
+                            "unsupported multisig member key: {other}"
+                        ))
+                        .into())
+                    }
+                };
+                let mut encoded = prefix.to_vec();
+                encoded.extend(member.to_bytes());
+                output
+                    .write_bytes(2, &encoded)
+                    .map_err(HyperlaneCosmosError::from)?;
+            }
+            output.flush().map_err(HyperlaneCosmosError::from)?;
+        }
+        let hash = Sha256::digest(amino);
+        AccountId::new(prefix, &hash[..20])
+            .map_err(Box::new)
+            .map_err(Into::<HyperlaneCosmosError>::into)
+            .map_err(Into::into)
     }
 
     /// Returns a Bitcoin style address: RIPEMD160(SHA256(pubkey))
