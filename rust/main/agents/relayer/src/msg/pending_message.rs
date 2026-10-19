@@ -148,6 +148,11 @@ pub struct PendingMessage {
     ctx: Arc<MessageContext>,
     status: PendingOperationStatus,
     app_context: Option<String>,
+    /// First observation in this process, retained across confirmation retries.
+    #[serde(skip_serializing)]
+    first_seen: SystemTime,
+    #[serde(skip_serializing)]
+    pending_tracked: bool,
     #[serde(skip_serializing)]
     max_retries: u32,
     submitted: bool,
@@ -195,15 +200,19 @@ impl PendingMessage {
         app_context: Option<String>,
         max_retries: u32,
     ) -> Self {
-        if !matches!(status, PendingOperationStatus::Confirm(_)) {
+        let first_seen = SystemTime::now();
+        let pending_tracked = !matches!(status, PendingOperationStatus::Confirm(_));
+        if pending_tracked {
             ctx.metrics
-                .record_pending_message(message.id(), app_context.as_deref());
+                .record_pending_message(message.id(), app_context.as_deref(), first_seen);
         }
         Self {
             message,
             ctx,
             status,
             app_context,
+            first_seen,
+            pending_tracked,
             max_retries,
             submitted: false,
             submission_data: None,
@@ -223,6 +232,22 @@ impl PendingMessage {
         self.loaded_message_guard = Some(guard);
     }
 
+    fn set_pending_tracking(&mut self, tracked: bool) {
+        if self.pending_tracked == tracked {
+            return;
+        }
+        if tracked {
+            self.ctx.metrics.record_pending_message(
+                self.message.id(),
+                self.app_context.as_deref(),
+                self.first_seen,
+            );
+        } else {
+            self.ctx.metrics.finish_pending_message(self.message.id());
+        }
+        self.pending_tracked = tracked;
+    }
+
     pub(super) fn terminal_drop(&mut self) -> PendingOperationResult {
         if let Some(guard) = self.loaded_message_guard.as_ref() {
             if let Err(err) = guard.mark_terminal() {
@@ -236,9 +261,7 @@ impl PendingMessage {
 
 impl Drop for PendingMessage {
     fn drop(&mut self) {
-        if !matches!(self.status, PendingOperationStatus::Confirm(_)) {
-            self.ctx.metrics.finish_pending_message(self.message.id());
-        }
+        self.set_pending_tracking(false);
         self.ctx.metrics.finish_metadata_wait(
             self.message.id(),
             self.app_context.as_deref(),
@@ -305,19 +328,9 @@ impl PendingOperation for PendingMessage {
     }
 
     fn set_status(&mut self, status: PendingOperationStatus) {
-        // All submission paths enter Confirm before waiting for finality. Only
-        // messages outside that stage count as pending delivery.
-        match (&self.status, &status) {
-            (PendingOperationStatus::Confirm(_), PendingOperationStatus::Confirm(_)) => {}
-            (PendingOperationStatus::Confirm(_), _) => self
-                .ctx
-                .metrics
-                .record_pending_message(self.message.id(), self.app_context.as_deref()),
-            (_, PendingOperationStatus::Confirm(_)) => {
-                self.ctx.metrics.finish_pending_message(self.message.id());
-            }
-            _ => {}
-        }
+        // Exclude normal finality waits. Confirmation errors explicitly resume
+        // tracking without changing the queue status.
+        self.set_pending_tracking(!matches!(status, PendingOperationStatus::Confirm(_)));
         // Manual status commits atomically with the cleared retry deadline.
         if status != PendingOperationStatus::Retry(ReprepareReason::Manual) {
             if let Err(e) = self
@@ -861,6 +874,12 @@ impl PendingMessage {
                 message_status = PendingOperationStatus::Retry(reason);
             }
         }
+        // Recovered messages enter the prepare queue, even if their last
+        // persisted status was Confirm. Count them throughout the restored
+        // backoff until preparation observes delivery again.
+        if matches!(message_status, PendingOperationStatus::Confirm(_)) {
+            message_status = PendingOperationStatus::FirstPrepareAttempt;
+        }
         let mut pending_message = Self::new(message, ctx, message_status, app_context, max_retries);
         pending_message.num_retries = num_retries;
         pending_message.next_attempt_after = next_attempt_after;
@@ -1253,6 +1272,7 @@ impl PendingMessage {
     }
 
     fn on_reconfirm<E: Debug>(&mut self, err: Option<E>, reason: &str) -> PendingOperationResult {
+        self.set_pending_tracking(true);
         self.inc_attempts(None);
         if let Some(e) = err {
             warn!(error = ?e, id = ?self.id(), "Reconfirming message: {}", reason);
@@ -2416,6 +2436,9 @@ mod test {
         use PendingOperationStatus::{Confirm, ReadyToSubmit, Retry};
 
         let (_dir, mut pending) = pending_with_mailbox(contract_test_mailbox(), None);
+        pending.set_pending_tracking(false);
+        pending.first_seen = UNIX_EPOCH + Duration::from_secs(1_700_000_000);
+        pending.set_pending_tracking(true);
         let metrics = &pending.ctx.metrics;
         let labels = [
             "Unknown",
@@ -2427,6 +2450,7 @@ mod test {
             .pending_message_oldest_timestamp_seconds
             .with_label_values(&labels);
         assert_eq!(active.get(), 1);
+        assert_eq!(oldest.get(), 1_700_000_000);
 
         for reason in [
             ConfirmReason::SubmittedBySelf,
@@ -2444,16 +2468,143 @@ mod test {
             ] {
                 pending.set_status(status);
                 assert_eq!(active.get(), 1);
-                assert!(oldest.get() > 0);
+                assert_eq!(oldest.get(), 1_700_000_000);
             }
         }
 
         pending.set_status(Confirm(ConfirmReason::SubmittedBySelf));
         assert!(pending.reset_attempts());
         assert_eq!(active.get(), 1);
+        assert_eq!(oldest.get(), 1_700_000_000);
         drop(pending);
         assert_eq!(active.get(), 0);
         assert_eq!(oldest.get(), 0);
+    }
+
+    #[tokio::test]
+    async fn confirmation_errors_resume_pending_metrics_through_backoff() {
+        for db_failure in [false, true] {
+            let mut mailbox = contract_test_mailbox();
+            mailbox.expect__delivered().returning(move |_| {
+                if db_failure {
+                    Ok(true)
+                } else {
+                    Err(ChainCommunicationError::from_other_str("RPC unavailable"))
+                }
+            });
+            let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
+            pending.first_seen = UNIX_EPOCH + Duration::from_secs(1_700_000_000);
+            let status = PendingOperationStatus::Confirm(ConfirmReason::SubmittedBySelf);
+            pending.set_status(status.clone());
+            if db_failure {
+                let mut db = MockDb::new();
+                db.expect_store_processed_by_nonce()
+                    .returning(|_, _| Err(DbError::Other("DB unavailable".to_owned())));
+                db.expect_store_pending_message_retry_state_by_message_id()
+                    .returning(|_, _| Ok(()));
+                Arc::get_mut(&mut pending.ctx)
+                    .expect("unique test context")
+                    .origin_db = Arc::new(db);
+            }
+            let metrics = &pending.ctx.metrics;
+            let labels = [
+                "Unknown",
+                metrics.origin.as_str(),
+                metrics.destination.as_str(),
+            ];
+            let active = metrics.pending_message_active.with_label_values(&labels);
+            let oldest = metrics
+                .pending_message_oldest_timestamp_seconds
+                .with_label_values(&labels);
+            assert_eq!(active.get(), 0);
+
+            for retries in 1..=2 {
+                // Expire the prior backoff without sleeping.
+                pending.next_attempt_after = None;
+                assert!(matches!(
+                    pending.confirm().await,
+                    PendingOperationResult::NotReady
+                ));
+                assert_eq!(pending.status(), status);
+                assert_eq!(pending.get_retries(), retries);
+                assert!(pending.next_attempt_after().unwrap() > Instant::now());
+                assert_eq!(active.get(), 1);
+                assert_eq!(oldest.get(), 1_700_000_000);
+                // Waiting out that backoff must keep both gauges active.
+                assert!(matches!(
+                    pending.confirm().await,
+                    PendingOperationResult::NotReady
+                ));
+                assert_eq!(pending.get_retries(), retries);
+                assert_eq!(active.get(), 1);
+            }
+            drop(pending);
+            assert_eq!(active.get(), 0);
+            assert_eq!(oldest.get(), 0);
+        }
+    }
+
+    #[tokio::test]
+    async fn restored_confirm_messages_are_pending_during_prepare_backoff() {
+        for reconfirm_error in [false, true] {
+            let mut mailbox = contract_test_mailbox();
+            mailbox.expect__delivered().returning(|_| Ok(true));
+            let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
+            pending.set_status(PendingOperationStatus::Confirm(
+                ConfirmReason::SubmittedBySelf,
+            ));
+            pending.set_next_attempt_after(Duration::from_secs(60));
+            if reconfirm_error {
+                pending.on_reconfirm::<String>(None, "reconfirm failure before restart");
+            }
+            let message = pending.message.clone();
+            let ctx = pending.ctx.clone();
+            drop(pending);
+            let metrics = &ctx.metrics;
+            let labels = [
+                "Unknown",
+                metrics.origin.as_str(),
+                metrics.destination.as_str(),
+            ];
+            let active = metrics.pending_message_active.with_label_values(&labels);
+            let oldest = metrics
+                .pending_message_oldest_timestamp_seconds
+                .with_label_values(&labels);
+            let mut restored = PendingMessage::maybe_from_persisted_retries(
+                message,
+                ctx,
+                None,
+                DEFAULT_MAX_MESSAGE_RETRIES,
+            )
+            .expect("restore confirming message");
+            assert_eq!(
+                restored.status(),
+                PendingOperationStatus::FirstPrepareAttempt
+            );
+            assert!(restored.next_attempt_after().unwrap() > Instant::now());
+            // receive_task re-pushes with the restored status before preparation.
+            restored.set_status(restored.status());
+            assert!(matches!(
+                restored.prepare().await,
+                PendingOperationResult::NotReady
+            ));
+            assert_eq!(active.get(), 1);
+            assert!(oldest.get() > 0);
+
+            restored.next_attempt_after = None;
+            let result = restored.prepare().await;
+            assert!(matches!(
+                result,
+                PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted)
+            ));
+            restored.set_status(PendingOperationStatus::Confirm(
+                ConfirmReason::AlreadySubmitted,
+            ));
+            assert_eq!(active.get(), 0);
+            assert_eq!(oldest.get(), 0);
+            drop(restored);
+            assert_eq!(active.get(), 0);
+        }
     }
 
     #[tokio::test]
