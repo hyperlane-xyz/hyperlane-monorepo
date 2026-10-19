@@ -2124,6 +2124,52 @@ describe('WarpCore', () => {
       }
     });
 
+    // Regression: the local-gas simulation must use the real recipient. An
+    // origin-side recipient policy (allowlist hook, fee program) rejects the
+    // sender-as-recipient placeholder and a valid transfer fails pre-flight.
+    it('simulates local gas with the real recipient when one is given', async () => {
+      const txsStub = sinon.stub(warpCore, 'getTransferRemoteTxs').resolves([
+        {
+          category: WarpTxCategory.Transfer,
+          type: ProviderType.EthersV5,
+          transaction: { to: MOCK_ADDRESS, data: '0x' },
+        },
+      ]);
+      try {
+        await warpCore.getLocalTransferFee({
+          originToken: evmHypNative,
+          destination: test2.name,
+          sender: MOCK_ADDRESS,
+          recipient: MOCK_ADDRESS_2,
+        });
+        sinon.assert.calledOnce(txsStub);
+        expect(txsStub.firstCall.args[0].recipient).to.equal(MOCK_ADDRESS_2);
+        expect(txsStub.firstCall.args[0].sender).to.equal(MOCK_ADDRESS);
+      } finally {
+        txsStub.restore();
+      }
+    });
+
+    it('falls back to the sender as recipient when none is given', async () => {
+      const txsStub = sinon.stub(warpCore, 'getTransferRemoteTxs').resolves([
+        {
+          category: WarpTxCategory.Transfer,
+          type: ProviderType.EthersV5,
+          transaction: { to: MOCK_ADDRESS, data: '0x' },
+        },
+      ]);
+      try {
+        await warpCore.getLocalTransferFee({
+          originToken: evmHypNative,
+          destination: test2.name,
+          sender: MOCK_ADDRESS,
+        });
+        expect(txsStub.firstCall.args[0].recipient).to.equal(MOCK_ADDRESS);
+      } finally {
+        txsStub.restore();
+      }
+    });
+
     it('does not forward amount in estimateCrossCollateralFees without attestation', async () => {
       const originCrossStub = sinon
         .stub(evmHypNative, 'isCrossCollateralToken')
