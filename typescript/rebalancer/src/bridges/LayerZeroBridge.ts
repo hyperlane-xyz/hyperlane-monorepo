@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { TokenBridgeOft__factory } from '@hyperlane-xyz/core';
 import {
+  ChainStatus,
   type ChainMap,
   type ChainMetadata,
   type WarpCoreConfig,
@@ -158,7 +159,14 @@ export class LayerZeroBridge implements IExternalBridge {
       config.maxTronNativeValueSun ?? DEFAULT_MAX_TRON_NATIVE_VALUE_SUN;
 
     for (const metadata of Object.values(config.chainMetadata)) {
-      if (metadata.chainId === undefined) continue;
+      if (
+        metadata.chainId === undefined ||
+        metadata.availability?.status === ChainStatus.Disabled ||
+        (metadata.protocol !== ProtocolType.Ethereum &&
+          metadata.protocol !== ProtocolType.Tron)
+      ) {
+        continue;
+      }
       const chainId = Number(metadata.chainId);
       assert(
         Number.isSafeInteger(chainId),
