@@ -15,10 +15,12 @@ import (
 	"testing"
 )
 
-// Vector is one encoded value; OK is false for bytes Rust rejects.
+// Vector is one encoded value; OK is false for bytes Rust rejects. Text is
+// the Rust-formatted string of the log group's inputs.
 type Vector struct {
-	Hex string `json:"hex"`
-	OK  bool   `json:"ok"`
+	Hex  string `json:"hex"`
+	OK   bool   `json:"ok"`
+	Text string `json:"text"`
 }
 
 // Bytes decodes the vector's hex.

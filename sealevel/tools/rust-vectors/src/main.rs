@@ -23,6 +23,7 @@ use solana_program::pubkey::Pubkey;
 
 mod cc;
 mod igp;
+mod log;
 mod token;
 mod va_multisig;
 
@@ -726,6 +727,7 @@ fn main() {
         "token-cross-collateral": Value::Object(cc::cc_group()),
     });
     igp::extend(&mut out);
+    log::extend(&mut out);
     va_multisig::extend(&mut out);
     println!("{}", serde_json::to_string_pretty(&out).unwrap());
 }

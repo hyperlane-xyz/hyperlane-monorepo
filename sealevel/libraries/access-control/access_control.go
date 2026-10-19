@@ -28,14 +28,15 @@ func EnsureOwnerSigner(c solana.Context, owner Owner, i uint64) uint64 {
 }
 
 // TransferOwnership sets *owner to newOwner if account i is the current owner
-// and signed. It does not store the account.
-//
-// Rust also logs "Ownership transferred to {:?}"; add that once goSVM has
-// sol_log.
+// and signed, logging "Ownership transferred to {:?}" like Rust. It does not
+// store the account.
 func TransferOwnership(c solana.Context, owner *Owner, i uint64, newOwner Owner) uint64 {
 	if code := EnsureOwnerSigner(c, *owner, i); code != svm.Success {
 		return code
 	}
 	*owner = newOwner
+	m := svm.NewMsg("Ownership transferred to ")
+	m.OptionPubkey(newOwner.Some, &newOwner.Value)
+	m.Emit(c)
 	return svm.Success
 }
