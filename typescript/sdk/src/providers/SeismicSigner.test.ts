@@ -631,6 +631,36 @@ describe('SeismicSigner', () => {
     });
   });
 
+  it('exposes a decodable custom error from an encrypted estimate revert', async () => {
+    // A transferRemote rejected by a recipient-gating post-dispatch hook on
+    // Seismic surfaces here: sendTransaction's signed estimate reverts with a
+    // custom error, encrypted under the request key. The caller must get the
+    // plaintext ABI data back so the error can be decoded, not the ciphertext.
+    const iface = new utils.Interface([
+      'error RecipientNotAllowed(uint32 destination, bytes32 recipient)',
+    ]);
+    const recipient = `0x${'f2'.repeat(32)}`;
+    revertData = iface.encodeErrorResult('RecipientNotAllowed', [
+      1399811151,
+      recipient,
+    ]);
+    const error: unknown = await signer
+      .estimateGas({ to: RECIPIENT, data: DATA })
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+    assert(error instanceof Error, 'expected a rejection');
+    expect(error).to.include({ code: 'CALL_EXCEPTION', reason: null });
+    const data: unknown = 'data' in error ? error.data : undefined;
+    assert(typeof data === 'string' && isHex(data), 'expected hex revert data');
+    expect(data).to.equal(revertData);
+    const decoded = iface.parseError(data);
+    expect(decoded.name).to.equal('RecipientNotAllowed');
+    expect(decoded.args.destination).to.equal(1399811151);
+    expect(decoded.args.recipient).to.equal(recipient);
+  });
+
   for (const code of [3, -32000]) {
     it(`decrypts code ${code} SmartProvider reverts without falling through to another RPC`, async () => {
       revertCode = code;
