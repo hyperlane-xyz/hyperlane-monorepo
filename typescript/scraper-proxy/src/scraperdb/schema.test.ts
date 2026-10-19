@@ -150,21 +150,67 @@ void it('rejects an empty message cursor through the resolver', async () => {
   assert.match(response.errors?.[0]?.message ?? '', /must contain one column/);
 });
 
-void it('narrows exact message lookups in every affected-event scan', async () => {
-  let query = '';
-  let parameters: unknown[] = [];
-  const db = new ScraperDbService({
-    async query(sql, values = []) {
-      query = sql;
-      parameters = values;
-      return [];
+void it('bounds affected scans using necessary message ID predicates', async () => {
+  const cases: { where: SelectArgs['where']; expected?: string[] }[] = [
+    { where: { msg_id: { _eq: '\\x01' } }, expected: ['\\x01'] },
+    {
+      where: {
+        _and: [
+          { sender: { _eq: '\\x99' } },
+          { msg_id: { _in: ['\\x01', '\\x02'] } },
+        ],
+      },
+      expected: ['\\x01', '\\x02'],
+    },
+    {
+      where: {
+        _or: [{ msg_id: { _eq: '\\x01' } }, { msg_id: { _in: ['\\x02'] } }],
+      },
+      expected: ['\\x01', '\\x02'],
+    },
+    {
+      where: {
+        _or: [{ msg_id: { _eq: '\\x01' } }, { sender: { _eq: '\\x99' } }],
+      },
+    },
+    { where: { _not: { msg_id: { _eq: '\\x01' } } } },
+    { where: { _or: [] }, expected: [] },
+  ];
+  for (const { where, expected } of cases) {
+    const queries: { sql: string; values: unknown[] }[] = [];
+    const service = new ScraperDbService({
+      async query(sql, values = []) {
+        queries.push({ sql, values });
+        return queries.length === 1
+          ? [{ message_ids: [], domains: [], heights: [] }]
+          : [];
+      },
+    });
+    await service.selectMessages({ confirmations: 1000, where });
+    assert.deepEqual(
+      queries[0].values,
+      expected === undefined ? [1000] : [1000, expected],
+    );
+    assert.match(queries[0].sql, /UNION ALL/);
+    assert.match(queries[0].sql, /LIMIT 10001/);
+    assert.equal(
+      queries[0].sql.includes('LATERAL (\n    SELECT delivery'),
+      false,
+    );
+  }
+});
+
+void it('rejects excessive affected events before running a projection', async () => {
+  let calls = 0;
+  const service = new ScraperDbService({
+    async query() {
+      calls++;
+      return [{ message_ids: Array(10001).fill(Buffer.from('01', 'hex')) }];
     },
   });
-  await db.selectMessages({
-    confirmations: 1_000,
-    where: { msg_id: { _eq: '\\x01' } },
-  });
-  assert.deepEqual(parameters.slice(0, 2), [1_000, '\\x01']);
-  assert.equal(query.match(/AND event.msg_id=\$2::bytea/g)?.length, 3);
-  assert.match(query, /AND message.msg_id=\$2::bytea/);
+  await assert.rejects(
+    service.selectMessages({ confirmations: 0 }),
+    /10000 affected events/,
+  );
+  assert.equal(calls, 1);
 });

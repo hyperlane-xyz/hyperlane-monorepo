@@ -45,6 +45,7 @@ void describe('event websocket protocol', () => {
     }
     assert.equal(parseExplorerBlocks('/messages'), false);
     assert.equal(parseExplorerBlocks('/messages?blocks=true'), true);
+    assert.equal(parseExplorerBlocks('/messages?blocks=false'), false);
     assert.throws(() => parseExplorerBlocks('/messages?blocks=oops'));
   });
 

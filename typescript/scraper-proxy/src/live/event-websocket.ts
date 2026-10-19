@@ -17,7 +17,6 @@ import {
   websocketNotificationQueueOverflows,
   websocketSendFailures,
 } from '../metrics.js';
-import { buildSelect } from '../scraperdb/sql.js';
 import { quoteIdentifier as q, tables } from '../scraperdb/tables.js';
 import {
   displayAddress,
@@ -33,6 +32,7 @@ import {
   parseExplorerNotification,
   parseExplorerConfirmations,
   parseExplorerBlocks,
+  parseOptionalBlockHash,
   parseHeadNotification,
   parseId,
   parseInteger,
@@ -91,6 +91,10 @@ const GAS_PAYMENT_TRANSACTION = 'event_transaction';
 const GAS_PAYMENT_BLOCK = 'event_block';
 const FRONTIER_ID = 'frontier_id';
 const FRONTIER_HEIGHT = 'frontier_height';
+const CANONICAL_MESSAGE_COLUMNS = tables.message_view.columns
+  .filter((column) => column !== 'is_provisional')
+  .map(q)
+  .join(', ');
 
 type Row = Record<string, unknown>;
 type NotifiedRow = Row & { notification_id: number | string };
@@ -589,12 +593,13 @@ export class EventWebSocketServer {
     );
     for (const row of rows) {
       const domain = parseDatabaseDomain(row.domain, 'Invalid block domain');
-      if (!subscription.latest.has(domain))
+      const hash = parseOptionalBlockHash(row.hash);
+      if (hash && !subscription.latest.has(domain))
         subscription.latest.set(domain, {
           type: 'block',
           domain,
           height: row.indexed_height,
-          hash: `0x${row.hash}`,
+          hash,
           headHeight: row.head_height,
         });
     }
@@ -1947,13 +1952,10 @@ export class EventWebSocketServer {
     }
     if (![...this.explorerClients.values()].some((client) => !client.custom))
       return;
-    const query = buildSelect('message_view', {
-      where: {
-        msg_id: { _in: messageIds },
-        send_occurred_at: { _is_null: false },
-      },
-    });
-    const rows = await this.db.queryLive<Row>(query.sql, query.values);
+    const rows = await this.db.queryLive<Row>(
+      `SELECT ${CANONICAL_MESSAGE_COLUMNS} FROM ${q('message_view')} WHERE ${q('msg_id')} = ANY($1::bytea[]) AND ${q('send_occurred_at')} IS NOT NULL`,
+      [messageIds],
+    );
     const messages = rows.map((row) =>
       serialize({ data: row, type: 'message_upsert' }),
     );
@@ -2215,7 +2217,7 @@ export class EventWebSocketServer {
   private rejectNegotiation(socket: WebSocket, error: string): void {
     this.sendError(socket, error);
     this.disconnect(socket);
-    socket.close(1008, 'Invalid confirmation subscription');
+    socket.close(1008, 'Invalid subscription');
   }
 
   private sendError(socket: WebSocket, error: string): void {

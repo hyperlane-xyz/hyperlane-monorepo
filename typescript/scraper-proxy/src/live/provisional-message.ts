@@ -1,26 +1,12 @@
-function buildProvisionalMessageQuery({
-  frontier,
-  idSource,
-}: {
-  frontier: string;
-  idSource: 'affected' | 'parameter';
-}) {
-  const idFilter = (alias?: string) => {
-    const column = `${alias ? `${alias}.` : ''}msg_id`;
-    return idSource === 'parameter'
-      ? `${column}=ANY($1::bytea[])`
-      : `${column} IN (SELECT msg_id FROM affected_message)`;
-  };
-
-  return `
+export const PROVISIONAL_MESSAGE_QUERY = `
   /* provisional_message_view */
   WITH frontier(domain, height) AS (
-    ${frontier}
+    SELECT * FROM unnest($2::integer[], $3::bigint[])
   ), dispatches AS (
     SELECT id, msg_id, nonce, origin_domain, destination_domain, time_created,
       sender, recipient, origin_mailbox, origin_tx_hash, origin_block_hash,
       origin_block_height, msg_body
-    FROM raw_message_dispatch WHERE ${idFilter()}
+    FROM raw_message_dispatch WHERE msg_id=ANY($1::bytea[])
     UNION ALL
     -- Historical/legacy messages can predate raw dispatch storage. Still
     -- project their delivery/payment updates through the selected frontiers.
@@ -31,7 +17,7 @@ function buildProvisionalMessageQuery({
     FROM message
     JOIN "transaction" tx ON tx.id=message.origin_tx_id
     JOIN block ON block.id=tx.block_id
-    WHERE ${idFilter('message')}
+    WHERE message.msg_id=ANY($1::bytea[])
       AND NOT EXISTS (SELECT 1 FROM raw_message_dispatch raw
         WHERE raw.msg_id=message.msg_id)
   ), eligible_dispatch AS (
@@ -82,7 +68,7 @@ function buildProvisionalMessageQuery({
     origin_tx.cumulative_gas_used AS origin_tx_cumulative_gas_used,
     origin_block.id AS origin_block_id,
     dispatch.origin_block_height,
-    dispatch.origin_block_hash,
+    origin_block.hash AS origin_block_hash,
     destination_tx.id AS destination_tx_id,
     coalesce(destination_tx.hash, delivery.transaction_hash) AS destination_tx_hash,
     destination_tx.gas_limit AS destination_tx_gas_limit,
@@ -104,8 +90,10 @@ function buildProvisionalMessageQuery({
   LEFT JOIN message canonical ON canonical.msg_id=dispatch.msg_id
   LEFT JOIN domain origin_domain ON origin_domain.id=dispatch.origin_domain
   LEFT JOIN domain destination_domain ON destination_domain.id=dispatch.destination_domain
-  LEFT JOIN block origin_block ON origin_block.domain=dispatch.origin_domain
-    AND origin_block.hash=dispatch.origin_block_hash
+  LEFT JOIN "transaction" canonical_origin_tx ON canonical_origin_tx.id=canonical.origin_tx_id
+  LEFT JOIN block raw_origin_block ON raw_origin_block.domain=dispatch.origin_domain
+    AND raw_origin_block.hash=dispatch.origin_block_hash
+  LEFT JOIN block origin_block ON origin_block.id=coalesce(raw_origin_block.id, canonical_origin_tx.block_id)
   LEFT JOIN "transaction" origin_tx ON origin_tx.block_id=origin_block.id
     AND origin_tx.hash=dispatch.origin_tx_hash
   LEFT JOIN LATERAL (
@@ -142,17 +130,13 @@ function buildProvisionalMessageQuery({
   ) payment ON TRUE
   WHERE origin_block.timestamp IS NOT NULL
 `;
-}
-
-export const PROVISIONAL_MESSAGE_QUERY = buildProvisionalMessageQuery({
-  idSource: 'parameter',
-  frontier: 'SELECT * FROM unnest($2::integer[], $3::bigint[])',
-});
 
 export function buildProvisionalMessageAffectedQuery(
-  filterByMessageId = false,
+  filterByMessageIds = false,
 ): string {
-  const messageFilter = filterByMessageId ? 'AND event.msg_id=$2::bytea' : '';
+  const messageFilter = filterByMessageIds
+    ? 'AND event.msg_id=ANY($2::bytea[])'
+    : '';
   return `
   -- Only reproject events between the canonical and requested frontiers.
   -- OFFSET 0 keeps these small per-domain index scans from being flattened
@@ -174,8 +158,8 @@ export function buildProvisionalMessageAffectedQuery(
     ) event
   `,
     )
-    .join(' UNION ')}
-  UNION
+    .join(' UNION ALL ')}
+  UNION ALL
   -- A stricter frontier can also hide historical dispatches without raw rows.
   SELECT legacy.msg_id
   FROM custom_frontier frontier
@@ -187,14 +171,8 @@ export function buildProvisionalMessageAffectedQuery(
     WHERE block.domain=frontier.domain
       AND block.height>frontier.height AND block.height<=frontier.confirmed_height
       AND NOT EXISTS (SELECT 1 FROM raw_message_dispatch raw WHERE raw.msg_id=message.msg_id)
-      ${filterByMessageId ? 'AND message.msg_id=$2::bytea' : ''}
+      ${filterByMessageIds ? 'AND message.msg_id=ANY($2::bytea[])' : ''}
     OFFSET 0
   ) legacy
   WHERE frontier.height<frontier.confirmed_height`;
 }
-
-export const PROVISIONAL_MESSAGE_PROJECTION_QUERY =
-  buildProvisionalMessageQuery({
-    idSource: 'affected',
-    frontier: 'SELECT domain, height FROM custom_frontier',
-  });

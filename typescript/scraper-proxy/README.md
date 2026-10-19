@@ -88,8 +88,9 @@ GraphQL `message_view(confirmations: N)` selects the same frontier. Omitted/null
 confirmations and domains without near-head state retain canonical finality.
 `is_provisional` marks rows that differ from canonical state; `origin_block_height`
 allows tracking origin confirmations. Custom snapshots accept 0–1,000
-confirmations and reject cursors and offsets. Use the separate canonical query
-below for paginated history.
+confirmations and reject cursors and non-zero offsets. Snapshots reject more than
+10,000 affected events; narrow `msg_id` or query canonical history during a backlog.
+Use the separate canonical query below for paginated history.
 
 Raw and canonical IDs use separate sequences. Fetch a live list as two selections:
 
@@ -98,6 +99,7 @@ query {
   canonical: message_view(order_by: { id: desc }, limit: 50) {
     id
     msg_id
+    send_occurred_at
   }
   provisional: message_view(
     confirmations: 0
@@ -117,6 +119,8 @@ query {
 Merge by `msg_id`, prefer provisional fields, and sort by send time. Only the
 canonical page supplies history cursors. Sorting the combined snapshot by ID
 can exclude newer provisional dispatches below the page limit.
+`message_view_aggregate` remains canonical-only; counts for a merged live list
+must be derived from that list, rather than the canonical aggregate.
 
 Run `pnpm test` for protocol/socket regressions. Set `SCRAPER_TEST_DATABASE_URL`
 to also run the PostgreSQL projection regression (session-local temporary tables

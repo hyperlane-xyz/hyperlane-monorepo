@@ -341,6 +341,7 @@ for (const route of ['agents', 'messages']) {
             head_height: '101',
             hash: 'ab'.repeat(32),
           },
+          { domain: 3, indexed_height: '100', head_height: '101', hash: 'ab' },
         ]);
       },
     );
@@ -2938,7 +2939,7 @@ void it('emits normalized message upserts to Explorer', async () => {
   );
   const event = await waitFor(messages, 'message_upsert');
   assert.match(explorerQuery, /"send_occurred_at" IS NOT NULL/);
-  assert.match(explorerQuery, /FALSE AS is_provisional FROM "message_view"/);
+  assert.equal(explorerQuery.includes('is_provisional'), false);
   assert.deepEqual(event.data, {
     id: '42',
     is_delivered: false,

@@ -333,7 +333,7 @@ export function parseExplorerBlocks(url: string | undefined): boolean {
   const value = new URL(url ?? '/', 'http://localhost').searchParams.get(
     'blocks',
   );
-  if (value === null) return false;
+  if (value === null || value === 'false') return false;
   if (value !== 'true') throw new Error('Expected blocks=true');
   return true;
 }
@@ -346,7 +346,7 @@ function parseDomains(value: unknown): Set<number> | undefined {
   return new Set(value);
 }
 
-function parseOptionalBlockHash(value: unknown): string | undefined {
+export function parseOptionalBlockHash(value: unknown): string | undefined {
   if (typeof value !== 'string' || !/^[0-9a-fA-F]{64}$/.test(value)) {
     return undefined;
   }

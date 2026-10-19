@@ -136,191 +136,114 @@ void it(
         },
       });
 
+      const ids = (rows: Record<string, unknown>[]) =>
+        rows.map((row) => row.id);
       await t.test(
-        'preserves default/null finality and includes provisional rows at zero',
+        'preserves canonical defaults, frontier boundaries, and selection semantics',
         async () => {
-          for (const confirmations of [undefined, null]) {
-            const canonical = await service.selectMessages({
-              confirmations,
-              columns: ['id', 'is_provisional'],
-            });
+          for (const confirmations of [undefined, null])
             assert.deepEqual(
-              canonical.map((row) => row.id),
+              ids(await service.selectMessages({ confirmations })),
               ['2'],
             );
-          }
-          const snapshot = await service.selectMessages({
+          const zero = await service.selectMessages({
             confirmations: 0,
-            columns: ['id', 'is_provisional'],
             order_by: { id: 'asc' },
           });
-          assert.deepEqual(
-            snapshot.map((row) => row.id),
-            ['1', '2'],
-          );
-          assert(snapshot.every((row) => row.is_provisional === true));
-          assert.equal(
-            (await service.selectMessages({ confirmations: 3 })).length,
-            1,
-          );
-        },
-      );
-
-      await t.test(
-        'filters and orders by fields absent from the selection and rejects mixed cursors',
-        async () => {
-          const filtered = await service.selectMessages({
-            confirmations: 0,
-            columns: ['msg_id'],
-            where: { origin_domain_id: { _eq: 1 } },
-            order_by: { id: 'desc' },
-            limit: 1,
-          });
-          assert.equal(filtered.length, 1);
-          assert.deepEqual(filtered[0].msg_id, Buffer.from('01', 'hex'));
-          await assert.rejects(
-            service.selectMessages({
-              confirmations: 0,
-              cursor: [{ initial_value: { id: 2 }, ordering: 'DESC' }],
-              limit: 1,
-            }),
-            /cursor is unsupported/,
-          );
-        },
-      );
-
-      await t.test(
-        'reprojects delivery and payment at the requested boundary',
-        async () => {
-          const snapshot = await service.selectMessages({
-            confirmations: 2,
-            order_by: { id: 'asc' },
-          });
-          assert.equal(snapshot.length, 2);
-          assert.equal(snapshot[1].is_delivered, true);
-          assert.equal(snapshot[1].total_payment, '300');
+          assert.deepEqual(ids(zero), ['1', '2']);
+          assert(zero.every((row) => row.is_provisional === true));
+          assert.equal(zero[1].total_payment, '300');
           const before = await service.selectMessages({ confirmations: 3 });
           assert.equal(before.length, 1);
           assert.equal(before[0].is_delivered, false);
           assert.equal(before[0].total_payment, '0');
-        },
-      );
-
-      await t.test(
-        'deduplicates across canonical and projected branches before limiting',
-        async () => {
-          // Keep message 01 canonical while a newer payment on 02 is provisional.
-          await db.query(`
-            UPDATE scraper_head SET confirmed_height=10, head_height=13, indexed_height=13;
-            INSERT INTO gas_payment VALUES (3,decode('02','hex'),1,10,20,13);
-            INSERT INTO message VALUES (1,decode('01','hex'),0,1,2,now(),decode('bb','hex'),decode('cc','hex'),decode('ee','hex'),1,null);
-            INSERT INTO "transaction"(id,block_id,hash) VALUES (1,1,decode('cc','hex'));
-          `);
-          const snapshot = await service.selectMessages({
-            confirmations: 0,
-            columns: ['sender', 'msg_id', 'is_provisional'],
-            distinct_on: ['sender'],
-            order_by: [{ sender: 'asc' }, { id: 'desc' }],
-            limit: 1,
-          });
-          assert.equal(snapshot.length, 1);
-          assert.deepEqual(snapshot[0].msg_id, Buffer.from('02', 'hex'));
-          assert.equal(snapshot[0].is_provisional, true);
-          const mixed = await service.selectMessages({
-            confirmations: 0,
-            columns: ['id', 'is_provisional'],
-            order_by: { id: 'asc' },
-          });
           assert.deepEqual(
-            mixed.map((row) => row.is_provisional),
-            [false, true],
-          );
-          await db.query(
-            'UPDATE scraper_head SET confirmed_height=5, head_height=12, indexed_height=10; DELETE FROM message WHERE id=1',
-          );
-        },
-      );
-
-      await t.test(
-        'reload includes raw IDs below the canonical page without using them as cursors',
-        async () => {
-          await db.query(`
-          UPDATE delivered_message SET block_number=4 WHERE domain=1;
-          UPDATE gas_payment SET block_number=4 WHERE domain=1;
-          UPDATE block SET timestamp=now()+interval '1 minute' WHERE domain=1;
-        `);
-          const canonical = await service.selectMessages({
-            columns: ['id'],
-            order_by: { id: 'desc' },
-            limit: 1,
-          });
-          const provisional = await service.selectMessages({
-            confirmations: 0,
-            columns: ['id', 'msg_id', 'is_provisional', 'origin_block_height'],
-            where: { is_provisional: { _eq: true } },
-            order_by: [{ send_occurred_at: 'desc' }, { id: 'desc' }],
-            limit: 1,
-          });
-          assert.deepEqual(
-            canonical.map((row) => row.id),
-            ['2'],
-          );
-          assert.deepEqual(
-            provisional.map((row) => row.id),
+            ids(
+              await service.selectMessages({
+                confirmations: 0,
+                where: { origin_domain_id: { _eq: 1 } },
+                columns: ['id'],
+                order_by: { send_occurred_at: 'desc' },
+                limit: 1,
+              }),
+            ),
             ['1'],
           );
-          assert.equal(provisional[0].is_provisional, true);
-          assert.equal(provisional[0].origin_block_height, '10');
           assert.deepEqual(
             await service.selectMessages({
               where: { is_provisional: { _eq: true } },
             }),
             [],
-            'omitting confirmations must not expose provisional rows',
           );
-          await db.query(`
-          UPDATE delivered_message SET block_number=10 WHERE domain=1;
-          UPDATE gas_payment SET block_number=10 WHERE domain=1;
-        `);
-        },
-      );
-
-      await t.test(
-        'projection keeps the canonical ID when a raw dispatch is already canonical',
-        async () => {
-          await db.query(`
-          INSERT INTO message VALUES (100,decode('01','hex'),0,1,2,now(),
-            decode('bb','hex'),decode('cc','hex'),decode('ee','hex'),null,null);
-        `);
-          const snapshot = await service.selectMessages({
-            confirmations: 0,
-            columns: ['id', 'msg_id'],
-            where: { msg_id: { _eq: Buffer.from('01', 'hex') } },
-          });
-          assert.deepEqual(
-            snapshot.map((row) => row.id),
-            ['100'],
-          );
-        },
-      );
-
-      await t.test(
-        'canonical live reads synthesize metadata against the stored view',
-        async () => {
           const query = buildSelect('message_view', {
-            where: {
-              msg_id: { _in: [Buffer.from('02', 'hex')] },
-              send_occurred_at: { _is_null: false },
-            },
+            where: { msg_id: { _in: ['\\x02'] } },
           });
-          const rows = (await db.query(query.sql, query.values)).rows;
-          assert.equal(rows.length, 1);
-          assert.equal(rows[0].is_provisional, false);
+          assert.equal(
+            (await db.query(query.sql, query.values)).rows[0].is_provisional,
+            false,
+          );
         },
       );
 
       await t.test(
-        'preserves canonical rows when projection cannot reconstruct their origin',
+        'deduplicates before DISTINCT and limits; raw IDs never become history cursors',
+        async () => {
+          await db.query('BEGIN');
+          try {
+            await db.query(`
+            UPDATE scraper_head SET confirmed_height=10, head_height=13, indexed_height=13;
+            INSERT INTO gas_payment VALUES (3,decode('02','hex'),1,10,20,13);
+            INSERT INTO message VALUES (1,decode('01','hex'),0,1,2,now(),decode('bb','hex'),decode('cc','hex'),decode('ee','hex'),1,null);
+            INSERT INTO "transaction"(id,block_id,hash) VALUES (1,1,decode('cc','hex'));
+          `);
+            const rows = await service.selectMessages({
+              confirmations: 0,
+              distinct_on: ['sender'],
+              order_by: [{ sender: 'asc' }, { id: 'desc' }],
+              limit: 1,
+            });
+            assert.equal(rows.length, 1);
+            assert.deepEqual(rows[0].msg_id, Buffer.from('02', 'hex'));
+            assert.deepEqual(
+              (
+                await service.selectMessages({
+                  confirmations: 0,
+                  order_by: { id: 'asc' },
+                })
+              ).map((row) => row.is_provisional),
+              [false, true],
+            );
+            await db.query(`
+            UPDATE scraper_head SET confirmed_height=5;
+            INSERT INTO raw_message_dispatch VALUES (2,decode('03','hex'),3,1,2,now(),null,null,null,decode('cc','hex'),decode('aa','hex'),10,null);
+          `);
+            const mixed = await service.selectMessages({ confirmations: 0 });
+            assert.equal(mixed.filter((row) => row.id === '2').length, 2);
+            await assert.rejects(
+              service.selectMessages({
+                confirmations: 0,
+                cursor: [{ initial_value: { id: 2 }, ordering: 'DESC' }],
+              }),
+              /cursor is unsupported/,
+            );
+            assert.deepEqual(
+              ids(
+                await service.selectMessages({
+                  cursor: [{ initial_value: { id: 3 }, ordering: 'DESC' }],
+                  order_by: { id: 'desc' },
+                  limit: 1,
+                }),
+              ),
+              ['2'],
+            );
+          } finally {
+            await db.query('ROLLBACK');
+          }
+        },
+      );
+
+      await t.test(
+        'rebuilds unmatched raw hashes from canonical origins without losing nullable origins',
         async () => {
           await db.query('BEGIN');
           try {
@@ -331,37 +254,34 @@ void it(
             INSERT INTO raw_message_dispatch VALUES
               (1006,decode('16','hex'),16,2,1,now(),null,null,null,decode('dd','hex'),decode('ff','hex'),20,null);
             INSERT INTO gas_payment VALUES
-              (1001,decode('11','hex'),1,1,1,10),
-              (1006,decode('16','hex'),1,1,1,10);
+              (1001,decode('11','hex'),1,1,1,10), (1006,decode('16','hex'),1,1,1,10);
+            INSERT INTO delivered_message VALUES
+              (1006,decode('16','hex'),1,now(),null,null,10,null,null);
           `);
-            const canonical = await service.selectMessages({
-              columns: ['msg_id'],
-              order_by: { id: 'asc' },
-            });
-            const snapshot = await service.selectMessages({
-              confirmations: 0,
-              columns: ['msg_id'],
-              order_by: { id: 'asc' },
-            });
-            assert(
-              canonical.some(
-                (row) =>
-                  Buffer.isBuffer(row.msg_id) &&
-                  Buffer.from('16', 'hex').equals(row.msg_id),
-              ),
-            );
-            assert.deepEqual(
-              snapshot.map((row) => row.msg_id),
-              canonical.map((row) => row.msg_id),
-            );
             for (const msgId of ['11', '16']) {
-              const detail = await service.selectMessages({
+              const [row] = await service.selectMessages({
                 confirmations: 0,
-                where: { msg_id: { _eq: Buffer.from(msgId, 'hex') } },
+                where: {
+                  _and: [{ msg_id: { _eq: Buffer.from(msgId, 'hex') } }],
+                },
               });
-              assert.equal(detail.length, 1);
-              assert.equal(detail[0].is_provisional, false);
+              assert(row);
+              assert.equal(row.is_provisional, msgId === '16');
+              if (msgId === '16') {
+                assert.equal(row.total_payment, '1');
+                assert.equal(row.is_delivered, true);
+                assert.deepEqual(
+                  row.origin_block_hash,
+                  Buffer.from('bb', 'hex'),
+                );
+              }
             }
+            const [strict] = await service.selectMessages({
+              confirmations: 3,
+              where: { msg_id: { _in: [Buffer.from('16', 'hex')] } },
+            });
+            assert.equal(strict.is_delivered, false);
+            assert.equal(strict.total_payment, '0');
           } finally {
             await db.query('ROLLBACK');
           }
@@ -369,81 +289,76 @@ void it(
       );
 
       await t.test(
-        'keeps canonical bodies when raw dispatch bodies are absent',
+        'keeps canonical IDs and bodies, and orders reloads by send time',
         async () => {
           await db.query('BEGIN');
           try {
-            await db.query(
-              "UPDATE message SET msg_body=decode('99','hex') WHERE msg_id=decode('01','hex')",
-            );
-            const snapshot = await service.selectMessages({
+            await db.query(`
+            INSERT INTO message VALUES (100,decode('01','hex'),0,1,2,now(),null,null,null,null,decode('99','hex'));
+            UPDATE delivered_message SET block_number=4 WHERE domain=1;
+            UPDATE gas_payment SET block_number=4 WHERE domain=1;
+          `);
+            const [row] = await service.selectMessages({
               confirmations: 0,
               where: {
                 msg_id: { _eq: Buffer.from('01', 'hex') },
                 message_body: { _eq: Buffer.from('99', 'hex') },
               },
             });
-            assert.equal(snapshot.length, 1);
+            assert.equal(row.id, '100');
+            assert.deepEqual(row.message_body, Buffer.from('99', 'hex'));
+            const [live] = await service.selectMessages({
+              confirmations: 0,
+              where: { is_provisional: { _eq: true } },
+              order_by: [{ send_occurred_at: 'desc' }, { id: 'desc' }],
+              limit: 1,
+            });
+            assert.equal(live.id, '100');
+            await db.query('INSERT INTO scraper_head VALUES (2,20,22,22)');
             assert.deepEqual(
-              snapshot[0].message_body,
-              Buffer.from('99', 'hex'),
+              await service.selectMessages({ confirmations: 3 }),
+              [],
             );
           } finally {
             await db.query('ROLLBACK');
           }
+          await db.query(
+            `INSERT INTO message VALUES (100,decode('01','hex'),0,1,2,now(),null,null,null,null,null);
+             UPDATE scraper_head SET confirmed_height=indexed_height`,
+          );
+          const caughtUp = await service.selectMessages({ confirmations: 0 });
+          assert.equal(caughtUp.length, 2);
+          assert(caughtUp.every((row) => row.is_provisional === false));
         },
       );
 
       await t.test(
-        'rejects custom cursors when independent ID sequences collide',
+        'bounds backlog candidates before projection while keeping exact lookups available',
         async () => {
           await db.query('BEGIN');
           try {
             await db.query(`
-            INSERT INTO raw_message_dispatch VALUES (2,decode('03','hex'),3,1,2,now(),null,null,null,decode('cc','hex'),decode('aa','hex'),10,null);
+            UPDATE scraper_head SET confirmed_height=0;
+            INSERT INTO gas_payment SELECT id, decode(lpad(to_hex(id),8,'0'),'hex'), 1, 1, 1, 10
+              FROM generate_series(10000,20001) id;
           `);
-            const snapshot = await service.selectMessages({
-              confirmations: 0,
-              order_by: { id: 'desc' },
-            });
-            assert.equal(snapshot.filter((row) => row.id === '2').length, 2);
             await assert.rejects(
-              service.selectMessages({
-                confirmations: 0,
-                cursor: [{ initial_value: { id: 2 }, ordering: 'DESC' }],
-                limit: 1,
-              }),
-              /cursor is unsupported/,
+              service.selectMessages({ confirmations: 0 }),
+              /10000 affected events/,
             );
-            const canonical = await service.selectMessages({
-              cursor: [{ initial_value: { id: 3 }, ordering: 'DESC' }],
-              limit: 1,
+            const rows = await service.selectMessages({
+              confirmations: 0,
+              where: {
+                _or: [
+                  { msg_id: { _eq: Buffer.from('01', 'hex') } },
+                  { msg_id: { _in: [Buffer.from('02', 'hex')] } },
+                ],
+              },
             });
-            assert.equal(canonical[0].id, '2');
+            assert.equal(rows.length, 2);
           } finally {
             await db.query('ROLLBACK');
           }
-        },
-      );
-
-      await t.test(
-        'excludes legacy origins when a stricter frontier precedes their dispatch',
-        async () => {
-          await db.query('INSERT INTO scraper_head VALUES (2,20,22,22)');
-          const snapshot = await service.selectMessages({ confirmations: 3 });
-          assert.equal(snapshot.length, 0);
-        },
-      );
-
-      await t.test(
-        'returns canonical flags after the frontier catches up',
-        async () => {
-          await db.query(
-            'UPDATE scraper_head SET confirmed_height=indexed_height',
-          );
-          const snapshot = await service.selectMessages({ confirmations: 0 });
-          assert.equal(snapshot.length, 2);
-          assert(snapshot.every((row) => row.is_provisional === false));
         },
       );
     } finally {

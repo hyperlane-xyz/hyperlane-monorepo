@@ -2,7 +2,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import {
   buildProvisionalMessageAffectedQuery,
-  PROVISIONAL_MESSAGE_PROJECTION_QUERY,
+  PROVISIONAL_MESSAGE_QUERY,
 } from '../live/provisional-message.js';
 import {
   buildByPk,
@@ -50,19 +50,31 @@ export class ScraperDbService {
       !selectArgs.cursor?.length,
       'cursor is unsupported with confirmations; paginate canonical history separately',
     );
-    const messageFilter = selectArgs.where?.msg_id;
-    const messageId =
-      messageFilter != null &&
-      typeof messageFilter === 'object' &&
-      '_eq' in messageFilter
-        ? messageFilter._eq
-        : undefined;
-    const filterByMessageId = messageId != null;
+    // Validate filters before either database query, including recursive limits.
+    buildSelect('message_view', selectArgs);
+    const ids = messageIds(selectArgs.where);
+    const [snapshot] = await this.db.query(
+      `WITH custom_frontier AS (
+        SELECT domain, least(indexed_height, head_height-$1::integer) AS height,
+          confirmed_height FROM scraper_head
+      ) SELECT array_agg(domain) AS domains, array_agg(height::text) AS heights,
+        ARRAY(SELECT msg_id FROM (${buildProvisionalMessageAffectedQuery(ids !== undefined)}) affected
+          LIMIT 10001) AS message_ids FROM custom_frontier`,
+      ids === undefined ? [confirmations] : [confirmations, ids],
+    );
+    assert(
+      snapshot && Array.isArray(snapshot.message_ids),
+      'Invalid confirmation snapshot',
+    );
+    assert(
+      snapshot.message_ids.length <= 10_000,
+      'Confirmation snapshot exceeds 10000 affected events; query canonical history or narrow msg_id',
+    );
     // Branches retain every column used by outer filters, ordering, or DISTINCT.
     const branchArgs = { ...selectArgs, columns: undefined, offset: undefined };
     const canonicalQuery = buildSelect('message_view', branchArgs, {
       relation: 'canonical_message_view',
-      values: filterByMessageId ? [confirmations, messageId] : [confirmations],
+      values: [snapshot.message_ids, snapshot.domains, snapshot.heights],
     });
     const projectedQuery = buildSelect('message_view', branchArgs, {
       relation: 'affected_projection',
@@ -73,14 +85,11 @@ export class ScraperDbService {
       values: projectedQuery.values,
     });
     return this.db.query(
-      `WITH custom_frontier AS (
-        SELECT domain, least(indexed_height, head_height-$1::integer) AS height,
-          confirmed_height FROM scraper_head
-      ),
-      affected_message(msg_id) AS (${buildProvisionalMessageAffectedQuery(filterByMessageId)}),
-      affected_projection AS (
+      `WITH custom_frontier(domain, height) AS (
+        SELECT * FROM unnest($2::integer[], $3::bigint[])
+      ), affected_projection AS NOT MATERIALIZED (
         SELECT projection.*, TRUE AS is_provisional
-        FROM (${PROVISIONAL_MESSAGE_PROJECTION_QUERY}) projection
+        FROM (${PROVISIONAL_MESSAGE_QUERY}) projection
       ),
       canonical_message_view AS (
         SELECT canonical.*, FALSE AS is_provisional FROM message_view canonical
@@ -132,4 +141,28 @@ export class ScraperDbService {
     assert(typeof row?.count === 'number', 'Invalid database count result');
     return row.count;
   }
+}
+
+// Return a necessary msg_id bound, never narrowing an unbounded OR branch.
+function messageIds(where: unknown): unknown[] | undefined {
+  if (!where || typeof where !== 'object' || Array.isArray(where))
+    return undefined;
+  if ('msg_id' in where && where.msg_id && typeof where.msg_id === 'object') {
+    if ('_eq' in where.msg_id && where.msg_id._eq != null)
+      return [where.msg_id._eq];
+    if ('_in' in where.msg_id && Array.isArray(where.msg_id._in))
+      return where.msg_id._in;
+  }
+  if ('_and' in where) {
+    for (const child of Array.isArray(where._and) ? where._and : [where._and]) {
+      const ids = messageIds(child);
+      if (ids !== undefined) return ids;
+    }
+  }
+  if ('_or' in where) {
+    const children = Array.isArray(where._or) ? where._or : [where._or];
+    const bounds = children.map(messageIds);
+    if (bounds.every((ids) => ids !== undefined)) return bounds.flat();
+  }
+  return undefined;
 }
