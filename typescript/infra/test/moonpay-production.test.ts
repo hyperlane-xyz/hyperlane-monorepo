@@ -230,20 +230,19 @@ describe('Moonpay production USDG rollout', () => {
       '0x2222222222222222222222222222222222222222',
     );
     expect(peers[String(getDomainId('arc'))]).to.deep.equal([arcRouter]);
-    expect(config.robinhood).to.have.nested.property(
-      `tokenFee.feeContracts.arc.${arcRouter}.bps`,
-      MOONPAY_DEFAULT_FEE_BPS,
-    );
+    // Arc router-specific fees are not set yet; only the default fee router.
+    expect(config.robinhood)
+      .to.have.nested.property('tokenFee.feeContracts.arc')
+      .that.has.all.keys(DEFAULT_ROUTER_KEY);
     const usdt = await getUSDTCitreaMoonpayWarpConfig(getRouterConfig(), {});
     for (const leg of Object.values(usdt)) {
       expect(leg)
         .to.have.property('crossCollateralRouters')
         .that.has.property(String(getDomainId('arc')))
         .that.deep.equals([arcRouter]);
-      expect(leg).to.have.nested.property(
-        `tokenFee.feeContracts.arc.${arcRouter}.bps`,
-        MOONPAY_DEFAULT_FEE_BPS,
-      );
+      expect(leg)
+        .to.have.nested.property('tokenFee.feeContracts.arc')
+        .that.has.all.keys(DEFAULT_ROUTER_KEY);
     }
     const fast = getRegistry().getWarpRoute(WarpRouteIds.MainnetCCTPV2Fast);
     assert(fast, 'Missing CCTP fast route');
