@@ -65,7 +65,11 @@ func Process(c solana.Context) uint64 {
 	if code := tokenlib.DecodeInstruction(data, ix); code != svm.Success {
 		return code
 	}
-	// Rust logs the error (msg!("{}", err)) on every failure below.
+	// Like Rust, log any handler error (msg!("{}", err)) before returning it.
+	return svm.LogError(c, processToken(c, ix))
+}
+
+func processToken(c solana.Context, ix *tokenlib.Instruction) uint64 {
 	switch ix.Kind {
 	case tokenlib.KindInit:
 		return initialize(c, &ix.Init)
@@ -278,18 +282,26 @@ func setCrossCollateralRouters(c solana.Context, updates []CrossCollateralRouter
 		return tokenlib.ErrExtraneousAccount
 	}
 
-	// Rust logs each update ("Enrolled CC router ...", "Removed CC router
-	// ...", "Removed all CC routers ...").
 	for i := range updates {
 		u := &updates[i]
+		var m svm.Msg
 		switch {
 		case u.Kind == UpdateAdd:
 			state.AddRouter(u.Domain, &u.Router.Value)
+			m = svm.NewMsg("Enrolled CC router ")
+			m.H256((*[32]byte)(&u.Router.Value))
+			m.Str(" for domain ")
 		case u.Router.Some:
 			state.RemoveRouter(u.Domain, &u.Router.Value)
+			m = svm.NewMsg("Removed CC router ")
+			m.H256((*[32]byte)(&u.Router.Value))
+			m.Str(" from domain ")
 		default:
 			state.RemoveDomain(u.Domain)
+			m = svm.NewMsg("Removed all CC routers for domain ")
 		}
+		m.U32(u.Domain)
+		m.Emit(c)
 	}
 	return accountutils.StoreWithRentExemptRealloc(c, stateAccount, state, owner, systemProgram)
 }
@@ -349,9 +361,18 @@ func transferRemoteToRemote(c solana.Context, programID *svm.Pubkey, tok *Token,
 	if !tokenlib.KeyEq(c, noop, &accountutils.SPLNoopProgramID) {
 		return svm.InvalidArgument
 	}
-	_, code = tokenlib.TransferRemoteTo(c, programID, tok, systemProgram, noop, it, xfer.DestinationDomain, &xfer.Recipient, &xfer.TargetRouter, xfer.AmountOrID, nil)
-	// Rust logs "CC transfer_remote_to completed to destination: ..." here.
-	return code
+	remote, code := tokenlib.TransferRemoteTo(c, programID, tok, systemProgram, noop, it, xfer.DestinationDomain, &xfer.Recipient, &xfer.TargetRouter, xfer.AmountOrID, nil)
+	if code != svm.Success {
+		return code
+	}
+	m := svm.NewMsg("CC transfer_remote_to completed to destination: ")
+	m.U32(xfer.DestinationDomain)
+	m.Str(", target_router: ")
+	m.H256((*[32]byte)(&xfer.TargetRouter))
+	m.Str(", remote_amount: ")
+	m.U256((*[4]uint64)(&remote))
+	m.Emit(c)
+	return svm.Success
 }
 
 // transferRemoteToLocal escrows and CPIs the target program's HandleLocal,
@@ -424,8 +445,17 @@ func transferRemoteToLocal(c solana.Context, programID *svm.Pubkey, tok *Token, 
 		i, _ := it.Next()
 		metas = appendMeta(metas, i, solana.Writable(c, i), false)
 	}
-	return solana.Invoke(c, target, metas, data, ccDispatchAuthorityPDA.Signer(state.DispatchAuthorityBump))
-	// Rust logs "CC same-chain transfer completed to target: ..." here.
+	if code := solana.Invoke(c, target, metas, data, ccDispatchAuthorityPDA.Signer(state.DispatchAuthorityBump)); code != svm.Success {
+		return code
+	}
+	m := svm.NewMsg("CC same-chain transfer completed to target: ")
+	m.Pubkey((*[32]byte)(&xfer.TargetRouter))
+	m.Str(", recipient: ")
+	m.H256((*[32]byte)(&xfer.Recipient))
+	m.Str(", remote_amount: ")
+	m.U256((*[4]uint64)(&remoteAmount))
+	m.Emit(c)
+	return svm.Success
 }
 
 // appendMeta appends one goSVM CPI meta (index u64 LE, flags writable=1,
@@ -446,7 +476,8 @@ func appendMeta(metas []byte, index uint64, writable, signer bool) []byte {
 
 // transferOut is the shared tail of Handle and HandleLocal: recipient wallet,
 // decimals conversion, the plugin's transfer_out and the extraneous check.
-func transferOut(c solana.Context, programID *svm.Pubkey, tok *Token, systemProgram uint64, it *svm.AccountIter, message *hyperlanecore.TokenMessage) uint64 {
+// It logs prefix followed by ", recipient: <wallet>, remote_amount: <n>".
+func transferOut(c solana.Context, programID *svm.Pubkey, tok *Token, systemProgram uint64, it *svm.AccountIter, message *hyperlanecore.TokenMessage, m *svm.Msg) uint64 {
 	recipientWallet, code := it.Next()
 	if code != svm.Success {
 		return code
@@ -464,6 +495,11 @@ func transferOut(c solana.Context, programID *svm.Pubkey, tok *Token, systemProg
 	if it.HasMore() {
 		return tokenlib.ErrExtraneousAccount
 	}
+	m.Str(", recipient: ")
+	m.Key(solana.Key(c, recipientWallet))
+	m.Str(", remote_amount: ")
+	m.U256((*[4]uint64)(&message.AmountOrID))
+	m.Emit(c)
 	return svm.Success
 }
 
@@ -526,8 +562,9 @@ func transferFromRemote(c solana.Context, h *recipient.HandleInstruction) uint64
 	if !state.IsAuthorizedRouter(h.Origin, &h.Sender, tok.RemoteRouters) {
 		return ErrUnauthorizedRouter
 	}
-	// Rust logs "CC warp route transfer completed from origin: ..." on success.
-	return transferOut(c, &programID, tok, systemProgram, &it, &message)
+	m := svm.NewMsg("CC warp route transfer completed from origin: ")
+	m.U32(h.Origin)
+	return transferOut(c, &programID, tok, systemProgram, &it, &message, &m)
 }
 
 // transferFromRemoteAccountMetas is transfer_from_remote_account_metas_cc
@@ -621,8 +658,11 @@ func handleLocal(c solana.Context, h *HandleLocal) uint64 {
 	if !state.IsEnrolledRouter(state.LocalDomain, &sender) {
 		return ErrUnauthorizedRouter
 	}
-	// Rust logs "CC handle_local completed from sender: ..." on success.
-	return transferOut(c, &programID, tok, systemProgram, &it, &message)
+	m := svm.NewMsg("CC handle_local completed from sender: ")
+	m.Pubkey((*[32]byte)(&h.SenderProgramID))
+	m.Str(", origin: ")
+	m.U32(state.LocalDomain)
+	return transferOut(c, &programID, tok, systemProgram, &it, &message, &m)
 }
 
 // handleLocalAccountMetas is HandleLocalAccountMetas.

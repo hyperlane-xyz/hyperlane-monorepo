@@ -34,7 +34,11 @@ func Process[T any, P Plugin[T]](c solana.Context) uint64 {
 	if code := DecodeInstruction(data, ix); code != svm.Success {
 		return code
 	}
-	// Rust logs the error (msg!("{}", err)) on every failure below.
+	// Like Rust, log any handler error (msg!("{}", err)) before returning it.
+	return svm.LogError(c, processToken[T, P](c, ix))
+}
+
+func processToken[T any, P Plugin[T]](c solana.Context, ix *Instruction) uint64 {
 	switch ix.Kind {
 	case KindInit:
 		return Initialize[T, P](c, &ix.Init)

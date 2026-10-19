@@ -357,7 +357,7 @@ func (p *plugin) Size() int                   { return 4 }
 func TestRouterMaps(t *testing.T) {
 	var routers cc.Routers
 	r := func(b byte) borsh.Option[[32]byte] { return borsh.SomeOf([32]byte{b}) }
-	routers = cc.EnrollRemoteRouters(routers, []cc.RemoteRouterConfig{{Domain: 5, Router: r(1)}, {Domain: 1, Router: r(2)}, {Domain: 9, Router: r(3)}, {Domain: 5, Router: r(4)}, {Domain: 1}, {Domain: 7}})
+	routers = cc.EnrollRemoteRouters(solana.Context{}, routers, []cc.RemoteRouterConfig{{Domain: 5, Router: r(1)}, {Domain: 1, Router: r(2)}, {Domain: 9, Router: r(3)}, {Domain: 5, Router: r(4)}, {Domain: 1}, {Domain: 7}})
 	if len(routers) != 2 || routers[0].Key != 5 || routers[0].Value[0] != 4 || routers[1].Key != 9 {
 		t.Fatalf("routers %v", routers)
 	}

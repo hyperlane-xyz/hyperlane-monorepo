@@ -184,18 +184,22 @@ func OnlyRemoteRouter(routers Routers, domain uint32, maybeRouter *hyperlanecore
 	return svm.Success
 }
 
-// EnrollRemoteRouter inserts or removes one router, keeping the pairs sorted.
-//
-// Rust also logs "Set domain {} remote router to {:?}"; add that once goSVM
-// has sol_log.
-func EnrollRemoteRouter(routers Routers, config *RemoteRouterConfig) Routers {
-	return setPair(routers, config.Domain, config.Router.Some, config.Router.Value)
+// EnrollRemoteRouter inserts or removes one router, keeping the pairs
+// sorted, and logs "Set domain {} remote router to {:?}" like Rust.
+func EnrollRemoteRouter(c solana.Context, routers Routers, config *RemoteRouterConfig) Routers {
+	routers = setPair(routers, config.Domain, config.Router.Some, config.Router.Value)
+	m := svm.NewMsg("Set domain ")
+	m.U32(config.Domain)
+	m.Str(" remote router to ")
+	m.OptionH256(config.Router.Some, (*[32]byte)(&config.Router.Value))
+	m.Emit(c)
+	return routers
 }
 
 // EnrollRemoteRouters applies configs in order.
-func EnrollRemoteRouters(routers Routers, configs []RemoteRouterConfig) Routers {
+func EnrollRemoteRouters(c solana.Context, routers Routers, configs []RemoteRouterConfig) Routers {
 	for i := range configs {
-		routers = EnrollRemoteRouter(routers, &configs[i])
+		routers = EnrollRemoteRouter(c, routers, &configs[i])
 	}
 	return routers
 }
@@ -210,17 +214,22 @@ func DestinationGasFor(gas DestinationGas, domain uint32) (uint64, bool) {
 	return 0, false
 }
 
-// SetDestinationGas inserts or removes one gas amount, keeping pairs sorted.
-//
-// Rust also logs "Set destination {} gas to: {:?}".
-func SetDestinationGas(gas DestinationGas, config *GasRouterConfig) DestinationGas {
-	return setPair(gas, config.Domain, config.Gas.Some, config.Gas.Value)
+// SetDestinationGas inserts or removes one gas amount, keeping pairs sorted,
+// and logs "Set destination {} gas to: {:?}" like Rust.
+func SetDestinationGas(c solana.Context, gas DestinationGas, config *GasRouterConfig) DestinationGas {
+	gas = setPair(gas, config.Domain, config.Gas.Some, config.Gas.Value)
+	m := svm.NewMsg("Set destination ")
+	m.U32(config.Domain)
+	m.Str(" gas to: ")
+	m.OptionDec(config.Gas.Some, config.Gas.Value)
+	m.Emit(c)
+	return gas
 }
 
 // SetDestinationGasConfigs applies configs in order.
-func SetDestinationGasConfigs(gas DestinationGas, configs []GasRouterConfig) DestinationGas {
+func SetDestinationGasConfigs(c solana.Context, gas DestinationGas, configs []GasRouterConfig) DestinationGas {
 	for i := range configs {
-		gas = SetDestinationGas(gas, &configs[i])
+		gas = SetDestinationGas(c, gas, &configs[i])
 	}
 	return gas
 }

@@ -184,9 +184,18 @@ func TransferRemoteWithMemo[T any, P Plugin[T]](c solana.Context, xfer *Transfer
 	if !ok {
 		return svm.InvalidArgument
 	}
-	_, code = TransferRemoteTo(c, &programID, tok, systemProgram, noop, &it, xfer.DestinationDomain, &xfer.Recipient, &router, xfer.AmountOrID, memo)
-	// Rust logs "Warp route transfer completed to destination: ..." here.
-	return code
+	remote, code := TransferRemoteTo(c, &programID, tok, systemProgram, noop, &it, xfer.DestinationDomain, &xfer.Recipient, &router, xfer.AmountOrID, memo)
+	if code != svm.Success {
+		return code
+	}
+	m := svm.NewMsg("Warp route transfer completed to destination: ")
+	m.U32(xfer.DestinationDomain)
+	m.Str(", recipient: ")
+	m.H256Short((*[32]byte)(&xfer.Recipient))
+	m.Str(", remote_amount: ")
+	m.U256((*[4]uint64)(&remote))
+	m.Emit(c)
+	return svm.Success
 }
 
 // igpPayment holds the deferred PayForGas CPI.
@@ -577,7 +586,13 @@ func TransferFromRemote[T any, P Plugin[T]](c solana.Context, h *recipient.Handl
 	if it.HasMore() {
 		return ErrExtraneousAccount
 	}
-	// Rust logs "Warp route transfer completed from origin: ..." here.
+	m := svm.NewMsg("Warp route transfer completed from origin: ")
+	m.U32(h.Origin)
+	m.Str(", recipient: ")
+	m.Key(solana.Key(c, recipient))
+	m.Str(", remote_amount: ")
+	m.U256((*[4]uint64)(&message.AmountOrID))
+	m.Emit(c)
 	return svm.Success
 }
 
@@ -671,7 +686,7 @@ func EnrollRemoteRouters[T any, P Plugin[T]](c solana.Context, configs []cc.Remo
 	if code := accesscontrol.EnsureOwnerSigner(c, tok.Owner, owner); code != svm.Success {
 		return code
 	}
-	tok.RemoteRouters = cc.EnrollRemoteRouters(tok.RemoteRouters, configs)
+	tok.RemoteRouters = cc.EnrollRemoteRouters(c, tok.RemoteRouters, configs)
 	return accountutils.StoreWithRentExemptRealloc(c, tokenAccount, tok, owner, systemProgram)
 }
 
@@ -689,7 +704,7 @@ func SetDestinationGasConfigs[T any, P Plugin[T]](c solana.Context, configs []cc
 	if code := accesscontrol.EnsureOwnerSigner(c, tok.Owner, owner); code != svm.Success {
 		return code
 	}
-	tok.DestinationGas = cc.SetDestinationGasConfigs(tok.DestinationGas, configs)
+	tok.DestinationGas = cc.SetDestinationGasConfigs(c, tok.DestinationGas, configs)
 	return accountutils.StoreWithRentExemptRealloc(c, tokenAccount, tok, owner, systemProgram)
 }
 
@@ -826,7 +841,27 @@ func SetFeeConfig[T any, P Plugin[T]](c solana.Context, feeConfig *borsh.Option[
 	if code := accountutils.EnsureNoExtraneousAccounts(&it); code != svm.Success {
 		return code
 	}
+	m := svm.NewMsg("Set fee config: OptionalDiscriminatedData(")
+	writeFeeConfigDebug(&m, &tok.FeeConfig)
+	m.Str(") -> ")
+	writeFeeConfigDebug(&m, feeConfig)
 	tok.FeeConfig = *feeConfig
-	// Rust logs "Set fee config: {:?} -> {:?}" after storing.
-	return accountutils.StoreWithRentExemptRealloc(c, tokenAccount, tok, owner, systemProgram)
+	if code := accountutils.StoreWithRentExemptRealloc(c, tokenAccount, tok, owner, systemProgram); code != svm.Success {
+		return code
+	}
+	m.Emit(c)
+	return svm.Success
+}
+
+// writeFeeConfigDebug appends {:?} of an Option<FeeConfig>.
+func writeFeeConfigDebug(m *svm.Msg, o *borsh.Option[FeeConfig]) {
+	if !o.Some {
+		m.Str("None")
+		return
+	}
+	m.Str("Some(FeeConfig { fee_program: ")
+	m.Pubkey(&o.Value.FeeProgram)
+	m.Str(", fee_account: ")
+	m.Pubkey(&o.Value.FeeAccount)
+	m.Str(" })")
 }
