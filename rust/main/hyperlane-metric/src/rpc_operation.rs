@@ -17,6 +17,8 @@ pub enum RpcOperation {
     Unattributed,
     /// Contract event cursor and range synchronization.
     ContractSync,
+    /// Relayer gas-payment cursor, range, and transaction synchronization.
+    GasPaymentSync,
     /// Periodic agent balance, block, and gas metrics.
     AgentMetrics,
     /// Validator checkpoint correctness and submission reads.
@@ -39,6 +41,7 @@ impl RpcOperation {
         match self {
             Self::Unattributed => "unattributed",
             Self::ContractSync => "contract_sync",
+            Self::GasPaymentSync => "gas_payment_sync",
             Self::AgentMetrics => "agent_metrics",
             Self::ValidatorCheckpoint => "validator_checkpoint",
             Self::RelayerDelivery => "relayer_delivery",
@@ -83,6 +86,19 @@ mod tests {
         })
         .await;
 
+        assert_eq!(current_rpc_operation(), RpcOperation::Unattributed);
+    }
+
+    #[tokio::test]
+    async fn gas_sync_scope_survives_yields_and_restores_after_error() {
+        assert_eq!(RpcOperation::GasPaymentSync.as_str(), "gas_payment_sync");
+        let result = with_rpc_operation(RpcOperation::GasPaymentSync, async {
+            tokio::task::yield_now().await;
+            assert_eq!(current_rpc_operation(), RpcOperation::GasPaymentSync);
+            Err::<(), _>("initialization failed")
+        })
+        .await;
+        assert!(result.is_err());
         assert_eq!(current_rpc_operation(), RpcOperation::Unattributed);
     }
 }
