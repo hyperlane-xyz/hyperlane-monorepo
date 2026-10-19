@@ -11,6 +11,7 @@ import (
 	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/hyperlane-core/merkle"
 	cc "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/hyperlane-sealevel-connection-client"
 	tokenlib "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/hyperlane-sealevel-token"
+	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/hyperlane-sealevel-token/collateral"
 	ism "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/interchain-security-module-interface"
 	recipient "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/message-recipient-interface"
 	packageversioned "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/package-versioned"
@@ -102,6 +103,7 @@ func Process(c solana.Context) uint64 {
 	if quoted, code := tokenlib.IgpQuoted(data); quoted || code != 0 {
 		return code
 	}
+	w.Raw(collateral.EscrowPDASeeds[2])
 	tix := new(tokenlib.Instruction)
 	if tokenlib.DecodeInstruction(data, tix) == 0 {
 		w.Raw(tokenlib.EncodeInstruction(tix))
