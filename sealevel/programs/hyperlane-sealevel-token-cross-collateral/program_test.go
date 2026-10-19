@@ -341,3 +341,66 @@ func TestRouterUpdatesModel(t *testing.T) {
 		}
 	}
 }
+
+// The Rust vectors (tools/rust-vectors cc.rs): every instruction shape
+// round-trips, the rejects are InvalidInstructionData, and non-canonical
+// state input stores as Rust's canonical encoding.
+func TestRustVectors(t *testing.T) {
+	vs := testvectors.Rust(t, "token-cross-collateral")
+	n := 0
+	for name, v := range vs {
+		data := v.Bytes(t)
+		if len(name) > 6 && name[:6] == "state_" {
+			continue
+		}
+		n++
+		ix := new(Instruction)
+		code := DecodeInstruction(data, ix)
+		if !v.OK {
+			if code != svm.InvalidInstructionData {
+				t.Errorf("%s: %#x", name, code)
+			}
+			continue
+		}
+		if code != 0 {
+			t.Errorf("%s: decode %#x", name, code)
+			continue
+		}
+		if got := EncodeInstruction(ix); !bytes.Equal(got, data) {
+			t.Errorf("%s: encode %x\nRust %x", name, got, data)
+		}
+	}
+	if n != 11 {
+		t.Errorf("%d instruction vectors", n)
+	}
+
+	// The local path's HandleLocal CPI data.
+	msg := hyperlanecore.TokenMessage{Recipient: h(6), AmountOrID: borsh.U256{123456789}}
+	ix := new(Instruction)
+	ix.Kind = KindHandleLocal
+	ix.Handle.SenderProgramID = svm.Pubkey{5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5}
+	ix.Handle.Message = msg.Encode()
+	if got := EncodeInstruction(ix); !bytes.Equal(got, vs["handle_local_cpi"].Bytes(t)) {
+		t.Errorf("handle_local_cpi %x", got)
+	}
+
+	s := new(CrossCollateralState)
+	c := solana.Context{Accounts: []solana.Account{{Data: vs["state_unsorted_input"].Bytes(t)}}}
+	if code := fetchState(c, 0, s); code != 0 {
+		t.Fatalf("unsorted fetch %#x", code)
+	}
+	want := vs["state_unsorted_canonical"].Bytes(t)
+	buf := make([]byte, len(want))
+	if !accountutils.StoreInSlice(buf, s) || !bytes.Equal(buf, want) || accountutils.AccountDataSize(s) != uint64(len(want)) {
+		t.Errorf("unsorted store %x\nRust %x", buf, want)
+	}
+	canonical := vs["state_canonical"].Bytes(t)
+	r := borsh.NewReader(canonical)
+	s = new(CrossCollateralState)
+	s.DecodeBorsh(&r)
+	w := borsh.NewWriter(len(canonical))
+	s.EncodeBorsh(&w)
+	if !r.Done() || !bytes.Equal(w.Bytes(), canonical) || s.Size() != len(canonical) {
+		t.Errorf("canonical %x", w.Bytes())
+	}
+}
