@@ -89,6 +89,13 @@ func Process(c solana.Context) uint64 {
 	if code != 0 {
 		return code
 	}
+	a := hyperlanecore.U256FromU128(uint64(len(m)), 0)
+	b, ok := hyperlanecore.U256CheckedMul(&a, &a)
+	b, ok2 := hyperlanecore.U256CheckedMulPow10(&b, 20)
+	b = hyperlanecore.U256DivPow10(&b, 21)
+	if n, fits := hyperlanecore.U256Uint64(&b); !ok || !ok2 || !fits || n > 9 || hyperlanecore.U256IsZero(&b) {
+		return 1
+	}
 	if len(m) > 9 || accountutils.InitState(c, 0, svm.ProgramID(c)) == accountutils.OwnerMismatch {
 		return 1
 	}
