@@ -30,6 +30,14 @@ elf_name() {
   sed -n 's/^name = "\(.*\)"/\1/p' "$manifest" | head -1 | tr - _
 }
 
+# Extra goSVM flags per program dir. -max-accounts 64 raises the incoming
+# account limit from 32: cross-collateral's transfer_remote takes 33.
+extra_flags() {
+  case "$1" in
+    hyperlane-sealevel-token-cross-collateral) echo "-max-accounts 64" ;;
+  esac
+}
+
 cd "$root"
 programs=()
 while IFS= read -r file; do
@@ -51,7 +59,8 @@ for profile in "${profiles[@]}"; do
   mkdir -p "$deploy" "$build"
   for rel in "${programs[@]}"; do
     name="$(elf_name "$rel")"
-    "$gosvm" -target "$profile" -o "$build/$name.so" "./programs/$rel"
+    # shellcheck disable=SC2046
+    "$gosvm" -target "$profile" $(extra_flags "$rel") -o "$build/$name.so" "./programs/$rel"
     cp "$build/$name.so" "$deploy/$name.so"
     chmod 644 "$deploy/$name.so"
     echo "$profile: programs/$rel -> target/$profile/deploy/$name.so"

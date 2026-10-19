@@ -52,7 +52,7 @@ and breaks that workspace's builds.
 
 ## goSVM pin
 
-- CLI: CrocSwap/goSVM `hyperlane-integration-2` (339c328bcbac09139269319d2dfeb47c85bf7049):
+- CLI: CrocSwap/goSVM `hyperlane-integration-2` (fe6d6b406ca1f5cf4cac17b97d583efc71b18788):
   v0.1.0-alpha.3 plus `GetReturnData`, `Secp256k1Recover`, `Keccak256`, the
   memmove fix, `MoveLamports`, `Log`/`Log64`/`LogPubkey`,
   `pda.Seeds.FindAddress`, `-max-accounts 64`, 64 CPI metas / 4 signer
