@@ -34,7 +34,7 @@ describe('USDT Eni production manifest', () => {
         'tron',
       ],
       withMetrics: true,
-      monitorOnly: true,
+      monitorOnly: false,
     });
     const rendered = execFileSync(
       'helm',
@@ -63,9 +63,12 @@ describe('USDT Eni production manifest', () => {
     const statefulSet = documents.find(
       (document) => document.kind === 'StatefulSet',
     );
+    expect(statefulSet.spec.template.spec.containers[0].image).to.equal(
+      'ghcr.io/hyperlane-xyz/hyperlane-node-services:90ddd17-20261019-160420',
+    );
     expect(statefulSet.spec.template.spec.containers[0].env).to.deep.include({
       name: 'MONITOR_ONLY',
-      value: 'true',
+      value: 'false',
     });
 
     const runtime = parse(
