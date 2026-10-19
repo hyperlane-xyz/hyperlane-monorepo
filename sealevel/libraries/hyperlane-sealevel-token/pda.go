@@ -57,10 +57,10 @@ func (s *StaticPDA) Verify(c solana.Context, i uint64, bump uint8, program *svm.
 	return s.buf, svm.Success
 }
 
-// Find is find_program_address: bumps 255..0, one syscall each.
+// Find is find_program_address: bumps 255..1, one syscall each.
 func (s *StaticPDA) Find(c solana.Context, program *svm.Pubkey) (svm.Pubkey, uint8, uint64) {
 	var address svm.Pubkey
-	for b := 255; b >= 0; b-- {
+	for b := 255; b >= 1; b-- {
 		group := s.Signer(uint8(b))[1:]
 		if solana.CreateAddress(c, group, program[:], address[:]) == 0 {
 			return address, uint8(b), svm.Success

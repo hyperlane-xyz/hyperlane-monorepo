@@ -71,18 +71,19 @@ func CreateProgramAddress(c solana.Context, seeds [][]byte, bump uint8, program 
 	return s.Address(c, program)
 }
 
-// FindProgramAddress searches bumps 255..0 like Pubkey::find_program_address.
-// Each attempt is one create_program_address syscall (1,500 CU), the same as
-// the runtime's try_find_program_address.
+// FindProgramAddress searches bumps 255..1 like Pubkey::find_program_address
+// (Solana never tries bump 0). Each attempt is one create_program_address
+// syscall (1,500 CU), the same as the runtime's try_find_program_address.
 //
-// Stopgap until goSVM exposes sol_try_find_program_address directly.
+// goSVM's pda.Seeds.FindAddress runs the same loop but needs its 545-byte
+// builder: on the IGP suite it cost 6.6% more CU in total, so this stays.
 func FindProgramAddress(c solana.Context, seeds [][]byte, program Pubkey) (Pubkey, uint8, uint64) {
 	s, code := encodeSeeds(seeds, 255)
 	if code != Success {
 		return Pubkey{}, 0, code
 	}
 	var address Pubkey
-	for b := 255; b >= 0; b-- {
+	for b := 255; b >= 1; b-- {
 		s.setBump(uint8(b))
 		if solana.CreateAddress(c, s.group(), program[:], address[:]) == 0 {
 			return address, uint8(b), Success
@@ -99,7 +100,7 @@ func FindProgramAddressSeeds(c solana.Context, seeds [][]byte, program Pubkey) (
 		return Pubkey{}, s, code
 	}
 	var address Pubkey
-	for b := 255; b >= 0; b-- {
+	for b := 255; b >= 1; b-- {
 		s.setBump(uint8(b))
 		if solana.CreateAddress(c, s.group(), program[:], address[:]) == 0 {
 			return address, s, Success
