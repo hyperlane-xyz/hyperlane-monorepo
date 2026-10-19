@@ -80,6 +80,12 @@ impl Chain {
 
 #[async_trait]
 impl Source for Chain {
+    async fn canonical_header(&self, height: u64) -> Result<Option<Header>> {
+        if !self.headers.lock().unwrap().contains_key(&height) {
+            return Ok(None);
+        }
+        Ok(Some(self.header(height.into()).await?))
+    }
     async fn counts(&self, hash: H256) -> Result<Option<[u32; 2]>> {
         let headers = self.headers.lock().unwrap();
         let header = headers
@@ -1000,6 +1006,35 @@ async fn ranges_use_sparse_headers_and_reject_fork_changes() -> Result<()> {
     assert_eq!(count(&store, "block").await?, 1); // Event blocks only.
                                                   // Exact confirmed boundary remains the deep-reorg stop, despite sparse headers.
     chain.fork(1000, 40, 20);
+    assert!(observe(&chain, &store).await.is_err());
+    assert!(store.state().await?.unwrap().halted);
+    Ok(())
+}
+
+#[tokio::test]
+async fn recovery_rewinds_deleted_slots_but_halts_at_published_history() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    migration::Migrator::up(&db, None).await?;
+    let store = Store { db, domain: 1 };
+    let chain = Chain::new(3);
+    store
+        .initialize(&chain.header(0u64.into()).await?, &contracts())
+        .await?;
+    ingest_head(&chain, &store).await?;
+    confirm(&chain, &store, &ReorgPeriod::from_blocks(2)).await?;
+    chain.fork(4, 1, 1);
+    chain.headers.lock().unwrap().remove(&3);
+    let state = observe(&chain, &store).await?;
+    assert_eq!(state.indexed, 1);
+    assert!(!state.halted);
+    assert_eq!(count(&store, "gas_payment").await?, 0);
+    // A published slot disappearing cannot be automatically retracted.
+    chain.headers.lock().unwrap().remove(&1);
     assert!(observe(&chain, &store).await.is_err());
     assert!(store.state().await?.unwrap().halted);
     Ok(())
