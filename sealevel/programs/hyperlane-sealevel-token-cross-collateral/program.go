@@ -96,11 +96,11 @@ func Process(c solana.Context) uint64 {
 // expectUninitializedPDA is the Rust init sequence for one PDA: canonical
 // key (InvalidArgument), then empty and system-owned
 // (AccountAlreadyInitialized).
-func expectUninitializedPDA(c solana.Context, i uint64, key svm.Pubkey) uint64 {
-	if !svm.KeyIs(c, i, key) {
+func expectUninitializedPDA(c solana.Context, i uint64, key *svm.Pubkey) uint64 {
+	if !tokenlib.KeyEq(c, i, key) {
 		return svm.InvalidArgument
 	}
-	if !svm.DataIsEmpty(c, i) || !svm.OwnerIs(c, i, svm.SystemProgramID) {
+	if !svm.DataIsEmpty(c, i) || !tokenlib.OwnerEq(c, i, &svm.SystemProgramID) {
 		return svm.AccountAlreadyInitialized
 	}
 	return svm.Success
@@ -121,7 +121,7 @@ func initialize(c solana.Context, init *tokenlib.Init) uint64 {
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, systemProgram, svm.SystemProgramID) {
+	if !tokenlib.KeyEq(c, systemProgram, &svm.SystemProgramID) {
 		return svm.IncorrectProgramID
 	}
 
@@ -133,7 +133,7 @@ func initialize(c solana.Context, init *tokenlib.Init) uint64 {
 	if code != svm.Success {
 		return code
 	}
-	if code := expectUninitializedPDA(c, tokenAccount, tokenKey); code != svm.Success {
+	if code := expectUninitializedPDA(c, tokenAccount, &tokenKey); code != svm.Success {
 		return code
 	}
 
@@ -145,7 +145,7 @@ func initialize(c solana.Context, init *tokenlib.Init) uint64 {
 	if code != svm.Success {
 		return code
 	}
-	if code := expectUninitializedPDA(c, dispatchAuthority, dispatchKey); code != svm.Success {
+	if code := expectUninitializedPDA(c, dispatchAuthority, &dispatchKey); code != svm.Success {
 		return code
 	}
 
@@ -175,7 +175,7 @@ func initialize(c solana.Context, init *tokenlib.Init) uint64 {
 	if code != svm.Success {
 		return code
 	}
-	if code := expectUninitializedPDA(c, stateAccount, stateKey); code != svm.Success {
+	if code := expectUninitializedPDA(c, stateAccount, &stateKey); code != svm.Success {
 		return code
 	}
 
@@ -187,7 +187,7 @@ func initialize(c solana.Context, init *tokenlib.Init) uint64 {
 	if code != svm.Success {
 		return code
 	}
-	if code := expectUninitializedPDA(c, ccDispatchAuthority, ccDispatchKey); code != svm.Success {
+	if code := expectUninitializedPDA(c, ccDispatchAuthority, &ccDispatchKey); code != svm.Success {
 		return code
 	}
 
@@ -248,7 +248,7 @@ func setCrossCollateralRouters(c solana.Context, updates []CrossCollateralRouter
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, systemProgram, svm.SystemProgramID) {
+	if !tokenlib.KeyEq(c, systemProgram, &svm.SystemProgramID) {
 		return svm.IncorrectProgramID
 	}
 	stateAccount, code := it.Next()
@@ -308,7 +308,7 @@ func transferRemoteTo(c solana.Context, xfer *TransferRemoteTo) uint64 {
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, systemProgram, svm.SystemProgramID) {
+	if !tokenlib.KeyEq(c, systemProgram, &svm.SystemProgramID) {
 		return svm.IncorrectProgramID
 	}
 	tokenAccount, code := it.Next()
@@ -346,7 +346,7 @@ func transferRemoteToRemote(c solana.Context, programID *svm.Pubkey, tok *Token,
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, noop, accountutils.SPLNoopProgramID) {
+	if !tokenlib.KeyEq(c, noop, &accountutils.SPLNoopProgramID) {
 		return svm.InvalidArgument
 	}
 	_, code = tokenlib.TransferRemoteTo(c, programID, tok, systemProgram, noop, it, xfer.DestinationDomain, &xfer.Recipient, &xfer.TargetRouter, xfer.AmountOrID, nil)
@@ -373,16 +373,11 @@ func transferRemoteToLocal(c solana.Context, programID *svm.Pubkey, tok *Token, 
 	if code != svm.Success {
 		return code
 	}
-	seeds := new(svm.Seeds)
-	*seeds, code = svm.NewSeeds(CrossCollateralDispatchAuthorityPDASeeds, state.DispatchAuthorityBump)
+	expected, code := ccDispatchAuthorityPDA.Address(c, state.DispatchAuthorityBump, programID)
 	if code != svm.Success {
 		return code
 	}
-	expected, code := seeds.Address(c, *programID)
-	if code != svm.Success {
-		return code
-	}
-	if !svm.KeyIs(c, ccDispatchAuthority, expected) {
+	if !tokenlib.KeyEq(c, ccDispatchAuthority, &expected) {
 		return ErrInvalidDispatchAuthority
 	}
 
@@ -390,7 +385,7 @@ func transferRemoteToLocal(c solana.Context, programID *svm.Pubkey, tok *Token, 
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, target, xfer.TargetRouter) {
+	if !tokenlib.KeyEq(c, target, &xfer.TargetRouter) {
 		return svm.InvalidArgument
 	}
 	if !solana.Executable(c, target) {
@@ -429,7 +424,7 @@ func transferRemoteToLocal(c solana.Context, programID *svm.Pubkey, tok *Token, 
 		i, _ := it.Next()
 		metas = appendMeta(metas, i, solana.Writable(c, i), false)
 	}
-	return solana.Invoke(c, target, metas, data, seeds.SignerBytes())
+	return solana.Invoke(c, target, metas, data, ccDispatchAuthorityPDA.Signer(state.DispatchAuthorityBump))
 	// Rust logs "CC same-chain transfer completed to target: ..." here.
 }
 
@@ -456,7 +451,7 @@ func transferOut(c solana.Context, programID *svm.Pubkey, tok *Token, systemProg
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, recipientWallet, message.Recipient) {
+	if !tokenlib.KeyEq(c, recipientWallet, &message.Recipient) {
 		return svm.InvalidArgument
 	}
 	local, code := tok.RemoteAmountToLocalAmount(message.AmountOrID)
@@ -479,7 +474,7 @@ func loadTokenAndState(c solana.Context, programID *svm.Pubkey, it *svm.AccountI
 	if code != svm.Success {
 		return 0, code
 	}
-	if !svm.KeyIs(c, systemProgram, svm.SystemProgramID) {
+	if !tokenlib.KeyEq(c, systemProgram, &svm.SystemProgramID) {
 		return 0, svm.IncorrectProgramID
 	}
 	tokenAccount, code := it.Next()
@@ -522,7 +517,7 @@ func transferFromRemote(c solana.Context, h *recipient.HandleInstruction) uint64
 	if code != svm.Success {
 		return code
 	}
-	if code := cc.EnsureMailboxProcessAuthoritySigner(c, tok.MailboxProcessAuthority, processAuthority); code != svm.Success {
+	if code := cc.EnsureMailboxProcessAuthoritySigner(c, &tok.MailboxProcessAuthority, processAuthority); code != svm.Success {
 		return code
 	}
 	if h.Origin == state.LocalDomain {
@@ -566,13 +561,13 @@ func handleMetas(c solana.Context, body []byte, sender *svm.Pubkey) uint64 {
 	if code != svm.Success {
 		return code
 	}
-	stateKey, _, code := svm.FindProgramAddress(c, CrossCollateralPDASeeds, programID)
+	stateKey, _, code := ccStatePDA.Find(c, &programID)
 	if code != svm.Success {
 		return code
 	}
 	metas := make([]accountmeta.SerializableAccountMeta, 0, 5+len(pluginMetas))
 	if sender != nil {
-		senderAuthority, _, code := svm.FindProgramAddress(c, CrossCollateralDispatchAuthorityPDASeeds, *sender)
+		senderAuthority, _, code := ccDispatchAuthorityPDA.Find(c, sender)
 		if code != svm.Success {
 			return code
 		}
@@ -603,11 +598,11 @@ func handleLocal(c solana.Context, h *HandleLocal) uint64 {
 	if code != svm.Success {
 		return code
 	}
-	expected, _, code := svm.FindProgramAddress(c, CrossCollateralDispatchAuthorityPDASeeds, h.SenderProgramID)
+	expected, _, code := ccDispatchAuthorityPDA.Find(c, &h.SenderProgramID)
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, signer, expected) {
+	if !tokenlib.KeyEq(c, signer, &expected) {
 		return ErrInvalidDispatchAuthority
 	}
 	if !solana.Signer(c, signer) {

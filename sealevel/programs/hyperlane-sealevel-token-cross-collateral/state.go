@@ -5,6 +5,7 @@ import (
 	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/borsh"
 	hyperlanecore "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/hyperlane-core"
 	cc "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/hyperlane-sealevel-connection-client"
+	tokenlib "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/hyperlane-sealevel-token"
 	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/svm"
 	"gosvm/solana"
 )
@@ -22,6 +23,12 @@ const (
 var (
 	CrossCollateralPDASeeds                  = [][]byte{[]byte("hyperlane_token"), []byte("-"), []byte("cross_collateral")}
 	CrossCollateralDispatchAuthorityPDASeeds = [][]byte{[]byte("hyperlane_cc"), []byte("-"), []byte("dispatch_authority")}
+)
+
+// Pre-encoded signer groups for the constant-seed PDAs above.
+var (
+	ccStatePDA             = tokenlib.NewStaticPDA(CrossCollateralPDASeeds)
+	ccDispatchAuthorityPDA = tokenlib.NewStaticPDA(CrossCollateralDispatchAuthorityPDASeeds)
 )
 
 // RouterSet is one domain's BTreeSet<H256>, sorted and unique. It is a
@@ -178,14 +185,14 @@ func VerifyStateAndFetch(c solana.Context, programID *svm.Pubkey, i uint64, s *C
 	if code := fetchState(c, i, s); code != svm.Success {
 		return code
 	}
-	expected, code := svm.CreateProgramAddress(c, CrossCollateralPDASeeds, s.Bump, *programID)
+	expected, code := ccStatePDA.Address(c, s.Bump, programID)
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, i, expected) {
+	if !tokenlib.KeyEq(c, i, &expected) {
 		return svm.InvalidArgument
 	}
-	if !svm.OwnerIs(c, i, *programID) {
+	if !tokenlib.OwnerEq(c, i, programID) {
 		return svm.IncorrectProgramID
 	}
 	return svm.Success
