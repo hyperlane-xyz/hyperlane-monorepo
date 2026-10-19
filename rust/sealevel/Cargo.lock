@@ -3620,6 +3620,7 @@ dependencies = [
  "num-traits",
  "package-versioned",
  "proc-macro-crate 3.2.0",
+ "rand 0.8.5",
  "serde",
  "serializable-account-meta",
  "solana-program 3.0.0",

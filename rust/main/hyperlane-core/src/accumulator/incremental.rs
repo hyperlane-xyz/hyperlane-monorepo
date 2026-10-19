@@ -46,6 +46,9 @@ impl Default for IncrementalMerkle {
 }
 
 impl IncrementalMerkle {
+    /// Length of the borsh encoding: the branch, then `count` as a u64.
+    pub const ENCODED_LEN: usize = TREE_DEPTH * 32 + 8;
+
     /// Ingest a leaf into the tree.
     pub fn ingest(&mut self, element: H256) {
         let mut node = element;
@@ -58,6 +61,32 @@ impl IncrementalMerkle {
                 return;
             }
             node = hash_concat(self.branch[i], node);
+            size /= 2;
+        }
+    }
+
+    /// Ingest a leaf into a tree held in its borsh encoding (`branch`, then
+    /// `count` as a little-endian u64), leaving the bytes exactly as
+    /// `ingest` followed by re-serialization would. Only the count and the one
+    /// branch node that changes are written, and only the nodes that get
+    /// hashed are read, so on-chain callers can skip (de)serializing the tree.
+    pub fn ingest_encoded(encoded: &mut [u8; Self::ENCODED_LEN], element: H256) {
+        let (branch, count) = encoded.split_at_mut(TREE_DEPTH * 32);
+        let mut count_bytes = [0u8; 8];
+        count_bytes.copy_from_slice(count);
+        let old_count = u64::from_le_bytes(count_bytes);
+        assert!(old_count < u64::from(u32::MAX));
+        let new_count = old_count.saturating_add(1);
+        count.copy_from_slice(&new_count.to_le_bytes());
+
+        let mut node = element;
+        let mut size = new_count;
+        for stored in branch.chunks_exact_mut(32) {
+            if (size & 1) == 1 {
+                stored.copy_from_slice(node.as_bytes());
+                return;
+            }
+            node = hash_concat(&*stored, node);
             size /= 2;
         }
     }
@@ -171,6 +200,32 @@ impl MerkleTreeSnapshot {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn ingest_encoded_matches_ingest() {
+        use rand::{rngs::StdRng, Rng, SeedableRng};
+        let mut rng = StdRng::seed_from_u64(0x0b0c);
+        for _ in 0..50 {
+            // Random frontier and count, including counts near carry chains.
+            let mut tree = IncrementalMerkle::default();
+            for node in tree.branch.iter_mut() {
+                *node = H256(rng.gen());
+            }
+            tree.count = match rng.gen_range(0..3) {
+                0 => rng.gen_range(0..1_000),
+                1 => (1usize << rng.gen_range(1..31)) - 1,
+                _ => rng.gen_range(0..u32::MAX as usize - 300),
+            };
+            let mut encoded: [u8; IncrementalMerkle::ENCODED_LEN] =
+                borsh::to_vec(&tree).unwrap().try_into().unwrap();
+            for _ in 0..200 {
+                let leaf = H256(rng.gen());
+                tree.ingest(leaf);
+                IncrementalMerkle::ingest_encoded(&mut encoded, leaf);
+                assert_eq!(encoded.as_slice(), borsh::to_vec(&tree).unwrap());
+            }
+        }
+    }
 
     #[test]
     #[ignore = "Local replay CPU benchmark; run with --ignored --nocapture"]
