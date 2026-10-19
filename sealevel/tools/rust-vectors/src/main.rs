@@ -21,6 +21,8 @@ use serde_json::{json, Map, Value};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::pubkey::Pubkey;
 
+mod va_multisig;
+
 fn hex(b: &[u8]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
 }
@@ -710,7 +712,7 @@ mod composite {
 }
 
 fn main() {
-    let out = json!({
+    let mut out = json!({
         "borsh": Value::Object(borsh_group().0),
         "account-utils": Value::Object(account_utils_group().0),
         "interfaces": Value::Object(interfaces_group().0),
@@ -718,5 +720,6 @@ fn main() {
         "svm": Value::Object(svm_group().0),
         "composite-ism": Value::Object(composite_group().0),
     });
+    va_multisig::extend(&mut out);
     println!("{}", serde_json::to_string_pretty(&out).unwrap());
 }
