@@ -20,6 +20,7 @@ import { ethers } from 'ethers';
 import { pino } from 'pino';
 import sinon from 'sinon';
 
+import { ChainDisabledReason, ChainStatus } from '@hyperlane-xyz/sdk';
 import {
   TronJsonRpcProvider,
   TronWallet,
@@ -124,6 +125,42 @@ const BSC_TO_TRON_PARAMS: BridgeQuoteParams = {
   fromAddress: SIGNER_ADDRESS,
   toAddress: formatAddressForDebridge(SIGNER_ADDRESS, DEBRIDGE_TRON_CHAIN_ID),
 };
+
+describe('DeBridgeBridge constructor', () => {
+  it('ignores duplicate chain IDs for disabled metadata', () => {
+    const disabledMetadata = {
+      ...BRIDGE_CONFIG.chainMetadata!.bsc,
+      chainId: 41455,
+      availability: {
+        status: ChainStatus.Disabled,
+        reasons: [ChainDisabledReason.Deprecated],
+      },
+    };
+
+    expect(
+      () =>
+        new DeBridgeBridge(
+          {
+            ...BRIDGE_CONFIG,
+            chainMetadata: {
+              ...BRIDGE_CONFIG.chainMetadata,
+              disabledA: {
+                ...disabledMetadata,
+                name: 'disabledA',
+                domainId: 41455,
+              },
+              disabledB: {
+                ...disabledMetadata,
+                name: 'disabledB',
+                domainId: 1000041455,
+              },
+            },
+          },
+          logger,
+        ),
+    ).not.to.throw();
+  });
+});
 
 function makeSolanaParams(signer: Keypair): BridgeQuoteParams {
   return {
