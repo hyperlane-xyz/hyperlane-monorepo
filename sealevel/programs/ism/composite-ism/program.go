@@ -16,6 +16,7 @@ import (
 	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/borsh"
 	hyperlanecore "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/hyperlane-core"
 	ism "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/interchain-security-module-interface"
+	packageversioned "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/package-versioned"
 	accountmeta "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/serializable-account-meta"
 	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/svm"
 	"gosvm/solana"
@@ -31,17 +32,11 @@ var (
 // BPFLoaderUpgradeableID is BPFLoaderUpgradeab1e11111111111111111111111.
 var BPFLoaderUpgradeableID = svm.Pubkey{2, 168, 246, 145, 78, 136, 161, 176, 226, 16, 21, 62, 247, 99, 174, 43, 0, 194, 185, 61, 22, 193, 36, 210, 192, 83, 122, 16, 4, 128, 0, 0}
 
-// package_versioned's GetProgramVersion discriminator and PACKAGE_VERSION.
-const (
-	getProgramVersion = "\x96\xe6\xb0\xa2\xec\x60\xb7\xab"
-	packageVersion    = "1.0.0"
-)
-
 // Process is the program entrypoint (processor::process_instruction).
 func Process(c solana.Context) uint64 {
 	data := solana.Instruction(c)
-	if string(data) == getProgramVersion {
-		return getVersion(c)
+	if packageversioned.IsGetProgramVersion(data) {
+		return packageversioned.ProcessGetProgramVersion(c)
 	}
 	if ix, code := ism.Decode(data); code == svm.Success {
 		if ix.Kind == ism.KindType {
@@ -81,14 +76,6 @@ func Process(c solana.Context) uint64 {
 		return setPaused(c, true)
 	}
 	return setPaused(c, false)
-}
-
-func getVersion(c solana.Context) uint64 {
-	var b [4 + len(packageVersion) + 1]byte
-	b[0] = byte(len(packageVersion))
-	copy(b[4:], packageVersion)
-	b[len(b)-1] = accountmeta.SimulationReturnDataTrailer
-	return solana.SetReturnData(c, b[:])
 }
 
 func returnU32(c solana.Context, v uint32) uint64 {
