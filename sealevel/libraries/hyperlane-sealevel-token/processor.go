@@ -191,10 +191,10 @@ func TransferRemoteWithMemo[T any, P Plugin[T]](c solana.Context, xfer *Transfer
 
 // igpPayment holds the deferred PayForGas CPI.
 type igpPayment struct {
-	program uint64
-	metas   *svm.Metas
-	quoted  bool
-	seeds   svm.Seeds
+	program            uint64
+	metas              *svm.Metas
+	quoted             bool
+	quoteAuthorityBump uint8
 }
 
 // TransferRemoteTo is HyperlaneSealevelToken::transfer_remote_to: validate the
@@ -223,11 +223,7 @@ func TransferRemoteTo[T any, P Plugin[T]](c solana.Context, programID *svm.Pubke
 	if code != svm.Success {
 		return zero, code
 	}
-	dispatchSeeds, code := svm.NewSeeds(MailboxDispatchAuthorityPDASeeds, tok.DispatchAuthorityBump)
-	if code != svm.Success {
-		return zero, code
-	}
-	dispatchKey, code := dispatchSeeds.Address(c, *programID)
+	dispatchKey, code := DispatchAuthorityPDA.Address(c, tok.DispatchAuthorityBump, programID)
 	if code != svm.Success {
 		return zero, code
 	}
@@ -289,7 +285,7 @@ func TransferRemoteTo[T any, P Plugin[T]](c solana.Context, programID *svm.Pubke
 	metas.Add(sender, true, true)
 	metas.Add(uniqueMessage, false, true)
 	metas.Add(dispatchedMessage, true, false)
-	if code := svm.Invoke(c, mailbox, metas, data, &dispatchSeeds); code != svm.Success {
+	if code := InvokeSigned(c, mailbox, metas, data, DispatchAuthorityPDA.Signer(tok.DispatchAuthorityBump)); code != svm.Success {
 		return zero, code
 	}
 
@@ -309,11 +305,11 @@ func TransferRemoteTo[T any, P Plugin[T]](c solana.Context, programID *svm.Pubke
 			return zero, svm.InvalidArgument
 		}
 		pay := cc.PayForGasData(messageID, destination, gas)
-		var seeds *svm.Seeds
+		var signer []byte
 		if igp.quoted {
-			seeds = &igp.seeds
+			signer = IgpQuoteAuthorityPDA.Signer(igp.quoteAuthorityBump)
 		}
-		if code := svm.Invoke(c, igp.program, igp.metas, pay, seeds); code != svm.Success {
+		if code := InvokeSigned(c, igp.program, igp.metas, pay, signer); code != svm.Success {
 			return zero, code
 		}
 	}
@@ -386,7 +382,7 @@ func parseIGPAccounts(c solana.Context, programID *svm.Pubkey, cfg *cc.IGPConfig
 	m.Add(paying, true, false)
 
 	if quoted {
-		authorityKey, seeds, code := svm.FindProgramAddressSeeds(c, IgpQuoteAuthorityPDASeeds, *programID)
+		authorityKey, authorityBump, code := IgpQuoteAuthorityPDA.Find(c, programID)
 		if code != svm.Success {
 			return nil, code
 		}
@@ -417,7 +413,7 @@ func parseIGPAccounts(c solana.Context, programID *svm.Pubkey, cfg *cc.IGPConfig
 			}
 		}
 		p.quoted = true
-		p.seeds = seeds
+		p.quoteAuthorityBump = authorityBump
 	} else if len(pre) != 0 {
 		return nil, svm.InvalidArgument
 	}
@@ -749,7 +745,8 @@ func InterchainSecurityModule[T any, P Plugin[T]](c solana.Context) uint64 {
 // InterchainSecurityModuleAccountMetas returns [token PDA] as the ISM getter's
 // accounts. No accounts.
 func InterchainSecurityModuleAccountMetas(c solana.Context) uint64 {
-	key, _, code := svm.FindProgramAddress(c, TokenPDASeeds, svm.ProgramID(c))
+	programID := svm.ProgramID(c)
+	key, _, code := TokenPDA.Find(c, &programID)
 	if code != svm.Success {
 		return code
 	}

@@ -21,6 +21,11 @@ var (
 	ATAPayerPDASeeds = [][]byte{[]byte("hyperlane_token"), []byte("-"), []byte("ata_payer")}
 )
 
+var (
+	escrowPDA   = tokenlib.NewStaticPDA(EscrowPDASeeds)
+	ataPayerPDA = tokenlib.NewStaticPDA(ATAPayerPDASeeds)
+)
+
 // CollateralPlugin is plugin::CollateralPlugin.
 type CollateralPlugin struct {
 	SPLTokenProgram svm.Pubkey
@@ -50,21 +55,6 @@ func (p *CollateralPlugin) Size() int { return 32 + 32 + 32 + 1 + 1 }
 
 // Token is a HyperlaneToken with collateral plugin data.
 type Token = tokenlib.HyperlaneToken[CollateralPlugin, *CollateralPlugin]
-
-func (p *CollateralPlugin) verifyATAPayer(c solana.Context, programID *svm.Pubkey, i uint64) (svm.Seeds, uint64) {
-	seeds, code := svm.NewSeeds(ATAPayerPDASeeds, p.ATAPayerBump)
-	if code != svm.Success {
-		return seeds, code
-	}
-	expected, code := seeds.Address(c, *programID)
-	if code != svm.Success {
-		return seeds, code
-	}
-	if !svm.KeyIs(c, i, expected) {
-		return seeds, svm.InvalidArgument
-	}
-	return seeds, svm.Success
-}
 
 // Initialize creates and initializes the escrow token account and the ATA
 // payer PDA.
@@ -276,7 +266,7 @@ func (p *CollateralPlugin) TransferOut(c solana.Context, programID *svm.Pubkey, 
 	if code != svm.Success {
 		return code
 	}
-	ataPayerSeeds, code := p.verifyATAPayer(c, programID, ataPayer)
+	ataPayerSigner, code := ataPayerPDA.Verify(c, ataPayer, p.ATAPayerBump, programID)
 	if code != svm.Success {
 		return code
 	}
@@ -287,23 +277,19 @@ func (p *CollateralPlugin) TransferOut(c solana.Context, programID *svm.Pubkey, 
 	if !svm.KeyIs(c, escrow, p.Escrow) {
 		return svm.IncorrectProgramID
 	}
-	if code := tokenlib.CreateAssociatedTokenAccountIdempotent(c, ataProgram, ataPayer, recipientATA, recipient, mint, systemProgram, tokenProgram, &ataPayerSeeds); code != svm.Success {
+	if code := tokenlib.CreateAssociatedTokenAccountIdempotent(c, ataProgram, ataPayer, recipientATA, recipient, mint, systemProgram, tokenProgram, ataPayerSigner); code != svm.Success {
 		return code
 	}
 	if code := accountutils.VerifyRentExempt(c, ataPayer); code != svm.Success {
 		return code
 	}
-	escrowSeeds, code := svm.NewSeeds(EscrowPDASeeds, p.EscrowBump)
-	if code != svm.Success {
-		return code
-	}
-	return tokenlib.TransferChecked(c, tokenProgram, escrow, mint, recipientATA, escrow, amount, decimals, &escrowSeeds)
+	return tokenlib.TransferChecked(c, tokenProgram, escrow, mint, recipientATA, escrow, amount, decimals, escrowPDA.Signer(p.EscrowBump))
 }
 
 // TransferOutAccountMetas returns TransferOut's accounts; the recipient need
 // not be writable.
 func (p *CollateralPlugin) TransferOutAccountMetas(c solana.Context, programID *svm.Pubkey, recipient *hyperlanecore.H256) ([]accountmeta.SerializableAccountMeta, bool, uint64) {
-	ataPayer, code := svm.CreateProgramAddress(c, ATAPayerPDASeeds, p.ATAPayerBump, *programID)
+	ataPayer, code := ataPayerPDA.Address(c, p.ATAPayerBump, programID)
 	if code != svm.Success {
 		return nil, false, code
 	}

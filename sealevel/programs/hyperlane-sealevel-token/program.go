@@ -20,6 +20,11 @@ var (
 	ATAPayerPDASeeds = [][]byte{[]byte("hyperlane_token"), []byte("-"), []byte("ata_payer")}
 )
 
+var (
+	mintPDA     = tokenlib.NewStaticPDA(MintPDASeeds)
+	ataPayerPDA = tokenlib.NewStaticPDA(ATAPayerPDASeeds)
+)
+
 // MintAccountSize is SyntheticPlugin::MINT_ACCOUNT_SIZE: a Token-2022 mint
 // with the MetadataPointer extension.
 const MintAccountSize = 234
@@ -52,38 +57,19 @@ type Token = tokenlib.HyperlaneToken[SyntheticPlugin, *SyntheticPlugin]
 func Process(c solana.Context) uint64 { return tokenlib.Process[SyntheticPlugin](c) }
 
 // verifyMint checks the mint PDA (InvalidArgument) and its Token-2022 owner
-// (IncorrectProgramId), returning its signer seeds.
-func (p *SyntheticPlugin) verifyMint(c solana.Context, programID *svm.Pubkey, i uint64) (svm.Seeds, uint64) {
-	seeds, code := svm.NewSeeds(MintPDASeeds, p.MintBump)
+// (IncorrectProgramId), returning its signer bytes.
+func (p *SyntheticPlugin) verifyMint(c solana.Context, programID *svm.Pubkey, i uint64) ([]byte, uint64) {
+	signer, code := mintPDA.Verify(c, i, p.MintBump, programID)
 	if code != svm.Success {
-		return seeds, code
+		return nil, code
 	}
-	expected, code := seeds.Address(c, *programID)
-	if code != svm.Success {
-		return seeds, code
-	}
-	if !svm.KeyIs(c, i, expected) || !svm.KeyIs(c, i, p.Mint) {
-		return seeds, svm.InvalidArgument
+	if !svm.KeyIs(c, i, p.Mint) {
+		return nil, svm.InvalidArgument
 	}
 	if !svm.OwnerIs(c, i, tokenlib.SPLToken2022ProgramID) {
-		return seeds, svm.IncorrectProgramID
+		return nil, svm.IncorrectProgramID
 	}
-	return seeds, svm.Success
-}
-
-func (p *SyntheticPlugin) verifyATAPayer(c solana.Context, programID *svm.Pubkey, i uint64) (svm.Seeds, uint64) {
-	seeds, code := svm.NewSeeds(ATAPayerPDASeeds, p.ATAPayerBump)
-	if code != svm.Success {
-		return seeds, code
-	}
-	expected, code := seeds.Address(c, *programID)
-	if code != svm.Success {
-		return seeds, code
-	}
-	if !svm.KeyIs(c, i, expected) {
-		return seeds, svm.InvalidArgument
-	}
-	return seeds, svm.Success
+	return signer, svm.Success
 }
 
 func token2022(c solana.Context, i uint64) bool {
@@ -198,7 +184,7 @@ func (p *SyntheticPlugin) TransferOut(c solana.Context, programID *svm.Pubkey, d
 	if code != svm.Success {
 		return code
 	}
-	mintSeeds, code := p.verifyMint(c, programID, mint)
+	_, code = p.verifyMint(c, programID, mint)
 	if code != svm.Success {
 		return code
 	}
@@ -219,23 +205,23 @@ func (p *SyntheticPlugin) TransferOut(c solana.Context, programID *svm.Pubkey, d
 	if code != svm.Success {
 		return code
 	}
-	ataPayerSeeds, code := p.verifyATAPayer(c, programID, ataPayer)
+	ataPayerSigner, code := ataPayerPDA.Verify(c, ataPayer, p.ATAPayerBump, programID)
 	if code != svm.Success {
 		return code
 	}
-	if code := tokenlib.CreateAssociatedTokenAccountIdempotent(c, ataProgram, ataPayer, recipientATA, recipient, mint, systemProgram, tokenProgram, &ataPayerSeeds); code != svm.Success {
+	if code := tokenlib.CreateAssociatedTokenAccountIdempotent(c, ataProgram, ataPayer, recipientATA, recipient, mint, systemProgram, tokenProgram, ataPayerSigner); code != svm.Success {
 		return code
 	}
 	if code := accountutils.VerifyRentExempt(c, ataPayer); code != svm.Success {
 		return code
 	}
-	return tokenlib.MintToChecked(c, tokenProgram, mint, recipientATA, mint, amount, decimals, &mintSeeds)
+	return tokenlib.MintToChecked(c, tokenProgram, mint, recipientATA, mint, amount, decimals, mintPDA.Signer(p.MintBump))
 }
 
 // TransferOutAccountMetas returns TransferOut's accounts; the recipient need
 // not be writable.
 func (p *SyntheticPlugin) TransferOutAccountMetas(c solana.Context, programID *svm.Pubkey, recipient *hyperlanecore.H256) ([]accountmeta.SerializableAccountMeta, bool, uint64) {
-	ataPayer, code := svm.CreateProgramAddress(c, ATAPayerPDASeeds, p.ATAPayerBump, *programID)
+	ataPayer, code := ataPayerPDA.Address(c, p.ATAPayerBump, programID)
 	if code != svm.Success {
 		return nil, false, code
 	}

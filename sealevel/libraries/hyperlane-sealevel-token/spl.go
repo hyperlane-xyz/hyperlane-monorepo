@@ -74,25 +74,26 @@ func InitializeAccountData() [1]byte { return [1]byte{splInitializeAccount} }
 func CreateIdempotentData() [1]byte { return [1]byte{ataCreateIdempotent} }
 
 // TransferChecked CPIs transfer_checked(source, mint, destination, authority,
-// &[]) with authority signing: the transaction signer, or a PDA with seeds.
-func TransferChecked(c solana.Context, tokenProgram, source, mint, destination, authority uint64, amount uint64, decimals uint8, seeds *svm.Seeds) uint64 {
+// &[]) with authority signing: the transaction signer (signer nil), or a
+// PDA (its signer bytes).
+func TransferChecked(c solana.Context, tokenProgram, source, mint, destination, authority uint64, amount uint64, decimals uint8, signer []byte) uint64 {
 	metas := new(svm.Metas)
 	metas.Add(source, true, false)
 	metas.Add(mint, false, false)
 	metas.Add(destination, true, false)
 	metas.Add(authority, false, true)
 	d := TransferCheckedData(amount, decimals)
-	return svm.Invoke(c, tokenProgram, metas, d[:], seeds)
+	return InvokeSigned(c, tokenProgram, metas, d[:], signer)
 }
 
 // MintToChecked CPIs mint_to_checked(mint, account, authority, &[]).
-func MintToChecked(c solana.Context, tokenProgram, mint, account, authority uint64, amount uint64, decimals uint8, seeds *svm.Seeds) uint64 {
+func MintToChecked(c solana.Context, tokenProgram, mint, account, authority uint64, amount uint64, decimals uint8, signer []byte) uint64 {
 	metas := new(svm.Metas)
 	metas.Add(mint, true, false)
 	metas.Add(account, true, false)
 	metas.Add(authority, false, true)
 	d := MintToCheckedData(amount, decimals)
-	return svm.Invoke(c, tokenProgram, metas, d[:], seeds)
+	return InvokeSigned(c, tokenProgram, metas, d[:], signer)
 }
 
 // BurnCheckedWithSigner CPIs burn_checked(account, mint, authority,
@@ -110,7 +111,7 @@ func BurnCheckedWithSigner(c solana.Context, tokenProgram, account, mint, author
 
 // CreateAssociatedTokenAccountIdempotent CPIs the ATA program's
 // CreateIdempotent(payer, ata, wallet, mint, system, token_program).
-func CreateAssociatedTokenAccountIdempotent(c solana.Context, ataProgram, payer, ata, wallet, mint, systemProgram, tokenProgram uint64, seeds *svm.Seeds) uint64 {
+func CreateAssociatedTokenAccountIdempotent(c solana.Context, ataProgram, payer, ata, wallet, mint, systemProgram, tokenProgram uint64, signer []byte) uint64 {
 	metas := new(svm.Metas)
 	metas.Add(payer, true, true)
 	metas.Add(ata, true, false)
@@ -119,5 +120,5 @@ func CreateAssociatedTokenAccountIdempotent(c solana.Context, ataProgram, payer,
 	metas.Add(systemProgram, false, false)
 	metas.Add(tokenProgram, false, false)
 	d := CreateIdempotentData()
-	return svm.Invoke(c, ataProgram, metas, d[:], seeds)
+	return InvokeSigned(c, ataProgram, metas, d[:], signer)
 }

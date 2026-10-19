@@ -15,6 +15,8 @@ import (
 // NativeCollateralPDASeeds are hyperlane_token_native_collateral_pda_seeds!().
 var NativeCollateralPDASeeds = [][]byte{[]byte("hyperlane_token"), []byte("-"), []byte("native_collateral")}
 
+var nativeCollateralPDA = tokenlib.NewStaticPDA(NativeCollateralPDASeeds)
+
 // NativePlugin is plugin::NativePlugin.
 type NativePlugin struct {
 	NativeCollateralBump uint8
@@ -30,20 +32,10 @@ type Token = tokenlib.HyperlaneToken[NativePlugin, *NativePlugin]
 // Process is the program entrypoint.
 func Process(c solana.Context) uint64 { return tokenlib.Process[NativePlugin](c) }
 
-// verifyNativeCollateral checks the collateral PDA against the stored bump.
-func (p *NativePlugin) verifyNativeCollateral(c solana.Context, programID *svm.Pubkey, i uint64) (svm.Seeds, uint64) {
-	seeds, code := svm.NewSeeds(NativeCollateralPDASeeds, p.NativeCollateralBump)
-	if code != svm.Success {
-		return seeds, code
-	}
-	expected, code := seeds.Address(c, *programID)
-	if code != svm.Success {
-		return seeds, code
-	}
-	if !svm.KeyIs(c, i, expected) {
-		return seeds, svm.InvalidArgument
-	}
-	return seeds, svm.Success
+// verifyNativeCollateral checks the collateral PDA against the stored bump
+// and returns its signer bytes.
+func (p *NativePlugin) verifyNativeCollateral(c solana.Context, programID *svm.Pubkey, i uint64) ([]byte, uint64) {
+	return nativeCollateralPDA.Verify(c, i, p.NativeCollateralBump, programID)
 }
 
 // Initialize creates the native collateral PDA (0 bytes, System-owned).
@@ -117,11 +109,15 @@ func (p *NativePlugin) TransferOut(c solana.Context, programID *svm.Pubkey, deci
 	if code != svm.Success {
 		return code
 	}
-	seeds, code := p.verifyNativeCollateral(c, programID, collateral)
+	signer, code := p.verifyNativeCollateral(c, programID, collateral)
 	if code != svm.Success {
 		return code
 	}
-	if code := svm.SystemTransfer(c, systemProgram, collateral, recipient, amount, &seeds); code != svm.Success {
+	metas := new(svm.Metas)
+	metas.Add(collateral, true, true)
+	metas.Add(recipient, true, false)
+	d := svm.TransferData(amount)
+	if code := tokenlib.InvokeSigned(c, systemProgram, metas, d[:], signer); code != svm.Success {
 		return code
 	}
 	return accountutils.VerifyRentExempt(c, collateral)

@@ -190,7 +190,7 @@ func VerifyAccountAndFetch[T any, P PluginData[T]](c solana.Context, programID *
 	if code := FetchToken(c, i, tok); code != svm.Success {
 		return code
 	}
-	expected, code := svm.CreateProgramAddress(c, TokenPDASeeds, tok.Bump, *programID)
+	expected, code := TokenPDA.Address(c, tok.Bump, programID)
 	if code != svm.Success {
 		return code
 	}

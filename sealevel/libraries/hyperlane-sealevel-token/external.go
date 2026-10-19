@@ -55,7 +55,7 @@ func VerifyOutboxAndFetchLocalDomain(c solana.Context, mailbox *svm.Pubkey, i ui
 			}
 		}
 	}
-	expected, code := svm.CreateProgramAddress(c, MailboxOutboxPDASeeds, bump, *mailbox)
+	expected, code := MailboxOutboxPDA.Address(c, bump, mailbox)
 	if code != svm.Success {
 		return 0, code
 	}
