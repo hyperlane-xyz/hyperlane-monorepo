@@ -3,6 +3,7 @@ package subsetcheck
 import (
 	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/borsh"
 	ecdsa "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/ecdsa-signature"
+	multisigism "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/multisig-ism"
 	packageversioned "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/package-versioned"
 	quoteverifier "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/quote-verifier"
 	"gosvm/solana"
@@ -44,4 +45,31 @@ func versioned(c solana.Context, data []byte) uint64 {
 		return packageversioned.ProcessGetProgramVersion(c)
 	}
 	return 0
+}
+
+func multisig(c solana.Context, data []byte) uint64 {
+	ix, code := multisigism.DecodeInstruction(data)
+	if code != 0 {
+		return code
+	}
+	m, e := multisigism.ParseMessageIDMetadata(ix.Message)
+	if e != multisigism.OK {
+		return uint64(e)
+	}
+	var vt multisigism.ValidatorsAndThreshold
+	r := borsh.NewReader(data)
+	vt.DecodeBorsh(&r)
+	w := borsh.NewWriter(vt.Size())
+	vt.EncodeBorsh(&w)
+	w.Raw(m.Encode())
+	w.Raw(ix.Encode())
+	h, code := multisigism.CheckpointSigningHash(c, &m.OriginMerkleTreeHook, 1, &m.MerkleRoot, m.MerkleIndex, &m.MerkleRoot)
+	if code != 0 {
+		return code
+	}
+	if e, code := multisigism.Verify(c, &h, m.Signatures, vt.Validators, vt.Threshold); code != 0 || e != multisigism.OK {
+		return 1
+	}
+	_ = multisigism.DomainDataPDASeeds(1)
+	return solana.SetReturnData(c, w.Bytes())
 }
