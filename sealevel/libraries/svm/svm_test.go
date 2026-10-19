@@ -94,3 +94,22 @@ func TestSeedsEncoding(t *testing.T) {
 		t.Fatalf("too many seeds %#x", code)
 	}
 }
+
+func TestEqual32(t *testing.T) {
+	k := seq32(7)
+	if !svm.Equal32(k[:], &k) {
+		t.Fatal("equal keys differ")
+	}
+	for i := 0; i < 32; i++ {
+		for _, bit := range []byte{1, 0x80} {
+			b := k
+			b[i] ^= bit
+			if svm.Equal32(b[:], &k) {
+				t.Fatalf("byte %d bit %#x: unequal keys match", i, bit)
+			}
+		}
+	}
+	if svm.Equal32(k[:31], &k) || svm.Equal32(append(k[:], 0), &k) || svm.Equal32(nil, &k) {
+		t.Fatal("wrong length matched")
+	}
+}
