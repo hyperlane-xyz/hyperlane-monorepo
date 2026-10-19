@@ -140,7 +140,7 @@ func loadStorage(c solana.Context, i uint64, programID *svm.Pubkey) (*Storage, u
 	if !ok {
 		return nil, ErrAccountNotInitialized
 	}
-	key, code := svm.CreateProgramAddress(c, ism.VerifyAccountMetasPDASeeds, s.BumpSeed, *programID)
+	key, code := storageAddress(c, s.BumpSeed, programID)
 	if code != svm.Success {
 		return nil, code
 	}
@@ -148,6 +148,23 @@ func loadStorage(c solana.Context, i uint64, programID *svm.Pubkey) (*Storage, u
 		return nil, ErrInvalidStoragePda
 	}
 	return s, svm.Success
+}
+
+// vamSeedGroup is VERIFY_ACCOUNT_METAS_PDA_SEEDS plus a bump slot in the
+// CreateAddress seed-group encoding ([count][len][seed]...), prebuilt so
+// the storage PDA check skips encoding the seeds on every instruction.
+const vamSeedGroup = "\x06\x0dhyperlane_ism\x01-\x06verify\x01-\x0daccount_metas\x01"
+
+// storageAddress is create_program_address(storage_pda_seeds!(bump)).
+func storageAddress(c solana.Context, bump uint8, programID *svm.Pubkey) (svm.Pubkey, uint64) {
+	var seeds [len(vamSeedGroup) + 1]byte
+	copy(seeds[:], vamSeedGroup)
+	seeds[len(vamSeedGroup)] = bump
+	var key svm.Pubkey
+	if solana.CreateAddress(c, seeds[:], programID[:], key[:]) != 0 {
+		return key, svm.InvalidSeeds
+	}
+	return key, svm.Success
 }
 
 func domainSeeds(domain uint32, le *[4]byte) [][]byte {
