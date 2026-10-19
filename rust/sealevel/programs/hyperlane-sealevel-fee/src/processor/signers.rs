@@ -4,10 +4,10 @@ use std::collections::BTreeSet;
 
 use account_utils::{ensure_no_extraneous_accounts, verify_pda_with_stored_bump};
 use hyperlane_core::H160;
+use log_utils::LogLine;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
-    msg,
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
@@ -150,7 +150,10 @@ pub(super) fn process_set_quote_signer(
         }
     }
 
-    msg!("SetQuoteSigner: {}", signer);
+    LogLine::new()
+        .str("SetQuoteSigner: ")
+        .hex(signer.as_bytes())
+        .log();
 
     Ok(())
 }

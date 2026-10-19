@@ -7,6 +7,7 @@ use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle as MerkleTree, Decode, Encode, HyperlaneMessage,
     H256,
 };
+use log_utils::LogLine;
 #[cfg(not(feature = "no-entrypoint"))]
 use solana_program::entrypoint;
 use solana_program::{
@@ -447,7 +448,10 @@ fn inbox_process(
         invoke(&noop_cpi_log, &[])?;
     }
 
-    msg!("Hyperlane inbox processed message {:?}", message_id);
+    LogLine::new()
+        .str("Hyperlane inbox processed message ")
+        .hex(message_id.as_bytes())
+        .log();
 
     Ok(())
 }
@@ -687,12 +691,11 @@ fn outbox_dispatch(
         &system_instruction::transfer(payer_info.key, outbox_info.key, protocol_fee),
         &[payer_info.clone(), outbox_info.clone()],
     )?;
-    msg!(
-        "Protocol fee of {} paid from {} to {}",
-        protocol_fee,
-        payer_info.key,
-        outbox_info.key
-    );
+    LogLine::new()
+        .str("Protocol fee of ")
+        .u64(protocol_fee)
+        .str(" paid from/to:")
+        .log_with_keys(&[payer_info.key, outbox_info.key]);
 
     let message = HyperlaneMessage {
         version: VERSION,
@@ -744,11 +747,13 @@ fn outbox_dispatch(
         invoke(&noop_cpi_log, &[])?;
     }
 
-    msg!(
-        "Dispatched message to {}, ID {:?}",
-        dispatch.destination_domain,
-        id
-    );
+    // Parsed off-chain (SDK `SealevelCoreAdapter`, run-locally): keep the text.
+    LogLine::new()
+        .str("Dispatched message to ")
+        .u64(dispatch.destination_domain.into())
+        .str(", ID ")
+        .hex(id.as_bytes())
+        .log();
 
     // Store the Outbox with the new updates.
     OutboxAccount::from(outbox).store(outbox_info, true)?;

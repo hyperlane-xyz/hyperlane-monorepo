@@ -19,6 +19,7 @@ use hyperlane_sealevel_token_lib::{
     processor::{HyperlaneSealevelToken, HyperlaneSealevelTokenPlugin},
 };
 use hyperlane_warp_route::TokenMessage;
+use log_utils::LogLine;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -416,7 +417,12 @@ fn set_cross_collateral_routers(
                     .or_default()
                     .insert(router);
 
-                msg!("Enrolled CC router {:?} for domain {}", router, domain);
+                LogLine::new()
+                    .str("Enrolled CC router ")
+                    .hex(router.as_bytes())
+                    .str(" for domain ")
+                    .u64(domain.into())
+                    .log();
             }
             CrossCollateralRouterUpdate::Remove(config) => match config.router {
                 Some(router) => {
@@ -426,15 +432,19 @@ fn set_cross_collateral_routers(
                             cc_state.enrolled_routers.remove(&config.domain);
                         }
                     }
-                    msg!(
-                        "Removed CC router {:?} from domain {}",
-                        router,
-                        config.domain
-                    );
+                    LogLine::new()
+                        .str("Removed CC router ")
+                        .hex(router.as_bytes())
+                        .str(" from domain ")
+                        .u64(config.domain.into())
+                        .log();
                 }
                 None => {
                     cc_state.enrolled_routers.remove(&config.domain);
-                    msg!("Removed all CC routers for domain {}", config.domain);
+                    LogLine::new()
+                        .str("Removed all CC routers for domain ")
+                        .u64(config.domain.into())
+                        .log();
                 }
             },
         }
@@ -567,12 +577,14 @@ fn transfer_remote_to_remote<'account_info_slice, 'account_info>(
         Vec::with_capacity(0),
     )?;
 
-    msg!(
-        "CC transfer_remote_to completed to destination: {}, target_router: {:?}, remote_amount: {}",
-        xfer.destination_domain,
-        xfer.target_router,
-        remote_amount
-    );
+    LogLine::new()
+        .str("CC transfer_remote_to completed to destination: ")
+        .u64(xfer.destination_domain.into())
+        .str(", target_router: ")
+        .hex(xfer.target_router.as_bytes())
+        .str(", remote_amount: ")
+        .u256(remote_amount.0)
+        .log();
 
     Ok(())
 }
@@ -689,12 +701,13 @@ fn transfer_remote_to_local(
 
     invoke_signed(&cpi_instruction, &cpi_account_infos, &[cc_da_seeds])?;
 
-    msg!(
-        "CC same-chain transfer completed to target: {}, recipient: {:?}, remote_amount: {}",
-        target_program_key,
-        xfer.recipient,
-        remote_amount,
-    );
+    LogLine::new()
+        .str("CC same-chain transfer completed, recipient: ")
+        .hex(xfer.recipient.as_bytes())
+        .str(", remote_amount: ")
+        .u256(remote_amount.0)
+        .str(", target:")
+        .log_with_keys(&[&target_program_key]);
 
     Ok(())
 }
@@ -781,12 +794,13 @@ fn transfer_from_remote_cc(
         return Err(TokenError::ExtraneousAccount.into());
     }
 
-    msg!(
-        "CC warp route transfer completed from origin: {}, recipient: {}, remote_amount: {}",
-        xfer.origin,
-        recipient_wallet.key,
-        remote_amount
-    );
+    LogLine::new()
+        .str("CC warp route transfer completed from origin: ")
+        .u64(xfer.origin.into())
+        .str(", remote_amount: ")
+        .u256(remote_amount.0)
+        .str(", recipient:")
+        .log_with_keys(&[recipient_wallet.key]);
 
     Ok(())
 }
@@ -933,13 +947,13 @@ fn handle_local(
         return Err(TokenError::ExtraneousAccount.into());
     }
 
-    msg!(
-        "CC handle_local completed from sender: {}, origin: {}, recipient: {}, remote_amount: {}",
-        handle.sender_program_id,
-        cc_state.local_domain,
-        recipient_wallet.key,
-        remote_amount
-    );
+    LogLine::new()
+        .str("CC handle_local completed, origin: ")
+        .u64(cc_state.local_domain.into())
+        .str(", remote_amount: ")
+        .u256(remote_amount.0)
+        .str(", sender/recipient:")
+        .log_with_keys(&[&handle.sender_program_id, recipient_wallet.key]);
 
     Ok(())
 }

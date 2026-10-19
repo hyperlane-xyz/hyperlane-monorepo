@@ -21,6 +21,7 @@ thiserror.workspace = true
 
 access-control = { path = "../../../libraries/access-control" }
 account-utils = { path = "../../../libraries/account-utils" }
+log-utils = { path = "../../../libraries/log-utils" }
 ecdsa-signature = { path = "../../../libraries/ecdsa-signature" }
 hyperlane-core = { path = "../../../../main/hyperlane-core" }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../../libraries/interchain-security-module-interface" }
