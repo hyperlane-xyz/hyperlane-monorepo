@@ -2,6 +2,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import {
   buildProvisionalMessageAffectedQuery,
+  PROJECTED_MESSAGE_QUERY,
   PROVISIONAL_MESSAGE_QUERY,
 } from '../live/provisional-message.js';
 import {
@@ -25,6 +26,7 @@ export interface MessageSelectArgs extends SelectArgs {
 
 // Bound unauthenticated custom-frontier scans; larger history uses canonical queries.
 const MAX_CONFIRMATIONS = 1_000;
+const MAX_AFFECTED_EVENTS = 10_000;
 
 export class ScraperDbService {
   constructor(private readonly db: ScraperDbDatabase) {}
@@ -57,18 +59,23 @@ export class ScraperDbService {
       `WITH custom_frontier AS (
         SELECT domain, least(indexed_height, head_height-$1::integer) AS height,
           confirmed_height FROM scraper_head
+      ), affected AS MATERIALIZED (
+        SELECT msg_id FROM (${buildProvisionalMessageAffectedQuery(ids !== undefined)}) events
+          LIMIT ${MAX_AFFECTED_EVENTS + 1}
       ) SELECT array_agg(domain) AS domains, array_agg(height::text) AS heights,
-        ARRAY(SELECT msg_id FROM (${buildProvisionalMessageAffectedQuery(ids !== undefined)}) affected
-          LIMIT 10001) AS message_ids FROM custom_frontier`,
+        CASE WHEN (SELECT count(*) FROM affected)>${MAX_AFFECTED_EVENTS}
+          THEN NULL ELSE ARRAY(SELECT msg_id FROM affected) END AS message_ids
+        FROM custom_frontier`,
       ids === undefined ? [confirmations] : [confirmations, ids],
     );
+    assert(snapshot, 'Missing confirmation snapshot');
     assert(
-      snapshot && Array.isArray(snapshot.message_ids),
-      'Invalid confirmation snapshot',
+      snapshot.message_ids !== null,
+      `Confirmation snapshot exceeds ${MAX_AFFECTED_EVENTS} affected events; query canonical history or narrow msg_id`,
     );
     assert(
-      snapshot.message_ids.length <= 10_000,
-      'Confirmation snapshot exceeds 10000 affected events; query canonical history or narrow msg_id',
+      Array.isArray(snapshot.message_ids),
+      'Invalid confirmation snapshot',
     );
     // Branches retain every column used by outer filters, ordering, or DISTINCT.
     const branchArgs = { ...selectArgs, columns: undefined, offset: undefined };
@@ -87,13 +94,14 @@ export class ScraperDbService {
     return this.db.query(
       `WITH custom_frontier(domain, height) AS (
         SELECT * FROM unnest($2::integer[], $3::bigint[])
-      ), affected_projection AS NOT MATERIALIZED (
+      ), projected_message AS (${PROJECTED_MESSAGE_QUERY}),
+      affected_projection AS (
         SELECT projection.*, TRUE AS is_provisional
         FROM (${PROVISIONAL_MESSAGE_QUERY}) projection
       ),
       canonical_message_view AS (
         SELECT canonical.*, FALSE AS is_provisional FROM message_view canonical
-        WHERE canonical.msg_id NOT IN (SELECT msg_id FROM affected_projection
+        WHERE canonical.msg_id NOT IN (SELECT msg_id FROM projected_message
           WHERE msg_id IS NOT NULL)
           AND NOT EXISTS (SELECT 1 FROM custom_frontier frontier
             WHERE frontier.domain=canonical.origin_domain_id

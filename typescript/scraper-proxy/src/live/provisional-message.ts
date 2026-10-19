@@ -1,4 +1,5 @@
-export const PROVISIONAL_MESSAGE_QUERY = `
+// Keep ID eligibility identical to the wide projection without delivery/payment work.
+const DISPATCH_CTES = `
   /* provisional_message_view */
   WITH frontier(domain, height) AS (
     SELECT * FROM unnest($2::integer[], $3::bigint[])
@@ -27,7 +28,21 @@ export const PROVISIONAL_MESSAGE_QUERY = `
     LEFT JOIN scraper_head ON scraper_head.domain=dispatch.origin_domain
     WHERE dispatch.origin_block_height<=coalesce(frontier.height,
         scraper_head.confirmed_height, 9223372036854775807)
-  )
+  )`;
+const PROJECTED_MESSAGE_FROM = `
+  FROM eligible_dispatch dispatch
+  LEFT JOIN message canonical ON canonical.msg_id=dispatch.msg_id
+  LEFT JOIN "transaction" canonical_origin_tx ON canonical_origin_tx.id=canonical.origin_tx_id
+  LEFT JOIN block raw_origin_block ON raw_origin_block.domain=dispatch.origin_domain
+    AND raw_origin_block.hash=dispatch.origin_block_hash
+  JOIN block origin_block ON origin_block.id=coalesce(raw_origin_block.id, canonical_origin_tx.block_id)
+    AND origin_block.timestamp IS NOT NULL
+`;
+
+export const PROJECTED_MESSAGE_QUERY = `${DISPATCH_CTES}
+  SELECT dispatch.msg_id ${PROJECTED_MESSAGE_FROM}`;
+
+export const PROVISIONAL_MESSAGE_QUERY = `${DISPATCH_CTES}
   SELECT
     coalesce(canonical.id, dispatch.id) AS id,
     dispatch.msg_id,
@@ -86,14 +101,9 @@ export const PROVISIONAL_MESSAGE_QUERY = `
     coalesce(delivery.block_hash, destination_block.hash) AS destination_block_hash,
     CASE WHEN canonical.id IS NOT NULL THEN canonical.msg_body
       ELSE dispatch.msg_body END AS message_body
-  FROM eligible_dispatch dispatch
-  LEFT JOIN message canonical ON canonical.msg_id=dispatch.msg_id
+  ${PROJECTED_MESSAGE_FROM}
   LEFT JOIN domain origin_domain ON origin_domain.id=dispatch.origin_domain
   LEFT JOIN domain destination_domain ON destination_domain.id=dispatch.destination_domain
-  LEFT JOIN "transaction" canonical_origin_tx ON canonical_origin_tx.id=canonical.origin_tx_id
-  LEFT JOIN block raw_origin_block ON raw_origin_block.domain=dispatch.origin_domain
-    AND raw_origin_block.hash=dispatch.origin_block_hash
-  LEFT JOIN block origin_block ON origin_block.id=coalesce(raw_origin_block.id, canonical_origin_tx.block_id)
   LEFT JOIN "transaction" origin_tx ON origin_tx.block_id=origin_block.id
     AND origin_tx.hash=dispatch.origin_tx_hash
   LEFT JOIN LATERAL (
@@ -128,7 +138,6 @@ export const PROVISIONAL_MESSAGE_QUERY = `
       AND (payment.block_number IS NULL OR payment.block_number<=coalesce(
         frontier.height, scraper_head.confirmed_height, 9223372036854775807))
   ) payment ON TRUE
-  WHERE origin_block.timestamp IS NOT NULL
 `;
 
 export function buildProvisionalMessageAffectedQuery(

@@ -91,6 +91,9 @@ allows tracking origin confirmations. Custom snapshots accept 0–1,000
 confirmations and reject cursors and non-zero offsets. Snapshots reject more than
 10,000 affected events; narrow `msg_id` or query canonical history during a backlog.
 Use the separate canonical query below for paginated history.
+`message_view` has a nullable outer list: snapshot errors return `null` and a
+GraphQL error for that alias, preserving canonical aliases in the same response.
+Keep displaying those canonical results when the provisional snapshot is unavailable.
 
 Raw and canonical IDs use separate sequences. Fetch a live list as two selections:
 

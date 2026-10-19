@@ -5,7 +5,10 @@ import { it } from 'node:test';
 import { buildSchema, graphql, parse, validate } from 'graphql';
 
 import { sanitizeScraperDbSchema } from './schema.js';
-import { ScraperDbService } from './scraperdb.service.js';
+import {
+  type MessageSelectArgs,
+  ScraperDbService,
+} from './scraperdb.service.js';
 import { buildSelect, type SelectArgs } from './sql.js';
 import { scraperProxyValidationRule } from './validation.js';
 
@@ -205,7 +208,7 @@ void it('rejects excessive affected events before running a projection', async (
   const service = new ScraperDbService({
     async query() {
       calls++;
-      return [{ message_ids: Array(10001).fill(Buffer.from('01', 'hex')) }];
+      return [{ message_ids: null }];
     },
   });
   await assert.rejects(
@@ -213,4 +216,33 @@ void it('rejects excessive affected events before running a projection', async (
     /10000 affected events/,
   );
   assert.equal(calls, 1);
+});
+
+void it('keeps canonical aliases when a provisional snapshot exceeds the cap', async () => {
+  const service = new ScraperDbService({
+    async query(sql) {
+      return sql.includes('custom_frontier')
+        ? [{ message_ids: null }]
+        : [{ id: '1' }];
+    },
+  });
+  const result = await graphql({
+    schema,
+    rootValue: {
+      message_view: (args: MessageSelectArgs) => service.selectMessages(args),
+    },
+    source:
+      '{ canonical: message_view(limit: 3) { id } provisional: message_view(confirmations: 0) { id } }',
+  });
+  assert(result.data);
+  assert.equal(result.data.provisional, null);
+  assert.deepEqual(
+    result.data.canonical?.map((row: { id: string }) => row.id),
+    ['1'],
+  );
+  assert.deepEqual(
+    result.errors?.map((error) => error.path),
+    [['provisional']],
+  );
+  assert.match(result.errors?.[0]?.message ?? '', /10000 affected events/);
 });

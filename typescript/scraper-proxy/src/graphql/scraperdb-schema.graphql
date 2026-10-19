@@ -97,7 +97,7 @@ type query_root {
     offset: Int
     "distinct select on columns"
     distinct_on: [message_view_select_column!]
-  ): [message_view!]!
+  ): [message_view!]
   "fetch data from the table: \"raw_message_dispatch\""
   raw_message_dispatch(
     "filter the rows returned"

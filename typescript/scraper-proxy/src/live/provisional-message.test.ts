@@ -8,6 +8,16 @@ import { PROVISIONAL_MESSAGE_QUERY } from './provisional-message.js';
 import { ScraperDbService } from '../scraperdb/scraperdb.service.js';
 import { buildSelect } from '../scraperdb/sql.js';
 
+type PlanNode = {
+  'CTE Name'?: string;
+  Alias?: string;
+  'Actual Loops': number;
+  Plans?: PlanNode[];
+};
+function planNodes(plan: PlanNode): PlanNode[] {
+  return [plan, ...(plan.Plans ?? []).flatMap(planNodes)];
+}
+
 // Opt-in PostgreSQL regression: uses session-local tables, never persistent data.
 const connectionString = process.env.SCRAPER_TEST_DATABASE_URL;
 void it(
@@ -130,9 +140,13 @@ void it(
           'utf8',
         ),
       );
+      let lastQuery: { sql: string; values?: unknown[] } = { sql: '' };
+      let lastRows: Record<string, unknown>[] = [];
       const service = new ScraperDbService({
         async query(sql, values) {
-          return (await db.query(sql, values)).rows;
+          lastQuery = { sql, values };
+          lastRows = (await db.query(sql, values)).rows;
+          return lastRows;
         },
       });
 
@@ -333,6 +347,57 @@ void it(
       );
 
       await t.test(
+        'excludes canonical IDs without rebuilding or materializing the wide projection',
+        async () => {
+          await db.query('BEGIN');
+          try {
+            await db.query(`
+            UPDATE scraper_head SET confirmed_height=0;
+            INSERT INTO raw_message_dispatch
+              SELECT id, decode(lpad(to_hex(id),8,'0'),'hex'), id,1,2,now(),decode('bb','hex'),null,null,
+                null,decode('aa','hex'),10,null FROM generate_series(100,226) id;
+            INSERT INTO message(id,msg_id,origin,destination,sender)
+              SELECT id+10000,msg_id,1,2,sender FROM raw_message_dispatch WHERE id>=100;
+            ANALYZE raw_message_dispatch; ANALYZE message;
+          `);
+            for (const where of [
+              undefined,
+              { sender: { _eq: Buffer.from('ff', 'hex') } },
+            ]) {
+              const rows = await service.selectMessages({
+                confirmations: 0,
+                where,
+              });
+              assert.equal(rows.length, where ? 0 : 129);
+              const result = await db.query<{
+                'QUERY PLAN': { Plan: PlanNode }[];
+              }>(
+                `EXPLAIN (ANALYZE, FORMAT JSON) ${lastQuery.sql}`,
+                lastQuery.values,
+              );
+              const nodes = planNodes(result.rows[0]['QUERY PLAN'][0].Plan);
+              assert(
+                !nodes.some(
+                  (node) => node['CTE Name'] === 'affected_projection',
+                ),
+                'the wide projection must inline so filters reach dispatches',
+              );
+              const paymentLoops = nodes
+                .filter((node) => node.Alias === 'payment')
+                .reduce((sum, node) => sum + node['Actual Loops'], 0);
+              assert.equal(
+                paymentLoops,
+                where ? 0 : 129,
+                'payment work runs once per projected message, never for canonical exclusion',
+              );
+            }
+          } finally {
+            await db.query('ROLLBACK');
+          }
+        },
+      );
+
+      await t.test(
         'bounds backlog candidates before projection while keeping exact lookups available',
         async () => {
           await db.query('BEGIN');
@@ -345,6 +410,11 @@ void it(
             await assert.rejects(
               service.selectMessages({ confirmations: 0 }),
               /10000 affected events/,
+            );
+            assert.equal(
+              lastRows[0].message_ids,
+              null,
+              'overflow IDs must remain in PostgreSQL rather than being transferred',
             );
             const rows = await service.selectMessages({
               confirmations: 0,
