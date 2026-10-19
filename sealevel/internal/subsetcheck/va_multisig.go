@@ -3,6 +3,7 @@ package subsetcheck
 import (
 	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/borsh"
 	ecdsa "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/ecdsa-signature"
+	packageversioned "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/package-versioned"
 	quoteverifier "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/quote-verifier"
 	"gosvm/solana"
 )
@@ -36,4 +37,11 @@ func vaMultisig(c solana.Context, data []byte) uint64 {
 		return code
 	}
 	return q.Validate(0, 1)
+}
+
+func versioned(c solana.Context, data []byte) uint64 {
+	if packageversioned.IsGetProgramVersion(data) {
+		return packageversioned.ProcessGetProgramVersion(c)
+	}
+	return 0
 }
