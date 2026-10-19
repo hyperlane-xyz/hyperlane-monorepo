@@ -195,8 +195,10 @@ impl PendingMessage {
         app_context: Option<String>,
         max_retries: u32,
     ) -> Self {
-        ctx.metrics
-            .record_pending_message(message.id(), app_context.as_deref());
+        if !matches!(status, PendingOperationStatus::Confirm(_)) {
+            ctx.metrics
+                .record_pending_message(message.id(), app_context.as_deref());
+        }
         Self {
             message,
             ctx,
@@ -234,7 +236,9 @@ impl PendingMessage {
 
 impl Drop for PendingMessage {
     fn drop(&mut self) {
-        self.ctx.metrics.finish_pending_message(self.message.id());
+        if !matches!(self.status, PendingOperationStatus::Confirm(_)) {
+            self.ctx.metrics.finish_pending_message(self.message.id());
+        }
         self.ctx.metrics.finish_metadata_wait(
             self.message.id(),
             self.app_context.as_deref(),
@@ -301,6 +305,19 @@ impl PendingOperation for PendingMessage {
     }
 
     fn set_status(&mut self, status: PendingOperationStatus) {
+        // All submission paths enter Confirm before waiting for finality. Only
+        // messages outside that stage count as pending delivery.
+        match (&self.status, &status) {
+            (PendingOperationStatus::Confirm(_), PendingOperationStatus::Confirm(_)) => {}
+            (PendingOperationStatus::Confirm(_), _) => self
+                .ctx
+                .metrics
+                .record_pending_message(self.message.id(), self.app_context.as_deref()),
+            (_, PendingOperationStatus::Confirm(_)) => {
+                self.ctx.metrics.finish_pending_message(self.message.id());
+            }
+            _ => {}
+        }
         // Manual status commits atomically with the cleared retry deadline.
         if status != PendingOperationStatus::Retry(ReprepareReason::Manual) {
             if let Err(e) = self
@@ -1284,7 +1301,7 @@ impl PendingMessage {
             warn!(message_id = ?self.message.id(), err = %e, "Persisting manual retry reset failed for message");
             return false;
         }
-        self.status = status;
+        self.set_status(status);
         self.num_retries = 0;
         self.next_attempt_after = None;
         self.last_attempted_at = Instant::now();
@@ -2392,6 +2409,82 @@ mod test {
             pending.submit().await,
             PendingOperationResult::Success
         ));
+    }
+
+    #[tokio::test]
+    async fn pending_metric_follows_queue_status() {
+        use PendingOperationStatus::{Confirm, ReadyToSubmit, Retry};
+
+        let (_dir, mut pending) = pending_with_mailbox(contract_test_mailbox(), None);
+        let metrics = &pending.ctx.metrics;
+        let labels = [
+            "Unknown",
+            metrics.origin.as_str(),
+            metrics.destination.as_str(),
+        ];
+        let active = metrics.pending_message_active.with_label_values(&labels);
+        let oldest = metrics
+            .pending_message_oldest_timestamp_seconds
+            .with_label_values(&labels);
+        assert_eq!(active.get(), 1);
+
+        for reason in [
+            ConfirmReason::SubmittedBySelf,
+            ConfirmReason::AlreadySubmitted,
+        ] {
+            pending.set_status(Confirm(reason.clone()));
+            pending.set_status(Confirm(reason));
+            assert_eq!(active.get(), 0);
+            assert_eq!(oldest.get(), 0);
+
+            for status in [
+                Retry(ReprepareReason::RevertedOrReorged),
+                Retry(ReprepareReason::ErrorSubmitting),
+                ReadyToSubmit,
+            ] {
+                pending.set_status(status);
+                assert_eq!(active.get(), 1);
+                assert!(oldest.get() > 0);
+            }
+        }
+
+        pending.set_status(Confirm(ConfirmReason::SubmittedBySelf));
+        assert!(pending.reset_attempts());
+        assert_eq!(active.get(), 1);
+        drop(pending);
+        assert_eq!(active.get(), 0);
+        assert_eq!(oldest.get(), 0);
+    }
+
+    #[tokio::test]
+    async fn pending_metric_preserves_other_message_references() {
+        let (_dir, pending) = pending_with_mailbox(contract_test_mailbox(), None);
+        let mut duplicate = PendingMessage::new(
+            pending.message.clone(),
+            pending.ctx.clone(),
+            PendingOperationStatus::Confirm(ConfirmReason::AlreadySubmitted),
+            pending.app_context.clone(),
+            DEFAULT_MAX_MESSAGE_RETRIES,
+        );
+        let metrics = &pending.ctx.metrics;
+        let active = metrics.pending_message_active.with_label_values(&[
+            "Unknown",
+            &metrics.origin,
+            &metrics.destination,
+        ]);
+        assert_eq!(active.get(), 1);
+
+        duplicate.set_status(PendingOperationStatus::ReadyToSubmit);
+        duplicate.set_status(PendingOperationStatus::Confirm(
+            ConfirmReason::SubmittedBySelf,
+        ));
+        duplicate.set_status(PendingOperationStatus::Confirm(
+            ConfirmReason::AlreadySubmitted,
+        ));
+        drop(duplicate);
+        assert_eq!(active.get(), 1);
+        drop(pending);
+        assert_eq!(active.get(), 0);
     }
 
     #[tokio::test]
