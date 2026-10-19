@@ -291,3 +291,39 @@ func TestGoldenConstants(t *testing.T) {
 		}
 	}
 }
+
+func TestCloseAccount(t *testing.T) {
+	program := bytes.Repeat([]byte{7}, 32)
+	mk := func() solana.Context {
+		return solana.Context{
+			ID: program,
+			Accounts: []solana.Account{
+				{Key: bytes.Repeat([]byte{1}, 32), Owner: program, Data: []byte{1, 2, 3}, Writable: true, Lamports: 10, OriginalDataLen: 3},
+				{Key: bytes.Repeat([]byte{2}, 32), Owner: make([]byte, 32), Writable: true, Lamports: 5},
+				{Key: bytes.Repeat([]byte{1}, 32), Owner: program, Data: []byte{1, 2, 3}, Writable: true, Lamports: 10, OriginalDataLen: 3},
+			},
+		}
+	}
+	c := mk()
+	if code := accountutils.CloseAccount(c, 0, 1); code != svm.Success {
+		t.Fatalf("close: %#x", code)
+	}
+	a, b := c.Accounts[0], c.Accounts[1]
+	if a.Lamports != 0 || len(a.Data) != 0 || !bytes.Equal(a.Owner, make([]byte, 32)) || b.Lamports != 15 {
+		t.Fatalf("after close: %+v %+v", a, b)
+	}
+	c = mk()
+	if code := accountutils.CloseAccount(c, 0, 2); code != svm.InvalidAccountData {
+		t.Errorf("same key: %#x", code)
+	}
+	c = mk()
+	c.Accounts[0].Writable = false
+	if code := accountutils.CloseAccount(c, 0, 1); code != svm.InvalidAccountData {
+		t.Errorf("readonly: %#x", code)
+	}
+	c = mk()
+	c.Accounts[1].Lamports = ^uint64(0)
+	if code := accountutils.CloseAccount(c, 0, 1); code != svm.ArithmeticOverflow {
+		t.Errorf("overflow: %#x", code)
+	}
+}
