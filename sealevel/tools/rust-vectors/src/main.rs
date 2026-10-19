@@ -21,6 +21,7 @@ use serde_json::{json, Map, Value};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::pubkey::Pubkey;
 
+mod cc;
 mod igp;
 mod token;
 mod va_multisig;
@@ -722,6 +723,7 @@ fn main() {
         "svm": Value::Object(svm_group().0),
         "composite-ism": Value::Object(composite_group().0),
         "token": Value::Object(token::token_group()),
+        "token-cross-collateral": Value::Object(cc::cc_group()),
     });
     igp::extend(&mut out);
     va_multisig::extend(&mut out);

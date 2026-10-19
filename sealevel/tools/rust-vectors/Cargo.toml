@@ -23,6 +23,8 @@ hyperlane-warp-route = { path = "../../../rust/main/applications/hyperlane-warp-
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../../rust/sealevel/libraries/interchain-security-module-interface" }
 hyperlane-sealevel-message-recipient-interface = { path = "../../../rust/sealevel/libraries/message-recipient-interface" }
 hyperlane-sealevel-composite-ism = { path = "../../../rust/sealevel/programs/ism/composite-ism", features = ["no-entrypoint"] }
+hyperlane-sealevel-connection-client = { path = "../../../rust/sealevel/libraries/hyperlane-sealevel-connection-client" }
+hyperlane-sealevel-token-cross-collateral = { path = "../../../rust/sealevel/programs/hyperlane-sealevel-token-cross-collateral", features = ["no-entrypoint"] }
 hyperlane-sealevel-test-ism = { path = "../../../rust/sealevel/programs/ism/test-ism", features = ["no-entrypoint"] }
 hyperlane-sealevel-igp = { path = "../../../rust/sealevel/programs/hyperlane-sealevel-igp", features = ["no-entrypoint"] }
 serializable-account-meta = { path = "../../../rust/sealevel/libraries/serializable-account-meta" }
