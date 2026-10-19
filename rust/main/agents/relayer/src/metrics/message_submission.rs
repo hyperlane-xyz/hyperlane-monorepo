@@ -263,7 +263,7 @@ mod tests {
             ];
 
             for context in contexts {
-                metrics.record_pending_message(message_id, context);
+                metrics.record_pending_message(message_id, context, SystemTime::now());
             }
             for context in ["test-app", UNKNOWN_APP_CONTEXT, "default_ism"] {
                 assert_eq!(
@@ -309,7 +309,7 @@ mod tests {
             );
 
             // Once all instances finish, the message can acquire a new context.
-            metrics.record_pending_message(message_id, Some("new-app"));
+            metrics.record_pending_message(message_id, Some("new-app"), SystemTime::now());
             let new_labels = ["new-app", "ethereum", "arbitrum"];
             assert_eq!(
                 metrics
@@ -337,9 +337,9 @@ mod tests {
         let second_id = H256::from_low_u64_be(2);
         let labels = [app_context, "ethereum", "arbitrum"];
 
-        metrics.record_pending_message(first_id, Some(app_context));
-        metrics.record_pending_message(first_id, Some(app_context));
-        metrics.record_pending_message(second_id, Some(app_context));
+        metrics.record_pending_message(first_id, Some(app_context), SystemTime::now());
+        metrics.record_pending_message(first_id, Some(app_context), SystemTime::now());
+        metrics.record_pending_message(second_id, Some(app_context), SystemTime::now());
         assert_eq!(
             metrics
                 .pending_message_active
@@ -553,9 +553,14 @@ impl MessageSubmissionMetrics {
         }
     }
 
-    pub(crate) fn record_pending_message(&self, message_id: H256, app_context: Option<&str>) {
+    pub(crate) fn record_pending_message(
+        &self,
+        message_id: H256,
+        app_context: Option<&str>,
+        first_seen: SystemTime,
+    ) {
         let unix_timestamp_seconds = i64::try_from(
-            SystemTime::now()
+            first_seen
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs(),
