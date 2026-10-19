@@ -12,11 +12,9 @@ type Clock struct {
 }
 
 func le64(b []byte) uint64 {
-	v := uint64(0)
-	for i := 0; i < 8; i++ {
-		v |= uint64(b[i]) << (8 * uint64(i))
-	}
-	return v
+	_ = b[7]
+	return uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24 |
+		uint64(b[4])<<32 | uint64(b[5])<<40 | uint64(b[6])<<48 | uint64(b[7])<<56
 }
 
 // GetClock is Clock::get(). A failed sysvar read is UnsupportedSysvar.

@@ -134,9 +134,33 @@ func SystemCreateAccount(c solana.Context, systemProgram, payer, account uint64,
 	return Invoke(c, systemProgram, &metas, d[:], seeds)
 }
 
+// f64 bits of the exemption thresholds with an exact fast path: 2.0 (Solana
+// before SIMD-0194, Fogo) and 1.0 (after it, with twice the rate).
+const (
+	thresholdTwo uint64 = 0x4000000000000000
+	thresholdOne uint64 = 0x3ff0000000000000
+)
+
 // MinimumBalance returns Rent::minimum_balance(size) from the Rent sysvar.
+//
+// With a threshold of 2.0 or 1.0 and n = (128 + size) * rate below 2^53, the
+// f64 product is exact, so the result is 2n or n. That skips the SDK's
+// software f64 multiply (~1,000 CU); anything else takes the SDK path.
 func MinimumBalance(c solana.Context, size uint64) (uint64, uint64) {
-	lamports, code := system.MinimumBalance(c, size)
+	var rent [17]byte
+	if solana.Rent(c, rent[:]) != 0 {
+		return 0, UnsupportedSysvar
+	}
+	rate, threshold := le64(rent[0:8]), le64(rent[8:16])
+	if (threshold == thresholdTwo || threshold == thresholdOne) && size <= system.MaxDataLen && rate <= (1<<53)/(128+size) {
+		if n := (128 + size) * rate; n < 1<<53 {
+			if threshold == thresholdTwo {
+				return 2 * n, Success
+			}
+			return n, Success
+		}
+	}
+	lamports, code := system.MinimumBalanceFor(rate, threshold, size)
 	if code != 0 {
 		return 0, UnsupportedSysvar
 	}
