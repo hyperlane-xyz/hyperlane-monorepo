@@ -64,7 +64,7 @@ describe('USDT Eni production manifest', () => {
       (document) => document.kind === 'StatefulSet',
     );
     expect(statefulSet.spec.template.spec.containers[0].image).to.equal(
-      'ghcr.io/hyperlane-xyz/hyperlane-node-services:90ddd17-20261019-160420',
+      'ghcr.io/hyperlane-xyz/hyperlane-node-services:3cbaf68-20261019-163747',
     );
     expect(statefulSet.spec.template.spec.containers[0].env).to.deep.include({
       name: 'MONITOR_ONLY',
