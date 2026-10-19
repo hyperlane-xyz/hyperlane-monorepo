@@ -634,6 +634,12 @@ func process(c solana.Context, args, message []byte) uint64 {
 	if recipientIndex >= count {
 		return svm.InvalidArgument
 	}
+	// Rust holds a RefMut of the inbox data across all three CPIs, so the
+	// checked invoke fails with AccountBorrowFailed before any CPI that is
+	// passed the inbox (a reentrant InboxProcess).
+	if passesAccount(c, 5, next, 2) {
+		return svm.AccountBorrowFailed
+	}
 	var found [32]byte
 	if code = recipientISM(c, recipientIndex, 5, next, recipientKey, in.data[inboxOffISM:inboxOffISM+32], found[:]); code != svm.Success {
 		return code
@@ -653,6 +659,9 @@ func process(c solana.Context, args, message []byte) uint64 {
 	var metas svm.Metas
 	for i := ismIndex + 1; i < recipientIndex; i++ {
 		metas.Add(i, solana.Writable(c, i), solana.Signer(c, i) || svm.KeyIs(c, i, ismAuthorityKey))
+	}
+	if passesAccount(c, ismIndex+1, recipientIndex, 2) {
+		return svm.AccountBorrowFailed
 	}
 	// Verify's data is its discriminator then the same metadata and message
 	// Vec<u8>s InboxProcess carries.
@@ -689,10 +698,25 @@ func process(c solana.Context, args, message []byte) uint64 {
 	copy(handle[12:44], message[9:41])
 	putU32le(handle, 44, uint32(len(body)))
 	copy(handle[48:], body)
+	if passesAccount(c, recipientIndex+1, count, 2) {
+		return svm.AccountBorrowFailed
+	}
 	metas = svm.Metas{}
 	metas.Add(3, false, true)
 	for i := recipientIndex + 1; i < count; i++ {
 		metas.Add(i, solana.Writable(c, i), solana.Signer(c, i))
 	}
 	return svm.Invoke(c, recipientIndex, &metas, handle, &authority)
+}
+
+// passesAccount reports whether any account in [from, to) has account
+// held's key.
+func passesAccount(c solana.Context, from, to, held uint64) bool {
+	key := solana.Key(c, held)
+	for i := from; i < to; i++ {
+		if equal32(solana.Key(c, i), key) {
+			return true
+		}
+	}
+	return false
 }
