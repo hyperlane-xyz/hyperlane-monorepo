@@ -5,9 +5,10 @@ import (
 	"gosvm/solana"
 )
 
-// errCPIAccounts is returned when a CPI needs more account metas than goSVM
-// supports (16) or the callee program is not among the instruction's
-// accounts. Rust has no equivalent limit; see STATUS/PORTING gaps.
+// errCPIAccounts is returned when a fallback-ISM CPI needs more than goSVM's
+// 16 account metas, or the callee program is not among the instruction's
+// accounts. Rust has no 16-meta limit, and a missing program fails in the
+// runtime rather than with a program error.
 const errCPIAccounts = svm.NotEnoughAccountKeys
 
 // findAccount returns the index of the first account with key k.

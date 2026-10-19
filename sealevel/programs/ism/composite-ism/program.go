@@ -6,8 +6,15 @@
 // The Rust program walks the tree recursively. goSVM rejects recursion, so
 // every walk here (Borsh codec, config validation, Verify, VerifyAccountMetas,
 // VerifyMetadataSpec) is a loop over an explicit stack that visits nodes, and
-// reports errors, in the same order as the Rust recursion. Rust's msg! lines
-// are not emitted (goSVM has no logging yet).
+// reports errors, in the same order as the Rust recursion.
+//
+// Differences from the Rust program, all outside the functional suites:
+//   - Rust's msg! lines are not emitted (goSVM has no logging yet).
+//   - Fallback-ISM CPIs take at most 16 accounts (errCPIAccounts).
+//   - RemoveDomainIsm with a read-only refund account fails with
+//     InvalidAccountData; Rust fails afterwards in the runtime.
+//   - Trees deeper than Rust's SBF call-depth limit decode and verify (the
+//     walks use heap stacks); trees too large for the 32 KiB heap abort.
 package compositeism
 
 import (
