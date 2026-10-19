@@ -125,8 +125,8 @@ def main():
 
     worst.sort(reverse=True)
     summary["worst"] = [
-        {"ratio": r, "suite": s, "test": t, "program": pn, "index": i, "a": va, "b": vb, "count_mismatch": mm}
-        for r, s, t, pn, i, va, vb, mm in worst[: args.top]
+        {"ratio": r, "suite": s, "test": t, "program": prog, "index": i, "a": va, "b": vb, "count_mismatch": mm}
+        for r, s, t, prog, i, va, vb, mm in worst[: args.top]
     ]
     if worst and args.top:
         print(f"\nworst {args.top} (ratio suite::test program[#i] A->B):")
