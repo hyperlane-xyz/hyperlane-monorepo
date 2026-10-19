@@ -9,7 +9,6 @@
 // reports errors, in the same order as the Rust recursion.
 //
 // Differences from the Rust program, all outside the functional suites:
-//   - Rust's msg! lines are not emitted (goSVM has no logging yet).
 //   - Fallback-ISM CPIs take at most 16 accounts (errCPIAccounts).
 //   - RemoveDomainIsm with a read-only refund account fails with
 //     InvalidAccountData; Rust fails afterwards in the runtime.
@@ -337,6 +336,9 @@ func updateConfig(c solana.Context, root *IsmNode) uint64 {
 	if code := accesscontrol.EnsureOwnerSigner(c, storage.Owner, owner); code != svm.Success {
 		return code
 	}
+	m := svm.NewMsg("Updated ISM root config: ")
+	m.Str(kindToStr(root.Kind))
+	m.Emit(c)
 	storage.Root = borsh.SomeOf(*root)
 	return accountutils.StoreWithRentExemptRealloc(c, storageAcct, storage, owner, system)
 }
@@ -391,6 +393,11 @@ func setDomainIsm(c solana.Context, domain uint32, node *IsmNode) uint64 {
 		return ErrInvalidSystemProgram
 	}
 
+	m := svm.NewMsg("Set domain ")
+	m.U32(domain)
+	m.Str(" ISM: ")
+	m.Str(kindToStr(node.Kind))
+	m.Emit(c)
 	ds := new(DomainStorage)
 	ds.BumpSeed = seeds.Bump()
 	ds.Domain = domain
@@ -451,6 +458,10 @@ func removeDomainIsm(c solana.Context, domain uint32) uint64 {
 	}
 	switch solana.CloseAccount(c, domainAcct, owner) {
 	case 0:
+		m := svm.NewMsg("Removed domain ")
+		m.U32(domain)
+		m.Str(" ISM")
+		m.Emit(c)
 		return svm.Success
 	case 2014:
 		return svm.ArithmeticOverflow
@@ -508,10 +519,19 @@ func transferOwnership(c solana.Context, newOwner borsh.Option[[32]byte]) uint64
 	if code != svm.Success {
 		return code
 	}
+	oldOwner := storage.Owner
 	if code := accesscontrol.TransferOwnership(c, &storage.Owner, owner, newOwner); code != svm.Success {
 		return code
 	}
-	return accountutils.Store(c, storageAcct, storage, false)
+	if code := accountutils.Store(c, storageAcct, storage, false); code != svm.Success {
+		return code
+	}
+	m := svm.NewMsg("Transferred ownership from ")
+	m.OptionPubkey(oldOwner.Some, &oldOwner.Value)
+	m.Str(" to ")
+	m.OptionPubkey(newOwner.Some, &newOwner.Value)
+	m.Emit(c)
+	return svm.Success
 }
 
 // setPaused sets every Pausable node of the root tree. Owner-gated.
@@ -540,5 +560,11 @@ func setPaused(c solana.Context, paused bool) uint64 {
 	if storage.Root.Some {
 		flipPausable(&storage.Root.Value, paused)
 	}
-	return accountutils.Store(c, storageAcct, storage, false)
+	if code := accountutils.Store(c, storageAcct, storage, false); code != svm.Success {
+		return code
+	}
+	m := svm.NewMsg("Set paused: ")
+	m.Bool(paused)
+	m.Emit(c)
+	return svm.Success
 }

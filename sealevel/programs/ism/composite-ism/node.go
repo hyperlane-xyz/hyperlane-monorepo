@@ -18,6 +18,29 @@ const (
 	nodeKinds
 )
 
+// kindToStr is IsmNode::kind_to_str.
+func kindToStr(kind uint8) string {
+	switch kind {
+	case NodeTrustedRelayer:
+		return "TrustedRelayer"
+	case NodeMultisigMessageID:
+		return "MultisigMessageId"
+	case NodeAggregation:
+		return "Aggregation"
+	case NodeTest:
+		return "Test"
+	case NodePausable:
+		return "Pausable"
+	case NodeAmountRouting:
+		return "AmountRouting"
+	case NodeRateLimited:
+		return "RateLimited"
+	case NodeRouting:
+		return "Routing"
+	}
+	return "FallbackRouting"
+}
+
 // IsmNode is accounts::IsmNode, one node of the ISM config tree. Fields are
 // used by variant:
 //
