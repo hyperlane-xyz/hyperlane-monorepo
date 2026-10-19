@@ -24,6 +24,7 @@ type Context struct {
 	ReadReturnData      func() (data, program []byte)                                           // Current return data and its setter; nil reads as none.
 	RecoverSecp256k1    func(hash []byte, recoveryID uint64, signature []byte) ([]byte, uint64) // 64-byte key or runtime status.
 	Keccak              func(input []byte) []byte                                               // Keccak-256 with the original 0x01 padding (not SHA3-256).
+	WriteLog            func(message string)                                                    // Each log line's text after "Program log: "; nil discards them.
 }
 
 // SetReturnData copies at most 1,024 bytes into the runtime's current return
@@ -67,6 +68,131 @@ func GetReturnData(c Context, output, program []byte) uint64 {
 		copy(program, setter)
 	}
 	return uint64(len(data))
+}
+
+// Log writes "Program log: " and message to the transaction log, like Rust's
+// msg!, and returns 0. The runtime fails the instruction when message is not
+// valid UTF-8; natively that panics. Native contexts receive each message
+// through WriteLog; without it the line is discarded.
+func Log(c Context, message string) uint64 {
+	if !validUTF8(message) {
+		panic("solana.Log: message is not valid UTF-8")
+	}
+	if c.WriteLog != nil {
+		c.WriteLog(message)
+	}
+	return 0
+}
+
+// Log64 logs five words in hexadecimal, "0x1, 0x2, 0x0, 0x0, 0x0", like
+// Rust's sol_log_64, and returns 0.
+func Log64(c Context, v0, v1, v2, v3, v4 uint64) uint64 {
+	if c.WriteLog != nil {
+		c.WriteLog(hexWord(v0) + ", " + hexWord(v1) + ", " + hexWord(v2) + ", " + hexWord(v3) + ", " + hexWord(v4))
+	}
+	return 0
+}
+
+// LogPubkey logs a 32-byte key in base58, like Rust's Pubkey::log, and
+// returns 0, or 2019 without logging when key is not 32 bytes.
+func LogPubkey(c Context, key []byte) uint64 {
+	if len(key) != 32 {
+		return 2019
+	}
+	if c.WriteLog != nil {
+		c.WriteLog(base58(key))
+	}
+	return 0
+}
+
+func hexWord(v uint64) string {
+	var b [16]byte
+	n := 16
+	for {
+		n--
+		b[n] = "0123456789abcdef"[v&15]
+		v >>= 4
+		if v == 0 {
+			break
+		}
+	}
+	return "0x" + string(b[n:])
+}
+
+func base58(key []byte) string {
+	const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+	var digits [44]byte // base58 digits, least significant first
+	n := 0
+	for _, x := range key {
+		carry := int(x)
+		for j := 0; j < n; j++ {
+			carry += int(digits[j]) << 8
+			digits[j] = byte(carry % 58)
+			carry /= 58
+		}
+		for carry > 0 {
+			digits[n] = byte(carry % 58)
+			carry /= 58
+			n++
+		}
+	}
+	out := ""
+	for _, x := range key {
+		if x != 0 {
+			break
+		}
+		out += "1"
+	}
+	for j := n - 1; j >= 0; j-- {
+		out += alphabet[digits[j] : digits[j]+1]
+	}
+	return out
+}
+
+// validUTF8 is Rust's str::from_utf8 acceptance: no overlong forms,
+// surrogates or code points above U+10FFFF.
+func validUTF8(s string) bool {
+	for i := 0; i < len(s); {
+		x := s[i]
+		w := 0
+		switch {
+		case x < 0x80:
+			w = 1
+		case x >= 0xC2 && x <= 0xDF:
+			w = 2
+		case x >= 0xE0 && x <= 0xEF:
+			w = 3
+		case x >= 0xF0 && x <= 0xF4:
+			w = 4
+		default:
+			return false
+		}
+		if w > len(s)-i {
+			return false
+		}
+		if w > 1 {
+			lo, hi := byte(0x80), byte(0xBF)
+			if x == 0xE0 {
+				lo = 0xA0
+			} else if x == 0xED {
+				hi = 0x9F
+			} else if x == 0xF0 {
+				lo = 0x90
+			} else if x == 0xF4 {
+				hi = 0x8F
+			}
+			if s[i+1] < lo || s[i+1] > hi {
+				return false
+			}
+			for k := 2; k < w; k++ {
+				if s[i+k] < 0x80 || s[i+k] > 0xBF {
+					return false
+				}
+			}
+		}
+		i += w
+	}
+	return true
 }
 
 // Clock writes exactly 40 bytes: slot, epoch-start timestamp bits, epoch,
@@ -221,6 +347,67 @@ func CloseAccount(c Context, index, destination uint64) uint64 {
 		}
 		if right {
 			other.Lamports = a.Lamports + b.Lamports
+		}
+	}
+	return 0
+}
+
+// MoveLamports moves amount lamports from an owned writable account to any
+// writable account, as a program may by changing balances directly. Neither
+// may be executable. Both balances are checked before either changes, so the
+// total is preserved; moving within one account changes nothing. Application
+// checks must authorize the move; the runtime still rejects a transaction
+// that leaves either account below its rent-exempt minimum.
+func MoveLamports(c Context, from, to, amount uint64) uint64 {
+	code := ownedWritable(c, from)
+	if code != 0 {
+		return code
+	}
+	if to >= uint64(len(c.Accounts)) {
+		return 2005
+	}
+	a, b := c.Accounts[from], c.Accounts[to]
+	if !b.Writable || b.Executable {
+		return 2011
+	}
+	if len(a.Key) != 32 || len(b.Key) != 32 {
+		return 2013
+	}
+	if a.Lamports < amount {
+		return 2020
+	}
+	same := true
+	for j := 0; j < 32; j++ {
+		if a.Key[j] != b.Key[j] {
+			same = false
+		}
+	}
+	if same {
+		return 0
+	}
+	if b.Lamports > ^uint64(0)-amount {
+		return 2014
+	}
+	left, right := a.Lamports-amount, b.Lamports+amount
+	for j := range c.Accounts {
+		other := &c.Accounts[j]
+		if len(other.Key) != 32 {
+			continue
+		}
+		source, destination := true, true
+		for k := 0; k < 32; k++ {
+			if other.Key[k] != a.Key[k] {
+				source = false
+			}
+			if other.Key[k] != b.Key[k] {
+				destination = false
+			}
+		}
+		if source {
+			other.Lamports = left
+		}
+		if destination {
+			other.Lamports = right
 		}
 	}
 	return 0

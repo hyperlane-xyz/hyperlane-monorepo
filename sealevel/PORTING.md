@@ -104,12 +104,11 @@ CreateAccount`.
 
 ## Not in goSVM yet (other agents are adding these)
 
-Logging (`msg!`; Rust logs aren't asserted by most suites, but note any you
-skip), direct lamport moves and `close_account`, more than 32 accounts,
-`sol_try_find_program_address` (replace the loop in `svm/pda.go` when it
-lands), Token-2022/ATA. Available on the integration CLI: `SetReturnData`,
-`GetReturnData` (check the setter key), `Keccak256`, `Secp256k1Recover`.
-See /tmp/gosvm-pilot/API.md.
+CPI limits above 16 metas / 2 signer groups, and `sol_memcpy_` lowering for
+unaligned copies. Available on the integration-2 CLI: `SetReturnData`,
+`GetReturnData` (check the setter key), `Keccak256`, `Secp256k1Recover`,
+`MoveLamports`, `Log` (`msg!`), `pda.Seeds.FindAddress`, `-max-accounts 64`,
+Token-2022/ATA helpers. See /tmp/gosvm-pilot/API2.md.
 
 ## Tests
 
@@ -122,7 +121,7 @@ See /tmp/gosvm-pilot/API.md.
 3. Conformance: run the Rust functional suite against the Go ELF.
 
 ```sh
-GOSVM=gosvm-int sealevel/build-programs.sh
+GOSVM=gosvm-int2 sealevel/build-programs.sh
 mkdir -p /tmp/elf && cp <Rust ELFs for the other programs the suite loads> /tmp/elf/
 cp sealevel/target/fogo-v0/deploy/*.so /tmp/elf/   # includes spl_noop.so
 cd rust/sealevel && SBF_OUT_DIR=/tmp/elf \

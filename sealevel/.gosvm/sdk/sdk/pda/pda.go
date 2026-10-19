@@ -5,6 +5,9 @@ import "gosvm/solana"
 
 const ErrSeeds uint64 = 3001
 
+// ErrNoAddress: no bump from 255 down to 1 gives an off-curve address.
+const ErrNoAddress uint64 = 3004
+
 type Seeds struct {
 	buffer [529]byte
 	used   uint64
@@ -49,6 +52,36 @@ func (s *Seeds) Address(c solana.Context, program [32]byte) ([32]byte, uint64) {
 	var address [32]byte
 	code := solana.CreateAddress(c, s.Bytes(), program[:], address[:])
 	return address, code
+}
+
+// FindAddress returns the address and bump Solana's find_program_address
+// gives for these seeds under program: each bump from 255 down to 1 (never 0,
+// as in Solana) is appended in turn and the first off-curve address is
+// returned. The builder is unchanged; add the bump to it for signing. A
+// builder with 16 seeds has no room for the bump (ErrSeeds). Each attempt is
+// one create-program-address syscall (1,500 CU), so a bump of b costs about
+// (256-b)*1,500 CU; store the bump and use Address when it is known.
+func (s *Seeds) FindAddress(c solana.Context, program [32]byte) ([32]byte, byte, uint64) {
+	var address [32]byte
+	probe := *s
+	if probe.AddByte(255) != 0 {
+		return address, 0, ErrSeeds
+	}
+	seeds := probe.Bytes()
+	last := uint64(len(seeds)) - 1
+	for bump := uint64(255); bump > 0; bump-- {
+		seeds[last] = byte(bump)
+		code := solana.CreateAddress(c, seeds, program[:], address[:])
+		if code == 0 {
+			return address, byte(bump), 0
+		}
+		// The syscall returns 1 for an on-curve address; other statuses
+		// (malformed input, a missing native callback) end the search.
+		if code != 1 {
+			return address, 0, code
+		}
+	}
+	return address, 0, ErrNoAddress
 }
 
 func (s *Seeds) Matches(c solana.Context, index uint64, program [32]byte) (bool, uint64) {

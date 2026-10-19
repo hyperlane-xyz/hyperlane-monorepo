@@ -968,7 +968,8 @@ func MustParseKey(s string) Key {
 }
 
 // FindProgramAddress returns the first off-curve address for seeds plus a bump
-// byte, counting down from 255, as Solana's find_program_address does.
+// byte, counting down from 255 to 1, as Solana's find_program_address does
+// (it never tries 0).
 func FindProgramAddress(programID Key, seeds ...[]byte) (Key, byte, error) {
 	if len(seeds) > 15 {
 		return Key{}, 0, errors.New("at most 15 seeds plus the bump")
@@ -978,7 +979,7 @@ func FindProgramAddress(programID Key, seeds ...[]byte) (Key, byte, error) {
 			return Key{}, 0, errors.New("a seed exceeds 32 bytes")
 		}
 	}
-	for bump := 255; bump >= 0; bump-- {
+	for bump := 255; bump > 0; bump-- {
 		h := sha256.New()
 		for _, s := range seeds {
 			h.Write(s)

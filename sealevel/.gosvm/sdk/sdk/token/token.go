@@ -1,6 +1,7 @@
-// Package token provides checked classic SPL Token references and transfers.
-// Frozen accounts reach SPL Token for its exact error. Token-2022, native SOL,
-// delegate-authorized transfers and multisig are outside this initial contract.
+// Package token provides checked classic SPL Token references and transfers,
+// and checked instruction builders for both classic Token and Token-2022.
+// Frozen accounts reach SPL Token for its exact error. Native SOL,
+// delegate-authorized transfers and multisig are outside this contract.
 package token
 
 import (
@@ -29,6 +30,21 @@ type State struct {
 
 func ProgramID() [32]byte {
 	return [32]byte{6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169}
+}
+
+// Program2022ID is the Token-2022 program, TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb.
+func Program2022ID() [32]byte {
+	return [32]byte{6, 221, 246, 225, 238, 117, 143, 222, 24, 66, 93, 188, 228, 108, 205, 218, 182, 26, 252, 77, 131, 185, 13, 39, 254, 189, 249, 40, 216, 161, 139, 252}
+}
+
+// IsProgram reports whether index is the executable classic Token or Token-2022
+// program. Load, Read and the classic helpers still accept only classic Token.
+func IsProgram(c solana.Context, index uint64) bool {
+	if index >= solana.Count(c) || !solana.Executable(c, index) {
+		return false
+	}
+	key := solana.Key(c, index)
+	return equalKey(key, ProgramID()) || equalKey(key, Program2022ID())
 }
 
 func equalKey(bytes []byte, key [32]byte) bool {

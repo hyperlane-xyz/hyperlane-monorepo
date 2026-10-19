@@ -26,7 +26,7 @@ schema 2 can't express.
 
 ```sh
 go test ./...                       # native Go tests (from sealevel/)
-GOSVM=gosvm-int ./build-programs.sh # every program, fogo-v0 + solana-v3
+GOSVM=gosvm-int2 ./build-programs.sh # every program, fogo-v0 + solana-v3
 ```
 
 `build-programs.sh` writes `target/<profile>/deploy/<rust lib name>.so`
@@ -52,10 +52,13 @@ and breaks that workspace's builds.
 
 ## goSVM pin
 
-- CLI: CrocSwap/goSVM `hyperlane-integration` (843b1e0): v0.1.0-alpha.3 plus
-  `GetReturnData`, `Secp256k1Recover`, `Keccak256` and the memmove fix.
-- SDK snapshot: `sdk_sha256` 6ee9902dfedd6d618b512afbc3c30641294bf008a5c95e25da61e2a62814bc20
-  (copied from `gosvm-int new -schema 2 -sdk 2`).
+- CLI: CrocSwap/goSVM `hyperlane-integration-2` (a69b95ece405530d4688f73c1465f447da3e7cb1):
+  v0.1.0-alpha.3 plus `GetReturnData`, `Secp256k1Recover`, `Keccak256`, the
+  memmove fix, `MoveLamports`, `Log`/`Log64`/`LogPubkey`,
+  `pda.Seeds.FindAddress`, `-max-accounts 64`, System PDA-signed ops and the
+  Token/Token-2022/ATA SDK helpers.
+- SDK snapshot: `sdk_sha256` 3766627e191caa0f0c01a97c7eab8faaff8088ae02287aff51081820b4a28699
+  (copied from `gosvm-int2 new -schema 2 -sdk 2`).
 - Backend: platform-tools v1.57 (`gosvm toolchain install`).
 
 To update the pin, scaffold a project with the new CLI and copy its `.gosvm/`
