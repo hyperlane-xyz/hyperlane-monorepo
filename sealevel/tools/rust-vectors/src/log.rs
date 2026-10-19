@@ -49,18 +49,43 @@ pub fn extend(out: &mut Value) {
         k20.copy_from_slice(&k[..20]);
         let a = H160::from(k20);
         text(&mut m, format!("pubkey_{name}"), &k, format!("{pk}"));
-        text(&mut m, format!("pubkey_debug_{name}"), &k, format!("{pk:?}"));
-        text(&mut m, format!("some_pubkey_{name}"), &k, format!("{:?}", Some(pk)));
+        text(
+            &mut m,
+            format!("pubkey_debug_{name}"),
+            &k,
+            format!("{pk:?}"),
+        );
+        text(
+            &mut m,
+            format!("some_pubkey_{name}"),
+            &k,
+            format!("{:?}", Some(pk)),
+        );
         text(&mut m, format!("h256_{name}"), &k, format!("{h}"));
         text(&mut m, format!("h256_debug_{name}"), &k, format!("{h:?}"));
-        text(&mut m, format!("some_h256_{name}"), &k, format!("{:?}", Some(h)));
+        text(
+            &mut m,
+            format!("some_h256_{name}"),
+            &k,
+            format!("{:?}", Some(h)),
+        );
         text(&mut m, format!("h160_{name}"), &k20, format!("{a}"));
         text(&mut m, format!("h160_debug_{name}"), &k20, format!("{a:?}"));
     }
-    text(&mut m, "none_pubkey".into(), &[], format!("{:?}", None::<Pubkey>));
+    text(
+        &mut m,
+        "none_pubkey".into(),
+        &[],
+        format!("{:?}", None::<Pubkey>),
+    );
     for v in [0u64, 1, 9, 10, 1_000_000_007, u32::MAX as u64, u64::MAX] {
         text(&mut m, format!("u64_{v}"), &v.to_le_bytes(), format!("{v}"));
-        text(&mut m, format!("some_u64_{v}"), &v.to_le_bytes(), format!("{:?}", Some(v)));
+        text(
+            &mut m,
+            format!("some_u64_{v}"),
+            &v.to_le_bytes(),
+            format!("{:?}", Some(v)),
+        );
     }
     let u256s = [
         U256::zero(),
@@ -113,7 +138,12 @@ pub fn extend(out: &mut Value) {
         ProgramError::IncorrectAuthority,
     ] {
         let code = u64::from(e.clone());
-        text(&mut m, format!("program_error_{code:x}"), &code.to_le_bytes(), format!("{e}"));
+        text(
+            &mut m,
+            format!("program_error_{code:x}"),
+            &code.to_le_bytes(),
+            format!("{e}"),
+        );
     }
     out.as_object_mut()
         .unwrap()

@@ -63,16 +63,33 @@ fn stale_case(g: &mut Group, name: &str, before: &Igp, keep: &Igp) {
     buf[..k.len()].copy_from_slice(&k);
     let decoded = Igp::deserialize_reader(&mut &buf[..]).unwrap();
     g.ok(&format!("igp_{name}"), buf);
-    g.ok(&format!("igp_{name}_decoded"), borsh::to_vec(&decoded).unwrap());
+    g.ok(
+        &format!("igp_{name}_decoded"),
+        borsh::to_vec(&decoded).unwrap(),
+    );
 }
 
 pub fn extend(out: &mut Value) {
     let mut g = Group::new();
     let scale = TOKEN_EXCHANGE_RATE_SCALE;
     // accounts.rs unit-test cases.
-    fee_case(&mut g, "solaxy", 27_849_410_632_667_789_280_000, 6, 900_000, 9);
+    fee_case(
+        &mut g,
+        "solaxy",
+        27_849_410_632_667_789_280_000,
+        6,
+        900_000,
+        9,
+    );
     fee_case(&mut g, "one_to_one", scale, 1_000_000_000, 100_000, 9);
-    fee_case(&mut g, "eighteen_decimals", scale, 1_000_000_000, 100_000, 18);
+    fee_case(
+        &mut g,
+        "eighteen_decimals",
+        scale,
+        1_000_000_000,
+        100_000,
+        18,
+    );
     fee_case(&mut g, "u64_overflow", scale, 10u128.pow(18), u64::MAX, 0);
     // U256 multiplication overflow, first and second product.
     fee_case(&mut g, "mul_overflow", u128::MAX, u128::MAX, u64::MAX, 9);
@@ -80,7 +97,14 @@ pub fn extend(out: &mut Value) {
     fee_case(&mut g, "zero", 0, 0, 0, 255);
     // Every decimals value: checked_pow overflows above 9 + 77.
     for d in 0..=255u8 {
-        fee_case(&mut g, &format!("decimals_{d}"), u128::MAX / 3, 123_456_789_012_345, 987_654_321, d);
+        fee_case(
+            &mut g,
+            &format!("decimals_{d}"),
+            u128::MAX / 3,
+            123_456_789_012_345,
+            987_654_321,
+            d,
+        );
         fee_case(&mut g, &format!("small_decimals_{d}"), scale, 3, 7, d);
     }
     // Deterministic pseudo-random inputs (xorshift).
@@ -96,7 +120,14 @@ pub fn extend(out: &mut Value) {
         let price = (u128::from(next()) << 64 | u128::from(next())) >> (next() % 128);
         let amount = next() >> (next() % 64);
         let decimals = (next() % 40) as u8;
-        fee_case(&mut g, &format!("random_{i}"), rate, price, amount, decimals);
+        fee_case(
+            &mut g,
+            &format!("random_{i}"),
+            rate,
+            price,
+            amount,
+            decimals,
+        );
     }
 
     let fee_config = IgpFeeConfig {
@@ -104,8 +135,18 @@ pub fn extend(out: &mut Value) {
         domain_id: 42,
         min_issued_at: 1000,
     };
-    stale_case(&mut g, "stale_tail_02", &igp_with(&[0, 0xFF02], None), &igp_with(&[0], None));
-    stale_case(&mut g, "stale_tail_01", &igp_with(&[0, 1], None), &igp_with(&[0], None));
+    stale_case(
+        &mut g,
+        "stale_tail_02",
+        &igp_with(&[0, 0xFF02], None),
+        &igp_with(&[0], None),
+    );
+    stale_case(
+        &mut g,
+        "stale_tail_01",
+        &igp_with(&[0, 1], None),
+        &igp_with(&[0], None),
+    );
     stale_case(
         &mut g,
         "fee_config_stale_tail",
