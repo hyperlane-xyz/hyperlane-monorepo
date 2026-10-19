@@ -5,8 +5,7 @@
 // (run-svm-fixtures.sh).
 //
 // Accounts are read and written in place rather than Borsh-decoded and
-// re-encoded. Rust's msg! log lines are not emitted (goSVM has no user
-// logging yet).
+// re-encoded. Rust's msg! log lines are emitted with the same text.
 package mailbox
 
 import (
@@ -67,7 +66,7 @@ func Process(c solana.Context) uint64 {
 		if len(args) != 84 {
 			return svm.InvalidInstructionData
 		}
-		return initialize(c, args)
+		return svm.LogError(c, initialize(c, args))
 	case ixInboxProcess:
 		if len(args) < 4 {
 			return svm.InvalidInstructionData
@@ -80,42 +79,42 @@ func Process(c solana.Context) uint64 {
 		if uint64(len(args)) != messageOff+uint64(u32le(args, 4+metadataLen)) {
 			return svm.InvalidInstructionData
 		}
-		return process(c, args, args[messageOff:])
+		return svm.LogError(c, process(c, args, args[messageOff:]))
 	case ixInboxSetDefaultIsm:
 		if len(args) != 32 {
 			return svm.InvalidInstructionData
 		}
-		return setDefaultISM(c, args)
+		return svm.LogError(c, setDefaultISM(c, args))
 	case ixInboxGetRecipientIsm:
 		if len(args) != 32 {
 			return svm.InvalidInstructionData
 		}
-		return getRecipientISM(c, args)
+		return svm.LogError(c, getRecipientISM(c, args))
 	case ixOutboxDispatch:
 		if len(args) < 72 || uint64(len(args)) != 72+uint64(u32le(args, 68)) {
 			return svm.InvalidInstructionData
 		}
-		return dispatch(c, args)
+		return svm.LogError(c, dispatch(c, args))
 	case ixOutboxGetCount, ixOutboxGetLatestCheckpoint, ixOutboxGetRoot, ixGetOwner:
 		if len(args) != 0 {
 			return svm.InvalidInstructionData
 		}
-		return query(c, ix[0])
+		return svm.LogError(c, query(c, ix[0]))
 	case ixTransferOwnership:
 		if !(len(args) == 1 && args[0] == 0) && !(len(args) == 33 && args[0] == 1) {
 			return svm.InvalidInstructionData
 		}
-		return transferOwnership(c, args)
+		return svm.LogError(c, transferOwnership(c, args))
 	case ixClaimProtocolFees:
 		if len(args) != 0 {
 			return svm.InvalidInstructionData
 		}
-		return claimProtocolFees(c)
+		return svm.LogError(c, claimProtocolFees(c))
 	case ixSetProtocolFeeConfig:
 		if len(args) != 40 {
 			return svm.InvalidInstructionData
 		}
-		return setProtocolFee(c, args)
+		return svm.LogError(c, setProtocolFee(c, args))
 	}
 	return svm.InvalidInstructionData
 }
@@ -172,6 +171,7 @@ func initialize(c solana.Context, args []byte) uint64 {
 		return code
 	}
 	if u64le(args, 44) > u64le(args, 36) {
+		svm.Log(c, "Invalid initialization config: Protocol fee is greater than max protocol fee")
 		return svm.InvalidArgument
 	}
 	if code = accountutils.CreatePDAAccount(c, 1, inboxSize, program, 0, 2, &seeds); code != svm.Success {
@@ -299,6 +299,13 @@ func dispatch(c solana.Context, args []byte) uint64 {
 	if code = svm.SystemTransfer(c, 2, 4, 0, o.fee, nil); code != svm.Success {
 		return code
 	}
+	m := svm.NewMsg("Protocol fee of ")
+	m.Dec(o.fee)
+	m.Str(" paid from ")
+	m.Key(solana.Key(c, 4))
+	m.Str(" to ")
+	m.Key(solana.Key(c, 0))
+	m.Emit(c)
 
 	body := args[72:]
 	encodedLen := uint64(hyperlanecore.MessagePrefixLen + len(body))
@@ -326,6 +333,11 @@ func dispatch(c solana.Context, args []byte) uint64 {
 	if code = hyperlanecore.MessageID(c, stored, dispatchedHeader, encodedLen, id[:]); code != svm.Success {
 		return code
 	}
+	m = svm.NewMsg("Dispatched message to ")
+	m.U32(u32le(args, 32))
+	m.Str(", ID ")
+	m.H256(&id)
+	m.Emit(c)
 	if code = writable(c, 0); code != svm.Success {
 		return code
 	}
@@ -434,6 +446,16 @@ func transferOwnership(c solana.Context, args []byte) uint64 {
 	if code = o.ensureOwnerSigner(c, 1); code != svm.Success {
 		return code
 	}
+	// AccessControl::transfer_ownership's log.
+	m := svm.NewMsg("Ownership transferred to ")
+	if args[0] == 1 {
+		m.Str("Some(")
+		m.Key(args[1:33])
+		m.Str(")")
+	} else {
+		m.OptionPubkey(false, nil)
+	}
+	m.Emit(c)
 	if code = writable(c, 0); code != svm.Success {
 		return code
 	}
@@ -476,6 +498,7 @@ func setProtocolFee(c solana.Context, args []byte) uint64 {
 		return code
 	}
 	if u64le(args, 0) > o.maxFee {
+		svm.Log(c, "Invalid protocol fee config: Fee is greater than max protocol fee")
 		return svm.InvalidArgument
 	}
 	if code = writable(c, 0); code != svm.Success {
@@ -736,7 +759,13 @@ func process(c solana.Context, args, message []byte) uint64 {
 	for i := recipientIndex + 1; i < count; i++ {
 		metas.Add(i, solana.Writable(c, i), solana.Signer(c, i))
 	}
-	return svm.Invoke(c, recipientIndex, &metas, handle, &authority)
+	if code = svm.Invoke(c, recipientIndex, &metas, handle, &authority); code != svm.Success {
+		return code
+	}
+	m := svm.NewMsg("Hyperlane inbox processed message ")
+	m.H256(&id)
+	m.Emit(c)
+	return svm.Success
 }
 
 // passesAccount reports whether any account in [from, to) has account
