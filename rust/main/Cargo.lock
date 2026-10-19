@@ -25,6 +25,7 @@ dependencies = [
 name = "access-control"
 version = "0.1.0"
 dependencies = [
+ "log-utils",
  "solana-program 3.0.0",
 ]
 
@@ -6000,6 +6001,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-mailbox",
+ "log-utils",
  "multisig-ism",
  "num-derive",
  "num-traits",
@@ -6021,6 +6023,7 @@ dependencies = [
  "borsh 1.6.0",
  "getrandom 0.2.15",
  "hyperlane-core",
+ "log-utils",
  "num-derive",
  "num-traits",
  "package-versioned",
@@ -6054,6 +6057,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
  "hyperlane-sealevel-message-recipient-interface",
+ "log-utils",
  "num-derive",
  "num-traits",
  "package-versioned",
@@ -7073,6 +7077,13 @@ name = "log"
 version = "0.4.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34080505efa8e45a4b816c349525ebe327ceaa8559756f0356cba97ef3bf7432"
+
+[[package]]
+name = "log-utils"
+version = "0.1.0"
+dependencies = [
+ "solana-program 3.0.0",
+]
 
 [[package]]
 name = "lru"
