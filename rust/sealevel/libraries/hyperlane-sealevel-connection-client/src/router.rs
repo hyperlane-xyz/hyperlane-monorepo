@@ -7,10 +7,10 @@ use hyperlane_sealevel_igp::instruction::{
 use hyperlane_sealevel_mailbox::instruction::{
     Instruction as MailboxInstruction, OutboxDispatch as MailboxOutboxDispatch,
 };
+use log_utils::LogLine;
 use solana_program::{
     account_info::AccountInfo,
     instruction::{AccountMeta, Instruction},
-    msg,
     program::{get_return_data, invoke, invoke_signed},
     program_error::ProgramError,
     pubkey::Pubkey,
@@ -228,10 +228,11 @@ impl HyperlaneRouter for HashMap<u32, H256> {
             }
         }
 
-        msg!(
-            "Set domain {} remote router to {:?}",
-            config.domain,
-            config.router
-        );
+        LogLine::new()
+            .str("Set domain ")
+            .u64(config.domain.into())
+            .str(" remote router to ")
+            .option(config.router, |l, r| l.hex(r.as_bytes()))
+            .log();
     }
 }

@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 solana-program.workspace = true
 
+log-utils = { path = "../log-utils" }
+
 [dev-dependencies]
 
 [lib]

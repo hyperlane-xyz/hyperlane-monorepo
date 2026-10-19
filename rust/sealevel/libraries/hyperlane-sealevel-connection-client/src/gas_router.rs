@@ -1,9 +1,10 @@
 use access_control::AccessControl;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
+use log_utils::LogLine;
 
 use solana_program::{
-    account_info::AccountInfo, instruction::AccountMeta, msg, program_error::ProgramError,
+    account_info::AccountInfo, instruction::AccountMeta, program_error::ProgramError,
     pubkey::Pubkey,
 };
 use std::collections::HashMap;
@@ -117,6 +118,11 @@ impl HyperlaneGasRouter for HashMap<u32, u64> {
             }
         }
 
-        msg!("Set destination {} gas to: {:?}", config.domain, config.gas);
+        LogLine::new()
+            .str("Set destination ")
+            .u64(config.domain.into())
+            .str(" gas to: ")
+            .option(config.gas, LogLine::u64)
+            .log();
     }
 }

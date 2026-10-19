@@ -16,6 +16,7 @@ dependencies = [
 name = "access-control"
 version = "0.1.0"
 dependencies = [
+ "log-utils",
  "solana-program 3.0.0",
 ]
 
@@ -3496,6 +3497,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
+ "log-utils",
  "solana-program 3.0.0",
 ]
 
