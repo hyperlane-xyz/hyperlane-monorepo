@@ -21,6 +21,8 @@ use serde_json::{json, Map, Value};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::pubkey::Pubkey;
 
+mod igp;
+
 fn hex(b: &[u8]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
 }
@@ -473,12 +475,13 @@ fn svm_group() -> Group {
 }
 
 fn main() {
-    let out = json!({
+    let mut out = json!({
         "borsh": Value::Object(borsh_group().0),
         "account-utils": Value::Object(account_utils_group().0),
         "interfaces": Value::Object(interfaces_group().0),
         "hyperlane-core": Value::Object(core_group().0),
         "svm": Value::Object(svm_group().0),
     });
+    igp::extend(&mut out);
     println!("{}", serde_json::to_string_pretty(&out).unwrap());
 }
