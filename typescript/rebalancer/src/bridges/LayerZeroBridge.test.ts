@@ -140,6 +140,13 @@ function makeBridge(maxFeeBps = 50): LayerZeroBridge {
           protocol: ProtocolType.Tron,
           rpcUrls: [{ http: 'https://tron.example.com' }],
         },
+        celestia: {
+          chainId: 'celestia',
+          domainId: 69420,
+          name: 'celestia',
+          protocol: ProtocolType.Cosmos,
+          rpcUrls: [{ http: 'https://celestia.example.com' }],
+        },
       },
       warpRoutes: [
         { id: 'USDT/oft', config: CURRENT_ROUTE },
