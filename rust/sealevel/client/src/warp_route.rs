@@ -198,9 +198,9 @@ impl WarpRouteDeployer {}
 impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
     fn program_name(&self, config: &TokenConfig) -> &str {
         match config.token_type {
-            TokenType::Native => "hyperlane_sealevel_interface::token_native",
-            TokenType::Synthetic(_) => "hyperlane_sealevel_interface::token_synthetic",
-            TokenType::Collateral(_) => "hyperlane_sealevel_interface::token_collateral",
+            TokenType::Native => "hyperlane_sealevel_token_native",
+            TokenType::Synthetic(_) => "hyperlane_sealevel_token",
+            TokenType::Collateral(_) => "hyperlane_sealevel_token_collateral",
         }
     }
 

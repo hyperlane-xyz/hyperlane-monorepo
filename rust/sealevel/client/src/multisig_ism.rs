@@ -175,9 +175,9 @@ pub(crate) fn deploy_multisig_ism_message_id(
     let program_id = deploy_program(
         ctx.payer_keypair_path(),
         key_dir,
-        "hyperlane_sealevel_interface::multisig_ism_message_id",
+        "hyperlane_sealevel_multisig_ism_message_id",
         built_so_dir
-            .join("hyperlane_sealevel_interface::multisig_ism_message_id.so")
+            .join("hyperlane_sealevel_multisig_ism_message_id.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),

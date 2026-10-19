@@ -369,9 +369,9 @@ pub(crate) fn deploy_composite_ism(
     let program_id = deploy_program(
         ctx.payer_keypair_path(),
         key_dir,
-        "hyperlane_sealevel_interface::composite_ism",
+        "hyperlane_sealevel_composite_ism",
         built_so_dir
-            .join("hyperlane_sealevel_interface::composite_ism.so")
+            .join("hyperlane_sealevel_composite_ism.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),

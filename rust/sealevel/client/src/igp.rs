@@ -454,9 +454,9 @@ fn deploy_igp_program(
     let program_id = deploy_program(
         ctx.payer_keypair_path(),
         key_dir,
-        "hyperlane_sealevel_interface::igp",
+        "hyperlane_sealevel_igp",
         built_so_dir
-            .join("hyperlane_sealevel_interface::igp.so")
+            .join("hyperlane_sealevel_igp.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),

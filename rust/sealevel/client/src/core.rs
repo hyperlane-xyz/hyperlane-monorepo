@@ -142,9 +142,9 @@ fn deploy_mailbox(
     let program_id = deploy_program(
         ctx.payer_keypair_path(),
         key_dir,
-        "hyperlane_sealevel_interface::mailbox",
+        "hyperlane_sealevel_mailbox",
         core.built_so_dir
-            .join("hyperlane_sealevel_interface::mailbox.so")
+            .join("hyperlane_sealevel_mailbox.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),
@@ -196,9 +196,9 @@ fn deploy_validator_announce(
     let program_id = deploy_program(
         ctx.payer_keypair_path(),
         key_dir,
-        "hyperlane_sealevel_interface::validator_announce",
+        "hyperlane_sealevel_validator_announce",
         core.built_so_dir
-            .join("hyperlane_sealevel_interface::validator_announce.so")
+            .join("hyperlane_sealevel_validator_announce.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),
@@ -231,9 +231,9 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
     let program_id = deploy_program(
         ctx.payer_keypair_path(),
         key_dir,
-        "hyperlane_sealevel_interface::igp",
+        "hyperlane_sealevel_igp",
         core.built_so_dir
-            .join("hyperlane_sealevel_interface::igp.so")
+            .join("hyperlane_sealevel_igp.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),

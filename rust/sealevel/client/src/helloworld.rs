@@ -66,7 +66,7 @@ impl HelloWorldDeployer {
 
 impl RouterDeployer<HelloWorldConfig> for HelloWorldDeployer {
     fn program_name(&self, _config: &HelloWorldConfig) -> &str {
-        "hyperlane_sealevel_interface::helloworld"
+        "hyperlane_sealevel_hello_world"
     }
 
     fn enroll_remote_routers_instruction(
