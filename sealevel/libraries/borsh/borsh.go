@@ -120,18 +120,69 @@ func (w *Writer) Bool(v bool) {
 	}
 }
 
+// room returns the next n bytes of a fixed writer's slice and advances past
+// them, or nil if they don't fit (or the writer already overflowed). The
+// caller then writes byte by byte, so a short buffer still gets the same
+// prefix as Rust's WriteZero.
+func (w *Writer) room(n int) []byte {
+	if w.overflow || n > len(w.buf)-w.n {
+		return nil
+	}
+	b := w.buf[w.n : w.n+n]
+	w.n += n
+	return b
+}
+
+// Fixed-width integers go into a fixed writer in one bounds-checked step:
+// goSVM compiles one put() per byte to ~45 CU per u64, this to ~6 CU.
+
 func (w *Writer) U16(v uint16) {
+	if !w.fixed {
+		w.buf = append(w.buf, byte(v), byte(v>>8))
+		return
+	}
+	if b := w.room(2); b != nil {
+		b[0] = byte(v)
+		b[1] = byte(v >> 8)
+		return
+	}
 	w.put(byte(v))
 	w.put(byte(v >> 8))
 }
 
 func (w *Writer) U32(v uint32) {
+	if !w.fixed {
+		w.buf = append(w.buf, byte(v), byte(v>>8), byte(v>>16), byte(v>>24))
+		return
+	}
+	if b := w.room(4); b != nil {
+		b[0] = byte(v)
+		b[1] = byte(v >> 8)
+		b[2] = byte(v >> 16)
+		b[3] = byte(v >> 24)
+		return
+	}
 	for i := uint32(0); i < 4; i++ {
 		w.put(byte(v >> (8 * i)))
 	}
 }
 
 func (w *Writer) U64(v uint64) {
+	if !w.fixed {
+		w.buf = append(w.buf, byte(v), byte(v>>8), byte(v>>16), byte(v>>24), byte(v>>32), byte(v>>40), byte(v>>48), byte(v>>56))
+		return
+	}
+	if b := w.room(8); b != nil {
+		b[0] = byte(v)
+		b[1] = byte(v >> 8)
+		b[2] = byte(v >> 16)
+		b[3] = byte(v >> 24)
+		b[4] = byte(v >> 32)
+		b[5] = byte(v >> 40)
+		b[6] = byte(v >> 48)
+		b[7] = byte(v >> 56)
+		return
+	}
 	for i := uint64(0); i < 8; i++ {
 		w.put(byte(v >> (8 * i)))
 	}
@@ -264,11 +315,7 @@ func (r *Reader) U32() uint32 {
 	if b == nil {
 		return 0
 	}
-	v := uint32(0)
-	for i := 0; i < 4; i++ {
-		v |= uint32(b[i]) << (8 * uint32(i))
-	}
-	return v
+	return uint32(b[0]) | uint32(b[1])<<8 | uint32(b[2])<<16 | uint32(b[3])<<24
 }
 
 func (r *Reader) U64() uint64 {
@@ -276,11 +323,8 @@ func (r *Reader) U64() uint64 {
 	if b == nil {
 		return 0
 	}
-	v := uint64(0)
-	for i := 0; i < 8; i++ {
-		v |= uint64(b[i]) << (8 * uint64(i))
-	}
-	return v
+	return uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24 |
+		uint64(b[4])<<32 | uint64(b[5])<<40 | uint64(b[6])<<48 | uint64(b[7])<<56
 }
 
 func (r *Reader) I8() int8   { return int8(r.U8()) }

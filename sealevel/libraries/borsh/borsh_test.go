@@ -340,3 +340,26 @@ func TestReadVecHugeLength(t *testing.T) {
 		t.Fatalf("got %v ok=%v", v, r.Ok())
 	}
 }
+
+// Fixed-width writes take a one-step path when they fit; a short buffer must
+// still get the same little-endian prefix as the byte-by-byte path.
+func TestFixedWriterIntegersMatchGrowing(t *testing.T) {
+	g := borsh.NewWriter(0)
+	g.U16(0x0102)
+	g.U32(0x03040506)
+	g.U64(0x0708090a0b0c0d0e)
+	want := g.Bytes()
+	if hex.EncodeToString(want) != "0201060504030e0d0c0b0a090807" {
+		t.Fatalf("growing %x", want)
+	}
+	for n := 0; n <= len(want); n++ {
+		buf := make([]byte, n)
+		w := borsh.NewFixedWriter(buf)
+		w.U16(0x0102)
+		w.U32(0x03040506)
+		w.U64(0x0708090a0b0c0d0e)
+		if !bytes.Equal(buf, want[:n]) || w.Overflow() != (n < len(want)) || w.Len() != n {
+			t.Fatalf("n=%d buf %x overflow %v len %d", n, buf, w.Overflow(), w.Len())
+		}
+	}
+}
