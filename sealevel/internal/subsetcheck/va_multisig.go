@@ -1,7 +1,9 @@
 package subsetcheck
 
 import (
+	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/borsh"
 	ecdsa "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/ecdsa-signature"
+	quoteverifier "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/quote-verifier"
 	"gosvm/solana"
 )
 
@@ -18,6 +20,20 @@ func vaMultisig(c solana.Context, data []byte) uint64 {
 	if code != 0 {
 		return code
 	}
-	_, code = s.RecoverEthereumAddress(c, digest[:])
-	return code
+	if _, code = s.RecoverEthereumAddress(c, digest[:]); code != 0 {
+		return code
+	}
+	var q quoteverifier.SvmSignedQuote
+	r := borsh.NewReader(data)
+	q.DecodeBorsh(&r)
+	w := borsh.NewWriter(64)
+	q.EncodeBorsh(&w)
+	signers := borsh.ReadSet(&r, borsh.ReadBytes20, borsh.Less20)
+	if _, code := q.VerifySigner(c, &h, 1, &h, signers); code != 0 {
+		return code
+	}
+	if code := q.ValidateSubmission(0, 1); code != 0 {
+		return code
+	}
+	return q.Validate(0, 1)
 }
