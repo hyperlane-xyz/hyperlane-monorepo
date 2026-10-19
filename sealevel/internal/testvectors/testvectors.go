@@ -68,7 +68,7 @@ type Golden struct {
 }
 
 // GoldenConstant is one named constant. Value is the JSON string, or the
-// literal text of a JSON number (fee.json and others encode u32s as numbers).
+// literal text of a JSON number (fee.json and igp.json encode some as numbers).
 type GoldenConstant struct {
 	Name  string
 	Value string
@@ -83,9 +83,10 @@ func (c *GoldenConstant) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	c.Name = raw.Name
-	if err := json.Unmarshal(raw.Value, &c.Value); err != nil {
-		c.Value = string(raw.Value)
+	if len(raw.Value) > 0 && raw.Value[0] == '"' {
+		return json.Unmarshal(raw.Value, &c.Value)
 	}
+	c.Value = string(raw.Value)
 	return nil
 }
 

@@ -45,7 +45,10 @@ If a fresh resolution picks crates that need a newer rustc, seed the tool's
 (ignored) lockfile first: `cp ../rust/sealevel/Cargo.lock tools/rust-vectors/`.
 Keep its default target dir. Sharing `rust/sealevel`'s target dir clobbers the
 unhashed cdylib rlibs (`libaccount_utils.rlib`, ...) and breaks that workspace's
-builds.
+builds. The tool has no lockfile of its own; with the IGP crate in its
+dependencies, fresh resolution picks crates newer than rustc 1.86 allows, so
+seed it from the workspace first (and don't commit the copy):
+`cp ../rust/sealevel/Cargo.lock tools/rust-vectors/`.
 
 ## goSVM pin
 

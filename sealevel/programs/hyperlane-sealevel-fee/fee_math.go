@@ -87,22 +87,22 @@ func (s *FeeDataStrategy) ComputeFee(amount uint64) (uint64, uint64) {
 
 // computeLinear: fee = min(max_fee, amount * max_fee / (2 * half_amount)).
 func computeLinear(maxFee, half, amount hyperlanecore.U256) (uint64, uint64) {
-	if hyperlanecore.U256IsZero(maxFee) || hyperlanecore.U256IsZero(half) {
+	if hyperlanecore.U256IsZero(&maxFee) || hyperlanecore.U256IsZero(&half) {
 		return 0, svm.Success
 	}
-	denominator, ok := hyperlanecore.U256CheckedMul(hyperlanecore.U256FromUint64(2), half)
+	denominator, ok := hyperlanecore.U256CheckedMulU64(&half, 2)
 	if !ok {
 		return 0, ErrFeeComputationOverflow
 	}
-	product, ok := hyperlanecore.U256CheckedMul(amount, maxFee)
+	product, ok := hyperlanecore.U256CheckedMul(&amount, &maxFee)
 	if !ok {
 		return 0, ErrFeeComputationOverflow
 	}
-	fee, ok := hyperlanecore.U256CheckedDiv(product, denominator)
+	fee, ok := hyperlanecore.U256CheckedDiv(&product, &denominator)
 	if !ok {
 		return 0, ErrFeeComputationOverflow
 	}
-	if hyperlanecore.U256Cmp(fee, maxFee) > 0 {
+	if hyperlanecore.U256Cmp(&fee, &maxFee) > 0 {
 		fee = maxFee
 	}
 	return toU64(fee)
@@ -110,18 +110,18 @@ func computeLinear(maxFee, half, amount hyperlanecore.U256) (uint64, uint64) {
 
 // computeRegressive: fee = max_fee * amount / (half_amount + amount).
 func computeRegressive(maxFee, half, amount hyperlanecore.U256) (uint64, uint64) {
-	if hyperlanecore.U256IsZero(maxFee) || hyperlanecore.U256IsZero(half) {
+	if hyperlanecore.U256IsZero(&maxFee) || hyperlanecore.U256IsZero(&half) {
 		return 0, svm.Success
 	}
-	numerator, ok := hyperlanecore.U256CheckedMul(maxFee, amount)
+	numerator, ok := hyperlanecore.U256CheckedMul(&maxFee, &amount)
 	if !ok {
 		return 0, ErrFeeComputationOverflow
 	}
-	denominator, ok := hyperlanecore.U256CheckedAdd(half, amount)
+	denominator, ok := hyperlanecore.U256CheckedAdd(&half, &amount)
 	if !ok {
 		return 0, ErrFeeComputationOverflow
 	}
-	fee, ok := hyperlanecore.U256CheckedDiv(numerator, denominator)
+	fee, ok := hyperlanecore.U256CheckedDiv(&numerator, &denominator)
 	if !ok {
 		return 0, ErrFeeComputationOverflow
 	}
@@ -130,29 +130,29 @@ func computeRegressive(maxFee, half, amount hyperlanecore.U256) (uint64, uint64)
 
 // computeProgressive: fee = max_fee * amount^2 / (half_amount^2 + amount^2).
 func computeProgressive(maxFee, half, amount hyperlanecore.U256) (uint64, uint64) {
-	if hyperlanecore.U256IsZero(maxFee) || hyperlanecore.U256IsZero(half) {
+	if hyperlanecore.U256IsZero(&maxFee) || hyperlanecore.U256IsZero(&half) {
 		return 0, svm.Success
 	}
-	amountSq, ok := hyperlanecore.U256CheckedMul(amount, amount)
+	amountSq, ok := hyperlanecore.U256CheckedMul(&amount, &amount)
 	if !ok {
 		return 0, ErrFeeComputationOverflow
 	}
-	halfSq, ok := hyperlanecore.U256CheckedMul(half, half)
+	halfSq, ok := hyperlanecore.U256CheckedMul(&half, &half)
 	if !ok {
 		return 0, ErrFeeComputationOverflow
 	}
-	denominator, ok := hyperlanecore.U256CheckedAdd(halfSq, amountSq)
+	denominator, ok := hyperlanecore.U256CheckedAdd(&halfSq, &amountSq)
 	if !ok {
 		return 0, ErrFeeComputationOverflow
 	}
-	if hyperlanecore.U256IsZero(denominator) {
+	if hyperlanecore.U256IsZero(&denominator) {
 		return 0, svm.Success
 	}
-	numerator, ok := hyperlanecore.U256CheckedMul(maxFee, amountSq)
+	numerator, ok := hyperlanecore.U256CheckedMul(&maxFee, &amountSq)
 	if !ok {
 		return 0, ErrFeeComputationOverflow
 	}
-	fee, ok := hyperlanecore.U256CheckedDiv(numerator, denominator)
+	fee, ok := hyperlanecore.U256CheckedDiv(&numerator, &denominator)
 	if !ok {
 		return 0, ErrFeeComputationOverflow
 	}
@@ -160,7 +160,7 @@ func computeProgressive(maxFee, half, amount hyperlanecore.U256) (uint64, uint64
 }
 
 func toU64(v hyperlanecore.U256) (uint64, uint64) {
-	x, ok := hyperlanecore.U256ToUint64(v)
+	x, ok := hyperlanecore.U256Uint64(&v)
 	if !ok {
 		return 0, ErrFeeComputationOverflow
 	}
