@@ -501,20 +501,20 @@ func TestSubMetadataAt(t *testing.T) {
 	}
 	body := make([]byte, 64)
 	body[63] = 42
-	thr := borsh.U256{42}
-	if ge, ok := amountAtLeast(body, &thr); !ok || !ge {
+	threshold := borsh.U256{42}
+	if ge, ok := amountAtLeast(body, &threshold); !ok || !ge {
 		t.Errorf("42 >= 42")
 	}
-	thr = borsh.U256{43}
-	if ge, _ := amountAtLeast(body, &thr); ge {
+	threshold = borsh.U256{43}
+	if ge, _ := amountAtLeast(body, &threshold); ge {
 		t.Errorf("42 >= 43")
 	}
 	body[32] = 1
-	thr = borsh.U256{0, 0, 0, 1 << 57}
-	if ge, _ := amountAtLeast(body, &thr); ge {
+	threshold = borsh.U256{0, 0, 0, 1 << 57}
+	if ge, _ := amountAtLeast(body, &threshold); ge {
 		t.Errorf("2^248 >= 2^249")
 	}
-	if _, ok := amountAtLeast(body[:63], &thr); ok {
+	if _, ok := amountAtLeast(body[:63], &threshold); ok {
 		t.Errorf("short body")
 	}
 }
