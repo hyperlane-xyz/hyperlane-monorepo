@@ -1,5 +1,5 @@
 use borsh::BorshDeserialize;
-use hyperlane_sealevel_mailbox::protocol_fee::ProtocolFee;
+use hyperlane_sealevel_interface::mailbox::protocol_fee::ProtocolFee;
 use serde::{Deserialize, Serialize};
 
 use solana_compute_budget_interface::{self as compute_budget, ComputeBudgetInstruction};
@@ -142,9 +142,9 @@ fn deploy_mailbox(
     let program_id = deploy_program(
         ctx.payer_keypair_path(),
         key_dir,
-        "hyperlane_sealevel_mailbox",
+        "hyperlane_sealevel_interface::mailbox",
         core.built_so_dir
-            .join("hyperlane_sealevel_mailbox.so")
+            .join("hyperlane_sealevel_interface::mailbox.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),
@@ -167,7 +167,7 @@ fn deploy_mailbox(
     let protocol_fee_beneficiary = protocol_fee_config.beneficiary.unwrap_or(ctx.payer_pubkey);
 
     // Initialize
-    let instruction = hyperlane_sealevel_mailbox::instruction::init_instruction(
+    let instruction = hyperlane_sealevel_interface::mailbox::instruction::init_instruction(
         program_id,
         core.local_domain,
         default_ism,
@@ -196,9 +196,9 @@ fn deploy_validator_announce(
     let program_id = deploy_program(
         ctx.payer_keypair_path(),
         key_dir,
-        "hyperlane_sealevel_validator_announce",
+        "hyperlane_sealevel_interface::validator_announce",
         core.built_so_dir
-            .join("hyperlane_sealevel_validator_announce.so")
+            .join("hyperlane_sealevel_interface::validator_announce.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),
@@ -209,13 +209,14 @@ fn deploy_validator_announce(
     println!("Deployed ValidatorAnnounce at program ID {}", program_id);
 
     // Initialize
-    let instruction = hyperlane_sealevel_validator_announce::instruction::init_instruction(
-        program_id,
-        ctx.payer_pubkey,
-        mailbox_program_id,
-        core.local_domain,
-    )
-    .unwrap();
+    let instruction =
+        hyperlane_sealevel_interface::validator_announce::instruction::init_instruction(
+            program_id,
+            ctx.payer_pubkey,
+            mailbox_program_id,
+            core.local_domain,
+        )
+        .unwrap();
 
     ctx.new_txn().add(instruction).send_with_payer();
 
@@ -230,9 +231,9 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
     let program_id = deploy_program(
         ctx.payer_keypair_path(),
         key_dir,
-        "hyperlane_sealevel_igp",
+        "hyperlane_sealevel_interface::igp",
         core.built_so_dir
-            .join("hyperlane_sealevel_igp.so")
+            .join("hyperlane_sealevel_interface::igp.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),
@@ -243,21 +244,23 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
     println!("Deployed IGP at program ID {}", program_id);
 
     // Initialize the program data
-    let instruction =
-        hyperlane_sealevel_igp::instruction::init_instruction(program_id, ctx.payer_pubkey)
-            .unwrap();
+    let instruction = hyperlane_sealevel_interface::igp::instruction::init_instruction(
+        program_id,
+        ctx.payer_pubkey,
+    )
+    .unwrap();
 
     ctx.new_txn().add(instruction).send_with_payer();
 
     let (program_data_account, _program_data_bump) = Pubkey::find_program_address(
-        hyperlane_sealevel_igp::igp_program_data_pda_seeds!(),
+        hyperlane_sealevel_interface::igp::igp_program_data_pda_seeds!(),
         &program_id,
     );
     println!("Initialized IGP program data {}", program_data_account);
 
     // Initialize IGP with salt zero
     let salt = H256::zero();
-    let instruction = hyperlane_sealevel_igp::instruction::init_igp_instruction(
+    let instruction = hyperlane_sealevel_interface::igp::instruction::init_igp_instruction(
         program_id,
         ctx.payer_pubkey,
         salt,
@@ -268,23 +271,26 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
 
     ctx.new_txn().add(instruction).send_with_payer();
 
-    let (igp_account, _igp_account_bump) =
-        Pubkey::find_program_address(hyperlane_sealevel_igp::igp_pda_seeds!(salt), &program_id);
+    let (igp_account, _igp_account_bump) = Pubkey::find_program_address(
+        hyperlane_sealevel_interface::igp::igp_pda_seeds!(salt),
+        &program_id,
+    );
     println!("Initialized IGP account {}", igp_account);
 
-    let instruction = hyperlane_sealevel_igp::instruction::init_overhead_igp_instruction(
-        program_id,
-        ctx.payer_pubkey,
-        salt,
-        Some(ctx.payer_pubkey),
-        igp_account,
-    )
-    .unwrap();
+    let instruction =
+        hyperlane_sealevel_interface::igp::instruction::init_overhead_igp_instruction(
+            program_id,
+            ctx.payer_pubkey,
+            salt,
+            Some(ctx.payer_pubkey),
+            igp_account,
+        )
+        .unwrap();
 
     ctx.new_txn().add(instruction).send_with_payer();
 
     let (overhead_igp_account, _) = Pubkey::find_program_address(
-        hyperlane_sealevel_igp::overhead_igp_pda_seeds!(salt),
+        hyperlane_sealevel_interface::igp::overhead_igp_pda_seeds!(salt),
         &program_id,
     );
 

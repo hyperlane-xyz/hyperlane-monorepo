@@ -3422,18 +3422,8 @@ dependencies = [
  "ethers",
  "hex",
  "hyperlane-core",
- "hyperlane-sealevel-composite-ism",
- "hyperlane-sealevel-connection-client",
- "hyperlane-sealevel-hello-world",
- "hyperlane-sealevel-igp",
  "hyperlane-sealevel-interchain-security-module-interface",
- "hyperlane-sealevel-mailbox",
- "hyperlane-sealevel-multisig-ism-message-id",
- "hyperlane-sealevel-token",
- "hyperlane-sealevel-token-collateral",
- "hyperlane-sealevel-token-lib",
- "hyperlane-sealevel-token-native",
- "hyperlane-sealevel-validator-announce",
+ "hyperlane-sealevel-interface",
  "itertools 0.14.0",
  "pretty_env_logger",
  "serde",
@@ -3450,6 +3440,8 @@ dependencies = [
  "solana-sdk",
  "solana-system-interface 2.0.0",
  "solana-transaction-status",
+ "spl-associated-token-account",
+ "spl-token-2022",
 ]
 
 [[package]]

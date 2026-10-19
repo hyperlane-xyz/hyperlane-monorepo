@@ -15,7 +15,7 @@ use crate::{
 
 use hyperlane_core::H160;
 
-use hyperlane_sealevel_multisig_ism_message_id::{
+use hyperlane_sealevel_interface::multisig_ism_message_id::{
     access_control_pda_seeds,
     accounts::{AccessControlAccount, DomainDataAccount},
     domain_data_pda_seeds,
@@ -77,7 +77,7 @@ pub(crate) fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: Multisi
         }
         MultisigIsmMessageIdSubCmd::Init(init) => {
             let init_instruction =
-                hyperlane_sealevel_multisig_ism_message_id::instruction::init_instruction(
+                hyperlane_sealevel_interface::multisig_ism_message_id::instruction::init_instruction(
                     init.program_id,
                     ctx.payer_pubkey,
                 )
@@ -141,7 +141,7 @@ pub(crate) fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: Multisi
         }
         MultisigIsmMessageIdSubCmd::TransferOwnership(transfer_ownership) => {
             let instruction =
-                hyperlane_sealevel_multisig_ism_message_id::instruction::transfer_ownership_instruction(
+                hyperlane_sealevel_interface::multisig_ism_message_id::instruction::transfer_ownership_instruction(
                     transfer_ownership.program_id,
                     ctx.payer_pubkey,
                     Some(transfer_ownership.new_owner),
@@ -175,9 +175,9 @@ pub(crate) fn deploy_multisig_ism_message_id(
     let program_id = deploy_program(
         ctx.payer_keypair_path(),
         key_dir,
-        "hyperlane_sealevel_multisig_ism_message_id",
+        "hyperlane_sealevel_interface::multisig_ism_message_id",
         built_so_dir
-            .join("hyperlane_sealevel_multisig_ism_message_id.so")
+            .join("hyperlane_sealevel_interface::multisig_ism_message_id.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),
@@ -191,11 +191,12 @@ pub(crate) fn deploy_multisig_ism_message_id(
     );
 
     // Initialize
-    let instruction = hyperlane_sealevel_multisig_ism_message_id::instruction::init_instruction(
-        program_id,
-        ctx.payer_pubkey,
-    )
-    .unwrap();
+    let instruction =
+        hyperlane_sealevel_interface::multisig_ism_message_id::instruction::init_instruction(
+            program_id,
+            ctx.payer_pubkey,
+        )
+        .unwrap();
 
     ctx.new_txn()
         .add_with_description(
