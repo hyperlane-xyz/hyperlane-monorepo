@@ -14,13 +14,12 @@ export const awThreshold = 3;
 
 export const awSvmSigners: Address[] = [
   'A8goWfZ7a6smK9pdDgoDWyAq9p7jtvyERJN6VLd8zrx2', // 1
-  '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf', // 2
-  'A4voX3UC3TGLsKyEsDGWAvrjT3mpnA67Fx9cccdoPKqm', // 3
-  'B32qTbw8iDcVdagMAMBfDFCef88N1KtfRG5QoPVzbj5K', // 4
-  '8GjwFNTn2giBwEGo3qMrfNydEjXiQHUNf79rwAkTNmDy', // 5
-  'E7cD9kcNXUC6f7CFDUoqjWaWaPxY9WNpNxjhbh5HwMiE', // 6
-  '8U1cahSHqugrpPmEUm4ZNokJhoCDVGVjCB33EP1k2eFT', // 7
-  'AHWkCm6fuLCBqkSt5ZDNYWc8PTbWDLjrZDcLpcGQnSui', // 8
+  'A4voX3UC3TGLsKyEsDGWAvrjT3mpnA67Fx9cccdoPKqm', // 2
+  'B32qTbw8iDcVdagMAMBfDFCef88N1KtfRG5QoPVzbj5K', // 3
+  '8GjwFNTn2giBwEGo3qMrfNydEjXiQHUNf79rwAkTNmDy', // 4
+  'E7cD9kcNXUC6f7CFDUoqjWaWaPxY9WNpNxjhbh5HwMiE', // 5
+  '8U1cahSHqugrpPmEUm4ZNokJhoCDVGVjCB33EP1k2eFT', // 6
+  'AHWkCm6fuLCBqkSt5ZDNYWc8PTbWDLjrZDcLpcGQnSui', // 7
 ];
 
 export const awSvmThreshold = 3;
