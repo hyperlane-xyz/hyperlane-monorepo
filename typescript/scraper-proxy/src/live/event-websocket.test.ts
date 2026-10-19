@@ -65,9 +65,14 @@ void describe('event websocket protocol', () => {
       parseHeadNotification(JSON.stringify(head)).headHeight,
       9007199254740993n,
     );
-    assert.throws(() =>
-      parseHeadNotification(JSON.stringify({ ...head, indexedHash: 'bad' })),
-    );
+    for (const indexedHash of ['bad', null, 123, undefined]) {
+      const parsed = parseHeadNotification(
+        JSON.stringify({ ...head, indexedHash }),
+      );
+      assert.equal(parsed.indexedHash, undefined);
+      assert.equal(parsed.confirmedHeight, 10n);
+      assert.equal(parsed.indexedHeight, 11n);
+    }
   });
   void it('parses native sequence catch-up cursors', () => {
     const message = parseClientMessage(

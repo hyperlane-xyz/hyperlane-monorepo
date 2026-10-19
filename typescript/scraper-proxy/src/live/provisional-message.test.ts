@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { it } from 'node:test';
 
 import pg from 'pg';
 
 import { PROVISIONAL_MESSAGE_QUERY } from './provisional-message.js';
 import { ScraperDbService } from '../scraperdb/scraperdb.service.js';
+import { buildSelect } from '../scraperdb/sql.js';
 
 // Opt-in PostgreSQL regression: uses session-local tables, never persistent data.
 const connectionString = process.env.SCRAPER_TEST_DATABASE_URL;
@@ -114,14 +116,20 @@ void it(
       );
       assert.equal(rows[0].origin_domain_id, 2);
       assert.equal(rows[0].is_delivered, false);
-      // A canonical view over the same fixture, including the legacy message.
-      const canonicalProjection = PROVISIONAL_MESSAGE_QUERY.replaceAll(
-        '$1::bytea[]',
-        "ARRAY[decode('01','hex'),decode('02','hex')]",
-      )
-        .replaceAll('$2::integer[]', 'ARRAY[]::integer[]')
-        .replaceAll('$3::bigint[]', 'ARRAY[]::bigint[]');
-      await db.query(`CREATE TEMP VIEW message_view AS ${canonicalProjection}`);
+      await db.query(`
+        CREATE TEMP VIEW confirmed_delivered_message AS SELECT event.* FROM delivered_message event
+          LEFT JOIN scraper_head head ON head.domain=event.domain
+          WHERE event.block_number IS NULL OR event.block_number<=coalesce(head.confirmed_height,9223372036854775807);
+        CREATE TEMP VIEW confirmed_gas_payment AS SELECT event.* FROM gas_payment event
+          LEFT JOIN scraper_head head ON head.domain=event.domain
+          WHERE event.block_number IS NULL OR event.block_number<=coalesce(head.confirmed_height,9223372036854775807);
+      `);
+      await db.query(
+        readFileSync(
+          new URL('./fixtures/message-view.sql', import.meta.url),
+          'utf8',
+        ),
+      );
       const service = new ScraperDbService({
         async query(sql, values) {
           return (await db.query(sql, values)).rows;
@@ -159,7 +167,7 @@ void it(
       );
 
       await t.test(
-        'filters and orders by fields absent from the selection',
+        'filters and orders by fields absent from the selection and rejects mixed cursors',
         async () => {
           const filtered = await service.selectMessages({
             confirmations: 0,
@@ -170,15 +178,13 @@ void it(
           });
           assert.equal(filtered.length, 1);
           assert.deepEqual(filtered[0].msg_id, Buffer.from('01', 'hex'));
-          const page = await service.selectMessages({
-            confirmations: 0,
-            columns: ['msg_id'],
-            cursor: [{ initial_value: { id: 2 }, ordering: 'DESC' }],
-            limit: 1,
-          });
-          assert.deepEqual(
-            page.map((row) => row.msg_id),
-            [Buffer.from('01', 'hex')],
+          await assert.rejects(
+            service.selectMessages({
+              confirmations: 0,
+              cursor: [{ initial_value: { id: 2 }, ordering: 'DESC' }],
+              limit: 1,
+            }),
+            /cursor is unsupported/,
           );
         },
       );
@@ -207,6 +213,8 @@ void it(
           await db.query(`
             UPDATE scraper_head SET confirmed_height=10, head_height=13, indexed_height=13;
             INSERT INTO gas_payment VALUES (3,decode('02','hex'),1,10,20,13);
+            INSERT INTO message VALUES (1,decode('01','hex'),0,1,2,now(),decode('bb','hex'),decode('cc','hex'),decode('ee','hex'),1,null);
+            INSERT INTO "transaction"(id,block_id,hash) VALUES (1,1,decode('cc','hex'));
           `);
           const snapshot = await service.selectMessages({
             confirmations: 0,
@@ -228,7 +236,7 @@ void it(
             [false, true],
           );
           await db.query(
-            'UPDATE scraper_head SET confirmed_height=5, head_height=12, indexed_height=10',
+            'UPDATE scraper_head SET confirmed_height=5, head_height=12, indexed_height=10; DELETE FROM message WHERE id=1',
           );
         },
       );
@@ -293,6 +301,128 @@ void it(
             snapshot.map((row) => row.id),
             ['100'],
           );
+        },
+      );
+
+      await t.test(
+        'canonical live reads synthesize metadata against the stored view',
+        async () => {
+          const query = buildSelect('message_view', {
+            where: {
+              msg_id: { _in: [Buffer.from('02', 'hex')] },
+              send_occurred_at: { _is_null: false },
+            },
+          });
+          const rows = (await db.query(query.sql, query.values)).rows;
+          assert.equal(rows.length, 1);
+          assert.equal(rows[0].is_provisional, false);
+        },
+      );
+
+      await t.test(
+        'preserves canonical rows when projection cannot reconstruct their origin',
+        async () => {
+          await db.query('BEGIN');
+          try {
+            await db.query(`
+            INSERT INTO message VALUES
+              (1001,decode('11','hex'),11,2,1,now(),null,null,null,null,null),
+              (1006,decode('16','hex'),16,2,1,now(),null,null,null,2,null);
+            INSERT INTO raw_message_dispatch VALUES
+              (1006,decode('16','hex'),16,2,1,now(),null,null,null,decode('dd','hex'),decode('ff','hex'),20,null);
+            INSERT INTO gas_payment VALUES
+              (1001,decode('11','hex'),1,1,1,10),
+              (1006,decode('16','hex'),1,1,1,10);
+          `);
+            const canonical = await service.selectMessages({
+              columns: ['msg_id'],
+              order_by: { id: 'asc' },
+            });
+            const snapshot = await service.selectMessages({
+              confirmations: 0,
+              columns: ['msg_id'],
+              order_by: { id: 'asc' },
+            });
+            assert(
+              canonical.some(
+                (row) =>
+                  Buffer.isBuffer(row.msg_id) &&
+                  Buffer.from('16', 'hex').equals(row.msg_id),
+              ),
+            );
+            assert.deepEqual(
+              snapshot.map((row) => row.msg_id),
+              canonical.map((row) => row.msg_id),
+            );
+            for (const msgId of ['11', '16']) {
+              const detail = await service.selectMessages({
+                confirmations: 0,
+                where: { msg_id: { _eq: Buffer.from(msgId, 'hex') } },
+              });
+              assert.equal(detail.length, 1);
+              assert.equal(detail[0].is_provisional, false);
+            }
+          } finally {
+            await db.query('ROLLBACK');
+          }
+        },
+      );
+
+      await t.test(
+        'keeps canonical bodies when raw dispatch bodies are absent',
+        async () => {
+          await db.query('BEGIN');
+          try {
+            await db.query(
+              "UPDATE message SET msg_body=decode('99','hex') WHERE msg_id=decode('01','hex')",
+            );
+            const snapshot = await service.selectMessages({
+              confirmations: 0,
+              where: {
+                msg_id: { _eq: Buffer.from('01', 'hex') },
+                message_body: { _eq: Buffer.from('99', 'hex') },
+              },
+            });
+            assert.equal(snapshot.length, 1);
+            assert.deepEqual(
+              snapshot[0].message_body,
+              Buffer.from('99', 'hex'),
+            );
+          } finally {
+            await db.query('ROLLBACK');
+          }
+        },
+      );
+
+      await t.test(
+        'rejects custom cursors when independent ID sequences collide',
+        async () => {
+          await db.query('BEGIN');
+          try {
+            await db.query(`
+            INSERT INTO raw_message_dispatch VALUES (2,decode('03','hex'),3,1,2,now(),null,null,null,decode('cc','hex'),decode('aa','hex'),10,null);
+          `);
+            const snapshot = await service.selectMessages({
+              confirmations: 0,
+              order_by: { id: 'desc' },
+            });
+            assert.equal(snapshot.filter((row) => row.id === '2').length, 2);
+            await assert.rejects(
+              service.selectMessages({
+                confirmations: 0,
+                cursor: [{ initial_value: { id: 2 }, ordering: 'DESC' }],
+                limit: 1,
+              }),
+              /cursor is unsupported/,
+            );
+            const canonical = await service.selectMessages({
+              cursor: [{ initial_value: { id: 3 }, ordering: 'DESC' }],
+              limit: 1,
+            });
+            assert.equal(canonical[0].id, '2');
+          } finally {
+            await db.query('ROLLBACK');
+          }
         },
       );
 

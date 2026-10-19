@@ -165,8 +165,7 @@ export function parseHeadNotification(
       value.headHeight == null ? undefined : parseId(value.headHeight),
     indexedHeight:
       value.indexedHeight == null ? undefined : parseId(value.indexedHeight),
-    indexedHash:
-      value.indexedHash == null ? undefined : parseBlockHash(value.indexedHash),
+    indexedHash: parseOptionalBlockHash(value.indexedHash),
     previousIndexedHeight:
       value.previousIndexedHeight == null
         ? undefined
@@ -347,9 +346,9 @@ function parseDomains(value: unknown): Set<number> | undefined {
   return new Set(value);
 }
 
-function parseBlockHash(value: unknown): string {
+function parseOptionalBlockHash(value: unknown): string | undefined {
   if (typeof value !== 'string' || !/^[0-9a-fA-F]{64}$/.test(value)) {
-    throw new Error('Invalid scraper block hash');
+    return undefined;
   }
   return `0x${value.toLowerCase()}`;
 }

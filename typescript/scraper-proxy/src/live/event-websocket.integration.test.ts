@@ -2938,6 +2938,7 @@ void it('emits normalized message upserts to Explorer', async () => {
   );
   const event = await waitFor(messages, 'message_upsert');
   assert.match(explorerQuery, /"send_occurred_at" IS NOT NULL/);
+  assert.match(explorerQuery, /FALSE AS is_provisional FROM "message_view"/);
   assert.deepEqual(event.data, {
     id: '42',
     is_delivered: false,

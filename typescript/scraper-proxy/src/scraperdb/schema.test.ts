@@ -116,6 +116,19 @@ void it('rejects invalid confirmations before querying the database', async () =
     db.selectMessages({ confirmations: -1 }),
     /non-negative/,
   );
+  for (const confirmations of [1_001, 100_000, 2_147_483_647]) {
+    await assert.rejects(
+      db.selectMessages({ confirmations }),
+      /maximum of 1000/,
+    );
+  }
+  await assert.rejects(
+    db.selectMessages({
+      confirmations: 0,
+      cursor: [{ initial_value: { id: 2 }, ordering: 'DESC' }],
+    }),
+    /paginate canonical history separately/,
+  );
   await assert.rejects(
     db.selectMessages({ confirmations: 0, offset: 1 }),
     /offset/,
@@ -135,4 +148,23 @@ void it('rejects an empty message cursor through the resolver', async () => {
   });
 
   assert.match(response.errors?.[0]?.message ?? '', /must contain one column/);
+});
+
+void it('narrows exact message lookups in every affected-event scan', async () => {
+  let query = '';
+  let parameters: unknown[] = [];
+  const db = new ScraperDbService({
+    async query(sql, values = []) {
+      query = sql;
+      parameters = values;
+      return [];
+    },
+  });
+  await db.selectMessages({
+    confirmations: 1_000,
+    where: { msg_id: { _eq: '\\x01' } },
+  });
+  assert.deepEqual(parameters.slice(0, 2), [1_000, '\\x01']);
+  assert.equal(query.match(/AND event.msg_id=\$2::bytea/g)?.length, 3);
+  assert.match(query, /AND message.msg_id=\$2::bytea/);
 });

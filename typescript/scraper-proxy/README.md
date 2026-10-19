@@ -87,7 +87,9 @@ custom upserts on the same connection; no separate socket is needed per chain.
 GraphQL `message_view(confirmations: N)` selects the same frontier. Omitted/null
 confirmations and domains without near-head state retain canonical finality.
 `is_provisional` marks rows that differ from canonical state; `origin_block_height`
-allows tracking origin confirmations. Custom snapshots support cursors, not offsets.
+allows tracking origin confirmations. Custom snapshots accept 0–1,000
+confirmations and reject cursors and offsets. Use the separate canonical query
+below for paginated history.
 
 Raw and canonical IDs use separate sequences. Fetch a live list as two selections:
 

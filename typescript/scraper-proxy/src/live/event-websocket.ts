@@ -17,6 +17,7 @@ import {
   websocketNotificationQueueOverflows,
   websocketSendFailures,
 } from '../metrics.js';
+import { buildSelect } from '../scraperdb/sql.js';
 import { quoteIdentifier as q, tables } from '../scraperdb/tables.js';
 import {
   displayAddress,
@@ -1946,10 +1947,13 @@ export class EventWebSocketServer {
     }
     if (![...this.explorerClients.values()].some((client) => !client.custom))
       return;
-    const rows = await this.db.queryLive<Row>(
-      `SELECT ${tables.message_view.columns.map(q).join(', ')} FROM ${q('message_view')} WHERE ${q('msg_id')} = ANY($1::bytea[]) AND ${q('send_occurred_at')} IS NOT NULL`,
-      [messageIds],
-    );
+    const query = buildSelect('message_view', {
+      where: {
+        msg_id: { _in: messageIds },
+        send_occurred_at: { _is_null: false },
+      },
+    });
+    const rows = await this.db.queryLive<Row>(query.sql, query.values);
     const messages = rows.map((row) =>
       serialize({ data: row, type: 'message_upsert' }),
     );

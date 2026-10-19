@@ -98,7 +98,8 @@ function buildProvisionalMessageQuery({
     destination_block.id AS destination_block_id,
     coalesce(delivery.block_number, destination_block.height) AS destination_block_height,
     coalesce(delivery.block_hash, destination_block.hash) AS destination_block_hash,
-    dispatch.msg_body AS message_body
+    CASE WHEN canonical.id IS NOT NULL THEN canonical.msg_body
+      ELSE dispatch.msg_body END AS message_body
   FROM eligible_dispatch dispatch
   LEFT JOIN message canonical ON canonical.msg_id=dispatch.msg_id
   LEFT JOIN domain origin_domain ON origin_domain.id=dispatch.origin_domain
@@ -148,7 +149,11 @@ export const PROVISIONAL_MESSAGE_QUERY = buildProvisionalMessageQuery({
   frontier: 'SELECT * FROM unnest($2::integer[], $3::bigint[])',
 });
 
-export const PROVISIONAL_MESSAGE_AFFECTED_QUERY = `
+export function buildProvisionalMessageAffectedQuery(
+  filterByMessageId = false,
+): string {
+  const messageFilter = filterByMessageId ? 'AND event.msg_id=$2::bytea' : '';
+  return `
   -- Only reproject events between the canonical and requested frontiers.
   -- OFFSET 0 keeps these small per-domain index scans from being flattened
   -- into full-history scans by the planner.
@@ -164,7 +169,8 @@ export const PROVISIONAL_MESSAGE_AFFECTED_QUERY = `
       SELECT msg_id FROM ${table} event
       WHERE event.${domain}=frontier.domain
         AND event.${height}>least(frontier.confirmed_height, frontier.height)
-        AND event.${height}<=greatest(frontier.confirmed_height, frontier.height) OFFSET 0
+        AND event.${height}<=greatest(frontier.confirmed_height, frontier.height)
+        ${messageFilter} OFFSET 0
     ) event
   `,
     )
@@ -181,9 +187,11 @@ export const PROVISIONAL_MESSAGE_AFFECTED_QUERY = `
     WHERE block.domain=frontier.domain
       AND block.height>frontier.height AND block.height<=frontier.confirmed_height
       AND NOT EXISTS (SELECT 1 FROM raw_message_dispatch raw WHERE raw.msg_id=message.msg_id)
+      ${filterByMessageId ? 'AND message.msg_id=$2::bytea' : ''}
     OFFSET 0
   ) legacy
   WHERE frontier.height<frontier.confirmed_height`;
+}
 
 export const PROVISIONAL_MESSAGE_PROJECTION_QUERY =
   buildProvisionalMessageQuery({
