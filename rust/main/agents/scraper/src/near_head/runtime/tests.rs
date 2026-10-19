@@ -29,6 +29,8 @@ struct Chain {
     fresh_headers: AtomicUsize,
     sequence: AtomicBool,
     counts: AtomicBool,
+    count_values: Mutex<[u32; 2]>,
+    pruned_below: AtomicU64,
     indexing_tip: AtomicU64,
     fail_tip_counts: AtomicBool,
     tip_counts: Mutex<Option<[(Option<u32>, u32); 4]>>,
@@ -47,6 +49,8 @@ impl Chain {
             fresh_headers: AtomicUsize::new(0),
             sequence: AtomicBool::new(false),
             counts: AtomicBool::new(true),
+            count_values: Mutex::new([0; 2]),
+            pruned_below: AtomicU64::new(0),
             indexing_tip: AtomicU64::new(u64::MAX),
             fail_tip_counts: AtomicBool::new(false),
             tip_counts: Mutex::new(None),
@@ -115,8 +119,21 @@ impl Source for Arc<Chain> {
         })
     }
 
-    async fn counts(&self, _: H256) -> Result<Option<[u32; 2]>> {
-        Ok(self.counts.load(Ordering::SeqCst).then_some([0; 2]))
+    async fn counts(&self, hash: H256) -> Result<Option<[u32; 2]>> {
+        // Header hashes encode height + 1.
+        let height = hash.to_low_u64_be().saturating_sub(1);
+        ensure!(
+            height >= self.pruned_below.load(Ordering::SeqCst),
+            "Historical state pruned"
+        );
+        Ok(self
+            .counts
+            .load(Ordering::SeqCst)
+            .then(|| *self.count_values.lock().unwrap()))
+    }
+
+    fn has_historical_counts(&self) -> bool {
+        !self.sequence.load(Ordering::SeqCst)
     }
 
     fn indexes_by_sequence(&self) -> bool {
@@ -721,5 +738,238 @@ async fn block_mode_does_not_publish_until_tip_counts_are_complete() -> Result<(
     *chain.tip_counts.lock().unwrap() = Some([(Some(0), 10), (None, 10), (None, 10), (None, 10)]);
     assert!(!worker.cycle(&mut cache).await?.more);
     assert_eq!(worker.store.state().await?.unwrap().confirmed, 20);
+    Ok(())
+}
+
+/// Without historical counts, a range's tail cannot be checked: an RPC that drops
+/// the last logs of a range would otherwise be confirmed and lost for good.
+#[tokio::test]
+async fn ranges_without_historical_counts_stay_provisional_until_proven() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(2, false));
+    chain.tag.store(2, Ordering::SeqCst);
+    chain.counts.store(false, Ordering::SeqCst);
+    chain
+        .events
+        .lock()
+        .unwrap()
+        .extend([gas_event(1, 0), gas_event(2, 1)]);
+    let worker = worker(db, chain.clone()).await?;
+    let mut cache = CountCache::default();
+
+    worker.cycle(&mut cache).await?;
+    let state = worker.store.state().await?.unwrap();
+    assert_eq!((state.indexed, state.confirmed), (2, 0));
+
+    // A later range whose end counts are available proves everything before it.
+    chain.counts.store(true, Ordering::SeqCst);
+    chain.head.store(3, Ordering::SeqCst);
+    chain.tag.store(3, Ordering::SeqCst);
+    worker.cycle(&mut cache).await?;
+    let state = worker.store.state().await?.unwrap();
+    assert_eq!((state.indexed, state.confirmed), (3, 3));
+    Ok(())
+}
+
+/// A restart forgets earlier proofs, so a provisional suffix left by unproven
+/// ranges is held until the next proven range.
+#[tokio::test]
+async fn restart_holds_an_unproven_provisional_suffix() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(2, false));
+    chain.counts.store(false, Ordering::SeqCst);
+    let worker = worker(db, chain.clone()).await?;
+    worker.cycle(&mut CountCache::default()).await?;
+    assert_eq!(worker.store.state().await?.unwrap().indexed, 2);
+
+    chain.tag.store(2, Ordering::SeqCst);
+    let mut restarted = CountCache::default();
+    worker.cycle(&mut restarted).await?;
+    assert_eq!(worker.store.state().await?.unwrap().confirmed, 0);
+
+    chain.counts.store(true, Ordering::SeqCst);
+    chain.head.store(3, Ordering::SeqCst);
+    chain.tag.store(3, Ordering::SeqCst);
+    worker.cycle(&mut restarted).await?;
+    assert_eq!(worker.store.state().await?.unwrap().confirmed, 3);
+    Ok(())
+}
+
+/// Confirmation prunes checkpoints below the frontier, so a provider whose tip
+/// lags behind confirmed history must not look one up.
+#[tokio::test]
+async fn tip_counts_below_the_confirmed_frontier_do_not_fail_the_cycle() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(20, false));
+    chain.counts.store(false, Ordering::SeqCst);
+    chain.tag.store(20, Ordering::SeqCst);
+    chain.events.lock().unwrap().push(dispatch_event(15, 0));
+    *chain.tip_counts.lock().unwrap() = Some([(Some(1), 20), (None, 20), (None, 20), (None, 20)]);
+    let worker = worker(db, chain.clone()).await?;
+    let mut cache = CountCache::default();
+    worker.cycle(&mut cache).await?;
+    let confirmed = worker.store.state().await?.unwrap();
+    assert_eq!((confirmed.indexed, confirmed.confirmed), (20, 20));
+
+    *chain.tip_counts.lock().unwrap() = Some([(Some(1), 16), (None, 16), (None, 16), (None, 16)]);
+    worker.cycle(&mut cache).await?;
+    assert_eq!(worker.store.state().await?.unwrap().confirmed, 20);
+    Ok(())
+}
+
+/// A dispatch dropped from an unproven range is only exposed by a later range's
+/// end counts. The provisional suffix must be replayed, not retried forever.
+#[tokio::test]
+async fn incomplete_range_replays_an_unproven_suffix() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(2, false));
+    chain.tag.store(2, Ordering::SeqCst);
+    chain.counts.store(false, Ordering::SeqCst);
+    let worker = worker(db, chain.clone()).await?;
+    let mut cache = CountCache::default();
+    // The provider omits the dispatch at height 1 and cannot serve counts.
+    worker.cycle(&mut cache).await?;
+    let state = worker.store.state().await?.unwrap();
+    assert_eq!((state.indexed, state.confirmed), (2, 0));
+
+    chain.events.lock().unwrap().push(dispatch_event(1, 0));
+    *chain.count_values.lock().unwrap() = [1, 0];
+    chain.counts.store(true, Ordering::SeqCst);
+    // The indexed boundary's state is pruned, so only the next range's end
+    // counts can expose the gap.
+    chain.pruned_below.store(3, Ordering::SeqCst);
+    chain.head.store(3, Ordering::SeqCst);
+    chain.tag.store(3, Ordering::SeqCst);
+    let error = worker.cycle(&mut cache).await.unwrap_err();
+    assert!(error.to_string().contains("Incomplete event range"));
+    assert_eq!(worker.store.state().await?.unwrap().indexed, 0);
+
+    worker.cycle(&mut cache).await?;
+    let state = worker.store.state().await?.unwrap();
+    assert_eq!((state.indexed, state.confirmed), (3, 3));
+    assert_eq!(worker.store.sequence_counts().await?[0], 1);
+    Ok(())
+}
+
+/// Rewinding an incomplete suffix also deletes its previously proven prefix.
+/// An incomplete replay must not inherit that deleted prefix's count proof.
+#[tokio::test]
+async fn indexed_boundary_rewind_invalidates_the_deleted_prefix_proof() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(20, false));
+    chain
+        .events
+        .lock()
+        .expect("events")
+        .push(dispatch_event(5, 0));
+    *chain.count_values.lock().expect("counts") = [1, 0];
+    let worker = worker(db, chain.clone()).await?;
+    let worker = Worker {
+        chunk_size: 10,
+        ..Arc::into_inner(worker).expect("sole worker handle")
+    };
+    let mut cache = CountCache::default();
+
+    // Prove 0->10 but keep it provisional while finality remains at zero.
+    assert!(worker.cycle(&mut cache).await?.more);
+    assert_eq!(cache.proven_through, Some(10));
+    let proven = worker.store.state().await?.expect("state");
+    assert_eq!((proven.indexed, proven.confirmed), (10, 0));
+    assert_eq!(worker.store.sequence_counts().await?[0], 1);
+
+    // Append an unproven 10->20 range whose final dispatch was omitted.
+    chain.counts.store(false, Ordering::SeqCst);
+    worker.cycle(&mut cache).await?;
+    let suffix = worker.store.state().await?.expect("state");
+    assert_eq!((suffix.indexed, suffix.confirmed), (20, 0));
+    assert_eq!(cache.proven_through, Some(10));
+
+    // Counts at 20 expose the gap. Replaying 0->10 now drops its dispatch,
+    // and pruned counts cannot prove that replacement range complete.
+    chain.counts.store(true, Ordering::SeqCst);
+    chain.pruned_below.store(20, Ordering::SeqCst);
+    *chain.count_values.lock().expect("counts") = [2, 0];
+    chain.events.lock().expect("events").clear();
+    chain.tag.store(10, Ordering::SeqCst);
+    assert!(worker.cycle(&mut cache).await?.more);
+    let replayed = worker.store.state().await?.expect("state");
+    assert_eq!((replayed.indexed, replayed.confirmed), (10, 0));
+    assert_eq!(worker.store.sequence_counts().await?[0], 0);
+    assert_eq!(cache.proven_through, Some(0));
+    assert!(!replayed.halted);
+    Ok(())
+}
+
+/// Sources without hash-pinned historical counts (e.g. Sealevel sequence mode)
+/// keep publishing; only sources that can prove a range wait for that proof.
+#[tokio::test]
+async fn sources_without_historical_counts_are_not_proof_gated() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(2, false));
+    chain.tag.store(2, Ordering::SeqCst);
+    chain.sequence.store(true, Ordering::SeqCst);
+    chain.counts.store(false, Ordering::SeqCst);
+    let worker = worker(db, chain).await?;
+    worker.cycle(&mut CountCache::default()).await?;
+    let state = worker.store.state().await?.unwrap();
+    assert_eq!((state.indexed, state.confirmed), (2, 2));
+    Ok(())
+}
+
+/// Re-proving at the indexed boundary also repairs a stationary chain: no new
+/// block is needed to replay a provably incomplete suffix.
+#[tokio::test]
+async fn reproof_replays_an_incomplete_suffix_without_a_new_block() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(2, false));
+    chain.tag.store(2, Ordering::SeqCst);
+    chain.counts.store(false, Ordering::SeqCst);
+    let worker = worker(db, chain.clone()).await?;
+    let mut cache = CountCache::default();
+    worker.cycle(&mut cache).await?;
+    assert_eq!(worker.store.state().await?.unwrap().confirmed, 0);
+
+    chain.events.lock().unwrap().push(dispatch_event(1, 0));
+    *chain.count_values.lock().unwrap() = [1, 0];
+    chain.counts.store(true, Ordering::SeqCst);
+    worker.cycle(&mut cache).await?;
+    let state = worker.store.state().await?.unwrap();
+    assert_eq!((state.indexed, state.confirmed), (2, 2));
+    assert_eq!(worker.store.sequence_counts().await?[0], 1);
     Ok(())
 }

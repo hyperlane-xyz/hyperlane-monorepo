@@ -115,6 +115,10 @@ pub(super) trait Source: Send + Sync {
     async fn counts(&self, _hash: EthersH256) -> Result<Option<[u32; 2]>> {
         Ok(None)
     }
+    /// Whether `counts` serves hash-pinned historical counts.
+    fn has_historical_counts(&self) -> bool {
+        false
+    }
     fn indexes_by_sequence(&self) -> bool {
         false
     }
@@ -241,6 +245,10 @@ impl<M: Middleware + 'static> Source for EvmSource<M> {
 
     async fn counts(&self, hash: EthersH256) -> Result<Option<[u32; 2]>> {
         Ok(Some(self.counts_at(hash).await?))
+    }
+
+    fn has_historical_counts(&self) -> bool {
+        true
     }
 
     async fn events(&self, from: u64, through: u64) -> Result<Vec<Event>> {
