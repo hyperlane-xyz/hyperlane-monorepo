@@ -71,25 +71,15 @@ func CreateProgramAddress(c solana.Context, seeds [][]byte, bump uint8, program 
 	return s.Address(c, program)
 }
 
-// FindProgramAddress searches bumps 255..1 like Pubkey::find_program_address
-// (Solana never tries bump 0). Each attempt is one create_program_address
-// syscall (1,500 CU), the same as the runtime's try_find_program_address.
-//
-// goSVM's pda.Seeds.FindAddress runs the same loop but needs its 545-byte
-// builder: on the IGP suite it cost 6.6% more CU in total, so this stays.
+// FindProgramAddress is Pubkey::find_program_address: one
+// sol_try_find_program_address syscall (solana.FindAddress) tries bumps 255
+// down to 1 at 1,500 CU each, as in Rust.
 func FindProgramAddress(c solana.Context, seeds [][]byte, program Pubkey) (Pubkey, uint8, uint64) {
-	s, code := encodeSeeds(seeds, 255)
+	address, s, code := FindProgramAddressSeeds(c, seeds, program)
 	if code != Success {
 		return Pubkey{}, 0, code
 	}
-	var address Pubkey
-	for b := 255; b >= 1; b-- {
-		s.setBump(uint8(b))
-		if solana.CreateAddress(c, s.group(), program[:], address[:]) == 0 {
-			return address, uint8(b), Success
-		}
-	}
-	return Pubkey{}, 0, InvalidSeeds
+	return address, s.Bump(), Success
 }
 
 // FindProgramAddressSeeds is FindProgramAddress that also returns the signer
@@ -99,14 +89,19 @@ func FindProgramAddressSeeds(c solana.Context, seeds [][]byte, program Pubkey) (
 	if code != Success {
 		return Pubkey{}, s, code
 	}
-	var address Pubkey
-	for b := 255; b >= 1; b-- {
-		s.setBump(uint8(b))
-		if solana.CreateAddress(c, s.group(), program[:], address[:]) == 0 {
-			return address, s, Success
-		}
+	// The group without the trailing bump seed: [count][len][bytes]...
+	group := s.buf[1 : len(s.buf)-2]
+	group[0]--
+	var out [33]byte
+	found := solana.FindAddress(c, group, program[:], out[:])
+	group[0]++
+	if found != 0 {
+		return Pubkey{}, s, InvalidSeeds
 	}
-	return Pubkey{}, s, InvalidSeeds
+	var address Pubkey
+	copy(address[:], out[:32])
+	s.setBump(out[32])
+	return address, s, Success
 }
 
 // Bump returns the seeds' bump.

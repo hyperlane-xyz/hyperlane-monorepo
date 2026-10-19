@@ -57,16 +57,21 @@ func (s *StaticPDA) Verify(c solana.Context, i uint64, bump uint8, program *svm.
 	return s.buf, svm.Success
 }
 
-// Find is find_program_address: bumps 255..1, one syscall each.
+// Find is find_program_address: one sol_try_find_program_address syscall
+// (solana.FindAddress) tries bumps 255..1 at 1,500 CU each.
 func (s *StaticPDA) Find(c solana.Context, program *svm.Pubkey) (svm.Pubkey, uint8, uint64) {
-	var address svm.Pubkey
-	for b := 255; b >= 1; b-- {
-		group := s.Signer(uint8(b))[1:]
-		if solana.CreateAddress(c, group, program[:], address[:]) == 0 {
-			return address, uint8(b), svm.Success
-		}
+	// The seed group without the trailing bump seed: [count][len][bytes]...
+	group := s.buf[1 : len(s.buf)-2]
+	group[0]--
+	var out [33]byte
+	code := solana.FindAddress(c, group, program[:], out[:])
+	group[0]++
+	if code != 0 {
+		return svm.Pubkey{}, 0, svm.InvalidSeeds
 	}
-	return svm.Pubkey{}, 0, svm.InvalidSeeds
+	var address svm.Pubkey
+	copy(address[:], out[:32])
+	return address, out[32], svm.Success
 }
 
 // Static PDAs of the token library.
