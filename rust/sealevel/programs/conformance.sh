@@ -168,7 +168,7 @@ main() {
   logdir="${logdir:-$out.logs}"
   mkdir -p "$logdir"
   logdir="$(cd "$logdir" && pwd)"
-  rm -f "$logdir/exit-codes" "$logdir"/*.log
+  rm -f "$logdir/exit-codes"
 
   STAGE="$(mktemp -d "${TMPDIR:-/tmp}/conformance-elfs.XXXXXX")"
   trap 'rm -rf "$STAGE"' EXIT
