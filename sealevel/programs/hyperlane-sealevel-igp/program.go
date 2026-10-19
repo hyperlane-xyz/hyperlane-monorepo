@@ -4,7 +4,7 @@
 // account layouts, PDA seeds, return data and ProgramError codes match the
 // Rust program byte for byte.
 //
-// Not emitted: Rust's msg! log lines (goSVM has no user logging yet).
+// Log lines match Rust's msg! output.
 package igp
 
 import (
@@ -219,7 +219,20 @@ func initIgp(c solana.Context, ix *Instruction) uint64 {
 	if code := accountutils.CreatePDAAccount(c, payer, accountutils.AccountDataSize(v), svm.ProgramID(c), system, account, &seeds); code != svm.Success {
 		return code
 	}
-	return accountutils.Store(c, account, v, false)
+	if code := accountutils.Store(c, account, v, false); code != svm.Success {
+		return code
+	}
+	logKey(c, "Initialized IGP: ", account)
+	return svm.Success
+}
+
+// logKey logs prefix and account i's key in base58.
+func logKey(c solana.Context, prefix string, i uint64) {
+	var k Pubkey
+	copy(k[:], solana.Key(c, i))
+	m := svm.NewMsg(prefix)
+	m.Pubkey(&k)
+	m.Emit(c)
 }
 
 // initOverheadIgp is InitOverheadIgp.
@@ -232,7 +245,11 @@ func initOverheadIgp(c solana.Context, ix *Instruction) uint64 {
 	if code := accountutils.CreatePDAAccount(c, payer, accountutils.AccountDataSize(v), svm.ProgramID(c), system, account, &seeds); code != svm.Success {
 		return code
 	}
-	return accountutils.Store(c, account, v, false)
+	if code := accountutils.Store(c, account, v, false); code != svm.Success {
+		return code
+	}
+	logKey(c, "Initialized Overhead IGP: ", account)
+	return svm.Success
 }
 
 // fetchIgp fetches account i as an IgpAccount (BorshIoError if malformed;
@@ -440,8 +457,19 @@ func payForGas(c solana.Context, ix *Instruction) uint64 {
 	}
 
 	if hasTransient {
-		return closeAccount(c, transient, payer)
+		if code := closeAccount(c, transient, payer); code != svm.Success {
+			return code
+		}
 	}
+	m := svm.NewMsg("Paid IGP ")
+	m.Pubkey(&igpKey)
+	m.Str(" for ")
+	m.Dec(gasAmount)
+	m.Str(" gas for message ")
+	m.H256Short(&ix.MessageID)
+	m.Str(" to ")
+	m.U32(ix.DestinationDomain)
+	m.Emit(c)
 	return svm.Success
 }
 
@@ -783,7 +811,18 @@ func setIgpQuoteConfig(c solana.Context, config *borsh.Option[IgpFeeConfig]) uin
 		return svm.InvalidArgument
 	}
 	igp.FeeConfig = *config
-	return accountutils.StoreWithRentExemptRealloc(c, account, igp, owner, system)
+	if code := accountutils.StoreWithRentExemptRealloc(c, account, igp, owner, system); code != svm.Success {
+		return code
+	}
+	if config.Some {
+		m := svm.NewMsg("Set IGP quote config (min_issued_at ")
+		m.I64(config.Value.MinIssuedAt)
+		m.Str(")")
+		m.Emit(c)
+	} else {
+		svm.Log(c, "Cleared IGP quote config")
+	}
+	return svm.Success
 }
 
 // setIgpQuoteSigner is SetIgpQuoteSigner.
@@ -814,7 +853,17 @@ func setIgpQuoteSigner(c solana.Context, op uint8, signer H160) uint64 {
 		copy(cfg.Signers[j:], cfg.Signers[j+1:])
 		cfg.Signers = cfg.Signers[:len(cfg.Signers)-1]
 	}
-	return accountutils.StoreWithRentExemptRealloc(c, account, igp, owner, system)
+	if code := accountutils.StoreWithRentExemptRealloc(c, account, igp, owner, system); code != svm.Success {
+		return code
+	}
+	m := svm.NewMsg("Added")
+	if op != SignerAdd {
+		m = svm.NewMsg("Removed")
+	}
+	m.Str(" IGP quote signer: ")
+	m.H160(&signer)
+	m.Emit(c)
+	return svm.Success
 }
 
 // setIgpMinIssuedAt is SetIgpMinIssuedAt (monotonic).
@@ -827,7 +876,13 @@ func setIgpMinIssuedAt(c solana.Context, minIssuedAt int64) uint64 {
 		return svm.InvalidArgument
 	}
 	igp.FeeConfig.Value.MinIssuedAt = minIssuedAt
-	return accountutils.StoreWithRentExemptRealloc(c, account, igp, owner, system)
+	if code := accountutils.StoreWithRentExemptRealloc(c, account, igp, owner, system); code != svm.Success {
+		return code
+	}
+	m := svm.NewMsg("Set IGP min_issued_at: ")
+	m.I64(minIssuedAt)
+	m.Emit(c)
+	return svm.Success
 }
 
 // getIgpQuoteAccountMetas is GetIgpQuoteAccountMetas (simulation only): the

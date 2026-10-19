@@ -367,6 +367,7 @@ func submitIgpQuote(c solana.Context, ix *Instruction) uint64 {
 		}
 		// Equal issued_at is a no-op, matching EVM and the fee program.
 		if issuedAt == existing.IssuedAt {
+			svm.Log(c, "IGP standing quote no-op (equal issued_at)")
 			return svm.Success
 		}
 	default:
