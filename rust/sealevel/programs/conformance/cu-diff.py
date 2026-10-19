@@ -61,7 +61,9 @@ def main():
 
     # Test status changes.
     status_changes = []
-    for key in sorted(set(a_status) | set(b_status)):
+    # Only suites present in both runs, so a subset run can be compared to a full one.
+    common = set(a_run["suites"]) & set(b_run["suites"])
+    for key in sorted(k for k in set(a_status) | set(b_status) if k[0] in common):
         sa, sb = a_status.get(key, "missing"), b_status.get(key, "missing")
         if sa != sb:
             status_changes.append({"suite": key[0], "test": key[1], "a": sa, "b": sb})
