@@ -3470,6 +3470,7 @@ dependencies = [
  "hyperlane-sealevel-test-ism",
  "hyperlane-sealevel-test-send-receiver",
  "hyperlane-test-utils",
+ "log-utils",
  "multisig-ism",
  "num-derive",
  "num-traits",
