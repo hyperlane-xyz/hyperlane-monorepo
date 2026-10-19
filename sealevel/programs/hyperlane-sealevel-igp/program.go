@@ -5,7 +5,6 @@
 // Rust program byte for byte.
 //
 // Not emitted: Rust's msg! log lines (goSVM has no user logging yet).
-// Claim stops before its lamport move; see claim.
 package igp
 
 import (
@@ -639,21 +638,17 @@ func claim(c solana.Context) uint64 {
 	if code != svm.Success {
 		return code
 	}
-	lamports := solana.Lamports(c, igpInfo)
-	if lamports > required {
-		// TODO(gosvm-lamports): move lamports-required from the IGP to the
-		// beneficiary. goSVM has no partial lamport debit yet (agent H is
-		// adding it; /tmp/gosvm-runtime/REPORT.md). Until then a claim with
-		// anything to transfer fails here with ErrClaimUnsupported.
-		return ErrClaimUnsupported
+	if lamports := solana.Lamports(c, igpInfo); lamports > required {
+		// Rust's saturating_sub, -= and +=. A zero transfer moves nothing,
+		// so read-only accounts only fail when there is something to claim.
+		if code := solana.MoveLamports(c, igpInfo, beneficiary, lamports-required); code != 0 {
+			// Read-only or executable beneficiary: Rust fails after the
+			// instruction (the runtime rejects the lamport change).
+			return svm.InvalidAccountData
+		}
 	}
-	// Nothing to transfer: Rust's -= 0 / += 0, then verify_rent_exempt.
 	return accountutils.VerifyRentExempt(c, igpInfo)
 }
-
-// ErrClaimUnsupported marks a Claim that needs goSVM's missing partial
-// lamport debit. The Rust IGP never returns this Custom code.
-const ErrClaimUnsupported uint64 = 0xC1A1_0000
 
 // setDestinationGasOverheads is SetDestinationGasOverheads.
 //

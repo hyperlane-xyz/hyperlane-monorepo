@@ -6,8 +6,7 @@
 //
 // Accounts are read and written in place rather than Borsh-decoded and
 // re-encoded. Rust's msg! log lines are not emitted (goSVM has no user
-// logging yet). ClaimProtocolFees's lamport debit is not ported yet; see
-// claimProtocolFees.
+// logging yet).
 package mailbox
 
 import (
@@ -490,11 +489,6 @@ func setProtocolFee(c solana.Context, args []byte) uint64 {
 // claimProtocolFees is ClaimProtocolFees: move the outbox's lamports above its
 // rent-exempt minimum to the protocol fee beneficiary. Accounts: outbox,
 // beneficiary.
-//
-// TODO: the debit itself waits on goSVM's lamport move (solana.MoveLamports,
-// not in the pinned SDK yet). Until then a claim with a positive amount fails
-// with InvalidInstructionData; every check, and a claim of nothing, matches
-// Rust.
 func claimProtocolFees(c solana.Context) uint64 {
 	if code := need(c, 0); code != svm.Success {
 		return code
@@ -520,8 +514,14 @@ func claimProtocolFees(c solana.Context) uint64 {
 	if code != svm.Success {
 		return code
 	}
-	if solana.Lamports(c, 0) > required {
-		return svm.InvalidInstructionData
+	if lamports := solana.Lamports(c, 0); lamports > required {
+		// Rust's saturating_sub, -= and +=. A zero claim moves nothing, so
+		// read-only accounts only fail when there is something to claim.
+		if code := solana.MoveLamports(c, 0, 1, lamports-required); code != 0 {
+			// Read-only or executable beneficiary: Rust fails after the
+			// instruction (the runtime rejects the lamport change).
+			return svm.InvalidAccountData
+		}
 	}
 	return accountutils.VerifyRentExempt(c, 0)
 }
