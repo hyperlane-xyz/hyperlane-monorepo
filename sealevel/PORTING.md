@@ -110,7 +110,8 @@ Available: `SetReturnData`, `GetReturnData` (check the setter key),
 64`, 64 CPI metas and 4 signer groups, Token-2022/ATA helpers. `copy`,
 struct/array assignment and `for i := range s { s[i] = 0 }` lower to
 `sol_memmove_`/`sol_memset_`; hand-written copy loops don't, so use `copy`.
-See /tmp/gosvm-pilot/API2.md.
+APIs and error codes are documented in each upstream draft PR
+([CrocSwap/goSVM#9 to #22](https://github.com/CrocSwap/goSVM/pulls?q=is%3Apr+author%3Apaulbalaji)).
 
 ## Tests
 
@@ -142,4 +143,6 @@ cd rust/sealevel && SBF_OUT_DIR=/tmp/elf \
 - Known baseline failure: `mailbox-test::test_outbox_get_latest_checkpoint`
   runs out of CU on the Rust mailbox ELF too (200k), so it says nothing about
   a port.
-- F's `rust/sealevel/programs/conformance.sh` automates this once it lands.
+- `rust/sealevel/programs/conformance.sh <elf-dir> [suite...]` automates this
+  across suites and writes per-invocation CU JSON; `conformance/cu-diff.py`
+  compares two runs.
