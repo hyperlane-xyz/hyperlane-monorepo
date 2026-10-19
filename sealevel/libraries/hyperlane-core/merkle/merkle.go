@@ -71,26 +71,20 @@ func Root(c solana.Context, tree, root []byte) uint64 {
 	count := Count(tree)
 	skip := uint64(bits.TrailingZeros64(count))
 	if skip >= Depth {
-		for j := uint64(0); j < 32; j++ {
-			root[j] = zeroHashes[Depth*32+j]
-		}
+		copy(root[:32], zeroHashes[Depth*32:Depth*32+32])
 		return 0
 	}
 	var buf [64]byte
 	// The running node lives in buf[32:64] when it is the right input and is
 	// moved to buf[0:32] when it is the left one.
-	for j := uint64(0); j < 32; j++ {
-		buf[32+j] = zeroHashes[skip*32+j]
-	}
+	copy(buf[32:64], zeroHashes[skip*32:skip*32+32])
 	size := count >> skip
 	for i := skip; i < Depth; i++ {
 		if size&1 == 1 {
 			copy(buf[0:32], tree[i*32:i*32+32])
 		} else {
 			copy(buf[0:32], buf[32:64])
-			for j := uint64(0); j < 32; j++ {
-				buf[32+j] = zeroHashes[i*32+j]
-			}
+			copy(buf[32:64], zeroHashes[i*32:i*32+32])
 		}
 		if code := solana.Keccak256(c, buf[:], 0, 64, buf[:], 32); code != 0 {
 			return code
