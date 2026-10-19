@@ -1,6 +1,8 @@
 //! QuoteFee instruction handler.
 
-use account_utils::{ensure_no_extraneous_accounts, AccountInfoExt, AccountInitState};
+use account_utils::{
+    ensure_no_extraneous_accounts, verify_pda_with_stored_bump, AccountInfoExt, AccountInitState,
+};
 use quote_verifier::{QuoteValidationError, ValidatableQuote};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -15,10 +17,10 @@ use solana_program::{
 
 use crate::{
     accounts::{
-        CcFeeQuoteContext, CcQuoteFeeValidation, CrossCollateralRouteAccount, FeeAccountData,
-        FeeData, FeeQuoteContext, FeeStandingQuotePdaAccount, QuoteContext, RouteDomainAccount,
-        TransientQuoteAccount, DEFAULT_ROUTER, TRANSIENT_QUOTE_DISCRIMINATOR, WILDCARD_DOMAIN,
-        WILDCARD_RECIPIENT,
+        CcFeeQuoteContext, CcQuoteFeeValidation, CrossCollateralRoute, CrossCollateralRouteAccount,
+        FeeAccountData, FeeData, FeeQuoteContext, FeeStandingQuotePda, FeeStandingQuotePdaAccount,
+        QuoteContext, RouteDomain, RouteDomainAccount, TransientQuoteAccount, DEFAULT_ROUTER,
+        TRANSIENT_QUOTE_DISCRIMINATOR, WILDCARD_DOMAIN, WILDCARD_RECIPIENT,
     },
     cc_route_pda_seeds,
     error::Error,
@@ -83,29 +85,28 @@ pub(super) fn process_quote_fee(
         _ => hyperlane_core::H256::zero(),
     };
 
-    // Pre-derive the expected domain standing PDA key for slot 2 disambiguation.
-    let domain_le = data.destination_domain.to_le_bytes();
-    let (expected_domain_standing_key, _) = Pubkey::find_program_address(
-        fee_standing_quote_pda_seeds!(fee_account_info.key, &domain_le, standing_target_router),
-        program_id,
-    );
-
     // Account 2: Either transient quote PDA or specific-scope domain standing PDA.
     // Disambiguate by key, not discriminator: an uninitialized account has no
     // discriminator, so without a key check the layout becomes ambiguous. The
     // SDK always emits the transient slot when scoped_salt = Some(...) and omits
     // it otherwise — this contract is enforced here.
+    let domain_le = data.destination_domain.to_le_bytes();
     let next_info = next_account_info(accounts_iter)?;
-    let (transient_info, specific_domain_quotes_info) =
-        if *next_info.key == expected_domain_standing_key {
-            (None, next_info)
-        } else {
-            if !is_initialized_transient_quote(next_info, program_id)? {
-                return Err(Error::InvalidTransientSlot.into());
-            }
-            let specific_domain_quotes_info = next_account_info(accounts_iter)?;
-            (Some(next_info), specific_domain_quotes_info)
-        };
+    let next_is_domain_standing = verify_pda_with_stored_bump::<FeeStandingQuotePda>(
+        next_info,
+        fee_standing_quote_pda_seeds!(fee_account_info.key, &domain_le, standing_target_router),
+        program_id,
+    )
+    .is_some();
+    let (transient_info, specific_domain_quotes_info) = if next_is_domain_standing {
+        (None, next_info)
+    } else {
+        if !is_initialized_transient_quote(next_info, program_id)? {
+            return Err(Error::InvalidTransientSlot.into());
+        }
+        let specific_domain_quotes_info = next_account_info(accounts_iter)?;
+        (Some(next_info), specific_domain_quotes_info)
+    };
 
     // CC mode also requires the default-scope domain standing PDA at
     // (dest, DEFAULT_ROUTER). It is always present in the CC layout regardless
@@ -217,34 +218,46 @@ pub(super) fn process_quote_fee(
     // specific is active, that's (dest, target_router); otherwise it's
     // (dest, DEFAULT_ROUTER). The wildcard-domain PDA is shared and keyed by
     // data.target_router for both scopes (signed by cc_wildcard_signers).
-    let (active_domain_quotes_info, active_domain_target_router) = match &fee_account.fee_data {
-        FeeData::CrossCollateralRouting(_) => {
-            if cc_specific_route_active {
-                (specific_domain_quotes_info, data.target_router)
-            } else {
-                let default_info =
-                    default_domain_quotes_info.ok_or(ProgramError::NotEnoughAccountKeys)?;
-                (default_info, DEFAULT_ROUTER)
+    //
+    // The specific-scope domain PDA was already verified in slot 2 (the transient
+    // path returned above, so it is `next_info`), with the same seeds:
+    // (destination, standing_target_router).
+    let (active_domain_quotes_info, active_domain_target_router, active_domain_key_verified) =
+        match &fee_account.fee_data {
+            FeeData::CrossCollateralRouting(_) => {
+                if cc_specific_route_active {
+                    (specific_domain_quotes_info, data.target_router, true)
+                } else {
+                    let default_info =
+                        default_domain_quotes_info.ok_or(ProgramError::NotEnoughAccountKeys)?;
+                    (default_info, DEFAULT_ROUTER, false)
+                }
             }
-        }
-        _ => (specific_domain_quotes_info, hyperlane_core::H256::zero()),
-    };
+            _ => (
+                specific_domain_quotes_info,
+                hyperlane_core::H256::zero(),
+                true,
+            ),
+        };
 
-    for (pda_info, domain, target_router) in [
+    for (pda_info, domain, target_router, key_verified) in [
         (
             active_domain_quotes_info,
             data.destination_domain,
             active_domain_target_router,
+            active_domain_key_verified,
         ),
         (
             wildcard_quotes_info,
             WILDCARD_DOMAIN,
             standing_target_router,
+            false,
         ),
     ] {
         if let Some(fee) = try_resolve_standing_quote(
             program_id,
             pda_info,
+            key_verified,
             fee_account_info.key,
             domain,
             target_router,
@@ -359,7 +372,8 @@ fn try_consume_transient_quote<C: QuoteContext>(
 }
 
 /// Attempts to resolve a fee from a standing quote PDA.
-/// Re-derives the PDA from (fee_account, domain, target_router) to prevent spoofing.
+/// Re-derives the PDA from (fee_account, domain, target_router) to prevent spoofing,
+/// unless `key_verified` says the caller already checked it against those seeds.
 /// Scans for exact recipient match, then wildcard recipient.
 /// Validates expiry and min_issued_at. Returns None if PDA is uninitialized
 /// or no matching entry found.
@@ -367,6 +381,7 @@ fn try_consume_transient_quote<C: QuoteContext>(
 fn try_resolve_standing_quote(
     program_id: &Pubkey,
     standing_pda_info: &AccountInfo,
+    key_verified: bool,
     fee_account_key: &Pubkey,
     domain: u32,
     target_router: hyperlane_core::H256,
@@ -377,11 +392,14 @@ fn try_resolve_standing_quote(
 ) -> Result<Option<u64>, ProgramError> {
     // Re-derive PDA to prevent spoofing from a different fee account or domain.
     let domain_le = domain.to_le_bytes();
-    let (expected_key, _) = Pubkey::find_program_address(
-        fee_standing_quote_pda_seeds!(fee_account_key, &domain_le, target_router),
-        program_id,
-    );
-    if *standing_pda_info.key != expected_key {
+    if !key_verified
+        && verify_pda_with_stored_bump::<FeeStandingQuotePda>(
+            standing_pda_info,
+            fee_standing_quote_pda_seeds!(fee_account_key, &domain_le, target_router),
+            program_id,
+        )
+        .is_none()
+    {
         return Err(ProgramError::InvalidArgument);
     }
 
@@ -426,11 +444,13 @@ fn resolve_routing(
     let route_pda_info = next_account_info(accounts_iter)?;
 
     let domain_le = destination_domain.to_le_bytes();
-    let (expected_key, _) = Pubkey::find_program_address(
+    if verify_pda_with_stored_bump::<RouteDomain>(
+        route_pda_info,
         route_domain_pda_seeds!(fee_account_key, &domain_le),
         program_id,
-    );
-    if *route_pda_info.key != expected_key {
+    )
+    .is_none()
+    {
         return Err(ProgramError::InvalidArgument);
     }
     // Unconfigured route: uninitialized (system-owned, empty) → None.
@@ -462,12 +482,13 @@ fn resolve_cc_routing(
     let mut chosen: Option<(FeeDataStrategy, bool)> = None;
     for (router, is_specific) in [(*target_router, true), (DEFAULT_ROUTER, false)] {
         let pda_info = next_account_info(accounts_iter)?;
-        let (expected_key, _) = Pubkey::find_program_address(
+        if verify_pda_with_stored_bump::<CrossCollateralRoute>(
+            pda_info,
             cc_route_pda_seeds!(fee_account_key, &dest_le, router),
             program_id,
-        );
-
-        if *pda_info.key != expected_key {
+        )
+        .is_none()
+        {
             return Err(ProgramError::InvalidArgument);
         }
 

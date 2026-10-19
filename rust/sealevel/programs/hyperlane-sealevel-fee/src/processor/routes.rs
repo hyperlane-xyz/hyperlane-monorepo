@@ -1,7 +1,8 @@
 //! SetRemoteFeeRoute and RemoveRemoteFeeRoute instruction handlers.
 
 use account_utils::{
-    create_pda_account, ensure_no_extraneous_accounts, AccountInfoExt, AccountInitState, SizedData,
+    create_pda_account, ensure_no_extraneous_accounts, verify_pda_with_stored_bump, AccountInfoExt,
+    AccountInitState, DiscriminatorData, SizedData,
 };
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -169,11 +170,12 @@ pub(super) fn process_remove_remote_fee_route(
     // Validate target_router against fee_data variant and remove the route PDA.
     let standing_target_router = match (&fee_account.fee_data, data.target_router) {
         (FeeData::Routing(_), None) => {
-            let (expected_key, _) = Pubkey::find_program_address(
-                route_domain_pda_seeds!(fee_account_info.key, &domain_le),
+            remove_route_pda::<RouteDomain>(
                 program_id,
-            );
-            remove_route_pda(program_id, accounts_iter, expected_key, owner_info)?;
+                accounts_iter,
+                route_domain_pda_seeds!(fee_account_info.key, &domain_le),
+                owner_info,
+            )?;
 
             hyperlane_core::H256::zero()
         }
@@ -182,11 +184,12 @@ pub(super) fn process_remove_remote_fee_route(
                 return Err(Error::ZeroTargetRouterNotAllowed.into());
             }
 
-            let (expected_key, _) = Pubkey::find_program_address(
-                cc_route_pda_seeds!(fee_account_info.key, &domain_le, target_router),
+            remove_route_pda::<CrossCollateralRoute>(
                 program_id,
-            );
-            remove_route_pda(program_id, accounts_iter, expected_key, owner_info)?;
+                accounts_iter,
+                cc_route_pda_seeds!(fee_account_info.key, &domain_le, target_router),
+                owner_info,
+            )?;
 
             target_router
         }
@@ -219,16 +222,16 @@ pub(super) fn process_remove_remote_fee_route(
 
 // --- Helpers ---
 
-/// Removes a route PDA (RouteDomain or CrossCollateralRoute).
-/// Verifies the PDA key matches `expected_key`, checks ownership, and closes it.
-fn remove_route_pda<'a, 'b>(
+/// Removes a route PDA (`T` = RouteDomain or CrossCollateralRoute).
+/// Verifies the PDA key is the canonical PDA for `seeds`, checks ownership, and closes it.
+fn remove_route_pda<'a, 'b, T: DiscriminatorData>(
     program_id: &Pubkey,
     accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
-    expected_key: Pubkey,
+    seeds: &[&[u8]],
     owner_info: &'a AccountInfo<'b>,
 ) -> ProgramResult {
     let route_pda_info = next_account_info(accounts_iter)?;
-    if *route_pda_info.key != expected_key {
+    if verify_pda_with_stored_bump::<T>(route_pda_info, seeds, program_id).is_none() {
         return Err(ProgramError::InvalidArgument);
     }
     if route_pda_info.owner != program_id {
@@ -333,11 +336,13 @@ fn try_close_standing_quote_pda<'a, 'b>(
 ) -> ProgramResult {
     let standing_pda_info = next_account_info(accounts_iter)?;
     let domain_le = domain.to_le_bytes();
-    let (expected_key, _) = Pubkey::find_program_address(
+    if verify_pda_with_stored_bump::<FeeStandingQuotePda>(
+        standing_pda_info,
         fee_standing_quote_pda_seeds!(fee_account_key, &domain_le, target_router),
         program_id,
-    );
-    if *standing_pda_info.key != expected_key {
+    )
+    .is_none()
+    {
         return Err(ProgramError::InvalidArgument);
     }
 

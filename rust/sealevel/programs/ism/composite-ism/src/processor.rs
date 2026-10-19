@@ -7,7 +7,7 @@ use account_utils::{
 };
 use hyperlane_core::{Decode, HyperlaneMessage, ModuleType, H256};
 use hyperlane_sealevel_interchain_security_module_interface::{
-    InterchainSecurityModuleInstruction, MetadataSpecResult, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+    InterchainSecurityModuleInstruction, MetadataSpecResult,
 };
 use serializable_account_meta::SimulationReturnData;
 use solana_loader_v3_interface::state::UpgradeableLoaderState;
@@ -26,8 +26,8 @@ use solana_system_interface::program as system_program;
 use crate::{
     account_metas::all_verify_account_metas,
     accounts::{
-        derive_domain_pda, CompositeIsmAccount, CompositeIsmStorage, DomainIsmAccount,
-        DomainIsmStorage, IsmNode, DOMAIN_ISM_SEED,
+        derive_domain_pda, is_domain_pda, CompositeIsmAccount, CompositeIsmStorage,
+        DomainIsmAccount, DomainIsmStorage, IsmNode, DOMAIN_ISM_SEED,
     },
     error::Error,
     instruction::Instruction,
@@ -166,7 +166,9 @@ fn verify_account_metas(
 
     let root = storage.root.as_ref().ok_or(Error::ConfigNotSet)?;
 
-    let (vam_pda_key, _) = Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, program_id);
+    // The VAM PDA is the storage PDA (same seeds), which `load_and_verify_storage`
+    // just verified against its stored bump.
+    let vam_pda_key = *storage_info.key;
 
     // Remaining accounts (after the VAM PDA) are potential domain PDAs for pass-2 resolution.
     let extra: Vec<&AccountInfo> = accounts_iter.collect();
@@ -204,7 +206,8 @@ fn get_metadata_spec(
     }
 
     // Prepend the composite VAM PDA so the relayer has the complete account list.
-    let (vam_pda, _) = Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, program_id);
+    // It is the storage PDA (same seeds), verified by `load_and_verify_storage` above.
+    let vam_pda = *storage_info.key;
     let mut full_accounts = vec![vam_pda];
     full_accounts.extend(result.accounts);
     Ok(MetadataSpecResult {
@@ -448,8 +451,7 @@ fn remove_domain_ism(program_id: &Pubkey, accounts: &[AccountInfo], domain: u32)
     storage.ensure_owner_signer(owner_account)?;
 
     // Verify domain PDA address.
-    let (expected_pda, _) = derive_domain_pda(program_id, domain);
-    if *domain_pda_account.key != expected_pda {
+    if !is_domain_pda(program_id, domain, domain_pda_account) {
         return Err(Error::InvalidDomainPda.into());
     }
 

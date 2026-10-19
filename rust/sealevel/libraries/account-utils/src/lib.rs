@@ -13,9 +13,11 @@ use solana_system_interface::{
 
 pub mod discriminator;
 pub mod error;
+pub mod pda;
 
 pub use discriminator::*;
 pub use error::*;
+pub use pda::*;
 
 /// Verifies that no additional accounts remain in the iterator.
 pub fn ensure_no_extraneous_accounts(

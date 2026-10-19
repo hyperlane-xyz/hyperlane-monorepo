@@ -21,8 +21,8 @@ use solana_system_interface::{instruction as system_instruction, program as syst
 use access_control::AccessControl;
 use account_utils::{
     create_pda_account, ensure_no_extraneous_accounts, verify_account_uninitialized,
-    verify_rent_exempt, AccountData, AccountInfoExt, AccountInitState, DiscriminatorData,
-    DiscriminatorPrefixed, SizedData,
+    verify_pda_with_stored_bump, verify_rent_exempt, AccountData, AccountInfoExt, AccountInitState,
+    DiscriminatorData, DiscriminatorPrefixed, SizedData,
 };
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 
@@ -1251,7 +1251,8 @@ fn submit_igp_quote(
         }
 
         let dest_domain_le = ctx.destination_domain.to_le_bytes();
-        let (expected_pda, pda_bump) = Pubkey::find_program_address(
+        let pda_bump = verify_pda_with_stored_bump::<IgpStandingQuote>(
+            quote_pda_info,
             igp_standing_quote_pda_seeds!(
                 igp_info.key,
                 ctx.fee_token_mint,
@@ -1259,10 +1260,8 @@ fn submit_igp_quote(
                 ctx.sender
             ),
             program_id,
-        );
-        if *quote_pda_info.key != expected_pda {
-            return Err(ProgramError::InvalidSeeds);
-        }
+        )
+        .ok_or(ProgramError::InvalidSeeds)?;
 
         let standing_quote = IgpStandingQuote {
             bump_seed: pda_bump,
@@ -1348,12 +1347,13 @@ fn try_standing_cascade(
         let account = next_account_info(accounts_iter)?;
 
         let dest_le = dest_domain.to_le_bytes();
-        let (expected_standing, _) = Pubkey::find_program_address(
+        if verify_pda_with_stored_bump::<IgpStandingQuote>(
+            account,
             igp_standing_quote_pda_seeds!(igp_key, fee_token_mint, &dest_le, sender),
             program_id,
-        );
-
-        if *account.key != expected_standing {
+        )
+        .is_none()
+        {
             return Err(ProgramError::InvalidArgument);
         }
 
@@ -1402,11 +1402,13 @@ fn try_resolve_transient_quote(
         IgpTransientQuoteAccount::fetch(&mut &account_info.data.borrow()[..])?.into_inner();
 
     // Re-derive PDA from stored scoped_salt to verify account authenticity.
-    let (expected, _) = Pubkey::find_program_address(
+    if verify_pda_with_stored_bump::<IgpTransientQuote>(
+        account_info,
         igp_transient_quote_pda_seeds!(igp_key, transient.data.scoped_salt),
         program_id,
-    );
-    if *account_info.key != expected {
+    )
+    .is_none()
+    {
         return Err(ProgramError::InvalidSeeds);
     }
 
@@ -1480,11 +1482,13 @@ fn close_igp_transient_quote(program_id: &Pubkey, accounts: &[AccountInfo]) -> P
     }
 
     // Re-derive PDA from IGP key + stored scoped_salt to verify account authenticity.
-    let (expected, _) = Pubkey::find_program_address(
+    if verify_pda_with_stored_bump::<IgpTransientQuote>(
+        transient_pda_info,
         igp_transient_quote_pda_seeds!(igp_info.key, transient.data.scoped_salt),
         program_id,
-    );
-    if *transient_pda_info.key != expected {
+    )
+    .is_none()
+    {
         return Err(ProgramError::InvalidSeeds);
     }
 
@@ -1529,7 +1533,8 @@ fn close_igp_standing_quote(program_id: &Pubkey, accounts: &[AccountInfo]) -> Pr
 
     // Re-derive PDA from stored context fields + IGP key.
     let dest_domain_le = standing.data.destination_domain.to_le_bytes();
-    let (expected, _) = Pubkey::find_program_address(
+    if verify_pda_with_stored_bump::<IgpStandingQuote>(
+        standing_pda_info,
         igp_standing_quote_pda_seeds!(
             igp_info.key,
             standing.data.fee_token_mint,
@@ -1537,8 +1542,9 @@ fn close_igp_standing_quote(program_id: &Pubkey, accounts: &[AccountInfo]) -> Pr
             standing.data.sender
         ),
         program_id,
-    );
-    if *standing_pda_info.key != expected {
+    )
+    .is_none()
+    {
         return Err(ProgramError::InvalidSeeds);
     }
 
