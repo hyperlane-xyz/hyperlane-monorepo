@@ -125,8 +125,12 @@ func (p *NativePlugin) TransferOut(c solana.Context, programID *svm.Pubkey, deci
 
 // TransferOutAccountMetas returns [system program, native collateral (w)]
 // with a writable recipient.
+//
+// The token account holding p was verified as this program's token PDA, and
+// its stored collateral bump came from find_program_address at init, so one
+// create_program_address replaces the bump search.
 func (p *NativePlugin) TransferOutAccountMetas(c solana.Context, programID *svm.Pubkey, _ *hyperlanecore.H256) ([]accountmeta.SerializableAccountMeta, bool, uint64) {
-	key, _, code := svm.FindProgramAddress(c, NativeCollateralPDASeeds, *programID)
+	key, code := nativeCollateralPDA.Address(c, p.NativeCollateralBump, programID)
 	if code != svm.Success {
 		return nil, false, code
 	}

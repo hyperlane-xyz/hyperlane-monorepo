@@ -44,11 +44,11 @@ func standingCascade(c solana.Context, it *svm.AccountIter, programID, igpKey Pu
 		} else if level == 2 {
 			levelDomain = wildcardLE
 		}
-		key, _, code := svm.FindProgramAddress(c, StandingQuotePDASeeds(&igpKey, &mint, levelDomain, levelSender), programID)
+		_, ok, code := accountutils.VerifyPDAWithStoredBump(c, account, IgpStandingQuoteDiscriminator, StandingQuotePDASeeds(&igpKey, &mint, levelDomain, levelSender), programID)
 		if code != svm.Success {
 			return resolved, false, code
 		}
-		if !svm.KeyIs(c, account, key) {
+		if !ok {
 			return resolved, false, svm.InvalidArgument
 		}
 		if found {
@@ -79,11 +79,11 @@ func resolveTransientQuote(c solana.Context, account uint64, programID, igpKey, 
 	if code != svm.Success {
 		return resolved, code
 	}
-	key, _, code := svm.FindProgramAddress(c, TransientQuotePDASeeds(&igpKey, &transient.ScopedSalt), programID)
+	_, ok, code := accountutils.VerifyPDAWithStoredBump(c, account, IgpTransientQuoteDiscriminator, TransientQuotePDASeeds(&igpKey, &transient.ScopedSalt), programID)
 	if code != svm.Success {
 		return resolved, code
 	}
-	if !svm.KeyIs(c, account, key) {
+	if !ok {
 		return resolved, svm.InvalidSeeds
 	}
 	if transient.Payer != payer {
@@ -334,12 +334,17 @@ func submitIgpQuote(c solana.Context, ix *Instruction) uint64 {
 	if ctx.DestinationDomain == WildcardDomain && ctx.Sender == WildcardSender {
 		return quoteverifier.ErrFullyWildcardedQuote
 	}
-	key, seeds, code := svm.FindProgramAddressSeeds(c, StandingQuotePDASeeds(&igpKey, &ctx.FeeTokenMint, u32LE(ctx.DestinationDomain), &ctx.Sender), programID)
+	standingSeeds := StandingQuotePDASeeds(&igpKey, &ctx.FeeTokenMint, u32LE(ctx.DestinationDomain), &ctx.Sender)
+	bump, ok, code := accountutils.VerifyPDAWithStoredBump(c, quotePDA, IgpStandingQuoteDiscriminator, standingSeeds, programID)
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, quotePDA, key) {
+	if !ok {
 		return svm.InvalidSeeds
+	}
+	seeds, code := svm.NewSeeds(standingSeeds, bump)
+	if code != svm.Success {
+		return code
 	}
 	standing := &IgpStandingQuote{
 		BumpSeed:          seeds.Bump(),
@@ -415,11 +420,11 @@ func closeIgpTransientQuote(c solana.Context) uint64 {
 		return quoteverifier.ErrTransientPayerMismatch
 	}
 	igpKey := svm.Key(c, igpInfo)
-	key, _, code := svm.FindProgramAddress(c, TransientQuotePDASeeds(&igpKey, &transient.ScopedSalt), programID)
+	_, ok, code := accountutils.VerifyPDAWithStoredBump(c, transientInfo, IgpTransientQuoteDiscriminator, TransientQuotePDASeeds(&igpKey, &transient.ScopedSalt), programID)
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, transientInfo, key) {
+	if !ok {
 		return svm.InvalidSeeds
 	}
 	return closeAccount(c, transientInfo, payer)
@@ -468,11 +473,11 @@ func closeIgpStandingQuote(c solana.Context) uint64 {
 		return ErrBeneficiaryMismatch
 	}
 	igpKey := svm.Key(c, igpInfo)
-	key, _, code := svm.FindProgramAddress(c, StandingQuotePDASeeds(&igpKey, &standing.FeeTokenMint, u32LE(standing.DestinationDomain), &standing.Sender), programID)
+	_, ok, code := accountutils.VerifyPDAWithStoredBump(c, standingInfo, IgpStandingQuoteDiscriminator, StandingQuotePDASeeds(&igpKey, &standing.FeeTokenMint, u32LE(standing.DestinationDomain), &standing.Sender), programID)
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, standingInfo, key) {
+	if !ok {
 		return svm.InvalidSeeds
 	}
 	clock, code := svm.GetClock(c)

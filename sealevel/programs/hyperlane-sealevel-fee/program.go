@@ -191,6 +191,15 @@ func setU64ReturnData(c solana.Context, v uint64) uint64 {
 	return svm.Success
 }
 
+// verifyPDA is verify_pda_with_stored_bump: whether account i is the
+// canonical PDA for seeds, checked with the bump stored after discriminator d
+// when the account holds one (one create_program_address instead of a bump
+// search).
+func verifyPDA(c solana.Context, i uint64, d accountutils.Discriminator, seeds [][]byte, programID *Pubkey) (bool, uint64) {
+	_, ok, code := accountutils.VerifyPDAWithStoredBump(c, i, d, seeds, *programID)
+	return ok, code
+}
+
 // findPDA is Pubkey::find_program_address, keeping only the address.
 func findPDA(c solana.Context, seeds [][]byte, programID *Pubkey) (Pubkey, uint64) {
 	key, _, code := svm.FindProgramAddress(c, seeds, *programID)

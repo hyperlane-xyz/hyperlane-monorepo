@@ -151,11 +151,11 @@ func (v *verifyContext) startRouting(c solana.Context, f *vframe, index int) (*v
 	if code != svm.Success {
 		return nil, code
 	}
-	expected, code := deriveDomainPDA(c, &v.programID, v.message.Origin)
+	ok, code := isDomainPDA(c, &v.programID, v.message.Origin, acct)
 	if code != svm.Success {
 		return nil, code
 	}
-	if !svm.KeyIs(c, acct, expected) {
+	if !ok {
 		return nil, ErrInvalidDomainPda
 	}
 	// try_verify_domain_ism.

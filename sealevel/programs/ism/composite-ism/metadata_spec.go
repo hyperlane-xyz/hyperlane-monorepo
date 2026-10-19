@@ -66,10 +66,8 @@ func getMetadataSpec(c solana.Context, encoded []byte, message *hyperlanecore.Hy
 		out.Spec = borsh.SomeOf(res.spec)
 		out.Accounts = [][32]byte{}
 	} else {
-		vamPDA, _, code := svm.FindProgramAddress(c, ism.VerifyAccountMetasPDASeeds, s.programID)
-		if code != svm.Success {
-			return code
-		}
+		// The storage PDA (same seeds), verified by loadStorage above.
+		vamPDA := svm.Key(c, storageAcct)
 		out.Accounts = make([][32]byte, 0, 1+len(res.accounts))
 		out.Accounts = append(out.Accounts, vamPDA)
 		out.Accounts = append(out.Accounts, res.accounts...)

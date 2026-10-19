@@ -52,21 +52,20 @@ func processQuoteFee(c solana.Context, ix *QuoteFee) uint64 {
 	if isCC {
 		standingTarget = ix.TargetRouter
 	}
-	expectedDomainStanding, code := findPDA(c, StandingQuoteSeeds(&feeKey, ix.DestinationDomain, &standingTarget), &programID)
-	if code != svm.Success {
-		return code
-	}
-
 	// Slot 2: transient quote PDA or the specific-scope domain standing PDA,
 	// disambiguated by key.
 	nextIdx, code := it.Next()
 	if code != svm.Success {
 		return code
 	}
+	nextIsDomainStanding, code := verifyPDA(c, nextIdx, StandingQuoteDiscriminator, StandingQuoteSeeds(&feeKey, ix.DestinationDomain, &standingTarget), &programID)
+	if code != svm.Success {
+		return code
+	}
 	hasTransient := false
 	transientIdx := uint64(0)
 	specificIdx := nextIdx
-	if !svm.KeyIs(c, nextIdx, expectedDomainStanding) {
+	if !nextIsDomainStanding {
 		ok, code := isInitializedTransientQuote(c, nextIdx, &programID)
 		if code != svm.Success {
 			return code
@@ -146,24 +145,29 @@ func processQuoteFee(c solana.Context, ix *QuoteFee) uint64 {
 	}
 
 	// Steps 2-3: active-scope domain standing quote, then wildcard domain.
+	// The specific-scope domain PDA is slot 2 here (a transient quote returned
+	// above), already verified with these seeds: (destination,
+	// standingTarget).
 	activeIdx := specificIdx
 	activeTarget := zeroH256
+	activeVerified := true
 	if isCC {
 		if specificActive {
 			activeTarget = ix.TargetRouter
 		} else {
 			activeIdx = defaultIdx
 			activeTarget = DefaultRouter
+			activeVerified = false
 		}
 	}
-	fee, found, code := resolveStandingQuote(c, &programID, activeIdx, &feeKey, ix.DestinationDomain, &activeTarget, &strategy, ix, fa.MinIssuedAt, now)
+	fee, found, code := resolveStandingQuote(c, &programID, activeIdx, activeVerified, &feeKey, ix.DestinationDomain, &activeTarget, &strategy, ix, fa.MinIssuedAt, now)
 	if code != svm.Success {
 		return code
 	}
 	if found {
 		return logQuote(c, "QuoteFee (standing): ", fee, ix.Amount, setU64ReturnData(c, fee))
 	}
-	fee, found, code = resolveStandingQuote(c, &programID, wildcardIdx, &feeKey, WildcardDomain, &standingTarget, &strategy, ix, fa.MinIssuedAt, now)
+	fee, found, code = resolveStandingQuote(c, &programID, wildcardIdx, false, &feeKey, WildcardDomain, &standingTarget, &strategy, ix, fa.MinIssuedAt, now)
 	if code != svm.Success {
 		return code
 	}
@@ -216,14 +220,17 @@ func isInitializedTransientQuote(c solana.Context, i uint64, programID *Pubkey) 
 
 // resolveStandingQuote is try_resolve_standing_quote: exact recipient, then
 // wildcard recipient. Invalid (stale, expired, other curve) entries are
-// skipped.
-func resolveStandingQuote(c solana.Context, programID *Pubkey, idx uint64, feeKey *Pubkey, domain uint32, target *H256, strategy *FeeDataStrategy, ix *QuoteFee, minIssuedAt, now int64) (uint64, bool, uint64) {
-	expected, code := findPDA(c, StandingQuoteSeeds(feeKey, domain, target), programID)
-	if code != svm.Success {
-		return 0, false, code
-	}
-	if !svm.KeyIs(c, idx, expected) {
-		return 0, false, svm.InvalidArgument
+// skipped. keyVerified skips the PDA check when the caller already made it
+// with the same seeds.
+func resolveStandingQuote(c solana.Context, programID *Pubkey, idx uint64, keyVerified bool, feeKey *Pubkey, domain uint32, target *H256, strategy *FeeDataStrategy, ix *QuoteFee, minIssuedAt, now int64) (uint64, bool, uint64) {
+	if !keyVerified {
+		ok, code := verifyPDA(c, idx, StandingQuoteDiscriminator, StandingQuoteSeeds(feeKey, domain, target), programID)
+		if code != svm.Success {
+			return 0, false, code
+		}
+		if !ok {
+			return 0, false, svm.InvalidArgument
+		}
 	}
 	switch accountutils.InitState(c, idx, *programID) {
 	case accountutils.Uninitialized:
@@ -270,11 +277,11 @@ func resolveRouting(c solana.Context, it *svm.AccountIter, programID, feeKey *Pu
 	if code != svm.Success {
 		return none, false, code
 	}
-	expected, code := findPDA(c, RouteDomainSeeds(feeKey, destination), programID)
+	ok, code := verifyPDA(c, idx, RouteDomainDiscriminator, RouteDomainSeeds(feeKey, destination), programID)
 	if code != svm.Success {
 		return none, false, code
 	}
-	if !svm.KeyIs(c, idx, expected) {
+	if !ok {
 		return none, false, svm.InvalidArgument
 	}
 	switch accountutils.InitState(c, idx, *programID) {
@@ -305,11 +312,11 @@ func resolveCCRouting(c solana.Context, it *svm.AccountIter, programID, feeKey *
 		if code != svm.Success {
 			return chosen, false, code
 		}
-		expected, code := findPDA(c, CCRouteSeeds(feeKey, destination, router), programID)
+		ok, code := verifyPDA(c, idx, CCRouteDiscriminator, CCRouteSeeds(feeKey, destination, router), programID)
 		if code != svm.Success {
 			return chosen, false, code
 		}
-		if !svm.KeyIs(c, idx, expected) {
+		if !ok {
 			return chosen, false, svm.InvalidArgument
 		}
 		switch accountutils.InitState(c, idx, *programID) {

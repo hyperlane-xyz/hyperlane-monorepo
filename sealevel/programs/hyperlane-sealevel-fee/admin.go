@@ -274,11 +274,15 @@ func processSetQuoteSigner(c solana.Context, ix *SetQuoteSigner) uint64 {
 	} else {
 		seeds = CCRouteSeeds(&feeKey, route.Domain, &route.TargetRouter)
 	}
-	expected, code := findPDA(c, seeds, &programID)
+	disc := RouteDomainDiscriminator
+	if route.Kind != RouteKeyDomain {
+		disc = CCRouteDiscriminator
+	}
+	ok, code := verifyPDA(c, routeIdx, disc, seeds, &programID)
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, routeIdx, expected) {
+	if !ok {
 		return svm.InvalidArgument
 	}
 	if !svm.OwnerIs(c, routeIdx, programID) {

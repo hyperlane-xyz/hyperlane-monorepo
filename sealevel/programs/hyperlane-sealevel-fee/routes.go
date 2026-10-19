@@ -145,15 +145,19 @@ func processRemoveRemoteFeeRoute(c solana.Context, ix *DomainRouter) uint64 {
 	default:
 		return ErrNotRoutingFeeData
 	}
-	expected, code := findPDA(c, seeds, &programID)
-	if code != svm.Success {
-		return code
-	}
 	routeIdx, code := it.Next()
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, routeIdx, expected) {
+	disc := RouteDomainDiscriminator
+	if ix.TargetRouter.Some {
+		disc = CCRouteDiscriminator
+	}
+	ok, code := verifyPDA(c, routeIdx, disc, seeds, &programID)
+	if code != svm.Success {
+		return code
+	}
+	if !ok {
 		return svm.InvalidArgument
 	}
 	if !svm.OwnerIs(c, routeIdx, programID) {
@@ -168,11 +172,11 @@ func processRemoveRemoteFeeRoute(c solana.Context, ix *DomainRouter) uint64 {
 	if code != svm.Success {
 		return code
 	}
-	expected, code = findPDA(c, StandingQuoteSeeds(&feeKey, ix.Domain, &standingTarget), &programID)
+	ok, code = verifyPDA(c, standingIdx, StandingQuoteDiscriminator, StandingQuoteSeeds(&feeKey, ix.Domain, &standingTarget), &programID)
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, standingIdx, expected) {
+	if !ok {
 		return svm.InvalidArgument
 	}
 	if svm.OwnerIs(c, standingIdx, programID) && !svm.DataIsEmpty(c, standingIdx) {

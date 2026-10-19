@@ -42,11 +42,11 @@ func processPruneExpiredQuotes(c solana.Context, ix *DomainRouter) uint64 {
 		return code
 	}
 	feeKey := svm.Key(c, feeIdx)
-	expected, code := findPDA(c, StandingQuoteSeeds(&feeKey, ix.Domain, &router), &programID)
+	ok, code := verifyPDA(c, pdaIdx, StandingQuoteDiscriminator, StandingQuoteSeeds(&feeKey, ix.Domain, &router), &programID)
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, pdaIdx, expected) {
+	if !ok {
 		return svm.InvalidArgument
 	}
 	if !svm.OwnerIs(c, pdaIdx, programID) {

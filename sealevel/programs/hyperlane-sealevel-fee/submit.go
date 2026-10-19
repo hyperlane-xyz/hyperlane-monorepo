@@ -171,12 +171,17 @@ func processSubmitQuote(c solana.Context, q *quoteverifier.SvmSignedQuote) uint6
 	if code != svm.Success {
 		return code
 	}
-	key, seeds, code := svm.FindProgramAddressSeeds(c, StandingQuoteSeeds(&feeKey, ctx.DestinationDomain, &ctx.TargetRouter), programID)
+	standingSeeds := StandingQuoteSeeds(&feeKey, ctx.DestinationDomain, &ctx.TargetRouter)
+	bump, ok, code := accountutils.VerifyPDAWithStoredBump(c, domainIdx, StandingQuoteDiscriminator, standingSeeds, programID)
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, domainIdx, key) {
+	if !ok {
 		return svm.InvalidArgument
+	}
+	seeds, code := svm.NewSeeds(standingSeeds, bump)
+	if code != svm.Success {
+		return code
 	}
 	if code := accountutils.EnsureNoExtraneousAccounts(&it); code != svm.Success {
 		return code
@@ -234,11 +239,15 @@ func routeSigners(c solana.Context, it *svm.AccountIter, programID, feeKey *Pubk
 	if code != svm.Success {
 		return OptionSigners{}, code
 	}
-	expected, code := findPDA(c, seeds, programID)
+	disc := RouteDomainDiscriminator
+	if cc {
+		disc = CCRouteDiscriminator
+	}
+	ok, code := verifyPDA(c, idx, disc, seeds, programID)
 	if code != svm.Success {
 		return OptionSigners{}, code
 	}
-	if !svm.KeyIs(c, idx, expected) {
+	if !ok {
 		return OptionSigners{}, svm.InvalidArgument
 	}
 	if !svm.OwnerIs(c, idx, *programID) {
@@ -284,11 +293,11 @@ func processCloseTransientQuote(c solana.Context) uint64 {
 		return code
 	}
 	feeKey := svm.Key(c, feeIdx)
-	expected, code := findPDA(c, TransientQuoteSeeds(&feeKey, &tq.ScopedSalt), &programID)
+	ok, code := verifyPDA(c, transientIdx, TransientQuoteDiscriminator, TransientQuoteSeeds(&feeKey, &tq.ScopedSalt), &programID)
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, transientIdx, expected) {
+	if !ok {
 		return ErrTransientPdaMismatch
 	}
 	payerIdx, code := it.Next()

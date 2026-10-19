@@ -54,10 +54,9 @@ func verifyAccountMetas(c solana.Context, metadata, encoded []byte, message *hyp
 		return ErrConfigNotSet
 	}
 	root := &storage.Root.Value
-	vamPDA, _, code := svm.FindProgramAddress(c, ism.VerifyAccountMetasPDASeeds, m.programID)
-	if code != svm.Success {
-		return code
-	}
+	// The VAM PDA is the storage PDA (same seeds), which loadStorage just
+	// verified with its stored bump.
+	vamPDA := svm.Key(c, storageAcct)
 	m.out = make([]accountmeta.SerializableAccountMeta, 0, 8)
 	if reachableRateLimited(root, metadata, message) {
 		m.out = append(m.out, accountmeta.Writable(vamPDA, false))

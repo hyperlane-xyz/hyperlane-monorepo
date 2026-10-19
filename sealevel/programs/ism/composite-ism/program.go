@@ -187,6 +187,22 @@ func deriveDomainPDA(c solana.Context, programID *svm.Pubkey, domain uint32) (sv
 	return key, code
 }
 
+// isDomainPDA is accounts::is_domain_pda: whether account i is the canonical
+// domain ISM PDA for domain. An initialized domain ISM account owned by this
+// program ([initialized = 1][bump][domain][ism]) is checked with its stored
+// bump, one create_program_address instead of a bump search.
+func isDomainPDA(c solana.Context, programID *svm.Pubkey, domain uint32, i uint64) (bool, uint64) {
+	hint, hasHint := uint8(0), false
+	if svm.OwnerIs(c, i, *programID) {
+		if data := solana.Data(c, i); len(data) >= 2 && data[0] == 1 {
+			hint, hasHint = data[1], true
+		}
+	}
+	var le [4]byte
+	_, ok, code := accountutils.VerifyPDAWithBumpHint(c, i, domainSeeds(domain, &le), hint, hasHint, *programID)
+	return ok, code
+}
+
 // loadDomainStorage is load_and_validate_domain_ism_storage: nil when the
 // account is not owned by this program.
 func loadDomainStorage(c solana.Context, programID *svm.Pubkey, domain uint32, i uint64) (*DomainStorage, uint64) {
@@ -441,11 +457,11 @@ func removeDomainIsm(c solana.Context, domain uint32) uint64 {
 	if code := accesscontrol.EnsureOwnerSigner(c, storage.Owner, owner); code != svm.Success {
 		return code
 	}
-	expected, code := deriveDomainPDA(c, &programID, domain)
+	ok, code := isDomainPDA(c, &programID, domain, domainAcct)
 	if code != svm.Success {
 		return code
 	}
-	if !svm.KeyIs(c, domainAcct, expected) {
+	if !ok {
 		return ErrInvalidDomainPda
 	}
 	if !svm.OwnerIs(c, domainAcct, programID) {
