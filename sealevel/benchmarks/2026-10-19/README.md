@@ -13,6 +13,7 @@ Machine: Apple M3 Pro, 11 cores, 36 GiB. Every timed build started at 1-minute l
 | `conformance-rust.md`                    | Rust baseline over two runs, including run-to-run CU noise                                                      |
 | `mailbox-conformance.md`                 | mailbox suite, plus Rust with `msg!` compiled out to size the logging cost                                      |
 | `sbpf-compat.md`                         | which SBPF versions each SVM chain we deploy to accepts                                                         |
+| `overhead-analysis.md`, `overhead-data/` | why Go cost more CU per call than Rust, the fixes, and CU after the goSVM `hyperlane-integration-4` re-pin      |
 
 Paths under `/tmp` are where the runs happened. Regenerate with
 `rust/sealevel/programs/conformance.sh` and the methodology in `methodology-final.md`.
