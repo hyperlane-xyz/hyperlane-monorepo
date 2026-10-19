@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
-use hyperlane_sealevel_token_collateral::plugin::CollateralPlugin;
-use hyperlane_sealevel_token_native::plugin::NativePlugin;
+use hyperlane_sealevel_interface::token_collateral::plugin::CollateralPlugin;
+use hyperlane_sealevel_interface::token_native::plugin::NativePlugin;
 use serde::{Deserialize, Serialize};
 use solana_client::{
     client_error::{reqwest, ClientError},
@@ -16,20 +16,20 @@ use std::{
 use solana_sdk::{instruction::Instruction, program_error::ProgramError, pubkey::Pubkey};
 use solana_system_interface::instruction as system_instruction;
 
-use hyperlane_sealevel_connection_client::{
+use hyperlane_sealevel_interface::connection_client::{
     gas_router::GasRouterConfig, router::RemoteRouterConfig,
 };
-use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
-use hyperlane_sealevel_token::{
-    hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin, spl_token_2022,
-};
-use hyperlane_sealevel_token_lib::{
+use hyperlane_sealevel_interface::igp::accounts::InterchainGasPaymasterType;
+use hyperlane_sealevel_interface::token::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
     hyperlane_token_pda_seeds,
     instruction::{
         enroll_remote_routers_instruction, set_destination_gas_configs, set_igp_instruction,
         set_interchain_security_module_instruction, transfer_ownership_instruction, Init,
     },
+};
+use hyperlane_sealevel_interface::token_synthetic::{
+    hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin,
 };
 
 use crate::{
@@ -198,9 +198,9 @@ impl WarpRouteDeployer {}
 impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
     fn program_name(&self, config: &TokenConfig) -> &str {
         match config.token_type {
-            TokenType::Native => "hyperlane_sealevel_token_native",
-            TokenType::Synthetic(_) => "hyperlane_sealevel_token",
-            TokenType::Collateral(_) => "hyperlane_sealevel_token_collateral",
+            TokenType::Native => "hyperlane_sealevel_interface::token_native",
+            TokenType::Synthetic(_) => "hyperlane_sealevel_interface::token_synthetic",
+            TokenType::Collateral(_) => "hyperlane_sealevel_interface::token_collateral",
         }
     }
 
@@ -297,7 +297,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
 
         match &app_config.token_type {
             TokenType::Native => ctx.new_txn().add(
-                hyperlane_sealevel_token_native::instruction::init_instruction(
+                hyperlane_sealevel_interface::token_native::instruction::init_instruction(
                     program_id,
                     ctx.payer_pubkey,
                     init,
@@ -309,7 +309,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
 
                 ctx.new_txn()
                     .add(
-                        hyperlane_sealevel_token::instruction::init_instruction(
+                        hyperlane_sealevel_interface::token_synthetic::instruction::init_instruction(
                             program_id,
                             ctx.payer_pubkey,
                             init,
@@ -367,7 +367,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 let collateral_spl_token_program = collateral_mint_account.owner;
 
                 ctx.new_txn().add(
-                    hyperlane_sealevel_token_collateral::instruction::init_instruction(
+                    hyperlane_sealevel_interface::token_collateral::instruction::init_instruction(
                         program_id,
                         ctx.payer_pubkey,
                         init,
@@ -693,7 +693,7 @@ fn fund_ata_payer_up_to(
     ata_payer_funding_amount: u64,
 ) {
     let (ata_payer_account, _ata_payer_bump) = Pubkey::find_program_address(
-        hyperlane_sealevel_token::hyperlane_token_ata_payer_pda_seeds!(),
+        hyperlane_sealevel_interface::token_synthetic::hyperlane_token_ata_payer_pda_seeds!(),
         &program_id,
     );
 

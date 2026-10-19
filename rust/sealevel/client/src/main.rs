@@ -21,14 +21,14 @@ use solana_system_interface::program as system_program;
 
 use account_utils::DiscriminatorEncode;
 use hyperlane_core::{H160, H256};
-use hyperlane_sealevel_connection_client::{
+use hyperlane_sealevel_interface::connection_client::{
     gas_router::GasRouterConfig, router::RemoteRouterConfig,
 };
-use hyperlane_sealevel_igp::{
+use hyperlane_sealevel_interface::igp::{
     accounts::{InterchainGasPaymasterType, OverheadIgpAccount},
     igp_gas_payment_pda_seeds, igp_program_data_pda_seeds,
 };
-use hyperlane_sealevel_mailbox::{
+use hyperlane_sealevel_interface::mailbox::{
     accounts::{InboxAccount, OutboxAccount},
     instruction::{Instruction as MailboxInstruction, OutboxDispatch},
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
@@ -37,14 +37,7 @@ use hyperlane_sealevel_mailbox::{
     protocol_fee::ProtocolFee,
 };
 
-use hyperlane_sealevel_token::{
-    hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds,
-    spl_associated_token_account::get_associated_token_address_with_program_id, spl_token_2022,
-};
-use hyperlane_sealevel_token_collateral::{
-    hyperlane_token_escrow_pda_seeds, plugin::CollateralPlugin,
-};
-use hyperlane_sealevel_token_lib::{
+use hyperlane_sealevel_interface::token::{
     accounts::HyperlaneTokenAccount,
     hyperlane_token_pda_seeds,
     instruction::{
@@ -52,8 +45,14 @@ use hyperlane_sealevel_token_lib::{
         Instruction as HtInstruction, TransferRemote as HtTransferRemote,
     },
 };
-use hyperlane_sealevel_token_native::hyperlane_token_native_collateral_pda_seeds;
-use hyperlane_sealevel_validator_announce::{
+use hyperlane_sealevel_interface::token_collateral::{
+    hyperlane_token_escrow_pda_seeds, plugin::CollateralPlugin,
+};
+use hyperlane_sealevel_interface::token_native::hyperlane_token_native_collateral_pda_seeds;
+use hyperlane_sealevel_interface::token_synthetic::{
+    hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds,
+};
+use hyperlane_sealevel_interface::validator_announce::{
     accounts::ValidatorStorageLocationsAccount,
     instruction::{
         AnnounceInstruction as ValidatorAnnounceAnnounceInstruction,
@@ -62,6 +61,7 @@ use hyperlane_sealevel_validator_announce::{
     replay_protection_pda_seeds, validator_announce_pda_seeds,
     validator_storage_locations_pda_seeds,
 };
+use spl_associated_token_account::get_associated_token_address_with_program_id;
 use squads::{process_squads_cmd, SquadsCmd};
 use warp_route::parse_token_account_data;
 
@@ -921,7 +921,7 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
         MailboxSubCmd::Init(init) => {
             let protocol_fee_beneficiary =
                 init.protocol_fee_beneficiary.unwrap_or(ctx.payer_pubkey);
-            let instruction = hyperlane_sealevel_mailbox::instruction::init_instruction(
+            let instruction = hyperlane_sealevel_interface::mailbox::instruction::init_instruction(
                 init.program_id,
                 init.local_domain,
                 init.default_ism,
@@ -1013,7 +1013,7 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
         }
         MailboxSubCmd::TransferOwnership(transfer_ownership) => {
             let instruction =
-                hyperlane_sealevel_mailbox::instruction::transfer_ownership_instruction(
+                hyperlane_sealevel_interface::mailbox::instruction::transfer_ownership_instruction(
                     transfer_ownership.program_id,
                     ctx.payer_pubkey,
                     Some(transfer_ownership.new_owner),
@@ -1027,12 +1027,13 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
                 .send_with_payer();
         }
         MailboxSubCmd::SetDefaultIsm(set_default_ism) => {
-            let instruction = hyperlane_sealevel_mailbox::instruction::set_default_ism_instruction(
-                set_default_ism.program_id,
-                ctx.payer_pubkey,
-                set_default_ism.default_ism,
-            )
-            .unwrap();
+            let instruction =
+                hyperlane_sealevel_interface::mailbox::instruction::set_default_ism_instruction(
+                    set_default_ism.program_id,
+                    ctx.payer_pubkey,
+                    set_default_ism.default_ism,
+                )
+                .unwrap();
             ctx.new_txn()
                 .add_with_description(
                     instruction,
@@ -1431,7 +1432,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
         }
         TokenSubCmd::TransferOwnership(transfer) => {
             let instruction =
-                hyperlane_sealevel_token_lib::instruction::transfer_ownership_instruction(
+                hyperlane_sealevel_interface::token::instruction::transfer_ownership_instruction(
                     transfer.program_id,
                     ctx.payer_pubkey,
                     Some(transfer.new_owner),
@@ -1447,7 +1448,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
         }
         TokenSubCmd::SetInterchainSecurityModule(set_ism) => {
             let instruction =
-                    hyperlane_sealevel_token_lib::instruction::set_interchain_security_module_instruction(
+                    hyperlane_sealevel_interface::token::instruction::set_interchain_security_module_instruction(
                         set_ism.program_id,
                         ctx.payer_pubkey,
                         set_ism.ism
@@ -1466,12 +1467,13 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                         InterchainGasPaymasterType::OverheadIgp(set_args.igp_account)
                     }
                 };
-                let instruction = hyperlane_sealevel_token_lib::instruction::set_igp_instruction(
-                    args.program_id,
-                    ctx.payer_pubkey,
-                    Some((set_args.igp_program, igp_type.clone())),
-                )
-                .unwrap();
+                let instruction =
+                    hyperlane_sealevel_interface::token::instruction::set_igp_instruction(
+                        args.program_id,
+                        ctx.payer_pubkey,
+                        Some((set_args.igp_program, igp_type.clone())),
+                    )
+                    .unwrap();
 
                 ctx.new_txn()
                     .add_with_description(
@@ -1505,7 +1507,7 @@ fn process_validator_announce_cmd(ctx: Context, cmd: ValidatorAnnounceCmd) {
     match cmd.cmd {
         ValidatorAnnounceSubCmd::Init(init) => {
             let init_instruction =
-                hyperlane_sealevel_validator_announce::instruction::init_instruction(
+                hyperlane_sealevel_interface::validator_announce::instruction::init_instruction(
                     init.program_id,
                     ctx.payer_pubkey,
                     init.mailbox_id,

@@ -10,7 +10,7 @@ use crate::{
     CompositeIsmCmd, CompositeIsmSubCmd, Context,
 };
 use hyperlane_core::{H160, H256, U256};
-use hyperlane_sealevel_composite_ism::{
+use hyperlane_sealevel_interface::composite_ism::{
     accounts::{CompositeIsmAccount, DomainIsmAccount, IsmNode},
     instruction::{
         initialize_instruction, remove_domain_ism_instruction, set_domain_ism_instruction,
@@ -369,9 +369,9 @@ pub(crate) fn deploy_composite_ism(
     let program_id = deploy_program(
         ctx.payer_keypair_path(),
         key_dir,
-        "hyperlane_sealevel_composite_ism",
+        "hyperlane_sealevel_interface::composite_ism",
         built_so_dir
-            .join("hyperlane_sealevel_composite_ism.so")
+            .join("hyperlane_sealevel_interface::composite_ism.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),

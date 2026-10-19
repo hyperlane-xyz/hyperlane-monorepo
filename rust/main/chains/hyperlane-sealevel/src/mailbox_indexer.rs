@@ -4,7 +4,7 @@
 use std::{ops::RangeInclusive, sync::Arc};
 
 use async_trait::async_trait;
-use hyperlane_sealevel_mailbox::{
+use hyperlane_sealevel_interface::mailbox::{
     accounts::{
         DispatchedMessageAccount, InboxAccount, OutboxAccount, ProcessedMessageAccount,
         DISPATCHED_MESSAGE_DISCRIMINATOR, PROCESSED_MESSAGE_DISCRIMINATOR,
