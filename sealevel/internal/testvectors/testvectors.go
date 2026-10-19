@@ -64,10 +64,30 @@ type Golden struct {
 		Name string `json:"name"`
 		Code uint64 `json:"code"`
 	} `json:"errors"`
-	Constants []struct {
-		Name  string `json:"name"`
-		Value string `json:"value"`
-	} `json:"constants"`
+	Constants []GoldenConstant `json:"constants"`
+}
+
+// GoldenConstant is one named constant. Value is the JSON string, or the
+// literal text of a JSON number (igp.json has numeric constants).
+type GoldenConstant struct {
+	Name  string
+	Value string
+}
+
+func (c *GoldenConstant) UnmarshalJSON(b []byte) error {
+	var raw struct {
+		Name  string          `json:"name"`
+		Value json.RawMessage `json:"value"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	c.Name = raw.Name
+	if len(raw.Value) > 0 && raw.Value[0] == '"' {
+		return json.Unmarshal(raw.Value, &c.Value)
+	}
+	c.Value = string(raw.Value)
+	return nil
 }
 
 // GoldenValue is one encoded value; Fields stays raw for per-type decoding.
