@@ -621,13 +621,23 @@ pub fn compute_gas_fee(
     gas_amount: u64,
     token_decimals: u8,
 ) -> Result<u64, ProgramError> {
-    let dest_cost = U256::from(gas_amount)
-        .checked_mul(U256::from(gas_price))
-        .ok_or(ProgramError::ArithmeticOverflow)?;
-    let origin_cost = dest_cost
-        .checked_mul(U256::from(token_exchange_rate))
-        .ok_or(ProgramError::ArithmeticOverflow)?
-        / U256::from(TOKEN_EXCHANGE_RATE_SCALE);
+    // u128 fast path; exact, so the result matches the U256 path below.
+    // U256 multiplication and division cost thousands of CU on SBF.
+    let origin_cost = match (gas_amount as u128)
+        .checked_mul(gas_price)
+        .and_then(|dest_cost| dest_cost.checked_mul(token_exchange_rate))
+    {
+        Some(origin_cost) => U256::from(origin_cost / TOKEN_EXCHANGE_RATE_SCALE),
+        None => {
+            let dest_cost = U256::from(gas_amount)
+                .checked_mul(U256::from(gas_price))
+                .ok_or(ProgramError::ArithmeticOverflow)?;
+            dest_cost
+                .checked_mul(U256::from(token_exchange_rate))
+                .ok_or(ProgramError::ArithmeticOverflow)?
+                / U256::from(TOKEN_EXCHANGE_RATE_SCALE)
+        }
+    };
     let origin_cost = convert_decimals(origin_cost, token_decimals, SOL_DECIMALS)?;
 
     u64::try_from(origin_cost).map_err(|_| ProgramError::ArithmeticOverflow)
@@ -635,21 +645,61 @@ pub fn compute_gas_fee(
 
 /// Converts `num` from `from_decimals` to `to_decimals`.
 fn convert_decimals(num: U256, from_decimals: u8, to_decimals: u8) -> Result<U256, ProgramError> {
+    checked_convert_decimals(num, from_decimals, to_decimals)
+        .ok_or(ProgramError::ArithmeticOverflow)
+}
+
+/// 10^0 ..= 10^38, every power of ten that fits in a u128.
+const POW10_U128: [u128; 39] = {
+    let mut table = [1u128; 39];
+    let mut i = 1;
+    while i < table.len() {
+        table[i] = table[i - 1] * 10;
+        i += 1;
+    }
+    table
+};
+
+/// Returns 10^`exp`, or None if it overflows a U256.
+/// Same result as `U256::from(10).checked_pow(U256::from(exp))`, which costs
+/// several U256 multiplications on SBF; exponents up to 38 use a table.
+fn checked_pow10(exp: u8) -> Option<U256> {
+    match POW10_U128.get(usize::from(exp)) {
+        Some(pow) => Some(U256::from(*pow)),
+        None => U256::from(10u64).checked_pow(U256::from(exp)),
+    }
+}
+
+/// Returns `num` as a u128 if it fits.
+fn as_u128(num: &U256) -> Option<u128> {
+    (num.0[2] == 0 && num.0[3] == 0).then(|| num.low_u128())
+}
+
+/// Converts `num` from `from_decimals` to `to_decimals`, rounding down.
+/// Returns None on U256 overflow.
+///
+/// Uses u128 arithmetic when the operands fit, and U256 arithmetic otherwise.
+/// Both are exact, so the result does not depend on the path taken.
+pub fn checked_convert_decimals(num: U256, from_decimals: u8, to_decimals: u8) -> Option<U256> {
     match from_decimals.cmp(&to_decimals) {
         Ordering::Greater => {
-            let factor = U256::from(10u64)
-                .checked_pow(U256::from(from_decimals - to_decimals))
-                .ok_or(ProgramError::ArithmeticOverflow)?;
-            Ok(num / factor)
+            let factor = checked_pow10(from_decimals - to_decimals)?;
+            if let (Some(num), Some(factor)) = (as_u128(&num), as_u128(&factor)) {
+                return Some(U256::from(num / factor));
+            }
+            num.checked_div(factor)
         }
         Ordering::Less => {
-            let factor = U256::from(10u64)
-                .checked_pow(U256::from(to_decimals - from_decimals))
-                .ok_or(ProgramError::ArithmeticOverflow)?;
+            let factor = checked_pow10(to_decimals - from_decimals)?;
+            if let Some(product) = as_u128(&num)
+                .zip(as_u128(&factor))
+                .and_then(|(num, factor)| num.checked_mul(factor))
+            {
+                return Some(U256::from(product));
+            }
             num.checked_mul(factor)
-                .ok_or(ProgramError::ArithmeticOverflow)
         }
-        Ordering::Equal => Ok(num),
+        Ordering::Equal => Some(num),
     }
 }
 
@@ -1013,6 +1063,116 @@ mod test {
         let to_decimals = 4;
         let result = convert_decimals(num, from_decimals, to_decimals).unwrap();
         assert_eq!(result, U256::from(0u128));
+    }
+
+    #[test]
+    fn test_checked_pow10_matches_checked_pow() {
+        for exp in 0..=u8::MAX {
+            assert_eq!(
+                checked_pow10(exp),
+                U256::from(10u64).checked_pow(U256::from(exp)),
+                "exp={exp}"
+            );
+        }
+    }
+
+    /// U256 reference for `checked_convert_decimals`, matching the pre-u128
+    /// implementation.
+    fn reference_convert_decimals(num: U256, from: u8, to: u8) -> Option<U256> {
+        match from.cmp(&to) {
+            Ordering::Greater => U256::from(10u64)
+                .checked_pow(U256::from(from - to))
+                .and_then(|factor| num.checked_div(factor)),
+            Ordering::Less => U256::from(10u64)
+                .checked_pow(U256::from(to - from))
+                .and_then(|factor| num.checked_mul(factor)),
+            Ordering::Equal => Some(num),
+        }
+    }
+
+    #[test]
+    fn test_checked_convert_decimals_matches_u256_reference() {
+        let nums = [
+            U256::zero(),
+            U256::one(),
+            U256::from(999u64),
+            U256::from(u64::MAX),
+            U256::from(u128::MAX),
+            U256::from(u128::MAX) + 1,
+            U256::MAX / 3,
+            U256::MAX,
+        ];
+        let decimals = [
+            0u8,
+            1,
+            6,
+            8,
+            9,
+            18,
+            19,
+            37,
+            38,
+            39,
+            40,
+            77,
+            78,
+            200,
+            u8::MAX,
+        ];
+        for num in nums {
+            for &from in &decimals {
+                for &to in &decimals {
+                    assert_eq!(
+                        checked_convert_decimals(num, from, to),
+                        reference_convert_decimals(num, from, to),
+                        "num={num} from={from} to={to}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// U256 reference for `compute_gas_fee`, matching the pre-u128 implementation.
+    fn reference_gas_fee(
+        rate: u128,
+        gas_price: u128,
+        gas_amount: u64,
+        decimals: u8,
+    ) -> Option<u64> {
+        let origin_cost = U256::from(gas_amount)
+            .checked_mul(U256::from(gas_price))?
+            .checked_mul(U256::from(rate))?
+            / U256::from(TOKEN_EXCHANGE_RATE_SCALE);
+        let origin_cost = reference_convert_decimals(origin_cost, decimals, SOL_DECIMALS)?;
+        u64::try_from(origin_cost).ok()
+    }
+
+    #[test]
+    fn test_compute_gas_fee_matches_u256_reference() {
+        let u128s = [
+            0,
+            1,
+            1_000_000_000,
+            TOKEN_EXCHANGE_RATE_SCALE,
+            u64::MAX as u128,
+            u64::MAX as u128 + 1,
+            u128::MAX / 2,
+            u128::MAX,
+        ];
+        let gas_amounts = [0, 1, 200_000, u32::MAX as u64, u64::MAX];
+        for &rate in &u128s {
+            for &gas_price in &u128s {
+                for &gas_amount in &gas_amounts {
+                    for decimals in [0u8, 6, 9, 18, 38, 77, 78] {
+                        assert_eq!(
+                            compute_gas_fee(rate, gas_price, gas_amount, decimals).ok(),
+                            reference_gas_fee(rate, gas_price, gas_amount, decimals),
+                            "rate={rate} gas_price={gas_price} gas_amount={gas_amount} decimals={decimals}"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]
