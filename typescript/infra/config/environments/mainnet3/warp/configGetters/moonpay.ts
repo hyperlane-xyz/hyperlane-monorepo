@@ -71,6 +71,10 @@ export function buildCrossCollateralRoutingFee(
   destinations: readonly ChainName[],
 ): TokenFeeConfigInput {
   const targets = getMoonpayTargetRouters();
+  // TODO: set arc router-specific fees in the next MoonPay route update and
+  // remove this exception. They were not set on-chain because the arc legs
+  // were deployed after the fee contracts; the default fee router covers arc.
+  delete targets.arc;
   const offchainFee = (): TokenFeeConfigInput => ({
     type: TokenFeeType.OffchainQuotedLinearFee,
     owner,
