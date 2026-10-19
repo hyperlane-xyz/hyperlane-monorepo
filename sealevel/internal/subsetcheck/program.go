@@ -8,6 +8,7 @@ import (
 	accountutils "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/account-utils"
 	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/borsh"
 	hyperlanecore "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/hyperlane-core"
+	"github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/hyperlane-core/merkle"
 	ism "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/interchain-security-module-interface"
 	recipient "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/message-recipient-interface"
 	accountmeta "github.com/hyperlane-xyz/hyperlane-monorepo/sealevel/libraries/serializable-account-meta"
@@ -43,6 +44,16 @@ func Process(c solana.Context) uint64 {
 	w.Raw(accountmeta.EncodeMetasReturnData(metas))
 	msg, _ := hyperlanecore.DecodeMessage(data)
 	w.Raw(msg.Encode())
+	var id [32]byte
+	if code := hyperlanecore.MessageID(c, data, 0, uint64(len(data)), id[:]); code != 0 {
+		return code
+	}
+	if len(data) >= merkle.Size {
+		var root [32]byte
+		if code := merkle.Root(c, data[:merkle.Size], root[:]); code != 0 {
+			return code
+		}
+	}
 	tm, _ := hyperlanecore.DecodeTokenMessage(data)
 	w.Raw(tm.Encode())
 
