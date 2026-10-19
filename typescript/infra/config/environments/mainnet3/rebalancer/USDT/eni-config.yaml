@@ -1,7 +1,7 @@
 warpRouteId: USDT/eni
 
-# Pin the reviewed branch image before deployment.
 deployment:
+  imageTag: 90ddd17-20261019-160420
   registryCommit: a24bd88a0ce60fb862a5bd5a6ba63fb7a60d79bc
   swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key
 
