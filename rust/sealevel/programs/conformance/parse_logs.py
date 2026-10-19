@@ -27,6 +27,7 @@ PROGRAM_NAMES = {
     "2YjtZDiUoptoSsA5eVrDCcX6wxNK6YoEVW7y82x5Z2fw": "multisig_ism_message_id",
     "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8": "multisig_ism_message_id",
     "Bprmwvw4fCr1fXF4y3qq7JyNiVwb5JNpkVRqxqMhQgau": "composite_ism",
+    "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR": "composite_ism",
     "8opHzTAnfzRpPEx21XtnrVTX28YQuCpAjcn1PczScKh": "mock_mailbox(native)",
     "3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH": "token",
     "G8t1qe3YnYvhi1zS9ioUXuVFkwhBgvfHaLJt5X6PF18z": "token_collateral",
@@ -238,7 +239,8 @@ def write_md(report, path):
     for s in report["suites"].values():
         for t in s["tests"].values():
             for inv in t["invocations"]:
-                d = by_prog.setdefault(inv["program"], {"all": [], "top": [], "self": [], "tests": set()})
+                label = f"{inv['program']} [{inv['program_id'][:4]}..{inv['program_id'][-4:]}]"
+                d = by_prog.setdefault(label, {"all": [], "top": [], "self": [], "tests": set()})
                 d["all"].append(inv["cu"])
                 d["tests"].add(id(t))
                 if inv["depth"] == 1:

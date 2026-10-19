@@ -36,7 +36,7 @@ def index(run, metric):
                 if v is None:
                     continue
                 out[(sname, tname, inv["program_id"])].append(v)
-                names[inv["program_id"]] = inv["program"]
+                names[inv["program_id"]] = f"{inv['program']} [{inv['program_id'][:4]}..{inv['program_id'][-4:]}]"
     return out, status, names
 
 
@@ -57,7 +57,7 @@ def main():
     names = {**a_names, **b_names}
 
     def wanted(pid):
-        return not args.program or pid in args.program or names.get(pid) in args.program
+        return not args.program or pid in args.program or names.get(pid, "").split(" [")[0] in args.program
 
     # Test status changes.
     status_changes = []
@@ -91,7 +91,7 @@ def main():
                 worst.append((r, key[0], key[1], names.get(pid, pid), i, va, vb, len(xa) != len(xb)))
 
     summary = {"metric": args.metric, "status_changes": status_changes, "programs": {}}
-    hdr = f"{'program':30} {'pairs':>6} {'median':>7} {'p90':>7} {'max':>7} {'min':>7} {'sumA':>12} {'sumB':>12} {'B/A':>6} {'cnt!=':>5} {'unpr':>5}"
+    hdr = f"{'program':36} {'pairs':>6} {'median':>7} {'p90':>7} {'max':>7} {'min':>7} {'sumA':>12} {'sumB':>12} {'B/A':>6} {'cnt!=':>5} {'unpr':>5}"
     print(f"metric={args.metric}  ratio=B/A  A={args.a}  B={args.b}")
     print(hdr)
     all_ratios = []
@@ -113,13 +113,13 @@ def main():
         summary["programs"][pid] = row
         f = lambda v: f"{v:7.3f}" if v is not None else f"{'-':>7}"
         tot = p["b_total"] / p["a_total"] if p["a_total"] else float("nan")
-        print(f"{row['program'][:30]:30} {len(rs):6} {f(row['median'])} {f(row['p90'])} {f(row['max'])} {f(row['min'])}"
+        print(f"{row['program'][:36]:36} {len(rs):6} {f(row['median'])} {f(row['p90'])} {f(row['max'])} {f(row['min'])}"
               f" {p['a_total']:12} {p['b_total']:12} {tot:6.3f} {p['mismatched']:5} {p['unpaired']:5}")
     if all_ratios:
         summary["overall"] = {"pairs": len(all_ratios), "median": statistics.median(all_ratios),
                               "p90": pct(all_ratios, 90), "max": max(all_ratios), "min": min(all_ratios)}
         o = summary["overall"]
-        print(f"{'ALL':30} {o['pairs']:6} {o['median']:7.3f} {o['p90']:7.3f} {o['max']:7.3f} {o['min']:7.3f}")
+        print(f"{'ALL':36} {o['pairs']:6} {o['median']:7.3f} {o['p90']:7.3f} {o['max']:7.3f} {o['min']:7.3f}")
 
     worst.sort(reverse=True)
     summary["worst"] = [
