@@ -1,12 +1,12 @@
 //! QuoteFee instruction handler.
 
 use account_utils::{ensure_no_extraneous_accounts, AccountInfoExt, AccountInitState};
+use log_utils::LogLine;
 use quote_verifier::{QuoteValidationError, ValidatableQuote};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     clock::Clock,
     entrypoint::ProgramResult,
-    msg,
     program::set_return_data,
     program_error::ProgramError,
     pubkey::Pubkey,
@@ -149,10 +149,10 @@ pub(super) fn process_quote_fee(
                     // Unconfigured domain → zero fee (EVM-compatible behavior).
                     ensure_no_extraneous_accounts(accounts_iter)?;
                     set_return_data(&0u64.to_le_bytes());
-                    msg!(
-                        "QuoteFee (unconfigured route): 0 for amount {}",
-                        data.amount
-                    );
+                    LogLine::new()
+                        .str("QuoteFee (unconfigured route): 0 for amount ")
+                        .u64(data.amount)
+                        .log();
                     return Ok(());
                 }
             }
@@ -206,7 +206,12 @@ pub(super) fn process_quote_fee(
         };
 
         set_return_data(&fee.to_le_bytes());
-        msg!("QuoteFee (transient): {} for amount {}", fee, data.amount);
+        LogLine::new()
+            .str("QuoteFee (transient): ")
+            .u64(fee)
+            .str(" for amount ")
+            .u64(data.amount)
+            .log();
         return Ok(());
     }
 
@@ -254,7 +259,12 @@ pub(super) fn process_quote_fee(
             &clock,
         )? {
             set_return_data(&fee.to_le_bytes());
-            msg!("QuoteFee (standing): {} for amount {}", fee, data.amount);
+            LogLine::new()
+                .str("QuoteFee (standing): ")
+                .u64(fee)
+                .str(" for amount ")
+                .u64(data.amount)
+                .log();
             return Ok(());
         }
     }
@@ -263,7 +273,12 @@ pub(super) fn process_quote_fee(
     let fee = strategy.compute_fee(data.amount)?;
 
     set_return_data(&fee.to_le_bytes());
-    msg!("QuoteFee (on-chain): {} for amount {}", fee, data.amount);
+    LogLine::new()
+        .str("QuoteFee (on-chain): ")
+        .u64(fee)
+        .str(" for amount ")
+        .u64(data.amount)
+        .log();
 
     Ok(())
 }

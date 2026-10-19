@@ -3,10 +3,10 @@
 use account_utils::{
     create_pda_account, ensure_no_extraneous_accounts, AccountInfoExt, AccountInitState, SizedData,
 };
+use log_utils::LogLine;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
-    msg,
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
@@ -143,7 +143,10 @@ pub(super) fn process_set_remote_fee_route(
 
     ensure_no_extraneous_accounts(accounts_iter)?;
 
-    msg!("Set remote fee route for domain {}", data.domain);
+    LogLine::new()
+        .str("Set remote fee route for domain ")
+        .u64(data.domain.into())
+        .log();
     Ok(())
 }
 
@@ -213,7 +216,10 @@ pub(super) fn process_remove_remote_fee_route(
 
     ensure_no_extraneous_accounts(accounts_iter)?;
 
-    msg!("Removed remote fee route for domain {}", data.domain);
+    LogLine::new()
+        .str("Removed remote fee route for domain ")
+        .u64(data.domain.into())
+        .log();
     Ok(())
 }
 

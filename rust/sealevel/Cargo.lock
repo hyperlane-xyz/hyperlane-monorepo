@@ -3512,6 +3512,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-test-utils",
  "k256 0.13.4",
+ "log-utils",
  "num-derive",
  "num-traits",
  "package-versioned",

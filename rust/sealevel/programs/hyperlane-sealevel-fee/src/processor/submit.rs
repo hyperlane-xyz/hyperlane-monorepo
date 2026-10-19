@@ -7,6 +7,7 @@ use account_utils::{
     AccountInfoExt, AccountInitState, SizedData,
 };
 use hyperlane_core::H160;
+use log_utils::LogLine;
 use quote_verifier::{QuoteValidationError, SvmSignedQuote, ValidatableQuote};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -338,11 +339,12 @@ pub(super) fn process_submit_quote(
             )?;
         }
 
-        msg!(
-            "Submitted standing quote for domain {} recipient {}",
-            destination_domain,
-            recipient_key
-        );
+        LogLine::new()
+            .str("Submitted standing quote for domain ")
+            .u64(destination_domain.into())
+            .str(" recipient ")
+            .hex(recipient_key.as_bytes())
+            .log();
     }
 
     Ok(())
@@ -467,7 +469,11 @@ pub(super) fn process_prune_expired_quotes(
         // Close the PDA.
         domain_pda_info.close_account(owner_info)?;
 
-        msg!("Pruned domain {} — PDA closed", domain);
+        LogLine::new()
+            .str("Pruned domain ")
+            .u64(domain.into())
+            .str(" — PDA closed")
+            .log();
     } else {
         // Re-serialize with remaining entries.
         let remaining = standing.quotes.len();
@@ -478,7 +484,13 @@ pub(super) fn process_prune_expired_quotes(
             system_program_info,
         )?;
 
-        msg!("Pruned domain {} — {} entries remaining", domain, remaining);
+        LogLine::new()
+            .str("Pruned domain ")
+            .u64(domain.into())
+            .str(" — ")
+            .u64(remaining as u64)
+            .str(" entries remaining")
+            .log();
     }
 
     Ok(())
