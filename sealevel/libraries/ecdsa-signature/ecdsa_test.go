@@ -71,11 +71,10 @@ func TestRecoverEthereumAddress(t *testing.T) {
 	if status != 0 || address != e.Address {
 		t.Fatalf("recovered %x (%d), want %x", address, status, e.Address)
 	}
-	// A different hash does not recover (stand-in: InvalidSignature).
-	other := e.Hash
-	other[0] ^= 1
-	if _, status := s.RecoverEthereumAddress(c, other[:]); status != 3 {
-		t.Fatalf("other hash status %d", status)
+	// Zero r and s never recover: the syscall's InvalidSignature (3).
+	zero := ecdsa.EcdsaSignature{RecoveryID: 1}
+	if _, status := zero.RecoverEthereumAddress(c, e.Hash[:]); status != 3 {
+		t.Fatalf("zero signature status %d", status)
 	}
 	// Wrong hash length never reaches the syscall.
 	if _, status := s.RecoverEthereumAddress(c, e.Hash[:31]); status != 2018 {

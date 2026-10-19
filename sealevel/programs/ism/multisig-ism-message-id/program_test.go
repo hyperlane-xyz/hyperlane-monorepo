@@ -415,9 +415,11 @@ func TestVerify(t *testing.T) {
 	if !bytes.Equal(good, vec(t, "multisig-ism", "metadata_sigs_0_1")) {
 		t.Fatal("metadata encoding")
 	}
-	// A signature that does not recover (stand-in: unknown hash/sig pair).
+	// A signature that does not recover: zero r and s (status 3 on chain).
 	bad := append([]byte(nil), good...)
-	bad[68] ^= 1
+	for i := 68; i < 68+64; i++ {
+		bad[i] = 0
+	}
 	if code := r.Run(program.Process, verifyIx(bad, msg)); code != program.ErrInvalidSignature {
 		t.Errorf("unrecoverable signature: %#x", code)
 	}

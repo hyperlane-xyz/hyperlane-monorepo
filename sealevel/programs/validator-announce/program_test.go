@@ -331,8 +331,8 @@ func TestAnnounceErrors(t *testing.T) {
 	for i := 32; i < 64; i++ {
 		highS[i] = 0xff
 	}
-	unrecoverable := append([]byte(nil), ix2.Signature...)
-	unrecoverable[0] ^= 1
+	// Zero r and s never recover (status 3 on chain).
+	unrecoverable := append(make([]byte, 64), ix2.Signature[64])
 	otherValidator := ix2
 	otherValidator.Validator[0] ^= 1
 	for _, tc := range []struct {
