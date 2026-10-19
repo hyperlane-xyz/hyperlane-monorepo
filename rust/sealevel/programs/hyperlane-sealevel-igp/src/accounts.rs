@@ -7,8 +7,8 @@ use std::{
 
 use access_control::AccessControl;
 use account_utils::{
-    AccountData, DiscriminatorData, DiscriminatorPrefixed, OptionalDiscriminatedData, SizedData,
-    BORSH_LEN_PREFIX, H160_SIZE, H256_SIZE, PUBKEY_SIZE,
+    read_map_value, AccountData, DiscriminatorData, DiscriminatorPrefixed,
+    OptionalDiscriminatedData, SizedData, BORSH_LEN_PREFIX, H160_SIZE, H256_SIZE, PUBKEY_SIZE,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H160, H256, U256};
@@ -145,7 +145,7 @@ impl OverheadIgpGasPaymentView {
             let salt = H256::deserialize_reader(reader)?;
             let _owner = Option::<Pubkey>::deserialize_reader(reader)?;
             let inner = Pubkey::deserialize_reader(reader)?;
-            let gas_overhead = read_map_value(reader, destination_domain)?.unwrap_or(0);
+            let gas_overhead = read_map_value(reader, Some(destination_domain))?.unwrap_or(0);
             Ok(Self {
                 bump_seed,
                 salt,
@@ -276,28 +276,6 @@ fn quote_gas_payment_with_oracle(
     )
 }
 
-/// Reads a borsh-encoded `HashMap<u32, V>` and returns the value for `key`
-/// without building the map.
-///
-/// Consumes the same bytes and fails on the same inputs as
-/// `HashMap::<u32, V>::deserialize_reader`, which reads a `Vec<(u32, V)>`
-/// and collects it. As in that collect, the last entry wins if a key repeats.
-fn read_map_value<V: BorshDeserialize, R: std::io::Read>(
-    reader: &mut R,
-    key: u32,
-) -> std::io::Result<Option<V>> {
-    let len = u32::deserialize_reader(reader)?;
-    let mut value = None;
-    for _ in 0..len {
-        let entry_key = u32::deserialize_reader(reader)?;
-        let entry_value = V::deserialize_reader(reader)?;
-        if entry_key == key {
-            value = Some(entry_value);
-        }
-    }
-    Ok(value)
-}
-
 /// Reads `AccountData<DiscriminatorPrefixed<T>>` bytes the way
 /// `AccountData::fetch` does, with `read` parsing the fields of `T`.
 /// Empty or uninitialized data yields `uninit`, as `fetch` yields
@@ -356,7 +334,7 @@ impl IgpGasPaymentView {
             let salt = H256::deserialize_reader(reader)?;
             let _owner = Option::<Pubkey>::deserialize_reader(reader)?;
             let _beneficiary = Pubkey::deserialize_reader(reader)?;
-            let gas_oracle = read_map_value(reader, destination_domain)?;
+            let gas_oracle = read_map_value(reader, Some(destination_domain))?;
             let fee_config = OptionalDiscriminatedData::deserialize_reader(reader)?;
             Ok(Self {
                 bump_seed,

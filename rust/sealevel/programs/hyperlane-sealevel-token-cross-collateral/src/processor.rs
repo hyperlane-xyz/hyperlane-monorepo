@@ -14,7 +14,7 @@ use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
 use hyperlane_sealevel_token_lib::{
-    accounts::{HyperlaneToken, HyperlaneTokenAccount},
+    accounts::{HyperlaneToken, HyperlaneTokenAccount, HyperlaneTokenDomainView},
     instruction::{Init, Instruction as TokenIxn, TransferRemoteWithMemo},
     processor::{HyperlaneSealevelToken, HyperlaneSealevelTokenPlugin},
 };
@@ -504,9 +504,10 @@ fn transfer_remote_to(
 
     // Account 1: Token storage account
     let hyperlane_token_account = next_account_info(accounts_iter)?;
-    let hyperlane_token = HyperlaneToken::<CollateralPlugin>::verify_account_and_fetch_inner(
+    let hyperlane_token = HyperlaneTokenDomainView::<CollateralPlugin>::verify_account_and_fetch(
         program_id,
         hyperlane_token_account,
+        Some(xfer.destination_domain),
     )?;
 
     // Account 2: CC state PDA
@@ -745,9 +746,10 @@ fn transfer_from_remote_cc(
 
     // Account 2: Token account
     let hyperlane_token_account = next_account_info(accounts_iter)?;
-    let hyperlane_token = HyperlaneToken::<CollateralPlugin>::verify_account_and_fetch_inner(
+    let hyperlane_token = HyperlaneTokenDomainView::<CollateralPlugin>::verify_account_and_fetch(
         program_id,
         hyperlane_token_account,
+        Some(xfer.origin),
     )?;
 
     // Account 3: CC state PDA
@@ -823,9 +825,10 @@ fn transfer_from_remote_account_metas_cc(
 
     // Account 0: Token account
     let token_account_info = next_account_info(accounts_iter)?;
-    let token = HyperlaneToken::<CollateralPlugin>::verify_account_and_fetch_inner(
+    let token = HyperlaneTokenDomainView::<CollateralPlugin>::verify_account_and_fetch(
         program_id,
         token_account_info,
+        None,
     )?;
 
     let (transfer_out_account_metas, writeable_recipient) =
@@ -900,9 +903,10 @@ fn handle_local(
 
     // Account 2: Token account
     let token_account = next_account_info(accounts_iter)?;
-    let token = HyperlaneToken::<CollateralPlugin>::verify_account_and_fetch_inner(
+    let token = HyperlaneTokenDomainView::<CollateralPlugin>::verify_account_and_fetch(
         program_id,
         token_account,
+        None,
     )?;
 
     // Account 3: CC state PDA
@@ -976,9 +980,10 @@ fn handle_local_account_metas(
 
     // Account 0: Token account
     let token_account_info = next_account_info(accounts_iter)?;
-    let token = HyperlaneToken::<CollateralPlugin>::verify_account_and_fetch_inner(
+    let token = HyperlaneTokenDomainView::<CollateralPlugin>::verify_account_and_fetch(
         program_id,
         token_account_info,
+        None,
     )?;
 
     let (transfer_out_account_metas, writeable_recipient) =
