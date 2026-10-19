@@ -96,6 +96,10 @@ func Process(c solana.Context) uint64 {
 	if n, fits := hyperlanecore.U256Uint64(&b); !ok || !ok2 || !fits || n > 9 || hyperlanecore.U256IsZero(&b) {
 		return 1
 	}
+	clock, code := svm.GetClock(c)
+	if code != 0 || clock.UnixTimestamp < 0 {
+		return code
+	}
 	if len(m) > 9 || accountutils.InitState(c, 0, svm.ProgramID(c)) == accountutils.OwnerMismatch {
 		return 1
 	}
