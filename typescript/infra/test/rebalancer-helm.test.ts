@@ -348,7 +348,7 @@ describe('oUSDT production manifest', () => {
       { secretRef: { name: secret.spec.target.name } },
     ]);
     expect(container.image).to.equal(
-      `${DockerImageRepos.NODE_SERVICES}:84125ca-20261019-221137`,
+      `${DockerImageRepos.NODE_SERVICES}:79f9608-20261020-142721`,
     );
     expect(container.env).to.deep.include({
       name: 'MONITOR_ONLY',
