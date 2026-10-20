@@ -68,7 +68,7 @@ function actionResponseBody(): Record<string, unknown> {
   };
 }
 
-function statusResponseBody(): unknown {
+function statusResponseBody(): Record<string, unknown> {
   return {
     status: 'pending',
     txId: 'tx-1',
@@ -189,6 +189,39 @@ describe('SwapsXyzClient', () => {
   it('getStatus throws synchronously without txHash or txId', () => {
     expect(() => client.getStatus({})).to.throw('txHash or txId');
     expect(fetchStub.callCount).to.equal(0);
+  });
+
+  it('accepts numeric bridge timestamps and null next bridges', async () => {
+    fetchStub.resolves(
+      makeResponse({
+        body: {
+          ...statusResponseBody(),
+          status: 'success',
+          bridgeDetails: {
+            isBridge: true,
+            bridgeTime: 2,
+            txPath: [
+              {
+                chainId: 1,
+                txHash: '0xsource',
+                timestamp: 1792491359,
+                nextBridge: 'relay',
+              },
+              {
+                chainId: 4663,
+                txHash: '0xdestination',
+                timestamp: 1792491361,
+                nextBridge: null,
+              },
+            ],
+          },
+        },
+      }),
+    );
+
+    const response = await client.getStatus({ txId: 'tx-1' });
+
+    expect(response.bridgeDetails?.txPath?.[1]?.nextBridge).to.be.null;
   });
 
   it('rejects non-HTTPS API URLs', () => {
@@ -360,9 +393,7 @@ describe('SwapsXyzClient', () => {
   });
 
   it('registerTxs posts a JSON body with content-type', async () => {
-    fetchStub.resolves(
-      makeResponse({ body: [{ success: true, error: null }] }),
-    );
+    fetchStub.resolves(makeResponse({ body: [{ success: true }] }));
     const entries = [{ txId: 'tx-1', txHash: '0xabc' }];
 
     const results = await client.registerTxs(entries);
