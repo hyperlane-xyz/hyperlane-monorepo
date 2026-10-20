@@ -475,7 +475,8 @@ describe('InventoryMinAmountStrategy E2E', function () {
       } else {
         expect(actions[0].status).to.equal('in_progress');
         expect(actions[0].txHash).to.match(/^0x[0-9a-f]{64}$/i);
-        expect(partialIntents).to.be.empty;
+        expect(partialIntents).to.have.lengthOf(1);
+        expect(partialIntents[0].hasInflightMovement).to.be.true;
       }
 
       await executeCycle(context);
