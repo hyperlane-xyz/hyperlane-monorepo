@@ -695,7 +695,7 @@ export class RebalancerContextFactory {
               await import('../bridges/LayerZeroBridge.js');
             registry[ExternalBridgeType.LayerZero] = new LayerZeroBridge(
               {
-                chainMetadata: this.multiProvider.metadata,
+                chainMetadata: bridgeChainMetadata,
                 warpRoutes,
                 maxFeeBps: layerZeroConfig.maxFeeBps,
                 maxEvmNativeValueWei: layerZeroConfig.maxEvmNativeValueWei,
