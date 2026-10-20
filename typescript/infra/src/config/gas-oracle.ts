@@ -328,8 +328,10 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     // ≈ 9-12 TRX ≈ $2.60-$3.50. Standard EVM gas math underestimates Tron costs.
     tron: 4.0,
 
-    // skunkchain special
-    solanamainnet: 0.35,
+    // Solana receipt rent (939,800 lamports), fees and RPC allocation.
+    // ATA creation is funded separately by the route ATA payer. At 900k CU,
+    // the 1.15 lamport/CU snapshot plus 50% margin is below this floor.
+    solanamainnet: 0.25,
     // Ethereum floor ($0.12 -> $0.20). *->ethereum quotes are pinned to this floor; L1 gas rose to ~0.3 gwei (Sep 2026) and $0.12 ran 11 EVM lanes ~30% below break-even.
     ethereum: 0.2,
     arbitrum: 0.09,
