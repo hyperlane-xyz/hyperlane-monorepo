@@ -18,6 +18,7 @@ import {
   MultiProtocolProvider,
   Token,
   TokenType,
+  TokenBalanceReader,
   WarpCore,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
@@ -83,6 +84,20 @@ export type SharedMonitorContext = {
   // limited). Call once per cycle before iterating tokens.
   prefetchPrices: (routes: RouteRuntime[]) => Promise<void>;
 };
+
+const balanceReaders = new WeakMap<
+  WarpCore['multiProvider'],
+  TokenBalanceReader
+>();
+
+function balanceReader(warpCore: WarpCore): TokenBalanceReader {
+  let reader = balanceReaders.get(warpCore.multiProvider);
+  if (!reader) {
+    reader = new TokenBalanceReader(warpCore.multiProvider);
+    balanceReaders.set(warpCore.multiProvider, reader);
+  }
+  return reader;
+}
 
 /**
  * Per-route configuration used to build a {@link RouteRuntime}.
@@ -393,8 +408,10 @@ export async function updatePendingAndInventoryMetrics(
   await Promise.all(
     routerNodes.map(async (node) => {
       try {
-        const adapter = node.token.getAdapter(warpCore.multiProvider);
-        const inventoryBalance = await adapter.getBalance(inventoryAddress);
+        const inventoryBalance = await balanceReader(warpCore).getBalance(
+          node.token,
+          inventoryAddress,
+        );
 
         inventory.push({
           warpRouteId,
@@ -446,7 +463,7 @@ async function updateTokenMetrics(
     tryFn(
       async () => {
         const bridgedSupply = token.isHypToken()
-          ? await token.getHypAdapter(warpCore.multiProvider).getBridgedSupply()
+          ? await balanceReader(warpCore).getBridgedSupply(token)
           : undefined;
 
         if (bridgedSupply !== undefined) {
