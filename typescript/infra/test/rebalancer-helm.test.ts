@@ -302,3 +302,121 @@ describe('Rebalancer Helm deployment', () => {
     );
   });
 });
+
+describe('oUSDT production manifest', () => {
+  it('renders the actual route YAML with its credentials and limits', () => {
+    const loaded = readRebalancerConfig(
+      path.join(
+        getInfraPath(),
+        'config/environments/mainnet3/rebalancer/oUSDT/production-config.yaml',
+      ),
+    );
+    const registryCommit = '0b7518b88967309b0ca30827ec418852873bdc7e';
+    expect(loaded.deployment.registryCommit).to.equal(registryCommit);
+    const values = buildRebalancerHelmValues(loaded, {
+      ...options,
+      warpRouteId: 'oUSDT/production',
+      registryCommit,
+      chains: ['arbitrum', 'celo', 'ethereum', 'tron'],
+      monitorOnly: true,
+    });
+    const documents = renderRebalancerValues(values);
+    const secret = documents.find((d) => d.kind === 'ExternalSecret');
+    expect(secret.spec.target.template.data).to.have.keys(
+      'COINGECKO_API_KEY',
+      'HYP_REBALANCER_KEY',
+      'HYP_INVENTORY_KEY',
+      'HYP_INVENTORY_KEY_ETHEREUM',
+      'HYP_INVENTORY_KEY_TRON',
+      'SWAPSXYZ_API_KEY',
+      'RPC_URL_ARBITRUM',
+      'RPC_URL_CELO',
+      'RPC_URL_ETHEREUM',
+      'RPC_URL_TRON',
+    );
+    expect(
+      secret.spec.data.find(
+        (d: { secretKey: string }) => d.secretKey === 'swapsxyz_api_key',
+      ).remoteRef.key,
+    ).to.equal('mainnet3-swapsxyz-api-key-ousdt');
+    expect(secret.spec.target.template.data.HYP_INVENTORY_KEY_TRON).to.equal(
+      secret.spec.target.template.data.HYP_INVENTORY_KEY_ETHEREUM,
+    );
+    const sts = documents.find((d) => d.kind === 'StatefulSet');
+    const container = sts.spec.template.spec.containers[0];
+    expect(container.envFrom).to.deep.equal([
+      { secretRef: { name: secret.spec.target.name } },
+    ]);
+    expect(container.image).to.equal(
+      `${DockerImageRepos.NODE_SERVICES}:d267369-20261020-150802`,
+    );
+    expect(container.env).to.deep.include({
+      name: 'MONITOR_ONLY',
+      value: 'true',
+    });
+    expect(container.env).to.deep.include({
+      name: 'REGISTRY_URI',
+      value: `https://github.com/hyperlane-xyz/hyperlane-registry/tree/${registryCommit}`,
+    });
+    const runtime = parse(
+      documents.find((d) => d.kind === 'ConfigMap').data[
+        'rebalancer-config.yaml'
+      ],
+    );
+    expect(runtime).not.to.have.property('deployment');
+    expect(runtime).not.to.have.property('stateStore');
+    expect(sts.spec).not.to.have.property('volumeClaimTemplates');
+    expect(runtime.intentTTL).to.equal(1209600);
+    expect(loaded.config.intentTTL).to.equal(1209600000);
+    expect(runtime.inventorySigners).to.deep.equal({
+      ethereum: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9',
+      tron: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9',
+    });
+    expect(runtime.externalBridges).to.deep.equal({
+      layerzero: {
+        warpRouteIds: ['USDT/oft', 'USDT/oft-legacy'],
+        maxFeeBps: 50,
+        maxEvmNativeValueWei: '10000000000000000',
+        maxTronNativeValueSun: 20000000,
+      },
+      swapsxyz: {
+        defaultSlippage: 0.005,
+        maxQuoteLossBps: 50,
+        maxEvmNativeFeeWei: '10000000000000000',
+      },
+    });
+    const chains = runtime.strategy.chains;
+    expect(chains.ethereum.minAmount).to.deep.equal({
+      min: 345000,
+      target: 365000,
+      type: 'absolute',
+    });
+    for (const chain of ['arbitrum', 'celo', 'tron']) {
+      expect(chains[chain].minAmount).to.deep.equal({
+        min: 1000,
+        target: 3000,
+        type: 'absolute',
+      });
+    }
+    expect(chains.arbitrum.override.tron.statusAdapter).to.deep.equal({
+      kind: 'lz_scan',
+      sourceEid: 30110,
+      destinationEid: 30420,
+      sourceOft: '0x77652D5aba086137b595875263FC200182919B92',
+      destinationOft: '0x3a08f76772e200653bb55c2a92998daca62e0e97',
+      destinationRecipient: '*',
+    });
+    expect(chains.tron.override.arbitrum.statusAdapter).to.deep.equal({
+      kind: 'lz_scan',
+      sourceEid: 30420,
+      destinationEid: 30110,
+      sourceOft: '0x3a08f76772e200653bb55c2a92998daca62e0e97',
+      destinationOft: '0x77652D5aba086137b595875263FC200182919B92',
+      destinationRecipient: '*',
+    });
+    expect(chains.ethereum.externalBridge).to.equal('layerzero');
+    expect(chains.ethereum.override.celo.externalBridge).to.equal('swapsxyz');
+    expect(chains.celo.override.tron.enabled).to.equal(false);
+    expect(chains.tron.override.celo.enabled).to.equal(false);
+  });
+});
