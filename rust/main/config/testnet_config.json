@@ -218,11 +218,11 @@
       "gasCurrencyCoinGeckoId": "binancecoin",
       "incrementalDomainRoutingIsmFactory": "0x78247aB53f239d86F9eB951Adb211c826BE0A059",
       "quotedCalls": "0x5da1D6747e872338b860Bb84a8f1F9B94C02A663",
+      "interchainAccountRouterV3": "0xF934F7f8Bda2ffEF052614f489A5AC7a02F829B7",
+      "quotedCallsV3": "0xCe25105E721a096d9F549109B2a9127C30a52Fb4",
       "transactionOverrides": {
         "gasPrice": 1000000000
-      },
-      "interchainAccountRouterV3": "0xF934F7f8Bda2ffEF052614f489A5AC7a02F829B7",
-      "quotedCallsV3": "0xCe25105E721a096d9F549109B2a9127C30a52Fb4"
+      }
     },
     "eclipsetestnet": {
       "blocks": {

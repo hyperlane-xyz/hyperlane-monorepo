@@ -483,11 +483,11 @@
       "technicalStack": "other",
       "quotedCalls": "0xAD8C3E1fE3C7deeDdA1A79A9a6A64607A65eD456",
       "universalRouter": "0x52dd779c1b5eeb54d5f218EfA72D52117ca04115",
+      "interchainAccountRouterV3": "0xCaf629Ec0619431066263Ed295D05BF67eF1d017",
+      "quotedCallsV3": "0x292e9695Bc11Dd6C975C0655991725BC7036f8c2",
       "transactionOverrides": {
         "gasPrice": 100000000
-      },
-      "interchainAccountRouterV3": "0xCaf629Ec0619431066263Ed295D05BF67eF1d017",
-      "quotedCallsV3": "0x292e9695Bc11Dd6C975C0655991725BC7036f8c2"
+      }
     },
     "celo": {
       "aggregationHook": "0x18c6F3D79E207e480dA10ff011bB1A80C22C4752",
@@ -2771,12 +2771,12 @@
         "from": 2289443
       },
       "quotedCalls": "0x90f9a2E9eCe93516d65FdaB726a3c62F5960a1b9",
+      "interchainAccountRouterV3": "0x530b6596af6B6aB4D355d7Af2b5FF12eAeef8261",
+      "quotedCallsV3": "0x6D6e6DDED88646Ed251BDefcf287a16f8BC0fCcB",
       "transactionOverrides": {
         "maxFeePerGas": 10000000,
         "maxPriorityFeePerGas": 10000000
-      },
-      "interchainAccountRouterV3": "0x530b6596af6B6aB4D355d7Af2b5FF12eAeef8261",
-      "quotedCallsV3": "0x6D6e6DDED88646Ed251BDefcf287a16f8BC0fCcB"
+      }
     },
     "edgenchain": {
       "blockExplorers": [
@@ -4205,11 +4205,11 @@
       "interchainAccountRouter": "0x58CA3F0D65FFd40727cF6Eb2f323151853Ad3D44",
       "minimalInterchainAccountRouter": "0x58CA3F0D65FFd40727cF6Eb2f323151853Ad3D44",
       "quotedCalls": "0x3CBCa631A797fd4c6332Cd4435C92065AFb57ef8",
+      "interchainAccountRouterV3": "0x5D095B73B82785Ba6B1E3B67476e9bE02515C296",
+      "quotedCallsV3": "0xD126Ed458a6eD624AeE125Ef2F5285E80CEe980D",
       "transactionOverrides": {
         "gasPrice": 1000000000000
-      },
-      "interchainAccountRouterV3": "0x5D095B73B82785Ba6B1E3B67476e9bE02515C296",
-      "quotedCallsV3": "0xD126Ed458a6eD624AeE125Ef2F5285E80CEe980D"
+      }
     },
     "tron": {
       "blockExplorers": [
@@ -4885,12 +4885,12 @@
       "index": {
         "from": 18435650
       },
+      "interchainAccountRouterV3": "0x68EE6a50Ea37175F39dAC5D85f897cd0fF476929",
+      "quotedCallsV3": "0x7E647Eb3A10D7718F12f64b76542c169b9cE355D",
       "transactionOverrides": {
         "maxFeePerGas": 60000000000,
         "maxPriorityFeePerGas": 2000000000
-      },
-      "interchainAccountRouterV3": "0x68EE6a50Ea37175F39dAC5D85f897cd0fF476929",
-      "quotedCallsV3": "0x7E647Eb3A10D7718F12f64b76542c169b9cE355D"
+      }
     }
   },
   "ccrRouters": {
