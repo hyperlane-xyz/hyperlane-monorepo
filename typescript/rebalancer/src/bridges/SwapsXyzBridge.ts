@@ -332,7 +332,12 @@ export class SwapsXyzBridge implements IExternalBridge {
         return { status: 'not_found' };
       }
       this.logger.warn(
-        { txHash, transferId, error: statusError },
+        {
+          txHash,
+          transferId,
+          error:
+            statusError instanceof Error ? statusError.message : statusError,
+        },
         'Failed to get swaps.xyz status',
       );
       throw statusError instanceof Error
