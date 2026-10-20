@@ -206,8 +206,8 @@ export interface SwapsXyzStatusRequest {
 export interface SwapsXyzStatusResponse {
   status: SwapsXyzStatus;
   txId: string;
-  srcChainId: number;
-  dstChainId: number;
+  srcChainId: number | null;
+  dstChainId: number | null;
   srcTxHash?: string | null;
   dstTxHash?: string | null;
   sender?: string | null;
@@ -318,8 +318,8 @@ const StatusResponseSchema: z.ZodType<SwapsXyzStatusResponse> = z
   .object({
     status: z.string().min(1),
     txId: z.string().min(1),
-    srcChainId: z.number().int(),
-    dstChainId: z.number().int(),
+    srcChainId: z.number().int().nullable(),
+    dstChainId: z.number().int().nullable(),
     srcTxHash: z.string().nullish(),
     dstTxHash: z.string().nullish(),
     sender: z.string().nullish(),
