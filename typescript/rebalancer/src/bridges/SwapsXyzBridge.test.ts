@@ -498,6 +498,7 @@ function createSolanaExecuteHarness(
     postSignerLamports?: number;
     postSignerOwner?: PublicKey;
     maxSolanaNativeSpendLamports?: number;
+    maxQuoteLossBps?: number;
     lookupTable?: AddressLookupTableAccount;
     additionalSignerToken?: {
       address: PublicKey;
@@ -586,6 +587,7 @@ function createSolanaExecuteHarness(
     solanaConnectionFactory: () => connection,
     maxSolanaNativeSpendLamports:
       options.maxSolanaNativeSpendLamports ?? 10_000_000,
+    maxQuoteLossBps: options.maxQuoteLossBps,
     registerTxRetryDelayMs: 1,
   });
   return {
@@ -1502,6 +1504,28 @@ describe('SwapsXyzBridge.execute Solana', () => {
     expect(harness.simulateTransactionStub.callCount).to.equal(1);
     expect(sign.called).to.equal(false);
     expect(harness.sendRawTransactionStub.called).to.equal(false);
+  });
+
+  it('rejects a refreshed Solana quote above the configured loss cap', async () => {
+    const response = solanaActionResponse({
+      amountOut: {
+        chainId: 1,
+        address: FROM_TOKEN,
+        amount: '994999',
+        decimals: 6,
+      },
+    });
+    const harness = createSolanaExecuteHarness({
+      response,
+      maxQuoteLossBps: 50,
+    });
+
+    const error = await captureError(harness.bridge.prepare(solanaQuote()));
+
+    expect(error.message).to.include(
+      'quote loss 51 bps exceeds configured maximum 50 bps',
+    );
+    expect(harness.simulateTransactionStub.called).to.equal(false);
   });
 
   it('simulates, binds, broadcasts, and registers an exact-input transfer', async () => {

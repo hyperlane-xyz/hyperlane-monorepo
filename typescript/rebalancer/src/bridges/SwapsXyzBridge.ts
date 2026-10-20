@@ -766,6 +766,12 @@ export class SwapsXyzBridge implements IExternalBridge {
     );
     assert(isSolanaTx(fresh.tx), 'SwapsXyzBridge.execute requires a Solana tx');
     this.validateSolanaActionResponse(fresh, quote);
+    await this.validateQuoteLoss(
+      quote.requestParams,
+      fresh,
+      BigInt((fresh.amountInMax ?? fresh.amountIn).amount),
+      BigInt(fresh.amountOut.amount),
+    );
 
     const transaction = VersionedTransaction.deserialize(
       Buffer.from(fresh.tx.base64Tx, 'base64'),
