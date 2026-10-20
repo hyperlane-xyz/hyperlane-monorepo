@@ -1269,6 +1269,32 @@ describe('InventoryRebalancer E2E', () => {
       expect(actionTracker.createRebalanceAction.called).to.be.false;
     });
 
+    it('returns empty when active intent has in-flight inventory movement', async () => {
+      const existingIntent = createTestIntent({
+        id: 'inflight-movement-intent',
+        status: 'in_progress',
+        amount: 10000000000n,
+      });
+
+      actionTracker.getPartiallyFulfilledInventoryIntents.resolves([
+        {
+          intent: existingIntent,
+          completedAmount: 0n,
+          remaining: 10000000000n,
+          hasInflightMovement: true,
+          hasInflightDeposit: false,
+        },
+      ]);
+
+      const results = await inventoryRebalancer.rebalance([
+        createTestRoute({ amount: 5000000000n }),
+      ]);
+
+      expect(results).to.have.lengthOf(0);
+      expect(actionTracker.createRebalanceIntent.called).to.be.false;
+      expect(actionTracker.createRebalanceAction.called).to.be.false;
+    });
+
     it('returns empty results when no routes provided and no active intent', async () => {
       const results = await inventoryRebalancer.rebalance([]);
 
