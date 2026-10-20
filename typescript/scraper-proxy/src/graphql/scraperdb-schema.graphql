@@ -83,6 +83,8 @@ type query_root {
   domain_by_pk(id: Int!): domain
   "fetch data from the table: \"message_view\""
   message_view(
+    "number of blocks behind each chain head; omit for canonical scraper finality"
+    confirmations: Int
     "filter the rows returned"
     where: message_view_bool_exp
     "sort the rows by one or more columns"
@@ -95,7 +97,7 @@ type query_root {
     offset: Int
     "distinct select on columns"
     distinct_on: [message_view_select_column!]
-  ): [message_view!]!
+  ): [message_view!]
   "fetch data from the table: \"raw_message_dispatch\""
   raw_message_dispatch(
     "filter the rows returned"
@@ -200,6 +202,8 @@ type domain {
 
 "columns and relationships of \"message_view\""
 type message_view {
+  "whether this snapshot row differs from canonical scraper finality"
+  is_provisional: Boolean!
   delivery_latency: interval
   delivery_occurred_at: timestamp
   delivery_scape_latency: interval
@@ -594,6 +598,7 @@ input domain_bool_exp {
 
 "Boolean expression to filter rows from the table \"message_view\". All fields are combined with a logical 'AND'."
 input message_view_bool_exp {
+  is_provisional: Boolean_comparison_exp
   _and: [message_view_bool_exp!]
   _not: message_view_bool_exp
   _or: [message_view_bool_exp!]

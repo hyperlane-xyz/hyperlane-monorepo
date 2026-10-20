@@ -1,7 +1,10 @@
 import { Kind, type GraphQLResolveInfo, type SelectionNode } from 'graphql';
 
 import { scalarResolvers } from './scalars.js';
-import { ScraperDbService } from './scraperdb.service.js';
+import {
+  type MessageSelectArgs,
+  ScraperDbService,
+} from './scraperdb.service.js';
 import type { CountArgs, SelectArgs } from './sql.js';
 import type { TableName } from './tables.js';
 
@@ -42,7 +45,12 @@ export function buildResolvers(db: ScraperDbService) {
     query_root: {
       domain: select('domain'),
       domain_by_pk: byPk('domain'),
-      message_view: select('message_view'),
+      message_view: (
+        _parent: unknown,
+        args: MessageSelectArgs,
+        _context: unknown,
+        info: GraphQLResolveInfo,
+      ) => db.selectMessages({ ...args, columns: selectedColumns(info) }),
       message_view_aggregate: aggregate,
       raw_message_dispatch: select('raw_message_dispatch'),
       raw_message_dispatch_by_pk: byPk('raw_message_dispatch'),

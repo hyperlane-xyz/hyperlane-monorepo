@@ -314,6 +314,172 @@ after(async () => {
   );
 });
 
+for (const route of ['agents', 'messages']) {
+  void it(`${route} streams opt-in block snapshots, progress and replacement heads`, async (context) => {
+    const original = db.queryLive.bind(db);
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let snapshotStarted = false;
+    context.mock.method(
+      db,
+      'queryLive',
+      async <T extends QueryResultRow>(
+        sql: string,
+        values: unknown[] = [],
+      ): Promise<T[]> => {
+        if (!sql.includes("encode(indexed_hash, 'hex')"))
+          return original<T>(sql, values);
+        snapshotStarted = true;
+        if (route === 'agents') assert.deepEqual(values, [[1]]);
+        await held;
+        return queryRows<T>([
+          {
+            domain: 1,
+            indexed_height: '100',
+            head_height: '101',
+            hash: 'ab'.repeat(32),
+          },
+          { domain: 3, indexed_height: '100', head_height: '101', hash: 'ab' },
+        ]);
+      },
+    );
+    const socket = new WebSocket(
+      route === 'agents' ? url : `${messagesUrl}?blocks=true`,
+    );
+    const messages: Record<string, unknown>[] = [];
+    socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+    const publish = (
+      domain: number,
+      height: string,
+      hash = 'cd'.repeat(32),
+      headHeight = height,
+    ): void =>
+      notify(
+        'scraper_head',
+        JSON.stringify({
+          domain,
+          indexedHeight: height,
+          indexedHash: hash,
+          headHeight,
+          confirmedHeight: '90',
+        }),
+      );
+    try {
+      if (route === 'agents') {
+        await waitFor(messages, 'ready');
+        socket.send(
+          JSON.stringify({
+            type: 'subscribe',
+            streams: [
+              { eventType: 'blocks', domains: [1] },
+              { eventType: 'delivery' },
+            ],
+          }),
+        );
+      }
+      await waitUntil(() => snapshotStarted);
+      // A rollback arriving during snapshot loading must win over that snapshot.
+      publish(1, '99');
+      assert.equal(
+        messages.some(({ type }) => type === 'block'),
+        false,
+      );
+      release();
+      const block = await waitFor(messages, 'block');
+      assert.deepEqual(block, {
+        type: 'block',
+        domain: 1,
+        height: '99',
+        hash: `0x${'cd'.repeat(32)}`,
+        headHeight: '99',
+      });
+      assert(
+        messages.findIndex(
+          ({ type }) => type === (route === 'agents' ? 'subscribed' : 'ready'),
+        ) < messages.indexOf(block),
+      );
+      publish(1, '99'); // Duplicate status notification, not a new head.
+      publish(1, '99', 'ef'.repeat(32)); // Same-height replacement.
+      await waitUntil(
+        () => messages.filter(({ type }) => type === 'block').length === 2,
+      );
+      publish(1, '100', 'ab'.repeat(32), '103');
+      await waitUntil(
+        () => messages.filter(({ type }) => type === 'block').length === 3,
+      );
+      publish(1, '98');
+      await waitUntil(
+        () => messages.filter(({ type }) => type === 'block').length === 4,
+      );
+      assert.equal(messages.at(-1)?.height, '98');
+      publish(2, '100');
+      if (route === 'agents') {
+        socket.send(JSON.stringify({ type: 'ping' }));
+        await waitFor(messages, 'pong');
+        assert.equal(
+          messages.some(
+            (message) => message.type === 'block' && message.domain === 2,
+          ),
+          false,
+        );
+        socket.send(
+          JSON.stringify({
+            type: 'subscribe',
+            streams: [{ eventType: 'blocks' }],
+          }),
+        );
+        assert.match(
+          String((await waitFor(messages, 'error')).error),
+          /Already subscribed/,
+        );
+      } else {
+        await waitUntil(() =>
+          messages.some(
+            (message) => message.type === 'block' && message.domain === 2,
+          ),
+        );
+      }
+    } finally {
+      release();
+      socket.close();
+      await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    }
+  });
+}
+
+void it('does not send block heads or query snapshots without opting in', async (context) => {
+  context.mock.method(db, 'queryLive', async () => {
+    throw new Error('Unexpected snapshot query');
+  });
+  const socket = new WebSocket(messagesUrl);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  try {
+    const ready = await waitFor(messages, 'ready');
+    assert.deepEqual(ready.eventTypes, ['message_upsert']);
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        domain: 1,
+        confirmedHeight: '90',
+        indexedHeight: '100',
+        indexedHash: 'ab'.repeat(32),
+        headHeight: '101',
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(
+      messages.some(({ type }) => type === 'block'),
+      false,
+    );
+  } finally {
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
 void it('keeps agent capacity independent from Explorer capacity', async () => {
   const explorers = Array.from({ length: 8 }, (_, index) =>
     explorerSocket(`203.0.113.${index + 10}`),
@@ -2773,6 +2939,7 @@ void it('emits normalized message upserts to Explorer', async () => {
   );
   const event = await waitFor(messages, 'message_upsert');
   assert.match(explorerQuery, /"send_occurred_at" IS NOT NULL/);
+  assert.equal(explorerQuery.includes('is_provisional'), false);
   assert.deepEqual(event.data, {
     id: '42',
     is_delivered: false,

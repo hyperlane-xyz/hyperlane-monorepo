@@ -20,7 +20,8 @@ import {
 import { quoteIdentifier as q, tables } from '../scraperdb/tables.js';
 import {
   displayAddress,
-  EVENT_TYPES,
+  SUBSCRIPTION_TYPES,
+  type BlockStreamRequest,
   type EventNotification,
   type EventType,
   isSequencedEventType,
@@ -30,6 +31,8 @@ import {
   parseEventNotification,
   parseExplorerNotification,
   parseExplorerConfirmations,
+  parseExplorerBlocks,
+  parseOptionalBlockHash,
   parseHeadNotification,
   parseId,
   parseInteger,
@@ -88,6 +91,10 @@ const GAS_PAYMENT_TRANSACTION = 'event_transaction';
 const GAS_PAYMENT_BLOCK = 'event_block';
 const FRONTIER_ID = 'frontier_id';
 const FRONTIER_HEIGHT = 'frontier_height';
+const CANONICAL_MESSAGE_COLUMNS = tables.message_view.columns
+  .filter((column) => column !== 'is_provisional')
+  .map(q)
+  .join(', ');
 
 type Row = Record<string, unknown>;
 type NotifiedRow = Row & { notification_id: number | string };
@@ -142,6 +149,18 @@ type Limits = {
 type SerializedMessage = Buffer;
 type HeadRange = { after: bigint; through: bigint };
 type ProvisionalMessage = { data: Row; domains: number[] };
+type Block = {
+  type: 'block';
+  domain: number;
+  height: string;
+  hash: string;
+  headHeight: string;
+};
+type BlockSubscription = {
+  domains?: Set<number>;
+  started: boolean;
+  latest: Map<number, Block>;
+};
 export type EventDatabase = Pick<DbService, 'listen' | 'queryLive'>;
 
 class HeadPublicationError extends Error {
@@ -213,6 +232,7 @@ export class EventWebSocketServer {
     module: EventWebSocketServer.name,
   });
   private readonly clients = new Map<WebSocket, Client>();
+  private readonly blockSubscriptions = new Map<WebSocket, BlockSubscription>();
   private readonly confirmationStreams = new Map<
     WebSocket,
     ConfirmationStream[]
@@ -442,7 +462,7 @@ export class EventWebSocketServer {
     websocketConnections.inc({ route: 'agent' });
     this.send(socket, {
       confirmations: { unit: 'blocks', liveOnly: true },
-      eventTypes: EVENT_TYPES,
+      eventTypes: SUBSCRIPTION_TYPES,
       historicalStreaming: true,
       streamCursorVersions: STREAM_CURSOR_VERSIONS,
       type: 'ready',
@@ -481,8 +501,10 @@ export class EventWebSocketServer {
     });
     if (!this.accept(socket, 'explorer')) return;
     let custom: ReturnType<typeof parseExplorerConfirmations>;
+    let blocks: boolean;
     try {
       custom = parseExplorerConfirmations(request.url);
+      blocks = parseExplorerBlocks(request.url);
     } catch (error) {
       this.rejectNegotiation(socket, formatError(error));
       return;
@@ -517,6 +539,7 @@ export class EventWebSocketServer {
     websocketConnections.inc({ route: 'messages' });
     let confirmationStream: ConfirmationStream | undefined;
     try {
+      if (blocks) await this.subscribeBlocks(socket, custom?.domains);
       if (custom)
         confirmationStream = await this.createConfirmationStream(
           socket,
@@ -535,10 +558,74 @@ export class EventWebSocketServer {
         customDomains: confirmationStream?.customDomains,
         canonicalDomains: confirmationStream?.canonicalDomains,
       }),
-      eventTypes: custom ? ['message_upsert', 'rollback'] : ['message_upsert'],
+      eventTypes: [
+        'message_upsert',
+        ...(custom ? ['rollback'] : []),
+        ...(blocks ? ['block'] : []),
+      ],
       type: 'ready',
     });
     confirmationStream?.start();
+    this.startBlocks(socket);
+  }
+
+  private async subscribeBlocks(
+    socket: WebSocket,
+    domains?: Set<number>,
+  ): Promise<void> {
+    const subscription: BlockSubscription = {
+      domains,
+      started: false,
+      latest: new Map(),
+    };
+    this.blockSubscriptions.set(socket, subscription);
+    // Register before the snapshot: notifications received during the query win,
+    // including lower heights and replacement hashes after a reorg.
+    const rows = await this.db.queryLive<{
+      domain: number;
+      indexed_height: string;
+      hash: string;
+      head_height: string;
+    }>(
+      `SELECT domain, indexed_height, encode(indexed_hash, 'hex') AS hash, head_height
+       FROM scraper_head${domains ? ' WHERE domain=ANY($1::integer[])' : ''}`,
+      domains ? [[...domains].map(storedDomain)] : [],
+    );
+    for (const row of rows) {
+      const domain = parseDatabaseDomain(row.domain, 'Invalid block domain');
+      const hash = parseOptionalBlockHash(row.hash);
+      if (hash && !subscription.latest.has(domain))
+        subscription.latest.set(domain, {
+          type: 'block',
+          domain,
+          height: row.indexed_height,
+          hash,
+          headHeight: row.head_height,
+        });
+    }
+  }
+
+  private startBlocks(socket: WebSocket): void {
+    const subscription = this.blockSubscriptions.get(socket);
+    if (!subscription) return;
+    subscription.started = true;
+    for (const block of subscription.latest.values()) this.send(socket, block);
+  }
+
+  private publishBlock(block: Block): void {
+    for (const [socket, subscription] of this.blockSubscriptions) {
+      if (subscription.domains && !subscription.domains.has(block.domain))
+        continue;
+      const previous = subscription.latest.get(block.domain);
+      if (
+        previous?.height === block.height &&
+        previous.hash === block.hash &&
+        previous.headHeight === block.headHeight
+      )
+        continue;
+      subscription.latest.set(block.domain, block);
+      if (subscription.started) this.send(socket, block);
+    }
   }
 
   private accept(socket: WebSocket, route: 'agent' | 'explorer'): boolean {
@@ -829,6 +916,7 @@ export class EventWebSocketServer {
       if (client) removed?.(client);
       clients.delete(socket);
       this.confirmationStreams.delete(socket);
+      this.blockSubscriptions.delete(socket);
     };
     socket.on('close', remove);
     socket.on('error', (error) => {
@@ -858,7 +946,11 @@ export class EventWebSocketServer {
       this.send(socket, { type: 'pong' });
       return;
     }
-    if (client.subscriptions.size || client.subscribing) {
+    if (
+      client.subscriptions.size ||
+      client.subscribing ||
+      this.blockSubscriptions.has(socket)
+    ) {
       this.sendError(socket, 'Already subscribed');
       return;
     }
@@ -876,8 +968,15 @@ export class EventWebSocketServer {
       return;
     }
     client.subscribing = true;
+    const eventStreams = message.streams.filter(
+      (request) => request.eventType !== 'blocks',
+    );
     try {
-      for (const request of message.streams) {
+      const blocks = message.streams.find(
+        (request) => request.eventType === 'blocks',
+      );
+      if (blocks) await this.subscribeBlocks(socket, blocks.domains);
+      for (const request of eventStreams) {
         if (request.confirmations !== undefined && request.domains)
           await this.createConfirmationStream(
             socket,
@@ -893,7 +992,7 @@ export class EventWebSocketServer {
       return;
     }
     if (this.clients.get(socket) !== client) return;
-    for (const request of message.streams) {
+    for (const request of eventStreams) {
       client.subscriptions.set(request.eventType, {
         confirmations: request.confirmations,
         catchUpRows: 0,
@@ -920,8 +1019,9 @@ export class EventWebSocketServer {
       type: 'subscribed',
     });
     this.confirmationStreams.get(socket)?.forEach((stream) => stream.start());
+    this.startBlocks(socket);
     await Promise.all(
-      message.streams
+      eventStreams
         .filter(({ cursors }) => cursors)
         .map((request) => this.catchUp(socket, client, request)),
     );
@@ -1432,6 +1532,19 @@ export class EventWebSocketServer {
       if (channel === HEAD_CHANNEL) {
         if (!this.clients.size && !this.explorerClients.size) return;
         const head = parseHeadNotification(payload);
+        if (
+          head.indexedHeight !== undefined &&
+          head.indexedHash !== undefined &&
+          head.headHeight !== undefined
+        ) {
+          this.publishBlock({
+            type: 'block',
+            domain: head.domain,
+            height: head.indexedHeight.toString(),
+            hash: head.indexedHash,
+            headHeight: head.headHeight.toString(),
+          });
+        }
         this.provisionalMessageCache.clear();
         for (const streams of this.confirmationStreams.values())
           for (const stream of streams) stream.notify(head);
@@ -1840,7 +1953,7 @@ export class EventWebSocketServer {
     if (![...this.explorerClients.values()].some((client) => !client.custom))
       return;
     const rows = await this.db.queryLive<Row>(
-      `SELECT ${tables.message_view.columns.map(q).join(', ')} FROM ${q('message_view')} WHERE ${q('msg_id')} = ANY($1::bytea[]) AND ${q('send_occurred_at')} IS NOT NULL`,
+      `SELECT ${CANONICAL_MESSAGE_COLUMNS} FROM ${q('message_view')} WHERE ${q('msg_id')} = ANY($1::bytea[]) AND ${q('send_occurred_at')} IS NOT NULL`,
       [messageIds],
     );
     const messages = rows.map((row) =>
@@ -1960,6 +2073,7 @@ export class EventWebSocketServer {
     this.headRanges.clear();
     this.headFailures.clear();
     this.clients.forEach((_client, socket) => {
+      this.blockSubscriptions.delete(socket);
       this.cancelCatchUp(socket);
       socket.close(code, reason);
     });
@@ -1969,6 +2083,7 @@ export class EventWebSocketServer {
   private closeExplorerClients(reason: string, code = 1013): void {
     this.explorerNotifications.clear();
     this.explorerClients.forEach((client, socket) => {
+      this.blockSubscriptions.delete(socket);
       this.clearExplorerQueue(client);
       socket.close(code, reason);
     });
@@ -2074,6 +2189,7 @@ export class EventWebSocketServer {
   }
 
   private disconnect(socket: WebSocket): void {
+    this.blockSubscriptions.delete(socket);
     this.confirmationStreams.delete(socket);
     this.cancelCatchUp(socket);
     this.clients.get(socket)?.subscriptions.clear();
@@ -2101,7 +2217,7 @@ export class EventWebSocketServer {
   private rejectNegotiation(socket: WebSocket, error: string): void {
     this.sendError(socket, error);
     this.disconnect(socket);
-    socket.close(1008, 'Invalid confirmation subscription');
+    socket.close(1008, 'Invalid subscription');
   }
 
   private sendError(socket: WebSocket, error: string): void {
@@ -2114,7 +2230,9 @@ function serialize(message: Record<string, unknown>): SerializedMessage {
   return Buffer.from(JSON.stringify(message));
 }
 
-function subscriptionResponse(request: StreamRequest): Record<string, unknown> {
+function subscriptionResponse(
+  request: StreamRequest | BlockStreamRequest,
+): Record<string, unknown> {
   return {
     confirmations: request.confirmations,
     cursors: request.cursors?.map((cursor) =>

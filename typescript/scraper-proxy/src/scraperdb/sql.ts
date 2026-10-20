@@ -21,6 +21,7 @@ type Cursor = {
 };
 type BoolExp = Record<string, unknown>;
 type Sql = { sql: string; values: unknown[] };
+type SelectSource = { relation: string; values: unknown[] };
 
 export interface CountArgs {
   columns?: string[] | null;
@@ -49,15 +50,19 @@ const MAX = {
   orderColumns: 3,
 };
 
-export function buildSelect(table: TableName, args: SelectArgs = {}): Sql {
+export function buildSelect(
+  table: TableName,
+  args: SelectArgs = {},
+  source?: SelectSource,
+): Sql {
   validate(table, args);
-  const values: unknown[] = [];
+  const values: unknown[] = [...(source?.values ?? [])];
   const filters = [
     where(table, args.where, values),
     cursorWhere(table, args.cursor, values),
   ].filter(Boolean);
   return {
-    sql: `SELECT ${distinct(table, args.distinct_on)}${columns(table, args.columns)} FROM ${q(tables[table].relation ?? table)}${filters.length ? ` WHERE ${filters.join(' AND ')}` : ''}${orderBy(table, args.order_by, args.cursor)}${limit(args.limit ?? args.batch_size ?? MAX.limit, values)}${offset(args.offset, values)}`,
+    sql: `SELECT ${distinct(table, args.distinct_on)}${columns(table, args.columns)} FROM ${relation(table, source?.relation)}${filters.length ? ` WHERE ${filters.join(' AND ')}` : ''}${orderBy(table, args.order_by, args.cursor)}${limit(args.limit ?? args.batch_size ?? MAX.limit, values)}${offset(args.offset, values)}`,
     values,
   };
 }
@@ -82,7 +87,7 @@ export function buildCount(
       ? ''
       : limit(args.limit ?? args.batch_size, values);
   const offsetClause = offset(args.offset, values);
-  const source = `${q(tables[table].relation ?? table)}${whereClause}`;
+  const source = `${relation(table)}${whereClause}`;
   const expression = countExpression(countColumns, count.distinct ?? false);
   return {
     sql:
@@ -124,6 +129,15 @@ function columns(table: TableName, selected = tables[table].columns): string {
   )
     .map(q)
     .join(', ');
+}
+
+function relation(table: TableName, custom?: string): string {
+  if (custom) return q(custom);
+  // Provisional state is query metadata, not a stored message_view column.
+  if (table === 'message_view') {
+    return '(SELECT *, FALSE AS is_provisional FROM "message_view") AS "message_view"';
+  }
+  return q(tables[table].relation ?? table);
 }
 
 function distinct(table: TableName, selected?: string[] | null): string {
