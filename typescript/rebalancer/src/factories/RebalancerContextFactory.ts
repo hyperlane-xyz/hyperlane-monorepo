@@ -3,6 +3,8 @@ import { type Logger } from 'pino';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   type ChainMap,
+  type ChainMetadata,
+  ChainStatus,
   type CoreAddresses,
   MultiProtocolCore,
   MultiProtocolProvider,
@@ -16,6 +18,7 @@ import {
   assert,
   isEVMLike,
   ProtocolType,
+  objFilter,
   objMap,
 } from '@hyperlane-xyz/utils';
 
@@ -633,6 +636,12 @@ export class RebalancerContextFactory {
     const { externalBridges } = this.config;
     const registry: Partial<ExternalBridgeRegistry> = {};
 
+    const bridgeChainMetadata = objFilter(
+      this.multiProvider.metadata,
+      (_, metadata): metadata is ChainMetadata =>
+        metadata.availability?.status !== ChainStatus.Disabled,
+    );
+
     for (const bridgeType of Object.values(ExternalBridgeType)) {
       switch (bridgeType) {
         case ExternalBridgeType.LiFi: {
@@ -643,7 +652,7 @@ export class RebalancerContextFactory {
               {
                 integrator: lifiConfig.integrator,
                 defaultSlippage: lifiConfig.defaultSlippage,
-                chainMetadata: this.multiProvider.metadata,
+                chainMetadata: bridgeChainMetadata,
               },
               this.logger,
             );
@@ -657,7 +666,7 @@ export class RebalancerContextFactory {
               await import('../bridges/DeBridgeBridge.js');
             registry[ExternalBridgeType.DeBridge] = new DeBridgeBridge(
               {
-                chainMetadata: this.multiProvider.metadata,
+                chainMetadata: bridgeChainMetadata,
                 maxFeeBps: debridgeConfig.maxFeeBps,
                 maxEvmNativeValueWei: debridgeConfig.maxEvmNativeValueWei,
                 maxTronNativeValueSun: debridgeConfig.maxTronNativeValueSun,
