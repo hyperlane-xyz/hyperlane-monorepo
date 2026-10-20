@@ -421,6 +421,25 @@ const icaV2RevealMatchingList = icaMatchingList(
   })),
 );
 
+// Aero MetaSwap staging MetaRouter, the same address on every chain.
+const metaswapStagingMetaRouters: ChainMap<Address> = {
+  arbitrum: '0xCde7a7B710c2DFB059af838f755fE25037Ba30D3',
+  base: '0xCde7a7B710c2DFB059af838f755fE25037Ba30D3',
+  optimism: '0xCde7a7B710c2DFB059af838f755fE25037Ba30D3',
+};
+
+// MetaSwaps with a destination swap send an ICA calls or commitment message owned
+// by the MetaRouter. Their token transfers use shared warp routers and their
+// reveals have no owner, so neither is matched here.
+const metaswapStagingMatchingList = [
+  IcaMessageType.CALLS,
+  IcaMessageType.COMMITMENT,
+].flatMap((messageType) =>
+  icaMatchingList(
+    objMap(metaswapStagingMetaRouters, (_, owner) => ({ messageType, owner })),
+  ),
+);
+
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
@@ -594,6 +613,10 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       ),
     },
     ...metadexVoterMetricAppContexts(metadexStagingTopology),
+    {
+      name: 'metaswap_ica_v3_staging',
+      matchingList: metaswapStagingMatchingList,
+    },
   ];
 };
 
