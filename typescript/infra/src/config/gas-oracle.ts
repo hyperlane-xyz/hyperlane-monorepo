@@ -349,9 +349,9 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     eclipsemainnet: 0.22,
   };
 
-  // Skip per-remote overrides on katana routes so the reduced floor isn't
-  // clobbered when sending from katana to a chain with a higher override.
-  if (katanaRoute) {
+  // Retain the Katana exception for other destinations. Solana has an explicit
+  // receipt-rent allowance shared by every origin, including MoonPay's Katana leg.
+  if (katanaRoute && remote !== 'solanamainnet') {
     return minUsdCost;
   }
 
