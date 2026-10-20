@@ -64,7 +64,7 @@ describe('ETH Viction production manifest', () => {
     );
     const container = statefulSet.spec.template.spec.containers[0];
     expect(container.image).to.equal(
-      `${DockerImageRepos.NODE_SERVICES}:506b2b7-20261020-102335`,
+      `${DockerImageRepos.NODE_SERVICES}:4025599-20261020-103737`,
     );
     expect(container.env).to.deep.include({
       name: 'MONITOR_ONLY',
