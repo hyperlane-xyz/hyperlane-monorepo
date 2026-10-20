@@ -906,6 +906,7 @@ describe('InventoryRebalancer E2E', () => {
           intent: existingIntent,
           completedAmount: 3000000000n,
           remaining: 7000000000n, // 7k remaining
+          hasInflightMovement: false,
           hasInflightDeposit: false,
         },
       ]);
@@ -943,6 +944,7 @@ describe('InventoryRebalancer E2E', () => {
           intent: existingIntent,
           completedAmount: 3000000000n,
           remaining: 7000000000n,
+          hasInflightMovement: false,
           hasInflightDeposit: true,
         },
       ]);
@@ -962,6 +964,32 @@ describe('InventoryRebalancer E2E', () => {
       // Must NOT create a new intent
       expect(actionTracker.createRebalanceIntent.called).to.be.false;
       // Must NOT call createRebalanceAction (proves continueIntent was never reached)
+      expect(actionTracker.createRebalanceAction.called).to.be.false;
+    });
+
+    it('returns empty when active intent has in-flight inventory movement', async () => {
+      const existingIntent = createTestIntent({
+        id: 'inflight-movement-intent',
+        status: 'in_progress',
+        amount: 10000000000n,
+      });
+
+      actionTracker.getPartiallyFulfilledInventoryIntents.resolves([
+        {
+          intent: existingIntent,
+          completedAmount: 0n,
+          remaining: 10000000000n,
+          hasInflightMovement: true,
+          hasInflightDeposit: false,
+        },
+      ]);
+
+      const results = await inventoryRebalancer.rebalance([
+        createTestRoute({ amount: 5000000000n }),
+      ]);
+
+      expect(results).to.have.lengthOf(0);
+      expect(actionTracker.createRebalanceIntent.called).to.be.false;
       expect(actionTracker.createRebalanceAction.called).to.be.false;
     });
 
@@ -987,6 +1015,7 @@ describe('InventoryRebalancer E2E', () => {
           intent: existingIntent,
           completedAmount: 0n,
           remaining: 10000000000n,
+          hasInflightMovement: false,
           hasInflightDeposit: false,
         },
       ]);
@@ -1030,6 +1059,7 @@ describe('InventoryRebalancer E2E', () => {
           intent: existingIntent,
           completedAmount: 0n,
           remaining: 10000000000n,
+          hasInflightMovement: false,
           hasInflightDeposit: false,
         },
       ]);

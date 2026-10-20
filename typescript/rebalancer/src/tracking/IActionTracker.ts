@@ -135,8 +135,8 @@ export interface IActionTracker {
 
   /**
    * Returns inventory intents that have remaining work.
-   * Intents with in-flight deposits are included but marked via hasInflightDeposit —
-   * callers must check before continuing.
+   * Intents with in-flight movements or deposits are included but marked — callers
+   * must check before continuing.
    * Returns enriched data with computed values derived from action states.
    */
   getPartiallyFulfilledInventoryIntents(): Promise<PartialInventoryIntent[]>;
