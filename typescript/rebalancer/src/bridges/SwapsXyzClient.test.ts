@@ -204,6 +204,28 @@ describe('SwapsXyzClient', () => {
     expect(response.bridgeDetails?.txPath?.[1]?.nextBridge).to.be.null;
   });
 
+  it('accepts null fields while a transfer is pending', async () => {
+    fetchStub.resolves(
+      makeResponse({
+        body: {
+          ...statusResponseBody(),
+          srcTxHash: '0xsource',
+          dstTxHash: null,
+          sender: null,
+          bridgeDetails: null,
+          actionResponse: null,
+        },
+      }),
+    );
+
+    const response = await client.getStatus({ txId: 'tx-1' });
+
+    expect(response.status).to.equal('pending');
+    expect(response.dstTxHash).to.be.null;
+    expect(response.bridgeDetails).to.be.null;
+    expect(response.actionResponse).to.be.null;
+  });
+
   it('rejects non-HTTPS API URLs', () => {
     expect(
       () =>

@@ -170,20 +170,20 @@ export interface SwapsXyzStatusResponse {
   txId: string;
   srcChainId: number;
   dstChainId: number;
-  srcTxHash?: string;
-  dstTxHash?: string;
-  sender?: string;
+  srcTxHash?: string | null;
+  dstTxHash?: string | null;
+  sender?: string | null;
   bridgeDetails?: {
     isBridge: boolean;
-    bridgeTime?: number;
+    bridgeTime?: number | null;
     txPath?: Array<{
       chainId: number;
       txHash: string;
-      timestamp?: string | number;
+      timestamp?: string | number | null;
       nextBridge?: string | null;
-    }>;
-  };
-  actionResponse?: SwapsXyzActionResponse;
+    }> | null;
+  } | null;
+  actionResponse?: SwapsXyzActionResponse | null;
 }
 
 export interface SwapsXyzRegisterTxEntry {
@@ -265,29 +265,29 @@ const StatusResponseSchema: z.ZodType<SwapsXyzStatusResponse> = z
     txId: z.string().min(1),
     srcChainId: z.number().int(),
     dstChainId: z.number().int(),
-    srcTxHash: z.string().optional(),
-    dstTxHash: z.string().optional(),
-    sender: z.string().optional(),
+    srcTxHash: z.string().nullish(),
+    dstTxHash: z.string().nullish(),
+    sender: z.string().nullish(),
     bridgeDetails: z
       .object({
         isBridge: z.boolean(),
-        bridgeTime: z.number().optional(),
+        bridgeTime: z.number().nullish(),
         txPath: z
           .array(
             z
               .object({
                 chainId: z.number().int(),
                 txHash: z.string(),
-                timestamp: z.union([z.string(), z.number()]).optional(),
+                timestamp: z.union([z.string(), z.number()]).nullish(),
                 nextBridge: z.string().nullable().optional(),
               })
               .passthrough(),
           )
-          .optional(),
+          .nullish(),
       })
       .passthrough()
-      .optional(),
-    actionResponse: ActionResponseSchema.optional(),
+      .nullish(),
+    actionResponse: ActionResponseSchema.nullish(),
   })
   .passthrough();
 const RegisterTxResultsSchema: z.ZodType<SwapsXyzRegisterTxResult[]> = z.array(
