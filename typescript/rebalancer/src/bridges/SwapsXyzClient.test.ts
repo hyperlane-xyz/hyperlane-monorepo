@@ -209,6 +209,7 @@ describe('SwapsXyzClient', () => {
       makeResponse({
         body: {
           ...statusResponseBody(),
+          dstChainId: null,
           srcTxHash: '0xsource',
           dstTxHash: null,
           sender: null,
@@ -221,6 +222,7 @@ describe('SwapsXyzClient', () => {
     const response = await client.getStatus({ txId: 'tx-1' });
 
     expect(response.status).to.equal('pending');
+    expect(response.dstChainId).to.be.null;
     expect(response.dstTxHash).to.be.null;
     expect(response.bridgeDetails).to.be.null;
     expect(response.actionResponse).to.be.null;

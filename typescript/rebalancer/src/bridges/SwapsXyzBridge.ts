@@ -240,17 +240,14 @@ export class SwapsXyzBridge implements IExternalBridge {
   ): BridgeTransferStatus {
     // The API's chainId param is advisory: a hash registered on a different
     // chain is still returned. Such an entry is not our transfer.
-    if (
-      response.srcChainId !== undefined &&
-      response.srcChainId !== fromChain
-    ) {
+    if (response.srcChainId !== null && response.srcChainId !== fromChain) {
       this.logger.warn(
         { txHash, fromChain, responseSrcChainId: response.srcChainId },
         'swaps.xyz status srcChainId does not match requested chain',
       );
       return { status: 'not_found' };
     }
-    if (response.dstChainId !== toChain) {
+    if (response.dstChainId !== null && response.dstChainId !== toChain) {
       this.logger.warn(
         { txHash, toChain, responseDstChainId: response.dstChainId },
         'swaps.xyz status dstChainId does not match requested chain',
@@ -262,6 +259,17 @@ export class SwapsXyzBridge implements IExternalBridge {
     switch (rawStatus.toLowerCase()) {
       case 'success':
       case 'completed':
+        if (response.srcChainId === null || response.dstChainId === null) {
+          this.logger.warn(
+            {
+              txHash,
+              responseSrcChainId: response.srcChainId,
+              responseDstChainId: response.dstChainId,
+            },
+            'swaps.xyz completed status is missing route identity',
+          );
+          return { status: 'pending', substatus: rawStatus };
+        }
         return {
           status: 'complete',
           receivingTxHash: response.dstTxHash ?? '',
