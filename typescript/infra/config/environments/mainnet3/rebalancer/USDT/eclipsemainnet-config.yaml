@@ -2,7 +2,7 @@ warpRouteId: USDT/eclipsemainnet
 
 # Reviewed node-services build from this config branch.
 deployment:
-  imageTag: bfbc9d9-20261020-143338
+  imageTag: d267369-20261020-150802
   registryCommit: 182e1be0c2df41b6e423b4934390daff1b6a72f9
   swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key-usdt-eclipse
 
