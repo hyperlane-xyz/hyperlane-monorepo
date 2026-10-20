@@ -179,8 +179,8 @@ export interface SwapsXyzStatusResponse {
     txPath?: Array<{
       chainId: number;
       txHash: string;
-      timestamp?: string;
-      nextBridge?: string;
+      timestamp?: string | number;
+      nextBridge?: string | null;
     }>;
   };
   actionResponse?: SwapsXyzActionResponse;
@@ -193,7 +193,7 @@ export interface SwapsXyzRegisterTxEntry {
 
 export interface SwapsXyzRegisterTxResult {
   success: boolean;
-  error: string | null;
+  error?: string | null;
 }
 
 const IntegerStringSchema = z.string().regex(/^\d+$/);
@@ -278,8 +278,8 @@ const StatusResponseSchema: z.ZodType<SwapsXyzStatusResponse> = z
               .object({
                 chainId: z.number().int(),
                 txHash: z.string(),
-                timestamp: z.string().optional(),
-                nextBridge: z.string().optional(),
+                timestamp: z.union([z.string(), z.number()]).optional(),
+                nextBridge: z.string().nullable().optional(),
               })
               .passthrough(),
           )
@@ -294,7 +294,7 @@ const RegisterTxResultsSchema: z.ZodType<SwapsXyzRegisterTxResult[]> = z.array(
   z
     .object({
       success: z.boolean(),
-      error: z.string().nullable(),
+      error: z.string().nullable().optional(),
     })
     .passthrough(),
 );
