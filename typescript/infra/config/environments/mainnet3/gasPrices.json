@@ -212,8 +212,8 @@
     "decimals": 9
   },
   "solanamainnet": {
-    "amount": "1.05555556",
-    "decimals": 1
+    "amount": "1.15",
+    "decimals": 0
   },
   "solaxy": {
     "amount": "0.5",
