@@ -87,7 +87,7 @@ contract ArbitrumOrbitHook is AbstractMessageIdAuthHook {
             (message.id(), metadata.msgValue(0))
         );
 
-        address refundAddress = metadata.refundAddress(msg.sender);
+        address refundAddress = metadata.refundAddress(message.senderAddress());
         uint256 gasLimit = _gasLimit(metadata);
         uint256 maxFeePerGas = _maxFeePerGas(metadata);
         uint256 maxSubmissionCost = _submissionFee();
@@ -113,7 +113,8 @@ contract ArbitrumOrbitHook is AbstractMessageIdAuthHook {
     function _gasLimit(
         bytes calldata metadata
     ) internal pure returns (uint256) {
-        return metadata.gasLimit(DEFAULT_GAS_LIMIT);
+        uint256 gas = metadata.gasLimit(0);
+        return gas == 0 ? DEFAULT_GAS_LIMIT : gas;
     }
 
     function _submissionFee() internal view returns (uint256) {

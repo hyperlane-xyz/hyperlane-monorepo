@@ -51,8 +51,8 @@ contract ArbitrumOrbitIsmTest is ExternalBridgeTest {
         );
         mockArbSys = MockArbSys(L2_ARBSYS_ADDRESS);
 
-        // testMetadata specifies gasLimit = 0, so GAS_QUOTE = SUBMISSION_FEE
-        GAS_QUOTE = SUBMISSION_FEE;
+        // testMetadata specifies gasLimit = 0 (unset), so hook uses DEFAULT_GAS_LIMIT
+        GAS_QUOTE = SUBMISSION_FEE + (DEFAULT_GAS_LIMIT * DEFAULT_MAX_FEE_PER_GAS);
 
         deployAll();
         super.setUp();
@@ -131,7 +131,7 @@ contract ArbitrumOrbitIsmTest is ExternalBridgeTest {
                     SUBMISSION_FEE,
                     address(this),
                     address(this),
-                    0,
+                    DEFAULT_GAS_LIMIT,
                     DEFAULT_MAX_FEE_PER_GAS,
                     _encodedHookData
                 )
