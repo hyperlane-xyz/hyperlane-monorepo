@@ -1144,6 +1144,17 @@ describe('SwapsXyzBridge.getStatus', () => {
     });
   });
 
+  it('keeps a completed status pending until route identity is available', async () => {
+    const client = createClient();
+    sinon
+      .stub(client, 'getStatus')
+      .resolves(statusResponse('success', { dstChainId: null }));
+
+    const result = await createBridge(client).getStatus('0xsource', 1, 8453);
+
+    expect(result).to.deep.equal({ status: 'pending', substatus: 'success' });
+  });
+
   it('retries persisted transaction registration after status lookup fails', async () => {
     const client = createClient();
     const getStatusStub = sinon.stub(client, 'getStatus');
