@@ -430,13 +430,15 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     const activeIntent = await this.getActiveInventoryIntent();
 
     if (activeIntent) {
-      if (activeIntent.hasInflightDeposit) {
+      if (activeIntent.hasInflightMovement || activeIntent.hasInflightDeposit) {
         this.logger.info(
           {
             intentId: activeIntent.intent.id,
             remaining: activeIntent.remaining.toString(),
+            hasInflightMovement: activeIntent.hasInflightMovement,
+            hasInflightDeposit: activeIntent.hasInflightDeposit,
           },
-          'Active intent has in-flight deposit, waiting for delivery before continuing',
+          'Active intent has in-flight action, waiting for delivery before continuing',
         );
         return [];
       }

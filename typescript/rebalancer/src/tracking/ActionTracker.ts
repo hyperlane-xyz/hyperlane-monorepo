@@ -671,7 +671,7 @@ export class ActionTracker implements IActionTracker {
 
   /**
    * Get inventory intents that are in_progress or not_started but not fully settled.
-   * Intents with in-flight deposits are included but flagged via hasInflightDeposit.
+   * Intents with in-flight movements or deposits are included but flagged.
    * Returns enriched data with computed values derived from action states.
    *
    * NOTE: We include 'not_started' intents because they may have been created
@@ -697,18 +697,13 @@ export class ActionTracker implements IActionTracker {
 
       const actions = await this.getActionsForIntent(intent.id);
 
-      // Any source-started bridge movement blocks automatic retries. A timeout or
-      // not_found status is not proof that the source transaction did not commit.
+      // Any source-started bridge movement blocks automatic retries. Keep the
+      // intent active so the rebalancer waits instead of creating another intent.
+      // A timeout or not_found status is not proof that the source transaction
+      // did not commit.
       const inflightMovements = actions.filter(
         (a) => a.status === 'in_progress' && a.type === 'inventory_movement',
       );
-      if (inflightMovements.length > 0) {
-        this.logger.debug(
-          { intentId: intent.id },
-          'Skipping partial intent - has in-flight inventory movement',
-        );
-        continue;
-      }
 
       // Only inventory_deposit amounts advance fulfillment. inventory_movement
       // amounts stay in source-local units and only gate retries/stale cleanup.
@@ -731,6 +726,7 @@ export class ActionTracker implements IActionTracker {
           intent,
           completedAmount,
           remaining,
+          hasInflightMovement: inflightMovements.length > 0,
           hasInflightDeposit: inflightAmount > 0n,
         });
       }

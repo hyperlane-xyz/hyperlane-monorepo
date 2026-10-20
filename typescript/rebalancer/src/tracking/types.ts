@@ -125,6 +125,8 @@ export interface PartialInventoryIntent {
   completedAmount: bigint;
   /** Amount remaining to fulfill (0n when final deposit is fully in-flight). Formula: intent.amount - completedAmount - inflightAmount */
   remaining: bigint;
+  /** True when an external bridge source transaction is still settling */
+  hasInflightMovement: boolean;
   /** True when intent has in_progress inventory_deposit actions (not safe to continue, but still active) */
   hasInflightDeposit: boolean;
 }

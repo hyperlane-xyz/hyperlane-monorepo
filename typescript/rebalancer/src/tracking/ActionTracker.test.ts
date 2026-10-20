@@ -1268,6 +1268,40 @@ describe('ActionTracker', () => {
       expect(partialIntents[0].remaining).to.equal(600000000000000000n);
     });
 
+    it('returns an active intent with an in-flight inventory movement', async () => {
+      await rebalanceIntentStore.save({
+        id: 'intent-with-movement',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      await rebalanceActionStore.save({
+        id: 'movement-in-progress',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        intentId: 'intent-with-movement',
+        origin: 3,
+        destination: 2,
+        amount: 1100000000000000000n,
+        txHash: '0xsource',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].remaining).to.equal(1000000000000000000n);
+      expect(partialIntents[0].hasInflightMovement).to.be.true;
+      expect(partialIntents[0].hasInflightDeposit).to.be.false;
+    });
+
     it('does not return non-inventory intents', async () => {
       // Create a not_started intent without executionMethod: 'inventory'
       await rebalanceIntentStore.save({
@@ -1451,7 +1485,7 @@ describe('ActionTracker', () => {
       expect(partialIntents).to.have.lengthOf(0);
     });
 
-    it('skips intent with recent in-flight inventory_movement', async () => {
+    it('returns intent with recent in-flight inventory_movement', async () => {
       await rebalanceIntentStore.save({
         id: 'intent-recent-movement',
         status: 'in_progress',
@@ -1478,7 +1512,8 @@ describe('ActionTracker', () => {
 
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(0);
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].hasInflightMovement).to.be.true;
     });
 
     it('keeps stale not_found movement suppressed for the process lifetime', async () => {
@@ -1510,7 +1545,8 @@ describe('ActionTracker', () => {
 
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(0);
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].hasInflightMovement).to.be.true;
 
       const action = await rebalanceActionStore.get('movement-stale');
       expect(action?.status).to.equal('in_progress');
@@ -1543,7 +1579,8 @@ describe('ActionTracker', () => {
 
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(0);
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].hasInflightMovement).to.be.true;
 
       const action = await rebalanceActionStore.get(
         'movement-undefined-status',
@@ -1578,7 +1615,8 @@ describe('ActionTracker', () => {
 
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(0);
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].hasInflightMovement).to.be.true;
 
       const action = await rebalanceActionStore.get('movement-pending-old');
       expect(action?.status).to.equal('in_progress');
@@ -1613,7 +1651,8 @@ describe('ActionTracker', () => {
 
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(0);
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].hasInflightMovement).to.be.true;
 
       const action = await rebalanceActionStore.get(
         'movement-recent-not-found',
@@ -1662,10 +1701,11 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       });
 
-      // Should skip because there's still a recent movement
+      // Keep the intent active because there are source-started movements.
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(0);
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].hasInflightMovement).to.be.true;
 
       const staleAction = await rebalanceActionStore.get('movement-old');
       expect(staleAction?.status).to.equal('in_progress');
