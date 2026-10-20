@@ -1,12 +1,31 @@
 use ethers::providers::Middleware;
 use ethers_core::types::{BlockId, BlockNumber};
-use std::time::Duration;
+use std::{fmt, time::Duration};
 use url::Url;
 
+use hyperlane_core::matching_list::MatchingList;
 use hyperlane_core::{
     config::OpSubmissionConfig, utils::hex_or_base58_or_bech32_to_h256, ChainCommunicationError,
     ChainResult, ReorgPeriod, H256, U256,
 };
+
+/// Protected submission endpoints and the messages that must use them in Lander.
+#[derive(Clone)]
+pub struct MevSubmissionConfig {
+    /// Endpoints that preserve transaction privacy, with no public fallback.
+    pub rpc_urls: Vec<Url>,
+    /// Hyperlane messages requiring protected submission.
+    pub matching_list: MatchingList,
+}
+
+impl fmt::Debug for MevSubmissionConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MevSubmissionConfig")
+            .field("endpoint_count", &self.rpc_urls.len())
+            .field("matching_list", &self.matching_list)
+            .finish()
+    }
+}
 
 static BATCH_CONTRACT_ADDRESS_DEFAULT: &str = "0xcA11bde05977b3631167028862bE2a173976CA11";
 
@@ -66,6 +85,8 @@ pub struct ConnectionConf {
     /// Optional hedging for explicitly allowlisted immutable/finalized reads.
     /// Disabled when unset.
     pub fallback_hedge: Option<FallbackHedgeConfig>,
+    /// Optional protected submission policy, consumed only by the EVM Lander.
+    pub mev_submission: Option<MevSubmissionConfig>,
 }
 
 impl ConnectionConf {

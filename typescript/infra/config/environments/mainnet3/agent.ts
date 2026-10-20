@@ -421,6 +421,28 @@ const icaV2RevealMatchingList = icaMatchingList(
   })),
 );
 
+const mevProtectedChains = ['arbitrum', 'arc', 'base', 'ethereum', 'robinhood'];
+// OP Mainnet and Ink can originate reveals targeting protected destinations.
+const mevRevealMatchingList = icaMatchingList(
+  Object.fromEntries(
+    [...mevProtectedChains, 'optimism', 'ink'].map((chain) => [
+      chain,
+      { messageType: IcaMessageType.REVEAL },
+    ]),
+  ),
+);
+
+const mevSubmission = Object.fromEntries(
+  mevProtectedChains.map((chain) => [
+    chain,
+    {
+      matchingList: mevRevealMatchingList.filter(
+        (rule) => rule.destinationDomain === getDomainId(chain),
+      ),
+    },
+  ]),
+);
+
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
@@ -786,6 +808,7 @@ const hyperlane: RootAgentConfig = {
   contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
+    mevSubmission,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     websocketUrl: scraperWebsocketUrl,

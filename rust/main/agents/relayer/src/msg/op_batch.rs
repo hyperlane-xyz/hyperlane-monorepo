@@ -356,6 +356,7 @@ mod tests {
                 },
                 consider_null_transaction_receipt: false,
                 fallback_hedge: None,
+                mev_submission: None,
             }),
             metrics_conf: Default::default(),
             index: Default::default(),

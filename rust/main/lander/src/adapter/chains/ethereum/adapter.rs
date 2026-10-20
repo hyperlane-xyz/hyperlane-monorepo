@@ -53,7 +53,10 @@ use super::{
 
 mod gas_limit_estimator;
 mod gas_price;
+mod mev_submission;
 mod tx_status_checker;
+
+use mev_submission::MevSubmission;
 
 /// Geth's reply when the exact signed transaction is already in its pool.
 const ALREADY_KNOWN_ERROR: &str = "already known";
@@ -75,6 +78,7 @@ pub struct EthereumAdapter {
     pub transaction_overrides: hyperlane_ethereum::TransactionOverrides,
     pub submission_config: OpSubmissionConfig,
     pub provider: Arc<dyn EvmProviderForLander>,
+    pub mev_submission: Option<MevSubmission>,
     pub reorg_period: EthereumReorgPeriod,
     pub nonce_manager: NonceManager,
     pub batch_cache: Arc<Mutex<BatchCache>>,
@@ -113,6 +117,26 @@ impl EthereumAdapter {
             .get_signer()
             .ok_or_else(|| eyre!("No signer found in provider for domain {}", domain))?;
 
+        let mev_submission = match &connection_conf.mev_submission {
+            Some(config) => {
+                let mut protected_conf = connection_conf.clone();
+                protected_conf.rpc_connection =
+                    hyperlane_ethereum::RpcConnectionConf::HttpFallback {
+                        urls: config.rpc_urls.clone(),
+                    };
+                protected_conf.mev_submission = None;
+                let protected_provider = conf
+                    .build_ethereum(&protected_conf, &locator, metrics, LanderProviderBuilder {})
+                    .await?;
+                Some(MevSubmission {
+                    mailbox: conf.addresses.mailbox.into(),
+                    matching_list: config.matching_list.clone(),
+                    provider: protected_provider,
+                })
+            }
+            None => None,
+        };
+
         let metrics = EthereumAdapterMetrics::new(
             conf.domain.clone(),
             dispatcher_metrics.get_batched_transactions(),
@@ -132,6 +156,7 @@ impl EthereumAdapter {
             transaction_overrides: connection_conf.transaction_overrides.clone(),
             submission_config: connection_conf.op_submission_config.clone(),
             provider,
+            mev_submission,
             reorg_period,
             nonce_manager,
             batch_cache: Default::default(),
@@ -659,6 +684,8 @@ impl AdaptsChain for EthereumAdapter {
         use super::transaction::Precursor;
         use LanderError::TxAlreadyExists;
 
+        let provider = self.submission_provider(tx).await?;
+
         let (nonce, gas_price) = try_join!(self.calculate_nonce(tx), self.estimate_gas_price(tx))?;
         let gas_price_unchanged =
             gas_price != GasPrice::None && tx.precursor().extract_gas_price() == gas_price;
@@ -691,7 +718,7 @@ impl AdaptsChain for EthereumAdapter {
 
         let precursor = tx.precursor();
 
-        let send_result = self.provider.send(&precursor.tx, &precursor.function).await;
+        let send_result = provider.send(&precursor.tx, &precursor.function).await;
         let hash = match send_result {
             Ok(hash) => hash,
             Err(e) => {

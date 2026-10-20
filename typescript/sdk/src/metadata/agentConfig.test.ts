@@ -28,6 +28,34 @@ describe('ValidatorAgentConfigSchema maxSignConcurrency', () => {
   });
 });
 
+describe('AgentChainMetadataSchema mevSubmission', () => {
+  const schema = AgentChainMetadataSchema.shape.mevSubmission;
+
+  it('accepts protected endpoints and matching rules, with protection off when absent', () => {
+    expect(schema.safeParse(undefined).success).to.be.true;
+    expect(
+      schema.safeParse({
+        rpcUrls: ['https://protected.example'],
+        matchingList: [{ bodyRegex: '^02' }],
+      }).success,
+    ).to.be.true;
+  });
+
+  it('rejects missing or empty endpoint/rule lists and non-HTTP URLs', () => {
+    for (const config of [
+      { matchingList: [{ bodyRegex: '^02' }] },
+      { rpcUrls: [], matchingList: [{ bodyRegex: '^02' }] },
+      {
+        rpcUrls: ['wss://protected.example'],
+        matchingList: [{ bodyRegex: '^02' }],
+      },
+      { rpcUrls: ['https://protected.example'], matchingList: [] },
+    ]) {
+      expect(schema.safeParse(config).success).to.be.false;
+    }
+  });
+});
+
 describe('AgentChainMetadataSchema index.from', () => {
   it('accepts negative relative block offsets', () => {
     const result = AgentChainMetadataSchema.safeParse({

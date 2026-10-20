@@ -177,6 +177,12 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
             priorityFeeOracle,
             transactionSubmitter,
             urReveal,
+            ...(this.role === Role.Relayer
+              ? {
+                  mevSubmission:
+                    this.config.rawConfig.relayer?.mevSubmission?.[chain],
+                }
+              : {}),
           };
         }),
       },

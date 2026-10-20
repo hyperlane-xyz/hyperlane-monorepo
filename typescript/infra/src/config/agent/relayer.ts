@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import {
   AgentConfig,
+  AgentChainMetadata,
   ChainMap,
   GasPaymentEnforcement,
   HyperlaneAddressesMap,
@@ -113,6 +114,10 @@ export function buildWarpRouteProcessAltOverrides(
 
 // Incomplete basic relayer agent config
 export interface BaseRelayerConfig {
+  // URLs are injected from per-chain Secret Manager secrets by Helm.
+  mevSubmission?: ChainMap<
+    Pick<NonNullable<AgentChainMetadata['mevSubmission']>, 'matchingList'>
+  >;
   gasPaymentEnforcement: GasPaymentEnforcement[];
   whitelist?: MatchingList;
   blacklist?: MatchingList;

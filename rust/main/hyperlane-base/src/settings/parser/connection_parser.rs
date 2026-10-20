@@ -11,7 +11,8 @@ use url::Url;
 
 use h_eth::TransactionOverrides;
 
-use hyperlane_core::config::{ConfigErrResultExt, OpSubmissionConfig};
+use hyperlane_core::config::{ConfigErrResultExt, ConfigResultExt, OpSubmissionConfig};
+use hyperlane_core::matching_list::MatchingList;
 use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken};
 
 use hyperlane_starknet as h_starknet;
@@ -182,7 +183,67 @@ pub fn build_ethereum_connection_conf(
         op_submission_config: operation_batch,
         consider_null_transaction_receipt,
         fallback_hedge,
+        mev_submission: parse_mev_submission_config(chain, err),
     }))
+}
+
+fn parse_mev_submission_config(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> Option<h_eth::MevSubmissionConfig> {
+    let config = chain.chain(err).get_opt_key("mevSubmission").end()?;
+    let urls = config.chain(err).get_key("rpcUrls").end()?;
+    let Some((path, value)) = parse_json_array(urls) else {
+        err.push(
+            (&config.cwp).add("rpc_urls"),
+            eyre!("Expected MEV RPC URL array"),
+        );
+        return None;
+    };
+    let rpc_urls: Vec<Url> = ValueParser::new(path, &value)
+        .chain(err)
+        .into_array_iter()?
+        .filter_map(|url| url.chain(err).parse_from_str("Invalid MEV RPC URL").end())
+        .collect();
+    if rpc_urls.is_empty()
+        || rpc_urls
+            .iter()
+            .any(|url| !matches!(url.scheme(), "http" | "https"))
+    {
+        err.push(
+            (&config.cwp).add("rpc_urls"),
+            eyre!("MEV submission requires at least one HTTP(S) endpoint"),
+        );
+        return None;
+    }
+    let rules = config.chain(err).get_key("matchingList").end()?;
+    // Helm expands arrays into indexed environment keys, which load as objects.
+    let matching_list = if rules.val.is_object() {
+        MatchingList(Some(
+            rules
+                .chain(err)
+                .into_array_iter()?
+                .filter_map(|rule| {
+                    rule.chain(err)
+                        .parse_value("Invalid MEV matching rule")
+                        .end()
+                })
+                .collect(),
+        ))
+    } else {
+        parse_matching_list(rules).take_config_err(err)?
+    };
+    if matching_list.0.as_ref().is_none_or(Vec::is_empty) {
+        err.push(
+            (&config.cwp).add("matching_list"),
+            eyre!("MEV submission requires a non-empty matching list"),
+        );
+        return None;
+    }
+    Some(h_eth::MevSubmissionConfig {
+        rpc_urls,
+        matching_list,
+    })
 }
 
 pub fn build_cosmos_connection_conf(
@@ -1065,6 +1126,69 @@ mod tests {
             panic!("expected ethereum connection");
         };
         assert_eq!(connection.fallback_hedge, None);
+        assert!(connection.mev_submission.is_none());
+    }
+
+    #[test]
+    fn parses_mev_submission_urls_from_config_and_secret_json() {
+        for urls in [
+            json!(["https://protected.example/rpc"]),
+            json!("[\"https://protected.example/rpc\"]"),
+        ] {
+            let (connection, errors) = parse_ethereum_hedge(json!({
+                "mevsubmission": {
+                    "rpcurls": urls,
+                    "matchinglist": [{"bodyregex": "^02"}],
+                },
+            }));
+            assert!(errors.is_ok(), "{errors:?}");
+            let ChainConnectionConf::Ethereum(connection) = connection else {
+                panic!("expected EVM")
+            };
+            let mev = connection.mev_submission.unwrap();
+            assert_eq!(mev.rpc_urls.len(), 1);
+            assert!(mev.matching_list.0.is_some());
+        }
+    }
+
+    #[test]
+    fn parses_mev_submission_from_helm_environment() {
+        // Environment splits Helm's underscore-delimited keys into these paths.
+        let value = config::Config::builder()
+            .set_override("mevsubmission.rpcurls", "[\"https://protected.example\"]")
+            .unwrap()
+            .set_override("mevsubmission.matchinglist.0.bodyregex", "^02")
+            .unwrap()
+            .set_override("mevsubmission.matchinglist.0.destinationdomain", "1")
+            .unwrap()
+            .build()
+            .unwrap()
+            .try_deserialize::<serde_json::Value>()
+            .unwrap();
+        let value = super::super::recase_json_value(value, convert_case::Case::Flat);
+        let (connection, errors) = parse_ethereum_hedge(value);
+        assert!(errors.is_ok(), "{errors:?}");
+        let ChainConnectionConf::Ethereum(connection) = connection else {
+            panic!("expected EVM")
+        };
+        assert!(connection.mev_submission.is_some());
+    }
+
+    #[test]
+    fn rejects_incomplete_or_invalid_mev_submission_without_fallback() {
+        for config in [
+            json!({"matchinglist": [{"bodyregex": "^02"}]}),
+            json!({"rpcurls": [], "matchinglist": [{"bodyregex": "^02"}]}),
+            json!({"rpcurls": "not json", "matchinglist": [{"bodyregex": "^02"}]}),
+            json!({"rpcurls": ["wss://protected.example"], "matchinglist": [{"bodyregex": "^02"}]}),
+            json!({"rpcurls": ["https://protected.example"]}),
+            json!({"rpcurls": ["https://protected.example"], "matchinglist": []}),
+            json!({"rpcurls": ["https://protected.example"], "matchinglist": "bad"}),
+            json!({"rpcurls": ["https://protected.example"], "matchinglist": [{"bodyregex": "["}]}),
+        ] {
+            let (_, errors) = parse_ethereum_hedge(json!({"mevsubmission": config}));
+            assert!(!errors.is_ok(), "accepted invalid MEV configuration");
+        }
     }
 
     #[test]

@@ -97,6 +97,60 @@ function agentConfigHelper(
 }
 
 describe('Agent configs', () => {
+  it('routes ICA reveals from every Aero chain to the five protected destinations', async () => {
+    const config = mainnet3Agents[Contexts.Hyperlane];
+    const manager = new TestAgentHelmManager(
+      new RelayerConfigHelper(config),
+      Role.Relayer,
+    );
+    const values = await manager.helmValues();
+    const protectedChains = values.hyperlane.chains.filter(
+      (chain) => chain.mevSubmission !== undefined,
+    );
+    expect(protectedChains.map((chain) => chain.name)).to.have.members([
+      'arbitrum',
+      'arc',
+      'base',
+      'ethereum',
+      'robinhood',
+    ]);
+    for (const chain of protectedChains) {
+      const rules = chain.mevSubmission?.matchingList;
+      if (!rules) throw new Error(`Missing MEV rules for ${chain.name}`);
+      for (const origin of [
+        'arbitrum',
+        'arc',
+        'base',
+        'ethereum',
+        'ink',
+        'optimism',
+        'robinhood',
+      ]) {
+        if (origin === chain.name) continue;
+        const rule = rules.find(
+          (rule) => rule?.originDomain === getChain(origin).domainId,
+        );
+        if (!rule?.bodyRegex)
+          throw new Error(`Missing ${origin} -> ${chain.name}`);
+        expect(rule.destinationDomain).to.equal(getChain(chain.name).domainId);
+        expect(rule.senderAddress).to.be.a('string');
+        expect(rule.recipientAddress).to.be.a('string');
+        const pattern = new RegExp(rule.bodyRegex);
+        expect(pattern.test(`02${'00'.repeat(64)}`)).to.be.true;
+        expect(pattern.test(`01${'00'.repeat(64)}`)).to.be.false;
+      }
+    }
+    const validator = new TestAgentHelmManager(
+      agentConfigHelper(config, Role.Validator),
+      Role.Validator,
+    );
+    expect(
+      (await validator.helmValues()).hyperlane.chains.every(
+        (chain) => chain.mevSubmission === undefined,
+      ),
+    ).to.be.true;
+  });
+
   it('renders v1 reads for Solana clusters and preserves other SVM defaults', async () => {
     const solanaChains = new Set([
       'solanamainnet',
