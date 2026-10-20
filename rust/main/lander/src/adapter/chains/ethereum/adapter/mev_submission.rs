@@ -7,7 +7,7 @@ use ethers::{
 use eyre::{ensure, eyre, Result};
 use hyperlane_core::{Decode, HyperlaneMessage};
 use hyperlane_ethereum::{EvmProviderForLander, MevSubmissionConfig};
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::{payload::FullPayload, transaction::Transaction, LanderError};
 
@@ -25,6 +25,21 @@ pub(super) async fn with_rpc_timeout<F: std::future::Future>(
     tokio::time::timeout(RPC_TIMEOUT, request)
         .await
         .map_err(|_| LanderError::TxSubmissionDeferred)
+}
+
+pub(super) async fn preflight<T, E: Into<LanderError>>(
+    protected: bool,
+    request: impl std::future::Future<Output = Result<T, E>>,
+) -> Result<T, LanderError> {
+    with_rpc_timeout(protected, request).await?.map_err(|err| {
+        let err = err.into();
+        if protected {
+            warn!(?err, "Protected preflight failed; retrying later");
+            LanderError::TxSubmissionDeferred
+        } else {
+            err
+        }
+    })
 }
 
 pub(crate) struct MevSubmission {
@@ -331,6 +346,56 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn fast_preflight_errors_defer_only_protected_transactions() {
+        for protected in [true, false] {
+            let mut adapter = adapter(0, 0, false);
+            let mut provider = MockEvmProvider::new();
+            provider
+                .expect_estimate_gas_limit()
+                .times(2)
+                .returning(|_, _| {
+                    Err(ChainCommunicationError::CustomError(
+                        "RPC unavailable".into(),
+                    ))
+                });
+            provider.expect_simulate_batch().times(1).returning(|_| {
+                Err(ChainCommunicationError::CustomError(
+                    "RPC unavailable".into(),
+                ))
+            });
+            if protected {
+                adapter.mev_submission.as_mut().unwrap().provider = Arc::new(provider);
+            } else {
+                adapter.mev_submission = None;
+                adapter.provider = Arc::new(provider);
+            }
+            let mut single = transaction(&adapter, vec![payload(2, ROUTER, MAILBOX)]).await;
+            let mut mixed = transaction(
+                &adapter,
+                vec![payload(1, ROUTER, MAILBOX), payload(2, ROUTER, MAILBOX)],
+            )
+            .await;
+            let original = mixed.clone();
+            let results = [
+                adapter.simulate_tx(&mut mixed).await.map(|_| ()),
+                adapter.estimate_tx(&mut single).await,
+                adapter.estimate_tx(&mut mixed).await,
+            ];
+            for result in results {
+                if protected {
+                    assert!(matches!(result, Err(LanderError::TxSubmissionDeferred)));
+                } else {
+                    assert!(matches!(
+                        result,
+                        Err(LanderError::ChainCommunicationError(_))
+                    ));
+                }
+            }
+            assert_eq!(mixed, original);
+        }
+    }
+
+    #[tokio::test]
     async fn missing_or_malformed_payload_blocks_submission_before_nonce_assignment() {
         let adapter = adapter(0, 0, false);
         let mut tx = dummy_evm_tx(
@@ -355,15 +420,26 @@ mod tests {
         mock_get_block(&mut protected);
         protected
             .expect_estimate_gas_limit()
-            .times(3)
+            .times(5)
             .returning(|_, _| Ok(100_000.into()));
         protected
             .expect_simulate_batch()
             .times(1)
             .returning(|_| Ok((vec![0, 1], vec![])));
+        let mut estimates = mockall::Sequence::new();
         protected
             .expect_estimate_batch()
             .times(1)
+            .in_sequence(&mut estimates)
+            .returning(|_, _| {
+                Err(ChainCommunicationError::CustomError(
+                    "RPC unavailable".into(),
+                ))
+            });
+        protected
+            .expect_estimate_batch()
+            .times(1)
+            .in_sequence(&mut estimates)
             .returning(|_, _| Ok(300_000.into()));
         adapter.mev_submission.as_mut().unwrap().provider = Arc::new(protected);
 
@@ -380,6 +456,12 @@ mod tests {
             .unwrap()
             .is_empty());
         assert_eq!(recovered.payload_details.len(), 2);
+        assert!(matches!(
+            adapter.estimate_tx(&mut recovered).await,
+            Err(LanderError::TxSubmissionDeferred)
+        ));
+        assert_eq!(recovered.payload_details.len(), 2);
+        assert!(recovered.precursor().tx.gas().is_none());
         adapter.estimate_tx(&mut recovered).await.unwrap();
         assert_eq!(
             recovered.precursor().tx.gas().copied(),

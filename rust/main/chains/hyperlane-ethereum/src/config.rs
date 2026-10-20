@@ -18,7 +18,9 @@ pub struct MevSubmissionConfig {
 }
 
 impl MevSubmissionConfig {
-    /// Protect ICA reveals from any enrolled origin; commits use ordinary RPCs.
+    /// Protect messages addressed to the ICA router with reveal type, regardless
+    /// of origin or sender. Reveals do not enforce remote-router enrollment.
+    /// Commits use ordinary RPCs.
     pub fn matches(&self, message: &HyperlaneMessage) -> bool {
         const ICA_REVEAL: u8 = 2;
         message.recipient == self.ica_router && message.body.first() == Some(&ICA_REVEAL)

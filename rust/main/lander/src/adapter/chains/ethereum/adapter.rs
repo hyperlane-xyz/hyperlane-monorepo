@@ -565,11 +565,11 @@ impl AdaptsChain for EthereumAdapter {
         let precursor = tx.precursor().clone();
 
         let provider = self.provider_for_payloads(&payloads)?;
-        let (successful, failed) = mev_submission::with_rpc_timeout(
+        let (successful, failed) = mev_submission::preflight(
             self.is_protected_provider(provider),
             provider.simulate_batch((precursor.tx, precursor.function)),
         )
-        .await??;
+        .await?;
 
         let payloads_successful = Self::filter(&payloads, successful);
         let payloads_details_failed = Self::filter(
@@ -643,7 +643,7 @@ impl AdaptsChain for EthereumAdapter {
         if tx.payload_details.len() == 1 {
             // No batching, estimate gas limit for the single payload
             let precursor = tx.precursor_mut();
-            return mev_submission::with_rpc_timeout(
+            return mev_submission::preflight(
                 protected,
                 gas_limit_estimator::estimate_gas_limit(
                     provider.clone(),
@@ -653,7 +653,7 @@ impl AdaptsChain for EthereumAdapter {
                     true,
                 ),
             )
-            .await?;
+            .await;
         }
 
         // Batching case, estimate batch
@@ -663,7 +663,7 @@ impl AdaptsChain for EthereumAdapter {
         let payload_estimate_futures = precursors
             .iter_mut()
             .map(|p| async move {
-                mev_submission::with_rpc_timeout(
+                mev_submission::preflight(
                     protected,
                     gas_limit_estimator::estimate_gas_limit(
                         provider.clone(),
@@ -673,7 +673,7 @@ impl AdaptsChain for EthereumAdapter {
                         false,
                     ),
                 )
-                .await?
+                .await
             })
             .collect::<Vec<_>>();
         future::try_join_all(payload_estimate_futures).await?;
@@ -685,11 +685,11 @@ impl AdaptsChain for EthereumAdapter {
             .map(|p| (p.tx, p.function))
             .collect::<Vec<_>>();
 
-        let gas_limit = mev_submission::with_rpc_timeout(
+        let gas_limit = mev_submission::preflight(
             protected,
             provider.estimate_batch(multi_precursor, precursors),
         )
-        .await??;
+        .await?;
 
         tx.precursor_mut().tx.set_gas(gas_limit);
 
@@ -734,15 +734,9 @@ impl AdaptsChain for EthereumAdapter {
 
         let protected = self.is_protected_provider(provider);
         let send_result = if protected {
-            let signed = mev_submission::with_rpc_timeout(
-                true,
-                provider.sign_transaction(&tx.precursor().tx),
-            )
-            .await?
-            .map_err(|err| {
-                warn!(?err, "Signing protected transaction failed");
-                LanderError::TxSubmissionDeferred
-            })?;
+            let signed =
+                mev_submission::preflight(true, provider.sign_transaction(&tx.precursor().tx))
+                    .await?;
             // A relay can accept the bytes but lose its response. Keep the exact
             // signed hash so receipt polling can discover inclusion after a timeout.
             let hash = H256::from(ethers::utils::keccak256(&signed)).into();
