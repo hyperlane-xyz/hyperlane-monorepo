@@ -2,7 +2,7 @@ warpRouteId: oUSDT/production
 
 # Reviewed node-services build from this config branch.
 deployment:
-  imageTag: bfbc9d9-20261020-143338
+  imageTag: d267369-20261020-150802
   swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key-ousdt
   registryCommit: 0b7518b88967309b0ca30827ec418852873bdc7e
 
