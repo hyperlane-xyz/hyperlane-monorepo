@@ -110,6 +110,10 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
         aws: !!this.config.aws,
         chains: this.config.contextChainNames[this.role].map((chain) => {
           const metadata = getChain(chain);
+          const mevSubmission =
+            this.role === Role.Relayer
+              ? this.config.rawConfig.relayer?.mevSubmission?.[chain]
+              : undefined;
           const reorgPeriod =
             this.config.rawConfig.relayer?.reorgPeriodOverrides?.[chain] ??
             metadata.blocks?.reorgPeriod;
@@ -177,10 +181,11 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
             priorityFeeOracle,
             transactionSubmitter,
             urReveal,
-            ...(this.role === Role.Relayer
+            ...(mevSubmission
               ? {
-                  mevSubmission:
-                    this.config.rawConfig.relayer?.mevSubmission?.[chain],
+                  mevSubmission: {
+                    matchingList: JSON.stringify(mevSubmission.matchingList),
+                  },
                 }
               : {}),
           };

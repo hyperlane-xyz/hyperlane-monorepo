@@ -281,7 +281,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
       ),
     mevSubmission: z
       .object({
-        rpcUrls: z.array(z.url({ protocol: /^https?$/ })).nonempty(),
+        rpcUrls: z.array(z.url({ protocol: /^https$/ })).nonempty(),
         matchingList: MatchingListSchema.nonempty(),
       })
       .optional()

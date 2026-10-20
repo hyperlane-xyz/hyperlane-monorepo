@@ -30,7 +30,7 @@ use crate::settings::{
     chains::IndexSettings,
     parser::connection_parser::{build_connection_conf, is_protocol_supported},
     trace::TracingConfig,
-    ChainConf, CoreContractAddresses, Settings, SignerConf,
+    ChainConf, ChainConnectionConf, CoreContractAddresses, Settings, SignerConf,
 };
 
 pub use super::envs::*;
@@ -393,6 +393,14 @@ fn parse_chain(
             _ => Default::default(),
         },
     };
+    if let ChainConnectionConf::Ethereum(conf) = &connection {
+        if conf.mev_submission.is_some() && matches!(submitter, SubmitterType::Classic) {
+            err.push(
+                (&chain.cwp).add("submitter"),
+                eyre!("MEV submission requires the Lander submitter"),
+            );
+        }
+    }
     err.into_result(ChainConf {
         domain,
         signer,
@@ -772,6 +780,46 @@ fn parse_base_and_override_urls(
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn mev_submission_requires_lander() {
+        for (submitter, valid) in [
+            (None, true),
+            (Some("Lander"), true),
+            (Some("Classic"), false),
+        ] {
+            let mut value = serde_json::json!({
+                "domainid": 1,
+                "name": "ethereum",
+                "protocol": "ethereum",
+                "rpcurls": [{ "http": "https://ordinary.example" }],
+                "mailbox": "0x0000000000000000000000000000000000000001",
+                "interchaingaspaymaster": "0x0000000000000000000000000000000000000002",
+                "validatorannounce": "0x0000000000000000000000000000000000000003",
+                "merkletreehook": "0x0000000000000000000000000000000000000004",
+                "mevsubmission": {
+                    "rpcurls": ["https://protected.example"],
+                    "matchinglist": [{"bodyregex": "^02"}],
+                },
+            });
+            if let Some(submitter) = submitter {
+                value["submitter"] = submitter.into();
+            }
+            let result = parse_chain(
+                ValueParser::new(Default::default(), &value),
+                "ethereum",
+                "fallback",
+            );
+            if valid {
+                assert!(result.is_ok(), "{result:?}");
+            } else {
+                assert!(result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("MEV submission requires the Lander submitter"));
+            }
+        }
+    }
 
     #[test]
     fn supports_sequence_h256s() {

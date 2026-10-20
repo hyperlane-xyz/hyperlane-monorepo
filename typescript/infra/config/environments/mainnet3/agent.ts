@@ -16,7 +16,12 @@ import {
   ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { Address, addressToBytes32, objMap } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  addressToBytes32,
+  assert,
+  objMap,
+} from '@hyperlane-xyz/utils';
 
 import {
   AgentChainConfig,
@@ -44,7 +49,11 @@ import { BaseScraperConfig } from '../../../src/config/agent/scraper.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts, RELEASE_CANDIDATE_INDEX_FROM } from '../../contexts.js';
 import { DockerImageRepos, mainnetDockerTags } from '../../docker.js';
-import { getDomainId, getWarpAddresses } from '../../registry.js';
+import {
+  getChainAddresses,
+  getDomainId,
+  getWarpAddresses,
+} from '../../registry.js';
 import { fallbackHedgeConfig } from '../utils.js';
 
 import { environment, ethereumChainNames } from './chains.js';
@@ -422,25 +431,23 @@ const icaV2RevealMatchingList = icaMatchingList(
 );
 
 const mevProtectedChains = ['arbitrum', 'arc', 'base', 'ethereum', 'robinhood'];
-// OP Mainnet and Ink can originate reveals targeting protected destinations.
-const mevRevealMatchingList = icaMatchingList(
-  Object.fromEntries(
-    [...mevProtectedChains, 'optimism', 'ink'].map((chain) => [
-      chain,
-      { messageType: IcaMessageType.REVEAL },
-    ]),
-  ),
-);
-
 const mevSubmission = Object.fromEntries(
-  mevProtectedChains.map((chain) => [
-    chain,
-    {
-      matchingList: mevRevealMatchingList.filter(
-        (rule) => rule.destinationDomain === getDomainId(chain),
-      ),
-    },
-  ]),
+  mevProtectedChains.map((chain) => {
+    const router = getChainAddresses()[chain]?.interchainAccountRouter;
+    assert(router, `Missing ICA router for ${chain}`);
+    return [
+      chain,
+      {
+        matchingList: [
+          {
+            destinationDomain: getDomainId(chain),
+            recipientAddress: addressToBytes32(router),
+            bodyRegex: '^02',
+          },
+        ],
+      },
+    ];
+  }),
 );
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
@@ -883,6 +890,7 @@ const releaseCandidate: RootAgentConfig = {
   contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
+    mevSubmission,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     index: { from: RELEASE_CANDIDATE_INDEX_FROM },

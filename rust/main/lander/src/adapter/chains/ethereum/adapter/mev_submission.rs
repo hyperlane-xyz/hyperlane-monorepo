@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use ethers::{
     abi::{Function, Token},
@@ -13,6 +13,16 @@ use crate::{payload::FullPayload, transaction::Transaction, LanderError};
 
 use super::EthereumAdapter;
 
+pub(super) const RPC_TIMEOUT: Duration = Duration::from_secs(5);
+
+pub(super) async fn with_rpc_timeout<F: std::future::Future>(
+    request: F,
+) -> Result<F::Output, LanderError> {
+    tokio::time::timeout(RPC_TIMEOUT, request)
+        .await
+        .map_err(|_| LanderError::TxSubmissionDeferred)
+}
+
 pub(crate) struct MevSubmission {
     pub mailbox: H160,
     pub matching_list: MatchingList,
@@ -20,7 +30,7 @@ pub(crate) struct MevSubmission {
 }
 
 impl MevSubmission {
-    fn matches(&self, payload: &FullPayload) -> Result<bool> {
+    pub(super) fn matches(&self, payload: &FullPayload) -> Result<bool> {
         let (tx, function): (TypedTransaction, Function) = serde_json::from_slice(&payload.data)?;
         if tx.to() != Some(&NameOrAddress::Address(self.mailbox)) {
             return Ok(false);
@@ -49,14 +59,30 @@ impl EthereumAdapter {
         &self,
         tx: &Transaction,
     ) -> Result<&Arc<dyn EvmProviderForLander>, LanderError> {
+        if self.mev_submission.is_none() {
+            return Ok(&self.provider);
+        }
+        self.provider_for_payloads(&self.load_payloads(tx).await?)
+    }
+
+    pub(super) fn is_protected_provider(&self, provider: &Arc<dyn EvmProviderForLander>) -> bool {
+        self.mev_submission
+            .as_ref()
+            .is_some_and(|mev| Arc::ptr_eq(provider, &mev.provider))
+    }
+
+    pub(super) fn provider_for_payloads(
+        &self,
+        payloads: &[FullPayload],
+    ) -> Result<&Arc<dyn EvmProviderForLander>, LanderError> {
         let Some(mev) = &self.mev_submission else {
             return Ok(&self.provider);
         };
         // Inspect original payloads, not the Multicall wrapper. This also applies
         // after batch rebuilding, gas escalation, and recovery from the database.
-        for payload in self.load_payloads(tx).await? {
-            if mev.matches(&payload)? {
-                info!(tx_uuid = %tx.uuid, "Using MEV-protected submission");
+        for payload in payloads {
+            if mev.matches(payload)? {
+                info!("Using MEV-protected RPCs");
                 return Ok(&mev.provider);
             }
         }
@@ -296,5 +322,141 @@ mod tests {
         let mut tx = transaction(&adapter, vec![FullPayload::random()]).await;
         assert!(adapter.submit(&mut tx).await.is_err());
         assert!(tx.precursor().tx.nonce().is_none());
+    }
+    #[tokio::test(start_paused = true)]
+    async fn protected_rpc_timeout_is_bounded() {
+        let started = tokio::time::Instant::now();
+        assert!(matches!(
+            with_rpc_timeout(std::future::pending::<()>()).await,
+            Err(LanderError::TxSubmissionDeferred)
+        ));
+        assert_eq!(started.elapsed(), RPC_TIMEOUT);
+    }
+
+    #[tokio::test]
+    async fn protected_reveals_are_built_separately_from_ordinary_payloads() {
+        let adapter = adapter(0, 0, false);
+        let commit = payload(1, ROUTER, MAILBOX);
+        let reveal = payload(2, ROUTER, MAILBOX);
+        let results = adapter
+            .build_transactions(&[commit.clone(), reveal.clone()])
+            .await;
+        assert_eq!(results.len(), 2);
+        assert!(results
+            .iter()
+            .all(|r| r.maybe_tx.is_some() && r.payloads.len() == 1));
+        assert!(results
+            .iter()
+            .any(|r| r.payloads[0].uuid == reveal.details.uuid));
+        assert!(results
+            .iter()
+            .any(|r| r.payloads[0].uuid == commit.details.uuid));
+    }
+
+    #[tokio::test]
+    async fn protected_preflights_cover_single_and_recovered_mixed_transactions() {
+        let mut adapter = adapter(0, 0, false);
+        let mut protected = MockEvmProvider::new();
+        mock_get_block(&mut protected);
+        protected
+            .expect_estimate_gas_limit()
+            .times(3)
+            .returning(|_, _| Ok(100_000.into()));
+        protected
+            .expect_simulate_batch()
+            .times(1)
+            .returning(|_| Ok((vec![0, 1], vec![])));
+        protected
+            .expect_batch()
+            .times(1)
+            .returning(|_, _, precursors, _| Ok(precursors[0].clone()));
+        protected
+            .expect_estimate_batch()
+            .times(1)
+            .returning(|_, _| Ok(300_000.into()));
+        adapter.mev_submission.as_mut().unwrap().provider = Arc::new(protected);
+
+        let reveal = payload(2, ROUTER, MAILBOX);
+        let mut single = transaction(&adapter, vec![reveal.clone()]).await;
+        adapter.estimate_tx(&mut single).await.unwrap();
+        assert!(single.precursor().tx.gas().is_some());
+
+        // Old database entries may contain mixed batches; every preflight stays private.
+        let mut recovered = transaction(&adapter, vec![payload(1, ROUTER, MAILBOX), reveal]).await;
+        assert!(adapter
+            .simulate_tx(&mut recovered)
+            .await
+            .unwrap()
+            .is_empty());
+        assert_eq!(recovered.payload_details.len(), 2);
+        adapter.estimate_tx(&mut recovered).await.unwrap();
+        assert_eq!(
+            recovered.precursor().tx.gas().copied(),
+            Some(300_000.into())
+        );
+    }
+    #[derive(Debug)]
+    struct StalledRpc;
+
+    #[async_trait::async_trait]
+    impl ethers::providers::JsonRpcClient for StalledRpc {
+        type Error = ethers::providers::ProviderError;
+
+        async fn request<T, R>(&self, _method: &str, _params: T) -> Result<R, Self::Error>
+        where
+            T: std::fmt::Debug + serde::Serialize + Send + Sync,
+            R: serde::de::DeserializeOwned,
+        {
+            std::future::pending().await
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn timed_out_protected_send_keeps_nonce_for_retry() {
+        let mut adapter = adapter(0, 0, false);
+        adapter.mev_submission.as_mut().unwrap().provider =
+            Arc::new(hyperlane_ethereum::EthereumProvider::new(
+                Arc::new(ethers::providers::Provider::new(StalledRpc)),
+                adapter.domain.clone(),
+            ));
+        let mut tx = transaction(&adapter, vec![payload(2, ROUTER, MAILBOX)]).await;
+        assert!(matches!(
+            adapter.submit(&mut tx).await,
+            Err(LanderError::TxSubmissionDeferred)
+        ));
+        let assigned_nonce = tx.precursor().tx.nonce().copied();
+        assert!(assigned_nonce.is_some());
+        let mut recovered = MockEvmProvider::new();
+        recovered
+            .expect_send()
+            .times(1)
+            .returning(|_, _| Ok(H256::zero()));
+        adapter.mev_submission.as_mut().unwrap().provider = Arc::new(recovered);
+        adapter.submit(&mut tx).await.unwrap();
+        assert_eq!(tx.precursor().tx.nonce().copied(), assigned_nonce);
+    }
+    #[tokio::test]
+    async fn failed_protected_replacement_keeps_previous_hash_and_nonce() {
+        let mut adapter = adapter(0, 1, false);
+        let mut tx = transaction(&adapter, vec![payload(2, ROUTER, MAILBOX)]).await;
+        adapter.submit(&mut tx).await.unwrap();
+        let nonce = tx.precursor().tx.nonce().copied();
+        let hashes = tx.tx_hashes.clone();
+        let mut unavailable = MockEvmProvider::new();
+        unavailable.expect_send().times(1).returning(|_, _| {
+            Err(ChainCommunicationError::CustomError(
+                "relay unavailable".into(),
+            ))
+        });
+        adapter.mev_submission.as_mut().unwrap().provider = Arc::new(unavailable);
+        // Force different signed bytes, rather than rebroadcasting the original price.
+        adapter.transaction_overrides.gas_price = Some(1_000.into());
+        assert!(matches!(
+            adapter.submit(&mut tx).await,
+            Err(LanderError::TxGasCapReached)
+        ));
+        assert_eq!(tx.precursor().tx.gas_price(), Some(1_000.into()));
+        assert_eq!(tx.precursor().tx.nonce().copied(), nonce);
+        assert_eq!(tx.tx_hashes, hashes);
     }
 }

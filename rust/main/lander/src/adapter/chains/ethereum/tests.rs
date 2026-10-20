@@ -91,6 +91,7 @@ mockall::mock! {
 
         /// Get default sender
         fn get_signer(&self) -> Option<H160>;
+        async fn get_chain_id(&self) -> ChainResult<u64>;
     }
 }
 

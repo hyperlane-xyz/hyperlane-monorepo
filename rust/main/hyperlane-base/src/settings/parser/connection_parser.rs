@@ -11,8 +11,7 @@ use url::Url;
 
 use h_eth::TransactionOverrides;
 
-use hyperlane_core::config::{ConfigErrResultExt, ConfigResultExt, OpSubmissionConfig};
-use hyperlane_core::matching_list::MatchingList;
+use hyperlane_core::config::{ConfigErrResultExt, OpSubmissionConfig};
 use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken};
 
 use hyperlane_starknet as h_starknet;
@@ -203,36 +202,28 @@ fn parse_mev_submission_config(
     let rpc_urls: Vec<Url> = ValueParser::new(path, &value)
         .chain(err)
         .into_array_iter()?
-        .filter_map(|url| url.chain(err).parse_from_str("Invalid MEV RPC URL").end())
+        .filter_map(
+            |url| match url.val.as_str().and_then(|value| Url::parse(value).ok()) {
+                Some(url) => Some(url),
+                None => {
+                    err.push(url.cwp.clone(), eyre!("Invalid MEV RPC URL"));
+                    None
+                }
+            },
+        )
         .collect();
-    if rpc_urls.is_empty()
-        || rpc_urls
-            .iter()
-            .any(|url| !matches!(url.scheme(), "http" | "https"))
-    {
+    if rpc_urls.is_empty() || rpc_urls.iter().any(|url| url.scheme() != "https") {
         err.push(
             (&config.cwp).add("rpc_urls"),
-            eyre!("MEV submission requires at least one HTTP(S) endpoint"),
+            eyre!("MEV submission requires HTTPS endpoints"),
         );
         return None;
     }
-    let rules = config.chain(err).get_key("matchingList").end()?;
-    // Helm expands arrays into indexed environment keys, which load as objects.
-    let matching_list = if rules.val.is_object() {
-        MatchingList(Some(
-            rules
-                .chain(err)
-                .into_array_iter()?
-                .filter_map(|rule| {
-                    rule.chain(err)
-                        .parse_value("Invalid MEV matching rule")
-                        .end()
-                })
-                .collect(),
-        ))
-    } else {
-        parse_matching_list(rules).take_config_err(err)?
-    };
+    let matching_list = config
+        .chain(err)
+        .get_key("matchingList")
+        .and_then(parse_matching_list)
+        .end()?;
     if matching_list.0.as_ref().is_none_or(Vec::is_empty) {
         err.push(
             (&config.cwp).add("matching_list"),
@@ -1153,13 +1144,18 @@ mod tests {
 
     #[test]
     fn parses_mev_submission_from_helm_environment() {
-        // Environment splits Helm's underscore-delimited keys into these paths.
+        // Matching rules stay JSON strings through Helm, preserving large
+        // domain IDs and array-valued filters.
+        let rules = json!([{
+            "bodyRegex": "^02",
+            "originDomain": [1, 3_890_189_289u32],
+            "destinationDomain": 3_890_189_289u32,
+            "senderAddress": [format!("{:#x}", hyperlane_core::H256::from_low_u64_be(1))],
+        }]);
         let value = config::Config::builder()
             .set_override("mevsubmission.rpcurls", "[\"https://protected.example\"]")
             .unwrap()
-            .set_override("mevsubmission.matchinglist.0.bodyregex", "^02")
-            .unwrap()
-            .set_override("mevsubmission.matchinglist.0.destinationdomain", "1")
+            .set_override("mevsubmission.matchinglist", rules.to_string())
             .unwrap()
             .build()
             .unwrap()
@@ -1171,7 +1167,22 @@ mod tests {
         let ChainConnectionConf::Ethereum(connection) = connection else {
             panic!("expected EVM")
         };
-        assert!(connection.mev_submission.is_some());
+        let mev = connection.mev_submission.unwrap();
+        let mut message = hyperlane_core::HyperlaneMessage {
+            origin: 3_890_189_289,
+            destination: 3_890_189_289,
+            sender: hyperlane_core::H256::from_low_u64_be(1),
+            body: vec![2],
+            ..Default::default()
+        };
+        assert!(mev.matching_list.msg_matches(&message, false));
+        message.origin = 1;
+        assert!(mev.matching_list.msg_matches(&message, false));
+        message.origin = 2;
+        assert!(!mev.matching_list.msg_matches(&message, false));
+        message.origin = 1;
+        message.sender = hyperlane_core::H256::from_low_u64_be(2);
+        assert!(!mev.matching_list.msg_matches(&message, false));
     }
 
     #[test]
@@ -1181,6 +1192,7 @@ mod tests {
             json!({"rpcurls": [], "matchinglist": [{"bodyregex": "^02"}]}),
             json!({"rpcurls": "not json", "matchinglist": [{"bodyregex": "^02"}]}),
             json!({"rpcurls": ["wss://protected.example"], "matchinglist": [{"bodyregex": "^02"}]}),
+            json!({"rpcurls": ["http://protected.example"], "matchinglist": [{"bodyregex": "^02"}]}),
             json!({"rpcurls": ["https://protected.example"]}),
             json!({"rpcurls": ["https://protected.example"], "matchinglist": []}),
             json!({"rpcurls": ["https://protected.example"], "matchinglist": "bad"}),
@@ -1188,6 +1200,22 @@ mod tests {
         ] {
             let (_, errors) = parse_ethereum_hedge(json!({"mevsubmission": config}));
             assert!(!errors.is_ok(), "accepted invalid MEV configuration");
+        }
+    }
+
+    #[test]
+    fn mev_submission_endpoint_errors_do_not_expose_credentials() {
+        for urls in [
+            json!(["http://user:private-credential@protected.example"]),
+            json!(["https://protected.example:bad/private-credential"]),
+            json!([{"url": "https://protected.example/private-credential"}]),
+        ] {
+            let (_, errors) = parse_ethereum_hedge(json!({"mevsubmission": {
+                "rpcurls": urls,
+                "matchinglist": [{"bodyregex": "^02"}],
+            }}));
+            assert!(!errors.is_ok());
+            assert!(!errors.to_string().contains("private-credential"));
         }
     }
 

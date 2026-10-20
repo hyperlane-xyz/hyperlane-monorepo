@@ -41,12 +41,16 @@ describe('AgentChainMetadataSchema mevSubmission', () => {
     ).to.be.true;
   });
 
-  it('rejects missing or empty endpoint/rule lists and non-HTTP URLs', () => {
+  it('rejects missing or empty endpoint/rule lists and non-HTTPS URLs', () => {
     for (const config of [
       { matchingList: [{ bodyRegex: '^02' }] },
       { rpcUrls: [], matchingList: [{ bodyRegex: '^02' }] },
       {
         rpcUrls: ['wss://protected.example'],
+        matchingList: [{ bodyRegex: '^02' }],
+      },
+      {
+        rpcUrls: ['http://protected.example'],
         matchingList: [{ bodyRegex: '^02' }],
       },
       { rpcUrls: ['https://protected.example'], matchingList: [] },

@@ -403,8 +403,33 @@ impl ChainConf {
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
-                self.build_ethereum(conf, &locator, metrics, h_eth::MailboxBuilder {})
-                    .await
+                let protected_estimator = if let Some(config) = &conf.mev_submission {
+                    let mut protected_conf = conf.clone();
+                    protected_conf.rpc_connection = h_eth::RpcConnectionConf::HttpFallback {
+                        urls: config.rpc_urls.clone(),
+                    };
+                    protected_conf.mev_submission = None;
+                    Some(
+                        self.build_ethereum(
+                            &protected_conf,
+                            &locator,
+                            metrics,
+                            h_eth::MailboxEstimateBuilder {},
+                        )
+                        .await?,
+                    )
+                } else {
+                    None
+                };
+                self.build_ethereum(
+                    conf,
+                    &locator,
+                    metrics,
+                    h_eth::MailboxBuilder {
+                        protected_estimator,
+                    },
+                )
+                .await
             }
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;

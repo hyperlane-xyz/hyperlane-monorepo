@@ -9,7 +9,7 @@ use hyperlane_core::{
     ChainResult, ReorgPeriod, H256, U256,
 };
 
-/// Protected submission endpoints and the messages that must use them in Lander.
+/// Protected RPCs for matching delivery preflights and EVM Lander submission.
 #[derive(Clone)]
 pub struct MevSubmissionConfig {
     /// Endpoints that preserve transaction privacy, with no public fallback.
@@ -85,7 +85,7 @@ pub struct ConnectionConf {
     /// Optional hedging for explicitly allowlisted immutable/finalized reads.
     /// Disabled when unset.
     pub fallback_hedge: Option<FallbackHedgeConfig>,
-    /// Optional protected submission policy, consumed only by the EVM Lander.
+    /// Optional protected RPC policy for delivery estimates and EVM Lander submission.
     pub mev_submission: Option<MevSubmissionConfig>,
 }
 
