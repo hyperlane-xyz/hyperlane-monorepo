@@ -97,6 +97,42 @@ function agentConfigHelper(
 }
 
 describe('Agent configs', () => {
+  for (const context of [Contexts.Hyperlane, Contexts.ReleaseCandidate]) {
+    it(`protects ICA reveals from every origin to the five destinations in ${context}`, async () => {
+      const config = mainnet3Agents[context];
+      const manager = new TestAgentHelmManager(
+        new RelayerConfigHelper(config),
+        Role.Relayer,
+      );
+      const values = await manager.helmValues();
+      const protectedChains = values.hyperlane.chains.filter(
+        (chain) => chain.mevSubmission !== undefined,
+      );
+      expect(protectedChains.map((chain) => chain.name)).to.have.members([
+        'arbitrum',
+        'arc',
+        'base',
+        'ethereum',
+        'robinhood',
+      ]);
+      for (const chain of protectedChains) {
+        expect(chain.mevSubmission?.icaRouter).to.equal(
+          config.relayer?.mevSubmission?.[chain.name]?.icaRouter,
+        );
+        expect(chain.mevSubmission?.icaRouter).to.be.a('string');
+      }
+      const validator = new TestAgentHelmManager(
+        agentConfigHelper(config, Role.Validator),
+        Role.Validator,
+      );
+      expect(
+        (await validator.helmValues()).hyperlane.chains.every(
+          (chain) => chain.mevSubmission === undefined,
+        ),
+      ).to.be.true;
+    });
+  }
+
   it('renders v1 reads for Solana clusters and preserves other SVM defaults', async () => {
     const solanaChains = new Set([
       'solanamainnet',

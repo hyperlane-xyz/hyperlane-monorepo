@@ -112,6 +112,11 @@ pub trait BuildableWithProvider {
         false
     }
 
+    /// Reuse an already resolved chain ID when constructing a signing provider.
+    fn signer_chain_id(&self) -> Option<u64> {
+        None
+    }
+
     /// Construct a new instance of the associated trait using a connection
     /// config. This is the first step and will wrap the provider with
     /// metrics and a signer as needed.
@@ -277,9 +282,13 @@ pub trait BuildableWithProvider {
         let Some(signer) = signer else {
             return Ok(self.build_with_provider(provider, conn, locator).await);
         };
-        let signing_provider = wrap_with_signer(provider, signer.clone())
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
+        let signing_provider = if let Some(chain_id) = self.signer_chain_id() {
+            SignerMiddleware::new(provider, signer.clone().with_chain_id(chain_id))
+        } else {
+            wrap_with_signer(provider, signer.clone())
+                .await
+                .map_err(ChainCommunicationError::from_other)?
+        };
 
         if !self.uses_ethers_submission_middleware() {
             // don't wrap the signing provider in any middlewares

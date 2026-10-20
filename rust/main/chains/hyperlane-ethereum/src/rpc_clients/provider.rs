@@ -227,6 +227,12 @@ pub trait EvmProviderForLander: Send + Sync {
     /// Send transaction into blockchain
     async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;
 
+    /// Fill and sign a transaction without broadcasting it.
+    async fn sign_transaction(&self, tx: &TypedTransaction) -> ChainResult<Bytes>;
+
+    /// Broadcast already signed bytes, allowing callers to record their hash first.
+    async fn send_raw_transaction(&self, tx: Bytes) -> ChainResult<H256>;
+
     /// Read-only call into blockchain which returns a boolean
     async fn check(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool>;
 
@@ -253,6 +259,9 @@ pub trait EvmProviderForLander: Send + Sync {
 
     /// Get default sender
     fn get_signer(&self) -> Option<H160>;
+
+    /// Resolve the EVM chain ID from the ordinary provider.
+    async fn get_chain_id(&self) -> ChainResult<u64>;
 }
 
 #[async_trait]
@@ -354,6 +363,32 @@ where
         Ok(pending.tx_hash().into())
     }
 
+    async fn sign_transaction(&self, tx: &TypedTransaction) -> ChainResult<Bytes> {
+        let signer = self.get_signer().ok_or_else(|| {
+            ChainCommunicationError::CustomError("No signer found in provider".into())
+        })?;
+        let mut tx = tx.clone();
+        self.provider
+            .fill_transaction(&mut tx, None)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        let signature = self
+            .provider
+            .sign_transaction(&tx, signer)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(tx.rlp_signed(&signature))
+    }
+
+    async fn send_raw_transaction(&self, tx: Bytes) -> ChainResult<H256> {
+        let pending = self
+            .provider
+            .send_raw_transaction(tx)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(pending.tx_hash().into())
+    }
+
     async fn check(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool> {
         let contract_call = self.build_contract_call::<bool>(tx.clone(), function.clone());
         let success = contract_call
@@ -408,6 +443,14 @@ where
 
     fn get_signer(&self) -> Option<H160> {
         self.provider.default_sender()
+    }
+
+    async fn get_chain_id(&self) -> ChainResult<u64> {
+        self.provider
+            .get_chainid()
+            .await
+            .map(|id| id.as_u64())
+            .map_err(ChainCommunicationError::from_other)
     }
 }
 
@@ -592,12 +635,20 @@ where
 }
 
 /// Builder for hyperlane providers.
-pub struct LanderProviderBuilder {}
+#[derive(Default)]
+pub struct LanderProviderBuilder {
+    /// Chain ID resolved by the ordinary provider; avoids contacting private relays at startup.
+    pub chain_id: Option<u64>,
+}
 
 #[async_trait]
 impl BuildableWithProvider for LanderProviderBuilder {
     type Output = Arc<dyn EvmProviderForLander>;
     const NEEDS_SIGNER: bool = true;
+
+    fn signer_chain_id(&self) -> Option<u64> {
+        self.chain_id
+    }
 
     // the submitter does not use the ethers submission middleware.
     // it uses its own logic for setting transaction parameters
@@ -668,12 +719,61 @@ where
 #[cfg(test)]
 mod tests {
     use ethers::providers::{MockProvider, Provider, ProviderError};
+    use ethers::signers::{LocalWallet, Signer};
+    use ethers::types::TransactionRequest;
     use hyperlane_core::KnownHyperlaneDomain;
 
     use super::*;
 
     const ABSTRACT_PRIORITY_OPERATION: &str =
         include_str!("fixtures/abstract_priority_operation.json");
+
+    #[tokio::test]
+    async fn lander_uses_resolved_chain_id_without_contacting_private_rpc() {
+        let mock = MockProvider::new();
+        let wallet = ethers::core::k256::SecretKey::from_be_bytes(&[1_u8; 32])
+            .map(LocalWallet::from)
+            .unwrap();
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let locator = ContractLocator {
+            domain: &domain,
+            address: H256::zero(),
+        };
+        // No mock response exists at construction: an eth_chainId query fails.
+        let provider = LanderProviderBuilder { chain_id: Some(1) }
+            .build(
+                mock.clone(),
+                &ConnectionConf::default(),
+                &locator,
+                Some(crate::Signers::Local(wallet.clone().with_chain_id(999_u64))),
+            )
+            .await
+            .unwrap();
+        let function = ethers::abi::AbiParser::default()
+            .parse_function("ping()")
+            .unwrap();
+        let tx: TypedTransaction = TransactionRequest::new()
+            .to(H160::zero())
+            .gas(21_000_u64)
+            .gas_price(1_u64)
+            .nonce(0_u64)
+            .data(function.encode_input(&[]).unwrap())
+            .into();
+        mock.push(EthersH256::zero()).unwrap();
+        let signed = provider.sign_transaction(&tx).await.unwrap();
+        let mut expected = tx;
+        expected.set_from(wallet.address());
+        expected.set_chain_id(1_u64);
+        let signature = wallet
+            .with_chain_id(1_u64)
+            .sign_transaction(&expected)
+            .await
+            .unwrap();
+        assert_eq!(signed, expected.rlp_signed(&signature));
+        provider.send_raw_transaction(signed.clone()).await.unwrap();
+        mock.assert_request("eth_sendRawTransaction", [signed])
+            .unwrap();
+    }
 
     #[test]
     fn parses_unsigned_abstract_priority_operation_for_txn_info() {

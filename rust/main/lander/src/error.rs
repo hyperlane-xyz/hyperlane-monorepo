@@ -18,6 +18,8 @@ pub enum LanderError {
     TxHashNotFound(String),
     #[error("Transaction reached the current gas price cap")]
     TxGasCapReached,
+    #[error("Protected submission unavailable; retry later")]
+    TxSubmissionDeferred,
     #[error("Failed to send over a channel {0}")]
     ChannelSendFailure(#[from] Box<tokio::sync::mpsc::error::SendError<Transaction>>),
     #[error("Channel closed")]
@@ -50,6 +52,7 @@ impl LanderError {
             TxAlreadyExists => "TxAlreadyExists".to_string(),
             TxDropped(reason) => format!("TxDropped-{}", reason.to_metrics_label()),
             TxGasCapReached => "TxGasCapReached".to_string(),
+            TxSubmissionDeferred => "TxSubmissionDeferred".to_string(),
             TxHashNotFound(_) => "TxHashNotFound".to_string(),
             ChannelSendFailure(_) => "ChannelSendFailure".to_string(),
             ChannelClosed => "ChannelClosed".to_string(),
@@ -72,6 +75,7 @@ impl LanderError {
             | ChannelClosed
             | NetworkError(_)
             | TxSubmissionError(_)
+            | TxSubmissionDeferred
             | DbError(_) => true,
             NonRetryableError(_) | EstimationFailed | SimulationFailed(_) | PayloadNotFound
             | TxDropped(_) | TxGasCapReached | TxHashNotFound(_) | TxAlreadyExists
@@ -148,7 +152,8 @@ impl IsRetryable for LanderError {
             | TxAlreadyExists
             | DbError(_)
             | TxHashNotFound(_)
-            | TxGasCapReached => false,
+            | TxGasCapReached
+            | TxSubmissionDeferred => false,
         }
     }
 }

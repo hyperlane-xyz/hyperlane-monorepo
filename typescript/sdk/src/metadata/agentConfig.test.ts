@@ -28,6 +28,38 @@ describe('ValidatorAgentConfigSchema maxSignConcurrency', () => {
   });
 });
 
+describe('AgentChainMetadataSchema mevSubmission', () => {
+  const schema = AgentChainMetadataSchema.shape.mevSubmission;
+
+  it('accepts protected endpoints and an ICA router, with protection off when absent', () => {
+    expect(schema.safeParse(undefined).success).to.be.true;
+    expect(
+      schema.safeParse({
+        rpcUrls: ['https://protected.example'],
+        icaRouter: `0x${'01'.repeat(32)}`,
+      }).success,
+    ).to.be.true;
+  });
+
+  it('rejects missing router or empty endpoint lists and non-HTTPS URLs', () => {
+    for (const config of [
+      { icaRouter: `0x${'01'.repeat(32)}` },
+      { rpcUrls: [], icaRouter: `0x${'01'.repeat(32)}` },
+      {
+        rpcUrls: ['wss://protected.example'],
+        icaRouter: `0x${'01'.repeat(32)}`,
+      },
+      {
+        rpcUrls: ['http://protected.example'],
+        icaRouter: `0x${'01'.repeat(32)}`,
+      },
+      { rpcUrls: ['https://protected.example'], icaRouter: 'invalid' },
+    ]) {
+      expect(schema.safeParse(config).success).to.be.false;
+    }
+  });
+});
+
 describe('AgentChainMetadataSchema index.from', () => {
   it('accepts negative relative block offsets', () => {
     const result = AgentChainMetadataSchema.safeParse({

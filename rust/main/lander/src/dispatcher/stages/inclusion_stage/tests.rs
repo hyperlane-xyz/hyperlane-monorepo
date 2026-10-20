@@ -1469,3 +1469,62 @@ async fn owned_submission_errors_and_cancellation_do_not_notify() {
         .is_err());
     }
 }
+
+#[tokio::test]
+async fn mev_deferrals_keep_state_and_retry_unfinished_simulation() {
+    for phase in ["simulation", "estimate", "send"] {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let attempts = calls.clone();
+        let mut adapter = MockAdapter::new();
+        adapter.expect_simulate_tx().returning(move |_| {
+            if attempts.fetch_add(1, Ordering::SeqCst) == 0 && phase == "simulation" {
+                Err(LanderError::TxSubmissionDeferred)
+            } else {
+                Ok(vec![])
+            }
+        });
+        adapter.expect_estimate_tx().returning(move |_| {
+            if phase == "estimate" {
+                Err(LanderError::TxSubmissionDeferred)
+            } else {
+                Ok(())
+            }
+        });
+        adapter
+            .expect_submit()
+            .times(usize::from(phase != "estimate"))
+            .returning(|_| Err(LanderError::TxSubmissionDeferred));
+        let (state, pool) = reprocess_test_state(adapter);
+        let mut tx = create_random_txs_and_store_them(
+            1,
+            &state.payload_db,
+            &state.tx_db,
+            TransactionStatus::PendingInclusion,
+        )
+        .await
+        .remove(0);
+        for pass in 0..if phase == "simulation" { 2 } else { 1 } {
+            InclusionStage::process_pending_tx(tx.clone(), &state, &pool, "test")
+                .await
+                .unwrap();
+            tx = pool.lock().await.get(&tx.uuid).cloned().unwrap();
+            assert_eq!(tx.status, TransactionStatus::PendingInclusion);
+            assert!(tx.last_submission_attempt.is_some());
+            assert_eq!(
+                tx.submission_attempts,
+                u32::from(phase == "send" || pass == 1)
+            );
+            assert_tx_status(
+                vec![tx.clone()],
+                &state.tx_db,
+                &state.payload_db,
+                TransactionStatus::PendingInclusion,
+            )
+            .await;
+        }
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            if phase == "simulation" { 2 } else { 1 }
+        );
+    }
+}

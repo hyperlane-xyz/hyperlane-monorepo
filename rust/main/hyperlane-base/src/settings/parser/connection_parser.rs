@@ -182,7 +182,52 @@ pub fn build_ethereum_connection_conf(
         op_submission_config: operation_batch,
         consider_null_transaction_receipt,
         fallback_hedge,
+        mev_submission: parse_mev_submission_config(chain, err),
     }))
+}
+
+fn parse_mev_submission_config(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> Option<h_eth::MevSubmissionConfig> {
+    let config = chain.chain(err).get_opt_key("mevSubmission").end()?;
+    let urls = config.chain(err).get_key("rpcUrls").end()?;
+    let Some((path, value)) = parse_json_array(urls) else {
+        err.push(
+            (&config.cwp).add("rpc_urls"),
+            eyre!("Expected MEV RPC URL array"),
+        );
+        return None;
+    };
+    let rpc_urls: Vec<Url> = ValueParser::new(path, &value)
+        .chain(err)
+        .into_array_iter()?
+        .filter_map(
+            |url| match url.val.as_str().and_then(|value| Url::parse(value).ok()) {
+                Some(url) => Some(url),
+                None => {
+                    err.push(url.cwp.clone(), eyre!("Invalid MEV RPC URL"));
+                    None
+                }
+            },
+        )
+        .collect();
+    if rpc_urls.is_empty() || rpc_urls.iter().any(|url| url.scheme() != "https") {
+        err.push(
+            (&config.cwp).add("rpc_urls"),
+            eyre!("MEV submission requires HTTPS endpoints"),
+        );
+        return None;
+    }
+    let ica_router = config
+        .chain(err)
+        .get_key("icaRouter")
+        .parse_address_hash()
+        .end()?;
+    Some(h_eth::MevSubmissionConfig {
+        rpc_urls,
+        ica_router,
+    })
 }
 
 pub fn build_cosmos_connection_conf(
@@ -1065,6 +1110,63 @@ mod tests {
             panic!("expected ethereum connection");
         };
         assert_eq!(connection.fallback_hedge, None);
+        assert!(connection.mev_submission.is_none());
+    }
+
+    #[test]
+    fn parses_mev_submission_urls_from_config_and_secret_json() {
+        for urls in [
+            json!(["https://protected.example/rpc"]),
+            json!("[\"https://protected.example/rpc\"]"),
+        ] {
+            let (connection, errors) = parse_ethereum_hedge(json!({
+                "mevsubmission": {
+                    "rpcurls": urls,
+                    "icarouter": "0x0000000000000000000000000000000000000001",
+                },
+            }));
+            assert!(errors.is_ok(), "{errors:?}");
+            let ChainConnectionConf::Ethereum(connection) = connection else {
+                panic!("expected EVM")
+            };
+            let mev = connection.mev_submission.unwrap();
+            assert_eq!(mev.rpc_urls.len(), 1);
+            assert_eq!(mev.ica_router, hyperlane_core::H256::from_low_u64_be(1));
+        }
+    }
+
+    #[test]
+    fn rejects_incomplete_or_invalid_mev_submission_without_fallback() {
+        for config in [
+            json!({"icarouter": "0x0000000000000000000000000000000000000001"}),
+            json!({"rpcurls": [], "icarouter": "0x0000000000000000000000000000000000000001"}),
+            json!({"rpcurls": "not json", "icarouter": "0x0000000000000000000000000000000000000001"}),
+            json!({"rpcurls": ["wss://protected.example"], "icarouter": "0x0000000000000000000000000000000000000001"}),
+            json!({"rpcurls": ["http://protected.example"], "icarouter": "0x0000000000000000000000000000000000000001"}),
+            json!({"rpcurls": ["https://protected.example"]}),
+            json!({"rpcurls": ["https://protected.example"], "icarouter": ""}),
+            json!({"rpcurls": ["https://protected.example"], "icarouter": "bad"}),
+            json!({"rpcurls": ["https://protected.example"], "icarouter": []}),
+        ] {
+            let (_, errors) = parse_ethereum_hedge(json!({"mevsubmission": config}));
+            assert!(!errors.is_ok(), "accepted invalid MEV configuration");
+        }
+    }
+
+    #[test]
+    fn mev_submission_endpoint_errors_do_not_expose_credentials() {
+        for urls in [
+            json!(["http://user:private-credential@protected.example"]),
+            json!(["https://protected.example:bad/private-credential"]),
+            json!([{"url": "https://protected.example/private-credential"}]),
+        ] {
+            let (_, errors) = parse_ethereum_hedge(json!({"mevsubmission": {
+                "rpcurls": urls,
+                "icarouter": "0x0000000000000000000000000000000000000001",
+            }}));
+            assert!(!errors.is_ok());
+            assert!(!errors.to_string().contains("private-credential"));
+        }
     }
 
     #[test]

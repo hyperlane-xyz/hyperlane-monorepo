@@ -1,12 +1,40 @@
 use ethers::providers::Middleware;
 use ethers_core::types::{BlockId, BlockNumber};
-use std::time::Duration;
+use std::{fmt, time::Duration};
 use url::Url;
 
 use hyperlane_core::{
     config::OpSubmissionConfig, utils::hex_or_base58_or_bech32_to_h256, ChainCommunicationError,
-    ChainResult, ReorgPeriod, H256, U256,
+    ChainResult, HyperlaneMessage, ReorgPeriod, H256, U256,
 };
+
+/// Protected RPCs for matching delivery preflights and EVM Lander submission.
+#[derive(Clone)]
+pub struct MevSubmissionConfig {
+    /// Endpoints that preserve transaction privacy, with no public fallback.
+    pub rpc_urls: Vec<Url>,
+    /// Canonical ICA router receiving reveal messages on this chain.
+    pub ica_router: H256,
+}
+
+impl MevSubmissionConfig {
+    /// Protect messages addressed to the ICA router with reveal type, regardless
+    /// of origin or sender. Reveals do not enforce remote-router enrollment.
+    /// Commits use ordinary RPCs.
+    pub fn matches(&self, message: &HyperlaneMessage) -> bool {
+        const ICA_REVEAL: u8 = 2;
+        message.recipient == self.ica_router && message.body.first() == Some(&ICA_REVEAL)
+    }
+}
+
+impl fmt::Debug for MevSubmissionConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MevSubmissionConfig")
+            .field("endpoint_count", &self.rpc_urls.len())
+            .field("ica_router", &self.ica_router)
+            .finish()
+    }
+}
 
 static BATCH_CONTRACT_ADDRESS_DEFAULT: &str = "0xcA11bde05977b3631167028862bE2a173976CA11";
 
@@ -66,6 +94,8 @@ pub struct ConnectionConf {
     /// Optional hedging for explicitly allowlisted immutable/finalized reads.
     /// Disabled when unset.
     pub fallback_hedge: Option<FallbackHedgeConfig>,
+    /// Optional protected RPC policy for delivery estimates and EVM Lander submission.
+    pub mev_submission: Option<MevSubmissionConfig>,
 }
 
 impl ConnectionConf {

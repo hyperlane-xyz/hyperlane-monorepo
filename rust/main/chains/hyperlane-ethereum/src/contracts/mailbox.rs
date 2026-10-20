@@ -36,7 +36,7 @@ use crate::tx::{
 };
 use crate::{
     BuildableWithProvider, ConnectionConf, EthereumProvider, EthereumReorgPeriod,
-    TransactionOverrides,
+    SignerRequirement, TransactionOverrides,
 };
 
 use super::multicall::{self, build_multicall, BatchCache};
@@ -376,7 +376,9 @@ where
     }
 }
 
-pub struct MailboxBuilder {}
+pub struct MailboxBuilder {
+    pub protected_estimator: Option<Arc<dyn Mailbox>>,
+}
 
 #[async_trait]
 impl BuildableWithProvider for MailboxBuilder {
@@ -389,12 +391,32 @@ impl BuildableWithProvider for MailboxBuilder {
         conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
-        Box::new(EthereumMailbox::new(Arc::new(provider), conn, locator))
+        let mut mailbox = EthereumMailbox::new(Arc::new(provider), conn, locator);
+        mailbox.protected_estimator = self.protected_estimator.clone();
+        Box::new(mailbox)
+    }
+}
+
+/// Read-only estimator with the relayer address, without signing middleware.
+pub struct MailboxEstimateBuilder {}
+
+#[async_trait]
+impl BuildableWithProvider for MailboxEstimateBuilder {
+    type Output = Arc<dyn Mailbox>;
+    const NEEDS_SIGNER: bool = false;
+    const SIGNER_REQUIREMENT: SignerRequirement = SignerRequirement::Sender;
+
+    async fn build_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        conn: &ConnectionConf,
+        locator: &ContractLocator,
+    ) -> Self::Output {
+        Arc::new(EthereumMailbox::new(Arc::new(provider), conn, locator))
     }
 }
 
 /// A reference to a Mailbox contract on some Ethereum chain
-#[derive(Debug)]
 pub struct EthereumMailbox<M>
 where
     M: Middleware,
@@ -404,8 +426,18 @@ where
     provider: Arc<M>,
     arbitrum_node_interface: Option<Arc<ArbitrumNodeInterface<M>>>,
     conn: ConnectionConf,
+    protected_estimator: Option<Arc<dyn Mailbox>>,
     cache: Arc<Mutex<EthereumMailboxCache>>,
     batch_cache: Arc<Mutex<BatchCache>>,
+}
+
+impl<M: Middleware> std::fmt::Debug for EthereumMailbox<M> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EthereumMailbox")
+            .field("domain", &self.domain)
+            .field("address", &self.contract.address())
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Debug, Default)]
@@ -441,6 +473,7 @@ where
             provider,
             arbitrum_node_interface,
             conn: conn.clone(),
+            protected_estimator: None,
             cache: Default::default(),
             batch_cache: Default::default(),
         }
@@ -769,6 +802,24 @@ where
         message: &HyperlaneMessage,
         metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
+        if self
+            .conn
+            .mev_submission
+            .as_ref()
+            .is_some_and(|config| config.matches(message))
+        {
+            let estimator = self.protected_estimator.as_ref().ok_or_else(|| {
+                ChainCommunicationError::CustomError("Missing protected mailbox estimator".into())
+            })?;
+            return tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                estimator.process_estimate_costs(message, metadata),
+            )
+            .await
+            .map_err(|_| {
+                ChainCommunicationError::CustomError("Protected mailbox estimate timed out".into())
+            })?;
+        }
         // this function is used to get an accurate gas estimate for the transaction
         // rather than a gas amount that will guarantee inclusion, so we use `false`
         // for the `with_gas_estimate_buffer` arg in `process_contract_call`
@@ -860,7 +911,7 @@ impl HyperlaneAbi for EthereumMailboxAbi {
 
 #[cfg(test)]
 mod test {
-    use std::{str::FromStr, sync::Arc};
+    use std::{ops::Mul, str::FromStr, sync::Arc};
 
     use ethers::{
         providers::{MockProvider, Provider},
@@ -872,7 +923,9 @@ mod test {
         Metadata, TxCostEstimate, H160, H256, U256,
     };
 
-    use crate::{contracts::EthereumMailbox, ConnectionConf, RpcConnectionConf};
+    use crate::{
+        contracts::EthereumMailbox, ConnectionConf, MevSubmissionConfig, RpcConnectionConf,
+    };
 
     fn get_test_mailbox(
         domain: HyperlaneDomain,
@@ -890,6 +943,7 @@ mod test {
             op_submission_config: Default::default(),
             consider_null_transaction_receipt: false,
             fallback_hedge: None,
+            mev_submission: None,
         };
 
         let mailbox = EthereumMailbox::new(
@@ -902,6 +956,106 @@ mod test {
             },
         );
         (mailbox, mock_provider)
+    }
+
+    fn push_estimate_responses(mock: &MockProvider, arbitrum: bool) {
+        mock.push(U256::from(15)).unwrap();
+        if arbitrum {
+            mock.push(U256::from(200)).unwrap();
+        }
+        mock.push(Block::<Transaction> {
+            gas_limit: EthersU256::MAX,
+            ..Default::default()
+        })
+        .unwrap();
+        mock.push(U256::from(1000)).unwrap();
+    }
+
+    #[tokio::test]
+    async fn matching_reveal_estimates_never_use_ordinary_rpc() {
+        for domain in [
+            KnownHyperlaneDomain::Ethereum,
+            KnownHyperlaneDomain::Arbitrum,
+        ] {
+            let domain = HyperlaneDomain::Known(domain);
+            let (mut ordinary, ordinary_rpc) = get_test_mailbox(domain.clone());
+            let (mut protected, protected_rpc) = get_test_mailbox(domain);
+            ordinary.conn.transaction_overrides.gas_price = Some(1.into());
+            protected.conn.transaction_overrides.gas_price = Some(1.into());
+            protected.conn.rpc_connection = RpcConnectionConf::Http {
+                url: "https://protected.example/private-key".parse().unwrap(),
+            };
+            ordinary.conn.mev_submission = Some(MevSubmissionConfig {
+                rpc_urls: vec!["https://protected.example/private-key".parse().unwrap()],
+                ica_router: H256::zero(),
+            });
+            let arbitrum = protected.arbitrum_node_interface.is_some();
+            ordinary.protected_estimator = Some(Arc::new(protected));
+            assert!(!format!("{ordinary:?}").contains("private-key"));
+            let message = HyperlaneMessage {
+                body: vec![2; 65],
+                ..Default::default()
+            };
+            let metadata = Metadata::new(vec![42; 32]);
+            let expected_call = ordinary.contract_call(&message, &metadata, None).unwrap();
+
+            push_estimate_responses(&protected_rpc, arbitrum);
+            let estimate = ordinary
+                .process_estimate_costs(&message, &metadata)
+                .await
+                .unwrap();
+            assert_eq!(estimate.gas_limit, U256::from(1000));
+            assert_eq!(estimate.l2_gas_limit, arbitrum.then(|| U256::from(200)));
+            protected_rpc
+                .assert_request("eth_estimateGas", [&expected_call.tx])
+                .unwrap();
+            protected_rpc
+                .assert_request("eth_getBlockByNumber", ("latest", false))
+                .unwrap();
+            if let Some(node) = &ordinary.arbitrum_node_interface {
+                let retryable = node.estimate_retryable_ticket(
+                    H160::zero().into(),
+                    ethers_core::utils::WEI_IN_ETHER.mul(100u32),
+                    ordinary.contract.address(),
+                    U256::zero().into(),
+                    H160::zero().into(),
+                    H160::zero().into(),
+                    expected_call.calldata().unwrap(),
+                );
+                protected_rpc
+                    .assert_request("eth_estimateGas", [&retryable.tx])
+                    .unwrap();
+            }
+            protected_rpc.assert_request("eth_gasPrice", ()).unwrap();
+            assert!(ordinary_rpc
+                .assert_request("eth_estimateGas", [&expected_call.tx])
+                .is_err());
+
+            // Exhausted protected responses cause an error, never a public retry.
+            assert!(ordinary
+                .process_estimate_costs(&message, &metadata)
+                .await
+                .is_err());
+            assert!(ordinary_rpc
+                .assert_request("eth_estimateGas", [&expected_call.tx])
+                .is_err());
+
+            let commit = HyperlaneMessage {
+                body: vec![1; 129],
+                ..message
+            };
+            push_estimate_responses(&ordinary_rpc, arbitrum);
+            assert!(ordinary
+                .process_estimate_costs(&commit, &metadata)
+                .await
+                .is_ok());
+            ordinary_rpc
+                .assert_request(
+                    "eth_estimateGas",
+                    [&ordinary.contract_call(&commit, &metadata, None).unwrap().tx],
+                )
+                .unwrap();
+        }
     }
 
     #[tokio::test]

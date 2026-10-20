@@ -69,6 +69,9 @@ mockall::mock! {
         /// Send transaction into blockchain
         async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;
 
+        async fn sign_transaction(&self, tx: &TypedTransaction) -> ChainResult<ethers::types::Bytes>;
+        async fn send_raw_transaction(&self, tx: ethers::types::Bytes) -> ChainResult<H256>;
+
         /// Read-only call into blockchain which returns a boolean
         async fn check(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool>;
 
@@ -91,6 +94,7 @@ mockall::mock! {
 
         /// Get default sender
         fn get_signer(&self) -> Option<H160>;
+        async fn get_chain_id(&self) -> ChainResult<u64>;
     }
 }
 

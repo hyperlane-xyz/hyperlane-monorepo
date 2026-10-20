@@ -279,6 +279,15 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
       .describe(
         'Specify a comma separated list of custom RPC URLs to use for this chain. If not specified, the default RPC urls will be used.',
       ),
+    mevSubmission: z
+      .object({
+        rpcUrls: z.array(z.url({ protocol: /^https$/ })).nonempty(),
+        icaRouter: ZHash,
+      })
+      .optional()
+      .describe(
+        'EVM Lander only: submit matching messages exclusively through these protected endpoints. No public fallback.',
+      ),
     additionalQuorumRpcUrls: z
       .never()
       .optional()
@@ -357,6 +366,15 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
     {
       message: 'fallback RPC hedging requires fallback RPC consensus',
       path: ['fallbackHedgeDelayMillis'],
+    },
+  )
+  .refine(
+    (metadata) =>
+      metadata.mevSubmission === undefined ||
+      metadata.protocol === ProtocolType.Ethereum,
+    {
+      message: 'MEV submission is only supported for Ethereum chains',
+      path: ['mevSubmission'],
     },
   )
   .refine((metadata) => {
