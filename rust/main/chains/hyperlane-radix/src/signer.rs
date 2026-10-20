@@ -5,7 +5,7 @@ use hyperlane_core::{ChainResult, H256};
 
 use crate::{address_to_h256, encode_module_address, HyperlaneRadixError};
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 /// Signer for radix chain
 pub struct RadixSigner {
     private_key: Vec<u8>,
@@ -15,6 +15,17 @@ pub struct RadixSigner {
     pub address_256: H256,
     /// Radix struct representation
     pub address: ComponentAddress,
+}
+
+/// Manual `Debug` so the private key never reaches logs.
+impl std::fmt::Debug for RadixSigner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RadixSigner")
+            .field("encoded_address", &self.encoded_address)
+            .field("address_256", &self.address_256)
+            .field("address", &self.address)
+            .finish_non_exhaustive()
+    }
 }
 
 impl RadixSigner {
@@ -42,5 +53,19 @@ impl RadixSigner {
             .map_err(|()| HyperlaneRadixError::Other("failed to build private key".to_owned()))?;
         let signer = PrivateKey::Ed25519(private_key);
         Ok(signer)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RadixSigner;
+
+    #[test]
+    fn debug_redacts_private_key() {
+        let private_key = vec![0xde, 0xad, 0xbe, 0xef].repeat(8);
+        let signer = RadixSigner::new(private_key, "rdx".to_owned()).unwrap();
+        let debug = format!("{signer:?}");
+        assert!(!debug.contains("222, 173, 190, 239"), "key leaked: {debug}");
+        assert!(!debug.contains("private_key"));
     }
 }

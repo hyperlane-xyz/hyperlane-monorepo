@@ -3,7 +3,7 @@ use hyperlane_core::{AccountAddressType, ChainResult, H256};
 
 use crate::{CosmosAddress, HyperlaneCosmosError};
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 /// Signer for cosmos chain
 pub struct Signer {
     /// public key
@@ -17,6 +17,18 @@ pub struct Signer {
     pub prefix: String,
     /// private key
     private_key: Vec<u8>,
+}
+
+/// Manual `Debug` so the private key never reaches logs.
+impl std::fmt::Debug for Signer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Signer")
+            .field("public_key", &self.public_key)
+            .field("address", &self.address)
+            .field("address_string", &self.address_string)
+            .field("prefix", &self.prefix)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Signer {
@@ -59,5 +71,26 @@ impl Signer {
     /// gets digest of the cosmos account
     pub fn address_h256(&self) -> H256 {
         self.address.digest()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hyperlane_core::AccountAddressType;
+
+    use super::Signer;
+
+    #[test]
+    fn debug_redacts_private_key() {
+        let private_key = vec![0xde, 0xad, 0xbe, 0xef].repeat(8);
+        let signer = Signer::new(
+            private_key,
+            "neutron".to_owned(),
+            &AccountAddressType::Bitcoin,
+        )
+        .unwrap();
+        let debug = format!("{signer:?}");
+        assert!(!debug.contains("222, 173, 190, 239"), "key leaked: {debug}");
+        assert!(!debug.contains("private_key"));
     }
 }

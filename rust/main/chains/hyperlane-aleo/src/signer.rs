@@ -9,13 +9,23 @@ fn bytes_to_private_key<N: Network>(bytes: &[u8]) -> ChainResult<PrivateKey<N>> 
 }
 
 /// Aleo Signer
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct AleoSigner {
     private_key: Vec<u8>,
     /// bech32 encoded address
     encoded_address: String,
     /// H256 representation of the address
     address_h256: H256,
+}
+
+/// Manual `Debug` so the private key never reaches logs.
+impl std::fmt::Debug for AleoSigner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AleoSigner")
+            .field("encoded_address", &self.encoded_address)
+            .field("address_h256", &self.address_h256)
+            .finish_non_exhaustive()
+    }
 }
 
 impl AleoSigner {
@@ -68,6 +78,16 @@ mod tests {
         let result = bytes_to_private_key::<CurrentNetwork>(&bytes);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), original_key);
+    }
+
+    #[test]
+    fn test_debug_redacts_private_key() {
+        let private_key = PrivateKey::<CurrentNetwork>::new(&mut rand::TestRng::default()).unwrap();
+        let bytes = private_key.to_bytes_le().unwrap();
+        let signer = AleoSigner::new(&bytes).unwrap();
+        let debug = format!("{signer:?}");
+        assert!(!debug.contains(&format!("{:?}", signer.private_key)));
+        assert!(!debug.contains("private_key"));
     }
 
     #[test]
