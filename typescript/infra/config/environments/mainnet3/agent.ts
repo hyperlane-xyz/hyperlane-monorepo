@@ -614,7 +614,7 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
     },
     ...metadexVoterMetricAppContexts(metadexStagingTopology),
     {
-      name: 'metaswap_v3_staging',
+      name: 'metaswap_ica_v3_staging',
       matchingList: metaswapStagingMatchingList,
     },
   ];
