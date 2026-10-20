@@ -227,6 +227,12 @@ pub trait EvmProviderForLander: Send + Sync {
     /// Send transaction into blockchain
     async fn send(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<H256>;
 
+    /// Fill and sign a transaction without broadcasting it.
+    async fn sign_transaction(&self, tx: &TypedTransaction) -> ChainResult<Bytes>;
+
+    /// Broadcast already signed bytes, allowing callers to record their hash first.
+    async fn send_raw_transaction(&self, tx: Bytes) -> ChainResult<H256>;
+
     /// Read-only call into blockchain which returns a boolean
     async fn check(&self, tx: &TypedTransaction, function: &Function) -> ChainResult<bool>;
 
@@ -354,6 +360,32 @@ where
             .await
             .map_err(|e| ChainCommunicationError::CustomError(e.to_string()))?;
 
+        Ok(pending.tx_hash().into())
+    }
+
+    async fn sign_transaction(&self, tx: &TypedTransaction) -> ChainResult<Bytes> {
+        let signer = self.get_signer().ok_or_else(|| {
+            ChainCommunicationError::CustomError("No signer found in provider".into())
+        })?;
+        let mut tx = tx.clone();
+        self.provider
+            .fill_transaction(&mut tx, None)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        let signature = self
+            .provider
+            .sign_transaction(&tx, signer)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(tx.rlp_signed(&signature))
+    }
+
+    async fn send_raw_transaction(&self, tx: Bytes) -> ChainResult<H256> {
+        let pending = self
+            .provider
+            .send_raw_transaction(tx)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
         Ok(pending.tx_hash().into())
     }
 
@@ -728,7 +760,7 @@ mod tests {
             .data(function.encode_input(&[]).unwrap())
             .into();
         mock.push(EthersH256::zero()).unwrap();
-        provider.send(&tx, &function).await.unwrap();
+        let signed = provider.sign_transaction(&tx).await.unwrap();
         let mut expected = tx;
         expected.set_from(wallet.address());
         expected.set_chain_id(1_u64);
@@ -737,7 +769,9 @@ mod tests {
             .sign_transaction(&expected)
             .await
             .unwrap();
-        mock.assert_request("eth_sendRawTransaction", [expected.rlp_signed(&signature)])
+        assert_eq!(signed, expected.rlp_signed(&signature));
+        provider.send_raw_transaction(signed.clone()).await.unwrap();
+        mock.assert_request("eth_sendRawTransaction", [signed])
             .unwrap();
     }
 

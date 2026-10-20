@@ -732,12 +732,25 @@ impl AdaptsChain for EthereumAdapter {
 
         info!(?tx, "submitting transaction");
 
-        let precursor = tx.precursor();
-
         let protected = self.is_protected_provider(provider);
-        let send = provider.send(&precursor.tx, &precursor.function);
         let send_result = if protected {
-            let result = mev_submission::with_rpc_timeout(true, send).await;
+            let signed = mev_submission::with_rpc_timeout(
+                true,
+                provider.sign_transaction(&tx.precursor().tx),
+            )
+            .await?
+            .map_err(|err| {
+                warn!(?err, "Signing protected transaction failed");
+                LanderError::TxSubmissionDeferred
+            })?;
+            // A relay can accept the bytes but lose its response. Keep the exact
+            // signed hash so receipt polling can discover inclusion after a timeout.
+            let hash = H256::from(ethers::utils::keccak256(&signed)).into();
+            if !tx.tx_hashes.contains(&hash) {
+                tx.tx_hashes.push(hash);
+            }
+            let result =
+                mev_submission::with_rpc_timeout(true, provider.send_raw_transaction(signed)).await;
             self.metrics
                 .increment_mev_submissions(if matches!(result, Ok(Ok(_))) {
                     "success"
@@ -749,7 +762,8 @@ impl AdaptsChain for EthereumAdapter {
                 Err(err) => return Err(err),
             }
         } else {
-            send.await
+            let precursor = tx.precursor();
+            provider.send(&precursor.tx, &precursor.function).await
         };
         let hash = match send_result {
             Ok(hash) => hash,

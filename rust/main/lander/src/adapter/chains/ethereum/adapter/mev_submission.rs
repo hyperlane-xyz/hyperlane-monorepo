@@ -98,7 +98,11 @@ impl EthereumAdapter {
 mod tests {
     use std::time::Duration;
 
-    use ethers::{abi::AbiParser, types::TransactionRequest};
+    use ethers::{
+        abi::AbiParser,
+        signers::{LocalWallet, Signer},
+        types::TransactionRequest,
+    };
     use hyperlane_core::{ChainCommunicationError, Encode, H256};
 
     use crate::{
@@ -123,6 +127,11 @@ mod tests {
 
     const MAILBOX: H160 = H160([1; 20]);
     const ROUTER: H256 = H256([2; 32]);
+
+    fn wallet() -> LocalWallet {
+        LocalWallet::from(ethers::core::k256::SecretKey::from_be_bytes(&[1; 32]).unwrap())
+            .with_chain_id(1_u64)
+    }
 
     fn payload(message_type: u8, router: H256, mailbox: H160) -> FullPayload {
         let message = HyperlaneMessage {
@@ -169,15 +178,19 @@ mod tests {
             .returning(|_, _| Ok(H256::zero()));
         let mut protected = MockEvmProvider::new();
         protected
-            .expect_send()
+            .expect_sign_transaction()
             .times(protected_sends)
-            .returning(move |_, _| {
+            .returning(|tx| Ok(serde_json::to_vec(tx).unwrap().into()));
+        protected
+            .expect_send_raw_transaction()
+            .times(protected_sends)
+            .returning(move |bytes| {
                 if fail_protected {
                     Err(ChainCommunicationError::CustomError(
                         "protected endpoint unavailable".into(),
                     ))
                 } else {
-                    Ok(H256::zero())
+                    Ok(ethers::utils::keccak256(bytes).into())
                 }
             });
         let mut adapter = mock_ethereum_adapter(
@@ -185,7 +198,7 @@ mod tests {
             payload_db,
             tx_db,
             nonce_db,
-            H160::zero(),
+            wallet().address(),
             Duration::from_secs(1),
             Duration::ZERO,
         );
@@ -229,11 +242,18 @@ mod tests {
         assert_eq!(recovered.precursor().tx.nonce().copied(), nonce);
         let hashes = recovered.tx_hashes.clone();
         let mut unavailable = MockEvmProvider::new();
-        unavailable.expect_send().times(1).returning(|_, _| {
-            Err(ChainCommunicationError::CustomError(
-                "relay unavailable".into(),
-            ))
-        });
+        unavailable
+            .expect_sign_transaction()
+            .times(1)
+            .returning(|tx| Ok(serde_json::to_vec(tx).unwrap().into()));
+        unavailable
+            .expect_send_raw_transaction()
+            .times(1)
+            .returning(|_| {
+                Err(ChainCommunicationError::CustomError(
+                    "relay unavailable".into(),
+                ))
+            });
         adapter.mev_submission.as_mut().unwrap().provider = Arc::new(unavailable);
         // Force different signed bytes, rather than rebroadcasting the original price.
         adapter.transaction_overrides.gas_price = Some(1_000.into());
@@ -243,7 +263,8 @@ mod tests {
         ));
         assert_eq!(recovered.precursor().tx.gas_price(), Some(1_000.into()));
         assert_eq!(recovered.precursor().tx.nonce().copied(), nonce);
-        assert_eq!(recovered.tx_hashes, hashes);
+        assert!(recovered.tx_hashes.starts_with(&hashes));
+        assert_eq!(recovered.tx_hashes.len(), hashes.len() + 1);
     }
 
     #[tokio::test]
@@ -366,45 +387,77 @@ mod tests {
         );
     }
     #[derive(Debug)]
-    struct StalledRpc;
+    struct StalledRpc(Arc<std::sync::Mutex<Option<ethers::types::Bytes>>>);
 
     #[async_trait::async_trait]
     impl ethers::providers::JsonRpcClient for StalledRpc {
         type Error = ethers::providers::ProviderError;
 
-        async fn request<T, R>(&self, _method: &str, _params: T) -> Result<R, Self::Error>
+        async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
         where
             T: std::fmt::Debug + serde::Serialize + Send + Sync,
             R: serde::de::DeserializeOwned,
         {
+            assert_eq!(method, "eth_sendRawTransaction");
+            let bytes: Vec<ethers::types::Bytes> =
+                serde_json::from_value(serde_json::to_value(params).unwrap()).unwrap();
+            *self.0.lock().unwrap() = Some(bytes[0].clone());
             std::future::pending().await
         }
     }
 
     #[tokio::test(start_paused = true)]
-    async fn timed_out_protected_send_keeps_nonce_for_retry() {
+    async fn accepted_protected_send_with_lost_response_is_detected_after_recovery() {
+        use ethers::{middleware::SignerMiddleware, providers::Provider};
+        let accepted_bytes = Arc::new(std::sync::Mutex::new(None));
         let mut adapter = adapter(0, 0, false);
         adapter.mev_submission.as_mut().unwrap().provider =
             Arc::new(hyperlane_ethereum::EthereumProvider::new(
-                Arc::new(ethers::providers::Provider::new(StalledRpc)),
+                Arc::new(SignerMiddleware::new(
+                    Provider::new(StalledRpc(accepted_bytes.clone())),
+                    wallet(),
+                )),
                 adapter.domain.clone(),
             ));
         let mut tx = transaction(&adapter, vec![payload(2, ROUTER, MAILBOX)]).await;
+        tx.precursor_mut().tx.set_gas(100_000_u64);
         let started = tokio::time::Instant::now();
-        assert!(matches!(
-            adapter.submit(&mut tx).await,
-            Err(LanderError::TxSubmissionDeferred)
-        ));
+        let result = adapter.submit(&mut tx).await;
+        assert!(
+            matches!(result, Err(LanderError::TxSubmissionDeferred)),
+            "{result:?}"
+        );
         assert_eq!(started.elapsed(), RPC_TIMEOUT);
         let assigned_nonce = tx.precursor().tx.nonce().copied();
         assert!(assigned_nonce.is_some());
-        let mut recovered = MockEvmProvider::new();
-        recovered
-            .expect_send()
+        let hash = H256::from(ethers::utils::keccak256(
+            accepted_bytes.lock().unwrap().as_ref().unwrap(),
+        ));
+        assert_eq!(tx.tx_hashes, vec![hash.into()]);
+        // Retention persists these fields. Recover as the inclusion stage does,
+        // then observe the accepted send finalizing instead of resubmitting it.
+        let recovered: Transaction =
+            serde_json::from_slice(&serde_json::to_vec(&tx).unwrap()).unwrap();
+        let mut normal = MockEvmProvider::new();
+        normal
+            .expect_get_transaction_receipt()
             .times(1)
-            .returning(|_, _| Ok(H256::zero()));
-        adapter.mev_submission.as_mut().unwrap().provider = Arc::new(recovered);
-        adapter.submit(&mut tx).await.unwrap();
-        assert_eq!(tx.precursor().tx.nonce().copied(), assigned_nonce);
+            .withf(move |h| *h == hash)
+            .returning(|_| {
+                Ok(Some(ethers::types::TransactionReceipt {
+                    block_number: Some(10.into()),
+                    ..Default::default()
+                }))
+            });
+        normal
+            .expect_get_finalized_block_number()
+            .times(1)
+            .returning(|_| Ok(10));
+        adapter.provider = Arc::new(normal);
+        let statuses = adapter.tx_statuses(&[recovered]).await;
+        assert!(matches!(
+            statuses.as_slice(),
+            [Ok(TransactionStatus::Finalized)]
+        ));
     }
 }
