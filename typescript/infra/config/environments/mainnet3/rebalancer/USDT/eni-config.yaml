@@ -1,7 +1,7 @@
 warpRouteId: USDT/eni
 
 deployment:
-  imageTag: 79f9608-20261020-142721
+  imageTag: bfbc9d9-20261020-143338
   registryCommit: a24bd88a0ce60fb862a5bd5a6ba63fb7a60d79bc
   swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key
 
