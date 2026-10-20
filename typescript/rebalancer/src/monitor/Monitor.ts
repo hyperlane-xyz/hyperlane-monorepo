@@ -6,7 +6,13 @@ import {
   type Token,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, fromWei, sleep } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  concurrentMap,
+  fromWei,
+  sleep,
+} from '@hyperlane-xyz/utils';
 
 import {
   type ConfirmedBlockTag,
@@ -18,6 +24,8 @@ import {
   MonitorStartError,
 } from '../interfaces/IMonitor.js';
 import { getConfirmedBlockTag } from '../utils/blockTag.js';
+
+const MONITOR_READ_CONCURRENCY = 8;
 
 /**
  * Configuration for the Monitor's inventory tracking.
@@ -51,14 +59,24 @@ export class Monitor implements IMonitor {
 
   private async computeConfirmedBlockTags(): Promise<ConfirmedBlockTags> {
     const blockTags: ConfirmedBlockTags = {};
-    const chains = new Set(this.warpCore.tokens.map((t) => t.chainName));
-
-    for (const chain of chains) {
-      blockTags[chain] = await getConfirmedBlockTag(
-        this.warpCore.multiProvider,
+    const chains = Array.from(
+      new Set(this.warpCore.tokens.map((token) => token.chainName)),
+    );
+    const results = await concurrentMap(
+      MONITOR_READ_CONCURRENCY,
+      chains,
+      async (chain) => ({
         chain,
-        this.logger,
-      );
+        blockTag: await getConfirmedBlockTag(
+          this.warpCore.multiProvider,
+          chain,
+          this.logger,
+        ),
+      }),
+    );
+
+    for (const { chain, blockTag } of results) {
+      blockTags[chain] = blockTag;
     }
 
     return blockTags;
@@ -112,30 +130,29 @@ export class Monitor implements IMonitor {
           const confirmedBlockTags = await this.computeConfirmedBlockTags();
 
           const event: MonitorEvent = {
-            tokensInfo: [],
+            tokensInfo: await concurrentMap(
+              MONITOR_READ_CONCURRENCY,
+              this.warpCore.tokens,
+              async (token) => {
+                this.logger.debug(
+                  {
+                    chain: token.chainName,
+                    tokenSymbol: token.symbol,
+                    tokenAddress: token.addressOrDenom,
+                  },
+                  'Checking token',
+                );
+                const blockTag = confirmedBlockTags[token.chainName];
+                const bridgedSupply = await this.getTokenBridgedSupply(
+                  token,
+                  blockTag,
+                );
+
+                return { token, bridgedSupply };
+              },
+            ),
             confirmedBlockTags,
           };
-
-          for (const token of this.warpCore.tokens) {
-            this.logger.debug(
-              {
-                chain: token.chainName,
-                tokenSymbol: token.symbol,
-                tokenAddress: token.addressOrDenom,
-              },
-              'Checking token',
-            );
-            const blockTag = confirmedBlockTags[token.chainName];
-            const bridgedSupply = await this.getTokenBridgedSupply(
-              token,
-              blockTag,
-            );
-
-            event.tokensInfo.push({
-              token,
-              bridgedSupply,
-            });
-          }
 
           const inventoryBalances = await this.fetchInventoryBalances();
           if (Object.keys(inventoryBalances).length > 0) {
@@ -264,51 +281,55 @@ export class Monitor implements IMonitor {
   }
 
   private async fetchInventoryBalances(): Promise<ChainMap<bigint>> {
-    if (!this.inventoryConfig) return {};
+    const inventoryConfig = this.inventoryConfig;
+    if (!inventoryConfig) return {};
 
     const balances: ChainMap<bigint> = {};
 
-    const readPromises = this.inventoryConfig.chains.map(async (chainName) => {
-      const token = this.warpCore.tokens.find((t) => t.chainName === chainName);
-      if (!token) {
-        this.logger.warn(
-          { chain: chainName },
-          'No token found for inventory chain',
+    const results = await concurrentMap(
+      MONITOR_READ_CONCURRENCY,
+      inventoryConfig.chains,
+      async (chainName) => {
+        const token = this.warpCore.tokens.find(
+          (candidate) => candidate.chainName === chainName,
         );
-        return { chainName, balance: 0n };
-      }
-
-      try {
-        const address =
-          this.inventoryConfig!.inventoryAddresses[token.protocol];
-        if (!address) {
+        if (!token) {
           this.logger.warn(
-            { chain: chainName, protocol: token.protocol },
-            'No inventory address for chain protocol, skipping',
+            { chain: chainName },
+            'No token found for inventory chain',
           );
           return { chainName, balance: 0n };
         }
-        const adapter = token.getAdapter(this.warpCore.multiProvider);
-        const balance = await adapter.getBalance(address);
-        this.logger.debug(
-          {
-            chain: chainName,
-            token: token.addressOrDenom,
-            balance: balance.toString(),
-          },
-          'Read inventory balance',
-        );
-        return { chainName, balance };
-      } catch (error) {
-        this.logger.error(
-          { chain: chainName, error: (error as Error).message },
-          'Failed to read inventory balance',
-        );
-        return { chainName, balance: 0n };
-      }
-    });
 
-    const results = await Promise.all(readPromises);
+        try {
+          const address = inventoryConfig.inventoryAddresses[token.protocol];
+          if (!address) {
+            this.logger.warn(
+              { chain: chainName, protocol: token.protocol },
+              'No inventory address for chain protocol, skipping',
+            );
+            return { chainName, balance: 0n };
+          }
+          const adapter = token.getAdapter(this.warpCore.multiProvider);
+          const balance = await adapter.getBalance(address);
+          this.logger.debug(
+            {
+              chain: chainName,
+              token: token.addressOrDenom,
+              balance: balance.toString(),
+            },
+            'Read inventory balance',
+          );
+          return { chainName, balance };
+        } catch (error) {
+          this.logger.error(
+            { chain: chainName, error: (error as Error).message },
+            'Failed to read inventory balance',
+          );
+          return { chainName, balance: 0n };
+        }
+      },
+    );
 
     for (const { chainName, balance } of results) {
       balances[chainName] = balance;
