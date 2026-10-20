@@ -52,7 +52,7 @@ strategy:
           bridgeMinAcceptedAmount: 0.1
     optimism:
       weighted:
-        weight: 19
+        weight: 15
         tolerance: 5
       bridgeMinAcceptedAmount: 1
       executionType: inventory
@@ -62,7 +62,7 @@ strategy:
           bridgeMinAcceptedAmount: 0.1
     robinhood:
       weighted:
-        weight: 4
+        weight: 8
         tolerance: 5
       bridgeMinAcceptedAmount: 0.1
       executionType: inventory
