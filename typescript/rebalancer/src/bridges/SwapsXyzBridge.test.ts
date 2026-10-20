@@ -229,7 +229,10 @@ function transactionResponse(
   };
 }
 
-function createExecuteHarness(response = actionResponse()): {
+function createExecuteHarness(
+  response = actionResponse(),
+  overrides: { maxQuoteLossBps?: number } = {},
+): {
   bridge: SwapsXyzBridge;
   client: SwapsXyzClient;
   provider: providers.StaticJsonRpcProvider;
@@ -245,6 +248,7 @@ function createExecuteHarness(response = actionResponse()): {
   );
   const bridge = createBridge(client, {
     evmProviderFactory: () => provider,
+    maxQuoteLossBps: overrides.maxQuoteLossBps,
     registerTxRetryDelayMs: 1,
   });
   const getActionStub = sinon.stub(client, 'getAction').resolves(response);
@@ -1060,13 +1064,35 @@ describe('SwapsXyzBridge.execute', () => {
     expect(harness.sendTransactionStub.callCount).to.equal(0);
   });
 
-  it('rejects exact-out input growth from a fresh quote', async () => {
+  it('accepts exact-out input growth within the configured cap', async () => {
     const harness = createExecuteHarness(
       actionResponse({
         amountInMax: {
           chainId: 1,
           address: FROM_TOKEN,
           amount: '1000001',
+        },
+      }),
+    );
+    const exactOutQuote = bridgeQuote(
+      quoteParams({ fromAmount: undefined, toAmount: 995_000n }),
+    );
+
+    const result = await harness.bridge.execute(exactOutQuote, {
+      [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+    });
+
+    expect(result.transferId).to.equal('tx-1');
+    expect(harness.sendTransactionStub.callCount).to.equal(1);
+  });
+
+  it('rejects exact-out input growth above the configured cap', async () => {
+    const harness = createExecuteHarness(
+      actionResponse({
+        amountInMax: {
+          chainId: 1,
+          address: FROM_TOKEN,
+          amount: '1005001',
         },
       }),
     );
@@ -1082,6 +1108,33 @@ describe('SwapsXyzBridge.execute', () => {
 
     expect(error.message).to.include('fresh input');
     expect(error.message).to.include('accepted input cap');
+    expect(harness.sendTransactionStub.callCount).to.equal(0);
+  });
+
+  it('rejects refreshed quote loss above the configured maximum', async () => {
+    const harness = createExecuteHarness(
+      actionResponse({
+        amountInMax: {
+          chainId: 1,
+          address: FROM_TOKEN,
+          amount: '1000001',
+        },
+      }),
+      { maxQuoteLossBps: 50 },
+    );
+    const exactOutQuote = bridgeQuote(
+      quoteParams({ fromAmount: undefined, toAmount: 995_000n }),
+    );
+
+    const error = await captureError(
+      harness.bridge.execute(exactOutQuote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      }),
+    );
+
+    expect(error.message).to.include(
+      'quote loss 51 bps exceeds configured maximum 50 bps',
+    );
     expect(harness.sendTransactionStub.callCount).to.equal(0);
   });
 
