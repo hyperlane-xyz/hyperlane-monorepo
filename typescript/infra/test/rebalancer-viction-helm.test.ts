@@ -92,7 +92,7 @@ describe('ETH Viction production manifest', () => {
       'optimism',
       'robinhood',
     ]);
-    for (const chain of ['arbitrum', 'base', 'ethereum', 'optimism']) {
+    for (const chain of ['arbitrum', 'base', 'ethereum']) {
       expect(runtime.strategy.chains[chain].weighted).to.deep.equal({
         weight: 19,
         tolerance: 5,
@@ -102,8 +102,16 @@ describe('ETH Viction production manifest', () => {
           .bridgeMinAcceptedAmount,
       ).to.equal(0.1);
     }
+    expect(runtime.strategy.chains.optimism.weighted).to.deep.equal({
+      weight: 15,
+      tolerance: 5,
+    });
+    expect(
+      runtime.strategy.chains.optimism.override.robinhood
+        .bridgeMinAcceptedAmount,
+    ).to.equal(0.1);
     expect(runtime.strategy.chains.robinhood.weighted).to.deep.equal({
-      weight: 4,
+      weight: 8,
       tolerance: 5,
     });
     expect(runtime.strategy.chains.robinhood.bridgeMinAcceptedAmount).to.equal(
