@@ -1,7 +1,7 @@
 {
   "chains": {
     "arbitrum": {
-      "aggregationHook": "0x5A477c362106FC6E25785C4C611fB8c27CA3140f",
+      "aggregationHook": "0x8198284e3BDb1CB929e4bC013F4967263BEe31f3",
       "blockExplorers": [
         {
           "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
@@ -58,7 +58,7 @@
           "http": "https://arbitrum-one-rpc.publicnode.com"
         }
       ],
-      "staticAggregationHookFactory": "0x47113936706B3FfF21a14807A93cc3ab8C76bff8",
+      "staticAggregationHookFactory": "0x7734502F9417a1e26780c95AF1B95a4808482Ce7",
       "staticAggregationIsm": "0x96845a0469363f90779f6D5cd49D79bDDAc69429",
       "staticAggregationIsmFactory": "0xD4883084389fC1Eeb4dAfB2ADcFc36B711c310EB",
       "staticMerkleRootMultisigIsmFactory": "0x3C330D4A2e2b8443AFaB8E326E64ab4251B7Eae0",
@@ -72,10 +72,12 @@
       "staticMerkleRootWeightedMultisigIsmFactory": "0xb5163440d5EBbdC23bC7A091466EB5a621093BFe",
       "staticMessageIdWeightedMultisigIsmFactory": "0x01c0752455282BC139A325e479c6121E060a7bBd",
       "quotedCalls": "0xBfdB4056C49680dd54eedEf22C7F48308140a2a2",
-      "universalRouter": "0x52dd779c1b5eeb54d5f218EfA72D52117ca04115"
+      "universalRouter": "0x52dd779c1b5eeb54d5f218EfA72D52117ca04115",
+      "interchainAccountRouterV3": "0xa0F62E4a4597471AA6FaC829aCA3c468EA751C3C",
+      "quotedCallsV3": "0xF1554e44fe5cCc11844b92e5146648bD05E0CD67"
     },
     "avalanche": {
-      "aggregationHook": "0x9d801C447cDE0fb79F4EFa15aA2eE123021347DF",
+      "aggregationHook": "0x06088cC84ee4Ce9D4ef5e5d7484F782F2d618BD8",
       "blockExplorers": [
         {
           "apiKey": "NIF3616T2AP6EHYWIHJEKR1HCMA2K7D96X",
@@ -139,7 +141,7 @@
           }
         }
       ],
-      "staticAggregationHookFactory": "0xcae1ed52e7914B4b89c4E49a9d5bdF7425E69252",
+      "staticAggregationHookFactory": "0x18b2d41fBF9d74E5002A8F59b7e98d01CD7C0e2a",
       "staticAggregationIsm": "0xe7a61510EA7197281b49e5bdf1798608d5132595",
       "staticAggregationIsmFactory": "0xa5E13796eB7d2EDCc88012c8cfF90D69B51FcF9f",
       "staticMerkleRootMultisigIsmFactory": "0x896cF1D1B66cD211633eDd589fF158E8Cfaf9B54",
@@ -152,10 +154,12 @@
       "staticMerkleRootWeightedMultisigIsmFactory": "0xEdF170Da58598955e9a63DA43885842108969129",
       "staticMessageIdWeightedMultisigIsmFactory": "0xf44bae1e60bD5B895B2c5bAfF26C49B7e324E36C",
       "technicalStack": "other",
-      "quotedCalls": "0xBbACDe54180D309748Ef9326EA4951A64C05260F"
+      "quotedCalls": "0xBbACDe54180D309748Ef9326EA4951A64C05260F",
+      "interchainAccountRouterV3": "0x897852bAA990F58BfEC5a94F3eb4Ba98a9F57E3d",
+      "quotedCallsV3": "0x669E4Ba5a4bA3Ec4880f4e4A6A5FD9d367961443"
     },
     "base": {
-      "aggregationHook": "0x08Aa6263078ddC6139F8EAB59D838C17bf555e93",
+      "aggregationHook": "0xb8b39adCE5359B6d47cC0346CEb0Aa7d66346DF4",
       "blockExplorers": [
         {
           "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
@@ -236,7 +240,7 @@
           "http": "https://base-rpc.publicnode.com"
         }
       ],
-      "staticAggregationHookFactory": "0x4f0547800Db0a2427F7367960dc331f8Cbe2e270",
+      "staticAggregationHookFactory": "0x3bDcde749046eDd683233bb1Da476a965Ff3cE11",
       "staticAggregationIsm": "0x77bE0b5aE400675063Ce2B2B0d692D9341f4b193",
       "staticAggregationIsmFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
       "staticMerkleRootMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
@@ -253,7 +257,9 @@
       "ccipIsm_mode": "0x2d0092538AB16c996D8E60b10B015Cd83616334D",
       "ccipIsm_optimism": "0xe588450a425FC74D464A710306DFaB9Fc2B8De0a",
       "quotedCalls": "0xa9f0a79433Cd2A0c483586C8c50627577f16F16e",
-      "universalRouter": "0x52dd779c1b5eeb54d5f218EfA72D52117ca04115"
+      "universalRouter": "0x52dd779c1b5eeb54d5f218EfA72D52117ca04115",
+      "interchainAccountRouterV3": "0x0CA10C09Cad7aFE01619a4a9acDF6481938258C4",
+      "quotedCallsV3": "0x220aA00D74C97D4f9a6d1fD5bDecA0793683D3Ad"
     },
     "blast": {
       "aggregationHook": "0x48344fADD6fd2403729F073e570BE0f47605aDAf",
@@ -337,7 +343,7 @@
       }
     },
     "bob": {
-      "aggregationHook": "0xC3FfF5036FcFf823F329dFDcE4AfaacDB83C932E",
+      "aggregationHook": "0x94eA3Da34a3eB12e4A6d7B8B13301186656Ed258",
       "blockExplorers": [
         {
           "apiUrl": "https://explorer.gobob.xyz/api",
@@ -387,7 +393,7 @@
           "http": "https://rpc.gobob.xyz"
         }
       ],
-      "staticAggregationHookFactory": "0xC6dD93193520dFD0894d482b4B1fcf4567C23c2e",
+      "staticAggregationHookFactory": "0xE0A6b47615Dfe72d86f636b8Ef59b693B8660Bd5",
       "staticAggregationIsm": "0x132280A4110A22Cf2D7279AD33d875b445793948",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -399,10 +405,12 @@
       "validatorAnnounce": "0x7E27456a839BFF31CA642c060a2b68414Cb6e503",
       "staticMerkleRootWeightedMultisigIsmFactory": "0xb89c6ED617f5F46175E41551350725A09110bbCE",
       "staticMessageIdWeightedMultisigIsmFactory": "0xa2401b57A8CCBF6AbD9b7e62e28811b2b523AB2B",
-      "quotedCalls": "0x29D438579f1cFB6f9a5161d828c89Ccd82dd8cB5"
+      "quotedCalls": "0x29D438579f1cFB6f9a5161d828c89Ccd82dd8cB5",
+      "interchainAccountRouterV3": "0xdd51B4FD7841aD8A8932b565D20aC718B46AA699",
+      "quotedCallsV3": "0xB5D852aE1c7641412fdaEd77bD44b1398785Abf7"
     },
     "bsc": {
-      "aggregationHook": "0x21eAB98931d66078fEdb538071e96a7a1c41C041",
+      "aggregationHook": "0x413142D9F6EF7D71fd38bFB9Fa2e16f8C97584E9",
       "blockExplorers": [
         {
           "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
@@ -460,7 +468,7 @@
           "http": "https://bsc.rpc.blxrbdn.com"
         }
       ],
-      "staticAggregationHookFactory": "0x73AC2db1efB07A3432a2A1128e40a63DA149351f",
+      "staticAggregationHookFactory": "0x1025556af0D3b7617fFFf2042f4358A540A71356",
       "staticAggregationIsm": "0xfA360ff588623A026BF19A1801F2A8F1f045fa33",
       "staticAggregationIsmFactory": "0x38B3878c4fb44d201DA924c4a04bae3EE728c065",
       "staticMerkleRootMultisigIsmFactory": "0xfADBc81Ca8A957F1Bf7c78bCc575b28DBDE042b6",
@@ -475,12 +483,14 @@
       "technicalStack": "other",
       "quotedCalls": "0xAD8C3E1fE3C7deeDdA1A79A9a6A64607A65eD456",
       "universalRouter": "0x52dd779c1b5eeb54d5f218EfA72D52117ca04115",
+      "interchainAccountRouterV3": "0xCaf629Ec0619431066263Ed295D05BF67eF1d017",
+      "quotedCallsV3": "0x292e9695Bc11Dd6C975C0655991725BC7036f8c2",
       "transactionOverrides": {
         "gasPrice": 100000000
       }
     },
     "celo": {
-      "aggregationHook": "0x882d716DEcbBE605bb3702020B099c93572de5FB",
+      "aggregationHook": "0x18c6F3D79E207e480dA10ff011bB1A80C22C4752",
       "blockExplorers": [
         {
           "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
@@ -543,7 +553,7 @@
           "http": "https://celo.drpc.org"
         }
       ],
-      "staticAggregationHookFactory": "0x74d8B39DBc170da3e86e5709b82EAFfa16098715",
+      "staticAggregationHookFactory": "0xf27805140C3f732E1BfEfd3f9d00a3B2ea8A5fD8",
       "staticAggregationIsm": "0x99e8E56Dce3402D6E09A82718937fc1cA2A9491E",
       "staticAggregationIsmFactory": "0x1722dd970a1F56040712129f5Eeb76B003fd7500",
       "staticMerkleRootMultisigIsmFactory": "0x4C96a1abc44dc846775CE702C9E9BE821D3b487c",
@@ -556,7 +566,9 @@
       "staticMerkleRootWeightedMultisigIsmFactory": "0x0f05deB9c5931c3F87209674B6d4c6df74F6DCBc",
       "staticMessageIdWeightedMultisigIsmFactory": "0x58924b11A3B03D533192Dd5a92bc358F5a970E34",
       "technicalStack": "opstack",
-      "quotedCalls": "0x6b6bA75975081C007FeDD29e77394C575d8B4333"
+      "quotedCalls": "0x6b6bA75975081C007FeDD29e77394C575d8B4333",
+      "interchainAccountRouterV3": "0xe83D505e97ec8329fb36391c7A3A97c9ed84eAc6",
+      "quotedCallsV3": "0x5A154E4b087FD359E58A716a6242A8fE1E57FAA2"
     },
     "eclipsemainnet": {
       "blockExplorers": [
@@ -606,7 +618,7 @@
       "technicalStack": "other"
     },
     "ethereum": {
-      "aggregationHook": "0x3d166d2424e47747D81bd71A305A8aee23d33397",
+      "aggregationHook": "0xFB5E9B5d515523E33Be8fF049F7F5D918Ca4EAE9",
       "blockExplorers": [
         {
           "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
@@ -681,7 +693,7 @@
           "http": "https://eth-pokt.nodies.app"
         }
       ],
-      "staticAggregationHookFactory": "0x8E0c6231F36cb081ccBcae5810C1793268D6CA7C",
+      "staticAggregationHookFactory": "0x0F280D3EF65b330e733E764004Bbbc85C6d642d6",
       "staticAggregationIsm": "0x5447cdC0f4B1Afd827BF9d2F6b6cE7668d5dc284",
       "staticAggregationIsmFactory": "0x46FA191Ad972D9674Ed752B69f9659A0d7b22846",
       "staticMerkleRootMultisigIsmFactory": "0x47e8aF9e30C32Ab91060ED587894288786761B45",
@@ -695,10 +707,12 @@
       "staticMessageIdWeightedMultisigIsmFactory": "0x4272124Fba59CbA076D85375895f94B6a3485c3E",
       "technicalStack": "other",
       "quotedCalls": "0xe38E2E3B4d9Aef4556e62e4D2B1e6Fc155bCc985",
-      "universalRouter": "0x52dd779c1b5eeb54d5f218EfA72D52117ca04115"
+      "universalRouter": "0x52dd779c1b5eeb54d5f218EfA72D52117ca04115",
+      "interchainAccountRouterV3": "0xD61F078592CeD81449a7405d837Ff1B963b830EA",
+      "quotedCallsV3": "0x7411773a3Fe643CAc5F3af5794dF7D1BdC24a670"
     },
     "fraxtal": {
-      "aggregationHook": "0x96F30f1c79bC2905e5dFac6e8A3E5CD82A301a10",
+      "aggregationHook": "0xa37d61cda0De8096F03d08897Bb1c43E654bdc32",
       "blockExplorers": [
         {
           "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
@@ -758,7 +772,7 @@
           "http": "https://fraxtal.drpc.org"
         }
       ],
-      "staticAggregationHookFactory": "0xcd2c99548e2ee3E68D886f9d15E45CDAAfe8479b",
+      "staticAggregationHookFactory": "0x559ca0A74521EFDcCABa1216904622dC1e7d4E52",
       "staticAggregationIsm": "0xcA26D50602efA9d835b01A142Ae218f59aa60433",
       "staticAggregationIsmFactory": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
       "staticMerkleRootMultisigIsmFactory": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
@@ -770,10 +784,12 @@
       "staticMerkleRootWeightedMultisigIsmFactory": "0x7947b7Fe737B4bd1D3387153f32148974066E591",
       "staticMessageIdWeightedMultisigIsmFactory": "0x1A41a365A693b6A7aED1a46316097d290f569F22",
       "technicalStack": "opstack",
-      "quotedCalls": "0x742d94092f5F81D6bA6bF51115bA6b9bb08CBCE1"
+      "quotedCalls": "0x742d94092f5F81D6bA6bF51115bA6b9bb08CBCE1",
+      "interchainAccountRouterV3": "0xE81Fc09062261d873DE86225CAbA216676C19510",
+      "quotedCallsV3": "0xaFCC631C4c15438AD0F84F748FeDA83D4c024471"
     },
     "gnosis": {
-      "aggregationHook": "0xE32bc0f3FaDd23620B3945101f3BC3aFD41B30D5",
+      "aggregationHook": "0xe10811e7f951Da63A1525BeE7883D24bF2B8B96F",
       "blockExplorers": [
         {
           "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
@@ -828,7 +844,7 @@
           }
         }
       ],
-      "staticAggregationHookFactory": "0xa1eb15C59a493Ae00C90d42CD6fFfEEE686FF9f8",
+      "staticAggregationHookFactory": "0xcEaB42A992889aD5c462bf6c38813A78B90D98E7",
       "staticAggregationIsm": "0xe640167B9a283C8b4039fA33f3ac7be6e7E788c5",
       "staticAggregationIsmFactory": "0x11EF91d17c5ad3330DbCa709a8841743d3Af6819",
       "staticMerkleRootMultisigIsmFactory": "0x8E273260EAd8B72A085B19346A676d355740e875",
@@ -841,10 +857,12 @@
       "staticMerkleRootWeightedMultisigIsmFactory": "0xA37ce588515668632D9025272859D2E5bD3210BB",
       "staticMessageIdWeightedMultisigIsmFactory": "0x5B7365640c82F402C43A3961F3fD34Ae31f52931",
       "technicalStack": "other",
-      "quotedCalls": "0x0646E01B77e99Cca6BaE0D862f4105DD00a4C2C0"
+      "quotedCalls": "0x0646E01B77e99Cca6BaE0D862f4105DD00a4C2C0",
+      "interchainAccountRouterV3": "0x07e437d73E9E43CeECe6Ea14085b26159E3f7F31",
+      "quotedCallsV3": "0xe7ccd067C3E37f0cBc1D522cB3ce0A49994b02c9"
     },
     "linea": {
-      "aggregationHook": "0x55A457c36Eea28Fa12690B41B1B9aefF6470062A",
+      "aggregationHook": "0x5BF21592356DA9b4EF92d0624fcdd49dB0a3e324",
       "blockExplorers": [
         {
           "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
@@ -907,7 +925,7 @@
           "http": "https://linea.drpc.org"
         }
       ],
-      "staticAggregationHookFactory": "0x67eB139588813Eb311C539Ac51C2638f3A318Ba7",
+      "staticAggregationHookFactory": "0x981fdCE0A10Fa80F0bc27922f152449f2bC98810",
       "staticAggregationIsm": "0xF8aD4EB8aBA13ae546B8D01501c63e4543Ff0660",
       "staticAggregationIsmFactory": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
       "staticMerkleRootMultisigIsmFactory": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
@@ -919,7 +937,9 @@
       "staticMerkleRootWeightedMultisigIsmFactory": "0x11df2f96bC60DfE5A2ab193AD0FCC0a0336F22d0",
       "staticMessageIdWeightedMultisigIsmFactory": "0xb0772086edF20278501bb2aF8D8efDe4B71C73Ce",
       "technicalStack": "other",
-      "quotedCalls": "0x9a5eEF9010ea9C3418dc01B1b92da3cA3D5ca03C"
+      "quotedCalls": "0x9a5eEF9010ea9C3418dc01B1b92da3cA3D5ca03C",
+      "interchainAccountRouterV3": "0x4974e1e9576BC4381d3368A0eB6Ef82E24c8b495",
+      "quotedCallsV3": "0xdf78607Cc222Ef72D803000bD7c05A80f22B2f9b"
     },
     "lisk": {
       "aggregationHook": "0xE0246dCE9AED31111147e58281Ff68e93234C270",
@@ -999,7 +1019,7 @@
       }
     },
     "lukso": {
-      "aggregationHook": "0x704531b3E0029166F711BBf9d65269c8615a6e91",
+      "aggregationHook": "0xCdc658e149534058B2d7798807571205cA6763f9",
       "blockExplorers": [
         {
           "apiUrl": "https://explorer.execution.mainnet.lukso.network/api",
@@ -1053,7 +1073,7 @@
           "http": "https://public-lukso.nownodes.io"
         }
       ],
-      "staticAggregationHookFactory": "0x71774316DB85BCb9bc064948Df27E9F3A4F58500",
+      "staticAggregationHookFactory": "0x5E1A51C5654f55666E488c0d433bD180554548a7",
       "staticAggregationIsm": "0x51C6A5106EF680d11e8fD9EE1d090c07fdaD2e3D",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -1066,10 +1086,12 @@
       "interchainAccountRouter": "0x7e0956bfEE5C4dEAd8Ced283C934299998100362",
       "timelockController": "0x0000000000000000000000000000000000000000",
       "technicalStack": "other",
-      "quotedCalls": "0x15192f22EF723818d1c441534a0DbF5940b2ad5b"
+      "quotedCalls": "0x15192f22EF723818d1c441534a0DbF5940b2ad5b",
+      "interchainAccountRouterV3": "0x324d0b921C03b1e42eeFD198086A64beC3d736c2",
+      "quotedCallsV3": "0x9BDE12A2496488feb5602047305F7904CB58A7b5"
     },
     "mantle": {
-      "aggregationHook": "0x02eBB3E94a765c908CA113e7ABd5052EDC0207A4",
+      "aggregationHook": "0x38525f887080D460Cd1Fb3C3803C100DE0aBBAAD",
       "blockExplorers": [
         {
           "apiUrl": "https://explorer.mantle.xyz/api",
@@ -1125,7 +1147,7 @@
           "http": "https://rpc.mantle.xyz"
         }
       ],
-      "staticAggregationHookFactory": "0xB29A5072baEbA9eC800307bBc51a5EF4A7Da3Fb9",
+      "staticAggregationHookFactory": "0x9c9B161ceA2b66DaD31606C621E610F1f3CD4c55",
       "staticAggregationIsm": "0xeacA9Ff0Cc6dBFc541c567deD2Fc46bA2012b4a9",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -1137,7 +1159,9 @@
       "validatorAnnounce": "0x1956848601549de5aa0c887892061fA5aB4f6fC4",
       "staticMerkleRootWeightedMultisigIsmFactory": "0xAAeb91195C025C9D35F8FF70e13049D8cD25703D",
       "staticMessageIdWeightedMultisigIsmFactory": "0x7eFF14440AbE077dBb05C7668079Bc1cD2CD9bd0",
-      "quotedCalls": "0xF1a6A7827E57681E3930B799Ba07a75D990D7A5A"
+      "quotedCalls": "0xF1a6A7827E57681E3930B799Ba07a75D990D7A5A",
+      "interchainAccountRouterV3": "0xEBFB57004702AFB2565ef3179091C4237Ce79fA6",
+      "quotedCallsV3": "0xbf14ed04d598BF4e78F5F2154F2388b24CAcb7eA"
     },
     "metis": {
       "aggregationHook": "0xeA0750A30369403db665844661E1390E0Ce49e15",
@@ -1207,10 +1231,11 @@
       "staticMessageIdWeightedMultisigIsmFactory": "0xb129828B9EDa48192D0B2db35D0E40dCF51B3594",
       "interchainAccountRouter": "0x04Bd82Ba84a165BE5D555549ebB9890Bb327336E",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "quotedCalls": "0xC6dD93193520dFD0894d482b4B1fcf4567C23c2e"
+      "quotedCalls": "0xC6dD93193520dFD0894d482b4B1fcf4567C23c2e",
+      "interchainAccountRouterV3": "0x0ba86A1d6E54F69781B962Fa9356C8dB9Af9EF72"
     },
     "mode": {
-      "aggregationHook": "0x5abdb28134Ec9FE3fc4943F7fb4CbDeF0141f1b4",
+      "aggregationHook": "0xea5D6e42DD913fD7f1529c95f07Dbf15950B9132",
       "blockExplorers": [
         {
           "apiUrl": "https://explorer.mode.network/api",
@@ -1269,7 +1294,7 @@
           "http": "https://mode.drpc.org"
         }
       ],
-      "staticAggregationHookFactory": "0xd82644942C748cdaA323FC9A7D1ef3975AEf1ddA",
+      "staticAggregationHookFactory": "0x555effd423E365374c5278F16E801B93736Be0CD",
       "staticAggregationIsm": "0x6BdA2074b7edCE8c4e4cD3D35517267468Aed93F",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -1285,10 +1310,12 @@
       "ccipHook_optimism": "0x3dF295A7821019D36C7AfBE50aaAEa77A51C164F",
       "ccipIsm_base": "0x97a2b2A4B3EA08487871CF494B4C5fe6fE0B5f67",
       "ccipIsm_optimism": "0x7103e5805D82912C5D9A081191dfA8d6F91139ae",
-      "quotedCalls": "0x0409ECc7960470E66814Ab235391da243a62bD31"
+      "quotedCalls": "0x0409ECc7960470E66814Ab235391da243a62bD31",
+      "interchainAccountRouterV3": "0x88B8426544938a6390B3B426A992f30D1d22a947",
+      "quotedCallsV3": "0xd7e74A3834758bC0d3f9639D4a8eD9eC837C17Ff"
     },
     "optimism": {
-      "aggregationHook": "0xb959001ec9706d56fC7787e126caC2Ad3a7158a7",
+      "aggregationHook": "0x80A80c6719f80fE2Ae557910Eb0008f9f6150352",
       "blockExplorers": [
         {
           "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
@@ -1360,7 +1387,7 @@
           "http": "https://op-pokt.nodies.app"
         }
       ],
-      "staticAggregationHookFactory": "0xb0464AE267dbD8b0c611D7768Cd658d4c39b54d6",
+      "staticAggregationHookFactory": "0x7e5D0Df7401aa7c63B767542693a2D03db761B10",
       "staticAggregationIsm": "0xdF6316DF574974110DCC94BB4E520B09Fe3CbEf9",
       "staticAggregationIsmFactory": "0x7491843F3A5Ba24E0f17a22645bDa04A1Ae2c584",
       "staticMerkleRootMultisigIsmFactory": "0xCA6Cb9Bc3cfF9E11003A06617cF934B684Bc78BC",
@@ -1378,10 +1405,12 @@
       "ccipIsm_base": "0x9E14846655d56fd8Bd08ac977e489AbDe2297aAB",
       "ccipIsm_mode": "0x859295c13ED98785715a177539db2B040866E909",
       "quotedCalls": "0x7C03e17eEDE243913E126D620f4c10Fe4E104245",
-      "universalRouter": "0x52dd779c1b5eeb54d5f218EfA72D52117ca04115"
+      "universalRouter": "0x52dd779c1b5eeb54d5f218EfA72D52117ca04115",
+      "interchainAccountRouterV3": "0x735df1b783D3AC4B103c3BDC82ed08cCbB6968a9",
+      "quotedCallsV3": "0xdf2e98958b318AB70816F624fdc2A08E7dBAE183"
     },
     "polygon": {
-      "aggregationHook": "0xC120b70D088b1F27F4bE61f0d84354B9C4f3794A",
+      "aggregationHook": "0xF39411015139761670dFADC54Ace0fe33fA01053",
       "blockExplorers": [
         {
           "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
@@ -1438,7 +1467,7 @@
           "http": "https://polygon.gateway.tenderly.co"
         }
       ],
-      "staticAggregationHookFactory": "0xF30E3d79F8B9520Fc53454cf43bB2D90Cd65e066",
+      "staticAggregationHookFactory": "0xDB9E41699F5DBB5502d18dde33Dc77EC7E16C98d",
       "staticAggregationIsm": "0xe289bD204Dbb4F3aaFA27Dbe5751C71e101CFD80",
       "staticAggregationIsmFactory": "0x81AdDD9Ca89105063DaDEBd5B4408551Ce850E22",
       "staticMerkleRootMultisigIsmFactory": "0xa9E0E18E78b098c2DE36c42E4DDEA13ce214c592",
@@ -1452,7 +1481,9 @@
       "staticMessageIdWeightedMultisigIsmFactory": "0x9e22945bE593946618383B108CC5bce09eBA4C26",
       "technicalStack": "other",
       "quotedCalls": "0x74e134E2b52f126336fa2C50B01357DabCA3d636",
-      "universalRouter": "0x52dd779c1b5eeb54d5f218EfA72D52117ca04115"
+      "universalRouter": "0x52dd779c1b5eeb54d5f218EfA72D52117ca04115",
+      "interchainAccountRouterV3": "0x386591e7a270a7f354832D0786c8ccb21C041033",
+      "quotedCallsV3": "0x34BcA2e2b1ba1Aa86D7488584aDfa142618B6804"
     },
     "solanamainnet": {
       "blockExplorers": [
@@ -1578,10 +1609,11 @@
       "validatorAnnounce": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9",
       "staticMerkleRootWeightedMultisigIsmFactory": "0x766fc1d3F6CFAE5A06Fe8D6b65a3012401Bd36Ba",
       "staticMessageIdWeightedMultisigIsmFactory": "0x9f4012ba9368FBb95F56c2Fc2D956df803D8779e",
-      "technicalStack": "other"
+      "technicalStack": "other",
+      "interchainAccountRouterV3": "0xf0D8AD809bA06FBC05aA660bd257836b7D0F37c2"
     },
     "worldchain": {
-      "aggregationHook": "0x8c84184a153375d1f545E81C463FD4DBdeB8B24B",
+      "aggregationHook": "0x3eE1b5F368A756859367262de077Ab80d9a9C05C",
       "blockExplorers": [
         {
           "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
@@ -1643,7 +1675,7 @@
           "http": "https://worldchain-mainnet.g.alchemy.com/public"
         }
       ],
-      "staticAggregationHookFactory": "0x0643a968Fb44EDfEbB1BdA2Dcf0DD44E876c25B4",
+      "staticAggregationHookFactory": "0xb6cb80E72288Faa2a5B34d7e505b1F94c2EB8537",
       "staticAggregationIsm": "0xD3bd8f20e169364d14c7dBFE698258D780FC71e3",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -1656,10 +1688,12 @@
       "staticMessageIdWeightedMultisigIsmFactory": "0x9024A3902B542C87a5C4A2b3e15d60B2f087Dc3E",
       "technicalStack": "opstack",
       "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/wc",
-      "quotedCalls": "0xB6299B73B4043549943315700b1E51edC9F39abC"
+      "quotedCalls": "0xB6299B73B4043549943315700b1E51edC9F39abC",
+      "interchainAccountRouterV3": "0x93ca0d85837FF83158Cd14D65B169CdB223b1921",
+      "quotedCallsV3": "0xbf4C2A04E81Fb40fF022eA7DD7e66002ED49a6bb"
     },
     "xlayer": {
-      "aggregationHook": "0xFA33A7786c67c5FDB6DC71E9D4e65293C62a047A",
+      "aggregationHook": "0xf931dfA05fEf78490cf08594Ab26347dBA88c96a",
       "blockExplorers": [
         {
           "apiUrl": "https://www.oklink.com/api",
@@ -1714,7 +1748,7 @@
           "http": "https://rpc.xlayer.tech"
         }
       ],
-      "staticAggregationHookFactory": "0x33Ef006E7083BB38E0AFe3C3979F4e9b84415bf1",
+      "staticAggregationHookFactory": "0x6001f111309EF2421213b3bC3e18213C8F2b03BB",
       "staticAggregationIsm": "0xD3bd8f20e169364d14c7dBFE698258D780FC71e3",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -1726,7 +1760,9 @@
       "staticMerkleRootWeightedMultisigIsmFactory": "0x168DFF0Ad2b180F3801883Fe5Ae56d7E7d91D5f4",
       "staticMessageIdWeightedMultisigIsmFactory": "0x6Fb36672365C7c797028C400A61c58c0ECc53cD2",
       "technicalStack": "polygoncdk",
-      "quotedCalls": "0x3127e69517ec2268DD5745c97194D387a4Fc0C45"
+      "quotedCalls": "0x3127e69517ec2268DD5745c97194D387a4Fc0C45",
+      "interchainAccountRouterV3": "0x9BAE02325aFd9e27E9121C7f4b1b27db321437fe",
+      "quotedCallsV3": "0xb4fdcD344ab1c1c0b28494Fdd0E40006887D9B0e"
     },
     "apechain": {
       "blockExplorers": [
@@ -1773,7 +1809,7 @@
         }
       ],
       "technicalStack": "arbitrumnitro",
-      "aggregationHook": "0xCd232d3c5aDD5E7CF896B242ca61D1e8f2069dCA",
+      "aggregationHook": "0xEa1e0f4149f917708aba319b9378b022B5430198",
       "domainRoutingIsm": "0xDEed16fe4b1c9b2a93483EDFf34C77A9b57D31Ff",
       "domainRoutingIsmFactory": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
       "fallbackRoutingHook": "0xD0dca420feFda68537695A8D887080eeF4030AF7",
@@ -1786,7 +1822,7 @@
       "pausableIsm": "0x5090dF2FBDa7127c7aDa41f60B79F5c55D380Dd8",
       "protocolFee": "0x61374178e45F65fF9D6252d017Cd580FC60B7654",
       "proxyAdmin": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "staticAggregationHookFactory": "0xFb14C0EcA994334fF16b2cd58Aade07E08B092f7",
+      "staticAggregationHookFactory": "0x819b9E7D55E2E679d02d023559cB9d583F427078",
       "staticAggregationIsm": "0x9FF3f38DED52D74EF4b666A7A09BcB5F38d6D272",
       "staticAggregationIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "staticMerkleRootMultisigIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
@@ -1797,7 +1833,9 @@
       "testRecipient": "0x783EC5e105234a570eB90f314284E5dBe53bdd90",
       "timelockController": "0x0000000000000000000000000000000000000000",
       "validatorAnnounce": "0xcDA455DfD9C938451BfaFC6FF0D497c8C0469C96",
-      "quotedCalls": "0x27A43305C387b464F47D7feC179DF028fF6c1188"
+      "quotedCalls": "0x27A43305C387b464F47D7feC179DF028fF6c1188",
+      "interchainAccountRouterV3": "0x24a0d27E0058FFb4d1BCE13CF7d51122d6500698",
+      "quotedCallsV3": "0x8B0826b3F8e1bd3522fafEa9c73AE58108B97B60"
     },
     "metal": {
       "blockExplorers": [
@@ -1838,7 +1876,7 @@
         }
       ],
       "technicalStack": "opstack",
-      "aggregationHook": "0x2E08c2f99eC50226779dcf5BF14FB86d9FdB6d6d",
+      "aggregationHook": "0x4e2d65B030291F23F52F7BB50469386F1a45D50b",
       "domainRoutingIsm": "0x3F525c2bf9e2Ffc54D64B883FD960FD04874D2D1",
       "domainRoutingIsmFactory": "0x34b67302583A8Faa7c490A2D85463838D3045ce6",
       "fallbackRoutingHook": "0x50141343265C6f84315E5B27D64f1229AC86645F",
@@ -1851,7 +1889,7 @@
       "pausableIsm": "0xb758e4dDE95fd7C323914c5B634D25fCb0316Ba1",
       "protocolFee": "0x2f536FB7a37bd817Af644072a904Ddc02Dae429f",
       "proxyAdmin": "0x7C012DCA02C42cfA3Fd7Da3B0ED7234B52AE68eF",
-      "staticAggregationHookFactory": "0x6D2555A8ba483CcF4409C39013F5e9a3285D3C9E",
+      "staticAggregationHookFactory": "0x51845141816656a0cDC1c0755DD18Ff99d484E33",
       "staticAggregationIsm": "0xe05Bac82CeC0Ee8c66a29E37108E319A3B993539",
       "staticAggregationIsmFactory": "0xC4275763D7b621eb732847957012F1fb35C90BB8",
       "staticMerkleRootMultisigIsmFactory": "0x04bfb04fcC1C7A5B605C5fae444aC43ac0DdaC77",
@@ -1866,7 +1904,9 @@
         "from": 9688791
       },
       "gnosisSafeTransactionServiceUrl": "https://metall2.superchain.safe.protofire.io",
-      "quotedCalls": "0x83D0777BD987fD199BCa82Ce804F626e35BE97b0"
+      "quotedCalls": "0x83D0777BD987fD199BCa82Ce804F626e35BE97b0",
+      "interchainAccountRouterV3": "0xE17c770e3088159DdA6348eD359BC8b50E827716",
+      "quotedCallsV3": "0xbD23F5C4dd03877d02551754Fc699d4A8A1b9260"
     },
     "unichain": {
       "blockExplorers": [
@@ -1910,7 +1950,7 @@
         }
       ],
       "technicalStack": "opstack",
-      "aggregationHook": "0x41672Dc6d859F8B67b199169d98B51c035aFcEBf",
+      "aggregationHook": "0x8D96415F039b6Da0b419c318cb52ca9307b5c5d0",
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "fallbackRoutingHook": "0x0D3bD9F1bcDA82bD1682b2C895a907d7aaE45849",
@@ -1923,7 +1963,7 @@
       "pausableIsm": "0xc5D6aCaafBCcEC6D7fD7d92F4509befce641c563",
       "protocolFee": "0x99fEFc1119E86Ee0153eb887cF8E8ab2d92A16e8",
       "proxyAdmin": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "staticAggregationHookFactory": "0x4ebFf55508394eCd6A76D4a882cff9302487E631",
+      "staticAggregationHookFactory": "0x04923dA57DC8972a0e0E5982CdCEA202f14a7Ec3",
       "staticAggregationIsm": "0x46De8b87577624b9ce63201238982b95ad0d7Ea4",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -1939,7 +1979,9 @@
       },
       "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/unichain",
       "quotedCalls": "0x1E217DdF98085fb539F29bdD5646012598B2a068",
-      "universalRouter": "0x52dd779c1b5eeb54d5f218EfA72D52117ca04115"
+      "universalRouter": "0x52dd779c1b5eeb54d5f218EfA72D52117ca04115",
+      "interchainAccountRouterV3": "0xdDD298Ea39b5ceeF321Ad12a8B506eDf68fBA068",
+      "quotedCallsV3": "0x1DF74E228D27ECdf5532800B4b688959A7E15EDE"
     },
     "ink": {
       "blockExplorers": [
@@ -1982,7 +2024,7 @@
         }
       ],
       "technicalStack": "opstack",
-      "aggregationHook": "0xF23d560487C810b8F72f512d3429308a78E0DFA9",
+      "aggregationHook": "0xa7E048F5a6D6ec90587360bC8f961E4e0236Fc85",
       "domainRoutingIsm": "0xDEed16fe4b1c9b2a93483EDFf34C77A9b57D31Ff",
       "domainRoutingIsmFactory": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
       "fallbackRoutingHook": "0x1c6f404800bA49Ed581af734eA0d25c0c7d017B2",
@@ -1995,7 +2037,7 @@
       "pausableIsm": "0xDc1508844B99C606E16C2Ae87f33c373edD4B0F6",
       "protocolFee": "0x84444cE490233CFa76E3F1029bc166aa8c266907",
       "proxyAdmin": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-      "staticAggregationHookFactory": "0xc67ABC50E7557609077E03e6aeA6834f3E4cf4cE",
+      "staticAggregationHookFactory": "0x75b59db05a46870Ac9aFeE1ebbAa961F5eDA0B55",
       "staticAggregationIsm": "0x9D68537eE6b1351fE22a0837e6aD522c526CA72e",
       "staticAggregationIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -2011,6 +2053,8 @@
       },
       "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/ink",
       "quotedCalls": "0x4d81d457d7B55059626F0e6629FD2B23eA336fab",
+      "interchainAccountRouterV3": "0x94D70cfB363473E719fDE7B36F2184717aa8EcaB",
+      "quotedCallsV3": "0x313b18228236bf89fc67cca152c62f1896eEa362",
       "transactionOverrides": {
         "minGasPrice": 1,
         "minFeePerGas": 1,
@@ -2052,7 +2096,7 @@
         }
       ],
       "technicalStack": "opstack",
-      "aggregationHook": "0x452d6D3D3b8C5E499cF33A13D2E301C6830b2353",
+      "aggregationHook": "0xD1c145c18a7e9f12f89a17ca119463d9f7cDD045",
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "fallbackRoutingHook": "0x2f0E57527Bb37E5E064EF243fad56CCE6241906c",
@@ -2065,7 +2109,7 @@
       "pausableIsm": "0xbed53B5C5BCE9433f25A2A702e6df13E22d84Ae9",
       "protocolFee": "0x5DdFCA27f9a308c1429A010C4daB291b5534a297",
       "proxyAdmin": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "staticAggregationHookFactory": "0xda143F3f2Aa792331F694CC4e316d72D0e560eCF",
+      "staticAggregationHookFactory": "0x1B2E638E2646a8d0F39a27Ef8AC84d08beBFa3fd",
       "staticAggregationIsm": "0x95cE3183137f906753463933C5dfDe777D2E7fE2",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -2080,7 +2124,9 @@
         "from": 612005
       },
       "gnosisSafeTransactionServiceUrl": "https://soneium.superchain.safe.protofire.io",
-      "quotedCalls": "0xF73f1De3b0F903c2D1c4BC6bE7ae60b97c1dcC92"
+      "quotedCalls": "0xF73f1De3b0F903c2D1c4BC6bE7ae60b97c1dcC92",
+      "interchainAccountRouterV3": "0xe715F279ADDBf537659342949225332CC15D32f8",
+      "quotedCallsV3": "0xFeeB86e70e4a640cDd29636CCE19BD6fe8628135"
     },
     "sonic": {
       "blockExplorers": [
@@ -2277,7 +2323,9 @@
       "storageGasOracle": "0x1cE4d0E16570C362feef85Ce2713555fCbd3dBC7",
       "testRecipient": "0xCDfE1782fDC9E74810D3B69E971d752bC4b4D6E6",
       "validatorAnnounce": "0x2235662a9a8ED39AE489aafb2feE13Db26f72044",
-      "gnosisSafeTransactionServiceUrl": "https://transaction.safe.abs.xyz"
+      "gnosisSafeTransactionServiceUrl": "https://transaction.safe.abs.xyz",
+      "interchainAccountRouterV3": "0x5b7f9d6441ab388139D38571f232729267d247E4",
+      "quotedCallsV3": "0x8cF6eA15688Fb35595ebFB63a18c937461C10d94"
     },
     "sonicsvm": {
       "blockExplorers": [
@@ -2359,7 +2407,7 @@
         }
       ],
       "technicalStack": "other",
-      "aggregationHook": "0x677dbE4787E82a12Ffd1D18baC688bE5E1190BD4",
+      "aggregationHook": "0xcF9d6bbFBcf02B6dBa3Dfc061AB656a978D60314",
       "domainRoutingIsm": "0x3A19eaBd25764c857b49FD350736E2b52Ec713a0",
       "domainRoutingIsmFactory": "0xF7af65596A16740b16CF755F3A43206C96285da0",
       "fallbackRoutingHook": "0x51545389E04c2Ac07d98A40b85d29B480a2AF6ce",
@@ -2372,7 +2420,7 @@
       "pausableIsm": "0xd386Bb418B61E296e1689C95AfE94A2E321a6eaD",
       "protocolFee": "0xA7d42B7a7603bEb87f84a1f3D5C97a033DFd2Cc9",
       "proxyAdmin": "0x82825C0884558C9c5A94B545e7563c95aBA49197",
-      "staticAggregationHookFactory": "0xFCfE7344d7a769C89B3A22c596fE83a1bF8458Da",
+      "staticAggregationHookFactory": "0xf99037c7387E1D09Ad0356D1f0a2dfF45913233A",
       "staticAggregationIsm": "0xf71D81021b751d222622bb77C3417dC24C5F7995",
       "staticAggregationIsmFactory": "0xBC9cd961BF6c224FAc51fb049aB6788e38e4A9C0",
       "staticMerkleRootMultisigIsmFactory": "0xCA41932888D323B3d99f5eA48F86D502055C0322",
@@ -2386,7 +2434,9 @@
       "index": {
         "from": 4821250
       },
-      "quotedCalls": "0xC15E9959c4f8A02Fc9C1fecA67d06Cfe8CAd5c05"
+      "quotedCalls": "0xC15E9959c4f8A02Fc9C1fecA67d06Cfe8CAd5c05",
+      "interchainAccountRouterV3": "0x7b0FB2E9bF9b34eec8e42e563664196B7Fef6CB9",
+      "quotedCallsV3": "0x39d3c2Cf646447ee302178EDBe5a15E13B6F33aC"
     },
     "hyperevm": {
       "blockExplorers": [
@@ -2430,7 +2480,7 @@
         }
       ],
       "technicalStack": "other",
-      "aggregationHook": "0x2e5C72F98EDe5F6C6DA3d6ED464e8949BfFf6B2f",
+      "aggregationHook": "0x9E226533793842cD281759a5a75FCB9399E03aAB",
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "fallbackRoutingHook": "0x5cD695ADCB156589cde501822C314bFD74398cA1",
@@ -2443,7 +2493,7 @@
       "pausableIsm": "0x7927B6fE8FA061c32CE3771d11076E6161DE5f52",
       "protocolFee": "0x8d7E604460E1133ebB91513a6D1024f3A3ca17F9",
       "proxyAdmin": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "staticAggregationHookFactory": "0xEcB04120AcEb67aB918E51b452914716E94d80C3",
+      "staticAggregationHookFactory": "0xAC2BE81884C66E6c05B80C05C907B54C74eA2C49",
       "staticAggregationIsm": "0x2963702D4539660Bb9Af77EC9c06ca46113825F0",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -2459,7 +2509,9 @@
         "from": 21196
       },
       "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/hyper",
-      "quotedCalls": "0xD0Fe4fBE41427B0A0F9aeFb4E0728e752aD398fC"
+      "quotedCalls": "0xD0Fe4fBE41427B0A0F9aeFb4E0728e752aD398fC",
+      "interchainAccountRouterV3": "0x5D0EE9Fe38469C9feCb5b9DB6178d56935E149Bc",
+      "quotedCallsV3": "0x2f767D57C97e5Af7E0d0997769D9EfB7bAa9F1D1"
     },
     "forma": {
       "batchContractAddress": "0x5ff205935F5b01859466B6b47A3aDD0d2C0E3310",
@@ -2584,7 +2636,8 @@
       "validatorAnnounce": "0xD233433AeC23F8382DAd87D808F60557Ea35399f",
       "index": {
         "from": 66586
-      }
+      },
+      "interchainAccountRouterV3": "0x4E5aa006BEAFDCCD96d95E9b46cC17AD96c22d13"
     },
     "kyve": {
       "bech32Prefix": "kyve",
@@ -2690,7 +2743,7 @@
         }
       ],
       "technicalStack": "polygoncdk",
-      "aggregationHook": "0x5278c2a1797480E232FA3A5845D877Cf25BB2f89",
+      "aggregationHook": "0xEBA1a8FB3797f7C5aed2B9bB67d10825f9324bbc",
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "fallbackRoutingHook": "0x5CBD4c5f9CD55747285652f815Cc7b9A2Ef6c586",
@@ -2703,7 +2756,7 @@
       "pausableIsm": "0xD233433AeC23F8382DAd87D808F60557Ea35399f",
       "protocolFee": "0xf50e2f7ff2D367fac0B90Be2564A096168801b2d",
       "proxyAdmin": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "staticAggregationHookFactory": "0xe7b37165f7bed72b3430304BE08c3E381b28521f",
+      "staticAggregationHookFactory": "0x4a3a1B9C7b37027bD26d47baD8886d8C31375a66",
       "staticAggregationIsm": "0x2bC70c865b5d59aA9EAD885930B4A36c4493A5da",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -2718,6 +2771,8 @@
         "from": 2289443
       },
       "quotedCalls": "0x90f9a2E9eCe93516d65FdaB726a3c62F5960a1b9",
+      "interchainAccountRouterV3": "0x530b6596af6B6aB4D355d7Af2b5FF12eAeef8261",
+      "quotedCallsV3": "0x6D6e6DDED88646Ed251BDefcf287a16f8BC0fCcB",
       "transactionOverrides": {
         "maxFeePerGas": 10000000,
         "maxPriorityFeePerGas": 10000000
@@ -2921,7 +2976,7 @@
         }
       ],
       "technicalStack": "arbitrumnitro",
-      "aggregationHook": "0x712150747dACDe9B6f8b2A166Ecbadcd55752723",
+      "aggregationHook": "0x3DF5029F64F40D423f144148dAE009ea0CD7d1a0",
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "fallbackRoutingHook": "0x0dc95Af5156fb0cC34a8c9BD646B748B9989A956",
@@ -2933,7 +2988,7 @@
       "pausableIsm": "0x0DbB60c348DF645c295Fd0ce26F87bB850710185",
       "protocolFee": "0x946E9f4540E032a9fAc038AE58187eFcad9DE952",
       "proxyAdmin": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "staticAggregationHookFactory": "0xa7028308Ff277DB5851a95d82ED5C5256bB721F2",
+      "staticAggregationHookFactory": "0x3320ED7956C2407D6345b278a47D5A61638eBf8A",
       "staticAggregationIsm": "0x44AE7f69Ca8c6EE978015f8b2C9008ee265bD12a",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -2944,7 +2999,9 @@
       "testRecipient": "0xc8826EA18D9884A1A335b2Cd7d5f44B159084301",
       "validatorAnnounce": "0x5b1A451c85e5bcCd79A56eb638aBd9998fA215f9",
       "interchainAccountRouter": "0x1fbcCdc677c10671eE50b46C61F0f7d135112450",
-      "quotedCalls": "0x7028C9A440fC2a3FaFD25d994289622CF7010784"
+      "quotedCalls": "0x7028C9A440fC2a3FaFD25d994289622CF7010784",
+      "interchainAccountRouterV3": "0x0ea059758dd067a6D54080EAb75D3aA0F8915eb1",
+      "quotedCallsV3": "0x0335b09De7206243592F2DBcb2D02a6A67ca160F"
     },
     "celestia": {
       "bech32Prefix": "celestia",
@@ -3048,7 +3105,7 @@
         }
       ],
       "technicalStack": "other",
-      "aggregationHook": "0x450D2D94BD6D077E7bc86864afC9b76d537Da089",
+      "aggregationHook": "0x17a8bbB7ea503Ca06f8A76c1930b2aFfCef8Cd0D",
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "fallbackRoutingHook": "0xEa2Bcee14eA30bbBe3018E5E7829F963230F71C3",
@@ -3061,7 +3118,7 @@
       "pausableIsm": "0xB2b0A80b2fa3fC9aB1564A4FaF013d4D6084B325",
       "protocolFee": "0x8D8979F2C29bA49FAb259A826D0271c43F70288c",
       "proxyAdmin": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "staticAggregationHookFactory": "0x1c103FF92333b2F1975704D20EdFE6eFD05CeAE7",
+      "staticAggregationHookFactory": "0xB57122B98aceAd4Bd6B4F7a6e2276a3BbF30e722",
       "staticAggregationIsm": "0x56E7a2Ef2f95374C54c70d3Ca74E8A404A59C90c",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -3083,7 +3140,9 @@
           "url": "https://mitoscan.io"
         }
       ],
-      "quotedCalls": "0x4712dF2c094585E78E75B7B045599617E2eFb638"
+      "quotedCalls": "0x4712dF2c094585E78E75B7B045599617E2eFb638",
+      "interchainAccountRouterV3": "0xc2495f3183F043627CAECD56dAaa726e3B2D9c09",
+      "quotedCallsV3": "0x61a09ab81046bEBd2a2cB7a14328Bf461319E5F9"
     },
     "radix": {
       "bech32Prefix": "account_rdx",
@@ -3224,7 +3283,8 @@
       "validatorAnnounce": "0xB08bd33086CF244D3757843DdD771c3263e1C02c",
       "index": {
         "from": 24358784
-      }
+      },
+      "interchainAccountRouterV3": "0xe3049A7D016788E86789d59b9a769902C5804213"
     },
     "electroneum": {
       "blockExplorers": [
@@ -3286,7 +3346,8 @@
       "validatorAnnounce": "0x75719C858e0c73e07128F95B2C466d142490e933",
       "index": {
         "from": 9403258
-      }
+      },
+      "interchainAccountRouterV3": "0x031a42ee1eca5Cb3a5E2aB8CF93c1199413F1689"
     },
     "plasma": {
       "blockExplorers": [
@@ -3323,7 +3384,7 @@
         }
       ],
       "technicalStack": "other",
-      "aggregationHook": "0xfCDee6c429c1B1F165d5b673b0Dea3FdD244e3e6",
+      "aggregationHook": "0x83f33AA72F5ADbA75A44274D2963f03D25a0b148",
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "fallbackRoutingHook": "0xbE58F200ffca4e1cE4D2F4541E94Ae18370fC405",
@@ -3336,7 +3397,7 @@
       "pausableIsm": "0xf4035357EB3e3B48E498FA6e1207892f615A2c2f",
       "protocolFee": "0x238b3Fc6f3D32102AA655984059A051647DA98e2",
       "proxyAdmin": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "staticAggregationHookFactory": "0x9c64f327F0140DeBd430aab3E2F1d6cbcA921227",
+      "staticAggregationHookFactory": "0x3d898638eBe72d354df982aA72A1515c1d6a63E3",
       "staticAggregationIsm": "0x3505b58BD49C5261aC33a8Dec01756FEb66B9ee1",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -3350,7 +3411,9 @@
         "from": 89474
       },
       "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/plasma/",
-      "quotedCalls": "0x1D81BeA7AfD4377d3a919Dc832E3b312E8868E58"
+      "quotedCalls": "0x1D81BeA7AfD4377d3a919Dc832E3b312E8868E58",
+      "interchainAccountRouterV3": "0x5E59EBAedeB691408EBAcF6C37218fa2cFcaC9f2",
+      "quotedCallsV3": "0xFF71049480A9cb3b32693cb5be032684dB7B687e"
     },
     "zerogravity": {
       "blockExplorers": [
@@ -3390,7 +3453,7 @@
         }
       ],
       "technicalStack": "other",
-      "aggregationHook": "0x6d74Cda6b32f096c260677e445A798c2b4a7B55d",
+      "aggregationHook": "0x1f2C8DeBA48335366d20B5e3eAa468Ced9726407",
       "domainRoutingIsm": "0xe785522199eb01B39d5E6b934DbE5bfcbb9A29A4",
       "domainRoutingIsmFactory": "0x3a867fCfFeC2B790970eeBDC9023E75B0a172aa7",
       "fallbackRoutingHook": "0x75719C858e0c73e07128F95B2C466d142490e933",
@@ -3403,7 +3466,7 @@
       "pausableIsm": "0xE911e75CECe0eF01df3ceD96BCd362941AE474D4",
       "protocolFee": "0x946E9f4540E032a9fAc038AE58187eFcad9DE952",
       "proxyAdmin": "0x02d16BC51af6BfD153d67CA61754cF912E82C4d9",
-      "staticAggregationHookFactory": "0x2b79328DA089E89A9E9c08732b56dd31F01011Db",
+      "staticAggregationHookFactory": "0xD9A9966E7dA9a7f0032bF449FB12696a638E673C",
       "staticAggregationIsm": "0x5440cEd0D21e0C29E716bE887a7A57bF1BeEC1cB",
       "staticAggregationIsmFactory": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
       "staticMerkleRootMultisigIsmFactory": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
@@ -3420,7 +3483,9 @@
         "minFeePerGas": 2000000000,
         "minPriorityFeePerGas": 2000000000
       },
-      "quotedCalls": "0x81EeE1B7B4EF1C0775012a948Ac16F285DA1278E"
+      "quotedCalls": "0x81EeE1B7B4EF1C0775012a948Ac16F285DA1278E",
+      "interchainAccountRouterV3": "0x1B947F6246ACe28abAf073FF11c098F31ce4f899",
+      "quotedCallsV3": "0x84289826bCD04b0a039b818039410563F8109309"
     },
     "mantra": {
       "blockExplorers": [
@@ -3457,7 +3522,7 @@
         }
       ],
       "technicalStack": "other",
-      "aggregationHook": "0x649CaaE2c74cc36b29d9D1faeE7FDa275c650d5e",
+      "aggregationHook": "0x52aBE304f648714Dd523f8139435cB148a69eb99",
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "fallbackRoutingHook": "0xE911e75CECe0eF01df3ceD96BCd362941AE474D4",
@@ -3470,7 +3535,7 @@
       "pausableIsm": "0x1A41a365A693b6A7aED1a46316097d290f569F22",
       "protocolFee": "0x5244d3359065C883BDfeEEff5329DE38c0Bd227e",
       "proxyAdmin": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "staticAggregationHookFactory": "0xF192f901e3204317aC9Eb27E838a25E4d073944B",
+      "staticAggregationHookFactory": "0x1F45Cd63B363ebD4b1803C81f64C0aB46f3E12Aa",
       "staticAggregationIsm": "0xd3fA473AC307cED4A454c20626EA39D88d3fDE41",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -3483,7 +3548,9 @@
       "index": {
         "from": 8730936
       },
-      "quotedCalls": "0xA2F8cfCc5dA4505F18db469F3639000a2f02de72"
+      "quotedCalls": "0xA2F8cfCc5dA4505F18db469F3639000a2f02de72",
+      "interchainAccountRouterV3": "0xDf347f7602fFF536337c0B90cEC19CD6998427C4",
+      "quotedCallsV3": "0xf2F83b26d56f0e9B9Bd81efAb9e0ECB9ba5708be"
     },
     "monad": {
       "blockExplorers": [
@@ -3527,7 +3594,7 @@
         }
       ],
       "technicalStack": "other",
-      "aggregationHook": "0x0F949218E8123bd0361b11C630008fE9bA32A06f",
+      "aggregationHook": "0x73bc9B4D97855e94Bab9f46AbAF3CC0Da36D72Fe",
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "fallbackRoutingHook": "0x1A41a365A693b6A7aED1a46316097d290f569F22",
@@ -3540,7 +3607,7 @@
       "pausableIsm": "0xdf4aA3905e0391C7763e33CB6A08fFa97221D49B",
       "protocolFee": "0x4A91738390a3D55CB27c2863e8950c9cD1b89d0e",
       "proxyAdmin": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "staticAggregationHookFactory": "0x2b6d3F7d28B5EC8C3C028fBCAdcf774D9709Dd29",
+      "staticAggregationHookFactory": "0x1c103FF92333b2F1975704D20EdFE6eFD05CeAE7",
       "staticAggregationIsm": "0x1a81bEA3FecDaCa6a0eE119840Fb7Eb215CE54de",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -3555,7 +3622,9 @@
         "from": 25705279
       },
       "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/monad/",
-      "quotedCalls": "0x3B072e7BE164655b35Fa7E1618832a53D7F56F01"
+      "quotedCalls": "0x3B072e7BE164655b35Fa7E1618832a53D7F56F01",
+      "interchainAccountRouterV3": "0x50105110D9e14Eb3d1e4BA7C32daC7f002AC50FD",
+      "quotedCallsV3": "0x34C76076248ab6caA626FEd09d364c698347aB32"
     },
     "lazai": {
       "blockExplorers": [
@@ -3592,7 +3661,7 @@
         }
       ],
       "technicalStack": "other",
-      "aggregationHook": "0x3e9326f4073C84e468AEcaE2Bf1512b341CA9D78",
+      "aggregationHook": "0x6E98fd11A8af2dca6511b988A889679684d3958A",
       "domainRoutingIsm": "0x2b0225778a567D11F612D8955b6D01a722490A58",
       "domainRoutingIsmFactory": "0x7f50C5776722630a0024fAE05fDe8b47571D7B39",
       "fallbackRoutingHook": "0x89Ebf977E83087959aD78e5372F4AF15DcdC8143",
@@ -3605,7 +3674,7 @@
       "pausableIsm": "0x5244d3359065C883BDfeEEff5329DE38c0Bd227e",
       "protocolFee": "0x6c5012B7eDfE317Be53D13Fc730a460f4810e234",
       "proxyAdmin": "0x23ce76645EC601148fa451e751eeB75785b97A00",
-      "staticAggregationHookFactory": "0x3a867fCfFeC2B790970eeBDC9023E75B0a172aa7",
+      "staticAggregationHookFactory": "0x8873A96FEd6e01369D59369Ab26E4ed3400011ce",
       "staticAggregationIsm": "0x19f142AE9A7Ff81c9dEd4A3FE1B8E34b75717Bb7",
       "staticAggregationIsmFactory": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
       "staticMerkleRootMultisigIsmFactory": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
@@ -3618,7 +3687,9 @@
       "index": {
         "from": 104537
       },
-      "quotedCalls": "0x3F644D1ACd89848BcA7003D537ebA6Eb02417232"
+      "quotedCalls": "0x3F644D1ACd89848BcA7003D537ebA6Eb02417232",
+      "interchainAccountRouterV3": "0xdFdf9b8B608e7d2bF7fC2E464c1cDd284ec43858",
+      "quotedCallsV3": "0xA205e9979e0beE2fBD1DD23e702cA98a118BCd5c"
     },
     "somnia": {
       "blockExplorers": [
@@ -3655,7 +3726,7 @@
         }
       ],
       "technicalStack": "other",
-      "aggregationHook": "0xd05C7683a70C1a7289afA38F26f676E013781F0F",
+      "aggregationHook": "0x2bE236E55c2858862a944fA4028272F8D109C087",
       "batchContractAddress": "0x5e44F178E8cF9B2F5409B6f18ce936aB817C5a11",
       "domainRoutingIsm": "0x7435a14717769dCD7fa672B5487149e8471BbD0e",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
@@ -3669,7 +3740,7 @@
       "pausableIsm": "0x8E273260EAd8B72A085B19346A676d355740e875",
       "protocolFee": "0x7eFF14440AbE077dBb05C7668079Bc1cD2CD9bd0",
       "proxyAdmin": "0x3E12271EbD523d0886D0D51A4FF8D8e046CF2E1D",
-      "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
+      "staticAggregationHookFactory": "0x092E6c21cd2c7f84A489da06644B7045431bf5C9",
       "staticAggregationIsm": "0xf142AD8698613FB8375605adD48A37E752EA5f0c",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -3683,7 +3754,9 @@
         "chunk": 999,
         "from": 153973092
       },
-      "quotedCalls": "0xDbf6459a2Bb9c6E27e5E0c09E4c002ccB0DF539D"
+      "quotedCalls": "0xDbf6459a2Bb9c6E27e5E0c09E4c002ccB0DF539D",
+      "interchainAccountRouterV3": "0x5FC9b323013DAcF2d56046F9ff0f61c95c6A466B",
+      "quotedCallsV3": "0xA767EAd13BF5CeFcf92cbe2564e1962185cc090d"
     },
     "stable": {
       "blockExplorers": [
@@ -3721,7 +3794,7 @@
         }
       ],
       "technicalStack": "other",
-      "aggregationHook": "0x18dC2413BD8873F97C31069707B1590E23e9f1ea",
+      "aggregationHook": "0x0498e998a854d2F3E1fD25b6552761712a7174e1",
       "domainRoutingIsm": "0x494415e823236A05c608D6b777bC80082cED6A2E",
       "domainRoutingIsmFactory": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
       "fallbackRoutingHook": "0x76F2cC245882ceFf209A61d75b9F0f1A3b7285fB",
@@ -3734,7 +3807,7 @@
       "pausableIsm": "0x6D48135b7584E8Bf828B6e23110Bc0Da4252704f",
       "protocolFee": "0x64F077915B41479901a23Aa798B30701589C5063",
       "proxyAdmin": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "staticAggregationHookFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
+      "staticAggregationHookFactory": "0xfd95054e5F3ba6707cC44B2ebc0D7b3552a82E58",
       "staticAggregationIsm": "0x6BD97a44be1c72566508E3C4f4449D9e1ADcB1f2",
       "staticAggregationIsmFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
       "staticMerkleRootMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
@@ -3748,7 +3821,9 @@
         "from": 4016628
       },
       "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/stable/",
-      "quotedCalls": "0xffa403dD3ff592e42475f0B3f6F57fB0F02Be52d"
+      "quotedCalls": "0xffa403dD3ff592e42475f0B3f6F57fB0F02Be52d",
+      "interchainAccountRouterV3": "0x128CB8AB716D1F98b27F26165c138224AE7561d4",
+      "quotedCallsV3": "0xdB228024b8fa54203b0eE084b6DDEEF3DdAF5592"
     },
     "aleo": {
       "blockExplorers": [
@@ -3840,7 +3915,7 @@
         }
       ],
       "technicalStack": "other",
-      "aggregationHook": "0x631aC71B41b1f8B8F011270f48bf97b92206CcDc",
+      "aggregationHook": "0xE38B8729854E10d960AD9A9c61341f094E659184",
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "fallbackRoutingHook": "0xf50e2f7ff2D367fac0B90Be2564A096168801b2d",
@@ -3853,7 +3928,7 @@
       "pausableIsm": "0xA697222b77cDe62A8C47E627d5A1c49A87018236",
       "protocolFee": "0xDd08008d2760873E9D4085442B8aED87B93c06Dd",
       "proxyAdmin": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
+      "staticAggregationHookFactory": "0xe06ccd625dc7C48aA25F8AD7024a4B513E636fd0",
       "staticAggregationIsm": "0x6E8b209bbF2050B5B46C6b14763D7BdF4A6b95C1",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -3867,7 +3942,9 @@
         "chunk": 999,
         "from": 1238556
       },
-      "quotedCalls": "0x23D5c752a43F6A2562449197E57977ebC643C28c"
+      "quotedCalls": "0x23D5c752a43F6A2562449197E57977ebC643C28c",
+      "interchainAccountRouterV3": "0xD7392157C877391C0d3f935545914750d99EcAf8",
+      "quotedCallsV3": "0x531b723c76b66637100E10e2566e6574B30086E6"
     },
     "eni": {
       "blockExplorers": [
@@ -3904,7 +3981,7 @@
         }
       ],
       "technicalStack": "other",
-      "aggregationHook": "0xDf8A98d398119cD13C72f371f2A2DE99f6D00986",
+      "aggregationHook": "0xE1Ecf907ea00Bd4F1089dcf0bc001055Cf1F44f5",
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "fallbackRoutingHook": "0xF6CC9B10c607afB777380bF71F272E4D7037C3A9",
@@ -3917,7 +3994,7 @@
       "pausableIsm": "0x8452363d5c78bf95538614441Dc8B465e03A89ca",
       "protocolFee": "0xc8826EA18D9884A1A335b2Cd7d5f44B159084301",
       "proxyAdmin": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
+      "staticAggregationHookFactory": "0x2cD7D868F2D53FC34E486F72E32c577fc5E95865",
       "staticAggregationIsm": "0xe1D29C242F9AE7Ad7ff76d7b3f557F0416Af514e",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
@@ -3932,6 +4009,8 @@
       },
       "batchContractAddress": "0x1d9c7400e3392e1854cfebd7c409eb22824d9023",
       "quotedCalls": "0xd9910a16313410d2500465858731c7CF9B2F85c5",
+      "interchainAccountRouterV3": "0x9AD81058c6C3Bf552C9014CB30E824717A0ee21b",
+      "quotedCallsV3": "0x3A2e96403d076e9f953166A9E4c61bcD9D164CFe",
       "transactionOverrides": {
         "maxPriorityFeePerGas": 15000000000
       }
@@ -4057,7 +4136,9 @@
           "name": "Eden Explorer",
           "url": "https://eden.blockscout.com"
         }
-      ]
+      ],
+      "interchainAccountRouterV3": "0x21b5a2fA1f53e94cF4871201aeD30C6ad5E405f2",
+      "quotedCallsV3": "0xbF2D3b1a37D54ce86d0e1455884dA875a97C87a8"
     },
     "igra": {
       "blockExplorers": [
@@ -4124,6 +4205,8 @@
       "interchainAccountRouter": "0x58CA3F0D65FFd40727cF6Eb2f323151853Ad3D44",
       "minimalInterchainAccountRouter": "0x58CA3F0D65FFd40727cF6Eb2f323151853Ad3D44",
       "quotedCalls": "0x3CBCa631A797fd4c6332Cd4435C92065AFb57ef8",
+      "interchainAccountRouterV3": "0x5D095B73B82785Ba6B1E3B67476e9bE02515C296",
+      "quotedCallsV3": "0xD126Ed458a6eD624AeE125Ef2F5285E80CEe980D",
       "transactionOverrides": {
         "gasPrice": 1000000000000
       }
@@ -4266,6 +4349,8 @@
         "from": 1057148
       },
       "quotedCalls": "0x03E675ca8D61094fbE7150289AA416C24646a654",
+      "interchainAccountRouterV3": "0xCe3360b0ba136B734c4F296D95FAc11A7deF36e3",
+      "quotedCallsV3": "0xa8bEc724c0c311FAC4f59b43356E065Bb607ceE9",
       "transactionOverrides": {
         "minGasPrice": 1000000,
         "minFeePerGas": 1000000,
@@ -4334,7 +4419,9 @@
       "index": {
         "from": 3965182
       },
-      "quotedCalls": "0x282629Af1A2f9b8e2c5Cbc54C35C7989f21950c6"
+      "quotedCalls": "0x282629Af1A2f9b8e2c5Cbc54C35C7989f21950c6",
+      "interchainAccountRouterV3": "0xC2AaBc8D51e55c75c87F2FCa7448dAE4F6b7F4BE",
+      "quotedCallsV3": "0x544bd682Ba218A194A3209f89D92a31E009315E0"
     },
     "mocachain": {
       "blockExplorers": [
@@ -4398,7 +4485,9 @@
       "index": {
         "from": 10715205
       },
-      "quotedCalls": "0x33E0c225A54a0A86E9B267e90A90DE8CBb0fDB8f"
+      "quotedCalls": "0x33E0c225A54a0A86E9B267e90A90DE8CBb0fDB8f",
+      "interchainAccountRouterV3": "0x4F21990f336229452F1cbe881981Daa147E34c7D",
+      "quotedCallsV3": "0xCBdbc78fa5896128b48cE8287aEDbE268985AcBB"
     },
     "nesa": {
       "blockExplorers": [
@@ -4597,7 +4686,9 @@
       "validatorAnnounce": "0x2D374F85AE2B80147CffEb34d294ce02d1afd4D8",
       "index": {
         "from": 47247
-      }
+      },
+      "interchainAccountRouterV3": "0x7b05bE6a434dc89d265101ef2b645a4eD4B98710",
+      "quotedCallsV3": "0x1d870949a7305d4a788A730420db3f0DD99290b3"
     },
     "tea": {
       "blockExplorers": [
@@ -4661,7 +4752,9 @@
       "validatorAnnounce": "0x51545389E04c2Ac07d98A40b85d29B480a2AF6ce",
       "index": {
         "from": 661412
-      }
+      },
+      "interchainAccountRouterV3": "0x80d5684AAeEab4956038ddACa8031F0B491cCfE8",
+      "quotedCallsV3": "0x181118Cc6F1f3f99f3FDB38eb54fe99E4a9B7d91"
     },
     "nesachain": {
       "blockExplorers": [
@@ -4725,7 +4818,9 @@
       "validatorAnnounce": "0x145566181A18E23bB6a8A3eC6D87765542A7F754",
       "index": {
         "from": 16032
-      }
+      },
+      "interchainAccountRouterV3": "0x0991d28C3a7D3e292a7ca0FbF5168468DBfA3242",
+      "quotedCallsV3": "0x549F241472FccdA169E3202048aE2241231A7772"
     },
     "arc": {
       "blockExplorers": [
@@ -4790,6 +4885,8 @@
       "index": {
         "from": 18435650
       },
+      "interchainAccountRouterV3": "0x68EE6a50Ea37175F39dAC5D85f897cd0fF476929",
+      "quotedCallsV3": "0x7E647Eb3A10D7718F12f64b76542c169b9cE355D",
       "transactionOverrides": {
         "maxFeePerGas": 60000000000,
         "maxPriorityFeePerGas": 2000000000
