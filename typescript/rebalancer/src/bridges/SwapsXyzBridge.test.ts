@@ -402,7 +402,10 @@ function tronBridgeQuote(
   };
 }
 
-function createTronExecuteHarness(response = tronActionResponse()): {
+function createTronExecuteHarness(
+  response = tronActionResponse(),
+  overrides: { maxQuoteLossBps?: number } = {},
+): {
   bridge: SwapsXyzBridge;
   client: SwapsXyzClient;
   getActionStub: sinon.SinonStub;
@@ -432,6 +435,7 @@ function createTronExecuteHarness(response = tronActionResponse()): {
     .resolves(BigNumber.from(100_000));
   const bridge = createBridge(client, {
     tronWalletFactory: () => wallet,
+    maxQuoteLossBps: overrides.maxQuoteLossBps,
     registerTxRetryDelayMs: 1,
   });
   return {
@@ -1254,6 +1258,27 @@ describe('SwapsXyzBridge.execute', () => {
     expect(harness.getActionStub.callCount).to.equal(1);
     expect(harness.sendTransactionStub.called).to.equal(false);
     expect(harness.registerTxsStub.called).to.equal(false);
+  });
+
+  it('rejects a refreshed Tron quote above the configured loss cap', async () => {
+    const response = tronActionResponse({
+      amountOut: {
+        chainId: 1,
+        address: TO_TOKEN,
+        amount: '994999',
+        decimals: 6,
+      },
+    });
+    const harness = createTronExecuteHarness(response, {
+      maxQuoteLossBps: 50,
+    });
+
+    const error = await captureError(harness.bridge.prepare(tronBridgeQuote()));
+
+    expect(error.message).to.include(
+      'quote loss 51 bps exceeds configured maximum 50 bps',
+    );
+    expect(harness.sendTransactionStub.called).to.equal(false);
   });
 
   it('rejects Tron contract-call native fees above the configured cap', async () => {
