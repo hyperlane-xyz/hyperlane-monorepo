@@ -72,7 +72,7 @@ describe('USDT Eclipse production manifest', () => {
       { secretRef: { name: secret.spec.target.name } },
     ]);
     expect(container.image).to.equal(
-      `${DockerImageRepos.NODE_SERVICES}:0fc12f1-20261015-181420`,
+      `${DockerImageRepos.NODE_SERVICES}:79f9608-20261020-142721`,
     );
     expect(container.env).to.deep.include({
       name: 'MONITOR_ONLY',
