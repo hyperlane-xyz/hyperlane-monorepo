@@ -219,21 +219,14 @@ fn parse_mev_submission_config(
         );
         return None;
     }
-    let matching_list = config
+    let ica_router = config
         .chain(err)
-        .get_key("matchingList")
-        .and_then(parse_matching_list)
+        .get_key("icaRouter")
+        .parse_address_hash()
         .end()?;
-    if matching_list.0.as_ref().is_none_or(Vec::is_empty) {
-        err.push(
-            (&config.cwp).add("matching_list"),
-            eyre!("MEV submission requires a non-empty matching list"),
-        );
-        return None;
-    }
     Some(h_eth::MevSubmissionConfig {
         rpc_urls,
-        matching_list,
+        ica_router,
     })
 }
 
@@ -1129,7 +1122,7 @@ mod tests {
             let (connection, errors) = parse_ethereum_hedge(json!({
                 "mevsubmission": {
                     "rpcurls": urls,
-                    "matchinglist": [{"bodyregex": "^02"}],
+                    "icarouter": "0x0000000000000000000000000000000000000001",
                 },
             }));
             assert!(errors.is_ok(), "{errors:?}");
@@ -1138,65 +1131,22 @@ mod tests {
             };
             let mev = connection.mev_submission.unwrap();
             assert_eq!(mev.rpc_urls.len(), 1);
-            assert!(mev.matching_list.0.is_some());
+            assert_eq!(mev.ica_router, hyperlane_core::H256::from_low_u64_be(1));
         }
-    }
-
-    #[test]
-    fn parses_mev_submission_from_helm_environment() {
-        // Matching rules stay JSON strings through Helm, preserving large
-        // domain IDs and array-valued filters.
-        let rules = json!([{
-            "bodyRegex": "^02",
-            "originDomain": [1, 3_890_189_289u32],
-            "destinationDomain": 3_890_189_289u32,
-            "senderAddress": [format!("{:#x}", hyperlane_core::H256::from_low_u64_be(1))],
-        }]);
-        let value = config::Config::builder()
-            .set_override("mevsubmission.rpcurls", "[\"https://protected.example\"]")
-            .unwrap()
-            .set_override("mevsubmission.matchinglist", rules.to_string())
-            .unwrap()
-            .build()
-            .unwrap()
-            .try_deserialize::<serde_json::Value>()
-            .unwrap();
-        let value = super::super::recase_json_value(value, convert_case::Case::Flat);
-        let (connection, errors) = parse_ethereum_hedge(value);
-        assert!(errors.is_ok(), "{errors:?}");
-        let ChainConnectionConf::Ethereum(connection) = connection else {
-            panic!("expected EVM")
-        };
-        let mev = connection.mev_submission.unwrap();
-        let mut message = hyperlane_core::HyperlaneMessage {
-            origin: 3_890_189_289,
-            destination: 3_890_189_289,
-            sender: hyperlane_core::H256::from_low_u64_be(1),
-            body: vec![2],
-            ..Default::default()
-        };
-        assert!(mev.matching_list.msg_matches(&message, false));
-        message.origin = 1;
-        assert!(mev.matching_list.msg_matches(&message, false));
-        message.origin = 2;
-        assert!(!mev.matching_list.msg_matches(&message, false));
-        message.origin = 1;
-        message.sender = hyperlane_core::H256::from_low_u64_be(2);
-        assert!(!mev.matching_list.msg_matches(&message, false));
     }
 
     #[test]
     fn rejects_incomplete_or_invalid_mev_submission_without_fallback() {
         for config in [
-            json!({"matchinglist": [{"bodyregex": "^02"}]}),
-            json!({"rpcurls": [], "matchinglist": [{"bodyregex": "^02"}]}),
-            json!({"rpcurls": "not json", "matchinglist": [{"bodyregex": "^02"}]}),
-            json!({"rpcurls": ["wss://protected.example"], "matchinglist": [{"bodyregex": "^02"}]}),
-            json!({"rpcurls": ["http://protected.example"], "matchinglist": [{"bodyregex": "^02"}]}),
+            json!({"icarouter": "0x0000000000000000000000000000000000000001"}),
+            json!({"rpcurls": [], "icarouter": "0x0000000000000000000000000000000000000001"}),
+            json!({"rpcurls": "not json", "icarouter": "0x0000000000000000000000000000000000000001"}),
+            json!({"rpcurls": ["wss://protected.example"], "icarouter": "0x0000000000000000000000000000000000000001"}),
+            json!({"rpcurls": ["http://protected.example"], "icarouter": "0x0000000000000000000000000000000000000001"}),
             json!({"rpcurls": ["https://protected.example"]}),
-            json!({"rpcurls": ["https://protected.example"], "matchinglist": []}),
-            json!({"rpcurls": ["https://protected.example"], "matchinglist": "bad"}),
-            json!({"rpcurls": ["https://protected.example"], "matchinglist": [{"bodyregex": "["}]}),
+            json!({"rpcurls": ["https://protected.example"], "icarouter": ""}),
+            json!({"rpcurls": ["https://protected.example"], "icarouter": "bad"}),
+            json!({"rpcurls": ["https://protected.example"], "icarouter": []}),
         ] {
             let (_, errors) = parse_ethereum_hedge(json!({"mevsubmission": config}));
             assert!(!errors.is_ok(), "accepted invalid MEV configuration");
@@ -1212,7 +1162,7 @@ mod tests {
         ] {
             let (_, errors) = parse_ethereum_hedge(json!({"mevsubmission": {
                 "rpcurls": urls,
-                "matchinglist": [{"bodyregex": "^02"}],
+                "icarouter": "0x0000000000000000000000000000000000000001",
             }}));
             assert!(!errors.is_ok());
             assert!(!errors.to_string().contains("private-credential"));

@@ -799,7 +799,7 @@ mod test {
                 "merkletreehook": "0x0000000000000000000000000000000000000004",
                 "mevsubmission": {
                     "rpcurls": ["https://protected.example"],
-                    "matchinglist": [{"bodyregex": "^02"}],
+                    "icarouter": "0x0000000000000000000000000000000000000001",
                 },
             });
             if let Some(submitter) = submitter {

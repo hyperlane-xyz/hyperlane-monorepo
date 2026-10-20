@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { AgentConfig, MatchingList } from '@hyperlane-xyz/sdk';
+import { AgentConfig } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
@@ -116,22 +116,10 @@ describe('Agent configs', () => {
         'robinhood',
       ]);
       for (const chain of protectedChains) {
-        const rules = config.relayer?.mevSubmission?.[chain.name]?.matchingList;
-        if (!rules) throw new Error(`Missing MEV rules for ${chain.name}`);
-        expect(chain.mevSubmission?.matchingList).to.equal(
-          JSON.stringify(rules),
+        expect(chain.mevSubmission?.icaRouter).to.equal(
+          config.relayer?.mevSubmission?.[chain.name]?.icaRouter,
         );
-        expect(rules).to.have.length(1);
-        const [rule] = rules;
-        if (!rule?.bodyRegex)
-          throw new Error(`Missing reveal rule for ${chain.name}`);
-        expect(rule.destinationDomain).to.equal(getChain(chain.name).domainId);
-        expect(rule.recipientAddress).to.be.a('string');
-        expect(rule.originDomain).to.equal(undefined);
-        expect(rule.senderAddress).to.equal(undefined);
-        const pattern = new RegExp(rule.bodyRegex);
-        expect(pattern.test(`02${'00'.repeat(64)}`)).to.be.true;
-        expect(pattern.test(`01${'00'.repeat(64)}`)).to.be.false;
+        expect(chain.mevSubmission?.icaRouter).to.be.a('string');
       }
       const validator = new TestAgentHelmManager(
         agentConfigHelper(config, Role.Validator),
@@ -144,36 +132,6 @@ describe('Agent configs', () => {
       ).to.be.true;
     });
   }
-
-  it('preserves large MEV domains and list filters as JSON through Helm values', async () => {
-    const config = mainnet3Agents[Contexts.Hyperlane];
-    if (!config.relayer) throw new Error('Missing relayer config');
-    const matchingList: MatchingList = [
-      {
-        originDomain: [1, 3_890_189_289],
-        destinationDomain: 3_890_189_289,
-        senderAddress: [`0x${'01'.repeat(32)}`, `0x${'02'.repeat(32)}`],
-        bodyRegex: '^02',
-      },
-    ];
-    const manager = new TestAgentHelmManager(
-      new RelayerConfigHelper({
-        ...config,
-        relayer: {
-          ...config.relayer,
-          mevSubmission: { base: { matchingList } },
-        },
-      }),
-      Role.Relayer,
-    );
-    const values = await manager.helmValues();
-    const serialized = values.hyperlane.chains.find(
-      (chain) => chain.name === 'base',
-    )?.mevSubmission?.matchingList;
-    if (!serialized) throw new Error('Missing serialized MEV rules');
-    expect(serialized).to.equal(JSON.stringify(matchingList));
-    expect(JSON.parse(serialized)).to.deep.equal(matchingList);
-  });
 
   it('renders v1 reads for Solana clusters and preserves other SVM defaults', async () => {
     const solanaChains = new Set([

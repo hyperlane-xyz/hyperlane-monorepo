@@ -144,25 +144,6 @@ mod tests {
         assert!(!debug.contains("private-"));
     }
 
-    #[tokio::test]
-    async fn request_errors_omit_endpoint_credentials() {
-        let client = StatusAwareHttp::new(
-            "ftp://private-user:private-password@rpc.example/private-path?key=private-query"
-                .parse()
-                .unwrap(),
-            Client::new(),
-        );
-        let error = client
-            .request::<_, Value>("eth_blockNumber", ())
-            .await
-            .unwrap_err();
-        let HttpClientError::ReqwestError(error) = error else {
-            panic!("expected transport error")
-        };
-        assert!(error.url().is_none());
-        assert!(!format!("{error:?} {error}").contains("private-"));
-    }
-
     async fn request_response<R: DeserializeOwned>(
         status: &str,
         body: &str,

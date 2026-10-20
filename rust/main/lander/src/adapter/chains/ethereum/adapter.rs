@@ -137,7 +137,7 @@ impl EthereumAdapter {
                     .await?;
                 Some(MevSubmission {
                     mailbox: conf.addresses.mailbox.into(),
-                    matching_list: config.matching_list.clone(),
+                    policy: config.clone(),
                     provider: protected_provider,
                 })
             }
@@ -393,13 +393,13 @@ impl EthereumAdapter {
     /// Helper to build a batched transaction from multiple precursors and payload details.
     async fn build_batched_transaction(
         &self,
-        provider: &Arc<dyn EvmProviderForLander>,
         precursors: Vec<(TypedTransaction, Function)>,
         payload_details: Vec<PayloadDetails>,
     ) -> ChainResult<Vec<TxBuildingResult>> {
         use super::transaction::TransactionFactory;
 
-        let multi_precursor = provider
+        let multi_precursor = self
+            .provider
             .batch(
                 self.batch_cache.clone(),
                 self.batch_contract_address,
@@ -416,139 +416,6 @@ impl EthereumAdapter {
             maybe_tx: Some(transaction),
         };
         Ok(vec![tx_building_result])
-    }
-
-    async fn build_transactions_with_provider(
-        &self,
-        payloads: &[FullPayload],
-        provider: &Arc<dyn EvmProviderForLander>,
-    ) -> Vec<TxBuildingResult> {
-        use super::transaction::TransactionFactory;
-
-        info!(?payloads, "building transactions for payloads");
-
-        if payloads.is_empty() {
-            error!("No payloads found! Cannot build transactions");
-            return vec![];
-        }
-
-        let (payload_details, precursors): (
-            Vec<PayloadDetails>,
-            Vec<(TypedTransaction, Function)>,
-        ) = payloads
-            .iter()
-            .map(|payload| {
-                let precursor = EthereumTxPrecursor::from_payload(payload, self.signer);
-                (payload.details.clone(), (precursor.tx, precursor.function))
-            })
-            .unzip();
-
-        if precursors.len() == 1 {
-            // If there's only one payload, we can build a single transaction directly
-            let (tx, function) = precursors[0].clone();
-            let precursor = EthereumTxPrecursor::new(tx, function);
-            let results = vec![self.build_single_transaction(precursor, payload_details)];
-            info!(
-                ?payloads,
-                ?results,
-                "built transaction for a single payload"
-            );
-            return results;
-        }
-
-        match self
-            .build_batched_transaction(provider, precursors.clone(), payload_details.clone())
-            .await
-        {
-            Ok(results) => {
-                self.metrics().increment_batched_transactions(
-                    LABEL_BATCHED_TRANSACTION_SUCCESS,
-                    payloads.len() as u64,
-                );
-                info!(
-                    ?payloads,
-                    ?results,
-                    "built batched transaction for payloads"
-                );
-                // Batched transaction
-                return results;
-            }
-            Err(err) => {
-                self.metrics().increment_batched_transactions(
-                    LABEL_BATCHED_TRANSACTION_FAILED,
-                    payloads.len() as u64,
-                );
-                warn!(
-                    domain = self.domain.name(),
-                    ?err,
-                    "Failed to build batch transaction. Fallback to single tx submission"
-                );
-            }
-        }
-
-        let results: Vec<_> = payloads
-            .iter()
-            .map(|payload| {
-                let precursor = EthereumTxPrecursor::from_payload(payload, self.signer);
-                self.build_single_transaction(precursor, vec![payload.details.clone()])
-            })
-            .collect();
-        info!(
-            ?payloads,
-            ?results,
-            "built multiple transactions for multiple payloads"
-        );
-        results
-    }
-
-    async fn estimate_transaction(
-        &self,
-        tx: &mut Transaction,
-        provider: &Arc<dyn EvmProviderForLander>,
-    ) -> Result<(), LanderError> {
-        if tx.payload_details.len() == 1 {
-            // No batching, estimate gas limit for the single payload
-            let precursor = tx.precursor_mut();
-            return gas_limit_estimator::estimate_gas_limit(
-                provider.clone(),
-                precursor,
-                &self.transaction_overrides,
-                &self.domain,
-                true,
-            )
-            .await;
-        }
-
-        // Batching case, estimate batch
-        let payloads = self.load_payloads(tx).await?;
-        let mut precursors = self.create_precursors(&payloads);
-
-        let payload_estimate_futures = precursors
-            .iter_mut()
-            .map(|p| {
-                gas_limit_estimator::estimate_gas_limit(
-                    provider.clone(),
-                    p,
-                    &self.transaction_overrides,
-                    &self.domain,
-                    false,
-                )
-            })
-            .collect::<Vec<_>>();
-        future::try_join_all(payload_estimate_futures).await?;
-
-        let multi_precursor = tx.precursor().clone();
-        let multi_precursor = (multi_precursor.tx, multi_precursor.function);
-        let precursors = precursors
-            .into_iter()
-            .map(|p| (p.tx, p.function))
-            .collect::<Vec<_>>();
-
-        let gas_limit = provider.estimate_batch(multi_precursor, precursors).await?;
-
-        tx.precursor_mut().tx.set_gas(gas_limit);
-
-        Ok(())
     }
 
     pub fn metrics(&self) -> &EthereumAdapterMetrics {
@@ -599,36 +466,81 @@ impl AdaptsChain for EthereumAdapter {
     /// If batching fails, it will fallback to building multiple transactions with a
     /// single payload for each of them.
     async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult> {
-        let Some(mev) = &self.mev_submission else {
-            return self
-                .build_transactions_with_provider(payloads, &self.provider)
-                .await;
-        };
-        let mut ordinary = Vec::new();
-        let mut results = Vec::new();
-        for payload in payloads {
-            match mev.matches(payload) {
-                Ok(false) => ordinary.push(payload.clone()),
-                Ok(true) => results.push(self.build_single_transaction(
-                    EthereumTxPrecursor::from_payload(payload, self.signer),
-                    vec![payload.details.clone()],
-                )),
-                Err(err) => {
-                    warn!(?err, "Cannot classify payload for protected submission");
-                    results.push(TxBuildingResult {
-                        payloads: vec![payload.details.clone()],
-                        maybe_tx: None,
-                    });
-                }
+        use super::transaction::TransactionFactory;
+
+        info!(?payloads, "building transactions for payloads");
+
+        if payloads.is_empty() {
+            error!("No payloads found! Cannot build transactions");
+            return vec![];
+        }
+
+        let (payload_details, precursors): (
+            Vec<PayloadDetails>,
+            Vec<(TypedTransaction, Function)>,
+        ) = payloads
+            .iter()
+            .map(|payload| {
+                let precursor = EthereumTxPrecursor::from_payload(payload, self.signer);
+                (payload.details.clone(), (precursor.tx, precursor.function))
+            })
+            .unzip();
+
+        if precursors.len() == 1 {
+            // If there's only one payload, we can build a single transaction directly
+            let (tx, function) = precursors[0].clone();
+            let precursor = EthereumTxPrecursor::new(tx, function);
+            let results = vec![self.build_single_transaction(precursor, payload_details)];
+            info!(
+                ?payloads,
+                ?results,
+                "built transaction for a single payload"
+            );
+            return results;
+        }
+
+        match self
+            .build_batched_transaction(precursors.clone(), payload_details.clone())
+            .await
+        {
+            Ok(results) => {
+                self.metrics().increment_batched_transactions(
+                    LABEL_BATCHED_TRANSACTION_SUCCESS,
+                    payloads.len() as u64,
+                );
+                info!(
+                    ?payloads,
+                    ?results,
+                    "built batched transaction for payloads"
+                );
+                // Batched transaction
+                return results;
+            }
+            Err(err) => {
+                self.metrics().increment_batched_transactions(
+                    LABEL_BATCHED_TRANSACTION_FAILED,
+                    payloads.len() as u64,
+                );
+                warn!(
+                    domain = self.domain.name(),
+                    ?err,
+                    "Failed to build batch transaction. Fallback to single tx submission"
+                );
             }
         }
-        // Keep protected reveals separate so relay outages cannot hold unrelated payloads.
-        if !ordinary.is_empty() {
-            results.extend(
-                self.build_transactions_with_provider(&ordinary, &self.provider)
-                    .await,
-            );
-        }
+
+        let results: Vec<_> = payloads
+            .iter()
+            .map(|payload| {
+                let precursor = EthereumTxPrecursor::from_payload(payload, self.signer);
+                self.build_single_transaction(precursor, vec![payload.details.clone()])
+            })
+            .collect();
+        info!(
+            ?payloads,
+            ?results,
+            "built multiple transactions for multiple payloads"
+        );
         results
     }
 
@@ -653,12 +565,11 @@ impl AdaptsChain for EthereumAdapter {
         let precursor = tx.precursor().clone();
 
         let provider = self.provider_for_payloads(&payloads)?;
-        let simulation = provider.simulate_batch((precursor.tx, precursor.function));
-        let (successful, failed) = if self.is_protected_provider(provider) {
-            mev_submission::with_rpc_timeout(simulation).await??
-        } else {
-            simulation.await?
-        };
+        let (successful, failed) = mev_submission::with_rpc_timeout(
+            self.is_protected_provider(provider),
+            provider.simulate_batch((precursor.tx, precursor.function)),
+        )
+        .await??;
 
         let payloads_successful = Self::filter(&payloads, successful);
         let payloads_details_failed = Self::filter(
@@ -686,12 +597,8 @@ impl AdaptsChain for EthereumAdapter {
             return Err(LanderError::SimulationFailed(reasons));
         }
 
-        let rebuild = self.build_transactions_with_provider(&payloads_successful, provider);
-        let tx_building_results = if self.is_protected_provider(provider) {
-            mev_submission::with_rpc_timeout(rebuild).await?
-        } else {
-            rebuild.await
-        };
+        // Batch construction only fetches the Multicall code; calldata is encoded locally.
+        let tx_building_results = self.build_transactions(&payloads_successful).await;
         let [tx_building_result] = tx_building_results.as_slice() else {
             error!(
                 ?payloads_successful,
@@ -729,16 +636,64 @@ impl AdaptsChain for EthereumAdapter {
 
     async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
         if tx.precursor().tx.gas().is_some() {
-            debug!(?tx, "skipping gas limit estimation; gas is already set");
             return Ok(());
         }
         let provider = self.submission_provider(tx).await?;
-        let estimate = self.estimate_transaction(tx, provider);
-        if self.is_protected_provider(provider) {
-            mev_submission::with_rpc_timeout(estimate).await?
-        } else {
-            estimate.await
+        let protected = self.is_protected_provider(provider);
+        if tx.payload_details.len() == 1 {
+            // No batching, estimate gas limit for the single payload
+            let precursor = tx.precursor_mut();
+            return mev_submission::with_rpc_timeout(
+                protected,
+                gas_limit_estimator::estimate_gas_limit(
+                    provider.clone(),
+                    precursor,
+                    &self.transaction_overrides,
+                    &self.domain,
+                    true,
+                ),
+            )
+            .await?;
         }
+
+        // Batching case, estimate batch
+        let payloads = self.load_payloads(tx).await?;
+        let mut precursors = self.create_precursors(&payloads);
+
+        let payload_estimate_futures = precursors
+            .iter_mut()
+            .map(|p| async move {
+                mev_submission::with_rpc_timeout(
+                    protected,
+                    gas_limit_estimator::estimate_gas_limit(
+                        provider.clone(),
+                        p,
+                        &self.transaction_overrides,
+                        &self.domain,
+                        false,
+                    ),
+                )
+                .await?
+            })
+            .collect::<Vec<_>>();
+        future::try_join_all(payload_estimate_futures).await?;
+
+        let multi_precursor = tx.precursor().clone();
+        let multi_precursor = (multi_precursor.tx, multi_precursor.function);
+        let precursors = precursors
+            .into_iter()
+            .map(|p| (p.tx, p.function))
+            .collect::<Vec<_>>();
+
+        let gas_limit = mev_submission::with_rpc_timeout(
+            protected,
+            provider.estimate_batch(multi_precursor, precursors),
+        )
+        .await??;
+
+        tx.precursor_mut().tx.set_gas(gas_limit);
+
+        Ok(())
     }
 
     async fn submit(&self, tx: &mut Transaction) -> Result<(), LanderError> {
@@ -782,7 +737,7 @@ impl AdaptsChain for EthereumAdapter {
         let protected = self.is_protected_provider(provider);
         let send = provider.send(&precursor.tx, &precursor.function);
         let send_result = if protected {
-            let result = mev_submission::with_rpc_timeout(send).await;
+            let result = mev_submission::with_rpc_timeout(true, send).await;
             self.metrics
                 .increment_mev_submissions(if matches!(result, Ok(Ok(_))) {
                     "success"
@@ -823,8 +778,8 @@ impl AdaptsChain for EthereumAdapter {
                     Err(TxAlreadyExists)
                 } else {
                     let error = LanderError::from(e);
-                    if !nonce_changed && !tx.tx_hashes.is_empty() {
-                        // A previous same-nonce hash may still land after a failed replacement.
+                    if rebroadcast {
+                        // Poll recorded hashes after a failed same-nonce rebroadcast.
                         // A changed-nonce failure must keep retrying its reservation
                         // before an older hash can finalize the transaction.
                         Err(LanderError::TxGasCapReached)

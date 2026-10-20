@@ -116,7 +116,7 @@ export function buildWarpRouteProcessAltOverrides(
 export interface BaseRelayerConfig {
   // URLs are injected from per-chain Secret Manager secrets by Helm.
   mevSubmission?: ChainMap<
-    Pick<NonNullable<AgentChainMetadata['mevSubmission']>, 'matchingList'>
+    Pick<NonNullable<AgentChainMetadata['mevSubmission']>, 'icaRouter'>
   >;
   gasPaymentEnforcement: GasPaymentEnforcement[];
   whitelist?: MatchingList;

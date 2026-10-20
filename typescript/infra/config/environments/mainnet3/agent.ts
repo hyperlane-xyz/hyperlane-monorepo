@@ -438,13 +438,7 @@ const mevSubmission = Object.fromEntries(
     return [
       chain,
       {
-        matchingList: [
-          {
-            destinationDomain: getDomainId(chain),
-            recipientAddress: addressToBytes32(router),
-            bodyRegex: '^02',
-          },
-        ],
+        icaRouter: addressToBytes32(router),
       },
     ];
   }),

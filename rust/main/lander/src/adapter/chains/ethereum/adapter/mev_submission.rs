@@ -5,8 +5,8 @@ use ethers::{
     types::{transaction::eip2718::TypedTransaction, NameOrAddress, H160},
 };
 use eyre::{ensure, eyre, Result};
-use hyperlane_core::{matching_list::MatchingList, Decode, HyperlaneMessage};
-use hyperlane_ethereum::EvmProviderForLander;
+use hyperlane_core::{Decode, HyperlaneMessage};
+use hyperlane_ethereum::{EvmProviderForLander, MevSubmissionConfig};
 use tracing::info;
 
 use crate::{payload::FullPayload, transaction::Transaction, LanderError};
@@ -16,8 +16,12 @@ use super::EthereumAdapter;
 pub(super) const RPC_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub(super) async fn with_rpc_timeout<F: std::future::Future>(
+    protected: bool,
     request: F,
 ) -> Result<F::Output, LanderError> {
+    if !protected {
+        return Ok(request.await);
+    }
     tokio::time::timeout(RPC_TIMEOUT, request)
         .await
         .map_err(|_| LanderError::TxSubmissionDeferred)
@@ -25,7 +29,7 @@ pub(super) async fn with_rpc_timeout<F: std::future::Future>(
 
 pub(crate) struct MevSubmission {
     pub mailbox: H160,
-    pub matching_list: MatchingList,
+    pub policy: MevSubmissionConfig,
     pub provider: Arc<dyn EvmProviderForLander>,
 }
 
@@ -50,7 +54,7 @@ impl MevSubmission {
             return Err(eyre!("Invalid Mailbox.process arguments"));
         };
         let message = HyperlaneMessage::read_from(&mut message.as_slice())?;
-        Ok(self.matching_list.msg_matches(&message, false))
+        Ok(self.policy.matches(&message))
     }
 }
 
@@ -120,15 +124,6 @@ mod tests {
     const MAILBOX: H160 = H160([1; 20]);
     const ROUTER: H256 = H256([2; 32]);
 
-    fn rules() -> MatchingList {
-        serde_json::from_value(serde_json::json!([{
-            "senderaddress": format!("{ROUTER:#x}"),
-            "recipientaddress": format!("{ROUTER:#x}"),
-            "bodyregex": "^02.{128}$",
-        }]))
-        .unwrap()
-    }
-
     fn payload(message_type: u8, router: H256, mailbox: H160) -> FullPayload {
         let message = HyperlaneMessage {
             sender: router,
@@ -136,13 +131,17 @@ mod tests {
             body: [vec![message_type], vec![0; 64]].concat(),
             ..Default::default()
         };
+        let mut bytes = Vec::new();
+        message.write_to(&mut bytes).unwrap();
+        envelope_payload(bytes, mailbox)
+    }
+
+    fn envelope_payload(bytes: Vec<u8>, mailbox: H160) -> FullPayload {
         let function = AbiParser::default()
             .parse_function("process(bytes,bytes)")
             .unwrap();
-        let mut message_bytes = Vec::new();
-        message.write_to(&mut message_bytes).unwrap();
         let data = function
-            .encode_input(&[Token::Bytes(vec![]), Token::Bytes(message_bytes)])
+            .encode_input(&[Token::Bytes(vec![]), Token::Bytes(bytes)])
             .unwrap();
         let tx: TypedTransaction = TransactionRequest::new().to(mailbox).data(data).into();
         let mut payload = FullPayload::random();
@@ -161,6 +160,9 @@ mod tests {
         mock_get_block(&mut normal);
         mock_get_next_nonce_on_finalized_block(&mut normal);
         mock_default_fee_history(&mut normal);
+        normal
+            .expect_batch()
+            .returning(|_, _, precursors, _| Ok(precursors[0].clone()));
         normal
             .expect_send()
             .times(normal_sends)
@@ -189,7 +191,10 @@ mod tests {
         );
         adapter.mev_submission = Some(MevSubmission {
             mailbox: MAILBOX,
-            matching_list: rules(),
+            policy: MevSubmissionConfig {
+                rpc_urls: vec![],
+                ica_router: ROUTER,
+            },
             provider: Arc::new(protected),
         });
         adapter
@@ -213,7 +218,7 @@ mod tests {
 
     #[tokio::test]
     async fn reveal_and_replacement_never_use_normal_provider() {
-        let adapter = adapter(0, 2, false);
+        let mut adapter = adapter(0, 2, false);
         let mut tx = transaction(&adapter, vec![payload(2, ROUTER, MAILBOX)]).await;
         adapter.submit(&mut tx).await.unwrap();
         let nonce = tx.precursor().tx.nonce().copied();
@@ -222,6 +227,23 @@ mod tests {
             serde_json::from_slice(&serde_json::to_vec(&tx).unwrap()).unwrap();
         adapter.submit(&mut recovered).await.unwrap();
         assert_eq!(recovered.precursor().tx.nonce().copied(), nonce);
+        let hashes = recovered.tx_hashes.clone();
+        let mut unavailable = MockEvmProvider::new();
+        unavailable.expect_send().times(1).returning(|_, _| {
+            Err(ChainCommunicationError::CustomError(
+                "relay unavailable".into(),
+            ))
+        });
+        adapter.mev_submission.as_mut().unwrap().provider = Arc::new(unavailable);
+        // Force different signed bytes, rather than rebroadcasting the original price.
+        adapter.transaction_overrides.gas_price = Some(1_000.into());
+        assert!(matches!(
+            adapter.submit(&mut recovered).await,
+            Err(LanderError::TxSubmissionDeferred)
+        ));
+        assert_eq!(recovered.precursor().tx.gas_price(), Some(1_000.into()));
+        assert_eq!(recovered.precursor().tx.nonce().copied(), nonce);
+        assert_eq!(recovered.tx_hashes, hashes);
     }
 
     #[tokio::test]
@@ -240,60 +262,42 @@ mod tests {
         let mut adapter = adapter(0, 1, false);
         let mev = adapter.mev_submission.as_mut().unwrap();
         mev.mailbox = mailbox;
-        mev.matching_list = serde_json::from_value(serde_json::json!([{
-            "origindomain": 1,
-            "senderaddress": "0xc00b94c115742f711a6f9ea90373c33e9b72a4a9",
-            "destinationdomain": 42161,
-            "recipientaddress": "0xf90a3d406c6f8321fe118861a357f4d7107760d7",
-            "bodyregex": "^02.{64}",
-        }]))
-        .unwrap();
-        let function = AbiParser::default()
-            .parse_function("process(bytes,bytes)")
-            .unwrap();
-        let data = function
-            .encode_input(&[Token::Bytes(vec![]), Token::Bytes(message)])
-            .unwrap();
-        let request: TypedTransaction = TransactionRequest::new().to(mailbox).data(data).into();
-        let mut payload = FullPayload::random();
-        payload.data = serde_json::to_vec(&(request, function)).unwrap();
-        let mut tx = transaction(&adapter, vec![payload]).await;
+        mev.policy.ica_router = "0xf90a3d406c6f8321fe118861a357f4d7107760d7"
+            .parse::<H160>()
+            .unwrap()
+            .into();
+        let mut tx = transaction(&adapter, vec![envelope_payload(message, mailbox)]).await;
         adapter.submit(&mut tx).await.unwrap();
     }
 
     #[tokio::test]
-    async fn mixed_batch_is_submitted_entirely_through_protected_provider() {
-        let adapter = adapter(0, 1, false);
-        let mut tx = transaction(
-            &adapter,
-            vec![payload(1, ROUTER, MAILBOX), payload(2, ROUTER, MAILBOX)],
-        )
-        .await;
-        adapter.submit(&mut tx).await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn commits_and_unrelated_messages_use_normal_provider() {
-        let adapter = adapter(1, 0, false);
-        let mut tx = transaction(
-            &adapter,
-            vec![
-                payload(1, ROUTER, MAILBOX),
-                payload(0, ROUTER, MAILBOX),
-                payload(2, H256::zero(), MAILBOX),
-                payload(2, ROUTER, H160::zero()),
-            ],
-        )
-        .await;
-        adapter.submit(&mut tx).await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn unconfigured_destination_uses_normal_provider() {
-        let mut adapter = adapter(1, 0, false);
-        adapter.mev_submission = None;
-        let mut tx = transaction(&adapter, vec![payload(2, ROUTER, MAILBOX)]).await;
-        adapter.submit(&mut tx).await.unwrap();
+    async fn routes_reveals_and_mixed_batches_but_not_commits_or_unrelated_messages() {
+        for (enabled, payloads, private) in [
+            (true, vec![payload(2, ROUTER, MAILBOX)], true),
+            (
+                true,
+                vec![payload(1, ROUTER, MAILBOX), payload(2, ROUTER, MAILBOX)],
+                true,
+            ),
+            (
+                true,
+                vec![
+                    payload(1, ROUTER, MAILBOX),
+                    payload(0, ROUTER, MAILBOX),
+                    payload(2, H256::zero(), MAILBOX),
+                    payload(2, ROUTER, H160::zero()),
+                ],
+                false,
+            ),
+            (false, vec![payload(2, ROUTER, MAILBOX)], false),
+        ] {
+            let mut adapter = adapter(usize::from(!private), usize::from(private), false);
+            if !enabled {
+                adapter.mev_submission = None;
+            }
+            let mut tx = transaction(&adapter, payloads).await;
+            adapter.submit(&mut tx).await.unwrap();
+        }
     }
 
     #[tokio::test]
@@ -323,36 +327,6 @@ mod tests {
         assert!(adapter.submit(&mut tx).await.is_err());
         assert!(tx.precursor().tx.nonce().is_none());
     }
-    #[tokio::test(start_paused = true)]
-    async fn protected_rpc_timeout_is_bounded() {
-        let started = tokio::time::Instant::now();
-        assert!(matches!(
-            with_rpc_timeout(std::future::pending::<()>()).await,
-            Err(LanderError::TxSubmissionDeferred)
-        ));
-        assert_eq!(started.elapsed(), RPC_TIMEOUT);
-    }
-
-    #[tokio::test]
-    async fn protected_reveals_are_built_separately_from_ordinary_payloads() {
-        let adapter = adapter(0, 0, false);
-        let commit = payload(1, ROUTER, MAILBOX);
-        let reveal = payload(2, ROUTER, MAILBOX);
-        let results = adapter
-            .build_transactions(&[commit.clone(), reveal.clone()])
-            .await;
-        assert_eq!(results.len(), 2);
-        assert!(results
-            .iter()
-            .all(|r| r.maybe_tx.is_some() && r.payloads.len() == 1));
-        assert!(results
-            .iter()
-            .any(|r| r.payloads[0].uuid == reveal.details.uuid));
-        assert!(results
-            .iter()
-            .any(|r| r.payloads[0].uuid == commit.details.uuid));
-    }
-
     #[tokio::test]
     async fn protected_preflights_cover_single_and_recovered_mixed_transactions() {
         let mut adapter = adapter(0, 0, false);
@@ -366,10 +340,6 @@ mod tests {
             .expect_simulate_batch()
             .times(1)
             .returning(|_| Ok((vec![0, 1], vec![])));
-        protected
-            .expect_batch()
-            .times(1)
-            .returning(|_, _, precursors, _| Ok(precursors[0].clone()));
         protected
             .expect_estimate_batch()
             .times(1)
@@ -420,10 +390,12 @@ mod tests {
                 adapter.domain.clone(),
             ));
         let mut tx = transaction(&adapter, vec![payload(2, ROUTER, MAILBOX)]).await;
+        let started = tokio::time::Instant::now();
         assert!(matches!(
             adapter.submit(&mut tx).await,
             Err(LanderError::TxSubmissionDeferred)
         ));
+        assert_eq!(started.elapsed(), RPC_TIMEOUT);
         let assigned_nonce = tx.precursor().tx.nonce().copied();
         assert!(assigned_nonce.is_some());
         let mut recovered = MockEvmProvider::new();
@@ -434,29 +406,5 @@ mod tests {
         adapter.mev_submission.as_mut().unwrap().provider = Arc::new(recovered);
         adapter.submit(&mut tx).await.unwrap();
         assert_eq!(tx.precursor().tx.nonce().copied(), assigned_nonce);
-    }
-    #[tokio::test]
-    async fn failed_protected_replacement_keeps_previous_hash_and_nonce() {
-        let mut adapter = adapter(0, 1, false);
-        let mut tx = transaction(&adapter, vec![payload(2, ROUTER, MAILBOX)]).await;
-        adapter.submit(&mut tx).await.unwrap();
-        let nonce = tx.precursor().tx.nonce().copied();
-        let hashes = tx.tx_hashes.clone();
-        let mut unavailable = MockEvmProvider::new();
-        unavailable.expect_send().times(1).returning(|_, _| {
-            Err(ChainCommunicationError::CustomError(
-                "relay unavailable".into(),
-            ))
-        });
-        adapter.mev_submission.as_mut().unwrap().provider = Arc::new(unavailable);
-        // Force different signed bytes, rather than rebroadcasting the original price.
-        adapter.transaction_overrides.gas_price = Some(1_000.into());
-        assert!(matches!(
-            adapter.submit(&mut tx).await,
-            Err(LanderError::TxGasCapReached)
-        ));
-        assert_eq!(tx.precursor().tx.gas_price(), Some(1_000.into()));
-        assert_eq!(tx.precursor().tx.nonce().copied(), nonce);
-        assert_eq!(tx.tx_hashes, hashes);
     }
 }

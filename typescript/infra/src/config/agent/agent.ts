@@ -73,12 +73,8 @@ interface HelmHyperlaneValues {
 
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
 // This is at `.hyperlane.chains` in the values file.
-export interface HelmAgentChainOverride extends DeepPartial<
-  Omit<AgentChainMetadata, 'mevSubmission'>
-> {
+export interface HelmAgentChainOverride extends DeepPartial<AgentChainMetadata> {
   name: AgentChainMetadata['name'];
-  // Keep matching rules intact through Helm's environment-variable rendering.
-  mevSubmission?: { matchingList: string };
 }
 
 export interface RootAgentConfig extends AgentContextConfig {

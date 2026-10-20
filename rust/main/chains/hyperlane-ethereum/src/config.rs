@@ -3,10 +3,9 @@ use ethers_core::types::{BlockId, BlockNumber};
 use std::{fmt, time::Duration};
 use url::Url;
 
-use hyperlane_core::matching_list::MatchingList;
 use hyperlane_core::{
     config::OpSubmissionConfig, utils::hex_or_base58_or_bech32_to_h256, ChainCommunicationError,
-    ChainResult, ReorgPeriod, H256, U256,
+    ChainResult, HyperlaneMessage, ReorgPeriod, H256, U256,
 };
 
 /// Protected RPCs for matching delivery preflights and EVM Lander submission.
@@ -14,15 +13,23 @@ use hyperlane_core::{
 pub struct MevSubmissionConfig {
     /// Endpoints that preserve transaction privacy, with no public fallback.
     pub rpc_urls: Vec<Url>,
-    /// Hyperlane messages requiring protected submission.
-    pub matching_list: MatchingList,
+    /// Canonical ICA router receiving reveal messages on this chain.
+    pub ica_router: H256,
+}
+
+impl MevSubmissionConfig {
+    /// Protect ICA reveals from any enrolled origin; commits use ordinary RPCs.
+    pub fn matches(&self, message: &HyperlaneMessage) -> bool {
+        const ICA_REVEAL: u8 = 2;
+        message.recipient == self.ica_router && message.body.first() == Some(&ICA_REVEAL)
+    }
 }
 
 impl fmt::Debug for MevSubmissionConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MevSubmissionConfig")
             .field("endpoint_count", &self.rpc_urls.len())
-            .field("matching_list", &self.matching_list)
+            .field("ica_router", &self.ica_router)
             .finish()
     }
 }

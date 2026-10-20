@@ -183,9 +183,7 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
             urReveal,
             ...(mevSubmission
               ? {
-                  mevSubmission: {
-                    matchingList: JSON.stringify(mevSubmission.matchingList),
-                  },
+                  mevSubmission,
                 }
               : {}),
           };

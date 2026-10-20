@@ -31,29 +31,29 @@ describe('ValidatorAgentConfigSchema maxSignConcurrency', () => {
 describe('AgentChainMetadataSchema mevSubmission', () => {
   const schema = AgentChainMetadataSchema.shape.mevSubmission;
 
-  it('accepts protected endpoints and matching rules, with protection off when absent', () => {
+  it('accepts protected endpoints and an ICA router, with protection off when absent', () => {
     expect(schema.safeParse(undefined).success).to.be.true;
     expect(
       schema.safeParse({
         rpcUrls: ['https://protected.example'],
-        matchingList: [{ bodyRegex: '^02' }],
+        icaRouter: `0x${'01'.repeat(32)}`,
       }).success,
     ).to.be.true;
   });
 
-  it('rejects missing or empty endpoint/rule lists and non-HTTPS URLs', () => {
+  it('rejects missing router or empty endpoint lists and non-HTTPS URLs', () => {
     for (const config of [
-      { matchingList: [{ bodyRegex: '^02' }] },
-      { rpcUrls: [], matchingList: [{ bodyRegex: '^02' }] },
+      { icaRouter: `0x${'01'.repeat(32)}` },
+      { rpcUrls: [], icaRouter: `0x${'01'.repeat(32)}` },
       {
         rpcUrls: ['wss://protected.example'],
-        matchingList: [{ bodyRegex: '^02' }],
+        icaRouter: `0x${'01'.repeat(32)}`,
       },
       {
         rpcUrls: ['http://protected.example'],
-        matchingList: [{ bodyRegex: '^02' }],
+        icaRouter: `0x${'01'.repeat(32)}`,
       },
-      { rpcUrls: ['https://protected.example'], matchingList: [] },
+      { rpcUrls: ['https://protected.example'], icaRouter: 'invalid' },
     ]) {
       expect(schema.safeParse(config).success).to.be.false;
     }

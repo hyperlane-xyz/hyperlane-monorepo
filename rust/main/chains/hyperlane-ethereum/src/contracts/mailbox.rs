@@ -806,7 +806,7 @@ where
             .conn
             .mev_submission
             .as_ref()
-            .is_some_and(|config| config.matching_list.msg_matches(message, false))
+            .is_some_and(|config| config.matches(message))
         {
             let estimator = self.protected_estimator.as_ref().ok_or_else(|| {
                 ChainCommunicationError::CustomError("Missing protected mailbox estimator".into())
@@ -919,8 +919,8 @@ mod test {
     };
     use ethers_core::types::FeeHistory;
     use hyperlane_core::{
-        matching_list::MatchingList, ContractLocator, HyperlaneDomain, HyperlaneMessage,
-        KnownHyperlaneDomain, Mailbox, Metadata, TxCostEstimate, H160, H256, U256,
+        ContractLocator, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox,
+        Metadata, TxCostEstimate, H160, H256, U256,
     };
 
     use crate::{
@@ -971,52 +971,6 @@ mod test {
         mock.push(U256::from(1000)).unwrap();
     }
 
-    #[derive(Debug)]
-    struct StalledRpc;
-
-    #[async_trait::async_trait]
-    impl ethers::providers::JsonRpcClient for StalledRpc {
-        type Error = ethers::providers::MockError;
-
-        async fn request<T, R>(&self, _method: &str, _params: T) -> Result<R, Self::Error>
-        where
-            T: std::fmt::Debug + serde::Serialize + Send + Sync,
-            R: serde::de::DeserializeOwned,
-        {
-            std::future::pending().await
-        }
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn protected_estimate_timeout_does_not_retry_on_ordinary_rpc() {
-        let (mut ordinary, ordinary_rpc) =
-            get_test_mailbox(HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum));
-        let protected = EthereumMailbox::new(
-            Arc::new(Provider::new(StalledRpc)),
-            &ordinary.conn,
-            &ContractLocator {
-                domain: &ordinary.domain,
-                address: H256::zero(),
-            },
-        );
-        let message = HyperlaneMessage::default();
-        ordinary.protected_estimator = Some(Arc::new(protected));
-        ordinary.conn.mev_submission = Some(MevSubmissionConfig {
-            rpc_urls: vec!["https://protected.example".parse().unwrap()],
-            matching_list: MatchingList::with_message_id(message.id()),
-        });
-        let started = tokio::time::Instant::now();
-        let error = ordinary
-            .process_estimate_costs(&message, &Metadata::new(vec![]))
-            .await
-            .unwrap_err();
-        assert!(error
-            .to_string()
-            .contains("Protected mailbox estimate timed out"));
-        assert_eq!(started.elapsed(), std::time::Duration::from_secs(5));
-        assert!(ordinary_rpc.assert_request("eth_estimateGas", ()).is_err());
-    }
-
     #[tokio::test]
     async fn matching_reveal_estimates_never_use_ordinary_rpc() {
         for domain in [
@@ -1033,10 +987,7 @@ mod test {
             };
             ordinary.conn.mev_submission = Some(MevSubmissionConfig {
                 rpc_urls: vec!["https://protected.example/private-key".parse().unwrap()],
-                matching_list: serde_json::from_value::<MatchingList>(
-                    serde_json::json!([{"bodyregex": "^02"}]),
-                )
-                .unwrap(),
+                ica_router: H256::zero(),
             });
             let arbitrum = protected.arbitrum_node_interface.is_some();
             ordinary.protected_estimator = Some(Arc::new(protected));

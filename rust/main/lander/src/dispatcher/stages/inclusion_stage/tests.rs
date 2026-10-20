@@ -1471,12 +1471,20 @@ async fn owned_submission_errors_and_cancellation_do_not_notify() {
 }
 
 #[tokio::test]
-async fn mev_submission_deferred_keeps_transaction_and_attempt_timestamp() {
-    for during_preflight in [false, true] {
+async fn mev_deferrals_keep_state_and_retry_unfinished_simulation() {
+    for phase in ["simulation", "estimate", "send"] {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let attempts = calls.clone();
         let mut adapter = MockAdapter::new();
-        adapter.expect_simulate_tx().returning(|_| Ok(vec![]));
+        adapter.expect_simulate_tx().returning(move |_| {
+            if attempts.fetch_add(1, Ordering::SeqCst) == 0 && phase == "simulation" {
+                Err(LanderError::TxSubmissionDeferred)
+            } else {
+                Ok(vec![])
+            }
+        });
         adapter.expect_estimate_tx().returning(move |_| {
-            if during_preflight {
+            if phase == "estimate" {
                 Err(LanderError::TxSubmissionDeferred)
             } else {
                 Ok(())
@@ -1484,68 +1492,39 @@ async fn mev_submission_deferred_keeps_transaction_and_attempt_timestamp() {
         });
         adapter
             .expect_submit()
-            .times(usize::from(!during_preflight))
+            .times(usize::from(phase != "estimate"))
             .returning(|_| Err(LanderError::TxSubmissionDeferred));
         let (state, pool) = reprocess_test_state(adapter);
-        let txs = create_random_txs_and_store_them(
+        let mut tx = create_random_txs_and_store_them(
             1,
             &state.payload_db,
             &state.tx_db,
             TransactionStatus::PendingInclusion,
         )
-        .await;
-        let tx = txs[0].clone();
-        pool.lock().await.insert(tx.uuid.clone(), tx.clone());
-        InclusionStage::process_pending_tx(tx.clone(), &state, &pool, "test")
-            .await
-            .unwrap();
-        let retained = pool.lock().await.get(&tx.uuid).cloned().unwrap();
-        assert_eq!(retained.status, TransactionStatus::PendingInclusion);
-        assert!(retained.last_submission_attempt.is_some());
-        assert_eq!(retained.submission_attempts, u32::from(!during_preflight));
-        assert_tx_status(
-            vec![retained],
-            &state.tx_db,
-            &state.payload_db,
-            TransactionStatus::PendingInclusion,
-        )
-        .await;
-    }
-}
-
-#[tokio::test]
-async fn mev_simulation_timeout_is_simulated_again_before_submission() {
-    let calls = Arc::new(AtomicUsize::new(0));
-    let attempts = calls.clone();
-    let mut adapter = MockAdapter::new();
-    adapter.expect_simulate_tx().times(2).returning(move |_| {
-        if attempts.fetch_add(1, Ordering::SeqCst) == 0 {
-            Err(LanderError::TxSubmissionDeferred)
-        } else {
-            Ok(vec![])
+        .await
+        .remove(0);
+        for pass in 0..if phase == "simulation" { 2 } else { 1 } {
+            InclusionStage::process_pending_tx(tx.clone(), &state, &pool, "test")
+                .await
+                .unwrap();
+            tx = pool.lock().await.get(&tx.uuid).cloned().unwrap();
+            assert_eq!(tx.status, TransactionStatus::PendingInclusion);
+            assert!(tx.last_submission_attempt.is_some());
+            assert_eq!(
+                tx.submission_attempts,
+                u32::from(phase == "send" || pass == 1)
+            );
+            assert_tx_status(
+                vec![tx.clone()],
+                &state.tx_db,
+                &state.payload_db,
+                TransactionStatus::PendingInclusion,
+            )
+            .await;
         }
-    });
-    adapter.expect_estimate_tx().times(1).returning(|_| Ok(()));
-    adapter
-        .expect_submit()
-        .times(1)
-        .returning(|_| Err(LanderError::TxSubmissionDeferred));
-    let (state, pool) = reprocess_test_state(adapter);
-    let txs = create_random_txs_and_store_them(
-        1,
-        &state.payload_db,
-        &state.tx_db,
-        TransactionStatus::PendingInclusion,
-    )
-    .await;
-    let mut tx = txs[0].clone();
-    for expected_attempts in [0, 1] {
-        InclusionStage::process_pending_tx(tx.clone(), &state, &pool, "test")
-            .await
-            .unwrap();
-        tx = pool.lock().await.get(&tx.uuid).cloned().unwrap();
-        assert_eq!(tx.status, TransactionStatus::PendingInclusion);
-        assert_eq!(tx.submission_attempts, expected_attempts);
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            if phase == "simulation" { 2 } else { 1 }
+        );
     }
-    assert_eq!(calls.load(Ordering::SeqCst), 2);
 }
