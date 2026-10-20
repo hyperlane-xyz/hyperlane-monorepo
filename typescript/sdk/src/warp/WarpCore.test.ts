@@ -749,16 +749,19 @@ describe('WarpCore', () => {
     // Recipient differs from sender so a dropped `recipient` in
     // validateTokenBalances -> getLocalTransferFeeAmount is observable.
     const localFeeSpy = sinon.spy(warpCore, 'getLocalTransferFeeAmount');
-    const validResult = await warpCore.validateTransfer({
-      originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
-      destination: test2.name,
-      recipient: MOCK_ADDRESS_2,
-      sender: MOCK_ADDRESS,
-    });
-    expect(validResult).to.be.null;
-    sinon.assert.calledOnce(localFeeSpy);
-    expect(localFeeSpy.firstCall.args[0].recipient).to.equal(MOCK_ADDRESS_2);
-    localFeeSpy.restore();
+    try {
+      const validResult = await warpCore.validateTransfer({
+        originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
+        destination: test2.name,
+        recipient: MOCK_ADDRESS_2,
+        sender: MOCK_ADDRESS,
+      });
+      expect(validResult).to.be.null;
+      sinon.assert.calledOnce(localFeeSpy);
+      expect(localFeeSpy.firstCall.args[0].recipient).to.equal(MOCK_ADDRESS_2);
+    } finally {
+      localFeeSpy.restore();
+    }
 
     const invalidChain = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
