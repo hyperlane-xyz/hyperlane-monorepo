@@ -1628,6 +1628,40 @@ describe('ActionTracker', () => {
       expect(partialIntents[0].remaining).to.equal(600000000000000000n);
     });
 
+    it('returns an active intent with an in-flight inventory movement', async () => {
+      await rebalanceIntentStore.save({
+        id: 'intent-with-movement',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      await rebalanceActionStore.save({
+        id: 'movement-in-progress',
+        type: 'inventory_movement',
+        status: 'in_progress',
+        intentId: 'intent-with-movement',
+        origin: 3,
+        destination: 2,
+        amount: 1100000000000000000n,
+        txHash: '0xsource',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].remaining).to.equal(1000000000000000000n);
+      expect(partialIntents[0].hasInflightMovement).to.be.true;
+      expect(partialIntents[0].hasInflightDeposit).to.be.false;
+    });
+
     it('does not return non-inventory intents', async () => {
       // Create a not_started intent without executionMethod: 'inventory'
       await rebalanceIntentStore.save({
@@ -1870,7 +1904,8 @@ describe('ActionTracker', () => {
 
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(0);
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].hasInflightMovement).to.be.true;
 
       // Staleness is not evidence that the source never committed.
       const failedAction = await rebalanceActionStore.get('movement-stale');
@@ -1904,7 +1939,8 @@ describe('ActionTracker', () => {
 
       const partialIntents =
         await tracker.getPartiallyFulfilledInventoryIntents();
-      expect(partialIntents).to.have.lengthOf(0);
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].hasInflightMovement).to.be.true;
 
       const action = await rebalanceActionStore.get(
         'movement-undefined-status',
