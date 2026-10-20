@@ -14,6 +14,25 @@ contract MockArbSys {
         bytes data
     );
 
+    bool public isAliased;
+    address public callerWithoutAliasing;
+
+    function setCallerWithoutAliasing(
+        address _caller,
+        bool _isAliased
+    ) external {
+        callerWithoutAliasing = _caller;
+        isAliased = _isAliased;
+    }
+
+    function wasMyCallersAddressAliased() external view returns (bool) {
+        return isAliased;
+    }
+
+    function myCallersAddressWithoutAliasing() external view returns (address) {
+        return callerWithoutAliasing;
+    }
+
     function sendTxToL1(
         address destination,
         bytes calldata data
@@ -30,6 +49,41 @@ contract MockArbSys {
             data
         );
         return 0;
+    }
+}
+
+contract MockArbitrumInbox {
+    uint256 public submissionFee = 0.001 ether;
+    uint256 public nextTicketId = 1;
+
+    event InboxMessageDelivered(uint256 indexed messageNum, bytes data);
+    event RetryableTicketCreated(uint256 indexed ticketId);
+
+    function setSubmissionFee(uint256 _fee) external {
+        submissionFee = _fee;
+    }
+
+    function calculateRetryableSubmissionFee(
+        uint256 /*dataLength*/,
+        uint256 /*baseFee*/
+    ) external view returns (uint256) {
+        return submissionFee;
+    }
+
+    function createRetryableTicket(
+        address /*to*/,
+        uint256 /*l2CallValue*/,
+        uint256 /*maxSubmissionCost*/,
+        address /*excessFeeRefundAddress*/,
+        address /*callValueRefundAddress*/,
+        uint256 /*gasLimit*/,
+        uint256 /*maxFeePerGas*/,
+        bytes calldata data
+    ) external payable returns (uint256) {
+        uint256 ticketId = nextTicketId++;
+        emit RetryableTicketCreated(ticketId);
+        emit InboxMessageDelivered(ticketId, data);
+        return ticketId;
     }
 }
 
