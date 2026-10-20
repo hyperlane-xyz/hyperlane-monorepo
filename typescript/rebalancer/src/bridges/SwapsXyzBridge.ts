@@ -757,6 +757,12 @@ export class SwapsXyzBridge implements IExternalBridge {
     if (metadata?.protocol === ProtocolType.Tron)
       this.validatePreparedTronOrder(quote, response);
     else await this.validatePreparedEvmOrder(quote, response);
+    await this.validateQuoteLoss(
+      quote.requestParams,
+      response,
+      BigInt((response.amountInMax ?? response.amountIn).amount),
+      BigInt(response.amountOut.amount),
+    );
     assert(
       Date.now() - preparedAt < MAX_TRANSACTION_AGE_MS,
       'swaps.xyz transaction expired during preparation',
@@ -830,6 +836,12 @@ export class SwapsXyzBridge implements IExternalBridge {
     );
     assert(isSolanaTx(fresh.tx), 'SwapsXyzBridge.execute requires a Solana tx');
     this.validateSolanaActionResponse(fresh, quote);
+    await this.validateQuoteLoss(
+      quote.requestParams,
+      fresh,
+      BigInt((fresh.amountInMax ?? fresh.amountIn).amount),
+      BigInt(fresh.amountOut.amount),
+    );
 
     const transaction = VersionedTransaction.deserialize(
       Buffer.from(fresh.tx.base64Tx, 'base64'),
@@ -1081,9 +1093,17 @@ export class SwapsXyzBridge implements IExternalBridge {
     const freshFromAmount = BigInt(
       (response.amountInMax ?? response.amountIn).amount,
     );
+    const maxInputGrowthBps =
+      params.toAmount === undefined
+        ? 0
+        : (this.config.maxQuoteLossBps ?? this.getSlippageBps(params.slippage));
+    const acceptedInputCap = ceilDiv(
+      quote.fromAmount * (BPS_DENOMINATOR + BigInt(maxInputGrowthBps)),
+      BPS_DENOMINATOR,
+    );
     assert(
-      freshFromAmount <= quote.fromAmount,
-      `SwapsXyzBridge.execute fresh input ${freshFromAmount} exceeds accepted input cap ${quote.fromAmount}`,
+      freshFromAmount <= acceptedInputCap,
+      `SwapsXyzBridge.execute fresh input ${freshFromAmount} exceeds accepted input cap ${acceptedInputCap}`,
     );
     const freshToAmountMin = BigInt(response.amountOutMin.amount);
     assert(
