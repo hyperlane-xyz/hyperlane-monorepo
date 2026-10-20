@@ -1,43 +1,69 @@
 warpRouteId: ETH/viction
 
+# Reviewed node-services build from this config branch.
+deployment:
+  imageTag: d267369-20261020-150802
+  registryCommit: a24bd88a0ce60fb862a5bd5a6ba63fb7a60d79bc
+  swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key
+
+intentTTL: 1209600
+
 inventorySigners:
   ethereum: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
 
 externalBridges:
-  lifi:
-    integrator: 'rebalancer'
+  swapsxyz:
+    defaultSlippage: 0.005
+    maxQuoteLossBps: 50
+    maxEvmNativeFeeWei: '10000000000000000'
 
 strategy:
   rebalanceStrategy: weighted
   chains:
     arbitrum:
       weighted:
-        weight: 25
+        weight: 19
         tolerance: 5
       bridgeMinAcceptedAmount: 1
       executionType: inventory
-      externalBridge: lifi
-
+      externalBridge: swapsxyz
+      override:
+        robinhood:
+          bridgeMinAcceptedAmount: 0.1
     base:
       weighted:
-        weight: 25
+        weight: 19
         tolerance: 5
       bridgeMinAcceptedAmount: 1
       executionType: inventory
-      externalBridge: lifi
-
+      externalBridge: swapsxyz
+      override:
+        robinhood:
+          bridgeMinAcceptedAmount: 0.1
     ethereum:
       weighted:
-        weight: 25
+        weight: 19
         tolerance: 5
       bridgeMinAcceptedAmount: 1
       executionType: inventory
-      externalBridge: lifi
-
+      externalBridge: swapsxyz
+      override:
+        robinhood:
+          bridgeMinAcceptedAmount: 0.1
     optimism:
       weighted:
-        weight: 25
+        weight: 15
         tolerance: 5
       bridgeMinAcceptedAmount: 1
       executionType: inventory
-      externalBridge: lifi
+      externalBridge: swapsxyz
+      override:
+        robinhood:
+          bridgeMinAcceptedAmount: 0.1
+    robinhood:
+      weighted:
+        weight: 8
+        tolerance: 5
+      bridgeMinAcceptedAmount: 0.1
+      executionType: inventory
+      externalBridge: swapsxyz
