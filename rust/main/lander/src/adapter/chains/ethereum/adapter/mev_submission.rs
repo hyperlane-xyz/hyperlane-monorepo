@@ -338,9 +338,29 @@ mod tests {
 
     #[tokio::test]
     async fn protected_failure_retries_without_public_fallback() {
-        let adapter = adapter(0, 2, true);
+        let mut adapter = adapter(0, 2, true);
+        let mut signer = MockEvmProvider::new();
+        signer.expect_sign_transaction().times(1).returning(|_| {
+            Err(ChainCommunicationError::CustomError(
+                "KMS unavailable".into(),
+            ))
+        });
+        let protected = std::mem::replace(
+            &mut adapter.mev_submission.as_mut().unwrap().provider,
+            Arc::new(signer),
+        );
         let mut tx = transaction(&adapter, vec![payload(2, ROUTER, MAILBOX)]).await;
-        assert!(adapter.submit(&mut tx).await.is_err());
+        assert!(matches!(
+            adapter.submit(&mut tx).await,
+            Err(LanderError::TxSubmissionDeferred)
+        ));
+        assert!(tx.precursor().tx.nonce().is_none());
+        assert!(tx.tx_hashes.is_empty());
+        adapter.mev_submission.as_mut().unwrap().provider = protected;
+        assert!(matches!(
+            adapter.submit(&mut tx).await,
+            Err(LanderError::TxSubmissionDeferred)
+        ));
         assert!(tx.precursor().tx.nonce().is_none());
         assert!(adapter.submit(&mut tx).await.is_err());
     }

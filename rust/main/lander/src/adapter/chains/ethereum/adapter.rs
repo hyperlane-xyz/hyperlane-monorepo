@@ -734,9 +734,27 @@ impl AdaptsChain for EthereumAdapter {
 
         let protected = self.is_protected_provider(provider);
         let send_result = if protected {
-            let signed =
-                mev_submission::preflight(true, provider.sign_transaction(&tx.precursor().tx))
-                    .await?;
+            let signed = match mev_submission::preflight(
+                true,
+                provider.sign_transaction(&tx.precursor().tx),
+            )
+            .await
+            {
+                Ok(signed) => signed,
+                Err(err) => {
+                    // Signing cannot broadcast. Keep a newly reserved nonce
+                    // distinguishable from a previous broadcast on the next pass.
+                    if nonce_changed {
+                        match previous_nonce {
+                            Some(nonce) => {
+                                tx.precursor_mut().tx.set_nonce(nonce);
+                            }
+                            None => clear_nonce(&mut tx.precursor_mut().tx),
+                        }
+                    }
+                    return Err(err);
+                }
+            };
             // A relay can accept the bytes but lose its response. Keep the exact
             // signed hash so receipt polling can discover inclusion after a timeout.
             let hash = H256::from(ethers::utils::keccak256(&signed)).into();
