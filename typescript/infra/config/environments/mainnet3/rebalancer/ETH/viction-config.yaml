@@ -2,7 +2,7 @@ warpRouteId: ETH/viction
 
 # Reviewed node-services build from this config branch.
 deployment:
-  imageTag: de7f0e5-20261020-110327
+  imageTag: 79f9608-20261020-142721
   registryCommit: a24bd88a0ce60fb862a5bd5a6ba63fb7a60d79bc
   swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key
 
