@@ -5,7 +5,7 @@ import type { MultiProvider } from '@hyperlane-xyz/sdk';
 
 import type { IActionTracker } from './IActionTracker.js';
 import { InflightContextAdapter } from './InflightContextAdapter.js';
-import type { RebalanceIntent, Transfer } from './types.js';
+import type { RebalanceAction, RebalanceIntent, Transfer } from './types.js';
 
 describe('InflightContextAdapter', () => {
   let actionTracker: Sinon.SinonStubbedInstance<IActionTracker>;
@@ -17,6 +17,7 @@ describe('InflightContextAdapter', () => {
       getActiveRebalanceIntents: Sinon.stub(),
       getInProgressTransfers: Sinon.stub(),
       getActionsForIntent: Sinon.stub(),
+      getActionsForIntents: Sinon.stub(),
     } as any;
 
     multiProvider = {
@@ -65,6 +66,7 @@ describe('InflightContextAdapter', () => {
       actionTracker.getActiveRebalanceIntents.resolves(mockIntents);
       actionTracker.getInProgressTransfers.resolves(mockTransfers);
       actionTracker.getActionsForIntent.resolves([]); // No actions
+      actionTracker.getActionsForIntents!.resolves(new Map());
       multiProvider.getChainName.withArgs(1).returns('ethereum');
       multiProvider.getChainName.withArgs(2).returns('arbitrum');
 
@@ -130,6 +132,7 @@ describe('InflightContextAdapter', () => {
       actionTracker.getActiveRebalanceIntents.resolves(mockIntents);
       actionTracker.getInProgressTransfers.resolves(mockTransfers);
       actionTracker.getActionsForIntent.resolves([]);
+      actionTracker.getActionsForIntents!.resolves(new Map());
       multiProvider.getChainName.withArgs(137).returns('polygon');
       multiProvider.getChainName.withArgs(10).returns('optimism');
 
@@ -193,6 +196,7 @@ describe('InflightContextAdapter', () => {
       actionTracker.getActiveRebalanceIntents.resolves(mockIntents);
       actionTracker.getInProgressTransfers.resolves(mockTransfers);
       actionTracker.getActionsForIntent.resolves([]);
+      actionTracker.getActionsForIntents!.resolves(new Map());
       multiProvider.getChainName.withArgs(1).returns('ethereum');
       multiProvider.getChainName.withArgs(2).returns('arbitrum');
       multiProvider.getChainName.withArgs(3).returns('optimism');
@@ -201,6 +205,108 @@ describe('InflightContextAdapter', () => {
 
       expect(result.pendingRebalances).to.have.lengthOf(2);
       expect(result.pendingTransfers).to.have.lengthOf(2);
+    });
+
+    it('loads inventory actions in one grouped tracker query', async () => {
+      const intents: RebalanceIntent[] = [
+        {
+          id: 'intent1',
+          origin: 1,
+          destination: 2,
+          amount: 1000n,
+          status: 'in_progress',
+          executionMethod: 'inventory',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        {
+          id: 'intent2',
+          origin: 2,
+          destination: 3,
+          amount: 1500n,
+          status: 'in_progress',
+          executionMethod: 'inventory',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+      ];
+      const actions = new Map<string, RebalanceAction[]>([
+        [
+          'intent1',
+          [
+            {
+              id: 'action1',
+              intentId: 'intent1',
+              origin: 1,
+              destination: 2,
+              amount: 400n,
+              type: 'inventory_deposit',
+              status: 'complete',
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            },
+          ],
+        ],
+        [
+          'intent2',
+          [
+            {
+              id: 'action2',
+              intentId: 'intent2',
+              origin: 2,
+              destination: 3,
+              amount: 500n,
+              type: 'inventory_deposit',
+              status: 'in_progress',
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            },
+          ],
+        ],
+      ]);
+      actionTracker.getActiveRebalanceIntents.resolves(intents);
+      actionTracker.getInProgressTransfers.resolves([]);
+      actionTracker.getActionsForIntents!.resolves(actions);
+      multiProvider.getChainName.withArgs(1).returns('ethereum');
+      multiProvider.getChainName.withArgs(2).returns('arbitrum');
+      multiProvider.getChainName.withArgs(3).returns('optimism');
+
+      const result = await adapter.getInflightContext();
+
+      expect(
+        actionTracker.getActionsForIntents!.calledOnceWithExactly([
+          'intent1',
+          'intent2',
+        ]),
+      ).to.equal(true);
+      expect(actionTracker.getActionsForIntent.called).to.equal(false);
+      expect(result.pendingRebalances[0].deliveredAmount).to.equal(400n);
+      expect(result.pendingRebalances[1].awaitingDeliveryAmount).to.equal(500n);
+    });
+
+    it('supports trackers without the optional grouped query', async () => {
+      const intent: RebalanceIntent = {
+        id: 'intent1',
+        origin: 1,
+        destination: 2,
+        amount: 1000n,
+        status: 'in_progress',
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      actionTracker.getActiveRebalanceIntents.resolves([intent]);
+      actionTracker.getInProgressTransfers.resolves([]);
+      actionTracker.getActionsForIntents = undefined;
+      actionTracker.getActionsForIntent.resolves([]);
+      multiProvider.getChainName.withArgs(1).returns('ethereum');
+      multiProvider.getChainName.withArgs(2).returns('arbitrum');
+
+      await adapter.getInflightContext();
+
+      expect(
+        actionTracker.getActionsForIntent.calledOnceWithExactly('intent1'),
+      ).to.equal(true);
     });
   });
 });
