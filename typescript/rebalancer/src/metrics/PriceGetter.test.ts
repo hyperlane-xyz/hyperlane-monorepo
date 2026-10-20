@@ -110,4 +110,46 @@ describe('PriceGetter concurrent lookups', () => {
     expect(await getter.getCoingeckoPrice('usd-coin')).to.equal(2);
     expect(lookup.callCount).to.equal(2);
   });
+
+  it('prefetches unique valid and invalid IDs in one request', async () => {
+    const fetch = Sinon.stub(globalThis, 'fetch').callsFake(async () =>
+      response(),
+    );
+    const getter = PriceGetter.create({}, logger, undefined, 60, 0);
+
+    await getter.prefetchMissing(['usd-coin', 'missing', 'usd-coin']);
+
+    expect(fetch.callCount).to.equal(1);
+    expect(getter.getCachedTokenPrice('usd-coin')).to.equal(1);
+    expect(getter.getCachedTokenPrice('missing')).to.be.undefined;
+  });
+
+  it('reuses valid cached prices while retrying uncached IDs next cycle', async () => {
+    const fetch = Sinon.stub(globalThis, 'fetch').callsFake(async () =>
+      response(),
+    );
+    const getter = PriceGetter.create({}, logger, undefined, 60, 0);
+
+    await getter.prefetchMissing(['usd-coin', 'missing']);
+    await getter.prefetchMissing(['usd-coin', 'missing']);
+
+    expect(fetch.callCount).to.equal(2);
+    const secondUrl = String(fetch.secondCall.args[0]);
+    expect(secondUrl).to.include('ids=missing');
+    expect(secondUrl).not.to.include('usd-coin');
+  });
+
+  it('leaves prices uncached after a failed batch and retries next cycle', async () => {
+    const fetch = Sinon.stub(globalThis, 'fetch');
+    fetch.onFirstCall().rejects(new Error('network unavailable'));
+    fetch.onSecondCall().resolves(response(2));
+    const getter = PriceGetter.create({}, logger, undefined, 60, 0);
+
+    await getter.prefetchMissing(['usd-coin']);
+    expect(getter.getCachedTokenPrice('usd-coin')).to.be.undefined;
+    await getter.prefetchMissing(['usd-coin']);
+
+    expect(getter.getCachedTokenPrice('usd-coin')).to.equal(2);
+    expect(fetch.callCount).to.equal(2);
+  });
 });
