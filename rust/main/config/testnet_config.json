@@ -1,7 +1,7 @@
 {
   "chains": {
     "arbitrumsepolia": {
-      "aggregationHook": "0xD2670EedcD21116c6F0B331Ce391eA4B3Bf1aB19",
+      "aggregationHook": "0x3842126107373EF7db58FE4b443D2B8CFcf5094d",
       "blockExplorers": [
         {
           "apiKey": "QAI5SWBNHJSFAN6KMS9RC5JGFKV2IYD2Z5",
@@ -56,7 +56,7 @@
           "http": "https://sepolia-rollup.arbitrum.io/rpc"
         }
       ],
-      "staticAggregationHookFactory": "0x0526E47C49742C15F8817ef8cf0d8FFc72139D4F",
+      "staticAggregationHookFactory": "0x4dD7716b876441355657a18c7E7b02129F88E3c0",
       "staticAggregationIsm": "0x29cEAFEE1F76B9CE271750f86B2bD12C23F9dDb6",
       "staticAggregationIsmFactory": "0xfc8d0D2E15A36f1A3F3aE3Cb127B706c1f23Aadc",
       "staticMerkleRootMultisigIsmFactory": "0x1D5EbC3e15e9ECDe0e3530C85899556797eeaea5",
@@ -72,10 +72,12 @@
       "interchainAccountRouter": "0x20cC3a33C49fa13627303669edf2DcA7F1E76a50",
       "timelockController": "0x0000000000000000000000000000000000000000",
       "incrementalDomainRoutingIsmFactory": "0xf7bAD571C3F043b0577ce6207630A01BF6092D6A",
-      "quotedCalls": "0x81Dc65907791713F2713F40f91D5153b7Ae9f3f7"
+      "quotedCalls": "0x81Dc65907791713F2713F40f91D5153b7Ae9f3f7",
+      "interchainAccountRouterV3": "0xFbD6952Cd4cC118d77916f42960f6B5C6a73c89E",
+      "quotedCallsV3": "0x84d24309B4ce27836c8f7470282C8b90BD7334aD"
     },
     "basesepolia": {
-      "aggregationHook": "0xccA408a6A9A6dc405C3278647421eb4317466943",
+      "aggregationHook": "0xEfF92f5A04daBE975FCa0a217d7dBE2eE16213f0",
       "blockExplorers": [
         {
           "apiKey": "R8CVTG7HDJYD5JDV2GSD5TGQH3J2KJDSSY",
@@ -127,7 +129,7 @@
           "http": "https://base-sepolia-rpc.publicnode.com"
         }
       ],
-      "staticAggregationHookFactory": "0xeb6f11189197223c656807a83B0DD374f9A6dF44",
+      "staticAggregationHookFactory": "0xaC9CF1DB85325418d2536a3703D9055476fb3385",
       "staticAggregationIsm": "0x815a9642497Ee1E9F061f8b828C85Eb7193DecfC",
       "staticAggregationIsmFactory": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
       "staticMerkleRootMultisigIsmFactory": "0x6E7b29CB2A7617405B4d30C6f84bBD51b4Bb4be8",
@@ -142,10 +144,12 @@
       "interchainAccountRouter": "0xd876C01aB40e8cE42Db417fBC79c726d45504dE4",
       "timelockController": "0x0000000000000000000000000000000000000000",
       "incrementalDomainRoutingIsmFactory": "0xC323f17895eB3576b6FF372100E9487a206863D6",
-      "quotedCalls": "0xb6BdD0311F634E136e2d4D5aDe09F5D6C8B911c3"
+      "quotedCalls": "0xb6BdD0311F634E136e2d4D5aDe09F5D6C8B911c3",
+      "interchainAccountRouterV3": "0x24fA135973A25778cB55149BcB8EDecaf4560036",
+      "quotedCallsV3": "0xf0734433eB4f6087a62bee6CfEe81EbC04b24D41"
     },
     "bsctestnet": {
-      "aggregationHook": "0x3d675bB93250Ab7603F40cbb9194bae210784627",
+      "aggregationHook": "0x955fB4e9d6e440E14D01B2Beaf6a539407147985",
       "blockExplorers": [
         {
           "apiUrl": "https://api-testnet.bscscan.com/api",
@@ -199,7 +203,7 @@
           "http": "https://bsc-testnet.drpc.org"
         }
       ],
-      "staticAggregationHookFactory": "0xa1145B39F1c7Ef9aA593BC1DB1634b00CC020942",
+      "staticAggregationHookFactory": "0x40Adcb03F3C58170b4751c4140636FC6085Ff475",
       "staticAggregationIsm": "0x8fb481f65d04c590b8507F75D05Ed29594590376",
       "staticAggregationIsmFactory": "0x40613dE82d672605Ab051C64079022Bb4F8bDE4f",
       "staticMerkleRootMultisigIsmFactory": "0x3E235B90197E1D6b5DB5ad5aD49f2c1ED6406382",
@@ -216,7 +220,9 @@
       "quotedCalls": "0x5da1D6747e872338b860Bb84a8f1F9B94C02A663",
       "transactionOverrides": {
         "gasPrice": 1000000000
-      }
+      },
+      "interchainAccountRouterV3": "0xF934F7f8Bda2ffEF052614f489A5AC7a02F829B7",
+      "quotedCallsV3": "0xCe25105E721a096d9F549109B2a9127C30a52Fb4"
     },
     "eclipsetestnet": {
       "blocks": {
@@ -326,7 +332,7 @@
       "quotedCalls": "0x6dB3773cf7eaFa455F91f48e5F2731a7904B27E1"
     },
     "optimismsepolia": {
-      "aggregationHook": "0xccA408a6A9A6dc405C3278647421eb4317466943",
+      "aggregationHook": "0x7168F0881f98e220250E6a16e6b3d8dF1B260d62",
       "blockExplorers": [
         {
           "apiKey": "JMYR3W6HHVPQ1HH8T6W8HSZVG88IH3MHRU",
@@ -376,7 +382,7 @@
           "http": "https://sepolia.optimism.io"
         }
       ],
-      "staticAggregationHookFactory": "0xeb6f11189197223c656807a83B0DD374f9A6dF44",
+      "staticAggregationHookFactory": "0x94d21E4B7355d88d49bE9C6AD503A04A597e0eFC",
       "staticAggregationIsm": "0x815a9642497Ee1E9F061f8b828C85Eb7193DecfC",
       "staticAggregationIsmFactory": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
       "staticMerkleRootMultisigIsmFactory": "0x6E7b29CB2A7617405B4d30C6f84bBD51b4Bb4be8",
@@ -391,10 +397,12 @@
       "timelockController": "0x0000000000000000000000000000000000000000",
       "gnosisSafeTransactionServiceUrl": "https://transaction-optimism-sepolia.safe.optimism.io",
       "incrementalDomainRoutingIsmFactory": "0xf529C867024F1dBf29b3fee9fC04520AfBCb7E25",
-      "quotedCalls": "0xfbA6D781e1B566ebD8Df1C89e0674e64f2217C5f"
+      "quotedCalls": "0xfbA6D781e1B566ebD8Df1C89e0674e64f2217C5f",
+      "interchainAccountRouterV3": "0xf107E2eEB967B6fa6626b3366B61e72e41aB9E24",
+      "quotedCallsV3": "0xDF36f2A8B10064beA160fD957922Fb1a5adD88B1"
     },
     "polygonamoy": {
-      "aggregationHook": "0x06a54A2db82D37410C1383c51F96Bd7b3ABD243E",
+      "aggregationHook": "0x7C1eA0473c884E484d86E62478E96a5CdF514441",
       "blockExplorers": [
         {
           "apiUrl": "https://api-amoy.polygonscan.com/api",
@@ -451,7 +459,7 @@
           "http": "https://polygon-amoy.gateway.tenderly.co"
         }
       ],
-      "staticAggregationHookFactory": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
+      "staticAggregationHookFactory": "0x4411dB962dBb0Ed3b98Ce8FeB8D51E45028748ac",
       "staticAggregationIsm": "0x1D770b978d915bD96F2ad41b25824C4193EBAfA2",
       "staticAggregationIsmFactory": "0xeb6f11189197223c656807a83B0DD374f9A6dF44",
       "staticMerkleRootMultisigIsmFactory": "0xfc6e546510dC9d76057F1f76633FCFfC188CB213",
@@ -466,10 +474,12 @@
       "interchainAccountRouter": "0xC60C145f1e1904f9d6483A611BF1416697CCc1FE",
       "timelockController": "0x0000000000000000000000000000000000000000",
       "incrementalDomainRoutingIsmFactory": "0x049aFC9d778f80c3fd980b837804e62e546f72A9",
-      "quotedCalls": "0xAbC25d7daDD748948F5cC912A807b0f8FcBb56a9"
+      "quotedCalls": "0xAbC25d7daDD748948F5cC912A807b0f8FcBb56a9",
+      "interchainAccountRouterV3": "0xA04b18c7E45F41CB28590D37784017Ea1bbCe052",
+      "quotedCallsV3": "0xB5f021728Ea6223E3948Db2da61d612307945eA2"
     },
     "sepolia": {
-      "aggregationHook": "0xe3147d5618f5e2e100690B50ec923009a4cde14A",
+      "aggregationHook": "0x6DcFd66b0e47917af13Fc5c82fd47Be42b12F821",
       "blockExplorers": [
         {
           "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
@@ -530,7 +540,7 @@
           "http": "https://1rpc.io/sepolia"
         }
       ],
-      "staticAggregationHookFactory": "0x160C28C92cA453570aD7C031972b58d5Dd128F72",
+      "staticAggregationHookFactory": "0xaEDCF9C2BB12D9bb681CC55DbFE9FF30b2De8d77",
       "staticAggregationIsm": "0x7856078C4881e236660Be82fdb12473B4a33cCFf",
       "staticAggregationIsmFactory": "0xC83e12EF2627ACE445C298e6eC418684918a6002",
       "staticMerkleRootMultisigIsmFactory": "0x0a71AcC99967829eE305a285750017C4916Ca269",
@@ -544,7 +554,9 @@
       "staticMessageIdWeightedMultisigIsmFactory": "0x196Ce28ED1Afdf015849ddEE82F03a903Bee9E94",
       "gasCurrencyCoinGeckoId": "ethereum",
       "incrementalDomainRoutingIsmFactory": "0x99B3bf141D5C968D50067E66A77Fd2059d7E4b2B",
-      "quotedCalls": "0x33ef1F15c64bb0CfC48F889FD4af028BC358A4fE"
+      "quotedCalls": "0x33ef1F15c64bb0CfC48F889FD4af028BC358A4fE",
+      "interchainAccountRouterV3": "0x17f00da3De4398418aB701131Fd19627A322D729",
+      "quotedCallsV3": "0xd36199b239e43Fe4F4346D3c5e6B28B6fc1B4f74"
     },
     "solanatestnet": {
       "blockExplorers": [
@@ -683,7 +695,7 @@
           "http": "https://rpc.hyperliquid-testnet.xyz/evm"
         }
       ],
-      "aggregationHook": "0x5689Ad17c798d5114dc60Ba3c98e4853dF70403D",
+      "aggregationHook": "0x113dBEFaf676e4379109Ad39DE7d27a9C6E7f35c",
       "domainRoutingIsm": "0x4ac19e0bafc2aF6B98094F0a1B817dF196551219",
       "domainRoutingIsmFactory": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
       "fallbackRoutingHook": "0x6c13643B3927C57DB92c790E4E3E7Ee81e13f78C",
@@ -697,7 +709,7 @@
       "pausableIsm": "0x75f3E2a4f424401195A5E176246Ecc9f7e7680ff",
       "protocolFee": "0xb94F96D398eA5BAB5CA528EE9Fdc19afaA825818",
       "proxyAdmin": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
-      "staticAggregationHookFactory": "0xeb6f11189197223c656807a83B0DD374f9A6dF44",
+      "staticAggregationHookFactory": "0x6B7b5D38B9a5Ed3E4497e570ed9C23a77712823d",
       "staticAggregationIsm": "0xa20C93076e832388483356fa65c5C2B5F3A4d50c",
       "staticAggregationIsmFactory": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
       "staticMerkleRootMultisigIsmFactory": "0x6E7b29CB2A7617405B4d30C6f84bBD51b4Bb4be8",
@@ -713,7 +725,9 @@
         "from": 7032169
       },
       "incrementalDomainRoutingIsmFactory": "0x3F100cBBE5FD5466BdB4B3a15Ac226957e7965Ad",
-      "quotedCalls": "0xAAA3F9bF2172891df8B643FB5Eb03949EccDa76a"
+      "quotedCalls": "0xAAA3F9bF2172891df8B643FB5Eb03949EccDa76a",
+      "interchainAccountRouterV3": "0x0d772404D3a6De86F7263D82E055686f73f55Ba8",
+      "quotedCallsV3": "0x90C85cEB1D7CEaD73914FC57dd14ea5115b27a32"
     },
     "test1": {
       "blockExplorers": [
@@ -1440,7 +1454,7 @@
         }
       ],
       "technicalStack": "other",
-      "aggregationHook": "0xbFc6bC9d9Ed3216D66c954DF7B48499C46F29a5D",
+      "aggregationHook": "0x73D540D275f37caFd57644fC7b1E3474B700bf1f",
       "domainRoutingIsm": "0x4ac19e0bafc2aF6B98094F0a1B817dF196551219",
       "domainRoutingIsmFactory": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
       "fallbackRoutingHook": "0xA9999B4abC373FF2BB95B8725FABC96CA883d811",
@@ -1454,7 +1468,7 @@
       "pausableIsm": "0xce0e13f67399375eF0a7acb741E815145A6AAf67",
       "protocolFee": "0x17866ebE0e503784a9461d3e753dEeD0d3F61153",
       "proxyAdmin": "0xD3d062a5dcBA85ae863618d4c264d2358300c283",
-      "staticAggregationHookFactory": "0xeb6f11189197223c656807a83B0DD374f9A6dF44",
+      "staticAggregationHookFactory": "0x9dA6732F0276420B63dB461C7FB9992a32Bb8AA5",
       "staticAggregationIsm": "0xA87a10FbeB96a49Eb16B9d30E91EDcC26d941D33",
       "staticAggregationIsmFactory": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
       "staticMerkleRootMultisigIsmFactory": "0x6E7b29CB2A7617405B4d30C6f84bBD51b4Bb4be8",
@@ -1470,7 +1484,9 @@
         "from": 12593277
       },
       "incrementalDomainRoutingIsmFactory": "0xAAA3F9bF2172891df8B643FB5Eb03949EccDa76a",
-      "quotedCalls": "0x9095fDae1977A5fa61877FD44f307f7aDcBF9A0d"
+      "quotedCalls": "0x9095fDae1977A5fa61877FD44f307f7aDcBF9A0d",
+      "interchainAccountRouterV3": "0x723664825B3E5B5b1e62B240d3C39f8D3d1355Cc",
+      "quotedCallsV3": "0x66422bF66a09AcA5b7A741634f4afa7554886b1c"
     },
     "tronshasta": {
       "blockExplorers": [
@@ -1517,7 +1533,7 @@
           "http": "https://api.shasta.trongrid.io/jsonrpc"
         }
       ],
-      "aggregationHook": "0x0680D3fDfAB249C2fC73D1eF6c61802719d33c0a",
+      "aggregationHook": "0x7087937f03c76C2a5019A0f706e310FF99AeDC21",
       "domainRoutingIsm": "0xB78BF6DA9d139dBaa0B71Af679D9Fa041e91a96b",
       "domainRoutingIsmFactory": "0xF91B6dE8a49A9dC398e8880901dEe55c27f91cD9",
       "fallbackRoutingHook": "0xF2bc8720d671691BB4D5e3AeeF7ED0EBdE2E50b3",
@@ -1529,7 +1545,7 @@
       "pausableIsm": "0x8F7C554cbC8367ad5378cDbA3CbADd70626142DA",
       "protocolFee": "0xD4D31B65b7cCa033e1ec462dcEc9B67C7cB91E14",
       "proxyAdmin": "0xBb17318f23C0124937592263aCC58E4CED668D36",
-      "staticAggregationHookFactory": "0x6DF1b2CDacf3948680c93E4b62bF4D6d779C46a8",
+      "staticAggregationHookFactory": "0x7b3d19A58380302A994E8472966843E8881fF92d",
       "staticAggregationIsm": "0x036CcBD59228d6df306Ef2aEbF9d069c53841387",
       "staticAggregationIsmFactory": "0x47Cc8FB23fC8c071575ED122A7D4b7981d9BCBBf",
       "staticMerkleRootMultisigIsmFactory": "0xF69F46e969f41Bec7cb4AC1ccd213e3E7f5A70fB",
@@ -1606,7 +1622,9 @@
       "validatorAnnounce": "0xBdf49bE2201A1c4B13023F0a407196C6Adb32680",
       "index": {
         "from": 14773789
-      }
+      },
+      "interchainAccountRouterV3": "0xB261C52241E133f957630AeeFEd48a82963AC33e",
+      "quotedCallsV3": "0xD5B70f7Da85F98A5197E55114A38f3eDcDCf020e"
     },
     "solanadevnet": {
       "blockExplorers": [
