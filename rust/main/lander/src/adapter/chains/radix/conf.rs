@@ -42,6 +42,7 @@ mod tests {
         ChainConf {
             domain,
             signer,
+            ccs_signer: None,
             identity: None,
             submitter: SubmitterType::Lander,
             estimated_block_time: Duration::from_secs(1),

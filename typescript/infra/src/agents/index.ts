@@ -140,7 +140,10 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
           }
 
           let urReveal: AgentSealevelUrReveal | undefined;
-          if (getChain(chain).protocol === ProtocolType.Sealevel) {
+          if (
+            this.role === Role.Relayer &&
+            getChain(chain).protocol === ProtocolType.Sealevel
+          ) {
             urReveal =
               this.config.rawConfig.sealevel?.urRevealConfigGetter?.(chain);
           }
@@ -314,10 +317,22 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
     };
 
     const signers = await this.config.signers();
-    values.hyperlane.relayerChains = this.config.relayChains.map((name) => ({
-      name,
-      signer: signers[name],
-    }));
+    // EVM chains in a relayer context share its service identity.
+    const evmChain = this.config.relayChains.find(
+      (name) => getChain(name).protocol === ProtocolType.Ethereum,
+    );
+    values.hyperlane.relayerChains = this.config.relayChains.map((name) => {
+      const urReveal =
+        getChain(name).protocol === ProtocolType.Sealevel &&
+        this.config.rawConfig.sealevel?.urRevealConfigGetter?.(name);
+      if (urReveal && !evmChain)
+        throw new Error('UR reveals require an EVM CCS signer');
+      return {
+        name,
+        signer: signers[name],
+        ...(urReveal && evmChain ? { ccsSigner: signers[evmChain] } : {}),
+      };
+    });
 
     if (!values.tolerations) {
       values.tolerations = [];

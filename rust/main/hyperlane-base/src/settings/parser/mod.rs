@@ -401,9 +401,15 @@ fn parse_chain(
             );
         }
     }
+    let ccs_signer = chain
+        .chain(&mut err)
+        .get_opt_key("ccsSigner")
+        .and_then(parse_signer)
+        .end();
     err.into_result(ChainConf {
         domain,
         signer,
+        ccs_signer,
         identity,
         submitter,
         estimated_block_time,
@@ -780,6 +786,31 @@ fn parse_base_and_override_urls(
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn parses_evm_ccs_signer_separately_from_chain_signer() -> eyre::Result<()> {
+        let value = serde_json::json!({
+            "domainid": 1399811149,
+            "name": "solanamainnet",
+            "protocol": "sealevel",
+            "rpcurls": [{ "http": "https://solana.example" }],
+            "mailbox": "0x0000000000000000000000000000000000000001",
+            "interchaingaspaymaster": "0x0000000000000000000000000000000000000002",
+            "validatorannounce": "0x0000000000000000000000000000000000000003",
+            "merkletreehook": "0x0000000000000000000000000000000000000004",
+            "ccssigner": { "type": "aws", "id": "evm-service-identity", "region": "us-east-1" },
+        });
+        let config = parse_chain(
+            ValueParser::new(Default::default(), &value),
+            "solanamainnet",
+            "fallback",
+        )?;
+        assert!(config.signer.is_none());
+        assert!(
+            matches!(config.ccs_signer, Some(SignerConf::Aws { id, .. }) if id == "evm-service-identity")
+        );
+        Ok(())
+    }
 
     #[test]
     fn mev_submission_requires_lander() {

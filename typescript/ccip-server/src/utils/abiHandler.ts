@@ -1,20 +1,12 @@
 import type { Interface } from '@ethersproject/abi';
 import type { BaseContract } from 'ethers';
-import { ethers } from 'ethers';
 import type { FastifyReply } from 'fastify';
-import { z } from 'zod';
-
-import { offchainLookupRequestMessageHash } from '@hyperlane-xyz/sdk/ism/utils';
 
 import type { CcipRequest } from '../http.js';
-import { AttestationPendingError } from './errors.js';
-
-const RelayerSignatureBodySchema = z.compile(
-  z.object({
-    sender: z.string().startsWith('0x').length(42, 'Invalid Ethereum address'),
-    signature: z.string().startsWith('0x'),
-  }),
-);
+import {
+  AttestationPendingError,
+  CommitmentAccessDeniedError,
+} from './errors.js';
 
 export interface AbiRequestBody {
   data?: unknown;
@@ -53,7 +45,7 @@ export const ABI_ROUTE_OPTIONS = {
  * @param contractFactory  A Typechain-generated contract factory with a `createInterface()` method
  * @param functionName     A function name that must exist on the contract's interface
  * @param serviceMethod    A method that takes the decoded arguments and returns a Promise of the result
- * @param options         Optional settings including skipResultEncoding and verifyRelayerSignatureUrl
+ * @param options         Optional settings including skipResultEncoding and authenticatedRelayer
  */
 export function createAbiHandler<
   Factory extends {
@@ -67,7 +59,7 @@ export function createAbiHandler<
   serviceMethod: (...args: any[]) => Promise<any>,
   options: {
     skipResultEncoding?: boolean;
-    verifyRelayerSignatureUrl?: string;
+    authenticatedRelayer?: (request: CcipRequest<AbiRoute>) => string;
   } = {},
 ) {
   const iface = contractFactory.createInterface();
@@ -76,58 +68,28 @@ export function createAbiHandler<
     handlerLogger.setBindings({ function: functionName as string });
 
     handlerLogger.info(
-      { body: request.body },
+      { requestId: request.id },
       'Processing ABI handler request',
     );
 
     try {
-      const { skipResultEncoding = false, verifyRelayerSignatureUrl } = options;
+      const { skipResultEncoding = false } = options;
       // request body fields
       const body = request.body ?? {};
-      const sender = typeof body.sender === 'string' ? body.sender : '';
-      const signature =
-        typeof body.signature === 'string' ? body.signature : '';
       const data: string =
         (typeof body.data === 'string' ? body.data : '') ||
         request.params.callData ||
         request.query.callData ||
         '';
       if (!data) {
-        handlerLogger.warn({ body }, 'Missing callData in request');
+        handlerLogger.warn(
+          { requestId: request.id },
+          'Missing callData in request',
+        );
         return reply.code(400).send({ error: 'Missing callData' });
       }
 
-      if (verifyRelayerSignatureUrl) {
-        const parseResult = RelayerSignatureBodySchema.safeParse({
-          sender,
-          signature,
-        });
-        if (!parseResult.success) {
-          handlerLogger.warn({ body }, 'Invalid sender or signature format');
-          return reply.code(400).send({
-            error: 'Invalid sender or signature format',
-            details: parseResult.error.issues,
-          });
-        }
-      }
-
-      let relayer: string | undefined;
-      if (verifyRelayerSignatureUrl) {
-        handlerLogger.info(
-          { sender, data, verifyRelayerSignatureUrl },
-          'Verifying relayer signature',
-        );
-        relayer = ethers.utils.verifyMessage(
-          ethers.utils.arrayify(
-            offchainLookupRequestMessageHash(
-              sender,
-              data,
-              verifyRelayerSignatureUrl,
-            ),
-          ),
-          signature,
-        );
-      }
+      const relayer = options.authenticatedRelayer?.(request);
 
       const decoded = iface.decodeFunctionData(functionName, data);
       const fragment = iface.getFunction(functionName);
@@ -139,21 +101,27 @@ export function createAbiHandler<
       const result = await serviceMethod(...finalArgs);
 
       handlerLogger.info(
-        { reqBody: body },
+        { requestId: request.id },
         'ABI handler completed successfully',
       );
 
       if (skipResultEncoding) {
-        handlerLogger.info({ reqBody: body }, 'Skipping result encoding');
+        handlerLogger.info(
+          { requestId: request.id },
+          'Skipping result encoding',
+        );
         return reply.send({ data: result });
       }
       const encoded = iface.encodeFunctionResult(
         functionName,
         Array.isArray(result) ? result : [result],
       );
-      handlerLogger.info({ reqBody: body, encoded }, 'Result encoded');
+      handlerLogger.info({ requestId: request.id }, 'Result encoded');
       return reply.send({ data: encoded });
     } catch (error: unknown) {
+      if (error instanceof CommitmentAccessDeniedError) {
+        return reply.code(403).send({ error: error.message });
+      }
       const message = error instanceof Error ? error.message : String(error);
       if (error instanceof AttestationPendingError) {
         // Expected polling state: keep the response contract and request metrics,
@@ -162,7 +130,7 @@ export function createAbiHandler<
       } else {
         handlerLogger.error(
           {
-            reqBody: request.body,
+            requestId: request.id,
             error: message,
             stack: error instanceof Error ? error.stack : undefined,
           },

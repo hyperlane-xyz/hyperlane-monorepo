@@ -10,7 +10,8 @@
     "./tests/**/RequestLogging.test.ts",
     "./tests/**/LookupMetrics.test.ts",
     "./tests/**/Shutdown.test.ts",
-    "./tests/**/Database.test.ts"
+    "./tests/**/Database.test.ts",
+    "./tests/**/CcsAuth.test.ts"
   ],
   "exit": true
 }

@@ -312,6 +312,16 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
     fallbackHedgeTimeoutMillis: ZNzUint.optional().describe(
       'Per-provider timeout for hedged immutable reads. Requires fallbackHedgeDelayMillis and defaults to 30000ms.',
     ),
+    ccsSigner: z
+      .union([
+        AgentSignerHexKeySchema,
+        AgentSignerAwsKeySchema,
+        AgentSignerGcpKeySchema,
+      ])
+      .optional()
+      .describe(
+        'EVM identity for CCS reads on Sealevel; required when automated UR reveals are enabled on a relayer.',
+      ),
     signer: AgentSignerSchema.optional().describe(
       'The signer to use for this chain',
     ),

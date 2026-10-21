@@ -599,15 +599,15 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       relayers: [addressToBytes32(baseRelayers[0])],
     });
 
-    const result = await service.handleFetchCommitment(
-      message,
-      baseRelayers[1],
-      mockLogger(),
-    );
-
-    expect(JSON.parse(result)).to.deep.equal({
-      error: `Relayer ${baseRelayers[1]} not authorized for this commitment`,
-    });
+    const error = await service
+      .handleFetchCommitment(message, baseRelayers[1], mockLogger())
+      .then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+    expect(error)
+      .to.be.instanceOf(Error)
+      .with.property('message', 'Signer not authorized for this commitment');
   });
 });
 
@@ -804,6 +804,7 @@ describe('CallCommitmentsService.handleCalldataPost', () => {
     const solanaPayload = {
       ...calldataPayload,
       data: solanaData,
+      relayers: ['0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5'],
       commitment: utils.keccak256(
         utils.concat([
           utils.arrayify(calldataPayload.salt),
@@ -814,6 +815,7 @@ describe('CallCommitmentsService.handleCalldataPost', () => {
     const calldataUpsert = sinon.stub().resolves(
       storedCalldata({
         data: solanaData,
+        relayers: solanaPayload.relayers,
         destinationAccount: solanaPayload.destinationAccount,
       }),
     );
@@ -827,6 +829,9 @@ describe('CallCommitmentsService.handleCalldataPost', () => {
       res,
     );
 
+    expect(calldataUpsert.firstCall.args[0].create.relayers).to.deep.equal(
+      solanaPayload.relayers,
+    );
     expect(transaction.called).to.be.false;
     expect(res.status.calledWith(200)).to.be.true;
   });

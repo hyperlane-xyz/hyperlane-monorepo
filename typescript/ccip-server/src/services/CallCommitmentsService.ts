@@ -43,6 +43,8 @@ import {
   UnhandledErrorReason,
 } from '../utils/prometheus.js';
 import { createRateLimitHook } from '../utils/rateLimit.js';
+import { CommitmentAccessDeniedError } from '../utils/errors.js';
+import { CcsAuth, CcsSignerSchema } from '../utils/ccsAuth.js';
 
 import {
   BaseService,
@@ -53,6 +55,11 @@ import {
 const EnvSchema = z.object({
   REGISTRY_URI: REGISTRY_URI_SCHEMA,
   SERVER_BASE_URL: z.string(),
+  CCS_AUTHORIZED_SIGNERS: z
+    .string()
+    .transform((value) =>
+      z.array(CcsSignerSchema).min(1).parse(JSON.parse(value)),
+    ),
 });
 
 const CommitmentMetadataSchema = z.object({
@@ -147,7 +154,9 @@ function normalizedRelayerSet(relayers: string[]): string[] {
   ].sort();
 }
 
-function includesRelayer(relayers: string[], relayer: string): boolean {
+/** Empty record lists permit any globally authenticated signer. */
+function isAuthorizedRelayer(relayers: string[], relayer: string): boolean {
+  if (relayers.length === 0) return true;
   const normalizedRelayer = normalizedRelayerSet([relayer])[0];
   return (
     normalizedRelayer !== undefined &&
@@ -260,15 +269,16 @@ function hasMatchingLegacyCommitment(
 
 export class CallCommitmentsService extends BaseService {
   private multiProvider: MultiProvider;
-  private baseUrl: string;
+  private readonly auth: CcsAuth;
 
   constructor(
     config: ServiceConfigWithBaseUrl,
     private icaApp: InterchainAccount,
+    authorizedSigners: string[] = [],
   ) {
     super(config);
     this.multiProvider = config.multiProvider;
-    this.baseUrl = config.baseUrl;
+    this.auth = new CcsAuth(config.baseUrl, authorizedSigners);
   }
 
   static async create(serviceName: string): Promise<CallCommitmentsService> {
@@ -292,6 +302,7 @@ export class CallCommitmentsService extends BaseService {
         baseUrl,
       },
       icaApp,
+      env.CCS_AUTHORIZED_SIGNERS,
     );
   }
 
@@ -434,10 +445,7 @@ export class CallCommitmentsService extends BaseService {
 
       const record = await this.fetchCommitmentRecord(commitment, log);
 
-      if (
-        record.relayers.length > 0 &&
-        !includesRelayer(record.relayers, relayer)
-      ) {
+      if (!isAuthorizedRelayer(record.relayers, relayer)) {
         log.warn(
           {
             commitment: record.commitment,
@@ -446,9 +454,7 @@ export class CallCommitmentsService extends BaseService {
           },
           'Relayer not authorized for this commitment',
         );
-        throw new Error(
-          `Relayer ${relayer} not authorized for this commitment`,
-        );
+        throw new CommitmentAccessDeniedError();
       }
 
       const encoded =
@@ -465,6 +471,7 @@ export class CallCommitmentsService extends BaseService {
 
       return encoded;
     } catch (error: any) {
+      if (error instanceof CommitmentAccessDeniedError) throw error;
       log.error(
         {
           message,
@@ -735,16 +742,7 @@ export class CallCommitmentsService extends BaseService {
       salt: z
         .string()
         .regex(/^0x[0-9a-fA-F]{64}$/, 'salt must be a 32-byte 0x hex string'),
-      relayers: z
-        .array(
-          z
-            .string()
-            .regex(
-              /^0x[0-9a-fA-F]{40}$/,
-              'relayer must be a 20-byte EVM address',
-            ),
-        )
-        .default([]),
+      relayers: z.array(CcsSignerSchema).default([]),
       destinationAccount: z
         .string()
         .regex(
@@ -949,6 +947,12 @@ export class CallCommitmentsService extends BaseService {
       return res.code(500).send({ error: 'Internal server error' });
     }
     if (!record) return res.code(404).send({ error: 'Not found' });
+    const relayers = z.array(z.string()).parse(record.relayers);
+    if (!isAuthorizedRelayer(relayers, this.auth.signer(req))) {
+      return res
+        .code(403)
+        .send({ error: 'Signer not authorized for this commitment' });
+    }
 
     return res.code(200).send({
       originDomain: record.originDomain,
@@ -988,19 +992,19 @@ export class CallCommitmentsService extends BaseService {
     );
     app.get<{ Params: CommitmentParams }>(
       `${prefix}${RateLimitedRoute.CalldataByCommitment}`,
-      readRateLimit,
+      { preHandler: [readRateLimit.preHandler, this.auth.authenticate] },
       this.handleCalldataGet.bind(this),
     );
     app.post<AbiRoute>(
       `${prefix}/getCallsFromRevealMessage`,
-      ABI_ROUTE_OPTIONS,
+      { ...ABI_ROUTE_OPTIONS, preHandler: this.auth.authenticate },
       createAbiHandler(
         CommitmentReadIsmService__factory,
         'getCallsFromRevealMessage',
         this.handleFetchCommitment.bind(this),
         {
           skipResultEncoding: true,
-          verifyRelayerSignatureUrl: `${this.baseUrl}/getCallsFromRevealMessage`,
+          authenticatedRelayer: (request) => this.auth.signer(request),
         },
       ),
     );

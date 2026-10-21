@@ -1408,6 +1408,7 @@ mod tests {
         ChainConf {
             domain: dummy_domain(1337, "test-domain"),
             signer: None,
+            ccs_signer: None,
             identity: None,
             submitter: Default::default(),
             estimated_block_time: Duration::from_secs_f64(1.0),

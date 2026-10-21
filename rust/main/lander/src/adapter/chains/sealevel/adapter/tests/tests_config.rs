@@ -22,6 +22,7 @@ fn test_configuration_fields() {
         signer: Some(SignerConf::HexKey {
             key: Default::default(),
         }),
+        ccs_signer: None,
         identity: None,
         submitter: SubmitterType::Lander,
         estimated_block_time: expected_estimated_block_time,

@@ -75,6 +75,8 @@ pub struct ChainConf {
     pub domain: HyperlaneDomain,
     /// Signer configuration for this chain
     pub signer: Option<SignerConf>,
+    /// EVM signer used for authenticated CCS reads on Sealevel.
+    pub ccs_signer: Option<SignerConf>,
     /// Identity keypair used as the relayer's on-chain identity (e.g. for TrustedRelayer ISMs).
     /// Only valid for Sealevel chains — an error is returned if set on other protocols.
     /// Falls back to `signer` if not set.
@@ -440,6 +442,20 @@ impl ChainConf {
                 let tx_submitter =
                     build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
 
+                let ccs_signer: Option<Arc<dyn hyperlane_core::HyperlaneSigner>> =
+                    if conf.ur_reveal.is_some() && keypair.is_some() {
+                        let signer = self
+                            .ccs_signer
+                            .as_ref()
+                            .ok_or_else(|| {
+                                eyre::eyre!("Sealevel UR reveal requires an EVM ccsSigner")
+                            })?
+                            .build::<h_eth::Signers>()
+                            .await?;
+                        Some(Arc::new(signer))
+                    } else {
+                        None
+                    };
                 h_sealevel::SealevelMailbox::new(
                     provider,
                     tx_submitter,
@@ -448,7 +464,7 @@ impl ChainConf {
                     keypair.map(h_sealevel::SealevelKeypair::new),
                     identity_keypair.map(h_sealevel::SealevelKeypair::new),
                 )
-                .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                .map(|m| Box::new(m.with_ccs_signer(ccs_signer)) as Box<dyn Mailbox>)
                 .map_err(Into::into)
             }
             ChainConnectionConf::Cosmos(conf) => {
