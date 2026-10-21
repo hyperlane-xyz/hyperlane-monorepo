@@ -470,21 +470,6 @@ export class CallCommitmentsService extends BaseService {
         ? await this.deriveIcaFromRevealMessage(message, originTxHash)
         : record.ica;
       if (ica.toLowerCase() !== record.ica.toLowerCase()) {
-        const corrected = await prisma.commitment.updateMany({
-          where: {
-            commitment: record.commitment,
-            originDomain: record.originDomain,
-            ica: record.ica,
-          },
-          data: { ica },
-        });
-        if (corrected.count === 0) {
-          const current = await this.fetchCommitmentRecord(commitment, log);
-          assert(
-            current.ica.toLowerCase() === ica.toLowerCase(),
-            'Commitment ICA changed during receipt-based recovery',
-          );
-        }
         log.warn(
           {
             commitment,
@@ -492,7 +477,7 @@ export class CallCommitmentsService extends BaseService {
             previousIca: record.ica,
             ica,
           },
-          'Corrected stored ICA from verified dispatch receipt',
+          'Verified dispatch ICA differs from stored commitment ICA',
         );
       }
       const encoded =

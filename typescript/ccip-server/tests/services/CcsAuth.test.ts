@@ -471,7 +471,7 @@ describe('CCS authenticated reveal recovery integration', () => {
     };
   }
 
-  it('authenticates, derives from the actual router pair, and persists only the verified ICA', async () => {
+  it('authenticates and derives from the actual router pair without database writes', async () => {
     const f = await fixture();
     try {
       const response = await f.app.inject({
@@ -483,14 +483,7 @@ describe('CCS authenticated reveal recovery integration', () => {
       expect(response.json().data).to.equal(
         f.correctIca + encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
       );
-      sinon.assert.calledOnceWithExactly(f.updateMany, {
-        where: {
-          commitment: f.commitment,
-          originDomain: 8453,
-          ica: f.record.ica,
-        },
-        data: { ica: utils.getAddress(f.correctIca) },
-      });
+      sinon.assert.notCalled(f.updateMany);
       sinon.assert.calledOnce(f.receipt);
       sinon.assert.calledOnce(f.destinationCall);
     } finally {

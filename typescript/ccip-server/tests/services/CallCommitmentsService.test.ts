@@ -1044,7 +1044,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       .with.property('message', 'Signer not authorized for this commitment');
   });
 
-  it('persists a verified V3 ICA correction without changing calls or access restrictions', async () => {
+  it('serves the verified V3 ICA without changing the stored commitment', async () => {
     const service = createService();
     const record = {
       commitment,
@@ -1076,65 +1076,8 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       v3Ica + encodeIcaCalls(normalizeCalls(baseCalls), salt).slice(2),
     );
     expect(record.ica).to.equal(mockIca);
-    sinon.assert.calledOnceWithExactly(updateMany, {
-      where: { commitment, originDomain: 1, ica: mockIca },
-      data: { ica: v3Ica },
-    });
+    sinon.assert.notCalled(updateMany);
   });
-
-  for (const repairedByOtherRequest of [true, false]) {
-    it(`${repairedByOtherRequest ? 'accepts an identical' : 'rejects a conflicting'} concurrent ICA repair`, async () => {
-      const service = createService();
-      const v3Ica = '0x2254720417e8645d069821772790612149bf2c08';
-      const record = {
-        commitment,
-        calls: baseCalls,
-        salt,
-        ica: mockIca,
-        originDomain: 1,
-        relayers: baseRelayers,
-      };
-      service.fetchCommitmentRecord = sinon
-        .stub()
-        .onFirstCall()
-        .resolves(record)
-        .onSecondCall()
-        .resolves({
-          ...record,
-          ica: repairedByOtherRequest ? v3Ica : validAddress,
-        });
-      service.deriveIcaFromRevealMessage = sinon.stub().resolves(v3Ica);
-      const updateMany = sinon.stub().resolves({ count: 0 });
-      sinon.stub(prisma, 'commitment').value({ updateMany });
-
-      const result = await service
-        .handleFetchCommitment(
-          message,
-          baseRelayers[0],
-          mockLogger(),
-          '0x' + '34'.repeat(32),
-        )
-        .catch((error: unknown) => error);
-
-      if (repairedByOtherRequest) {
-        expect(result).to.equal(
-          v3Ica + encodeIcaCalls(normalizeCalls(baseCalls), salt).slice(2),
-        );
-      } else {
-        expect(result)
-          .to.be.instanceOf(Error)
-          .with.property(
-            'message',
-            'Commitment ICA changed during receipt-based recovery',
-          );
-      }
-      sinon.assert.calledOnceWithExactly(updateMany, {
-        where: { commitment, originDomain: 1, ica: mockIca },
-        data: { ica: v3Ica },
-      });
-      sinon.assert.calledTwice(service.fetchCommitmentRecord);
-    });
-  }
 
   it('denies unauthorized relayers before attempting receipt-based ICA recovery', async () => {
     const service = createService();
