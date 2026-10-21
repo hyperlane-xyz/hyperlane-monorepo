@@ -72,10 +72,7 @@ import {
   getGovernanceTimelocks,
   getLegacyGovernanceIcas,
 } from '../../config/environments/mainnet3/governance/utils.js';
-import {
-  icaOwnerChain,
-  timelocks as legacyTimelocks,
-} from '../../config/environments/mainnet3/owners.js';
+import { timelocks as legacyTimelocks } from '../../config/environments/mainnet3/owners.js';
 import {
   getEnvironmentConfig,
   getHyperlaneCore,
@@ -1819,6 +1816,12 @@ export class GovernTransactionReader {
     if (!tx.data) {
       throw new Error('No data in ICA transaction');
     }
+    assert(tx.to, 'No destination in ICA transaction');
+    const routerName =
+      this.chainAddresses[chain].interchainAccountRouterV3 &&
+      eqAddress(tx.to, this.chainAddresses[chain].interchainAccountRouterV3)
+        ? 'interchainAccountRouterV3'
+        : 'interchainAccountRouter';
     const { symbol } = await this.multiProvider.getNativeToken(chain);
     const icaInterface =
       interchainAccountFactories.interchainAccountRouter.interface;
@@ -1845,38 +1848,29 @@ export class GovernTransactionReader {
       decoded.functionFragment.name ===
       icaInterface.functions['enrollRemoteRouter(uint32,bytes32)'].name
     ) {
-      prettyArgs = await this.formatRouterEnrollments(
-        chain,
-        'interchainAccountRouter',
-        args,
-      );
+      prettyArgs = await this.formatRouterEnrollments(chain, routerName, {
+        _domains: [args._domain],
+        _addresses: [args._router],
+      });
     } else if (
       decoded.functionFragment.name ===
       icaInterface.functions['enrollRemoteRouters(uint32[],bytes32[])'].name
     ) {
-      prettyArgs = await this.formatRouterEnrollments(
-        chain,
-        'interchainAccountRouter',
-        args,
-      );
+      prettyArgs = await this.formatRouterEnrollments(chain, routerName, args);
     } else if (decoded.functionFragment.name === 'callRemoteWithOverrides') {
-      prettyArgs = await this.readIcaRemoteCall(chain, args);
+      prettyArgs = await this.readIcaRemoteCall(chain, args, tx.to, routerName);
     } else if (decoded.signature === 'transferOwnership(address)') {
       const ownableTx = await this.readOwnableTransaction(chain, tx);
       return {
         ...ownableTx,
-        to: `ICA Router (${chain} ${this.chainAddresses[chain].interchainAccountRouter})`,
+        to: `ICA Router (${chain} ${tx.to})`,
         signature: decoded.signature,
       };
     }
 
     const isLegacy = this.isLegacyEthIcaRouter(tx);
-    const routerAddress = isLegacy
-      ? this.chainAddresses.ethereum.legacyInterchainAccountRouter
-      : this.chainAddresses[chain].interchainAccountRouter;
-
     return {
-      to: `ICA Router${isLegacy ? ' (Legacy)' : ''} (${chain} ${routerAddress})`,
+      to: `ICA Router${isLegacy ? ' (Legacy)' : ''} (${chain} ${tx.to})`,
       value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
       signature: decoded.signature,
       args: prettyArgs,
@@ -2124,6 +2118,8 @@ export class GovernTransactionReader {
   private async readIcaRemoteCall(
     chain: ChainName,
     args: Record<string, any>,
+    originRouter: Address,
+    routerName: string,
   ): Promise<IcaRemoteCallInsight> {
     const {
       _destination: destination,
@@ -2134,8 +2130,7 @@ export class GovernTransactionReader {
     } = args;
     const remoteChainName = this.multiProvider.getChainName(destination);
 
-    const expectedRouter =
-      this.chainAddresses[remoteChainName].interchainAccountRouter;
+    const expectedRouter = this.chainAddresses[remoteChainName][routerName];
     const matchesExpectedRouter =
       eqAddress(expectedRouter, bytes32ToAddress(router)) &&
       // Poor man's check that the 12 byte padding is all zeroes
@@ -2165,6 +2160,8 @@ export class GovernTransactionReader {
       ismInsight = `❌ fatal mismatch, expected zero hash`;
     }
 
+    const originSafe = this.safes[chain];
+    assert(originSafe, `No governance Safe configured for ICA origin ${chain}`);
     const expectedRemoteIcaAddress = this.icas[remoteChainName];
     const expectedLegacyRemoteIcaAddress = this.legacyIcas[remoteChainName];
     let remoteIcaAddress: string | undefined;
@@ -2175,10 +2172,12 @@ export class GovernTransactionReader {
         this.chainAddresses,
         this.multiProvider,
       ).getAccount(remoteChainName, {
-        owner: this.safes[icaOwnerChain],
-        origin: icaOwnerChain,
+        owner: originSafe,
+        origin: chain,
+        localRouter: originRouter,
         routerOverride: router,
         ismOverride: ism,
+        userSalt: args._userSalt ?? args._salt,
       });
 
       if (!expectedRemoteIcaAddress && !expectedLegacyRemoteIcaAddress) {
@@ -2364,15 +2363,16 @@ export class GovernTransactionReader {
   }
 
   isIcaTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean {
-    if (tx.to === undefined) return false;
+    const target = tx.to;
+    if (target === undefined) return false;
 
-    const isCurrentRouter = eqAddress(
-      tx.to,
+    const isCurrentRouter = [
       this.chainAddresses[chain].interchainAccountRouter,
-    );
+      this.chainAddresses[chain].interchainAccountRouterV3,
+    ].some((router) => router !== undefined && eqAddress(target, router));
     // Check for legacy ETH ICA router (used for legacy ICA chains like arcadia)
     const isLegacyEthRouter = eqAddress(
-      tx.to,
+      target,
       this.chainAddresses.ethereum.legacyInterchainAccountRouter,
     );
 
