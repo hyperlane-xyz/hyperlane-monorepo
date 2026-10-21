@@ -2,6 +2,7 @@ import { IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   ChainMap,
+  ChainSubmissionStrategy,
   HypTokenRouterConfig,
   MultiProvider,
   OwnableConfig,
@@ -13,7 +14,6 @@ import { assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 import { getRouterConfigsForAllVms } from '../scripts/core-utils.js';
 import { EnvironmentConfig } from '../src/config/environment.js';
 import { RouterConfigWithoutOwner } from '../src/config/warp.js';
-import { WarpSubmissionStrategy } from './environments/mainnet3/warp/configGetters/utils.js';
 
 import { getAleoUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAleoUSDCWarpConfig.js';
 
@@ -158,7 +158,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getCrossMoonpayLocalBridgeWarpConfig,
 };
 
-type StrategyConfigGetter = () => WarpSubmissionStrategy;
+type StrategyConfigGetter = () => ChainSubmissionStrategy;
 export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.BaseEthereumREZ]: getEZETHFileSubmitterStrategyConfig,
   [WarpRouteIds.BaseEthereumREZSTAGING]:
