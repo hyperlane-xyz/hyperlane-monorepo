@@ -1,4 +1,4 @@
-ARG NODE_VERSION=26
+ARG NODE_VERSION=26.12.1
 FROM node:${NODE_VERSION}-slim
 
 WORKDIR /hyperlane-monorepo
