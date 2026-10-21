@@ -463,6 +463,62 @@ const metaswapStagingMatchingList = [
   ),
 );
 
+// Aero v3 production adapters. Root: Base. Source: https://app.aero.xyz/docs/security/
+const aeroV3Adapters: ChainMap<{ rootAdapter: Address; leafAdapter: Address }> =
+  {
+    arbitrum: {
+      rootAdapter: '0xa365AdDAa935FD97C0815D41a6375dbB483D5C67',
+      leafAdapter: '0xe7eB27bf93a7a3cAa8B483Ec5f5EE6588bfD3886',
+    },
+    arc: {
+      rootAdapter: '0x247c86a3bBd88059aeF2E9D3AF0e90D2F3F5C8bf',
+      leafAdapter: '0x56632394f866761Fd86873E96A567720cE865682',
+    },
+    ethereum: {
+      rootAdapter: '0x0C54028e2aEFDF6E740513655dCe88Ae63Df96c9',
+      leafAdapter: '0x4AaFf8CFB43e2cefBbBF4c133c934DB6BA7E4C14',
+    },
+    ink: {
+      rootAdapter: '0x5aD9a3920a25CAA5ABD36CD35F1C57B48793FD03',
+      leafAdapter: '0x4AaFf8CFB43e2cefBbBF4c133c934DB6BA7E4C14',
+    },
+    optimism: {
+      rootAdapter: '0xE82457ff1049F1f63E51d634d2C96993b841B1Cb',
+      leafAdapter: '0x314BdC685aD3426d586860cf909e4D4f0279bF77',
+    },
+    robinhood: {
+      rootAdapter: '0xD9DC65A40e70517dA5F4F5cB1F9E5D4b59AA2910',
+      leafAdapter: '0x4AaFf8CFB43e2cefBbBF4c133c934DB6BA7E4C14',
+    },
+  };
+
+const aeroV3AdapterMatchingList = Object.entries(aeroV3Adapters).flatMap(
+  ([chain, { rootAdapter, leafAdapter }]) =>
+    chainMapMatchingList({ base: rootAdapter, [chain]: leafAdapter }),
+);
+
+const metaswapMetaRouters: ChainMap<Address> = Object.fromEntries(
+  ['base', ...Object.keys(aeroV3Adapters)].map((chain) => [
+    chain,
+    '0x0fEf9e88A7b76BCDBF451780C6774FE32965Ee98',
+  ]),
+);
+
+// Match the ICA owner, not the shared ICA or warp routers alone.
+const metaswapMatchingList = [
+  IcaMessageType.CALLS,
+  IcaMessageType.COMMITMENT,
+].flatMap((messageType) =>
+  icaMatchingList(
+    objMap(metaswapMetaRouters, (_, owner) => ({ messageType, owner })),
+  ),
+);
+
+// Reveals have no owner; this also covers other ICA reveals between these chains.
+const aeroV3RevealMatchingList = icaMatchingList(
+  objMap(metaswapMetaRouters, () => ({ messageType: IcaMessageType.REVEAL })),
+);
+
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
@@ -492,6 +548,10 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       ...superswapIcaV2CommitmentMatchingList,
       // ICA reveal messages (does not filter on ICA owner)
       ...icaV2RevealMatchingList,
+      // Temporary Aero v3 underpayment workaround; retain a 1-wei IGP payment.
+      ...aeroV3AdapterMatchingList,
+      ...metaswapMatchingList,
+      ...aeroV3RevealMatchingList,
     ],
   },
   {
