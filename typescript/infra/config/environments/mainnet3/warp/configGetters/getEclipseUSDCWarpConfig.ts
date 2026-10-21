@@ -31,6 +31,7 @@ import {
   getFixedRoutingFeeConfig,
   getRebalancingUSDCConfigForChain,
   getUSDCRebalancingBridgesConfigFor,
+  type RebalancingConfig,
   scaleDownConfig,
 } from './utils.js';
 
@@ -66,7 +67,7 @@ export type DeploymentChain = keyof DeploymentChains<unknown>;
  * - SVM (collateral): Solana
  *
  * Features:
- * - CCTP V2 rebalancing bridges (Standard + Fast) on all EVM chains
+ * - CCTP V2 rebalancing bridges (Standard + Fast) on CCTP EVM chains (monad: Standard only)
  * - Routing fee: 1.5 bps for EVM-to-EVM transfers, 0 bps for EVM-to-SVM transfers
  */
 export const evmDeploymentChains = [
@@ -112,7 +113,7 @@ export const cctpRebalanceableChains = [
   'avalanche',
   'hyperevm',
   'linea',
-  // No monad yet
+  'monad',
 ] as const satisfies DeploymentChain[];
 const cctpRebalanceableSet = new Set<EvmChain>(cctpRebalanceableChains);
 
@@ -253,9 +254,26 @@ export interface EclipseUSDCWarpConfigOptions {
   quoteSigners?: string[];
 }
 
-const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
+// Pairs on both CCTP V2 routes get the Standard and Fast bridges. monad is only
+// on the Standard route, so pairs that include monad get the Standard bridge.
+const standardAndFastConfigByChain = getUSDCRebalancingBridgesConfigFor(
   cctpRebalanceableChains,
   [WarpRouteIds.MainnetCCTPV2Standard, WarpRouteIds.MainnetCCTPV2Fast],
+);
+const rebalancingConfigByChain: ChainMap<RebalancingConfig> = objMap(
+  getUSDCRebalancingBridgesConfigFor(cctpRebalanceableChains, [
+    WarpRouteIds.MainnetCCTPV2Standard,
+  ]),
+  (chain, standardConfig) => ({
+    allowedRebalancers: standardConfig.allowedRebalancers,
+    allowedRebalancingBridges: objMap(
+      standardConfig.allowedRebalancingBridges,
+      (remote, standardBridges) =>
+        standardAndFastConfigByChain[chain]?.allowedRebalancingBridges[
+          remote
+        ] ?? standardBridges,
+    ),
+  }),
 );
 
 const DEFAULT_FEE_BPS = 1.5;
