@@ -134,6 +134,9 @@ async fn batched_delivery_preserves_paid_floors_or_falls_back_to_singles() {
         (None, 1_500_000, true),
         // The individual budgets fit, but Multicall overhead does not.
         (Some(1_940_000), 30_000_000, true),
+        // The unbuffered batch fits, but its submission buffer does not.
+        (Some(2_000_000), 30_000_000, true),
+        (None, 2_000_000, true),
     ] {
         let (payload_db, tx_db, nonce_db) = tmp_dbs();
         let mut provider = MockEvmProvider::new();
@@ -193,7 +196,7 @@ async fn batched_delivery_preserves_paid_floors_or_falls_back_to_singles() {
             let expected = if split {
                 [1_187_478u64, 1_094_934][index]
             } else {
-                1_945_557
+                2_215_112
             };
             assert_eq!(tx.precursor().tx.gas(), Some(&EthersU256::from(expected)));
         }
@@ -253,4 +256,60 @@ async fn batch_rebuilt_as_single_delivery_keeps_the_paid_budget() {
     assert_eq!(tx.payload_details, vec![payloads[1].details.clone()]);
     adapter.estimate_tx(&mut tx).await.unwrap();
     assert_eq!(tx.precursor().tx.gas(), Some(&EthersU256::from(1_094_934)));
+}
+
+#[tokio::test]
+async fn batch_buffers_larger_estimates_once_and_preserves_zero_floor_behavior() {
+    for (domain, paid, expected) in [
+        (KnownHyperlaneDomain::Arbitrum, 1_000_000u64, 3_375_000u64),
+        (KnownHyperlaneDomain::Ethereum, 1_000_000, 3_075_000),
+        (KnownHyperlaneDomain::Arbitrum, 0, 3_000_000),
+    ] {
+        let (payload_db, tx_db, nonce_db) = tmp_dbs();
+        let mut provider = MockEvmProvider::new();
+        provider
+            .expect_batch()
+            .once()
+            .returning(|_, _, _, _| Ok(empty_batch()));
+        provider
+            .expect_estimate_gas_limit()
+            .times(2)
+            .withf(|tx, _| tx.gas().is_none())
+            .returning(|_, _| Ok(500_000.into()));
+        provider
+            .expect_estimate_batch()
+            .once()
+            .withf(move |_, precursors| {
+                precursors
+                    .iter()
+                    .all(|(tx, _)| tx.gas() == Some(&EthersU256::from(paid.max(500_000))))
+            })
+            .returning(|_, _| Ok(3_000_000.into()));
+        mock_get_block(&mut provider);
+        let payloads = vec![
+            paid_payload(paid, domain.into()).await,
+            paid_payload(paid, domain.into()).await,
+        ];
+        for payload in &payloads {
+            payload_db.store_payload_by_uuid(payload).await.unwrap();
+        }
+        let mut adapter = mock_ethereum_adapter(
+            provider,
+            payload_db,
+            tx_db,
+            nonce_db,
+            H160::zero(),
+            Duration::ZERO,
+            Duration::ZERO,
+        );
+        adapter.domain = domain.into();
+        let mut built = adapter.build_transactions(&payloads).await;
+        assert_eq!(built.len(), 1);
+        let mut tx = built[0].maybe_tx.take().unwrap();
+        adapter.estimate_tx(&mut tx).await.unwrap();
+        assert_eq!(tx.precursor().tx.gas(), Some(&EthersU256::from(expected)));
+        tx.submission_attempts = 2;
+        adapter.estimate_tx(&mut tx).await.unwrap();
+        assert_eq!(tx.precursor().tx.gas(), Some(&EthersU256::from(expected)));
+    }
 }

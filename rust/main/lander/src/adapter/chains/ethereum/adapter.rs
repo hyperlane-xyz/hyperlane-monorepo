@@ -412,6 +412,8 @@ impl EthereumAdapter {
 
         // Reject oversized batches here so build_transactions falls back to singles.
         if !gas_floor.is_zero() {
+            let gas_floor =
+                gas_limit_estimator::apply_gas_estimate_buffer(gas_floor, &self.domain)?;
             gas_limit_estimator::apply_gas_limit_caps(
                 self.provider.as_ref(),
                 &self.transaction_overrides,
@@ -718,6 +720,12 @@ impl AdaptsChain for EthereumAdapter {
         )
         .await?;
 
+        // Buffer the total once, rather than adding a flat buffer for every member.
+        let gas_limit = if gas_floor.is_zero() {
+            gas_limit
+        } else {
+            gas_limit_estimator::apply_gas_estimate_buffer(gas_limit.max(gas_floor), &self.domain)?
+        };
         let gas_limit = mev_submission::preflight(
             protected,
             gas_limit_estimator::apply_gas_limit_caps(
