@@ -42,6 +42,7 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use solana_transaction_status::TransactionStatus;
+use tokio::sync::OnceCell;
 use tracing::{debug, error, info, warn, Instrument};
 
 use crate::{
@@ -444,6 +445,7 @@ pub fn maybe_spawn_reveal(
             priority_fee_oracle,
             fee_payer: &fee_payer,
             ccs_signer: ccs_signer.as_ref(),
+            ccs_signature: OnceCell::new(),
             http_client,
         };
         // Phase 1: wait for the pending_swap PDA to appear at confirmed commitment.
@@ -513,7 +515,7 @@ pub fn maybe_spawn_reveal(
             }
 
             // Fetch CCS to discover the input token program and mint.
-            let ccs_opt = match fetch_from_ccs(&ctx.http_client, &ccs_url, &commitment, ctx.ccs_signer).await {
+            let ccs_opt = match fetch_from_ccs(&ctx.http_client, &ccs_url, &commitment, ctx.ccs_signer, &ctx.ccs_signature).await {
                 Ok(c) => Some(c),
                 Err(e) => {
                     warn!(error = ?e, "CCS fetch failed while waiting for tokens; retrying in 5s");
@@ -712,7 +714,15 @@ pub async fn try_recover_duplicate_commit(
         .timeout(Duration::from_secs(CCS_REQUEST_TIMEOUT_SECS))
         .build()
         .map_err(|e| eyre!("HTTP client build failed: {e}"))?;
-    let ccs = fetch_from_ccs(&http_client, &ccs_url, &commitment, ccs_signer).await?;
+    let ccs_signature = OnceCell::new();
+    let ccs = fetch_from_ccs(
+        &http_client,
+        &ccs_url,
+        &commitment,
+        ccs_signer,
+        &ccs_signature,
+    )
+    .await?;
     let reveal_accounts = ccs
         .reveal_accounts
         .as_deref()
@@ -755,6 +765,7 @@ pub async fn try_recover_duplicate_commit(
         priority_fee_oracle,
         fee_payer,
         ccs_signer,
+        ccs_signature,
         http_client,
     };
     send_and_confirm(
@@ -780,6 +791,7 @@ struct RevealContext<'a> {
     priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     fee_payer: &'a SealevelKeypair,
     ccs_signer: &'a dyn HyperlaneSigner,
+    ccs_signature: OnceCell<String>,
     http_client: reqwest::Client,
 }
 
@@ -789,6 +801,7 @@ async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
         ctx.ccs_url,
         &ctx.commitment,
         ctx.ccs_signer,
+        &ctx.ccs_signature,
     )
     .await?;
     let (built, close_accounts) = build_instruction(ctx, &ccs).await?;
@@ -1000,14 +1013,9 @@ async fn send_and_confirm(
     )
 }
 
-async fn fetch_from_ccs(
-    http: &Client,
-    ccs_url: &str,
-    commitment: &[u8; 32],
-    signer: &dyn HyperlaneSigner,
-) -> Result<CcsGetResponse> {
-    let commitment_hex = hex::encode(commitment);
-    let url = reqwest::Url::parse(&format!("{ccs_url}/calldata/0x{commitment_hex}"))?;
+/// Validate the CCS endpoint before enabling automated reveals.
+pub fn validate_ccs_url(raw: &str) -> Result<reqwest::Url> {
+    let url = reqwest::Url::parse(raw)?;
     if url.scheme() != "https"
         || !url.username().is_empty()
         || url.password().is_some()
@@ -1016,14 +1024,27 @@ async fn fetch_from_ccs(
     {
         bail!("CCS requires an HTTPS URL without credentials, query, or fragment");
     }
+    Ok(url)
+}
+
+async fn fetch_from_ccs(
+    http: &Client,
+    ccs_url: &str,
+    commitment: &[u8; 32],
+    signer: &dyn HyperlaneSigner,
+    signature_cache: &OnceCell<String>,
+) -> Result<CcsGetResponse> {
+    let commitment_hex = hex::encode(commitment);
+    let url = validate_ccs_url(&format!("{ccs_url}/calldata/0x{commitment_hex}"))?;
     let sender = signer.eth_address();
-    let signature = sign_offchain_lookup(
-        signer,
-        sender,
-        commitment,
-        format!("{ccs_url}/calldata").as_bytes(),
-    )
-    .await?;
+    // One fixed commitment and signer per reveal context. Failed signing attempts
+    // remain retryable, but successful signatures are reused across polls.
+    let url_template = format!("{ccs_url}/calldata");
+    let signature = signature_cache
+        .get_or_try_init(|| {
+            sign_offchain_lookup(signer, sender, commitment, url_template.as_bytes())
+        })
+        .await?;
     let authorization = format!("Hyperlane-Signature {signature}");
     debug!(%url, "GET CCS calldata");
     for attempt in 1..=CCS_MAX_RETRIES {
@@ -1485,6 +1506,7 @@ mod tests {
             address: hyperlane_core::H160,
             hash: hyperlane_core::H256,
             signature: hyperlane_core::Signature,
+            calls: std::sync::atomic::AtomicUsize,
         }
         #[async_trait::async_trait]
         impl HyperlaneSigner for FixtureSigner {
@@ -1500,6 +1522,7 @@ mod tests {
                     hash, &self.hash,
                     "SVM must sign exactly the expected EVM payload"
                 );
+                self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 Ok(self.signature)
             }
         }
@@ -1542,13 +1565,20 @@ mod tests {
                 let signer = FixtureSigner {
                     address: credentials.address,
                     hash: credentials.hash,
+                    calls: std::sync::atomic::AtomicUsize::new(0),
                     signature: hyperlane_core::Signature {
                         r: hyperlane_core::U256::from_big_endian(&signature[..32]),
                         s: hyperlane_core::U256::from_big_endian(&signature[32..64]),
                         v: u64::from(signature[64]),
                     },
                 };
-                let result = fetch_from_ccs(&client, &fixtures.base, &commitment, &signer).await;
+                let cache = OnceCell::new();
+                let repeated =
+                    fetch_from_ccs(&client, &fixtures.base, &commitment, &signer, &cache).await;
+                let result =
+                    fetch_from_ccs(&client, &fixtures.base, &commitment, &signer, &cache).await;
+                assert_eq!(repeated.is_ok(), result.is_ok());
+                assert_eq!(signer.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
                 let allowed = i != 2 && (!case.name.starts_with("restricted") || i == 1);
                 if allowed {
                     let response = result?;

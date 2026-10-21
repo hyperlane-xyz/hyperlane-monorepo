@@ -66,11 +66,12 @@ export function createAbiHandler<
   return async (request: CcipRequest<AbiRoute>, reply: FastifyReply) => {
     const handlerLogger = request.log;
     handlerLogger.setBindings({ function: functionName as string });
+    const logContext = {
+      requestId: request.id,
+      ...(options.authenticatedRelayer ? {} : { reqBody: request.body }),
+    };
 
-    handlerLogger.info(
-      { requestId: request.id },
-      'Processing ABI handler request',
-    );
+    handlerLogger.info(logContext, 'Processing ABI handler request');
 
     try {
       const { skipResultEncoding = false } = options;
@@ -82,10 +83,7 @@ export function createAbiHandler<
         request.query.callData ||
         '';
       if (!data) {
-        handlerLogger.warn(
-          { requestId: request.id },
-          'Missing callData in request',
-        );
+        handlerLogger.warn(logContext, 'Missing callData in request');
         return reply.code(400).send({ error: 'Missing callData' });
       }
 
@@ -100,23 +98,20 @@ export function createAbiHandler<
       finalArgs.push(request.log); // Logger goes last
       const result = await serviceMethod(...finalArgs);
 
-      handlerLogger.info(
-        { requestId: request.id },
-        'ABI handler completed successfully',
-      );
+      handlerLogger.info(logContext, 'ABI handler completed successfully');
 
       if (skipResultEncoding) {
-        handlerLogger.info(
-          { requestId: request.id },
-          'Skipping result encoding',
-        );
+        handlerLogger.info(logContext, 'Skipping result encoding');
         return reply.send({ data: result });
       }
       const encoded = iface.encodeFunctionResult(
         functionName,
         Array.isArray(result) ? result : [result],
       );
-      handlerLogger.info({ requestId: request.id }, 'Result encoded');
+      handlerLogger.info(
+        { ...logContext, ...(options.authenticatedRelayer ? {} : { encoded }) },
+        'Result encoded',
+      );
       return reply.send({ data: encoded });
     } catch (error: unknown) {
       if (error instanceof CommitmentAccessDeniedError) {
@@ -130,7 +125,7 @@ export function createAbiHandler<
       } else {
         handlerLogger.error(
           {
-            requestId: request.id,
+            ...logContext,
             error: message,
             stack: error instanceof Error ? error.stack : undefined,
           },

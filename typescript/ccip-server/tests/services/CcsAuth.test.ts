@@ -28,11 +28,12 @@ async function headers(
   signer = wallet,
   commitment = '0x' + '11'.repeat(32),
   baseUrl = origin,
+  claimedSender = signer.address,
 ) {
   const signature = await signer.signMessage(
     utils.arrayify(
       offchainLookupRequestMessageHash(
-        signer.address,
+        claimedSender,
         commitment,
         baseUrl + '/callCommitments/calldata',
       ),
@@ -40,7 +41,7 @@ async function headers(
   );
   return {
     authorization: `Hyperlane-Signature ${signature}`,
-    'x-hyperlane-sender': signer.address,
+    'x-hyperlane-sender': claimedSender,
   };
 }
 
@@ -98,6 +99,22 @@ describe('CCS read authentication', () => {
       expect(response.statusCode).to.equal(200);
       expect(response.json().data).to.equal('0x1234');
       expect(response.headers['cache-control']).to.equal('no-store');
+      const lowerCaseHeaders = await headers();
+      expect(
+        (
+          await app.inject({
+            method: 'GET',
+            url: path,
+            headers: {
+              ...lowerCaseHeaders,
+              authorization: lowerCaseHeaders.authorization.replace(
+                'Hyperlane-Signature',
+                'hyperlane-signature',
+              ),
+            },
+          })
+        ).statusCode,
+      ).to.equal(200);
     } finally {
       await app.close();
     }
@@ -136,6 +153,15 @@ describe('CCS read authentication', () => {
     sinon.stub(prisma, 'calldata').value({ findUnique: db });
     const app = await server();
     try {
+      expect(
+        (
+          await app.inject({
+            method: 'GET',
+            url: path,
+            headers: await headers(wallet, undefined, origin, other.address),
+          })
+        ).statusCode,
+      ).to.equal(401);
       for (const requestHeaders of [
         await headers(wallet, '0x' + '22'.repeat(32)),
         await headers(wallet, undefined, 'https://other.example'),

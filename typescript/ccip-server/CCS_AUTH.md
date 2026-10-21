@@ -91,12 +91,16 @@ Deploy authenticated GET clients before enabling the CCS whitelist:
 1. Update Solana relayers. Set `chains.<solana-chain>.ccsSigner` to their existing EVM
    signer configuration (hex key, AWS KMS, or GCP KMS). This is separate from their Solana
    transaction signer. Our infrastructure reuses each context's existing EVM AWS KMS
-   identity; no new key is created. A signing mailbox with UR reveals enabled fails
-   startup if its CCS signer is missing.
+   identity; no new key is created. A missing or unavailable CCS signer disables automated
+   reveals with a warning; ordinary Solana delivery stays available. CCS URLs are validated
+   at startup and must use HTTPS without credentials, a query, or a fragment.
 2. Update any other GET readers. The universal-router-engine's optional EVM signature
    already hashes these same fields, but its query parameters must move to the headers
    above. Its upload-only usage is unaffected.
-3. Deploy CCS with the whitelist. Existing EVM POST clients need no protocol changes.
+3. Before deployment, confirm partner-operated reader identities and existing per-record
+   relayer lists against the intended service whitelist. Include every intended reader in
+   both applicable lists. Deploy CCS with the audited whitelist; existing EVM POST clients
+   retain their signing format.
 
 ## Local HTTP integration tests
 

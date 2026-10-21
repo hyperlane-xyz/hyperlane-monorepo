@@ -7,7 +7,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import type { CcipRequest } from '../http.js';
 
-const SIGNATURE_HEADER_REGEX = /^Hyperlane-Signature (.+)$/;
+const SIGNATURE_HEADER_REGEX = /^Hyperlane-Signature (.+)$/i;
 
 export const CcsSignerSchema = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
 const CredentialsSchema = z.object({
@@ -71,6 +71,10 @@ export class CcsAuth {
           credentials.signature,
         )
         .toLowerCase();
+      assert(
+        isPost || credentials.sender.toLowerCase() === signer,
+        'GET sender must match signer',
+      );
     } catch {
       request.log.warn('CCS authentication failed');
       return reply

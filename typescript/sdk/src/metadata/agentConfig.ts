@@ -231,7 +231,23 @@ const AgentSealevelChainMetadataSchema = z.object({
     ),
   urReveal: z
     .object({
-      ccsUrl: z.url().describe('CCS endpoint for calldata lookup'),
+      ccsUrl: z
+        .url()
+        .refine((value) => {
+          try {
+            const url = new URL(value);
+            return (
+              url.protocol === 'https:' &&
+              !url.username &&
+              !url.password &&
+              !url.href.includes('?') &&
+              !url.href.includes('#')
+            );
+          } catch {
+            return false;
+          }
+        }, 'CCS requires HTTPS without credentials, query, or fragment')
+        .describe('CCS endpoint for calldata lookup'),
       programId: z
         .string()
         .refine((val) => {
@@ -320,7 +336,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
       ])
       .optional()
       .describe(
-        'EVM identity for CCS reads on Sealevel; required when automated UR reveals are enabled on a relayer.',
+        'Optional EVM identity for CCS reads on Sealevel; omitting it disables automated UR reveals only.',
       ),
     signer: AgentSignerSchema.optional().describe(
       'The signer to use for this chain',

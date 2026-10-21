@@ -787,9 +787,8 @@ fn parse_base_and_override_urls(
 mod test {
     use super::*;
 
-    #[test]
-    fn parses_evm_ccs_signer_separately_from_chain_signer() -> eyre::Result<()> {
-        let value = serde_json::json!({
+    fn sealevel_ccs_config() -> serde_json::Value {
+        serde_json::json!({
             "domainid": 1399811149,
             "name": "solanamainnet",
             "protocol": "sealevel",
@@ -798,8 +797,14 @@ mod test {
             "interchaingaspaymaster": "0x0000000000000000000000000000000000000002",
             "validatorannounce": "0x0000000000000000000000000000000000000003",
             "merkletreehook": "0x0000000000000000000000000000000000000004",
-            "ccssigner": { "type": "aws", "id": "evm-service-identity", "region": "us-east-1" },
-        });
+            "urreveal": { "ccsurl": "https://ccs.example/callCommitments", "programid": "11111111111111111111111111111111" },
+        })
+    }
+
+    #[test]
+    fn parses_evm_ccs_signer_separately_from_chain_signer() -> eyre::Result<()> {
+        let mut value = sealevel_ccs_config();
+        value["ccssigner"] = serde_json::json!({ "type": "aws", "id": "evm-service-identity", "region": "us-east-1" });
         let config = parse_chain(
             ValueParser::new(Default::default(), &value),
             "solanamainnet",
@@ -810,6 +815,54 @@ mod test {
             matches!(config.ccs_signer, Some(SignerConf::Aws { id, .. }) if id == "evm-service-identity")
         );
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn unavailable_ccs_signer_keeps_sealevel_mailbox_available() -> eyre::Result<()> {
+        let value = sealevel_ccs_config();
+        let mut config = parse_chain(
+            ValueParser::new(Default::default(), &value),
+            "solanamainnet",
+            "fallback",
+        )?;
+        config.signer = Some(SignerConf::HexKey {
+            key: hyperlane_core::H256::repeat_byte(1),
+        });
+        for signer in [None, Some(SignerConf::Node)] {
+            config.ccs_signer = signer;
+            let metrics = crate::CoreMetrics::new("ccs-test", 0, prometheus::Registry::default())?;
+            config.build_mailbox(&metrics).await?;
+        }
+        // Programmatic configs that bypass parsing are validated before mailbox setup too.
+        if let ChainConnectionConf::Sealevel(connection) = &mut config.connection {
+            if let Some(reveal) = &mut connection.ur_reveal {
+                reveal.ccs_url = "http://ccs.example".into();
+            }
+        }
+        assert!(config.validate_mailbox_config().is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_invalid_ccs_urls_at_startup() {
+        for url in [
+            "http://ccs.example",
+            "https://user:password@ccs.example",
+            "https://ccs.example?",
+            "https://ccs.example#",
+        ] {
+            let mut value = sealevel_ccs_config();
+            value["urreveal"]["ccsurl"] = url.into();
+            assert!(
+                parse_chain(
+                    ValueParser::new(Default::default(), &value),
+                    "solanamainnet",
+                    "fallback"
+                )
+                .is_err(),
+                "{url}"
+            );
+        }
     }
 
     #[test]

@@ -28,6 +28,32 @@ describe('ValidatorAgentConfigSchema maxSignConcurrency', () => {
   });
 });
 
+describe('AgentChainMetadataSchema UR reveal CCS URLs', () => {
+  const schema = AgentChainMetadataSchema.shape.urReveal;
+  const programId = '11111111111111111111111111111111';
+
+  it('accepts HTTPS endpoints and rejects invalid URLs at configuration time', () => {
+    expect(
+      schema.safeParse({
+        ccsUrl: 'https://ccs.example/callCommitments',
+        programId,
+      }).success,
+    ).to.be.true;
+    for (const ccsUrl of [
+      'http://ccs.example',
+      'https://user:password@ccs.example',
+      'https://ccs.example?query=1',
+      'https://ccs.example?',
+      'https://ccs.example#fragment',
+      'https://ccs.example#',
+      'invalid',
+    ]) {
+      expect(schema.safeParse({ ccsUrl, programId }).success, ccsUrl).to.be
+        .false;
+    }
+  });
+});
+
 describe('AgentChainMetadataSchema mevSubmission', () => {
   const schema = AgentChainMetadataSchema.shape.mevSubmission;
 

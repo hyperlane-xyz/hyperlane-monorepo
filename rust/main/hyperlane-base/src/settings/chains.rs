@@ -393,6 +393,11 @@ impl ChainConf {
             ));
         }
 
+        if let ChainConnectionConf::Sealevel(conf) = &self.connection {
+            if let Some(reveal) = &conf.ur_reveal {
+                h_sealevel::validate_ccs_url(&reveal.ccs_url).context("Invalid urReveal.ccsUrl")?;
+            }
+        }
         Ok(())
     }
 
@@ -444,15 +449,19 @@ impl ChainConf {
 
                 let ccs_signer: Option<Arc<dyn hyperlane_core::HyperlaneSigner>> =
                     if conf.ur_reveal.is_some() && keypair.is_some() {
-                        let signer = self
-                            .ccs_signer
-                            .as_ref()
-                            .ok_or_else(|| {
-                                eyre::eyre!("Sealevel UR reveal requires an EVM ccsSigner")
-                            })?
-                            .build::<h_eth::Signers>()
-                            .await?;
-                        Some(Arc::new(signer))
+                        match &self.ccs_signer {
+                            Some(config) => match config.build::<h_eth::Signers>().await {
+                                Ok(signer) => Some(Arc::new(signer)),
+                                Err(error) => {
+                                    warn!(chain = %self.domain.name(), %error, "CCS signer unavailable; automated UR reveals disabled");
+                                    None
+                                }
+                            },
+                            None => {
+                                warn!(chain = %self.domain.name(), "No ccsSigner configured; automated UR reveals disabled");
+                                None
+                            }
+                        }
                     } else {
                         None
                     };

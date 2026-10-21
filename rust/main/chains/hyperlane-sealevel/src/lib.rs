@@ -23,7 +23,7 @@ pub use solana_sdk::signer::keypair::Keypair;
 pub use trait_builder::*;
 pub use tx_submitter::*;
 pub use tx_type::*;
-pub use universal_router_reveal::UniversalRouterRevealConfig;
+pub use universal_router_reveal::{validate_ccs_url, UniversalRouterRevealConfig};
 pub use validator_announce::*;
 
 mod account;
