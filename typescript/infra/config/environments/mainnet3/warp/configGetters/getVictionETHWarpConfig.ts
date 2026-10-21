@@ -1,8 +1,8 @@
+import { randomUUID } from 'crypto';
 import { ethers } from 'ethers';
 
 import {
   ChainMap,
-  ChainSubmissionStrategy,
   HypTokenRouterConfig,
   OwnableConfig,
   SubmissionStrategy,
@@ -10,15 +10,19 @@ import {
   TokenType,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { legacyEthIcaRouter } from '../../../../../src/config/chain.js';
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { getChainAddresses } from '../../../../registry.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { WARP_FEES_TURNKEY_OWNER } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
+import { QUOTE_SIGNER } from '../consts.js';
 
 import {
+  WarpSubmissionStrategy,
   getFixedRoutingFeeConfig,
   getNativeTokenConfigForChain,
 } from './utils.js';
@@ -65,7 +69,7 @@ export const getVictionETHWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
 
-  // Configure native chains with routing fees (10 bps for transfers to other native chains)
+  // Native-to-native transfers use signed quotes with a permanent 30 bps fallback.
   for (const currentChain of nativeChains) {
     const baseConfig = getNativeTokenConfigForChain(
       currentChain,
@@ -83,7 +87,9 @@ export const getVictionETHWarpConfig = async (
         tokenFee: getFixedRoutingFeeConfig(
           WARP_FEES_TURNKEY_OWNER,
           feeDestinations,
-          10,
+          30,
+          undefined,
+          [QUOTE_SIGNER],
         ),
         proxyAdmin: {
           owner:
@@ -111,7 +117,7 @@ export const getVictionETHWarpConfig = async (
   return Object.fromEntries(configs);
 };
 
-export const getVictionETHStrategyConfig = (): ChainSubmissionStrategy => {
+export const getVictionETHStrategyConfig = (): WarpSubmissionStrategy => {
   const safeChain = 'ethereum';
   const safeAddress = awSafes[safeChain];
 
@@ -121,6 +127,29 @@ export const getVictionETHStrategyConfig = (): ChainSubmissionStrategy => {
     safeAddress,
     version: '1.0',
   };
+
+  const originInterchainAccountRouter =
+    getChainAddresses()[safeChain]?.interchainAccountRouter;
+  assert(originInterchainAccountRouter, 'Missing Ethereum ICA router');
+
+  const feeFilepath = `/tmp/eth-viction-turnkey-fees-${randomUUID()}.json`;
+  const nativeStrategies: WarpSubmissionStrategy = {};
+  for (const chain of nativeChains) {
+    nativeStrategies[chain] = {
+      submitter:
+        chain === safeChain
+          ? safeSubmitter
+          : {
+              type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+              chain: safeChain,
+              destinationChain: chain,
+              owner: safeAddress,
+              originInterchainAccountRouter,
+              internalSubmitter: safeSubmitter,
+            },
+      feeSubmitter: { type: 'file', chain, filepath: feeFilepath },
+    };
+  }
 
   const victionIcaStrategy: SubmissionStrategy = {
     submitter: {
@@ -134,6 +163,7 @@ export const getVictionETHStrategyConfig = (): ChainSubmissionStrategy => {
   };
 
   return {
+    ...nativeStrategies,
     viction: victionIcaStrategy,
   };
 };

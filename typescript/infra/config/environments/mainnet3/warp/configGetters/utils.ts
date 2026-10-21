@@ -494,15 +494,12 @@ type FileSubmitterMetadata = {
   filepath: string;
 };
 
-type EclipseSubmitterMetadata = SubmitterMetadata | FileSubmitterMetadata;
+type WarpSubmitterMetadata = SubmitterMetadata | FileSubmitterMetadata;
 
-export type EclipseWarpSubmissionStrategy = Record<
-  string,
-  {
-    submitter: EclipseSubmitterMetadata;
-    feeSubmitter?: EclipseSubmitterMetadata;
-  }
->;
+export type WarpSubmissionStrategy = ChainMap<{
+  submitter: WarpSubmitterMetadata;
+  feeSubmitter?: WarpSubmitterMetadata;
+}>;
 
 /**
  * Builds the shared Eclipse route strategy. Router-owner transactions use the
@@ -522,7 +519,7 @@ export function getEclipseWarpStrategyConfig({
   nonEvmChains: readonly string[];
   turnkeyFeeChains: ReadonlySet<string>;
   originInterchainAccountRouter?: string;
-}): EclipseWarpSubmissionStrategy {
+}): WarpSubmissionStrategy {
   const originChain = 'ethereum';
   const safeAddress = awSafes[originChain];
   const originSafeSubmitter = {
@@ -543,7 +540,7 @@ export function getEclipseWarpStrategyConfig({
   // One fresh file preserves the complete cross-chain fee batch for review and
   // a subsequent `hyperlane submit --signer-config` invocation.
   const turnkeyFeeFilepath = `/tmp/eclipse-${route}-turnkey-fees-${Date.now()}.json`;
-  const getFeeSubmitter = (chain: string): EclipseSubmitterMetadata =>
+  const getFeeSubmitter = (chain: string): WarpSubmitterMetadata =>
     turnkeyFeeChains.has(chain)
       ? {
           type: 'file',
@@ -556,7 +553,7 @@ export function getEclipseWarpStrategyConfig({
     string,
     {
       submitter: SubmitterMetadata;
-      feeSubmitter: EclipseSubmitterMetadata;
+      feeSubmitter: WarpSubmitterMetadata;
     },
   ][] = evmChains.map((chain) => [
     chain,
