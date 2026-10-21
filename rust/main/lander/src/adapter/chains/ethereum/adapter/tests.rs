@@ -1,5 +1,6 @@
 mod check_if_resubmission_makes_sense;
 mod tests_build;
+mod tests_estimate;
 mod tests_reprocess;
 mod tests_stale_recovery;
 mod tests_submit;

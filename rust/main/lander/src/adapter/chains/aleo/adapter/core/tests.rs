@@ -43,6 +43,7 @@ fn create_test_payload_with_success_criteria(success_criteria: Option<Vec<u8>>) 
         to: H256::zero(),
         status: PayloadStatus::ReadyToSubmit,
         value: None,
+        gas_limit: Default::default(),
         inclusion_soft_deadline: None,
     }
 }

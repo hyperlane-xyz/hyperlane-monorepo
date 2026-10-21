@@ -61,6 +61,10 @@ impl EthereumTxPrecursor {
 
         let (mut tx, function) = parse_data(payload);
         tx.set_from(signer);
+        if !payload.gas_limit.is_zero() {
+            let gas_floor = ethers::types::U256::from(payload.gas_limit);
+            tx.set_gas(tx.gas().copied().unwrap_or_default().max(gas_floor));
+        }
 
         EthereumTxPrecursor::new(tx, function)
     }

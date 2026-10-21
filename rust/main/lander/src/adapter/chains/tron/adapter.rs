@@ -71,7 +71,14 @@ impl<P: TronProviderForLander> AdaptsChain for TronAdapter<P> {
             .iter()
             .map(|payload| {
                 let tx = TronTxPrecursor::from_data(&payload.data)
-                    .map(|precursor| Transaction::new(precursor, vec![payload.details.clone()]))
+                    .map(|mut precursor| {
+                        if !payload.gas_limit.is_zero() {
+                            let gas_floor = ethers::types::U256::from(payload.gas_limit);
+                            let gas_limit = precursor.tx.gas().copied().unwrap_or_default();
+                            precursor.tx.set_gas(gas_limit.max(gas_floor));
+                        }
+                        Transaction::new(precursor, vec![payload.details.clone()])
+                    })
                     .ok();
                 TxBuildingResult {
                     payloads: vec![payload.details.clone()],
@@ -88,10 +95,9 @@ impl<P: TronProviderForLander> AdaptsChain for TronAdapter<P> {
     }
 
     /// Estimates a Transaction's gas limit. Called in the Inclusion Stage (PayloadDispatcher)
-    /// Skips estimation if the Transaction has already been estimated
+    /// Retries reuse the final estimate; the first estimate preserves the prepared energy budget.
     async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
-        let precursor = tx.precursor_mut();
-        if precursor.tx.gas().is_some() {
+        if tx.submission_attempts > 1 && tx.precursor().tx.gas().is_some() {
             debug!(
                 ?tx,
                 "skipping gas limit estimation for transaction, as it was already estimated"
@@ -99,12 +105,17 @@ impl<P: TronProviderForLander> AdaptsChain for TronAdapter<P> {
             return Ok(());
         }
 
+        let precursor = tx.precursor_mut();
+        let gas_floor = precursor.tx.gas().copied().unwrap_or_default();
+        // Estimate independently, then preserve the policy-selected energy budget.
+        let mut estimate_tx = precursor.tx.clone();
+        *estimate_tx.gas_mut() = None;
         let gas_limit = self
             .provider
-            .estimate_gas(&precursor.tx)
+            .estimate_gas(&estimate_tx)
             .await
             .map_err(|_| LanderError::EstimationFailed)?;
-        precursor.tx.set_gas(gas_limit);
+        precursor.tx.set_gas(gas_limit.max(gas_floor));
 
         Ok(())
     }

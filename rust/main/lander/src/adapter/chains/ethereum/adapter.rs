@@ -635,7 +635,9 @@ impl AdaptsChain for EthereumAdapter {
     }
 
     async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
-        if tx.precursor().tx.gas().is_some() {
+        // First submission still needs current estimates, buffers, and caps even
+        // when the payload carries a prepared gas floor. Reuse the final limit on retries.
+        if tx.submission_attempts > 1 && tx.precursor().tx.gas().is_some() {
             return Ok(());
         }
         let provider = self.submission_provider(tx).await?;
@@ -691,6 +693,15 @@ impl AdaptsChain for EthereumAdapter {
         )
         .await?;
 
+        let gas_limit = mev_submission::preflight(
+            protected,
+            gas_limit_estimator::apply_gas_limit_caps(
+                provider.as_ref(),
+                &self.transaction_overrides,
+                gas_limit,
+            ),
+        )
+        .await?;
         tx.precursor_mut().tx.set_gas(gas_limit);
 
         Ok(())

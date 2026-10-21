@@ -672,9 +672,9 @@ async fn submit_lander_task(
     }
 }
 
-async fn submit_via_lander(
+async fn submit_via_lander<E: Entrypoint + Send + Sync>(
     op: QueueOperation,
-    entrypoint: &Arc<DispatcherEntrypoint>,
+    entrypoint: &Arc<E>,
     prepare_queue: &OpQueue,
     submit_queue: &OpQueue,
     db: Arc<dyn HyperlaneDb>,
@@ -710,6 +710,8 @@ async fn submit_via_lander(
         payload_uuid,
         metadata,
         operation_payload,
+        op.get_tx_cost_estimate()
+            .expect("Prepared operation must have a policy-selected gas budget"),
         operation_success_criteria,
         mailbox,
     );
