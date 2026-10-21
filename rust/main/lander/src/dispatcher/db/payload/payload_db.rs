@@ -482,6 +482,7 @@ mod tests {
                 let payload = FullPayload {
                     data: (0..length).map(|i| (i % 256) as u8).collect(),
                     status,
+                    gas_limit: 1_011_344.into(),
                     ..FullPayload::default()
                 };
                 let mut legacy = Vec::new();
@@ -498,6 +499,17 @@ mod tests {
                 assert_eq!(partial[0], encoded[0]);
             }
         }
+    }
+
+    #[test]
+    fn legacy_payloads_decode_without_a_gas_floor() {
+        use hyperlane_core::Decode;
+
+        let mut legacy = serde_json::to_value(FullPayload::random()).unwrap();
+        legacy.as_object_mut().unwrap().remove("gas_limit");
+        let bytes = serde_json::to_vec(&legacy).unwrap();
+        let decoded = FullPayload::read_from_slice(&bytes).unwrap();
+        assert!(decoded.gas_limit.is_zero());
     }
 
     #[tokio::test]

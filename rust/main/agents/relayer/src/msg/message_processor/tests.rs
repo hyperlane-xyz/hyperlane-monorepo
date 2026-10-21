@@ -86,3 +86,74 @@ async fn test_recovery_backpressures_message_processor_ingress() {
         .expect("receive task should stop when ingress closes");
 }
 mod tests_process_batch;
+
+#[tokio::test]
+async fn lander_submission_carries_the_policy_selected_budget() {
+    use hyperlane_core::{HyperlaneDomain, U256};
+    use hyperlane_test::mocks::MockMailboxContract;
+    use tests_common::{MockDispatcherEntrypoint, MockHyperlaneDb};
+
+    let mut mailbox = MockMailboxContract::new();
+    mailbox.expect__address().once().return_const(H256::zero());
+    let mut op = MockQueueOperation::new(
+        H256::from_low_u64_be(1),
+        PendingOperationStatus::ReadyToSubmit,
+        HyperlaneDomain::new_test_domain("test"),
+    );
+    op.gas_limit = Some(U256::from(1_011_344));
+    op.payload_data = vec![1, 2, 3];
+    op.mailbox = Some(Arc::new(mailbox));
+    let mut entrypoint = MockDispatcherEntrypoint::new();
+    entrypoint
+        .expect_send_payload()
+        .once()
+        .withf(|payload| payload.gas_limit == U256::from(1_011_344) && payload.data == [1, 2, 3])
+        .returning(|_| Ok(()));
+    let mut db = MockHyperlaneDb::new();
+    db.expect_store_payload_uuids_by_message_id()
+        .once()
+        .returning(|_, _| Ok(()));
+    let prepare_queue = create_test_queue();
+    let submit_queue = create_test_queue();
+
+    super::submit_via_lander(
+        Box::new(op),
+        &Arc::new(entrypoint),
+        &prepare_queue,
+        &submit_queue,
+        Arc::new(db),
+    )
+    .await;
+
+    assert_eq!(prepare_queue.len().await, 0);
+    assert_eq!(submit_queue.len().await, 1);
+}
+
+#[tokio::test]
+async fn lander_submission_without_gas_budget_returns_to_prepare() {
+    use hyperlane_core::{HyperlaneDomain, ReprepareReason};
+    use tests_common::{MockDispatcherEntrypoint, MockHyperlaneDb};
+
+    let op = MockQueueOperation::new(
+        H256::from_low_u64_be(1),
+        PendingOperationStatus::ReadyToSubmit,
+        HyperlaneDomain::new_test_domain("test"),
+    );
+    let mut prepare_queue = create_test_queue();
+    let submit_queue = create_test_queue();
+    super::submit_via_lander(
+        Box::new(op),
+        &Arc::new(MockDispatcherEntrypoint::new()),
+        &prepare_queue,
+        &submit_queue,
+        Arc::new(MockHyperlaneDb::new()),
+    )
+    .await;
+
+    assert_eq!(submit_queue.len().await, 0);
+    let op = prepare_queue.pop().await.unwrap();
+    assert_eq!(
+        op.status(),
+        PendingOperationStatus::Retry(ReprepareReason::ErrorCreatingPayload)
+    );
+}

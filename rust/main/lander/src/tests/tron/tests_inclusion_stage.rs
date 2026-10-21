@@ -196,6 +196,7 @@ async fn mock_tron_tx(
         to: H256::zero(),
         status: PayloadStatus::InTransaction(status.clone()),
         value: None,
+        gas_limit: Default::default(),
         inclusion_soft_deadline: None,
     };
 

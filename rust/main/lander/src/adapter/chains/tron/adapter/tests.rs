@@ -162,7 +162,11 @@ impl TronProviderForLander for MockTronProvider {
         Ok(hash)
     }
 
-    async fn estimate_gas(&self, _tx: &TypedTransaction) -> ChainResult<U256> {
+    async fn estimate_gas(&self, tx: &TypedTransaction) -> ChainResult<U256> {
+        assert!(
+            tx.gas().is_none(),
+            "RPC estimation must not be constrained by the prepared budget"
+        );
         self.calls.lock().unwrap().push(MockCall::EstimateGas);
 
         let error = self.estimate_error.lock().unwrap().clone();
@@ -254,6 +258,7 @@ fn create_test_payload_with_criteria(success_criteria: Option<Vec<u8>>) -> FullP
         to: H256::zero(),
         status: PayloadStatus::ReadyToSubmit,
         value: None,
+        gas_limit: Default::default(),
         inclusion_soft_deadline: None,
     }
 }
@@ -276,6 +281,7 @@ fn create_test_payload_with_serialized_criteria() -> FullPayload {
         to: H256::zero(),
         status: PayloadStatus::ReadyToSubmit,
         value: None,
+        gas_limit: Default::default(),
         inclusion_soft_deadline: None,
     }
 }
@@ -464,12 +470,13 @@ async fn test_build_transactions_creates_correct_precursor() {
 // ============================================================================
 
 #[tokio::test]
-async fn test_estimate_tx_skips_when_gas_already_set() {
+async fn test_estimate_tx_reuses_gas_on_retry() {
     let provider = MockTronProvider::new().with_gas_estimate(U256::from(500_000));
     let adapter = create_test_adapter(provider.clone());
 
     let mut tx = create_test_transaction();
 
+    tx.submission_attempts = 2;
     // Set gas before estimation
     let precursor = tx.precursor_mut();
     precursor.tx.set_gas(U256::from(200_000));
@@ -486,6 +493,30 @@ async fn test_estimate_tx_skips_when_gas_already_set() {
         !calls.contains(&MockCall::EstimateGas),
         "Should not call estimate_gas when gas is already set"
     );
+}
+
+#[tokio::test]
+async fn test_payload_energy_budget_is_a_floor_for_fresh_estimates() {
+    for (paid, estimate, expected) in [
+        (1_011_344u64, 551_905u64, 1_011_344u64),
+        (200_000, 500_000, 500_000),
+    ] {
+        let provider = MockTronProvider::new().with_gas_estimate(estimate.into());
+        let adapter = create_test_adapter(provider.clone());
+        let mut payload = create_test_payload();
+        payload.gas_limit = paid.into();
+        let mut built = adapter.build_transactions(&[payload]).await;
+        let mut tx = built[0].maybe_tx.take().unwrap();
+        tx.submission_attempts = 1;
+
+        adapter.estimate_tx(&mut tx).await.unwrap();
+
+        assert_eq!(tx.precursor().tx.gas(), Some(&U256::from(expected)));
+        assert_eq!(provider.get_calls(), vec![MockCall::EstimateGas]);
+        tx.submission_attempts = 2;
+        adapter.estimate_tx(&mut tx).await.unwrap();
+        assert_eq!(provider.get_calls(), vec![MockCall::EstimateGas]);
+    }
 }
 
 #[tokio::test]

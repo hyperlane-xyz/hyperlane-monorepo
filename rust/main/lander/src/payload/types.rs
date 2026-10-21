@@ -56,6 +56,11 @@ pub struct FullPayload {
     pub details: PayloadDetails,
     /// serialized `ContractCall` on EVM. On SVM, it is the serialized instructions and account list. On Cosmos, it is the serialized vec of msgs
     pub data: Vec<u8>,
+    /// Policy-selected resource budget. EVM uses gas; Tron uses energy.
+    /// Other VMs interpret resources separately. Zero imposes no additional floor.
+    /// Older persisted payloads did not include this field.
+    #[serde(default)]
+    pub gas_limit: U256,
     /// defaults to the hyperlane mailbox
     pub to: Address,
     /// defaults to `ReadyToSubmit`
@@ -73,6 +78,7 @@ impl Debug for FullPayload {
         f.debug_struct("FullPayload")
             .field("uuid", &self.details.uuid)
             .field("metadata", &self.details.metadata)
+            .field("gas_limit", &self.gas_limit)
             .field("to", &self.to)
             .field("status", &self.status)
             .field("value", &self.value)
@@ -86,12 +92,14 @@ impl FullPayload {
         uuid: PayloadUuid,
         metadata: impl Into<String>,
         data: Vec<u8>,
+        gas_limit: U256,
         success_criteria: Option<Vec<u8>>,
         to: Address,
     ) -> Self {
         Self {
             details: PayloadDetails::new(uuid, metadata, success_criteria),
             data,
+            gas_limit,
             to,
             status: Default::default(),
             value: None,
@@ -115,6 +123,7 @@ impl FullPayload {
         FullPayload {
             details,
             data: vec![],
+            gas_limit: U256::zero(),
             to: Address::zero(),
             status: PayloadStatus::default(),
             value: None,

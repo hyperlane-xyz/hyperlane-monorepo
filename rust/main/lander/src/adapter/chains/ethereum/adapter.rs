@@ -11,7 +11,6 @@ use ethers_core::abi::Function;
 use ethers_core::types::Eip1559TransactionRequest;
 use eyre::eyre;
 use futures_util::future;
-use hyperlane_core::ChainResult;
 use tokio::sync::Mutex;
 use tokio::try_join;
 use tracing::{debug, error, info, instrument, warn};
@@ -355,6 +354,18 @@ impl EthereumAdapter {
             .collect::<Vec<_>>()
     }
 
+    fn batch_gas_floor(payloads: &[FullPayload]) -> U256 {
+        let gas_floor = payloads.iter().fold(U256::zero(), |sum, payload| {
+            sum.saturating_add(payload.gas_limit)
+        });
+        if gas_floor.is_zero() {
+            return gas_floor;
+        }
+        let overhead = U256::from(multicall::MULTICALL_OVERHEAD_PER_CALL)
+            .saturating_mul(payloads.len().into());
+        gas_floor.saturating_add(overhead)
+    }
+
     fn extract_vm_specific_metrics(tx: &Transaction) -> PostInclusionMetricsSource {
         let mut metrics_source = PostInclusionMetricsSource::default();
         let precursor = tx.precursor().clone();
@@ -395,9 +406,22 @@ impl EthereumAdapter {
         &self,
         precursors: Vec<(TypedTransaction, Function)>,
         payload_details: Vec<PayloadDetails>,
-    ) -> ChainResult<Vec<TxBuildingResult>> {
+        gas_floor: U256,
+    ) -> Result<Vec<TxBuildingResult>, LanderError> {
         use super::transaction::TransactionFactory;
 
+        // Reject oversized batches here so build_transactions falls back to singles.
+        if !gas_floor.is_zero() {
+            let gas_floor =
+                gas_limit_estimator::apply_gas_estimate_buffer(gas_floor, &self.domain)?;
+            gas_limit_estimator::apply_gas_limit_caps(
+                self.provider.as_ref(),
+                &self.transaction_overrides,
+                gas_floor,
+                gas_floor,
+            )
+            .await?;
+        }
         let multi_precursor = self
             .provider
             .batch(
@@ -499,8 +523,9 @@ impl AdaptsChain for EthereumAdapter {
             return results;
         }
 
+        let gas_floor = Self::batch_gas_floor(payloads);
         match self
-            .build_batched_transaction(precursors.clone(), payload_details.clone())
+            .build_batched_transaction(precursors.clone(), payload_details.clone(), gas_floor)
             .await
         {
             Ok(results) => {
@@ -635,7 +660,9 @@ impl AdaptsChain for EthereumAdapter {
     }
 
     async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
-        if tx.precursor().tx.gas().is_some() {
+        // First submission still needs current estimates, buffers, and caps even
+        // when the payload carries a prepared gas floor. Reuse the final limit on retries.
+        if tx.submission_attempts > 1 && tx.precursor().tx.gas().is_some() {
             return Ok(());
         }
         let provider = self.submission_provider(tx).await?;
@@ -678,7 +705,9 @@ impl AdaptsChain for EthereumAdapter {
             .collect::<Vec<_>>();
         future::try_join_all(payload_estimate_futures).await?;
 
-        let multi_precursor = tx.precursor().clone();
+        let mut multi_precursor = tx.precursor().clone();
+        let gas_floor = Self::batch_gas_floor(&payloads);
+        *multi_precursor.tx.gas_mut() = None;
         let multi_precursor = (multi_precursor.tx, multi_precursor.function);
         let precursors = precursors
             .into_iter()
@@ -691,6 +720,22 @@ impl AdaptsChain for EthereumAdapter {
         )
         .await?;
 
+        // Buffer the total once, rather than adding a flat buffer for every member.
+        let gas_limit = if gas_floor.is_zero() {
+            gas_limit
+        } else {
+            gas_limit_estimator::apply_gas_estimate_buffer(gas_limit.max(gas_floor), &self.domain)?
+        };
+        let gas_limit = mev_submission::preflight(
+            protected,
+            gas_limit_estimator::apply_gas_limit_caps(
+                provider.as_ref(),
+                &self.transaction_overrides,
+                gas_limit.max(gas_floor),
+                gas_floor,
+            ),
+        )
+        .await?;
         tx.precursor_mut().tx.set_gas(gas_limit);
 
         Ok(())
