@@ -248,6 +248,67 @@ describe('CCS read authentication', () => {
     }
   });
 
+  it('forwards the origin transaction hash only after authenticating a reveal request', async () => {
+    const fetch = sinon
+      .stub(CallCommitmentsService.prototype, 'handleFetchCommitment')
+      .resolves('0x1234');
+    const app = await server();
+    const originTxHash = '0x' + '34'.repeat(32);
+    const signature = await wallet.signMessage(
+      utils.arrayify(
+        offchainLookupRequestMessageHash(sender, data, origin + postPath),
+      ),
+    );
+    try {
+      const unauthenticated = await app.inject({
+        method: 'POST',
+        url: postPath,
+        payload: { sender, data, origin_tx_hash: originTxHash },
+      });
+      expect(unauthenticated.statusCode).to.equal(401);
+      expect(fetch.called).to.be.false;
+
+      const response = await app.inject({
+        method: 'POST',
+        url: postPath,
+        payload: { sender, data, signature, origin_tx_hash: originTxHash },
+      });
+
+      expect(response.statusCode).to.equal(200);
+      expect(fetch.calledOnce).to.be.true;
+      expect(fetch.firstCall.args[3]).to.equal(originTxHash);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('rejects malformed origin transaction hints instead of serving stored routing metadata', async () => {
+    const fetch = sinon
+      .stub(CallCommitmentsService.prototype, 'handleFetchCommitment')
+      .resolves('0x1234');
+    const app = await server();
+    const signature = await wallet.signMessage(
+      utils.arrayify(
+        offchainLookupRequestMessageHash(sender, data, origin + postPath),
+      ),
+    );
+    try {
+      for (const originTxHash of ['0x1234', '', null, 1234]) {
+        const response = await app.inject({
+          method: 'POST',
+          url: postPath,
+          payload: { sender, data, signature, origin_tx_hash: originTxHash },
+        });
+
+        expect(response.statusCode).to.equal(400);
+        expect(response.json().error).to.equal('Invalid origin_tx_hash');
+      }
+      expect(fetch.called).to.be.false;
+    } finally {
+      await app.close();
+    }
+  });
+
   it('denies all reads with an empty whitelist', async () => {
     const app = await server([]);
     try {

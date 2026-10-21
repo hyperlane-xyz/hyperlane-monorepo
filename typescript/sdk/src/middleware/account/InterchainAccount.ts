@@ -117,7 +117,12 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       destinationContracts?.interchainAccountRouter,
       `No interchain account router configured for ${destinationChain}`,
     );
-    const destinationRouter = this.router(destinationContracts);
+    const destinationRouter = config.routerOverride
+      ? InterchainAccountRouter__factory.connect(
+          bytes32ToAddress(config.routerOverride),
+          this.multiProvider.getSignerOrProvider(destinationChain),
+        )
+      : this.router(destinationContracts);
 
     // Tron uses 0x41 instead of the EVM 0xff prefix for CREATE2 address
     // derivation, so ethers.getCreate2Address cannot reproduce its result.

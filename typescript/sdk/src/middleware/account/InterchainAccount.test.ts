@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { BigNumber, constants, utils } from 'ethers';
+import { BigNumber, VoidSigner, constants, providers, utils } from 'ethers';
 import sinon from 'sinon';
 
 import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
@@ -216,6 +216,7 @@ describe('InterchainAccount.getAccount', () => {
     };
     const multiProvider = {
       getProvider: sinon.stub().returns(provider),
+      getSignerOrProvider: sinon.stub().returns(provider),
       getTransactionOverrides: sinon.stub().returns({}),
       handleTx: sinon.stub().resolves(),
       getProtocol: sinon.stub().returns(protocol),
@@ -314,6 +315,66 @@ describe('InterchainAccount.getAccount', () => {
     ).to.equal(expectedAccount());
     expect(destinationRouter.routers.called).to.be.false;
     expect(destinationRouter.isms.called).to.be.false;
+  });
+
+  it('derives V2 and V3 accounts in parallel using the selected destination router', async () => {
+    const { app, destinationRouter } = createApp();
+    const v3Address = '0x' + '66'.repeat(20);
+    const v3Origin = '0x' + '77'.repeat(20);
+    const v3Hash = '0x' + '88'.repeat(32);
+    const v3Provider = new providers.JsonRpcProvider();
+    const signer = new VoidSigner(owner, v3Provider);
+    app.multiProvider.getSignerOrProvider.returns(signer);
+    const v3Router = InterchainAccountRouter__factory.connect(
+      v3Address,
+      v3Provider,
+    );
+    const call = sinon.stub(v3Provider, 'call');
+    call.callsFake(async (tx) => {
+      const data = await tx.data;
+      if (data === v3Router.interface.encodeFunctionData('bytecodeHash')) {
+        return utils.defaultAbiCoder.encode(['bytes32'], [v3Hash]);
+      }
+      if (
+        data === v3Router.interface.encodeFunctionData('isms', [originDomain])
+      ) {
+        return utils.defaultAbiCoder.encode(['bytes32'], [constants.HashZero]);
+      }
+      throw new Error(`Unexpected V3 router call: ${data}`);
+    });
+    const connect = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .returns(v3Router);
+    const userSalt = '0x' + '99'.repeat(32);
+    const v3Salt = utils.solidityKeccak256(
+      ['uint32', 'bytes32', 'bytes32', 'bytes32', 'bytes32'],
+      [
+        originDomain,
+        addressToBytes32(owner),
+        addressToBytes32(v3Origin),
+        constants.HashZero,
+        userSalt,
+      ],
+    );
+
+    expect(await app.getAccount(destination, { origin, owner })).to.equal(
+      expectedAccount(),
+    );
+    expect(
+      await app.getAccount(destination, {
+        origin,
+        owner,
+        localRouter: addressToBytes32(v3Origin),
+        routerOverride: addressToBytes32(v3Address),
+        userSalt,
+      }),
+    ).to.equal(utils.getCreate2Address(v3Address, v3Salt, v3Hash));
+    sinon.assert.calledOnceWithExactly(connect, v3Address, signer);
+    sinon.assert.calledOnce(destinationRouter.bytecodeHash);
+    sinon.assert.calledTwice(call);
+    expect(await app.getAccount(destination, { origin, owner })).to.equal(
+      expectedAccount(),
+    );
   });
 
   it('preserves custom salts and bytes32 normalization', async () => {
