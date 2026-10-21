@@ -156,6 +156,16 @@ describe('proxy utilities', () => {
     const OWNER_B = '0xcccccccccccccccccccccccccccccccccccccccc';
     const OWNER_C = '0xdddddddddddddddddddddddddddddddddddddddd';
 
+    it('should return empty when the deployment has no ProxyAdmin', () => {
+      const txs = proxyAdminUpdateTxs(
+        CHAIN_ID,
+        PROXY_ADDRESS,
+        { owner: OWNER_A },
+        { owner: OWNER_B },
+      );
+      expect(txs).to.deep.equal([]);
+    });
+
     it('should use ownerOverrides.proxyAdmin over top-level owner when proxyAdmin config is not set', () => {
       const txs = proxyAdminUpdateTxs(
         CHAIN_ID,

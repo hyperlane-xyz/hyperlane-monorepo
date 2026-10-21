@@ -7,6 +7,7 @@ import {
   CrossCollateralRoutingFee__factory,
   ERC20Test,
   ERC20Test__factory,
+  RoutingFee__factory,
 } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -326,6 +327,72 @@ describe('EvmTokenFeeModule', () => {
       expect(
         normalizeConfig(onchainConfig.feeContracts[test4Chain]).owner,
       ).to.equal(newOwner);
+    });
+
+    it('should update a shared routing sub-fee only once', async () => {
+      const destinations = [
+        TestChainName.test1,
+        TestChainName.test2,
+        TestChainName.test3,
+      ];
+      const sharedSubFeeModule = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config,
+      });
+      const sharedSubFee = sharedSubFeeModule.serialize().deployedFee;
+      const routingFee = await new RoutingFee__factory(signer).deploy(
+        token.address,
+        signer.address,
+      );
+
+      for (const destination of destinations) {
+        await routingFee.setFeeContract(
+          multiProvider.getDomainId(destination),
+          sharedSubFee,
+        );
+      }
+
+      const routingFeeConfig: TokenFeeConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: Object.fromEntries(
+          destinations.map((destination) => [destination, config]),
+        ),
+      };
+      const module = new EvmTokenFeeModule(multiProvider, {
+        chain: test4Chain,
+        config: routingFeeConfig,
+        addresses: { deployedFee: routingFee.address },
+      });
+      const newOwner = normalizeConfig(randomAddress());
+      const updatedConfig: TokenFeeConfig = {
+        ...routingFeeConfig,
+        owner: newOwner,
+        feeContracts: Object.fromEntries(
+          destinations.map((destination) => [
+            destination,
+            { ...config, owner: newOwner },
+          ]),
+        ),
+      };
+
+      const txs = await module.update(updatedConfig, {
+        routingDestinations: destinations.map((destination) =>
+          multiProvider.getDomainId(destination),
+        ),
+      });
+
+      expect(txs).to.have.lengthOf(2);
+      expect(txs[0].to).to.equal(sharedSubFee);
+      expect(txs[1].to).to.equal(routingFee.address);
+      for (const tx of txs) {
+        await multiProvider.sendTransaction(test4Chain, tx);
+      }
+      expect(normalizeConfig(await routingFee.owner())).to.equal(newOwner);
+      const sharedConfig = await sharedSubFeeModule.read();
+      expect(normalizeConfig(sharedConfig.owner)).to.equal(newOwner);
     });
 
     it('should derive routingDestinations from target config when not provided', async () => {
