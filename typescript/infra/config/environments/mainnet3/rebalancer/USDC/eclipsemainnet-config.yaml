@@ -10,7 +10,7 @@ strategy:
   chains:
     ethereum:
       weighted:
-        weight: 27
+        weight: 155
         tolerance: 5
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
@@ -25,7 +25,7 @@ strategy:
 
     base:
       weighted:
-        weight: 22
+        weight: 137
         tolerance: 5
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
@@ -40,7 +40,7 @@ strategy:
 
     arbitrum:
       weighted:
-        weight: 16
+        weight: 94
         tolerance: 5
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
@@ -55,7 +55,7 @@ strategy:
 
     optimism:
       weighted:
-        weight: 10
+        weight: 75
         tolerance: 5
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
@@ -100,7 +100,7 @@ strategy:
 
     arc:
       weighted:
-        weight: 5
+        weight: 51
         tolerance: 3
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 2500
@@ -115,7 +115,7 @@ strategy:
 
     ink:
       weighted:
-        weight: 5
+        weight: 51
         tolerance: 3
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 2500
@@ -128,16 +128,76 @@ strategy:
           executionType: inventory
           externalBridge: lifi
 
+    avalanche:
+      weighted:
+        weight: 4
+        tolerance: 3
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 2500
+      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+      override:
+        bsc:
+          executionType: inventory
+          externalBridge: lifi
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
+
+    linea:
+      weighted:
+        weight: 4
+        tolerance: 3
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 2500
+      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+      override:
+        bsc:
+          executionType: inventory
+          externalBridge: lifi
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
+
+    worldchain:
+      weighted:
+        weight: 4
+        tolerance: 3
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 2500
+      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+      override:
+        bsc:
+          executionType: inventory
+          externalBridge: lifi
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
+
+    hyperevm:
+      weighted:
+        weight: 3
+        tolerance: 3
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 2500
+      bridge: '0xDdf252a063f8c5C399B9ccDBbaDBA55225F53Da1'
+      override:
+        bsc:
+          executionType: inventory
+          externalBridge: lifi
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
+
     bsc:
       weighted:
-        weight: 5
-        tolerance: 3
+        weight: 25
+        tolerance: 10
       executionType: inventory
       externalBridge: lifi
 
     solanamainnet:
       weighted:
-        weight: 10
-        tolerance: 5
+        weight: 47
+        tolerance: 10
       executionType: inventory
       externalBridge: lifi
