@@ -699,6 +699,13 @@ async fn submit_via_lander<E: Entrypoint + Send + Sync>(
         }
     };
 
+    let Some(gas_limit) = op.get_tx_cost_estimate() else {
+        let reason = ReprepareReason::ErrorCreatingPayload;
+        let msg = "Prepared operation has no policy-selected gas budget";
+        prepare_op(op, prepare_queue, msg, msg, reason).await;
+        return;
+    };
+
     let message_id = op.id();
     let metadata = format!("{message_id:?}");
     let mailbox = op
@@ -710,8 +717,7 @@ async fn submit_via_lander<E: Entrypoint + Send + Sync>(
         payload_uuid,
         metadata,
         operation_payload,
-        op.get_tx_cost_estimate()
-            .expect("Prepared operation must have a policy-selected gas budget"),
+        gas_limit,
         operation_success_criteria,
         mailbox,
     );

@@ -31,6 +31,7 @@ pub async fn estimate_gas_limit(
     let mut estimated_gas_limit: U256 = provider
         .estimate_gas_limit(&estimate_tx, &tx_precursor.function)
         .await?;
+    estimated_gas_limit = estimated_gas_limit.max(gas_floor);
 
     if with_gas_limit_overrides {
         estimated_gas_limit = apply_gas_estimate_buffer(estimated_gas_limit, domain)?;
@@ -39,11 +40,11 @@ pub async fn estimate_gas_limit(
         }
     }
 
-    estimated_gas_limit = estimated_gas_limit.max(gas_floor);
     let gas_limit = apply_gas_limit_caps(
         provider.as_ref(),
         transaction_overrides,
         estimated_gas_limit,
+        gas_floor,
     )
     .await?;
     debug!(?estimated_gas_limit, gas_override=?transaction_overrides.gas_limit, used_gas_limit=?gas_limit, "Gas limit set for transaction");
@@ -57,6 +58,7 @@ pub async fn apply_gas_limit_caps(
     provider: &dyn EvmProviderForLander,
     transaction_overrides: &TransactionOverrides,
     gas_limit: U256,
+    gas_floor: U256,
 ) -> Result<U256, LanderError> {
     let gas_limit = apply_gas_limit_cap(transaction_overrides, gas_limit);
 
@@ -78,6 +80,14 @@ pub async fn apply_gas_limit_caps(
     } else {
         gas_limit
     };
+    if gas_limit < gas_floor {
+        warn!(
+            ?gas_floor,
+            ?gas_limit,
+            "Gas cap cannot accommodate the prepared gas budget"
+        );
+        return Err(LanderError::EstimationFailed);
+    }
     Ok(gas_limit)
 }
 
@@ -132,11 +142,8 @@ pub mod tests {
     }
 
     #[tokio::test]
-    async fn test_paid_gas_floor_respects_caps() {
-        for (configured_cap, block_cap, expected) in [
-            (Some(900_000u64), 30_000_000u64, 900_000u64),
-            (None, 800_000, 800_000),
-        ] {
+    async fn test_caps_cannot_truncate_paid_gas_floor() {
+        for (configured_cap, block_cap) in [(Some(900_000u64), 30_000_000u64), (None, 800_000)] {
             let request = Eip1559TransactionRequest {
                 gas: Some(1_011_344.into()),
                 ..Default::default()
@@ -157,7 +164,7 @@ pub mod tests {
                     ..Default::default()
                 }))
             });
-            estimate_gas_limit(
+            let result = estimate_gas_limit(
                 Arc::new(provider),
                 &mut precursor,
                 &TransactionOverrides {
@@ -167,9 +174,9 @@ pub mod tests {
                 &hyperlane_core::KnownHyperlaneDomain::Arbitrum.into(),
                 true,
             )
-            .await
-            .unwrap();
-            assert_eq!(precursor.tx.gas(), Some(&EthersU256::from(expected)));
+            .await;
+            assert!(matches!(result, Err(LanderError::EstimationFailed)));
+            assert_eq!(precursor.tx.gas(), Some(&EthersU256::from(1_011_344)));
         }
     }
 

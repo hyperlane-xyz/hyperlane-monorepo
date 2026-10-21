@@ -21,7 +21,7 @@ const ALLOW_BATCH_FAILURES: bool = true;
 /// based on:
 /// - https://dashboard.tenderly.co/shared/simulation/63e85ac7-3ea9-475c-8218-a7c1dd508366/gas-usage
 /// - https://dashboard.tenderly.co/tx/arbitrum/0xad644e431dc53c3fc0a074a749d118ff5517346c3f28d8e2513610cc9ab5c91a/gas-usage
-const MULTICALL_OVERHEAD_PER_CALL: u64 = 3500;
+pub const MULTICALL_OVERHEAD_PER_CALL: u64 = 3500;
 
 /// Caches the confirmations that a given address is a contract or not.
 #[derive(Debug, Default)]

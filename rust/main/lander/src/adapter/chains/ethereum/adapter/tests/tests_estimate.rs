@@ -70,7 +70,7 @@ async fn single_delivery_preserves_paid_gas_and_buffers_larger_estimates() {
             KnownHyperlaneDomain::Arbitrum,
             1_011_344u64,
             551_905u64,
-            1_011_344u64,
+            1_187_478u64,
         ),
         (
             KnownHyperlaneDomain::Arbitrum,
@@ -78,14 +78,14 @@ async fn single_delivery_preserves_paid_gas_and_buffers_larger_estimates() {
             1_200_000,
             1_395_000,
         ),
-        (KnownHyperlaneDomain::Arbitrum, 927_213, 549_015, 927_213),
+        (KnownHyperlaneDomain::Arbitrum, 927_213, 549_015, 1_094_934),
         (KnownHyperlaneDomain::Arbitrum, 0, 100_000, 185_000),
         (KnownHyperlaneDomain::Ethereum, 0, 100_000, 175_000),
         (
             KnownHyperlaneDomain::Ethereum,
             1_011_344,
             551_905,
-            1_011_344,
+            1_086_344,
         ),
         (
             KnownHyperlaneDomain::Ethereum,
@@ -127,17 +127,19 @@ async fn single_delivery_preserves_paid_gas_and_buffers_larger_estimates() {
 }
 
 #[tokio::test]
-async fn batched_delivery_preserves_paid_floors_and_applies_aggregate_caps() {
-    for (configured_cap, block_cap, expected) in [
-        (None, 30_000_000u64, 1_945_557u64),
-        (Some(1_200_000u64), 30_000_000, 1_200_000),
-        (None, 1_500_000, 1_500_000),
+async fn batched_delivery_preserves_paid_floors_or_falls_back_to_singles() {
+    for (configured_cap, block_cap, split) in [
+        (None, 30_000_000u64, false),
+        (Some(1_200_000u64), 30_000_000, true),
+        (None, 1_500_000, true),
+        // The individual budgets fit, but Multicall overhead does not.
+        (Some(1_940_000), 30_000_000, true),
     ] {
         let (payload_db, tx_db, nonce_db) = tmp_dbs();
         let mut provider = MockEvmProvider::new();
         provider
             .expect_batch()
-            .once()
+            .times(usize::from(!split))
             .returning(|_, _, _, _| Ok(empty_batch()));
         provider
             .expect_estimate_gas_limit()
@@ -152,8 +154,9 @@ async fn batched_delivery_preserves_paid_floors_and_applies_aggregate_caps() {
         });
         provider
             .expect_estimate_batch()
-            .once()
-            .withf(|_, precursors| {
+            .times(usize::from(!split))
+            .withf(|(tx, _), precursors| {
+                assert!(tx.gas().is_none());
                 let gas: Vec<_> = precursors.iter().map(|(tx, _)| tx.gas().copied()).collect();
                 gas == vec![
                     Some(EthersU256::from(1_011_344)),
@@ -183,9 +186,27 @@ async fn batched_delivery_preserves_paid_floors_and_applies_aggregate_caps() {
         );
         adapter.transaction_overrides.gas_limit_cap = configured_cap.map(U256::from);
         let mut built = adapter.build_transactions(&payloads).await;
-        let mut tx = built[0].maybe_tx.take().unwrap();
-        adapter.estimate_tx(&mut tx).await.unwrap();
-        assert_eq!(tx.precursor().tx.gas(), Some(&EthersU256::from(expected)));
+        assert_eq!(built.len(), if split { 2 } else { 1 });
+        for (index, built) in built.iter_mut().enumerate() {
+            let mut tx = built.maybe_tx.take().unwrap();
+            adapter.estimate_tx(&mut tx).await.unwrap();
+            let expected = if split {
+                [1_187_478u64, 1_094_934][index]
+            } else {
+                1_945_557
+            };
+            assert_eq!(tx.precursor().tx.gas(), Some(&EthersU256::from(expected)));
+        }
+        if split {
+            assert_eq!(
+                adapter
+                    .metrics()
+                    .get_batched_transactions()
+                    .with_label_values(&["test1", "failed"])
+                    .get(),
+                2
+            );
+        }
     }
 }
 
@@ -231,5 +252,5 @@ async fn batch_rebuilt_as_single_delivery_keeps_the_paid_budget() {
     assert_eq!(rejected, vec![payloads[0].details.clone()]);
     assert_eq!(tx.payload_details, vec![payloads[1].details.clone()]);
     adapter.estimate_tx(&mut tx).await.unwrap();
-    assert_eq!(tx.precursor().tx.gas(), Some(&EthersU256::from(927_213)));
+    assert_eq!(tx.precursor().tx.gas(), Some(&EthersU256::from(1_094_934)));
 }

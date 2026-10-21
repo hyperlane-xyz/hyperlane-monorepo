@@ -128,3 +128,32 @@ async fn lander_submission_carries_the_policy_selected_budget() {
     assert_eq!(prepare_queue.len().await, 0);
     assert_eq!(submit_queue.len().await, 1);
 }
+
+#[tokio::test]
+async fn lander_submission_without_gas_budget_returns_to_prepare() {
+    use hyperlane_core::{HyperlaneDomain, ReprepareReason};
+    use tests_common::{MockDispatcherEntrypoint, MockHyperlaneDb};
+
+    let op = MockQueueOperation::new(
+        H256::from_low_u64_be(1),
+        PendingOperationStatus::ReadyToSubmit,
+        HyperlaneDomain::new_test_domain("test"),
+    );
+    let mut prepare_queue = create_test_queue();
+    let submit_queue = create_test_queue();
+    super::submit_via_lander(
+        Box::new(op),
+        &Arc::new(MockDispatcherEntrypoint::new()),
+        &prepare_queue,
+        &submit_queue,
+        Arc::new(MockHyperlaneDb::new()),
+    )
+    .await;
+
+    assert_eq!(submit_queue.len().await, 0);
+    let op = prepare_queue.pop().await.unwrap();
+    assert_eq!(
+        op.status(),
+        PendingOperationStatus::Retry(ReprepareReason::ErrorCreatingPayload)
+    );
+}
