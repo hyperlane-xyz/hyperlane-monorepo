@@ -35,6 +35,7 @@ export const tokenMessengerV2Addresses = {
   hyperevm: '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d',
   ink: '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d',
   arc: '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d',
+  monad: '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d',
 } as const;
 
 export const messageTransmitterV2Addresses = {
@@ -52,6 +53,7 @@ export const messageTransmitterV2Addresses = {
   hyperevm: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
   ink: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
   arc: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
+  monad: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
 } as const;
 
 // https://developers.circle.com/cctp/concepts/fees
