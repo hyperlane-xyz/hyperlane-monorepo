@@ -13,7 +13,11 @@ import {
   isPostCallsIca,
   normalizeCalls,
 } from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
-import { addressToBytes32, formatMessage } from '@hyperlane-xyz/utils';
+import {
+  addressToBytes32,
+  formatMessage,
+  parseMessage,
+} from '@hyperlane-xyz/utils';
 
 import { prisma } from '../../src/db.js';
 import { CallCommitmentsService } from '../../src/services/CallCommitmentsService.js';
@@ -624,24 +628,36 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
   }
 
   function createService(logs: ReturnType<typeof dispatchLog>[]) {
-    const provider = new providers.JsonRpcProvider();
-    const getTransactionReceipt = sinon.stub(provider, 'getTransactionReceipt');
+    const originProvider = new providers.JsonRpcProvider();
+    const destinationProvider = new providers.JsonRpcProvider();
+    const getTransactionReceipt = sinon.stub(
+      originProvider,
+      'getTransactionReceipt',
+    );
     getTransactionReceipt.resolves({ logs });
     const getAccount = sinon
-      .stub(provider, 'call')
+      .stub(destinationProvider, 'call')
       .resolves(utils.defaultAbiCoder.encode(['address'], [mockIca]));
     const connect = sinon.spy(InterchainAccountRouter__factory, 'connect');
     const service = Object.create(CallCommitmentsService.prototype);
+    const getProvider = sinon.stub();
+    getProvider.withArgs('base').returns(originProvider);
+    getProvider.withArgs(2).returns(destinationProvider);
     service.multiProvider = {
-      getChainName: sinon.stub().returns('base'),
-      getProvider: sinon.stub().returns(provider),
+      getChainName: sinon.stub().withArgs(1).returns('base'),
+      getProvider,
     };
+    const mailboxRead = sinon.stub().resolves(mailbox);
+    service.originMailboxes = new Map();
     service.icaApp = {
-      getContracts: sinon.stub().returns({
-        interchainAccountRouter: { mailbox: sinon.stub().resolves(mailbox) },
-      }),
+      getContracts: sinon
+        .stub()
+        .withArgs('base')
+        .returns({
+          interchainAccountRouter: { mailbox: mailboxRead },
+        }),
     };
-    return { service, getAccount, getTransactionReceipt, connect };
+    return { service, getAccount, getTransactionReceipt, connect, mailboxRead };
   }
 
   it('derives using both dispatched routers, owner, ISM, and user salt', async () => {
@@ -669,6 +685,118 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
     ]);
   });
 
+  it('uses the nearest earlier commitment when the same hash is dispatched twice', async () => {
+    const laterOwner = '0x' + '42'.repeat(20);
+    const laterBody =
+      '0x01' + addressToBytes32(laterOwner).slice(2) + body.slice(68);
+    const laterCommit = formatMessage(
+      3,
+      10,
+      1,
+      originRouter,
+      2,
+      destinationRouter,
+      laterBody,
+    );
+    const { service, getAccount, mailboxRead } = createService([
+      dispatchLog(committedMessage, 0),
+      dispatchLog(laterCommit, 1),
+      dispatchLog(revealMessage, 2),
+    ]);
+    await service.deriveIcaFromRevealMessage(revealMessage, originTxHash);
+    await service.deriveIcaFromRevealMessage(revealMessage, originTxHash);
+    const decoded =
+      InterchainAccountRouter__factory.createInterface().decodeFunctionData(
+        'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)',
+        await getAccount.firstCall.args[0].data,
+      );
+    expect(decoded[1]).to.equal(addressToBytes32(laterOwner));
+    sinon.assert.calledOnce(mailboxRead);
+  });
+
+  for (const layout of ['sequential', 'nested'] as const) {
+    it(`pairs both ${layout} commit/reveal calls when their commitment hashes match`, async () => {
+      const otherOwner = '0x' + '42'.repeat(20);
+      const otherBody =
+        '0x01' + addressToBytes32(otherOwner).slice(2) + body.slice(68);
+      const otherCommit = formatMessage(
+        3,
+        layout === 'nested' ? 11 : 12,
+        1,
+        originRouter,
+        2,
+        destinationRouter,
+        otherBody,
+      );
+      const otherReveal = formatMessage(
+        3,
+        layout === 'nested' ? 12 : 13,
+        1,
+        originRouter,
+        2,
+        destinationRouter,
+        parseMessage(revealMessage).body,
+      );
+      const outerReveal =
+        layout === 'nested'
+          ? formatMessage(
+              3,
+              13,
+              1,
+              originRouter,
+              2,
+              destinationRouter,
+              parseMessage(revealMessage).body,
+            )
+          : revealMessage;
+      const orderedMessages =
+        layout === 'nested'
+          ? [committedMessage, otherCommit, otherReveal, outerReveal]
+          : [committedMessage, outerReveal, otherCommit, otherReveal];
+      const { service, getAccount } = createService(
+        orderedMessages.map((message, index) => dispatchLog(message, index)),
+      );
+
+      await service.deriveIcaFromRevealMessage(outerReveal, originTxHash);
+      await service.deriveIcaFromRevealMessage(otherReveal, originTxHash);
+
+      const iface = InterchainAccountRouter__factory.createInterface();
+      const first = iface.decodeFunctionData(
+        'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)',
+        await getAccount.firstCall.args[0].data,
+      );
+      const second = iface.decodeFunctionData(
+        'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)',
+        await getAccount.secondCall.args[0].data,
+      );
+      expect(first[1]).to.equal(addressToBytes32(icaPayload.owner));
+      expect(second[1]).to.equal(addressToBytes32(otherOwner));
+    });
+  }
+
+  it('rejects a missing origin receipt before querying the destination', async () => {
+    const { service, getTransactionReceipt, getAccount } = createService([]);
+    getTransactionReceipt.resolves(null);
+    const error = await service
+      .deriveIcaFromRevealMessage(revealMessage, originTxHash)
+      .catch((error: unknown) => error);
+    expect(error)
+      .to.be.instanceOf(Error)
+      .with.property('message', `Transaction not found: ${originTxHash}`);
+    sinon.assert.notCalled(getAccount);
+  });
+
+  it('propagates origin RPC failures before querying the destination', async () => {
+    const { service, getTransactionReceipt, getAccount } = createService([]);
+    const unavailable = new Error('origin RPC unavailable');
+    getTransactionReceipt.rejects(unavailable);
+    const error = await service
+      .deriveIcaFromRevealMessage(revealMessage, originTxHash)
+      .catch((error: unknown) => error);
+    expect(error).to.equal(unavailable);
+    sinon.assert.notCalled(getAccount);
+  });
+
   for (const [name, logs] of [
     [
       'a forged mailbox emitter',
@@ -690,10 +818,54 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       [dispatchLog(committedMessage, 3), dispatchLog(revealMessage, 2)],
     ],
     [
-      'ambiguous commitment dispatches',
+      'a commitment already consumed by an earlier reveal',
       [
-        dispatchLog(committedMessage, 0),
-        dispatchLog(committedMessage, 1),
+        dispatchLog(
+          formatMessage(3, 8, 1, originRouter, 2, destinationRouter, body),
+          0,
+        ),
+        dispatchLog(
+          formatMessage(
+            3,
+            9,
+            1,
+            originRouter,
+            2,
+            destinationRouter,
+            parseMessage(revealMessage).body,
+          ),
+          1,
+        ),
+        dispatchLog(revealMessage, 2),
+      ],
+    ],
+    [
+      'a commitment from another sender',
+      [
+        dispatchLog(
+          formatMessage(3, 10, 1, validAddress, 2, destinationRouter, body),
+          1,
+        ),
+        dispatchLog(revealMessage, 2),
+      ],
+    ],
+    [
+      'a commitment from another origin',
+      [
+        dispatchLog(
+          formatMessage(3, 10, 3, originRouter, 2, destinationRouter, body),
+          1,
+        ),
+        dispatchLog(revealMessage, 2),
+      ],
+    ],
+    [
+      'a commitment for another destination',
+      [
+        dispatchLog(
+          formatMessage(3, 10, 1, originRouter, 3, destinationRouter, body),
+          1,
+        ),
         dispatchLog(revealMessage, 2),
       ],
     ],
@@ -872,7 +1044,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       .with.property('message', 'Signer not authorized for this commitment');
   });
 
-  it('serves the dispatched V3 ICA without rewriting an incorrect stored V2 ICA', async () => {
+  it('persists a verified V3 ICA correction without changing calls or access restrictions', async () => {
     const service = createService();
     const record = {
       commitment,
@@ -886,8 +1058,8 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
     const v3Ica = '0x2254720417e8645d069821772790612149bf2c08';
     const deriveIcaFromRevealMessage = sinon.stub().resolves(v3Ica);
     service.deriveIcaFromRevealMessage = deriveIcaFromRevealMessage;
-    const update = sinon.stub();
-    sinon.stub(prisma, 'commitment').value({ update });
+    const updateMany = sinon.stub().resolves({ count: 1 });
+    sinon.stub(prisma, 'commitment').value({ updateMany });
     const originTxHash = '0x' + '34'.repeat(32);
 
     const result = await service.handleFetchCommitment(
@@ -904,8 +1076,65 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       v3Ica + encodeIcaCalls(normalizeCalls(baseCalls), salt).slice(2),
     );
     expect(record.ica).to.equal(mockIca);
-    expect(update.called).to.be.false;
+    sinon.assert.calledOnceWithExactly(updateMany, {
+      where: { commitment, originDomain: 1, ica: mockIca },
+      data: { ica: v3Ica },
+    });
   });
+
+  for (const repairedByOtherRequest of [true, false]) {
+    it(`${repairedByOtherRequest ? 'accepts an identical' : 'rejects a conflicting'} concurrent ICA repair`, async () => {
+      const service = createService();
+      const v3Ica = '0x2254720417e8645d069821772790612149bf2c08';
+      const record = {
+        commitment,
+        calls: baseCalls,
+        salt,
+        ica: mockIca,
+        originDomain: 1,
+        relayers: baseRelayers,
+      };
+      service.fetchCommitmentRecord = sinon
+        .stub()
+        .onFirstCall()
+        .resolves(record)
+        .onSecondCall()
+        .resolves({
+          ...record,
+          ica: repairedByOtherRequest ? v3Ica : validAddress,
+        });
+      service.deriveIcaFromRevealMessage = sinon.stub().resolves(v3Ica);
+      const updateMany = sinon.stub().resolves({ count: 0 });
+      sinon.stub(prisma, 'commitment').value({ updateMany });
+
+      const result = await service
+        .handleFetchCommitment(
+          message,
+          baseRelayers[0],
+          mockLogger(),
+          '0x' + '34'.repeat(32),
+        )
+        .catch((error: unknown) => error);
+
+      if (repairedByOtherRequest) {
+        expect(result).to.equal(
+          v3Ica + encodeIcaCalls(normalizeCalls(baseCalls), salt).slice(2),
+        );
+      } else {
+        expect(result)
+          .to.be.instanceOf(Error)
+          .with.property(
+            'message',
+            'Commitment ICA changed during receipt-based recovery',
+          );
+      }
+      sinon.assert.calledOnceWithExactly(updateMany, {
+        where: { commitment, originDomain: 1, ica: mockIca },
+        data: { ica: v3Ica },
+      });
+      sinon.assert.calledTwice(service.fetchCommitmentRecord);
+    });
+  }
 
   it('denies unauthorized relayers before attempting receipt-based ICA recovery', async () => {
     const service = createService();
@@ -949,17 +1178,24 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
     });
     service.deriveIcaFromRevealMessage = sinon.stub().resolves(mockIca);
 
-    const result = await service.handleFetchCommitment(
-      message,
-      baseRelayers[0],
-      mockLogger(),
-      '0x' + '34'.repeat(32),
-    );
+    const result = await service
+      .handleFetchCommitment(
+        message,
+        baseRelayers[0],
+        mockLogger(),
+        '0x' + '34'.repeat(32),
+      )
+      .catch((error: unknown) => error);
 
     expect(result).not.to.equal(
       mockIca + encodeIcaCalls(normalizeCalls(baseCalls), salt).slice(2),
     );
-    expect(result).to.contain('origin');
+    expect(result)
+      .to.be.instanceOf(Error)
+      .with.property(
+        'message',
+        'Reveal origin does not match stored commitment',
+      );
     expect(service.deriveIcaFromRevealMessage.called).to.be.false;
   });
 });

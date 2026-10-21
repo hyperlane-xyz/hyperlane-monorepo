@@ -271,6 +271,7 @@ function hasMatchingLegacyCommitment(
 export class CallCommitmentsService extends BaseService {
   private multiProvider: MultiProvider;
   private readonly auth: CcsAuth;
+  private readonly originMailboxes = new Map<string, string>();
 
   constructor(
     config: ServiceConfigWithBaseUrl,
@@ -468,6 +469,32 @@ export class CallCommitmentsService extends BaseService {
       const ica = originTxHash
         ? await this.deriveIcaFromRevealMessage(message, originTxHash)
         : record.ica;
+      if (ica.toLowerCase() !== record.ica.toLowerCase()) {
+        const corrected = await prisma.commitment.updateMany({
+          where: {
+            commitment: record.commitment,
+            originDomain: record.originDomain,
+            ica: record.ica,
+          },
+          data: { ica },
+        });
+        if (corrected.count === 0) {
+          const current = await this.fetchCommitmentRecord(commitment, log);
+          assert(
+            current.ica.toLowerCase() === ica.toLowerCase(),
+            'Commitment ICA changed during receipt-based recovery',
+          );
+        }
+        log.warn(
+          {
+            commitment,
+            originTxHash,
+            previousIca: record.ica,
+            ica,
+          },
+          'Corrected stored ICA from verified dispatch receipt',
+        );
+      }
       const encoded =
         ica +
         encodeIcaCalls(normalizeCalls(record.calls), record.salt).slice(2);
@@ -481,19 +508,18 @@ export class CallCommitmentsService extends BaseService {
       );
 
       return encoded;
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error instanceof CommitmentAccessDeniedError) throw error;
       log.error(
         {
           message,
           relayer,
-          error: error.message,
-          stack: error.stack,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
         },
         'Error fetching commitment from message',
       );
-      // TODO we might not want to show the error
-      return JSON.stringify({ error: error.message });
+      throw error;
     }
   }
 
@@ -513,9 +539,13 @@ export class CallCommitmentsService extends BaseService {
     const receipt = await provider.getTransactionReceipt(originTxHash);
     assert(receipt, `Transaction not found: ${originTxHash}`);
 
-    const mailbox = await this.icaApp
-      .getContracts(originChain)
-      .interchainAccountRouter.mailbox();
+    let mailbox = this.originMailboxes.get(originChain);
+    if (mailbox === undefined) {
+      mailbox = await this.icaApp
+        .getContracts(originChain)
+        .interchainAccountRouter.mailbox();
+      this.originMailboxes.set(originChain, mailbox);
+    }
     const iface = Mailbox__factory.createInterface();
     const dispatchTopic = iface.getEventTopic('Dispatch');
     const dispatches = receipt.logs
@@ -535,27 +565,44 @@ export class CallCommitmentsService extends BaseService {
     );
     assert(revealDispatch, 'Reveal message not found in origin transaction');
 
-    const matchingCommitments = dispatches.filter((dispatch) => {
-      if (dispatch.log.logIndex >= revealDispatch.log.logIndex) return false;
+    // A dispatch hook can nest another commit/reveal using the same hash.
+    // Consume earlier reveals so the outer reveal retains its own commitment.
+    const pendingCommitments: ReturnType<typeof parseMessage>[] = [];
+    let committed: ReturnType<typeof parseMessage> | undefined;
+    for (const dispatch of dispatches.sort(
+      (left, right) => left.log.logIndex - right.log.logIndex,
+    )) {
+      if (dispatch.log.logIndex > revealDispatch.log.logIndex) break;
       const candidate = parseMessage(dispatch.message);
-      return (
-        candidate.origin === reveal.origin &&
-        candidate.destination === reveal.destination &&
-        candidate.sender.toLowerCase() === reveal.sender.toLowerCase() &&
-        candidate.recipient.toLowerCase() === reveal.recipient.toLowerCase() &&
+      if (
+        candidate.origin !== reveal.origin ||
+        candidate.destination !== reveal.destination ||
+        candidate.sender.toLowerCase() !== reveal.sender.toLowerCase() ||
+        candidate.recipient.toLowerCase() !== reveal.recipient.toLowerCase()
+      ) {
+        continue;
+      }
+      if (
         utils.hexDataLength(candidate.body) === 129 &&
         utils.hexDataSlice(candidate.body, 0, 1) === '0x01' &&
         utils.hexDataSlice(candidate.body, 97, 129).toLowerCase() ===
           commitment.toLowerCase()
-      );
-    });
-    assert(
-      matchingCommitments.length === 1,
-      'Expected one matching commitment dispatch in origin transaction',
-    );
-    const commitmentDispatch = matchingCommitments[0];
-    assert(commitmentDispatch, 'Matching commitment dispatch not found');
-    const committed = parseMessage(commitmentDispatch.message);
+      ) {
+        pendingCommitments.push(candidate);
+      } else if (
+        utils.hexDataLength(candidate.body) === 65 &&
+        utils.hexDataSlice(candidate.body, 0, 1) === '0x02' &&
+        utils.hexDataSlice(candidate.body, 33, 65).toLowerCase() ===
+          commitment.toLowerCase()
+      ) {
+        const paired = pendingCommitments.pop();
+        if (dispatch.log.logIndex === revealDispatch.log.logIndex) {
+          committed = paired;
+          break;
+        }
+      }
+    }
+    assert(committed, 'Matching commitment dispatch not found');
     const destinationRouter = InterchainAccountRouter__factory.connect(
       bytes32ToAddress(reveal.recipient),
       this.multiProvider.getProvider(reveal.destination),
@@ -1090,8 +1137,8 @@ export class CallCommitmentsService extends BaseService {
       async (request, reply) => {
         const rawTxHash = request.body?.origin_tx_hash;
         if (
-          rawTxHash !== undefined &&
-          (typeof rawTxHash !== 'string' || !utils.isHexString(rawTxHash, 32))
+          typeof rawTxHash === 'string' &&
+          !utils.isHexString(rawTxHash, 32)
         ) {
           return reply.code(400).send({ error: 'Invalid origin_tx_hash' });
         }
