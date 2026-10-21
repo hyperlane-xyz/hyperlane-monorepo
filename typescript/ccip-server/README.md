@@ -93,9 +93,13 @@ configuration, and compatibility with the existing EVM reveal endpoint.
   Relayers may include `origin_tx_hash` in the authenticated request. The server
   verifies the exact reveal and its matching commitment dispatch in that
   transaction's mailbox events, then derives the ICA from the actual router pair.
-  This also recovers records previously derived from the wrong router version;
-  stored calldata and access restrictions remain unchanged. Without the hash,
-  the server uses the stored ICA.
+  If the verified ICA differs from the stored address, the server conditionally
+  updates that address and logs the correction. Calls, salts, origins, and access
+  restrictions remain unchanged. Later reads without a hash use the corrected ICA.
+  Re-registration must identify the same router pair: stale config that derives a
+  different ICA still returns 409. Missing or null hashes use the stored ICA;
+  malformed hash strings return 400. Lookup or recovery failures return HTTP 500
+  so the relayer can retry.
 
 ## Notes
 
