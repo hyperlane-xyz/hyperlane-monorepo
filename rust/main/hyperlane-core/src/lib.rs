@@ -57,3 +57,6 @@ pub enum ListValidity {
     /// Invalid list. Contains gaps, but builds upon the correct prior element.
     ContainsGaps,
 }
+
+/// Shared offchain lookup authentication.
+pub mod offchain_lookup;

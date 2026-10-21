@@ -1425,6 +1425,7 @@ mod test {
             ChainConf {
                 domain: HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 signer: None,
+                ccs_signer: None,
                 identity: None,
                 submitter: Default::default(),
                 estimated_block_time: Duration::from_secs_f64(1.1),

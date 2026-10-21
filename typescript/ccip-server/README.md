@@ -74,11 +74,15 @@ A lightweight Fastify server for CCIP Read/Write commitments, using Zod validati
 
 ## API Routes
 
+Commitment calldata reads require signed requests from a configured service address.
+See [CCS authentication and rollout](./CCS_AUTH.md) for EVM signing on both EVM/SVM reads, whitelist
+configuration, and compatibility with the existing EVM reveal endpoint.
+
 - `POST /calls`  
   Submit a new commitment payload. Validated via Zod; persists to the database.
 
-- `POST /getCallsFromCommitment`  
-  CCIP-Read endpoint (uses ABI handler) to fetch & re-encode calls for a given commitment ID.
+- `POST /getCallsFromRevealMessage`
+  CCIP-Read endpoint (uses ABI handler) to fetch & re-encode calls for a reveal message.
 
 ## Notes
 

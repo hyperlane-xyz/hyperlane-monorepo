@@ -2,7 +2,7 @@ use std::{ops::Add, str::FromStr, time::Duration};
 
 use eyre::eyre;
 use hyperlane_sealevel::{
-    HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig, NonEmptyAltAddresses,
+    validate_ccs_url, HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig, NonEmptyAltAddresses,
     PriorityFeeOracleConfig, ProcessAltOverride, SealevelTransactionFormat,
     UniversalRouterRevealConfig,
 };
@@ -537,16 +537,16 @@ fn parse_sealevel_ur_reveal(
     match (ccs_url, program_id) {
         (Some(ccs_url), Some(program_id)) => {
             // Validate at startup so misconfiguration fails fast rather than at first reveal.
-            if Url::parse(&ccs_url).is_err() {
+            if let Err(error) = validate_ccs_url(&ccs_url) {
                 err.push(
-                    (&chain.cwp).add("urReveal").add("ccsUrl"),
-                    eyre!("urReveal.ccsUrl is not a valid URL: {ccs_url}"),
+                    (&chain.cwp).add("urreveal").add("ccsurl"),
+                    eyre!("Invalid urReveal.ccsUrl: {error}"),
                 );
                 return None;
             }
             if Pubkey::from_str(&program_id).is_err() {
                 err.push(
-                    (&chain.cwp).add("urReveal").add("programId"),
+                    (&chain.cwp).add("urreveal").add("programid"),
                     eyre!("urReveal.programId is not a valid Solana pubkey: {program_id}"),
                 );
                 return None;
@@ -559,7 +559,7 @@ fn parse_sealevel_ur_reveal(
         (None, None) => None,
         _ => {
             err.push(
-                (&chain.cwp).add("urReveal"),
+                (&chain.cwp).add("urreveal"),
                 eyre!("urReveal requires both ccsUrl and programId"),
             );
             None

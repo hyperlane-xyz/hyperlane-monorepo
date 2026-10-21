@@ -93,6 +93,7 @@ fn generate_test_chain_conf(
     ChainConf {
         domain,
         signer,
+        ccs_signer: None,
         identity: None,
         submitter: Default::default(),
         estimated_block_time: Duration::from_secs_f64(1.1),

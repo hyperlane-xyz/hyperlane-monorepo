@@ -26,12 +26,11 @@ use reqwest::{
     Client, Method, Url,
 };
 use serde::{Deserialize, Serialize};
-use sha3::{digest::Update, Digest, Keccak256};
 use tracing::{info, instrument, warn};
 
 use hyperlane_core::{
-    h512_to_bytes, utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSigner,
-    HyperlaneSignerExt, Metadata, ModuleType, RawHyperlaneMessage, Signable, H160, H256,
+    h512_to_bytes, utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSigner, Metadata,
+    ModuleType, RawHyperlaneMessage, H160, H256,
 };
 use hyperlane_ethereum::OffchainLookup;
 
@@ -230,28 +229,6 @@ pub struct CcipReadIsmMetadataBuilder {
     base: MessageMetadataBuilder,
 }
 
-/// An authenticated offchain lookup payload
-#[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Debug)]
-pub struct HyperlaneAuthenticatedOffchainLookup {
-    url_template: Vec<u8>,
-    sender: H160,
-    call_data: Vec<u8>,
-}
-
-impl Signable for HyperlaneAuthenticatedOffchainLookup {
-    fn signing_hash(&self) -> H256 {
-        H256::from_slice(
-            Keccak256::new()
-                .chain(b"HYPERLANE_OFFCHAINLOOKUP")
-                .chain(self.sender)
-                .chain(self.call_data.as_slice())
-                .chain(self.url_template.as_slice())
-                .finalize()
-                .as_slice(),
-        )
-    }
-}
-
 impl CcipReadIsmMetadataBuilder {
     /// Generate a relayer authentication signature (EIP-191) over call_data and sender and the url template
     async fn generate_signature_hex<S: HyperlaneSigner>(
@@ -259,21 +236,23 @@ impl CcipReadIsmMetadataBuilder {
         info: &OffchainLookup,
         url: &str,
     ) -> Result<String, MetadataBuildError> {
-        // Derive the hash over call_data and sender
-        let signable = HyperlaneAuthenticatedOffchainLookup {
-            url_template: url.to_owned().into(),
-            call_data: info.call_data.clone().to_vec(),
-            sender: info.sender.into(),
-        };
-        let cache_key = (signer.eth_address(), signable.signing_hash());
+        let hash = hyperlane_core::offchain_lookup::offchain_lookup_request_message_hash(
+            info.sender.into(),
+            info.call_data.as_ref(),
+            url.as_bytes(),
+        );
+        let cache_key = (signer.eth_address(), hash);
 
         ccip_signature_cache()
             .try_get_with(cache_key, async {
-                // EIP-191 compliant signature over the signing hash of the
-                // HyperlaneOffchainLookupAttestation.
-                let signed = signer.sign(signable).await.map_err(|e| e.to_string())?;
-                let sig_bytes: [u8; 65] = signed.signature.into();
-                Ok::<_, String>(bytes_to_hex(&sig_bytes))
+                hyperlane_core::offchain_lookup::sign_offchain_lookup(
+                    signer,
+                    info.sender.into(),
+                    info.call_data.as_ref(),
+                    url.as_bytes(),
+                )
+                .await
+                .map_err(|e| e.to_string())
             })
             .await
             .map_err(|e| MetadataBuildError::FailedToBuild(e.to_string()))
@@ -633,7 +612,6 @@ async fn fetch_offchain_data(
         };
         tracing::debug!(
             url = %interpolated_url,
-            ?body,
             ?message_id,
             "Sending POST request to offchain lookup server"
         );
@@ -715,7 +693,7 @@ mod test {
     use axum::{extract::ConnectInfo, http::StatusCode, response::Redirect, routing::get, Router};
     use ethers::types::H160 as EthersH160;
     use futures::future::join_all;
-    use hyperlane_core::{HyperlaneSignerError, Signature as HyperlaneSignature, SignedType, U256};
+    use hyperlane_core::{HyperlaneSignerError, Signature as HyperlaneSignature, U256};
     use hyperlane_ethereum::Signers;
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
@@ -882,7 +860,78 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_generate_signature_hex() {
+    #[ignore = "requires the local HTTPS CCS + PostgreSQL fixture server (CCS_E2E_FIXTURES)"]
+    async fn ccs_e2e_post_authentication() -> eyre::Result<()> {
+        #[derive(Deserialize)]
+        struct Fixtures {
+            base: String,
+            ca: String,
+            sender: String,
+            cases: Vec<Case>,
+        }
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Case {
+            name: String,
+            lookup_data: String,
+            expected_metadata: String,
+        }
+        let fixtures: Fixtures =
+            serde_json::from_slice(&std::fs::read(std::env::var("CCS_E2E_FIXTURES")?)?)?;
+        let url = format!("{}/getCallsFromRevealMessage", fixtures.base);
+        let client = Client::builder()
+            .add_root_certificate(reqwest::Certificate::from_pem(&std::fs::read(
+                fixtures.ca,
+            )?)?)
+            .redirect(reqwest::redirect::Policy::none())
+            .build()?;
+        for case in fixtures
+            .cases
+            .iter()
+            .filter(|c| c.name.to_lowercase().contains("evm"))
+        {
+            for key_byte in [1u8, 2, 3] {
+                let signer = Signers::Local(ethers::signers::LocalWallet::from_str(&hex::encode(
+                    [key_byte; 32],
+                ))?);
+                let info = OffchainLookup {
+                    sender: EthersH160::from_str(&fixtures.sender)?,
+                    call_data: hex::decode(case.lookup_data.trim_start_matches("0x"))?.into(),
+                    urls: vec![url.clone()],
+                    callback_function: [0; 4],
+                    extra_data: vec![].into(),
+                };
+                let signature =
+                    CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, &url)
+                        .await?;
+                let body = OffchainLookupRequestBody {
+                    sender: fixtures.sender.clone(),
+                    data: case.lookup_data.clone(),
+                    signature: Some(signature),
+                    origin_tx_hash: None,
+                };
+                let response = client.post(&url).json(&body).send().await?;
+                let allowed =
+                    key_byte != 3 && (!case.name.starts_with("restricted") || key_byte == 2);
+                assert_eq!(
+                    response.status().as_u16(),
+                    if allowed { 200 } else { 403 },
+                    "{} signer {key_byte}",
+                    case.name
+                );
+                if allowed {
+                    assert_eq!(
+                        response.json::<OffchainResponse>().await?.data,
+                        case.expected_metadata
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_generate_signature_hex() -> eyre::Result<()> {
         // default hardhat key
         let signer = Signers::Local(
             ethers::signers::Wallet::from_str(
@@ -895,16 +944,14 @@ mod test {
             // from TestCcipReadIsm.sol
             call_data: "callDataToReturn".as_bytes().to_vec().into(),
             // from ccipread.hardhat-test.ts
-            sender: EthersH160::from_str("4ee6ecad1c2dae9f525404de8555724e3c35d07b").unwrap(),
+            sender: EthersH160::from_str("4ee6ecad1c2dae9f525404de8555724e3c35d07b")?,
             urls: vec![url.clone()],
             callback_function: [0, 0, 0, 0],
             extra_data: vec![].into(),
         };
 
         let signature_hex =
-            CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, &url)
-                .await
-                .unwrap();
+            CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, &url).await?;
 
         // 65 bytes = 130 hex chars + 2 for 0x
         assert_eq!(signature_hex.len(), 132);
@@ -914,19 +961,15 @@ mod test {
             "0x62e58f20c0b7ec4f071835eaf7aa2716707375740774188ecc60e7d91b565f7363deeba366b2609aee6b870ac6504a6cf482f00ecc0e9cbe34422bdcf88a4bd11b"
         );
 
-        // Test the signature is valid
-        let signable = HyperlaneAuthenticatedOffchainLookup {
-            url_template: url.into(),
-            sender: info.sender.into(),
-            call_data: info.call_data.clone().to_vec(),
-        };
-        let signed = SignedType {
-            value: signable,
-            signature: ethers::types::Signature::from_str(&signature_hex)
-                .unwrap()
-                .into(),
-        };
-        assert!(signer.verify(&signed).is_ok());
+        let hash = hyperlane_core::offchain_lookup::offchain_lookup_request_message_hash(
+            info.sender.into(),
+            info.call_data.as_ref(),
+            url.as_bytes(),
+        );
+        let signature = ethers::types::Signature::from_str(&signature_hex)?;
+        let recovered = signature.recover(ethers::utils::hash_message(hash.as_bytes()))?;
+        assert_eq!(H160::from(recovered), signer.eth_address());
+        Ok(())
     }
 
     #[tokio::test]

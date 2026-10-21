@@ -29,7 +29,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use eyre::{bail, eyre, Result};
-use hyperlane_core::HyperlaneMessage;
+use hyperlane_core::{offchain_lookup::sign_offchain_lookup, HyperlaneMessage, HyperlaneSigner};
 use reqwest::Client;
 use serde::Deserialize;
 use solana_commitment_config::CommitmentConfig;
@@ -42,6 +42,7 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use solana_transaction_status::TransactionStatus;
+use tokio::sync::OnceCell;
 use tracing::{debug, error, info, warn, Instrument};
 
 use crate::{
@@ -377,6 +378,7 @@ pub fn maybe_spawn_reveal(
     rpc_client: SealevelFallbackRpcClient,
     priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     fee_payer: SealevelKeypair,
+    ccs_signer: Arc<dyn HyperlaneSigner>,
 ) {
     let body_len = message.body.len();
     if body_len != 96 {
@@ -427,6 +429,7 @@ pub fn maybe_spawn_reveal(
 
     tokio::spawn(async move {
         let http_client = Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_secs(CCS_REQUEST_TIMEOUT_SECS))
             .build()
             .expect("HTTP client build failed — invalid configuration");
@@ -441,6 +444,8 @@ pub fn maybe_spawn_reveal(
             rpc_client: &rpc_client,
             priority_fee_oracle,
             fee_payer: &fee_payer,
+            ccs_signer: ccs_signer.as_ref(),
+            ccs_signature: OnceCell::new(),
             http_client,
         };
         // Phase 1: wait for the pending_swap PDA to appear at confirmed commitment.
@@ -510,7 +515,7 @@ pub fn maybe_spawn_reveal(
             }
 
             // Fetch CCS to discover the input token program and mint.
-            let ccs_opt = match fetch_from_ccs(&ctx.http_client, &ccs_url, &commitment).await {
+            let ccs_opt = match fetch_from_ccs(&ctx.http_client, &ccs_url, &commitment, ctx.ccs_signer, &ctx.ccs_signature).await {
                 Ok(c) => Some(c),
                 Err(e) => {
                     warn!(error = ?e, "CCS fetch failed while waiting for tokens; retrying in 5s");
@@ -653,6 +658,7 @@ pub async fn try_recover_duplicate_commit(
     rpc_client: &SealevelFallbackRpcClient,
     priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     fee_payer: &SealevelKeypair,
+    ccs_signer: &dyn HyperlaneSigner,
 ) -> Result<bool> {
     if message.body.len() != 96 {
         return Ok(false);
@@ -704,10 +710,19 @@ pub async fn try_recover_duplicate_commit(
 
     let ccs_url = config.ccs_url.trim_end_matches('/').to_owned();
     let http_client = Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
         .timeout(Duration::from_secs(CCS_REQUEST_TIMEOUT_SECS))
         .build()
         .map_err(|e| eyre!("HTTP client build failed: {e}"))?;
-    let ccs = fetch_from_ccs(&http_client, &ccs_url, &commitment).await?;
+    let ccs_signature = OnceCell::new();
+    let ccs = fetch_from_ccs(
+        &http_client,
+        &ccs_url,
+        &commitment,
+        ccs_signer,
+        &ccs_signature,
+    )
+    .await?;
     let reveal_accounts = ccs
         .reveal_accounts
         .as_deref()
@@ -749,6 +764,8 @@ pub async fn try_recover_duplicate_commit(
         rpc_client,
         priority_fee_oracle,
         fee_payer,
+        ccs_signer,
+        ccs_signature,
         http_client,
     };
     send_and_confirm(
@@ -773,11 +790,20 @@ struct RevealContext<'a> {
     rpc_client: &'a SealevelFallbackRpcClient,
     priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     fee_payer: &'a SealevelKeypair,
+    ccs_signer: &'a dyn HyperlaneSigner,
+    ccs_signature: OnceCell<String>,
     http_client: reqwest::Client,
 }
 
 async fn submit_reveal(ctx: &RevealContext<'_>) -> Result<()> {
-    let ccs = fetch_from_ccs(&ctx.http_client, ctx.ccs_url, &ctx.commitment).await?;
+    let ccs = fetch_from_ccs(
+        &ctx.http_client,
+        ctx.ccs_url,
+        &ctx.commitment,
+        ctx.ccs_signer,
+        &ctx.ccs_signature,
+    )
+    .await?;
     let (built, close_accounts) = build_instruction(ctx, &ccs).await?;
 
     // Simulate before submitting. A failed swap CPI aborts the whole Reveal
@@ -987,16 +1013,47 @@ async fn send_and_confirm(
     )
 }
 
+/// Validate the CCS endpoint before enabling automated reveals.
+pub fn validate_ccs_url(raw: &str) -> Result<reqwest::Url> {
+    let url = reqwest::Url::parse(raw)?;
+    if url.scheme() != "https"
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.fragment().is_some()
+        || url.query().is_some()
+    {
+        bail!("CCS requires an HTTPS URL without credentials, query, or fragment");
+    }
+    Ok(url)
+}
+
 async fn fetch_from_ccs(
     http: &Client,
     ccs_url: &str,
     commitment: &[u8; 32],
+    signer: &dyn HyperlaneSigner,
+    signature_cache: &OnceCell<String>,
 ) -> Result<CcsGetResponse> {
     let commitment_hex = hex::encode(commitment);
-    let url = format!("{ccs_url}/calldata/0x{commitment_hex}");
-    debug!(url, "GET CCS calldata");
+    let url = validate_ccs_url(&format!("{ccs_url}/calldata/0x{commitment_hex}"))?;
+    let sender = signer.eth_address();
+    // One fixed commitment and signer per reveal context. Failed signing attempts
+    // remain retryable, but successful signatures are reused across polls.
+    let url_template = format!("{ccs_url}/calldata");
+    let signature = signature_cache
+        .get_or_try_init(|| {
+            sign_offchain_lookup(signer, sender, commitment, url_template.as_bytes())
+        })
+        .await?;
+    let authorization = format!("Hyperlane-Signature {signature}");
+    debug!(%url, "GET CCS calldata");
     for attempt in 1..=CCS_MAX_RETRIES {
-        let resp = http.get(&url).send().await?;
+        let resp = http
+            .get(url.clone())
+            .header("Authorization", &authorization)
+            .header("X-Hyperlane-Sender", format!("{sender:#x}"))
+            .send()
+            .await?;
         let status = resp.status();
         match status {
             s if s.is_success() => {
@@ -1438,6 +1495,106 @@ fn hex_decode_fixed32(hex_str: &str) -> Result<[u8; 32]> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    #[ignore = "requires the local HTTPS CCS + PostgreSQL fixture server (CCS_E2E_FIXTURES)"]
+    async fn ccs_e2e_svm_authenticated_fetch() -> eyre::Result<()> {
+        // The fixture supplies valid EVM signatures and expected hashes. This
+        // exercises the real SVM HTTP path without an Ethereum crate dependency.
+        #[derive(Debug)]
+        struct FixtureSigner {
+            address: hyperlane_core::H160,
+            hash: hyperlane_core::H256,
+            signature: hyperlane_core::Signature,
+            calls: std::sync::atomic::AtomicUsize,
+        }
+        #[async_trait::async_trait]
+        impl HyperlaneSigner for FixtureSigner {
+            fn eth_address(&self) -> hyperlane_core::H160 {
+                self.address
+            }
+            async fn sign_hash(
+                &self,
+                hash: &hyperlane_core::H256,
+            ) -> Result<hyperlane_core::Signature, hyperlane_core::HyperlaneSignerError>
+            {
+                assert_eq!(
+                    hash, &self.hash,
+                    "SVM must sign exactly the expected EVM payload"
+                );
+                self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                Ok(self.signature)
+            }
+        }
+        #[derive(Deserialize)]
+        struct Fixtures {
+            base: String,
+            ca: String,
+            cases: Vec<Case>,
+        }
+        #[derive(Deserialize)]
+        struct Case {
+            name: String,
+            commitment: String,
+            data: String,
+            salt: String,
+            signatures: Vec<Credentials>,
+        }
+        #[derive(Deserialize)]
+        struct Credentials {
+            address: hyperlane_core::H160,
+            hash: hyperlane_core::H256,
+            signature: String,
+        }
+        let fixtures: Fixtures =
+            serde_json::from_slice(&std::fs::read(std::env::var("CCS_E2E_FIXTURES")?)?)?;
+        let client = Client::builder()
+            .add_root_certificate(reqwest::Certificate::from_pem(&std::fs::read(
+                fixtures.ca,
+            )?)?)
+            .redirect(reqwest::redirect::Policy::none())
+            .build()?;
+        for case in fixtures
+            .cases
+            .iter()
+            .filter(|c| c.name.to_lowercase().contains("svm"))
+        {
+            let commitment = hex_decode_fixed32(&case.commitment)?;
+            for (i, credentials) in case.signatures.iter().enumerate() {
+                let signature = hex_decode_bytes(&credentials.signature)?;
+                let signer = FixtureSigner {
+                    address: credentials.address,
+                    hash: credentials.hash,
+                    calls: std::sync::atomic::AtomicUsize::new(0),
+                    signature: hyperlane_core::Signature {
+                        r: hyperlane_core::U256::from_big_endian(&signature[..32]),
+                        s: hyperlane_core::U256::from_big_endian(&signature[32..64]),
+                        v: u64::from(signature[64]),
+                    },
+                };
+                let cache = OnceCell::new();
+                let repeated =
+                    fetch_from_ccs(&client, &fixtures.base, &commitment, &signer, &cache).await;
+                let result =
+                    fetch_from_ccs(&client, &fixtures.base, &commitment, &signer, &cache).await;
+                assert_eq!(repeated.is_ok(), result.is_ok());
+                assert_eq!(signer.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+                let allowed = i != 2 && (!case.name.starts_with("restricted") || i == 1);
+                if allowed {
+                    let response = result?;
+                    assert_eq!(response.data, case.data);
+                    assert_eq!(response.salt, case.salt);
+                    assert!(response.reveal_accounts.is_some());
+                } else {
+                    assert!(result
+                        .expect_err("unauthorized signer must fail")
+                        .to_string()
+                        .contains("403"));
+                }
+            }
+        }
+        Ok(())
+    }
 
     #[test]
     fn close_pending_swap_creates_missing_pda_input_ata_before_close() {

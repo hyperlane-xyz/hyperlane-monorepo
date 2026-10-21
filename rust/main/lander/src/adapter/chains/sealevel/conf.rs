@@ -69,6 +69,7 @@ mod tests {
             signer: Some(SignerConf::HexKey {
                 key: Default::default(),
             }),
+            ccs_signer: None,
             identity,
             submitter: SubmitterType::Lander,
             estimated_block_time: Duration::from_secs(1),

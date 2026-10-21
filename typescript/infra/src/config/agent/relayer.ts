@@ -197,6 +197,7 @@ export interface RelayerDbBootstrapConfig {
 export interface HelmRelayerChainValues {
   name: string;
   signer: KeyConfig;
+  ccsSigner?: KeyConfig;
 }
 
 export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {

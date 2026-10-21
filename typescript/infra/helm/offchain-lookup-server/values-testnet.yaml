@@ -19,6 +19,9 @@ ingress:
   staticIpName: offchain-lookup-server-testnet
 
 env:
+  # Primary, RC, and fastpath EVM identities; shared by both CCS read APIs.
+  - name: CCS_AUTHORIZED_SIGNERS
+    value: '["0x16626cd24fd1f228a031e48b77602ae25f8930db", "0x7fe8c60ead4ab10be736f4de2b3090db5a851f16", "0xde216ffd0f7319860f966191d995c250d6070ba2"]'
   - name: ENABLED_MODULES
     value: 'cctp,callCommitments'
   - name: HYPERLANE_EXPLORER_URL

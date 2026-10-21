@@ -75,6 +75,8 @@ pub struct ChainConf {
     pub domain: HyperlaneDomain,
     /// Signer configuration for this chain
     pub signer: Option<SignerConf>,
+    /// EVM signer used for authenticated CCS reads on Sealevel.
+    pub ccs_signer: Option<SignerConf>,
     /// Identity keypair used as the relayer's on-chain identity (e.g. for TrustedRelayer ISMs).
     /// Only valid for Sealevel chains — an error is returned if set on other protocols.
     /// Falls back to `signer` if not set.
@@ -391,6 +393,11 @@ impl ChainConf {
             ));
         }
 
+        if let ChainConnectionConf::Sealevel(conf) = &self.connection {
+            if let Some(reveal) = &conf.ur_reveal {
+                h_sealevel::validate_ccs_url(&reveal.ccs_url).context("Invalid urReveal.ccsUrl")?;
+            }
+        }
         Ok(())
     }
 
@@ -440,6 +447,24 @@ impl ChainConf {
                 let tx_submitter =
                     build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
 
+                let ccs_signer: Option<Arc<dyn hyperlane_core::HyperlaneSigner>> =
+                    if conf.ur_reveal.is_some() && keypair.is_some() {
+                        match &self.ccs_signer {
+                            Some(config) => match config.build::<h_eth::Signers>().await {
+                                Ok(signer) => Some(Arc::new(signer)),
+                                Err(error) => {
+                                    warn!(chain = %self.domain.name(), %error, "CCS signer unavailable; automated UR reveals disabled");
+                                    None
+                                }
+                            },
+                            None => {
+                                warn!(chain = %self.domain.name(), "No ccsSigner configured; automated UR reveals disabled");
+                                None
+                            }
+                        }
+                    } else {
+                        None
+                    };
                 h_sealevel::SealevelMailbox::new(
                     provider,
                     tx_submitter,
@@ -448,7 +473,7 @@ impl ChainConf {
                     keypair.map(h_sealevel::SealevelKeypair::new),
                     identity_keypair.map(h_sealevel::SealevelKeypair::new),
                 )
-                .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                .map(|m| Box::new(m.with_ccs_signer(ccs_signer)) as Box<dyn Mailbox>)
                 .map_err(Into::into)
             }
             ChainConnectionConf::Cosmos(conf) => {
