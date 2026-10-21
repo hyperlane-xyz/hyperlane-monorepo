@@ -79,11 +79,11 @@ const CCTP_V2_CHAINS = [
   'arc',
 ] as const satisfies ReadonlyArray<keyof typeof tokenMessengerV2Addresses>;
 
-// Chains that join only the production standard V2 route, not the fast or
-// staging routes.
-const CCTP_V2_STANDARD_ONLY_CHAINS = ['monad'] as const satisfies ReadonlyArray<
+// The production standard V2 route adds monad and drops sei (deprecated in
+// #9765). The fast and staging routes keep CCTP_V2_CHAINS.
+const CCTP_V2_STANDARD_PRODUCTION_CHAINS: ReadonlyArray<
   keyof typeof tokenMessengerV2Addresses
->;
+> = [...CCTP_V2_CHAINS.filter((chain) => chain !== 'sei'), 'monad'];
 
 export const CCTP_CHAINS = CCTP_V1_CHAINS;
 
@@ -185,7 +185,7 @@ const getCCTPV2WarpConfig = (
 ): ChainMap<HypTokenRouterConfig> => {
   const routeChains: string[] =
     mode === 'standard' && environment === 'production'
-      ? [...CCTP_V2_CHAINS, ...CCTP_V2_STANDARD_ONLY_CHAINS]
+      ? [...CCTP_V2_STANDARD_PRODUCTION_CHAINS]
       : [...CCTP_V2_CHAINS];
   const baseConfig = getCCTPWarpConfig(
     routerConfig,
@@ -265,7 +265,12 @@ const getCCTPStrategyConfig = (
   const chains: string[] =
     version === 'V1'
       ? [...CCTP_V1_CHAINS]
-      : [...CCTP_V2_CHAINS, ...CCTP_V2_STANDARD_ONLY_CHAINS];
+      : [
+          ...new Set([
+            ...CCTP_V2_CHAINS,
+            ...CCTP_V2_STANDARD_PRODUCTION_CHAINS,
+          ]),
+        ];
 
   // For V1, use legacy ICAs; for V2, use new ICAs
   const icaChains = version === 'V1' ? icaChainsLegacy : icaChainsV2;
