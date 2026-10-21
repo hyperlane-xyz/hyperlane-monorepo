@@ -234,11 +234,12 @@ fn parse_mev_submission_config(
                 );
                 return None;
             };
-            ValueParser::new(path, &value)
+            let parsed = ValueParser::new(path, &value)
                 .chain(err)
                 .into_array_iter()?
                 .map(|router| router.chain(err).parse_address_hash().end())
-                .collect::<Option<Vec<_>>>()?
+                .collect::<Option<Vec<_>>>()?;
+            parsed
         }
     };
     Some(h_eth::MevSubmissionConfig {
