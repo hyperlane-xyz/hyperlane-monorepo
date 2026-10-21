@@ -299,6 +299,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
       .object({
         rpcUrls: z.array(z.url({ protocol: /^https$/ })).nonempty(),
         icaRouter: ZHash,
+        additionalIcaRouters: z.array(ZHash).optional(),
       })
       .optional()
       .describe(

@@ -84,6 +84,22 @@ describe('AgentChainMetadataSchema mevSubmission', () => {
       expect(schema.safeParse(config).success).to.be.false;
     }
   });
+
+  it('preserves additional router versions and rejects malformed router lists', () => {
+    const config = {
+      rpcUrls: ['https://protected.example'],
+      icaRouter: `0x${'01'.repeat(32)}`,
+    };
+    const additionalIcaRouters = [`0x${'02'.repeat(32)}`];
+    expect(
+      schema.parse({ ...config, additionalIcaRouters })?.additionalIcaRouters,
+    ).to.deep.equal(additionalIcaRouters);
+    for (const invalid of ['invalid', ['invalid'], [7], null]) {
+      expect(
+        schema.safeParse({ ...config, additionalIcaRouters: invalid }).success,
+      ).to.be.false;
+    }
+  });
 });
 
 describe('AgentChainMetadataSchema index.from', () => {

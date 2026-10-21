@@ -973,9 +973,10 @@ mod test {
 
     #[tokio::test]
     async fn matching_reveal_estimates_never_use_ordinary_rpc() {
-        for domain in [
-            KnownHyperlaneDomain::Ethereum,
-            KnownHyperlaneDomain::Arbitrum,
+        for (domain, recipient) in [
+            (KnownHyperlaneDomain::Ethereum, H256::zero()),
+            (KnownHyperlaneDomain::Arbitrum, H256::zero()),
+            (KnownHyperlaneDomain::Arbitrum, H256::from_low_u64_be(3)),
         ] {
             let domain = HyperlaneDomain::Known(domain);
             let (mut ordinary, ordinary_rpc) = get_test_mailbox(domain.clone());
@@ -988,11 +989,13 @@ mod test {
             ordinary.conn.mev_submission = Some(MevSubmissionConfig {
                 rpc_urls: vec!["https://protected.example/private-key".parse().unwrap()],
                 ica_router: H256::zero(),
+                additional_ica_routers: vec![H256::from_low_u64_be(3)],
             });
             let arbitrum = protected.arbitrum_node_interface.is_some();
             ordinary.protected_estimator = Some(Arc::new(protected));
             assert!(!format!("{ordinary:?}").contains("private-key"));
             let message = HyperlaneMessage {
+                recipient,
                 body: vec![2; 65],
                 ..Default::default()
             };

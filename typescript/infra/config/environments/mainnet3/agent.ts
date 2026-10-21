@@ -50,7 +50,7 @@ import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts, RELEASE_CANDIDATE_INDEX_FROM } from '../../contexts.js';
 import { DockerImageRepos, mainnetDockerTags } from '../../docker.js';
 import {
-  getChainAddresses,
+  getIcaRouterAddresses,
   getDomainId,
   getWarpAddresses,
 } from '../../registry.js';
@@ -433,12 +433,17 @@ const icaV2RevealMatchingList = icaMatchingList(
 const mevProtectedChains = ['arbitrum', 'arc', 'base', 'ethereum', 'robinhood'];
 const mevSubmission = Object.fromEntries(
   mevProtectedChains.map((chain) => {
-    const router = getChainAddresses()[chain]?.interchainAccountRouter;
+    const [router, ...additionalRouters] = getIcaRouterAddresses(chain);
     assert(router, `Missing ICA router for ${chain}`);
     return [
       chain,
       {
         icaRouter: addressToBytes32(router),
+        ...(additionalRouters.length > 0 && {
+          additionalIcaRouters: additionalRouters.map((router) =>
+            addressToBytes32(router),
+          ),
+        }),
       },
     ];
   }),

@@ -222,6 +222,7 @@ mod tests {
             policy: MevSubmissionConfig {
                 rpc_urls: vec![],
                 ica_router: ROUTER,
+                additional_ica_routers: vec![H256([3; 32])],
             },
             provider: Arc::new(protected),
         });
@@ -246,40 +247,42 @@ mod tests {
 
     #[tokio::test]
     async fn reveal_and_replacement_never_use_normal_provider() {
-        let mut adapter = adapter(0, 2, false);
-        let mut tx = transaction(&adapter, vec![payload(2, ROUTER, MAILBOX)]).await;
-        adapter.submit(&mut tx).await.unwrap();
-        let nonce = tx.precursor().tx.nonce().copied();
-        // Deserialize as recovery does, then submit a replacement using stored payloads.
-        let mut recovered: Transaction =
-            serde_json::from_slice(&serde_json::to_vec(&tx).unwrap()).unwrap();
-        adapter.submit(&mut recovered).await.unwrap();
-        assert_eq!(recovered.precursor().tx.nonce().copied(), nonce);
-        let hashes = recovered.tx_hashes.clone();
-        let mut unavailable = MockEvmProvider::new();
-        unavailable
-            .expect_sign_transaction()
-            .times(1)
-            .returning(|tx| Ok(serde_json::to_vec(tx).unwrap().into()));
-        unavailable
-            .expect_send_raw_transaction()
-            .times(1)
-            .returning(|_| {
-                Err(ChainCommunicationError::CustomError(
-                    "relay unavailable".into(),
-                ))
-            });
-        adapter.mev_submission.as_mut().unwrap().provider = Arc::new(unavailable);
-        // Force different signed bytes, rather than rebroadcasting the original price.
-        adapter.transaction_overrides.gas_price = Some(1_000.into());
-        assert!(matches!(
-            adapter.submit(&mut recovered).await,
-            Err(LanderError::TxSubmissionDeferred)
-        ));
-        assert_eq!(recovered.precursor().tx.gas_price(), Some(1_000.into()));
-        assert_eq!(recovered.precursor().tx.nonce().copied(), nonce);
-        assert!(recovered.tx_hashes.starts_with(&hashes));
-        assert_eq!(recovered.tx_hashes.len(), hashes.len() + 1);
+        for router in [ROUTER, H256([3; 32])] {
+            let mut adapter = adapter(0, 2, false);
+            let mut tx = transaction(&adapter, vec![payload(2, router, MAILBOX)]).await;
+            adapter.submit(&mut tx).await.unwrap();
+            let nonce = tx.precursor().tx.nonce().copied();
+            // Deserialize as recovery does, then submit a replacement using stored payloads.
+            let mut recovered: Transaction =
+                serde_json::from_slice(&serde_json::to_vec(&tx).unwrap()).unwrap();
+            adapter.submit(&mut recovered).await.unwrap();
+            assert_eq!(recovered.precursor().tx.nonce().copied(), nonce);
+            let hashes = recovered.tx_hashes.clone();
+            let mut unavailable = MockEvmProvider::new();
+            unavailable
+                .expect_sign_transaction()
+                .times(1)
+                .returning(|tx| Ok(serde_json::to_vec(tx).unwrap().into()));
+            unavailable
+                .expect_send_raw_transaction()
+                .times(1)
+                .returning(|_| {
+                    Err(ChainCommunicationError::CustomError(
+                        "relay unavailable".into(),
+                    ))
+                });
+            adapter.mev_submission.as_mut().unwrap().provider = Arc::new(unavailable);
+            // Force different signed bytes, rather than rebroadcasting the original price.
+            adapter.transaction_overrides.gas_price = Some(1_000.into());
+            assert!(matches!(
+                adapter.submit(&mut recovered).await,
+                Err(LanderError::TxSubmissionDeferred)
+            ));
+            assert_eq!(recovered.precursor().tx.gas_price(), Some(1_000.into()));
+            assert_eq!(recovered.precursor().tx.nonce().copied(), nonce);
+            assert!(recovered.tx_hashes.starts_with(&hashes));
+            assert_eq!(recovered.tx_hashes.len(), hashes.len() + 1);
+        }
     }
 
     #[tokio::test]
