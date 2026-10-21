@@ -81,8 +81,21 @@ configuration, and compatibility with the existing EVM reveal endpoint.
 - `POST /calls`  
   Submit a new commitment payload. Validated via Zod; persists to the database.
 
+  Config-based registration defaults to `interchainAccountRouter`. When using
+  another deployment, supply `localRouter` (origin) and `routerOverride`
+  (destination), for example the registry's `interchainAccountRouterV3` pair.
+  Alternatively, supply `commitmentDispatchTx` using the legacy receipt-based
+  registration shape. Compare the response's `ica` with the intended account.
+
 - `POST /getCallsFromRevealMessage`
   CCIP-Read endpoint (uses ABI handler) to fetch & re-encode calls for a reveal message.
+
+  Relayers may include `origin_tx_hash` in the authenticated request. The server
+  verifies the exact reveal and its matching commitment dispatch in that
+  transaction's mailbox events, then derives the ICA from the actual router pair.
+  This also recovers records previously derived from the wrong router version;
+  stored calldata and access restrictions remain unchanged. Without the hash,
+  the server uses the stored ICA.
 
 ## Notes
 
