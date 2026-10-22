@@ -117,7 +117,12 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       destinationContracts?.interchainAccountRouter,
       `No interchain account router configured for ${destinationChain}`,
     );
-    const destinationRouter = this.router(destinationContracts);
+    const destinationRouter = config.routerOverride
+      ? InterchainAccountRouter__factory.connect(
+          bytes32ToAddress(config.routerOverride),
+          this.multiProvider.getSignerOrProvider(destinationChain),
+        )
+      : this.router(destinationContracts);
 
     // Tron uses 0x41 instead of the EVM 0xff prefix for CREATE2 address
     // derivation, so ethers.getCreate2Address cannot reproduce its result.
@@ -146,10 +151,29 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     const owner = addressToBytes32(config.owner);
     const originRouter = addressToBytes32(originRouterAddress);
     let destinationAccount: Address;
+    let legacyRouter = false;
     if (isNullish(bytecodeHash)) {
-      destinationAccount = await destinationRouter[
-        'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
-      ](originDomain, owner, originRouter, destinationIsmAddress, userSalt);
+      try {
+        destinationAccount = await destinationRouter[
+          'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+        ](originDomain, owner, originRouter, destinationIsmAddress, userSalt);
+      } catch (error: unknown) {
+        if (
+          !isMissingSelectorCallException(error) ||
+          userSalt !== InterchainAccount.EMPTY_SALT
+        ) {
+          throw error;
+        }
+        legacyRouter = true;
+        destinationAccount = await destinationRouter[
+          'getLocalInterchainAccount(uint32,address,address,address)'
+        ](
+          originDomain,
+          bytes32ToAddress(owner),
+          originRouterAddress,
+          destinationIsmAddress,
+        );
+      }
     } else {
       const deploySalt = ethers.utils.solidityKeccak256(
         ['uint32', 'bytes32', 'bytes32', 'bytes32', 'bytes32'],
@@ -183,9 +207,18 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         this.multiProvider.getTransactionOverrides(destinationChain);
 
       // Estimate gas for deployment
-      const gasEstimate = await destinationRouter.estimateGas[
-        'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
-      ](originDomain, owner, originRouter, destinationIsmAddress, userSalt);
+      const gasEstimate = legacyRouter
+        ? await destinationRouter.estimateGas[
+            'getDeployedInterchainAccount(uint32,address,address,address)'
+          ](
+            originDomain,
+            bytes32ToAddress(owner),
+            originRouterAddress,
+            destinationIsmAddress,
+          )
+        : await destinationRouter.estimateGas[
+            'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+          ](originDomain, owner, originRouter, destinationIsmAddress, userSalt);
 
       // Add buffer to gas estimate
       const gasWithBuffer = addBufferToGasLimit(gasEstimate);
@@ -193,12 +226,29 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       // Execute deployment with buffered gas estimate
       await this.multiProvider.handleTx(
         destinationChain,
-        destinationRouter[
-          'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
-        ](originDomain, owner, originRouter, destinationIsmAddress, userSalt, {
-          gasLimit: gasWithBuffer,
-          ...txOverrides,
-        }),
+        legacyRouter
+          ? destinationRouter[
+              'getDeployedInterchainAccount(uint32,address,address,address)'
+            ](
+              originDomain,
+              bytes32ToAddress(owner),
+              originRouterAddress,
+              destinationIsmAddress,
+              { gasLimit: gasWithBuffer, ...txOverrides },
+            )
+          : destinationRouter[
+              'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+            ](
+              originDomain,
+              owner,
+              originRouter,
+              destinationIsmAddress,
+              userSalt,
+              {
+                gasLimit: gasWithBuffer,
+                ...txOverrides,
+              },
+            ),
       );
       this.logger.debug(`Interchain account deployed at ${destinationAccount}`);
     } else {
@@ -251,7 +301,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     const originDomain = this.multiProvider.getDomainId(origin);
     const destinationRouter = config.routerOverride
       ? InterchainAccountRouter__factory.connect(
-          config.routerOverride,
+          bytes32ToAddress(config.routerOverride),
           this.multiProvider.getProvider(destination),
         )
       : this.router(this.contractsMap[destination]);
@@ -280,8 +330,14 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         bytes32ToAddress(remoteIsm),
         config.userSalt ?? InterchainAccount.EMPTY_SALT,
       );
-    } catch (error) {
-      if (config.userSalt) throw error;
+    } catch (error: unknown) {
+      if (
+        !isMissingSelectorCallException(error) ||
+        (config.userSalt ?? InterchainAccount.EMPTY_SALT) !==
+          InterchainAccount.EMPTY_SALT
+      ) {
+        throw error;
+      }
       destinationAccount = await destinationRouter[
         'getLocalInterchainAccount(uint32,address,address,address)'
       ](
@@ -360,7 +416,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   }: GetCallRemoteSettings): Promise<PopulatedTransaction> {
     const localRouter = config.localRouter
       ? InterchainAccountRouter__factory.connect(
-          config.localRouter,
+          bytes32ToAddress(config.localRouter),
           this.multiProvider.getSigner(chain),
         )
       : this.router(this.contractsMap[chain]);
@@ -374,7 +430,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     // For legacy routers, we need to use routerOverride to get the ISM
     const destinationRouterForIsm = config.routerOverride
       ? InterchainAccountRouter__factory.connect(
-          config.routerOverride,
+          bytes32ToAddress(config.routerOverride),
           this.multiProvider.getProvider(destination),
         )
       : this.router(this.contractsMap[destination]);

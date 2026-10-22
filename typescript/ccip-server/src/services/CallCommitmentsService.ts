@@ -7,6 +7,7 @@ import { z } from 'zod';
 import {
   CommitmentReadIsmService__factory,
   InterchainAccountRouter__factory,
+  Mailbox__factory,
 } from '@hyperlane-xyz/core';
 import { InterchainAccount } from '@hyperlane-xyz/sdk/middleware/account/InterchainAccount';
 import type { AccountConfig } from '@hyperlane-xyz/sdk/middleware/account/types';
@@ -270,6 +271,7 @@ function hasMatchingLegacyCommitment(
 export class CallCommitmentsService extends BaseService {
   private multiProvider: MultiProvider;
   private readonly auth: CcsAuth;
+  private readonly originMailboxes = new Map<string, string>();
 
   constructor(
     config: ServiceConfigWithBaseUrl,
@@ -431,12 +433,13 @@ export class CallCommitmentsService extends BaseService {
     message: string,
     relayer: string,
     logger: Logger,
+    originTxHash?: string,
   ) {
     const log = this.addLoggerServiceContext(logger);
     log.info({ message, relayer }, 'Handling fetch commitment request');
 
     try {
-      const { body } = parseMessage(message);
+      const { body, origin } = parseMessage(message);
       const commitment = commitmentFromRevealMessage(body);
       log.info(
         { commitment, message, relayer },
@@ -457,8 +460,28 @@ export class CallCommitmentsService extends BaseService {
         throw new CommitmentAccessDeniedError();
       }
 
+      assert(
+        origin === record.originDomain,
+        'Reveal origin does not match stored commitment',
+      );
+      // The dispatch receipt identifies the actual router pair, including for
+      // older records derived using the registry's default router version.
+      const ica = originTxHash
+        ? await this.deriveIcaFromRevealMessage(message, originTxHash)
+        : record.ica;
+      if (ica.toLowerCase() !== record.ica.toLowerCase()) {
+        log.warn(
+          {
+            commitment,
+            originTxHash,
+            previousIca: record.ica,
+            ica,
+          },
+          'Verified dispatch ICA differs from stored commitment ICA',
+        );
+      }
       const encoded =
-        record.ica +
+        ica +
         encodeIcaCalls(normalizeCalls(record.calls), record.salt).slice(2);
 
       log.info(
@@ -470,20 +493,114 @@ export class CallCommitmentsService extends BaseService {
       );
 
       return encoded;
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error instanceof CommitmentAccessDeniedError) throw error;
       log.error(
         {
           message,
           relayer,
-          error: error.message,
-          stack: error.stack,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
         },
         'Error fetching commitment from message',
       );
-      // TODO we might not want to show the error
-      return JSON.stringify({ error: error.message });
+      throw error;
     }
+  }
+
+  private async deriveIcaFromRevealMessage(
+    message: string,
+    originTxHash: string,
+  ): Promise<string> {
+    const reveal = parseMessage(message);
+    assert(
+      utils.hexDataLength(reveal.body) === 65 &&
+        utils.hexDataSlice(reveal.body, 0, 1) === '0x02',
+      'Invalid ICA reveal message',
+    );
+    const commitment = commitmentFromRevealMessage(reveal.body);
+    const originChain = this.multiProvider.getChainName(reveal.origin);
+    const provider = this.multiProvider.getProvider(originChain);
+    const receipt = await provider.getTransactionReceipt(originTxHash);
+    assert(receipt, `Transaction not found: ${originTxHash}`);
+
+    let mailbox = this.originMailboxes.get(originChain);
+    if (mailbox === undefined) {
+      mailbox = await this.icaApp
+        .getContracts(originChain)
+        .interchainAccountRouter.mailbox();
+      this.originMailboxes.set(originChain, mailbox);
+    }
+    const iface = Mailbox__factory.createInterface();
+    const dispatchTopic = iface.getEventTopic('Dispatch');
+    const dispatches = receipt.logs
+      .filter(
+        (log) =>
+          log.address.toLowerCase() === mailbox.toLowerCase() &&
+          log.topics[0] === dispatchTopic,
+      )
+      .map((log) => {
+        const dispatchedMessage = z
+          .string()
+          .parse(iface.parseLog(log).args.message);
+        return { log, message: dispatchedMessage };
+      });
+    const revealDispatch = dispatches.find(
+      (dispatch) => dispatch.message.toLowerCase() === message.toLowerCase(),
+    );
+    assert(revealDispatch, 'Reveal message not found in origin transaction');
+
+    // A dispatch hook can nest another commit/reveal using the same hash.
+    // Consume earlier reveals so the outer reveal retains its own commitment.
+    const pendingCommitments: ReturnType<typeof parseMessage>[] = [];
+    let committed: ReturnType<typeof parseMessage> | undefined;
+    for (const dispatch of dispatches.sort(
+      (left, right) => left.log.logIndex - right.log.logIndex,
+    )) {
+      if (dispatch.log.logIndex > revealDispatch.log.logIndex) break;
+      const candidate = parseMessage(dispatch.message);
+      if (
+        candidate.origin !== reveal.origin ||
+        candidate.destination !== reveal.destination ||
+        candidate.sender.toLowerCase() !== reveal.sender.toLowerCase() ||
+        candidate.recipient.toLowerCase() !== reveal.recipient.toLowerCase()
+      ) {
+        continue;
+      }
+      if (
+        utils.hexDataLength(candidate.body) === 129 &&
+        utils.hexDataSlice(candidate.body, 0, 1) === '0x01' &&
+        utils.hexDataSlice(candidate.body, 97, 129).toLowerCase() ===
+          commitment.toLowerCase()
+      ) {
+        pendingCommitments.push(candidate);
+      } else if (
+        utils.hexDataLength(candidate.body) === 65 &&
+        utils.hexDataSlice(candidate.body, 0, 1) === '0x02' &&
+        utils.hexDataSlice(candidate.body, 33, 65).toLowerCase() ===
+          commitment.toLowerCase()
+      ) {
+        const paired = pendingCommitments.pop();
+        if (dispatch.log.logIndex === revealDispatch.log.logIndex) {
+          committed = paired;
+          break;
+        }
+      }
+    }
+    assert(committed, 'Matching commitment dispatch not found');
+    const destinationRouter = InterchainAccountRouter__factory.connect(
+      bytes32ToAddress(reveal.recipient),
+      this.multiProvider.getProvider(reveal.destination),
+    );
+    return destinationRouter[
+      'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+    ](
+      reveal.origin,
+      utils.hexDataSlice(committed.body, 1, 33),
+      reveal.sender,
+      bytes32ToAddress(utils.hexDataSlice(committed.body, 33, 65)),
+      utils.hexDataSlice(committed.body, 65, 97),
+    );
   }
 
   /**
@@ -601,6 +718,8 @@ export class CallCommitmentsService extends BaseService {
     const accountConfig: AccountConfig = {
       origin: originChain,
       owner: data.owner,
+      localRouter: data.localRouter,
+      routerOverride: data.routerOverride,
       ismOverride: data.ismOverride,
       userSalt: data.userSalt,
     };
@@ -610,6 +729,8 @@ export class CallCommitmentsService extends BaseService {
         originChain,
         destinationChain,
         owner: data.owner,
+        localRouter: data.localRouter,
+        routerOverride: data.routerOverride,
         userSalt: data.userSalt,
       },
       'Deriving ICA from config',
@@ -998,15 +1119,29 @@ export class CallCommitmentsService extends BaseService {
     app.post<AbiRoute>(
       `${prefix}/getCallsFromRevealMessage`,
       { ...ABI_ROUTE_OPTIONS, preHandler: this.auth.authenticate },
-      createAbiHandler(
-        CommitmentReadIsmService__factory,
-        'getCallsFromRevealMessage',
-        this.handleFetchCommitment.bind(this),
-        {
-          skipResultEncoding: true,
-          authenticatedRelayer: (request) => this.auth.signer(request),
-        },
-      ),
+      async (request, reply) => {
+        const rawTxHash = request.body?.origin_tx_hash;
+        if (
+          typeof rawTxHash === 'string' &&
+          !utils.isHexString(rawTxHash, 32)
+        ) {
+          return reply.code(400).send({ error: 'Invalid origin_tx_hash' });
+        }
+        const originTxHash =
+          typeof rawTxHash === 'string' && utils.isHexString(rawTxHash, 32)
+            ? rawTxHash
+            : undefined;
+        return createAbiHandler(
+          CommitmentReadIsmService__factory,
+          'getCallsFromRevealMessage',
+          (message: string, relayer: string, logger: Logger) =>
+            this.handleFetchCommitment(message, relayer, logger, originTxHash),
+          {
+            skipResultEncoding: true,
+            authenticatedRelayer: (request) => this.auth.signer(request),
+          },
+        )(request, reply);
+      },
     );
   }
 }
