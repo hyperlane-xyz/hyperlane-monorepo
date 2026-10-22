@@ -1,7 +1,7 @@
 import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 
-import { concurrentMap, mapAllSettled, rootLogger } from '@hyperlane-xyz/utils';
+import { concurrentMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   RelayerHelmManager,
@@ -168,21 +168,28 @@ export class AgentCli {
     console.log(chalk.cyan.bold('🔍 Running pre-flight checks...\n'));
 
     const managerEntries = Object.entries(managers);
-    const { fulfilled, rejected } = await mapAllSettled(
+    const results = await concurrentMap(
+      this.concurrency,
       managerEntries,
-      async ([key, manager]) => ({
-        key,
-        diff: await manager.getPreflightDiff(),
-      }),
-      ([key]) => key,
+      async ([key, manager]) => {
+        try {
+          return { key, diff: await manager.getPreflightDiff(), error: null };
+        } catch (error) {
+          return {
+            key,
+            diff: null,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      },
     );
 
-    const diffs: Array<{ key: string; diff: PreflightDiff }> = [
-      ...fulfilled.values(),
-    ];
-    const failures: string[] = [...rejected.entries()].map(
-      ([key, error]) => `${key}: ${error.message || 'Unknown error'}`,
-    );
+    const diffs: Array<{ key: string; diff: PreflightDiff }> = [];
+    const failures: string[] = [];
+    for (const { key, diff, error } of results) {
+      if (diff) diffs.push({ key, diff });
+      else failures.push(`${key}: ${error}`);
+    }
 
     if (failures.length > 0) {
       console.log(chalk.red.bold('\n❌ Failed to gather pre-flight diffs:'));

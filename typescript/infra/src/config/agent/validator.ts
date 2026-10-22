@@ -6,10 +6,11 @@ import {
   ChainName,
   S3Config,
 } from '@hyperlane-xyz/sdk';
-import { isEVMLike } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, isEVMLike } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../../config/registry.js';
 import { ValidatorAgentAwsUser } from '../../agents/aws/validator-user.js';
+import { AgentGCPKey } from '../../agents/gcp.js';
 import { AgentGcpKmsKey } from '../../agents/gcp-kms/kms-key.js';
 import { ValidatorAgentGcpUser } from '../../agents/gcp-kms/validator-user.js';
 import { Role } from '../../roles.js';
@@ -141,6 +142,51 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
     return Role.Validator;
   }
 
+  // Provision only for a new deployment or changed cloud resource configuration.
+  // Rendering GCP validator configuration must not require cloud admin access.
+  async provisionGcpResources(
+    namespace: string,
+    ksaName: string,
+  ): Promise<void> {
+    assert(this.gcp, 'Validator is not configured for GCP');
+    const user = new ValidatorAgentGcpUser(
+      this.runEnv,
+      this.context,
+      this.chainName,
+      this.gcp.project,
+    );
+    await user.createServiceAccountIfNotExists();
+    const { protocol } = getChain(this.chainName);
+
+    for (let idx = 0; idx < this.validators.length; idx++) {
+      const bucketName = `${this.context}-${this.runEnv}-validator-${idx}`;
+      await createGcsBucketIfNotExists(
+        this.gcp.project,
+        this.gcp.location,
+        bucketName,
+      );
+      await grantPublicReadOnBucketIfNotExists(bucketName);
+
+      const key = new AgentGcpKmsKey(this, this.role, idx);
+      await key.createIfNotExists();
+      await user.grantAccessForIndex(key, bucketName);
+
+      // AltVM transaction signers still use Secret Manager keys. Starknet
+      // keys are externally provisioned, as in the shared key-creation script.
+      if (!isEVMLike(protocol) && protocol !== ProtocolType.Starknet) {
+        await new AgentGCPKey(
+          this.runEnv,
+          this.context,
+          this.role,
+          this.chainName,
+          idx,
+        ).createIfNotExists();
+      }
+    }
+
+    await user.bindWorkloadIdentity(namespace, ksaName);
+  }
+
   async #configForValidator(
     cfg: ValidatorBaseConfig,
     idx: number,
@@ -157,25 +203,7 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
       // prefix (see AgentGcpKmsKey); the GSA granted access to them is scoped
       // per release/chain instead (see ValidatorAgentGcpUser).
       const bucketName = `${this.context}-${this.runEnv}-validator-${idx}`;
-      await createGcsBucketIfNotExists(
-        this.gcp.project,
-        this.gcp.location,
-        bucketName,
-      );
-      await grantPublicReadOnBucketIfNotExists(bucketName);
-
       const gcpKey = new AgentGcpKmsKey(this, this.role, idx);
-      await gcpKey.createIfNotExists();
-
-      const gcpUser = new ValidatorAgentGcpUser(
-        this.runEnv,
-        this.context,
-        this.chainName,
-        this.gcp.project,
-      );
-      await gcpUser.createServiceAccountIfNotExists();
-      await gcpUser.grantAccessForIndex(gcpKey, bucketName);
-
       validator = gcpKey.keyConfig;
       checkpointSyncer = {
         type: CheckpointSyncerType.Gcs,

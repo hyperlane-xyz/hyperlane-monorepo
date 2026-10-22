@@ -291,10 +291,22 @@ export abstract class HelmManager<T = HelmValues> {
     releaseName: string,
     namespace: string,
   ): Promise<boolean> {
-    const releases = await execCmdAndParseJson(
-      `helm list --namespace ${namespace} --deployed --failed --pending --uninstalling --filter '^${releaseName}$' --output json`,
-    );
-    return releases.length > 0;
+    try {
+      // `helm list --filter` downloads every release in the namespace before
+      // filtering. Status queries only this release's history on the server.
+      const release = await execCmdAndParseJson(
+        `helm status ${releaseName} --namespace ${namespace} --output json`,
+      );
+      return (
+        release.info.status === 'deployed' ||
+        release.info.status === 'failed' ||
+        release.info.status === 'uninstalling' ||
+        release.info.status.startsWith('pending-')
+      );
+    } catch (error) {
+      if (isHelmReleaseNotFoundError(error)) return false;
+      throw error;
+    }
   }
 
   async getExistingK8sSecrets(): Promise<string[]> {
@@ -335,7 +347,9 @@ export abstract class HelmManager<T = HelmValues> {
    * Gets the currently deployed helm values for this release.
    * Returns null if the release doesn't exist.
    */
-  async getDeployedHelmValues(): Promise<HelmValues | null> {
+  async getDeployedHelmValues({
+    throwOnError = false,
+  }: { throwOnError?: boolean } = {}): Promise<HelmValues | null> {
     const exists = await HelmManager.doesHelmReleaseExist(
       this.helmReleaseName,
       this.namespace,
@@ -350,6 +364,7 @@ export abstract class HelmManager<T = HelmValues> {
       );
       return values;
     } catch (error) {
+      if (throwOnError) throw error;
       rootLogger.warn(
         `Failed to get deployed helm values for ${this.helmReleaseName}: ${error}`,
       );
