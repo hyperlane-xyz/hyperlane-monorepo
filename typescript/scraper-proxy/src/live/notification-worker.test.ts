@@ -66,3 +66,34 @@ void it('lets a failed drain request a delayed retry', async (t) => {
   await worker.flush();
   assert.equal(calls, 2);
 });
+
+void it('keeps scheduling when a drain schedules before its first await', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let release = () => {};
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let calls = 0;
+  const worker = new NotificationWorker(
+    10,
+    async () => {
+      if (++calls === 1) {
+        worker.schedule();
+        await blocked;
+      }
+    },
+    assert.fail,
+  );
+  t.after(() => worker.stop());
+  const running = worker.flush();
+  t.mock.timers.tick(10);
+  assert.equal(calls, 1);
+  release();
+  await running;
+  t.mock.timers.tick(10);
+  assert.equal(
+    calls,
+    2,
+    'the timer fired during the drain must not block its retry',
+  );
+});

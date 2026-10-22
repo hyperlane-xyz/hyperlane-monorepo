@@ -11,6 +11,7 @@ import {
   print,
   visit,
   type DocumentNode,
+  type OperationDefinitionNode,
 } from 'graphql';
 
 import { cacheDirective } from './cache-config.js';
@@ -20,12 +21,19 @@ import {
   scraperProxyValidationRule,
 } from './validation.js';
 
+const MAX_PREPARED_DOCUMENTS = 256;
+const MAX_PREPARED_DOCUMENT_BYTES = 8_192;
+const VALIDATION_RULES = [...specifiedRules, scraperProxyValidationRule];
 const MAX_ENTRIES = 1_000;
 const MAX_ENTRY_BYTES = 1_000_000;
 const MAX_TOTAL_BYTES = 16_000_000;
 
 type Entry = { body: string; bytes: number; expires: number };
 type CacheDocument = { query: string; usedVariables: ReadonlySet<string> };
+type PreparedDocument = {
+  operation: OperationDefinitionNode;
+  cacheDocument: CacheDocument;
+};
 
 export type PreparedCacheRequest = {
   key: string;
@@ -41,6 +49,10 @@ export type CachedGraphqlResponse = {
 export class GraphqlResponseCache {
   private readonly cache = new Map<string, Entry>();
   private cacheBytes = 0;
+  private readonly documents = new WeakMap<
+    GraphQLSchema,
+    Map<string, PreparedDocument>
+  >();
 
   prepare(schema: GraphQLSchema, body: unknown): PreparedCacheRequest | null {
     if (
@@ -51,29 +63,19 @@ export class GraphqlResponseCache {
     )
       return null;
     let variables: unknown = body.variables ?? {};
-    let document: DocumentNode;
     try {
       if (typeof variables === 'string')
         variables = JSON.parse(variables) ?? {};
-      document = stripUnusedVariables(
-        parse(body.query, { maxTokens: MAX_GRAPHQL_TOKENS }),
-      );
     } catch {
       // Mercurius owns error responses for invalid requests.
       return null;
     }
     if (!isRecord(variables)) return null;
-    if (
-      validate(schema, document, [
-        ...specifiedRules,
-        scraperProxyValidationRule,
-      ]).length
-    )
-      return null;
     const operationName = body.operationName ?? null;
-    const operation = getOperationAST(document, operationName);
+    const prepared = this.prepareDocument(schema, body.query, operationName);
+    if (!prepared) return null;
+    const { operation, cacheDocument } = prepared;
     if (
-      !operation ||
       getVariableValues(schema, operation.variableDefinitions ?? [], variables)
         .errors?.length
     )
@@ -81,10 +83,51 @@ export class GraphqlResponseCache {
     const directive = cacheDirective(operation, variables);
     if (!directive) return null;
     return {
-      key: cacheKey(operationName, prepareCacheDocument(document), variables),
+      key: cacheKey(operationName, cacheDocument, variables),
       refresh: directive.refresh,
       ttl: directive.ttl,
     };
+  }
+
+  private prepareDocument(
+    schema: GraphQLSchema,
+    query: string,
+    operationName: string | null,
+  ): PreparedDocument | null {
+    const key = JSON.stringify([operationName, query]);
+    const documents =
+      this.documents.get(schema) ?? new Map<string, PreparedDocument>();
+    const cached = documents.get(key);
+    if (cached) {
+      documents.delete(key);
+      documents.set(key, cached);
+      return cached;
+    }
+    let document: DocumentNode;
+    try {
+      document = stripUnusedVariables(
+        parse(query, { maxTokens: MAX_GRAPHQL_TOKENS }),
+      );
+    } catch {
+      return null;
+    }
+    if (validate(schema, document, VALIDATION_RULES).length) return null;
+    const operation = getOperationAST(document, operationName);
+    if (!operation || !cacheDirective(operation)) return null;
+    const prepared = {
+      operation,
+      cacheDocument: prepareCacheDocument(document),
+    };
+    // Bound retained ASTs as well as response bodies. Large queries still work.
+    if (Buffer.byteLength(key) <= MAX_PREPARED_DOCUMENT_BYTES) {
+      this.documents.set(schema, documents);
+      documents.set(key, prepared);
+      if (documents.size > MAX_PREPARED_DOCUMENTS) {
+        const oldest = documents.keys().next().value;
+        if (oldest !== undefined) documents.delete(oldest);
+      }
+    }
+    return prepared;
   }
 
   read(request: PreparedCacheRequest): CachedGraphqlResponse | null {

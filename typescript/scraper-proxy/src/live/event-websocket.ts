@@ -1018,6 +1018,7 @@ export class EventWebSocketServer {
           after,
           through,
         )) {
+          if (this.stopped) return;
           if (agentInterested) {
             agentPublished = true;
             events.forEach((row) => this.publish(eventType, row));
@@ -1037,6 +1038,7 @@ export class EventWebSocketServer {
             // A range after an outage can hold more ids than the queue cap;
             // queue page by page and let the drain make room first.
             await this.waitForExplorerCapacity(batch.length);
+            if (this.stopped) return;
             batch.forEach((messageId) =>
               this.queueExplorerNotification(messageId),
             );
@@ -1053,6 +1055,7 @@ export class EventWebSocketServer {
   private async waitForExplorerCapacity(count: number): Promise<void> {
     const limit = MAX_PENDING_NOTIFICATIONS - count;
     while (
+      !this.stopped &&
       this.explorerClients.size &&
       this.explorerNotifications.size > limit
     ) {

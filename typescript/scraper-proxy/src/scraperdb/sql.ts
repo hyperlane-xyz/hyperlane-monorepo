@@ -258,7 +258,7 @@ function orderBy(
   cursor?: Cursor,
 ): string {
   if (!columns.length && cursor)
-    return ` ORDER BY "id" ${cursor.ordering ?? 'ASC'}`;
+    return ` ORDER BY "id" ${cursor.ordering === 'DESC' ? 'DESC' : 'ASC'}`;
   const rendered = columns.map(([column, direction]) =>
     order(table, column, direction),
   );

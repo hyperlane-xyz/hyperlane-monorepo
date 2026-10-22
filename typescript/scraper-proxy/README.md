@@ -19,8 +19,8 @@ pnpm dev            # http://localhost:8383
 pnpm test
 ```
 
-Startup checks the scraper schema and notification triggers before accepting
-traffic. `DATABASE_READ_REPLICA_URL` optionally routes GraphQL reads to a replica;
+Startup checks the stream cursor schema, read privileges, and the
+`gas_payment_stream_cursor_assign` trigger before accepting traffic. `DATABASE_READ_REPLICA_URL` optionally routes GraphQL reads to a replica;
 live streams always use the primary. See [config.ts](src/config.ts) for all settings
 and limits. Set `SCRAPER_TEST_DATABASE_URL` to include PostgreSQL projection tests
 (session-local temporary tables). Use `pnpm debug:websocket --help` for socket diagnostics.
@@ -30,7 +30,7 @@ and limits. Set `SCRAPER_TEST_DATABASE_URL` to include PostgreSQL projection tes
 Paths below are relative to `src/`. [main.ts](src/main.ts) loads configuration,
 creates the database and servers, and owns startup/shutdown. Sockets stop before
 pools close; [db.service.ts](src/db/db.service.ts) owns pools, timeouts, schema
-checks, and LISTEN reconnects.
+checks, and LISTEN connections; `live/event-websocket.ts` owns reconnects.
 
 ```text
 main.ts

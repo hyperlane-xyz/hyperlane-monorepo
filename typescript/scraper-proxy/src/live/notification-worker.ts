@@ -20,9 +20,9 @@ export class NotificationWorker {
 
   flush(): Promise<void> {
     if (this.stopped) return Promise.resolve();
-    if (this.running) return this.running;
     clearTimeout(this.timer);
     this.timer = undefined;
+    if (this.running) return this.running;
     this.nextDelay = undefined;
     this.running = this.drain()
       .catch(this.fail)

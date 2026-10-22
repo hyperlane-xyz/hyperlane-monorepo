@@ -18,6 +18,16 @@ const MIN_POOL_CLIENTS = 5;
 const MAX_POOL_CLIENTS = 10;
 const STATS_INTERVAL_MS = 60_000;
 const IDLE_TIMEOUT_MS = 300_000;
+const EVENT_STREAM_SCHEMA_CHECKS = [
+  'head_exists',
+  'cursor_exists',
+  'range_index_exists',
+  'scraper_head_exists',
+  'legacy_boundary_exists',
+  'cursor_trigger_exists',
+  'head_readable',
+  'cursor_readable',
+];
 const EVENT_STREAM_SCHEMA_QUERY = `
   SELECT
     to_regclass('gas_payment_stream_head') IS NOT NULL AS head_exists,
@@ -202,9 +212,9 @@ export class DbService implements ScraperDbDatabase {
       EVENT_STREAM_SCHEMA_QUERY,
     );
     assert(schema, 'Missing event stream schema result');
-    const invalid = Object.keys(schema)
-      .filter((name) => !schema[name])
-      .sort();
+    const invalid = EVENT_STREAM_SCHEMA_CHECKS.filter(
+      (name) => schema[name] !== true,
+    ).sort();
     assert(
       invalid.length === 0,
       `Event stream schema is not ready: ${invalid.join(', ')}`,

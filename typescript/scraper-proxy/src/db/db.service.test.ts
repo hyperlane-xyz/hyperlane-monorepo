@@ -130,22 +130,25 @@ void it('times out stalled replica connections', async (context) => {
   assert(duration < 3_000);
 });
 
-void it('fails startup when the live user cannot read cursor state', async (context) => {
-  context.mock.method(pg.Pool.prototype, 'connect', () =>
-    Promise.resolve({ release() {} }),
-  );
+void it('fails startup on false or missing stream schema checks', async (context) => {
+  let schema: Record<string, boolean> = {};
   context.mock.method(pg.Pool.prototype, 'query', () =>
-    Promise.resolve({
-      rowCount: 1,
-      rows: [{ ...readyEventStreamSchema, cursor_readable: false }],
-    }),
+    Promise.resolve({ rowCount: 1, rows: [schema] }),
   );
   context.mock.method(pg.Pool.prototype, 'end', () => Promise.resolve());
   const { DbService } = await import('./db.service.js');
-  const db = new DbService();
-  context.after(() => db.close());
-
-  await assert.rejects(db.start(), /cursor_readable/);
+  for (const name of Object.keys(readyEventStreamSchema)) {
+    for (const missing of [false, true]) {
+      schema = { ...readyEventStreamSchema, [name]: false };
+      if (missing) delete schema[name];
+      const db = new DbService();
+      try {
+        await assert.rejects(db.start(), new RegExp(name));
+      } finally {
+        await db.close();
+      }
+    }
+  }
 });
 
 void it('requires an enabled gas cursor assignment trigger at startup', async (context) => {

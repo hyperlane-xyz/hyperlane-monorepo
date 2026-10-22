@@ -3264,8 +3264,8 @@ void it('paces a full Explorer notification batch one send at a time', async (co
     );
     const upserts = messages.filter(({ type }) => type === 'message_upsert');
     assert.deepEqual(
-      new Set(upserts.map(({ data }) => record(data).msg_id)),
-      new Set(messageIds),
+      upserts.map(({ data }) => record(data).msg_id),
+      messageIds,
     );
     assert.equal(events.metricsSnapshot().explorerPendingBytes, 0);
     assert.equal(events.metricsSnapshot().outboundPendingBytes, 0);
@@ -3437,6 +3437,79 @@ void it('reports an active send failure once', async (context) => {
   } finally {
     for (const complete of completions.splice(0)) complete();
     if (socket.readyState !== WebSocket.CLOSED) socket.terminate();
+  }
+});
+
+void it('abandons an in-flight head range while listener shutdown is pending', async () => {
+  let releaseRead = () => {};
+  const read = new Promise<void>((resolve) => {
+    releaseRead = resolve;
+  });
+  let releaseListener = () => {};
+  const listener = new Promise<void>((resolve) => {
+    releaseListener = resolve;
+  });
+  let headNotify: (channel: string, payload?: string) => void = () =>
+    assert.fail('listener not connected');
+  let reads = 0;
+  const stoppingDb: EventDatabase = {
+    async listen(_channels, handler) {
+      headNotify = handler;
+      return () => listener;
+    },
+    async queryLive<T extends QueryResultRow>() {
+      if (++reads > 1) return [];
+      await read;
+      return queryRows<T>([
+        { frontier_id: '1', frontier_height: '10', msg_id: msgId },
+      ]);
+    },
+  };
+  const stoppingHttp = createServer();
+  const { EventWebSocketServer } = await import('./event-websocket.js');
+  const stoppingEvents = new EventWebSocketServer(stoppingDb);
+  await new Promise<void>((resolve) =>
+    stoppingHttp.listen(0, '127.0.0.1', resolve),
+  );
+  await stoppingEvents.start(stoppingHttp);
+  const address = stoppingHttp.address();
+  assert(address && typeof address !== 'string');
+  const socket = new WebSocket(`ws://127.0.0.1:${address.port}/messages`);
+  const messages = captureMessages(socket);
+  let stopped: Promise<void> | undefined;
+  try {
+    await waitFor(messages, 'ready');
+    headNotify(
+      'scraper_head',
+      JSON.stringify({
+        domain: 1,
+        previousConfirmedHeight: '9',
+        confirmedHeight: '10',
+      }),
+    );
+    await waitUntil(() => reads === 1);
+    stopped = stoppingEvents.stop();
+    releaseRead();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(
+      stoppingEvents.metricsSnapshot().notificationQueue.messages,
+      0,
+    );
+    assert.equal(reads, 1, 'shutdown must not read the rest of the range');
+    releaseListener();
+    await stopped;
+    assert.equal(
+      messages.filter(({ type }) => type === 'message_upsert').length,
+      0,
+    );
+  } finally {
+    releaseRead();
+    releaseListener();
+    socket.terminate();
+    await (stopped ?? stoppingEvents.stop());
+    await new Promise<void>((resolve, reject) =>
+      stoppingHttp.close((error) => (error ? reject(error) : resolve())),
+    );
   }
 });
 
