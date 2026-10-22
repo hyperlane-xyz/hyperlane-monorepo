@@ -16,6 +16,7 @@ dependencies = [
 name = "access-control"
 version = "0.1.0"
 dependencies = [
+ "log-utils",
  "solana-program 3.0.0",
 ]
 
@@ -3401,9 +3402,9 @@ dependencies = [
  "serde",
  "serde_json",
  "sha3",
+ "solana-keccak-hasher 3.1.0",
  "strum 0.26.3",
  "thiserror 1.0.69",
- "tiny-keccak",
  "tracing",
  "typetag",
  "uint",
@@ -3469,6 +3470,7 @@ dependencies = [
  "hyperlane-sealevel-test-ism",
  "hyperlane-sealevel-test-send-receiver",
  "hyperlane-test-utils",
+ "log-utils",
  "multisig-ism",
  "num-derive",
  "num-traits",
@@ -3496,6 +3498,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
+ "log-utils",
  "solana-program 3.0.0",
 ]
 
@@ -3510,6 +3513,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-test-utils",
  "k256 0.13.4",
+ "log-utils",
  "num-derive",
  "num-traits",
  "package-versioned",
@@ -3553,6 +3557,7 @@ dependencies = [
  "borsh 1.6.0",
  "getrandom 0.2.17",
  "hyperlane-core",
+ "log-utils",
  "num-derive",
  "num-traits",
  "package-versioned",
@@ -3610,6 +3615,7 @@ dependencies = [
  "hyperlane-sealevel-message-recipient-interface",
  "itertools 0.14.0",
  "log",
+ "log-utils",
  "num-derive",
  "num-traits",
  "package-versioned",
@@ -3815,6 +3821,7 @@ dependencies = [
  "hyperlane-test-utils",
  "hyperlane-warp-route",
  "k256 0.13.4",
+ "log-utils",
  "num-derive",
  "num-traits",
  "package-versioned",
@@ -3846,6 +3853,7 @@ dependencies = [
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-warp-route",
+ "log-utils",
  "num-derive",
  "num-traits",
  "serializable-account-meta",
@@ -4534,6 +4542,14 @@ name = "log"
 version = "0.4.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
+
+[[package]]
+name = "log-utils"
+version = "0.1.0"
+dependencies = [
+ "hyperlane-core",
+ "solana-program 3.0.0",
+]
 
 [[package]]
 name = "lru"

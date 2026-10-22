@@ -1,10 +1,11 @@
 use std::fmt::Debug;
 
+use crate::{
+    utils::{domain_hash, keccak256},
+    Signable, Signature, SignedType, H256,
+};
 use derive_more::Deref;
 use serde::{Deserialize, Serialize};
-use sha3::{digest::Update, Digest, Keccak256};
-
-use crate::{utils::domain_hash, Signable, Signature, SignedType, H256};
 
 /// An Hyperlane checkpoint
 #[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize, Debug)]
@@ -35,18 +36,12 @@ impl Signable for CheckpointWithMessageId {
     fn signing_hash(&self) -> H256 {
         // sign:
         // domain_hash(mailbox_address, mailbox_domain) || root || index (as u32) || message_id
-        H256::from_slice(
-            Keccak256::new()
-                .chain(domain_hash(
-                    self.merkle_tree_hook_address,
-                    self.mailbox_domain,
-                ))
-                .chain(self.root)
-                .chain(self.index.to_be_bytes())
-                .chain(self.message_id)
-                .finalize()
-                .as_slice(),
-        )
+        keccak256(&[
+            domain_hash(self.merkle_tree_hook_address, self.mailbox_domain).as_bytes(),
+            self.root.as_bytes(),
+            &self.index.to_be_bytes(),
+            self.message_id.as_bytes(),
+        ])
     }
 }
 

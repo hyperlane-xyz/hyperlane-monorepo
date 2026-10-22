@@ -15,6 +15,7 @@ serde = ["dep:serde"]
 hyperlane-core = { path = "../../../main/hyperlane-core" }
 access-control = { path = "../../libraries/access-control" }
 account-utils = { path = "../../libraries/account-utils" }
+log-utils = { path = "../../libraries/log-utils" }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
 quote-verifier = { path = "../../libraries/quote-verifier" }
 package-versioned = { path = "../../libraries/package-versioned" }

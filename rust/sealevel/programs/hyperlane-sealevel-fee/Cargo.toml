@@ -11,6 +11,7 @@ no-entrypoint = []
 [dependencies]
 access-control = { path = "../../libraries/access-control" }
 account-utils = { path = "../../libraries/account-utils" }
+log-utils = { path = "../../libraries/log-utils" }
 borsh.workspace = true
 hyperlane-core = { path = "../../../main/hyperlane-core" }
 num-derive.workspace = true

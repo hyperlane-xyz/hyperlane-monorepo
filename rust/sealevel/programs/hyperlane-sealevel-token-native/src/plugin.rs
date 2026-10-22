@@ -209,13 +209,15 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
     /// Returns the accounts required for `transfer_out`.
     fn transfer_out_account_metas(
         program_id: &Pubkey,
-        _token: &HyperlaneToken<Self>,
+        token: &HyperlaneToken<Self>,
         _token_message: &TokenMessage,
     ) -> Result<(Vec<SerializableAccountMeta>, bool), ProgramError> {
-        let (native_collateral_key, _native_collateral_bump) = Pubkey::find_program_address(
-            hyperlane_token_native_collateral_pda_seeds!(),
+        // `token` was verified as this program's token PDA, and its stored
+        // native collateral bump came from `find_program_address` at init.
+        let native_collateral_key = Pubkey::create_program_address(
+            hyperlane_token_native_collateral_pda_seeds!(token.plugin_data.native_collateral_bump),
             program_id,
-        );
+        )?;
 
         Ok((
             vec![

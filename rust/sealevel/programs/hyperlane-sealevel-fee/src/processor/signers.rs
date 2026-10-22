@@ -2,12 +2,12 @@
 
 use std::collections::BTreeSet;
 
-use account_utils::ensure_no_extraneous_accounts;
+use account_utils::{ensure_no_extraneous_accounts, verify_pda_with_stored_bump};
 use hyperlane_core::H160;
+use log_utils::LogLine;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
-    msg,
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
@@ -16,7 +16,10 @@ use solana_program::{
 use solana_system_interface::program as system_program;
 
 use crate::{
-    accounts::{CrossCollateralRouteAccount, FeeAccountData, FeeData, RouteDomainAccount},
+    accounts::{
+        CrossCollateralRoute, CrossCollateralRouteAccount, FeeAccountData, FeeData, RouteDomain,
+        RouteDomainAccount,
+    },
     cc_route_pda_seeds,
     error::Error,
     instruction::{RouteKey, SetQuoteSignerOperation},
@@ -83,11 +86,13 @@ pub(super) fn process_set_quote_signer(
             ensure_no_extraneous_accounts(accounts_iter)?;
 
             let domain_le = domain.to_le_bytes();
-            let (expected_key, _) = Pubkey::find_program_address(
+            if verify_pda_with_stored_bump::<RouteDomain>(
+                route_pda_info,
                 route_domain_pda_seeds!(fee_account_info.key, &domain_le),
                 program_id,
-            );
-            if *route_pda_info.key != expected_key {
+            )
+            .is_none()
+            {
                 return Err(ProgramError::InvalidArgument);
             }
             if route_pda_info.owner != program_id {
@@ -118,11 +123,13 @@ pub(super) fn process_set_quote_signer(
             ensure_no_extraneous_accounts(accounts_iter)?;
 
             let dest_le = destination.to_le_bytes();
-            let (expected_key, _) = Pubkey::find_program_address(
+            if verify_pda_with_stored_bump::<CrossCollateralRoute>(
+                cc_pda_info,
                 cc_route_pda_seeds!(fee_account_info.key, &dest_le, target_router),
                 program_id,
-            );
-            if *cc_pda_info.key != expected_key {
+            )
+            .is_none()
+            {
                 return Err(ProgramError::InvalidArgument);
             }
             if cc_pda_info.owner != program_id {
@@ -143,7 +150,10 @@ pub(super) fn process_set_quote_signer(
         }
     }
 
-    msg!("SetQuoteSigner: {}", signer);
+    LogLine::new()
+        .str("SetQuoteSigner: ")
+        .hex(signer.as_bytes())
+        .log();
 
     Ok(())
 }

@@ -7,6 +7,7 @@ members = [
     "libraries/ecdsa-signature",
     "libraries/hyperlane-sealevel-connection-client",
     "libraries/hyperlane-sealevel-token",
+    "libraries/log-utils",
     "libraries/interchain-security-module-interface",
     "libraries/message-recipient-interface",
     "libraries/multisig-ism",
@@ -183,6 +184,9 @@ overflow-checks = true
 overflow-checks = true
 
 [profile.release.package.hyperlane-sealevel-message-recipient-interface]
+overflow-checks = true
+
+[profile.release.package.log-utils]
 overflow-checks = true
 
 [profile.release.package.multisig-ism]

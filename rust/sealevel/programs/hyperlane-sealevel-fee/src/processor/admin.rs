@@ -6,6 +6,7 @@ use std::collections::BTreeSet;
 use access_control::AccessControl;
 use account_utils::ensure_no_extraneous_accounts;
 use hyperlane_core::H160;
+use log_utils::LogLine;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -44,7 +45,10 @@ pub(super) fn process_set_beneficiary(
     fee_account.beneficiary = new_beneficiary;
     FeeAccountData::new(fee_account.into()).store(fee_account_info, false)?;
 
-    msg!("Set beneficiary: {}", new_beneficiary);
+    LogLine::new()
+        .str("Set beneficiary: ")
+        .pubkey(&new_beneficiary)
+        .log();
 
     Ok(())
 }
@@ -68,7 +72,10 @@ pub(super) fn process_transfer_ownership(
     fee_account.set_owner(new_owner)?;
     FeeAccountData::new(fee_account.into()).store(fee_account_info, false)?;
 
-    msg!("Transferred ownership to: {:?}", new_owner);
+    LogLine::new()
+        .str("Transferred ownership to: ")
+        .option(new_owner, |l, k| l.pubkey(&k))
+        .log();
 
     Ok(())
 }
@@ -136,7 +143,10 @@ pub(super) fn process_set_min_issued_at(
 
     FeeAccountData::new(fee_account.into()).store(fee_account_info, false)?;
 
-    msg!("Set min_issued_at: {}", min_issued_at);
+    LogLine::new()
+        .str("Set min_issued_at: ")
+        .i64(min_issued_at)
+        .log();
 
     Ok(())
 }

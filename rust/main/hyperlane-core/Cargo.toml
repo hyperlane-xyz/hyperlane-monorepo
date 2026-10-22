@@ -39,7 +39,6 @@ num-traits.workspace = true
 prometheus.workspace = true
 serde = { workspace = true }
 serde_json = { workspace = true }
-sha3 = { workspace = true }
 strum = { workspace = true, optional = true, features = ["derive"] }
 strum_macros = { workspace = true, optional = true }
 thiserror = { workspace = true }
@@ -48,13 +47,20 @@ tracing.workspace = true
 typetag.workspace = true
 primitive-types = { workspace = true, optional = true }
 solana-sdk = { workspace = true, optional = true }
-tiny-keccak = { workspace = true, features = ["keccak"] }
 uint.workspace = true
 uuid = { workspace = true, features = ["v4", "serde"] }
 
 hyperlane-application = { path = "../applications/hyperlane-application" }
 
+# Sealevel programs hash with the `sol_keccak256` syscall instead of `sha3`.
+[target.'cfg(target_os = "solana")'.dependencies]
+solana-keccak-hasher = { workspace = true }
+
+[target.'cfg(not(target_os = "solana"))'.dependencies]
+sha3 = { workspace = true }
+
 [dev-dependencies]
+tiny-keccak = { workspace = true, features = ["keccak"] }
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 tracing-test.workspace = true
 
@@ -73,3 +79,7 @@ ethers = [
 solana = ["dep:solana-sdk"]
 async = ["tokio", "futures"]
 matching-list = ["dep:regex"]
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ['cfg(target_os, values("solana"))']

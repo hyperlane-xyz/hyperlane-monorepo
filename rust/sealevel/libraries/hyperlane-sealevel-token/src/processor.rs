@@ -28,6 +28,7 @@ use hyperlane_sealevel_mailbox::{
 };
 use hyperlane_sealevel_message_recipient_interface::HandleInstruction;
 use hyperlane_warp_route::TokenMessage;
+use log_utils::LogLine;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -370,12 +371,14 @@ where
             memo,
         )?;
 
-        msg!(
-            "Warp route transfer completed to destination: {}, recipient: {}, remote_amount: {}",
-            xfer.destination_domain,
-            xfer.recipient,
-            remote_amount
-        );
+        LogLine::new()
+            .str("Warp route transfer completed to destination: ")
+            .u64(xfer.destination_domain.into())
+            .str(", recipient: ")
+            .hex(xfer.recipient.as_bytes())
+            .str(", remote_amount: ")
+            .u256(remote_amount.0)
+            .log();
 
         Ok(())
     }
@@ -984,12 +987,13 @@ where
             return Err(ProgramError::from(Error::ExtraneousAccount));
         }
 
-        msg!(
-            "Warp route transfer completed from origin: {}, recipient: {}, remote_amount: {}",
-            xfer.origin,
-            recipient_wallet.key,
-            remote_amount
-        );
+        LogLine::new()
+            .str("Warp route transfer completed from origin: ")
+            .u64(xfer.origin.into())
+            .str(", remote_amount: ")
+            .u256(remote_amount.0)
+            .str(", recipient:")
+            .log_with_keys(&[recipient_wallet.key]);
 
         Ok(())
     }

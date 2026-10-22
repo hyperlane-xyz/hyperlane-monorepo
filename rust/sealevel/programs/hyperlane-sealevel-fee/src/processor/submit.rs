@@ -4,9 +4,10 @@ use std::collections::BTreeSet;
 
 use account_utils::{
     create_pda_account, ensure_no_extraneous_accounts, verify_account_uninitialized,
-    AccountInfoExt, AccountInitState, SizedData,
+    verify_pda_with_stored_bump, AccountInfoExt, AccountInitState, SizedData,
 };
 use hyperlane_core::H160;
+use log_utils::LogLine;
 use quote_verifier::{QuoteValidationError, SvmSignedQuote, ValidatableQuote};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -22,10 +23,10 @@ use solana_system_interface::program as system_program;
 
 use crate::{
     accounts::{
-        CcFeeQuoteContext, CrossCollateralRouteAccount, FeeAccountData, FeeData, FeeQuoteContext,
-        FeeStandingQuotePda, FeeStandingQuotePdaAccount, FeeStandingQuoteValue, QuoteContext,
-        RouteDomainAccount, TransientQuote, TransientQuoteAccount, WILDCARD_AMOUNT,
-        WILDCARD_DOMAIN, WILDCARD_RECIPIENT,
+        CcFeeQuoteContext, CrossCollateralRoute, CrossCollateralRouteAccount, FeeAccountData,
+        FeeData, FeeQuoteContext, FeeStandingQuotePda, FeeStandingQuotePdaAccount,
+        FeeStandingQuoteValue, QuoteContext, RouteDomain, RouteDomainAccount, TransientQuote,
+        TransientQuoteAccount, WILDCARD_AMOUNT, WILDCARD_DOMAIN, WILDCARD_RECIPIENT,
     },
     cc_route_pda_seeds,
     error::Error,
@@ -99,11 +100,13 @@ pub(super) fn process_submit_quote(
                 // Exact domain: auth from RouteDomain PDA.
                 let route_pda_info = next_account_info(accounts_iter)?;
                 let domain_le = ctx.destination_domain.to_le_bytes();
-                let (expected_key, _) = Pubkey::find_program_address(
+                if verify_pda_with_stored_bump::<RouteDomain>(
+                    route_pda_info,
                     route_domain_pda_seeds!(fee_account_info.key, &domain_le),
                     program_id,
-                );
-                if *route_pda_info.key != expected_key {
+                )
+                .is_none()
+                {
                     return Err(ProgramError::InvalidArgument);
                 }
                 if route_pda_info.owner != program_id {
@@ -135,11 +138,13 @@ pub(super) fn process_submit_quote(
                 // storage only.
                 let route_pda_info = next_account_info(accounts_iter)?;
                 let dest_le = ctx.destination_domain.to_le_bytes();
-                let (expected_key, _) = Pubkey::find_program_address(
+                if verify_pda_with_stored_bump::<CrossCollateralRoute>(
+                    route_pda_info,
                     cc_route_pda_seeds!(fee_account_info.key, &dest_le, ctx.target_router),
                     program_id,
-                );
-                if *route_pda_info.key != expected_key {
+                )
+                .is_none()
+                {
                     return Err(ProgramError::InvalidArgument);
                 }
                 if route_pda_info.owner != program_id {
@@ -260,13 +265,12 @@ pub(super) fn process_submit_quote(
         // Account 3: Domain standing quote PDA.
         let domain_pda_info = next_account_info(accounts_iter)?;
         let domain_le = destination_domain.to_le_bytes();
-        let (expected_domain_key, domain_bump) = Pubkey::find_program_address(
+        let domain_bump = verify_pda_with_stored_bump::<FeeStandingQuotePda>(
+            domain_pda_info,
             fee_standing_quote_pda_seeds!(fee_account_info.key, &domain_le, standing_target_router),
             program_id,
-        );
-        if *domain_pda_info.key != expected_domain_key {
-            return Err(ProgramError::InvalidArgument);
-        }
+        )
+        .ok_or(ProgramError::InvalidArgument)?;
 
         ensure_no_extraneous_accounts(accounts_iter)?;
 
@@ -338,11 +342,12 @@ pub(super) fn process_submit_quote(
             )?;
         }
 
-        msg!(
-            "Submitted standing quote for domain {} recipient {}",
-            destination_domain,
-            recipient_key
-        );
+        LogLine::new()
+            .str("Submitted standing quote for domain ")
+            .u64(destination_domain.into())
+            .str(" recipient ")
+            .hex(recipient_key.as_bytes())
+            .log();
     }
 
     Ok(())
@@ -376,11 +381,13 @@ pub(super) fn process_close_transient_quote(
         .data;
 
     // Re-derive PDA to verify key before trusting deserialized fields.
-    let (expected_key, _) = Pubkey::find_program_address(
+    if verify_pda_with_stored_bump::<TransientQuote>(
+        transient_pda_info,
         transient_quote_pda_seeds!(fee_account_info.key, transient.scoped_salt),
         program_id,
-    );
-    if *transient_pda_info.key != expected_key {
+    )
+    .is_none()
+    {
         return Err(Error::TransientPdaMismatch.into());
     }
 
@@ -441,11 +448,13 @@ pub(super) fn process_prune_expired_quotes(
     // Account 3: Domain standing quote PDA.
     let domain_pda_info = next_account_info(accounts_iter)?;
     let domain_le = domain.to_le_bytes();
-    let (expected_key, _) = Pubkey::find_program_address(
+    if verify_pda_with_stored_bump::<FeeStandingQuotePda>(
+        domain_pda_info,
         fee_standing_quote_pda_seeds!(fee_account_info.key, &domain_le, resolved_router),
         program_id,
-    );
-    if *domain_pda_info.key != expected_key {
+    )
+    .is_none()
+    {
         return Err(ProgramError::InvalidArgument);
     }
     if domain_pda_info.owner != program_id {
@@ -467,7 +476,11 @@ pub(super) fn process_prune_expired_quotes(
         // Close the PDA.
         domain_pda_info.close_account(owner_info)?;
 
-        msg!("Pruned domain {} — PDA closed", domain);
+        LogLine::new()
+            .str("Pruned domain ")
+            .u64(domain.into())
+            .str(" — PDA closed")
+            .log();
     } else {
         // Re-serialize with remaining entries.
         let remaining = standing.quotes.len();
@@ -478,7 +491,13 @@ pub(super) fn process_prune_expired_quotes(
             system_program_info,
         )?;
 
-        msg!("Pruned domain {} — {} entries remaining", domain, remaining);
+        LogLine::new()
+            .str("Pruned domain ")
+            .u64(domain.into())
+            .str(" — ")
+            .u64(remaining as u64)
+            .str(" entries remaining")
+            .log();
     }
 
     Ok(())

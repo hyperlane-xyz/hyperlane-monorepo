@@ -3,10 +3,10 @@
 use account_utils::{
     create_pda_account, ensure_no_extraneous_accounts, verify_account_uninitialized, SizedData,
 };
+use log_utils::LogLine;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
-    msg,
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
@@ -86,7 +86,10 @@ pub(super) fn process_init_fee(
 
     fee_account.store(fee_account_info, false)?;
 
-    msg!("Initialized fee account: {}", fee_account_key);
+    LogLine::new()
+        .str("Initialized fee account: ")
+        .pubkey(&fee_account_key)
+        .log();
 
     Ok(())
 }

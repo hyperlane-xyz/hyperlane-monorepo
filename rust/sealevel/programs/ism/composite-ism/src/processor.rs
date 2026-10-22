@@ -7,14 +7,14 @@ use account_utils::{
 };
 use hyperlane_core::{Decode, HyperlaneMessage, ModuleType, H256};
 use hyperlane_sealevel_interchain_security_module_interface::{
-    InterchainSecurityModuleInstruction, MetadataSpecResult, VERIFY_ACCOUNT_METAS_PDA_SEEDS,
+    InterchainSecurityModuleInstruction, MetadataSpecResult,
 };
+use log_utils::LogLine;
 use serializable_account_meta::SimulationReturnData;
 use solana_loader_v3_interface::state::UpgradeableLoaderState;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
-    msg,
     program::set_return_data,
     program_error::ProgramError,
     pubkey::Pubkey,
@@ -26,8 +26,8 @@ use solana_system_interface::program as system_program;
 use crate::{
     account_metas::all_verify_account_metas,
     accounts::{
-        derive_domain_pda, CompositeIsmAccount, CompositeIsmStorage, DomainIsmAccount,
-        DomainIsmStorage, IsmNode, DOMAIN_ISM_SEED,
+        derive_domain_pda, is_domain_pda, CompositeIsmAccount, CompositeIsmStorage,
+        DomainIsmAccount, DomainIsmStorage, IsmNode, DOMAIN_ISM_SEED,
     },
     error::Error,
     instruction::Instruction,
@@ -166,7 +166,9 @@ fn verify_account_metas(
 
     let root = storage.root.as_ref().ok_or(Error::ConfigNotSet)?;
 
-    let (vam_pda_key, _) = Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, program_id);
+    // The VAM PDA is the storage PDA (same seeds), which `load_and_verify_storage`
+    // just verified against its stored bump.
+    let vam_pda_key = *storage_info.key;
 
     // Remaining accounts (after the VAM PDA) are potential domain PDAs for pass-2 resolution.
     let extra: Vec<&AccountInfo> = accounts_iter.collect();
@@ -204,7 +206,8 @@ fn get_metadata_spec(
     }
 
     // Prepend the composite VAM PDA so the relayer has the complete account list.
-    let (vam_pda, _) = Pubkey::find_program_address(VERIFY_ACCOUNT_METAS_PDA_SEEDS, program_id);
+    // It is the storage PDA (same seeds), verified by `load_and_verify_storage` above.
+    let vam_pda = *storage_info.key;
     let mut full_accounts = vec![vam_pda];
     full_accounts.extend(result.accounts);
     Ok(MetadataSpecResult {
@@ -347,7 +350,10 @@ fn update_config(
 
     let mut storage = load_and_verify_storage(program_id, storage_pda_account)?;
     storage.ensure_owner_signer(owner_account)?;
-    msg!("Updated ISM root config: {}", root.kind_to_str());
+    LogLine::new()
+        .str("Updated ISM root config: ")
+        .str(root.kind_to_str())
+        .log();
     storage.root = Some(root);
 
     CompositeIsmAccount::from(*storage).store_with_rent_exempt_realloc(
@@ -397,7 +403,12 @@ fn set_domain_ism(
         return Err(Error::InvalidSystemProgram.into());
     }
 
-    msg!("Set domain {} ISM: {}", domain, ism.kind_to_str());
+    LogLine::new()
+        .str("Set domain ")
+        .u64(domain.into())
+        .str(" ISM: ")
+        .str(ism.kind_to_str())
+        .log();
     let domain_storage = DomainIsmAccount::from(DomainIsmStorage {
         bump_seed: bump,
         domain,
@@ -448,8 +459,7 @@ fn remove_domain_ism(program_id: &Pubkey, accounts: &[AccountInfo], domain: u32)
     storage.ensure_owner_signer(owner_account)?;
 
     // Verify domain PDA address.
-    let (expected_pda, _) = derive_domain_pda(program_id, domain);
-    if *domain_pda_account.key != expected_pda {
+    if !is_domain_pda(program_id, domain, domain_pda_account) {
         return Err(Error::InvalidDomainPda.into());
     }
 
@@ -459,7 +469,11 @@ fn remove_domain_ism(program_id: &Pubkey, accounts: &[AccountInfo], domain: u32)
 
     domain_pda_account.close_account(owner_account)?;
 
-    msg!("Removed domain {} ISM", domain);
+    LogLine::new()
+        .str("Removed domain ")
+        .u64(domain.into())
+        .str(" ISM")
+        .log();
     Ok(())
 }
 
@@ -488,11 +502,12 @@ fn transfer_ownership(
     storage.transfer_ownership(owner_account, new_owner)?;
     CompositeIsmAccount::from(*storage).store(storage_pda_account, false)?;
 
-    msg!(
-        "Transferred ownership from {:?} to {:?}",
-        old_owner,
-        new_owner
-    );
+    LogLine::new()
+        .str("Transferred ownership from ")
+        .option(old_owner, |l, k| l.pubkey(&k))
+        .str(" to ")
+        .option(new_owner, |l, k| l.pubkey(&k))
+        .log();
     Ok(())
 }
 
@@ -760,7 +775,7 @@ fn set_paused(program_id: &Pubkey, accounts: &[AccountInfo], paused: bool) -> Pr
 
     CompositeIsmAccount::from(*storage).store(storage_pda_account, false)?;
 
-    msg!("Set paused: {}", paused);
+    LogLine::new().str("Set paused: ").bool(paused).log();
     Ok(())
 }
 

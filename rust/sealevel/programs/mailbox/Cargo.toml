@@ -28,6 +28,7 @@ blake3 = "=1.8.2"
 
 access-control = { path = "../../libraries/access-control" }
 account-utils = { path = "../../libraries/account-utils" }
+log-utils = { path = "../../libraries/log-utils" }
 hyperlane-core = { path = "../../../main/hyperlane-core" }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../libraries/interchain-security-module-interface" }
 hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
