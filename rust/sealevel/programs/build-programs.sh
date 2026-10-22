@@ -20,7 +20,7 @@ TOKEN_PROGRAM_PATHS=("hyperlane-sealevel-token" "hyperlane-sealevel-token-collat
 build_program () {
     PROGRAM_PATH=$1
     log "Building $PROGRAM_PATH"
-    pushd $PROGRAM_PATH
+    pushd $PROGRAM_PATH/cdylib
     cargo build-sbf --tools-version "$SBF_TOOLS_VERSION" -- --locked
     popd
 }

@@ -5,7 +5,7 @@ The Mailbox program lives here.
 To build:
 
 ```
-cargo build-sbf --arch sbf
+cargo build-sbf --manifest-path cdylib/Cargo.toml
 ```
 
 To run unit tests:

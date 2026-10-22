@@ -5,7 +5,7 @@
 //! Before running, rebuild the binary if you have changed the program source:
 //!
 //! ```text
-//! cargo build-sbf --manifest-path programs/ism/composite-ism/Cargo.toml
+//! cargo build-sbf --manifest-path programs/ism/composite-ism/cdylib/Cargo.toml
 //! ```
 //! (run from `rust/sealevel/`)
 //!

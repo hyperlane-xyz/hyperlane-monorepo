@@ -93,7 +93,7 @@ build_rust() {
   local p
   for p in "${RUST_PROGRAMS[@]}"; do
     log "build-sbf $p"
-    cargo build-sbf --manifest-path "$PROGRAMS_DIR/$p/Cargo.toml" \
+    cargo build-sbf --manifest-path "$PROGRAMS_DIR/$p/cdylib/Cargo.toml" \
       --tools-version "$SBF_TOOLS_VERSION" --sbf-out-dir "$out" -- --locked
   done
   ls -l "$out"/*.so

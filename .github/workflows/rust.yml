@@ -213,7 +213,7 @@ jobs:
           done
         working-directory: ./rust/sealevel
       - name: Build sealevel SBF programs
-        run: cargo build-sbf --manifest-path programs/ism/composite-ism/Cargo.toml
+        run: cargo build-sbf --manifest-path programs/ism/composite-ism/cdylib/Cargo.toml
         working-directory: ./rust/sealevel
       - name: Run tests for sealevel workspace
         run: cargo test

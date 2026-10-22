@@ -37,4 +37,4 @@ solana-sdk.workspace = true
 workspace = true
 
 [lib]
-crate-type = ["cdylib", "lib"]
+crate-type = ["lib"]
