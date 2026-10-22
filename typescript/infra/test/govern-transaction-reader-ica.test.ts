@@ -2,7 +2,10 @@ import { expect } from 'chai';
 import { BigNumber, constants, utils } from 'ethers';
 import sinon from 'sinon';
 
-import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
+import {
+  InterchainAccountRouter__factory,
+  TimelockController__factory,
+} from '@hyperlane-xyz/core';
 import {
   InterchainAccount,
   MultiProvider,
@@ -23,6 +26,9 @@ const destinationV3 = address(4);
 const legacyRouter = address(5);
 const safe = address(6);
 const expectedIca = address(7);
+const timelock = address(11);
+const v2OnlyDestination = TestChainName.test3;
+const v2OnlyRouter = address(12);
 const iface = InterchainAccountRouter__factory.createInterface();
 const callInterface = new utils.Interface([
   'function callRemoteWithOverrides(uint32 _destination, bytes32 _router, bytes32 _ism, tuple(bytes32,uint256,bytes)[] _calls, bytes _hookMetadata) payable returns (bytes32)',
@@ -44,6 +50,7 @@ describe('GovernTransactionReader ICA routers', () => {
         interchainAccountRouter: destinationV2,
         interchainAccountRouterV3: destinationV3,
       },
+      [v2OnlyDestination]: { interchainAccountRouter: v2OnlyRouter },
       ethereum: { legacyInterchainAccountRouter: legacyRouter },
     };
     reader = new GovernTransactionReader(
@@ -55,7 +62,7 @@ describe('GovernTransactionReader ICA routers', () => {
       { [origin]: safe },
       { [destination]: expectedIca },
       {},
-      {},
+      { [origin]: timelock },
     );
     const app = InterchainAccount.fromAddressesMap(
       {
@@ -204,6 +211,37 @@ describe('GovernTransactionReader ICA routers', () => {
     expect(reader.errors[0].info).to.equal(
       'Incorrect router address getting enrolled',
     );
+  });
+
+  it('derives a timelock-executed remote call from the timelock, not the Safe', async () => {
+    const call = callInterface.encodeFunctionData('callRemoteWithOverrides', [
+      multiProvider.getDomainId(destination),
+      addressToBytes32(destinationV2),
+      constants.HashZero,
+      [],
+      '0x',
+    ]);
+    await reader.read(origin, {
+      to: timelock,
+      value: BigNumber.from(0),
+      data: TimelockController__factory.createInterface().encodeFunctionData(
+        'executeBatch',
+        [[originV2], [0], [call], constants.HashZero, constants.HashZero],
+      ),
+    });
+    expect(getAccount.firstCall.args[1].owner).to.equal(timelock);
+  });
+
+  it('flags a V3 remote call to a destination without a V3 router', async () => {
+    const data = callInterface.encodeFunctionData('callRemoteWithOverrides', [
+      multiProvider.getDomainId(v2OnlyDestination),
+      addressToBytes32(v2OnlyRouter),
+      constants.HashZero,
+      [],
+      '0x',
+    ]);
+    await reader.read(origin, { to: originV3, value: BigNumber.from(0), data });
+    expect(reader.errors[0].info).to.equal('Incorrect router in ICA call');
   });
 
   it('fails explicitly when the source chain has no configured governance Safe', async () => {
