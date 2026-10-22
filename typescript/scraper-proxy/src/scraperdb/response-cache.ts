@@ -2,7 +2,12 @@ import { createHash } from 'node:crypto';
 
 import { assert } from '@hyperlane-xyz/utils/validation';
 import {
+  getOperationAST,
+  getVariableValues,
   parse,
+  specifiedRules,
+  validate,
+  type GraphQLSchema,
   print,
   visit,
   type DocumentNode,
@@ -10,14 +15,25 @@ import {
 } from 'graphql';
 
 import { cacheDirective } from './cache-config.js';
-import { stripUnusedVariableDefinitions } from './request-compatibility.js';
+import { stripUnusedVariables } from './request-compatibility.js';
+import {
+  MAX_GRAPHQL_TOKENS,
+  scraperProxyValidationRule,
+} from './validation.js';
 
+const MAX_PREPARED_DOCUMENTS = 256;
+const MAX_PREPARED_DOCUMENT_BYTES = 8_192;
+const VALIDATION_RULES = [...specifiedRules, scraperProxyValidationRule];
 const MAX_ENTRIES = 1_000;
 const MAX_ENTRY_BYTES = 1_000_000;
 const MAX_TOTAL_BYTES = 16_000_000;
 
 type Entry = { body: string; bytes: number; expires: number };
 type CacheDocument = { query: string; usedVariables: ReadonlySet<string> };
+type PreparedDocument = {
+  operation: OperationDefinitionNode;
+  cacheDocument: CacheDocument;
+};
 
 export type PreparedCacheRequest = {
   key: string;
@@ -32,27 +48,86 @@ export type CachedGraphqlResponse = {
 
 export class GraphqlResponseCache {
   private readonly cache = new Map<string, Entry>();
-  private readonly documents = new WeakMap<DocumentNode, CacheDocument>();
   private cacheBytes = 0;
+  private readonly documents = new WeakMap<
+    GraphQLSchema,
+    Map<string, PreparedDocument>
+  >();
 
-  prepare(
-    document: DocumentNode,
-    operation: OperationDefinitionNode,
-    operationName: string | null,
-    variables: Record<string, unknown>,
-  ): PreparedCacheRequest | null {
+  prepare(schema: GraphQLSchema, body: unknown): PreparedCacheRequest | null {
+    if (
+      !isRecord(body) ||
+      typeof body.query !== 'string' ||
+      !body.query.includes('cached') ||
+      (body.operationName != null && typeof body.operationName !== 'string')
+    )
+      return null;
+    let variables: unknown = body.variables ?? {};
+    try {
+      if (typeof variables === 'string')
+        variables = JSON.parse(variables) ?? {};
+    } catch {
+      // Mercurius owns error responses for invalid requests.
+      return null;
+    }
+    if (!isRecord(variables)) return null;
+    const operationName = body.operationName ?? null;
+    const prepared = this.prepareDocument(schema, body.query, operationName);
+    if (!prepared) return null;
+    const { operation, cacheDocument } = prepared;
+    if (
+      getVariableValues(schema, operation.variableDefinitions ?? [], variables)
+        .errors?.length
+    )
+      return null;
     const directive = cacheDirective(operation, variables);
     if (!directive) return null;
-    let cachedDocument = this.documents.get(document);
-    if (!cachedDocument) {
-      cachedDocument = prepareCacheDocument(document);
-      this.documents.set(document, cachedDocument);
-    }
     return {
-      key: cacheKey(operationName, cachedDocument, variables),
+      key: cacheKey(operationName, cacheDocument, variables),
       refresh: directive.refresh,
       ttl: directive.ttl,
     };
+  }
+
+  private prepareDocument(
+    schema: GraphQLSchema,
+    query: string,
+    operationName: string | null,
+  ): PreparedDocument | null {
+    const key = JSON.stringify([operationName, query]);
+    const documents =
+      this.documents.get(schema) ?? new Map<string, PreparedDocument>();
+    const cached = documents.get(key);
+    if (cached) {
+      documents.delete(key);
+      documents.set(key, cached);
+      return cached;
+    }
+    let document: DocumentNode;
+    try {
+      document = stripUnusedVariables(
+        parse(query, { maxTokens: MAX_GRAPHQL_TOKENS }),
+      );
+    } catch {
+      return null;
+    }
+    if (validate(schema, document, VALIDATION_RULES).length) return null;
+    const operation = getOperationAST(document, operationName);
+    if (!operation || !cacheDirective(operation)) return null;
+    const prepared = {
+      operation,
+      cacheDocument: prepareCacheDocument(document),
+    };
+    // Bound retained ASTs as well as response bodies. Large queries still work.
+    if (Buffer.byteLength(key) <= MAX_PREPARED_DOCUMENT_BYTES) {
+      this.documents.set(schema, documents);
+      documents.set(key, prepared);
+      if (documents.size > MAX_PREPARED_DOCUMENTS) {
+        const oldest = documents.keys().next().value;
+        if (oldest !== undefined) documents.delete(oldest);
+      }
+    }
+    return prepared;
   }
 
   read(request: PreparedCacheRequest): CachedGraphqlResponse | null {
@@ -100,20 +175,18 @@ export class GraphqlResponseCache {
 }
 
 function prepareCacheDocument(document: DocumentNode): CacheDocument {
-  const query = stripUnusedVariableDefinitions(
-    print(
-      visit(document, {
-        Directive: (node) => (node.name.value === 'cached' ? null : undefined),
-      }),
-    ),
+  const normalized = stripUnusedVariables(
+    visit(document, {
+      Directive: (node) => (node.name.value === 'cached' ? null : undefined),
+    }),
   );
   const usedVariables = new Set<string>();
-  visit(parse(query), {
+  visit(normalized, {
     Variable: ({ name }) => {
       usedVariables.add(name.value);
     },
   });
-  return { query, usedVariables };
+  return { query: print(normalized), usedVariables };
 }
 
 function cacheKey(

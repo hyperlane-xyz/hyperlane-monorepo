@@ -1,48 +1,65 @@
 # Scraper proxy
 
-Exposes the scraper PostgreSQL database through GraphQL at `/graphql`, protocol
-events for agents at `/agents`, enriched message updates at `/messages`, and
-Prometheus metrics at `/metrics`.
+Read-only access to the scraper PostgreSQL database:
 
-## Optional block heads
+| Endpoint    | Purpose                                                   |
+| ----------- | --------------------------------------------------------- |
+| `/graphql`  | Queries, pagination, and optional confirmation snapshots  |
+| `/agents`   | Private protocol events with cursor-based catch-up        |
+| `/messages` | Public WebSocket feed of enriched `message_upsert` rows   |
+| `/metrics`  | Prometheus request, socket, database, and process metrics |
 
-On `/agents`, include `{"eventType":"blocks","domains":[1,42161]}` in the
-`subscribe.streams` array. Omit `domains` for all near-head scraper domains.
-On `/messages`, add `blocks=true` to the URL; blocks follow the existing
-`domains` filter, if supplied with `confirmations`.
-No block frames or snapshot queries are added unless requested.
+## Development
 
-After `subscribed` (agents) or `ready` (messages), subscribers receive the latest
-snapshot per available domain, followed by changed heads on the same socket:
+With workspace dependencies installed and built, run from this directory:
 
-```json
-{
-  "type": "block",
-  "domain": 1,
-  "height": "100",
-  "hash": "0x…",
-  "headHeight": "103"
-}
+```sh
+cp .env.example .env # Set DATABASE_URL to the scraper database's read-only URL.
+pnpm dev            # http://localhost:8383
+pnpm test
 ```
 
-`height` and `hash` identify the latest **indexed** block; `headHeight` is the
-scraper's latest observed chain tip, which can be ahead of indexing. Heights are
-decimal strings, in the same units as event heights (slots for Sealevel).
-Explorer counts confirmations as `max(0, headHeight - origin_block_height)`,
-capped at the origin chain's configured threshold. No time-based estimation.
+Startup checks the stream cursor schema, read privileges, and the
+`gas_payment_stream_cursor_assign` trigger before accepting traffic. `DATABASE_READ_REPLICA_URL` optionally routes GraphQL reads to a replica;
+live streams always use the primary. See [config.ts](src/config.ts) for all settings
+and limits. Set `SCRAPER_TEST_DATABASE_URL` to include PostgreSQL projection tests
+(session-local temporary tables). Use `pnpm debug:websocket --help` for socket diagnostics.
 
-This is a latest-head feed, not complete block history: updates may skip heights.
-Reorgs can decrease heights or replace a hash at the same height. Consumers must
-replace their current head, not take its maximum. Existing `rollback` frames
-remain responsible for retracting affected events/messages. Reconnect to receive
-a fresh snapshot; disconnected clients must not advance counts. Chains without
-near-head scraper state send no blocks. Block subscriptions do not accept cursors
-or confirmation delays. This requires no database migration or extra RPC polling.
+## Project map
 
-## Live confirmations and rollback
+Paths below are relative to `src/`. [main.ts](src/main.ts) loads configuration,
+creates the database and servers, and owns startup/shutdown. Sockets stop before
+pools close; [db.service.ts](src/db/db.service.ts) owns pools, timeouts, schema
+checks, and LISTEN connections; `live/event-websocket.ts` owns reconnects.
 
-Canonical streams keep their existing behavior and historical cursors. To select
-a delay on `/agents`, subscribe with, for example:
+```text
+main.ts
+├── module.ts → Fastify + CORS → /metrics
+│   └── scraperdb/graphql.ts → Mercurius + request lifecycle → /graphql
+│       ├── request-compatibility.ts + validation.ts → AST normalization and limits
+│       ├── response-cache.ts + cache-config.ts → @cached responses, TTL, refresh
+│       └── resolver-map.ts + scalars.ts
+│           └── scraperdb.service.ts → sql.ts → DbService.query → primary or replica
+└── live/event-websocket.ts → /agents, /messages
+    ├── protocol.ts + websocket-data.ts → wire parsing and negotiation
+    ├── agent-subscription.ts → cursor positions, replay, and live handoff
+    ├── notification-worker.ts → batched event, message, and head drains
+    ├── confirmation-stream.ts → custom frontiers, enrichment, rollback
+    └── event-store.ts → DbService.queryLive → primary
+        └── provisional-message.ts ← also used by GraphQL snapshots
+```
+
+[Row types and root queries](src/graphql/scraperdb-schema.graphql) are the source
+for generated filters, ordering, cursors, and SQL column allowlists. Add fields
+there, then update their database projections. GraphQL hooks stay scoped to
+`/graphql`; cache hits undergo request validation. Shared provisional SQL keeps
+GraphQL snapshots and WebSocket updates on the same confirmation frontier.
+Tests sit beside their modules; HTTP and socket integration tests cover lifecycles.
+
+## Stream and snapshot contracts
+
+Canonical streams support historical cursors. For a custom confirmation delay,
+send this on `/agents`, or connect to `/messages?confirmations=2&domains=1`:
 
 ```json
 {
@@ -51,131 +68,55 @@ a delay on `/agents`, subscribe with, for example:
 }
 ```
 
-Explorer uses `/messages?confirmations=2&domains=1,42161`. Custom streams are
-live-only: they start at the current eligible height and reject historical cursors.
-On `/messages`, domains with near-head scraper state use the requested delay;
-other requested domains continue sending canonical updates on the same socket.
-The `ready` frame lists `customDomains` and `canonicalDomains`. The requested
-confirmation count applies **only** to `customDomains`; canonical domains use
-their existing scraper finality. This split is negotiated again on reconnect.
-Agent custom streams still require near-head state for every requested domain.
-Custom `delivery` streams are rejected until heightless deliveries can be handled;
-canonical delivery streams remain available.
-Reconnecting starts a new live subscription; clients must reload their snapshot
-after a gap.
+- Custom streams are live-only, require explicit domains, and reject cursors.
+  Eligibility is `min(indexed height, head height - confirmations)`, using native
+  chain heights (for example, Sealevel slots). Reload snapshots after reconnects.
+- `/messages` reports `customDomains` and `canonicalDomains` in `ready`. Only
+  domains with near-head state use the requested delay; others keep canonical
+  finality. `/agents` requires near-head state for every custom domain and rejects
+  custom `delivery` streams.
+- On `rollback`, undo or reload effects above `toHeight`; replacement rows follow.
+  Agent rollback frames also identify `eventType`.
+- For block heads, add `{"eventType":"blocks","domains":[1]}` to agent streams,
+  or use `/messages?blocks=true`. Message domain filtering requires both
+  `confirmations` and `domains`; omitted block domains select all near-head domains.
+  A snapshot follows `subscribed`/`ready`, then changed heads. `height`/`hash`
+  identify the indexed block; `headHeight` is the observed tip. Heights are decimal
+  strings. Updates may skip or decrease heights: replace the current head.
+  Block subscriptions accept neither cursors nor confirmation delays.
 
-Eligibility is `min(indexed height, head height - confirmations)`. The delay uses
-the chain's native height (blocks, slots, or state versions). Events carry their
-height; Explorer range upserts carry the snapshot height. A fork emits
-`{"type":"rollback","domain":1,"fromHeight":"10","toHeight":"9","confirmations":2}`
-(`/agents` also includes `eventType`). Clients undo or reload effects above
-`toHeight`; replacement rows follow on the same socket. `fromHeight` conservatively
-includes the range being read, even if only part of it was sent.
-
-The proxy has one sequential, paginated reader per custom stream. It uses the
-existing socket backpressure and interrupts stale reads on rollback; there is
-no custom historical replay or pending-event buffer. Explorer metadata updates
-are coalesced by message ID and read by that same worker. Equivalent enrichment
-queries share results until a head or message changes. On rollback, previously
-sent provisional messages are refreshed across all requested domains.
-
-Explorer's `ExplorerEventsProvider` requests zero confirmations, clears its
-provisional overlay and retained message subscriptions on rollback, and refreshes
-the canonical GraphQL snapshot on rollback/reconnect. It accepts canonical and
-custom upserts on the same connection; no separate socket is needed per chain.
-
-GraphQL `message_view(confirmations: N)` selects the same frontier. Omitted/null
+GraphQL `message_view(confirmations: N)` uses the same frontier; omitted/null
 confirmations and domains without near-head state retain canonical finality.
-`is_provisional` marks rows that differ from canonical state; `origin_block_height`
-allows tracking origin confirmations. Custom snapshots accept 0–1,000
-confirmations and reject cursors and non-zero offsets. Snapshots reject more than
-10,000 affected events; narrow `msg_id` or query canonical history during a backlog.
-Use the separate canonical query below for paginated history.
-`message_view` has a nullable outer list: snapshot errors return `null` and a
-GraphQL error for that alias, preserving canonical aliases in the same response.
-Keep displaying those canonical results when the provisional snapshot is unavailable.
+Custom snapshots accept 0–1,000 confirmations, reject cursors/non-zero offsets,
+and cap affected events at 10,000. Narrow by `msg_id` or use canonical history
+if that cap is exceeded. A failed snapshot returns `null` plus an error for its
+alias; other aliases remain available.
 
-Raw and canonical IDs use separate sequences. Fetch a live list as two selections:
-
-```graphql
-query {
-  canonical: message_view(order_by: { id: desc }, limit: 50) {
-    id
-    msg_id
-    send_occurred_at
-  }
-  provisional: message_view(
-    confirmations: 0
-    where: { is_provisional: { _eq: true } }
-    order_by: [{ send_occurred_at: desc }, { id: desc }]
-    limit: 500
-  ) {
-    id
-    msg_id
-    is_provisional
-    origin_block_height
-    send_occurred_at
-  }
-}
-```
-
-Merge by `msg_id`, prefer provisional fields, and sort by send time. Only the
-canonical page supplies history cursors. Sorting the combined snapshot by ID
-can exclude newer provisional dispatches below the page limit.
-`message_view_aggregate` remains canonical-only; counts for a merged live list
-must be derived from that list, rather than the canonical aggregate.
-
-Run `pnpm test` for protocol/socket regressions. Set `SCRAPER_TEST_DATABASE_URL`
-to also run the PostgreSQL projection regression (session-local temporary tables
-only), including mixed-chain confirmation boundaries and legacy-message updates.
+For a combined live list, fetch canonical history separately from provisional
+rows (`confirmations: 0`, `where: {is_provisional: {_eq: true}}`). Merge by `msg_id`,
+prefer provisional fields, and sort by send time. Raw and canonical IDs use
+separate sequences: only canonical pages supply history cursors.
+`origin_block_height` supports confirmation tracking; `message_view_aggregate`
+remains canonical-only.
 
 ## Deployment
 
-The proxy is bundled into `hyperlane-node-services` as `scraper-proxy`. The
-dedicated scraper-proxy Helm release runs it with a `cloudflared` sidecar. Its
-ExternalSecret reads the scraper database's read-only URL into `DATABASE_URL`.
+The `hyperlane-node-services` image includes this service. The dedicated
+`scraper-proxy` Helm release loads primary and replica URLs from ExternalSecrets.
+Both [mainnet3](../infra/config/environments/mainnet3/agent.ts) and
+[testnet4](../infra/config/environments/testnet4/agent.ts) enable it; testnet disables
+the optional `cloudflared` sidecar. Image tags live in [docker.ts](../infra/config/docker.ts).
 
-Before enabling the deployment:
+```sh
+pnpm -C typescript/infra tsx scripts/agents/deploy-agents.ts \
+  --environment mainnet3 --roles scraper-proxy
+```
 
-1. Build and publish `hyperlane-node-services`, then set the immutable tag in
-   `mainnetDockerTags.scraperProxy`.
-2. Create a remotely managed Cloudflare tunnel whose public hostname routes
-   only `/graphql*` and `/messages*` to `http://localhost:8383`, followed by a
-   catch-all HTTP 404 rule. Configure Cloudflare per-client rate limits for
-   both public routes.
-3. Store its token in GCP Secret Manager as
-   `hyperlane-mainnet3-scraper-proxy-cloudflared-tunnel-token`.
-4. Set `scraperProxy.enabled` to `true` in the mainnet agent config.
-5. Deploy the scraper-proxy role:
-
-   ```sh
-   pnpm -C typescript/infra tsx scripts/agents/deploy-agents.ts \
-     --environment mainnet3 --roles scraper-proxy
-   ```
-
-The public endpoints are then:
-
-- `https://<hostname>/graphql`
-- `wss://<hostname>/messages`
-
-`/agents` is not public. Pods use
-`ws://<scraper-proxy-service>.<namespace>.svc:8383/agents` through the
-cluster-only Kubernetes Service.
-
-`/messages` automatically streams `message_upsert` events containing normalized
-`message_view` rows. It does not emit gas payments or Merkle tree insertions.
-Production requests must arrive through Cloudflare with a valid
-`CF-Connecting-IP` header; at most five connections are accepted per client IP.
-
-The private `/agents` endpoint always supports historical WebSocket catch-up.
-Replay is paginated without a total row limit. Concurrent catch-ups, session
-duration, database query timeouts, and outbound buffering remain bounded.
-
-Outbound WebSocket buffering is limited to 1 MiB per socket and 32 MiB across
-all sockets. GraphQL is limited to 25 concurrent requests; Cloudflare owns
-public per-client request-rate enforcement.
-
-`/metrics` reports GraphQL request usage and latency; WebSocket connections,
-subscriptions, catch-ups, notification queues, outbound buffering, limits and
-rejections; database pool pressure and listener readiness; and standard Node.js
-process metrics.
+Run that command from the repository root; use `testnet4` for testnet.
+When enabling a tunnel, supply the GCP secret
+`{context}-{environment}-scraper-proxy-cloudflared-tunnel-token`. Configure its
+public hostname to route only `/graphql*` and `/messages*` to
+`http://localhost:8383`, with per-client rate limits and a catch-all HTTP 404.
+Keep `/agents` cluster-only at `ws://scraper-proxy.<namespace>.svc:8383/agents`.
+Production `/messages` requests require a valid `CF-Connecting-IP` header and
+allow at most five connections per client IP.

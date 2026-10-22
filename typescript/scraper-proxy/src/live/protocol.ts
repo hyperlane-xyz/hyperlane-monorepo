@@ -10,7 +10,6 @@ export const SEQUENCED_EVENT_TYPES = [
   'dispatch',
   'merkle_tree_insertion',
 ] as const;
-export const GAS_PAYMENT_CURSOR_EVENT_TYPES = ['gas_payment'] as const;
 export const STREAM_CURSOR_VERSIONS = { gas_payment: 3 } as const;
 
 const CURSOR_ADDRESS = /^(?:0x|\\x)?(?:[\da-fA-F]{40}|[\da-fA-F]{64})$/;
@@ -98,14 +97,8 @@ export function parseClientMessage(raw: string): ClientMessage {
 export function parseEventNotification(
   payload: string | undefined,
 ): EventNotification {
-  if (!payload) throw new Error('Missing scraper event notification payload');
-  let value: unknown;
-  try {
-    value = JSON.parse(payload);
-  } catch {
-    throw new Error('Invalid scraper event notification JSON');
-  }
-  if (!isRecord(value) || !isEventType(value.eventType)) {
+  const value = parseNotification(payload, 'event');
+  if (!isEventType(value.eventType)) {
     throw new Error('Invalid scraper event notification');
   }
   return {
@@ -121,16 +114,8 @@ export function parseEventNotification(
 export function parseExplorerNotification(
   payload: string | undefined,
 ): ExplorerNotification {
-  if (!payload)
-    throw new Error('Missing scraper Explorer notification payload');
-  let value: unknown;
-  try {
-    value = JSON.parse(payload);
-  } catch {
-    throw new Error('Invalid scraper Explorer notification JSON');
-  }
+  const value = parseNotification(payload, 'Explorer');
   if (
-    !isRecord(value) ||
     typeof value.messageId !== 'string' ||
     !/^[\da-fA-F]{64}$/.test(value.messageId)
   ) {
@@ -142,14 +127,7 @@ export function parseExplorerNotification(
 export function parseHeadNotification(
   payload: string | undefined,
 ): HeadNotification {
-  if (!payload) throw new Error('Missing scraper head notification payload');
-  let value: unknown;
-  try {
-    value = JSON.parse(payload);
-  } catch {
-    throw new Error('Invalid scraper head notification JSON');
-  }
-  if (!isRecord(value)) throw new Error('Invalid scraper head notification');
+  const value = parseNotification(payload, 'head');
   return {
     confirmedHeight: parseId(value.confirmedHeight),
     domain: parseDatabaseDomain(
@@ -270,7 +248,7 @@ function parseStream(value: unknown): StreamRequest | BlockStreamRequest {
     }
     if (isSequencedEventType(value.eventType)) {
       cursors = value.cursors.map(parseSequenceCursor);
-    } else if (isGasPaymentCursorEventType(value.eventType)) {
+    } else if (value.eventType === 'gas_payment') {
       cursors = value.cursors.map(parseGasPaymentCursor);
     } else {
       throw new Error('cursors are unsupported for this stream');
@@ -444,18 +422,25 @@ export function isSequencedEventType(
   return SEQUENCED_EVENT_TYPES.some((eventType) => eventType === value);
 }
 
-export function isGasPaymentCursorEventType(
-  value: EventType,
-): value is (typeof GAS_PAYMENT_CURSOR_EVENT_TYPES)[number] {
-  return GAS_PAYMENT_CURSOR_EVENT_TYPES.some(
-    (eventType) => eventType === value,
-  );
-}
-
 export function isCursorAddress(value: unknown): value is string {
   return typeof value === 'string' && CURSOR_ADDRESS.test(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseNotification(
+  payload: string | undefined,
+  kind: string,
+): Record<string, unknown> {
+  if (!payload) throw new Error(`Missing scraper ${kind} notification payload`);
+  let value: unknown;
+  try {
+    value = JSON.parse(payload);
+  } catch {
+    throw new Error(`Invalid scraper ${kind} notification JSON`);
+  }
+  if (!isRecord(value)) throw new Error(`Invalid scraper ${kind} notification`);
+  return value;
 }

@@ -1,4 +1,9 @@
-import { Kind, type GraphQLResolveInfo, type SelectionNode } from 'graphql';
+import {
+  Kind,
+  type GraphQLResolveInfo,
+  type SelectionNode,
+  type FieldNode,
+} from 'graphql';
 
 import { scalarResolvers } from './scalars.js';
 import {
@@ -58,53 +63,42 @@ export function buildResolvers(db: ScraperDbService) {
   };
 }
 
-function selectedColumns(info: GraphQLResolveInfo): string[] {
-  return info.fieldNodes.flatMap((node) =>
-    collect(node.selectionSet?.selections ?? [], info),
-  );
+function selectedColumns(
+  info: GraphQLResolveInfo,
+  nodes = info.fieldNodes,
+): string[] {
+  return nodes
+    .flatMap((node) =>
+      [...fields(node.selectionSet?.selections ?? [], info)].map(
+        (field) => field.name.value,
+      ),
+    )
+    .filter((name) => name !== '__typename');
 }
 
 function nestedColumns(
   info: GraphQLResolveInfo,
-  field: string,
+  name: string,
 ): string[] | undefined {
-  let found = false;
-  const visit = (selections: readonly SelectionNode[]): string[] =>
-    selections.flatMap((selection) => {
-      if (selection.kind === Kind.FIELD) {
-        if (selection.name.value !== field) return [];
-        found = true;
-        return collect(selection.selectionSet?.selections ?? [], info);
-      }
-      return visit(
+  const nodes = info.fieldNodes
+    .flatMap((node) => [...fields(node.selectionSet?.selections ?? [], info)])
+    .filter((field) => field.name.value === name);
+  return nodes.length ? selectedColumns(info, nodes) : undefined;
+}
+
+function* fields(
+  selections: readonly SelectionNode[],
+  info: GraphQLResolveInfo,
+): Generator<FieldNode> {
+  for (const selection of selections) {
+    if (selection.kind === Kind.FIELD) yield selection;
+    else
+      yield* fields(
         selection.kind === Kind.FRAGMENT_SPREAD
           ? (info.fragments[selection.name.value]?.selectionSet.selections ??
               [])
           : selection.selectionSet.selections,
-      );
-    });
-  const columns = visit(
-    info.fieldNodes.flatMap((node) => node.selectionSet?.selections ?? []),
-  );
-  return found ? columns : undefined;
-}
-
-function collect(
-  selections: readonly SelectionNode[],
-  info: GraphQLResolveInfo,
-): string[] {
-  return selections.flatMap((selection) => {
-    if (selection.kind === Kind.FIELD) {
-      return selection.name.value === '__typename'
-        ? []
-        : [selection.name.value];
-    }
-    if (selection.kind === Kind.FRAGMENT_SPREAD) {
-      return collect(
-        info.fragments[selection.name.value]?.selectionSet.selections ?? [],
         info,
       );
-    }
-    return collect(selection.selectionSet.selections, info);
-  });
+  }
 }

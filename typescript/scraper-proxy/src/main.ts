@@ -26,7 +26,9 @@ async function bootstrap(): Promise<void> {
   try {
     await app.listen({ host: '0.0.0.0', port: config.PORT });
   } catch (error) {
-    await cleanupAfterStartupFailure('application', () => app.close());
+    await app.close().catch((cleanupError: unknown) => {
+      logger.error(`startup cleanup failed: ${formatError(cleanupError)}`);
+    });
     throw error;
   }
   let stopping = false;
@@ -39,19 +41,6 @@ async function bootstrap(): Promise<void> {
         process.exitCode = 1;
       });
     });
-  }
-}
-
-async function cleanupAfterStartupFailure(
-  component: string,
-  cleanup: () => Promise<unknown> | undefined,
-): Promise<void> {
-  try {
-    await cleanup();
-  } catch (error) {
-    logger.error(
-      `startup cleanup failed component=${component}: ${formatError(error)}`,
-    );
   }
 }
 
