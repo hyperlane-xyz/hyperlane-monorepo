@@ -31,7 +31,7 @@ impl<'v> ValueParser<'v> {
 
     /// Explicitly access the configuration value for parsing.
     pub fn value(&self) -> &'v Value {
-        *self.val.expose_secret()
+        self.val.expose_secret()
     }
 
     /// Create a new value parser chain.
