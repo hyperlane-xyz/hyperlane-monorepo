@@ -227,14 +227,22 @@ fn parse_mev_submission_config(
     let additional_ica_routers = match config.chain(err).get_opt_key("additionalIcaRouters").end() {
         None => Vec::new(),
         Some(routers) => {
-            let Some((path, value)) = parse_json_array(routers) else {
-                err.push(
-                    (&config.cwp).add("additional_ica_routers"),
-                    eyre!("Expected additional ICA router array"),
-                );
-                return None;
+            // Helm flattens arrays into indexed env vars, which arrive as index-keyed objects.
+            let json;
+            let routers = if routers.val.is_string() {
+                let Some((path, value)) = parse_json_array(routers) else {
+                    err.push(
+                        (&config.cwp).add("additional_ica_routers"),
+                        eyre!("Expected additional ICA router array"),
+                    );
+                    return None;
+                };
+                json = value;
+                ValueParser::new(path, &json)
+            } else {
+                routers
             };
-            let parsed = ValueParser::new(path, &value)
+            let parsed = routers
                 .chain(err)
                 .into_array_iter()?
                 .map(|router| router.chain(err).parse_address_hash().end())
@@ -1158,7 +1166,12 @@ mod tests {
     #[test]
     fn parses_additional_mev_routers_from_arrays_and_environment_json() {
         let router = "0x0000000000000000000000000000000000000002";
-        for routers in [json!([router]), json!(format!("[\"{router}\"]"))] {
+        for routers in [
+            json!([router]),
+            json!(format!("[\"{router}\"]")),
+            // Shape produced by Helm's indexed `..._ADDITIONALICAROUTERS_0` env vars.
+            json!({ "0": router }),
+        ] {
             let (connection, errors) = parse_ethereum_hedge(json!({
                 "mevsubmission": {
                     "rpcurls": ["https://protected.example/rpc"],
@@ -1179,7 +1192,14 @@ mod tests {
 
     #[test]
     fn rejects_invalid_additional_mev_router_without_public_fallback() {
-        for routers in [json!("not json"), json!(["invalid"]), json!([7]), json!({})] {
+        for routers in [
+            json!("not json"),
+            json!(7),
+            json!(["invalid"]),
+            json!([7]),
+            json!({ "1": "0x0000000000000000000000000000000000000002" }),
+            json!({ "router": "0x0000000000000000000000000000000000000002" }),
+        ] {
             let (_, errors) = parse_ethereum_hedge(json!({
                 "mevsubmission": {
                     "rpcurls": ["https://protected.example/rpc"],
