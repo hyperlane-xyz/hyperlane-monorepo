@@ -1,5 +1,3 @@
-import { ethers } from 'ethers';
-
 import {
   ChainMap,
   ChainSubmissionStrategy,
@@ -19,6 +17,7 @@ import { WARP_FEES_TURNKEY_OWNER } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
 
 import {
+  buildEthereumFastpathIsm,
   getFixedRoutingFeeConfig,
   getNativeTokenConfigForChain,
 } from './utils.js';
@@ -80,6 +79,11 @@ export const getVictionETHWarpConfig = async (
       {
         ...baseConfig,
         decimals: 18,
+        ...(currentChain !== 'ethereum' && {
+          interchainSecurityModule: buildEthereumFastpathIsm(
+            ownersByChain[currentChain],
+          ),
+        }),
         tokenFee: getFixedRoutingFeeConfig(
           WARP_FEES_TURNKEY_OWNER,
           feeDestinations,
@@ -104,7 +108,7 @@ export const getVictionETHWarpConfig = async (
       symbol: 'ETH',
       decimals: 18,
       gas: 50_000,
-      interchainSecurityModule: ethers.constants.AddressZero,
+      interchainSecurityModule: buildEthereumFastpathIsm(ownersByChain.viction),
     },
   ]);
 

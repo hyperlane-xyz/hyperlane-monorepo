@@ -2,17 +2,11 @@ import {
   ChainMap,
   ChainSubmissionStrategy,
   HypTokenRouterConfig,
-  IsmConfig,
-  IsmType,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import {
-  DEFAULT_FASTPATH_THRESHOLD,
-  DEFAULT_FASTPATH_VALIDATORS,
-} from '../../fastpath/validators.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { WARP_FEES_TURNKEY_OWNER } from '../../governance/utils.js';
@@ -25,6 +19,7 @@ import {
 import { WarpRouteIds } from '../warpIds.js';
 
 import {
+  buildEthereumFastpathIsm,
   getCollateralTokenConfigForChain,
   getEclipseWarpStrategyConfig,
   getFileSubmitterStrategyConfig,
@@ -259,29 +254,6 @@ const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
 );
 
 const DEFAULT_FEE_BPS = 1.5;
-
-const buildEthereumFastpathIsm = (owner: string): IsmConfig => ({
-  type: IsmType.AGGREGATION,
-  threshold: 1,
-  modules: [
-    {
-      type: IsmType.ROUTING,
-      owner,
-      domains: {
-        ethereum: {
-          type: IsmType.MESSAGE_ID_MULTISIG,
-          threshold: DEFAULT_FASTPATH_THRESHOLD,
-          validators: DEFAULT_FASTPATH_VALIDATORS,
-        },
-      },
-    },
-    {
-      type: IsmType.FALLBACK_ROUTING,
-      owner,
-      domains: {},
-    },
-  ],
-});
 
 export const buildEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
