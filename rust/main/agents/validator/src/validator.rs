@@ -367,9 +367,9 @@ pub struct ValidatorMetadataRpcEntry {
 impl ValidatorMetadataRpcEntry {
     fn hash_rpc(rpc: &crate::settings::RpcConfig) -> Self {
         Self {
-            url_hash: H256::from_slice(&keccak256(&rpc.url)),
+            url_hash: H256::from_slice(&keccak256(rpc.url.expose_secret())),
             host_hash: H256::from_slice(&keccak256(
-                Url::parse(&rpc.url)
+                Url::parse(rpc.url.expose_secret())
                     .ok()
                     .and_then(|url| url.host_str().map(str::to_string))
                     .unwrap_or("".to_string()),
@@ -417,7 +417,13 @@ impl BaseAgent for Validator {
         let public_rpc_urls: Vec<String> = settings
             .rpcs
             .iter()
-            .filter_map(|x| if x.public { Some(x.url.clone()) } else { None })
+            .filter_map(|x| {
+                if x.public {
+                    Some(x.url.expose_secret().clone())
+                } else {
+                    None
+                }
+            })
             .collect();
         if !public_rpc_urls.is_empty() && !settings.allow_public_rpcs {
             return Err(
@@ -471,7 +477,10 @@ impl BaseAgent for Validator {
                 .rpcs
                 .iter()
                 .enumerate()
-                .map(|(i, rpc)| Url::parse(&rpc.url).map_err(|_| eyre!("Invalid rpcUrls[{i}] URL")))
+                .map(|(i, rpc)| {
+                    Url::parse(rpc.url.expose_secret())
+                        .map_err(|_| eyre!("Invalid rpcUrls[{i}] URL"))
+                })
                 .collect::<Result<Vec<_>>>()?;
             let (source, urls) = state_read_urls(&origin_chain_conf, rpc_urls);
             let urls = dedupe_rpc_urls(urls, source);
@@ -568,7 +577,7 @@ impl BaseAgent for Validator {
                             msg_db.clone(),
                             settings.origin_chain.id(),
                             origin_chain_conf.addresses.merkle_tree_hook,
-                            url,
+                            url.expose_secret().clone(),
                             websocket_active,
                             rpc_active,
                             cursor_state.expect("WebSocket configuration initializes cursor state"),
@@ -1415,7 +1424,9 @@ mod tests {
             reorg_period: Default::default(),
             addresses: Default::default(),
             connection: ChainConnectionConf::Ethereum(hyperlane_ethereum::ConnectionConf {
-                rpc_connection: RpcConnectionConf::HttpFallback { urls: rpc_urls },
+                rpc_connection: RpcConnectionConf::HttpFallback {
+                    urls: rpc_urls.into(),
+                },
                 transaction_overrides: Default::default(),
                 op_submission_config: Default::default(),
                 consider_null_transaction_receipt: false,
@@ -1453,7 +1464,7 @@ mod tests {
 
         match per_url_conf.connection {
             ChainConnectionConf::Ethereum(conn) => match conn.rpc_connection {
-                RpcConnectionConf::Http { url: got } => assert_eq!(got, url),
+                RpcConnectionConf::Http { url: got } => assert_eq!(got.expose_secret(), &url),
                 other => panic!("expected a single Http connection, got {other:?}"),
             },
             _ => panic!("expected an ethereum connection"),
@@ -1471,7 +1482,7 @@ mod tests {
 
         match per_url_conf.connection {
             ChainConnectionConf::Ethereum(conn) => match conn.rpc_connection {
-                RpcConnectionConf::Ws { url: got } => assert_eq!(got, url),
+                RpcConnectionConf::Ws { url: got } => assert_eq!(got.expose_secret(), &url),
                 other => panic!("expected a Ws connection, got {other:?}"),
             },
             _ => panic!("expected an ethereum connection"),
@@ -1539,15 +1550,17 @@ mod tests {
                 let per_url = chain_conf_for_read_url(chain, url.clone(), RpcRole::Primary);
                 let actual = match per_url.connection {
                     ChainConnectionConf::Ethereum(conn) => conn.rpc_urls(),
-                    ChainConnectionConf::Sealevel(conn) => conn.urls,
-                    ChainConnectionConf::Starknet(conn) => conn.urls,
+                    ChainConnectionConf::Sealevel(conn) => conn.urls.expose_secret().clone(),
+                    ChainConnectionConf::Starknet(conn) => conn.urls.expose_secret().clone(),
                     ChainConnectionConf::Cosmos(conn) | ChainConnectionConf::CosmosNative(conn) => {
-                        conn.grpc_urls
+                        conn.grpc_urls.expose_secret().clone()
                     }
-                    ChainConnectionConf::Tron(conn) => conn.wallet_solidity_urls,
-                    ChainConnectionConf::Radix(conn) => conn.core,
+                    ChainConnectionConf::Tron(conn) => {
+                        conn.wallet_solidity_urls.expose_secret().clone()
+                    }
+                    ChainConnectionConf::Radix(conn) => conn.core.expose_secret().clone(),
                     #[cfg(feature = "aleo")]
-                    ChainConnectionConf::Aleo(conn) => conn.rpcs,
+                    ChainConnectionConf::Aleo(conn) => conn.rpcs.expose_secret().clone(),
                 };
                 assert_eq!(
                     actual,

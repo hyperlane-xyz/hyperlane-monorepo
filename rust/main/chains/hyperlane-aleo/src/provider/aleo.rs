@@ -136,9 +136,9 @@ impl AleoProvider<FallbackHttpClient> {
         metrics: PrometheusClientMetrics,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
-        let proving_service = if !conf.proving_service.is_empty() {
+        let proving_service = if !conf.proving_service.expose_secret().is_empty() {
             let client = FallbackHttpClient::new_delegated_prover(
-                conf.proving_service.clone(),
+                conf.proving_service.expose_secret().clone(),
                 metrics.clone(),
                 chain.clone(),
                 conf.chain_id,
@@ -150,7 +150,7 @@ impl AleoProvider<FallbackHttpClient> {
 
         Ok(Self {
             client: RpcClient::new(FallbackHttpClient::new::<BaseHttpClient>(
-                conf.rpcs.clone(),
+                conf.rpcs.expose_secret().clone(),
                 metrics.clone(),
                 chain.clone(),
                 conf.chain_id,

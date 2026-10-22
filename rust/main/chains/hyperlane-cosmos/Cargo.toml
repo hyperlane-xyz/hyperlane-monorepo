@@ -9,6 +9,7 @@ publish = { workspace = true }
 version = { workspace = true }
 
 [dependencies]
+redact.workspace = true
 async-trait = { workspace = true }
 base64 = { workspace = true }
 bech32 = { workspace = true }

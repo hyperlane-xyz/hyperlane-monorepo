@@ -14,6 +14,7 @@ use hyperlane_base::{CheckpointSyncer, CoreMetrics};
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{CheckpointAtBlock, MerkleTreeHook, ReorgPeriod, H256};
 use hyperlane_metric::prometheus_metric::RpcRole;
+use redact::Secret;
 
 use crate::settings::ValidatorSettings;
 
@@ -25,7 +26,7 @@ pub trait ReorgReporter: Send + Sync + Debug {
 
 #[derive(Debug)]
 pub struct LatestCheckpointReorgReporter {
-    merkle_tree_hooks: HashMap<Url, Arc<dyn MerkleTreeHook>>,
+    merkle_tree_hooks: HashMap<Secret<Url>, Arc<dyn MerkleTreeHook>>,
 }
 
 #[derive(Serialize)]
@@ -74,6 +75,7 @@ impl LatestCheckpointReorgReporter {
         info!(?height, "Reporting latest checkpoint on reorg");
         let mut futures = vec![];
         for (url, merkle_tree_hook) in &self.merkle_tree_hooks {
+            let url = url.expose_secret();
             let future = async {
                 let latest_checkpoint = call_and_retry_indefinitely(|| {
                     let merkle_tree_hook = merkle_tree_hook.clone();
@@ -100,6 +102,7 @@ impl LatestCheckpointReorgReporter {
         info!(?reorg_period, "Reporting latest checkpoint on reorg");
         let mut futures = vec![];
         for (url, merkle_tree_hook) in &self.merkle_tree_hooks {
+            let url = url.expose_secret();
             let future = async {
                 let latest_checkpoint = call_and_retry_indefinitely(|| {
                     let merkle_tree_hook = merkle_tree_hook.clone();
@@ -135,7 +138,8 @@ impl LatestCheckpointReorgReporter {
             .iter()
             .enumerate()
             .map(|(i, rpc)| {
-                Url::parse(&rpc.url).map_err(|_| eyre::eyre!("Invalid rpcUrls[{i}] URL"))
+                Url::parse(rpc.url.expose_secret())
+                    .map_err(|_| eyre::eyre!("Invalid rpcUrls[{i}] URL"))
             })
             .collect::<eyre::Result<Vec<_>>>()?;
         let (source, urls) = state_read_urls(chain, rpc_urls);
@@ -144,7 +148,7 @@ impl LatestCheckpointReorgReporter {
             let hook = chain_conf_for_read_url(chain, url.clone(), RpcRole::Primary)
                 .build_merkle_tree_hook(metrics)
                 .await?;
-            merkle_tree_hooks.insert(url, Arc::from(hook));
+            merkle_tree_hooks.insert(Secret::new(url), Arc::from(hook));
         }
         Ok(Self { merkle_tree_hooks })
     }
@@ -202,5 +206,30 @@ impl LatestCheckpointReorgReporterWithStorageWriter {
             .unwrap_or_else(|e| {
                 warn!("Error writing checkpoint syncer to reorg log: {}", e);
             });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::mock_merkle_tree_hook::MockMerkleTreeHook;
+
+    #[test]
+    fn reporter_debug_omits_rpc_credentials() {
+        let url =
+            Url::parse("https://user:private-password@localhost/private-path?key=private-query")
+                .unwrap();
+        let mut hook = MockMerkleTreeHook::new();
+        hook.expect_fmt()
+            .returning(|formatter| formatter.write_str("MockMerkleTreeHook"));
+        let hook: Arc<dyn MerkleTreeHook> = Arc::new(hook);
+        let reporter = LatestCheckpointReorgReporter {
+            merkle_tree_hooks: HashMap::from([(Secret::new(url), hook)]),
+        };
+        let output = format!("{reporter:?}");
+        assert!(!output.contains("private-"));
+        assert!(output.contains("merkle_tree_hooks"));
+        assert!(output.contains("MockMerkleTreeHook"));
+        assert!(output.contains("[REDACTED"));
     }
 }

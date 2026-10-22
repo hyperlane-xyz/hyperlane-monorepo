@@ -130,6 +130,7 @@ pub trait BuildableWithProvider {
     ) -> ChainResult<Self::Output> {
         Ok(match &conn.rpc_connection {
             RpcConnectionConf::HttpQuorum { urls } => {
+                let urls = urls.expose_secret();
                 let mut providers = Vec::with_capacity(urls.len());
                 for url in urls {
                     let http_provider = build_http_provider(url.clone())?;
@@ -156,6 +157,7 @@ pub trait BuildableWithProvider {
                 self.build(quorum_provider, conn, locator, signer).await?
             }
             RpcConnectionConf::HttpFallback { urls } => {
+                let urls = urls.expose_secret();
                 let mut builder = FallbackProvider::builder();
                 for url in urls {
                     let http_provider = build_http_provider(url.clone())?;
@@ -167,7 +169,11 @@ pub trait BuildableWithProvider {
                     );
                     builder = builder.add_provider(metrics_provider);
                 }
-                let fallback_provider = builder.build();
+                let fallback_provider = builder.build().with_rpc_context(
+                    locator.domain.name().to_owned(),
+                    "rpcUrls",
+                    urls.iter().map(url_to_host_info).collect(),
+                );
                 let ethereum_fallback_provider = EthereumFallbackProvider::<
                     _,
                     JsonRpcBlockGetter<PrometheusJsonRpcClient<StatusAwareHttp>>,
@@ -180,6 +186,7 @@ pub trait BuildableWithProvider {
                     .await?
             }
             RpcConnectionConf::Http { url } => {
+                let url = url.expose_secret();
                 let http_provider = build_http_provider(url.clone())?;
                 let metrics_provider = self.wrap_rpc_with_metrics(
                     http_provider,
@@ -192,7 +199,7 @@ pub trait BuildableWithProvider {
                     .await?
             }
             RpcConnectionConf::Ws { url } => {
-                let ws = Ws::connect(url)
+                let ws = Ws::connect(url.expose_secret())
                     .await
                     .map_err(EthereumProviderConnectionError::from)?;
                 self.build(ws, conn, locator, signer).await?
@@ -409,8 +416,9 @@ where
     )
 }
 
-/// Builds a new HTTP provider with the given URL.
-fn build_http_provider(url: Url) -> ChainResult<StatusAwareHttp> {
+/// Builds an HTTP provider, extracting custom headers from the URL query.
+/// Reuses a client cached by the full URL to keep different credentials isolated.
+pub fn build_http_provider(url: Url) -> ChainResult<StatusAwareHttp> {
     // Cache by the original URL so clients with different credentials stay isolated.
     let client = get_reqwest_client(&url)?;
     let (_, url) = parse_custom_rpc_headers(&url).map_err(ChainCommunicationError::from_other)?;

@@ -42,12 +42,14 @@ pub fn build_ethereum_connection_conf(
         .unwrap_or(default_rpc_consensus_type);
 
     let rpc_connection_conf = match rpc_consensus_type {
-        "single" => Some(h_eth::RpcConnectionConf::Http { url: first_url }),
+        "single" => Some(h_eth::RpcConnectionConf::Http {
+            url: first_url.into(),
+        }),
         "fallback" => Some(h_eth::RpcConnectionConf::HttpFallback {
-            urls: rpcs.to_owned().clone(),
+            urls: rpcs.to_owned().clone().into(),
         }),
         "quorum" => Some(h_eth::RpcConnectionConf::HttpQuorum {
-            urls: rpcs.to_owned().clone(),
+            urls: rpcs.to_owned().clone().into(),
         }),
         ty => Err(eyre!("unknown rpc consensus type `{ty}`"))
             .take_err(err, || (&chain.cwp).add("rpc_consensus_type")),
@@ -202,15 +204,19 @@ fn parse_mev_submission_config(
     let rpc_urls: Vec<Url> = ValueParser::new(path, &value)
         .chain(err)
         .into_array_iter()?
-        .filter_map(
-            |url| match url.val.as_str().and_then(|value| Url::parse(value).ok()) {
+        .filter_map(|url| {
+            match url
+                .value()
+                .as_str()
+                .and_then(|value| Url::parse(value).ok())
+            {
                 Some(url) => Some(url),
                 None => {
                     err.push(url.cwp.clone(), eyre!("Invalid MEV RPC URL"));
                     None
                 }
-            },
-        )
+            }
+        })
         .collect();
     if rpc_urls.is_empty() || rpc_urls.iter().any(|url| url.scheme() != "https") {
         err.push(
@@ -229,7 +235,7 @@ fn parse_mev_submission_config(
         Some(routers) => {
             // Helm flattens arrays into indexed env vars, which arrive as index-keyed objects.
             let json;
-            let routers = if routers.val.is_string() {
+            let routers = if routers.value().is_string() {
                 let Some((path, value)) = parse_json_array(routers) else {
                     err.push(
                         (&config.cwp).add("additional_ica_routers"),
@@ -251,7 +257,7 @@ fn parse_mev_submission_config(
         }
     };
     Some(h_eth::MevSubmissionConfig {
-        rpc_urls,
+        rpc_urls: rpc_urls.into(),
         ica_router,
         additional_ica_routers,
     })
@@ -397,7 +403,7 @@ fn build_starknet_connection_conf(
     };
 
     Some(ChainConnectionConf::Starknet(h_starknet::ConnectionConf {
-        urls: urls.to_vec(),
+        urls: urls.to_vec().into(),
         native_token_address,
         op_submission_config: operation_batch,
     }))
@@ -444,7 +450,7 @@ fn build_sealevel_connection_conf(
     let priority_fee_oracle = priority_fee_oracle?;
     let transaction_submitter = transaction_submitter?;
     Some(ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf {
-        urls: urls.to_owned(),
+        urls: urls.to_owned().into(),
         op_submission_config: operation_batch,
         native_token,
         priority_fee_oracle,
@@ -723,7 +729,10 @@ fn parse_sealevel_priority_fee_oracle_config(
                     .parse_from_str("Invalid url")
                     .end()?;
                 let fee_level = fee_level?;
-                let config = HeliusPriorityFeeOracleConfig { url, fee_level };
+                let config = HeliusPriorityFeeOracleConfig {
+                    url: url.into(),
+                    fee_level,
+                };
                 Some(PriorityFeeOracleConfig::Helius(config))
             }
             _ => {
@@ -796,7 +805,7 @@ fn parse_transaction_submitter_config(
                     .parse_string()
                     .map(|str| str.split(",").map(|s| s.to_owned()).collect())
                     .unwrap_or_default();
-                Some(h_sealevel::config::TransactionSubmitterConfig::Rpc { urls })
+                Some(h_sealevel::config::TransactionSubmitterConfig::Rpc { urls: urls.into() })
             }
             "jito" => {
                 let urls: Vec<String> = chain
@@ -806,7 +815,7 @@ fn parse_transaction_submitter_config(
                     .parse_string()
                     .map(|str| str.split(",").map(|s| s.to_owned()).collect())
                     .unwrap_or_default();
-                Some(h_sealevel::config::TransactionSubmitterConfig::Jito { urls })
+                Some(h_sealevel::config::TransactionSubmitterConfig::Jito { urls: urls.into() })
             }
             _ => {
                 err.push(
@@ -1157,7 +1166,7 @@ mod tests {
                 panic!("expected EVM")
             };
             let mev = connection.mev_submission.unwrap();
-            assert_eq!(mev.rpc_urls.len(), 1);
+            assert_eq!(mev.rpc_urls.expose_secret().len(), 1);
             assert_eq!(mev.ica_router, hyperlane_core::H256::from_low_u64_be(1));
             assert!(mev.additional_ica_routers.is_empty());
         }

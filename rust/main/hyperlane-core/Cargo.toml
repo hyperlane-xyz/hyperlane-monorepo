@@ -56,6 +56,7 @@ hyperlane-application = { path = "../applications/hyperlane-application" }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
+tracing-test.workspace = true
 
 [features]
 default = ["strum"]

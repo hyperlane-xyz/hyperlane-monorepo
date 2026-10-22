@@ -7,7 +7,7 @@ fn mev_submission_protects_reveals_for_every_configured_router_only() {
     let primary = H256::from_low_u64_be(1);
     let additional = H256::from_low_u64_be(2);
     let policy = MevSubmissionConfig {
-        rpc_urls: vec![Url::parse("https://protected.example").unwrap()],
+        rpc_urls: vec![Url::parse("https://protected.example").unwrap()].into(),
         ica_router: primary,
         additional_ica_routers: vec![additional],
     };
@@ -40,7 +40,9 @@ fn test_rpc_urls_http_quorum() {
         Url::parse("http://example.org").unwrap(),
     ];
     let conn = ConnectionConf {
-        rpc_connection: RpcConnectionConf::HttpQuorum { urls: urls.clone() },
+        rpc_connection: RpcConnectionConf::HttpQuorum {
+            urls: urls.clone().into(),
+        },
         ..Default::default()
     };
 
@@ -54,7 +56,9 @@ fn test_rpc_urls_http_fallback() {
         Url::parse("http://example.org").unwrap(),
     ];
     let conn = ConnectionConf {
-        rpc_connection: RpcConnectionConf::HttpFallback { urls: urls.clone() },
+        rpc_connection: RpcConnectionConf::HttpFallback {
+            urls: urls.clone().into(),
+        },
         ..Default::default()
     };
 
@@ -65,7 +69,9 @@ fn test_rpc_urls_http_fallback() {
 fn test_rpc_urls_http() {
     let url = Url::parse("http://example.com").unwrap();
     let conn = ConnectionConf {
-        rpc_connection: RpcConnectionConf::Http { url: url.clone() },
+        rpc_connection: RpcConnectionConf::Http {
+            url: url.clone().into(),
+        },
         ..Default::default()
     };
 
@@ -77,7 +83,7 @@ fn test_rpc_urls_http() {
 fn test_rpc_urls_ws() {
     let url = Url::parse("ws://example.com").unwrap();
     let conn = ConnectionConf {
-        rpc_connection: RpcConnectionConf::Ws { url },
+        rpc_connection: RpcConnectionConf::Ws { url: url.into() },
         ..Default::default()
     };
 

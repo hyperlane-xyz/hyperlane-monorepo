@@ -1,3 +1,4 @@
+use hyperlane_metric::utils::url_to_host_info;
 use std::{
     ops::{Deref, RangeInclusive},
     str::FromStr,
@@ -23,7 +24,7 @@ use gateway_api_client::{
         TransactionStatusResponse,
     },
 };
-use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics};
+use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics, PrometheusConfig};
 use radix_common::traits::ScryptoEvent;
 use radix_transactions::{
     builder::{
@@ -92,8 +93,8 @@ impl RadixProvider {
         metrics: PrometheusClientMetrics,
         chain: Option<ChainInfo>,
     ) -> ChainResult<RadixFallbackProvider> {
-        let mut gateway_provider = Vec::with_capacity(conf.gateway.len());
-        for url in conf.gateway.iter() {
+        let mut gateway_provider = Vec::with_capacity(conf.gateway.expose_secret().len());
+        for url in conf.gateway.expose_secret().iter() {
             let (headers, url) =
                 parse_custom_rpc_headers(url).map_err(ChainCommunicationError::from_other)?;
             let client = Client::builder()
@@ -110,8 +111,8 @@ impl RadixProvider {
             gateway_provider.push(provider);
         }
 
-        let mut core_provider = Vec::with_capacity(conf.core.len());
-        for url in conf.core.iter() {
+        let mut core_provider = Vec::with_capacity(conf.core.expose_secret().len());
+        for url in conf.core.expose_secret().iter() {
             let (headers, url) =
                 parse_custom_rpc_headers(url).map_err(ChainCommunicationError::from_other)?;
             let client = Client::builder()
@@ -131,8 +132,24 @@ impl RadixProvider {
             core_provider.push(provider);
         }
         Ok(RadixFallbackProvider::new(
-            FallbackProvider::new(core_provider),
-            FallbackProvider::new(gateway_provider),
+            FallbackProvider::new(core_provider).with_rpc_context(
+                PrometheusConfig::chain_name(&chain).to_owned(),
+                "rpcUrls",
+                conf.core
+                    .expose_secret()
+                    .iter()
+                    .map(url_to_host_info)
+                    .collect(),
+            ),
+            FallbackProvider::new(gateway_provider).with_rpc_context(
+                PrometheusConfig::chain_name(&chain).to_owned(),
+                "gatewayUrls",
+                conf.gateway
+                    .expose_secret()
+                    .iter()
+                    .map(url_to_host_info)
+                    .collect(),
+            ),
         ))
     }
 

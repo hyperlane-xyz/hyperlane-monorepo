@@ -19,6 +19,7 @@ use hyperlane_core::{
 };
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
+use redact::Secret;
 
 #[cfg(feature = "aleo")]
 use hyperlane_aleo::{self as h_aleo, AleoProvider};
@@ -59,11 +60,11 @@ pub trait TryFromWithMetrics<T>: Sized {
 /// AdaptsChain trait implementation.
 #[allow(dead_code)]
 #[derive(Clone, Debug, Default)]
-pub struct RawChainConf(Value);
+pub struct RawChainConf(Secret<Value>);
 
 impl From<Value> for RawChainConf {
     fn from(value: Value) -> Self {
-        Self(value)
+        Self(value.into())
     }
 }
 
@@ -1665,8 +1666,9 @@ fn build_sealevel_provider(
     let client_metrics = metrics.client_metrics();
 
     let chain = middleware_metrics.chain.clone();
-    let urls = conf.urls.clone();
+    let urls = conf.urls.expose_secret().clone();
     let rpc_client = SealevelFallbackRpcClient::from_urls(
+        "rpcUrls",
         chain,
         urls,
         client_metrics,

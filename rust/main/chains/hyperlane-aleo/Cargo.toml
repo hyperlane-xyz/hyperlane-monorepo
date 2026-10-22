@@ -10,6 +10,7 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
+redact.workspace = true
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
 hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }

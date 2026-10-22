@@ -34,7 +34,7 @@ where
 /// HTTP JSON-RPC transport that preserves status-only rate limit responses.
 /// The pinned ethers transport discards HTTP status before decoding the body.
 #[derive(Clone)]
-pub(crate) struct StatusAwareHttp {
+pub struct StatusAwareHttp {
     client: Client,
     url: Url,
     next_id: Arc<AtomicU64>,
@@ -49,6 +49,7 @@ impl Debug for StatusAwareHttp {
 }
 
 impl StatusAwareHttp {
+    /// Create a transport with a URL whose custom headers have already been extracted.
     pub(crate) fn new(url: Url, client: Client) -> Self {
         Self {
             client,
@@ -187,6 +188,29 @@ mod tests {
         let result = client.request::<_, R>("eth_call", ()).await;
         server.await.expect("test server");
         result
+    }
+
+    #[tokio::test]
+    async fn connection_errors_omit_endpoint_credentials() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        drop(listener);
+        let client = StatusAwareHttp::new(
+            format!("http://{address}/private-path?key=private-query")
+                .parse()
+                .unwrap(),
+            Client::new(),
+        );
+        let error = client
+            .request::<_, Value>("eth_chainId", ())
+            .await
+            .unwrap_err();
+        assert!(!format!("{error:?} {error}").contains("private-"));
+        let HttpClientError::ReqwestError(error) = error else {
+            panic!("expected HTTP error");
+        };
+        assert!(error.url().is_none());
+        assert!(error.is_connect());
     }
 
     #[tokio::test]

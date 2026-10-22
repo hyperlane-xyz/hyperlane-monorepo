@@ -465,7 +465,7 @@ impl BaseAgent for Relayer {
             .websocket_url
             .map(|url| {
                 ScraperWebSocketMonitor::new_with_authority(
-                    url,
+                    url.expose_secret().clone(),
                     scraper_sources,
                     &core_metrics,
                     settings.websocket_authority_enabled,

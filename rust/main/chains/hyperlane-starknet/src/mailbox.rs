@@ -27,12 +27,23 @@ use crate::{
 };
 
 /// A reference to a Mailbox contract on some Starknet chain
-#[derive(Debug)]
 #[allow(unused)]
 pub struct StarknetMailbox {
     contract: StarknetMailboxInternal<SingleOwnerAccount<JsonProvider, LocalWallet>>,
     provider: StarknetProvider,
     conn: ConnectionConf,
+}
+
+impl std::fmt::Debug for StarknetMailbox {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StarknetMailbox")
+            .field("address", &self.contract.address)
+            .field("domain", self.provider.domain())
+            .field("account_address", &self.contract.account.address())
+            .field("chain_id", &self.contract.account.chain_id())
+            .field("conn", &self.conn)
+            .finish_non_exhaustive()
+    }
 }
 
 impl StarknetMailbox {
@@ -246,6 +257,24 @@ mod tests {
 
     use super::*;
     use crate::contracts::mailbox::MailboxReader;
+
+    #[test]
+    fn debug_omits_signing_key_and_rpc_credentials() {
+        let (conn, provider, account) = crate::utils::signing_test_fixture();
+        let mailbox = StarknetMailbox {
+            contract: StarknetMailboxInternal::new(Felt::ONE, account),
+            provider,
+            conn,
+        };
+        let debug = format!("{mailbox:?}");
+        assert!(!debug.contains("secret_scalar"));
+        assert!(!debug.contains("deadbeef"));
+        assert!(!debug.contains("private-"));
+        assert!(debug.contains("address"));
+        assert!(debug.contains("account_address:"));
+        assert!(debug.contains("chain_id:"));
+        assert!(debug.contains("op_submission_config:"));
+    }
 
     #[derive(Clone, Debug, Default)]
     struct RecordingTransport {
