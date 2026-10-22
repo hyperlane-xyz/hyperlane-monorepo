@@ -609,7 +609,7 @@ fn outbox_dispatch(
 
     // Account 0: Outbox PDA.
     let outbox_info = next_account_info(accounts_iter)?;
-    let mut outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
+    let outbox = Outbox::verify_account_and_fetch_for_dispatch(program_id, outbox_info)?;
 
     // Account 1: Message sender signer.
     let sender_signer_info = next_account_info(accounts_iter)?;
@@ -681,12 +681,11 @@ fn outbox_dispatch(
     }
 
     let count = outbox
-        .tree
         .count()
         .try_into()
         .expect("Too many messages in outbox tree");
 
-    let protocol_fee = outbox.protocol_fee.fee;
+    let protocol_fee = outbox.protocol_fee();
     invoke(
         &system_instruction::transfer(payer_info.key, outbox_info.key, protocol_fee),
         &[payer_info.clone(), outbox_info.clone()],
@@ -700,7 +699,7 @@ fn outbox_dispatch(
     let message = HyperlaneMessage {
         version: VERSION,
         nonce: count,
-        origin: outbox.local_domain,
+        origin: outbox.local_domain(),
         sender: H256(dispatch.sender.to_bytes()),
         destination: dispatch.destination_domain,
         recipient: dispatch.recipient,
@@ -712,7 +711,6 @@ fn outbox_dispatch(
         .map_err(|_| ProgramError::from(Error::EncodeError))?;
 
     let id = message.id();
-    outbox.tree.ingest(id);
 
     // Create the dispatched message PDA.
     let dispatched_message_account = DispatchedMessageAccount::from(DispatchedMessage::new(
@@ -755,8 +753,8 @@ fn outbox_dispatch(
         .hex(id.as_bytes())
         .log();
 
-    // Store the Outbox with the new updates.
-    OutboxAccount::from(outbox).store(outbox_info, true)?;
+    // Ingest the message ID and store the Outbox.
+    outbox.ingest_and_store(outbox_info, id)?;
 
     set_return_data(id.as_ref());
     Ok(())

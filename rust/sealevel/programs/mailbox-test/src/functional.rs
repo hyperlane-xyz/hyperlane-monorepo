@@ -1,11 +1,12 @@
 use std::thread::sleep;
 
+use account_utils::SizedData;
 use borsh::BorshDeserialize;
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle as MerkleTree, HyperlaneMessage, H256,
+    accumulator::incremental::IncrementalMerkle as MerkleTree, Decode, HyperlaneMessage, H256,
 };
 use hyperlane_sealevel_mailbox::{
-    accounts::{Inbox, InboxAccount, Outbox},
+    accounts::{DispatchedMessageAccount, Inbox, InboxAccount, Outbox, OutboxAccount},
     error::Error as MailboxError,
     instruction::{Instruction as MailboxInstruction, OutboxDispatch},
     mailbox_dispatched_message_pda_seeds,
@@ -45,12 +46,7 @@ const REMOTE_DOMAIN: u32 = 69420;
 const PROTOCOL_FEE: u64 = 1_000_000_000;
 const MAX_PROTOCOL_FEE: u64 = 1_000_000_001;
 
-async fn setup_client() -> (
-    BanksClient,
-    Keypair,
-    TestSendReceiverTestClient,
-    TestIsmTestClient,
-) {
+fn program_test() -> ProgramTest {
     let program_id = mailbox_id();
     let mut program_test = ProgramTest::new(
         "hyperlane_sealevel_mailbox",
@@ -91,7 +87,16 @@ async fn setup_client() -> (
         processor!(hyperlane_sealevel_test_send_receiver::program::process_instruction),
     );
 
-    let (banks_client, payer, _recent_blockhash) = program_test.start().await;
+    program_test
+}
+
+async fn setup_client() -> (
+    BanksClient,
+    Keypair,
+    TestSendReceiverTestClient,
+    TestIsmTestClient,
+) {
+    let (banks_client, payer, _recent_blockhash) = program_test().start().await;
 
     let test_ism = TestIsmTestClient::new(banks_client.clone(), payer.insecure_clone());
 
@@ -330,6 +335,140 @@ async fn test_dispatch_from_eoa() {
         },
     )
     .await;
+}
+
+/// Dispatch updates the Outbox tree in place when it can. Seed Outbox
+/// accounts in each shape dispatch can meet (either owner encoding, accounts
+/// longer than the encoding with zeroed or stale tails, a frontier with long
+/// carry chains) and check the bytes after every dispatch equal the
+/// deserialize / ingest / store result. Too-short accounts must still fail.
+#[tokio::test]
+async fn test_dispatch_outbox_bytes_match_full_store() {
+    let program_id = mailbox_id();
+    // (owner, extra bytes, stale tail)
+    for (owner_none, extra, stale_tail) in [
+        (false, 0, false),
+        (true, 0, false),
+        (true, 0, true),
+        (false, 1024, true),
+        (true, 1024, false),
+    ] {
+        let mut context = program_test().start_with_context().await;
+        let payer = context.payer.insecure_clone();
+        let mailbox_accounts = initialize_mailbox(
+            &mut context.banks_client,
+            &program_id,
+            &payer,
+            LOCAL_DOMAIN,
+            MAX_PROTOCOL_FEE,
+            test_protocol_fee_config(),
+        )
+        .await
+        .unwrap();
+
+        let mut account = context
+            .banks_client
+            .get_account(mailbox_accounts.outbox)
+            .await
+            .unwrap()
+            .unwrap();
+        let mut outbox = OutboxAccount::fetch(&mut &account.data[..])
+            .unwrap()
+            .into_inner();
+        if owner_none {
+            outbox.owner = None;
+        }
+        // Next ingest carries through 5 stored nodes.
+        outbox.tree = MerkleTree::new(core::array::from_fn(|_| H256::random()), 0b1_1111);
+        // `size()` assumes the owner is set.
+        let encoded_len = 1 + outbox.size() - if owner_none { 32 } else { 0 };
+        let mut data = vec![0u8; encoded_len + extra];
+        OutboxAccount::from(outbox)
+            .store_in_slice(&mut data)
+            .unwrap();
+        if stale_tail {
+            data[encoded_len..].fill(0xab);
+        }
+        account.lamports = Rent::default().minimum_balance(data.len());
+        account.data = data;
+        context.set_account(&mailbox_accounts.outbox, &account.into());
+
+        for _ in 0..4 {
+            let before = context
+                .banks_client
+                .get_account(mailbox_accounts.outbox)
+                .await
+                .unwrap()
+                .unwrap()
+                .data;
+            let (_, _, dispatched_message_key) = dispatch_from_payer(
+                &mut context.banks_client,
+                &payer,
+                &mailbox_accounts,
+                OutboxDispatch {
+                    sender: payer.pubkey(),
+                    destination_domain: REMOTE_DOMAIN,
+                    recipient: H256::random(),
+                    message_body: vec![1, 2, 3],
+                },
+            )
+            .await
+            .unwrap();
+            let dispatched = context
+                .banks_client
+                .get_account(dispatched_message_key)
+                .await
+                .unwrap()
+                .unwrap();
+            let dispatched = DispatchedMessageAccount::fetch(&mut &dispatched.data[..])
+                .unwrap()
+                .into_inner();
+            let id = HyperlaneMessage::read_from(&mut &dispatched.encoded_message[..])
+                .unwrap()
+                .id();
+
+            let mut expected = before.clone();
+            let mut outbox = OutboxAccount::fetch(&mut &before[..]).unwrap().into_inner();
+            outbox.tree.ingest(id);
+            OutboxAccount::from(outbox)
+                .store_in_slice(&mut expected)
+                .unwrap();
+            let after = context
+                .banks_client
+                .get_account(mailbox_accounts.outbox)
+                .await
+                .unwrap()
+                .unwrap()
+                .data;
+            assert_eq!(after, expected);
+        }
+
+        // An account shorter than the encoding (e.g. an older layout) fails.
+        let mut account = context
+            .banks_client
+            .get_account(mailbox_accounts.outbox)
+            .await
+            .unwrap()
+            .unwrap();
+        account.data.truncate(encoded_len - 1);
+        context.set_account(&mailbox_accounts.outbox, &account.into());
+        let result = dispatch_from_payer(
+            &mut context.banks_client,
+            &payer,
+            &mailbox_accounts,
+            OutboxDispatch {
+                sender: payer.pubkey(),
+                destination_domain: REMOTE_DOMAIN,
+                recipient: H256::random(),
+                message_body: vec![],
+            },
+        )
+        .await;
+        assert_transaction_error(
+            result,
+            TransactionError::InstructionError(0, InstructionError::BorshIoError),
+        );
+    }
 }
 
 #[tokio::test]
