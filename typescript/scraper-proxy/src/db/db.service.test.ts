@@ -130,22 +130,6 @@ void it('times out stalled replica connections', async (context) => {
   assert(duration < 3_000);
 });
 
-void it('validates the event stream schema and read grants before startup', async (context) => {
-  context.mock.method(pg.Pool.prototype, 'connect', () =>
-    Promise.resolve({ release() {} }),
-  );
-  context.mock.method(pg.Pool.prototype, 'query', (text: string) => {
-    assert.match(text, /has_table_privilege/);
-    return Promise.resolve({ rowCount: 1, rows: [readyEventStreamSchema] });
-  });
-  context.mock.method(pg.Pool.prototype, 'end', () => Promise.resolve());
-  const { DbService } = await import('./db.service.js');
-  const db = new DbService();
-  context.after(() => db.close());
-
-  await db.start();
-});
-
 void it('fails startup when the live user cannot read cursor state', async (context) => {
   context.mock.method(pg.Pool.prototype, 'connect', () =>
     Promise.resolve({ release() {} }),
@@ -164,20 +148,43 @@ void it('fails startup when the live user cannot read cursor state', async (cont
   await assert.rejects(db.start(), /cursor_readable/);
 });
 
-for (const triggerMode of ['D', 'R']) {
-  void it(`rejects gas cursor trigger mode ${triggerMode} at startup`, async (context) => {
-    context.mock.method(pg.Pool.prototype, 'query', (text: string) => {
-      assert.match(text, /tgname = 'gas_payment_stream_cursor_assign'/);
-      assert.match(text, /tgenabled IN \('O', 'A'\)/);
-      return Promise.resolve({
-        rowCount: 1,
-        rows: [{ ...readyEventStreamSchema, cursor_trigger_exists: false }],
-      });
+void it('requires an enabled gas cursor assignment trigger at startup', async (context) => {
+  context.mock.method(pg.Pool.prototype, 'query', (text: string) => {
+    assert.match(text, /tgname = 'gas_payment_stream_cursor_assign'/);
+    assert.match(text, /tgenabled IN \('O', 'A'\)/);
+    return Promise.resolve({
+      rowCount: 1,
+      rows: [{ ...readyEventStreamSchema, cursor_trigger_exists: false }],
     });
-    context.mock.method(pg.Pool.prototype, 'end', () => Promise.resolve());
-    const { DbService } = await import('./db.service.js');
-    const db = new DbService();
-    context.after(() => db.close());
-    await assert.rejects(db.start(), /cursor_trigger_exists/);
   });
-}
+  context.mock.method(pg.Pool.prototype, 'end', () => Promise.resolve());
+  const { DbService } = await import('./db.service.js');
+  const db = new DbService();
+  context.after(() => db.close());
+  await assert.rejects(db.start(), /cursor_trigger_exists/);
+});
+
+void it('closes both pools even when listener shutdown throws', async (context) => {
+  const closed: string[] = [];
+  context.mock.method(pg.Client.prototype, 'connect', async () => {});
+  context.mock.method(pg.Client.prototype, 'query', async () => ({ rows: [] }));
+  context.mock.method(pg.Client.prototype, 'end', () => {
+    closed.push('listener');
+    throw new Error('listener shutdown failed');
+  });
+  context.mock.method(pg.Pool.prototype, 'query', async () => ({ rows: [] }));
+  context.mock.method(pg.Pool.prototype, 'end', async function (this: pg.Pool) {
+    closed.push(this.options.connectionString);
+  });
+  const { DbService } = await import('./db.service.js');
+  const db = new DbService();
+  await db.listen(['scraper_event'], () => {}, assert.fail);
+  await db.query('SELECT 1');
+  await db.queryLive('SELECT 1');
+  await assert.rejects(db.close(), /listener shutdown failed/);
+  assert.deepEqual(closed, [
+    'listener',
+    process.env.DATABASE_URL,
+    process.env.DATABASE_READ_REPLICA_URL,
+  ]);
+});

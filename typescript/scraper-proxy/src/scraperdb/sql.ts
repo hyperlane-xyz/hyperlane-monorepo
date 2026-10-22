@@ -29,7 +29,6 @@ export interface CountArgs {
 }
 
 export interface SelectArgs {
-  batch_size?: number | null;
   columns?: string[];
   cursor?: Cursor[];
   distinct_on?: string[] | null;
@@ -42,7 +41,6 @@ export interface SelectArgs {
 const MAX = {
   boolDepth: 8,
   boolPredicates: 100,
-  cursorColumns: 3,
   distinctColumns: 3,
   inItems: 200,
   limit: 500,
@@ -55,14 +53,14 @@ export function buildSelect(
   args: SelectArgs = {},
   source?: SelectSource,
 ): Sql {
-  validate(table, args);
+  const { cursor, orders } = validate(table, args);
   const values: unknown[] = [...(source?.values ?? [])];
   const filters = [
     where(table, args.where, values),
-    cursorWhere(table, args.cursor, values),
+    cursorWhere(cursor, values),
   ].filter(Boolean);
   return {
-    sql: `SELECT ${distinct(table, args.distinct_on)}${columns(table, args.columns)} FROM ${relation(table, source?.relation)}${filters.length ? ` WHERE ${filters.join(' AND ')}` : ''}${orderBy(table, args.order_by, args.cursor)}${limit(args.limit ?? args.batch_size ?? MAX.limit, values)}${offset(args.offset, values)}`,
+    sql: `SELECT ${distinct(table, args.distinct_on)}${columns(table, args.columns)} FROM ${relation(table, source?.relation)}${filters.length ? ` WHERE ${filters.join(' AND ')}` : ''}${orderBy(table, orders, cursor)}${limit(args.limit ?? MAX.limit, values)}${offset(args.offset, values)}`,
     values,
   };
 }
@@ -72,27 +70,24 @@ export function buildCount(
   args: SelectArgs = {},
   count: CountArgs = {},
 ): Sql {
-  validate(table, args);
+  const { cursor, orders } = validate(table, args);
   const countColumns = [...new Set(count.columns ?? [])];
   countColumns.forEach((column) => assertColumn(table, column));
   const values: unknown[] = [];
   const distinctClause = distinct(table, args.distinct_on);
   const filters = [
     where(table, args.where, values),
-    cursorWhere(table, args.cursor, values),
+    cursorWhere(cursor, values),
   ].filter(Boolean);
   const whereClause = filters.length ? ` WHERE ${filters.join(' AND ')}` : '';
-  const limitClause =
-    args.limit == null && args.batch_size == null
-      ? ''
-      : limit(args.limit ?? args.batch_size, values);
+  const limitClause = limit(args.limit, values);
   const offsetClause = offset(args.offset, values);
   const source = `${relation(table)}${whereClause}`;
   const expression = countExpression(countColumns, count.distinct ?? false);
   return {
     sql:
       distinctClause || limitClause || offsetClause
-        ? `SELECT ${expression}::int AS count FROM (SELECT ${distinctClause}${countColumns.length ? countColumns.map(q).join(', ') : '1'} FROM ${source}${orderBy(table, args.order_by)}${limitClause}${offsetClause}) AS rows`
+        ? `SELECT ${expression}::int AS count FROM (SELECT ${distinctClause}${countColumns.length ? countColumns.map(q).join(', ') : '1'} FROM ${source}${orderBy(table, orders)}${limitClause}${offsetClause}) AS rows`
         : `SELECT ${expression}::int AS count FROM ${source}`,
     values,
   };
@@ -151,44 +146,63 @@ function where(
   expression: BoolExp | null | undefined,
   values: unknown[],
 ): string {
-  if (!expression) return '';
-  const rendered = Object.entries(expression)
-    .map(([key, value]) => bool(table, key, value, values))
-    .filter(Boolean);
-  return rendered.length ? `(${rendered.join(' AND ')})` : '';
-}
+  let predicates = 0;
+  return render(expression, 0);
 
-function bool(
-  table: TableName,
-  key: string,
-  value: unknown,
-  values: unknown[],
-): string {
-  if (value === null || value === undefined) return '';
-  if (key === '_and' || key === '_or') {
-    const children = Array.isArray(value) ? value : [value];
-    if (key === '_or' && !children.length) return 'FALSE';
-    const valueCount = values.length;
-    const rendered = children
-      .map((item) => where(table, boolExpression(item), values))
+  function render(
+    expression: BoolExp | null | undefined,
+    depth: number,
+  ): string {
+    if (!expression) return '';
+    assert(
+      depth <= MAX.boolDepth,
+      `where exceeds maximum depth of ${MAX.boolDepth}`,
+    );
+    const rendered = Object.entries(expression)
+      .map(([key, value]) => {
+        predicates +=
+          (key === '_and' || key === '_or') && Array.isArray(value)
+            ? value.length
+            : 1;
+        assert(
+          predicates <= MAX.boolPredicates,
+          `where exceeds maximum of ${MAX.boolPredicates} predicates`,
+        );
+        return bool(key, value, depth);
+      })
       .filter(Boolean);
-    if (key === '_or' && rendered.length < children.length) {
-      values.length = valueCount;
-      return '';
+    return rendered.length ? `(${rendered.join(' AND ')})` : '';
+  }
+
+  function bool(key: string, value: unknown, depth: number): string {
+    if (value === null || value === undefined) return '';
+    if (key === '_and' || key === '_or') {
+      const children = Array.isArray(value) ? value : [value];
+      if (key === '_or' && !children.length) return 'FALSE';
+      const valueCount = values.length;
+      const rendered = children
+        .map((item) => render(boolExpression(item), depth + 1))
+        .filter(Boolean);
+      if (key === '_or' && rendered.length < children.length) {
+        values.length = valueCount;
+        return '';
+      }
+      return rendered.length
+        ? `(${rendered.join(key === '_and' ? ' AND ' : ' OR ')})`
+        : '';
     }
-    return rendered.length
-      ? `(${rendered.join(key === '_and' ? ' AND ' : ' OR ')})`
-      : '';
+    if (key === '_not') {
+      const rendered = render(boolExpression(value), depth + 1);
+      return rendered ? `NOT ${rendered}` : 'FALSE';
+    }
+    assertColumn(table, key);
+    const rendered = Object.entries(boolExpression(value) ?? {})
+      .map(([operator, operand]) =>
+        comparison(q(key), operator, operand, values),
+      )
+      .filter(Boolean);
+    return rendered.length ? `(${rendered.join(' AND ')})` : '';
   }
-  if (key === '_not') {
-    const rendered = where(table, boolExpression(value), values);
-    return rendered ? `NOT ${rendered}` : 'FALSE';
-  }
-  assertColumn(table, key);
-  const rendered = Object.entries(boolExpression(value) ?? {})
-    .map(([operator, operand]) => comparison(q(key), operator, operand, values))
-    .filter(Boolean);
-  return rendered.length ? `(${rendered.join(' AND ')})` : '';
 }
 
 function comparison(
@@ -203,6 +217,10 @@ function comparison(
   assert(sqlOperator, `Unsupported comparison operator ${operator}`);
   if (operator === '_in' || operator === '_nin') {
     const items = Array.isArray(value) ? value : [];
+    assert(
+      items.length <= MAX.inItems,
+      `${operator} exceeds maximum of ${MAX.inItems} items`,
+    );
     if (!items.length) return operator === '_in' ? 'FALSE' : 'TRUE';
     return `${column} ${operator === '_in' ? '= ANY' : '<> ALL'}(${bind(items, values)})`;
   }
@@ -228,45 +246,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-function cursorWhere(
-  table: TableName,
-  cursors: Cursor[] | undefined,
-  values: unknown[],
-): string {
-  if (!cursors?.length) return '';
-  const rendered = cursors.flatMap((cursor) =>
-    Object.entries(cursor.initial_value).map(([column, value]) => {
-      assertColumn(table, column);
-      return `${q(column)} ${cursor.ordering === 'DESC' ? '<' : '>'} ${bind(value, values)}`;
-    }),
-  );
-  return rendered.length ? `(${rendered.join(' AND ')})` : '';
+function cursorWhere(cursor: Cursor | undefined, values: unknown[]): string {
+  return cursor
+    ? `("id" ${cursor.ordering === 'DESC' ? '<' : '>'} ${bind(cursor.initial_value.id, values)})`
+    : '';
 }
 
 function orderBy(
   table: TableName,
-  requested: SelectArgs['order_by'],
-  cursors?: Cursor[],
+  columns: [string, Direction][],
+  cursor?: Cursor,
 ): string {
-  const items = Array.isArray(requested)
-    ? requested
-    : requested
-      ? [requested]
-      : [];
-  const rendered = items.flatMap((item) =>
-    Object.entries(item).flatMap(([column, direction]) =>
-      direction == null ? [] : [order(table, column, direction)],
-    ),
+  if (!columns.length && cursor)
+    return ` ORDER BY "id" ${cursor.ordering ?? 'ASC'}`;
+  const rendered = columns.map(([column, direction]) =>
+    order(table, column, direction),
   );
-  if (!rendered.length) {
-    rendered.push(
-      ...(cursors ?? []).flatMap((cursor) =>
-        Object.keys(cursor.initial_value).map((column) =>
-          order(table, column, cursor.ordering === 'DESC' ? 'desc' : 'asc'),
-        ),
-      ),
-    );
-  }
   return rendered.length ? ` ORDER BY ${rendered.join(', ')}` : '';
 }
 
@@ -277,9 +272,7 @@ function order(table: TableName, column: string, direction: Direction): string {
 }
 
 function limit(value: number | null | undefined, values: unknown[]): string {
-  return value == null
-    ? ''
-    : ` LIMIT ${bind(Math.min(value, MAX.limit), values)}`;
+  return value == null ? '' : ` LIMIT ${bind(value, values)}`;
 }
 
 function offset(value: number | null | undefined, values: unknown[]): string {
@@ -291,9 +284,8 @@ function bind(value: unknown, values: unknown[]): string {
   return `$${values.length}`;
 }
 
-function validate(table: TableName, args: SelectArgs): void {
+function validate(table: TableName, args: SelectArgs) {
   boundedInteger(args.limit, 'limit', MAX.limit);
-  boundedInteger(args.batch_size, 'batch_size', MAX.limit);
   boundedInteger(args.offset, 'offset', MAX.offset);
   boundedColumns(args.distinct_on?.length, 'distinct_on', MAX.distinctColumns);
   const orders = Array.isArray(args.order_by)
@@ -305,39 +297,34 @@ function validate(table: TableName, args: SelectArgs): void {
     .flatMap(Object.entries)
     .filter((entry): entry is [string, Direction] => entry[1] != null);
   boundedColumns(orderColumns.length, 'order_by', MAX.orderColumns);
-  validateCursor(table, args.cursor, orderColumns);
+  const cursor = validateCursor(table, args.cursor, orderColumns);
   validateDistinctOrder(
     args.distinct_on,
     orderColumns.length
       ? orderColumns.map(([column]) => column)
-      : cursorColumns(args.cursor),
+      : cursor
+        ? ['id']
+        : [],
   );
-  const state = { predicates: 0 };
-  validateWhere(args.where, 0, state);
+  return { cursor, orders: orderColumns };
 }
 
 function validateCursor(
   table: TableName,
   cursors: Cursor[] | undefined,
   orderColumns: [string, Direction][],
-): void {
-  const cursorColumns =
-    cursors?.reduce(
-      (total, item) => total + Object.keys(item.initial_value).length,
-      0,
-    ) ?? 0;
-  boundedColumns(cursorColumns, 'cursor', MAX.cursorColumns);
-  if (!cursors?.length || table !== 'message_view') return;
-
+): Cursor | undefined {
+  if (!cursors?.length) return undefined;
+  assert(table === 'message_view', 'Only message_view supports cursors');
+  const cursor = cursors[0];
   assert(
-    cursors.length === 1 && cursorColumns === 1,
+    cursors.length === 1 && Object.keys(cursor.initial_value).length === 1,
     'message_view cursor must contain one column',
   );
-  const cursor = cursors[0];
   const [cursorColumn, cursorValue] = Object.entries(cursor.initial_value)[0];
   assert(cursorColumn === 'id', 'message_view cursor column must be id');
   assert(cursorValue != null, 'message_view cursor value must be non-null');
-  if (!orderColumns.length) return;
+  if (!orderColumns.length) return cursor;
 
   const [orderColumn, orderDirection] = orderColumns[0] ?? [];
   assert(
@@ -346,6 +333,7 @@ function validateCursor(
       (cursor.ordering === 'DESC') === orderDirection?.startsWith('desc'),
     'cursor columns and directions must match order_by',
   );
+  return cursor;
 }
 
 function validateDistinctOrder(
@@ -357,10 +345,6 @@ function validateDistinctOrder(
     !distinctColumns.some((column, index) => orderColumns[index] !== column),
     'distinct_on columns must match the leftmost order_by columns',
   );
-}
-
-function cursorColumns(cursors: Cursor[] | undefined): string[] {
-  return (cursors ?? []).flatMap((cursor) => Object.keys(cursor.initial_value));
 }
 
 function boundedInteger(
@@ -382,45 +366,4 @@ function boundedColumns(
   max: number,
 ): void {
   assert(!value || value <= max, `${name} exceeds maximum of ${max} columns`);
-}
-
-function validateWhere(
-  value: unknown,
-  depth: number,
-  state: { predicates: number },
-): void {
-  if (!value || typeof value !== 'object') return;
-  assert(
-    depth <= MAX.boolDepth,
-    `where exceeds maximum depth of ${MAX.boolDepth}`,
-  );
-  for (const [key, child] of Object.entries(value)) {
-    if (key === '_and' || key === '_or') {
-      const children = Array.isArray(child) ? child : [child];
-      addPredicates(state, children.length);
-      children.forEach((item) => validateWhere(item, depth + 1, state));
-    } else if (key === '_not') {
-      addPredicates(state, 1);
-      validateWhere(child, depth + 1, state);
-    } else {
-      addPredicates(state, 1);
-      if (!child || typeof child !== 'object') continue;
-      for (const [operator, items] of Object.entries(child)) {
-        assert(
-          (operator !== '_in' && operator !== '_nin') ||
-            !Array.isArray(items) ||
-            items.length <= MAX.inItems,
-          `${operator} exceeds maximum of ${MAX.inItems} items`,
-        );
-      }
-    }
-  }
-}
-
-function addPredicates(state: { predicates: number }, count: number): void {
-  state.predicates += count;
-  assert(
-    state.predicates <= MAX.boolPredicates,
-    `where exceeds maximum of ${MAX.boolPredicates} predicates`,
-  );
 }

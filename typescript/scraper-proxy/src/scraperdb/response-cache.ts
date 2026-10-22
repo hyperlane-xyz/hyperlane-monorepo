@@ -2,15 +2,23 @@ import { createHash } from 'node:crypto';
 
 import { assert } from '@hyperlane-xyz/utils/validation';
 import {
+  getOperationAST,
+  getVariableValues,
   parse,
+  specifiedRules,
+  validate,
+  type GraphQLSchema,
   print,
   visit,
   type DocumentNode,
-  type OperationDefinitionNode,
 } from 'graphql';
 
 import { cacheDirective } from './cache-config.js';
-import { stripUnusedVariableDefinitions } from './request-compatibility.js';
+import { stripUnusedVariables } from './request-compatibility.js';
+import {
+  MAX_GRAPHQL_TOKENS,
+  scraperProxyValidationRule,
+} from './validation.js';
 
 const MAX_ENTRIES = 1_000;
 const MAX_ENTRY_BYTES = 1_000_000;
@@ -32,24 +40,48 @@ export type CachedGraphqlResponse = {
 
 export class GraphqlResponseCache {
   private readonly cache = new Map<string, Entry>();
-  private readonly documents = new WeakMap<DocumentNode, CacheDocument>();
   private cacheBytes = 0;
 
-  prepare(
-    document: DocumentNode,
-    operation: OperationDefinitionNode,
-    operationName: string | null,
-    variables: Record<string, unknown>,
-  ): PreparedCacheRequest | null {
+  prepare(schema: GraphQLSchema, body: unknown): PreparedCacheRequest | null {
+    if (
+      !isRecord(body) ||
+      typeof body.query !== 'string' ||
+      !body.query.includes('cached') ||
+      (body.operationName != null && typeof body.operationName !== 'string')
+    )
+      return null;
+    let variables: unknown = body.variables ?? {};
+    let document: DocumentNode;
+    try {
+      if (typeof variables === 'string')
+        variables = JSON.parse(variables) ?? {};
+      document = stripUnusedVariables(
+        parse(body.query, { maxTokens: MAX_GRAPHQL_TOKENS }),
+      );
+    } catch {
+      // Mercurius owns error responses for invalid requests.
+      return null;
+    }
+    if (!isRecord(variables)) return null;
+    if (
+      validate(schema, document, [
+        ...specifiedRules,
+        scraperProxyValidationRule,
+      ]).length
+    )
+      return null;
+    const operationName = body.operationName ?? null;
+    const operation = getOperationAST(document, operationName);
+    if (
+      !operation ||
+      getVariableValues(schema, operation.variableDefinitions ?? [], variables)
+        .errors?.length
+    )
+      return null;
     const directive = cacheDirective(operation, variables);
     if (!directive) return null;
-    let cachedDocument = this.documents.get(document);
-    if (!cachedDocument) {
-      cachedDocument = prepareCacheDocument(document);
-      this.documents.set(document, cachedDocument);
-    }
     return {
-      key: cacheKey(operationName, cachedDocument, variables),
+      key: cacheKey(operationName, prepareCacheDocument(document), variables),
       refresh: directive.refresh,
       ttl: directive.ttl,
     };
@@ -100,20 +132,18 @@ export class GraphqlResponseCache {
 }
 
 function prepareCacheDocument(document: DocumentNode): CacheDocument {
-  const query = stripUnusedVariableDefinitions(
-    print(
-      visit(document, {
-        Directive: (node) => (node.name.value === 'cached' ? null : undefined),
-      }),
-    ),
+  const normalized = stripUnusedVariables(
+    visit(document, {
+      Directive: (node) => (node.name.value === 'cached' ? null : undefined),
+    }),
   );
   const usedVariables = new Set<string>();
-  visit(parse(query), {
+  visit(normalized, {
     Variable: ({ name }) => {
       usedVariables.add(name.value);
     },
   });
-  return { query, usedVariables };
+  return { query: print(normalized), usedVariables };
 }
 
 function cacheKey(

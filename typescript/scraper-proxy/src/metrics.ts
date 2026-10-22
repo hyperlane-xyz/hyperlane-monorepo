@@ -203,43 +203,29 @@ export function setWebSocketMetricsProvider(
   websocketMetricsProvider = provider;
 }
 
-function snapshotGauge(
-  name: string,
-  help: string,
-  collect: (gauge: Gauge, snapshot: WebSocketMetricsSnapshot) => void,
-  labelNames: string[] = [],
-): void {
-  new Gauge({
-    collect() {
-      this.reset();
-      const snapshot = websocketMetricsProvider?.();
-      if (snapshot) collect(this, snapshot);
-    },
-    help,
-    labelNames,
-    name: `${PREFIX}${name}`,
-    registers: [metricsRegistry],
-  });
+function snapshotGauges<T>(provider: () => T | undefined) {
+  return (
+    name: string,
+    help: string,
+    collect: (gauge: Gauge, snapshot: T) => void,
+    labelNames: string[] = [],
+  ) => {
+    new Gauge({
+      collect() {
+        this.reset();
+        const snapshot = provider();
+        if (snapshot) collect(this, snapshot);
+      },
+      help,
+      labelNames,
+      name: `${PREFIX}${name}`,
+      registers: [metricsRegistry],
+    });
+  };
 }
 
-function databaseSnapshotGauge(
-  name: string,
-  help: string,
-  collect: (gauge: Gauge, snapshot: DatabaseMetricsSnapshot) => void,
-  labelNames: string[] = [],
-): void {
-  new Gauge({
-    collect() {
-      this.reset();
-      const snapshot = databaseMetricsProvider?.();
-      if (snapshot) collect(this, snapshot);
-    },
-    help,
-    labelNames,
-    name: `${PREFIX}${name}`,
-    registers: [metricsRegistry],
-  });
-}
+const databaseSnapshotGauge = snapshotGauges(() => databaseMetricsProvider?.());
+const snapshotGauge = snapshotGauges(() => websocketMetricsProvider?.());
 
 databaseSnapshotGauge(
   'database_pool_connections',

@@ -24,7 +24,7 @@ void it('serves GraphQL through Mercurius with compatibility validation', async 
       method: 'POST',
       payload: {
         query:
-          'query Domains($unused: String) { domain(limit: 1) { id name } }',
+          'query Domains($unused: String!, $missing: Int!) { domain(limit: 1) { id name } }',
         variables: { unused: 'legacy-client-variable' },
       },
       url: '/graphql',
@@ -38,7 +38,8 @@ void it('serves GraphQL through Mercurius with compatibility validation', async 
     assert.equal(queries, 1);
 
     const getQuery = new URLSearchParams({
-      query: 'query Domains($unused: String) { domain(limit: 1) { id name } }',
+      query:
+        'query Domains($unused: String!, $missing: Int!) { domain(limit: 1) { id name } }',
       variables: JSON.stringify({ unused: 'legacy-client-variable' }),
     });
     const getResponse = await app.inject({
@@ -285,6 +286,7 @@ void it('bounds concurrent pathological GraphQL requests', async () => {
     const rejected = await app.inject(operation);
     assert.equal(rejected.statusCode, 503);
     assert.equal(rejected.headers['retry-after'], '1');
+    assert.equal((await app.inject({ url: '/metrics' })).statusCode, 200);
 
     assert(release);
     release();
@@ -426,6 +428,8 @@ void it('preserves the CSRF request contract', async () => {
 });
 
 void it('returns useful GraphQL parse, validation, and execution errors', async () => {
+  const { graphqlErrors } = await import('./metrics.js');
+  const before = (await graphqlErrors.get()).values[0].value;
   const { createScraperProxyApp } = await import('./module.js');
   const app = await createScraperProxyApp({
     async query<T extends Record<string, unknown>>(): Promise<T[]> {
@@ -446,6 +450,7 @@ void it('returns useful GraphQL parse, validation, and execution errors', async 
     const executed = await request('{ domain(limit: 1) { id } }');
     assert.equal(executed.statusCode, 200);
     assert.equal(executed.json().errors[0].message, 'database unavailable');
+    assert.equal((await graphqlErrors.get()).values[0].value - before, 3);
   } finally {
     await app.close();
   }

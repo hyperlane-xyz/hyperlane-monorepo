@@ -17,15 +17,12 @@ import {
   websocketNotificationQueueOverflows,
   websocketSendFailures,
 } from '../metrics.js';
-import { quoteIdentifier as q, tables } from '../scraperdb/tables.js';
 import {
   displayAddress,
   SUBSCRIPTION_TYPES,
   type BlockStreamRequest,
   type EventNotification,
   type EventType,
-  isSequencedEventType,
-  normalizeSequenceAddress,
   parseDatabaseDomain,
   parseClientMessage,
   parseEventNotification,
@@ -35,21 +32,24 @@ import {
   parseOptionalBlockHash,
   parseHeadNotification,
   parseId,
-  parseInteger,
-  type GasPaymentCursor,
-  type SequenceCursor,
-  type StreamCursor,
   type StreamRequest,
   STREAM_CURSOR_VERSIONS,
 } from './protocol.js';
 import {
   ConfirmationStream,
   ConfirmationUnavailableError,
-  type ConfirmationRow,
-  type Position,
 } from './confirmation-stream.js';
-import { PROVISIONAL_MESSAGE_QUERY } from './provisional-message.js';
+import {
+  type Row,
+  STREAMS,
+  compareRows,
+  rowCursorKey,
+  rowDomain,
+  EventStore,
+} from './event-store.js';
 import { rawData } from './websocket-data.js';
+import { NotificationWorker } from './notification-worker.js';
+import { AgentSubscription, MAX_PENDING_EVENTS } from './agent-subscription.js';
 
 // Explorer types first: a failure in an agent-only type must not close Explorer
 // clients that already received this range. No cross-type order is promised.
@@ -73,7 +73,6 @@ const HEARTBEAT_MS = 30_000;
 const MAX_INTERVAL_MS = 2_147_483_647;
 const LISTENER_RETRY_MS = 1_000;
 const NOTIFICATION_BATCH_MS = 100;
-const MAX_PROVISIONAL_MESSAGE_CACHE_ENTRIES = 128;
 const NOTIFICATION_BATCH_SIZE = 1_000;
 const EXPLORER_NOTIFICATION_BATCH_SIZE = 100;
 const MAX_EXPLORER_CLIENTS = 400;
@@ -81,48 +80,13 @@ const MAX_EXPLORER_CLIENTS_PER_IP = 5;
 const MAX_EXPLORER_PENDING_BYTES = 16_777_216;
 const MAX_EXPLORER_PENDING_MESSAGES = 2_000;
 const MAX_CLIENT_MESSAGES = 30;
-const MAX_PENDING_EVENTS = 5_000;
 const MAX_PENDING_NOTIFICATIONS = 10_000;
 const MAX_HEAD_PUBLICATION_FAILURES = 3;
-const GAS_PAYMENT_STREAM_CURSOR = 'gas_payment_stream_cursor';
-const GAS_PAYMENT_STREAM_HEAD = 'gas_payment_stream_head';
-const STREAM_CURSOR_COLUMN = 'scraper_stream_cursor';
-const GAS_PAYMENT_TRANSACTION = 'event_transaction';
-const GAS_PAYMENT_BLOCK = 'event_block';
-const FRONTIER_ID = 'frontier_id';
-const FRONTIER_HEIGHT = 'frontier_height';
-const CANONICAL_MESSAGE_COLUMNS = tables.message_view.columns
-  .filter((column) => column !== 'is_provisional')
-  .map(q)
-  .join(', ');
-
-type Row = Record<string, unknown>;
-type NotifiedRow = Row & { notification_id: number | string };
-type Stream = {
-  columns: readonly string[];
-  domain: string;
-  projection: string;
-  sequence?: { address: string; value: string };
-  table: string;
-};
-type Subscription = {
-  confirmations?: number;
-  catchUpRows: number;
-  catchUpStartedAt: number;
-  catchingUp: boolean;
-  cursorKeys?: Set<string>;
-  domains?: Set<number>;
-  gasPaymentLegacyMaxIds: Map<string, bigint>;
-  pending: Row[];
-  streamCursors: Map<string, bigint>;
-  sequences: Map<string, bigint>;
-  waiting: boolean;
-};
 type Client = {
   alive: boolean;
   messages: number;
   messageWindow: number;
-  subscriptions: Map<EventType, Subscription>;
+  subscriptions: Map<EventType, AgentSubscription>;
   subscribing: boolean;
 };
 type ExplorerClient = {
@@ -148,7 +112,6 @@ type Limits = {
 };
 type SerializedMessage = Buffer;
 type HeadRange = { after: bigint; through: bigint };
-type ProvisionalMessage = { data: Row; domains: number[] };
 type Block = {
   type: 'block';
   domain: number;
@@ -173,60 +136,6 @@ class HeadPublicationError extends Error {
   }
 }
 
-function stream(
-  table: string,
-  domain: string,
-  columns: readonly string[],
-  address?: string,
-  sequence?: string,
-): Stream {
-  return {
-    columns,
-    domain,
-    projection: columns.map(q).join(', '),
-    sequence: address && sequence ? { address, value: sequence } : undefined,
-    table,
-  };
-}
-
-const STREAMS: Record<EventType, Stream> = {
-  dispatch: stream(
-    'confirmed_raw_message_dispatch',
-    'origin_domain',
-    tables.raw_message_dispatch.columns,
-    'origin_mailbox',
-    'nonce',
-  ),
-  delivery: stream(
-    'confirmed_delivered_message',
-    'domain',
-    'time_created msg_id domain destination_mailbox destination_tx_id sequence'.split(
-      ' ',
-    ),
-  ),
-  gas_payment: stream(
-    'confirmed_gas_payment',
-    'domain',
-    'id time_created domain msg_id payment gas_amount tx_id log_index origin destination interchain_gas_paymaster sequence'.split(
-      ' ',
-    ),
-  ),
-  merkle_tree_insertion: stream(
-    'confirmed_merkle_tree_insertion',
-    'domain',
-    'domain merkle_tree_hook leaf_index message_id block_number'.split(' '),
-    'merkle_tree_hook',
-    'leaf_index',
-  ),
-};
-
-const EVENT_DOMAIN_COLUMNS: Record<EventType, readonly string[]> = {
-  delivery: ['domain'],
-  dispatch: ['origin_domain', 'destination_domain'],
-  gas_payment: ['domain', 'origin', 'destination'],
-  merkle_tree_insertion: ['domain'],
-};
-
 export class EventWebSocketServer {
   private readonly logger = rootLogger.child({
     module: EventWebSocketServer.name,
@@ -236,10 +145,6 @@ export class EventWebSocketServer {
   private readonly confirmationStreams = new Map<
     WebSocket,
     ConfirmationStream[]
-  >();
-  private readonly provisionalMessageCache = new Map<
-    string,
-    Promise<ProvisionalMessage[]>
   >();
   private readonly terminatedSockets = new WeakSet<WebSocket>();
   private readonly explorerClients = new Map<WebSocket, ExplorerClient>();
@@ -251,12 +156,24 @@ export class EventWebSocketServer {
   private readonly headFailures = new Map<number, number>();
   private heartbeatTimer?: NodeJS.Timeout;
   private listenerRetryTimer?: NodeJS.Timeout;
-  private agentNotificationTimer?: NodeJS.Timeout;
-  private headNotificationTimer?: NodeJS.Timeout;
-  private explorerNotificationTimer?: NodeJS.Timeout;
-  private drainingAgentNotifications = false;
-  private drainingHeadNotifications = false;
-  private drainingExplorerNotifications = false;
+  private readonly agentNotifications = new NotificationWorker(
+    NOTIFICATION_BATCH_MS,
+    () => this.drainAgentNotifications(),
+    (error) => this.failAgentStream(error),
+  );
+  private readonly explorerUpdates = new NotificationWorker(
+    NOTIFICATION_BATCH_MS,
+    () => this.drainExplorerNotifications(),
+    (error) => this.failExplorerStream(error),
+  );
+  private readonly headUpdates = new NotificationWorker(
+    NOTIFICATION_BATCH_MS,
+    () => this.drainHeadNotifications(),
+    (error) => {
+      this.logger.error(`frontier publication failed: ${formatError(error)}`);
+      this.headUpdates.schedule(LISTENER_RETRY_MS);
+    },
+  );
   private catchUps = 0;
   private pendingBytes = 0;
   private listenerReady = false;
@@ -266,11 +183,13 @@ export class EventWebSocketServer {
   private agentServer?: WebSocketServer;
   private explorerServer?: WebSocketServer;
   private readonly limits: Limits;
+  private readonly store: EventStore;
 
   constructor(
     private readonly db: EventDatabase,
     limits: Partial<Limits> = {},
   ) {
+    this.store = new EventStore(db);
     this.limits = {
       heartbeatMs: HEARTBEAT_MS,
       maxAgentClients: config.EVENT_STREAM_MAX_AGENT_CLIENTS,
@@ -325,13 +244,15 @@ export class EventWebSocketServer {
 
   async stop(): Promise<void> {
     this.stopped = true;
-    [
-      this.heartbeatTimer,
-      this.listenerRetryTimer,
-      this.agentNotificationTimer,
-      this.headNotificationTimer,
-      this.explorerNotificationTimer,
-    ].forEach((timer) => timer && clearTimeout(timer));
+    [this.heartbeatTimer, this.listenerRetryTimer].forEach(
+      (timer) => timer && clearTimeout(timer),
+    );
+    for (const worker of [
+      this.agentNotifications,
+      this.explorerUpdates,
+      this.headUpdates,
+    ])
+      worker.stop();
     this.explorerNotifications.clear();
     this.notifications.clear();
     this.headRanges.clear();
@@ -366,14 +287,14 @@ export class EventWebSocketServer {
     for (const client of this.clients.values()) {
       for (const [eventType, subscription] of client.subscriptions) {
         subscriptions[eventType][
-          subscription.catchingUp ? 'catchingUp' : 'live'
+          subscription.state === 'live' ? 'live' : 'catchingUp'
         ]++;
-        pendingCatchUpEvents += subscription.pending.length;
+        pendingCatchUpEvents += subscription.pendingCount;
         maxPendingCatchUpEvents = Math.max(
           maxPendingCatchUpEvents,
-          subscription.pending.length,
+          subscription.pendingCount,
         );
-        if (subscription.catchingUp) {
+        if (subscription.state !== 'live') {
           maxCatchUpDurationMs = Math.max(
             maxCatchUpDurationMs,
             now - subscription.catchUpStartedAt,
@@ -447,10 +368,7 @@ export class EventWebSocketServer {
   }
 
   private connectAgent(socket: WebSocket): void {
-    this.watch(socket, this.clients, (client) => {
-      client.subscriptions.clear();
-      this.cancelCatchUp(socket);
-    });
+    this.watch(socket);
     if (!this.accept(socket, 'agent')) return;
     this.clients.set(socket, {
       alive: true,
@@ -495,10 +413,7 @@ export class EventWebSocketServer {
     socket: WebSocket,
     request: IncomingMessage,
   ): Promise<void> {
-    this.watch(socket, this.explorerClients, (client) => {
-      this.clearExplorerQueue(client);
-      this.releaseExplorerClient(client.ip);
-    });
+    this.watch(socket);
     if (!this.accept(socket, 'explorer')) return;
     let custom: ReturnType<typeof parseExplorerConfirmations>;
     let blocks: boolean;
@@ -581,16 +496,7 @@ export class EventWebSocketServer {
     this.blockSubscriptions.set(socket, subscription);
     // Register before the snapshot: notifications received during the query win,
     // including lower heights and replacement hashes after a reorg.
-    const rows = await this.db.queryLive<{
-      domain: number;
-      indexed_height: string;
-      hash: string;
-      head_height: string;
-    }>(
-      `SELECT domain, indexed_height, encode(indexed_hash, 'hex') AS hash, head_height
-       FROM scraper_head${domains ? ' WHERE domain=ANY($1::integer[])' : ''}`,
-      domains ? [[...domains].map(storedDomain)] : [],
-    );
+    const rows = await this.store.blockHeads(domains);
     for (const row of rows) {
       const domain = parseDatabaseDomain(row.domain, 'Invalid block domain');
       const hash = parseOptionalBlockHash(row.hash);
@@ -660,14 +566,14 @@ export class EventWebSocketServer {
         this.clients.has(socket) || this.explorerClients.has(socket),
       read: (domain, after, through, frontiers) =>
         eventType
-          ? this.confirmationEventRows(
+          ? this.store.confirmationEventRows(
               eventType,
               domain,
               after,
               through,
               confirmations,
             )
-          : this.confirmationMessageRows(
+          : this.store.confirmationMessageRows(
               domain,
               after,
               through,
@@ -690,7 +596,7 @@ export class EventWebSocketServer {
       enrich: eventType
         ? undefined
         : async (ids, frontiers) => {
-            const rows = await this.provisionalMessages(ids, frontiers);
+            const rows = await this.store.provisionalMessages(ids, frontiers);
             return rows
               .filter(
                 ({ data }) =>
@@ -717,211 +623,23 @@ export class EventWebSocketServer {
     const streams = this.confirmationStreams.get(socket) ?? [];
     streams.push(stream);
     this.confirmationStreams.set(socket, streams);
-    await stream.initialize(async () => {
-      const rows = await this.db.queryLive<{
-        domain: number;
-        head_height: string;
-        indexed_height: string;
-        confirmed_height: string;
-      }>(
-        'SELECT domain, head_height, indexed_height, confirmed_height FROM scraper_head WHERE domain=ANY($1::integer[])',
-        [[...domains].map(storedDomain)],
-      );
-      return new Map(
-        rows.map((row) => [
-          parseDatabaseDomain(row.domain, 'Invalid head domain'),
-          {
-            head: parseId(row.head_height),
-            indexed: parseId(row.indexed_height),
-            confirmed: parseId(row.confirmed_height),
-          },
-        ]),
-      );
-    }, eventType === undefined);
+    await stream.initialize(
+      () => this.store.confirmationHeads(domains),
+      eventType === undefined,
+    );
     return stream;
   }
 
-  private async *confirmationEventRows(
-    eventType: EventType,
-    domain: number,
-    after: Position,
-    through: bigint,
-    confirmations: number,
-  ): AsyncIterable<ConfirmationRow> {
-    const stream = STREAMS[eventType];
-    const table = stream.table.replace('confirmed_', '');
-    const height =
-      eventType === 'dispatch' ? 'origin_block_height' : 'block_number';
-    const projection =
-      eventType === 'gas_payment'
-        ? gasPaymentColumns(stream)
-        : columns(stream, 'event_row');
-    const joins =
-      eventType === 'gas_payment' ? gasPaymentMetadataJoins('LEFT JOIN') : '';
-    let position = after;
-    while (true) {
-      const rows = await this.db.queryLive<Row>(
-        `/* confirmation_events */ SELECT ${projection}, event_row.id AS frontier_id, event_row.${q(height)} AS frontier_height
-         FROM (SELECT * FROM ${q(table)} WHERE ${q(stream.domain)}=$1
-           AND (${q(height)}, id)>($2::bigint,$3::bigint) AND ${q(height)}<=$4::bigint
-           ORDER BY ${q(height)}, id LIMIT $5) event_row${joins}
-         ORDER BY event_row.${q(height)}, event_row.id`,
-        [
-          storedDomain(domain),
-          position[0].toString(),
-          position[2].toString(),
-          through.toString(),
-          config.EVENT_STREAM_BATCH_SIZE,
-        ],
-      );
-      for (const { frontier_id, frontier_height, ...row } of rows) {
-        position = [parseId(frontier_height), 0, parseId(frontier_id)];
-        yield {
-          position,
-          message: {
-            type: 'event',
-            eventType,
-            domain,
-            confirmations,
-            height: position[0].toString(),
-            data: eventData(eventType, row),
-            sequence: rowSequence(eventType, row)?.value.toString(),
-            rowId:
-              eventType === 'gas_payment'
-                ? parseId(row.id).toString()
-                : undefined,
-          },
-        };
-      }
-      if (rows.length < config.EVENT_STREAM_BATCH_SIZE) return;
-    }
-  }
-
-  private async *confirmationMessageRows(
-    domain: number,
-    after: Position,
-    through: bigint,
-    frontiers: Map<number, bigint>,
-    confirmations: number,
-  ): AsyncIterable<ConfirmationRow> {
-    let position = after;
-    while (true) {
-      const changes = await this.db.queryLive<{
-        height: string;
-        source: number;
-        id: string;
-        msg_id: string;
-      }>(
-        `/* confirmation_messages */ SELECT * FROM (
-          SELECT origin_block_height AS height, 0 AS source, id, msg_id FROM raw_message_dispatch WHERE origin_domain=$1 AND origin_block_height>=$2::bigint AND origin_block_height<=$5::bigint
-          UNION ALL SELECT block_number, 1, id, msg_id FROM delivered_message WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint
-          UNION ALL SELECT block_number, 2, id, msg_id FROM gas_payment WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint
-        ) changes WHERE (height, source, id)>($2::bigint,$3::integer,$4::bigint) ORDER BY height, source, id LIMIT $6`,
-        [
-          storedDomain(domain),
-          position[0].toString(),
-          position[1],
-          position[2].toString(),
-          through.toString(),
-          config.EVENT_STREAM_BATCH_SIZE,
-        ],
-      );
-      if (!changes.length) return;
-      const rows = await this.provisionalMessages(
-        [...new Set(changes.map((row) => row.msg_id))],
-        frontiers,
-      );
-      const messages = new Map(rows.map((row) => [row.data.msg_id, row]));
-      for (const change of changes) {
-        position = [parseId(change.height), change.source, parseId(change.id)];
-        const row = messages.get(change.msg_id);
-        yield {
-          domains: row?.domains,
-          position,
-          message: row && {
-            type: 'message_upsert',
-            domain,
-            confirmations,
-            height: through.toString(),
-            data: row.data,
-          },
-        };
-      }
-      if (changes.length < config.EVENT_STREAM_BATCH_SIZE) return;
-    }
-  }
-
-  private async provisionalMessages(
-    ids: string[],
-    frontiers: Map<number, bigint>,
-  ): Promise<ProvisionalMessage[]> {
-    const sortedIds = [...new Set(ids)].sort();
-    const sortedFrontiers = [...frontiers].sort(([a], [b]) => a - b);
-    const key = JSON.stringify([
-      sortedIds,
-      sortedFrontiers.map(([domain, height]) => [domain, String(height)]),
-    ]);
-    const cached = this.provisionalMessageCache.get(key);
-    if (cached) return cached;
-    // Entries survive only until the next head/message change, with a hard bound.
-    if (
-      this.provisionalMessageCache.size >= MAX_PROVISIONAL_MESSAGE_CACHE_ENTRIES
-    )
-      this.provisionalMessageCache.clear();
-    const result = this.db
-      .queryLive<Row>(PROVISIONAL_MESSAGE_QUERY, [
-        sortedIds,
-        sortedFrontiers.map(([domain]) => storedDomain(domain)),
-        sortedFrontiers.map(([, height]) => String(height)),
-      ])
-      .then((rows) =>
-        rows.map((row) => {
-          const { payment_domain_ids: _, ...data } = row;
-          const origin = rowDomain(row, 'origin_domain_id');
-          const destination = rowDomain(row, 'destination_domain_id');
-          return {
-            data: {
-              ...data,
-              origin_domain_id: origin,
-              destination_domain_id: destination,
-            },
-            domains: [
-              origin,
-              destination,
-              ...rowDomains(row, 'payment_domain_ids'),
-            ],
-          };
-        }),
-      )
-      .catch((error: unknown) => {
-        if (this.provisionalMessageCache.get(key) === result)
-          this.provisionalMessageCache.delete(key);
-        throw error;
-      });
-    this.provisionalMessageCache.set(key, result);
-    return result;
-  }
-
-  private watch<T extends { alive: boolean }>(
-    socket: WebSocket,
-    clients: Map<WebSocket, T>,
-    removed?: (client: T) => void,
-  ): void {
+  private watch(socket: WebSocket): void {
     socket.on('pong', () => {
-      const client = clients.get(socket);
+      const client =
+        this.clients.get(socket) ?? this.explorerClients.get(socket);
       if (client) client.alive = true;
     });
-    const remove = (): void => {
-      const client = clients.get(socket);
-      if (client) removed?.(client);
-      clients.delete(socket);
-      this.confirmationStreams.delete(socket);
-      this.blockSubscriptions.delete(socket);
-    };
-    socket.on('close', remove);
+    socket.on('close', () => this.disconnect(socket));
     socket.on('error', (error) => {
       this.logger.warn(`websocket error: ${error.message}`);
-      remove();
+      this.disconnect(socket);
     });
   }
 
@@ -993,26 +711,23 @@ export class EventWebSocketServer {
     }
     if (this.clients.get(socket) !== client) return;
     for (const request of eventStreams) {
-      client.subscriptions.set(request.eventType, {
-        confirmations: request.confirmations,
-        catchUpRows: 0,
-        catchUpStartedAt: Date.now(),
-        catchingUp: !!request.cursors,
-        cursorKeys: request.cursors
-          ? new Set(
-              request.cursors.map(({ address, domain }) =>
-                sequenceKey(domain, address),
-              ),
-            )
-          : undefined,
-        domains: request.domains,
-        gasPaymentLegacyMaxIds: new Map(),
-        pending: [],
-        streamCursors: new Map(),
-        sequences: new Map(),
-        waiting: !!request.cursors,
-      });
+      const subscription = new AgentSubscription(
+        request,
+        this.store,
+        this.limits.maxCatchUpMs,
+        {
+          active: () =>
+            this.clients.get(socket) === client &&
+            client.subscriptions.get(request.eventType) === subscription,
+          send: (message) => this.sendAndWait(socket, message),
+          close: (reason) => {
+            socket.close(1013, reason);
+          },
+        },
+      );
+      client.subscriptions.set(request.eventType, subscription);
     }
+
     client.subscribing = false;
     this.send(socket, {
       streams: message.streams.map(subscriptionResponse),
@@ -1035,63 +750,10 @@ export class EventWebSocketServer {
     const subscription = client.subscriptions.get(request.eventType);
     if (!subscription) return;
     if (!(await this.reserveCatchUp(socket))) return;
-    subscription.catchUpStartedAt = Date.now();
-    subscription.waiting = false;
     try {
-      for (const cursor of request.cursors ?? []) {
-        if (
-          this.clients.get(socket) !== client ||
-          client.subscriptions.get(request.eventType) !== subscription
-        ) {
-          websocketCatchUps.inc({ outcome: 'aborted' });
-          return;
-        }
-        const completed = await this.catchUpCursor(
-          socket,
-          client,
-          request.eventType,
-          subscription,
-          cursor,
-        );
-        if (!completed) {
-          websocketCatchUps.inc({ outcome: 'aborted' });
-          return;
-        }
-      }
-      while (subscription.pending.length) {
-        if (
-          this.clients.get(socket) !== client ||
-          client.subscriptions.get(request.eventType) !== subscription
-        ) {
-          websocketCatchUps.inc({ outcome: 'aborted' });
-          return;
-        }
-        const pending = subscription.pending.sort((a, b) =>
-          compareRows(request.eventType, a, b),
-        );
-        subscription.pending = [];
-        for (const row of pending) {
-          this.assertCatchUpBudget(subscription);
-          if (
-            !(await this.deliverAndWait(
-              socket,
-              request.eventType,
-              subscription,
-              row,
-            ))
-          ) {
-            websocketCatchUps.inc({ outcome: 'failure' });
-            return;
-          }
-        }
-      }
-      subscription.catchingUp = false;
-      websocketCatchUps.inc({ outcome: 'success' });
+      websocketCatchUps.inc({ outcome: await subscription.replay() });
     } catch (error) {
-      const active =
-        this.clients.get(socket) === client &&
-        client.subscriptions.get(request.eventType) === subscription;
-      if (!active) {
+      if (!subscription.isActive()) {
         websocketCatchUps.inc({ outcome: 'aborted' });
         return;
       }
@@ -1133,184 +795,15 @@ export class EventWebSocketServer {
     }
   }
 
-  private async catchUpCursor(
-    socket: WebSocket,
-    client: Client,
-    eventType: EventType,
-    subscription: Subscription,
-    cursor: StreamCursor,
-  ): Promise<boolean> {
-    return cursor.kind === 'gas_payment'
-      ? this.catchUpGasPaymentCursor(
-          socket,
-          client,
-          eventType,
-          subscription,
-          cursor,
-        )
-      : this.catchUpSequenceCursor(
-          socket,
-          client,
-          eventType,
-          subscription,
-          cursor,
-        );
-  }
-
-  private async catchUpSequenceCursor(
-    socket: WebSocket,
-    client: Client,
-    eventType: EventType,
-    subscription: Subscription,
-    cursor: SequenceCursor,
-  ): Promise<boolean> {
-    const key = sequenceKey(cursor.domain, cursor.address);
-    const { first, last } = await this.sequenceBounds(eventType, cursor);
-    if (last < first) {
-      if (cursor.afterSequence !== undefined && cursor.afterSequence !== -1n) {
-        throw new Error(
-          `No ${eventType} history for domain ${cursor.domain} address ${displayAddress(cursor.address)}`,
-        );
-      }
-      subscription.sequences.set(key, last);
-      return this.sendAndWait(socket, {
-        address: displayAddress(cursor.address),
-        domain: cursor.domain,
-        eventType,
-        sequence: last.toString(),
-        type: 'caught_up',
-      });
-    }
-    const requestedAfter = cursor.afterSequence ?? last;
-    if (requestedAfter > last && !cursor.allowReplay) {
-      throw new Error(
-        `Sequence ${requestedAfter} is ahead of current ${eventType} sequence ${last}`,
-      );
-    }
-    const after = requestedAfter > last ? last : requestedAfter;
-    subscription.sequences.set(key, after);
-
-    while ((subscription.sequences.get(key) ?? -1n) < last) {
-      if (
-        this.clients.get(socket) !== client ||
-        client.subscriptions.get(eventType) !== subscription
-      ) {
-        return false;
-      }
-      const current = subscription.sequences.get(key) ?? -1n;
-      this.assertCatchUpBudget(subscription);
-      const rows = await this.sequenceRows(eventType, cursor, current, last);
-      subscription.catchUpRows += rows.length;
-      this.assertCatchUpBudget(subscription);
-      if (!rows.length)
-        throw new Error(`Missing ${eventType} sequence ${current + 1n}`);
-      for (const row of rows) {
-        this.assertCatchUpBudget(subscription);
-        if (
-          !(await this.deliverAndWait(socket, eventType, subscription, row))
-        ) {
-          throw new Error(`Gap in ${eventType} sequence after ${current}`);
-        }
-      }
-    }
-    if (
-      !(await this.sendAndWait(socket, {
-        address: displayAddress(cursor.address),
-        domain: cursor.domain,
-        eventType,
-        sequence: last.toString(),
-        type: 'caught_up',
-      }))
-    )
-      throw new Error('Websocket closed during catch-up');
-    return true;
-  }
-
-  private async catchUpGasPaymentCursor(
-    socket: WebSocket,
-    client: Client,
-    eventType: EventType,
-    subscription: Subscription,
-    cursor: GasPaymentCursor,
-  ): Promise<boolean> {
-    const key = sequenceKey(cursor.domain, cursor.address);
-    const { lastCursor, legacyMaxId } =
-      await this.gasPaymentCursorBounds(cursor);
-    const after = cursor.afterStreamCursor ?? lastCursor;
-    if (after > lastCursor) {
-      throw new Error(
-        `Cursor ${after} is ahead of current ${eventType} cursor ${lastCursor}`,
-      );
-    }
-    subscription.gasPaymentLegacyMaxIds.set(key, legacyMaxId);
-    subscription.streamCursors.set(key, after);
-
-    while ((subscription.streamCursors.get(key) ?? 0n) < lastCursor) {
-      if (
-        this.clients.get(socket) !== client ||
-        client.subscriptions.get(eventType) !== subscription
-      ) {
-        return false;
-      }
-      const current = subscription.streamCursors.get(key) ?? 0n;
-      this.assertCatchUpBudget(subscription);
-      const legacyPhase = current < legacyMaxId;
-      const through = legacyPhase ? legacyMaxId : lastCursor;
-      const rows = legacyPhase
-        ? await this.legacyGasPaymentRows(cursor, current, through)
-        : await this.mappedGasPaymentRows(cursor, current, through);
-      subscription.catchUpRows += rows.length;
-      this.assertCatchUpBudget(subscription);
-      if (!rows.length) {
-        if (!legacyPhase) {
-          throw new Error(`Missing ${eventType} stream cursor ${current + 1n}`);
-        }
-        subscription.streamCursors.set(key, through);
-        continue;
-      }
-      for (const row of rows) {
-        this.assertCatchUpBudget(subscription);
-        if (
-          !(await this.deliverAndWait(socket, eventType, subscription, row))
-        ) {
-          throw new Error(`Gap in ${eventType} stream cursor after ${current}`);
-        }
-      }
-    }
-    const streamCursor = subscription.streamCursors.get(key) ?? after;
-    if (
-      !(await this.sendAndWait(socket, {
-        address: displayAddress(cursor.address),
-        domain: cursor.domain,
-        eventType,
-        legacyMaxStreamCursor: legacyMaxId.toString(),
-        streamCursor: streamCursor.toString(),
-        type: 'caught_up',
-      }))
-    )
-      throw new Error('Websocket closed during catch-up');
-    return true;
-  }
-
   private publish(eventType: EventType, row: Row): void {
     const domain = rowDomain(row, STREAMS[eventType].domain);
     const key = rowCursorKey(eventType, domain, row);
     let serialized: SerializedMessage | undefined;
     for (const [socket, client] of this.clients) {
       const subscription = client.subscriptions.get(eventType);
-      if (
-        !subscription ||
-        subscription.confirmations !== undefined ||
-        !matches(subscription, domain, key)
-      )
-        continue;
-      if (!subscription.catchingUp) {
-        const message = this.eventForDelivery(
-          socket,
-          eventType,
-          subscription,
-          row,
-        );
+      if (!subscription?.matches(domain, key)) continue;
+      if (subscription.state === 'live') {
+        const message = subscription.eventForDelivery(row);
         if (!message) continue;
         // Gas payment envelopes include each subscriber's legacy cursor boundary.
         const payload =
@@ -1318,196 +811,11 @@ export class EventWebSocketServer {
             ? serialize(message)
             : (serialized ??= serialize(message));
         this.sendSerialized(socket, payload);
-      } else if (
-        !subscription.waiting &&
-        subscription.pending.push(row) > MAX_PENDING_EVENTS
-      ) {
+      } else if (!subscription.buffer(row)) {
         this.disconnect(socket);
         socket.close(1013, 'Event catch-up buffer exceeded');
       }
     }
-  }
-
-  private async deliverAndWait(
-    socket: WebSocket,
-    eventType: EventType,
-    subscription: Subscription,
-    row: Row,
-  ): Promise<boolean> {
-    const message = this.eventForDelivery(socket, eventType, subscription, row);
-    if (message === false) return false;
-    if (message === undefined) return true;
-    if (!(await this.sendAndWait(socket, message))) {
-      throw new Error('Websocket closed during catch-up');
-    }
-    return true;
-  }
-
-  private eventForDelivery(
-    socket: WebSocket,
-    eventType: EventType,
-    subscription: Subscription,
-    row: Row,
-  ): Record<string, unknown> | false | undefined {
-    const domain = rowDomain(row, STREAMS[eventType].domain);
-    const key = rowCursorKey(eventType, domain, row);
-    if (!matches(subscription, domain, key)) return undefined;
-    const streamCursor = gasPaymentStreamCursor(eventType, row);
-    if (streamCursor && subscription.cursorKeys) {
-      const streamCursorKey = sequenceKey(domain, streamCursor.address);
-      const current = subscription.streamCursors.get(streamCursorKey);
-      if (current !== undefined) {
-        if (streamCursor.value <= current) return undefined;
-        const legacyMaxId =
-          subscription.gasPaymentLegacyMaxIds.get(streamCursorKey);
-        if (
-          legacyMaxId !== undefined &&
-          streamCursor.value > legacyMaxId &&
-          streamCursor.value !== current + 1n
-        ) {
-          socket.close(
-            1013,
-            `${eventType} stream cursor gap: expected ${current + 1n}, received ${streamCursor.value}`,
-          );
-          return false;
-        }
-        subscription.streamCursors.set(streamCursorKey, streamCursor.value);
-      }
-    }
-    const sequence = rowSequence(eventType, row);
-    if (sequence) {
-      const sequenceCursorKey = sequenceKey(domain, sequence.address);
-      const current = subscription.sequences.get(sequenceCursorKey);
-      if (current !== undefined) {
-        if (sequence.value <= current) return undefined;
-        if (sequence.value !== current + 1n) {
-          socket.close(
-            1013,
-            `${eventType} sequence gap: expected ${current + 1n}, received ${sequence.value}`,
-          );
-          return false;
-        }
-        subscription.sequences.set(sequenceCursorKey, sequence.value);
-      }
-    }
-    const data = eventData(eventType, row);
-    const rowId =
-      eventType === 'gas_payment' ? parseId(row.id).toString() : undefined;
-    const legacyMaxStreamCursor = streamCursor
-      ? subscription.gasPaymentLegacyMaxIds.get(
-          sequenceKey(domain, streamCursor.address),
-        )
-      : undefined;
-    return {
-      data,
-      domain,
-      eventType,
-      legacyMaxStreamCursor: legacyMaxStreamCursor?.toString(),
-      rowId,
-      streamCursor: streamCursor?.value.toString(),
-      sequence: sequence?.value.toString(),
-      type: 'event',
-    };
-  }
-
-  private assertCatchUpBudget(subscription: Subscription): void {
-    if (Date.now() - subscription.catchUpStartedAt > this.limits.maxCatchUpMs) {
-      throw new Error(
-        `Historical streaming time limit exceeded (${this.limits.maxCatchUpMs}ms)`,
-      );
-    }
-  }
-
-  private sequenceRows(
-    eventType: EventType,
-    cursor: SequenceCursor,
-    after: bigint,
-    through: bigint,
-  ): Promise<Row[]> {
-    const stream = STREAMS[eventType];
-    const sequence = sequenceConfig(stream);
-    return this.db.queryLive<Row>(
-      `SELECT ${columns(stream)} FROM ${q(stream.table)} WHERE ${q(stream.domain)} = $1 AND ${q(sequence.address)} = $2::bytea AND ${q(sequence.value)} > $3::bigint AND ${q(sequence.value)} <= $4::bigint ORDER BY ${q(sequence.value)} ASC LIMIT $5`,
-      [
-        storedDomain(cursor.domain),
-        cursor.address,
-        after.toString(),
-        through.toString(),
-        config.EVENT_STREAM_BATCH_SIZE,
-      ],
-    );
-  }
-
-  private async sequenceBounds(
-    eventType: EventType,
-    cursor: SequenceCursor,
-  ): Promise<{ first: bigint; last: bigint }> {
-    const stream = STREAMS[eventType];
-    const sequence = sequenceConfig(stream);
-    const [row] = await this.db.queryLive<{ first: string; last: string }>(
-      `SELECT COALESCE(MIN(${q(sequence.value)}), 0)::text AS first, COALESCE(MAX(${q(sequence.value)}), -1)::text AS last FROM ${q(stream.table)} WHERE ${q(stream.domain)} = $1 AND ${q(sequence.address)} = $2::bytea`,
-      [storedDomain(cursor.domain), cursor.address],
-    );
-    return {
-      first: parseSequence(row?.first ?? '0'),
-      last: parseSequence(row?.last ?? '-1'),
-    };
-  }
-
-  private legacyGasPaymentRows(
-    cursor: GasPaymentCursor,
-    after: bigint,
-    through: bigint,
-  ): Promise<Row[]> {
-    const stream = STREAMS.gas_payment;
-    // Limit payments before joining metadata; joining first enriches every
-    // remaining row in the range before the planner applies the batch limit.
-    return this.db.queryLive<Row>(
-      `SELECT ${gasPaymentColumns(stream)}, ${q('event_row')}.${q('id')} AS ${q(STREAM_CURSOR_COLUMN)} FROM (SELECT * FROM ${q(stream.table)} WHERE ${q(stream.domain)} = $1 AND ${q('interchain_gas_paymaster')} = $2::bytea AND ${q('id')} > $3::bigint AND ${q('id')} <= $4::bigint ORDER BY ${q('id')} ASC LIMIT $5) AS ${q('event_row')}${gasPaymentMetadataJoins('LEFT JOIN')} ORDER BY ${q('event_row')}.${q('id')} ASC`,
-      [
-        storedDomain(cursor.domain),
-        cursor.address,
-        after.toString(),
-        through.toString(),
-        config.EVENT_STREAM_BATCH_SIZE,
-      ],
-    );
-  }
-
-  private mappedGasPaymentRows(
-    cursor: GasPaymentCursor,
-    after: bigint,
-    through: bigint,
-  ): Promise<Row[]> {
-    const stream = STREAMS.gas_payment;
-    // Cursors are only assigned to confirmed payments, so limiting cursors
-    // before the joins cannot drop rows that the confirmed view would filter.
-    return this.db.queryLive<Row>(
-      `SELECT ${gasPaymentColumns(stream)}, ${q('event_cursor')}.${q('stream_cursor')} AS ${q(STREAM_CURSOR_COLUMN)} FROM (SELECT ${q('gas_payment_id')}, ${q('stream_cursor')} FROM ${q(GAS_PAYMENT_STREAM_CURSOR)} WHERE ${q('domain')} = $1 AND ${q('interchain_gas_paymaster')} = $2::bytea AND ${q('stream_cursor')} > $3::bigint AND ${q('stream_cursor')} <= $4::bigint ORDER BY ${q('stream_cursor')} ASC LIMIT $5) AS ${q('event_cursor')} INNER JOIN ${q(stream.table)} AS ${q('event_row')} ON ${q('event_row')}.${q('id')} = ${q('event_cursor')}.${q('gas_payment_id')}${gasPaymentMetadataJoins('LEFT JOIN')} ORDER BY ${q('event_cursor')}.${q('stream_cursor')} ASC`,
-      [
-        storedDomain(cursor.domain),
-        cursor.address,
-        after.toString(),
-        through.toString(),
-        config.EVENT_STREAM_BATCH_SIZE,
-      ],
-    );
-  }
-
-  private async gasPaymentCursorBounds(
-    cursor: GasPaymentCursor,
-  ): Promise<{ lastCursor: bigint; legacyMaxId: bigint }> {
-    const [row] = await this.db.queryLive<{
-      last_cursor: string;
-      legacy_max_id: string;
-    }>(
-      `SELECT COALESCE(${q('legacy_max_id')}, 0)::text AS legacy_max_id, COALESCE(${q('last_cursor')}, 0)::text AS last_cursor FROM ${q(GAS_PAYMENT_STREAM_HEAD)} WHERE ${q('domain')} = $1 AND ${q('interchain_gas_paymaster')} = $2::bytea`,
-      [storedDomain(cursor.domain), cursor.address],
-    );
-    return {
-      lastCursor: parseId(row?.last_cursor ?? '0'),
-      legacyMaxId: parseId(row?.legacy_max_id ?? '0'),
-    };
   }
 
   private async connectListener(): Promise<void> {
@@ -1545,7 +853,7 @@ export class EventWebSocketServer {
             headHeight: head.headHeight.toString(),
           });
         }
-        this.provisionalMessageCache.clear();
+        this.store.invalidateMessages();
         for (const streams of this.confirmationStreams.values())
           for (const stream of streams) stream.notify(head);
         if (
@@ -1564,7 +872,7 @@ export class EventWebSocketServer {
               ? current.through
               : head.confirmedHeight,
         });
-        this.scheduleHeadDrain();
+        this.headUpdates.schedule();
       } else if (channel === EXPLORER_CHANNEL) {
         const messageId = parseExplorerNotification(payload).messageId;
         this.queueExplorerNotification(messageId);
@@ -1586,52 +894,13 @@ export class EventWebSocketServer {
           return;
         }
         this.notifications.set(key, notification);
-        this.scheduleAgentDrain();
+        this.agentNotifications.schedule();
       }
     } catch (error) {
       this.logger.warn(
         `skipping invalid database notification: ${formatError(error)}`,
       );
       return;
-    }
-  }
-
-  private scheduleAgentDrain(): void {
-    if (!this.agentNotificationTimer && !this.drainingAgentNotifications) {
-      this.agentNotificationTimer = setTimeout(() => {
-        this.agentNotificationTimer = undefined;
-        void this.drainAgentNotifications().catch((error) =>
-          this.failAgentStream(error),
-        );
-      }, NOTIFICATION_BATCH_MS);
-    }
-  }
-
-  private scheduleHeadDrain(delay = NOTIFICATION_BATCH_MS): void {
-    if (!this.headNotificationTimer && !this.drainingHeadNotifications) {
-      this.headNotificationTimer = setTimeout(() => {
-        this.headNotificationTimer = undefined;
-        void this.drainHeadNotifications().catch((error) => {
-          this.logger.error(
-            `frontier publication failed: ${formatError(error)}`,
-          );
-          this.scheduleHeadDrain(LISTENER_RETRY_MS);
-        });
-      }, delay);
-    }
-  }
-
-  private scheduleExplorerDrain(): void {
-    if (
-      !this.explorerNotificationTimer &&
-      !this.drainingExplorerNotifications
-    ) {
-      this.explorerNotificationTimer = setTimeout(() => {
-        this.explorerNotificationTimer = undefined;
-        void this.drainExplorerNotifications().catch((error) =>
-          this.failExplorerStream(error),
-        );
-      }, NOTIFICATION_BATCH_MS);
     }
   }
 
@@ -1649,38 +918,30 @@ export class EventWebSocketServer {
       return;
     }
     this.explorerNotifications.add(messageId);
-    this.scheduleExplorerDrain();
+    this.explorerUpdates.schedule();
   }
 
   private async drainAgentNotifications(): Promise<void> {
-    if (this.drainingAgentNotifications) return;
-    this.drainingAgentNotifications = true;
-    try {
-      while (this.notifications.size) {
-        const batch = [...this.notifications.entries()].slice(
-          0,
-          NOTIFICATION_BATCH_SIZE,
-        );
-        const grouped = new Map<EventType, EventNotification[]>();
-        for (const [key, notification] of batch) {
-          this.notifications.delete(key);
-          if (!this.hasSubscriber(notification)) continue;
-          const group = grouped.get(notification.eventType) ?? [];
-          group.push(notification);
-          grouped.set(notification.eventType, group);
-        }
-        for (const [eventType, notifications] of grouped) {
-          await this.publishNotifications(eventType, notifications);
-        }
+    while (this.notifications.size) {
+      const batch = [...this.notifications.entries()].slice(
+        0,
+        NOTIFICATION_BATCH_SIZE,
+      );
+      const grouped = new Map<EventType, EventNotification[]>();
+      for (const [key, notification] of batch) {
+        this.notifications.delete(key);
+        if (!this.hasSubscriber(notification)) continue;
+        const group = grouped.get(notification.eventType) ?? [];
+        group.push(notification);
+        grouped.set(notification.eventType, group);
       }
-    } finally {
-      this.drainingAgentNotifications = false;
+      for (const [eventType, notifications] of grouped) {
+        await this.publishNotifications(eventType, notifications);
+      }
     }
   }
 
   private async drainHeadNotifications(): Promise<void> {
-    if (this.drainingHeadNotifications) return;
-    this.drainingHeadNotifications = true;
     try {
       for (const [domain, range] of this.headRanges) {
         try {
@@ -1691,21 +952,15 @@ export class EventWebSocketServer {
             error instanceof HeadPublicationError
               ? error
               : new HeadPublicationError(error, false, false);
-          if (failure.partialAgent) {
-            this.logger.error(failure.message);
-            this.failAgentDomain(domain, failure.original);
-            if (failure.explorerAffected && this.explorerClients.size)
-              this.failExplorerStream(failure.original);
-            this.releaseHeadRange(domain, range);
-            this.headFailures.delete(domain);
-            continue;
-          }
           const failures = (this.headFailures.get(domain) ?? 0) + 1;
           this.headFailures.set(domain, failures);
           this.logger.error(
             `frontier publication failed for domain ${domain} (${failures}/${MAX_HEAD_PUBLICATION_FAILURES}): ${formatError(error)}`,
           );
-          if (failures >= MAX_HEAD_PUBLICATION_FAILURES) {
+          if (
+            failure.partialAgent ||
+            failures >= MAX_HEAD_PUBLICATION_FAILURES
+          ) {
             this.failAgentDomain(domain, failure.original);
             if (failure.explorerAffected && this.explorerClients.size)
               this.failExplorerStream(failure.original);
@@ -1717,9 +972,8 @@ export class EventWebSocketServer {
         this.releaseHeadRange(domain, range);
       }
     } finally {
-      this.drainingHeadNotifications = false;
       if (this.headRanges.size)
-        this.scheduleHeadDrain(
+        this.headUpdates.schedule(
           this.headFailures.size ? LISTENER_RETRY_MS : NOTIFICATION_BATCH_MS,
         );
     }
@@ -1757,47 +1011,13 @@ export class EventWebSocketServer {
         this.explorerClients.size > 0 &&
         (eventType === 'delivery' || eventType === 'gas_payment');
       if (!agentInterested && !explorerInterested) continue;
-      const stream = STREAMS[eventType];
-      const height =
-        eventType === 'dispatch' ? 'origin_block_height' : 'block_number';
-      const gasPaymentCursor =
-        eventType === 'gas_payment'
-          ? ` LEFT JOIN ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} ON ${q('event_cursor')}.${q('gas_payment_id')} = ${q('event_row')}.${q('id')}`
-          : '';
-      const gasPaymentMetadata =
-        eventType === 'gas_payment' ? gasPaymentMetadataJoins('LEFT JOIN') : '';
-      const eventProjection =
-        eventType === 'gas_payment'
-          ? gasPaymentColumns(stream)
-          : columns(stream, 'event_row');
-      const cursorProjection =
-        eventType === 'gas_payment'
-          ? `, ${q('event_cursor')}.${q('stream_cursor')} AS ${q(STREAM_CURSOR_COLUMN)}`
-          : '';
-      let cursorHeight = after;
-      let cursorId = 0n;
       try {
-        while (true) {
-          const rows = await this.db.queryLive<Row>(
-            `SELECT ${eventProjection}${cursorProjection}, ${q('event_row')}.${q('id')} AS ${q(FRONTIER_ID)}, ${q('event_row')}.${q(height)} AS ${q(FRONTIER_HEIGHT)} FROM (SELECT * FROM ${q(stream.table)} AS ${q('frontier_row')} WHERE ${q('frontier_row')}.${q(stream.domain)}=$1 AND ${q('frontier_row')}.${q(height)}>$2::bigint AND ${q('frontier_row')}.${q(height)}<=$3::bigint AND (${q('frontier_row')}.${q(height)}>$4::bigint OR (${q('frontier_row')}.${q(height)}=$4::bigint AND ${q('frontier_row')}.${q('id')}>$5::bigint)) ORDER BY ${q('frontier_row')}.${q(height)}, ${q('frontier_row')}.${q('id')} LIMIT $6) AS ${q('event_row')}${gasPaymentMetadata}${gasPaymentCursor} ORDER BY ${q('event_row')}.${q(height)}, ${q('event_row')}.${q('id')}`,
-            [
-              storedDomain(domain),
-              after.toString(),
-              through.toString(),
-              cursorHeight.toString(),
-              cursorId.toString(),
-              config.EVENT_STREAM_BATCH_SIZE,
-            ],
-          );
-          if (!rows.length) break;
-          const lastByHeight = rows.at(-1)!;
-          const nextHeight = parseId(lastByHeight[FRONTIER_HEIGHT]);
-          const nextId = parseId(lastByHeight[FRONTIER_ID]);
-          const events = rows.map(
-            ({ [FRONTIER_ID]: _id, [FRONTIER_HEIGHT]: _height, ...event }) =>
-              event,
-          );
-          events.sort((a, b) => compareRows(eventType, a, b));
+        for await (const events of this.store.headEvents(
+          eventType,
+          domain,
+          after,
+          through,
+        )) {
           if (agentInterested) {
             agentPublished = true;
             events.forEach((row) => this.publish(eventType, row));
@@ -1821,9 +1041,6 @@ export class EventWebSocketServer {
               this.queueExplorerNotification(messageId),
             );
           }
-          cursorHeight = nextHeight;
-          cursorId = nextId;
-          if (rows.length < config.EVENT_STREAM_BATCH_SIZE) break;
         }
       } catch (error) {
         throw new HeadPublicationError(error, agentPublished, explorerPending);
@@ -1839,40 +1056,20 @@ export class EventWebSocketServer {
       this.explorerClients.size &&
       this.explorerNotifications.size > limit
     ) {
-      if (this.drainingExplorerNotifications) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, NOTIFICATION_BATCH_MS),
-        );
-        continue;
-      }
-      clearTimeout(this.explorerNotificationTimer);
-      this.explorerNotificationTimer = undefined;
-      try {
-        await this.drainExplorerNotifications();
-      } catch (error) {
-        // Explorer failures stay on the Explorer stream; agents keep publishing.
-        this.failExplorerStream(error);
-      }
+      await this.explorerUpdates.flush();
     }
   }
 
   private async drainExplorerNotifications(): Promise<void> {
-    if (this.drainingExplorerNotifications) return;
-    this.drainingExplorerNotifications = true;
-    try {
-      while (this.explorerNotifications.size) {
-        const messageIds = [...this.explorerNotifications].slice(
-          0,
-          EXPLORER_NOTIFICATION_BATCH_SIZE,
-        );
-        messageIds.forEach((messageId) =>
-          this.explorerNotifications.delete(messageId),
-        );
-        await this.publishExplorer(messageIds);
-      }
-    } finally {
-      this.drainingExplorerNotifications = false;
-      if (this.explorerNotifications.size) this.scheduleExplorerDrain();
+    while (this.explorerNotifications.size) {
+      const messageIds = [...this.explorerNotifications].slice(
+        0,
+        EXPLORER_NOTIFICATION_BATCH_SIZE,
+      );
+      messageIds.forEach((messageId) =>
+        this.explorerNotifications.delete(messageId),
+      );
+      await this.publishExplorer(messageIds);
     }
   }
 
@@ -1887,24 +1084,9 @@ export class EventWebSocketServer {
       ]),
     );
     const stream = STREAMS[eventType];
-    const gasPaymentCursor =
-      eventType === 'gas_payment'
-        ? ` LEFT JOIN ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} ON ${q('event_cursor')}.${q('gas_payment_id')} = ${q('event_row')}.${q('id')}`
-        : '';
-    const gasPaymentMetadata =
-      eventType === 'gas_payment' ? gasPaymentMetadataJoins('LEFT JOIN') : '';
-    const eventProjection =
-      eventType === 'gas_payment'
-        ? gasPaymentColumns(stream)
-        : columns(stream, 'event_row');
-    const cursorProjection =
-      eventType === 'gas_payment'
-        ? `, ${gasPaymentCursorExpression()} AS ${q(STREAM_CURSOR_COLUMN)}`
-        : '';
-    const rows = await this.db.queryLive<NotifiedRow>(
-      `SELECT ${q('event_row')}.${q('id')} AS ${q('notification_id')}, ${eventProjection}${cursorProjection} FROM ${q(stream.table)} AS ${q('event_row')}${gasPaymentMetadata}${gasPaymentCursor} WHERE ${q('event_row')}.${q('id')} = ANY($1::bigint[]) ORDER BY ${q('event_row')}.${q('id')} ASC`,
-      [[...expected.keys()]],
-    );
+    const rows = await this.store.notifiedEvents(eventType, [
+      ...expected.keys(),
+    ]);
     const returned = new Set<string>();
     for (const { notification_id } of rows) {
       try {
@@ -1943,7 +1125,7 @@ export class EventWebSocketServer {
 
   private async publishExplorer(messageIds: string[]): Promise<void> {
     if (!this.explorerClients.size) return;
-    this.provisionalMessageCache.clear();
+    this.store.invalidateMessages();
     for (const [socket, client] of this.explorerClients) {
       if (client.custom)
         this.confirmationStreams
@@ -1952,10 +1134,7 @@ export class EventWebSocketServer {
     }
     if (![...this.explorerClients.values()].some((client) => !client.custom))
       return;
-    const rows = await this.db.queryLive<Row>(
-      `SELECT ${CANONICAL_MESSAGE_COLUMNS} FROM ${q('message_view')} WHERE ${q('msg_id')} = ANY($1::bytea[]) AND ${q('send_occurred_at')} IS NOT NULL`,
-      [messageIds],
-    );
+    const rows = await this.store.canonicalMessages(messageIds);
     const messages = rows.map((row) =>
       serialize({ data: row, type: 'message_upsert' }),
     );
@@ -2009,8 +1188,8 @@ export class EventWebSocketServer {
       const subscription = client.subscriptions.get(eventType);
       if (
         subscription &&
-        subscription.confirmations === undefined &&
-        matchesDomain(subscription, domain)
+        subscription.request.confirmations === undefined &&
+        subscription.matchesDomain(domain)
       )
         return true;
     }
@@ -2047,7 +1226,7 @@ export class EventWebSocketServer {
     for (const [socket, client] of this.clients) {
       if (
         [...client.subscriptions.values()].some((subscription) =>
-          matchesDomain(subscription, domain),
+          subscription.matchesDomain(domain),
         )
       ) {
         this.disconnect(socket);
@@ -2063,7 +1242,7 @@ export class EventWebSocketServer {
 
   private closeClients(reason: string, code = 1013): void {
     this.confirmationStreams.clear();
-    this.provisionalMessageCache.clear();
+    this.store.invalidateMessages();
     this.closeAgentClients(reason, code);
     this.closeExplorerClients(reason, code);
   }
@@ -2072,21 +1251,19 @@ export class EventWebSocketServer {
     this.notifications.clear();
     this.headRanges.clear();
     this.headFailures.clear();
-    this.clients.forEach((_client, socket) => {
-      this.blockSubscriptions.delete(socket);
-      this.cancelCatchUp(socket);
+    for (const socket of this.clients.keys()) {
+      this.disconnect(socket);
       socket.close(code, reason);
-    });
+    }
     this.clients.clear();
   }
 
   private closeExplorerClients(reason: string, code = 1013): void {
     this.explorerNotifications.clear();
-    this.explorerClients.forEach((client, socket) => {
-      this.blockSubscriptions.delete(socket);
-      this.clearExplorerQueue(client);
+    for (const socket of this.explorerClients.keys()) {
+      this.disconnect(socket);
       socket.close(code, reason);
-    });
+    }
     this.explorerClients.clear();
     this.explorerClientsByIp.clear();
   }
@@ -2261,148 +1438,6 @@ function consumeMessage(client: Client): boolean {
     client.messages = 0;
   }
   return ++client.messages <= MAX_CLIENT_MESSAGES;
-}
-
-function matches(
-  subscription: Subscription,
-  domain: number,
-  cursorKey?: string,
-): boolean {
-  return (
-    matchesDomain(subscription, domain) &&
-    (!subscription.cursorKeys ||
-      (cursorKey !== undefined && subscription.cursorKeys.has(cursorKey)))
-  );
-}
-
-function matchesDomain(subscription: Subscription, domain: number): boolean {
-  return !subscription.domains || subscription.domains.has(domain);
-}
-
-function columns(stream: Stream, relation?: string): string {
-  return relation
-    ? stream.columns.map((column) => `${q(relation)}.${q(column)}`).join(', ')
-    : stream.projection;
-}
-
-export function gasPaymentColumns(stream: Stream): string {
-  return [
-    columns(stream, 'event_row'),
-    `COALESCE(${q('event_row')}.${q('transaction_hash')}, ${q(GAS_PAYMENT_TRANSACTION)}.${q('hash')}) AS ${q('origin_tx_hash')}`,
-    `COALESCE(${q('event_row')}.${q('block_hash')}, ${q(GAS_PAYMENT_BLOCK)}.${q('hash')}) AS ${q('origin_block_hash')}`,
-    `COALESCE(${q('event_row')}.${q('block_number')}, ${q(GAS_PAYMENT_BLOCK)}.${q('height')}) AS ${q('origin_block_height')}`,
-  ].join(', ');
-}
-
-export function gasPaymentMetadataJoins(join = 'INNER JOIN'): string {
-  return ` ${join} ${q('transaction')} AS ${q(GAS_PAYMENT_TRANSACTION)} ON ${q(GAS_PAYMENT_TRANSACTION)}.${q('id')} = ${q('event_row')}.${q('tx_id')} ${join} ${q('block')} AS ${q(GAS_PAYMENT_BLOCK)} ON ${q(GAS_PAYMENT_BLOCK)}.${q('id')} = ${q(GAS_PAYMENT_TRANSACTION)}.${q('block_id')}`;
-}
-
-function gasPaymentCursorExpression(): string {
-  return `COALESCE(${q('event_cursor')}.${q('stream_cursor')}, ${q('event_row')}.${q('id')})`;
-}
-
-function sequenceConfig(stream: Stream): NonNullable<Stream['sequence']> {
-  if (!stream.sequence) throw new Error('Stream has no native sequence');
-  return stream.sequence;
-}
-
-function rowDomain(row: Row, column: string): number {
-  return parseDatabaseDomain(row[column], `Invalid ${column} in event row`);
-}
-
-function rowDomains(row: Row, column: string): number[] {
-  const values = row[column];
-  if (values == null) return [];
-  if (!Array.isArray(values)) throw new Error(`Invalid ${column} in event row`);
-  return values.map((value) =>
-    parseDatabaseDomain(value, `Invalid ${column} in event row`),
-  );
-}
-
-function eventData(eventType: EventType, row: Row): Row {
-  let data = eventType === 'gas_payment' ? withoutStreamCursor(row) : row;
-  for (const column of EVENT_DOMAIN_COLUMNS[eventType]) {
-    const domain = parseDatabaseDomain(
-      data[column],
-      `Invalid ${column} in event row`,
-    );
-    if (data[column] !== domain) data = { ...data, [column]: domain };
-  }
-  return data;
-}
-
-function storedDomain(domain: number): number {
-  return domain > 0x7fff_ffff ? domain - 0x1_0000_0000 : domain;
-}
-
-function rowSequence(
-  eventType: EventType,
-  row: Row,
-): { address: string; value: bigint } | undefined {
-  if (!isSequencedEventType(eventType)) return undefined;
-  const sequence = sequenceConfig(STREAMS[eventType]);
-  const address = row[sequence.address];
-  if (typeof address !== 'string') {
-    throw new Error(`Invalid ${sequence.address} in event row`);
-  }
-  return {
-    address: normalizeSequenceAddress(address),
-    value: parseSequence(row[sequence.value]),
-  };
-}
-
-function parseSequence(value: unknown): bigint {
-  return parseInteger(value, -1, 'Invalid event sequence');
-}
-
-function sequenceKey(domain: number, address: string): string {
-  return `${domain}:${normalizeSequenceAddress(address)}`;
-}
-
-function rowCursorKey(
-  eventType: EventType,
-  domain: number,
-  row: Row,
-): string | undefined {
-  const sequence = rowSequence(eventType, row);
-  const streamCursor = gasPaymentStreamCursor(eventType, row);
-  const cursor = sequence ?? streamCursor;
-  return cursor && sequenceKey(domain, cursor.address);
-}
-
-function gasPaymentStreamCursor(
-  eventType: EventType,
-  row: Row,
-): { address: string; value: bigint } | undefined {
-  if (eventType !== 'gas_payment') return undefined;
-  const address = row.interchain_gas_paymaster;
-  if (typeof address !== 'string') {
-    throw new Error('Invalid interchain_gas_paymaster in event row');
-  }
-  return {
-    address: normalizeSequenceAddress(address),
-    value: parseId(row[STREAM_CURSOR_COLUMN]),
-  };
-}
-
-function withoutStreamCursor(row: Row): Row {
-  const { [STREAM_CURSOR_COLUMN]: _streamCursor, ...data } = row;
-  return data;
-}
-
-function compareRows(eventType: EventType, a: Row, b: Row): number {
-  const left =
-    rowSequence(eventType, a)?.value ??
-    gasPaymentStreamCursor(eventType, a)?.value;
-  const right =
-    rowSequence(eventType, b)?.value ??
-    gasPaymentStreamCursor(eventType, b)?.value;
-  return left === undefined || right === undefined || left === right
-    ? 0
-    : left < right
-      ? -1
-      : 1;
 }
 
 function clientIp(request: IncomingMessage): string | undefined {
