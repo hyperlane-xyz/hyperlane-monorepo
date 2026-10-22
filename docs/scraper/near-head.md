@@ -1,6 +1,7 @@
 # Near-head scraper ingestion
 
-Near-head indexing is live and is the default pipeline on every supported protocol.
+Near-head indexing is live and is the only pipeline for the four core event types
+on every supported protocol.
 The scraper indexes dispatch, delivery, gas-payment and Merkle-insertion events
 near the current head.
 Each event is stored once in its existing table. Permanent headers for event

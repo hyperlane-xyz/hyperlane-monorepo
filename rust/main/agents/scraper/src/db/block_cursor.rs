@@ -31,8 +31,8 @@ pub struct BlockCursor {
     db: DbConn,
     /// The hyperlane domain this block cursor is for.
     domain: u32,
-    /// Discriminates different indexer types sharing the same domain (e.g. "" for
-    /// messages, "ccr_swap" for same-chain CCR swaps) so each has an independent watermark.
+    /// The cursor-table namespace. Only "ccr_swap" is active; core event progress
+    /// lives in scraper_head.
     event_type: String,
     inner: RwLock<BlockCursorInner>,
 }

@@ -1,4 +1,4 @@
-//! Default indexing pipeline for every configured chain: ingest near head, publish after confirmation.
+//! Core event-indexing pipeline for every configured chain: ingest near head, publish after confirmation.
 mod enrichment;
 mod pipeline;
 mod runtime;

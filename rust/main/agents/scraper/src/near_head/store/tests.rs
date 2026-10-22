@@ -200,6 +200,9 @@ async fn event_batches_preserve_payloads_and_transaction_scoped_log_indexes() ->
         ),
     ];
     events.iter_mut().for_each(|event| event.log_index = 0);
+    events[0].tx_hash = None;
+    events[3].sequence = Some(77);
+    let dispatch_tx_hash = events[1].tx_hash.unwrap();
     let wide_tx_hash = H512::repeat_byte(0x55);
     let last = events.last_mut().unwrap();
     last.tx_hash = Some(wide_tx_hash);
@@ -253,7 +256,7 @@ async fn event_batches_preserve_payloads_and_transaction_scoped_log_indexes() ->
     assert_eq!(row.try_get::<i32>("", "origin")?, 1);
     assert_eq!(row.try_get::<i32>("", "destination")?, 2);
     let row = store.db.query_one(sql(
-        "SELECT msg_id,msg_body,message_version,sender,recipient FROM raw_message_dispatch WHERE nonce=1",
+        "SELECT msg_id,msg_body,message_version,sender,recipient,origin_tx_hash,origin_block_hash,origin_mailbox FROM raw_message_dispatch WHERE nonce=1",
         vec![],
     )).await?.unwrap();
     assert_eq!(
@@ -273,6 +276,56 @@ async fn event_batches_preserve_payloads_and_transaction_scoped_log_indexes() ->
         row.try_get::<Vec<u8>>("", "recipient")?,
         messages[1].recipient.as_bytes()
     );
+    assert_eq!(
+        row.try_get::<Vec<u8>>("", "origin_tx_hash")?,
+        h512_to_bytes(&dispatch_tx_hash)
+    );
+    assert_eq!(
+        row.try_get::<Vec<u8>>("", "origin_block_hash")?,
+        header(1).hash.as_bytes()
+    );
+    assert_eq!(
+        row.try_get::<Vec<u8>>("", "origin_mailbox")?,
+        address_to_bytes(&contracts.mailbox)
+    );
+    let row = store
+        .db
+        .query_one(sql(
+            "SELECT origin_tx_hash FROM raw_message_dispatch WHERE nonce=0",
+            vec![],
+        ))
+        .await?
+        .unwrap();
+    assert_eq!(
+        row.try_get::<Vec<u8>>("", "origin_tx_hash")?,
+        h512_to_bytes(&H512::zero())
+    );
+    let row = store
+        .db
+        .query_one(sql(
+            "SELECT msg_id,sequence FROM delivered_message WHERE transaction_index=3",
+            vec![],
+        ))
+        .await?
+        .unwrap();
+    assert_eq!(
+        row.try_get::<Vec<u8>>("", "msg_id")?,
+        message_ids[1].as_bytes()
+    );
+    assert_eq!(row.try_get::<i64>("", "sequence")?, 77);
+    let row = store
+        .db
+        .query_one(sql(
+            "SELECT message_id,leaf_index FROM merkle_tree_insertion WHERE transaction_index=5",
+            vec![],
+        ))
+        .await?
+        .unwrap();
+    assert_eq!(
+        row.try_get::<Vec<u8>>("", "message_id")?,
+        message_ids[1].as_bytes()
+    );
+    assert_eq!(row.try_get::<i32>("", "leaf_index")?, 1);
     Ok(())
 }
 

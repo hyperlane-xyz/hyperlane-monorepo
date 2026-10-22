@@ -191,8 +191,8 @@ impl Scraper {
         try_join_all(tasks).await.map(|_| ())
     }
 
-    /// Retries construction of a chain that failed at startup (e.g. provider or
-    /// cursor setup), then supervises it like any other chain.
+    /// Retries construction of a chain that failed at startup (e.g. missing chain config or
+    /// provider setup), then supervises it like any other chain.
     async fn supervise_unbuilt_chain(
         &self,
         domain: &HyperlaneDomain,

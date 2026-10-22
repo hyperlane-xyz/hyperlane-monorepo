@@ -135,54 +135,53 @@ pub(super) fn event_row(
         .into_iter()
         .map(|value| Expr::val(value).into())
         .collect();
-    let (table, extra): (_, Vec<Value>) = match &event.data {
-        EventData::Dispatch(message) => (
-            Table::Dispatch,
-            vec![
-                message.id().as_bytes().to_vec().into(),
-                signed(message.destination).into(),
-                signed(message.nonce).into(),
-                address_to_bytes(&message.sender).into(),
-                address_to_bytes(&message.recipient).into(),
-                message.body.clone().into(),
-                i16::from(message.version).into(),
-            ],
-        ),
-        EventData::Delivery(id) => (
-            Table::Delivery,
-            vec![
-                id.as_bytes().to_vec().into(),
-                event.sequence.map(i64::from).into(),
-            ],
-        ),
-        EventData::Insertion { message_id, index } => (
-            Table::Insertion,
-            vec![message_id.as_bytes().to_vec().into(), signed(*index).into()],
-        ),
+    let table = match &event.data {
+        EventData::Dispatch(message) => {
+            row.extend([
+                Expr::val(message.id().as_bytes().to_vec()).into(),
+                Expr::val(signed(message.destination)).into(),
+                Expr::val(signed(message.nonce)).into(),
+                Expr::val(address_to_bytes(&message.sender)).into(),
+                Expr::val(address_to_bytes(&message.recipient)).into(),
+                Expr::val(message.body.clone()).into(),
+                Expr::val(i16::from(message.version)).into(),
+                Expr::cust("now()"),
+            ]);
+            Table::Dispatch
+        }
+        EventData::Delivery(id) => {
+            row.extend([
+                Expr::val(id.as_bytes().to_vec()).into(),
+                Expr::val(event.sequence.map(i64::from)).into(),
+                Expr::cust("now()"),
+            ]);
+            Table::Delivery
+        }
+        EventData::Insertion { message_id, index } => {
+            row.extend([
+                Expr::val(message_id.as_bytes().to_vec()).into(),
+                Expr::val(signed(*index)).into(),
+            ]);
+            Table::Insertion
+        }
         EventData::Gas {
             message_id,
             destination,
-            ..
-        } => (
-            Table::Gas,
-            vec![
-                message_id.as_bytes().to_vec().into(),
-                signed(*destination).into(),
-            ],
-        ),
+            gas,
+            payment,
+        } => {
+            row.extend([
+                Expr::val(message_id.as_bytes().to_vec()).into(),
+                Expr::val(signed(*destination)).into(),
+                Expr::cust_with_values("$1::text::numeric", [gas.clone()]),
+                Expr::cust_with_values("$1::text::numeric", [payment.clone()]),
+                Expr::val(domain).into(),
+                Expr::val(event.sequence.map(i64::from)).into(),
+                Expr::cust("now()"),
+            ]);
+            Table::Gas
+        }
     };
-    row.extend(extra.into_iter().map(|value| Expr::val(value).into()));
-    if let EventData::Gas { gas, payment, .. } = &event.data {
-        row.extend([
-            Expr::cust_with_values("$1::text::numeric", [gas.clone()]),
-            Expr::cust_with_values("$1::text::numeric", [payment.clone()]),
-            Expr::val(domain).into(),
-            Expr::val(event.sequence.map(i64::from)).into(),
-        ]);
-    }
-    if table != Table::Insertion {
-        row.push(Expr::cust("now()"));
-    }
     Ok((table, row))
 }
 

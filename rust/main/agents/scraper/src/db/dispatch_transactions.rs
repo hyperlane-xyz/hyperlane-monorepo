@@ -115,5 +115,34 @@ async fn dispatch_writes_preserve_atomicity_and_replay_in_postgres() -> eyre::Re
             i64::from(count)
         );
     }
+    // Replaying without enrichment must retain the previously resolved transaction.
+    let txn_id = super::write_batches::seed_transaction(&db, 0).await?;
+    let rows = messages(1);
+    assert_eq!(
+        db.store_dispatched_messages(
+            1,
+            &H256::zero(),
+            [StorableMessage {
+                msg: rows[0].clone(),
+                txn_id: Some(txn_id),
+                id_override: None
+            }]
+            .into_iter(),
+        )
+        .await?,
+        0
+    );
+    assert_eq!(store(&db, &rows).await?, 0);
+    let stored =
+        db.0.query_one(sea_orm::Statement::from_string(
+            DatabaseBackend::Postgres,
+            "SELECT origin_tx_id FROM message WHERE nonce=0".to_owned(),
+        ))
+        .await?
+        .unwrap();
+    assert_eq!(
+        stored.try_get::<Option<i64>>("", "origin_tx_id")?,
+        Some(txn_id)
+    );
     Ok(())
 }

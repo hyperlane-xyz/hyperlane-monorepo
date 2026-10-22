@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use ethers_prometheus::middleware::PrometheusMiddlewareConf;
 use prometheus::Registry;
 use reqwest::Url;
@@ -124,13 +122,7 @@ async fn test_failed_build_chain_scrapers() {
         HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
     ];
 
-    // Create MockDatabase with mock query results
-    let db = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([
-        // First query result
-        vec![[("height", sea_orm::Value::BigInt(Some(100)))]
-            .into_iter()
-            .collect::<BTreeMap<_, _>>()],
-    ]);
+    let db = MockDatabase::new(DatabaseBackend::Postgres);
     let scraper_db = ScraperDb::with_connection(db.into_connection());
 
     let scrapers =

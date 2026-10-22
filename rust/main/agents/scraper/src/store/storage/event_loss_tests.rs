@@ -147,6 +147,38 @@ async fn count_swaps(db: &ScraperDb) -> Result<i64> {
 }
 
 #[tokio::test]
+async fn repeated_rpc_misses_do_not_withhold_resolvable_siblings() -> Result<()> {
+    let postgres = Postgres::default().start().await?;
+    let port = postgres.get_host_port_ipv4(5432).await?;
+    let connection = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{port}/postgres"
+    ))
+    .await?;
+    migration::Migrator::up(&connection, None).await?;
+    let db = ScraperDb::with_connection(connection);
+    let failure = Arc::new(AtomicU8::new(6));
+    let store = build_store(db.clone(), failure.clone()).await?;
+    let logs = [meta(600), meta(601)];
+    let missing = logs[0].transaction_id;
+    let available = logs[1].transaction_id;
+    for _ in 0..3 {
+        let txns: HashMap<_, _> = store.ensure_blocks_and_txns(logs.iter()).await?.collect();
+        assert_eq!(txns.len(), 1);
+        assert!(txns.contains_key(&available));
+        assert!(!txns.contains_key(&missing));
+        assert_eq!(
+            db.get_txn_ids([&available, &missing].into_iter()).await?,
+            txns
+        );
+    }
+    failure.store(0, Ordering::SeqCst);
+    let recovered: HashMap<_, _> = store.ensure_blocks_and_txns(logs.iter()).await?.collect();
+    assert!(recovered.contains_key(&available));
+    assert!(recovered.contains_key(&missing));
+    Ok(())
+}
+
+#[tokio::test]
 async fn incomplete_ccr_batches_fail_and_recover_after_restart() -> Result<()> {
     let postgres = Postgres::default().start().await?;
     let port = postgres.get_host_port_ipv4(5432).await?;

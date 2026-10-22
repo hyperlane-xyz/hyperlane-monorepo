@@ -21,6 +21,9 @@ three frontier indexes and gas payment log index, which their down
 migrations drop. Scraper startup refuses to run until the collision-safe gas
 payment log index is valid and `gas_payment_transaction_log` is gone.
 
+Before dropping a column during rollback, stop or roll back every scraper binary
+that references it. Scraper startup does not apply migrations.
+
 Schema rollback does not recreate indexes managed concurrently by `init-db`.
 Before starting an older scraper image, run that image's `init-db`; it restores
 and verifies the index definitions expected by that version.

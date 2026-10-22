@@ -1,8 +1,8 @@
 # Scraper
 
 Indexes Hyperlane dispatches, deliveries, gas payments, and Merkle insertions across
-all configured chains. **Near-head is live and is the default indexing pipeline
-for every supported protocol.** One process shares a PostgreSQL pool across chains.
+all configured chains. **Near-head is live and is the only indexing pipeline
+for these events on every supported protocol.** One process shares a PostgreSQL pool across chains.
 
 ```text
 src/
@@ -48,6 +48,7 @@ Run Cargo commands from `rust/main`:
 ```sh
 docker run --name scraper -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16-alpine
 export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
+export HYP_DB="$DATABASE_URL"
 cargo run -p migration --bin init-db
 cargo run -p scraper
 
