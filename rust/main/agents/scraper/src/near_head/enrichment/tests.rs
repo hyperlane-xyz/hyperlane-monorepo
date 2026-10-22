@@ -102,7 +102,7 @@ async fn cached_backlog_drains_while_other_stream_receipt_is_pending() -> Result
     .await?;
     let calls = Arc::new(AtomicUsize::new(0));
     let domain: HyperlaneDomain = KnownHyperlaneDomain::Ethereum.into();
-    let legacy = HyperlaneDbStore::new(
+    let store = HyperlaneDbStore::new(
         crate::db::ScraperDb::with_connection(Database::connect(&url).await?),
         domain.clone(),
         hyperlane_base::settings::CoreContractAddresses::default(),
@@ -110,10 +110,7 @@ async fn cached_backlog_drains_while_other_stream_receipt_is_pending() -> Result
             domain,
             calls: calls.clone(),
         }),
-        &hyperlane_base::settings::IndexSettings::default(),
-        None,
-    )
-    .await?;
+    );
     let oldest_pending_seconds = GaugeVec::new(
         prometheus::Opts::new(
             "receipt_oldest_pending_seconds",
@@ -121,16 +118,16 @@ async fn cached_backlog_drains_while_other_stream_receipt_is_pending() -> Result
         ),
         &["chain", "event_type"],
     )?;
-    update_pending_age(&legacy, &oldest_pending_seconds).await?;
+    update_pending_age(&store, &oldest_pending_seconds).await?;
     for event_type in ["delivery", "gas_payment"] {
         assert!(
             oldest_pending_seconds
-                .with_label_values(&[legacy.domain.name(), event_type])
+                .with_label_values(&[store.domain.name(), event_type])
                 .get()
                 >= 120.0
         );
     }
-    let worker_store = legacy.clone();
+    let worker_store = store.clone();
     let worker_metric = oldest_pending_seconds.clone();
     // A full successful page must not wait for this deliberately long poll interval.
     let worker =
@@ -157,16 +154,16 @@ async fn cached_backlog_drains_while_other_stream_receipt_is_pending() -> Result
     let _ = worker.await;
     drained??;
     assert_eq!(calls.load(Ordering::Relaxed), 1);
-    update_pending_age(&legacy, &oldest_pending_seconds).await?;
+    update_pending_age(&store, &oldest_pending_seconds).await?;
     assert_eq!(
         oldest_pending_seconds
-            .with_label_values(&[legacy.domain.name(), "gas_payment"])
+            .with_label_values(&[store.domain.name(), "gas_payment"])
             .get(),
         0.0
     );
     assert!(
         oldest_pending_seconds
-            .with_label_values(&[legacy.domain.name(), "delivery"])
+            .with_label_values(&[store.domain.name(), "delivery"])
             .get()
             >= 120.0
     );
@@ -177,8 +174,8 @@ async fn cached_backlog_drains_while_other_stream_receipt_is_pending() -> Result
     let domain_rpc_permits = Semaphore::new(RECEIPT_RPC_DOMAIN_CONCURRENCY);
     assert!(
         !enrich_page(
-            &legacy,
-            "delivered_message",
+            &store,
+            ReceiptStream::Delivery,
             &mut after,
             Duration::from_millis(50),
             &domain_rpc_permits,
@@ -188,8 +185,8 @@ async fn cached_backlog_drains_while_other_stream_receipt_is_pending() -> Result
     assert!(after > 0);
     assert!(
         !enrich_page(
-            &legacy,
-            "delivered_message",
+            &store,
+            ReceiptStream::Delivery,
             &mut after,
             Duration::from_millis(50),
             &domain_rpc_permits,
@@ -209,8 +206,8 @@ async fn cached_backlog_drains_while_other_stream_receipt_is_pending() -> Result
     .await?;
     assert!(
         !enrich_page(
-            &legacy,
-            "delivered_message",
+            &store,
+            ReceiptStream::Delivery,
             &mut after,
             Duration::from_millis(200),
             &domain_rpc_permits,

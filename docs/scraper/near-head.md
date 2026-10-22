@@ -1,7 +1,8 @@
 # Near-head scraper ingestion
 
+Near-head indexing is live and is the default pipeline on every supported protocol.
 The scraper indexes dispatch, delivery, gas-payment and Merkle-insertion events
-near the current head on every supported protocol.
+near the current head.
 Each event is stored once in its existing table. Permanent headers for event
 blocks remain in `block`; the current confirmation boundary and sparse unconfirmed
 range checkpoints live in `scraper_checkpoint`. `scraper_head` contains only
@@ -9,9 +10,9 @@ per-chain progress and health, not event payloads.
 
 The scraper advances `scraper_head.confirmed_height` after the chain's existing
 `reorgPeriod`. The proxy publishes that newly visible height range, and gas-payment
-cursors are allocated atomically with the frontier advance. The proxy and Explorer
-query confirmed views, preserving their configured delay.
-There is no new endpoint or subscriber-selected delay in this change.
+cursors are allocated atomically with the frontier advance. Canonical proxy and Explorer queries use confirmed views. Subscribers can also
+request [custom confirmation delays](../../typescript/scraper-proxy/README.md#live-confirmations-and-rollback);
+those consumers handle rollback notifications for provisional history.
 
 `scraper_head` announces initialized, progress, status, and
 rollback boundaries, including the indexed hash and previous indexed height.
@@ -159,12 +160,9 @@ boundary from stored maxima. Contract changes are rejected.
   scanner. `block` receives only headers for blocks containing actual events;
   those headers remain available for transaction enrichment. Historical headers
   left by older scraper versions are not removed automatically.
-- Block/log/transaction positions are recorded for future custom-period consumers.
-  No further database schema is required for block-count confirmation periods.
-  Adding those consumers still requires a reorg-aware cursor/reset protocol that
-  carries the event block hash; the current legacy protocol must not be pointed
-  directly at provisional data. Subscriber cursors belong to the proxy/client,
-  not this shared database.
+- Block/log/transaction positions support the proxy's custom confirmation periods.
+  Custom consumers handle rollback/reset messages; canonical consumers continue
+  reading confirmed history. Subscriber cursors belong to the proxy/client.
 
 ## RPC cost
 

@@ -2,11 +2,8 @@ use eyre::{Context, Result};
 use itertools::Itertools;
 use migration::OnConflict;
 use sea_orm::{
-    prelude::*,
-    sea_query::{Query, SelectStatement},
-    ActiveValue::*,
-    ConnectionTrait, DbErr, EntityTrait, FromQueryResult, Insert, QueryResult, QuerySelect,
-    QueryTrait,
+    prelude::*, sea_query::Query, ActiveValue::*, ConnectionTrait, DbErr, EntityTrait,
+    FromQueryResult, Insert, QueryResult, QuerySelect, QueryTrait,
 };
 use tracing::{debug, trace};
 
@@ -15,7 +12,7 @@ use hyperlane_core::{h256_to_bytes, BlockInfo, H256};
 use crate::date_time;
 use crate::db::ScraperDb;
 
-use super::generated::{block, transaction};
+use super::generated::block;
 
 /// A stripped down block model. This is so we can get just the information
 /// needed if the block is present in the Db already to inject into other
@@ -37,23 +34,6 @@ impl FromQueryResult for BasicBlock {
 }
 
 impl ScraperDb {
-    /// Resolve a query selecting one event transaction id to its block height in
-    /// one database round trip. NULL/missing relations produce no height.
-    pub(super) async fn retrieve_block_number_by_tx_query(
-        &self,
-        tx_id_query: SelectStatement,
-    ) -> Result<Option<u64>> {
-        let height = transaction::Entity::find()
-            .filter(transaction::Column::Id.in_subquery(tx_id_query))
-            .inner_join(block::Entity)
-            .select_only()
-            .column(block::Column::Height)
-            .into_tuple::<i64>()
-            .one(&self.0)
-            .await?;
-        height.map(u64::try_from).transpose().map_err(Into::into)
-    }
-
     /// Get basic block data that can be used to insert a transaction or
     /// message. Any blocks which are not found will be excluded from the
     /// response.

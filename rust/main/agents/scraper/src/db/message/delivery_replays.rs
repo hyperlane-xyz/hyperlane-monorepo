@@ -1,7 +1,7 @@
 //! Delivery replay writes must preserve enrichment without rewriting unchanged rows.
 use std::time::{Duration, Instant};
 
-use hyperlane_core::{LogMeta, H256};
+use hyperlane_core::H256;
 use migration::MigratorTrait;
 use sea_orm::{
     sqlx::postgres::PgListener, ConnectionTrait, Database, DatabaseBackend, QueryTrait, Statement,
@@ -12,11 +12,10 @@ use testcontainers_modules::postgres::Postgres;
 use super::{delivered_message, delivery_insert_query, ScraperDb, StorableDelivery};
 use crate::db::write_batches::seed_transaction;
 
-fn delivery(txn_id: Option<i64>, meta: &LogMeta) -> StorableDelivery<'_> {
+fn delivery(txn_id: Option<i64>) -> StorableDelivery {
     StorableDelivery {
         message_id: H256::from_low_u64_be(100),
         sequence: Some(3),
-        meta,
         txn_id,
     }
 }
@@ -46,7 +45,6 @@ async fn unchanged_delivery_replays_preserve_row_and_notifications() -> eyre::Re
     let second_tx = seed_transaction(&db, 1).await?;
     let mut listener = PgListener::connect(&url).await?;
     listener.listen("scraper_explorer_event").await?;
-    let meta = LogMeta::default();
 
     let mut previous_state = None;
     for (tx_id, expect_insert, expect_update) in [
@@ -59,7 +57,7 @@ async fn unchanged_delivery_replays_preserve_row_and_notifications() -> eyre::Re
         (None, false, false),
     ] {
         assert_eq!(
-            db.store_deliveries(1, H256::zero(), [delivery(tx_id, &meta)].into_iter())
+            db.store_deliveries(1, H256::zero(), [delivery(tx_id)].into_iter())
                 .await?,
             u64::from(expect_insert)
         );
@@ -99,12 +97,8 @@ async fn unchanged_delivery_replays_preserve_row_and_notifications() -> eyre::Re
             .await?
             .expect("delivery exists")
             .try_get::<String>("", "metadata")?;
-    db.store_deliveries(
-        1,
-        H256::zero(),
-        [delivery(Some(first_tx), &meta)].into_iter(),
-    )
-    .await?;
+    db.store_deliveries(1, H256::zero(), [delivery(Some(first_tx))].into_iter())
+        .await?;
     let after =
         db.0.query_one(metadata_query)
             .await?
@@ -125,12 +119,8 @@ async fn unchanged_delivery_replays_preserve_row_and_notifications() -> eyre::Re
             .is_err(),
         "Frontier publication uses the head notification"
     );
-    db.store_deliveries(
-        1,
-        H256::zero(),
-        [delivery(Some(second_tx), &meta)].into_iter(),
-    )
-    .await?;
+    db.store_deliveries(1, H256::zero(), [delivery(Some(second_tx))].into_iter())
+        .await?;
     let notification = tokio::time::timeout(Duration::from_secs(1), listener.recv()).await??;
     let payload: serde_json::Value = serde_json::from_str(notification.payload())?;
     assert_eq!(payload["messageId"], format!("{:064x}", 100));
@@ -145,12 +135,8 @@ async fn fallback_delivery_replay_waits_for_concurrent_enrichment() -> eyre::Res
     let db = ScraperDb::with_connection(Database::connect(&url).await?);
     migration::Migrator::up(&db.0, None).await?;
     let txn_id = seed_transaction(&db, 0).await?;
-    db.store_deliveries(
-        1,
-        H256::zero(),
-        [delivery(None, &LogMeta::default())].into_iter(),
-    )
-    .await?;
+    db.store_deliveries(1, H256::zero(), [delivery(None)].into_iter())
+        .await?;
     use sea_orm::TransactionTrait;
     let tx = db.0.begin().await?;
     tx.execute(Statement::from_sql_and_values(
@@ -162,11 +148,7 @@ async fn fallback_delivery_replay_waits_for_concurrent_enrichment() -> eyre::Res
     let worker_db = ScraperDb::with_connection(Database::connect(&url).await?);
     let mut replay = tokio::spawn(async move {
         worker_db
-            .store_deliveries(
-                1,
-                H256::zero(),
-                [delivery(None, &LogMeta::default())].into_iter(),
-            )
+            .store_deliveries(1, H256::zero(), [delivery(None)].into_iter())
             .await
     });
     assert!(

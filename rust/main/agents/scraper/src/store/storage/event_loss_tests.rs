@@ -10,8 +10,8 @@ use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainInfo, ChainResult, Delivery, HyperlaneChain, Indexed,
-    InterchainGasPayment, KnownHyperlaneDomain, SameChainCcrSwap, TxnInfo, TxnReceiptInfo, U256,
+    BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain, HyperlaneLogStore,
+    Indexed, KnownHyperlaneDomain, SameChainCcrSwap, TxnInfo, TxnReceiptInfo, U256,
 };
 
 use super::*;
@@ -32,7 +32,7 @@ impl HyperlaneChain for Provider {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl HyperlaneProvider for Provider {
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         let failure = self.failure.load(Ordering::SeqCst);
@@ -96,15 +96,12 @@ impl HyperlaneProvider for Provider {
 
 async fn build_store(db: ScraperDb, failure: Arc<AtomicU8>) -> Result<HyperlaneDbStore> {
     let domain: HyperlaneDomain = KnownHyperlaneDomain::Ethereum.into();
-    HyperlaneDbStore::new(
+    Ok(HyperlaneDbStore::new(
         db,
         domain.clone(),
         CoreContractAddresses::default(),
         Arc::new(Provider { domain, failure }),
-        &IndexSettings::default(),
-        None,
-    )
-    .await
+    ))
 }
 
 fn meta(n: u64) -> LogMeta {
@@ -118,80 +115,39 @@ fn meta(n: u64) -> LogMeta {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-enum Event {
-    Delivery,
-    Payment,
-    Ccr,
+async fn persist_ccr(store: &HyperlaneDbStore, metas: &[LogMeta]) -> Result<u32> {
+    let logs = metas
+        .iter()
+        .map(|meta| {
+            (
+                Indexed::new(SameChainCcrSwap {
+                    domain: store.domain.id(),
+                    source_router: H256::from_low_u64_be(1),
+                    destination_router: H256::from_low_u64_be(2),
+                    amount_received: U256::one(),
+                    recipient: H256::from_low_u64_be(3),
+                }),
+                meta.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    HyperlaneLogStore::<SameChainCcrSwap>::store_logs(store, &logs).await
 }
-impl Event {
-    async fn persist(self, store: &HyperlaneDbStore, metas: &[LogMeta]) -> Result<u32> {
-        match self {
-            Self::Delivery => {
-                let logs = metas
-                    .iter()
-                    .map(|meta| (Indexed::new(meta.block_hash), meta.clone()))
-                    .collect::<Vec<_>>();
-                HyperlaneLogStore::<Delivery>::store_logs(store, &logs).await
-            }
-            Self::Payment => {
-                let logs = metas
-                    .iter()
-                    .map(|meta| {
-                        (
-                            Indexed::new(InterchainGasPayment {
-                                message_id: meta.block_hash,
-                                destination: store.domain.id(),
-                                payment: U256::one(),
-                                gas_amount: U256::one(),
-                            }),
-                            meta.clone(),
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                HyperlaneLogStore::<InterchainGasPayment>::store_logs(store, &logs).await
-            }
-            Self::Ccr => {
-                let logs = metas
-                    .iter()
-                    .map(|meta| {
-                        (
-                            Indexed::new(SameChainCcrSwap {
-                                domain: store.domain.id(),
-                                source_router: H256::from_low_u64_be(1),
-                                destination_router: H256::from_low_u64_be(2),
-                                amount_received: U256::one(),
-                                recipient: H256::from_low_u64_be(3),
-                            }),
-                            meta.clone(),
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                HyperlaneLogStore::<SameChainCcrSwap>::store_logs(store, &logs).await
-            }
-        }
-    }
 
-    async fn count(self, db: &ScraperDb) -> Result<i64> {
-        let table = match self {
-            Self::Delivery => "delivered_message",
-            Self::Payment => "gas_payment",
-            Self::Ccr => "message",
-        };
-        let row = db
-            .clone_connection()
-            .query_one(Statement::from_string(
-                DatabaseBackend::Postgres,
-                format!("SELECT COUNT(*) AS count FROM {table}"),
-            ))
-            .await?
-            .expect("count row");
-        Ok(row.try_get("", "count")?)
-    }
+async fn count_swaps(db: &ScraperDb) -> Result<i64> {
+    let row = db
+        .clone_connection()
+        .query_one(Statement::from_string(
+            DatabaseBackend::Postgres,
+            "SELECT COUNT(*) AS count FROM message",
+        ))
+        .await?
+        .expect("count row");
+    Ok(row.try_get("", "count")?)
 }
 
 #[tokio::test]
-async fn incomplete_event_batches_fail_and_recover_after_restart() -> Result<()> {
+async fn incomplete_ccr_batches_fail_and_recover_after_restart() -> Result<()> {
     let postgres = Postgres::default().start().await?;
     let port = postgres.get_host_port_ipv4(5432).await?;
     let url = format!("postgresql://postgres:postgres@127.0.0.1:{port}/postgres");
@@ -201,45 +157,42 @@ async fn incomplete_event_batches_fail_and_recover_after_restart() -> Result<()>
     let failure = Arc::new(AtomicU8::new(0));
     let mut next = 100;
 
-    for event in [Event::Delivery, Event::Payment, Event::Ccr] {
-        // Provider failure and a successful response whose hash cannot be read
-        // back must both reject a batch. Include an already persisted sibling.
-        for mode in 1..=5 {
-            let before = event.count(&db).await?;
-            let store = build_store(db.clone(), failure.clone()).await?;
-            let logs = [meta(next), meta(next + 1)];
-            next += 2;
-            event.persist(&store, &logs[..1]).await?;
-            assert_eq!(event.count(&db).await?, before + 1);
-            failure.store(mode, Ordering::SeqCst);
-            let error = event
-                .persist(&store, &logs)
-                .await
-                .expect_err("incomplete enrichment must fail the batch");
-            assert!(
-                error.to_string().contains("Incomplete event enrichment"),
-                "{event:?}: {error:#}"
-            );
-            assert_eq!(
-                event.count(&db).await?,
-                before + 1,
-                "failed batch must not lose its pending event"
-            );
-            assert_eq!(store.cursor.height().await, 0);
-            drop(store);
+    // Provider failure and a successful response whose hash cannot be read
+    // back must both reject a batch. Include an already persisted sibling.
+    for mode in 1..=5 {
+        let before = count_swaps(&db).await?;
+        let store = build_store(db.clone(), failure.clone()).await?;
+        let logs = [meta(next), meta(next + 1)];
+        next += 2;
+        persist_ccr(&store, &logs[..1]).await?;
+        assert_eq!(count_swaps(&db).await?, before + 1);
+        failure.store(mode, Ordering::SeqCst);
+        let error = persist_ccr(&store, &logs)
+            .await
+            .expect_err("incomplete enrichment must fail the batch");
+        assert!(
+            error.to_string().contains("Incomplete event enrichment"),
+            "{error:#}"
+        );
+        assert_eq!(
+            count_swaps(&db).await?,
+            before + 1,
+            "failed batch must not lose its pending event"
+        );
 
-            failure.store(0, Ordering::SeqCst);
-            let restarted = build_store(db.clone(), failure.clone()).await?;
-            assert_eq!(restarted.cursor.height().await, 0);
-            event.persist(&restarted, &logs).await?;
-            assert_eq!(
-                event.count(&db).await?,
-                before + 2,
-                "recovery stores the missing sibling"
-            );
-            event.persist(&restarted, &logs).await?;
-            assert_eq!(event.count(&db).await?, before + 2, "replay is idempotent");
-        }
+        drop(store);
+
+        failure.store(0, Ordering::SeqCst);
+        let restarted = build_store(db.clone(), failure.clone()).await?;
+
+        persist_ccr(&restarted, &logs).await?;
+        assert_eq!(
+            count_swaps(&db).await?,
+            before + 2,
+            "recovery stores the missing sibling"
+        );
+        persist_ccr(&restarted, &logs).await?;
+        assert_eq!(count_swaps(&db).await?, before + 2, "replay is idempotent");
     }
     Ok(())
 }
@@ -272,198 +225,11 @@ async fn intentional_zero_transaction_metadata_keeps_existing_handling() -> Resu
     // Cosmos block-level events still lack a safe payment identity in the SQL
     // schema. Do not turn that separate existing gap into an infinite retry.
     assert_eq!(txn_id_for_meta(&txns, &cosmos), None);
-    assert_eq!(store.db.clone_connection().into_transaction_log().len(), 1);
-    Ok(())
-}
-
-#[derive(Clone, Debug)]
-struct DeliveryIndexer(Vec<(Indexed<Delivery>, LogMeta)>);
-
-#[async_trait]
-impl hyperlane_core::Indexer<Delivery> for DeliveryIndexer {
-    async fn fetch_logs_in_range(
-        &self,
-        range: std::ops::RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(Indexed<Delivery>, LogMeta)>> {
-        assert_eq!(range, 100..=101, "restart must retry the failed range");
-        Ok(self.0.clone())
-    }
-
-    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Ok(101)
-    }
-}
-
-#[derive(Clone, Debug)]
-struct ObservedStore {
-    store: HyperlaneDbStore,
-    outcomes: tokio::sync::mpsc::UnboundedSender<bool>,
-}
-
-#[async_trait]
-impl HyperlaneLogStore<Delivery> for ObservedStore {
-    async fn store_logs(&self, logs: &[(Indexed<Delivery>, LogMeta)]) -> Result<u32> {
-        let result = HyperlaneLogStore::<Delivery>::store_logs(&self.store, logs).await;
-        self.outcomes
-            .send(result.is_ok())
-            .expect("store outcome receiver");
-        result
-    }
-}
-
-#[derive(Debug)]
-struct Cursor {
-    checkpoint: Arc<BlockCursor>,
-    updated: tokio::sync::mpsc::UnboundedSender<()>,
-}
-
-#[async_trait]
-impl hyperlane_core::ContractSyncCursor<Delivery> for Cursor {
-    async fn next_action(&mut self) -> Result<(hyperlane_core::CursorAction, std::time::Duration)> {
-        if self.checkpoint.height().await >= 101 {
-            return std::future::pending().await;
-        }
-        Ok((
-            hyperlane_core::CursorAction::Query(100..=101),
-            std::time::Duration::ZERO,
-        ))
-    }
-
-    fn latest_queried_block(&self) -> u32 {
-        101
-    }
-
-    async fn update(
-        &mut self,
-        _: Vec<(Indexed<Delivery>, LogMeta)>,
-        range: std::ops::RangeInclusive<u32>,
-    ) -> Result<()> {
-        self.checkpoint.update((*range.end()).into()).await?;
-        self.checkpoint.flush().await?;
-        self.updated.send(()).expect("cursor update receiver");
-        Ok(())
-    }
-}
-
-#[tokio::test]
-async fn contract_sync_does_not_checkpoint_failed_enrichment_and_retries_after_restart(
-) -> Result<()> {
-    use hyperlane_base::{ContractSync, ContractSyncMetrics, CoreMetrics, SyncOptions};
-    use std::time::Duration;
-    use tokio::time::timeout;
-
-    let postgres = Postgres::default().start().await?;
-    let port = postgres.get_host_port_ipv4(5432).await?;
-    let connection = Database::connect(format!(
-        "postgresql://postgres:postgres@127.0.0.1:{port}/postgres"
-    ))
-    .await?;
-    migration::Migrator::up(&connection, None).await?;
-    let db = ScraperDb::with_connection(connection);
-    let failure = Arc::new(AtomicU8::new(6));
-    let logs = [meta(100), meta(101)]
-        .into_iter()
-        .map(|meta| (Indexed::new(meta.block_hash), meta))
-        .collect::<Vec<_>>();
-    for fails in [true, false] {
-        let store = build_store(db.clone(), failure.clone()).await?;
-        let checkpoint = Arc::new(
-            db.block_cursor(store.domain.id(), "event_loss_test", 0)
-                .await?,
-        );
-        assert_eq!(
-            checkpoint.height().await,
-            0,
-            "failed range must survive restart"
-        );
-        let (outcomes, mut results) = tokio::sync::mpsc::unbounded_channel();
-        let (updated, mut updates) = tokio::sync::mpsc::unbounded_channel();
-        let core_metrics = CoreMetrics::new("event_loss_test", 0, prometheus::Registry::new())?;
-        let sync = ContractSync::new(
-            store.domain.clone(),
-            ObservedStore { store, outcomes },
-            DeliveryIndexer(logs.clone()),
-            ContractSyncMetrics::new(&core_metrics),
-            false,
-        );
-        let cursor = Cursor {
-            checkpoint: checkpoint.clone(),
-            updated,
-        };
-        let task = tokio::spawn(async move {
-            sync.sync(
-                "message_delivery",
-                SyncOptions::new(Some(Box::new(cursor)), None),
-            )
-            .await
-        });
-        assert_eq!(
-            timeout(Duration::from_secs(30), results.recv()).await?,
-            Some(!fails)
-        );
-        if fails {
-            assert!(updates.try_recv().is_err());
-            assert_eq!(checkpoint.height().await, 0);
-            assert_eq!(
-                Event::Delivery.count(&db).await?,
-                1,
-                "resolvable sibling is visible while the cursor is held"
-            );
-        } else {
-            assert_eq!(
-                timeout(Duration::from_secs(30), updates.recv()).await?,
-                Some(())
-            );
-            assert_eq!(checkpoint.height().await, 101);
-            assert_eq!(
-                db.block_cursor(1, "event_loss_test", 0)
-                    .await?
-                    .height()
-                    .await,
-                101
-            );
-            assert_eq!(Event::Delivery.count(&db).await?, 2);
-        }
-        task.abort();
-        let _ = task.await;
-        failure.store(0, Ordering::SeqCst);
-    }
-    Ok(())
-}
-
-#[tokio::test]
-async fn repeated_rpc_misses_do_not_withhold_resolvable_siblings() -> Result<()> {
-    let postgres = Postgres::default().start().await?;
-    let port = postgres.get_host_port_ipv4(5432).await?;
-    let connection = Database::connect(format!(
-        "postgresql://postgres:postgres@127.0.0.1:{port}/postgres"
-    ))
-    .await?;
-    migration::Migrator::up(&connection, None).await?;
-    let db = ScraperDb::with_connection(connection);
-    let failure = Arc::new(AtomicU8::new(6));
-    for (i, event) in [Event::Delivery, Event::Payment].into_iter().enumerate() {
-        let before = event.count(&db).await?;
-        let store = build_store(db.clone(), failure.clone()).await?;
-        let n = 600 + (i as u64 * 2);
-        let logs = [meta(n), meta(n + 1)];
-        // Mode 6 repeatedly refuses the even transaction. Both events begin
-        // absent; each failed attempt must expose the odd sibling exactly once.
-        for _ in 0..3 {
-            assert!(event.persist(&store, &logs).await.is_err());
-            assert_eq!(
-                event.count(&db).await?,
-                before + 1,
-                "{event:?} sibling must persist despite a repeated RPC miss"
-            );
-        }
-        failure.store(0, Ordering::SeqCst);
-        event.persist(&store, &logs).await?;
-        assert_eq!(event.count(&db).await?, before + 2);
-        event.persist(&store, &logs).await?;
-        assert_eq!(event.count(&db).await?, before + 2);
-        failure.store(6, Ordering::SeqCst);
-    }
+    assert!(store
+        .db
+        .clone_connection()
+        .into_transaction_log()
+        .is_empty());
     Ok(())
 }
 
@@ -483,14 +249,14 @@ async fn missing_earlier_ccr_transaction_preserves_nonce_order_after_recovery() 
     // The earlier transaction is unavailable; the later sibling must not
     // consume nonce 0 while the range is held for retry.
     for _ in 0..3 {
-        assert!(Event::Ccr.persist(&store, &logs).await.is_err());
-        assert_eq!(Event::Ccr.count(&db).await?, 0);
+        assert!(persist_ccr(&store, &logs).await.is_err());
+        assert_eq!(count_swaps(&db).await?, 0);
     }
     drop(store);
     failure.store(0, Ordering::SeqCst);
     let restarted = build_store(db.clone(), failure).await?;
     for _ in 0..2 {
-        Event::Ccr.persist(&restarted, &logs).await?;
+        persist_ccr(&restarted, &logs).await?;
         let rows = db
             .clone_connection()
             .query_all(Statement::from_string(

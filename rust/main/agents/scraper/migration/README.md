@@ -31,20 +31,17 @@ gas payment writes while it builds. It fails once a chain that numbers logs per
 transaction (e.g. ENI) has stored two payments at the same log index in one
 block; such rows are valid and must not be deleted to force a downgrade.
 
-For migration development and rollback operations, the SeaORM CLI remains
-available from this directory:
+From `rust/main`, the operational binaries are:
 
 ```sh
-cargo run -- migrate generate MIGRATION_NAME
-cargo run -- up
-cargo run -- up -n 10
-cargo run -- down
-cargo run -- down -n 10
-cargo run -- fresh
-cargo run -- refresh
-cargo run -- reset
-cargo run -- status
+cargo run -p migration --bin down -- 1   # Roll back one migration
+cargo run -p migration --bin fresh       # Drop tables and rebuild schema
+cargo run -p migration --bin recreate-db # Run down, then up
+cargo run -p migration --bin init-db     # Apply schema and managed indexes
 ```
+
+`fresh` and `recreate-db` only rebuild the schema. Follow them with `init-db`
+to install separately managed indexes before starting the scraper.
 
 ## Merkle block-height index
 

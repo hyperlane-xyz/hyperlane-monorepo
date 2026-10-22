@@ -18,7 +18,49 @@ use testcontainers_modules::postgres::Postgres;
 use tokio::time::timeout;
 
 use super::*;
+use super::{enrichment::enrich_with_timeout, pipeline::*, store::State};
+use crate::db::{ReceiptStream, ScraperDb};
 use source::{Event, EventData};
+
+pub(super) async fn ingest(
+    source: &dyn Source,
+    store: &Store,
+    state: &State,
+    chunk_size: u64,
+) -> Result<bool> {
+    ingest_cached(source, store, state, chunk_size, &mut CountCache::default()).await
+}
+
+pub(super) fn validate_sequences(
+    events: &[source::Event],
+    next: [u32; 2],
+    end: [u32; 2],
+) -> Result<()> {
+    let next = advance_sequences(events, [next[0], 0, 0, next[1]])?;
+    ensure!([next[0], next[3]] == end, "Incomplete event range");
+    Ok(())
+}
+
+pub(super) async fn confirm(
+    source: &dyn Source,
+    store: &Store,
+    period: &ReorgPeriod,
+) -> Result<[u64; 4]> {
+    Ok(
+        confirm_leased(source, store, period, MIN_CONFIRMATION_LEASE)
+            .await?
+            .counts,
+    )
+}
+
+pub(super) async fn confirm_leased(
+    source: &dyn Source,
+    store: &Store,
+    period: &ReorgPeriod,
+    lease: Duration,
+) -> Result<Confirmation> {
+    confirm_leased_through(source, store, period, lease, u64::MAX).await
+}
 
 #[test]
 fn relative_index_start_resolves_from_the_tip() {
@@ -643,9 +685,22 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
             .is_err(),
         "Confirmation must notify exactly once"
     );
-    assert_eq!(store.unenriched("gas_payment", 0).await?.len(), 1);
-    let id = store.unenriched("gas_payment", 0).await?[0].0;
-    assert!(store.unenriched("gas_payment", id).await?.is_empty());
+    let receipts = ScraperDb::with_connection(Database::connect(&url).await?);
+    assert_eq!(
+        receipts
+            .pending_receipts(store.domain, ReceiptStream::GasPayment, 0)
+            .await?
+            .len(),
+        1
+    );
+    let id = receipts
+        .pending_receipts(store.domain, ReceiptStream::GasPayment, 0)
+        .await?[0]
+        .0;
+    assert!(receipts
+        .pending_receipts(store.domain, ReceiptStream::GasPayment, id)
+        .await?
+        .is_empty());
 
     // Batch enrichment must match the transaction's block as well as its hash.
     store
@@ -660,9 +715,17 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     "#,
         )
         .await?;
-    for table in ["gas_payment", "delivered_message"] {
-        store.enrich(table, 0, i64::MAX).await?;
-        assert_eq!(store.unenriched(table, 0).await?.len(), 1);
+    for stream in [ReceiptStream::GasPayment, ReceiptStream::Delivery] {
+        receipts
+            .link_receipts(store.domain, stream, 0, i64::MAX)
+            .await?;
+        assert_eq!(
+            receipts
+                .pending_receipts(store.domain, stream, 0)
+                .await?
+                .len(),
+            1
+        );
     }
     store
         .db
@@ -672,12 +735,21 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     "#,
         )
         .await?;
-    for table in ["gas_payment", "delivered_message"] {
-        let id = store.unenriched(table, 0).await?[0].0;
-        store.enrich(table, id, id).await?;
-        assert_eq!(store.unenriched(table, 0).await?.len(), 1);
-        store.enrich(table, 0, id).await?;
-        assert!(store.unenriched(table, 0).await?.is_empty());
+    for stream in [ReceiptStream::GasPayment, ReceiptStream::Delivery] {
+        let id = receipts.pending_receipts(store.domain, stream, 0).await?[0].0;
+        receipts.link_receipts(store.domain, stream, id, id).await?;
+        assert_eq!(
+            receipts
+                .pending_receipts(store.domain, stream, 0)
+                .await?
+                .len(),
+            1
+        );
+        receipts.link_receipts(store.domain, stream, 0, id).await?;
+        assert!(receipts
+            .pending_receipts(store.domain, stream, 0)
+            .await?
+            .is_empty());
     }
     assert_eq!(count(&store, "gas_payment_stream_cursor").await?, 1);
     assert!(
@@ -1252,7 +1324,7 @@ async fn receipt_timeouts_do_not_starve_cached_neighbors_across_sweeps() -> Resu
         .await?;
     let calls = Arc::new(AtomicUsize::new(0));
     let domain = hyperlane_core::KnownHyperlaneDomain::Ethereum.into();
-    let legacy = HyperlaneDbStore::new(
+    let enrichment_store = HyperlaneDbStore::new(
         crate::db::ScraperDb::with_connection(Database::connect(&url).await?),
         domain,
         hyperlane_base::settings::CoreContractAddresses::default(),
@@ -1260,10 +1332,8 @@ async fn receipt_timeouts_do_not_starve_cached_neighbors_across_sweeps() -> Resu
             domain: hyperlane_core::KnownHyperlaneDomain::Ethereum.into(),
             calls: calls.clone(),
         }),
-        &hyperlane_base::settings::IndexSettings::default(),
-        None,
-    )
-    .await?;
+    );
+    let receipts = ScraperDb::with_connection(Database::connect(&url).await?);
     let mut cursors = [0; 2];
     for sweep in 1..=2 {
         // Reintroduce an unlinked healthy neighbor on each wrap.
@@ -1271,12 +1341,21 @@ async fn receipt_timeouts_do_not_starve_cached_neighbors_across_sweeps() -> Resu
             .db
             .execute_unprepared("UPDATE gas_payment SET tx_id=NULL WHERE log_index<>99")
             .await?;
-        enrich_with_timeout(&legacy, &mut cursors, Duration::from_millis(200)).await;
+        enrich_with_timeout(&enrichment_store, &mut cursors, Duration::from_millis(200)).await;
         assert_eq!(calls.load(Ordering::Relaxed), sweep);
-        assert_eq!(store.unenriched("gas_payment", 0).await?.len(), 1);
-        assert!(store.unenriched("delivered_message", 0).await?.is_empty());
+        assert_eq!(
+            receipts
+                .pending_receipts(store.domain, ReceiptStream::GasPayment, 0)
+                .await?
+                .len(),
+            1
+        );
+        assert!(receipts
+            .pending_receipts(store.domain, ReceiptStream::Delivery, 0)
+            .await?
+            .is_empty());
         // Exhausted page resets the cursor, making the poison page eligible again.
-        enrich_with_timeout(&legacy, &mut cursors, Duration::from_millis(200)).await;
+        enrich_with_timeout(&enrichment_store, &mut cursors, Duration::from_millis(200)).await;
         assert_eq!(cursors, [0; 2]);
     }
     Ok(())

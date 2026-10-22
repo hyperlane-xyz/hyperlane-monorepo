@@ -5,6 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crate::near_head::source::EventData;
 use ethers::types::H160;
 use hyperlane_core::HyperlaneMessage;
 use migration::MigratorTrait;
@@ -65,7 +66,11 @@ async fn unavailable_transaction_hashes_are_not_enrichment_work() -> Result<()> 
     ))
     .await?;
     migration::Migrator::up(&db, None).await?;
-    let store = Store { db, domain: 1 };
+    let receipts = crate::db::ScraperDb::with_connection(db);
+    let store = Store {
+        db: receipts.clone_connection(),
+        domain: 1,
+    };
     let contracts = Contracts {
         mailbox: H160::repeat_byte(1).into(),
         hook: H160::repeat_byte(2).into(),
@@ -86,7 +91,10 @@ async fn unavailable_transaction_hashes_are_not_enrichment_work() -> Result<()> 
         .confirm(&store.state().await?.unwrap(), &header(1), LEASE)
         .await?;
 
-    assert!(store.unenriched("gas_payment", 0).await?.is_empty());
+    assert!(receipts
+        .pending_receipts(store.domain, crate::db::ReceiptStream::GasPayment, 0)
+        .await?
+        .is_empty());
     let row = store
         .db
         .query_one(sql(
