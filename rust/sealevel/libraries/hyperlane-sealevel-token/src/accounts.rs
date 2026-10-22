@@ -1,7 +1,9 @@
 //! Accounts for the Hyperlane token program.
 
 use access_control::AccessControl;
-use account_utils::{AccountData, DiscriminatorData, OptionalDiscriminatedData, SizedData};
+use account_utils::{
+    read_map_value, AccountData, DiscriminatorData, OptionalDiscriminatedData, SizedData,
+};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H256, U256};
 use hyperlane_sealevel_connection_client::{
@@ -12,7 +14,7 @@ use hyperlane_sealevel_connection_client::{
 };
 use hyperlane_sealevel_igp::accounts::{checked_convert_decimals, InterchainGasPaymasterType};
 use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
-use std::{collections::HashMap, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug, ops::Deref};
 
 use crate::hyperlane_token_pda_seeds;
 
@@ -107,6 +109,107 @@ where
         let amount = convert_decimals(amount, self.remote_decimals, self.decimals)
             .ok_or(ProgramError::InvalidArgument)?;
         u64::try_from(amount).map_err(|_| ProgramError::ArithmeticOverflow)
+    }
+}
+
+/// A `HyperlaneToken` read for a single domain: `destination_gas` and
+/// `remote_routers` hold only that domain's entry, if any. All other fields
+/// are as stored.
+///
+/// `HyperlaneTokenAccount::fetch` builds both maps, which costs ~420 CU per
+/// entry on SBF; instructions that read one domain (or none) use this.
+/// The view only derefs to the token, so it can't be stored back and
+/// truncate the maps.
+#[derive(Debug, PartialEq)]
+pub struct HyperlaneTokenDomainView<T>(Box<HyperlaneToken<T>>);
+
+impl<T> Deref for HyperlaneTokenDomainView<T> {
+    type Target = HyperlaneToken<T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> HyperlaneTokenDomainView<T>
+where
+    T: BorshDeserialize + Default,
+{
+    /// Parses token account data like `HyperlaneTokenAccount::fetch`, with
+    /// the same validation and errors, keeping only `domain`'s map entries.
+    /// `None` keeps no entries.
+    pub fn fetch(data: &[u8], domain: Option<u32>) -> Result<Self, ProgramError> {
+        let buf = &mut &data[..];
+        if buf.is_empty() {
+            return Ok(Self(Box::default()));
+        }
+        // Account data is zero initialized.
+        let initialized = bool::deserialize(buf)?;
+        if !initialized {
+            return Ok(Self(Box::default()));
+        }
+        Self::read_boxed(buf, domain)
+            .map(Self)
+            .map_err(|_| ProgramError::BorshIoError)
+    }
+
+    /// Reads the fields of `HyperlaneToken<T>` in the order the derived
+    /// `BorshDeserialize` does. Not inlined so the large stack frame is
+    /// released after return, as in `AccountData::fetch`.
+    #[inline(never)]
+    fn read_boxed(
+        reader: &mut &[u8],
+        domain: Option<u32>,
+    ) -> std::io::Result<Box<HyperlaneToken<T>>> {
+        let bump = u8::deserialize_reader(reader)?;
+        let mailbox = Pubkey::deserialize_reader(reader)?;
+        let mailbox_process_authority = Pubkey::deserialize_reader(reader)?;
+        let dispatch_authority_bump = u8::deserialize_reader(reader)?;
+        let decimals = u8::deserialize_reader(reader)?;
+        let remote_decimals = u8::deserialize_reader(reader)?;
+        let owner = Option::<Pubkey>::deserialize_reader(reader)?;
+        let interchain_security_module = Option::<Pubkey>::deserialize_reader(reader)?;
+        let interchain_gas_paymaster =
+            Option::<(Pubkey, InterchainGasPaymasterType)>::deserialize_reader(reader)?;
+        let destination_gas = read_map_value::<u32, u64, _>(reader, domain)?;
+        let remote_routers = read_map_value::<u32, H256, _>(reader, domain)?;
+        let plugin_data = T::deserialize_reader(reader)?;
+        let fee_config = OptionalDiscriminatedData::deserialize_reader(reader)?;
+        Ok(Box::new(HyperlaneToken {
+            bump,
+            mailbox,
+            mailbox_process_authority,
+            dispatch_authority_bump,
+            decimals,
+            remote_decimals,
+            owner,
+            interchain_security_module,
+            interchain_gas_paymaster,
+            destination_gas: domain.zip(destination_gas).into_iter().collect(),
+            remote_routers: domain.zip(remote_routers).into_iter().collect(),
+            plugin_data,
+            fee_config,
+        }))
+    }
+
+    /// Like `HyperlaneToken::verify_account_and_fetch_inner`, reading only
+    /// `domain`'s map entries.
+    pub fn verify_account_and_fetch(
+        program_id: &Pubkey,
+        token_account_info: &AccountInfo<'_>,
+        domain: Option<u32>,
+    ) -> Result<Self, ProgramError> {
+        let token = Self::fetch(&token_account_info.data.borrow(), domain)?;
+        let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
+        let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
+        if token_account_info.key != &expected_token_key {
+            return Err(ProgramError::InvalidArgument);
+        }
+        if token_account_info.owner != program_id {
+            return Err(ProgramError::IncorrectProgramId);
+        }
+
+        Ok(token)
     }
 }
 
@@ -596,6 +699,194 @@ mod test {
                 assert_real_fee_config_survives::<$size>();
             }
         };
+    }
+
+    // --- Domain view ---
+
+    /// Small deterministic PRNG (xorshift64) for the view equivalence tests.
+    struct Rng(u64);
+
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+
+        fn below(&mut self, n: u64) -> u64 {
+            self.next() % n
+        }
+
+        fn coin(&mut self) -> bool {
+            self.below(2) == 1
+        }
+
+        fn bytes<const N: usize>(&mut self) -> [u8; N] {
+            core::array::from_fn(|_| self.next() as u8)
+        }
+
+        fn pubkey(&mut self) -> Pubkey {
+            Pubkey::new_from_array(self.bytes())
+        }
+    }
+
+    /// Domains are drawn from a small range so lookups hit and miss.
+    const VIEW_TEST_DOMAINS: u64 = 64;
+
+    fn random_token<const N: usize>(rng: &mut Rng) -> HyperlaneToken<FixedPlugin<N>> {
+        let interchain_gas_paymaster = match rng.below(3) {
+            0 => None,
+            1 => Some((rng.pubkey(), InterchainGasPaymasterType::Igp(rng.pubkey()))),
+            _ => Some((
+                rng.pubkey(),
+                InterchainGasPaymasterType::OverheadIgp(rng.pubkey()),
+            )),
+        };
+        HyperlaneToken {
+            bump: rng.next() as u8,
+            mailbox: rng.pubkey(),
+            mailbox_process_authority: rng.pubkey(),
+            dispatch_authority_bump: rng.next() as u8,
+            decimals: rng.next() as u8,
+            remote_decimals: rng.next() as u8,
+            owner: rng.coin().then(|| rng.pubkey()),
+            interchain_security_module: rng.coin().then(|| rng.pubkey()),
+            interchain_gas_paymaster,
+            destination_gas: (0..rng.below(50))
+                .map(|_| (rng.below(VIEW_TEST_DOMAINS) as u32, rng.next()))
+                .collect(),
+            remote_routers: (0..rng.below(50))
+                .map(|_| (rng.below(VIEW_TEST_DOMAINS) as u32, H256(rng.bytes())))
+                .collect(),
+            plugin_data: FixedPlugin { data: rng.bytes() },
+            fee_config: rng
+                .coin()
+                .then(|| FeeConfig {
+                    fee_program: rng.pubkey(),
+                    fee_account: rng.pubkey(),
+                })
+                .into(),
+        }
+    }
+
+    /// Account data variants: as stored, with trailing bytes, truncated,
+    /// with a corrupted byte, uninitialized, and empty.
+    fn mutations(rng: &mut Rng, stored: Vec<u8>) -> Vec<Vec<u8>> {
+        let mut out = vec![stored.clone(), vec![], vec![0], vec![2]];
+        let mut padded = stored.clone();
+        padded.extend((0..rng.below(80)).map(|_| rng.next() as u8));
+        out.push(padded);
+        for _ in 0..4 {
+            out.push(stored[..rng.below(stored.len() as u64) as usize].to_vec());
+            let mut corrupted = stored.clone();
+            let i = rng.below(stored.len() as u64) as usize;
+            corrupted[i] = rng.next() as u8;
+            out.push(corrupted);
+        }
+        out
+    }
+
+    /// Checks `HyperlaneTokenDomainView::fetch` against the full
+    /// `HyperlaneTokenAccount::fetch` with the maps cut down to the domain,
+    /// for every domain and for `None`.
+    fn assert_view_matches_fetch<const N: usize>(data: &[u8]) {
+        let domains = (0..VIEW_TEST_DOMAINS as u32).map(Some).chain([None]);
+        for domain in domains {
+            let expected =
+                HyperlaneTokenAccount::<FixedPlugin<N>>::fetch(&mut &data[..]).map(|account| {
+                    let mut token = account.into_inner();
+                    token.destination_gas.retain(|k, _| Some(*k) == domain);
+                    token.remote_routers.retain(|k, _| Some(*k) == domain);
+                    *token
+                });
+            let actual =
+                HyperlaneTokenDomainView::<FixedPlugin<N>>::fetch(data, domain).map(|view| *view.0);
+            assert_eq!(actual, expected, "N={N} data={data:?} domain={domain:?}");
+        }
+    }
+
+    fn assert_view_matches_fetch_random<const N: usize>(seed: u64) {
+        let mut rng = Rng(seed);
+        for _ in 0..100 {
+            let token = random_token::<N>(&mut rng);
+            let mut stored = vec![1u8];
+            stored.extend(borsh::to_vec(&token).unwrap());
+            for data in mutations(&mut rng, stored) {
+                assert_view_matches_fetch::<N>(&data);
+            }
+        }
+    }
+
+    #[test]
+    fn test_domain_view_matches_fetch() {
+        assert_view_matches_fetch_random::<1>(0x9e37_79b9_7f4a_7c15);
+        assert_view_matches_fetch_random::<34>(0x2545_f491_4f6c_dd1d);
+        assert_view_matches_fetch_random::<98>(0xd1b5_4a32_d192_ed03);
+    }
+
+    /// Repeated keys (not produced by borsh serialization of a map, but
+    /// possible in account data) resolve to the last entry, as in the full
+    /// parse.
+    #[test]
+    fn test_domain_view_repeated_keys_match_fetch() {
+        let token = token_with::<34>(&[(5, H256::zero())], 7, None);
+        let mut data = vec![1u8];
+        data.extend(borsh::to_vec(&token).unwrap());
+        // Rebuild the maps by hand with repeated keys.
+        let maps_offset = 1 + 1 + 32 + 32 + 1 + 1 + 1 + 1 + 1 + 1;
+        let tail = data[maps_offset + 4 + 4 + 36..].to_vec();
+        data.truncate(maps_offset);
+        data.extend(3u32.to_le_bytes());
+        for (domain, gas) in [(5u32, 1u64), (6, 2), (5, 3)] {
+            data.extend(domain.to_le_bytes());
+            data.extend(gas.to_le_bytes());
+        }
+        data.extend(3u32.to_le_bytes());
+        for (domain, byte) in [(5u32, 1u8), (5, 2), (6, 3)] {
+            data.extend(domain.to_le_bytes());
+            data.extend([byte; 32]);
+        }
+        data.extend(tail);
+        let view = HyperlaneTokenDomainView::<FixedPlugin<34>>::fetch(&data, Some(5)).unwrap();
+        assert_eq!(view.destination_gas, HashMap::from([(5, 3)]));
+        assert_eq!(view.remote_routers, HashMap::from([(5, H256([2; 32]))]));
+        assert_view_matches_fetch::<34>(&data);
+    }
+
+    /// The HLSVM-2026Q2-010 stale-tail layouts parse the same way.
+    #[test]
+    fn test_domain_view_stale_router_tail_matches_fetch() {
+        fn check<const N: usize>() {
+            let fee_config = Some(FeeConfig {
+                fee_program: Pubkey::new_unique(),
+                fee_account: Pubkey::new_unique(),
+            });
+            for (plugin_byte, fee_config) in [(0x01, None), (0x02, None), (0, fee_config)] {
+                let keep = borsh::to_vec(&token_with::<N>(
+                    &[(0, H256::zero())],
+                    plugin_byte,
+                    fee_config.clone(),
+                ))
+                .unwrap();
+                let before = borsh::to_vec(&token_with::<N>(
+                    &[
+                        (0, H256::zero()),
+                        (0x0101_0101, H256::from([plugin_byte; 32])),
+                        (0x0101_0102, H256::from([plugin_byte; 32])),
+                    ],
+                    plugin_byte,
+                    fee_config,
+                ))
+                .unwrap();
+                let mut data = vec![1u8];
+                data.extend(overlay_shrunk(before, keep));
+                assert_view_matches_fetch::<N>(&data);
+            }
+        }
+        check::<1>();
+        check::<34>();
+        check::<98>();
     }
 
     stale_tail_tests!(1 =>

@@ -62,7 +62,7 @@ enum IgpPaymentAccounts<'b> {
 }
 
 use crate::{
-    accounts::{FeeConfig, HyperlaneToken, HyperlaneTokenAccount},
+    accounts::{FeeConfig, HyperlaneToken, HyperlaneTokenAccount, HyperlaneTokenDomainView},
     error::Error,
     instruction::{Init, TransferRemoteWithMemo},
 };
@@ -341,16 +341,11 @@ where
 
         // Account 2: Token storage account
         let token_account = next_account_info(accounts_iter)?;
-        let token =
-            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow()[..])?.into_inner();
-        let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
-        let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
-        if token_account.key != &expected_token_key {
-            return Err(ProgramError::InvalidArgument);
-        }
-        if token_account.owner != program_id {
-            return Err(ProgramError::IncorrectProgramId);
-        }
+        let token = HyperlaneTokenDomainView::<T>::verify_account_and_fetch(
+            program_id,
+            token_account,
+            Some(xfer.destination_domain),
+        )?;
 
         // Resolve the enrolled router for the destination domain.
         let router = *token
@@ -945,16 +940,11 @@ where
 
         // Account 2: Token account
         let token_account = next_account_info(accounts_iter)?;
-        let token =
-            HyperlaneTokenAccount::fetch(&mut &token_account.data.borrow()[..])?.into_inner();
-        let token_seeds: &[&[u8]] = hyperlane_token_pda_seeds!(token.bump);
-        let expected_token_key = Pubkey::create_program_address(token_seeds, program_id)?;
-        if token_account.key != &expected_token_key {
-            return Err(ProgramError::InvalidArgument);
-        }
-        if token_account.owner != program_id {
-            return Err(ProgramError::IncorrectProgramId);
-        }
+        let token = HyperlaneTokenDomainView::<T>::verify_account_and_fetch(
+            program_id,
+            token_account,
+            Some(xfer.origin),
+        )?;
 
         // Account 3: Recipient wallet
         let recipient_wallet = next_account_info(accounts_iter)?;
@@ -1016,7 +1006,11 @@ where
 
         // Account 0: Token account.
         let token_account_info = next_account_info(accounts_iter)?;
-        let token = HyperlaneToken::verify_account_and_fetch_inner(program_id, token_account_info)?;
+        let token = HyperlaneTokenDomainView::<T>::verify_account_and_fetch(
+            program_id,
+            token_account_info,
+            None,
+        )?;
 
         let (transfer_out_account_metas, writeable_recipient) =
             T::transfer_out_account_metas(program_id, &token, &message)?;
@@ -1182,7 +1176,11 @@ where
 
         // Account 0: Token account
         let token_account = next_account_info(accounts_iter)?;
-        let token = HyperlaneToken::<T>::verify_account_and_fetch_inner(program_id, token_account)?;
+        let token = HyperlaneTokenDomainView::<T>::verify_account_and_fetch(
+            program_id,
+            token_account,
+            None,
+        )?;
 
         // Set the return data to the serialized Option<Pubkey> representing
         // the ISM.

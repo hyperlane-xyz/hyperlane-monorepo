@@ -19,6 +19,31 @@ pub use discriminator::*;
 pub use error::*;
 pub use pda::*;
 
+/// Reads a borsh-encoded `HashMap<K, V>` or `BTreeMap<K, V>` and returns the
+/// value for `key` without building the map. `None` matches no key, so the
+/// map is only validated and skipped.
+///
+/// Consumes the same bytes and fails on the same inputs as the map's
+/// `deserialize_reader`, which reads a `Vec<(K, V)>` and collects it. As in
+/// that collect, the last entry wins if a key repeats.
+pub fn read_map_value<K, V, R>(reader: &mut R, key: Option<K>) -> std::io::Result<Option<V>>
+where
+    K: BorshDeserialize + PartialEq,
+    V: BorshDeserialize,
+    R: std::io::Read,
+{
+    let len = u32::deserialize_reader(reader)?;
+    let mut value = None;
+    for _ in 0..len {
+        let entry_key = K::deserialize_reader(reader)?;
+        let entry_value = V::deserialize_reader(reader)?;
+        if key.as_ref() == Some(&entry_key) {
+            value = Some(entry_value);
+        }
+    }
+    Ok(value)
+}
+
 /// Verifies that no additional accounts remain in the iterator.
 pub fn ensure_no_extraneous_accounts(
     accounts_iter: &mut std::slice::Iter<'_, AccountInfo<'_>>,
