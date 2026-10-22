@@ -19,6 +19,7 @@ import { WARP_FEES_TURNKEY_OWNER } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
 
 import {
+  buildEthereumFastpathIsm,
   getFixedRoutingFeeConfig,
   getNativeTokenConfigForChain,
 } from './utils.js';
@@ -80,6 +81,11 @@ export const getVictionETHWarpConfig = async (
       {
         ...baseConfig,
         decimals: 18,
+        ...(currentChain !== 'ethereum' && {
+          interchainSecurityModule: buildEthereumFastpathIsm(
+            ownersByChain[currentChain],
+          ),
+        }),
         tokenFee: getFixedRoutingFeeConfig(
           WARP_FEES_TURNKEY_OWNER,
           feeDestinations,
