@@ -12,7 +12,8 @@ use rusoto_core::Region;
 use rusoto_kms::KmsClient;
 use tracing::instrument;
 
-use hyperlane_core::{AccountAddressType, Secret, H256};
+use hyperlane_core::{AccountAddressType, H256};
+use redact::Secret;
 
 use super::aws_credentials::AwsChainCredentialsProvider;
 use crate::types::utils;

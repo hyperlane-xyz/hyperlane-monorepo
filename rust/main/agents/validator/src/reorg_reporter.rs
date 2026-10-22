@@ -12,8 +12,9 @@ use url::Url;
 use crate::rpc::{chain_conf_for_read_url, dedupe_rpc_urls, state_read_urls};
 use hyperlane_base::{CheckpointSyncer, CoreMetrics};
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
-use hyperlane_core::{CheckpointAtBlock, MerkleTreeHook, ReorgPeriod, Secret, H256};
+use hyperlane_core::{CheckpointAtBlock, MerkleTreeHook, ReorgPeriod, H256};
 use hyperlane_metric::prometheus_metric::RpcRole;
+use redact::Secret;
 
 use crate::settings::ValidatorSettings;
 

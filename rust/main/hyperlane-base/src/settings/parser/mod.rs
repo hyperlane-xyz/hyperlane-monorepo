@@ -23,8 +23,9 @@ use hyperlane_core::matching_list::MatchingList;
 use h_cosmos::RawCosmosAmount;
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneDomainTechnicalStack, IndexMode, NativeToken, ReorgPeriod, Secret, SubmitterType,
+    HyperlaneDomainTechnicalStack, IndexMode, NativeToken, ReorgPeriod, SubmitterType,
 };
+use redact::Secret;
 
 use crate::settings::{
     chains::IndexSettings,

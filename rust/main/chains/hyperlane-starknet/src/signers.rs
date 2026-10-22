@@ -1,4 +1,5 @@
-use hyperlane_core::{ChainResult, Secret, H256};
+use hyperlane_core::{ChainResult, H256};
+use redact::Secret;
 use starknet::{
     core::types::Felt,
     signers::{LocalWallet, SigningKey},

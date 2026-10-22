@@ -9,10 +9,6 @@
 
 extern crate core;
 
-/// Shared wrapper for sensitive configuration and credentials. Derived `Debug`
-/// implementations redact these fields; operational access requires `expose_secret()`.
-pub use redact::Secret;
-
 pub use chain::*;
 pub use error::*;
 pub use error::{ChainCommunicationError, ChainResult, HyperlaneProtocolError};

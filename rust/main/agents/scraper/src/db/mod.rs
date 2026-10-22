@@ -3,11 +3,11 @@ pub use block_cursor::BlockCursor;
 use std::time::Duration;
 
 use eyre::{ensure, Context, Result};
-use hyperlane_core::Secret;
 pub use merkle_tree_insertion::*;
 pub use message::*;
 pub use payment::*;
 pub use raw_message_dispatch::*;
+use redact::Secret;
 pub use same_chain_ccr_swap::*;
 use sea_orm::sea_query::{Expr, SimpleExpr};
 use sea_orm::{ConnectOptions, Database, DatabaseConnection, DbConn};

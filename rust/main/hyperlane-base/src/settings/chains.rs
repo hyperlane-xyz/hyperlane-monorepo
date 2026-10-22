@@ -14,11 +14,12 @@ use hyperlane_core::{
     HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
     IndexMode, Indexer, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule,
     Mailbox, MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, NativeToken, ReorgPeriod,
-    RoutingIsm, SameChainCcrSwap, Secret, SequenceAwareIndexer, SubmitterType, ValidatorAnnounce,
-    H160, H256,
+    RoutingIsm, SameChainCcrSwap, SequenceAwareIndexer, SubmitterType, ValidatorAnnounce, H160,
+    H256,
 };
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
+use redact::Secret;
 
 #[cfg(feature = "aleo")]
 use hyperlane_aleo::{self as h_aleo, AleoProvider};

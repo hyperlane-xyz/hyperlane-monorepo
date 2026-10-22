@@ -1,4 +1,4 @@
-use hyperlane_core::Secret;
+use redact::Secret;
 use std::str::FromStr;
 
 use scrypto::network::NetworkDefinition;

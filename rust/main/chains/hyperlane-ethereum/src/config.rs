@@ -5,8 +5,9 @@ use url::Url;
 
 use hyperlane_core::{
     config::OpSubmissionConfig, utils::hex_or_base58_or_bech32_to_h256, ChainCommunicationError,
-    ChainResult, HyperlaneMessage, ReorgPeriod, Secret, H256, U256,
+    ChainResult, HyperlaneMessage, ReorgPeriod, H256, U256,
 };
+use redact::Secret;
 
 /// Protected RPCs for matching delivery preflights and EVM Lander submission.
 #[derive(Clone)]

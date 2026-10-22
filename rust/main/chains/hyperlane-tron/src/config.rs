@@ -1,4 +1,4 @@
-use hyperlane_core::Secret;
+use redact::Secret;
 use url::Url;
 
 pub(crate) const DEFAULT_ENERGY_MULTIPLIER: f64 = 1.5;

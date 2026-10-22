@@ -9,7 +9,8 @@ use aws_sdk_s3::{
     presigning::PresigningConfig,
     Client, Config,
 };
-use hyperlane_core::{Secret, H256};
+use hyperlane_core::H256;
+use redact::Secret;
 use tracing::Subscriber;
 use tracing_subscriber::{fmt, prelude::*, Registry};
 
@@ -86,6 +87,10 @@ async fn credentials_are_redacted_in_all_log_formats_without_breaking_aws_signin
                 height = 42,
                 "checkpoint signing remains observable"
             );
+            tracing::debug!(
+                target: "hyperlane_base::db::rocks::hyperlane_db",
+                "Storing new message in db"
+            );
             let mut kms_request = rusoto_core::signature::SignedRequest::new(
                 "POST",
                 "kms",
@@ -129,6 +134,7 @@ async fn credentials_are_redacted_in_all_log_formats_without_breaking_aws_signin
             }
             assert!(output.contains("[REDACTED"));
             assert!(output.contains("checkpoint signing remains observable"));
+            assert!(output.contains("Storing new message in db"));
             assert!(output.contains("ethereum"));
             assert!(output.contains("42"));
         }

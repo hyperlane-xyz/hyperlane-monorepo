@@ -115,7 +115,8 @@ impl TracingConfig {
             "cookie_store",
             "tungstenite",
             "reqwest",
-            "hyper",
+            // Targets are prefix-matched: `hyper` would also suppress `hyperlane_*`.
+            "hyper::",
             "hyper_util",
             "h2",
             "solana_rpc_client",
@@ -185,10 +186,25 @@ mod tests {
                 );
             }
             assert!(!targets.would_enable("sqlx_postgres::options::parse", &tracing::Level::WARN));
-            assert_eq!(
-                targets.would_enable("validator", &tracing::Level::DEBUG),
-                level >= Level::Debug
-            );
+            for target in [
+                "validator",
+                "relayer",
+                "scraper",
+                "hyperlane_base::db::rocks::hyperlane_db",
+                "hyperlane_core::rpc_clients::fallback",
+                "hyperlane_ethereum::rpc_clients",
+            ] {
+                assert_eq!(
+                    targets.would_enable(target, &tracing::Level::DEBUG),
+                    level >= Level::Debug,
+                    "application DEBUG logs must remain enabled for {target} at {level:?}"
+                );
+                assert_eq!(
+                    targets.would_enable(target, &tracing::Level::TRACE),
+                    level >= Level::Trace,
+                    "application TRACE logs must remain enabled for {target} at {level:?}"
+                );
+            }
         }
     }
 }

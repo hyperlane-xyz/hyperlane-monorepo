@@ -11,7 +11,8 @@ use serde::de::DeserializeOwned;
 use tokio::sync::{Mutex, RwLock};
 use url::Url;
 
-use hyperlane_core::{ChainCommunicationError, ChainResult, Secret};
+use hyperlane_core::{ChainCommunicationError, ChainResult};
+use redact::Secret;
 
 use crate::provider::{HttpClient, HttpClientBuilder};
 use crate::{DelegatedProverAuthError, HyperlaneAleoError};

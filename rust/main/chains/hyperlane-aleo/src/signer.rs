@@ -1,4 +1,5 @@
-use hyperlane_core::{ChainResult, Secret, H256};
+use hyperlane_core::{ChainResult, H256};
+use redact::Secret;
 use snarkvm::prelude::{Address, ComputeKey, FromBytes, Network, PrivateKey};
 
 use crate::{utils::to_h256, CurrentNetwork, HyperlaneAleoError};

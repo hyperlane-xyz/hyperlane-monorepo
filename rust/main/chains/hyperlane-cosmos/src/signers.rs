@@ -1,5 +1,6 @@
 use cosmrs::crypto::{secp256k1::SigningKey, PublicKey};
-use hyperlane_core::{AccountAddressType, ChainResult, Secret, H256};
+use hyperlane_core::{AccountAddressType, ChainResult, H256};
+use redact::Secret;
 
 use crate::{CosmosAddress, HyperlaneCosmosError};
 

@@ -21,7 +21,8 @@ use hyperlane_base::{
         Settings,
     },
 };
-use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, Secret, H160};
+use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, H160};
+use redact::Secret;
 use serde::Deserialize;
 use serde_json::Value;
 

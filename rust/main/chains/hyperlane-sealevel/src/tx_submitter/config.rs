@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use url::Url;
 
-use hyperlane_core::{HyperlaneDomain, Secret};
+use hyperlane_core::HyperlaneDomain;
 use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics};
+use redact::Secret;
 
 use crate::fallback::SealevelFallbackRpcClient;
 use crate::tx_submitter::TransactionSubmitter;

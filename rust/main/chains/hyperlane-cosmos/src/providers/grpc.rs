@@ -7,10 +7,11 @@ use tonic::async_trait;
 use tonic::transport::{Channel, Endpoint};
 
 use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider};
-use hyperlane_core::{ChainCommunicationError, ChainResult, ReorgPeriod, Secret};
+use hyperlane_core::{ChainCommunicationError, ChainResult, ReorgPeriod};
 use hyperlane_metric::prometheus_metric::{
     ChainInfo, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
+use redact::Secret;
 
 use cosmrs::proto::cosmos::base::tendermint::v1beta1::service_client::ServiceClient;
 use cosmrs::proto::cosmos::base::tendermint::v1beta1::GetLatestValidatorSetRequest;

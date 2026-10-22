@@ -1,4 +1,5 @@
-use hyperlane_core::{config::OpSubmissionConfig, ChainCommunicationError, Secret, H256};
+use hyperlane_core::{config::OpSubmissionConfig, ChainCommunicationError, H256};
+use redact::Secret;
 use url::Url;
 
 /// Starknet connection configuration

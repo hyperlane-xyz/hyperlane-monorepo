@@ -2,8 +2,9 @@ use std::{fmt::Debug, ops::Add, str::FromStr};
 
 use convert_case::{Case, Casing};
 use eyre::{eyre, Context};
-use hyperlane_core::{config::*, utils::hex_or_base58_or_bech32_to_h256, Secret, H256, U256};
+use hyperlane_core::{config::*, utils::hex_or_base58_or_bech32_to_h256, H256, U256};
 use itertools::Itertools;
+use redact::Secret;
 use serde::de::{DeserializeOwned, StdError};
 use serde_json::Value;
 

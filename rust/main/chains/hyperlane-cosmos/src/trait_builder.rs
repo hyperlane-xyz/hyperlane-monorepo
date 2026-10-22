@@ -5,8 +5,9 @@ use derive_new::new;
 use url::Url;
 
 use hyperlane_core::{
-    config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, NativeToken, Secret,
+    config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, NativeToken,
 };
+use redact::Secret;
 
 /// Cosmos connection configuration
 #[derive(Clone, Debug)]

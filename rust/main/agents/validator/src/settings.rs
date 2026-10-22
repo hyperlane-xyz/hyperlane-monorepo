@@ -17,9 +17,10 @@ use hyperlane_base::{
     },
 };
 use hyperlane_core::{
-    cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, ReorgPeriod, Secret,
+    cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, ReorgPeriod,
 };
 use itertools::Itertools;
+use redact::Secret;
 use serde::Deserialize;
 use serde_json::Value;
 

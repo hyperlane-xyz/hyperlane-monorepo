@@ -1,4 +1,4 @@
-use hyperlane_core::Secret;
+use redact::Secret;
 use snarkvm_console_account::Itertools;
 use url::Url;
 

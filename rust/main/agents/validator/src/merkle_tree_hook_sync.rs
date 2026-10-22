@@ -34,9 +34,10 @@ use hyperlane_base::{
 use hyperlane_core::{
     BackwardCursorProgress, HyperlaneBackwardCursorStore, HyperlaneLogStore,
     HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, MerkleTreeHook,
-    MerkleTreeInsertion, ReorgPeriod, Secret, H256,
+    MerkleTreeInsertion, ReorgPeriod, H256,
 };
 use hyperlane_metric::rpc_operation::{with_rpc_operation, RpcOperation};
+use redact::Secret;
 
 const EVENT_TYPE: &str = "merkle_tree_insertion";
 const NEXT_SEQUENCE_KEY: &str = "merkle_tree_hook_websocket_next_sequence_";

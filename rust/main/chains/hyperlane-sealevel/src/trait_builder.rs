@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use hyperlane_core::{
     config::OpSubmissionConfig, matching_list::MatchingList, ChainCommunicationError, NativeToken,
-    Secret,
 };
+use redact::Secret;
 use serde::Serialize;
 use url::Url;
 

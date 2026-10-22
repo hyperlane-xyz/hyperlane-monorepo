@@ -9,10 +9,11 @@ use serde::de::DeserializeOwned;
 use url::Url;
 
 use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider};
-use hyperlane_core::{ChainCommunicationError, ChainResult, Secret};
+use hyperlane_core::{ChainCommunicationError, ChainResult};
 use hyperlane_metric::prometheus_metric::{
     ChainInfo, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
+use redact::Secret;
 use reqwest_utils::parse_custom_rpc_headers;
 
 use super::types::{
