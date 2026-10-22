@@ -116,7 +116,9 @@ impl<T, B> FallbackProvider<T, B> {
         self
     }
 
-    /// Log context for the immutable, zero-based index within this pool.
+    /// Log context for the immutable, zero-based index within this constructed pool.
+    /// This is not necessarily an index into the original configuration: validators
+    /// build single-endpoint pools, and submitters may filter invalid URLs.
     pub fn rpc_span(&self, index: usize) -> Span {
         let context = self.rpc_context.as_deref();
         error_span!(

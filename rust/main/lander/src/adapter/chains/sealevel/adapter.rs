@@ -94,6 +94,7 @@ impl SealevelAdapter {
         let client_metrics = metrics.client_metrics();
 
         let client = SealevelFallbackRpcClient::from_urls(
+            "rpcUrls",
             chain_info.clone(),
             urls.clone(),
             client_metrics.clone(),

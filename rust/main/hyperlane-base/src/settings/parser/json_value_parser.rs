@@ -34,6 +34,17 @@ impl<'v> ValueParser<'v> {
         self.val.expose_secret()
     }
 
+    fn value_type(&self) -> &'static str {
+        match self.value() {
+            Value::Null => "null",
+            Value::Bool(_) => "boolean",
+            Value::Number(_) => "number",
+            Value::String(_) => "string",
+            Value::Array(_) => "array",
+            Value::Object(_) => "object",
+        }
+    }
+
     /// Create a new value parser chain.
     pub fn chain<'e>(&self, err: &'e mut ConfigParsingError) -> ParseChain<'e, ValueParser<'v>> {
         ParseChain(Some(self.clone()), err)
@@ -129,7 +140,10 @@ impl<'v> ValueParser<'v> {
                 .as_u64()
                 .ok_or_else(|| eyre!("Excepted an unsigned integer, got number `{num}`")),
             Value::String(s) => s.parse().context("Expected an unsigned integer"),
-            _ => Err(eyre!("Expected an unsigned integer, got `{:?}`", self.val)),
+            _ => Err(eyre!(
+                "Expected an unsigned integer, got {}",
+                self.value_type()
+            )),
         }
         .into_config_result(|| self.cwp.clone())
     }
@@ -141,7 +155,10 @@ impl<'v> ValueParser<'v> {
                 .as_i64()
                 .ok_or_else(|| eyre!("Excepted a signed integer, got number `{num}`")),
             Value::String(s) => s.parse().context("Expected a signed integer"),
-            _ => Err(eyre!("Expected an signed integer, got `{:?}`", self.val)),
+            _ => Err(eyre!(
+                "Expected an signed integer, got {}",
+                self.value_type()
+            )),
         }
         .into_config_result(|| self.cwp.clone())
     }
@@ -168,8 +185,8 @@ impl<'v> ValueParser<'v> {
                 .ok_or_else(|| eyre!("Excepted a floating point number, got number `{num}`")),
             Value::String(s) => s.parse().context("Expected a floating point number"),
             _ => Err(eyre!(
-                "Expected floating point number, got `{:?}`",
-                self.val
+                "Expected floating point number, got {}",
+                self.value_type()
             )),
         }
         .into_config_result(|| self.cwp.clone())
@@ -213,7 +230,7 @@ impl<'v> ValueParser<'v> {
                     Err(eyre!("Expected an unsigned integer"))
                 }
             }
-            _ => Err(eyre!("Expected a U256, got `{:?}`", self.val)),
+            _ => Err(eyre!("Expected a U256, got {}", self.value_type())),
         }
         .into_config_result(|| self.cwp.clone())
     }
@@ -227,7 +244,7 @@ impl<'v> ValueParser<'v> {
                 "false" => Ok(false),
                 _ => Err(eyre!("Expected a boolean string")),
             },
-            _ => Err(eyre!("Expected a boolean, got `{:?}`", self.val)),
+            _ => Err(eyre!("Expected a boolean, got {}", self.value_type())),
         }
         .into_config_result(|| self.cwp.clone())
     }
@@ -236,7 +253,7 @@ impl<'v> ValueParser<'v> {
     pub fn parse_string(&self) -> ConfigResult<&'v str> {
         match self.value() {
             Value::String(s) => Ok(s.as_str()),
-            _ => Err(eyre!("Expected a string, got `{:?}`", self.val)),
+            _ => Err(eyre!("Expected a string, got {}", self.value_type())),
         }
         .into_config_result(|| self.cwp.clone())
     }
@@ -246,7 +263,10 @@ impl<'v> ValueParser<'v> {
         match self.value() {
             Value::String(s) => hex_or_base58_or_bech32_to_h256(s)
                 .context("Expected a valid address hash in hex, base58 or bech32"),
-            _ => Err(eyre!("Expected an address string, got `{:?}`", self.val)),
+            _ => Err(eyre!(
+                "Expected an address string, got {}",
+                self.value_type()
+            )),
         }
         .into_config_result(|| self.cwp.clone())
     }
@@ -267,7 +287,13 @@ impl<'v> ValueParser<'v> {
         // Serde errors can embed the supplied value, including credentials.
         // Keep the field path and expected-value context, never the raw input.
         serde_json::from_value(self.value().clone())
-            .map_err(|_| eyre!(ctx))
+            .map_err(|error| {
+                eyre!(
+                    "{ctx}: {:?} error (input type: {})",
+                    error.classify(),
+                    self.value_type()
+                )
+            })
             .into_config_result(|| self.cwp.clone())
     }
 

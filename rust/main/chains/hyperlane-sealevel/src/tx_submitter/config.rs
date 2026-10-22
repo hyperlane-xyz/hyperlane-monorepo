@@ -61,6 +61,7 @@ impl TransactionSubmitterConfig {
                     .collect();
 
                 let rpc_client = SealevelFallbackRpcClient::from_urls(
+                    "transactionSubmitter.urls",
                     chain,
                     urls,
                     metrics,
@@ -83,6 +84,7 @@ impl TransactionSubmitterConfig {
                 let urls: Vec<_> = urls.iter().filter_map(|url| Url::parse(url).ok()).collect();
 
                 let rpc_client = SealevelFallbackRpcClient::from_urls(
+                    "transactionSubmitter.urls",
                     chain,
                     urls,
                     metrics,

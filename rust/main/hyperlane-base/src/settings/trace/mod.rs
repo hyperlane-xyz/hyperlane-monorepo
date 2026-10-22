@@ -114,11 +114,11 @@ impl TracingConfig {
             "aws_sdk_s3",
             "cookie_store",
             "tungstenite",
-            "reqwest",
+            "reqwest::",
             // Targets are prefix-matched: `hyper` would also suppress `hyperlane_*`.
             "hyper::",
             "hyper_util",
-            "h2",
+            "h2::",
             "solana_rpc_client",
             "cometbft_rpc",
             "tendermint_rpc",
@@ -193,6 +193,9 @@ mod tests {
                 "hyperlane_base::db::rocks::hyperlane_db",
                 "hyperlane_core::rpc_clients::fallback",
                 "hyperlane_ethereum::rpc_clients",
+                "reqwest_utils",
+                "reqwest_middleware::client",
+                "h2_custom::client",
             ] {
                 assert_eq!(
                     targets.would_enable(target, &tracing::Level::DEBUG),

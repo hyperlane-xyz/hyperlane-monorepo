@@ -240,6 +240,7 @@ impl SubmitSealevelRpc for SealevelFallbackRpcClient {
 impl SealevelFallbackRpcClient {
     /// Create a SealevelFallbackProvider from a list of urls
     pub fn from_urls(
+        pool: &'static str,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
         urls: Vec<Url>,
         metrics: PrometheusClientMetrics,
@@ -258,7 +259,7 @@ impl SealevelFallbackRpcClient {
 
         let fallback = FallbackProvider::new(clients).with_rpc_context(
             PrometheusConfig::chain_name(&chain).to_owned(),
-            "rpcUrls",
+            pool,
             hosts,
         );
         SealevelFallbackRpcClient::new(fallback)

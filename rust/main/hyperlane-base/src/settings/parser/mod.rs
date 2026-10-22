@@ -809,6 +809,7 @@ mod test {
         assert!(output.contains("solanamainnet"));
         assert!(output.contains("native_token"));
         assert!(output.contains("[REDACTED"));
+        assert!(error.to_string().contains("got object"));
         // Redaction must not alter the operational values or input schema.
         let Some(SignerConf::HexKey { key: parsed_key }) = parsed.signer else {
             panic!("expected hex signer");
@@ -833,6 +834,7 @@ mod test {
         let output = format!("{serde_error:?} {serde_error} {from_str_error:?} {from_str_error}");
         assert!(!output.contains("DUMMY_AWS_SECRET"));
         assert!(output.contains("Invalid index mode"));
+        assert!(output.contains("Data error (input type: string)"));
         assert!(output.contains("Invalid protocol"));
         let invalid_url = serde_json::json!("https://user:DUMMY_AWS_SECRET@localhost:bad");
         let error = ValueParser::new(Default::default(), &invalid_url)

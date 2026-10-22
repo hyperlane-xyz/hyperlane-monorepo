@@ -34,7 +34,7 @@ where
 /// HTTP JSON-RPC transport that preserves status-only rate limit responses.
 /// The pinned ethers transport discards HTTP status before decoding the body.
 #[derive(Clone)]
-pub(crate) struct StatusAwareHttp {
+pub struct StatusAwareHttp {
     client: Client,
     url: Url,
     next_id: Arc<AtomicU64>,
@@ -49,7 +49,8 @@ impl Debug for StatusAwareHttp {
 }
 
 impl StatusAwareHttp {
-    pub(crate) fn new(url: Url, client: Client) -> Self {
+    /// Create a transport with a URL whose custom headers have already been extracted.
+    pub fn new(url: Url, client: Client) -> Self {
         Self {
             client,
             url,

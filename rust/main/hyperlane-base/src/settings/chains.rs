@@ -1668,6 +1668,7 @@ fn build_sealevel_provider(
     let chain = middleware_metrics.chain.clone();
     let urls = conf.urls.expose_secret().clone();
     let rpc_client = SealevelFallbackRpcClient::from_urls(
+        "rpcUrls",
         chain,
         urls,
         client_metrics,
