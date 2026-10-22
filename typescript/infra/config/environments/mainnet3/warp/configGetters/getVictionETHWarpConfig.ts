@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 import {
   ChainMap,
   ChainSubmissionStrategy,
@@ -108,7 +110,7 @@ export const getVictionETHWarpConfig = async (
       symbol: 'ETH',
       decimals: 18,
       gas: 50_000,
-      interchainSecurityModule: buildEthereumFastpathIsm(ownersByChain.viction),
+      interchainSecurityModule: ethers.constants.AddressZero,
     },
   ]);
 
