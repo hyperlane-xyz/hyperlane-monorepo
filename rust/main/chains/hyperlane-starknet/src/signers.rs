@@ -1,30 +1,20 @@
-use hyperlane_core::{ChainResult, H256};
+use hyperlane_core::{ChainResult, Secret, H256};
 use starknet::{
     core::types::Felt,
     signers::{LocalWallet, SigningKey},
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 /// A signer for Starknet accounts
 pub struct Signer {
     /// signing key
-    pub signing_key: SigningKey,
+    pub signing_key: Secret<SigningKey>,
     /// account address
     pub address: Felt,
     /// version of the signer
     pub is_legacy: bool,
     /// H256 address of the signer
     pub address_h256: H256,
-}
-
-impl std::fmt::Debug for Signer {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Signer")
-            .field("address", &self.address)
-            .field("is_legacy", &self.is_legacy)
-            .field("address_h256", &self.address_h256)
-            .finish()
-    }
 }
 
 impl Signer {
@@ -39,7 +29,7 @@ impl Signer {
         let signing_key = Self::build_signing_key(private_key)?;
 
         Ok(Self {
-            signing_key,
+            signing_key: Secret::new(signing_key),
             address: contract_address,
             address_h256: *address,
             is_legacy,
@@ -49,7 +39,7 @@ impl Signer {
     /// Build a SigningKey from a private key. This cannot be
     /// precompiled and stored in `Signer`, because `SigningKey` is not `Sync`.
     pub fn signing_key(&self) -> SigningKey {
-        self.signing_key.clone()
+        self.signing_key.expose_secret().clone()
     }
 
     /// Get the local wallet for the signer
@@ -68,7 +58,7 @@ impl Default for Signer {
     fn default() -> Self {
         // default signer is just all zeros
         Self {
-            signing_key: SigningKey::from_secret_scalar(Felt::ZERO),
+            signing_key: Secret::new(SigningKey::from_secret_scalar(Felt::ZERO)),
             address: Default::default(),
             is_legacy: Default::default(),
             address_h256: Default::default(),

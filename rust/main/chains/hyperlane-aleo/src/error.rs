@@ -9,7 +9,7 @@ pub struct DelegatedProverAuthError(#[source] reqwest::Error);
 
 impl DelegatedProverAuthError {
     pub(crate) fn new(error: reqwest::Error) -> Self {
-        Self(error)
+        Self(error.without_url())
     }
 }
 
@@ -18,7 +18,7 @@ impl DelegatedProverAuthError {
 pub enum HyperlaneAleoError {
     /// Reqwest Errors
     #[error("{0}")]
-    ReqwestError(#[from] reqwest::Error),
+    ReqwestError(#[source] reqwest::Error),
     /// HTTP status errors from delegated prover authentication.
     #[error("{0}")]
     DelegatedProverAuth(#[from] DelegatedProverAuthError),
@@ -79,8 +79,44 @@ pub enum HyperlaneAleoError {
     Other(String),
 }
 
+impl From<reqwest::Error> for HyperlaneAleoError {
+    fn from(error: reqwest::Error) -> Self {
+        Self::ReqwestError(error.without_url())
+    }
+}
+
 impl From<HyperlaneAleoError> for ChainCommunicationError {
     fn from(value: HyperlaneAleoError) -> Self {
         ChainCommunicationError::from_other(value)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn http_errors_omit_endpoint_credentials() {
+        let request_error = || {
+            let url =
+                reqwest::Url::parse("http://localhost/private-path?key=private-query").unwrap();
+            reqwest::Client::new()
+                .get(url.clone())
+                .header("invalid\nheader", "value")
+                .build()
+                .unwrap_err()
+                .with_url(url)
+        };
+        let error = HyperlaneAleoError::from(request_error());
+        assert!(!format!("{error:?} {error}").contains("private-"));
+        let HyperlaneAleoError::ReqwestError(error) = error else {
+            panic!("expected HTTP error");
+        };
+        assert!(error.url().is_none());
+        assert!(error.is_builder());
+        let error = DelegatedProverAuthError::new(request_error());
+        assert!(!format!("{error:?} {error}").contains("private-"));
+        assert!(error.0.url().is_none());
     }
 }

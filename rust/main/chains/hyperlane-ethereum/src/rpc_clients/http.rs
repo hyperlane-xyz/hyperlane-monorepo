@@ -190,6 +190,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn connection_errors_omit_endpoint_credentials() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        drop(listener);
+        let client = StatusAwareHttp::new(
+            format!("http://{address}/private-path?key=private-query")
+                .parse()
+                .unwrap(),
+            Client::new(),
+        );
+        let error = client
+            .request::<_, Value>("eth_chainId", ())
+            .await
+            .unwrap_err();
+        assert!(!format!("{error:?} {error}").contains("private-"));
+        let HttpClientError::ReqwestError(error) = error else {
+            panic!("expected HTTP error");
+        };
+        assert!(error.url().is_none());
+        assert!(error.is_connect());
+    }
+
+    #[tokio::test]
     async fn http_429_is_recognized_even_without_a_quota_message() {
         for body in [
             "",

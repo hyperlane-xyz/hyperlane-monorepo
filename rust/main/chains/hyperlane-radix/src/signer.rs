@@ -1,31 +1,20 @@
 use radix_transactions::signing::PrivateKey;
 use scrypto::{crypto::Ed25519PrivateKey, types::ComponentAddress};
 
-use hyperlane_core::{ChainResult, H256};
+use hyperlane_core::{ChainResult, Secret, H256};
 
 use crate::{address_to_h256, encode_module_address, HyperlaneRadixError};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 /// Signer for radix chain
 pub struct RadixSigner {
-    private_key: Vec<u8>,
+    private_key: Secret<Vec<u8>>,
     /// encoded address as bech32 and network prefix
     pub encoded_address: String,
     /// H256 address encoding
     pub address_256: H256,
     /// Radix struct representation
     pub address: ComponentAddress,
-}
-
-/// Manual `Debug` so the private key never reaches logs.
-impl std::fmt::Debug for RadixSigner {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RadixSigner")
-            .field("encoded_address", &self.encoded_address)
-            .field("address_256", &self.address_256)
-            .field("address", &self.address)
-            .finish_non_exhaustive()
-    }
 }
 
 impl RadixSigner {
@@ -40,7 +29,7 @@ impl RadixSigner {
         let encoded_address = encode_module_address("account", &suffix, address_256)?; // TODO: there has to be a constant in radix that defines this
 
         Ok(Self {
-            private_key: private_key_bytes,
+            private_key: Secret::new(private_key_bytes),
             address,
             encoded_address,
             address_256,
@@ -49,7 +38,7 @@ impl RadixSigner {
 
     /// Returns a radix private key primitive type that can be used to sign tx
     pub fn get_signer(&self) -> ChainResult<PrivateKey> {
-        let private_key = Ed25519PrivateKey::from_bytes(&self.private_key)
+        let private_key = Ed25519PrivateKey::from_bytes(self.private_key.expose_secret())
             .map_err(|()| HyperlaneRadixError::Other("failed to build private key".to_owned()))?;
         let signer = PrivateKey::Ed25519(private_key);
         Ok(signer)
@@ -66,6 +55,6 @@ mod tests {
         let signer = RadixSigner::new(private_key, "rdx".to_owned()).unwrap();
         let debug = format!("{signer:?}");
         assert!(!debug.contains("222, 173, 190, 239"), "key leaked: {debug}");
-        assert!(!debug.contains("private_key"));
+        assert!(debug.contains("[REDACTED"));
     }
 }

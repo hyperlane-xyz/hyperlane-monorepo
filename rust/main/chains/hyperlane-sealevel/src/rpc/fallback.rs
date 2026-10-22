@@ -1,3 +1,4 @@
+use hyperlane_metric::utils::url_to_host_info;
 use std::fmt::Debug;
 
 use async_trait::async_trait;
@@ -22,7 +23,7 @@ use hyperlane_core::{
     rpc_clients::{FallbackProvider, RpcClientError},
     ChainCommunicationError, ChainResult, U256,
 };
-use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
+use hyperlane_metric::prometheus_metric::{PrometheusClientMetrics, PrometheusConfig};
 
 use crate::client::SealevelRpcClient;
 use crate::client_builder::SealevelRpcClientBuilder;
@@ -244,6 +245,7 @@ impl SealevelFallbackRpcClient {
         metrics: PrometheusClientMetrics,
         max_supported_transaction_version: u8,
     ) -> Self {
+        let hosts = urls.iter().map(url_to_host_info).collect();
         let clients: Vec<_> = urls
             .into_iter()
             .map(|rpc_url| {
@@ -254,7 +256,11 @@ impl SealevelFallbackRpcClient {
             })
             .collect();
 
-        let fallback = FallbackProvider::new(clients);
+        let fallback = FallbackProvider::new(clients).with_rpc_context(
+            PrometheusConfig::chain_name(&chain).to_owned(),
+            "rpcUrls",
+            hosts,
+        );
         SealevelFallbackRpcClient::new(fallback)
     }
 

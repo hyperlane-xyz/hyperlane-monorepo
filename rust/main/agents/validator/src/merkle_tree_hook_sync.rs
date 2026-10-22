@@ -34,7 +34,7 @@ use hyperlane_base::{
 use hyperlane_core::{
     BackwardCursorProgress, HyperlaneBackwardCursorStore, HyperlaneLogStore,
     HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, MerkleTreeHook,
-    MerkleTreeInsertion, ReorgPeriod, H256,
+    MerkleTreeInsertion, ReorgPeriod, Secret, H256,
 };
 use hyperlane_metric::rpc_operation::{with_rpc_operation, RpcOperation};
 
@@ -384,7 +384,7 @@ pub(crate) struct MerkleTreeHookWebSocketSync {
     db: HyperlaneRocksDB,
     domain: u32,
     merkle_tree_hook: H256,
-    url: Url,
+    url: Secret<Url>,
     websocket_active: IntGauge,
     websocket_healthy: Arc<AtomicBool>,
     fallback_active: IntGauge,
@@ -441,7 +441,7 @@ impl MerkleTreeHookWebSocketSync {
             db,
             domain,
             merkle_tree_hook,
-            url,
+            url: Secret::new(url),
             websocket_active,
             websocket_healthy: Arc::new(AtomicBool::new(false)),
             fallback_active,
@@ -567,7 +567,7 @@ impl MerkleTreeHookWebSocketSync {
         timeouts: StreamTimeouts,
         dependencies: &StreamDependencies,
     ) -> Result<()> {
-        let mut socket = ScraperSession::connect(&self.url, timeouts).await?;
+        let mut socket = ScraperSession::connect(self.url.expose_secret(), timeouts).await?;
         let mut caught_up = false;
         let mut activated = false;
         let mut health = StreamHealth::new(timeouts.progress_grace);
@@ -1019,6 +1019,19 @@ mod tests {
         )
     }
 
+    #[test]
+    fn websocket_debug_omits_endpoint_credentials() {
+        let (mut sync, _directory) = test_sync();
+        sync.url =
+            Url::parse("wss://user:private-password@localhost/private-path?key=private-query")
+                .unwrap()
+                .into();
+        let output = format!("{sync:?}");
+        assert!(!output.contains("private-"));
+        assert!(output.contains("merkle_tree_hook"));
+        assert!(output.contains("domain: 1"));
+    }
+
     fn test_dependencies() -> StreamDependencies {
         StreamDependencies {
             merkle_tree_hook: None,
@@ -1257,7 +1270,8 @@ mod tests {
             "ws://{}",
             listener.local_addr().expect("test listener address")
         ))
-        .expect("test WebSocket URL");
+        .expect("test WebSocket URL")
+        .into();
         let hook = format!("{:#x}", sync.merkle_tree_hook);
         tokio::spawn(async move {
             let (stream, _) = listener.accept().await.expect("connection");
@@ -1721,7 +1735,8 @@ mod tests {
             "ws://{}",
             listener.local_addr().expect("test listener address")
         ))
-        .expect("test WebSocket URL");
+        .expect("test WebSocket URL")
+        .into();
         let hook = format!("{:#x}", sync.merkle_tree_hook);
         let first_message_id = format!("{:#x}", H256::from_low_u64_be(4));
         let second_message_id = format!("{:#x}", H256::from_low_u64_be(5));
@@ -1867,7 +1882,8 @@ mod tests {
             "ws://{}",
             listener.local_addr().expect("test listener address")
         ))
-        .expect("test WebSocket URL");
+        .expect("test WebSocket URL")
+        .into();
         let server = tokio::spawn(async move {
             let (stream, _) = listener.accept().await.expect("first connection");
             let mut socket = accept_async(stream).await.expect("WebSocket");
@@ -1944,7 +1960,8 @@ mod tests {
             "ws://{}",
             listener.local_addr().expect("test listener address")
         ))
-        .expect("test WebSocket URL");
+        .expect("test WebSocket URL")
+        .into();
         let hook = format!("{:#x}", sync.merkle_tree_hook);
         tokio::spawn(async move {
             let (stream, _) = listener.accept().await.expect("first connection");
@@ -2051,7 +2068,8 @@ mod tests {
             "ws://{}",
             listener.local_addr().expect("test listener address")
         ))
-        .expect("test WebSocket URL");
+        .expect("test WebSocket URL")
+        .into();
         sync.db
             .store_tree_insertion(&MerkleTreeInsertion::new(0, H256::from_low_u64_be(4)), 10)
             .expect("store original insertion");
@@ -2164,7 +2182,8 @@ mod tests {
             "ws://{}",
             listener.local_addr().expect("test listener address")
         ))
-        .expect("test WebSocket URL");
+        .expect("test WebSocket URL")
+        .into();
         let hook_address = format!("{:#x}", sync.merkle_tree_hook);
         let onchain_count = Arc::new(AtomicUsize::new(1));
         let server_count = onchain_count.clone();
@@ -2275,7 +2294,8 @@ mod tests {
             "ws://{}",
             listener.local_addr().expect("test listener address")
         ))
-        .expect("test WebSocket URL");
+        .expect("test WebSocket URL")
+        .into();
         let hook_address = format!("{:#x}", sync.merkle_tree_hook);
         let onchain_count = Arc::new(AtomicUsize::new(2));
         let count_control = onchain_count.clone();
@@ -2384,7 +2404,8 @@ mod tests {
             "ws://{}",
             listener.local_addr().expect("test listener address")
         ))
-        .expect("test WebSocket URL");
+        .expect("test WebSocket URL")
+        .into();
         let hook_address = format!("{:#x}", sync.merkle_tree_hook);
         let onchain_count = Arc::new(AtomicUsize::new(1));
         let count_control = onchain_count.clone();

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use hyperlane_core::{
     config::OpSubmissionConfig, matching_list::MatchingList, ChainCommunicationError, NativeToken,
+    Secret,
 };
 use serde::Serialize;
 use url::Url;
@@ -27,7 +28,7 @@ pub struct ProcessAltOverride {
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// A list of urls to connect to
-    pub urls: Vec<Url>,
+    pub urls: Secret<Vec<Url>>,
     /// Highest transaction version accepted by JSON RPC reads (0 by default).
     pub max_supported_transaction_version: u8,
     /// Operation batching configuration
@@ -57,8 +58,8 @@ pub enum ConnectionConfError {
     #[error("Missing `url` for connection configuration")]
     MissingConnectionUrl,
     /// Invalid `url` for connection configuration
-    #[error("Invalid `url` for connection configuration: `{0}` ({1})")]
-    InvalidConnectionUrl(String, url::ParseError),
+    #[error("Invalid `url` for connection configuration ({1})")]
+    InvalidConnectionUrl(Secret<String>, url::ParseError),
 }
 
 /// Configuration to of how the priority fee should be determined
@@ -94,7 +95,7 @@ impl PriorityFeeOracleConfig {
 #[derive(Debug, Clone)]
 pub struct HeliusPriorityFeeOracleConfig {
     /// The Helius URL to use
-    pub url: Url,
+    pub url: Secret<Url>,
     /// The fee level to use
     pub fee_level: HeliusPriorityFeeLevel,
 }

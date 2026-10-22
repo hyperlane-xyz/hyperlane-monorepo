@@ -10,7 +10,7 @@ pub fn create_signer(conf: &ChainConf) -> Result<AleoSigner, LanderError> {
     })?;
 
     if let SignerConf::HexKey { key } = signer_conf {
-        AleoSigner::new(key.as_bytes()).map_err(|e| {
+        AleoSigner::new(key.expose_secret().as_bytes()).map_err(|e| {
             LanderError::NonRetryableError(format!("Failed to create Aleo signer: {e}"))
         })
     } else {

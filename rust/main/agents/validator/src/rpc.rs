@@ -37,17 +37,18 @@ pub(crate) fn dedupe_rpc_urls(urls: Vec<Url>, source: &'static str) -> Vec<Url> 
 pub(crate) fn state_read_urls(chain: &ChainConf, rpc_urls: Vec<Url>) -> (&'static str, Vec<Url>) {
     match &chain.connection {
         ChainConnectionConf::Ethereum(_) => ("rpcUrls", rpc_urls),
-        ChainConnectionConf::Sealevel(conn) => ("rpcUrls", conn.urls.clone()),
-        ChainConnectionConf::Starknet(conn) => ("rpcUrls", conn.urls.clone()),
+        ChainConnectionConf::Sealevel(conn) => ("rpcUrls", conn.urls.expose_secret().clone()),
+        ChainConnectionConf::Starknet(conn) => ("rpcUrls", conn.urls.expose_secret().clone()),
         ChainConnectionConf::Cosmos(conn) | ChainConnectionConf::CosmosNative(conn) => {
-            ("grpcUrls", conn.grpc_urls.clone())
+            ("grpcUrls", conn.grpc_urls.expose_secret().clone())
         }
-        ChainConnectionConf::Tron(conn) => {
-            ("walletSolidityUrls", conn.wallet_solidity_urls.clone())
-        }
-        ChainConnectionConf::Radix(conn) => ("rpcUrls", conn.core.clone()),
+        ChainConnectionConf::Tron(conn) => (
+            "walletSolidityUrls",
+            conn.wallet_solidity_urls.expose_secret().clone(),
+        ),
+        ChainConnectionConf::Radix(conn) => ("rpcUrls", conn.core.expose_secret().clone()),
         #[cfg(feature = "aleo")]
-        ChainConnectionConf::Aleo(conn) => ("rpcUrls", conn.rpcs.clone()),
+        ChainConnectionConf::Aleo(conn) => ("rpcUrls", conn.rpcs.expose_secret().clone()),
     }
 }
 
@@ -60,20 +61,20 @@ pub(crate) fn chain_conf_for_read_url(
     match &mut chain_conf.connection {
         ChainConnectionConf::Ethereum(conn) => {
             conn.rpc_connection = if matches!(url.scheme(), "ws" | "wss") {
-                RpcConnectionConf::Ws { url }
+                RpcConnectionConf::Ws { url: url.into() }
             } else {
-                RpcConnectionConf::Http { url }
+                RpcConnectionConf::Http { url: url.into() }
             };
         }
-        ChainConnectionConf::Sealevel(conn) => conn.urls = vec![url],
-        ChainConnectionConf::Starknet(conn) => conn.urls = vec![url],
+        ChainConnectionConf::Sealevel(conn) => conn.urls = vec![url].into(),
+        ChainConnectionConf::Starknet(conn) => conn.urls = vec![url].into(),
         ChainConnectionConf::Cosmos(conn) | ChainConnectionConf::CosmosNative(conn) => {
-            conn.grpc_urls = vec![url]
+            conn.grpc_urls = vec![url].into()
         }
-        ChainConnectionConf::Tron(conn) => conn.wallet_solidity_urls = vec![url],
-        ChainConnectionConf::Radix(conn) => conn.core = vec![url],
+        ChainConnectionConf::Tron(conn) => conn.wallet_solidity_urls = vec![url].into(),
+        ChainConnectionConf::Radix(conn) => conn.core = vec![url].into(),
         #[cfg(feature = "aleo")]
-        ChainConnectionConf::Aleo(conn) => conn.rpcs = vec![url],
+        ChainConnectionConf::Aleo(conn) => conn.rpcs = vec![url].into(),
     }
     chain_conf.metrics_conf.rpc_role = role;
     chain_conf

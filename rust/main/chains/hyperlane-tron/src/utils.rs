@@ -1,3 +1,4 @@
+use hyperlane_metric::utils::url_to_host_info;
 use std::time::Duration;
 
 use ethers::providers::Http;
@@ -53,7 +54,11 @@ pub(crate) fn build_fallback_provider(
             wrap_rpc_with_metrics(http_provider, url.clone(), metrics.clone(), chain.clone());
         builder = builder.add_provider(metrics_provider);
     }
-    let fallback_provider = builder.build();
+    let fallback_provider = builder.build().with_rpc_context(
+        PrometheusConfig::chain_name(&chain).to_owned(),
+        "rpcUrls",
+        rpcs.iter().map(url_to_host_info).collect(),
+    );
     let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider, false);
 
     Ok(ethereum_fallback_provider)

@@ -220,7 +220,7 @@ mod tests {
         adapter.mev_submission = Some(MevSubmission {
             mailbox: MAILBOX,
             policy: MevSubmissionConfig {
-                rpc_urls: vec![],
+                rpc_urls: vec![].into(),
                 ica_router: ROUTER,
                 additional_ica_routers: vec![H256([3; 32])],
             },

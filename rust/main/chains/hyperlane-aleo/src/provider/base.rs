@@ -11,7 +11,7 @@ use serde::de::DeserializeOwned;
 use tokio::sync::{Mutex, RwLock};
 use url::Url;
 
-use hyperlane_core::{ChainCommunicationError, ChainResult};
+use hyperlane_core::{ChainCommunicationError, ChainResult, Secret};
 
 use crate::provider::{HttpClient, HttpClientBuilder};
 use crate::{DelegatedProverAuthError, HyperlaneAleoError};
@@ -23,7 +23,7 @@ pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 fn append_path(base_url: &Url, path: &str) -> ChainResult<Url> {
     let mut url = base_url.clone();
     url.path_segments_mut()
-        .map_err(|_| HyperlaneAleoError::Other(format!("Invalid base URL: {base_url}")))?
+        .map_err(|_| HyperlaneAleoError::Other("Invalid base URL".to_owned()))?
         .pop_if_empty()
         .extend(path.split('/'));
 
@@ -47,8 +47,8 @@ fn append_network(base_url: Url, network: u16) -> ChainResult<Url> {
 /// Base Http client that performs REST-ful queries
 #[derive(Clone, Debug)]
 pub struct BaseHttpClient {
-    client: ReqwestClient,
-    base_url: Url,
+    client: Secret<ReqwestClient>,
+    base_url: Secret<Url>,
 }
 
 impl BaseHttpClient {
@@ -62,8 +62,8 @@ impl BaseHttpClient {
             .build()
             .map_err(HyperlaneAleoError::from)?;
         Ok(Self {
-            client,
-            base_url: append_network(url, network)?,
+            client: Secret::new(client),
+            base_url: Secret::new(append_network(url, network)?),
         })
     }
 }
@@ -76,10 +76,11 @@ impl HttpClient for BaseHttpClient {
         path: &str,
         query: impl Into<Option<serde_json::Value>> + Send,
     ) -> ChainResult<T> {
-        let url = append_path(&self.base_url, path)?;
+        let url = append_path(self.base_url.expose_secret(), path)?;
         let query: serde_json::Value = query.into().unwrap_or_default();
         let response = self
             .client
+            .expose_secret()
             .get(url)
             .query(&query)
             .send()
@@ -97,10 +98,11 @@ impl HttpClient for BaseHttpClient {
         path: &str,
         query: impl Into<Option<serde_json::Value>> + Send,
     ) -> ChainResult<Option<T>> {
-        let url = append_path(&self.base_url, path)?;
+        let url = append_path(self.base_url.expose_secret(), path)?;
         let query: serde_json::Value = query.into().unwrap_or_default();
         let response = self
             .client
+            .expose_secret()
             .get(url)
             .query(&query)
             .send()
@@ -123,9 +125,10 @@ impl HttpClient for BaseHttpClient {
         path: &str,
         body: &serde_json::Value,
     ) -> ChainResult<T> {
-        let url = append_path(&self.base_url, path)?;
+        let url = append_path(self.base_url.expose_secret(), path)?;
         let response = self
             .client
+            .expose_secret()
             .post(url)
             .json(body)
             .send()
@@ -149,10 +152,10 @@ impl HttpClientBuilder for BaseHttpClient {
 /// Base Http client that performs REST-ful queries
 #[derive(Clone, Debug)]
 pub struct JWTBaseHttpClient {
-    client: ReqwestClient,
-    base_url: Url,
-    auth_url: String,
-    auth_token: Arc<RwLock<Option<(HeaderValue, Instant)>>>,
+    client: Secret<ReqwestClient>,
+    base_url: Secret<Url>,
+    auth_url: Secret<String>,
+    auth_token: Arc<RwLock<Option<(Secret<HeaderValue>, Instant)>>>,
     auth_refresh: Arc<Mutex<()>>,
 }
 
@@ -174,11 +177,11 @@ impl JWTBaseHttpClient {
             .build()
             .map_err(HyperlaneAleoError::from)?;
         Ok(Self {
-            client,
-            base_url: append_network(url, network)?,
+            client: Secret::new(client),
+            base_url: Secret::new(append_network(url, network)?),
             auth_token: Default::default(),
             auth_refresh: Default::default(),
-            auth_url,
+            auth_url: Secret::new(auth_url),
         })
     }
 
@@ -186,7 +189,7 @@ impl JWTBaseHttpClient {
         let auth_token = self.auth_token.read().await;
         if let Some((token, expires_at)) = &*auth_token {
             if Instant::now() < *expires_at {
-                return Some(token.clone());
+                return Some(token.expose_secret().clone());
             }
         }
         None
@@ -204,7 +207,8 @@ impl JWTBaseHttpClient {
 
         let response = self
             .client
-            .post(&self.auth_url)
+            .expose_secret()
+            .post(self.auth_url.expose_secret())
             // Provable requires Content-Length even for an empty JWT request.
             .header(CONTENT_LENGTH, "0")
             .send()
@@ -213,16 +217,17 @@ impl JWTBaseHttpClient {
         let response = response
             .error_for_status()
             .map_err(|error| HyperlaneAleoError::from(DelegatedProverAuthError::new(error)))?;
-        let result = response
+        let mut result = response
             .headers()
             .get(AUTHORIZATION)
             .ok_or(HyperlaneAleoError::MissingAuthHeader)?
             .clone();
+        result.set_sensitive(true);
         let expires = Instant::now()
             .checked_add(Duration::from_secs(60 * 15))
             .unwrap_or(Instant::now()); // Tokens last 15 minutes
         let mut auth_token = self.auth_token.write().await;
-        *auth_token = Some((result.clone(), expires));
+        *auth_token = Some((Secret::new(result.clone()), expires));
         Ok(result)
     }
 
@@ -239,7 +244,7 @@ impl JWTBaseHttpClient {
         let mut auth_token = self.auth_token.write().await;
         if auth_token
             .as_ref()
-            .is_some_and(|(token, _)| token == rejected_token)
+            .is_some_and(|(token, _)| token.expose_secret() == rejected_token)
         {
             *auth_token = None;
         }
@@ -254,11 +259,12 @@ impl HttpClient for JWTBaseHttpClient {
         path: &str,
         query: impl Into<Option<serde_json::Value>> + Send,
     ) -> ChainResult<T> {
-        let url = append_path(&self.base_url, path)?;
+        let url = append_path(self.base_url.expose_secret(), path)?;
         let query: serde_json::Value = query.into().unwrap_or_default();
         let auth = self.get_auth_token().await?;
         let response = self
             .client
+            .expose_secret()
             .get(url)
             .header(AUTHORIZATION, auth.clone())
             .query(&query)
@@ -284,11 +290,12 @@ impl HttpClient for JWTBaseHttpClient {
         path: &str,
         query: impl Into<Option<serde_json::Value>> + Send,
     ) -> ChainResult<Option<T>> {
-        let url = append_path(&self.base_url, path)?;
+        let url = append_path(self.base_url.expose_secret(), path)?;
         let query: serde_json::Value = query.into().unwrap_or_default();
         let auth = self.get_auth_token().await?;
         let response = self
             .client
+            .expose_secret()
             .get(url)
             .header(AUTHORIZATION, auth.clone())
             .query(&query)
@@ -316,10 +323,11 @@ impl HttpClient for JWTBaseHttpClient {
         path: &str,
         body: &serde_json::Value,
     ) -> ChainResult<T> {
-        let url = append_path(&self.base_url, path)?;
+        let url = append_path(self.base_url.expose_secret(), path)?;
         let auth = self.get_auth_token().await?;
         let response = self
             .client
+            .expose_secret()
             .post(url)
             .header(AUTHORIZATION, auth.clone())
             .json(body)
@@ -362,7 +370,9 @@ mod tests {
     use tokio::sync::{oneshot, Barrier};
     use url::Url;
 
-    use super::{append_network, append_path, BaseHttpClient, HttpClient, JWTBaseHttpClient};
+    use super::{
+        append_network, append_path, BaseHttpClient, HttpClient, JWTBaseHttpClient, Secret,
+    };
 
     fn auth_server(response: &'static [u8]) -> (JWTBaseHttpClient, thread::JoinHandle<String>) {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind auth server");
@@ -397,6 +407,11 @@ mod tests {
         );
         let token = client.get_auth_token().await.expect("get JWT");
         assert_eq!(token, "Bearer test-token");
+        assert!(token.is_sensitive());
+        let cached_token = client.get_auth_token().await.expect("cached JWT");
+        assert_eq!(cached_token, token);
+        assert!(cached_token.is_sensitive());
+        assert!(!format!("{token:?} {client:?}").contains("test-token"));
         let request = server.join().expect("auth server joined");
         assert!(request.starts_with("POST /jwt HTTP/1.1\r\n"));
         assert!(request
@@ -414,7 +429,31 @@ mod tests {
             error.to_string().contains("411"),
             "HTTP status must be preserved: {error}"
         );
+        assert!(!format!("{error:?} {error}").contains("http://"));
         server.join().expect("auth server joined");
+    }
+
+    #[tokio::test]
+    async fn client_debug_omits_cached_tokens_and_endpoint_credentials() {
+        let url = Url::parse("http://private-user:private-password@localhost/private-path?key=private-query&custom_rpc_header=x-auth-url:http%3A%2F%2Flocalhost%2Fprivate-auth").unwrap();
+        let client = JWTBaseHttpClient::new(url.clone(), 0).unwrap();
+        // The Debug implementation must be safe even with an unmarked header.
+        *client.auth_token.write().await = Some((
+            Secret::new(HeaderValue::from_static("Bearer private-token")),
+            Instant::now() + Duration::from_secs(60),
+        ));
+        let rpc = BaseHttpClient::new(url, 0).unwrap();
+        let debug = format!("{client:?} {rpc:?}");
+        assert!(!debug.contains("private-"));
+        assert!(debug.contains("base_url: [REDACTED"));
+        assert!(debug.contains("auth_url: [REDACTED"));
+        assert!(debug.contains("auth_token:"));
+        assert!(debug.contains("Instant"));
+        let token_guard = client.auth_token.write().await;
+        let debug = format!("{client:?}");
+        assert!(debug.contains("<locked>"));
+        assert!(!debug.contains("private-"));
+        drop(token_guard);
     }
 
     #[test]
@@ -585,7 +624,7 @@ mod tests {
         .unwrap();
         let client = JWTBaseHttpClient::new(url, 0).unwrap();
         *client.auth_token.write().await = Some((
-            HeaderValue::from_static("Bearer expired-token"),
+            Secret::new(HeaderValue::from_static("Bearer expired-token")),
             Instant::now() - Duration::from_secs(1),
         ));
         let start = Arc::new(Barrier::new(CALLERS));
@@ -647,7 +686,7 @@ mod tests {
         let stale_token = HeaderValue::from_static("Bearer stale-token");
         let refreshed_token = HeaderValue::from_static("Bearer refreshed-token");
         *client.auth_token.write().await = Some((
-            refreshed_token.clone(),
+            Secret::new(refreshed_token.clone()),
             Instant::now() + Duration::from_secs(60),
         ));
 

@@ -14,8 +14,8 @@ use hyperlane_core::{
     HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
     IndexMode, Indexer, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule,
     Mailbox, MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, NativeToken, ReorgPeriod,
-    RoutingIsm, SameChainCcrSwap, SequenceAwareIndexer, SubmitterType, ValidatorAnnounce, H160,
-    H256,
+    RoutingIsm, SameChainCcrSwap, Secret, SequenceAwareIndexer, SubmitterType, ValidatorAnnounce,
+    H160, H256,
 };
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
@@ -59,11 +59,11 @@ pub trait TryFromWithMetrics<T>: Sized {
 /// AdaptsChain trait implementation.
 #[allow(dead_code)]
 #[derive(Clone, Debug, Default)]
-pub struct RawChainConf(Value);
+pub struct RawChainConf(Secret<Value>);
 
 impl From<Value> for RawChainConf {
     fn from(value: Value) -> Self {
-        Self(value)
+        Self(value.into())
     }
 }
 
@@ -1665,7 +1665,7 @@ fn build_sealevel_provider(
     let client_metrics = metrics.client_metrics();
 
     let chain = middleware_metrics.chain.clone();
-    let urls = conf.urls.clone();
+    let urls = conf.urls.expose_secret().clone();
     let rpc_client = SealevelFallbackRpcClient::from_urls(
         chain,
         urls,

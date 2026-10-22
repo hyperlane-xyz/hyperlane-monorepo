@@ -65,14 +65,19 @@ impl TronProvider {
         metrics: PrometheusClientMetrics,
         chain: Option<prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
-        let wallet =
-            TronHttpProvider::new(conf.wallet_urls.clone(), metrics.clone(), chain.clone())?;
-        let wallet_solidity = TronHttpProvider::new(
-            conf.wallet_solidity_urls.clone(),
+        let wallet = TronHttpProvider::new(
+            conf.wallet_urls.expose_secret().clone(),
+            "walletUrls",
             metrics.clone(),
             chain.clone(),
         )?;
-        let jsonrpc = build_fallback_provider(&conf.rpc_urls, metrics, chain)?;
+        let wallet_solidity = TronHttpProvider::new(
+            conf.wallet_solidity_urls.expose_secret().clone(),
+            "walletSolidityUrls",
+            metrics.clone(),
+            chain.clone(),
+        )?;
+        let jsonrpc = build_fallback_provider(conf.rpc_urls.expose_secret(), metrics, chain)?;
 
         Ok(Self {
             wallet,

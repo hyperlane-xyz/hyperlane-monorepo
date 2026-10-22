@@ -21,7 +21,7 @@ use hyperlane_base::{
         Settings,
     },
 };
-use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, H160};
+use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, Secret, H160};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -34,7 +34,7 @@ pub struct ScraperSettings {
     #[deref_mut]
     pub base: Settings,
 
-    pub db: String,
+    pub db: Secret<String>,
     pub db_max_connections: u32,
     pub db_acquire_timeout: Duration,
     pub chains_to_scrape: Vec<HyperlaneDomain>,
@@ -46,7 +46,7 @@ pub struct ScraperSettings {
 
 #[derive(Debug, Deserialize)]
 #[serde(transparent)]
-struct RawScraperSettings(Value);
+struct RawScraperSettings(Secret<Value>);
 
 impl_loadable_from_settings!(Scraper, RawScraperSettings -> ScraperSettings);
 
@@ -59,7 +59,7 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
     ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
-        let p = ValueParser::new(cwp.clone(), &raw.0);
+        let p = ValueParser::new(cwp.clone(), raw.0.expose_secret());
 
         let chains_names_to_scrape: Option<HashSet<&str>> = p
             .chain(&mut err)
@@ -158,7 +158,7 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
 
         err.into_result(Self {
             base,
-            db,
+            db: Secret::new(db),
             db_max_connections,
             db_acquire_timeout,
             chains_to_scrape,

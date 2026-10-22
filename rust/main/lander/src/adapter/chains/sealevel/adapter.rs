@@ -89,7 +89,7 @@ impl SealevelAdapter {
         metrics: &CoreMetrics,
     ) -> eyre::Result<Self> {
         let connection_conf = get_connection_conf(&conf);
-        let urls = &connection_conf.urls;
+        let urls = connection_conf.urls.expose_secret();
         let chain_info = conf.metrics_conf().chain;
         let client_metrics = metrics.client_metrics();
 

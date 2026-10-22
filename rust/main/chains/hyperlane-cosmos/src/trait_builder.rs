@@ -5,16 +5,16 @@ use derive_new::new;
 use url::Url;
 
 use hyperlane_core::{
-    config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, NativeToken,
+    config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, NativeToken, Secret,
 };
 
 /// Cosmos connection configuration
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct ConnectionConf {
     /// The GRPC urls to connect to
-    pub grpc_urls: Vec<Url>,
+    pub grpc_urls: Secret<Vec<Url>>,
     /// The RPC url to connect to
-    rpc_urls: Vec<Url>,
+    rpc_urls: Secret<Vec<Url>>,
     /// The chain ID
     chain_id: String,
     /// The human readable address prefix for the chains using bech32.
@@ -84,19 +84,19 @@ pub enum ConnectionConfError {
     #[error("Missing `prefix` for connection configuration")]
     MissingPrefix,
     /// Invalid `url` for connection configuration
-    #[error("Invalid `url` for connection configuration: `{0}` ({1})")]
-    InvalidConnectionUrl(String, url::ParseError),
+    #[error("Invalid `url` for connection configuration ({1})")]
+    InvalidConnectionUrl(Secret<String>, url::ParseError),
 }
 
 impl ConnectionConf {
     /// Get the GRPC url
     pub fn get_grpc_urls(&self) -> Vec<Url> {
-        self.grpc_urls.clone()
+        self.grpc_urls.expose_secret().clone()
     }
 
     /// Get the RPC urls
     pub fn get_rpc_urls(&self) -> Vec<Url> {
-        self.rpc_urls.clone()
+        self.rpc_urls.expose_secret().clone()
     }
 
     /// Get the chain ID
@@ -154,8 +154,8 @@ impl ConnectionConf {
             .transpose()?
             .unwrap_or_default();
         Ok(Self {
-            grpc_urls,
-            rpc_urls,
+            grpc_urls: Secret::new(grpc_urls),
+            rpc_urls: Secret::new(rpc_urls),
             chain_id,
             bech32_prefix,
             canonical_asset,
@@ -166,5 +166,44 @@ impl ConnectionConf {
             gas_multiplier,
             compat_mode,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn debug_omits_rpc_credentials() {
+        let url = Url::parse(
+            "http://private-user:private-password@localhost/private-path?key=private-query",
+        )
+        .expect("test URL");
+        let conf = ConnectionConf::new(
+            vec![url.clone()],
+            vec![url],
+            "test-chain".into(),
+            "cosmos".into(),
+            "utest".into(),
+            RawCosmosAmount {
+                denom: "utest".into(),
+                amount: "0.1".into(),
+            },
+            32,
+            Default::default(),
+            Default::default(),
+            1.0,
+            None,
+        )
+        .expect("test connection");
+        let debug = format!("{conf:?}");
+        assert!(debug.contains("test-chain"));
+        assert!(debug.contains("rpc_urls: [REDACTED"));
+        assert!(debug.contains("grpc_urls: [REDACTED"));
+        assert!(debug.contains("gas_price:"));
+        assert!(debug.contains("gas_multiplier: 1.0"));
+        assert!(debug.contains("bech32_prefix: \"cosmos\""));
+        assert!(debug.contains("compat_mode:"));
+        assert!(!debug.contains("private-"));
     }
 }

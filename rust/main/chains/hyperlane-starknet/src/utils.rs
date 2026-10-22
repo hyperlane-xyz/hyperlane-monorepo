@@ -344,6 +344,37 @@ pub async fn send_and_confirm(
 }
 
 #[cfg(test)]
+pub(crate) fn signing_test_fixture() -> (
+    crate::ConnectionConf,
+    crate::StarknetProvider,
+    SingleOwnerAccount<JsonProvider, LocalWallet>,
+) {
+    let conn = crate::ConnectionConf {
+        urls: vec!["http://localhost/private-path?key=private-query&custom_rpc_header=Authorization:Bearer%20private-header"
+            .parse().expect("test URL")].into(),
+        native_token_address: Default::default(),
+        op_submission_config: Default::default(),
+    };
+    let provider = crate::StarknetProvider::new(
+        hyperlane_core::HyperlaneDomain::new_test_domain("starknet"),
+        &conn,
+        Default::default(),
+        None,
+    )
+    .expect("test provider");
+    let account = SingleOwnerAccount::new(
+        provider.rpc_client().clone(),
+        LocalWallet::from(starknet::signers::SigningKey::from_secret_scalar(
+            Felt::from_hex("0xdeadbeef").expect("test key"),
+        )),
+        Felt::ONE,
+        Felt::ONE,
+        starknet::accounts::ExecutionEncoding::New,
+    );
+    (conn, provider, account)
+}
+
+#[cfg(test)]
 mod tests {
     use super::{to_packed_bytes, u128_vec_to_u8_vec};
 

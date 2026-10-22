@@ -1,3 +1,4 @@
+use hyperlane_core::Secret;
 use snarkvm_console_account::Itertools;
 use url::Url;
 
@@ -5,7 +6,7 @@ use url::Url;
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// Aleo RPC
-    pub rpcs: Vec<Url>,
+    pub rpcs: Secret<Vec<Url>>,
     /// Plaintext program name of the mailbox
     pub mailbox_program: String,
     /// Hook manager program name
@@ -17,7 +18,7 @@ pub struct ConnectionConf {
     /// Chain Id
     pub chain_id: u16,
     /// Proving service
-    pub proving_service: Vec<Url>,
+    pub proving_service: Secret<Vec<Url>>,
     /// Priority fee multiplier
     /// This multiplier will be multiplied by the base fee to determine the priority fee to include in transactions
     pub priority_fee_multiplier: f64,
@@ -56,13 +57,13 @@ impl ConnectionConf {
         }
 
         Self {
-            rpcs: rpc_urls,
+            rpcs: Secret::new(rpc_urls),
             mailbox_program,
             hook_manager_program,
             ism_manager_program,
             validator_announce_program,
             chain_id,
-            proving_service,
+            proving_service: Secret::new(proving_service),
             priority_fee_multiplier,
         }
     }

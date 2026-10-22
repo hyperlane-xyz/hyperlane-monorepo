@@ -1,9 +1,8 @@
 use std::{fmt::Debug, ops::Add, str::FromStr};
 
 use convert_case::{Case, Casing};
-use derive_new::new;
 use eyre::{eyre, Context};
-use hyperlane_core::{config::*, utils::hex_or_base58_or_bech32_to_h256, H256, U256};
+use hyperlane_core::{config::*, utils::hex_or_base58_or_bech32_to_h256, Secret, H256, U256};
 use itertools::Itertools;
 use serde::de::{DeserializeOwned, StdError};
 use serde_json::Value;
@@ -12,15 +11,28 @@ use serde_json::Value;
 pub use super::super::envs::*;
 
 /// A serde-json value config parsing utility.
-#[derive(Debug, Clone, new)]
+#[derive(Debug, Clone)]
 pub struct ValueParser<'v> {
     /// Path to the current value from the root.
     pub cwp: ConfigPath,
     /// Reference to the serde JSON value.
-    pub val: &'v Value,
+    pub val: Secret<&'v Value>,
 }
 
 impl<'v> ValueParser<'v> {
+    /// Create a parser without exposing the raw configuration through Debug.
+    pub fn new(cwp: ConfigPath, val: &'v Value) -> Self {
+        Self {
+            cwp,
+            val: Secret::new(val),
+        }
+    }
+
+    /// Explicitly access the configuration value for parsing.
+    pub fn value(&self) -> &'v Value {
+        *self.val.expose_secret()
+    }
+
     /// Create a new value parser chain.
     pub fn chain<'e>(&self, err: &'e mut ConfigParsingError) -> ParseChain<'e, ValueParser<'v>> {
         ParseChain(Some(self.clone()), err)
@@ -36,9 +48,9 @@ impl<'v> ValueParser<'v> {
     /// Get a value at the given key allowing for it to not be set.
     pub fn get_opt_key(&self, key: &str) -> ConfigResult<Option<ValueParser<'v>>> {
         let cwp = (&self.cwp).add(key.to_case(Case::Snake));
-        match self.val {
+        match self.value() {
             Value::Object(obj) => Ok(obj.get(&key.to_case(Case::Flat)).map(|val| Self {
-                val,
+                val: Secret::new(val),
                 cwp: cwp.clone(),
             })),
             _ => Err(eyre!("Expected an object type")),
@@ -52,12 +64,12 @@ impl<'v> ValueParser<'v> {
         self,
     ) -> ConfigResult<impl Iterator<Item = (String, ValueParser<'v>)> + 'v> {
         let cwp = self.cwp.clone();
-        match self.val {
+        match self.value() {
             Value::Object(obj) => Ok(obj.iter().map(move |(k, v)| {
                 (
                     k.clone(),
                     Self {
-                        val: v,
+                        val: Secret::new(v),
                         cwp: (&cwp).add(k.to_case(Case::Snake)),
                     },
                 )
@@ -71,9 +83,9 @@ impl<'v> ValueParser<'v> {
     pub fn into_array_iter(self) -> ConfigResult<impl Iterator<Item = ValueParser<'v>>> {
         let cwp = self.cwp.clone();
 
-        match self.val {
+        match self.value() {
             Value::Array(arr) => Ok(arr.iter().enumerate().map(move |(i, v)| Self {
-                val: v,
+                val: Secret::new(v),
                 cwp: (&cwp).add(i.to_string()),
             }))
             .map(|itr| Box::new(itr) as Box<dyn Iterator<Item = ValueParser<'v>>>),
@@ -99,7 +111,7 @@ impl<'v> ValueParser<'v> {
                 // convert to an iterator of value parsers over the values
                 .map(|itr| {
                     itr.map(move |(i, v)| Self {
-                        val: v,
+                        val: Secret::new(v),
                         cwp: (&cwp).add(i.to_string()),
                     })
                 })
@@ -111,13 +123,11 @@ impl<'v> ValueParser<'v> {
 
     /// Parse a u64 value allowing for it to be represented as string or number.
     pub fn parse_u64(&self) -> ConfigResult<u64> {
-        match self.val {
+        match self.value() {
             Value::Number(num) => num
                 .as_u64()
                 .ok_or_else(|| eyre!("Excepted an unsigned integer, got number `{num}`")),
-            Value::String(s) => s
-                .parse()
-                .with_context(|| format!("Expected an unsigned integer, got string `{s}`")),
+            Value::String(s) => s.parse().context("Expected an unsigned integer"),
             _ => Err(eyre!("Expected an unsigned integer, got `{:?}`", self.val)),
         }
         .into_config_result(|| self.cwp.clone())
@@ -125,13 +135,11 @@ impl<'v> ValueParser<'v> {
 
     /// Parse an i64 value allowing for it to be represented as string or number.
     pub fn parse_i64(&self) -> ConfigResult<i64> {
-        match self.val {
+        match self.value() {
             Value::Number(num) => num
                 .as_i64()
                 .ok_or_else(|| eyre!("Excepted a signed integer, got number `{num}`")),
-            Value::String(s) => s
-                .parse()
-                .with_context(|| format!("Expected a signed integer, got string `{s}`")),
+            Value::String(s) => s.parse().context("Expected a signed integer"),
             _ => Err(eyre!("Expected an signed integer, got `{:?}`", self.val)),
         }
         .into_config_result(|| self.cwp.clone())
@@ -153,13 +161,11 @@ impl<'v> ValueParser<'v> {
 
     /// Parse an i64 value allowing for it to be represented as string or number.
     pub fn parse_f64_unchecked(&self) -> ConfigResult<f64> {
-        match self.val {
+        match self.value() {
             Value::Number(num) => num
                 .as_f64()
                 .ok_or_else(|| eyre!("Excepted a floating point number, got number `{num}`")),
-            Value::String(s) => s
-                .parse()
-                .with_context(|| format!("Expected a floating point number, got string `{s}`")),
+            Value::String(s) => s.parse().context("Expected a floating point number"),
             _ => Err(eyre!(
                 "Expected floating point number, got `{:?}`",
                 self.val
@@ -194,7 +200,7 @@ impl<'v> ValueParser<'v> {
 
     /// Parse a u256 value allowing for it to be represented as string or number.
     pub fn parse_u256(&self) -> ConfigResult<U256> {
-        match self.val {
+        match self.value() {
             Value::String(s) => {
                 // U256's `parse` assumes the string is hexadecimal - instead, use `from_dec_str`.
                 U256::from_dec_str(s).context("Expected a valid U256 string")
@@ -213,12 +219,12 @@ impl<'v> ValueParser<'v> {
 
     /// Parse a boolean value allowing for it to be represented as string or bool.
     pub fn parse_bool(&self) -> ConfigResult<bool> {
-        match self.val {
+        match self.value() {
             Value::Bool(b) => Ok(*b),
             Value::String(s) => match s.to_ascii_lowercase().as_str() {
                 "true" => Ok(true),
                 "false" => Ok(false),
-                s => Err(eyre!("Expected a boolean, got string `{s}`")),
+                _ => Err(eyre!("Expected a boolean string")),
             },
             _ => Err(eyre!("Expected a boolean, got `{:?}`", self.val)),
         }
@@ -227,7 +233,7 @@ impl<'v> ValueParser<'v> {
 
     /// Parse a string value.
     pub fn parse_string(&self) -> ConfigResult<&'v str> {
-        match self.val {
+        match self.value() {
             Value::String(s) => Ok(s.as_str()),
             _ => Err(eyre!("Expected a string, got `{:?}`", self.val)),
         }
@@ -236,7 +242,7 @@ impl<'v> ValueParser<'v> {
 
     /// Parse an address hash allowing for it to be represented as a hex, bech32 or base58 string.
     pub fn parse_address_hash(&self) -> ConfigResult<H256> {
-        match self.val {
+        match self.value() {
             Value::String(s) => hex_or_base58_or_bech32_to_h256(s)
                 .context("Expected a valid address hash in hex, base58 or bech32"),
             _ => Err(eyre!("Expected an address string, got `{:?}`", self.val)),
@@ -245,9 +251,10 @@ impl<'v> ValueParser<'v> {
     }
 
     /// Parse a private key allowing for it to be represented as a hex or base58 string.
-    pub fn parse_private_key(&self) -> ConfigResult<H256> {
-        match self.val {
+    pub fn parse_private_key(&self) -> ConfigResult<Secret<H256>> {
+        match self.value() {
             Value::String(s) => hex_or_base58_or_bech32_to_h256(s)
+                .map(Secret::new)
                 .context("Expected a valid private key in hex, base58 or bech32"),
             _ => Err(eyre!("Expected a private key string")),
         }
@@ -256,8 +263,10 @@ impl<'v> ValueParser<'v> {
 
     /// Use serde to parse a value.
     pub fn parse_value<T: DeserializeOwned>(&self, ctx: &'static str) -> ConfigResult<T> {
-        serde_json::from_value(self.val.clone())
-            .context(ctx)
+        // Serde errors can embed the supplied value, including credentials.
+        // Keep the field path and expected-value context, never the raw input.
+        serde_json::from_value(self.value().clone())
+            .map_err(|_| eyre!(ctx))
             .into_config_result(|| self.cwp.clone())
     }
 
@@ -319,7 +328,7 @@ define_basic_parse!(
     parse_bool: bool,
     parse_string: &'v str,
     parse_address_hash: H256,
-    parse_private_key: H256
+    parse_private_key: Secret<H256>
 );
 
 impl<'v, 'e> ParseChain<'e, ValueParser<'v>> {

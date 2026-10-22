@@ -88,7 +88,7 @@ impl PriorityFeeOracle for HeliusPriorityFeeOracle {
 
         let response = self
             .client
-            .post(self.config.url.clone())
+            .post(self.config.url.expose_secret().clone())
             .json(&request_body)
             .send()
             .await
@@ -147,7 +147,7 @@ mod test {
         };
 
         let oracle = super::HeliusPriorityFeeOracle::new(super::HeliusPriorityFeeOracleConfig {
-            url: url::Url::parse(&helius_url).unwrap(),
+            url: url::Url::parse(&helius_url).unwrap().into(),
             fee_level: super::HeliusPriorityFeeLevel::Medium,
         });
 
@@ -165,7 +165,7 @@ mod test {
     fn test_helius_get_priority_fee_estimate_options_ser() {
         let get_oracle = |fee_level| {
             HeliusPriorityFeeOracle::new(HeliusPriorityFeeOracleConfig {
-                url: url::Url::parse("http://localhost:8080").unwrap(),
+                url: url::Url::parse("http://localhost:8080").unwrap().into(),
                 fee_level,
             })
         };

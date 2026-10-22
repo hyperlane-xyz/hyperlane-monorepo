@@ -5678,6 +5678,7 @@ dependencies = [
  "tracing",
  "tracing-error",
  "tracing-futures",
+ "tracing-log",
  "tracing-subscriber",
  "tracing-test",
  "url",
@@ -5720,6 +5721,7 @@ dependencies = [
  "primitive-types",
  "prometheus",
  "rand 0.8.5",
+ "redact",
  "regex",
  "serde",
  "serde_json",
@@ -5731,6 +5733,7 @@ dependencies = [
  "tiny-keccak 2.0.2",
  "tokio",
  "tracing",
+ "tracing-test",
  "typetag",
  "uint 0.9.5",
  "uuid 1.11.0",
@@ -9075,6 +9078,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "redact"
+version = "0.1.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dcecefd225c2fb69914585a7a6f8878929feb316a7ecb61c07d79e361d46d8ac"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10165,6 +10177,7 @@ dependencies = [
  "tracing",
  "tracing-futures",
  "tracing-test",
+ "url",
 ]
 
 [[package]]

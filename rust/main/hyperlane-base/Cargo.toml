@@ -87,6 +87,7 @@ reqwest.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 tracing-test.workspace = true
+tracing-log = "0.2"
 walkdir.workspace = true
 
 [build-dependencies]

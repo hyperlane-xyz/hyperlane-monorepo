@@ -1,3 +1,4 @@
+use hyperlane_metric::utils::url_to_host_info;
 use std::{
     collections::HashMap,
     future::Future,
@@ -142,16 +143,16 @@ impl CosmosHttpClient {
         compat_mode: CompatMode,
     ) -> ChainResult<Self> {
         let tendermint_url = cometbft_rpc::Url::try_from(url.to_owned())
-            .map_err(Box::new)
+            .map_err(HyperlaneCosmosError::from)
             .map_err(ChainCommunicationError::from_other)?;
         let url = cometbft_rpc::HttpClientUrl::try_from(tendermint_url)
-            .map_err(Box::new)
+            .map_err(HyperlaneCosmosError::from)
             .map_err(ChainCommunicationError::from_other)?;
 
         let client = HttpClient::builder(url)
             .compat_mode(compat_mode)
             .build()
-            .map_err(Box::new)
+            .map_err(HyperlaneCosmosError::from)
             .map_err(ChainCommunicationError::from_other)?;
 
         Ok(Self::new(client, metrics, metrics_config))
@@ -198,7 +199,11 @@ impl RpcProvider {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let provider = FallbackProvider::new(clients);
+        let provider = FallbackProvider::new(clients).with_rpc_context(
+            PrometheusConfig::chain_name(&chain).to_owned(),
+            "rpcUrls",
+            rpc_urls.iter().map(url_to_host_info).collect(),
+        );
         let gas_price = CosmosAmount::try_from(conf.get_minimum_gas_price().clone())?;
 
         let block_cache = shared_block_cache(BlockCacheKey {
@@ -606,6 +611,48 @@ impl RpcProvider {
 #[cfg(test)]
 mod cache_tests {
     use super::*;
+
+    #[tokio::test]
+    async fn rpc_transport_errors_omit_endpoint_credentials() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind test listener");
+        let address = listener.local_addr().expect("test address");
+        drop(listener);
+        let url = Url::parse(&format!("http://{address}/private-path?key=private-query"))
+            .expect("test URL");
+        let client = CosmosHttpClient::from_url(
+            &url,
+            Default::default(),
+            Default::default(),
+            CompatMode::V0_38,
+        )
+        .expect("test client");
+        let raw_error = client
+            .client
+            .latest_block()
+            .await
+            .expect_err("connection failure");
+        assert!(format!("{raw_error:?}").contains("private-"));
+        let error = HyperlaneCosmosError::from(Box::new(raw_error));
+        assert!(matches!(error, HyperlaneCosmosError::RpcTransportError(_)));
+        assert!(error.to_string().contains("Connection refused"));
+        assert!(!format!("{error:?} {error}").contains("private-"));
+        let error = client
+            .get_block_number()
+            .await
+            .expect_err("connection failure");
+        assert!(error.to_string().contains("Connection refused"));
+        assert!(!format!("{error:?} {error}").contains("private-"));
+
+        let url = Url::parse("ws://localhost/private-path?key=private-query").expect("test URL");
+        let error = CosmosHttpClient::from_url(
+            &url,
+            Default::default(),
+            Default::default(),
+            CompatMode::V0_38,
+        )
+        .expect_err("HTTP client rejects WebSocket URL");
+        assert!(!format!("{error:?} {error}").contains("private-"));
+    }
 
     #[test]
     fn block_caches_are_scoped_to_rpc_endpoints() {

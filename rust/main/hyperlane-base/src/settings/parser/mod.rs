@@ -23,7 +23,7 @@ use hyperlane_core::matching_list::MatchingList;
 use h_cosmos::RawCosmosAmount;
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneDomainTechnicalStack, IndexMode, NativeToken, ReorgPeriod, SubmitterType,
+    HyperlaneDomainTechnicalStack, IndexMode, NativeToken, ReorgPeriod, Secret, SubmitterType,
 };
 
 use crate::settings::{
@@ -56,7 +56,7 @@ fn try_get_protocol(chain: &ValueParser) -> Option<HyperlaneDomainProtocol> {
 /// The base agent config
 #[derive(Debug, Deserialize)]
 #[serde(transparent)]
-pub struct RawAgentConf(Value);
+pub struct RawAgentConf(Secret<Value>);
 
 fn agent_name_to_default_rpc_consensus_type(agent_name: &str) -> String {
     match agent_name {
@@ -76,7 +76,7 @@ impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
     ) -> Result<Self, ConfigParsingError> {
         let mut err = ConfigParsingError::default();
 
-        let p = ValueParser::new(cwp.clone(), &raw.0);
+        let p = ValueParser::new(cwp.clone(), raw.0.expose_secret());
 
         let metrics_port = p
             .chain(&mut err)
@@ -617,7 +617,7 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
 /// Parser for agent signers.
 #[derive(Debug, Deserialize)]
 #[serde(transparent)]
-pub struct RawAgentSignerConf(Value);
+pub struct RawAgentSignerConf(Secret<Value>);
 
 impl FromRawConf<RawAgentSignerConf> for SignerConf {
     fn from_config_filtered(
@@ -626,7 +626,7 @@ impl FromRawConf<RawAgentSignerConf> for SignerConf {
         _filter: (),
         _agent_name: &str,
     ) -> ConfigResult<Self> {
-        parse_signer(ValueParser::new(cwp.clone(), &raw.0))
+        parse_signer(ValueParser::new(cwp.clone(), raw.0.expose_secret()))
     }
 }
 
@@ -660,18 +660,13 @@ pub fn recase_json_value(mut val: Value, case: Case) -> Value {
 pub fn parse_json_array(p: ValueParser) -> Option<(ConfigPath, Value)> {
     let mut err = ConfigParsingError::default();
 
-    match p {
-        ValueParser {
-            val: Value::String(array_str),
-            cwp,
-        } => serde_json::from_str::<Value>(array_str)
+    let cwp = p.cwp.clone();
+    match p.value() {
+        Value::String(array_str) => serde_json::from_str::<Value>(array_str)
             .context("Expected JSON string")
             .take_err(&mut err, || cwp.clone())
             .map(|v| (cwp, recase_json_value(v, Case::Flat))),
-        ValueParser {
-            val: value @ Value::Array(_),
-            cwp,
-        } => Some((cwp, value.clone())),
+        value @ Value::Array(_) => Some((cwp, value.clone())),
         _ => Err(eyre!("Expected JSON array or stringified JSON"))
             .take_err(&mut err, || p.cwp.clone()),
     }
@@ -787,6 +782,66 @@ fn parse_base_and_override_urls(
 mod test {
     use super::*;
 
+    #[test]
+    fn config_debug_and_parse_errors_redact_credentials() {
+        let key = "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        let endpoint = "https://private-user:private-password@localhost/private-path?key=private-query#private-fragment";
+        let mut value = sealevel_ccs_config();
+        value["signer"] = serde_json::json!({"type": "hexKey", "key": key});
+        value["rpcurls"] = serde_json::json!([{"http": endpoint}]);
+        value["aws_secret_access_key"] = serde_json::json!("DUMMY_AWS_SECRET");
+        value["aws_session_token"] = serde_json::json!("DUMMY_AWS_SESSION");
+        let raw: RawAgentConf = serde_json::from_value(value.clone()).unwrap();
+        let raw_chain = crate::settings::RawChainConf::from(value.clone());
+        let parser = ValueParser::new(Default::default(), &value);
+        let parsed = parse_chain(parser.clone(), "solanamainnet", "fallback").unwrap();
+        let error = parser.parse_u64().unwrap_err();
+        let output = format!("{raw:?} {raw_chain:#?} {parser:?} {parsed:#?} {error:?} {error}");
+        for secret in [
+            "deadbeef",
+            "private-",
+            "DUMMY_AWS_SECRET",
+            "DUMMY_AWS_SESSION",
+        ] {
+            assert!(!output.contains(secret), "credential leaked: {secret}");
+        }
+        assert!(output.contains("solanamainnet"));
+        assert!(output.contains("native_token"));
+        assert!(output.contains("[REDACTED"));
+        // Redaction must not alter the operational values or input schema.
+        let Some(SignerConf::HexKey { key: parsed_key }) = parsed.signer else {
+            panic!("expected hex signer");
+        };
+        assert_eq!(
+            *parsed_key.expose_secret(),
+            key.parse::<hyperlane_core::H256>().unwrap()
+        );
+        let ChainConnectionConf::Sealevel(connection) = parsed.connection else {
+            panic!("expected Sealevel connection");
+        };
+        assert_eq!(connection.urls.expose_secret()[0].as_str(), endpoint);
+
+        let invalid = serde_json::json!("DUMMY_AWS_SECRET");
+        let parser = ValueParser::new(Default::default(), &invalid);
+        let serde_error = parser
+            .parse_value::<IndexMode>("Invalid index mode")
+            .unwrap_err();
+        let from_str_error = parser
+            .parse_from_str::<HyperlaneDomainProtocol>("Invalid protocol")
+            .unwrap_err();
+        let output = format!("{serde_error:?} {serde_error} {from_str_error:?} {from_str_error}");
+        assert!(!output.contains("DUMMY_AWS_SECRET"));
+        assert!(output.contains("Invalid index mode"));
+        assert!(output.contains("Invalid protocol"));
+        let invalid_url = serde_json::json!("https://user:DUMMY_AWS_SECRET@localhost:bad");
+        let error = ValueParser::new(Default::default(), &invalid_url)
+            .parse_from_str::<Url>("Invalid url")
+            .unwrap_err();
+        let output = format!("{error:?} {error}");
+        assert!(!output.contains("DUMMY_AWS_SECRET"));
+        assert!(output.contains("invalid port number"));
+    }
+
     fn sealevel_ccs_config() -> serde_json::Value {
         serde_json::json!({
             "domainid": 1399811149,
@@ -826,7 +881,7 @@ mod test {
             "fallback",
         )?;
         config.signer = Some(SignerConf::HexKey {
-            key: hyperlane_core::H256::repeat_byte(1),
+            key: hyperlane_core::H256::repeat_byte(1).into(),
         });
         for signer in [None, Some(SignerConf::Node)] {
             config.ccs_signer = signer;

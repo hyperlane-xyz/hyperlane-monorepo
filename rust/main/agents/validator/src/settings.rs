@@ -17,7 +17,7 @@ use hyperlane_base::{
     },
 };
 use hyperlane_core::{
-    cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, ReorgPeriod,
+    cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, ReorgPeriod, Secret,
 };
 use itertools::Itertools;
 use serde::Deserialize;
@@ -33,7 +33,7 @@ const MAX_SIGN_CONCURRENCY: usize = 1_000;
 /// Settings for RPCs
 #[derive(Debug, Clone)]
 pub struct RpcConfig {
-    pub url: String,
+    pub url: Secret<String>,
     pub public: bool,
 }
 
@@ -63,7 +63,7 @@ pub struct ValidatorSettings {
     /// Merkle tree insertion source for replay and live events. Leaves are verified
     /// against on-chain checkpoints before signing, without per-leaf RPC log reads.
     /// Outside lightweight mode, RPC indexing is used on stream failure or checkpoint mismatch.
-    pub websocket_url: Option<url::Url>,
+    pub websocket_url: Option<Secret<url::Url>>,
     /// Websocket indexing; two thirds of state-read endpoints must authenticate the signed history.
     /// Disables all RPC log indexing and batch recovery. `leightweigt` is an alias.
     pub lightweight: bool,
@@ -81,18 +81,19 @@ pub struct ValidatorSettings {
 
 #[derive(Debug, Deserialize)]
 #[serde(transparent)]
-struct RawValidatorSettings(Value);
+struct RawValidatorSettings(Secret<Value>);
 
 impl_loadable_from_settings!(Validator, RawValidatorSettings -> ValidatorSettings);
 
 impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
     fn from_config_filtered(
-        mut raw: RawValidatorSettings,
+        raw: RawValidatorSettings,
         cwp: &ConfigPath,
         _filter: (),
         agent_name: &str,
     ) -> ConfigResult<Self> {
-        let lightweight = parse_lightweight_flag(&mut raw.0, cwp)?;
+        let mut raw = raw.0.expose_secret().clone();
+        let lightweight = parse_lightweight_flag(&mut raw, cwp)?;
         let curr_dir = std::env::current_dir().map_err(|err| {
             let mut config_err = ConfigParsingError::default();
             config_err.push(cwp.clone(), eyre::eyre!(err.to_string()));
@@ -101,7 +102,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
 
         let mut err = ConfigParsingError::default();
 
-        let p = ValueParser::new(cwp.clone(), &raw.0);
+        let p = ValueParser::new(cwp.clone(), &raw);
 
         let origin_chain_name = p
             .chain(&mut err)
@@ -154,7 +155,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         // Quorum/majority vote on checkpoint history in the validator, not on raw
         // JSON responses. Indexing and auxiliary reads use ordinary fallback.
         // Normalize only the base parser's copy, preserving the configured endpoint metadata.
-        let mut base_raw = raw.0.clone();
+        let mut base_raw = raw.clone();
         if configured_consensus.is_some() {
             if let Some(name) = origin_chain_name {
                 if let Some(chain) = base_raw
@@ -338,7 +339,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             checkpoint_syncer,
             reorg_period,
             interval,
-            websocket_url,
+            websocket_url: websocket_url.map(Secret::new),
             lightweight,
             checkpoint_consensus,
             rpcs,
@@ -432,7 +433,7 @@ fn get_rpc_urls(
                     .unwrap_or(false);
                 let url: Option<&str> = v.chain(err).get_key("http").parse_string().end();
                 url.map(|url| RpcConfig {
-                    url: url.to_owned(),
+                    url: Secret::new(url.to_owned()),
                     public,
                 })
             })
@@ -449,7 +450,7 @@ fn get_rpc_urls(
                 .map(str::trim)
                 .filter(|url| !url.is_empty())
                 .map(|url| RpcConfig {
-                    url: url.to_owned(),
+                    url: Secret::new(url.to_owned()),
                     public: false,
                 })
                 .collect_vec()
@@ -584,11 +585,11 @@ mod test {
     fn test_get_rpc_urls_explicit() {
         let expected = [
             RpcConfig {
-                url: "http://my-rpc-url.com".to_string(),
+                url: "http://my-rpc-url.com".to_string().into(),
                 public: true,
             },
             RpcConfig {
-                url: "http://my-rpc-url-2.com".to_string(),
+                url: "http://my-rpc-url-2.com".to_string().into(),
                 public: false,
             },
         ];
@@ -597,7 +598,7 @@ mod test {
             .iter()
             .map(|rpc| {
                 serde_json::json!({
-                    "http": rpc.url,
+                    "http": rpc.url.expose_secret(),
                     "public": rpc.public
                 })
             })
@@ -612,7 +613,7 @@ mod test {
 
         assert_eq!(parsed.len(), expected.len());
         for (i, rpc) in expected.iter().enumerate() {
-            assert_eq!(parsed[i].url, rpc.url);
+            assert_eq!(parsed[i].url.expose_secret(), rpc.url.expose_secret());
             assert_eq!(parsed[i].public, rpc.public);
         }
     }
@@ -638,9 +639,9 @@ mod test {
         let parsed = get_rpc_urls(&value_parser, "rpcUrls", "customRpcUrls", &mut err);
 
         assert_eq!(parsed.len(), 2);
-        assert_eq!(parsed[0].url, "http://my-rpc-url.com");
+        assert_eq!(parsed[0].url.expose_secret(), "http://my-rpc-url.com");
         assert!(!parsed[0].public);
-        assert_eq!(parsed[1].url, "http://my-rpc-url-2.com");
+        assert_eq!(parsed[1].url.expose_secret(), "http://my-rpc-url-2.com");
         assert!(!parsed[1].public);
     }
 
@@ -666,9 +667,9 @@ mod test {
         let parsed = get_rpc_urls(&value_parser, "rpcUrls", "customRpcUrls", &mut err);
 
         assert_eq!(parsed.len(), 2);
-        assert_eq!(parsed[0].url, "http://my-rpc-url-3.com");
+        assert_eq!(parsed[0].url.expose_secret(), "http://my-rpc-url-3.com");
         assert!(!parsed[0].public);
-        assert_eq!(parsed[1].url, "http://my-rpc-url-4.com");
+        assert_eq!(parsed[1].url.expose_secret(), "http://my-rpc-url-4.com");
         assert!(!parsed[1].public);
     }
 
@@ -739,7 +740,7 @@ mod test {
                     chain["ismmanagerprogram"] = "isms.aleo".into();
                     chain["validatorannounceprogram"] = "announce.aleo".into();
                     let settings = ValidatorSettings::from_config_filtered(
-                        RawValidatorSettings(raw),
+                        RawValidatorSettings(raw.into()),
                         &ConfigPath::default(),
                         (),
                         "validator",
@@ -769,7 +770,7 @@ mod test {
         let mut raw = lightweight_settings_fixture();
         raw["lightweight"] = false.into();
         let settings = ValidatorSettings::from_config_filtered(
-            RawValidatorSettings(raw),
+            RawValidatorSettings(raw.into()),
             &ConfigPath::default(),
             (),
             "validator",
@@ -800,7 +801,7 @@ mod test {
                 raw["lightweight"] = Value::Bool(lightweight);
                 raw["chains"]["test"][key] = value;
                 let error = ValidatorSettings::from_config_filtered(
-                    RawValidatorSettings(raw),
+                    RawValidatorSettings(raw.into()),
                     &ConfigPath::default(),
                     (),
                     "validator",
@@ -823,7 +824,7 @@ mod test {
             assert!(parse_lightweight_flag(&mut raw, &ConfigPath::default()).expect("bare flag"));
             assert_eq!(raw["chains"], chains);
             let settings = ValidatorSettings::from_config_filtered(
-                RawValidatorSettings(raw),
+                RawValidatorSettings(raw.into()),
                 &ConfigPath::default(),
                 (),
                 "validator",
@@ -832,7 +833,10 @@ mod test {
             assert!(settings.lightweight);
             assert!(settings.allow_public_rpcs);
             assert_eq!(settings.rpcs.len(), 1);
-            assert_eq!(settings.rpcs[0].url, "https://private-override.example");
+            assert_eq!(
+                settings.rpcs[0].url.expose_secret(),
+                "https://private-override.example"
+            );
             assert!(!settings.rpcs[0].public);
             let hyperlane_base::settings::ChainConnectionConf::Ethereum(connection) =
                 &settings.base.chains[&settings.origin_chain].connection
@@ -851,7 +855,7 @@ mod test {
         let mut raw = lightweight_settings_fixture();
         raw["chains"]["test"]["protocol"] = Value::String("sealevel".into());
         let settings = ValidatorSettings::from_config_filtered(
-            RawValidatorSettings(raw),
+            RawValidatorSettings(raw.into()),
             &ConfigPath::default(),
             (),
             "validator",
@@ -874,7 +878,7 @@ mod test {
                 .remove("customrpcurls");
             raw["chains"]["test"]["rpcconsensustype"] = consensus.into();
             let settings = ValidatorSettings::from_config_filtered(
-                RawValidatorSettings(raw),
+                RawValidatorSettings(raw.into()),
                 &ConfigPath::default(),
                 (),
                 "validator",
@@ -913,7 +917,7 @@ mod test {
                     serde_json::json!([{"http": "https://solid-registry.example"}]);
                 chain["customwalletsolidityurls"] = "https://solid-private.example".into();
                 let settings = ValidatorSettings::from_config_filtered(
-                    RawValidatorSettings(raw),
+                    RawValidatorSettings(raw.into()),
                     &ConfigPath::default(),
                     (),
                     "validator",
@@ -954,7 +958,7 @@ mod test {
             .expect("config object")
             .remove("websocketurl");
         let error = ValidatorSettings::from_config_filtered(
-            RawValidatorSettings(raw.clone()),
+            RawValidatorSettings(raw.clone().into()),
             &ConfigPath::default(),
             (),
             "validator",
@@ -965,7 +969,7 @@ mod test {
             .expect("config object")
             .remove("lightweight");
         let settings = ValidatorSettings::from_config_filtered(
-            RawValidatorSettings(raw),
+            RawValidatorSettings(raw.into()),
             &ConfigPath::default(),
             (),
             "validator",

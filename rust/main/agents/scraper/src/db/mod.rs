@@ -2,7 +2,8 @@ pub use block::*;
 pub use block_cursor::BlockCursor;
 use std::time::Duration;
 
-use eyre::{ensure, Result};
+use eyre::{ensure, Context, Result};
+use hyperlane_core::Secret;
 pub use merkle_tree_insertion::*;
 pub use message::*;
 pub use payment::*;
@@ -26,6 +27,27 @@ mod raw_message_dispatch;
 mod same_chain_ccr_swap;
 mod txn;
 
+#[cfg(test)]
+mod credential_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn malformed_database_urls_do_not_leak_credentials() {
+        for value in [
+            "postgres://user:DUMMY_DB_SECRET@localhost:invalid/database",
+            "https://user:DUMMY_DB_SECRET@localhost/database",
+        ] {
+            let url = Secret::new(value.to_owned());
+            let error = ScraperDb::connect_with_options(&url, 1, Duration::from_secs(1))
+                .await
+                .unwrap_err();
+            let output = format!("{url:?} {error:#} {error:?}");
+            assert!(!output.contains("DUMMY_DB_SECRET"));
+            assert!(output.contains("database URL"));
+        }
+    }
+}
+
 /// Database interface to the message explorer database for the scraper. This is
 /// focused on writing data to the database.
 #[derive(Debug)]
@@ -36,14 +58,14 @@ impl ScraperDb {
     const HASH_LOOKUP_CHUNK_SIZE: usize = 65_000;
 
     #[cfg(test)]
-    #[instrument]
+    #[instrument(skip(url))]
     pub async fn connect(url: &str) -> Result<Self> {
-        Self::connect_with_options(url, 10, Duration::from_secs(15)).await
+        Self::connect_with_options(&Secret::new(url.to_owned()), 10, Duration::from_secs(15)).await
     }
 
     #[instrument]
     pub async fn connect_with_options(
-        url: &str,
+        url: &Secret<String>,
         max_connections: u32,
         acquire_timeout: Duration,
     ) -> Result<Self> {
@@ -52,9 +74,16 @@ impl ScraperDb {
             !acquire_timeout.is_zero(),
             "Database acquire timeout must be positive"
         );
+        // SeaORM includes the complete connection string in URL/driver errors.
+        let parsed =
+            url::Url::parse(url.expose_secret()).context("Invalid scraper database URL")?;
+        ensure!(
+            matches!(parsed.scheme(), "postgres" | "postgresql"),
+            "Scraper database URL must use postgres:// or postgresql://"
+        );
         // One shared pool is the global backpressure boundary for indexing,
         // confirmation and enrichment across every configured chain.
-        let mut options = ConnectOptions::new(url);
+        let mut options = ConnectOptions::new(url.expose_secret().clone());
         options
             .max_connections(max_connections)
             .min_connections(1)
