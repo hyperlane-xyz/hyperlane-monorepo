@@ -498,14 +498,4 @@ export const blacklistedMessageIds = [
 
   // USDC/radix attacker message [2026-10-13]
   '0x8960c5e41eb0d91973140ebc196892f5f07f512dd86047e8536e71424462c5d3',
-
-  // Aero AllocateGauge base->ethereum, duplicate vote during LeafVoter allocation cooldown [2026-10-22]
-  // recipient reverts CooldownActive() (0xaa9a98df); first vote already applied, message expires before cooldown ends.
-  '0xef2672aa862a6568916e35bcaa72847371ec6537fa7fe74483baf3c401b0a61d',
-
-  // Aero AllocateGauge base->robinhood, duplicate votes during LeafVoter allocation cooldown [2026-10-22]
-  // recipient first reverted CooldownActive() (0xaa9a98df), now AllocationExpired() (0x70bef374); permanently undeliverable.
-  '0x058b4e615c0d85cbca4ae295b5aa1d324e1838f2b929bcd3d8ab706e3c521e99',
-  '0x2a67551e7f0c847f2183974ba9482828009ca116b360fa100cd054c824844289',
-  '0x6eb6ac5edd8fed10dc954f48009ae39c443bc5a851109b7a8137a6c843553916',
 ];
