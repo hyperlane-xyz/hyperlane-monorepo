@@ -7,7 +7,7 @@ use std::{
 
 use crate::near_head::source::EventData;
 use ethers::types::H160;
-use hyperlane_core::HyperlaneMessage;
+use hyperlane_core::{h512_to_bytes, HyperlaneMessage, H512, U256};
 use migration::MigratorTrait;
 use sea_orm::Database;
 use testcontainers::{runners::AsyncRunner, ImageExt};
@@ -108,7 +108,7 @@ async fn unavailable_transaction_hashes_are_not_enrichment_work() -> Result<()> 
 }
 
 #[tokio::test]
-async fn events_allow_transaction_scoped_log_indexes() -> Result<()> {
+async fn event_batches_preserve_payloads_and_transaction_scoped_log_indexes() -> Result<()> {
     let postgres = Postgres::default().with_tag("16-alpine").start().await?;
     let db = Database::connect(format!(
         "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
@@ -134,13 +134,15 @@ async fn events_allow_transaction_scoped_log_indexes() -> Result<()> {
         sender: hyperlane_core::H256::repeat_byte(1),
         destination: 2,
         recipient: hyperlane_core::H256::repeat_byte(2),
-        body: vec![],
+        body: vec![0, 255, b'\'', b'$'],
     };
     let messages = [message(0), message(1)];
     let message_ids = messages
         .iter()
         .map(HyperlaneMessage::id)
         .collect::<Vec<_>>();
+    let gas = U256::MAX.to_string();
+    let payment = U256::MAX.saturating_sub(U256::one()).to_string();
     let mut events = vec![
         event(
             1,
@@ -192,12 +194,16 @@ async fn events_allow_transaction_scoped_log_indexes() -> Result<()> {
             EventData::Gas {
                 message_id: message_ids[1],
                 destination: 2,
-                gas: "1".into(),
-                payment: "1".into(),
+                gas: gas.clone(),
+                payment: payment.clone(),
             },
         ),
     ];
     events.iter_mut().for_each(|event| event.log_index = 0);
+    let wide_tx_hash = H512::repeat_byte(0x55);
+    let last = events.last_mut().unwrap();
+    last.tx_hash = Some(wide_tx_hash);
+    last.sequence = Some(u32::MAX);
 
     store.append(&state, &[(header(1), events)]).await?;
 
@@ -224,6 +230,48 @@ async fn events_allow_transaction_scoped_log_indexes() -> Result<()> {
             ("gas".into(), 2),
             ("insertion".into(), 2),
         ]
+    );
+    // Bind numbering and numeric casts must preserve payloads, not just row counts.
+    let row = store
+        .db
+        .query_one(sql(
+            "SELECT gas_amount::text AS gas,payment::text AS payment,sequence,transaction_hash,
+         transaction_index,log_index,origin,destination FROM gas_payment WHERE transaction_index=7",
+            vec![],
+        ))
+        .await?
+        .unwrap();
+    assert_eq!(row.try_get::<String>("", "gas")?, gas);
+    assert_eq!(row.try_get::<String>("", "payment")?, payment);
+    assert_eq!(row.try_get::<i64>("", "sequence")?, i64::from(u32::MAX));
+    assert_eq!(
+        row.try_get::<Vec<u8>>("", "transaction_hash")?,
+        h512_to_bytes(&wide_tx_hash)
+    );
+    assert_eq!(row.try_get::<i64>("", "transaction_index")?, 7);
+    assert_eq!(row.try_get::<i64>("", "log_index")?, 0);
+    assert_eq!(row.try_get::<i32>("", "origin")?, 1);
+    assert_eq!(row.try_get::<i32>("", "destination")?, 2);
+    let row = store.db.query_one(sql(
+        "SELECT msg_id,msg_body,message_version,sender,recipient FROM raw_message_dispatch WHERE nonce=1",
+        vec![],
+    )).await?.unwrap();
+    assert_eq!(
+        row.try_get::<Vec<u8>>("", "msg_id")?,
+        messages[1].id().as_bytes()
+    );
+    assert_eq!(row.try_get::<Vec<u8>>("", "msg_body")?, messages[1].body);
+    assert_eq!(
+        row.try_get::<i16>("", "message_version")?,
+        i16::from(messages[1].version)
+    );
+    assert_eq!(
+        row.try_get::<Vec<u8>>("", "sender")?,
+        messages[1].sender.as_bytes()
+    );
+    assert_eq!(
+        row.try_get::<Vec<u8>>("", "recipient")?,
+        messages[1].recipient.as_bytes()
     );
     Ok(())
 }

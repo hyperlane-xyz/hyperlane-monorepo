@@ -163,9 +163,9 @@ impl HyperlaneDbStore {
             .into_iter()
             .filter(|(hash, _)| !stored.contains_key(hash) && !hash.is_zero())
             .collect();
-        for chunk in as_chunks(missing.into_iter(), CHUNK_SIZE) {
+        for chunk in missing.chunks(CHUNK_SIZE) {
             let mut rows = Vec::with_capacity(chunk.len());
-            for (hash, block_id) in chunk {
+            for &(hash, block_id) in chunk {
                 match self.provider.get_txn_by_hash(&hash).await {
                     Ok(info) if info.hash == hash => rows.push(StorableTxn { info, block_id }),
                     Ok(info) => warn!(requested_hash = ?hash, returned_hash = ?info.hash,
@@ -207,9 +207,9 @@ impl HyperlaneDbStore {
             .into_iter()
             .filter(|(hash, _)| !stored.contains_key(hash))
             .collect();
-        for chunk in as_chunks(missing.into_iter(), CHUNK_SIZE) {
+        for chunk in missing.chunks(CHUNK_SIZE) {
             let mut rows = Vec::with_capacity(chunk.len());
-            for (hash, height) in chunk {
+            for &(hash, height) in chunk {
                 match self.provider.get_block_by_height(height).await {
                     Ok(info) if info.hash == hash && info.number == height => rows.push(info),
                     Ok(info) => {
@@ -274,64 +274,6 @@ pub(crate) fn txn_id_for_meta(txns: &HashMap<H512, i64>, meta: &LogMeta) -> Opti
         Some(None)
     } else {
         txns.get(&meta.transaction_id).copied().map(Some)
-    }
-}
-
-fn as_chunks<T>(
-    mut iter: impl Iterator<Item = T>,
-    chunk_size: usize,
-) -> impl Iterator<Item = Vec<T>> {
-    assert!(chunk_size > 0, "chunk size must be positive");
-    // Own just the current chunk across await points. itertools::chunks keeps
-    // a RefCell borrowed by each chunk, which cannot be held across awaits.
-    std::iter::from_fn(move || {
-        let chunk: Vec<_> = iter.by_ref().take(chunk_size).collect();
-        (!chunk.is_empty()).then_some(chunk)
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use std::cell::Cell;
-
-    use super::as_chunks;
-
-    #[test]
-    fn enrichment_chunks_only_consume_the_requested_batch() {
-        let consumed = Cell::new(0);
-        let input = (0..1_000).inspect(|_| consumed.set(consumed.get() + 1));
-        let mut chunks = as_chunks(input, 50);
-        assert_eq!(consumed.get(), 0);
-        assert_eq!(chunks.next(), Some((0..50).collect()));
-        assert_eq!(consumed.get(), 50);
-        assert_eq!(chunks.next(), Some((50..100).collect()));
-        assert_eq!(consumed.get(), 100);
-        drop(chunks);
-        assert_eq!(
-            consumed.get(),
-            100,
-            "dropping work must not consume later chunks"
-        );
-    }
-
-    #[test]
-    fn enrichment_chunks_preserve_order_and_partial_tail() {
-        assert_eq!(
-            as_chunks(0..5, 2).collect::<Vec<_>>(),
-            vec![vec![0, 1], vec![2, 3], vec![4]]
-        );
-        assert_eq!(
-            as_chunks(0..4, 2).collect::<Vec<_>>(),
-            vec![vec![0, 1], vec![2, 3]]
-        );
-        assert_eq!(as_chunks(0..1, 2).collect::<Vec<_>>(), vec![vec![0]]);
-        assert_eq!(as_chunks(0..0, 2).next(), None);
-    }
-
-    #[test]
-    #[should_panic(expected = "chunk size must be positive")]
-    fn enrichment_chunks_reject_zero_chunk_size() {
-        let _ = as_chunks(0..1, 0);
     }
 }
 

@@ -10136,7 +10136,6 @@ name = "scraper"
 version = "2.3.0"
 dependencies = [
  "async-trait",
- "config",
  "console-subscriber",
  "derive_more 0.99.18",
  "ethers",
@@ -10146,11 +10145,9 @@ dependencies = [
  "hyperlane-base",
  "hyperlane-core",
  "hyperlane-ethereum",
- "hyperlane-test",
  "itertools 0.10.5",
  "migration",
  "num-bigint 0.4.6",
- "num-traits",
  "prometheus",
  "reqwest 0.11.27",
  "sea-orm",
@@ -10158,12 +10155,9 @@ dependencies = [
  "serde_json",
  "testcontainers",
  "testcontainers-modules",
- "thiserror 1.0.63",
  "time",
  "tokio",
- "tokio-test",
  "tracing",
- "tracing-futures",
  "tracing-test",
 ]
 

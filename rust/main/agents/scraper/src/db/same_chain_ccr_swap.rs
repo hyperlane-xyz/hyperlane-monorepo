@@ -227,7 +227,7 @@ mod tests {
         assert_eq!(msg_id, expected);
     }
 
-    /// Same (txHash, logIndex) must always produce the same msg_id — deterministic.
+    /// Distinct transaction hashes or log indexes produce distinct synthetic IDs.
     #[test]
     fn different_inputs_produce_different_msg_ids() {
         let tx_a: H256 = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
