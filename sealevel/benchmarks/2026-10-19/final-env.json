@@ -1,0 +1,12 @@
+{
+  "machine": "Apple M3 Pro, 11 cores (5 performance + 6 efficiency), 36 GiB RAM",
+  "os": "macOS 27.0.1 (26A434), arm64",
+  "rust_source": "hyperlane-xyz/hyperlane-monorepo c37d20599a (main, clean), rust/sealevel/programs",
+  "cargo_build_sbf": "solana-cargo-build-sbf 3.0.14; platform-tools v1.51; rustc 1.84.1 (/tmp/agave-dl/solana-release/bin/cargo-build-sbf, agave 3.0.14 = CI pin in rust/sealevel/programs/toolchain.env and .github/workflows/rust.yml), run with --tools-version v1.51",
+  "rust_platform_tools": "v1.51 (~/.cache/solana/v1.51/platform-tools): rustc 1.84.1-dev, cargo 1.84.0 (12fe57a9d 2025-04-07), clang version 19.1.7-rust-dev (https://github.com/anza-xyz/llvm-project.git 0c30adaa95a6c007f6210d41735371f25c4c91ed); anza-xyz/rust@565a65a1, anza-xyz/cargo@12fe57a9",
+  "go_source": "/tmp/hm1-all branch gosvm/all @ def448aa6e (copied to /tmp/svm-bench/final/gosrc/sealevel without target/ dirs; def448aa6e only changes PORTING.md/README.md vs 5a9323e5af; all 11 fogo-v0 ELFs are byte-identical to the conformance set /tmp/hm1-all-elf/go6)",
+  "gosvm_cli": "/tmp/gosvm-pilot/bin/gosvm-int2, built from goSVM hyperlane-integration-2 fe6d6b406ca1f5cf4cac17b97d583efc71b18788 (paulbalaji fork); binary sha256 6154617db413953fa97f6c8121ebe4185c550e8bb001cbab98715b82504d8454; reports: gosvm dev experimental darwin-arm64 (fogo = fogo-v0, solana = solana-v3; legacy-v1.51-v3 retained)",
+  "go": "go version go1.23.2 darwin/arm64",
+  "go_platform_tools": "gosvm managed v1.57 (~/Library/Caches/gosvm/toolchains/v1.57/darwin-arm64, archive sha256 48c32c2ec3ac3729b5caf1fdd6c4145496125edf043b2662b0586bfbc932b34a): clang version 22.1.2-rust-dev (https://github.com/anza-xyz/llvm-project.git a4135d044fb7a19f2b7e7d04d0373cd2ba190e6e); gosvm uses only clang + ld.lld from it",
+  "python": "Python 3.14.7"
+}

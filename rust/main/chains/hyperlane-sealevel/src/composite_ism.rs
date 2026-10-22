@@ -6,10 +6,10 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, Metadata, ModuleType,
     RawHyperlaneMessage, H256, U256,
 };
-use hyperlane_sealevel_composite_ism::accounts::derive_domain_pda;
-use hyperlane_sealevel_composite_ism::instruction::verify_metadata_spec_instruction;
 pub use hyperlane_sealevel_interchain_security_module_interface::MetadataSpec;
 use hyperlane_sealevel_interchain_security_module_interface::MetadataSpecResult;
+use hyperlane_sealevel_interface::composite_ism::accounts::derive_domain_pda;
+use hyperlane_sealevel_interface::composite_ism::instruction::verify_metadata_spec_instruction;
 use serializable_account_meta::SimulationReturnData;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signer::Signer;

@@ -17,8 +17,8 @@ const BPF_LOADER_UPGRADEABLE_ID: Pubkey =
     solana_sdk::pubkey!("BPFLoaderUpgradeab1e11111111111111111111111");
 
 use account_utils::DiscriminatorData;
-use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
-use hyperlane_sealevel_igp::accounts::{Igp, InterchainGasPaymasterType, OverheadIgp};
+use hyperlane_sealevel_interface::connection_client::router::RemoteRouterConfig;
+use hyperlane_sealevel_interface::igp::accounts::{Igp, InterchainGasPaymasterType, OverheadIgp};
 
 use crate::{
     adjust_gas_price_if_needed,
