@@ -150,13 +150,15 @@ impl HttpClientBuilder for BaseHttpClient {
     }
 }
 
+type CachedAuthToken = (Secret<HeaderValue>, Instant);
+
 /// Base Http client that performs REST-ful queries
 #[derive(Clone, Debug)]
 pub struct JWTBaseHttpClient {
     client: Secret<ReqwestClient>,
     base_url: Secret<Url>,
     auth_url: Secret<String>,
-    auth_token: Arc<RwLock<Option<(Secret<HeaderValue>, Instant)>>>,
+    auth_token: Arc<RwLock<Option<CachedAuthToken>>>,
     auth_refresh: Arc<Mutex<()>>,
 }
 
