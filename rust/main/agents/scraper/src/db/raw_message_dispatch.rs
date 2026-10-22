@@ -1,28 +1,14 @@
 use eyre::Result;
-use itertools::Itertools;
-use sea_orm::{
-    prelude::*, ActiveValue::*, ConnectionTrait, Insert, QuerySelect, Statement, TransactionTrait,
-};
-use tracing::{debug, instrument, trace};
+use sea_orm::{prelude::*, ConnectionTrait, QuerySelect, Statement};
+use tracing::instrument;
 
 use hyperlane_core::{
-    address_to_bytes, bytes_to_address, bytes_to_h512, h256_to_bytes, h512_to_bytes,
-    HyperlaneMessage, LogMeta, H256, H512, U256,
+    address_to_bytes, bytes_to_address, bytes_to_h512, HyperlaneMessage, LogMeta, H256, U256,
 };
-use migration::{Alias, Expr, OnConflict};
 
-use crate::date_time;
 use crate::db::{confirmed_event, ScraperDb};
 
 use super::{generated::raw_message_dispatch, StorableMessage};
-
-/// Struct representing a raw message dispatch that can be stored in the database.
-/// This contains all data available from the dispatch event log without requiring RPC calls.
-#[derive(Debug, Clone)]
-pub struct StorableRawMessageDispatch<'a> {
-    pub msg: &'a HyperlaneMessage,
-    pub meta: &'a LogMeta,
-}
 
 #[derive(Debug, Clone)]
 pub struct RawDispatchForEnrichment {
@@ -34,10 +20,9 @@ pub struct RawDispatchForEnrichment {
 }
 
 impl RawDispatchForEnrichment {
-    pub fn storable_message(&self, txn_id: Option<i64>) -> StorableMessage<'_> {
+    pub fn storable_message(&self, txn_id: Option<i64>) -> StorableMessage {
         StorableMessage {
             msg: self.msg.clone(),
-            meta: &self.meta,
             txn_id,
             id_override: Some(self.msg_id),
         }
@@ -45,42 +30,6 @@ impl RawDispatchForEnrichment {
 }
 
 impl ScraperDb {
-    /// Used for store_raw_message_dispatches().
-    /// raw_message_dispatch::ActiveModel has 13 fields, on conflict has 1 column,
-    /// update has 8 columns. So there should be about a maximum of 22 sql
-    /// parameters per ActiveModel.
-    /// u16::MAX (65_535u16) is the maximum amount of parameters we can
-    /// have for Postgres. So 65000 / 22 = 2954
-    const STORE_RAW_MESSAGE_DISPATCH_CHUNK_SIZE: usize = 2954;
-
-    /// Get the latest raw message dispatch ID for a specific domain and mailbox.
-    async fn latest_raw_dispatch_id(
-        &self,
-        origin_domain: u32,
-        origin_mailbox: Vec<u8>,
-    ) -> Result<i64> {
-        let result = raw_message_dispatch::Entity::find()
-            .filter(confirmed_event(
-                "raw_message_dispatch",
-                "origin_domain",
-                "origin_block_height",
-            ))
-            .select_only()
-            .column_as(raw_message_dispatch::Column::Id.max(), "max_id")
-            .filter(raw_message_dispatch::Column::OriginDomain.eq(origin_domain))
-            .filter(raw_message_dispatch::Column::OriginMailbox.eq(origin_mailbox))
-            .into_tuple::<Option<i64>>()
-            .one(&self.0)
-            .await?;
-
-        Ok(result
-            // Top level Option indicates some kind of error
-            .ok_or_else(|| eyre::eyre!("Error getting latest raw dispatch id"))?
-            // Inner Option indicates whether there was any data in the filter -
-            // just default to 0 if there was no data
-            .unwrap_or(0))
-    }
-
     /// Get the latest raw dispatch that can become a reconciliation candidate.
     ///
     /// This snapshots a stable upper bound for a discovery or completeness scan.
@@ -111,101 +60,6 @@ impl ScraperDb {
         Ok(result
             .ok_or_else(|| eyre::eyre!("Error getting latest reconcilable raw dispatch id"))?
             .unwrap_or(0))
-    }
-
-    /// Count raw message dispatches with ID greater than the given ID for a specific domain and mailbox.
-    async fn raw_dispatch_count_since_id(
-        &self,
-        origin_domain: u32,
-        origin_mailbox: Vec<u8>,
-        prev_id: i64,
-    ) -> Result<u64> {
-        Ok(raw_message_dispatch::Entity::find()
-            .filter(confirmed_event(
-                "raw_message_dispatch",
-                "origin_domain",
-                "origin_block_height",
-            ))
-            .filter(raw_message_dispatch::Column::OriginDomain.eq(origin_domain))
-            .filter(raw_message_dispatch::Column::OriginMailbox.eq(origin_mailbox))
-            .filter(raw_message_dispatch::Column::Id.gt(prev_id))
-            .count(&self.0)
-            .await?)
-    }
-
-    /// Store raw message dispatches into the database.
-    /// This method stores raw message dispatch data that comes directly from event logs,
-    /// requiring zero RPC calls. This enables CCTP to query transaction hashes even when
-    /// RPC providers are failing.
-    #[instrument(skip_all)]
-    pub async fn store_raw_message_dispatches(
-        &self,
-        origin_domain: u32,
-        origin_mailbox: &H256,
-        messages: impl Iterator<Item = StorableRawMessageDispatch<'_>>,
-    ) -> Result<u64> {
-        let origin_mailbox = address_to_bytes(origin_mailbox);
-
-        let models: Vec<raw_message_dispatch::ActiveModel> = messages
-            .map(|storable| raw_message_dispatch::ActiveModel {
-                id: NotSet,
-                time_created: NotSet,
-                time_updated: Set(date_time::now()),
-                msg_id: Unchanged(h256_to_bytes(&storable.msg.id())),
-                origin_tx_hash: Set(h512_to_bytes(&storable.meta.transaction_id)),
-                origin_block_hash: Set(h256_to_bytes(&storable.meta.block_hash)),
-                origin_block_height: Set(storable.meta.block_number as i64),
-                nonce: Set(storable.msg.nonce as i32),
-                origin_domain: Unchanged(storable.msg.origin as i32),
-                destination_domain: Set(storable.msg.destination as i32),
-                sender: Set(address_to_bytes(&storable.msg.sender)),
-                recipient: Set(address_to_bytes(&storable.msg.recipient)),
-                origin_mailbox: Unchanged(origin_mailbox.clone()),
-                msg_body: Set(Some(storable.msg.body.clone())),
-            })
-            .collect_vec();
-
-        trace!(?models, "Writing raw message dispatches to database");
-
-        if models.is_empty() {
-            debug!("Wrote zero new raw message dispatches to database");
-            return Ok(0);
-        }
-
-        let latest_id_before = self
-            .latest_raw_dispatch_id(origin_domain, origin_mailbox.clone())
-            .await?;
-
-        // A single INSERT is atomic; multiple chunks need one shared transaction.
-        if models.len() <= Self::STORE_RAW_MESSAGE_DISPATCH_CHUNK_SIZE {
-            raw_dispatch_insert_query(models).exec(&self.0).await?;
-        } else {
-            self.0
-                .transaction::<_, (), DbErr>(|txn| {
-                    Box::pin(async move {
-                        let mut models = models.into_iter();
-                        while !models.as_slice().is_empty() {
-                            let chunk = models
-                                .by_ref()
-                                .take(Self::STORE_RAW_MESSAGE_DISPATCH_CHUNK_SIZE)
-                                .collect();
-                            raw_dispatch_insert_query(chunk).exec(txn).await?;
-                        }
-                        Ok(())
-                    })
-                })
-                .await?;
-        }
-
-        let new_dispatch_count = self
-            .raw_dispatch_count_since_id(origin_domain, origin_mailbox, latest_id_before)
-            .await?;
-
-        debug!(
-            messages = new_dispatch_count,
-            "Wrote new raw message dispatches to database"
-        );
-        Ok(new_dispatch_count)
     }
 
     #[instrument(skip(self))]
@@ -297,25 +151,6 @@ impl ScraperDb {
             .map(raw_dispatch_to_candidate)
             .collect()
     }
-
-    /// Get the raw message dispatch by message ID.
-    #[instrument(skip(self))]
-    #[cfg(test)]
-    pub async fn retrieve_raw_message_dispatch_by_id(
-        &self,
-        message_id: &H256,
-    ) -> Result<Option<raw_message_dispatch::Model>> {
-        let msg_id = h256_to_bytes(message_id);
-        Ok(raw_message_dispatch::Entity::find()
-            .filter(confirmed_event(
-                "raw_message_dispatch",
-                "origin_domain",
-                "origin_block_height",
-            ))
-            .filter(raw_message_dispatch::Column::MsgId.eq(msg_id))
-            .one(&self.0)
-            .await?)
-    }
 }
 
 fn raw_dispatch_to_candidate(raw: raw_message_dispatch::Model) -> Result<RawDispatchForEnrichment> {
@@ -348,104 +183,19 @@ fn raw_dispatch_to_candidate(raw: raw_message_dispatch::Model) -> Result<RawDisp
     })
 }
 
-fn raw_dispatch_insert_query(
-    models: Vec<raw_message_dispatch::ActiveModel>,
-) -> Insert<raw_message_dispatch::ActiveModel> {
-    Insert::many(models).on_conflict(
-        OnConflict::column(raw_message_dispatch::Column::MsgId)
-            .update_columns([
-                raw_message_dispatch::Column::TimeUpdated,
-                raw_message_dispatch::Column::DestinationDomain,
-                raw_message_dispatch::Column::Sender,
-                raw_message_dispatch::Column::Recipient,
-                raw_message_dispatch::Column::MsgBody,
-            ])
-            // Preserve resolved hashes across a later
-            // basic-meta fallback, while still updating
-            // the body and other fields on legacy rows.
-            .value(
-                raw_message_dispatch::Column::OriginTxHash,
-                Expr::case(
-                    Expr::col((
-                        Alias::new("excluded"),
-                        raw_message_dispatch::Column::OriginTxHash,
-                    ))
-                    .ne(h512_to_bytes(&H512::zero())),
-                    Expr::col((
-                        Alias::new("excluded"),
-                        raw_message_dispatch::Column::OriginTxHash,
-                    )),
-                )
-                .finally(Expr::col((
-                    Alias::new("raw_message_dispatch"),
-                    raw_message_dispatch::Column::OriginTxHash,
-                ))),
-            )
-            .value(
-                raw_message_dispatch::Column::OriginBlockHash,
-                Expr::case(
-                    Expr::col((
-                        Alias::new("excluded"),
-                        raw_message_dispatch::Column::OriginBlockHash,
-                    ))
-                    .ne(h256_to_bytes(&H256::zero())),
-                    Expr::col((
-                        Alias::new("excluded"),
-                        raw_message_dispatch::Column::OriginBlockHash,
-                    )),
-                )
-                .finally(Expr::col((
-                    Alias::new("raw_message_dispatch"),
-                    raw_message_dispatch::Column::OriginBlockHash,
-                ))),
-            )
-            .value(
-                raw_message_dispatch::Column::OriginBlockHeight,
-                Expr::case(
-                    Expr::col((
-                        Alias::new("excluded"),
-                        raw_message_dispatch::Column::OriginBlockHash,
-                    ))
-                    .ne(h256_to_bytes(&H256::zero())),
-                    Expr::col((
-                        Alias::new("excluded"),
-                        raw_message_dispatch::Column::OriginBlockHeight,
-                    )),
-                )
-                .finally(Expr::col((
-                    Alias::new("raw_message_dispatch"),
-                    raw_message_dispatch::Column::OriginBlockHeight,
-                ))),
-            )
-            .to_owned(),
-    )
-}
-
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use hyperlane_core::{h256_to_bytes, h512_to_bytes, H512};
     use migration::MigratorTrait;
-    use std::collections::BTreeMap;
-
-    use sea_orm::{
-        ConnectionTrait, Database, DatabaseBackend, DbErr, MockDatabase, RuntimeErr, Statement,
-        Value,
-    };
+    use sea_orm::{Database, IntoActiveModel};
     use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::postgres::Postgres;
-    use time::macros::{date, time};
-    use time::PrimitiveDateTime;
-
-    use hyperlane_core::{
-        address_to_bytes, h256_to_bytes, h512_to_bytes, BlockInfo, HyperlaneMessage, LogMeta,
-        TxnInfo, TxnReceiptInfo, H256, H512, U256,
+    use time::{
+        macros::{date, time},
+        PrimitiveDateTime,
     };
 
-    use crate::db::generated::raw_message_dispatch;
-    use crate::db::{ScraperDb, StorableMessage, StorableTxn};
-
-    use super::{raw_dispatch_to_candidate, StorableRawMessageDispatch};
-
-    /// Helper to create a test message with specific values
     fn create_test_message(nonce: u32, origin: u32, destination: u32) -> HyperlaneMessage {
         HyperlaneMessage {
             version: 3,
@@ -457,96 +207,6 @@ mod tests {
             body: vec![1, 2, 3, 4],
         }
     }
-
-    /// Helper to create test log metadata
-    fn create_test_meta(block_number: u64, tx_index: u64, log_index: u64) -> LogMeta {
-        LogMeta {
-            address: H256::from_low_u64_be(999),
-            block_number,
-            block_hash: H256::from_low_u64_be(block_number),
-            transaction_id: H512::from_low_u64_be(tx_index),
-            transaction_index: tx_index,
-            log_index: U256::from(log_index),
-        }
-    }
-
-    // ==================== StorableRawMessageDispatch Tests ====================
-
-    #[test]
-    fn test_storable_raw_message_dispatch_captures_all_fields() {
-        let msg = create_test_message(42, 1, 2);
-        let meta = create_test_meta(1000, 5, 10);
-
-        let storable = StorableRawMessageDispatch {
-            msg: &msg,
-            meta: &meta,
-        };
-
-        // Verify message fields are accessible
-        assert_eq!(storable.msg.nonce, 42);
-        assert_eq!(storable.msg.origin, 1);
-        assert_eq!(storable.msg.destination, 2);
-        assert_eq!(storable.msg.sender, H256::from_low_u64_be(100));
-        assert_eq!(storable.msg.recipient, H256::from_low_u64_be(200));
-
-        // Verify meta fields are accessible (what CCTP needs!)
-        assert_eq!(storable.meta.block_number, 1000);
-        assert_eq!(storable.meta.transaction_id, H512::from_low_u64_be(5));
-        assert_eq!(storable.meta.transaction_index, 5);
-        assert_eq!(storable.meta.log_index, U256::from(10));
-    }
-
-    #[test]
-    fn test_storable_preserves_message_id() {
-        let msg = create_test_message(1, 100, 200);
-        let meta = create_test_meta(1, 1, 1);
-
-        let storable = StorableRawMessageDispatch {
-            msg: &msg,
-            meta: &meta,
-        };
-
-        // Message ID should be deterministic based on message content
-        let expected_id = msg.id();
-        assert_eq!(storable.msg.id(), expected_id);
-    }
-
-    // ==================== store_raw_message_dispatches Tests ====================
-
-    #[tokio::test]
-    async fn test_store_raw_message_dispatches_empty_returns_zero() {
-        let mock_db = MockDatabase::new(DatabaseBackend::Postgres).into_connection();
-        let scraper_db = ScraperDb::with_connection(mock_db);
-
-        let messages: Vec<StorableRawMessageDispatch> = vec![];
-        let result = scraper_db
-            .store_raw_message_dispatches(1, &H256::zero(), messages.into_iter())
-            .await;
-
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 0);
-    }
-
-    /// Helper to create a mock model for insert results
-    fn create_mock_model(id: i64, nonce: i32) -> raw_message_dispatch::Model {
-        raw_message_dispatch::Model {
-            id,
-            time_created: PrimitiveDateTime::new(date!(2024 - 01 - 01), time!(0:00)),
-            time_updated: PrimitiveDateTime::new(date!(2024 - 01 - 01), time!(0:00)),
-            msg_id: vec![0u8; 32],
-            origin_tx_hash: vec![0u8; 64],
-            origin_block_hash: vec![0u8; 32],
-            origin_block_height: 100,
-            nonce,
-            origin_domain: 1,
-            destination_domain: 2,
-            sender: vec![0u8; 32],
-            recipient: vec![0u8; 32],
-            origin_mailbox: vec![0u8; 32],
-            msg_body: Some(vec![1, 2, 3, 4]),
-        }
-    }
-
     #[test]
     fn test_raw_dispatch_to_candidate_preserves_body_and_msg_id() {
         let msg = create_test_message(42, 1, 2);
@@ -586,580 +246,113 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_store_raw_message_dispatches_single_message() {
-        // SeaORM's Insert with on_conflict uses RETURNING clause on Postgres.
-        // We need to provide mock results for:
-        // 1. latest_raw_dispatch_id query (SELECT MAX(id)) - returns model with id=0
-        // 2. INSERT query - returns the inserted model
-        // 3. raw_dispatch_count_since_id query (SELECT COUNT) - returns count=1
-        let mock_db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results([[create_mock_model(0, 0)]]) // latest_raw_dispatch_id
-            .append_query_results([[create_mock_model(1, 1)]]) // INSERT
-            .append_query_results([[{
-                let count_result: BTreeMap<&str, Value> =
-                    [("num_items", Into::<Value>::into(1i64))]
-                        .into_iter()
-                        .collect();
-                count_result
-            }]]) // raw_dispatch_count_since_id
-            .into_connection();
-        let scraper_db = ScraperDb::with_connection(mock_db);
-
-        let msg = create_test_message(1, 1, 2);
-        let meta = create_test_meta(100, 1, 0);
-        let messages = vec![StorableRawMessageDispatch {
-            msg: &msg,
-            meta: &meta,
-        }];
-
-        let result = scraper_db
-            .store_raw_message_dispatches(1, &H256::from_low_u64_be(999), messages.into_iter())
-            .await;
-
-        assert!(result.is_ok(), "Expected Ok, got Err: {:?}", result.err());
-        assert_eq!(result.unwrap(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_store_raw_message_dispatches_multiple_messages() {
-        const MESSAGE_COUNT: usize = 100;
-
-        // SeaORM's Insert with on_conflict uses RETURNING clause on Postgres.
-        // Provide mock results for:
-        // 1. latest_raw_dispatch_id query
-        // 2. INSERT query - all inserted records
-        // 3. raw_dispatch_count_since_id query
-        let mock_results: Vec<raw_message_dispatch::Model> = (0..MESSAGE_COUNT)
-            .map(|i| create_mock_model(i as i64 + 1, i as i32))
-            .collect();
-        let count_result: BTreeMap<&str, Value> =
-            [("num_items", Into::<Value>::into(MESSAGE_COUNT as i64))]
-                .into_iter()
-                .collect();
-
-        let mock_db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results([[create_mock_model(0, 0)]]) // latest_raw_dispatch_id
-            .append_query_results([mock_results]) // INSERT
-            .append_query_results([[count_result]]) // raw_dispatch_count_since_id
-            .into_connection();
-        let scraper_db = ScraperDb::with_connection(mock_db);
-
-        let messages: Vec<HyperlaneMessage> = (0..MESSAGE_COUNT)
-            .map(|i| create_test_message(i as u32, 1, 2))
-            .collect();
-        let metas: Vec<LogMeta> = (0..MESSAGE_COUNT)
-            .map(|i| create_test_meta(100 + i as u64, i as u64, i as u64))
-            .collect();
-
-        let storables: Vec<StorableRawMessageDispatch> = messages
-            .iter()
-            .zip(metas.iter())
-            .map(|(msg, meta)| StorableRawMessageDispatch { msg, meta })
-            .collect();
-
-        let result = scraper_db
-            .store_raw_message_dispatches(1, &H256::from_low_u64_be(999), storables.into_iter())
-            .await;
-
-        assert!(result.is_ok(), "Expected Ok, got Err: {:?}", result.err());
-        assert_eq!(result.unwrap(), MESSAGE_COUNT as u64);
-    }
-
-    #[tokio::test]
-    async fn test_store_raw_message_dispatches_handles_db_error() {
-        // Use append_query_errors since INSERT with on_conflict uses RETURNING
-        let mock_db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_errors([DbErr::Exec(RuntimeErr::Internal(
-                "Database connection lost".to_string(),
-            ))])
-            .into_connection();
-        let scraper_db = ScraperDb::with_connection(mock_db);
-
-        let msg = create_test_message(1, 1, 2);
-        let meta = create_test_meta(100, 1, 0);
-        let messages = vec![StorableRawMessageDispatch {
-            msg: &msg,
-            meta: &meta,
-        }];
-
-        let result = scraper_db
-            .store_raw_message_dispatches(1, &H256::from_low_u64_be(999), messages.into_iter())
-            .await;
-
-        assert!(result.is_err());
-    }
-
-    // ==================== retrieve_raw_message_dispatch_by_id Tests ====================
-
-    #[tokio::test]
-    async fn test_retrieve_raw_message_dispatch_by_id_found() {
-        let msg = create_test_message(42, 1, 2);
-        let msg_id = msg.id();
-
-        let mock_model = raw_message_dispatch::Model {
-            id: 1,
-            time_created: PrimitiveDateTime::new(date!(2024 - 01 - 01), time!(12:00)),
-            time_updated: PrimitiveDateTime::new(date!(2024 - 01 - 01), time!(12:00)),
-            msg_id: h256_to_bytes(&msg_id),
-            origin_tx_hash: vec![0u8; 64],
-            origin_block_hash: vec![0u8; 32],
-            origin_block_height: 1000,
-            nonce: 42,
-            origin_domain: 1,
-            destination_domain: 2,
-            sender: address_to_bytes(&msg.sender),
-            recipient: address_to_bytes(&msg.recipient),
-            origin_mailbox: vec![0u8; 32],
-            msg_body: Some(msg.body.clone()),
-        };
-
-        let mock_db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results([[mock_model.clone()]])
-            .into_connection();
-        let scraper_db = ScraperDb::with_connection(mock_db);
-
-        let result = scraper_db
-            .retrieve_raw_message_dispatch_by_id(&msg_id)
-            .await;
-
-        assert!(result.is_ok());
-        let model = result.unwrap();
-        assert!(model.is_some());
-
-        let model = model.unwrap();
-        assert_eq!(model.nonce, 42);
-        assert_eq!(model.origin_domain, 1);
-        assert_eq!(model.destination_domain, 2);
-        assert_eq!(model.origin_block_height, 1000);
-    }
-
-    #[tokio::test]
-    async fn test_retrieve_raw_message_dispatch_by_id_not_found() {
-        let mock_db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results([Vec::<raw_message_dispatch::Model>::new()])
-            .into_connection();
-        let scraper_db = ScraperDb::with_connection(mock_db);
-
-        let result = scraper_db
-            .retrieve_raw_message_dispatch_by_id(&H256::from_low_u64_be(99999))
-            .await;
-
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_none());
-    }
-
-    #[tokio::test]
-    async fn test_retrieve_raw_message_dispatch_handles_db_error() {
-        let mock_db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_errors([DbErr::Exec(RuntimeErr::Internal(
-                "Query failed".to_string(),
-            ))])
-            .into_connection();
-        let scraper_db = ScraperDb::with_connection(mock_db);
-
-        let result = scraper_db
-            .retrieve_raw_message_dispatch_by_id(&H256::zero())
-            .await;
-
-        assert!(result.is_err());
-    }
-
-    // ==================== Integration Test (uses testcontainers) ====================
-
-    /// Integration test with real PostgreSQL using testcontainers.
-    /// This test verifies:
-    /// 1. Messages are stored successfully
-    /// 2. Messages can be retrieved by ID
-    /// 3. Duplicate messages (same msg_id) are handled with ON CONFLICT UPDATE
-    #[tokio::test]
-    async fn test_raw_message_dispatch_real_postgres() -> eyre::Result<()> {
-        const MESSAGE_COUNT: usize = 100;
-
-        // Start a Postgres container
-        let postgres_container = Postgres::default().start().await.unwrap();
-
-        // Get connection details from the container
-        let host_port = postgres_container.get_host_port_ipv4(5432).await.unwrap();
-        let postgres_url = format!("postgresql://postgres:postgres@127.0.0.1:{host_port}/postgres");
-
-        // Connect to database and run migrations
-        let db = Database::connect(&postgres_url).await?;
-        migration::Migrator::up(&db, None).await?;
-
-        let scraper_db = ScraperDb::with_connection(Database::connect(&postgres_url).await?);
-
-        // Create test messages
-        let messages: Vec<HyperlaneMessage> = (0..MESSAGE_COUNT)
-            .map(|i| create_test_message(i as u32, 1, 2))
-            .collect();
-        let metas: Vec<LogMeta> = (0..MESSAGE_COUNT)
-            .map(|i| create_test_meta(1000 + i as u64, i as u64, i as u64))
-            .collect();
-
-        let storables: Vec<StorableRawMessageDispatch> = messages
-            .iter()
-            .zip(metas.iter())
-            .map(|(msg, meta)| StorableRawMessageDispatch { msg, meta })
-            .collect();
-
-        // Test 1: Store messages
-        let store_result = scraper_db
-            .store_raw_message_dispatches(1, &H256::from_low_u64_be(999), storables.into_iter())
-            .await;
-        assert!(
-            store_result.is_ok(),
-            "Store failed: {:?}",
-            store_result.err()
-        );
-        assert_eq!(store_result.unwrap(), MESSAGE_COUNT as u64);
-
-        // Test 2: Retrieve and verify first message
-        let msg_id = messages[0].id();
-        let retrieve_result = scraper_db
-            .retrieve_raw_message_dispatch_by_id(&msg_id)
-            .await;
-        assert!(retrieve_result.is_ok());
-
-        let model = retrieve_result.unwrap().expect("Message should exist");
-        assert_eq!(model.nonce, 0);
-        assert_eq!(model.origin_domain, 1);
-        assert_eq!(model.destination_domain, 2);
-        assert_eq!(model.origin_block_height, 1000);
-
-        // Test 3: Retrieve last message
-        let last_msg_id = messages[MESSAGE_COUNT - 1].id();
-        let last_result = scraper_db
-            .retrieve_raw_message_dispatch_by_id(&last_msg_id)
-            .await?
-            .expect("Last message should exist");
-        assert_eq!(last_result.nonce, (MESSAGE_COUNT - 1) as i32);
-
-        // Test 4: raw dispatches with matching message rows are excluded from
-        // the reconciliation candidate query.
-        scraper_db
-            .store_blocks(
-                1,
-                [BlockInfo {
-                    hash: metas[1].block_hash,
-                    timestamp: 1,
-                    number: metas[1].block_number,
-                }]
-                .into_iter(),
-            )
-            .await?;
-        let block = scraper_db
-            .get_block_basic([&metas[1].block_hash].into_iter())
-            .await?
-            .pop()
-            .expect("block should exist");
-        scraper_db
-            .store_txns(
-                [StorableTxn {
-                    info: TxnInfo {
-                        hash: metas[1].transaction_id,
-                        gas_limit: U256::one(),
-                        max_priority_fee_per_gas: None,
-                        max_fee_per_gas: None,
-                        gas_price: None,
-                        nonce: 1,
-                        sender: H256::from_low_u64_be(1),
-                        recipient: Some(H256::from_low_u64_be(2)),
-                        receipt: Some(TxnReceiptInfo {
-                            gas_used: U256::one(),
-                            cumulative_gas_used: U256::one(),
-                            effective_gas_price: None,
-                        }),
-                        raw_input_data: None,
-                    },
-                    block_id: block.id,
-                }]
-                .into_iter(),
-            )
-            .await?;
-        let txn_id = scraper_db
-            .get_txn_ids([&metas[1].transaction_id].into_iter())
-            .await?
-            .get(&metas[1].transaction_id)
-            .copied()
-            .expect("txn should exist");
-        scraper_db
-            .store_dispatched_messages(
-                1,
-                &H256::from_low_u64_be(999),
-                [StorableMessage {
-                    msg: messages[1].clone(),
-                    meta: &metas[1],
-                    txn_id: Some(txn_id),
-                    id_override: None,
-                }]
-                .into_iter(),
-            )
-            .await?;
-
-        let candidates = scraper_db
-            .retrieve_unenriched_raw_dispatches(1, &H256::from_low_u64_be(999), 0, i64::MAX, 100)
-            .await?;
-        assert_eq!(candidates.len(), MESSAGE_COUNT - 1);
-        assert!(candidates.iter().any(|candidate| candidate.msg.nonce == 0));
-        assert!(candidates.iter().all(|candidate| candidate.msg.nonce != 1));
-
-        let raw_zero = scraper_db
-            .retrieve_raw_message_dispatch_by_id(&messages[0].id())
-            .await?
-            .expect("pending raw row should exist");
-        let raw_one = scraper_db
-            .retrieve_raw_message_dispatch_by_id(&messages[1].id())
-            .await?
-            .expect("enriched raw row should exist");
-        let direct_candidates = scraper_db
-            .retrieve_unenriched_raw_dispatches_by_ids(
-                1,
-                &H256::from_low_u64_be(999),
-                &[raw_zero.id, raw_one.id],
-            )
-            .await?;
-        assert_eq!(direct_candidates.len(), 1);
-        assert_eq!(direct_candidates[0].raw_id, raw_zero.id);
-
-        // A completeness page can pass an old row while its body is unavailable. Once an
-        // upsert supplies the body, only a successor sweep from zero can rediscover it.
-        db.execute(Statement::from_sql_and_values(
-            DatabaseBackend::Postgres,
-            "UPDATE raw_message_dispatch SET msg_body = NULL WHERE id = $1",
-            [raw_zero.id.into()],
+    async fn reconciliation_scopes_pages_and_rediscovers_late_bodies() -> Result<()> {
+        let postgres = Postgres::default().start().await?;
+        let port = postgres.get_host_port_ipv4(5432).await?;
+        let connection = Database::connect(format!(
+            "postgresql://postgres:postgres@127.0.0.1:{port}/postgres"
         ))
         .await?;
-        let sweep_page = scraper_db
-            .retrieve_unenriched_raw_dispatches(1, &H256::from_low_u64_be(999), 0, i64::MAX, 10)
-            .await?;
-        assert_eq!(sweep_page.len(), 10);
-        let passed_id = sweep_page.last().expect("full sweep page").raw_id;
-        assert!(passed_id > raw_zero.id);
-
-        scraper_db
-            .store_raw_message_dispatches(
-                1,
-                &H256::from_low_u64_be(999),
-                [StorableRawMessageDispatch {
-                    msg: &messages[0],
-                    meta: &metas[0],
-                }]
-                .into_iter(),
+        migration::Migrator::up(&connection, None).await?;
+        let db = ScraperDb::with_connection(connection);
+        let mailbox = H256::from_low_u64_be(999);
+        for id in 1..=5 {
+            let msg = create_test_message(id as u32, 1, 2);
+            raw_message_dispatch::Entity::insert(
+                raw_message_dispatch::Model {
+                    id,
+                    time_created: crate::date_time::now(),
+                    time_updated: crate::date_time::now(),
+                    msg_id: h256_to_bytes(&msg.id()),
+                    origin_tx_hash: h512_to_bytes(&H512::zero()),
+                    origin_block_hash: h256_to_bytes(&H256::zero()),
+                    origin_block_height: id,
+                    nonce: msg.nonce as i32,
+                    origin_domain: 1,
+                    destination_domain: 2,
+                    sender: address_to_bytes(&msg.sender),
+                    recipient: address_to_bytes(&msg.recipient),
+                    origin_mailbox: address_to_bytes(&mailbox),
+                    msg_body: Some(msg.body),
+                }
+                .into_active_model(),
             )
+            .exec(&db.0)
             .await?;
-        let same_sweep = scraper_db
-            .retrieve_unenriched_raw_dispatches(
-                1,
-                &H256::from_low_u64_be(999),
-                passed_id,
-                i64::MAX,
-                100,
-            )
+        }
+        db.0.execute_unprepared("UPDATE raw_message_dispatch SET msg_body=NULL WHERE id=1")
             .await?;
-        assert!(same_sweep
-            .iter()
-            .all(|candidate| candidate.raw_id != raw_zero.id));
-        let successor_sweep = scraper_db
-            .retrieve_unenriched_raw_dispatches(1, &H256::from_low_u64_be(999), 0, passed_id, 100)
-            .await?;
-        assert!(successor_sweep
-            .iter()
-            .any(|candidate| candidate.raw_id == raw_zero.id));
-
-        let frontier = scraper_db
-            .latest_reconcilable_raw_dispatch_id(1, &H256::from_low_u64_be(999))
-            .await?;
-        assert_eq!(frontier, candidates.last().expect("candidate rows").raw_id);
-
-        let through_id = candidates[1].raw_id;
-        let bounded_candidates = scraper_db
-            .retrieve_unenriched_raw_dispatches(1, &H256::from_low_u64_be(999), 0, through_id, 100)
-            .await?;
-        assert!(bounded_candidates
-            .iter()
-            .all(|candidate| candidate.raw_id <= through_id));
+        let msg = create_test_message(2, 1, 2);
+        db.store_dispatched_messages(
+            1,
+            &mailbox,
+            [StorableMessage {
+                msg,
+                txn_id: None,
+                id_override: None,
+            }]
+            .into_iter(),
+        )
+        .await?;
         assert_eq!(
-            bounded_candidates.last().expect("bounded rows").raw_id,
-            through_id
+            db.latest_reconcilable_raw_dispatch_id(1, &mailbox).await?,
+            5
         );
-
-        let paged_candidates = scraper_db
-            .retrieve_unenriched_raw_dispatches(
-                1,
-                &H256::from_low_u64_be(999),
-                candidates[0].raw_id,
-                i64::MAX,
-                1,
-            )
-            .await?;
-        assert_eq!(paged_candidates.len(), 1);
-        assert!(paged_candidates[0].raw_id > candidates[0].raw_id);
-
-        // Test 5: Duplicate handling (same message ID should update, not fail)
-        let storables_dup: Vec<StorableRawMessageDispatch> = messages
-            .iter()
-            .take(10)
-            .zip(metas.iter().take(10))
-            .map(|(msg, meta)| StorableRawMessageDispatch { msg, meta })
-            .collect();
-
-        let dup_result = scraper_db
-            .store_raw_message_dispatches(1, &H256::from_low_u64_be(999), storables_dup.into_iter())
-            .await;
-        assert!(
-            dup_result.is_ok(),
-            "Duplicate handling failed: {:?}",
-            dup_result.err()
+        assert_eq!(
+            db.latest_reconcilable_raw_dispatch_id(2, &mailbox).await?,
+            0
         );
-
-        // Test 5: Non-existent message returns None
-        let nonexistent = scraper_db
-            .retrieve_raw_message_dispatch_by_id(&H256::from_low_u64_be(0xDEAD))
+        assert_eq!(
+            db.latest_reconcilable_raw_dispatch_id(1, &H256::zero())
+                .await?,
+            0
+        );
+        let page = db
+            .retrieve_unenriched_raw_dispatches(1, &mailbox, 0, 5, 2)
             .await?;
-        assert!(nonexistent.is_none());
-
-        // Clean up
-        migration::Migrator::down(&db, None).await?;
-
-        Ok(())
-    }
-
-    // ==================== Upsert Behavior Tests ====================
-
-    /// Test that verifies time_created is preserved while time_updated changes on upsert.
-    /// This is the key behavioral change from commit bb13eb89:
-    /// - Before: time_created was updated on conflict (wrong semantics)
-    /// - After: time_created is preserved, time_updated is refreshed
-    #[tokio::test]
-    async fn test_upsert_preserves_time_created_updates_time_updated() -> eyre::Result<()> {
-        // Start a Postgres container
-        let postgres_container = Postgres::default().start().await.unwrap();
-        let host_port = postgres_container.get_host_port_ipv4(5432).await.unwrap();
-        let postgres_url = format!("postgresql://postgres:postgres@127.0.0.1:{host_port}/postgres");
-
-        // Connect and run migrations
-        let db = Database::connect(&postgres_url).await?;
-        migration::Migrator::up(&db, None).await?;
-
-        let scraper_db = ScraperDb::with_connection(Database::connect(&postgres_url).await?);
-
-        // Create a test message
-        let msg = create_test_message(42, 1, 2);
-        let meta = create_test_meta(1000, 1, 0);
-        let msg_id = msg.id();
-
-        // First insert
-        let storables = vec![StorableRawMessageDispatch {
-            msg: &msg,
-            meta: &meta,
-        }];
-        scraper_db
-            .store_raw_message_dispatches(1, &H256::from_low_u64_be(999), storables.into_iter())
+        assert_eq!(
+            page.iter().map(|r| r.raw_id).collect::<Vec<_>>(),
+            vec![3, 4]
+        );
+        let tail = db
+            .retrieve_unenriched_raw_dispatches(1, &mailbox, 4, 5, 2)
             .await?;
-
-        // Retrieve and record original timestamps
-        let first_model = scraper_db
-            .retrieve_raw_message_dispatch_by_id(&msg_id)
+        assert_eq!(tail.iter().map(|r| r.raw_id).collect::<Vec<_>>(), vec![5]);
+        let bounded = db
+            .retrieve_unenriched_raw_dispatches(1, &mailbox, 0, 3, 10)
+            .await?;
+        assert_eq!(
+            bounded.iter().map(|r| r.raw_id).collect::<Vec<_>>(),
+            vec![3]
+        );
+        let direct = db
+            .retrieve_unenriched_raw_dispatches_by_ids(1, &mailbox, &[1, 2, 3])
+            .await?;
+        assert_eq!(direct.iter().map(|r| r.raw_id).collect::<Vec<_>>(), vec![3]);
+        assert!(db
+            .retrieve_unenriched_raw_dispatches(2, &mailbox, 0, 5, 10)
             .await?
-            .expect("Message should exist after first insert");
-
-        let original_time_created = first_model.time_created;
-        let original_time_updated = first_model.time_updated;
-
-        // Wait to ensure timestamp difference is measurable
-        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-
-        // Second insert (same msg_id triggers ON CONFLICT UPDATE)
-        let meta_updated = create_test_meta(2000, 2, 1); // Different block/tx
-        let storables = vec![StorableRawMessageDispatch {
-            msg: &msg,
-            meta: &meta_updated,
-        }];
-        scraper_db
-            .store_raw_message_dispatches(1, &H256::from_low_u64_be(999), storables.into_iter())
-            .await?;
-
-        // Retrieve after upsert
-        let updated_model = scraper_db
-            .retrieve_raw_message_dispatch_by_id(&msg_id)
+            .is_empty());
+        assert!(db
+            .retrieve_unenriched_raw_dispatches_by_ids(1, &H256::zero(), &[3])
             .await?
-            .expect("Message should still exist after upsert");
-
-        // CRITICAL ASSERTIONS: This is what commit bb13eb89 fixed
-        // time_created should be preserved (not overwritten)
+            .is_empty());
+        db.0.execute_unprepared(
+            "UPDATE raw_message_dispatch SET msg_body=decode('01','hex') WHERE id=1",
+        )
+        .await?;
+        assert!(db
+            .retrieve_unenriched_raw_dispatches(1, &mailbox, 4, 5, 10)
+            .await?
+            .iter()
+            .all(|r| r.raw_id != 1));
+        let sweep = db
+            .retrieve_unenriched_raw_dispatches(1, &mailbox, 0, 4, 10)
+            .await?;
         assert_eq!(
-            updated_model.time_created, original_time_created,
-            "time_created should be preserved on upsert, not overwritten"
+            sweep.iter().map(|r| r.raw_id).collect::<Vec<_>>(),
+            vec![1, 3, 4]
         );
-
-        // time_updated should be refreshed (newer than original)
-        assert!(
-            updated_model.time_updated >= original_time_updated,
-            "time_updated should be refreshed on upsert: {:?} should be >= {:?}",
-            updated_model.time_updated,
-            original_time_updated
-        );
-
-        // Also, verify the other updated columns changed correctly
-        assert_eq!(
-            updated_model.origin_block_height, 2000,
-            "origin_block_height should be updated on conflict"
-        );
-
-        // Clean up
-        migration::Migrator::down(&db, None).await?;
-
         Ok(())
-    }
-
-    // ==================== CCTP-specific Scenario Tests ====================
-
-    /// Test that verifies the key CCTP use case: retrieving tx_hash by message ID
-    #[tokio::test]
-    async fn test_cctp_scenario_tx_hash_retrieval() {
-        // Simulate what CCTP needs: find origin_tx_hash for a message ID
-        let msg = create_test_message(100, 1, 137); // origin=1, dest=137 (Polygon)
-        let tx_hash = H512::from_low_u64_be(0xDEADBEEF);
-        let meta = LogMeta {
-            address: H256::from_low_u64_be(999),
-            block_number: 12345,
-            block_hash: H256::from_low_u64_be(12345),
-            transaction_id: tx_hash,
-            transaction_index: 7,
-            log_index: U256::from(3),
-        };
-
-        let mock_model = raw_message_dispatch::Model {
-            id: 1,
-            time_created: PrimitiveDateTime::new(date!(2024 - 01 - 01), time!(12:00)),
-            time_updated: PrimitiveDateTime::new(date!(2024 - 01 - 01), time!(12:00)),
-            msg_id: h256_to_bytes(&msg.id()),
-            origin_tx_hash: h512_to_bytes(&tx_hash),
-            origin_block_hash: h256_to_bytes(&meta.block_hash),
-            origin_block_height: 12345,
-            nonce: 100,
-            origin_domain: 1,
-            destination_domain: 137,
-            sender: address_to_bytes(&msg.sender),
-            recipient: address_to_bytes(&msg.recipient),
-            origin_mailbox: vec![0u8; 32],
-            msg_body: Some(msg.body.clone()),
-        };
-
-        let mock_db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results([[mock_model]])
-            .into_connection();
-        let scraper_db = ScraperDb::with_connection(mock_db);
-
-        // CCTP queries by message ID to get tx_hash
-        let result = scraper_db
-            .retrieve_raw_message_dispatch_by_id(&msg.id())
-            .await
-            .unwrap()
-            .expect("CCTP: Message must be found");
-
-        // Verify tx_hash is correct - this is what CCTP uses to fetch the receipt
-        assert_eq!(result.origin_tx_hash, h512_to_bytes(&tx_hash));
-        assert_eq!(result.origin_block_height, 12345);
     }
 }

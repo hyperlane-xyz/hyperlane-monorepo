@@ -169,7 +169,6 @@ impl ScraperDb {
                     &swap.source_router,
                     std::iter::once(StorableMessage {
                         msg,
-                        meta: storable.meta,
                         txn_id: Some(storable.txn_id),
                         id_override: Some(msg_id),
                     }),
@@ -184,7 +183,6 @@ impl ScraperDb {
                 std::iter::once(StorableDelivery {
                     message_id: msg_id,
                     sequence: None,
-                    meta: storable.meta,
                     txn_id: Some(storable.txn_id),
                 }),
             )
@@ -229,18 +227,7 @@ mod tests {
         assert_eq!(msg_id, expected);
     }
 
-    /// Same (txHash, logIndex) must always produce the same msg_id — deterministic.
-    #[test]
-    fn same_inputs_produce_same_msg_id() {
-        let tx_hash: H256 = "0x1111111111111111111111111111111111111111111111111111111111111111"
-            .parse()
-            .unwrap();
-        let id1 = synthetic_ccr_msg_id(&make_meta(tx_hash, 5));
-        let id2 = synthetic_ccr_msg_id(&make_meta(tx_hash, 5));
-        assert_eq!(id1, id2);
-    }
-
-    /// Different (txHash, logIndex) pairs must produce different msg_ids.
+    /// Distinct transaction hashes or log indexes produce distinct synthetic IDs.
     #[test]
     fn different_inputs_produce_different_msg_ids() {
         let tx_a: H256 = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"

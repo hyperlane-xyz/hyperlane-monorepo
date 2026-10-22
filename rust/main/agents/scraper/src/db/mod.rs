@@ -1,11 +1,8 @@
 pub use block::*;
-pub use block_cursor::BlockCursor;
 use std::time::Duration;
 
 use eyre::{ensure, Result};
-pub use merkle_tree_insertion::*;
 pub use message::*;
-pub use payment::*;
 pub use raw_message_dispatch::*;
 pub use same_chain_ccr_swap::*;
 use sea_orm::sea_query::{Expr, SimpleExpr};
@@ -19,9 +16,9 @@ mod generated;
 // These modules implement additional functionality for the ScraperDb
 mod block;
 mod block_cursor;
-mod merkle_tree_insertion;
+mod event_receipts;
+pub(crate) use event_receipts::{ReceiptStream, RECEIPT_PAGE_SIZE};
 mod message;
-mod payment;
 mod raw_message_dispatch;
 mod same_chain_ccr_swap;
 mod txn;
@@ -107,9 +104,6 @@ mod write_batches;
 
 #[cfg(test)]
 mod lookup_batches;
-
-#[cfg(test)]
-mod sequence_reads;
 
 #[cfg(test)]
 mod dispatch_transactions;

@@ -508,8 +508,8 @@ async fn restart_waits_for_an_rpc_behind_saved_progress() -> Result<()> {
     .await?;
     let chain = Arc::new(Chain::new(5, false));
     let worker = worker(db, chain.clone()).await?;
-    let state = crate::near_head::observe(&chain, &worker.store).await?;
-    crate::near_head::ingest(&chain, &worker.store, &state, 20_000).await?;
+    let state = crate::near_head::pipeline::observe(&chain, &worker.store).await?;
+    crate::near_head::tests::ingest(&chain, &worker.store, &state, 20_000).await?;
     assert_eq!(worker.store.state().await?.unwrap().indexed, 5);
 
     chain.head.store(3, Ordering::SeqCst);
@@ -525,11 +525,11 @@ async fn restart_waits_for_an_rpc_behind_saved_progress() -> Result<()> {
         &worker.period,
     )
     .await?;
-    assert!(crate::near_head::observe(&chain, &worker.store)
+    assert!(crate::near_head::pipeline::observe(&chain, &worker.store)
         .await
         .is_err());
     chain.head.store(5, Ordering::SeqCst);
-    crate::near_head::observe(&chain, &worker.store).await?;
+    crate::near_head::pipeline::observe(&chain, &worker.store).await?;
     Ok(())
 }
 
@@ -544,12 +544,12 @@ async fn block_mode_ingestion_stops_at_the_common_stream_tip() -> Result<()> {
     let chain = Arc::new(Chain::new(5, false));
     chain.indexing_tip.store(3, Ordering::SeqCst);
     let worker = worker(db, chain.clone()).await?;
-    let state = crate::near_head::observe(&chain, &worker.store).await?;
-    assert!(crate::near_head::ingest(&chain, &worker.store, &state, 20_000).await?);
+    let state = crate::near_head::pipeline::observe(&chain, &worker.store).await?;
+    assert!(crate::near_head::tests::ingest(&chain, &worker.store, &state, 20_000).await?);
     let state = worker.store.state().await?.expect("initialized state");
     assert_eq!((state.indexed, state.head), (3, 5));
     chain.fresh_headers.store(0, Ordering::SeqCst);
-    crate::near_head::confirm(&chain, &worker.store, &ReorgPeriod::from_blocks(3)).await?;
+    crate::near_head::tests::confirm(&chain, &worker.store, &ReorgPeriod::from_blocks(3)).await?;
     assert_eq!(chain.fresh_headers.load(Ordering::SeqCst), 1);
     Ok(())
 }
