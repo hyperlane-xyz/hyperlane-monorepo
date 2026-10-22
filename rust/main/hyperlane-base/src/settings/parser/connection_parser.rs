@@ -224,9 +224,36 @@ fn parse_mev_submission_config(
         .get_key("icaRouter")
         .parse_address_hash()
         .end()?;
+    let additional_ica_routers = match config.chain(err).get_opt_key("additionalIcaRouters").end() {
+        None => Vec::new(),
+        Some(routers) => {
+            // Helm flattens arrays into indexed env vars, which arrive as index-keyed objects.
+            let json;
+            let routers = if routers.val.is_string() {
+                let Some((path, value)) = parse_json_array(routers) else {
+                    err.push(
+                        (&config.cwp).add("additional_ica_routers"),
+                        eyre!("Expected additional ICA router array"),
+                    );
+                    return None;
+                };
+                json = value;
+                ValueParser::new(path, &json)
+            } else {
+                routers
+            };
+            let parsed = routers
+                .chain(err)
+                .into_array_iter()?
+                .map(|router| router.chain(err).parse_address_hash().end())
+                .collect::<Option<Vec<_>>>()?;
+            parsed
+        }
+    };
     Some(h_eth::MevSubmissionConfig {
         rpc_urls,
         ica_router,
+        additional_ica_routers,
     })
 }
 
@@ -1132,6 +1159,58 @@ mod tests {
             let mev = connection.mev_submission.unwrap();
             assert_eq!(mev.rpc_urls.len(), 1);
             assert_eq!(mev.ica_router, hyperlane_core::H256::from_low_u64_be(1));
+            assert!(mev.additional_ica_routers.is_empty());
+        }
+    }
+
+    #[test]
+    fn parses_additional_mev_routers_from_arrays_and_environment_json() {
+        let router = "0x0000000000000000000000000000000000000002";
+        for routers in [
+            json!([router]),
+            json!(format!("[\"{router}\"]")),
+            // Shape produced by Helm's indexed `..._ADDITIONALICAROUTERS_0` env vars.
+            json!({ "0": router }),
+        ] {
+            let (connection, errors) = parse_ethereum_hedge(json!({
+                "mevsubmission": {
+                    "rpcurls": ["https://protected.example/rpc"],
+                    "icarouter": "0x0000000000000000000000000000000000000001",
+                    "additionalicarouters": routers,
+                },
+            }));
+            assert!(errors.is_ok(), "{errors:?}");
+            let ChainConnectionConf::Ethereum(connection) = connection else {
+                panic!("expected EVM")
+            };
+            assert_eq!(
+                connection.mev_submission.unwrap().additional_ica_routers,
+                vec![hyperlane_core::H256::from_low_u64_be(2)]
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_invalid_additional_mev_router_without_public_fallback() {
+        for routers in [
+            json!("not json"),
+            json!(7),
+            json!(["invalid"]),
+            json!([7]),
+            json!({ "1": "0x0000000000000000000000000000000000000002" }),
+            json!({ "router": "0x0000000000000000000000000000000000000002" }),
+        ] {
+            let (_, errors) = parse_ethereum_hedge(json!({
+                "mevsubmission": {
+                    "rpcurls": ["https://protected.example/rpc"],
+                    "icarouter": "0x0000000000000000000000000000000000000001",
+                    "additionalicarouters": routers,
+                },
+            }));
+            assert!(
+                !errors.is_ok(),
+                "accepted malformed additional MEV router config"
+            );
         }
     }
 

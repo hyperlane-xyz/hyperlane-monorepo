@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 import { AgentConfig } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, addressToBytes32, assert } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts, RELEASE_CANDIDATE_INDEX_FROM } from '../config/contexts.js';
@@ -16,7 +16,7 @@ import {
   hyperlaneContextAgentChainConfig as testnet4AgentChainConfig,
 } from '../config/environments/testnet4/agent.js';
 import { testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
-import { getChain } from '../config/registry.js';
+import { getChain, getIcaRouterAddresses } from '../config/registry.js';
 import { getAgentConfigJsonPath } from '../scripts/agent-utils.js';
 import {
   AgentConfigHelper,
@@ -120,6 +120,16 @@ describe('Agent configs', () => {
           config.relayer?.mevSubmission?.[chain.name]?.icaRouter,
         );
         expect(chain.mevSubmission?.icaRouter).to.be.a('string');
+        const configured = chain.mevSubmission;
+        assert(configured, 'Missing protected submission config');
+        expect([
+          configured.icaRouter,
+          ...(configured.additionalIcaRouters ?? []),
+        ]).to.deep.equal(
+          getIcaRouterAddresses(chain.name).map((router) =>
+            addressToBytes32(router),
+          ),
+        );
       }
       const validator = new TestAgentHelmManager(
         agentConfigHelper(config, Role.Validator),

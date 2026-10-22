@@ -15,6 +15,8 @@ pub struct MevSubmissionConfig {
     pub rpc_urls: Vec<Url>,
     /// Canonical ICA router receiving reveal messages on this chain.
     pub ica_router: H256,
+    /// Other deployed ICA router versions protected by the same endpoints.
+    pub additional_ica_routers: Vec<H256>,
 }
 
 impl MevSubmissionConfig {
@@ -23,7 +25,9 @@ impl MevSubmissionConfig {
     /// Commits use ordinary RPCs.
     pub fn matches(&self, message: &HyperlaneMessage) -> bool {
         const ICA_REVEAL: u8 = 2;
-        message.recipient == self.ica_router && message.body.first() == Some(&ICA_REVEAL)
+        (message.recipient == self.ica_router
+            || self.additional_ica_routers.contains(&message.recipient))
+            && message.body.first() == Some(&ICA_REVEAL)
     }
 }
 
@@ -32,6 +36,7 @@ impl fmt::Debug for MevSubmissionConfig {
         f.debug_struct("MevSubmissionConfig")
             .field("endpoint_count", &self.rpc_urls.len())
             .field("ica_router", &self.ica_router)
+            .field("additional_ica_routers", &self.additional_ica_routers)
             .finish()
     }
 }

@@ -28,8 +28,8 @@ import {
 
 import {
   getChain,
-  getChainAddresses,
   getDomainId,
+  getIcaRouterAddresses,
   getWarpAddresses,
 } from '../../../config/registry.js';
 import { AgentAwsUser } from '../../agents/aws/user.js';
@@ -116,7 +116,10 @@ export function buildWarpRouteProcessAltOverrides(
 export interface BaseRelayerConfig {
   // URLs are injected from per-chain Secret Manager secrets by Helm.
   mevSubmission?: ChainMap<
-    Pick<NonNullable<AgentChainMetadata['mevSubmission']>, 'icaRouter'>
+    Pick<
+      NonNullable<AgentChainMetadata['mevSubmission']>,
+      'icaRouter' | 'additionalIcaRouters'
+    >
   >;
   gasPaymentEnforcement: GasPaymentEnforcement[];
   whitelist?: MatchingList;
@@ -610,7 +613,6 @@ export interface IcaBodyMatchOptions {
 export function icaMatchingList(
   icaMatchers: ChainMap<IcaBodyMatchOptions>,
 ): MatchingList {
-  const chainAddresses = getChainAddresses();
   const matchingList: MatchingList = [];
 
   // Get all chains that have matchers defined
@@ -618,8 +620,10 @@ export function icaMatchingList(
 
   for (const source of chains) {
     // Get the ICA router address from the registry
-    const sourceRouter = chainAddresses[source]?.interchainAccountRouter;
-    if (!sourceRouter) {
+    const sourceRouters = getIcaRouterAddresses(source).map((router) =>
+      addressToBytes32(router),
+    );
+    if (sourceRouters.length === 0) {
       throw new Error(
         `No ICA router found for chain ${source} in registry. Cannot create ICA matching list.`,
       );
@@ -700,9 +704,10 @@ export function icaMatchingList(
       }
 
       // Get the ICA router address from the registry
-      const destinationRouter =
-        chainAddresses[destination]?.interchainAccountRouter;
-      if (!destinationRouter) {
+      const destinationRouters = getIcaRouterAddresses(destination).map(
+        (router) => addressToBytes32(router),
+      );
+      if (destinationRouters.length === 0) {
         throw new Error(
           `No ICA router found for chain ${destination} in registry. Cannot create ICA matching list.`,
         );
@@ -710,9 +715,13 @@ export function icaMatchingList(
 
       matchingList.push({
         originDomain: getDomainId(source),
-        senderAddress: addressToBytes32(sourceRouter),
+        senderAddress:
+          sourceRouters.length === 1 ? sourceRouters[0] : sourceRouters,
         destinationDomain: getDomainId(destination),
-        recipientAddress: addressToBytes32(destinationRouter),
+        recipientAddress:
+          destinationRouters.length === 1
+            ? destinationRouters[0]
+            : destinationRouters,
         bodyRegex,
       });
     }
