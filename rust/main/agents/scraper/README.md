@@ -1,120 +1,90 @@
-For local testing, setup a postgres database with
+# Scraper
 
-```bash
-docker run --name scraper -e POSTGRES_PASSWORD=47221c18c610 -p 5432:5432 -d postgres
+Indexes Hyperlane dispatches, deliveries, gas payments, and Merkle insertions across
+all configured chains. **Near-head is live and is the only indexing pipeline
+for these events on every supported protocol.** One process shares a PostgreSQL pool across chains.
 
-# optionally to connect
-docker exec -it scraper /usr/bin/psql -U postgres
-
-# and to shutdown
-docker stop scraper
-docker rm -v scraper
+```text
+src/
+├── main.rs                 Entrypoint and shared agent initialization
+├── settings.rs             Database, chainsToScrape, and optional ccrRouters
+├── agent.rs                Chain setup, supervision, and metrics
+├── ccr.rs                  Optional same-chain CCR worker
+├── reconciliation.rs       Dispatch enrichment worker
+├── reconciliation/
+│   ├── schedule.rs         Discovery, full-sweep paging, and failure cooldowns
+│   ├── dispatches.rs       Page enrichment and bounded transaction retries
+│   └── metrics.rs          Operation metrics, panic isolation, and heartbeat
+├── near_head/
+│   ├── mod.rs              Source selection, startup checks, and worker launch
+│   ├── pipeline.rs         Observe canonical history → ingest → confirm
+│   ├── runtime.rs          Writer lease, proof checks, polling, and retries
+│   ├── source.rs           Common source interface and event types
+│   ├── source/{evm,generic}.rs  Chain-specific fetching and normalization
+│   ├── store.rs            Atomic events, checkpoints, and confirmation frontier
+│   └── enrichment.rs       Delivery/gas receipts and backlog monitoring
+├── store/                  Block/transaction enrichment and CCR persistence
+└── db/                     Database queries and generated SeaORM models
+    └── event_receipts.rs   Pending delivery/gas receipts, linking, backlog age
+migration/
+├── src/                    Schema history, views, notifications, managed indexes
+├── bin/                    Initialization, rollback, and entity-generation tools
+└── tests/                  Database initialization integration test
 ```
 
-To initialize or upgrade the database, run from `rust/main` with `DATABASE_URL` set
+Start reading at `main.rs` → `agent.rs` → `near_head::spawn`. The worker's
+`runtime::cycle` coordinates the three phases in `pipeline.rs`.
 
-```bash
-cargo run --package migration --bin init-db
+Events are first stored near head, then published through confirmed views after
+`reorgPeriod` and completeness checks. Reorgs can rewind the provisional suffix;
+conflicts with confirmed history halt the chain. Receipt enrichment runs independently.
+Dispatch reconciliation discovers confirmed rows every 30 seconds and periodically
+sweeps older rows to recover from commit-order races and delayed message bodies.
+
+## Local development
+
+Run Cargo commands from `rust/main`:
+
+```sh
+docker run --name scraper -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16-alpine
+export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
+export HYP_DB="$DATABASE_URL"
+cargo run -p migration --bin init-db
+cargo run -p scraper
+
+# Tests start their own disposable PostgreSQL containers; Docker must be running.
+cargo test -p scraper -p migration -- --test-threads=4
+cargo clippy -p scraper -p migration -- -D warnings
+cargo fmt --all --check
 ```
 
-## Database migrations
+Configure the agent's chain settings and `chainsToScrape` through the shared agent
+configuration loader. `dbMaxConnections` defaults to 10 and
+`dbAcquireTimeoutMillis` to 15,000.
 
-Deploy scraper database migrations before deploying a scraper binary that
-references newly-added columns. The raw message dispatch reconciler depends on
-`raw_message_dispatch.msg_body`; deploying that binary before migration makes
-raw dispatch inserts fail closed and stalls the message cursor until the column
-exists.
+## Database operations
 
-`init-db` applies pending schema migrations, commits them, then builds and verifies
-all separately managed indexes concurrently (raw-dispatch reconciliation,
-raw-dispatch native sequence, delivery scope, and Merkle block height). No
-additional index command is needed. Existing matching indexes are retained.
-Invalid or differently defined indexes fail explicitly and require repair before
-retrying. If index creation fails, schema migrations remain committed; rerunning
-`init-db` retries index setup.
+`init-db` applies migrations, then builds and verifies managed indexes concurrently.
+Rerun it after repairing a failed index build. Scraper startup verifies required
+indexes but does **not** migrate the database.
 
-The indexes are not removed by migration rollback.
+Empty domains initialize automatically. Existing history requires a verified
+cutover with writers stopped; follow the [near-head runbook](../../../../docs/scraper/near-head.md).
+See [migration operations](migration/README.md) for index repair and rollback rules.
 
-Near-head indexing is enabled for every supported protocol. Empty domains
-initialize automatically; existing domains need a verified common boundary for
-all four legacy event streams before seeding `scraper_head`. Follow the
-[cutover runbook](../../../../docs/scraper/near-head.md#verified-legacy-cutover) with
-writers stopped before starting the new binary.
+For a disposable database, `fresh` drops the schema and `recreate-db` rolls migrations
+down and up. Run `init-db` afterward to install separately managed indexes.
+`generate-entities` replaces `src/db/generated/` using a temporary PostgreSQL container
+on port 5432; review generated numeric types before using the output.
 
-For rollback, stop or roll back scraper binaries that reference a new column
-before dropping that column.
+## Same-chain CCR swaps
 
-To re-create the database, run from `rust` dir
+Optional EVM `ccrRouters` configuration maps domain → router → collateral token.
+Infra generates it from registry CCR routes. The CCR worker only indexes through
+the confirmed frontier and stores swaps as synthetic message/delivery pairs.
 
-```bash
-cargo run --package migration --bin recreate-db
-```
-
-To re-generate the sea-orm entity code, when no database is running in docker and from the `rust` dir, run
-
-```bash
-cargo run --package migration --bin generate-entities
-```
-
-_Note:_ This will install sea-orm-cli, start a docker container for postgresql, and then replace the existing entities.
-It will not work if docker is not setup or if anything is already bound on port 5432.
-
-## Same-chain CCR swap indexing
-
-The scraper indexes same-chain CrossCollateralRouter (CCR) swaps — transactions where a user swaps one collateral token for another on the same chain by calling a CCR router's `handle()` directly (i.e. `origin == localDomain`), bypassing cross-chain messaging.
-
-These swaps are detected by watching `ReceivedTransferRemote(origin, recipient, amount)` events on known CCR router contracts where `origin == localDomain`. The source token and amount are recovered by scanning the same transaction's ERC-20 `Transfer` logs for a transfer whose `to` is a different known CCR router.
-
-### Synthetic message representation
-
-Rather than a separate table, same-chain CCR swaps are stored as synthetic Hyperlane messages in the existing `message` + `delivered_message` tables. This lets the Hyperlane Explorer display them without any changes to Hasura or the explorer frontend.
-
-Each swap is represented as:
-
-| Field | Value |
-|-------|-------|
-| `origin` | local domain ID |
-| `destination` | local domain ID (same — self-referential) |
-| `sender` | source CCR router address (origin mailbox) |
-| `recipient` | destination CCR router address (destination mailbox) |
-| `body` | TokenMessage: `recipient_bytes32 \|\| amount_received_uint256` (from `ReceivedTransferRemote`, post-fee, matches how cross-chain CCR Hyperlane messages encode the transfer amount) |
-| `nonce` | sequential counter per `(domain, source_router)` pair, starting at 0 — collision-free by construction; not stable across re-index runs (idempotency is guarded by `msg_id` pre-check, not ON CONFLICT) |
-| `msg_id` | `0x00000000 \|\| keccak256("SameChainCCR" \|\| txHash32 \|\| logIndex8)[0..28]` — 4-byte zero prefix makes synthetic IDs immediately distinguishable from real message IDs |
-
-A matching `delivered_message` row pointing to the same transaction is inserted immediately, so the swap appears as an instantly-delivered transfer in the explorer.
-
-The explorer decodes the message body to show the origin token (from `sender` = source router) and destination token (from `recipient` = dest router) via the warp route registry. The received amount is computed from the sent amount using the destination token's scale factor, consistent with how cross-chain CCR swaps are displayed.
-
-### Recognizing synthetic messages
-
-One property uniquely identifies a synthetic same-chain CCR swap message:
-
-1. **`msg_id` starts with 8 zero hex chars** — `msg_id LIKE '0x00000000%'`
-
-Real Hyperlane message IDs are `keccak256` outputs (uniform distribution — the probability of any 4-byte / 8 hex char prefix being all zeros is ~1 in 2^32 (~4.3×10^9)). The nonce is not a reliable identifier: it is a sequential counter scoped to each `(domain, source_router)` pair and can coincide with real sequential nonces from other mailboxes.
-
-### Recalculating the msg_id
-
-Any client can deterministically reconstruct the `msg_id` given the transaction hash and log index of the `ReceivedTransferRemote` event using the canonical helper:
-
-```typescript
-import { syntheticCcrSwapMessageId } from '@hyperlane-xyz/utils';
-
-const msgId = syntheticCcrSwapMessageId(txHash, logIndex);
-```
-
-### CCR router configuration
-
-CCR routers are auto-populated at scraper startup from the registry via `ScraperConfigHelper.buildConfig()` in `typescript/infra/src/config/agent/scraper.ts`. The generated config contains a `ccrRouters` map:
-
-```json
-{
-  "ccrRouters": {
-    "<domainId>": {
-      "<routerAddress>": "<collateralTokenAddress>"
-    }
-  }
-}
-```
-
-Only chains present in `chainsToScrape` are included. Solana CCR routers (`SealevelHypCrossCollateral`) are excluded — only `EvmHypCrossCollateralRouter` tokens are indexed.
+Synthetic IDs are `0x00000000 || keccak256("SameChainCCR" || txHash32 || logIndex8)[0..28]`.
+Clients can reproduce them with `syntheticCcrSwapMessageId` from
+`@hyperlane-xyz/utils`. Nonces increment per source router; message bodies encode
+the recipient and received amount. Missing transaction data keeps the batch
+retryable so later swaps cannot consume earlier nonces.

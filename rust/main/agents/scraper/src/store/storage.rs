@@ -1,27 +1,16 @@
-#![allow(clippy::unnecessary_fallible_conversions)] // TODO: `rustc` 1.80.1 clippy issue
-
-//! This module (and children) are responsible for scraping blockchain data and
-//! keeping things updated.
+//! Fetch and persist block/transaction metadata shared by receipt enrichment and CCR.
 
 use std::{collections::HashMap, sync::Arc};
 
-use async_trait::async_trait;
 use eyre::Result;
 use futures::{stream, StreamExt};
-use prometheus::IntCounterVec;
 use tokio::sync::Semaphore;
 use tracing::{trace, warn};
 
-use hyperlane_base::{
-    cursors::{CursorType, Indexable},
-    settings::{CoreContractAddresses, IndexSettings},
-};
-use hyperlane_core::{
-    BlockId, BlockInfo, HyperlaneDomain, HyperlaneLogStore, HyperlaneProvider,
-    HyperlaneWatermarkedLogStore, LogMeta, H256, H512,
-};
+use hyperlane_base::settings::CoreContractAddresses;
+use hyperlane_core::{BlockId, HyperlaneDomain, HyperlaneProvider, LogMeta, H256, H512};
 
-use crate::db::{BasicBlock, BlockCursor, ScraperDb, StorableTxn};
+use crate::db::{BasicBlock, ScraperDb, StorableTxn};
 
 /// Maximum number of records to query at a time. This came about because when a
 /// lot of messages are sent in a short period of time we were ending up with a
@@ -29,76 +18,28 @@ use crate::db::{BasicBlock, BlockCursor, ScraperDb, StorableTxn};
 /// actually save it to the database.
 const CHUNK_SIZE: usize = 50;
 
-/// A chain scraper is comprised of all the information and contract/provider
-/// connections needed to scrape the contracts on a single blockchain.
+/// Database and provider context for enriching one chain’s events.
 #[derive(Clone, Debug)]
 pub struct HyperlaneDbStore {
     pub(crate) db: ScraperDb,
     pub(crate) domain: HyperlaneDomain,
     pub(crate) mailbox_address: H256,
-    pub(crate) interchain_gas_paymaster_address: H256,
-    pub(crate) merkle_tree_hook_address: H256,
     provider: Arc<dyn HyperlaneProvider>,
-    cursor: Arc<BlockCursor>,
-    /// Metric for tracking raw message dispatches stored (used for CCTP availability)
-    stored_events_metric: Option<IntCounterVec>,
 }
 
-#[allow(unused)]
 impl HyperlaneDbStore {
-    pub async fn new(
+    pub fn new(
         db: ScraperDb,
         domain: HyperlaneDomain,
         addresses: CoreContractAddresses,
         provider: Arc<dyn HyperlaneProvider>,
-        index_settings: &IndexSettings,
-        stored_events_metric: Option<IntCounterVec>,
-    ) -> Result<Self> {
-        let cursor = Arc::new(
-            db.block_cursor(domain.id(), "", index_settings.from as u64)
-                .await?,
-        );
-        Ok(Self {
+    ) -> Self {
+        Self {
             db,
             domain,
             mailbox_address: addresses.mailbox,
-            interchain_gas_paymaster_address: addresses.interchain_gas_paymaster,
-            merkle_tree_hook_address: addresses.merkle_tree_hook,
             provider,
-            cursor,
-            stored_events_metric,
-        })
-    }
-
-    /// Give a block-indexed event its own durable checkpoint. The legacy empty
-    /// event type contains the fastest worker's height, so copying it would
-    /// preserve gaps left by slower workers. An absent event checkpoint replays
-    /// from the configured start; existing event checkpoints resume normally.
-    /// Sequence-aware cursors use their existing sequence/backward progress.
-    pub(crate) async fn with_event_watermark<T: Indexable>(
-        mut self,
-        index_settings: &IndexSettings,
-    ) -> Result<Self> {
-        if matches!(
-            T::indexing_cursor(self.domain.domain_protocol()),
-            CursorType::RateLimited
-        ) {
-            self.cursor = Arc::new(
-                self.db
-                    .block_cursor(
-                        self.domain.id(),
-                        T::name(),
-                        index_settings.from.max(0) as u64,
-                    )
-                    .await?,
-            );
         }
-        Ok(self)
-    }
-
-    /// Get the stored events metric for incrementing when raw messages are stored.
-    pub fn stored_events_metric(&self) -> Option<&IntCounterVec> {
-        self.stored_events_metric.as_ref()
     }
 
     /// Enrich a confirmed near-head page whose block headers are already retained.
@@ -204,232 +145,104 @@ impl HyperlaneDbStore {
         // We ensure transactions only from blocks which are inserted into database
         let txn_hash_with_block_ids = block_id_by_txn_hash
             .into_iter()
-            .filter_map(move |(txn, block)| blocks.get(&block.hash).map(|id| (txn, *id)))
-            .map(|(txn_hash, block_id)| TxnWithBlockId { txn_hash, block_id });
+            .filter_map(move |(txn, block)| blocks.get(&block.hash).map(|id| (txn, *id)));
         let txns_with_ids = self.ensure_txns(txn_hash_with_block_ids).await?;
 
         Ok(txns_with_ids)
     }
 
-    /// Takes a list of transaction hashes and the block id the transaction is
-    /// in. if it is in the database already:
-    ///     Fetches its associated database id
-    /// if it is not in the database already:
-    ///     Looks up its data with the chain and then returns the database id after
-    ///     inserting it into the database.
-    /// if it cannot fetch and parse transaction, the transaction will be skipped and not returned
-    /// from this method.
+    /// Fetch missing transactions in bounded batches. A failed RPC leaves its hash
+    /// absent so the caller can retry without discarding successful siblings.
     async fn ensure_txns(
         &self,
-        txns: impl Iterator<Item = TxnWithBlockId>,
+        txns: impl Iterator<Item = (H512, i64)>,
     ) -> Result<impl Iterator<Item = (H512, i64)>> {
-        // mapping of txn hash to (txn_id, block_id).
-        let mut txns: HashMap<H512, (Option<i64>, i64)> = txns
-            .map(|TxnWithBlockId { txn_hash, block_id }| (txn_hash, (None, block_id)))
+        let requested: HashMap<_, _> = txns.collect();
+        let mut stored = self.db.get_txn_ids(requested.keys()).await?;
+        let missing: Vec<_> = requested
+            .into_iter()
+            .filter(|(hash, _)| !stored.contains_key(hash) && !hash.is_zero())
             .collect();
-
-        let db_txns = if !txns.is_empty() {
-            self.db.get_txn_ids(txns.keys()).await?
-        } else {
-            HashMap::new()
-        };
-        for (hash, id) in db_txns {
-            // insert the txn id now that we have it to the Option value in txns
-            let _ = txns
-                .get_mut(&hash)
-                .expect("We found a txn that we did not request")
-                .0
-                .insert(id);
-        }
-
-        // insert any txns that were not known and get their IDs
-        // use this vec as temporary list of mut refs so we can update once we get back
-        // the ids.
-        let mut txns_to_fetch = txns.iter_mut().filter(|(_, id)| id.0.is_none());
-
-        let mut txns_to_insert: Vec<StorableTxn> = Vec::with_capacity(CHUNK_SIZE);
-        let mut hashes_to_insert: Vec<&H512> = Vec::with_capacity(CHUNK_SIZE);
-
-        for mut chunk in as_chunks::<(&H512, &mut (Option<i64>, i64))>(txns_to_fetch, CHUNK_SIZE) {
-            for (hash, (_, block_id)) in chunk.iter().filter(|(hash, _)| !hash.is_zero()) {
-                let info = match self.provider.get_txn_by_hash(hash).await {
-                    Ok(info) => info,
-                    Err(e) => {
-                        warn!(?hash, ?e, "error fetching and parsing transaction");
-                        continue;
-                    }
-                };
-                if info.hash != **hash {
-                    warn!(requested_hash = ?hash, returned_hash = ?info.hash, "transaction enrichment returned a different hash");
-                    continue;
+        for chunk in missing.chunks(CHUNK_SIZE) {
+            let mut rows = Vec::with_capacity(chunk.len());
+            for &(hash, block_id) in chunk {
+                match self.provider.get_txn_by_hash(&hash).await {
+                    Ok(info) if info.hash == hash => rows.push(StorableTxn { info, block_id }),
+                    Ok(info) => warn!(requested_hash = ?hash, returned_hash = ?info.hash,
+                        "transaction enrichment returned a different hash"),
+                    Err(error) => warn!(?hash, ?error, "error fetching and parsing transaction"),
                 }
-                hashes_to_insert.push(*hash);
-                txns_to_insert.push(StorableTxn {
-                    info,
-                    block_id: *block_id,
-                });
             }
-
-            // If we have no transactions to insert, we don't need to store them and update
-            // database transaction ids.
-            if txns_to_insert.is_empty() {
+            if rows.is_empty() {
                 continue;
             }
-
-            let mut ids = self.db.store_txns(txns_to_insert.drain(..)).await?;
-            // DO NOTHING can omit concurrent winners. Read those in a fresh statement
-            // after the INSERT, rather than the INSERT's earlier snapshot.
+            let hashes: Vec<_> = rows.iter().map(|row| row.info.hash).collect();
+            let mut inserted = self.db.store_txns(rows.into_iter()).await?;
+            // RETURNING omits concurrent winners. A fresh statement sees their commits.
             let existing = self
                 .db
-                .get_txn_ids(
-                    hashes_to_insert
-                        .drain(..)
-                        .filter(|hash| !ids.contains_key(*hash)),
-                )
+                .get_txn_ids(hashes.iter().filter(|hash| !inserted.contains_key(*hash)))
                 .await?;
-            ids.extend(existing);
-
-            for (hash, (txn_id, _block_id)) in chunk.iter_mut() {
-                *txn_id = ids.get(hash).copied();
-            }
+            inserted.extend(existing);
+            stored.extend(inserted);
         }
-
-        let ensured_txns = txns
-            .into_iter()
-            .filter_map(|(hash, (txn_id, _))| txn_id.map(|id| (hash, id)));
-
-        Ok(ensured_txns)
+        Ok(stored.into_iter())
     }
 
-    /// Takes a list of block hashes for each block
-    /// if it is in the database already:
-    ///     Fetches its associated database id
-    /// if it is not in the database already:
-    ///     Looks up its data with the chain and then returns the database id after
-    ///     inserting it into the database.
-    /// if it cannot fetch and parse block, the block will be skipped and not returned from
-    /// this method.
+    /// Resolve known headers, then fetch missing ones without accepting a different fork.
     async fn ensure_blocks(
         &self,
         block_ids: impl Iterator<Item = BlockId>,
     ) -> Result<impl Iterator<Item = BasicBlock>> {
-        // Keep the requested height beside its enrichment state. Duplicate
-        // hashes retain the last height, matching the input metadata map.
-        let mut blocks: HashMap<H256, (u64, Option<i64>)> = block_ids
-            .map(|block| (block.hash, (block.height, None)))
+        // Duplicate hashes retain the last requested height.
+        let requested: HashMap<_, _> = block_ids.map(|block| (block.hash, block.height)).collect();
+        let mut stored: HashMap<_, _> = self
+            .db
+            .get_block_basic(requested.keys())
+            .await?
+            .into_iter()
+            .map(|block| (block.hash, block.id))
             .collect();
-
-        let db_blocks: Vec<BasicBlock> = if !blocks.is_empty() {
-            // check database to see which blocks we already know and fetch their IDs
-            self.db.get_block_basic(blocks.keys()).await?
-        } else {
-            vec![]
-        };
-
-        for block in db_blocks {
-            let _ = blocks
-                .get_mut(&block.hash)
-                .expect("We found a block that we did not request")
-                .1
-                .insert(block.id);
-        }
-
-        // insert any blocks that were not known and get their IDs
-        // use this vec as temporary list of mut refs so we can update their ids once we
-        // have inserted them into the database.
-        // A temporary -1 id is excluded from the result unless the inserted
-        // block hash resolves to a database id on readback.
-        let blocks_to_fetch = blocks
-            .iter_mut()
-            .filter(|(_, (_, stored_id))| stored_id.is_none());
-
-        for chunk in as_chunks(blocks_to_fetch, CHUNK_SIZE) {
-            debug_assert!(!chunk.is_empty());
-            let mut block_infos: Vec<BlockInfo> = Vec::with_capacity(CHUNK_SIZE);
-            let mut blocks_to_insert: Vec<(&H256, &mut i64)> = Vec::with_capacity(CHUNK_SIZE);
-            for (hash, (block_height, stored_id)) in chunk {
-                let block_height = *block_height;
-
-                let info = match self.provider.get_block_by_height(block_height).await {
-                    Ok(info) => info,
-                    Err(e) => {
-                        warn!(block_hash = ?hash, ?block_height, ?e, "error fetching and parsing block");
-                        continue;
+        let missing: Vec<_> = requested
+            .into_iter()
+            .filter(|(hash, _)| !stored.contains_key(hash))
+            .collect();
+        for chunk in missing.chunks(CHUNK_SIZE) {
+            let mut rows = Vec::with_capacity(chunk.len());
+            for &(hash, height) in chunk {
+                match self.provider.get_block_by_height(height).await {
+                    Ok(info) if info.hash == hash && info.number == height => rows.push(info),
+                    Ok(info) => {
+                        warn!(requested_hash = ?hash, requested_height = height, returned_block = ?info,
+                        "block enrichment returned a different block")
                     }
-                };
-                // A mismatched response can occupy the unique (domain, height)
-                // key and prevent a later retry from inserting the correct block.
-                if info.hash != *hash || info.number != block_height {
-                    warn!(requested_hash = ?hash, requested_height = block_height, returned_block = ?info, "block enrichment returned a different block");
-                    continue;
+                    Err(error) => warn!(block_hash = ?hash, block_height = height, ?error,
+                        "error fetching and parsing block"),
                 }
-                let block_id = stored_id.insert(-1);
-                block_infos.push(info);
-                blocks_to_insert.push((hash, block_id));
             }
-
-            // If we have no blocks to insert, we don't store them and we don't update
-            // database block ids.
-            if blocks_to_insert.is_empty() {
+            if rows.is_empty() {
                 continue;
             }
-
-            let mut hashes: HashMap<_, _> = self
+            let hashes: Vec<_> = rows.iter().map(|row| row.hash).collect();
+            let mut inserted: HashMap<_, _> = self
                 .db
-                .store_blocks(self.domain.id(), block_infos.into_iter())
+                .store_blocks(self.domain.id(), rows.into_iter())
                 .await?
                 .into_iter()
                 .map(|block| (block.hash, block.id))
                 .collect();
-            // Query only requested hashes omitted by RETURNING, including conflicts
-            // and provider responses carrying a different hash than requested.
             let existing = self
                 .db
-                .get_block_basic(
-                    blocks_to_insert
-                        .iter()
-                        .map(|(hash, _)| *hash)
-                        .filter(|hash| !hashes.contains_key(*hash)),
-                )
+                .get_block_basic(hashes.iter().filter(|hash| !inserted.contains_key(*hash)))
                 .await?;
-            hashes.extend(existing.into_iter().map(|block| (block.hash, block.id)));
-
-            for (hash, block_id) in blocks_to_insert {
-                if let Some(id) = hashes.get(hash) {
-                    *block_id = *id;
-                }
-            }
+            inserted.extend(existing.into_iter().map(|block| (block.hash, block.id)));
+            stored.extend(inserted);
         }
-
-        let ensured_blocks = blocks.into_iter().filter_map(|(hash, (_, id))| {
-            id.filter(|id| *id != -1).map(|id| BasicBlock { id, hash })
-        });
-
-        Ok(ensured_blocks)
+        Ok(stored.into_iter().map(|(hash, id)| BasicBlock { id, hash }))
     }
 }
 
-#[async_trait]
-impl<T> HyperlaneWatermarkedLogStore<T> for HyperlaneDbStore
-where
-    HyperlaneDbStore: HyperlaneLogStore<T>,
-{
-    /// Gets the block number high watermark
-    async fn retrieve_high_watermark(&self) -> Result<Option<u32>> {
-        Ok(Some(self.cursor.height().await.try_into()?))
-    }
-    /// Stores the block number high watermark
-    async fn store_high_watermark(&self, block_number: u32) -> Result<()> {
-        self.cursor.update(block_number.into()).await?;
-        Ok(())
-    }
-}
-
-/// Check required enrichment to keep incomplete ranges retryable. Delivery and
-/// payment stores persist available siblings first. CCR checks before writes
-/// because its synthetic nonce allocation depends on insertion order.
-/// Zero-tx Cosmos block events retain their existing unsupported handling; the
-/// zero/zero Sealevel sentinel is persisted with a NULL transaction relation.
+/// Reject incomplete CCR batches before assigning synthetic nonces.
 pub(crate) fn ensure_event_enrichment_complete<'a>(
     txns: &HashMap<H512, i64>,
     log_meta: impl Iterator<Item = &'a LogMeta>,
@@ -463,73 +276,6 @@ pub(crate) fn txn_id_for_meta(txns: &HashMap<H512, i64>, meta: &LogMeta) -> Opti
         txns.get(&meta.transaction_id).copied().map(Some)
     }
 }
-
-#[derive(Debug, Clone)]
-struct TxnWithBlockId {
-    txn_hash: H512,
-    block_id: i64,
-}
-
-fn as_chunks<T>(
-    mut iter: impl Iterator<Item = T>,
-    chunk_size: usize,
-) -> impl Iterator<Item = Vec<T>> {
-    assert!(chunk_size > 0, "chunk size must be positive");
-    // Own just the current chunk across await points. itertools::chunks keeps
-    // a RefCell borrowed by each chunk, which cannot be held across awaits.
-    std::iter::from_fn(move || {
-        let chunk: Vec<_> = iter.by_ref().take(chunk_size).collect();
-        (!chunk.is_empty()).then_some(chunk)
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use std::cell::Cell;
-
-    use super::as_chunks;
-
-    #[test]
-    fn enrichment_chunks_only_consume_the_requested_batch() {
-        let consumed = Cell::new(0);
-        let input = (0..1_000).inspect(|_| consumed.set(consumed.get() + 1));
-        let mut chunks = as_chunks(input, 50);
-        assert_eq!(consumed.get(), 0);
-        assert_eq!(chunks.next(), Some((0..50).collect()));
-        assert_eq!(consumed.get(), 50);
-        assert_eq!(chunks.next(), Some((50..100).collect()));
-        assert_eq!(consumed.get(), 100);
-        drop(chunks);
-        assert_eq!(
-            consumed.get(),
-            100,
-            "dropping work must not consume later chunks"
-        );
-    }
-
-    #[test]
-    fn enrichment_chunks_preserve_order_and_partial_tail() {
-        assert_eq!(
-            as_chunks(0..5, 2).collect::<Vec<_>>(),
-            vec![vec![0, 1], vec![2, 3], vec![4]]
-        );
-        assert_eq!(
-            as_chunks(0..4, 2).collect::<Vec<_>>(),
-            vec![vec![0, 1], vec![2, 3]]
-        );
-        assert_eq!(as_chunks(0..1, 2).collect::<Vec<_>>(), vec![vec![0]]);
-        assert_eq!(as_chunks(0..0, 2).next(), None);
-    }
-
-    #[test]
-    #[should_panic(expected = "chunk size must be positive")]
-    fn enrichment_chunks_reject_zero_chunk_size() {
-        let _ = as_chunks(0..1, 0);
-    }
-}
-
-#[cfg(test)]
-mod watermark_tests;
 
 #[cfg(test)]
 mod block_tests;

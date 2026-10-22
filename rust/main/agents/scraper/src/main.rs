@@ -1,14 +1,6 @@
-//! The message explorer scraper is responsible for building and maintaining a
-//! relational database of the Hyperlane state across blockchains to empower us and
-//! our users to trace and debug messages and other system state.
-//!
-//! Information scrapped is predominately recoverable simply be re-scraping the
-//! blockchains, however, they may be some additional "enrichment" which is only
-//! practically discoverable at the time it was recorded. This additional
-//! information is not critical to the functioning of the system.
-//!
-//! One scraper instance is run per chain and together they will be able to
-//! piece together the full hyperlane system state in the relational database.
+//! Index Hyperlane events across configured chains into PostgreSQL.
+//! Near-head ingestion publishes confirmed history; independent workers enrich
+//! transactions and same-chain CCR swaps for the Explorer.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -20,10 +12,12 @@ use eyre::Result;
 use hyperlane_base::agent_main;
 
 mod agent;
+mod ccr;
 mod conversions;
 mod date_time;
 mod db;
 mod near_head;
+mod reconciliation;
 mod settings;
 mod store;
 

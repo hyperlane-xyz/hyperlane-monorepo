@@ -6,8 +6,8 @@ use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomainProtocol,
-    HyperlaneDomainTechnicalStack, HyperlaneDomainType, TxnInfo, U256,
+    BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain,
+    HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack, HyperlaneDomainType, TxnInfo, U256,
 };
 
 use super::*;
@@ -27,7 +27,7 @@ impl HyperlaneChain for BlockProvider {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl HyperlaneProvider for BlockProvider {
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         self.calls.lock().unwrap().push(height);
@@ -91,10 +91,7 @@ async fn block_enrichment_preserves_duplicate_heights_known_rows_and_failed_read
             domain,
             calls: calls.clone(),
         }),
-        &IndexSettings::default(),
-        None,
-    )
-    .await?;
+    );
     let known_hash = H256::from_low_u64_be(10);
     store
         .db

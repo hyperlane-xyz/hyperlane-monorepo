@@ -8,8 +8,9 @@ use tokio::time::{sleep, Instant};
 use tracing::{debug, warn};
 
 use super::{
-    confirm_leased_through, confirmation_lease, ingest_cached, observe, source::Source,
-    store::Store, CountCache,
+    pipeline::{confirm_leased_through, confirmation_lease, ingest_cached, observe, CountCache},
+    source::Source,
+    store::Store,
 };
 
 pub(super) struct Worker {
