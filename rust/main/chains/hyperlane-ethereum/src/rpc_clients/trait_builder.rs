@@ -416,8 +416,9 @@ where
     )
 }
 
-/// Builds a new HTTP provider with the given URL.
-fn build_http_provider(url: Url) -> ChainResult<StatusAwareHttp> {
+/// Builds an HTTP provider, extracting custom headers from the URL query.
+/// Reuses a client cached by the full URL to keep different credentials isolated.
+pub fn build_http_provider(url: Url) -> ChainResult<StatusAwareHttp> {
     // Cache by the original URL so clients with different credentials stay isolated.
     let client = get_reqwest_client(&url)?;
     let (_, url) = parse_custom_rpc_headers(&url).map_err(ChainCommunicationError::from_other)?;

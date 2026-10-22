@@ -97,7 +97,7 @@ impl PriorityFeeOracle for HeliusPriorityFeeOracle {
         let response: JsonRpcResult<GetPriorityFeeEstimateResult> = response
             .json()
             .await
-            .map_err(|error| ChainCommunicationError::from_other(error.without_url()))?;
+            .map_err(ChainCommunicationError::from_other)?;
 
         tracing::debug!(?response, "Fetched priority fee from Helius API");
 
@@ -138,7 +138,7 @@ mod test {
     use super::{GetPriorityFeeEstimateResult, JsonRpcResult};
 
     #[tokio::test]
-    async fn helius_errors_omit_url_credentials() {
+    async fn helius_transport_errors_omit_url_credentials() {
         use tokio::{
             io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
             net::TcpListener,
@@ -183,6 +183,7 @@ mod test {
         let decode_error = oracle.get_priority_fee(&transaction).await.unwrap_err();
         server.await.unwrap();
         let connect_error = oracle.get_priority_fee(&transaction).await.unwrap_err();
+        // Reqwest decode errors already omit the URL; preserve their diagnostics.
         assert!(decode_error.to_string().contains("decoding"));
         for error in [decode_error, connect_error] {
             assert!(!format!("{error:?} {error}").contains("private-"));

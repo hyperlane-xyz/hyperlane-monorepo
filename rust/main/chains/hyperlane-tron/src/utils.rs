@@ -1,23 +1,16 @@
 use hyperlane_metric::utils::url_to_host_info;
-use std::time::Duration;
 
 use ethers_core::k256::sha2::{Digest, Sha256};
 use prost::Message;
-use reqwest::Client;
 use tron_rs::tron::protocol::transaction;
 use url::Url;
 
 use ethers_prometheus::json_rpc_client::{JsonRpcBlockGetter, PrometheusJsonRpcClient};
-use hyperlane_core::{rpc_clients::FallbackProvider, ChainCommunicationError, ChainResult, H256};
-use hyperlane_ethereum::{EthereumFallbackProvider, StatusAwareHttp};
+use hyperlane_core::{rpc_clients::FallbackProvider, ChainResult, H256};
+use hyperlane_ethereum::{build_http_provider, EthereumFallbackProvider, StatusAwareHttp};
 use hyperlane_metric::prometheus_metric::{
     self, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
-use reqwest_utils::parse_custom_rpc_headers;
-
-use crate::HyperlaneTronError;
-
-const HTTP_CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Returns the ref block bytes according to the specification here: https://developers.tron.network/docs/faq#19-how-to-set-reference-block-information-for-a-transaction
 pub(crate) fn calculate_ref_block_bytes(number: i64) -> Vec<u8> {
@@ -75,17 +68,6 @@ fn wrap_rpc_with_metrics<C>(
         metrics,
         PrometheusConfig::from_url(&url, ClientConnectionType::Rpc, chain),
     )
-}
-
-fn build_http_provider(url: Url) -> ChainResult<StatusAwareHttp> {
-    let (headers, url) =
-        parse_custom_rpc_headers(&url).map_err(ChainCommunicationError::from_other)?;
-    let client = Client::builder()
-        .timeout(HTTP_CLIENT_TIMEOUT)
-        .default_headers(headers)
-        .build()
-        .map_err(HyperlaneTronError::from)?;
-    Ok(StatusAwareHttp::new(url, client))
 }
 
 #[cfg(test)]

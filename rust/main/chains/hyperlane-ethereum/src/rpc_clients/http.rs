@@ -50,7 +50,7 @@ impl Debug for StatusAwareHttp {
 
 impl StatusAwareHttp {
     /// Create a transport with a URL whose custom headers have already been extracted.
-    pub fn new(url: Url, client: Client) -> Self {
+    pub(crate) fn new(url: Url, client: Client) -> Self {
         Self {
             client,
             url,
