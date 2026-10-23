@@ -147,9 +147,12 @@ async function main() {
   const { agentConfig } = await getConfigsBasedOnArgs();
   await checkDockerTagsExist(agentConfig, roles);
 
-  // Roles without managed keys must not trigger unrelated key reconciliation.
-  const keyRoles = roles.filter((role) =>
-    agentConfig.rolesWithKeys.includes(role),
+  // GCP validators provision their resources per release during installation.
+  // Redeployments must not reconcile keys across every configured chain.
+  const keyRoles = roles.filter(
+    (role) =>
+      agentConfig.rolesWithKeys.includes(role) &&
+      !(role === Role.Validator && agentConfig.gcp),
   );
   if (keyRoles.length > 0) {
     await createAgentKeysIfNotExistsWithPrompt(agentConfig, keyRoles);
