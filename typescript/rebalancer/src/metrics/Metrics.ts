@@ -15,6 +15,8 @@ import {
   type TokenAmount,
   TokenStandard,
   TokenType,
+  XERC20ExtraBridgeType,
+  type XERC20TokenExtraBridgesLimits,
   type WarpCore,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
@@ -37,6 +39,12 @@ import {
   updateTokenBalanceMetrics,
   updateXERC20LimitsMetrics,
 } from './scripts/metrics.js';
+
+export function isManagedLockboxExtraBridge(
+  bridge: XERC20TokenExtraBridgesLimits,
+): boolean {
+  return bridge.bridgeType !== XERC20ExtraBridgeType.CcipTokenPool;
+}
 
 export class Metrics implements IMetrics {
   private readonly logger: Logger;
@@ -237,6 +245,7 @@ export class Metrics implements IMetrics {
         currentTokenDeployConfig.xERC20?.extraBridges ?? [];
 
       for (const lockbox of extraLockboxes) {
+        if (!isManagedLockboxExtraBridge(lockbox)) continue;
         promises.push(
           tryFn(
             async () => {
