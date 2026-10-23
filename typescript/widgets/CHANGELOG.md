@@ -1,5 +1,29 @@
 # @hyperlane-xyz/widgets
 
+## 45.1.0
+
+### Patch Changes
+
+- Updated dependencies [b6fdd2d]
+- Updated dependencies [1467e4c]
+- Updated dependencies [a27ce72]
+- Updated dependencies [4b0f32c]
+- Updated dependencies [447569f]
+- Updated dependencies [b43bc9f]
+- Updated dependencies [341418a]
+- Updated dependencies [5c6593b]
+- Updated dependencies [62225a3]
+- Updated dependencies [5a8eed5]
+- Updated dependencies [670000c]
+- Updated dependencies [bfbb755]
+  - @hyperlane-xyz/sdk@45.1.0
+  - @hyperlane-xyz/aleo-sdk@45.1.0
+  - @hyperlane-xyz/cosmos-sdk@45.1.0
+  - @hyperlane-xyz/radix-sdk@45.1.0
+  - @hyperlane-xyz/utils@45.1.0
+  - @hyperlane-xyz/provider-sdk@11.0.2
+  - @hyperlane-xyz/tron-sdk@26.0.2
+
 ## 45.0.1
 
 ### Patch Changes
