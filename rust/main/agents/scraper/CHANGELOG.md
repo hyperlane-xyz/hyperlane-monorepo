@@ -1,3 +1,7 @@
+## [3.0.1] - 2026-10-23
+
+* fix(scraper): poll all chains every five seconds (#9907)
+
 ## [3.0.0] - 2026-10-23
 
 * feat(agents): persist backward index progress (#9325)
