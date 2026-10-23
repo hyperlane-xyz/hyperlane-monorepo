@@ -49,7 +49,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   validator: '211801c-20261022-150937',
   validatorRC: '211801c-20261022-150937',
   validatorFastPath: '211801c-20261022-150937',
-  scraper: '211801c-20261022-150937',
+  scraper: 'a717804-20261023-074850',
   // monorepo services
   checkWarpDeploy: 'main',
   validatorMonitor: '957cb09-20261021-152517',
@@ -69,7 +69,7 @@ export const testnetDockerTags: BaseDockerTags = {
   validator: '211801c-20261022-150937',
   validatorRC: '211801c-20261022-150937',
   validatorFastPath: '211801c-20261022-150937',
-  scraper: '211801c-20261022-150937',
+  scraper: 'a717804-20261023-074850',
   // standalone services
   keyFunder: '957cb09-20261021-152528',
   scraperProxy: '8160041-20261022-172207',
