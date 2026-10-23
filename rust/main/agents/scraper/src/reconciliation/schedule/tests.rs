@@ -51,11 +51,11 @@ async fn near_head_discovery_keeps_its_short_interval_after_empty_and_complete_p
     let now = Instant::now();
     let mut schedule = Schedule::new(0, now, now);
     schedule.start_discovery(0, now);
-    assert_eq!(schedule.discovery_delay(now), Duration::from_secs(30));
+    assert_eq!(schedule.discovery_delay(now), Duration::from_secs(5));
     schedule.start_discovery(10, now);
     let scan = schedule.discovery_scan.unwrap();
     schedule.complete_discovery_page(scan, &PageResult::default(), now);
-    assert_eq!(schedule.discovery_delay(now), Duration::from_secs(30));
+    assert_eq!(schedule.discovery_delay(now), Duration::from_secs(5));
 }
 
 #[tokio::test(start_paused = true)]
