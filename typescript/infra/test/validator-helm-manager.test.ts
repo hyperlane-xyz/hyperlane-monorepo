@@ -26,7 +26,9 @@ describe('ValidatorHelmManager', () => {
     for (const config of Object.values(localAgents)) {
       expect(config.validators?.rpcConsensusType).to.equal('majority');
     }
-    expect(agents[Contexts.FastPath].validators?.websocketUrl).to.be.undefined;
+    expect(agents[Contexts.FastPath].validators?.websocketUrl).to.equal(
+      'ws://scraper-proxy.mainnet3.svc.cluster.local:8383/agents',
+    );
   });
 
   it('preserves validator quorum and majority on AltVMs', () => {
