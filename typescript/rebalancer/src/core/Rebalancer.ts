@@ -13,8 +13,20 @@ import {
   type Token,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { eqAddress, isNullish, mapAllSettled } from '@hyperlane-xyz/utils';
+import {
+  TransactionSubmissionError,
+  eqAddress,
+  isNullish,
+  mapAllSettled,
+} from '@hyperlane-xyz/utils';
 
+import {
+  Erc20ApprovalMode,
+  Erc20ApprovalError,
+  type Erc20ApprovalOptions,
+  approveErc20IfNeeded,
+  revokeErc20ApprovalIfNeeded,
+} from '../bridges/erc20Approve.js';
 import type {
   IMovableCollateralRebalancer,
   MovableCollateralExecutionResult,
@@ -38,10 +50,22 @@ type InternalExecutionResult = MovableCollateralExecutionResult & {
 };
 
 type InternalRoute = MovableCollateralRoute & { intentId: string };
+type CollateralFeeApproval = NonNullable<
+  PreparedTransaction['collateralFeeApproval']
+>;
+type PendingOriginSubmission = {
+  approval?: CollateralFeeApproval;
+  awaitingReceipt: boolean;
+  txHash?: string;
+};
 
 export class Rebalancer implements IMovableCollateralRebalancer {
   public readonly rebalancerType: RebalancerType = 'movableCollateral';
   private readonly logger: Logger;
+  private readonly pendingOrigins = new Map<
+    ChainName,
+    PendingOriginSubmission
+  >();
 
   constructor(
     private readonly warpCore: WarpCore,
@@ -51,6 +75,10 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     private readonly actionTracker: IActionTracker,
     logger: Logger,
     private readonly metrics?: Metrics,
+    private readonly approvalOptions: Pick<
+      Erc20ApprovalOptions,
+      'contractFactory'
+    > = {},
   ) {
     this.logger = logger.child({ class: Rebalancer.name });
   }
@@ -307,6 +335,14 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       return null;
     }
 
+    const collateralFeeApproval =
+      await this.getCollateralFeeApprovalRequirement(
+        originHypAdapter,
+        originToken.addressOrDenom,
+        quotes,
+        localAmount,
+      );
+
     // 3. Populate transaction
     let populatedTx: PopulatedTransaction;
     try {
@@ -330,7 +366,41 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       return null;
     }
 
-    return { populatedTx, route, originTokenAmount };
+    return {
+      populatedTx,
+      route,
+      originTokenAmount,
+      collateralFeeApproval,
+    };
+  }
+
+  private async getCollateralFeeApprovalRequirement(
+    originHypAdapter: EvmMovableCollateralAdapter,
+    router: string,
+    quotes: InterchainGasQuote[],
+    localAmount: bigint,
+  ): Promise<PreparedTransaction['collateralFeeApproval']> {
+    if (quotes.every((quote) => !quote.igpQuote.addressOrDenom)) {
+      return undefined;
+    }
+
+    const collateralToken = await originHypAdapter.getWrappedTokenAddress();
+    const quotedCollateral = quotes.reduce(
+      (total, quote) =>
+        quote.igpQuote.addressOrDenom &&
+        eqAddress(quote.igpQuote.addressOrDenom, collateralToken)
+          ? total + quote.igpQuote.amount
+          : total,
+      0n,
+    );
+
+    if (quotedCollateral <= localAmount) return undefined;
+
+    return {
+      token: collateralToken,
+      spender: router,
+      amount: quotedCollateral - localAmount,
+    };
   }
 
   private async validateRoute(route: InternalRoute): Promise<boolean> {
@@ -448,6 +518,172 @@ export class Rebalancer implements IMovableCollateralRebalancer {
   private async executeTransactions(
     transactions: PreparedTransaction[],
   ): Promise<InternalExecutionResult[]> {
+    const byOrigin = new Map<ChainName, PreparedTransaction[]>();
+    for (const transaction of transactions) {
+      const origin = transaction.route.origin;
+      const pending = byOrigin.get(origin) ?? [];
+      pending.push(transaction);
+      byOrigin.set(origin, pending);
+    }
+    const results = await Promise.all(
+      Array.from(byOrigin, async ([origin, originTransactions]) => {
+        const results: InternalExecutionResult[] = [];
+        for (const transaction of originTransactions) {
+          const failure = (error: string): InternalExecutionResult => ({
+            route: transaction.route,
+            intentId: transaction.route.intentId,
+            success: false,
+            error,
+            messageId: '',
+          });
+          if (!(await this.reconcilePendingOrigin(origin))) {
+            results.push(
+              failure(
+                'Origin has an unresolved submission or allowance cleanup',
+              ),
+            );
+            continue;
+          }
+          const approval = transaction.collateralFeeApproval;
+          if (approval) {
+            try {
+              await approveErc20IfNeeded(
+                this.multiProvider.getSigner(origin),
+                approval.token,
+                approval.spender,
+                approval.amount,
+                this.logger,
+                {
+                  ...this.approvalOptions,
+                  mode: Erc20ApprovalMode.Exact,
+                  // Supplying an observer enables signing before broadcast so lost responses retain a hash.
+                  onApproval: async (pending) => {
+                    if (pending)
+                      this.pendingOrigins.set(origin, {
+                        approval,
+                        awaitingReceipt: true,
+                        txHash: pending.txHash,
+                      });
+                    else this.pendingOrigins.delete(origin);
+                  },
+                },
+              );
+            } catch (error) {
+              if (
+                error instanceof Erc20ApprovalError &&
+                error.submissionState !== 'not_submitted'
+              ) {
+                this.pendingOrigins.set(origin, {
+                  approval,
+                  awaitingReceipt: true,
+                  txHash: error.txHash,
+                });
+              } else {
+                this.pendingOrigins.set(origin, {
+                  approval,
+                  awaitingReceipt: false,
+                });
+                await this.reconcilePendingOrigin(origin);
+              }
+              results.push(
+                failure(`Collateral fee approval failed: ${String(error)}`),
+              );
+              continue;
+            }
+          }
+          try {
+            // One allowance belongs to one primary transaction, even when the next route uses the same router.
+            const executionResults = await this.executeApprovedTransactions([
+              transaction,
+            ]);
+            results.push(...executionResults);
+            if (this.pendingOrigins.get(origin)?.awaitingReceipt) continue;
+            if (executionResults.length === 0) {
+              this.pendingOrigins.set(origin, {
+                approval,
+                awaitingReceipt: true,
+              });
+              results.push(failure('Execution returned no source outcome'));
+              continue;
+            }
+            if (approval) {
+              this.pendingOrigins.set(origin, {
+                approval,
+                awaitingReceipt: false,
+              });
+              await this.reconcilePendingOrigin(origin);
+            }
+          } catch (error) {
+            this.pendingOrigins.set(origin, {
+              approval,
+              awaitingReceipt: true,
+            });
+            results.push(
+              failure(
+                `Source execution outcome is unresolved: ${String(error)}`,
+              ),
+            );
+          }
+        }
+        return results;
+      }),
+    );
+    return results.flat();
+  }
+
+  private async reconcilePendingOrigin(origin: ChainName): Promise<boolean> {
+    const pending = this.pendingOrigins.get(origin);
+    if (!pending) return true;
+    try {
+      if (pending.awaitingReceipt) {
+        if (!pending.txHash) return false;
+        const provider = this.multiProvider.getProvider(origin);
+        const receipt = await provider.getTransactionReceipt(pending.txHash);
+        if (!receipt || (receipt.status !== 0 && receipt.status !== 1))
+          return false;
+        const finality = this.getReorgPeriod(origin);
+        if (typeof finality === 'number') {
+          if (receipt.confirmations < Math.max(finality, 1)) return false;
+        } else {
+          const block = await provider.getBlock(finality);
+          if (!block || receipt.blockNumber > block.number) return false;
+        }
+        pending.awaitingReceipt = false;
+      }
+      if (pending.approval) {
+        const { token, spender } = pending.approval;
+        await revokeErc20ApprovalIfNeeded(
+          this.multiProvider.getSigner(origin),
+          token,
+          spender,
+          this.logger,
+          {
+            ...this.approvalOptions,
+            onApproval: async (approval) => {
+              pending.awaitingReceipt = approval !== undefined;
+              pending.txHash = approval?.txHash;
+            },
+          },
+        );
+      }
+      this.pendingOrigins.delete(origin);
+      return true;
+    } catch (error) {
+      if (error instanceof Erc20ApprovalError) {
+        pending.awaitingReceipt = error.submissionState !== 'not_submitted';
+        pending.txHash = error.txHash;
+      }
+      this.logger.error(
+        { origin, txHash: pending.txHash, error },
+        'Origin remains reserved until submission and allowance cleanup are reconciled',
+      );
+      return false;
+    }
+  }
+
+  private async executeApprovedTransactions(
+    transactions: PreparedTransaction[],
+  ): Promise<InternalExecutionResult[]> {
     this.logger.info(
       { numTransactions: transactions.length },
       'Estimating gas for all prepared transactions.',
@@ -455,7 +691,8 @@ export class Rebalancer implements IMovableCollateralRebalancer {
 
     const results: InternalExecutionResult[] = [];
 
-    // 1. Estimate gas for rebalance transactions
+    // The exact allowance deliberately makes a higher on-chain quote fail.
+    // A later cycle will fetch a fresh quote; this cycle never widens it.
     const gasEstimateResults = await Promise.allSettled(
       transactions.map(async (transaction) => {
         await this.multiProvider.estimateGas(
@@ -466,7 +703,6 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       }),
     );
 
-    // 2. Filter out failed transactions and track failures
     const validTransactions: PreparedTransaction[] = [];
     gasEstimateResults.forEach((result, i) => {
       if (result.status === 'fulfilled') {
@@ -489,7 +725,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           intentId: failedTransaction.route.intentId,
           success: false,
           error: `Gas estimation failed: ${String(result.reason)}`,
-          messageId: '', // Required by MovableCollateralExecutionResult, empty for failures
+          messageId: '',
         });
       }
     });
@@ -499,17 +735,14 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       return results;
     }
 
-    // 3. Group transactions by origin chain
     const txsByOrigin = new Map<ChainName, PreparedTransaction[]>();
     for (const tx of validTransactions) {
       const origin = tx.route.origin;
-      if (!txsByOrigin.has(origin)) {
-        txsByOrigin.set(origin, []);
-      }
-      txsByOrigin.get(origin)!.push(tx);
+      const originTransactions = txsByOrigin.get(origin);
+      if (originTransactions) originTransactions.push(tx);
+      else txsByOrigin.set(origin, [tx]);
     }
 
-    // 4. Send transactions - parallel across chains, sequential within each chain
     this.logger.info(
       {
         numChains: txsByOrigin.size,
@@ -523,8 +756,6 @@ export class Rebalancer implements IMovableCollateralRebalancer {
         this.sendTransactionsForChain(origin, txs),
       ),
     );
-
-    // 5. Collect successful sends and record send failures
     const successfulSends: Array<{
       transaction: PreparedTransaction;
       receipt: providers.TransactionReceipt;
@@ -541,7 +772,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
               intentId: txResult.transaction.route.intentId,
               success: false,
               error: `Transaction send failed: ${txResult.error}`,
-              messageId: '', // Required by MovableCollateralExecutionResult, empty for failures
+              messageId: '',
             });
             this.metrics?.recordActionAttempt(
               txResult.transaction.route,
@@ -550,8 +781,6 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           }
         }
       } else {
-        // This shouldn't happen since sendTransactionsForChain catches errors internally,
-        // but handle it just in case
         this.logger.error(
           { error: chainResult.reason },
           'Unexpected error during chain transaction sending.',
@@ -559,7 +788,6 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       }
     });
 
-    // 6. Build results from confirmed receipts
     for (const { transaction, receipt } of successfulSends) {
       const result = this.buildResult(transaction, receipt);
       results.push(result);
@@ -619,6 +847,20 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           origin,
           transaction.populatedTx,
           {
+            onSubmissionAttempt: (hash) => {
+              this.pendingOrigins.set(origin, {
+                approval: transaction.collateralFeeApproval,
+                awaitingReceipt: true,
+                txHash: hash,
+              });
+            },
+            onSubmitted: (hash) => {
+              this.pendingOrigins.set(origin, {
+                approval: transaction.collateralFeeApproval,
+                awaitingReceipt: true,
+                txHash: hash,
+              });
+            },
             waitConfirmations: reorgPeriod as
               | number
               | EthJsonRpcBlockParameterTag,
@@ -636,8 +878,23 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           'Rebalance transaction confirmed at reorgPeriod depth.',
         );
 
+        this.pendingOrigins.delete(origin);
         results.push({ transaction, receipt });
       } catch (error) {
+        if (
+          error instanceof TransactionSubmissionError &&
+          error.submissionState === 'not_submitted'
+        )
+          this.pendingOrigins.delete(origin);
+        else if (!this.pendingOrigins.has(origin))
+          this.pendingOrigins.set(origin, {
+            approval: transaction.collateralFeeApproval,
+            awaitingReceipt: true,
+            txHash:
+              error instanceof TransactionSubmissionError
+                ? error.txHash
+                : undefined,
+          });
         this.logger.error(
           {
             origin,
