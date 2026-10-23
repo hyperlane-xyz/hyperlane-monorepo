@@ -6,8 +6,8 @@ use tokio::time::Instant;
 use super::dispatches::PageResult;
 
 pub(super) const BATCH_SIZE: u64 = 100;
-// New confirmed dispatches become eligible for enrichment every 30 seconds.
-const DISCOVERY_INTERVAL: Duration = Duration::from_secs(30);
+// New confirmed dispatches become eligible for enrichment every 5 seconds.
+const DISCOVERY_INTERVAL: Duration = Duration::from_secs(5);
 const PAGE_DELAY: Duration = Duration::from_secs(2);
 
 // A full sweep is only a correctness fallback for sequence commit-order races and old rows whose
