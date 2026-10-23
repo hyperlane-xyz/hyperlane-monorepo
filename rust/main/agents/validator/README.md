@@ -35,11 +35,10 @@ Mainnet/testnet configs explicitly select `majority` and pin validator images
 containing its parser. The binary and local development validators also default
 to `majority`.
 
-`websocketUrl` streams only `merkle_tree_insertion`. In normal mode, numeric
-`chains.<origin>.blocks.reorgPeriod` values become proxy `confirmations`;
-RPC indexing fills startup/reconnect gaps and recovers rollbacks. Block tags and
-lightweight mode retain canonical replay. Checkpoint verification uses the same
-configured reorg period.
+`websocketUrl` streams only `merkle_tree_insertion`. All normal WebSocket validators
+use their assigned numeric chain reorg period as scraper `confirmations`, with RPC
+backfill. Block tags and lightweight mode use canonical replay. After rollbacks,
+stored fork leaves are repaired by the submitter's verified-root recovery.
 
 ## Lightweight indexing
 
