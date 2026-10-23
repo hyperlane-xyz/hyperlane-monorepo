@@ -1,3 +1,10 @@
+## [3.0.0] - 2026-10-23
+
+* fix(agents): redact signer private keys from Debug output and errors (#9866)
+* fix(core): avoid HyperlaneMessage::from panics in indexer paths (#9181)
+* fix(rust): centralize secret redaction and preserve RPC diagnostics (#9897)
+* perf(metrics): avoid redundant block detail reads (#9442)
+
 ## [2.2.0] - 2026-03-09
 
 * chore: migrate spellchecker from codespell to typos (#8214)
