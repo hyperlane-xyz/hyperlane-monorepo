@@ -386,6 +386,7 @@ pub(crate) struct MerkleTreeHookWebSocketSync {
     domain: u32,
     merkle_tree_hook: H256,
     url: Secret<Url>,
+    confirmations: Option<u32>,
     websocket_active: IntGauge,
     websocket_healthy: Arc<AtomicBool>,
     fallback_active: IntGauge,
@@ -443,6 +444,7 @@ impl MerkleTreeHookWebSocketSync {
             domain,
             merkle_tree_hook,
             url: Secret::new(url),
+            confirmations: None,
             websocket_active,
             websocket_healthy: Arc::new(AtomicBool::new(false)),
             fallback_active,
@@ -482,7 +484,7 @@ impl MerkleTreeHookWebSocketSync {
 
     /// Prefers scraper-proxy once it has reached the validator's current cursor.
     pub(crate) async fn run(
-        self,
+        mut self,
         next_sequence: u32,
         backfill_target: u32,
         fallback_sync: Option<Arc<SequencedDataContractSync<MerkleTreeInsertion>>>,
@@ -490,6 +492,13 @@ impl MerkleTreeHookWebSocketSync {
         merkle_tree_hook: Arc<dyn MerkleTreeHook>,
         reorg_period: ReorgPeriod,
     ) {
+        // The same effective reorg period already controls signing and RPC indexing.
+        // Tags need canonical finality; lightweight mode needs canonical replay.
+        self.confirmations = if fallback_sync.is_some() {
+            reorg_period.as_blocks().ok()
+        } else {
+            None
+        };
         let retry_delay = RETRY_DELAY
             .checked_add(Duration::from_millis(
                 (self.domain % RETRY_JITTER_MS).into(),
@@ -528,9 +537,13 @@ impl MerkleTreeHookWebSocketSync {
         dependencies: StreamDependencies,
         mut start_fallback: impl FnMut() -> Option<RpcFallback>,
     ) {
-        // Historical replay uses the socket too. Only start RPC indexing after a
-        // connection, protocol, or freshness failure.
-        let mut fallback = None;
+        // Canonical streams replay over the socket. Custom streams are live-only
+        // and need RPC backfill before their first cutover.
+        let mut fallback = if self.confirmations.is_some() {
+            start_fallback()
+        } else {
+            None
+        };
         loop {
             let result = self
                 .stream_with_timeout(
@@ -599,6 +612,10 @@ impl MerkleTreeHookWebSocketSync {
             else {
                 break;
             };
+            if self.confirmations.is_some() && fallback.is_some() {
+                // Follow RPC backfill while the custom stream supplies only live events.
+                *next_sequence = self.next_sequence_from(*next_sequence)?;
+            }
             let message = match event {
                 SessionEvent::Message(message) => message,
                 SessionEvent::Cutover {
@@ -631,6 +648,7 @@ impl MerkleTreeHookWebSocketSync {
                     socket.subscribe(self.subscription(*next_sequence)).await?;
                 }
                 ServerMessage::Subscribed { .. } => {
+                    caught_up = self.confirmations.is_some();
                     if *next_sequence < backfill_target {
                         info!(
                             domain = self.domain,
@@ -710,6 +728,10 @@ impl MerkleTreeHookWebSocketSync {
                 ServerMessage::Error { error } => {
                     return Err(RejectedStream(error).into());
                 }
+                ServerMessage::Rollback => {
+                    // RPC recovery authenticates replacements without rewinding signed history.
+                    bail!("Scraper stream rolled back; recovering with RPC");
+                }
                 ServerMessage::Other => {}
             }
         }
@@ -773,14 +795,17 @@ impl MerkleTreeHookWebSocketSync {
         let after_sequence = next_sequence.checked_sub(1).map(i64::from).unwrap_or(-1);
         SubscribeMessage {
             streams: vec![SubscribeStream {
-                cursors: Some(vec![StreamCursor::Sequence(SequenceCursor {
-                    address: hyperlane_base::scraper_websocket::format_address(
-                        self.merkle_tree_hook,
-                    ),
-                    allow_replay: Some(true),
-                    after_sequence: Some(after_sequence.to_string()),
-                    domain: self.domain,
-                })]),
+                confirmations: self.confirmations,
+                cursors: self.confirmations.is_none().then(|| {
+                    vec![StreamCursor::Sequence(SequenceCursor {
+                        address: hyperlane_base::scraper_websocket::format_address(
+                            self.merkle_tree_hook,
+                        ),
+                        allow_replay: Some(true),
+                        after_sequence: Some(after_sequence.to_string()),
+                        domain: self.domain,
+                    })]
+                }),
                 domains: Some(vec![self.domain]),
                 event_type: EVENT_TYPE,
                 stream_cursor_version: None,
@@ -806,6 +831,12 @@ impl MerkleTreeHookWebSocketSync {
         }
         if event.domain != self.domain {
             bail!("Unexpected Merkle tree insertion domain {}", event.domain);
+        }
+        // Custom streams include every hook in the domain.
+        if self.confirmations.is_some()
+            && parse_address(&event.data.merkle_tree_hook)? != self.merkle_tree_hook
+        {
+            return Ok(false);
         }
         let sequence = event
             .sequence
@@ -1085,14 +1116,169 @@ mod tests {
             serde_json::from_str(request.to_text().expect("text request")).expect("request JSON");
         ack["type"] = serde_json::json!("subscribed");
         for stream in ack["streams"].as_array_mut().expect("streams") {
-            for cursor in stream["cursors"].as_array_mut().expect("cursors") {
-                cursor
-                    .as_object_mut()
-                    .expect("cursor")
-                    .remove("allowReplay");
+            if let Some(cursors) = stream["cursors"].as_array_mut() {
+                for cursor in cursors {
+                    cursor
+                        .as_object_mut()
+                        .expect("cursor")
+                        .remove("allowReplay");
+                }
             }
         }
         Message::Text(ack.to_string().into())
+    }
+
+    #[test]
+    fn custom_confirmations_subscribe_live_without_replay_cursors() {
+        for confirmations in [0, 1, 3] {
+            let (mut sync, _directory) = test_sync();
+            sync.confirmations = Some(confirmations);
+            let request = serde_json::to_value(sync.subscription(12)).expect("request");
+            assert_eq!(request["streams"][0]["confirmations"], confirmations);
+            assert_eq!(request["streams"][0]["eventType"], EVENT_TYPE);
+            assert_eq!(request["streams"][0]["domains"], serde_json::json!([1]));
+            assert!(request["streams"][0].get("cursors").is_none());
+        }
+        let (sync, _directory) = test_sync();
+        let request = serde_json::to_value(sync.subscription(12)).expect("request");
+        assert!(request["streams"][0].get("confirmations").is_none());
+        assert_eq!(request["streams"][0]["cursors"][0]["afterSequence"], "11");
+    }
+
+    #[tokio::test]
+    async fn custom_stream_uses_rpc_for_startup_gaps_and_rollback_without_caught_up() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
+        let (mut sync, _directory) = test_sync();
+        sync.url = Url::parse(&format!(
+            "ws://{}",
+            listener.local_addr().expect("test operation")
+        ))
+        .expect("test operation")
+        .into();
+        sync.confirmations = Some(3);
+        let (send, mut frames) = tokio::sync::mpsc::channel::<Message>(4);
+        let subscriptions = Arc::new(AtomicUsize::new(0));
+        let accepted = subscriptions.clone();
+        let server = tokio::spawn(async move {
+            loop {
+                let (stream, _) = listener.accept().await.expect("test operation");
+                let mut socket = accept_async(stream).await.expect("test operation");
+                socket
+                    .send(Message::Text(r#"{"type":"ready"}"#.into()))
+                    .await
+                    .expect("test operation");
+                let request = socket
+                    .next()
+                    .await
+                    .expect("test operation")
+                    .expect("test operation");
+                let value: serde_json::Value =
+                    serde_json::from_str(request.to_text().expect("test operation"))
+                        .expect("test operation");
+                assert_eq!(value["streams"][0]["confirmations"], 3);
+                assert!(value["streams"][0].get("cursors").is_none());
+                socket
+                    .send(subscription_ack(request))
+                    .await
+                    .expect("test operation");
+                accepted.fetch_add(1, Ordering::SeqCst);
+                loop {
+                    tokio::select! {
+                        frame = frames.recv() => {
+                            let Some(frame) = frame else { return; };
+                            if socket.send(frame).await.is_err() { break; }
+                        }
+                        message = socket.next() => {
+                            if !matches!(message, Some(Ok(_))) { break; }
+                        }
+                    }
+                }
+            }
+        });
+        let db = sync.db.clone();
+        let hook = format!("{:#x}", sync.merkle_tree_hook);
+        let active = sync.websocket_active.clone();
+        let fallback_active = sync.fallback_active.clone();
+        let starts = Arc::new(AtomicUsize::new(0));
+        let fallback_starts = starts.clone();
+        let count = Arc::new(AtomicUsize::new(1));
+        let dependencies = test_dependencies_with_count(count.clone());
+        let repair_db = db.clone();
+        let repair_count = count.clone();
+        let task = tokio::spawn(async move {
+            sync.run_loop(
+                0,
+                1,
+                StreamTimeouts {
+                    read: UNREACHED,
+                    progress_check: Duration::from_millis(10),
+                    progress_grace: UNREACHED,
+                },
+                Duration::from_millis(1),
+                dependencies,
+                || {
+                    let attempt = fallback_starts.fetch_add(1, Ordering::SeqCst);
+                    let through = if attempt == 0 { 0 } else { 3 };
+                    for index in 0..=through {
+                        repair_db
+                            .store_tree_insertion(
+                                &MerkleTreeInsertion::new(
+                                    index,
+                                    H256::from_low_u64_be(u64::from(index).saturating_add(4)),
+                                ),
+                                12,
+                            )
+                            .expect("test operation");
+                    }
+                    repair_count.store(
+                        usize::try_from(through)
+                            .expect("test operation")
+                            .saturating_add(1),
+                        Ordering::SeqCst,
+                    );
+                    Some(test_fallback(&sync.fallback_active))
+                },
+            )
+            .await;
+        });
+        wait_until("custom startup cutover", || active.get() == 1).await;
+        assert_eq!(starts.load(Ordering::SeqCst), 1);
+        assert_eq!(fallback_active.get(), 0);
+        count.store(2, Ordering::SeqCst);
+        send.send(Message::Text(format!(
+            r#"{{"type":"event","data":{{"block_number":12,"domain":1,"leaf_index":1,"merkle_tree_hook":"{hook}","message_id":"{:#x}"}},"domain":1,"eventType":"merkle_tree_insertion","sequence":"1"}}"#,
+            H256::from_low_u64_be(5),
+        ).into())).await.expect("test operation");
+        wait_until("custom live insertion", || {
+            db.retrieve_merkle_tree_insertion_by_leaf_index(&1)
+                .expect("test operation")
+                .is_some()
+        })
+        .await;
+        assert_eq!(starts.load(Ordering::SeqCst), 1);
+        // The missing leaf 2 was emitted during a disconnect.
+        send.send(Message::Text(format!(
+            r#"{{"type":"event","data":{{"block_number":12,"domain":1,"leaf_index":3,"merkle_tree_hook":"{hook}","message_id":"{:#x}"}},"domain":1,"eventType":"merkle_tree_insertion","sequence":"3"}}"#,
+            H256::from_low_u64_be(7),
+        ).into())).await.expect("test operation");
+        wait_until("custom gap recovery", || {
+            subscriptions.load(Ordering::SeqCst) >= 2 && active.get() == 1
+        })
+        .await;
+        assert_eq!(starts.load(Ordering::SeqCst), 2);
+        assert!(db
+            .retrieve_merkle_tree_insertion_by_leaf_index(&2)
+            .expect("test operation")
+            .is_some());
+        send.send(Message::Text(r#"{"type":"rollback","domain":1,"eventType":"merkle_tree_insertion","fromHeight":"15","toHeight":"12"}"#.into())).await.expect("test operation");
+        wait_until("custom rollback recovery", || {
+            subscriptions.load(Ordering::SeqCst) >= 3 && active.get() == 1
+        })
+        .await;
+        assert_eq!(starts.load(Ordering::SeqCst), 3);
+        assert_eq!(fallback_active.get(), 0);
+        task.abort();
+        server.abort();
     }
 
     #[test]

@@ -219,6 +219,7 @@ mod tests {
             session
                 .subscribe(SubscribeMessage {
                     streams: vec![super::super::SubscribeStream {
+                        confirmations: None,
                         cursors: None,
                         domains: Some(vec![1]),
                         event_type: "merkle_tree_insertion",
