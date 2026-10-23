@@ -4,9 +4,14 @@ import { expect } from 'chai';
 
 import { type ChainMap } from '@hyperlane-xyz/sdk';
 
-import { ExecutionType, ExternalBridgeType } from '../config/types.js';
+import {
+  ExecutionType,
+  ExternalBridgeType,
+  TokenBridgeStatusAdapterType,
+} from '../config/types.js';
 import {
   type BridgeConfigWithOverride,
+  createStrategyRoute,
   getBridgeConfig,
   isInventoryConfig,
   isMovableCollateralConfig,
@@ -90,6 +95,83 @@ describe('bridgeConfig', () => {
       bridge: '0xABCDEF0123456789ABCDEF0123456789ABCDEF01',
       bridgeMinAcceptedAmount: 1000,
     });
+  });
+
+  it('should apply and propagate a destination settlement adapter override', () => {
+    const bridges: ChainMap<BridgeConfigWithOverride> = {
+      chain1: {
+        executionType: ExecutionType.MovableCollateral,
+        bridge: '0x1234567890123456789012345678901234567890',
+        override: {
+          chain2: {
+            statusAdapter: {
+              kind: TokenBridgeStatusAdapterType.LayerZeroScan,
+              sourceEid: 30110,
+              destinationEid: 30420,
+              sourceOft: '0x1111111111111111111111111111111111111111',
+              destinationOft: '0x2222222222222222222222222222222222222222',
+            },
+          },
+        },
+      },
+      chain2: {
+        executionType: ExecutionType.MovableCollateral,
+        bridge: '0x0987654321098765432109876543210987654321',
+      },
+    };
+
+    const config = getBridgeConfig(bridges, 'chain1', 'chain2');
+    const route = createStrategyRoute(config, 'chain1', 'chain2', 100n);
+
+    assert(isMovableCollateralConfig(config));
+    expect(config.statusAdapter?.kind).to.equal(
+      TokenBridgeStatusAdapterType.LayerZeroScan,
+    );
+    assert(route.executionType === ExecutionType.MovableCollateral);
+    expect(route.statusAdapter?.kind).to.equal(
+      TokenBridgeStatusAdapterType.LayerZeroScan,
+    );
+  });
+
+  it('should switch an inventory base to a movable collateral override', () => {
+    const bridge = '0x1234567890123456789012345678901234567890';
+    const bridges: ChainMap<BridgeConfigWithOverride> = {
+      chain1: {
+        executionType: ExecutionType.Inventory,
+        externalBridge: ExternalBridgeType.SwapsXyz,
+        override: {
+          chain2: {
+            executionType: ExecutionType.MovableCollateral,
+            bridge,
+            statusAdapter: {
+              kind: TokenBridgeStatusAdapterType.LayerZeroScan,
+              sourceEid: 30110,
+              destinationEid: 30420,
+              sourceOft: '0x1111111111111111111111111111111111111111',
+              destinationOft: '0x2222222222222222222222222222222222222222',
+            },
+          },
+        },
+      },
+      chain2: {
+        executionType: ExecutionType.Inventory,
+        externalBridge: ExternalBridgeType.SwapsXyz,
+      },
+    };
+
+    const config = getBridgeConfig(bridges, 'chain1', 'chain2');
+    const route = createStrategyRoute(config, 'chain1', 'chain2', 100n);
+
+    assert(isMovableCollateralConfig(config));
+    expect(config.bridge).to.equal(bridge);
+    expect(config.statusAdapter?.kind).to.equal(
+      TokenBridgeStatusAdapterType.LayerZeroScan,
+    );
+    assert(route.executionType === ExecutionType.MovableCollateral);
+    expect(route.bridge).to.equal(bridge);
+    expect(route.statusAdapter?.kind).to.equal(
+      TokenBridgeStatusAdapterType.LayerZeroScan,
+    );
   });
 
   it('should apply override with executionType: inventory', () => {
