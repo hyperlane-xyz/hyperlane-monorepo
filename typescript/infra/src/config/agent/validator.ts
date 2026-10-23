@@ -6,11 +6,12 @@ import {
   ChainName,
   S3Config,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, isEVMLike } from '@hyperlane-xyz/utils';
+import { assert, isEVMLike } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../../config/registry.js';
 import { ValidatorAgentAwsUser } from '../../agents/aws/validator-user.js';
 import { AgentGCPKey } from '../../agents/gcp.js';
+import { CloudAgentKey } from '../../agents/keys.js';
 import { AgentGcpKmsKey } from '../../agents/gcp-kms/kms-key.js';
 import { ValidatorAgentGcpUser } from '../../agents/gcp-kms/validator-user.js';
 import { Role } from '../../roles.js';
@@ -67,6 +68,7 @@ export interface HelmValidatorValues extends HelmStatefulSetValues {
     Omit<AgentValidatorConfig, keyof AgentConfig | 'validator'> & {
       websocketUrl?: string;
       validator: KeyConfig;
+      chainSigner?: KeyConfig;
     }
   >;
 }
@@ -142,12 +144,11 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
     return Role.Validator;
   }
 
-  // Provision only for a new deployment or changed cloud resource configuration.
-  // Rendering GCP validator configuration must not require cloud admin access.
+  /** Provisions changed GCP resources and returns their fetched signing keys. */
   async provisionGcpResources(
     namespace: string,
     ksaName: string,
-  ): Promise<void> {
+  ): Promise<CloudAgentKey[]> {
     assert(this.gcp, 'Validator is not configured for GCP');
     const user = new ValidatorAgentGcpUser(
       this.runEnv,
@@ -157,6 +158,7 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
     );
     await user.createServiceAccountIfNotExists();
     const { protocol } = getChain(this.chainName);
+    const keys: CloudAgentKey[] = [];
 
     for (let idx = 0; idx < this.validators.length; idx++) {
       const bucketName = `${this.context}-${this.runEnv}-validator-${idx}`;
@@ -169,22 +171,26 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
 
       const key = new AgentGcpKmsKey(this, this.role, idx);
       await key.createIfNotExists();
+      keys.push(key);
       await user.grantAccessForIndex(key, bucketName);
 
       // AltVM transaction signers still use Secret Manager keys. Starknet
       // keys are externally provisioned, as in the shared key-creation script.
-      if (!isEVMLike(protocol) && protocol !== ProtocolType.Starknet) {
-        await new AgentGCPKey(
+      if (!isEVMLike(protocol)) {
+        const chainSigner = new AgentGCPKey(
           this.runEnv,
           this.context,
           this.role,
           this.chainName,
           idx,
-        ).createIfNotExists();
+        );
+        await chainSigner.createIfNotExists();
+        keys.push(chainSigner);
       }
     }
 
     await user.bindWorkloadIdentity(namespace, ksaName);
+    return keys;
   }
 
   async #configForValidator(

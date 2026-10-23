@@ -50,6 +50,7 @@ import {
   HelmCommand,
   HelmManager,
   type HelmCommandOptions,
+  type HelmValues,
 } from '../utils/helm.js';
 import {
   execCmd,
@@ -58,6 +59,7 @@ import {
 } from '../utils/utils.js';
 
 import { AgentGCPKey } from './gcp.js';
+import { CloudAgentKey } from './keys.js';
 import { gcpValidatorServiceAccountName } from './gcp-kms/validator-user.js';
 
 const HELM_CHART_PATH = join(
@@ -508,6 +510,7 @@ export class ScraperProxyHelmManager extends HelmManager<HelmRootAgentValues> {
 }
 
 export class ValidatorHelmManager extends MultichainAgentHelmManager {
+  provisionedKeys: CloudAgentKey[] = [];
   protected readonly config: ValidatorConfigHelper;
   readonly role: Role.Validator = Role.Validator;
 
@@ -534,41 +537,52 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
     action: HelmCommand,
     options?: HelmCommandOptions,
   ): Promise<void> {
-    if (
-      this.config.gcp &&
-      action === HelmCommand.InstallOrUpgrade &&
-      !options?.dryRun
-    ) {
-      const proposed = await this.helmValues();
-      const deployed = await this.getDeployedHelmValues({ throwOnError: true });
-      const configs = proposed.hyperlane.validator?.configs;
-      assert(configs, 'Missing validator configuration');
+    if (!this.config.gcp || action === HelmCommand.Remove) {
+      return super.runHelmCommand(action, options);
+    }
 
-      // Helm records the cloud resources used by the last deployment. Image or
-      // runtime config changes reuse them without querying GCS, KMS or IAM.
-      const resourcesChanged =
-        !deepEquals(deployed?.serviceAccount, proposed.serviceAccount) ||
-        configs.some(
-          (config, index) =>
-            !deepEquals(
-              deployed?.hyperlane?.validator?.configs?.[index]?.validator,
-              config.validator,
-            ) ||
-            !deepEquals(
-              deployed?.hyperlane?.validator?.configs?.[index]
-                ?.checkpointSyncer,
-              config.checkpointSyncer,
-            ),
+    const proposed = await this.helmValues();
+    if (action === HelmCommand.InstallOrUpgrade && !options?.dryRun) {
+      const deployed = await this.getDeployedHelmValues({ throwOnError: true });
+      if (this.compareResourceConfigurations(deployed, proposed).length > 0) {
+        assert(
+          options?.allowResourceProvisioning,
+          'GCP validator resource changes require confirmation. Run deployment with preflight checks enabled.',
         );
-      if (resourcesChanged) {
-        await this.config.provisionGcpResources(
+        this.provisionedKeys = await this.config.provisionGcpResources(
           this.namespace,
           this.helmReleaseName,
         );
       }
     }
 
-    await super.runHelmCommand(action, options);
+    await super.runHelmCommand(action, options, proposed);
+  }
+
+  protected override compareResourceConfigurations(
+    deployed: HelmValues | null,
+    proposed: HelmRootAgentValues,
+  ): string[] {
+    if (!this.config.gcp) return [];
+    const configs = proposed.hyperlane.validator?.configs;
+    assert(configs, 'Missing validator configuration');
+    const changes: string[] = [];
+    if (!deepEquals(deployed?.serviceAccount, proposed.serviceAccount)) {
+      changes.push('Service account / Workload Identity');
+    }
+    for (const [index, config] of configs.entries()) {
+      const current = deployed?.hyperlane?.validator?.configs?.[index];
+      if (!deepEquals(current?.validator, config.validator)) {
+        changes.push(`Validator ${index} signing key`);
+      }
+      if (!deepEquals(current?.chainSigner, config.chainSigner)) {
+        changes.push(`Validator ${index} chain signer`);
+      }
+      if (!deepEquals(current?.checkpointSyncer, config.checkpointSyncer)) {
+        changes.push(`Validator ${index} checkpoint storage`);
+      }
+    }
+    return changes;
   }
 
   async helmValues(): Promise<HelmRootAgentValues> {

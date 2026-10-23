@@ -1,5 +1,6 @@
 import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
+import { existsSync } from 'fs';
 import { basename, dirname, join } from 'path';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
@@ -521,6 +522,60 @@ async function persistAddresses(
   return;
 }
 
+/** Resolves attestation addresses only for the selected validator chains. */
+export function validatorAddressesForChains(
+  agentConfig: RootAgentConfig,
+  keys: CloudAgentKey[],
+  chains: ChainName[],
+): ChainMap<{ validators: Address[] }> {
+  assert(agentConfig.validators, 'Missing validator configuration');
+  const keysByIdentifier = new Map(keys.map((key) => [key.identifier, key]));
+  return Object.fromEntries(
+    chains.map((chain) => {
+      const validators = agentConfig.validators?.chains[chain]?.validators;
+      assert(validators, `Missing validators for ${chain}`);
+      return [
+        chain,
+        {
+          validators: validators.map((_, index) => {
+            const { validator } = getValidatorKeysForChain(
+              agentConfig,
+              chain,
+              index,
+            );
+            const key = keysByIdentifier.get(validator.identifier);
+            assert(key, `No provisioned key found for ${validator.identifier}`);
+            return key.address;
+          }),
+        },
+      ];
+    }),
+  );
+}
+
+/** Persists provisioned keys once per deployment, preserving untouched chains and roles. */
+export async function persistProvisionedValidatorAddresses(
+  agentConfig: RootAgentConfig,
+  keys: CloudAgentKey[],
+  chains: ChainName[],
+): Promise<void> {
+  const filePath = getAWValidatorsPath(agentConfig.runEnv, agentConfig.context);
+  const existing: ChainMap<{ validators: Address[] }> = existsSync(filePath)
+    ? readJsonFromDir(dirname(filePath), basename(filePath))
+    : {};
+  const updated = validatorAddressesForChains(agentConfig, keys, chains);
+  await persistValidatorAddressesToLocalArtifacts(
+    agentConfig.runEnv,
+    agentConfig.context,
+    { ...existing, ...updated },
+  );
+  await persistAddressesInGcp(
+    agentConfig.runEnv,
+    agentConfig.context,
+    keys.map((key) => key.serializeAsAddress()),
+  );
+}
+
 async function agentKeysToBeCreated(
   agentConfig: RootAgentConfig,
   deployedRoles?: Role[],
@@ -787,7 +842,7 @@ export async function persistValidatorAddressesToLocalArtifacts(
   fetchedValidatorAddresses: ChainMap<{ validators: Address[] }>,
 ) {
   // Write the updated object back to the file
-  writeAndFormatJsonAtPath(
+  await writeAndFormatJsonAtPath(
     getAWValidatorsPath(environment, context),
     fetchedValidatorAddresses,
   );

@@ -9,6 +9,7 @@ import {
   ScraperProxyHelmManager,
   ValidatorHelmManager,
 } from '../../src/agents/index.js';
+import { persistProvisionedValidatorAddresses } from '../../src/agents/key-utils.js';
 import {
   HelmRootAgentValues,
   RootAgentConfig,
@@ -85,11 +86,7 @@ export class AgentCli {
     ) {
       const shouldProceed = await this.runPreflightChecks(managers);
       if (!shouldProceed) {
-        console.log(
-          chalk.yellow(
-            'Deployment aborted. To skip pre-flight checks, use --skip-preflight-check flag.',
-          ),
-        );
+        console.log(chalk.yellow('Deployment aborted.'));
         process.exit(1);
       }
     }
@@ -116,6 +113,7 @@ export class AgentCli {
           await manager.runHelmCommand(command, {
             dryRun: this.dryRun,
             skipDependencyBuild: true,
+            allowResourceProvisioning: !this.skipPreflightCheck,
           });
         },
       );
@@ -123,6 +121,20 @@ export class AgentCli {
       process.setMaxListeners(originalProcessMax);
       process.stdout.setMaxListeners(originalStdoutMax);
       process.stderr.setMaxListeners(originalStderrMax);
+    }
+
+    // Persist once after parallel deployments to avoid concurrent artifact/secret writes.
+    const provisionedValidators = managerList.filter(
+      (manager): manager is ValidatorHelmManager =>
+        manager instanceof ValidatorHelmManager &&
+        manager.provisionedKeys.length > 0,
+    );
+    if (provisionedValidators.length > 0) {
+      await persistProvisionedValidatorAddresses(
+        this.agentConfig,
+        provisionedValidators.flatMap((manager) => manager.provisionedKeys),
+        provisionedValidators.map((manager) => manager.chainName),
+      );
     }
   }
 
@@ -162,7 +174,7 @@ export class AgentCli {
     this.concurrency = argv.concurrency;
   }
 
-  private async runPreflightChecks(
+  protected async runPreflightChecks(
     managers: Record<string, HelmManager<HelmRootAgentValues>>,
   ): Promise<boolean> {
     console.log(chalk.cyan.bold('🔍 Running pre-flight checks...\n'));
@@ -203,7 +215,8 @@ export class AgentCli {
       ({ diff }) =>
         diff.isNewDeployment ||
         diff.chainDiff.hasChanges ||
-        diff.imageDiff.hasChanges,
+        diff.imageDiff.hasChanges ||
+        (diff.resourceChanges?.length ?? 0) > 0,
     );
 
     if (!hasAnyChanges) {
@@ -215,6 +228,16 @@ export class AgentCli {
 
     printPreflightSummaryTable(diffs);
 
+    const provisioningReleases = diffs
+      .filter(({ diff }) => (diff.resourceChanges?.length ?? 0) > 0)
+      .map(({ diff }) => diff.releaseName);
+    if (
+      provisioningReleases.length > 0 &&
+      !(await this.confirmResourceProvisioning(provisioningReleases))
+    ) {
+      return false;
+    }
+
     if (this.skipConfirmation) {
       console.log(
         chalk.yellow('--yes set; proceeding with deployment without prompt.'),
@@ -225,6 +248,17 @@ export class AgentCli {
     return confirm({
       message: chalk.yellow(
         `Proceed with deployment of ${diffs.length} agent(s)?`,
+      ),
+      default: false,
+    });
+  }
+
+  protected async confirmResourceProvisioning(
+    releases: string[],
+  ): Promise<boolean> {
+    return confirm({
+      message: chalk.yellow.bold(
+        `GCP validator keys, checkpoint storage or IAM will be provisioned for ${releases.join(', ')}. Are you sure you want to continue?`,
       ),
       default: false,
     });
