@@ -20,7 +20,7 @@ describe('KeyFunderHelmManager', () => {
       address: '0x20c0000000000000000000000000000000000000',
       decimals: 6,
     });
-    expect(config.chains.tempo.balances?.['hyperlane-relayer']).to.equal('10');
+    expect(config.chains.tempo.balances?.['hyperlane-relayer']).to.equal('25');
     expect(config.chains.tempo.igp?.address).to.be.a('string');
     expect(config.chains.arc.erc20GasToken).to.equal(undefined);
     expect(config.chains.ethereum.erc20GasToken).to.equal(undefined);
