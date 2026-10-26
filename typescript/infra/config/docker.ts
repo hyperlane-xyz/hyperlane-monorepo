@@ -46,7 +46,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   relayer: '24a8034-20261026-142944',
   relayerRC: '24a8034-20261026-142944',
   relayerFastPath: '1467e4c-20261022-004453',
-  validator: '24a8034-20261026-142944',
+  validator: 'e62f6a7-20261026-145748',
   validatorRC: '211801c-20261022-150937',
   validatorFastPath: '211801c-20261022-150937',
   scraper: '24a8034-20261026-142944',
