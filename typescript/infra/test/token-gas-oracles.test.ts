@@ -11,6 +11,7 @@ import tokenPrices from '../config/environments/mainnet3/tokenPrices.json' with 
 import { tokens } from '../src/config/warp.js';
 import {
   getLocalStorageGasOracleConfigOverride,
+  getOverhead,
   getOverheadWithOverrides,
   getTypicalRemoteGasAmount,
 } from '../src/config/gas-oracle.js';
@@ -28,6 +29,21 @@ const feeTokens = {
 const exchangeRateScale = BigNumber.from(10).pow(10);
 
 describe('mainnet3 stablecoin IGP gas oracles', () => {
+  it('covers Tempo destination charges for different origins with a bounded margin', () => {
+    // Base->Tempo used 614,493 protocol gas against a 166,887 standard allowance.
+    const measuredAdditionalGas = 614_493 - 166_887;
+    for (const origin of ['base', 'ethereum', 'arbitrum']) {
+      const additionalGas =
+        getOverheadWithOverrides(origin, 'tempo') -
+        getOverhead(origin, 'tempo');
+      expect(additionalGas).to.be.at.least(measuredAdditionalGas);
+      expect(additionalGas).to.be.lessThan(600_000);
+    }
+    expect(getOverheadWithOverrides('ethereum', 'base')).to.equal(
+      getOverhead('ethereum', 'base'),
+    );
+  });
+
   it('expresses Tempo attodollar gas prices in six-decimal pathUSD units', () => {
     const snapshot = gasPrices.tempo;
     // 600,000,000 attodollars / 10^12 = 0.0006 pathUSD base units per gas.

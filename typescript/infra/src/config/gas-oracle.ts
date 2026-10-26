@@ -391,6 +391,9 @@ function getUsdQuote(
 
 // cosmwasm warp route somewhat arbitrarily chosen
 const FOREIGN_DEFAULT_OVERHEAD = 600_000;
+// Tempo adds transaction and new-storage charges. Base->Tempo measured 614,493
+// overhead gas versus the standard 166,887; allow 500k extra with margin.
+const TEMPO_ADDITIONAL_GAS_OVERHEAD = 500_000;
 
 // Overhead for interchain messaging
 export function getOverhead(local: ChainName, remote: ChainName): number {
@@ -421,6 +424,10 @@ export function getOverheadWithOverrides(
   remote: ChainName,
 ): number {
   let overhead = getOverhead(local, remote);
+
+  if (remote === 'tempo') {
+    overhead += TEMPO_ADDITIONAL_GAS_OVERHEAD;
+  }
 
   // Somnia gas usage is higher than the EVM and tends to give high
   // estimates. We double the overhead to help account for this.
