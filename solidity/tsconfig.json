@@ -10,7 +10,6 @@
     "./dist",
     "zk-hardhat.config.cts",
     "tron-hardhat.config.cts",
-    "tempo-hardhat.config.cts",
     "rootHardhatConfig.cts",
     "./plugins",
     "./dependencies",
