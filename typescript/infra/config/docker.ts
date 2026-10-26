@@ -54,7 +54,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   checkWarpDeploy: 'main',
   validatorMonitor: '957cb09-20261021-152517',
   // standalone services
-  keyFunder: '7302226-20261026-134814',
+  keyFunder: 'e1c0151-20261026-153848',
   warpMonitor: '957cb09-20261021-152528',
   rebalancer: '957cb09-20261021-152528',
   scraperProxy: '8160041-20261022-172207',
