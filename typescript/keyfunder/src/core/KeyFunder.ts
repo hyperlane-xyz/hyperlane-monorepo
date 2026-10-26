@@ -3,6 +3,7 @@ import type { Logger } from 'pino';
 
 import { ERC20__factory } from '@hyperlane-xyz/core';
 import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import type {
   ChainConfig,
@@ -24,6 +25,8 @@ export interface KeyFunderOptions {
 }
 
 export class KeyFunder {
+  private readonly validatedGasTokens = new Set<string>();
+
   constructor(
     private readonly multiProvider: MultiProvider,
     private readonly config: KeyFunderConfig,
@@ -100,6 +103,8 @@ export class KeyFunder {
     const startTime = Date.now();
     const logger = this.options.logger.child({ chain });
 
+    await this.validateGasTokenDecimals(chain);
+
     if (!this.options.skipIgpClaim && chainConfig.igp) {
       await this.claimFromIgp(chain, chainConfig);
     }
@@ -129,6 +134,21 @@ export class KeyFunder {
       durationSeconds,
     );
     logger.info({ durationSeconds }, 'Chain funding completed');
+  }
+
+  private async validateGasTokenDecimals(chain: string): Promise<void> {
+    const token = this.config.chains[chain].erc20GasToken;
+    if (!token || this.validatedGasTokens.has(chain)) return;
+
+    const decimals = await ERC20__factory.connect(
+      token.address,
+      this.multiProvider.getProvider(chain),
+    ).decimals();
+    assert(
+      decimals === token.decimals,
+      `ERC20 gas token decimals mismatch on ${chain}: configured ${token.decimals}, on-chain ${decimals} (${token.address})`,
+    );
+    this.validatedGasTokens.add(chain);
   }
 
   private getNativeDecimals(chain: string): number {

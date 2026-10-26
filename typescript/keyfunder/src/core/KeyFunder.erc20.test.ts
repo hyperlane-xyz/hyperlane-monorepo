@@ -36,22 +36,34 @@ describe('KeyFunder ERC20 gas tokens', () => {
     recipientBalance = '0',
     funderBalance = '100',
     igpBalance = '0',
+    tokenDecimals = 6,
   ) {
     const provider = new ethers.providers.JsonRpcProvider();
-    sinon.stub(provider, 'call').callsFake(async (transaction) => {
-      const data = await transaction.data;
-      if (typeof data !== 'string') throw new Error('Missing call data');
-      const { args, name } = tokenInterface.parseTransaction({ data });
-      if (name !== 'balanceOf') throw new Error(`Unexpected call: ${name}`);
-      const account = String(args[0]).toLowerCase();
-      const balance =
-        account === funder.toLowerCase()
-          ? funderBalance
-          : account === igpAddress.toLowerCase()
-            ? igpBalance
-            : recipientBalance;
-      return tokenInterface.encodeFunctionResult('balanceOf', [units(balance)]);
-    });
+    let decimalsReads = 0;
+    const tokenCalls = sinon
+      .stub(provider, 'call')
+      .callsFake(async (transaction) => {
+        const data = await transaction.data;
+        if (typeof data !== 'string') throw new Error('Missing call data');
+        const { args, name } = tokenInterface.parseTransaction({ data });
+        if (name === 'decimals') {
+          decimalsReads += 1;
+          return tokenInterface.encodeFunctionResult('decimals', [
+            tokenDecimals,
+          ]);
+        }
+        if (name !== 'balanceOf') throw new Error(`Unexpected call: ${name}`);
+        const account = String(args[0]).toLowerCase();
+        const balance =
+          account === funder.toLowerCase()
+            ? funderBalance
+            : account === igpAddress.toLowerCase()
+              ? igpBalance
+              : recipientBalance;
+        return tokenInterface.encodeFunctionResult('balanceOf', [
+          units(balance),
+        ]);
+      });
     const nativeBalance = sinon
       .stub(provider, 'getBalance')
       .rejects(new Error('Tempo native balances are placeholders'));
@@ -111,8 +123,67 @@ describe('KeyFunder ERC20 gas tokens', () => {
       metrics,
       igp,
     });
-    return { keyFunder, config, metrics, multiProvider, nativeBalance, signer };
+    return {
+      keyFunder,
+      config,
+      metrics,
+      multiProvider,
+      nativeBalance,
+      signer,
+      tokenCalls,
+      decimalsReads: () => decimalsReads,
+    };
   }
+
+  for (const { configured, onChain } of [
+    { configured: 6, onChain: 18 },
+    { configured: 18, onChain: 6 },
+  ]) {
+    it(`rejects configured ${configured} decimals for a ${onChain}-decimal token before any transaction`, async () => {
+      const { keyFunder, config, multiProvider, tokenCalls } = setup(
+        '0',
+        '100',
+        '3',
+        onChain,
+      );
+      config.chains.tempo.erc20GasToken = {
+        address: tokenAddress,
+        decimals: configured,
+      };
+      config.chains.tempo.igp = { address: igpAddress, claimThreshold: '2' };
+      config.chains.tempo.sweep = {
+        enabled: true,
+        address: sweepAddress,
+        threshold: '10',
+        targetMultiplier: 1.5,
+        triggerMultiplier: 2,
+      };
+      await expect(keyFunder.fundChain('tempo')).to.be.rejectedWith(
+        `ERC20 gas token decimals mismatch on tempo: configured ${configured}, on-chain ${onChain}`,
+      );
+      expect(multiProvider.sendTransaction.called).to.equal(false);
+      sinon.assert.calledOnce(tokenCalls);
+    });
+  }
+
+  it('validates decimals once before reusing the chain configuration', async () => {
+    const { keyFunder, decimalsReads } = setup('10');
+    await keyFunder.fundChain('tempo');
+    await keyFunder.fundChain('tempo');
+    expect(decimalsReads()).to.equal(1);
+  });
+
+  it('fails closed on a decimals RPC error and validates again on retry', async () => {
+    const { keyFunder, multiProvider, tokenCalls, decimalsReads } = setup();
+    tokenCalls.onFirstCall().rejects(new Error('Decimals RPC unavailable'));
+    await expect(keyFunder.fundChain('tempo')).to.be.rejectedWith(
+      'Decimals RPC unavailable',
+    );
+    expect(multiProvider.sendTransaction.called).to.equal(false);
+    await keyFunder.fundChain('tempo');
+    expect(decimalsReads()).to.equal(1);
+    expect(multiProvider.sendTransaction.calledOnce).to.equal(true);
+  });
 
   it('funds the token deficit at six decimals and records token balances', async () => {
     const { keyFunder, metrics, multiProvider, nativeBalance, signer } =
