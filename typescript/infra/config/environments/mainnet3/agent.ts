@@ -1162,7 +1162,7 @@ const fastPath: RootAgentConfig = {
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Majority,
-    // Use RPC indexing until the scraper proxy supports fastpath streaming.
+    websocketUrl: scraperWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.validatorFastPath,
