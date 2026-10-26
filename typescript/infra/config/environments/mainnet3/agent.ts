@@ -1039,8 +1039,9 @@ const fastPathVictionEthMatchingList = warpRouteMatchingList(
   WarpRouteIds.VictionETH,
 ).filter(
   ({ originDomain, destinationDomain }) =>
-    originDomain === getDomainId('ethereum') &&
-    destinationDomain !== getDomainId('viction'),
+    ['arbitrum', 'base', 'ethereum'].some(
+      (chain) => originDomain === getDomainId(chain),
+    ) && destinationDomain !== getDomainId('viction'),
 );
 
 // Cross Collateral USDT - https://github.com/hyperlane-xyz/hyperlane-registry/blob/codex/nambrot-cross-collateral-deploy/deployments/warp_routes/USDT/ctusd-config.yaml

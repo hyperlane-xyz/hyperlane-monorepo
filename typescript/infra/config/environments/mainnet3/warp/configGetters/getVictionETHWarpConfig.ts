@@ -19,7 +19,7 @@ import { WARP_FEES_TURNKEY_OWNER } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
 
 import {
-  buildEthereumFastpathIsm,
+  buildFastpathIsm,
   getFixedRoutingFeeConfig,
   getNativeTokenConfigForChain,
 } from './utils.js';
@@ -42,6 +42,8 @@ const deploymentChains = [
 ] as const;
 
 type DeploymentChain = (typeof deploymentChains)[number];
+
+const fastpathOrigins = ['arbitrum', 'base', 'ethereum'];
 
 const nativeChains = [
   'arbitrum',
@@ -81,11 +83,10 @@ export const getVictionETHWarpConfig = async (
       {
         ...baseConfig,
         decimals: 18,
-        ...(currentChain !== 'ethereum' && {
-          interchainSecurityModule: buildEthereumFastpathIsm(
-            ownersByChain[currentChain],
-          ),
-        }),
+        interchainSecurityModule: buildFastpathIsm(
+          ownersByChain[currentChain],
+          fastpathOrigins.filter((origin) => origin !== currentChain),
+        ),
         tokenFee: getFixedRoutingFeeConfig(
           WARP_FEES_TURNKEY_OWNER,
           feeDestinations,

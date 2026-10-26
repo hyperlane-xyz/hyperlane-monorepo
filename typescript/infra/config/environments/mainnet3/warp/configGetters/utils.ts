@@ -33,21 +33,27 @@ import { usdcTokenAddresses } from '../cctp.js';
 import { usdtTokenAddresses } from '../tokens.js';
 import { WarpRouteIds } from '../warpIds.js';
 
-/** Accepts Ethereum fastpath signatures or standard mailbox validation. */
-export const buildEthereumFastpathIsm = (owner: string): IsmConfig => ({
+/** Accepts fastpath signatures from selected origins or standard mailbox validation. */
+export const buildFastpathIsm = (
+  owner: string,
+  origins: readonly ChainName[],
+): IsmConfig => ({
   type: IsmType.AGGREGATION,
   threshold: 1,
   modules: [
     {
       type: IsmType.ROUTING,
       owner,
-      domains: {
-        ethereum: {
-          type: IsmType.MESSAGE_ID_MULTISIG,
-          threshold: DEFAULT_FASTPATH_THRESHOLD,
-          validators: DEFAULT_FASTPATH_VALIDATORS,
-        },
-      },
+      domains: Object.fromEntries(
+        origins.map((origin) => [
+          origin,
+          {
+            type: IsmType.MESSAGE_ID_MULTISIG,
+            threshold: DEFAULT_FASTPATH_THRESHOLD,
+            validators: DEFAULT_FASTPATH_VALIDATORS,
+          },
+        ]),
+      ),
     },
     {
       type: IsmType.FALLBACK_ROUTING,
@@ -56,6 +62,10 @@ export const buildEthereumFastpathIsm = (owner: string): IsmConfig => ({
     },
   ],
 });
+
+/** Accepts Ethereum fastpath signatures or standard mailbox validation. */
+export const buildEthereumFastpathIsm = (owner: string): IsmConfig =>
+  buildFastpathIsm(owner, ['ethereum']);
 
 export const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
 
