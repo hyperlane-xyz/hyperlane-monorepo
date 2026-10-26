@@ -78,6 +78,37 @@ impl CheckpointReader {
         self.hooks.len()
     }
 
+    /// Startup progress hint only; checkpoint roots are still authenticated separately.
+    /// Empty hooks must be detected with count() because latestCheckpoint() underflows.
+    pub(crate) async fn has_messages(&self, period: &ReorgPeriod) -> ChainResult<bool> {
+        let required = self.consensus.required(self.hooks.len());
+        let mut empty = 0;
+        let mut nonempty = 0;
+        let mut counts = futures_util::stream::iter(
+            self.hooks
+                .iter()
+                .map(|hook| async move { timeout(RPC_TIMEOUT, hook.count(period)).await }),
+        )
+        .buffer_unordered(self.hooks.len())
+        .boxed();
+        while let Some(result) = counts.next().await {
+            match result {
+                Ok(Ok(0)) => empty += 1,
+                Ok(Ok(_)) => nonempty += 1,
+                Ok(Err(_)) | Err(_) => continue,
+            }
+            if nonempty >= required {
+                return Ok(true);
+            }
+            if empty >= required {
+                return Ok(false);
+            }
+        }
+        Err(ChainCommunicationError::from_other_str(
+            "Insufficient count responses for configured startup agreement",
+        ))
+    }
+
     pub(crate) fn checkpoint_stream<'a>(
         &'a self,
         period: &'a ReorgPeriod,
@@ -273,6 +304,74 @@ mod tests {
         assert_eq!(started.elapsed(), RPC_TIMEOUT);
     }
 
+    #[tokio::test(start_paused = true)]
+    async fn startup_progress_uses_healthy_majority_without_waiting_for_first_endpoint() {
+        let period = ReorgPeriod::from_blocks(5);
+        let mut hooks: Vec<Arc<dyn MerkleTreeHook>> = vec![Arc::new(StalledHook)];
+        for count in [1, 2] {
+            let mut hook = MockMerkleTreeHook::new();
+            hook.expect_count()
+                .with(eq(period.clone()))
+                .once()
+                .return_once(move |_| Ok(count));
+            hooks.push(Arc::new(hook));
+        }
+        let reader =
+            CheckpointReader::new(CheckpointConsensus::Majority, hooks).expect("endpoints");
+        let started = tokio::time::Instant::now();
+        assert!(reader
+            .has_messages(&period)
+            .await
+            .expect("healthy majority"));
+        assert_eq!(started.elapsed(), Duration::ZERO);
+    }
+
+    #[tokio::test]
+    async fn empty_startup_does_not_read_latest_checkpoint() {
+        let hooks = (0..2)
+            .map(|_| {
+                let mut hook = MockMerkleTreeHook::new();
+                hook.expect_count().once().return_once(|_| Ok(0));
+                Arc::new(hook) as Arc<dyn MerkleTreeHook>
+            })
+            .collect();
+        let reader =
+            CheckpointReader::new(CheckpointConsensus::Majority, hooks).expect("endpoints");
+        assert!(!reader
+            .has_messages(&ReorgPeriod::None)
+            .await
+            .expect("empty"));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn startup_timeout_does_not_shrink_endpoint_threshold() {
+        for healthy in [1, 2] {
+            let mut hooks: Vec<Arc<dyn MerkleTreeHook>> = vec![Arc::new(StalledHook)];
+            for index in 0..2 {
+                let mut hook = MockMerkleTreeHook::new();
+                hook.expect_count().once().return_once(move |_| {
+                    if index < healthy {
+                        Ok(1)
+                    } else {
+                        Err(ChainCommunicationError::from_other_str("unavailable"))
+                    }
+                });
+                hooks.push(Arc::new(hook));
+            }
+            let reader =
+                CheckpointReader::new(CheckpointConsensus::Majority, hooks).expect("endpoints");
+            let started = tokio::time::Instant::now();
+            let result = reader.has_messages(&ReorgPeriod::None).await;
+            if healthy == 1 {
+                assert!(result.is_err(), "one response must not become one of one");
+                assert_eq!(started.elapsed(), RPC_TIMEOUT);
+            } else {
+                assert!(result.expect("healthy majority"));
+                assert_eq!(started.elapsed(), Duration::ZERO);
+            }
+        }
+    }
+
     #[derive(Debug)]
     struct StalledHook;
     impl hyperlane_core::HyperlaneChain for StalledHook {
@@ -297,7 +396,7 @@ mod tests {
             unreachable!()
         }
         async fn count(&self, _: &ReorgPeriod) -> ChainResult<u32> {
-            unreachable!()
+            std::future::pending().await
         }
         async fn latest_checkpoint(&self, _: &ReorgPeriod) -> ChainResult<CheckpointAtBlock> {
             std::future::pending().await

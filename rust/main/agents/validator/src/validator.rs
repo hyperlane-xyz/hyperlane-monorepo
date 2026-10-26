@@ -321,6 +321,34 @@ async fn wait_for_first_message(
     }
 }
 
+async fn wait_for_consensus_first_message(
+    reader: &CheckpointReader,
+    reorg_period: &ReorgPeriod,
+    interval: Duration,
+    readiness: &ValidatorReadiness,
+) {
+    loop {
+        match reader.has_messages(reorg_period).await {
+            Ok(has_messages) => {
+                readiness.mark_operation_ready("checkpoint_consensus_startup");
+                if has_messages {
+                    return;
+                }
+                readiness.mark_waiting_for_first_message();
+                info!("Waiting for first message across checkpoint endpoints");
+            }
+            Err(err) => {
+                readiness.mark_operation_blocked("checkpoint_consensus_startup");
+                warn!(
+                    ?err,
+                    "Checkpoint startup count agreement unavailable; retrying"
+                );
+            }
+        }
+        sleep(interval).await;
+    }
+}
+
 /// A validator agent
 #[derive(Debug, AsRef)]
 pub struct Validator {
@@ -693,15 +721,15 @@ impl BaseAgent for Validator {
 
         let submitter = self.checkpoint_submitter();
         // Authenticate the snapshot before choosing the websocket replay cursor.
-        let tip_tree = if self.checkpoint_reader.is_some() {
+        let tip_tree = if let Some(reader) = &self.checkpoint_reader {
             self.readiness.mark_waiting_for_first_message();
             let tree = submitter.restore_consensus_tree().await;
             // latestCheckpoint() underflows on a new, empty MerkleTreeHook.
-            // Wait through the existing finality-aware reader before starting
-            // independent checkpoint agreement for a newly deployed chain.
+            // Use the full endpoint pool so a stalled first endpoint cannot
+            // block startup when the configured agreement is available.
             if tree.count() == 0 {
-                wait_for_first_message(
-                    Arc::clone(&self.merkle_tree_hook),
+                wait_for_consensus_first_message(
+                    reader,
                     &self.reorg_period,
                     self.interval,
                     &self.readiness,
@@ -1795,6 +1823,60 @@ mod tests {
             readiness.snapshot().state,
             validator_server::ValidatorReadinessState::Ready
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn consensus_startup_recovers_after_empty_tree_and_unavailable_counts() {
+        let hooks = (0..2)
+            .map(|_| {
+                let mut hook = MockMerkleTreeHook::new();
+                let calls = AtomicUsize::new(0);
+                hook.expect_count().times(3).returning(move |_| {
+                    match calls.fetch_add(1, Ordering::SeqCst) {
+                        0 => Ok(0),
+                        1 => Err(hyperlane_core::ChainCommunicationError::from_other_str(
+                            "unavailable",
+                        )),
+                        _ => Ok(1),
+                    }
+                });
+                Arc::new(hook) as Arc<dyn MerkleTreeHook>
+            })
+            .collect();
+        let reader = CheckpointReader::new(
+            crate::checkpoint_consensus::CheckpointConsensus::Majority,
+            hooks,
+        )
+        .expect("endpoints");
+        let readiness = Arc::new(ValidatorReadiness::default());
+        let task = tokio::spawn({
+            let readiness = Arc::clone(&readiness);
+            async move {
+                wait_for_consensus_first_message(
+                    &reader,
+                    &ReorgPeriod::None,
+                    Duration::from_secs(5),
+                    &readiness,
+                )
+                .await;
+            }
+        });
+        tokio::task::yield_now().await;
+        assert_eq!(
+            readiness.snapshot().state,
+            validator_server::ValidatorReadinessState::WaitingForFirstMessage
+        );
+        tokio::time::advance(Duration::from_secs(5)).await;
+        tokio::task::yield_now().await;
+        assert!(readiness.snapshot().signing_blocked);
+        assert!(!task.is_finished());
+        tokio::time::advance(Duration::from_secs(5)).await;
+        task.await.expect("startup should resume");
+        assert_eq!(
+            readiness.snapshot().state,
+            validator_server::ValidatorReadinessState::Ready
+        );
+        assert!(readiness.snapshot().blocked_operations.is_empty());
     }
 
     #[test]
