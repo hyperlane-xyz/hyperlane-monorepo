@@ -695,8 +695,21 @@ impl BaseAgent for Validator {
         // Authenticate the snapshot before choosing the websocket replay cursor.
         let tip_tree = if self.checkpoint_reader.is_some() {
             self.readiness.mark_waiting_for_first_message();
+            let tree = submitter.restore_consensus_tree().await;
+            // latestCheckpoint() underflows on a new, empty MerkleTreeHook.
+            // Wait through the existing finality-aware reader before starting
+            // independent checkpoint agreement for a newly deployed chain.
+            if tree.count() == 0 {
+                wait_for_first_message(
+                    Arc::clone(&self.merkle_tree_hook),
+                    &self.reorg_period,
+                    self.interval,
+                    &self.readiness,
+                )
+                .await;
+            }
             IncrementalMerkleAtBlock {
-                tree: submitter.restore_consensus_tree().await,
+                tree,
                 block_height: None,
             }
         } else {
