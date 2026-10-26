@@ -23,14 +23,27 @@ pub fn decode_h256(base58: &str) -> Result<H256, HyperlaneSealevelError> {
 
 /// Converts exactly 32 bytes into a hash, returning `InvalidHashLength` otherwise.
 pub(crate) fn decode_h256_bytes(binary: &[u8]) -> Result<H256, HyperlaneSealevelError> {
-    let bytes: [u8; 32] = binary.try_into()?;
+    let bytes: [u8; 32] =
+        binary
+            .try_into()
+            .map_err(|_| HyperlaneSealevelError::InvalidHashLength {
+                expected: 32,
+                actual: binary.len(),
+            })?;
     Ok(H256::from(bytes))
 }
 
 /// Decodes a Base58 hash, rejecting invalid Base58 or a length other than 64 bytes.
 pub fn decode_h512(base58: &str) -> Result<H512, HyperlaneSealevelError> {
     let binary = from_base58(base58)?;
-    let bytes: [u8; 64] = binary.as_slice().try_into()?;
+    let bytes: [u8; 64] =
+        binary
+            .as_slice()
+            .try_into()
+            .map_err(|_| HyperlaneSealevelError::InvalidHashLength {
+                expected: 64,
+                actual: binary.len(),
+            })?;
     Ok(H512::from(bytes))
 }
 
@@ -97,20 +110,29 @@ mod test {
             let encoded = bs58::encode(&bytes).into_string();
             assert!(matches!(
                 decode_h256(&encoded),
-                Err(HyperlaneSealevelError::InvalidHashLength(_))
+                Err(HyperlaneSealevelError::InvalidHashLength { expected: 32, actual }) if actual == len
             ));
             assert!(matches!(
                 decode_h256_bytes(&bytes),
-                Err(HyperlaneSealevelError::InvalidHashLength(_))
+                Err(HyperlaneSealevelError::InvalidHashLength { expected: 32, actual }) if actual == len
             ));
         }
         for len in [0, 1, 32, 63, 65] {
             let encoded = bs58::encode(vec![0; len]).into_string();
             assert!(matches!(
                 decode_h512(&encoded),
-                Err(HyperlaneSealevelError::InvalidHashLength(_))
+                Err(HyperlaneSealevelError::InvalidHashLength { expected: 64, actual }) if actual == len
             ));
         }
+    }
+
+    #[test]
+    fn test_decode_hash_error_reports_lengths() {
+        let error = decode_h256_bytes(&[0; 20]).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "Invalid hash length: expected 32 bytes, got 20"
+        );
     }
 
     #[test]
