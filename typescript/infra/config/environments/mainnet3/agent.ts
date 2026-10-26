@@ -133,7 +133,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     plasma: true,
     polygon: true,
     pulsechain: true,
-    radix: false, // disabled — removed from agent operations per request
+    radix: true,
     robinhood: true,
     solanamainnet: true,
     solaxy: true,
@@ -205,7 +205,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     plasma: true,
     polygon: true,
     pulsechain: true,
-    radix: false, // disabled — removed from agent operations per request
+    radix: true,
     robinhood: true,
     solanamainnet: true,
     solaxy: true,
@@ -277,7 +277,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     plasma: true,
     polygon: true,
     pulsechain: true,
-    radix: false, // disabled — removed from agent operations per request
+    radix: true,
     robinhood: true,
     solanamainnet: true,
     solaxy: true,
