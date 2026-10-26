@@ -19,7 +19,7 @@ import {
 import { WarpRouteIds } from '../warpIds.js';
 
 import {
-  buildEthereumFastpathIsm,
+  buildFastpathIsm,
   getCollateralTokenConfigForChain,
   getEclipseWarpStrategyConfig,
   getFileSubmitterStrategyConfig,
@@ -64,6 +64,7 @@ export type DeploymentChain = keyof DeploymentChains<unknown>;
  * Features:
  * - CCTP V2 rebalancing bridges (Standard + Fast) on CCTP EVM chains (monad: Standard only)
  * - Routing fee: 1.5 bps for EVM-to-EVM transfers, 0 bps for EVM-to-SVM transfers
+ * - Fast Path validation for Ethereum, Base, and Arbitrum origins to EVM destinations
  */
 export const evmDeploymentChains = [
   'arc',
@@ -247,6 +248,8 @@ export interface EclipseUSDCWarpConfigOptions {
   proxyAdmins: ChainMap<{ address: string | undefined; owner: string }>;
   /** When set, fee contracts use OffchainQuotedLinearFee with these signers */
   quoteSigners?: string[];
+  /** Origins allowed to use Fast Path validation; defaults to Ethereum. */
+  fastpathOrigins?: readonly EvmChain[];
 }
 
 // Pairs on both CCTP V2 routes get the Standard and Fast bridges. monad is only
@@ -283,6 +286,7 @@ export const buildEclipseUSDCWarpConfig = async (
     tokenMetadata,
     proxyAdmins,
     quoteSigners,
+    fastpathOrigins = ['ethereum'],
   } = options;
 
   const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
@@ -352,6 +356,10 @@ export const buildEclipseUSDCWarpConfig = async (
             feeConfig,
           );
 
+      const remoteFastpathOrigins = fastpathOrigins.filter(
+        (origin) => origin !== currentChain,
+      );
+
       chainConfig = {
         ...baseConfig,
         ...tokenMetadata,
@@ -359,9 +367,10 @@ export const buildEclipseUSDCWarpConfig = async (
         tokenFee: feeConfig,
         scale: scaleConfig,
         contractVersion,
-        ...(currentChain !== 'ethereum' && {
-          interchainSecurityModule: buildEthereumFastpathIsm(
+        ...(remoteFastpathOrigins.length > 0 && {
+          interchainSecurityModule: buildFastpathIsm(
             ownersByChain[currentChain],
+            remoteFastpathOrigins,
           ),
         }),
       };
@@ -402,6 +411,7 @@ export const getEclipseUSDCWarpConfig = async (
       symbol: 'USDC',
     },
     quoteSigners: [QUOTE_SIGNER],
+    fastpathOrigins: ['arbitrum', 'base', 'ethereum'],
   });
 
 // Strategies
