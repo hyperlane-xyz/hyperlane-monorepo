@@ -82,8 +82,8 @@ impl CheckpointReader {
     /// Empty hooks must be detected with count() because latestCheckpoint() underflows.
     pub(crate) async fn has_messages(&self, period: &ReorgPeriod) -> ChainResult<bool> {
         let required = self.consensus.required(self.hooks.len());
-        let mut empty = 0;
-        let mut nonempty = 0;
+        let mut empty = 0usize;
+        let mut nonempty = 0usize;
         let mut counts = futures_util::stream::iter(
             self.hooks
                 .iter()
@@ -93,8 +93,8 @@ impl CheckpointReader {
         .boxed();
         while let Some(result) = counts.next().await {
             match result {
-                Ok(Ok(0)) => empty += 1,
-                Ok(Ok(_)) => nonempty += 1,
+                Ok(Ok(0)) => empty = empty.saturating_add(1),
+                Ok(Ok(_)) => nonempty = nonempty.saturating_add(1),
                 Ok(Err(_)) | Err(_) => continue,
             }
             if nonempty >= required {
