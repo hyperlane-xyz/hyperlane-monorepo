@@ -1,3 +1,4 @@
+use hyperlane_metric::utils::url_to_host_info;
 use std::future::Future;
 use std::ops::Deref;
 use std::time::{Duration, Instant};
@@ -12,6 +13,7 @@ use hyperlane_core::{ChainCommunicationError, ChainResult};
 use hyperlane_metric::prometheus_metric::{
     ChainInfo, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
+use redact::Secret;
 use reqwest_utils::parse_custom_rpc_headers;
 
 use super::types::{
@@ -32,7 +34,7 @@ pub struct TronHttpProvider {
 #[derive(Debug)]
 pub struct TronHttpChannel {
     client: Client,
-    base_url: Url,
+    base_url: Secret<Url>,
     metrics: PrometheusClientMetrics,
     config: PrometheusConfig,
 }
@@ -68,7 +70,7 @@ impl TronHttpChannel {
         metrics.increment_provider_instance(chain_name);
         Ok(Self {
             client,
-            base_url: clean_url,
+            base_url: Secret::new(clean_url),
             metrics,
             config,
         })
@@ -91,7 +93,7 @@ impl TronHttpChannel {
         path: &str,
         body: B,
     ) -> ChainResult<R> {
-        let mut url = self.base_url.clone();
+        let mut url = self.base_url.expose_secret().clone();
         let base_path = url.path().trim_end_matches('/').to_string();
         url.set_path(&format!("{base_path}{path}"));
         let resp = self
@@ -106,7 +108,7 @@ impl TronHttpChannel {
             let body = resp
                 .text()
                 .await
-                .unwrap_or_else(|e| format!("<failed to read response body: {e}>"));
+                .unwrap_or_else(|e| format!("<failed to read response body: {}>", e.without_url()));
             return Err(HyperlaneTronError::HttpResponseError {
                 status: status.as_u16(),
                 body,
@@ -153,6 +155,7 @@ impl TronHttpProvider {
     /// Create a new TronHttpProvider from a list of URLs
     pub fn new(
         urls: Vec<Url>,
+        pool: &'static str,
         metrics: PrometheusClientMetrics,
         chain: Option<ChainInfo>,
     ) -> ChainResult<Self> {
@@ -160,7 +163,11 @@ impl TronHttpProvider {
             .iter()
             .map(|url| TronHttpChannel::new(url, metrics.clone(), chain.clone()))
             .collect::<Result<Vec<_>, _>>()?;
-        let fallback = FallbackProvider::new(channels);
+        let fallback = FallbackProvider::new(channels).with_rpc_context(
+            PrometheusConfig::chain_name(&chain).to_owned(),
+            pool,
+            urls.iter().map(url_to_host_info).collect(),
+        );
         Ok(Self { fallback })
     }
 
@@ -261,5 +268,20 @@ impl Deref for TronHttpProvider {
     type Target = FallbackProvider<TronHttpChannel, TronHttpChannel>;
     fn deref(&self) -> &Self::Target {
         &self.fallback
+    }
+}
+
+#[cfg(test)]
+mod credential_tests {
+    use super::*;
+
+    #[test]
+    fn http_channel_debug_omits_endpoint_credentials() {
+        let url = Url::parse("https://user:private-password@localhost/private-path?key=private-query&custom_rpc_header=Authorization:Bearer%20private-header").unwrap();
+        let channel = TronHttpChannel::new(&url, Default::default(), None).unwrap();
+        let output = format!("{channel:?}");
+        assert!(!output.contains("private-"));
+        assert!(output.contains("[REDACTED"));
+        assert!(output.contains("metrics"));
     }
 }

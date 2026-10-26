@@ -38,7 +38,7 @@ impl StarknetProvider {
         chain: Option<ChainInfo>,
     ) -> ChainResult<Self> {
         let provider = JsonRpcClient::new(FallbackHttpTransport::new(
-            conf.urls.clone(),
+            conf.urls.expose_secret().clone(),
             metrics,
             chain,
         )?);

@@ -13,6 +13,9 @@ pub mod fmt;
 
 mod span_metrics;
 
+#[cfg(test)]
+mod credential_tests;
+
 /// Logging level. A "higher level" means more will be logged.
 #[derive(Default, Debug, Clone, Copy, serde::Deserialize, PartialOrd, Ord, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -84,33 +87,50 @@ impl TracingConfig {
             // Reduce log noise from trusted libraries that we can reasonably assume are working correctly
             target_layer = target_layer
                 .with_target("cometbft", Level::Warn)
-                .with_target("cometbft_rpc", Level::Warn)
-                .with_target("hyper::", Level::Info)
-                .with_target("hyper_util", Level::Warn)
-                .with_target("rusoto_core", Level::Info)
                 .with_target("rustls", Level::Info)
-                .with_target("reqwest", Level::Info)
                 .with_target("runtime", Level::Debug)
-                .with_target("h2::", Level::Info)
                 .with_target("tower", Level::Info)
                 .with_target("tendermint", Level::Info)
                 .with_target("tokio", Level::Debug)
                 // Enable Trace level for Tokio if you want to use tokio-console
                 // .with_target("tokio", Level::Trace)
-                .with_target("aws_sdk_s3", Level::Info)
-                .with_target("aws_smithy_runtime", Level::Info)
                 .with_target("ethers_providers", Level::Debug);
         }
 
         if self.level < Level::Trace {
             // only show sqlx query logs at trace level
-            target_layer = target_layer
-                .with_target("sqlx::query", Level::Warn)
-                .with_target("hyper::", Level::Warn);
+            target_layer = target_layer.with_target("sqlx::query", Level::Warn);
         }
-        // OAuth debug logs include cached bearer tokens. Keep this cap even in
-        // dependencyTrace mode, and never raise a quieter configured level.
-        target_layer.with_target("yup_oauth2", self.level.min(Level::Info))
+        // These dependencies log authentication headers, tokens, cookies, or
+        // RPC URLs or database connection options. Never enable these diagnostics,
+        // even in dependencyTrace mode, or raise a quieter configured level.
+        for target in [
+            "yup_oauth2",
+            "rusoto_core",
+            "rusoto_signature",
+            "aws_sigv4",
+            "aws_smithy_runtime",
+            "aws_smithy_runtime_api",
+            "aws_sdk_s3",
+            "cookie_store",
+            "tungstenite",
+            "reqwest::",
+            // Targets are prefix-matched: `hyper` would also suppress `hyperlane_*`.
+            "hyper::",
+            "hyper_util",
+            "h2::",
+            "solana_rpc_client",
+            "cometbft_rpc",
+            "tendermint_rpc",
+            "sea_orm::driver::sqlx_postgres",
+        ] {
+            target_layer = target_layer.with_target(target, self.level.min(Level::Info));
+        }
+        // SQLx warns with raw values for unrecognized database URL parameters.
+        target_layer.with_target(
+            "sqlx_postgres::options::parse",
+            LevelFilter::from(self.level).min(LevelFilter::ERROR),
+        )
     }
 }
 
@@ -119,7 +139,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn oauth_logs_never_enable_debug_even_with_dependency_trace() {
+    fn credential_sensitive_logs_stay_capped_at_every_level() {
         for level in [
             Level::Off,
             Level::Error,
@@ -134,16 +154,60 @@ mod tests {
                 ..Default::default()
             }
             .targets();
-            assert!(!targets.would_enable("yup_oauth2::authenticator", &tracing::Level::DEBUG));
-            assert!(!targets.would_enable("yup_oauth2::authenticator", &tracing::Level::TRACE));
-            assert_eq!(
-                targets.would_enable("yup_oauth2::authenticator", &tracing::Level::INFO),
-                level >= Level::Info
-            );
-            assert_eq!(
-                targets.would_enable("validator", &tracing::Level::DEBUG),
-                level >= Level::Debug
-            );
+            for target in [
+                "yup_oauth2::authenticator",
+                "rusoto_core::request",
+                "rusoto_signature::signature",
+                "aws_sigv4::http_request::sign",
+                "aws_smithy_runtime::client::orchestrator",
+                "aws_smithy_runtime_api::client",
+                "aws_sdk_s3::operation",
+                "cookie_store::cookie_store",
+                "tungstenite::handshake::client",
+                "tungstenite::client",
+                "reqwest::async_impl::client",
+                "hyper::proto::h1",
+                "hyper_util::client",
+                "h2::hpack::encoder",
+                "solana_rpc_client::http_sender",
+                "cometbft_rpc::client::transport::http",
+                "tendermint_rpc::client::transport::http",
+                "sea_orm::driver::sqlx_postgres",
+            ] {
+                assert!(!targets.would_enable(target, &tracing::Level::DEBUG));
+                assert!(!targets.would_enable(target, &tracing::Level::TRACE));
+                assert_eq!(
+                    targets.would_enable(target, &tracing::Level::INFO),
+                    level >= Level::Info
+                );
+                assert_eq!(
+                    targets.would_enable(target, &tracing::Level::ERROR),
+                    level >= Level::Error
+                );
+            }
+            assert!(!targets.would_enable("sqlx_postgres::options::parse", &tracing::Level::WARN));
+            for target in [
+                "validator",
+                "relayer",
+                "scraper",
+                "hyperlane_base::db::rocks::hyperlane_db",
+                "hyperlane_core::rpc_clients::fallback",
+                "hyperlane_ethereum::rpc_clients",
+                "reqwest_utils",
+                "reqwest_middleware::client",
+                "h2_custom::client",
+            ] {
+                assert_eq!(
+                    targets.would_enable(target, &tracing::Level::DEBUG),
+                    level >= Level::Debug,
+                    "application DEBUG logs must remain enabled for {target} at {level:?}"
+                );
+                assert_eq!(
+                    targets.would_enable(target, &tracing::Level::TRACE),
+                    level >= Level::Trace,
+                    "application TRACE logs must remain enabled for {target} at {level:?}"
+                );
+            }
         }
     }
 }

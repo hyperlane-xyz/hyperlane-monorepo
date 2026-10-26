@@ -8,6 +8,7 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
+redact.workspace = true
 async-trait.workspace = true
 console-subscriber.workspace = true
 derive_more.workspace = true
@@ -23,6 +24,7 @@ serde_json.workspace = true
 time.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tracing.workspace = true
+url.workspace = true
 
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["agent"] }

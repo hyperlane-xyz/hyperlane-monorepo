@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { it } from 'node:test';
 
 import { buildSchema, graphql, parse, validate } from 'graphql';
 
-import { sanitizeScraperDbSchema } from './schema.js';
+import { schema as source } from './schema.js';
 import {
   type MessageSelectArgs,
   ScraperDbService,
@@ -12,12 +11,7 @@ import {
 import { buildSelect, type SelectArgs } from './sql.js';
 import { scraperProxyValidationRule } from './validation.js';
 
-const source = readFileSync(
-  new URL('../graphql/scraperdb-schema.graphql', import.meta.url),
-  'utf8',
-);
-const sanitized = sanitizeScraperDbSchema(source);
-const schema = buildSchema(sanitized);
+const schema = buildSchema(source);
 
 void it('only exposes GraphQL queries', () => {
   assert(schema.getQueryType());
@@ -29,7 +23,7 @@ void it('only exposes GraphQL queries', () => {
 });
 
 void it('removes unsupported regex operators from the schema', () => {
-  assert(!sanitized.includes('_regex'));
+  assert(!source.includes('_regex'));
 });
 
 void it('bounds repeated fragment DAG validation work', () => {

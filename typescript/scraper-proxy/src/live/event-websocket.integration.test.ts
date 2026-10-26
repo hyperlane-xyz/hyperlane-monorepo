@@ -348,8 +348,7 @@ for (const route of ['agents', 'messages']) {
     const socket = new WebSocket(
       route === 'agents' ? url : `${messagesUrl}?blocks=true`,
     );
-    const messages: Record<string, unknown>[] = [];
-    socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+    const messages = captureMessages(socket);
     const publish = (
       domain: number,
       height: string,
@@ -454,8 +453,7 @@ void it('does not send block heads or query snapshots without opting in', async 
     throw new Error('Unexpected snapshot query');
   });
   const socket = new WebSocket(messagesUrl);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  const messages = captureMessages(socket);
   try {
     const ready = await waitFor(messages, 'ready');
     assert.deepEqual(ready.eventTypes, ['message_upsert']);
@@ -520,8 +518,7 @@ for (const kind of ['query', 'unavailable', 'delivery']) {
     const socket = new WebSocket(
       kind === 'query' ? `${messagesUrl}?confirmations=-1&domains=1` : url,
     );
-    const messages: Record<string, unknown>[] = [];
-    socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+    const messages = captureMessages(socket);
     const closed = new Promise<number>((resolve) =>
       socket.once('close', resolve),
     );
@@ -590,8 +587,7 @@ void it('acknowledges all subscriptions before canonical events or custom rollba
     },
   );
   const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  const messages = captureMessages(socket);
   try {
     await waitFor(messages, 'ready');
     socket.send(
@@ -800,8 +796,7 @@ for (const eventType of [
         ? `${messagesUrl}?confirmations=2&domains=1,2`
         : url,
     );
-    const messages: Record<string, unknown>[] = [];
-    socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+    const messages = captureMessages(socket);
     const advance = (
       headHeight: string,
       indexedHeight: string,
@@ -910,8 +905,7 @@ for (const supported of [true, false]) {
       },
     );
     const socket = new WebSocket(`${messagesUrl}?confirmations=2&domains=1,2`);
-    const messages: Record<string, unknown>[] = [];
-    socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+    const messages = captureMessages(socket);
     try {
       const ready = await waitFor(messages, 'ready');
       assert.deepEqual(ready.customDomains, supported ? [1] : []);
@@ -949,8 +943,7 @@ void it('normalizes legacy signed domains on the agent wire', async () => {
     merkle_tree_insertion: '9004',
   } as const;
   const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  const messages = captureMessages(socket);
 
   try {
     await waitFor(messages, 'ready');
@@ -1108,8 +1101,7 @@ void it('queries high gas payment domains using the legacy signed representation
     origin: signedDomain,
   });
   const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  const messages = captureMessages(socket);
 
   try {
     await waitFor(messages, 'ready');
@@ -1189,8 +1181,7 @@ void it('accepts fleet-sized agent subscriptions without raising the Explorer pa
 
   const payloadUrl = `ws://127.0.0.1:${address.port}`;
   const agent = new WebSocket(`${payloadUrl}/agents`);
-  const agentMessages: Record<string, unknown>[] = [];
-  agent.on('message', (data) => agentMessages.push(parseRecord(rawData(data))));
+  const agentMessages = captureMessages(agent);
   const explorer = new WebSocket(`${payloadUrl}/messages`, {
     headers: { 'cf-connecting-ip': '203.0.113.100' },
   });
@@ -1659,8 +1650,7 @@ void it('publishes every frontier projection without exposing pagination columns
   ] as const;
   for (const fixture of fixtures) {
     const socket = new WebSocket(url);
-    const messages: Record<string, unknown>[] = [];
-    socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+    const messages = captureMessages(socket);
     try {
       await waitFor(messages, 'ready');
       socket.send(
@@ -1694,8 +1684,7 @@ void it('publishes every frontier projection without exposing pagination columns
 
 void it('fails a frontier instead of inventing a missing gas cursor', async () => {
   const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  const messages = captureMessages(socket);
   try {
     await waitFor(messages, 'ready');
     socket.send(
@@ -1729,8 +1718,7 @@ void it('fails a frontier instead of inventing a missing gas cursor', async () =
 
 void it('retries a frontier until its rows can be loaded', async () => {
   const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  const messages = captureMessages(socket);
   try {
     await waitFor(messages, 'ready');
     socket.send(
@@ -1765,8 +1753,7 @@ void it('retries a frontier until its rows can be loaded', async () => {
 
 void it('keeps one failing frontier from blocking another domain', async () => {
   const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  const messages = captureMessages(socket);
   try {
     await waitFor(messages, 'ready');
     socket.send(
@@ -2063,8 +2050,7 @@ void it('keeps gas cursor boundaries specific to each subscriber', async () => {
   gasPaymentRows.set('14', payment);
   const sockets = [new WebSocket(url), new WebSocket(url)];
   const received = sockets.map((socket) => {
-    const messages: Record<string, unknown>[] = [];
-    socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+    const messages = captureMessages(socket);
     return messages;
   });
   try {
@@ -2930,8 +2916,7 @@ void it('only emits addresses named by sequence cursors', async () => {
 
 void it('emits normalized message upserts to Explorer', async () => {
   const socket = new WebSocket(messagesUrl);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  const messages = captureMessages(socket);
   await waitFor(messages, 'ready');
   notify(
     'scraper_explorer_event',
@@ -3241,8 +3226,7 @@ void it('keeps fast Explorer clients independent from a stalled client', async (
 void it('paces a full Explorer notification batch one send at a time', async (context) => {
   const completions = delayServerSendCompletions(context);
   const socket = new WebSocket(messagesUrl);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  const messages = captureMessages(socket);
   try {
     await waitFor(messages, 'ready');
     const batchesBefore = explorerBatchSizes.length;
@@ -3257,6 +3241,14 @@ void it('paces a full Explorer notification batch one send at a time', async (co
       );
     }
     await waitUntil(() => completions.length === 1);
+    await waitUntil(() =>
+      messages.some(({ type }) => type === 'message_upsert'),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    assert.equal(
+      messages.filter(({ type }) => type === 'message_upsert').length,
+      1,
+    );
     for (let sent = 1; sent <= messageIds.length; sent++) {
       assert.equal(completions.length, 1);
       completions.shift()?.();
@@ -3272,8 +3264,8 @@ void it('paces a full Explorer notification batch one send at a time', async (co
     );
     const upserts = messages.filter(({ type }) => type === 'message_upsert');
     assert.deepEqual(
-      new Set(upserts.map(({ data }) => record(data).msg_id)),
-      new Set(messageIds),
+      upserts.map(({ data }) => record(data).msg_id),
+      messageIds,
     );
     assert.equal(events.metricsSnapshot().explorerPendingBytes, 0);
     assert.equal(events.metricsSnapshot().outboundPendingBytes, 0);
@@ -3293,12 +3285,10 @@ void it('paces a full Explorer notification batch one send at a time', async (co
 
 void it('sheds only an Explorer client that exceeds its queue limit', async (context) => {
   const slow = new WebSocket(messagesUrl);
-  const slowMessages: Record<string, unknown>[] = [];
-  slow.on('message', (data) => slowMessages.push(parseRecord(rawData(data))));
+  const slowMessages = captureMessages(slow);
   await waitFor(slowMessages, 'ready');
   const fast = new WebSocket(messagesUrl);
-  const fastMessages: Record<string, unknown>[] = [];
-  fast.on('message', (data) => fastMessages.push(parseRecord(rawData(data))));
+  const fastMessages = captureMessages(fast);
   await waitFor(fastMessages, 'ready');
   const completions = delayFirstExplorerSocket(context);
 
@@ -3337,53 +3327,9 @@ void it('sheds only an Explorer client that exceeds its queue limit', async (con
   }
 });
 
-void it('paces Explorer batches by send completion', async (context) => {
-  const socket = new WebSocket(messagesUrl);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
-  await waitFor(messages, 'ready');
-  const completions = delayServerSendCompletions(context);
-  const messageIds = [`\\x${'02'.repeat(32)}`, `\\x${'03'.repeat(32)}`];
-
-  try {
-    for (const messageId of messageIds) {
-      notify(
-        'scraper_explorer_event',
-        JSON.stringify({ messageId: messageId.slice(2) }),
-      );
-    }
-    const upserts = (): Record<string, unknown>[] =>
-      messages.filter(({ type }) => type === 'message_upsert');
-
-    await waitUntil(() => upserts().length === 1 && completions.length === 1);
-    await new Promise((resolve) => setTimeout(resolve, 25));
-    assert.equal(upserts().length, 1);
-    assert.equal(socket.readyState, WebSocket.OPEN);
-
-    completions.shift()?.();
-    await waitUntil(() => upserts().length === 2 && completions.length === 1);
-    assert.deepEqual(
-      upserts().map(({ data }) => record(data).msg_id),
-      messageIds,
-    );
-    assert.equal(socket.readyState, WebSocket.OPEN);
-    completions.shift()?.();
-  } finally {
-    for (const complete of completions.splice(0)) complete();
-    if (socket.readyState !== WebSocket.CLOSED) {
-      const closed = new Promise<void>((resolve) =>
-        socket.once('close', () => resolve()),
-      );
-      socket.close();
-      await closed;
-    }
-  }
-});
-
 void it('releases a peer-closed Explorer queue immediately', async (context) => {
   const socket = new WebSocket(messagesUrl);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  const messages = captureMessages(socket);
   await waitFor(messages, 'ready');
   const completions = delayServerSendCompletions(context);
   for (const byte of ['04', '05']) {
@@ -3473,8 +3419,7 @@ void it('broadcasts UTF-8 text with byte-accurate queue accounting', async (cont
 
 void it('reports an active send failure once', async (context) => {
   const socket = new WebSocket(messagesUrl);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  const messages = captureMessages(socket);
   await waitFor(messages, 'ready');
   const completions = delayServerSendCompletions(context);
   const failuresBefore = await sendFailureCount();
@@ -3492,6 +3437,79 @@ void it('reports an active send failure once', async (context) => {
   } finally {
     for (const complete of completions.splice(0)) complete();
     if (socket.readyState !== WebSocket.CLOSED) socket.terminate();
+  }
+});
+
+void it('abandons an in-flight head range while listener shutdown is pending', async () => {
+  let releaseRead = () => {};
+  const read = new Promise<void>((resolve) => {
+    releaseRead = resolve;
+  });
+  let releaseListener = () => {};
+  const listener = new Promise<void>((resolve) => {
+    releaseListener = resolve;
+  });
+  let headNotify: (channel: string, payload?: string) => void = () =>
+    assert.fail('listener not connected');
+  let reads = 0;
+  const stoppingDb: EventDatabase = {
+    async listen(_channels, handler) {
+      headNotify = handler;
+      return () => listener;
+    },
+    async queryLive<T extends QueryResultRow>() {
+      if (++reads > 1) return [];
+      await read;
+      return queryRows<T>([
+        { frontier_id: '1', frontier_height: '10', msg_id: msgId },
+      ]);
+    },
+  };
+  const stoppingHttp = createServer();
+  const { EventWebSocketServer } = await import('./event-websocket.js');
+  const stoppingEvents = new EventWebSocketServer(stoppingDb);
+  await new Promise<void>((resolve) =>
+    stoppingHttp.listen(0, '127.0.0.1', resolve),
+  );
+  await stoppingEvents.start(stoppingHttp);
+  const address = stoppingHttp.address();
+  assert(address && typeof address !== 'string');
+  const socket = new WebSocket(`ws://127.0.0.1:${address.port}/messages`);
+  const messages = captureMessages(socket);
+  let stopped: Promise<void> | undefined;
+  try {
+    await waitFor(messages, 'ready');
+    headNotify(
+      'scraper_head',
+      JSON.stringify({
+        domain: 1,
+        previousConfirmedHeight: '9',
+        confirmedHeight: '10',
+      }),
+    );
+    await waitUntil(() => reads === 1);
+    stopped = stoppingEvents.stop();
+    releaseRead();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(
+      stoppingEvents.metricsSnapshot().notificationQueue.messages,
+      0,
+    );
+    assert.equal(reads, 1, 'shutdown must not read the rest of the range');
+    releaseListener();
+    await stopped;
+    assert.equal(
+      messages.filter(({ type }) => type === 'message_upsert').length,
+      0,
+    );
+  } finally {
+    releaseRead();
+    releaseListener();
+    socket.terminate();
+    await (stopped ?? stoppingEvents.stop());
+    await new Promise<void>((resolve, reject) =>
+      stoppingHttp.close((error) => (error ? reject(error) : resolve())),
+    );
   }
 });
 
@@ -3520,8 +3538,7 @@ void it('does not report heartbeat cleanup as a send failure', async (context) =
   const socket = new WebSocket(`ws://127.0.0.1:${address.port}/messages`, {
     autoPong: false,
   });
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  const messages = captureMessages(socket);
   const failuresBefore = await sendFailureCount();
 
   try {
@@ -3856,4 +3873,10 @@ function stringArray(value: unknown): string[] {
 function queryRows<T extends QueryResultRow>(rows: QueryResultRow[]): T[] {
   // CAST: This SQL-aware fake returns the row shape requested by each known query.
   return rows as T[];
+}
+
+function captureMessages(socket: WebSocket): Record<string, unknown>[] {
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  return messages;
 }

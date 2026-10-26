@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-// Importing the websocket module validates config; these tests never connect.
 process.env.DATABASE_URL ??= 'postgres://localhost/scraper_sql_test';
 const { gasPaymentColumns, gasPaymentMetadataJoins } =
-  await import('./event-websocket.js');
+  await import('./event-store.js');
 
 void describe('gas payment SQL helpers', () => {
   void it('uses recorded log metadata before receipt enrichment and preserves legacy aliases', () => {
@@ -22,17 +21,9 @@ void describe('gas payment SQL helpers', () => {
     );
   });
 
-  void it('uses inner joins by default', () => {
-    assert.equal(
-      gasPaymentMetadataJoins(),
-      ' INNER JOIN "transaction" AS "event_transaction" ON "event_transaction"."id" = "event_row"."tx_id"' +
-        ' INNER JOIN "block" AS "event_block" ON "event_block"."id" = "event_transaction"."block_id"',
-    );
-  });
-
   void it('uses left joins for both optional metadata relations', () => {
     assert.equal(
-      gasPaymentMetadataJoins('LEFT JOIN'),
+      gasPaymentMetadataJoins(),
       ' LEFT JOIN "transaction" AS "event_transaction" ON "event_transaction"."id" = "event_row"."tx_id"' +
         ' LEFT JOIN "block" AS "event_block" ON "event_block"."id" = "event_transaction"."block_id"',
     );

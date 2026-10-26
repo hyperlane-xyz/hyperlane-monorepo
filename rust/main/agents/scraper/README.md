@@ -38,7 +38,7 @@ Start reading at `main.rs` → `agent.rs` → `near_head::spawn`. The worker's
 Events are first stored near head, then published through confirmed views after
 `reorgPeriod` and completeness checks. Reorgs can rewind the provisional suffix;
 conflicts with confirmed history halt the chain. Receipt enrichment runs independently.
-Dispatch reconciliation discovers confirmed rows every 30 seconds and periodically
+Dispatch reconciliation discovers confirmed rows every 5 seconds and periodically
 sweeps older rows to recover from commit-order races and delayed message bodies.
 
 ## Local development

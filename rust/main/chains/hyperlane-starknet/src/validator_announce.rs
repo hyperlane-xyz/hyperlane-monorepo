@@ -28,17 +28,28 @@ where
     A: starknet::accounts::ConnectedAccount + Sync + std::fmt::Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{self:?}")
+        write!(f, "StarknetValidatorAnnounce({:?})", self.address)
     }
 }
 
 /// A reference to a ValidatorAnnounce contract on some Starknet chain
-#[derive(Debug)]
 #[allow(unused)]
 pub struct StarknetValidatorAnnounce {
     contract: StarknetValidatorAnnounceInternal<SingleOwnerAccount<JsonProvider, LocalWallet>>,
     provider: StarknetProvider,
     conn: ConnectionConf,
+}
+
+impl std::fmt::Debug for StarknetValidatorAnnounce {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StarknetValidatorAnnounce")
+            .field("address", &self.contract.address)
+            .field("domain", self.provider.domain())
+            .field("account_address", &self.contract.account.address())
+            .field("chain_id", &self.contract.account.chain_id())
+            .field("conn", &self.conn)
+            .finish_non_exhaustive()
+    }
 }
 
 impl StarknetValidatorAnnounce {
@@ -182,5 +193,29 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
         let contract_call = self.announce_contract_call(announcement).await?;
         send_and_confirm(self.provider.rpc_client(), contract_call).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn debug_and_display_omit_signing_key_and_rpc_credentials() {
+        let (conn, provider, account) = crate::utils::signing_test_fixture();
+        let announce = StarknetValidatorAnnounce {
+            contract: StarknetValidatorAnnounceInternal::new(Felt::ONE, account),
+            provider,
+            conn,
+        };
+        let debug = format!("{announce:?}");
+        assert!(debug.contains("account_address:"));
+        assert!(debug.contains("chain_id:"));
+        assert!(debug.contains("op_submission_config:"));
+        for output in [format!("{announce:?}"), format!("{}", announce.contract)] {
+            assert!(!output.contains("secret_scalar"));
+            assert!(!output.contains("deadbeef"));
+            assert!(!output.contains("private-"));
+        }
     }
 }

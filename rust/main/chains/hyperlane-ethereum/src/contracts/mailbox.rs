@@ -937,7 +937,7 @@ mod test {
         let provider = Arc::new(Provider::new(mock_provider.clone()));
         let connection_conf = ConnectionConf {
             rpc_connection: RpcConnectionConf::Http {
-                url: "http://127.0.0.1:8545".parse().unwrap(),
+                url: "http://127.0.0.1:8545".parse::<url::Url>().unwrap().into(),
             },
             transaction_overrides: Default::default(),
             op_submission_config: Default::default(),
@@ -984,10 +984,13 @@ mod test {
             ordinary.conn.transaction_overrides.gas_price = Some(1.into());
             protected.conn.transaction_overrides.gas_price = Some(1.into());
             protected.conn.rpc_connection = RpcConnectionConf::Http {
-                url: "https://protected.example/private-key".parse().unwrap(),
+                url: "https://protected.example/private-key"
+                    .parse::<url::Url>()
+                    .unwrap()
+                    .into(),
             };
             ordinary.conn.mev_submission = Some(MevSubmissionConfig {
-                rpc_urls: vec!["https://protected.example/private-key".parse().unwrap()],
+                rpc_urls: vec!["https://protected.example/private-key".parse().unwrap()].into(),
                 ica_router: H256::zero(),
                 additional_ica_routers: vec![H256::from_low_u64_be(3)],
             });

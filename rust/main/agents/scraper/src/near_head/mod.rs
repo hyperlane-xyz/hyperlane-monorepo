@@ -112,14 +112,7 @@ pub async fn spawn(
     let period = conf.reorg_period.clone();
     ensure!(conf.index.chunk_size > 0, "index.chunk must be positive");
     let chunk_size = u64::from(conf.index.chunk_size);
-    // Preserve the configured sequence cadence and the 30-second block polling default.
-    let poll_interval = conf.index.configured_interval.unwrap_or_else(|| {
-        if source.indexes_by_sequence() {
-            conf.index.idle_sleep_duration
-        } else {
-            Duration::from_secs(30)
-        }
-    });
+    let poll_interval = conf.index.idle_sleep_duration;
     prepare(
         source.as_ref(),
         &store,

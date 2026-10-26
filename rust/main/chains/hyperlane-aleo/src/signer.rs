@@ -1,4 +1,5 @@
 use hyperlane_core::{ChainResult, H256};
+use redact::Secret;
 use snarkvm::prelude::{Address, ComputeKey, FromBytes, Network, PrivateKey};
 
 use crate::{utils::to_h256, CurrentNetwork, HyperlaneAleoError};
@@ -9,23 +10,13 @@ fn bytes_to_private_key<N: Network>(bytes: &[u8]) -> ChainResult<PrivateKey<N>> 
 }
 
 /// Aleo Signer
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AleoSigner {
-    private_key: Vec<u8>,
+    private_key: Secret<Vec<u8>>,
     /// bech32 encoded address
     encoded_address: String,
     /// H256 representation of the address
     address_h256: H256,
-}
-
-/// Manual `Debug` so the private key never reaches logs.
-impl std::fmt::Debug for AleoSigner {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AleoSigner")
-            .field("encoded_address", &self.encoded_address)
-            .field("address_h256", &self.address_h256)
-            .finish_non_exhaustive()
-    }
 }
 
 impl AleoSigner {
@@ -38,7 +29,7 @@ impl AleoSigner {
         let address = Address::try_from(&compute_key).map_err(HyperlaneAleoError::from)?;
 
         Ok(Self {
-            private_key: bytes.to_vec(),
+            private_key: Secret::new(bytes.to_vec()),
             encoded_address: address.to_string(),
             address_h256: to_h256(address)?,
         })
@@ -46,7 +37,7 @@ impl AleoSigner {
 
     /// Returns the Aleo Private key instance
     pub fn get_private_key<N: Network>(&self) -> ChainResult<PrivateKey<N>> {
-        bytes_to_private_key::<N>(&self.private_key)
+        bytes_to_private_key::<N>(self.private_key.expose_secret())
     }
 
     /// Returns the corresponding Address as string formatted
@@ -86,8 +77,8 @@ mod tests {
         let bytes = private_key.to_bytes_le().unwrap();
         let signer = AleoSigner::new(&bytes).unwrap();
         let debug = format!("{signer:?}");
-        assert!(!debug.contains(&format!("{:?}", signer.private_key)));
-        assert!(!debug.contains("private_key"));
+        assert!(!debug.contains(&format!("{bytes:?}")));
+        assert!(debug.contains("[REDACTED"));
     }
 
     #[test]

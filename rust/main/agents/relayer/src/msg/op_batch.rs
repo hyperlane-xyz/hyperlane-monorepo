@@ -346,7 +346,8 @@ mod tests {
                         "https://endpoints.omniatech.io/v1/arbitrum/one/public"
                             .parse()
                             .unwrap(),
-                    ],
+                    ]
+                    .into(),
                 },
                 transaction_overrides: Default::default(),
                 op_submission_config: OpSubmissionConfig {

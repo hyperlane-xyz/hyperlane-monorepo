@@ -43,12 +43,12 @@ void describe('scraper database SQL', () => {
   });
 
   void it('builds cursor ordering and windowed counts', () => {
-    const select = buildSelect('raw_message_dispatch', {
-      cursor: [{ initial_value: { nonce: 10 }, ordering: 'DESC' }],
+    const select = buildSelect('message_view', {
+      cursor: [{ initial_value: { id: 10 }, ordering: 'DESC' }],
     });
     assert.match(
       select.sql,
-      /WHERE \("nonce" < \$1\) ORDER BY "nonce" DESC LIMIT \$2$/,
+      /WHERE \("id" < \$1\) ORDER BY "id" DESC LIMIT \$2$/,
     );
     assert.deepEqual(select.values, [10, 500]);
 
@@ -171,11 +171,6 @@ void describe('scraper database SQL', () => {
         }),
       /cursor value must be non-null/,
     );
-    assert.doesNotThrow(() =>
-      buildSelect('domain', {
-        cursor: [{ initial_value: { id: 1, name: 'ethereum' } }],
-      }),
-    );
     assert.throws(
       () =>
         buildSelect('domain', { where: { id: { _in: Array(201).fill(1) } } }),
@@ -184,6 +179,26 @@ void describe('scraper database SQL', () => {
     assert.throws(
       () => buildSelect('domain', { where: { id: { _contains: 'x' } } }),
       /Unsupported comparison operator/,
+    );
+  });
+
+  void it('bounds predicate depth and work even when an empty OR would match everything', () => {
+    const predicate = { id: { _eq: 1 } };
+    let nested: Record<string, unknown> = predicate;
+    for (let depth = 0; depth < 8; depth++) nested = { _not: nested };
+    assert.doesNotThrow(() => buildSelect('domain', { where: nested }));
+    assert.throws(
+      () => buildSelect('domain', { where: { _not: nested } }),
+      /maximum depth/,
+    );
+
+    const predicates = Array.from({ length: 50 }, () => predicate);
+    assert.doesNotThrow(() =>
+      buildSelect('domain', { where: { _and: predicates } }),
+    );
+    assert.throws(
+      () => buildSelect('domain', { where: { _or: [{}, ...predicates] } }),
+      /maximum of 100 predicates/,
     );
   });
 

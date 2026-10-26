@@ -1,5 +1,6 @@
 import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
+import { existsSync } from 'fs';
 import { basename, dirname, join } from 'path';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
@@ -23,7 +24,11 @@ import type {
 import type { DeployEnvironment } from '../config/deploy-environment.js';
 import { getAWValidatorsPath } from '../paths.js';
 import { Role } from '../roles.js';
-import { fetchGCPSecret, setGCPSecretUsingClient } from '../utils/gcloud.js';
+import {
+  fetchGCPSecret,
+  isSecretNotFoundError,
+  setGCPSecretUsingClient,
+} from '../utils/gcloud.js';
 import {
   execCmd,
   getInfraPath,
@@ -63,12 +68,8 @@ function isKeyAsAddressArray(value: unknown): value is KeyAsAddress[] {
   );
 }
 
-function isSecretNotFoundError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /not[_\s]?found/i.test(message);
-}
-
 const CONFIG_DIRECTORY_PATH = join(getInfraPath(), 'config');
+let validatorAddressPersistenceQueue: Promise<void> = Promise.resolve();
 
 // ==================
 // Functions for getting keys
@@ -521,6 +522,42 @@ async function persistAddresses(
   return;
 }
 
+/** Serializes address updates from parallel validators, preserving untouched chains and roles. */
+export function persistProvisionedValidatorAddresses(
+  agentConfig: RootAgentConfig,
+  chain: ChainName,
+  keys: CloudAgentKey[],
+): Promise<void> {
+  const persist = async () => {
+    const filePath = getAWValidatorsPath(
+      agentConfig.runEnv,
+      agentConfig.context,
+    );
+    const existing: ChainMap<{ validators: Address[] }> = existsSync(filePath)
+      ? readJsonFromDir(dirname(filePath), basename(filePath))
+      : {};
+    const validators = keys
+      .filter((key) => key instanceof AgentGcpKmsKey)
+      .map((key) => key.address);
+    await persistValidatorAddressesToLocalArtifacts(
+      agentConfig.runEnv,
+      agentConfig.context,
+      { ...existing, [chain]: { validators } },
+    );
+    await persistAddressesInGcp(
+      agentConfig.runEnv,
+      agentConfig.context,
+      keys.map((key) => key.serializeAsAddress()),
+    );
+  };
+  // A failed write still reaches its caller; allow sibling deployments to persist.
+  validatorAddressPersistenceQueue = validatorAddressPersistenceQueue.then(
+    persist,
+    persist,
+  );
+  return validatorAddressPersistenceQueue;
+}
+
 async function agentKeysToBeCreated(
   agentConfig: RootAgentConfig,
   deployedRoles?: Role[],
@@ -787,7 +824,7 @@ export async function persistValidatorAddressesToLocalArtifacts(
   fetchedValidatorAddresses: ChainMap<{ validators: Address[] }>,
 ) {
   // Write the updated object back to the file
-  writeAndFormatJsonAtPath(
+  await writeAndFormatJsonAtPath(
     getAWValidatorsPath(environment, context),
     fetchedValidatorAddresses,
   );

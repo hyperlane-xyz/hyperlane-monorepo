@@ -82,7 +82,7 @@ boundary from stored maxima. Contract changes are rejected.
   Generic adapters preserve provider transaction and log positions. The
   provisional database key includes both positions and the event identity so
   protocols without a globally unique log index remain collision-safe.
-- Polling uses `index.interval`, with the legacy range cursor's 30-second default.
+- Polling uses `index.interval`, defaulting to 5 seconds on every protocol.
   An unchanged EVM head costs one RPC call and no log query. Generic adapters
   read chain metrics and then the latest block header, so an unchanged non-EVM
   head normally costs two provider calls. Catch-up ranges run
@@ -135,7 +135,7 @@ boundary from stored maxima. Contract changes are rejected.
 - The CCR indexer is capped at the near-head confirmed frontier and stops on a
   persistent halt, preventing auxiliary writes into the provisional suffix.
 - Near-head dispatch reconciliation starts immediately and discovers newly
-  confirmed dispatches every 30 seconds, rather than the legacy five-minute
+  confirmed dispatches every 5 seconds, rather than the legacy five-minute
   fallback cadence.
 - Confirmation does not wait for receipt enrichment. Gas/delivery transaction
   metadata is filled in by independent gas and delivery loops. Each page contains

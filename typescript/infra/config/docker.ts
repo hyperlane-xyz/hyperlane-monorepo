@@ -46,10 +46,10 @@ export const mainnetDockerTags: MainnetDockerTags = {
   relayer: '1467e4c-20261022-004453',
   relayerRC: '1467e4c-20261022-004453',
   relayerFastPath: '1467e4c-20261022-004453',
-  validator: '524aac0-20260925-195006',
-  validatorRC: '524aac0-20260925-195006',
-  validatorFastPath: '524aac0-20260925-195006',
-  scraper: 'c776083-20261009-082029',
+  validator: '211801c-20261022-150937',
+  validatorRC: '211801c-20261022-150937',
+  validatorFastPath: '211801c-20261022-150937',
+  scraper: 'a717804-20261023-074850',
   // monorepo services
   checkWarpDeploy: 'main',
   validatorMonitor: '957cb09-20261021-152517',
@@ -57,7 +57,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   keyFunder: '957cb09-20261021-152528',
   warpMonitor: '957cb09-20261021-152528',
   rebalancer: '957cb09-20261021-152528',
-  scraperProxy: '957cb09-20261021-152528',
+  scraperProxy: '8160041-20261022-172207',
   feeQuoting: '12d899d-20260325-184337',
 };
 
@@ -66,11 +66,11 @@ export const testnetDockerTags: BaseDockerTags = {
   relayer: '1467e4c-20261022-004453',
   relayerRC: '1467e4c-20261022-004453',
   relayerFastPath: '1467e4c-20261022-004453',
-  validator: '524aac0-20260925-195006',
-  validatorRC: '524aac0-20260925-195006',
-  validatorFastPath: '524aac0-20260925-195006',
-  scraper: 'c776083-20261009-082029',
+  validator: '211801c-20261022-150937',
+  validatorRC: '211801c-20261022-150937',
+  validatorFastPath: '211801c-20261022-150937',
+  scraper: 'a717804-20261023-074850',
   // standalone services
   keyFunder: '957cb09-20261021-152528',
-  scraperProxy: '957cb09-20261021-152528',
+  scraperProxy: '8160041-20261022-172207',
 };

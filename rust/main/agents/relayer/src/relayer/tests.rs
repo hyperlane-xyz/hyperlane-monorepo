@@ -101,7 +101,7 @@ fn generate_test_chain_conf(
         addresses: generate_test_core_contract_addresses(),
         connection: ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
             rpc_connection: h_eth::RpcConnectionConf::Http {
-                url: Url::parse(rpc).unwrap(),
+                url: Url::parse(rpc).unwrap().into(),
             },
             transaction_overrides: h_eth::TransactionOverrides {
                 gas_price: None,
@@ -401,7 +401,7 @@ async fn invalid_destination_identity_fails_without_retries_or_rpc() {
         &format!("http://{}", rpc.local_addr().unwrap()),
     );
     chain.identity = Some(SignerConf::HexKey {
-        key: H256::from_low_u64_be(1),
+        key: H256::from_low_u64_be(1).into(),
     });
     let settings = generate_test_relayer_settings(
         temp_dir.path(),
@@ -765,7 +765,9 @@ async fn test_from_settings_and_run_bad_signer() {
         "arbitrum".to_string(),
         generate_test_chain_conf(
             HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-            Some(SignerConf::HexKey { key: H256::zero() }),
+            Some(SignerConf::HexKey {
+                key: H256::zero().into(),
+            }),
             // these urls are not expected to be live
             "http://localhost:8545",
         ),

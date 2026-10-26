@@ -18,8 +18,12 @@ export function printPreflightSummaryTable(
   );
 
   const headers = ['Release'];
+  const hasResourceChanges = diffs.some(
+    ({ diff }) => (diff.resourceChanges?.length ?? 0) > 0,
+  );
   if (hasAnyChainChanges) headers.push('Chain Changes');
   headers.push('Image Changes');
+  if (hasResourceChanges) headers.push('Cloud Resource Changes');
 
   const table = new Table({
     head: headers.map((h) => chalk.white(h)),
@@ -57,6 +61,13 @@ export function printPreflightSummaryTable(
       imageChanges = `${chalk.red(`-${diff.imageDiff.currentTag}`)}\n${chalk.green(`+${diff.imageDiff.newTag}`)}`;
     }
     row.push(imageChanges);
+    if (hasResourceChanges) {
+      row.push(
+        diff.resourceChanges?.length
+          ? diff.resourceChanges.join('\n')
+          : chalk.dim('(none)'),
+      );
+    }
 
     table.push(row);
   }

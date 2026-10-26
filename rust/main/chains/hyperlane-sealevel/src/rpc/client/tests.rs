@@ -19,6 +19,17 @@ use crate::log_meta_composer::{
 };
 use crate::utils::{decode_h512, decode_pubkey};
 
+#[test]
+fn debug_preserves_commitment_and_endpoint_identity_without_credentials() {
+    let client = SealevelRpcClient::new("http://localhost/private-path?key=private-query".into())
+        .with_max_supported_transaction_version(1);
+    let debug = format!("{client:?}");
+    assert!(!debug.contains("private-"));
+    assert!(debug.contains("localhost:80"));
+    assert!(debug.contains("commitment: CommitmentConfig { commitment: Processed }"));
+    assert!(debug.contains("max_supported_transaction_version: 1"));
+}
+
 // Assert the actual serialized requests, not just the config helper.
 struct ReadSender {
     request: RpcRequest,

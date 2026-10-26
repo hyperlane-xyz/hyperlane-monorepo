@@ -7,7 +7,10 @@ edition = { workspace = true }
 homepage = { workspace = true }
 license-file = { workspace = true }
 publish = { workspace = true }
-version = { workspace = true }
+# Linked into Sealevel programs: the crate version feeds Rust symbol disambiguators,
+# so inheriting the agent release version would change embedded program ELFs.
+# Only change this together with `program:generate` in typescript/svm-sdk.
+version = "2.3.0"
 
 [dependencies]
 async-trait.workspace = true
@@ -56,6 +59,7 @@ hyperlane-application = { path = "../applications/hyperlane-application" }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
+tracing-test.workspace = true
 
 [features]
 default = ["strum"]

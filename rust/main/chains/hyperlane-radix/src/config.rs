@@ -1,3 +1,4 @@
+use redact::Secret;
 use std::str::FromStr;
 
 use scrypto::network::NetworkDefinition;
@@ -7,9 +8,9 @@ use url::Url;
 #[derive(Clone, Debug)]
 pub struct ConnectionConf {
     /// Core API endpoint
-    pub core: Vec<Url>,
+    pub core: Secret<Vec<Url>>,
     /// Gateway API endpoint
-    pub gateway: Vec<Url>,
+    pub gateway: Secret<Vec<Url>>,
     /// Network definitions
     pub network: NetworkDefinition,
 }
@@ -23,8 +24,8 @@ impl ConnectionConf {
         };
 
         Self {
-            core,
-            gateway,
+            core: Secret::new(core),
+            gateway: Secret::new(gateway),
             network,
         }
     }

@@ -1,3 +1,4 @@
+use hyperlane_metric::utils::url_to_host_info;
 use std::{error::Error, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
@@ -98,6 +99,7 @@ impl<C: AleoClient> FallbackHttpClient<C> {
         retry_policy: RetryPolicy,
         call_timeout: Option<Duration>,
     ) -> ChainResult<Self> {
+        let hosts = urls.iter().map(url_to_host_info).collect();
         let clients = urls
             .into_iter()
             .map(|url| {
@@ -113,7 +115,15 @@ impl<C: AleoClient> FallbackHttpClient<C> {
         if let Some(call_timeout) = call_timeout {
             builder = builder.with_call_timeout(call_timeout);
         }
-        let fallback = builder.build();
+        let pool = match retry_policy {
+            RetryPolicy::AllErrors => "rpcUrls",
+            RetryPolicy::DelegatedProver => "provingService",
+        };
+        let fallback = builder.build().with_rpc_context(
+            PrometheusConfig::chain_name(&chain).to_owned(),
+            pool,
+            hosts,
+        );
         Ok(Self {
             fallback,
             retry_policy,

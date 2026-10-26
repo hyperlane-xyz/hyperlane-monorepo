@@ -45,7 +45,9 @@ fn generate_test_scraper_settings() -> ScraperSettings {
             },
             connection: ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
                 rpc_connection: h_eth::RpcConnectionConf::Http {
-                    url: Url::parse("https://sepolia-rollup.arbitrum.io/rpc").unwrap(),
+                    url: Url::parse("https://sepolia-rollup.arbitrum.io/rpc")
+                        .unwrap()
+                        .into(),
                 },
                 transaction_overrides: h_eth::TransactionOverrides {
                     gas_price: None,
@@ -99,7 +101,7 @@ fn generate_test_scraper_settings() -> ScraperSettings {
             metrics_port: 5000,
             tracing: TracingConfig::default(),
         },
-        db: String::new(),
+        db: String::new().into(),
         db_max_connections: 10,
         db_acquire_timeout: Duration::from_secs(15),
         chains_to_scrape: vec![],
