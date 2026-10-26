@@ -11,7 +11,10 @@ import { assert, isEVMLike } from '@hyperlane-xyz/utils';
 import { getChain } from '../../../config/registry.js';
 import { ValidatorAgentAwsUser } from '../../agents/aws/validator-user.js';
 import { CloudAgentKey } from '../../agents/keys.js';
-import { getValidatorKeysForChain } from '../../agents/key-utils.js';
+import {
+  getValidatorKeysForChain,
+  persistProvisionedValidatorAddresses,
+} from '../../agents/key-utils.js';
 import { AgentGcpKmsKey } from '../../agents/gcp-kms/kms-key.js';
 import { ValidatorAgentGcpUser } from '../../agents/gcp-kms/validator-user.js';
 import { Role } from '../../roles.js';
@@ -155,14 +158,17 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
   async provisionGcpResources(
     namespace: string,
     ksaName: string,
-    persistKeys: (keys: CloudAgentKey[]) => Promise<void>,
   ): Promise<void> {
     assert(this.gcp, 'Validator is not configured for GCP');
     const keys = this.keys;
     for (const key of keys) {
       await key.createIfNotExists();
     }
-    await persistKeys(keys);
+    await persistProvisionedValidatorAddresses(
+      this.rawConfig,
+      this.chainName,
+      keys,
+    );
 
     const user = new ValidatorAgentGcpUser(
       this.runEnv,

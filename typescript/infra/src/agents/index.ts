@@ -59,7 +59,6 @@ import {
 } from '../utils/utils.js';
 
 import { AgentGCPKey } from './gcp.js';
-import { persistProvisionedValidatorAddresses } from './key-utils.js';
 import { gcpValidatorServiceAccountName } from './gcp-kms/validator-user.js';
 
 const HELM_CHART_PATH = join(
@@ -564,10 +563,6 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
         await this.config.provisionGcpResources(
           this.namespace,
           this.helmReleaseName,
-          (keys) =>
-            persistProvisionedValidatorAddresses(this.config.rawConfig, keys, [
-              this.chainName,
-            ]),
         );
       }
     }

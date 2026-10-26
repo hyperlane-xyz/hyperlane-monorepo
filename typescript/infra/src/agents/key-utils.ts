@@ -522,42 +522,11 @@ async function persistAddresses(
   return;
 }
 
-/** Resolves attestation addresses only for the selected validator chains. */
-export function validatorAddressesForChains(
-  agentConfig: RootAgentConfig,
-  keys: CloudAgentKey[],
-  chains: ChainName[],
-): ChainMap<{ validators: Address[] }> {
-  assert(agentConfig.validators, 'Missing validator configuration');
-  const keysByIdentifier = new Map(keys.map((key) => [key.identifier, key]));
-  return Object.fromEntries(
-    chains.map((chain) => {
-      const validators = agentConfig.validators?.chains[chain]?.validators;
-      assert(validators, `Missing validators for ${chain}`);
-      return [
-        chain,
-        {
-          validators: validators.map((_, index) => {
-            const { validator } = getValidatorKeysForChain(
-              agentConfig,
-              chain,
-              index,
-            );
-            const key = keysByIdentifier.get(validator.identifier);
-            assert(key, `No provisioned key found for ${validator.identifier}`);
-            return key.address;
-          }),
-        },
-      ];
-    }),
-  );
-}
-
 /** Serializes address updates from parallel validators, preserving untouched chains and roles. */
 export function persistProvisionedValidatorAddresses(
   agentConfig: RootAgentConfig,
+  chain: ChainName,
   keys: CloudAgentKey[],
-  chains: ChainName[],
 ): Promise<void> {
   const persist = async () => {
     const filePath = getAWValidatorsPath(
@@ -567,11 +536,13 @@ export function persistProvisionedValidatorAddresses(
     const existing: ChainMap<{ validators: Address[] }> = existsSync(filePath)
       ? readJsonFromDir(dirname(filePath), basename(filePath))
       : {};
-    const updated = validatorAddressesForChains(agentConfig, keys, chains);
+    const validators = keys
+      .filter((key) => key instanceof AgentGcpKmsKey)
+      .map((key) => key.address);
     await persistValidatorAddressesToLocalArtifacts(
       agentConfig.runEnv,
       agentConfig.context,
-      { ...existing, ...updated },
+      { ...existing, [chain]: { validators } },
     );
     await persistAddressesInGcp(
       agentConfig.runEnv,

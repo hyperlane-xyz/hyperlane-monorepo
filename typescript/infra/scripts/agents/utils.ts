@@ -18,7 +18,6 @@ import { Role } from '../../src/roles.js';
 import {
   HelmCommand,
   HelmManager,
-  PreflightDiff,
   buildHelmChartDependencies,
 } from '../../src/utils/helm.js';
 import { K8sResourceType, refreshK8sResources } from '../../src/utils/k8s.js';
@@ -171,37 +170,14 @@ export class AgentCli {
   ): Promise<boolean> {
     console.log(chalk.cyan.bold('🔍 Running pre-flight checks...\n'));
 
-    const managerEntries = Object.entries(managers);
-    const results = await concurrentMap(
+    const diffs = await concurrentMap(
       this.concurrency,
-      managerEntries,
-      async ([key, manager]) => {
-        try {
-          return { key, diff: await manager.getPreflightDiff(), error: null };
-        } catch (error) {
-          return {
-            key,
-            diff: null,
-            error: error instanceof Error ? error.message : String(error),
-          };
-        }
-      },
+      Object.entries(managers),
+      async ([key, manager]) => ({
+        key,
+        diff: await manager.getPreflightDiff(),
+      }),
     );
-
-    const diffs: Array<{ key: string; diff: PreflightDiff }> = [];
-    const failures: string[] = [];
-    for (const { key, diff, error } of results) {
-      if (diff) diffs.push({ key, diff });
-      else failures.push(`${key}: ${error}`);
-    }
-
-    if (failures.length > 0) {
-      console.log(chalk.red.bold('\n❌ Failed to gather pre-flight diffs:'));
-      for (const failure of failures) {
-        console.log(chalk.red(`  - ${failure}`));
-      }
-      return false;
-    }
 
     const hasAnyChanges = diffs.some(
       ({ diff }) =>
@@ -227,22 +203,16 @@ export class AgentCli {
         (manager): manager is ValidatorHelmManager =>
           manager instanceof ValidatorHelmManager,
       );
-    const keysToCreate = [
-      ...new Set(
-        (
-          await concurrentMap(
-            this.concurrency,
-            provisioningManagers,
-            (manager) => manager.getKeysToCreate(),
-          )
-        ).flat(),
-      ),
-    ];
+    const missingKeys = await concurrentMap(
+      this.concurrency,
+      provisioningManagers,
+      (manager) => manager.getKeysToCreate(),
+    );
     if (
       provisioningManagers.length > 0 &&
       !(await this.confirmResourceProvisioning(
         provisioningManagers.map((manager) => manager.helmReleaseName),
-        keysToCreate,
+        [...new Set(missingKeys.flat())],
       ))
     ) {
       return false;
