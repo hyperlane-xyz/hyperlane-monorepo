@@ -142,7 +142,7 @@ export function getCore(): ChainMap<CoreConfig> {
     const pausableIsm: PausableIsmConfig = {
       type: IsmType.PAUSABLE,
       paused: false,
-      owner: PAUSER, // dedicated Turnkey pauser (pause solo, unpause gated)
+      owner: local === 'tempo' ? DEPLOYER : PAUSER,
     };
 
     // No static aggregation ISM support on zkSync
@@ -163,7 +163,7 @@ export function getCore(): ChainMap<CoreConfig> {
     const pausableHook: PausableHookConfig = {
       type: HookType.PAUSABLE,
       paused: false,
-      owner: PAUSER, // dedicated Turnkey pauser (pause solo, unpause gated)
+      owner: local === 'tempo' ? DEPLOYER : PAUSER,
     };
 
     // No static aggregation hook support on zkSync

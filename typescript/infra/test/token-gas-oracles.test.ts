@@ -22,12 +22,22 @@ const feeTokens = {
   ethereum: [tokens.ethereum.USDC, tokens.ethereum.USDT],
   ink: [tokens.ink.USDC, tokens.ink.USDT0],
   optimism: [tokens.optimism.USDC, tokens.optimism.USDT],
+  tempo: ['0x20c0000000000000000000000000000000000000'],
 };
 
 const exchangeRateScale = BigNumber.from(10).pow(10);
 
 describe('mainnet3 stablecoin IGP gas oracles', () => {
-  it('configures the selected tokens on six origins for every remote', () => {
+  it('expresses Tempo attodollar gas prices in six-decimal pathUSD units', () => {
+    const snapshot = gasPrices.tempo;
+    // 600,000,000 attodollars / 10^12 = 0.0006 pathUSD base units per gas.
+    expect(
+      new BigNumberJs(snapshot.amount)
+        .times(new BigNumberJs(10).pow(snapshot.decimals))
+        .toString(),
+    ).to.equal('0.0006');
+  });
+  it('configures the selected tokens for every remote', () => {
     const configs = getTokenGasOracleConfigs();
     expect(Object.keys(configs).sort()).to.deep.equal(
       Object.keys(feeTokens).sort(),

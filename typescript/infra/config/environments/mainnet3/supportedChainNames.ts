@@ -64,6 +64,7 @@ export const mainnet3SupportedChainNames = [
   'starknet',
   'subtensor',
   'tea',
+  'tempo',
   'tron',
   'unichain',
   'viction',

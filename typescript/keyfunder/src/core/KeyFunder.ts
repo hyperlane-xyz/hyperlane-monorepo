@@ -1,6 +1,7 @@
 import { BigNumber, ethers } from 'ethers';
 import type { Logger } from 'pino';
 
+import { ERC20__factory } from '@hyperlane-xyz/core';
 import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
 
 import type {
@@ -132,14 +133,42 @@ export class KeyFunder {
 
   private getNativeDecimals(chain: string): number {
     return (
-      this.multiProvider.getChainMetadata(chain).nativeToken?.decimals ?? 18
+      this.config.chains[chain].erc20GasToken?.decimals ??
+      this.multiProvider.getChainMetadata(chain).nativeToken?.decimals ??
+      18
     );
+  }
+
+  private async getBalance(chain: string, address: string): Promise<BigNumber> {
+    const token = this.config.chains[chain].erc20GasToken;
+    const provider = this.multiProvider.getProvider(chain);
+    return token
+      ? ERC20__factory.connect(token.address, provider).balanceOf(address)
+      : provider.getBalance(address);
+  }
+
+  private async getFunderBalance(chain: string): Promise<BigNumber> {
+    const signer = this.multiProvider.getSigner(chain);
+    return this.config.chains[chain].erc20GasToken
+      ? this.getBalance(chain, await signer.getAddress())
+      : signer.getBalance();
+  }
+
+  private async transfer(chain: string, to: string, amount: BigNumber) {
+    const token = this.config.chains[chain].erc20GasToken;
+    const transaction = token
+      ? await ERC20__factory.connect(
+          token.address,
+          this.multiProvider.getProvider(chain),
+        ).populateTransaction.transfer(to, amount)
+      : { to, value: amount };
+    return this.multiProvider.sendTransaction(chain, transaction);
   }
 
   private async recordFunderBalance(chain: string): Promise<void> {
     const signer = this.multiProvider.getSigner(chain);
     const funderAddress = await signer.getAddress();
-    const funderBalance = await signer.getBalance();
+    const funderBalance = await this.getFunderBalance(chain);
     const balance = parseFloat(
       ethers.utils.formatUnits(funderBalance, this.getNativeDecimals(chain)),
     );
@@ -192,11 +221,10 @@ export class KeyFunder {
     }
 
     const logger = this.options.logger.child({ chain, operation: 'igp-claim' });
-    const provider = this.multiProvider.getProvider(chain);
     const igpContract =
       this.options.igp.getContracts(chain).interchainGasPaymaster;
     const decimals = this.getNativeDecimals(chain);
-    const igpBalance = await provider.getBalance(igpContract.address);
+    const igpBalance = await this.getBalance(chain, igpContract.address);
     const claimThreshold = ethers.utils.parseUnits(
       igpConfig.claimThreshold,
       decimals,
@@ -219,7 +247,11 @@ export class KeyFunder {
       logger.info('IGP balance exceeds threshold, claiming');
       await this.multiProvider.sendTransaction(
         chain,
-        await igpContract.populateTransaction.claim(),
+        chainConfig.erc20GasToken
+          ? await igpContract.populateTransaction.claimToken(
+              chainConfig.erc20GasToken.address,
+            )
+          : await igpContract.populateTransaction.claim(),
       );
       logger.info('IGP claim completed');
     }
@@ -246,9 +278,7 @@ export class KeyFunder {
       key.desiredBalance,
       decimals,
     );
-    const currentBalance = await this.multiProvider
-      .getProvider(chain)
-      .getBalance(key.address);
+    const currentBalance = await this.getBalance(chain, key.address);
     const fundingAmount = this.calculateFundingAmount(
       currentBalance,
       desiredBalance,
@@ -270,9 +300,7 @@ export class KeyFunder {
     }
 
     const funderAddress = await this.multiProvider.getSignerAddress(chain);
-    const funderBalance = await this.multiProvider
-      .getSigner(chain)
-      .getBalance();
+    const funderBalance = await this.getFunderBalance(chain);
 
     if (funderBalance.lt(fundingAmount)) {
       logger.error(
@@ -298,10 +326,7 @@ export class KeyFunder {
       'Funding key',
     );
 
-    const tx = await this.multiProvider.sendTransaction(chain, {
-      to: key.address,
-      value: fundingAmount,
-    });
+    const tx = await this.transfer(chain, key.address, fundingAmount);
 
     this.options.metrics?.recordFundingAmount(
       chain,
@@ -363,9 +388,7 @@ export class KeyFunder {
       sweepConfig.triggerMultiplier,
     );
 
-    const funderBalance = await this.multiProvider
-      .getSigner(chain)
-      .getBalance();
+    const funderBalance = await this.getFunderBalance(chain);
 
     logger.info(
       {
@@ -387,10 +410,7 @@ export class KeyFunder {
         'Sweeping excess funds',
       );
 
-      const tx = await this.multiProvider.sendTransaction(chain, {
-        to: sweepConfig.address,
-        value: sweepAmount,
-      });
+      const tx = await this.transfer(chain, sweepConfig.address, sweepAmount);
 
       this.options.metrics?.recordSweepAmount(
         chain,

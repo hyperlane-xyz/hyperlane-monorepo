@@ -68,6 +68,13 @@ export const SweepConfigSchema = z
   );
 
 export const ChainConfigSchema = z.object({
+  // Explicit opt-in: some ERC20 native-token interfaces still support native sends.
+  erc20GasToken: z
+    .object({
+      address: AddressSchema,
+      decimals: z.number().int().min(0).max(255),
+    })
+    .optional(),
   balances: z.record(z.string(), BalanceStringSchema).optional(),
   igp: IgpConfigSchema.optional(),
   sweep: SweepConfigSchema.optional(),

@@ -42,6 +42,11 @@ const DEFAULT_POPS_VALIDATOR: ValidatorConfig = {
 
 // TODO: consider migrating these to the registry too
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
+  tempo: {
+    threshold: 1,
+    validators: [DEFAULT_AW_VALIDATOR],
+  },
+
   abstract: {
     threshold: 2,
     validators: [

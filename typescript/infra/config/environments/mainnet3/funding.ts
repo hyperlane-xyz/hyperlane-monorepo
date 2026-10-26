@@ -81,6 +81,12 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.FastPath]: [Role.Relayer],
   },
   chainsToSkip: ['forma', 'mocachain', 'nesa'],
+  erc20GasTokens: {
+    tempo: {
+      address: '0x20c0000000000000000000000000000000000000',
+      decimals: 6,
+    },
+  },
   // desired balance config, must be set for each chain
   desiredBalancePerChain: desiredRelayerBalancePerChain,
   // desired rebalancer balance config

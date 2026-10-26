@@ -7,6 +7,24 @@ import quoteSubmitterAddresses from '../config/quotesubmitter.json' with { type:
 import { KeyFunderHelmManager } from '../src/funding/key-funder.js';
 
 describe('KeyFunderHelmManager', () => {
+  it('opts Tempo into pathUSD funding without changing native-send chains', async () => {
+    const manager = KeyFunderHelmManager.forEnvironment(
+      'mainnet3',
+      'test-registry-commit',
+    );
+    const values = await manager.helmValues();
+    const config = KeyFunderConfigSchema.parse(
+      YAML.parse(values.hyperlane.keyfunderConfig),
+    );
+    expect(config.chains.tempo.erc20GasToken).to.deep.equal({
+      address: '0x20c0000000000000000000000000000000000000',
+      decimals: 6,
+    });
+    expect(config.chains.tempo.balances?.['hyperlane-relayer']).to.equal('10');
+    expect(config.chains.tempo.igp?.address).to.be.a('string');
+    expect(config.chains.arc.erc20GasToken).to.equal(undefined);
+    expect(config.chains.ethereum.erc20GasToken).to.equal(undefined);
+  });
   it('funds the quote submitter only on CROSS/moonpay EVM origins', async () => {
     const manager = KeyFunderHelmManager.forEnvironment(
       'mainnet3',

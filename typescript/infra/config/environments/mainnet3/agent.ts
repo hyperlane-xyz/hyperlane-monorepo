@@ -146,6 +146,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     subtensor: true,
 
     tea: true,
+    tempo: true,
     tron: true,
     unichain: true,
     viction: true,
@@ -218,6 +219,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     subtensor: true,
 
     tea: true,
+    tempo: true,
     tron: true,
     unichain: true,
     viction: true,
@@ -290,6 +292,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     subtensor: true,
 
     tea: true,
+    tempo: true,
     tron: true,
     unichain: true,
     // Note: default rpc.viction.xyz endpoint can't be used for scraping (returns 429s).
