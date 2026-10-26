@@ -616,7 +616,11 @@ impl MerkleTreeHookWebSocketSync {
             };
             if self.confirmations.is_some() && fallback.is_some() {
                 // Follow RPC backfill while the custom stream supplies only live events.
+                let previous = *next_sequence;
                 *next_sequence = self.next_sequence_from(*next_sequence)?;
+                if *next_sequence > previous {
+                    health.reset();
+                }
             }
             let message = match event {
                 SessionEvent::Message(message) => message,
@@ -626,23 +630,29 @@ impl MerkleTreeHookWebSocketSync {
                 }
                 | SessionEvent::Progress((sequence, count)) => {
                     let onchain_count = count?;
-                    // The socket continues advancing during probes. Only a sample
-                    // taken at the current cursor can establish that it is ahead.
-                    if count_sample_is_stale(sequence, *next_sequence, onchain_count) {
+                    // Canonical streams reject ahead counts immediately, so ignore
+                    // samples taken before the socket advanced. Custom streams use grace.
+                    if self.confirmations.is_none()
+                        && count_sample_is_stale(sequence, *next_sequence, onchain_count)
+                    {
                         continue;
                     }
-                    // Different RPC heads can put a custom stream ahead of our reorg depth.
-                    let confirmed_next = if self.confirmations.is_some() {
-                        (*next_sequence).min(onchain_count)
+                    if self.confirmations.is_some() && *next_sequence > onchain_count {
+                        // Allow head skew, but recover if the RPC never confirms the prefix.
+                        if !health.observe_probe_failure() {
+                            bail!(
+                                "Scraper WebSocket cursor remained ahead of canonical count: next sequence {}, on-chain count {onchain_count}",
+                                *next_sequence
+                            );
+                        }
                     } else {
-                        *next_sequence
-                    };
-                    health.observe(onchain_count, confirmed_next, fallback.is_none())?;
+                        health.observe(onchain_count, *next_sequence, fallback.is_none())?;
+                    }
                     if caught_up
                         && !activated
                         && *next_sequence >= backfill_target
                         && (self.confirmations.is_none()
-                            || cutover_target.is_none_or(|target| *next_sequence >= target))
+                            || cutover_target.is_some_and(|target| *next_sequence >= target))
                     {
                         activated = self
                             .apply_cutover_count(
@@ -801,10 +811,12 @@ impl MerkleTreeHookWebSocketSync {
         fallback: &mut Option<RpcFallback>,
         cutover_target: &mut Option<u32>,
     ) -> Result<bool> {
-        if self.confirmations.is_some() && next_sequence > onchain_count {
-            return Ok(false); // Wait for the validator's RPC to reach the same confirmation depth.
-        }
-        if !validate_cutover_freshness(onchain_count, next_sequence)? {
+        let fresh = if self.confirmations.is_some() {
+            next_sequence >= onchain_count
+        } else {
+            validate_cutover_freshness(onchain_count, next_sequence)?
+        };
+        if !fresh {
             *cutover_target = Some(onchain_count);
             warn!(
                 domain = self.domain,
@@ -1179,7 +1191,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn custom_stream_uses_rpc_for_startup_gaps_and_rollback_without_caught_up() {
+    async fn custom_stream_requires_live_anchor_and_bounds_head_skew() {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
         let (mut sync, _directory) = test_sync();
         sync.url = Url::parse(&format!(
@@ -1255,7 +1267,7 @@ mod tests {
                 StreamTimeouts {
                     read: UNREACHED,
                     progress_check: Duration::from_millis(10),
-                    progress_grace: UNREACHED,
+                    progress_grace: Duration::from_secs(60),
                 },
                 Duration::from_millis(1),
                 dependencies,
@@ -1282,6 +1294,18 @@ mod tests {
         assert_eq!(active.get(), 0); // No live frontier yet, even though RPC is caught up.
         assert_eq!(fallback_active.get(), 1);
 
+        // A cursorless stream must not activate on an unexpected replay marker.
+        let sampled = probes.load(Ordering::SeqCst);
+        send.send(Message::Text(format!(
+            r#"{{"type":"caught_up","address":"{hook}","domain":1,"eventType":"merkle_tree_insertion","sequence":"0"}}"#
+        ).into())).await.expect("send unexpected caught-up marker");
+        wait_until("unanchored probes", || {
+            probes.load(Ordering::SeqCst) >= sampled.saturating_add(2)
+        })
+        .await;
+        assert_eq!(active.get(), 0);
+        assert_eq!(fallback_active.get(), 1);
+
         // Ignore a live gap while RPC backfills, without restarting the connection.
         let sampled = probes.load(Ordering::SeqCst);
         send.send(event(2)).await.expect("send live gap");
@@ -1297,9 +1321,36 @@ mod tests {
             .expect("gap row")
             .is_none());
 
-        // RPC supplies the missing prefix; the proxy's next event is still ahead of our RPC head.
+        // RPC backfill progress renews the lag grace, even after a live anchor.
+        count.store(3, Ordering::SeqCst);
+        let sampled = probes.load(Ordering::SeqCst);
+        wait_until("backfill lag probes", || {
+            probes.load(Ordering::SeqCst) >= sampled.saturating_add(2)
+        })
+        .await;
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(30)).await;
+        tokio::time::resume();
         db.store_tree_insertion(&MerkleTreeInsertion::new(1, H256::from_low_u64_be(5)), 12)
             .expect("RPC prefix");
+        let sampled = probes.load(Ordering::SeqCst);
+        wait_until("RPC progress probes", || {
+            probes.load(Ordering::SeqCst) >= sampled.saturating_add(2)
+        })
+        .await;
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(31)).await;
+        tokio::time::resume();
+        let sampled = probes.load(Ordering::SeqCst);
+        wait_until("renewed backfill grace", || {
+            probes.load(Ordering::SeqCst) >= sampled.saturating_add(2)
+        })
+        .await;
+        assert_eq!(starts.load(Ordering::SeqCst), 1);
+        assert_eq!(active.get(), 0);
+
+        // The anchored prefix can cut over while the proxy is ahead of the RPC head.
+        count.store(1, Ordering::SeqCst);
         send.send(event(2)).await.expect("send insertion");
         wait_until("live insertion", || {
             db.retrieve_merkle_tree_insertion_by_leaf_index(&2)
@@ -1313,10 +1364,9 @@ mod tests {
         })
         .await;
         assert_eq!(starts.load(Ordering::SeqCst), 1);
-        assert_eq!(active.get(), 0);
-        count.store(3, Ordering::SeqCst);
         wait_until("custom cutover", || active.get() == 1).await;
         assert_eq!(fallback_active.get(), 0);
+        count.store(3, Ordering::SeqCst);
 
         // Head skew must also be tolerated after cutover.
         send.send(event(3)).await.expect("send ahead insertion");
@@ -1354,6 +1404,23 @@ mod tests {
             .expect("send live handoff after reconnect");
         wait_until("reconnected custom cutover", || active.get() == 1).await;
         assert_eq!(fallback_active.get(), 0);
+
+        // A silent rollback or permanent head skew must eventually resume RPC.
+        count.store(4, Ordering::SeqCst);
+        let sampled = probes.load(Ordering::SeqCst);
+        wait_until("sustained skew probes", || {
+            probes.load(Ordering::SeqCst) >= sampled.saturating_add(2)
+        })
+        .await;
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(61)).await;
+        tokio::time::resume();
+        wait_until("sustained skew fallback", || {
+            starts.load(Ordering::SeqCst) == 3
+        })
+        .await;
+        assert_eq!(active.get(), 0);
+        assert_eq!(fallback_active.get(), 1);
         task.abort();
         server.abort();
     }
