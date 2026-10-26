@@ -366,31 +366,44 @@ export const ChainMetadataSchemaObject = z.object({
   ),
 });
 
+// Radix Gateway APIs can be public while Core APIs require private credentials.
+// Keep an explicit empty Core RPC list instead of advertising a dead fallback.
+export const RadixChainMetadataSchemaObject = ChainMetadataSchemaObject.extend({
+  protocol: z.literal(ProtocolType.Radix),
+  rpcUrls: z.array(RpcUrlSchema),
+  gatewayUrls: z.array(RpcUrlSchema).min(1),
+});
+
 // Passthrough allows for extra fields to remain in the object (such as extensions consumers may want like `mailbox`)
 const ChainMetadataSchemaExtensible = z.looseObject(
   ChainMetadataSchemaObject.shape,
 );
 
 // Add refinements to the object schema to conditionally validate certain fields
-export const ChainMetadataSchema = ChainMetadataSchemaExtensible.refine(
-  (metadata) => {
-    if (
-      [ProtocolType.Ethereum, ProtocolType.Sealevel].includes(
-        metadata.protocol,
-      ) &&
-      typeof metadata.chainId !== 'number'
-    )
-      return false;
-    else if (
-      (metadata.protocol === ProtocolType.Cosmos ||
-        metadata.protocol === ProtocolType.CosmosNative) &&
-      typeof metadata.chainId !== 'string'
-    )
-      return false;
-    else return true;
-  },
-  { message: 'Invalid Chain Id', path: ['chainId'] },
-)
+export const ChainMetadataSchema = z
+  .union([
+    ChainMetadataSchemaExtensible,
+    z.looseObject(RadixChainMetadataSchemaObject.shape),
+  ])
+  .refine(
+    (metadata) => {
+      if (
+        [ProtocolType.Ethereum, ProtocolType.Sealevel].includes(
+          metadata.protocol,
+        ) &&
+        typeof metadata.chainId !== 'number'
+      )
+        return false;
+      else if (
+        (metadata.protocol === ProtocolType.Cosmos ||
+          metadata.protocol === ProtocolType.CosmosNative) &&
+        typeof metadata.chainId !== 'string'
+      )
+        return false;
+      else return true;
+    },
+    { message: 'Invalid Chain Id', path: ['chainId'] },
+  )
   .refine(
     (metadata) =>
       !metadata.sealevelV1TransactionsEnabled ||

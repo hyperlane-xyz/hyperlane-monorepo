@@ -5,6 +5,8 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 import {
   ChainDisabledReason,
   ChainMetadata,
+  ChainMetadataSchema,
+  RadixChainMetadataSchemaObject,
   ChainStatus,
   EthJsonRpcBlockParameterTag,
   isValidChainMetadata,
@@ -32,6 +34,46 @@ const blocks = {
 };
 
 describe('ChainMetadataSchema', () => {
+  it('accepts Radix with a public Gateway and explicitly private Core RPCs', () => {
+    const metadata = {
+      ...minimalSchema,
+      protocol: ProtocolType.Radix,
+      rpcUrls: [],
+      gatewayUrls: [{ http: 'https://mainnet.radixdlt.com' }],
+      mailbox: 'retained-extension',
+    };
+    expect(ChainMetadataSchema.parse(metadata)).to.deep.equal(metadata);
+    expect(RadixChainMetadataSchemaObject.safeParse(metadata).success).to.equal(
+      true,
+    );
+  });
+
+  it('rejects empty Core RPCs without a usable Radix Gateway', () => {
+    for (const gatewayUrls of [undefined, [], [{ http: 'invalid' }]]) {
+      expect(
+        isValidChainMetadata({
+          ...minimalSchema,
+          protocol: ProtocolType.Radix,
+          rpcUrls: [],
+          gatewayUrls,
+        }),
+      ).to.equal(false);
+    }
+  });
+
+  it('continues requiring RPCs for other protocols even if a Gateway is supplied', () => {
+    for (const protocol of [ProtocolType.Ethereum, ProtocolType.Sealevel]) {
+      expect(
+        isValidChainMetadata({
+          ...minimalSchema,
+          protocol,
+          rpcUrls: [],
+          gatewayUrls: [{ http: 'https://mainnet.radixdlt.com' }],
+        }),
+      ).to.equal(false);
+    }
+  });
+
   it('validates independent v1 read and sending capabilities', () => {
     const metadata = { ...minimalSchema, protocol: ProtocolType.Sealevel };
     expect(

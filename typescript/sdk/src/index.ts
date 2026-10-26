@@ -496,6 +496,7 @@ export {
   mergeChainMetadata,
   mergeChainMetadataMap,
   NativeToken,
+  RadixChainMetadataSchemaObject,
   RpcUrl,
   RpcUrlSchema,
 } from './metadata/chainMetadataTypes.js';
