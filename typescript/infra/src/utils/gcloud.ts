@@ -10,6 +10,11 @@ import { execCmd, execCmdAndParseJson } from './utils.js';
 
 export const GCP_PROJECT_ID = 'abacus-labs-dev';
 
+export function isSecretNotFoundError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /not[_\s]?found/i.test(message);
+}
+
 interface IamCondition {
   title: string;
   expression: string;

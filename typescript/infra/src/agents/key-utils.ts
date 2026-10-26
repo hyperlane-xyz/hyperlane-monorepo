@@ -24,7 +24,11 @@ import type {
 import type { DeployEnvironment } from '../config/deploy-environment.js';
 import { getAWValidatorsPath } from '../paths.js';
 import { Role } from '../roles.js';
-import { fetchGCPSecret, setGCPSecretUsingClient } from '../utils/gcloud.js';
+import {
+  fetchGCPSecret,
+  isSecretNotFoundError,
+  setGCPSecretUsingClient,
+} from '../utils/gcloud.js';
 import {
   execCmd,
   getInfraPath,
@@ -64,12 +68,8 @@ function isKeyAsAddressArray(value: unknown): value is KeyAsAddress[] {
   );
 }
 
-function isSecretNotFoundError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /not[_\s]?found/i.test(message);
-}
-
 const CONFIG_DIRECTORY_PATH = join(getInfraPath(), 'config');
+let validatorAddressPersistenceQueue: Promise<void> = Promise.resolve();
 
 // ==================
 // Functions for getting keys
@@ -553,27 +553,38 @@ export function validatorAddressesForChains(
   );
 }
 
-/** Persists provisioned keys once per deployment, preserving untouched chains and roles. */
-export async function persistProvisionedValidatorAddresses(
+/** Serializes address updates from parallel validators, preserving untouched chains and roles. */
+export function persistProvisionedValidatorAddresses(
   agentConfig: RootAgentConfig,
   keys: CloudAgentKey[],
   chains: ChainName[],
 ): Promise<void> {
-  const filePath = getAWValidatorsPath(agentConfig.runEnv, agentConfig.context);
-  const existing: ChainMap<{ validators: Address[] }> = existsSync(filePath)
-    ? readJsonFromDir(dirname(filePath), basename(filePath))
-    : {};
-  const updated = validatorAddressesForChains(agentConfig, keys, chains);
-  await persistValidatorAddressesToLocalArtifacts(
-    agentConfig.runEnv,
-    agentConfig.context,
-    { ...existing, ...updated },
+  const persist = async () => {
+    const filePath = getAWValidatorsPath(
+      agentConfig.runEnv,
+      agentConfig.context,
+    );
+    const existing: ChainMap<{ validators: Address[] }> = existsSync(filePath)
+      ? readJsonFromDir(dirname(filePath), basename(filePath))
+      : {};
+    const updated = validatorAddressesForChains(agentConfig, keys, chains);
+    await persistValidatorAddressesToLocalArtifacts(
+      agentConfig.runEnv,
+      agentConfig.context,
+      { ...existing, ...updated },
+    );
+    await persistAddressesInGcp(
+      agentConfig.runEnv,
+      agentConfig.context,
+      keys.map((key) => key.serializeAsAddress()),
+    );
+  };
+  // A failed write still reaches its caller; allow sibling deployments to persist.
+  validatorAddressPersistenceQueue = validatorAddressPersistenceQueue.then(
+    persist,
+    persist,
   );
-  await persistAddressesInGcp(
-    agentConfig.runEnv,
-    agentConfig.context,
-    keys.map((key) => key.serializeAsAddress()),
-  );
+  return validatorAddressPersistenceQueue;
 }
 
 async function agentKeysToBeCreated(

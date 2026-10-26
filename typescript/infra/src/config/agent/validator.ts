@@ -10,8 +10,8 @@ import { assert, isEVMLike } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../../config/registry.js';
 import { ValidatorAgentAwsUser } from '../../agents/aws/validator-user.js';
-import { AgentGCPKey } from '../../agents/gcp.js';
 import { CloudAgentKey } from '../../agents/keys.js';
+import { getValidatorKeysForChain } from '../../agents/key-utils.js';
 import { AgentGcpKmsKey } from '../../agents/gcp-kms/kms-key.js';
 import { ValidatorAgentGcpUser } from '../../agents/gcp-kms/validator-user.js';
 import { Role } from '../../roles.js';
@@ -144,12 +144,26 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
     return Role.Validator;
   }
 
-  /** Provisions changed GCP resources and returns their fetched signing keys. */
+  get keys(): CloudAgentKey[] {
+    const keys = this.validators.flatMap((_, index) =>
+      Object.values(getValidatorKeysForChain(this, this.chainName, index)),
+    );
+    return [...new Map(keys.map((key) => [key.identifier, key])).values()];
+  }
+
+  /** Saves key addresses before provisioning IAM or updating the Helm release. */
   async provisionGcpResources(
     namespace: string,
     ksaName: string,
-  ): Promise<CloudAgentKey[]> {
+    persistKeys: (keys: CloudAgentKey[]) => Promise<void>,
+  ): Promise<void> {
     assert(this.gcp, 'Validator is not configured for GCP');
+    const keys = this.keys;
+    for (const key of keys) {
+      await key.createIfNotExists();
+    }
+    await persistKeys(keys);
+
     const user = new ValidatorAgentGcpUser(
       this.runEnv,
       this.context,
@@ -157,8 +171,6 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
       this.gcp.project,
     );
     await user.createServiceAccountIfNotExists();
-    const { protocol } = getChain(this.chainName);
-    const keys: CloudAgentKey[] = [];
 
     for (let idx = 0; idx < this.validators.length; idx++) {
       const bucketName = `${this.context}-${this.runEnv}-validator-${idx}`;
@@ -170,27 +182,10 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
       await grantPublicReadOnBucketIfNotExists(bucketName);
 
       const key = new AgentGcpKmsKey(this, this.role, idx);
-      await key.createIfNotExists();
-      keys.push(key);
       await user.grantAccessForIndex(key, bucketName);
-
-      // AltVM transaction signers still use Secret Manager keys. Starknet
-      // keys are externally provisioned, as in the shared key-creation script.
-      if (!isEVMLike(protocol)) {
-        const chainSigner = new AgentGCPKey(
-          this.runEnv,
-          this.context,
-          this.role,
-          this.chainName,
-          idx,
-        );
-        await chainSigner.createIfNotExists();
-        keys.push(chainSigner);
-      }
     }
 
     await user.bindWorkloadIdentity(namespace, ksaName);
-    return keys;
   }
 
   async #configForValidator(

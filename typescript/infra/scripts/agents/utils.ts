@@ -9,7 +9,6 @@ import {
   ScraperProxyHelmManager,
   ValidatorHelmManager,
 } from '../../src/agents/index.js';
-import { persistProvisionedValidatorAddresses } from '../../src/agents/key-utils.js';
 import {
   HelmRootAgentValues,
   RootAgentConfig,
@@ -104,17 +103,23 @@ export class AgentCli {
     process.stdout.setMaxListeners(requiredListeners);
     process.stderr.setMaxListeners(requiredListeners);
 
+    const failures: unknown[] = [];
     try {
       await concurrentMap(
         this.concurrency,
         Object.entries(managers),
         async ([key, manager]) => {
+          if (failures.length > 0) return;
           console.log(`Running helm command for ${key}`);
-          await manager.runHelmCommand(command, {
-            dryRun: this.dryRun,
-            skipDependencyBuild: true,
-            allowResourceProvisioning: !this.skipPreflightCheck,
-          });
+          try {
+            await manager.runHelmCommand(command, {
+              dryRun: this.dryRun,
+              skipDependencyBuild: true,
+              allowResourceProvisioning: !this.skipPreflightCheck,
+            });
+          } catch (error) {
+            failures.push(error);
+          }
         },
       );
     } finally {
@@ -122,20 +127,7 @@ export class AgentCli {
       process.stdout.setMaxListeners(originalStdoutMax);
       process.stderr.setMaxListeners(originalStderrMax);
     }
-
-    // Persist once after parallel deployments to avoid concurrent artifact/secret writes.
-    const provisionedValidators = managerList.filter(
-      (manager): manager is ValidatorHelmManager =>
-        manager instanceof ValidatorHelmManager &&
-        manager.provisionedKeys.length > 0,
-    );
-    if (provisionedValidators.length > 0) {
-      await persistProvisionedValidatorAddresses(
-        this.agentConfig,
-        provisionedValidators.flatMap((manager) => manager.provisionedKeys),
-        provisionedValidators.map((manager) => manager.chainName),
-      );
-    }
+    if (failures.length > 0) throw failures[0];
   }
 
   protected async init() {
@@ -228,12 +220,30 @@ export class AgentCli {
 
     printPreflightSummaryTable(diffs);
 
-    const provisioningReleases = diffs
+    const provisioningManagers = diffs
       .filter(({ diff }) => (diff.resourceChanges?.length ?? 0) > 0)
-      .map(({ diff }) => diff.releaseName);
+      .map(({ key }) => managers[key])
+      .filter(
+        (manager): manager is ValidatorHelmManager =>
+          manager instanceof ValidatorHelmManager,
+      );
+    const keysToCreate = [
+      ...new Set(
+        (
+          await concurrentMap(
+            this.concurrency,
+            provisioningManagers,
+            (manager) => manager.getKeysToCreate(),
+          )
+        ).flat(),
+      ),
+    ];
     if (
-      provisioningReleases.length > 0 &&
-      !(await this.confirmResourceProvisioning(provisioningReleases))
+      provisioningManagers.length > 0 &&
+      !(await this.confirmResourceProvisioning(
+        provisioningManagers.map((manager) => manager.helmReleaseName),
+        keysToCreate,
+      ))
     ) {
       return false;
     }
@@ -255,10 +265,15 @@ export class AgentCli {
 
   protected async confirmResourceProvisioning(
     releases: string[],
+    keysToCreate: string[],
   ): Promise<boolean> {
+    const keyMessage =
+      keysToCreate.length > 0
+        ? `New keys will be created: ${keysToCreate.join(', ')}.`
+        : 'Existing keys will be reused.';
     return confirm({
       message: chalk.yellow.bold(
-        `GCP validator keys, checkpoint storage or IAM will be provisioned for ${releases.join(', ')}. Are you sure you want to continue?`,
+        `GCP validator checkpoint storage or IAM will be provisioned for ${releases.join(', ')}. ${keyMessage} Are you sure you want to continue?`,
       ),
       default: false,
     });

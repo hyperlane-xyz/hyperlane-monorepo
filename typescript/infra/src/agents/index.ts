@@ -59,7 +59,7 @@ import {
 } from '../utils/utils.js';
 
 import { AgentGCPKey } from './gcp.js';
-import { CloudAgentKey } from './keys.js';
+import { persistProvisionedValidatorAddresses } from './key-utils.js';
 import { gcpValidatorServiceAccountName } from './gcp-kms/validator-user.js';
 
 const HELM_CHART_PATH = join(
@@ -510,7 +510,6 @@ export class ScraperProxyHelmManager extends HelmManager<HelmRootAgentValues> {
 }
 
 export class ValidatorHelmManager extends MultichainAgentHelmManager {
-  provisionedKeys: CloudAgentKey[] = [];
   protected readonly config: ValidatorConfigHelper;
   readonly role: Role.Validator = Role.Validator;
 
@@ -533,6 +532,19 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
     return this.config.validators.length;
   }
 
+  async getKeysToCreate(): Promise<string[]> {
+    const keys = this.config.keys.filter(
+      (key) =>
+        !key.chainName ||
+        getChain(key.chainName).protocol !== ProtocolType.Starknet,
+    );
+    return (
+      await Promise.all(
+        keys.map(async (key) => ((await key.exists()) ? [] : [key.identifier])),
+      )
+    ).flat();
+  }
+
   override async runHelmCommand(
     action: HelmCommand,
     options?: HelmCommandOptions,
@@ -549,9 +561,13 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
           options?.allowResourceProvisioning,
           'GCP validator resource changes require confirmation. Run deployment with preflight checks enabled.',
         );
-        this.provisionedKeys = await this.config.provisionGcpResources(
+        await this.config.provisionGcpResources(
           this.namespace,
           this.helmReleaseName,
+          (keys) =>
+            persistProvisionedValidatorAddresses(this.config.rawConfig, keys, [
+              this.chainName,
+            ]),
         );
       }
     }
