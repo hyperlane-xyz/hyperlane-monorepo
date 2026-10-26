@@ -18,7 +18,11 @@ import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
 import { DeployEnvironment } from '../config/deploy-environment.js';
 import { Role } from '../roles.js';
-import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud.js';
+import {
+  fetchGCPSecret,
+  isSecretNotFoundError,
+  setGCPSecret,
+} from '../utils/gcloud.js';
 import { execCmd, include } from '../utils/utils.js';
 
 import { isValidatorKey, keyIdentifier } from './agent.js';
@@ -75,7 +79,8 @@ export class AgentGCPKey extends CloudAgentKey {
     try {
       await this.fetch();
       this.logger.debug('Key already exists');
-    } catch {
+    } catch (error) {
+      if (!isSecretNotFoundError(error)) throw error;
       this.logger.warn('Key does not exist, creating new key');
       await this.create();
     }
@@ -85,7 +90,8 @@ export class AgentGCPKey extends CloudAgentKey {
     try {
       await this.fetch();
       return true;
-    } catch {
+    } catch (error) {
+      if (!isSecretNotFoundError(error)) throw error;
       return false;
     }
   }

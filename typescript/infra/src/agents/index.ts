@@ -8,7 +8,12 @@ import {
   RelayerConfig,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, objOmitKeys } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  deepEquals,
+  objOmitKeys,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChain, getRegistry } from '../../config/registry.js';
@@ -33,7 +38,6 @@ import { ValidatorConfigHelper } from '../config/agent/validator.js';
 import { DeployEnvironment } from '../config/deploy-environment.js';
 import { AgentRole, Role } from '../roles.js';
 import {
-  bindWorkloadIdentityUserIfNotExists,
   createServiceAccountIfNotExists,
   createServiceAccountKey,
   fetchGCPSecret,
@@ -42,7 +46,12 @@ import {
   grantServiceAccountStorageRoleIfNotExists,
   setGCPSecretUsingClient,
 } from '../utils/gcloud.js';
-import { HelmManager } from '../utils/helm.js';
+import {
+  HelmCommand,
+  HelmManager,
+  type HelmCommandOptions,
+  type HelmValues,
+} from '../utils/helm.js';
 import {
   execCmd,
   getInfraPath,
@@ -522,6 +531,71 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
     return this.config.validators.length;
   }
 
+  async getKeysToCreate(): Promise<string[]> {
+    const keys = this.config.keys.filter(
+      (key) =>
+        !key.chainName ||
+        getChain(key.chainName).protocol !== ProtocolType.Starknet,
+    );
+    return (
+      await Promise.all(
+        keys.map(async (key) => ((await key.exists()) ? [] : [key.identifier])),
+      )
+    ).flat();
+  }
+
+  override async runHelmCommand(
+    action: HelmCommand,
+    options?: HelmCommandOptions,
+  ): Promise<void> {
+    if (!this.config.gcp || action === HelmCommand.Remove) {
+      return super.runHelmCommand(action, options);
+    }
+
+    const proposed = await this.helmValues();
+    if (action === HelmCommand.InstallOrUpgrade && !options?.dryRun) {
+      const deployed = await this.getDeployedHelmValues({ throwOnError: true });
+      if (this.compareResourceConfigurations(deployed, proposed).length > 0) {
+        assert(
+          options?.allowResourceProvisioning,
+          'GCP validator resource changes require confirmation. Run deployment with preflight checks enabled.',
+        );
+        await this.config.provisionGcpResources(
+          this.namespace,
+          this.helmReleaseName,
+        );
+      }
+    }
+
+    await super.runHelmCommand(action, options, proposed);
+  }
+
+  protected override compareResourceConfigurations(
+    deployed: HelmValues | null,
+    proposed: HelmRootAgentValues,
+  ): string[] {
+    if (!this.config.gcp) return [];
+    const configs = proposed.hyperlane.validator?.configs;
+    assert(configs, 'Missing validator configuration');
+    const changes: string[] = [];
+    if (!deepEquals(deployed?.serviceAccount, proposed.serviceAccount)) {
+      changes.push('Service account / Workload Identity');
+    }
+    for (const [index, config] of configs.entries()) {
+      const current = deployed?.hyperlane?.validator?.configs?.[index];
+      if (!deepEquals(current?.validator, config.validator)) {
+        changes.push(`Validator ${index} signing key`);
+      }
+      if (!deepEquals(current?.chainSigner, config.chainSigner)) {
+        changes.push(`Validator ${index} chain signer`);
+      }
+      if (!deepEquals(current?.checkpointSyncer, config.checkpointSyncer)) {
+        changes.push(`Validator ${index} checkpoint storage`);
+      }
+    }
+    return changes;
+  }
+
   async helmValues(): Promise<HelmRootAgentValues> {
     const helmValues = await super.helmValues();
     const cfg = await this.config.buildConfig();
@@ -573,12 +647,6 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
           'iam.gke.io/gcp-service-account': serviceAccountEmail,
         },
       };
-      await bindWorkloadIdentityUserIfNotExists(
-        serviceAccountEmail,
-        this.config.gcp.project,
-        this.namespace,
-        ksaName,
-      );
     }
 
     return helmValues;

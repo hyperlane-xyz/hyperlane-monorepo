@@ -1,7 +1,7 @@
 import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 
-import { concurrentMap, mapAllSettled, rootLogger } from '@hyperlane-xyz/utils';
+import { concurrentMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   RelayerHelmManager,
@@ -18,7 +18,6 @@ import { Role } from '../../src/roles.js';
 import {
   HelmCommand,
   HelmManager,
-  PreflightDiff,
   buildHelmChartDependencies,
 } from '../../src/utils/helm.js';
 import { K8sResourceType, refreshK8sResources } from '../../src/utils/k8s.js';
@@ -85,11 +84,7 @@ export class AgentCli {
     ) {
       const shouldProceed = await this.runPreflightChecks(managers);
       if (!shouldProceed) {
-        console.log(
-          chalk.yellow(
-            'Deployment aborted. To skip pre-flight checks, use --skip-preflight-check flag.',
-          ),
-        );
+        console.log(chalk.yellow('Deployment aborted.'));
         process.exit(1);
       }
     }
@@ -107,16 +102,23 @@ export class AgentCli {
     process.stdout.setMaxListeners(requiredListeners);
     process.stderr.setMaxListeners(requiredListeners);
 
+    const failures: unknown[] = [];
     try {
       await concurrentMap(
         this.concurrency,
         Object.entries(managers),
         async ([key, manager]) => {
+          if (failures.length > 0) return;
           console.log(`Running helm command for ${key}`);
-          await manager.runHelmCommand(command, {
-            dryRun: this.dryRun,
-            skipDependencyBuild: true,
-          });
+          try {
+            await manager.runHelmCommand(command, {
+              dryRun: this.dryRun,
+              skipDependencyBuild: true,
+              allowResourceProvisioning: !this.skipPreflightCheck,
+            });
+          } catch (error) {
+            failures.push(error);
+          }
         },
       );
     } finally {
@@ -124,6 +126,7 @@ export class AgentCli {
       process.stdout.setMaxListeners(originalStdoutMax);
       process.stderr.setMaxListeners(originalStderrMax);
     }
+    if (failures.length > 0) throw failures[0];
   }
 
   protected async init() {
@@ -162,41 +165,26 @@ export class AgentCli {
     this.concurrency = argv.concurrency;
   }
 
-  private async runPreflightChecks(
+  protected async runPreflightChecks(
     managers: Record<string, HelmManager<HelmRootAgentValues>>,
   ): Promise<boolean> {
     console.log(chalk.cyan.bold('🔍 Running pre-flight checks...\n'));
 
-    const managerEntries = Object.entries(managers);
-    const { fulfilled, rejected } = await mapAllSettled(
-      managerEntries,
+    const diffs = await concurrentMap(
+      this.concurrency,
+      Object.entries(managers),
       async ([key, manager]) => ({
         key,
         diff: await manager.getPreflightDiff(),
       }),
-      ([key]) => key,
     );
-
-    const diffs: Array<{ key: string; diff: PreflightDiff }> = [
-      ...fulfilled.values(),
-    ];
-    const failures: string[] = [...rejected.entries()].map(
-      ([key, error]) => `${key}: ${error.message || 'Unknown error'}`,
-    );
-
-    if (failures.length > 0) {
-      console.log(chalk.red.bold('\n❌ Failed to gather pre-flight diffs:'));
-      for (const failure of failures) {
-        console.log(chalk.red(`  - ${failure}`));
-      }
-      return false;
-    }
 
     const hasAnyChanges = diffs.some(
       ({ diff }) =>
         diff.isNewDeployment ||
         diff.chainDiff.hasChanges ||
-        diff.imageDiff.hasChanges,
+        diff.imageDiff.hasChanges ||
+        (diff.resourceChanges?.length ?? 0) > 0,
     );
 
     if (!hasAnyChanges) {
@@ -208,6 +196,28 @@ export class AgentCli {
 
     printPreflightSummaryTable(diffs);
 
+    const provisioningManagers = diffs
+      .filter(({ diff }) => (diff.resourceChanges?.length ?? 0) > 0)
+      .map(({ key }) => managers[key])
+      .filter(
+        (manager): manager is ValidatorHelmManager =>
+          manager instanceof ValidatorHelmManager,
+      );
+    const missingKeys = await concurrentMap(
+      this.concurrency,
+      provisioningManagers,
+      (manager) => manager.getKeysToCreate(),
+    );
+    if (
+      provisioningManagers.length > 0 &&
+      !(await this.confirmResourceProvisioning(
+        provisioningManagers.map((manager) => manager.helmReleaseName),
+        [...new Set(missingKeys.flat())],
+      ))
+    ) {
+      return false;
+    }
+
     if (this.skipConfirmation) {
       console.log(
         chalk.yellow('--yes set; proceeding with deployment without prompt.'),
@@ -218,6 +228,22 @@ export class AgentCli {
     return confirm({
       message: chalk.yellow(
         `Proceed with deployment of ${diffs.length} agent(s)?`,
+      ),
+      default: false,
+    });
+  }
+
+  protected async confirmResourceProvisioning(
+    releases: string[],
+    keysToCreate: string[],
+  ): Promise<boolean> {
+    const keyMessage =
+      keysToCreate.length > 0
+        ? `New keys will be created: ${keysToCreate.join(', ')}.`
+        : 'Existing keys will be reused.';
+    return confirm({
+      message: chalk.yellow.bold(
+        `GCP validator checkpoint storage or IAM will be provisioned for ${releases.join(', ')}. ${keyMessage} Are you sure you want to continue?`,
       ),
       default: false,
     });
