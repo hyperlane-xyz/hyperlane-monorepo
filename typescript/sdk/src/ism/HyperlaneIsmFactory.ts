@@ -1001,6 +1001,17 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         isms[origin] = ism.address;
       }
       const submoduleAddresses = Object.values(isms);
+      const signerAddress = await signer.getAddress();
+      const batchSize = domainRoutingInitializationSize(destination);
+      const initialBatchSize = Math.min(batchSize, safeConfigDomains.length);
+      const initialDomains = safeConfigDomains.slice(0, initialBatchSize);
+      const initialAddresses = submoduleAddresses.slice(0, initialBatchSize);
+      // Set the final owner atomically when no further enrollments are needed.
+      // RPCs may still serve pre-deployment state when estimating a follow-up call.
+      const initialOwner =
+        initialBatchSize === safeConfigDomains.length
+          ? config.owner
+          : signerAddress;
       let receipt: ethers.providers.TransactionReceipt;
       if (config.type === IsmType.FALLBACK_ROUTING) {
         // deploying new fallback routing ISM
@@ -1010,15 +1021,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           );
         }
         logger.debug('Deploying fallback routing ISM ...');
-        const batchSize = domainRoutingInitializationSize(destination);
-        const signerAddress = await signer.getAddress();
-        const initialBatchSize = Math.min(batchSize, safeConfigDomains.length);
-        const initialDomains = safeConfigDomains.slice(0, initialBatchSize);
-        const initialAddresses = submoduleAddresses.slice(0, initialBatchSize);
         routingIsm = await this.multiProvider.handleDeploy(
           destination,
           new AtomicInitDefaultFallbackRoutingIsm__factory(),
-          [mailbox, signerAddress, initialDomains, initialAddresses],
+          [mailbox, initialOwner, initialDomains, initialAddresses],
           await getZKSyncArtifactByContractName(
             'AtomicInitDefaultFallbackRoutingIsm',
           ),
@@ -1032,7 +1038,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           destination,
           logger,
         });
-        if (!eqAddress(signerAddress, config.owner)) {
+        if (!eqAddress(initialOwner, config.owner)) {
           const transferTxEstimatedGas =
             await routingIsm.estimateGas.transferOwnership(
               config.owner,
@@ -1074,17 +1080,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           return routingIsm;
         }
 
-        // estimate gas
-        const signerAddress = await signer.getAddress();
-        const batchSize = domainRoutingInitializationSize(destination);
-
-        // Deploy initial batch of domains
-        const initialBatchSize = Math.min(batchSize, safeConfigDomains.length);
-        const initialDomains = safeConfigDomains.slice(0, initialBatchSize);
-        const initialAddresses = submoduleAddresses.slice(0, initialBatchSize);
-
         const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
-          signerAddress,
+          initialOwner,
           initialDomains,
           initialAddresses,
           overrides,
@@ -1094,7 +1091,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
         // add gas buffer
         const tx = await domainRoutingIsmFactory.deploy(
-          signerAddress,
+          initialOwner,
           initialDomains,
           initialAddresses,
           {
@@ -1143,9 +1140,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           logger,
         });
 
-        // Transfer ownership after all enrollments are complete, unless the
-        // signer is already the target owner (common for self-owned deploys).
-        if (!eqAddress(signerAddress, config.owner)) {
+        // Multi-batch deployments retain the signer as owner until all
+        // enrollments are complete.
+        if (!eqAddress(initialOwner, config.owner)) {
           const transferTxEstimatedGas =
             await routingIsm.estimateGas.transferOwnership(
               config.owner,
