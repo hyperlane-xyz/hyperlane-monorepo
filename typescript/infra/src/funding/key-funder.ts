@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { KeyFunderConfigSchema } from '@hyperlane-xyz/keyfunder';
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
+import { isZeroishAddress } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DockerImageRepos } from '../../config/docker.js';
@@ -160,7 +161,7 @@ export class KeyFunderHelmManager extends HelmManager {
 
       const igpAddress = envAddresses[chain]?.interchainGasPaymaster;
       const igpThreshold = this.getIgpClaimThreshold(chain);
-      if (igpAddress && igpThreshold) {
+      if (igpAddress && !isZeroishAddress(igpAddress) && igpThreshold) {
         chainConfig.igp = {
           address: igpAddress,
           claimThreshold: igpThreshold,
