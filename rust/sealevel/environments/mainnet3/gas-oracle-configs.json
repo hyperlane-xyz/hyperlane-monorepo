@@ -272,6 +272,14 @@
       },
       "overhead": 166887
     },
+    "tempo": {
+      "oracleConfig": {
+        "tokenExchangeRate": "14020001869333",
+        "gasPrice": "1862",
+        "tokenDecimals": 6
+      },
+      "overhead": 666460
+    },
     "tron": {
       "oracleConfig": {
         "tokenExchangeRate": "49268553277505053",
@@ -425,6 +433,14 @@
         "tokenDecimals": 9
       },
       "overhead": 600000
+    },
+    "tempo": {
+      "oracleConfig": {
+        "tokenExchangeRate": "615187755302",
+        "gasPrice": "1862",
+        "tokenDecimals": 6
+      },
+      "overhead": 666460
     },
     "tron": {
       "oracleConfig": {
