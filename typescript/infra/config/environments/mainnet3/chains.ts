@@ -50,6 +50,7 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
 
 // Chains without CoinGecko listings - these won't be overwritten by print-token-prices.ts
 export const tokenPriceOverrides: ChainMap<string> = {
+  tempo: '1', // pathUSD peg
   krown: '0.0015',
   tea: '10',
   nexus: '10',

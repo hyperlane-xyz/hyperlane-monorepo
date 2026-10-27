@@ -23,6 +23,7 @@ const feeTokens: ChainMap<string[]> = {
   ethereum: [tokens.ethereum.USDC, tokens.ethereum.USDT],
   ink: [tokens.ink.USDC, tokens.ink.USDT0],
   optimism: [tokens.optimism.USDC, tokens.optimism.USDT],
+  tempo: ['0x20c0000000000000000000000000000000000000'],
 };
 
 // Price both stablecoins at their $1 peg; these are deployment-time quotes,
