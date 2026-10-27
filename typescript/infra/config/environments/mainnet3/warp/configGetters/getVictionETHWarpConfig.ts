@@ -17,6 +17,7 @@ import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { WARP_FEES_TURNKEY_OWNER } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
+import { QUOTE_SIGNER } from '../consts.js';
 
 import {
   getFixedRoutingFeeConfig,
@@ -65,7 +66,7 @@ export const getVictionETHWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
 
-  // Configure native chains with routing fees (10 bps for transfers to other native chains)
+  // Native-to-native transfers use signed quotes with a permanent 30 bps fallback.
   for (const currentChain of nativeChains) {
     const baseConfig = getNativeTokenConfigForChain(
       currentChain,
@@ -83,7 +84,9 @@ export const getVictionETHWarpConfig = async (
         tokenFee: getFixedRoutingFeeConfig(
           WARP_FEES_TURNKEY_OWNER,
           feeDestinations,
-          10,
+          30,
+          undefined,
+          [QUOTE_SIGNER],
         ),
         proxyAdmin: {
           owner:
