@@ -50,8 +50,10 @@ library CustomConsistencyLevelLib {
     ) internal pure returns (bool) {
         return
             level == ZERO_FINALIZED ||
-            level == CUSTOM ||
-            isAllowedCustomBaseConsistencyLevel(level);
+            level == INSTANT ||
+            level == SAFE ||
+            level == GUARDIAN_FINALIZED ||
+            level == CUSTOM;
     }
 
     /// @notice Whether `level` may be assigned to `customBaseConsistencyLevel`.
