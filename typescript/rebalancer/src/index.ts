@@ -112,6 +112,7 @@ export type {
   IActionTracker,
   CreateRebalanceIntentParams,
   CreateRebalanceActionParams,
+  UpdateRebalanceActionExecutionParams,
 } from './tracking/IActionTracker.js';
 export type {
   Transfer,
