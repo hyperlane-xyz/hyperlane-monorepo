@@ -182,6 +182,11 @@ export enum XERC20Type {
   Standard = 'standard',
 }
 
+export enum XERC20ExtraBridgeType {
+  ManagedLockbox = 'managedLockbox',
+  CcipTokenPool = 'ccipTokenPool',
+}
+
 // Velo variant
 const XERC20VSLimitConfigSchema = z.object({
   type: z.literal(XERC20Type.Velo),
@@ -204,6 +209,7 @@ const xERC20Limits = z.discriminatedUnion('type', [
   XERC20StandardLimitConfigSchema,
 ]);
 const xERC20ExtraBridgesLimitConfigsSchema = z.object({
+  bridgeType: z.enum(XERC20ExtraBridgeType).optional(),
   lockbox: z.string(),
   limits: xERC20Limits,
 });
