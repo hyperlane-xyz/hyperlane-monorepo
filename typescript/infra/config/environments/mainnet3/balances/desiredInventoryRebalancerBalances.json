@@ -4,6 +4,7 @@
   "base": 0.01,
   "bsc": 0.01,
   "ethereum": 0.01,
+  "hyperevm": 0.1,
   "optimism": 0.01,
   "plasma": 15,
   "polygon": 20,
