@@ -883,6 +883,41 @@ describe('per-chain bridge configuration', () => {
     );
   });
 
+  it('should accept registry-backed LayerZero inventory execution', () => {
+    const data = {
+      warpRouteId: 'test-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            ethereum: {
+              weighted: { weight: 100, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.LayerZero,
+            },
+          },
+        },
+      ],
+      inventorySigners: {
+        ethereum: '0x1234567890123456789012345678901234567890',
+      },
+      externalBridges: {
+        layerzero: {
+          warpRouteIds: ['USDT/oft', 'USDT/oft-legacy'],
+          maxFeeBps: 50,
+        },
+      },
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+    const config = RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE);
+
+    expect(config.externalBridges?.layerzero).to.deep.equal({
+      warpRouteIds: ['USDT/oft', 'USDT/oft-legacy'],
+      maxFeeBps: 50,
+    });
+  });
+
   it('should require externalBridges.lifi when externalBridge is lifi', () => {
     const data = {
       warpRouteId: 'test-route',
