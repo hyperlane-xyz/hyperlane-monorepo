@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity ^0.8.19;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, Vm} from "forge-std/Test.sol";
 import {CoreBridgeVM, ICoreBridge} from "wormhole-sdk/interfaces/ICoreBridge.sol";
 
 import {WormholeVaaHookIsm} from "contracts/hooks/wormhole/WormholeVaaHookIsm.sol";
@@ -31,6 +31,9 @@ contract WormholeHookIsmTest is Test {
     uint16 internal constant WH_ORIGIN = 2;
     uint16 internal constant WH_DESTINATION = 30;
     uint8 internal constant CONSISTENCY = 202;
+    uint8 internal constant CUSTOM = 203;
+    uint8 internal constant CUSTOM_BASE = 200;
+    uint16 internal constant CUSTOM_BLOCKS = 2;
     uint256 internal constant CORE_FEE = 0.001 ether;
 
     TestMailbox internal originMailbox;
@@ -192,7 +195,9 @@ contract WormholeHookIsmTest is Test {
                 0,
                 WormholeMessage.encode(
                     address(destinationRouter).addressToBytes32(),
-                    message.id()
+                    message.id(),
+                    0,
+                    0
                 )
             );
     }
@@ -230,9 +235,92 @@ contract WormholeHookIsmTest is Test {
                 domainId: domainId,
                 domainIsm: TypeCasts.addressToBytes32(remote),
                 wormholeChainId: wormholeChainId,
-                expectedConsistencyLevel: CONSISTENCY
+                expectedConsistencyLevel: CONSISTENCY,
+                expectedCustomBaseConsistencyLevel: 0,
+                expectedAdditionalBlocks: 0
             });
     }
+
+    /// @dev Origin hook publishing with the `CUSTOM_*` level, routed to the
+    /// destination router.
+    function _deployCustomOrigin()
+        internal
+        returns (WormholeVaaHookIsm origin)
+    {
+        origin = new WormholeVaaHookIsm(
+            address(originMailbox),
+            address(originCore),
+            WormholeConsistencyLevelConfig({
+                consistencyLevel: CUSTOM,
+                customConsistencyLevelContract: address(
+                    new MockCustomConsistencyLevel()
+                ),
+                customBaseConsistencyLevel: CUSTOM_BASE,
+                additionalBlocks: CUSTOM_BLOCKS
+            }),
+            _urls()
+        );
+        _enroll(
+            origin,
+            DESTINATION,
+            address(destinationRouter),
+            WH_DESTINATION
+        );
+    }
+
+    /// @dev Pulls the Core publication out of the recorded logs.
+    function _readPublication()
+        internal
+        returns (
+            uint64 sequence,
+            uint32 nonce,
+            bytes memory payload,
+            uint8 consistencyLevel
+        )
+    {
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i; i < logs.length; ++i) {
+            if (logs[i].topics[0] == ICoreBridge.LogMessagePublished.selector) {
+                return abi.decode(logs[i].data, (uint64, uint32, bytes, uint8));
+            }
+        }
+        revert("no publication");
+    }
+
+    function _assertNoRemoteConsistencyLevel(
+        WormholeVaaHookIsm router,
+        uint32 domainId
+    ) internal view {
+        (
+            uint16 chainId,
+            WormholeVaaHookIsm.ExpectedConsistencyLevelConfig memory expected
+        ) = router.remoteRouterConfigs(domainId);
+
+        assertEq(chainId, 0);
+        assertEq(expected.consistencyLevel, 0);
+        assertEq(expected.customBaseConsistencyLevel, 0);
+        assertEq(expected.additionalBlocks, 0);
+    }
+
+    /// @dev Route whose VAAs must carry `CUSTOM` with the given settings.
+    function _customRemoteRouterConfig(
+        uint32 domainId,
+        address remote,
+        uint16 wormholeChainId,
+        uint8 customBase,
+        uint16 blocks
+    ) internal pure returns (WormholeVaaHookIsm.RemoteRouterConfig memory) {
+        return
+            WormholeVaaHookIsm.RemoteRouterConfig({
+                domainId: domainId,
+                domainIsm: TypeCasts.addressToBytes32(remote),
+                wormholeChainId: wormholeChainId,
+                expectedConsistencyLevel: CUSTOM,
+                expectedCustomBaseConsistencyLevel: customBase,
+                expectedAdditionalBlocks: blocks
+            });
+    }
+
     // ============ Construction ============
 
     function test_constructor_readsWormholeIdentity() public view {
@@ -309,11 +397,14 @@ contract WormholeHookIsmTest is Test {
             originRouter.routers(DESTINATION),
             address(destinationRouter).addressToBytes32()
         );
-        (uint16 whId, uint8 consistency) = originRouter.remoteRouterConfigs(
-            DESTINATION
-        );
+        (
+            uint16 whId,
+            WormholeVaaHookIsm.ExpectedConsistencyLevelConfig memory expected
+        ) = originRouter.remoteRouterConfigs(DESTINATION);
         assertEq(whId, WH_DESTINATION);
-        assertEq(consistency, CONSISTENCY);
+        assertEq(expected.consistencyLevel, CONSISTENCY);
+        assertEq(expected.customBaseConsistencyLevel, 0);
+        assertEq(expected.additionalBlocks, 0);
         (bool enrolled, uint32 domainId) = originRouter
             .domainIdForRemoteWormholeChainId(WH_DESTINATION);
         assertTrue(enrolled);
@@ -359,7 +450,7 @@ contract WormholeHookIsmTest is Test {
             address(originRouter),
             0,
             _nonce(message),
-            WormholeMessage.encode(remoteRouter, message.id()),
+            WormholeMessage.encode(remoteRouter, message.id(), 0, 0),
             CONSISTENCY
         );
         _dispatch();
@@ -455,11 +546,12 @@ contract WormholeHookIsmTest is Test {
             originRouter.routers(DESTINATION),
             replacement.addressToBytes32()
         );
-        (uint16 chainId, uint8 level) = originRouter.remoteRouterConfigs(
-            DESTINATION
-        );
+        (
+            uint16 chainId,
+            WormholeVaaHookIsm.ExpectedConsistencyLevelConfig memory expected
+        ) = originRouter.remoteRouterConfigs(DESTINATION);
         assertEq(chainId, newChainId);
-        assertEq(level, CONSISTENCY);
+        assertEq(expected.consistencyLevel, CONSISTENCY);
 
         (bool oldAssigned, ) = originRouter.domainIdForRemoteWormholeChainId(
             WH_DESTINATION
@@ -531,10 +623,7 @@ contract WormholeHookIsmTest is Test {
         originRouter.enrollRemoteRouters(configs);
 
         assertEq(originRouter.routers(newDomain), bytes32(0));
-        (uint16 chainId, uint8 consistencyLevel) = originRouter
-            .remoteRouterConfigs(newDomain);
-        assertEq(chainId, 0);
-        assertEq(consistencyLevel, 0);
+        _assertNoRemoteConsistencyLevel(originRouter, newDomain);
 
         (bool assigned, ) = originRouter.domainIdForRemoteWormholeChainId(
             newChainId
@@ -600,6 +689,96 @@ contract WormholeHookIsmTest is Test {
         assertTrue(_verify(message, _wrapVaa(updatedVaa)));
     }
 
+    function test_enroll_storesCustomConsistencyLevel() public {
+        address remote = makeAddr("customRemote");
+
+        vm.expectEmit(true, true, false, true, address(originRouter));
+        emit WormholeVaaHookIsm.WormholeRemoteRouterEnrolled(
+            3000,
+            remote.addressToBytes32(),
+            42,
+            CUSTOM
+        );
+        _enrollConfig(
+            originRouter,
+            _customRemoteRouterConfig(
+                3000,
+                remote,
+                42,
+                CUSTOM_BASE,
+                CUSTOM_BLOCKS
+            )
+        );
+
+        (
+            uint16 chainId,
+            WormholeVaaHookIsm.ExpectedConsistencyLevelConfig memory expected
+        ) = originRouter.remoteRouterConfigs(3000);
+        assertEq(chainId, 42);
+        assertEq(expected.consistencyLevel, CUSTOM);
+        assertEq(expected.customBaseConsistencyLevel, CUSTOM_BASE);
+        assertEq(expected.additionalBlocks, CUSTOM_BLOCKS);
+    }
+
+    function test_enroll_rejectsUnsupportedConsistencyLevel() public {
+        WormholeVaaHookIsm.RemoteRouterConfig
+            memory config = _remoteRouterConfig(3000, makeAddr("remote"), 42);
+        config.expectedConsistencyLevel = 15;
+
+        vm.expectRevert(
+            CustomConsistencyLevelLib.InvalidConsistencyLevelConfig.selector
+        );
+        _enrollConfig(originRouter, config);
+    }
+
+    function test_enroll_rejectsCustomFieldsForNonCustomLevel() public {
+        WormholeVaaHookIsm.RemoteRouterConfig
+            memory config = _remoteRouterConfig(3000, makeAddr("remote"), 42);
+
+        config.expectedCustomBaseConsistencyLevel = CUSTOM_BASE;
+        vm.expectRevert(
+            CustomConsistencyLevelLib
+                .UnexpectedCustomConsistencyLevelConfig
+                .selector
+        );
+        _enrollConfig(originRouter, config);
+
+        config.expectedCustomBaseConsistencyLevel = 0;
+        config.expectedAdditionalBlocks = CUSTOM_BLOCKS;
+        vm.expectRevert(
+            CustomConsistencyLevelLib
+                .UnexpectedCustomConsistencyLevelConfig
+                .selector
+        );
+        _enrollConfig(originRouter, config);
+    }
+
+    function test_enroll_rejectsInvalidCustomConsistencyLevel() public {
+        address remote = makeAddr("remote");
+
+        // Base level is not a CCL sentinel.
+        vm.expectRevert(
+            CustomConsistencyLevelLib
+                .InvalidCustomConsistencyLevelConfig
+                .selector
+        );
+        _enrollConfig(
+            originRouter,
+            _customRemoteRouterConfig(3000, remote, 42, 0, CUSTOM_BLOCKS)
+        );
+
+        // No additional blocks would equal the base level itself.
+        vm.expectRevert(
+            CustomConsistencyLevelLib
+                .InvalidCustomConsistencyLevelConfig
+                .selector
+        );
+        _enrollConfig(
+            originRouter,
+            _customRemoteRouterConfig(3000, remote, 42, CUSTOM_BASE, 0)
+        );
+    }
+
     function test_enroll_replacesRouterImmediately() public {
         address replacement = makeAddr("replacement");
         _enroll(originRouter, DESTINATION, replacement, WH_DESTINATION);
@@ -649,8 +828,7 @@ contract WormholeHookIsmTest is Test {
 
         destinationRouter.unenrollRemoteRouter(ORIGIN);
 
-        (uint16 whId, ) = destinationRouter.remoteRouterConfigs(ORIGIN);
-        assertEq(whId, 0);
+        _assertNoRemoteConsistencyLevel(destinationRouter, ORIGIN);
         (bool enrolled, ) = destinationRouter.domainIdForRemoteWormholeChainId(
             WH_ORIGIN
         );
@@ -804,7 +982,9 @@ contract WormholeHookIsmTest is Test {
         );
         bytes memory expectedPayload = WormholeMessage.encode(
             address(destinationRouter).addressToBytes32(),
-            message.id()
+            message.id(),
+            0,
+            0
         );
 
         vm.expectEmit(true, false, false, true, address(originCore));
@@ -820,6 +1000,36 @@ contract WormholeHookIsmTest is Test {
 
         assertEq(address(originCore).balance, CORE_FEE);
         assertEq(originRouter.latestPublishedMessageId(), message.id());
+    }
+
+    function test_postDispatch_publishesCustomConsistencyLevel() public {
+        WormholeVaaHookIsm customOrigin = _deployCustomOrigin();
+        bytes memory message = originMailbox.buildOutboundMessage(
+            DESTINATION,
+            address(recipient).addressToBytes32(),
+            _body()
+        );
+
+        vm.expectEmit(true, false, false, true, address(originCore));
+        emit ICoreBridge.LogMessagePublished(
+            address(customOrigin),
+            0,
+            _nonce(message),
+            WormholeMessage.encode(
+                address(destinationRouter).addressToBytes32(),
+                message.id(),
+                CUSTOM_BASE,
+                CUSTOM_BLOCKS
+            ),
+            CUSTOM
+        );
+        originMailbox.dispatch{value: CORE_FEE}(
+            DESTINATION,
+            address(recipient).addressToBytes32(),
+            _body(),
+            "",
+            IPostDispatchHook(address(customOrigin))
+        );
     }
 
     function test_postDispatch_emitsCorrelationEvent() public {
@@ -1006,6 +1216,103 @@ contract WormholeHookIsmTest is Test {
         _verify(message, metadata);
     }
 
+    /// @dev Enrolls a route expecting the `CUSTOM_*` settings and returns a
+    /// message with ISM metadata for a `CUSTOM` VAA declaring `declaredBase`
+    /// and `declaredBlocks`.
+    function _customVaaMetadata(
+        uint8 declaredBase,
+        uint16 declaredBlocks
+    ) internal returns (bytes memory message, bytes memory metadata) {
+        _enrollConfig(
+            destinationRouter,
+            _customRemoteRouterConfig(
+                ORIGIN,
+                address(originRouter),
+                WH_ORIGIN,
+                CUSTOM_BASE,
+                CUSTOM_BLOCKS
+            )
+        );
+        (message, ) = _dispatch();
+        bytes memory payload = WormholeMessage.encode(
+            address(destinationRouter).addressToBytes32(),
+            message.id(),
+            declaredBase,
+            declaredBlocks
+        );
+        bytes memory encodedVaa = _vaa(
+            WH_ORIGIN,
+            address(originRouter).addressToBytes32(),
+            0,
+            _nonce(message),
+            CUSTOM,
+            0,
+            payload
+        );
+
+        metadata = _wrapVaa(encodedVaa);
+    }
+
+    function test_verify_acceptsExpectedCustomConsistencyLevel() public {
+        (bytes memory message, bytes memory metadata) = _customVaaMetadata(
+            CUSTOM_BASE,
+            CUSTOM_BLOCKS
+        );
+
+        assertTrue(_verify(message, metadata));
+    }
+
+    function test_verify_rejectsWrongCustomBaseConsistencyLevel() public {
+        (bytes memory message, bytes memory metadata) = _customVaaMetadata(
+            201,
+            CUSTOM_BLOCKS
+        );
+
+        vm.expectRevert(
+            WormholeVaaHookIsm.WrongMessageCustomConsistencyLevelConfig.selector
+        );
+        _verify(message, metadata);
+    }
+
+    function test_verify_rejectsWrongAdditionalBlocks() public {
+        (bytes memory message, bytes memory metadata) = _customVaaMetadata(
+            CUSTOM_BASE,
+            CUSTOM_BLOCKS + 1
+        );
+
+        vm.expectRevert(
+            WormholeVaaHookIsm.WrongMessageCustomConsistencyLevelConfig.selector
+        );
+        _verify(message, metadata);
+    }
+
+    function test_verify_rejectsCustomSettingsDeclaredForStandardRoute()
+        public
+    {
+        (bytes memory message, ) = _dispatch();
+        bytes memory metadata = _wrapVaa(
+            _vaa(
+                WH_ORIGIN,
+                address(originRouter).addressToBytes32(),
+                0,
+                _nonce(message),
+                CONSISTENCY,
+                0,
+                WormholeMessage.encode(
+                    address(destinationRouter).addressToBytes32(),
+                    message.id(),
+                    CUSTOM_BASE,
+                    CUSTOM_BLOCKS
+                )
+            )
+        );
+
+        vm.expectRevert(
+            WormholeVaaHookIsm.WrongMessageCustomConsistencyLevelConfig.selector
+        );
+        _verify(message, metadata);
+    }
+
     function test_process_rejectsWrongDestinationBeforeVerification() public {
         bytes memory message = originMailbox.buildOutboundMessage(
             DESTINATION + 1,
@@ -1020,7 +1327,9 @@ contract WormholeHookIsmTest is Test {
         (bytes memory message, ) = _dispatch();
         bytes memory payload = WormholeMessage.encode(
             makeAddr("otherRouter").addressToBytes32(),
-            message.id()
+            message.id(),
+            0,
+            0
         );
         bytes memory metadata = _wrapVaa(
             _vaa(
@@ -1076,7 +1385,9 @@ contract WormholeHookIsmTest is Test {
             bytes4("XXXX"),
             WormholeMessage.VERSION,
             address(destinationRouter).addressToBytes32(),
-            message.id()
+            message.id(),
+            uint8(0),
+            uint16(0)
         );
         bytes memory metadata = _wrapVaa(
             _vaa(
@@ -1099,7 +1410,9 @@ contract WormholeHookIsmTest is Test {
             WormholeMessage.MAGIC,
             WormholeMessage.VERSION + 1,
             address(destinationRouter).addressToBytes32(),
-            message.id()
+            message.id(),
+            uint8(0),
+            uint16(0)
         );
         bytes memory metadata = _wrapVaa(
             _vaa(
@@ -1173,7 +1486,9 @@ contract WormholeHookIsmTest is Test {
         return
             WormholeMessage.encode(
                 address(destinationRouter).addressToBytes32(),
-                message.id()
+                message.id(),
+                0,
+                0
             );
     }
 
@@ -1570,6 +1885,56 @@ contract WormholeHookIsmTest is Test {
         destinationMailbox.process(metadata, message);
     }
 
+    function test_process_deliversMessageFromCustomConsistencyOrigin() public {
+        WormholeVaaHookIsm customOrigin = _deployCustomOrigin();
+        _enrollConfig(
+            destinationRouter,
+            _customRemoteRouterConfig(
+                ORIGIN,
+                address(customOrigin),
+                WH_ORIGIN,
+                CUSTOM_BASE,
+                CUSTOM_BLOCKS
+            )
+        );
+        bytes memory message = originMailbox.buildOutboundMessage(
+            DESTINATION,
+            address(recipient).addressToBytes32(),
+            _body()
+        );
+
+        vm.recordLogs();
+        originMailbox.dispatch{value: CORE_FEE}(
+            DESTINATION,
+            address(recipient).addressToBytes32(),
+            _body(),
+            "",
+            IPostDispatchHook(address(customOrigin))
+        );
+        (
+            uint64 sequence,
+            uint32 nonce,
+            bytes memory payload,
+            uint8 consistencyLevel
+        ) = _readPublication();
+        bytes memory metadata = _wrapVaa(
+            _vaa(
+                WH_ORIGIN,
+                address(customOrigin).addressToBytes32(),
+                sequence,
+                nonce,
+                consistencyLevel,
+                0,
+                payload
+            )
+        );
+
+        destinationMailbox.process(metadata, message);
+
+        assertTrue(destinationMailbox.delivered(message.id()));
+        assertEq(recipient.lastData(), _body());
+    }
+
     function test_dispatch_paysCoreFee() public {
         _dispatch();
         assertEq(address(originCore).balance, CORE_FEE);
@@ -1584,34 +1949,49 @@ contract WormholeHookIsmTest_Payload is Test {
     function test_payload_encodedLength() public pure {
         bytes memory payload = WormholeMessage.encode(
             bytes32(uint256(3)),
-            bytes32(uint256(4))
+            bytes32(uint256(4)),
+            0,
+            0
         );
         assertEq(payload.length, WormholeMessage.ENCODED_LENGTH);
-        assertEq(payload.length, 69);
+        assertEq(payload.length, 72);
     }
 
     function test_payload_wireLayout() public pure {
         bytes32 destinationHookIsm = bytes32(uint256(3));
         bytes32 messageId = bytes32(uint256(4));
+        uint8 customBase = 200;
+        uint16 blocks = 2;
 
         assertEq(
-            WormholeMessage.encode(destinationHookIsm, messageId),
+            WormholeMessage.encode(
+                destinationHookIsm,
+                messageId,
+                customBase,
+                blocks
+            ),
             abi.encodePacked(
                 WormholeMessage.MAGIC,
                 WormholeMessage.VERSION,
                 destinationHookIsm,
-                messageId
+                messageId,
+                customBase,
+                blocks
             )
         );
     }
 
     function testFuzz_payload_roundTrip(
         bytes32 destinationHookIsm,
-        bytes32 messageId
+        bytes32 messageId,
+        uint8 customBase,
+        uint16 blocks
     ) public pure {
         bytes memory payload = WormholeMessage.encode(
             destinationHookIsm,
-            messageId
+            messageId,
+            customBase,
+            blocks
         );
         WormholeMessage.Message memory decoded = WormholeMessage.decode(
             payload
@@ -1621,6 +2001,8 @@ contract WormholeHookIsmTest_Payload is Test {
         assertEq(decoded.version, WormholeMessage.VERSION);
         assertEq(decoded.destinationHookIsm, destinationHookIsm);
         assertEq(decoded.messageId, messageId);
+        assertEq(decoded.customBaseConsistencyLevel, customBase);
+        assertEq(decoded.additionalBlocks, blocks);
     }
 
     function testFuzz_payload_rejectsWrongLength(uint8 extra) public {

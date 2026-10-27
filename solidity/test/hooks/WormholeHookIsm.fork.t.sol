@@ -235,7 +235,9 @@ contract WormholeHookIsmForkTest is Test {
             payload,
             WormholeMessage.encode(
                 address(destinationRouter).addressToBytes32(),
-                message.id()
+                message.id(),
+                0,
+                0
             ),
             "unexpected published payload"
         );
@@ -255,16 +257,56 @@ contract WormholeHookIsmForkTest is Test {
             WormholeVaaHookIsm destinationRouter
         ) = _deployVaaMesh();
 
+        _deliverThroughVaa(originRouter, destinationRouter);
+    }
+
+    function testFork_customConsistencyVaaEndToEnd() public {
+        vm.selectFork(ethereumFork);
+        (
+            WormholeVaaHookIsm originRouter,
+            WormholeVaaHookIsm destinationRouter
+        ) = _deployVaaMesh(
+                WormholeConsistencyLevelConfig({
+                    consistencyLevel: CONSISTENCY_CUSTOM,
+                    customConsistencyLevelContract: CCL_ETHEREUM,
+                    customBaseConsistencyLevel: CONSISTENCY_INSTANT,
+                    additionalBlocks: 2
+                }),
+                WormholeVaaHookIsm.ExpectedConsistencyLevelConfig({
+                    consistencyLevel: CONSISTENCY_CUSTOM,
+                    customBaseConsistencyLevel: CONSISTENCY_INSTANT,
+                    additionalBlocks: 2
+                })
+            );
+
+        (bytes memory payload, uint8 consistencyLevel) = _deliverThroughVaa(
+            originRouter,
+            destinationRouter
+        );
+
+        assertEq(consistencyLevel, CONSISTENCY_CUSTOM);
+        WormholeMessage.Message memory published = WormholeMessage.decode(
+            payload
+        );
+        assertEq(published.customBaseConsistencyLevel, CONSISTENCY_INSTANT);
+        assertEq(published.additionalBlocks, 2);
+    }
+
+    /// @dev Dispatches on Ethereum, signs the published VAA, and delivers it on
+    /// Base through the destination router.
+    function _deliverThroughVaa(
+        WormholeVaaHookIsm originRouter,
+        WormholeVaaHookIsm destinationRouter
+    ) internal returns (bytes memory payload, uint8 consistencyLevel) {
         vm.selectFork(ethereumFork);
         bytes memory message = _buildMessage();
         vm.recordLogs();
         _dispatchFrom(originRouter, ICoreBridge(CORE_ETHEREUM).messageFee());
-        (
-            uint64 sequence,
-            uint32 nonce,
-            bytes memory payload,
-            uint8 consistencyLevel
-        ) = _readPublication(address(originRouter));
+        uint64 sequence;
+        uint32 nonce;
+        (sequence, nonce, payload, consistencyLevel) = _readPublication(
+            address(originRouter)
+        );
 
         vm.selectFork(baseFork);
         bytes memory encodedVaa = _signProductionVaa(
@@ -416,6 +458,27 @@ contract WormholeHookIsmForkTest is Test {
         internal
         returns (WormholeVaaHookIsm origin, WormholeVaaHookIsm destination)
     {
+        return
+            _deployVaaMesh(
+                _consistencyLevelConfig(),
+                WormholeVaaHookIsm.ExpectedConsistencyLevelConfig({
+                    consistencyLevel: CONSISTENCY_FINALIZED,
+                    customBaseConsistencyLevel: 0,
+                    additionalBlocks: 0
+                })
+            );
+    }
+
+    /// @dev The destination expects `expectedFromOrigin` in VAAs from `origin`,
+    /// which publishes with `originConsistency`.
+    function _deployVaaMesh(
+        WormholeConsistencyLevelConfig memory originConsistency,
+        WormholeVaaHookIsm.ExpectedConsistencyLevelConfig
+            memory expectedFromOrigin
+    )
+        internal
+        returns (WormholeVaaHookIsm origin, WormholeVaaHookIsm destination)
+    {
         string[] memory urls = new string[](1);
         urls[0] = "https://vaa.example/getWormholeVaa";
 
@@ -431,7 +494,7 @@ contract WormholeHookIsmForkTest is Test {
         origin = new WormholeVaaHookIsm(
             address(ethereumMailbox),
             CORE_ETHEREUM,
-            _consistencyLevelConfig(),
+            originConsistency,
             urls
         );
         WormholeVaaHookIsm.RemoteRouterConfig[]
@@ -440,7 +503,9 @@ contract WormholeHookIsmForkTest is Test {
             domainId: HYP_BASE,
             domainIsm: address(destination).addressToBytes32(),
             wormholeChainId: WH_BASE,
-            expectedConsistencyLevel: CONSISTENCY_FINALIZED
+            expectedConsistencyLevel: CONSISTENCY_FINALIZED,
+            expectedCustomBaseConsistencyLevel: 0,
+            expectedAdditionalBlocks: 0
         });
         origin.enrollRemoteRouters(configs);
 
@@ -449,7 +514,10 @@ contract WormholeHookIsmForkTest is Test {
             domainId: HYP_ETHEREUM,
             domainIsm: address(origin).addressToBytes32(),
             wormholeChainId: WH_ETHEREUM,
-            expectedConsistencyLevel: CONSISTENCY_FINALIZED
+            expectedConsistencyLevel: expectedFromOrigin.consistencyLevel,
+            expectedCustomBaseConsistencyLevel: expectedFromOrigin
+                .customBaseConsistencyLevel,
+            expectedAdditionalBlocks: expectedFromOrigin.additionalBlocks
         });
         destination.enrollRemoteRouters(configs);
     }

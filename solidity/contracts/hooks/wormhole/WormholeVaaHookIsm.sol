@@ -72,6 +72,7 @@ contract WormholeVaaHookIsm is
     error InvalidVaa(string reason);
     error WrongDestinationHookIsm();
     error WrongConsistencyLevel();
+    error WrongMessageCustomConsistencyLevelConfig();
     error WrongEmitterChainId();
     error WrongEmitterAddress();
     error WrongMessageId();
@@ -121,6 +122,20 @@ contract WormholeVaaHookIsm is
         uint16 wormholeChainId;
         /// @notice Consistency level required in VAAs from the remote hook/ISM.
         uint8 expectedConsistencyLevel;
+        /// @notice Custom base consistency level declared by the remote hook/ISM.
+        uint8 expectedCustomBaseConsistencyLevel;
+        /// @notice Additional blocks declared by the remote hook/ISM.
+        uint16 expectedAdditionalBlocks;
+    }
+
+    /// @dev Consistency level and custom settings a VAA must carry.
+    struct ExpectedConsistencyLevelConfig {
+        /// @notice Consistency level required in VAAs from the remote hook/ISM.
+        uint8 consistencyLevel;
+        /// @notice Custom base consistency level declared by the remote hook/ISM.
+        uint8 customBaseConsistencyLevel;
+        /// @notice Additional blocks declared by the remote hook/ISM.
+        uint16 additionalBlocks;
     }
 
     // ============ Immutables ============
@@ -157,7 +172,8 @@ contract WormholeVaaHookIsm is
     /// @notice Expected VAA consistency level for each Hyperlane domain.
     /// @dev A route is valid only when `Router.routers` and `remoteChainIds`
     /// also contain that domain.
-    mapping(uint32 domainId => uint8 level) private expectedConsistencyLevels;
+    mapping(uint32 domainId => ExpectedConsistencyLevelConfig level)
+        private expectedConsistencyLevels;
 
     /// @notice Most recent Hyperlane message ID successfully processed by this hook.
     bytes32 public latestPublishedMessageId;
@@ -229,10 +245,18 @@ contract WormholeVaaHookIsm is
     // ============ Router ============
 
     /// @notice Returns the Wormhole chain ID and expected consistency level
-    /// for a Hyperlane domain, or zero values if it is not enrolled.
+    /// with its custom settings for a Hyperlane domain, or zero values if it
+    /// is not enrolled.
     function remoteRouterConfigs(
         uint32 domainId
-    ) public view returns (uint16 remoteWormholeChainId, uint8 expectedLevel) {
+    )
+        public
+        view
+        returns (
+            uint16 remoteWormholeChainId,
+            ExpectedConsistencyLevelConfig memory expectedLevel
+        )
+    {
         return (
             remoteChainIds.reverseKeyOf(domainId),
             expectedConsistencyLevels[domainId]
@@ -282,12 +306,22 @@ contract WormholeVaaHookIsm is
             revert InvalidRemoteWormholeChainId();
         }
 
+        CustomConsistencyLevelLib.validateCustomConfigSettings(
+            newRemoteConfig.expectedConsistencyLevel,
+            newRemoteConfig.expectedCustomBaseConsistencyLevel,
+            newRemoteConfig.expectedAdditionalBlocks
+        );
+
         // `assign` rejects another domain's chain ID and releases this
         // domain's previous chain ID when it changes.
         remoteChainIds.assign(domainId, newRemoteConfig.wormholeChainId);
         Router._enrollRemoteRouter(domainId, domainIsm);
-        expectedConsistencyLevels[domainId] = newRemoteConfig
-            .expectedConsistencyLevel;
+        expectedConsistencyLevels[domainId] = ExpectedConsistencyLevelConfig({
+            consistencyLevel: newRemoteConfig.expectedConsistencyLevel,
+            customBaseConsistencyLevel: newRemoteConfig
+                .expectedCustomBaseConsistencyLevel,
+            additionalBlocks: newRemoteConfig.expectedAdditionalBlocks
+        });
 
         emit WormholeRemoteRouterEnrolled(
             domainId,
@@ -384,7 +418,9 @@ contract WormholeVaaHookIsm is
                 message.nonce(),
                 WormholeMessage.encode(
                     _mustHaveRemoteRouter(destination),
-                    messageId
+                    messageId,
+                    customBaseConsistencyLevel,
+                    additionalBlocks
                 ),
                 consistencyLevel
             );
@@ -434,7 +470,7 @@ contract WormholeVaaHookIsm is
         bytes32 expectedEmitter = _mustHaveRemoteRouter(originDomain);
         (
             uint16 expectedWormholeChainId,
-            uint8 expectedConsistencyLevel
+            ExpectedConsistencyLevelConfig memory expected
         ) = remoteRouterConfigs(originDomain);
 
         if (vaa.emitterChainId != expectedWormholeChainId) {
@@ -445,8 +481,18 @@ contract WormholeVaaHookIsm is
             revert WrongEmitterAddress();
         }
 
-        if (vaa.consistencyLevel != expectedConsistencyLevel) {
+        if (vaa.consistencyLevel != expected.consistencyLevel) {
             revert WrongConsistencyLevel();
+        }
+
+        // A `CUSTOM` VAA carries only the 203 marker, so compare the base level
+        // and additional blocks declared in its payload.
+        if (
+            wormholeMessage.customBaseConsistencyLevel !=
+            expected.customBaseConsistencyLevel ||
+            wormholeMessage.additionalBlocks != expected.additionalBlocks
+        ) {
+            revert WrongMessageCustomConsistencyLevelConfig();
         }
 
         return true;

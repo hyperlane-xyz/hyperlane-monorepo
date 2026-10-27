@@ -44,7 +44,10 @@ The Wormhole payload commits to:
 - a Hyperlane/Wormhole protocol identifier and version;
 - the destination `WormholeVaaHookIsm` address;
 - the complete Hyperlane message ID, which commits to the origin, destination,
-  nonce, sender, recipient, and body.
+  nonce, sender, recipient, and body; and
+- the custom base consistency level and additional blocks this hook registered
+  with Wormhole's CCL contract, or zero for both when it publishes with a
+  standard consistency level.
 
 The encoding is defined in
 [`WormholeMessage.sol`](../../libs/WormholeMessage.sol).
@@ -64,7 +67,9 @@ require earlier nonces or Wormhole sequences to have been delivered.
 - the Hyperlane message origin has an enrolled remote hook/ISM;
 - the VAA emitter chain equals that route's Wormhole chain ID;
 - the VAA emitter identifier equals the enrolled remote hook/ISM identifier;
-- the VAA consistency level equals the route's expected level; and
+- the VAA consistency level equals the route's expected level;
+- the payload's custom base consistency level and additional blocks equal the
+  route's expected values; and
 - the payload message ID equals the ID of the Hyperlane message passed to
   `verify`.
 
@@ -86,17 +91,20 @@ in `handle`, or enforce an equivalent application or ISM policy.
 The owner enrolls one or more remote hook/ISM routes with
 `enrollRemoteRouters`. Each route includes:
 
-| Field                      | Purpose                                               |
-| -------------------------- | ----------------------------------------------------- |
-| `domainId`                 | Hyperlane origin or destination domain ID             |
-| `domainIsm`                | Remote hook/ISM's Wormhole emitter identifier         |
-| `wormholeChainId`          | Wormhole chain containing that remote hook/ISM        |
-| `expectedConsistencyLevel` | Required consistency level in VAAs from that hook/ISM |
+| Field                                | Purpose                                                            |
+| ------------------------------------ | ------------------------------------------------------------------ |
+| `domainId`                           | Hyperlane origin or destination domain ID                          |
+| `domainIsm`                          | Remote hook/ISM's Wormhole emitter identifier                      |
+| `wormholeChainId`                    | Wormhole chain containing that remote hook/ISM                     |
+| `expectedConsistencyLevel`           | Required consistency level in VAAs from that hook/ISM              |
+| `expectedCustomBaseConsistencyLevel` | Custom base consistency level declared by that hook/ISM, else zero |
+| `expectedAdditionalBlocks`           | Additional blocks declared by that hook/ISM, else zero             |
 
 The inherited `Router.routers(domainId)` mapping stores the remote hook/ISM's
 `bytes32` emitter identifier. EVM addresses are left-padded; non-EVM emitters
-may use all 32 bytes. `remoteRouterConfigs` returns its Wormhole chain ID and
-expected consistency level. Verification requires every value to match.
+may use all 32 bytes. `remoteRouterConfigs` returns its Wormhole chain ID,
+expected consistency level, and custom settings. Verification requires every
+value to match.
 
 A Wormhole chain ID can belong to only one enrolled Hyperlane domain ID. The
 `domainIdForRemoteWormholeChainId` records this reverse lookup explicitly,
@@ -150,6 +158,15 @@ for the source chain.
 The local consistency level and each remote route's expected consistency level
 are separate: the former controls VAAs emitted here, while the latter controls
 VAAs accepted from that remote hook/ISM.
+
+A `CUSTOM` VAA carries only the `203` marker, not the base level or additional
+blocks Guardians were configured with. This hook therefore declares both in its
+payload, and the destination compares them with the route's expected values.
+This catches an enrollment that does not match the remote hook's configuration;
+it does not prove when Guardians observed the message.
+
+Enrollment applies the same checks to a route's expected level and custom
+settings as the constructor applies to the local ones.
 
 ## Fees and refunds
 
