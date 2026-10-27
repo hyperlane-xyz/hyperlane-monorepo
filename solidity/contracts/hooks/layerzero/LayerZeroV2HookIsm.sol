@@ -412,17 +412,16 @@ contract LayerZeroV2HookIsm is
             revert InvalidLayerZeroPeer(newRemoteConfig.domainIsm);
         }
 
-        ReverseMappingLib.ReverseEntry
-            memory currentEndpoint = remoteEndpointIds.keyOf(
-                newRemoteConfig.endpointId
-            );
+        (
+            bool endpointIsAssigned,
+            uint32 assignedDomainId
+        ) = domainIdForRemoteLayerZeroEndpointId(newRemoteConfig.endpointId);
         if (
-            currentEndpoint.assigned &&
-            currentEndpoint.key != newRemoteConfig.domainId
+            endpointIsAssigned && assignedDomainId != newRemoteConfig.domainId
         ) {
             revert LayerZeroEndpointIdAssignedToAnotherDomain(
                 newRemoteConfig.endpointId,
-                currentEndpoint.key
+                assignedDomainId
             );
         }
 
@@ -691,13 +690,15 @@ contract LayerZeroV2HookIsm is
     function allowInitializePath(
         LayerZeroOrigin calldata origin
     ) external view returns (bool) {
-        ReverseMappingLib.ReverseEntry memory remoteEndpoint = remoteEndpointIds
-            .keyOf(origin.srcEid);
-        if (!remoteEndpoint.assigned) {
+        (
+            bool enrolled,
+            uint32 sourceDomainId
+        ) = domainIdForRemoteLayerZeroEndpointId(origin.srcEid);
+        if (!enrolled) {
             return false;
         }
 
-        return routers(remoteEndpoint.key) == origin.sender;
+        return routers(sourceDomainId) == origin.sender;
     }
 
     /// @notice Reports whether this OApp requires ordered message execution.
