@@ -318,8 +318,10 @@ contract LayerZeroV2HookIsm is
     }
 
     /// @notice Installs or replaces remote routes and their LayerZero policies atomically.
-    /// @dev All-zero configs select the library defaults. An abandoned
-    /// endpoint ID is blocked, but an unchanged path stays selected.
+    /// @dev All-zero configs select the library defaults. No minimum DVN or
+    /// confirmation count is enforced, so prefer explicit configs over the
+    /// defaults. An abandoned endpoint ID is blocked, but an unchanged path
+    /// stays selected.
     function enrollRemoteRouters(
         RemoteRouterConfig[] calldata newRemoteConfigs
     ) external onlyOwner {
