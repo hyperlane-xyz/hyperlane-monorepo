@@ -454,6 +454,7 @@ impl BaseAgent for Relayer {
                     origin.chain_conf.addresses.interchain_gas_paymaster,
                     origin.chain_conf.addresses.merkle_tree_hook,
                     origin.database.clone(),
+                    origin.chain_conf.reorg_period.as_blocks().ok(),
                 )
                 .with_broadcaster(origin.message_sync.get_broadcaster())
                 .with_freshness_indexer(origin.message_sequence_indexer.clone())

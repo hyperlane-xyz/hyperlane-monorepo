@@ -90,6 +90,7 @@ pub(crate) struct ScraperSource {
     interchain_gas_paymaster: H256,
     merkle_tree_hook: H256,
     database: HyperlaneRocksDB,
+    confirmations: Option<u32>,
     broadcaster: Option<BroadcastMpscSender<IndexingNotification>>,
     freshness_indexer: Option<SequenceIndexer<HyperlaneMessage>>,
     merkle_freshness_indexer: Option<SequenceIndexer<MerkleTreeInsertion>>,
@@ -104,6 +105,7 @@ impl ScraperSource {
         interchain_gas_paymaster: H256,
         merkle_tree_hook: H256,
         database: HyperlaneRocksDB,
+        confirmations: Option<u32>,
     ) -> Self {
         Self {
             chain,
@@ -112,6 +114,7 @@ impl ScraperSource {
             interchain_gas_paymaster,
             merkle_tree_hook,
             database,
+            confirmations,
             broadcaster: None,
             freshness_indexer: None,
             merkle_freshness_indexer: None,
@@ -152,29 +155,26 @@ impl ScraperSource {
         }
     }
     fn load(&self) -> Result<SourceState> {
-        let mut streams = std::array::from_fn(|_| Progress::default());
+        let mut state = SourceState::default();
+        if self.confirmations.is_some() {
+            return Ok(state);
+        }
         for kind in [Kind::Dispatch, Kind::Merkle] {
             let last: Option<u32> = self
                 .database
                 .retrieve_value_by_key(kind.prefix(), &self.address(kind))?;
-            streams[kind.index()].last = last.map(u64::from);
+            state.streams[kind.index()].last = last.map(u64::from);
         }
         let gas: Option<StoredGasCursor> = self
             .database
             .retrieve_value_by_key(GAS_CURSOR, &self.interchain_gas_paymaster)?;
-        let progress = &mut streams[Kind::Gas.index()];
+        let progress = &mut state.streams[Kind::Gas.index()];
         progress.last = Some(gas.as_ref().map_or(0, |cursor| cursor.stream_cursor));
         progress.legacy_max = gas.map(|cursor| cursor.legacy_max_stream_cursor);
-        Ok(SourceState {
-            streams,
-            health: std::array::from_fn(|_| StreamHealth::default()),
-            active: false,
-            fresh: false,
-            last_fresh: None,
-            ahead: false,
-        })
+        Ok(state)
     }
-    fn baseline_present(&self, kind: Kind, sequence: u32) -> Result<bool> {
+    #[cfg(test)]
+    fn has_sequence(&self, kind: Kind, sequence: u32) -> Result<bool> {
         Ok(match kind {
             Kind::Dispatch => self.database.retrieve_message_by_nonce(sequence)?.is_some(),
             Kind::Merkle => self
@@ -185,13 +185,6 @@ impl ScraperSource {
         })
     }
     fn persist(&self, kind: Kind, progress: &mut Progress) -> Result<()> {
-        // Fresh sequenced subscriptions start at the proxy's tip. RPC must cover
-        // that skipped prefix before we commit a cursor or stop RPC indexing.
-        if let Some(baseline) = progress.baseline {
-            if !self.baseline_present(kind, baseline)? {
-                return Ok(());
-            }
-        }
         let Some(last) = progress.last else {
             return Ok(());
         };
@@ -214,7 +207,6 @@ impl ScraperSource {
                 .store_value_by_key(kind.prefix(), &self.address(kind), &sequence)?;
             self.update_cursor_metrics(kind, sequence, true);
         }
-        progress.baseline = None;
         Ok(())
     }
     fn update_cursor_metrics(&self, kind: Kind, sequence: u32, current: bool) {
@@ -434,7 +426,6 @@ impl ScraperAuthorityReceiver {
 
 struct Progress {
     last: Option<u64>,
-    baseline: Option<u32>,
     caught_up: bool,
     usable: bool,
     legacy_max: Option<u64>,
@@ -443,7 +434,6 @@ impl Default for Progress {
     fn default() -> Self {
         Self {
             last: None,
-            baseline: None,
             caught_up: false,
             usable: true,
             legacy_max: None,
@@ -452,7 +442,7 @@ impl Default for Progress {
 }
 impl Progress {
     fn ready(&self) -> bool {
-        self.caught_up && self.usable && self.baseline.is_none()
+        self.caught_up && self.usable
     }
     fn check_gas_cursor(&self, last: u64, legacy: u64, marker: bool) -> Result<()> {
         ensure!(
@@ -473,6 +463,7 @@ impl Progress {
         Ok(())
     }
 }
+#[derive(Default)]
 struct SourceState {
     streams: [Progress; 3],
     health: [StreamHealth; 2],
@@ -519,6 +510,7 @@ impl Decode for StoredGasCursor {
     }
 }
 
+#[derive(Clone)]
 struct Metrics {
     active: IntGaugeVec,
     authority: IntGaugeVec,
@@ -644,8 +636,28 @@ impl ScraperWebSocketMonitor {
         }
     }
     pub(crate) async fn run(self) {
+        // The proxy allows one confirmation count per event type/connection.
+        let mut groups: HashMap<_, HashMap<_, _>> = HashMap::new();
+        for (domain, source) in self.sources {
+            groups
+                .entry(source.confirmations)
+                .or_default()
+                .insert(domain, source);
+        }
+        futures_util::future::join_all(groups.into_iter().map(|(confirmations, sources)| {
+            Self {
+                sources,
+                url: self.url.clone(),
+                authority_enabled: self.authority_enabled,
+                metrics: self.metrics.clone(),
+            }
+            .run_connection(confirmations)
+        }))
+        .await;
+    }
+    async fn run_connection(self, confirmations: Option<u32>) {
         loop {
-            let result = self.stream(StreamTimeouts::default()).await;
+            let result = self.stream(StreamTimeouts::default(), confirmations).await;
             reconnect_after(result, RETRY_DELAY).await;
         }
     }
@@ -653,6 +665,7 @@ impl ScraperWebSocketMonitor {
         &self,
         state: &HashMap<u32, SourceState>,
         gas: bool,
+        confirmations: Option<u32>,
     ) -> SubscribeMessage<'static> {
         let mut sources = self.sources.values().collect::<Vec<_>>();
         sources.sort_unstable_by_key(|source| source.domain);
@@ -674,18 +687,18 @@ impl ScraperWebSocketMonitor {
                             _ => StreamCursor::Sequence(SequenceCursor {
                                 address: format_address(source.address(kind)),
                                 allow_replay: Some(true),
-                                after_sequence: last.map(|last| {
-                                    last.checked_sub(1)
-                                        .map_or_else(|| "-1".to_owned(), |last| last.to_string())
-                                }),
+                                after_sequence: Some(
+                                    last.and_then(|last| last.checked_sub(1))
+                                        .map_or_else(|| "-1".to_owned(), |last| last.to_string()),
+                                ),
                                 domain: source.domain,
                             }),
                         }
                     })
                     .collect();
                 SubscribeStream {
-                    confirmations: None,
-                    cursors: Some(cursors),
+                    confirmations,
+                    cursors: confirmations.is_none().then_some(cursors),
                     domains: Some(sources.iter().map(|source| source.domain).collect()),
                     event_type: kind.label(),
                     stream_cursor_version: matches!(kind, Kind::Gas).then_some(GAS_CURSOR_VERSION),
@@ -697,8 +710,11 @@ impl ScraperWebSocketMonitor {
             message_type: "subscribe",
         }
     }
-    async fn stream(&self, timeouts: StreamTimeouts) -> Result<()> {
+    async fn stream(&self, timeouts: StreamTimeouts, confirmations: Option<u32>) -> Result<()> {
         let _guard = ConnectionGuard(self);
+        // Custom confirmations are live-only. RPC keeps indexing history and gas.
+        let canonical = confirmations.is_none();
+        let authority = self.authority_enabled && canonical;
         let mut state = self
             .sources
             .iter()
@@ -707,7 +723,7 @@ impl ScraperWebSocketMonitor {
         let mut socket = ScraperSession::connect(&self.url, timeouts).await?;
         let mut gas = false;
         loop {
-            if self.authority_enabled {
+            if authority {
                 for (domain, current) in &mut state {
                     let source = &self.sources[domain];
                     if !current.ready() {
@@ -731,7 +747,7 @@ impl ScraperWebSocketMonitor {
                 }
             }
             let Some(event) = socket
-                .next::<serde_json::Value>(self.authority_enabled, || self.probes(&mut state))
+                .next::<serde_json::Value>(authority, || self.probes(&state))
                 .await?
             else {
                 return Ok(());
@@ -771,15 +787,18 @@ impl ScraperWebSocketMonitor {
                     ServerMessage::Ready {
                         stream_cursor_versions,
                     } => {
-                        gas = stream_cursor_versions.get(Kind::Gas.label())
-                            == Some(&GAS_CURSOR_VERSION);
+                        gas = canonical
+                            && stream_cursor_versions.get(Kind::Gas.label())
+                                == Some(&GAS_CURSOR_VERSION);
                         for source in self.sources.values() {
                             self.metrics
                                 .degraded
                                 .with_label_values(&[source.chain.as_str(), Kind::Gas.label()])
-                                .set(i64::from(!gas));
+                                .set(i64::from(canonical && !gas));
                         }
-                        socket.subscribe(self.subscription(&state, gas)).await?;
+                        socket
+                            .subscribe(self.subscription(&state, gas, confirmations))
+                            .await?;
                     }
                     ServerMessage::Subscribed { .. } => {
                         for source in self.sources.values() {
@@ -801,6 +820,22 @@ impl ScraperWebSocketMonitor {
                             .get(&domain)
                             .context("Unknown scraper domain")?;
                         let current = state.get_mut(&domain).context("Missing source state")?;
+                        if source.confirmations.is_some() {
+                            let field = if matches!(kind, Kind::Dispatch) {
+                                "origin_mailbox"
+                            } else {
+                                "merkle_tree_hook"
+                            };
+                            // Live subscriptions include every contract in the domain.
+                            if parse_address(
+                                event.data[field]
+                                    .as_str()
+                                    .context("Missing event contract")?,
+                            )? != source.address(kind)
+                            {
+                                continue;
+                            }
+                        }
                         if !current.streams[kind.index()].usable {
                             continue;
                         }
@@ -850,6 +885,7 @@ impl ScraperWebSocketMonitor {
                         legacy_max_stream_cursor,
                         ..
                     } => {
+                        ensure!(canonical, "Unexpected caught-up marker on live-only stream");
                         let kind = Kind::parse(&event_type)?;
                         let source = self
                             .sources
@@ -887,10 +923,8 @@ impl ScraperWebSocketMonitor {
                                 let last = u64::try_from(last)?;
                                 ensure!(last <= previous, "Caught-up marker skipped events");
                                 progress.caught_up = last == previous;
-                            } else if last >= 0 {
-                                let last = u32::try_from(last)?;
-                                progress.last = Some(u64::from(last));
-                                progress.baseline = Some(last);
+                            } else {
+                                ensure!(last == -1, "Caught-up marker skipped events");
                             }
                         }
                         if self.authority_enabled && progress.usable {
@@ -946,7 +980,7 @@ impl ScraperWebSocketMonitor {
                 .last
                 .map_or(0, |previous| previous.saturating_add(1));
             ensure!(
-                last <= next,
+                last <= next || (source.confirmations.is_some() && progress.last.is_none()),
                 "Scraper sequence gap: expected {next}, received {last}"
             );
             let field = if matches!(kind, Kind::Dispatch) {
@@ -965,33 +999,17 @@ impl ScraperWebSocketMonitor {
             .await?;
         progress.last = Some(progress.last.map_or(last, |previous| previous.max(last)));
         progress.legacy_max = legacy_max;
-        if self.authority_enabled {
+        if self.authority_enabled && source.confirmations.is_none() {
             source.persist(kind, progress)?;
         }
         Ok(())
     }
-    fn probes(&self, state: &mut HashMap<u32, SourceState>) -> BoxStream<'static, Probe> {
+    fn probes(&self, state: &HashMap<u32, SourceState>) -> BoxStream<'static, Probe> {
         let sources = self
             .sources
             .values()
             .filter_map(|source| {
-                let current = state
-                    .get_mut(&source.domain)
-                    .expect("Configured probe source");
-                for kind in [Kind::Dispatch, Kind::Merkle] {
-                    if current.streams[kind.index()].baseline.is_some() {
-                        if let Err(error) = source.persist(kind, &mut current.streams[kind.index()])
-                        {
-                            warn!(
-                                chain = source.chain,
-                                ?error,
-                                "Scraper baseline needs RPC fallback"
-                            );
-                            current.streams[kind.index()].usable = false;
-                            self.revoke(source, current);
-                        }
-                    }
-                }
+                let current = state.get(&source.domain).expect("Configured probe source");
                 if !current.ready()
                     || (current.active
                         && current
@@ -1035,7 +1053,13 @@ impl ScraperWebSocketMonitor {
                                 .map_err(eyre::Report::from)
                         },
                     )?;
-                    Ok((next, [dispatch.0.unwrap_or(0), merkle.0.unwrap_or(0)]))
+                    Ok((
+                        next,
+                        [
+                            dispatch.0.context("Missing dispatch sequence count")?,
+                            merkle.0.context("Missing Merkle sequence count")?,
+                        ],
+                    ))
                 }
                 .await;
                 match result {
@@ -1195,7 +1219,10 @@ mod tests {
     use hyperlane_core::{ChainResult, HyperlaneDomain, Indexer, SequenceAwareIndexer};
     use prometheus::Registry;
     use serde_json::{json, Value};
-    use std::{ops::RangeInclusive, sync::atomic::AtomicU32};
+    use std::{
+        ops::RangeInclusive,
+        sync::atomic::{AtomicBool, AtomicU32},
+    };
     use tokio::{
         net::{TcpListener, TcpStream},
         sync::oneshot,
@@ -1203,7 +1230,7 @@ mod tests {
     use tokio_tungstenite::{accept_async, tungstenite::Message, WebSocketStream};
 
     #[derive(Debug)]
-    struct Counts(AtomicU32);
+    struct Counts(AtomicU32, AtomicBool);
     #[async_trait]
     impl<T: Send + Sync + 'static> Indexer<T> for Counts {
         async fn fetch_logs_in_range(
@@ -1219,7 +1246,12 @@ mod tests {
     #[async_trait]
     impl<T: Send + Sync + 'static> SequenceAwareIndexer<T> for Counts {
         async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-            Ok((Some(self.0.load(Ordering::Acquire)), 100))
+            Ok((
+                self.1
+                    .load(Ordering::Acquire)
+                    .then(|| self.0.load(Ordering::Acquire)),
+                100,
+            ))
         }
     }
     struct Fixture {
@@ -1231,7 +1263,7 @@ mod tests {
         fn new(url: Url, write: bool) -> Self {
             let dir = tempfile::tempdir().expect("temp DB");
             let db = test_utils::setup_db(dir.path().to_string_lossy().into_owned());
-            let counts = Arc::new(Counts(AtomicU32::new(0)));
+            let counts = Arc::new(Counts(AtomicU32::new(0), AtomicBool::new(true)));
             let sources = [5, 6].map(|domain| {
                 let chain = format!("test{domain}");
                 ScraperSource::new(
@@ -1241,6 +1273,7 @@ mod tests {
                     H256::from_low_u64_be(3),
                     H256::from_low_u64_be(2),
                     HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain(&chain), db.clone()),
+                    None,
                 )
                 .with_freshness_indexer(counts.clone())
                 .with_merkle_freshness_indexer(counts.clone())
@@ -1274,7 +1307,7 @@ mod tests {
     }
     fn dispatch(nonce: u32) -> Value {
         let message = message(nonce);
-        json!({"nonce": nonce, "sender": format!("{:#x}", message.sender), "recipient": format!("{:#x}", message.recipient), "destination_domain": 6,
+        json!({"nonce": nonce, "origin_mailbox": format!("{:#x}", H256::from_low_u64_be(1)), "sender": format!("{:#x}", message.sender), "recipient": format!("{:#x}", message.recipient), "destination_domain": 6,
             "msg_id": format!("{:#x}", message.id()), "msg_body": "\\x010203", "origin_block_height": "100", "origin_tx_hash": format!("{:#x}", H256::from_low_u64_be(9))})
     }
     fn merkle(nonce: u32) -> Value {
@@ -1316,11 +1349,13 @@ mod tests {
         let request: Value = serde_json::from_str(frame.to_text().expect("text")).expect("JSON");
         let mut response = request["streams"].clone();
         for stream in response.as_array_mut().expect("streams") {
-            for cursor in stream["cursors"].as_array_mut().expect("cursors") {
-                cursor
-                    .as_object_mut()
-                    .expect("cursor")
-                    .remove("allowReplay");
+            if let Some(cursors) = stream["cursors"].as_array_mut() {
+                for cursor in cursors {
+                    cursor
+                        .as_object_mut()
+                        .expect("cursor")
+                        .remove("allowReplay");
+                }
             }
         }
         send(
@@ -1379,6 +1414,98 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn configured_confirmations_deliver_live_events_while_rpc_stays_enabled() {
+        for confirmations in [0, 1, 3] {
+            let (listener, url) = listener().await;
+            let mut fixture = Fixture::new(url, true);
+            for (domain, source) in &mut Arc::get_mut(&mut fixture.monitor)
+                .expect("unique monitor")
+                .sources
+            {
+                source.confirmations = Some(if *domain == 5 { confirmations } else { 3 });
+            }
+            let source = fixture.source().clone();
+            source
+                .database
+                .store_value_by_key(DISPATCH_CURSOR, &source.mailbox, &2_u32)
+                .expect("old canonical cursor");
+            let degraded = fixture.monitor.metrics.degraded.clone();
+            let monitor = Arc::into_inner(fixture.monitor).expect("unique monitor");
+            let client = tokio::spawn(async move { monitor.run().await });
+            timeout(Duration::from_secs(5), async {
+                let mut sockets = Vec::new();
+                let mut subscribed = Vec::new();
+                for _ in 0..if confirmations == 3 { 1 } else { 2 } {
+                    let (mut socket, request) = handshake(&listener).await;
+                    let domains = request["streams"][0]["domains"]
+                        .as_array()
+                        .expect("domains");
+                    subscribed.extend(domains.iter().cloned());
+                    assert_eq!(request["streams"].as_array().expect("streams").len(), 2);
+                    for stream in request["streams"].as_array().expect("streams") {
+                        assert!(stream.get("cursors").is_none());
+                        assert_eq!(
+                            stream["confirmations"],
+                            if domains.contains(&json!(5)) {
+                                confirmations
+                            } else {
+                                3
+                            }
+                        );
+                    }
+                    if domains.contains(&json!(5)) {
+                        let mut foreign = dispatch(99);
+                        foreign["origin_mailbox"] = json!(format!("{:#x}", H256::zero()));
+                        send(&mut socket, event(Kind::Dispatch, 99, foreign)).await;
+                        for sequence in [5, 6, 8] {
+                            send(
+                                &mut socket,
+                                event(
+                                    Kind::Dispatch,
+                                    sequence,
+                                    dispatch(u32::try_from(sequence).expect("sequence")),
+                                ),
+                            )
+                            .await;
+                        }
+                    }
+                    sockets.push(socket);
+                }
+                assert_eq!(subscribed.len(), 2);
+                assert!(subscribed.contains(&json!(5)) && subscribed.contains(&json!(6)));
+                eventually(|| {
+                    degraded
+                        .with_label_values(&["test5", Kind::Dispatch.label()])
+                        .get()
+                        == 1
+                })
+                .await;
+                for sequence in [5, 6] {
+                    assert!(source
+                        .has_sequence(Kind::Dispatch, sequence)
+                        .expect("live message"));
+                }
+                for sequence in [8, 99] {
+                    assert!(!source
+                        .has_sequence(Kind::Dispatch, sequence)
+                        .expect("rejected message"));
+                }
+                assert!(!source.control.command.borrow().desired);
+                assert!(!*source.control.gas.borrow());
+                let saved: Option<u32> = source
+                    .database
+                    .retrieve_value_by_key(DISPATCH_CURSOR, &source.mailbox)
+                    .expect("canonical cursor");
+                assert_eq!(saved, Some(2), "live streams do not persist replay cursors");
+            })
+            .await
+            .expect("live subscriptions");
+            client.abort();
+            let _ = client.await;
+        }
+    }
+
+    #[tokio::test]
     async fn sequenced_streams_accept_replays_but_reject_gaps_and_payload_mismatches() {
         let fixture = Fixture::new(Url::parse("ws://localhost:1").expect("URL"), true);
         for (kind, payload) in [
@@ -1430,9 +1557,7 @@ mod tests {
                     .retrieve_value_by_key(kind.prefix(), &source.address(kind))
                     .expect("cursor");
                 assert_eq!(saved, Some(1));
-                assert!(!source
-                    .baseline_present(kind, 3)
-                    .expect("gap was not stored"));
+                assert!(!source.has_sequence(kind, 3).expect("gap was not stored"));
             }
         }
     }
@@ -1531,26 +1656,29 @@ mod tests {
         invalid["msg_id"] = json!(format!("{:#x}", H256::zero()));
         assert!(source.store(Kind::Dispatch, invalid, true).await.is_err());
         assert!(!source
-            .baseline_present(Kind::Dispatch, 1)
+            .has_sequence(Kind::Dispatch, 1)
             .expect("invalid dispatch"));
     }
 
     #[tokio::test]
     async fn invalid_caught_up_markers_restore_rpc_without_advancing_the_cursor() {
-        for (kind, sequence, address, error) in [
-            (Kind::Dispatch, 1, 1, "skipped events"),
-            (Kind::Dispatch, 0, 9, "caught-up address"),
-            (Kind::Dispatch, -1, 1, "Empty caught-up marker"),
-            (Kind::Gas, 5, 3, "Invalid gas cursor"),
-            (Kind::Gas, 3, 3, "Invalid gas cursor"),
+        for (kind, saved, sequence, address, error) in [
+            (Kind::Dispatch, Some(0_u32), 1, 1, "skipped events"),
+            (Kind::Dispatch, Some(0), 0, 9, "caught-up address"),
+            (Kind::Dispatch, Some(0), -1, 1, "Empty caught-up marker"),
+            (Kind::Dispatch, None, 5, 1, "skipped events"),
+            (Kind::Gas, Some(0), 5, 3, "Invalid gas cursor"),
+            (Kind::Gas, Some(0), 3, 3, "Invalid gas cursor"),
         ] {
             let (listener, url) = listener().await;
             let fixture = Fixture::new(url, true);
             let source = fixture.source();
-            source
-                .database
-                .store_value_by_key(DISPATCH_CURSOR, &source.mailbox, &0_u32)
-                .expect("saved cursor");
+            if let Some(saved) = saved {
+                source
+                    .database
+                    .store_value_by_key(DISPATCH_CURSOR, &source.mailbox, &saved)
+                    .expect("saved cursor");
+            }
             if matches!(kind, Kind::Gas) {
                 source
                     .database
@@ -1575,7 +1703,7 @@ mod tests {
                 while socket.next().await.is_some() {}
             };
             let ((), result) = timeout(Duration::from_secs(5), async {
-                tokio::join!(server, fixture.monitor.stream(timeouts()))
+                tokio::join!(server, fixture.monitor.stream(timeouts(), None))
             })
             .await
             .expect("marker handling");
@@ -1587,7 +1715,11 @@ mod tests {
             assert!(!*source.control.gas.borrow());
             assert_eq!(
                 source.load().expect("durable cursor").streams[kind.index()].last,
-                Some(if matches!(kind, Kind::Gas) { 4 } else { 0 })
+                if matches!(kind, Kind::Gas) {
+                    Some(4)
+                } else {
+                    saved.map(u64::from)
+                }
             );
         }
     }
@@ -1609,21 +1741,13 @@ mod tests {
             let server_listener = &listener;
             let server = async move {
                 let (mut socket, request) = handshake(server_listener).await;
-                assert_eq!(
-                    request["streams"][0]["cursors"][0]["afterSequence"],
-                    if connection == 0 {
-                        Value::Null
-                    } else {
-                        json!("-1")
-                    }
-                );
+                assert_eq!(request["streams"][0]["cursors"][0]["afterSequence"], "-1");
                 assert_eq!(
                     request["streams"][2]["cursors"][0]["afterStreamCursor"],
                     if connection == 0 { "0" } else { "3" }
                 );
                 if connection == 0 {
-                    // Fresh subscriptions skip existing history and mark the tip
-                    // before delivering live events; reconnects replay the boundary.
+                    // An empty initial stream marks -1 before its first live event.
                     for kind in [Kind::Dispatch, Kind::Merkle] {
                         send(&mut socket, caught_up(kind, -1)).await;
                     }
@@ -1653,7 +1777,7 @@ mod tests {
                 socket.close(None).await.expect("close");
             };
             let monitor = fixture.monitor.clone();
-            let client = tokio::spawn(async move { monitor.stream(timeouts()).await });
+            let client = tokio::spawn(async move { monitor.stream(timeouts(), None).await });
             let assertions = async {
                 eventually(|| *fixture.source().control.gas.borrow()).await;
                 assert_eq!(payment_total(fixture.source()), U256::from(1000));
@@ -1691,13 +1815,38 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn fresh_baseline_waits_for_rpc_and_abort_restores_all_indexing() {
+    async fn fresh_replay_covers_history_before_pausing_rpc() {
         let (listener, url) = listener().await;
         let fixture = Fixture::new(url, true);
         fixture.counts.0.store(6, Ordering::Release);
+        // RPC backfills backwards: the newest row can arrive before the prefix.
+        fixture
+            .source()
+            .store(Kind::Dispatch, dispatch(5), true)
+            .await
+            .expect("RPC tip");
+        fixture
+            .source()
+            .store(Kind::Merkle, merkle(5), true)
+            .await
+            .expect("RPC tip");
         let ack = acknowledge(fixture.source());
+        let (replay, replayed) = oneshot::channel();
         let server = tokio::spawn(async move {
-            let (mut socket, _) = handshake(&listener).await;
+            let (mut socket, request) = handshake(&listener).await;
+            assert_eq!(request["streams"][0]["cursors"][0]["afterSequence"], "-1");
+            for (kind, data) in [(Kind::Dispatch, dispatch(0)), (Kind::Merkle, merkle(0))] {
+                send(&mut socket, event(kind, 0, data)).await;
+            }
+            replayed.await.expect("continue replay");
+            for sequence in 1..=5 {
+                for (kind, data) in [
+                    (Kind::Dispatch, dispatch(sequence)),
+                    (Kind::Merkle, merkle(sequence)),
+                ] {
+                    send(&mut socket, event(kind, u64::from(sequence), data)).await;
+                }
+            }
             for kind in Kind::ALL {
                 send(
                     &mut socket,
@@ -1708,15 +1857,12 @@ mod tests {
             while socket.next().await.is_some() {}
         });
         let monitor = fixture.monitor.clone();
-        let client = tokio::spawn(async move { monitor.stream(timeouts()).await });
+        let client = tokio::spawn(async move { monitor.stream(timeouts(), None).await });
         eventually(|| {
             fixture
-                .monitor
-                .metrics
-                .caught_up
-                .with_label_values(&["test5", "dispatch"])
-                .get()
-                == 1
+                .source()
+                .has_sequence(Kind::Merkle, 0)
+                .expect("replayed row")
         })
         .await;
         assert!(!fixture.source().control.command.borrow().desired);
@@ -1725,25 +1871,50 @@ mod tests {
             .database
             .retrieve_value_by_key(DISPATCH_CURSOR, &fixture.source().mailbox)
             .expect("cursor");
-        assert_eq!(before, None);
-        // No more socket events arrive: the periodic probe must notice RPC backfill.
-        fixture
-            .source()
-            .store(Kind::Dispatch, dispatch(5), true)
-            .await
-            .expect("RPC dispatch");
-        fixture
-            .source()
-            .store(Kind::Merkle, merkle(5), true)
-            .await
-            .expect("RPC leaf");
+        assert_eq!(before, Some(0), "RPC tip cannot advance the replay cursor");
+        replay.send(()).expect("continue replay");
         eventually(|| *fixture.source().control.gas.borrow()).await;
+        for sequence in 0..=5 {
+            for kind in [Kind::Dispatch, Kind::Merkle] {
+                assert!(fixture
+                    .source()
+                    .has_sequence(kind, sequence)
+                    .expect("complete replay"));
+            }
+        }
         client.abort();
         let _ = client.await;
         assert!(!fixture.source().control.command.borrow().desired);
         assert!(!*fixture.source().control.gas.borrow());
         server.await.expect("server");
         ack.abort();
+    }
+
+    #[tokio::test]
+    async fn unavailable_counts_cannot_mark_empty_streams_fresh() {
+        let fixture = Fixture::new(Url::parse("ws://localhost:1").expect("URL"), true);
+        fixture.counts.1.store(false, Ordering::Release);
+        let mut state: HashMap<_, _> = fixture
+            .monitor
+            .sources
+            .iter()
+            .map(|(domain, source)| {
+                let mut current = source.load().expect("state");
+                for progress in &mut current.streams {
+                    progress.caught_up = true;
+                }
+                (*domain, current)
+            })
+            .collect();
+        let probes = fixture.monitor.probes(&state).collect::<Vec<_>>().await;
+        assert_eq!(probes.len(), 2);
+        for probe in probes {
+            assert!(probe.2.is_err(), "unknown counts are not zero");
+            fixture.monitor.apply_probe(&mut state, probe);
+        }
+        assert!(state
+            .values()
+            .all(|current| !current.fresh && !current.active));
     }
 
     #[tokio::test]
@@ -1837,7 +2008,7 @@ mod tests {
             socket.close(None).await.expect("close");
         });
         let monitor = fixture.monitor.clone();
-        let client = tokio::spawn(async move { monitor.stream(timeouts()).await });
+        let client = tokio::spawn(async move { monitor.stream(timeouts(), None).await });
         eventually(|| *fixture.monitor.sources[&6].control.gas.borrow()).await;
         assert!(
             fixture.source().control.command.borrow().desired,
@@ -1927,7 +2098,7 @@ mod tests {
             .iter()
             .map(|(domain, source)| (*domain, source.load().expect("state")))
             .collect();
-        let request = fixture.monitor.subscription(&state, true);
+        let request = fixture.monitor.subscription(&state, true, None);
         let cursors = request.confirmation();
         assert_eq!(
             cursors[0].cursors.as_ref().expect("dispatch cursors")[0]
