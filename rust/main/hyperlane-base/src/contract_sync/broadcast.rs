@@ -42,6 +42,24 @@ impl IndexingNotification {
 }
 
 impl<T: Clone> BroadcastMpscSender<T> {
+    /// Best-effort notification without waiting for a busy or full subscriber.
+    /// Callers must retain an independent polling path for skipped notifications.
+    pub fn try_send(&self, message: T) -> bool {
+        let Ok(mut senders) = self.sender.try_lock() else {
+            return false;
+        };
+        let mut sent = true;
+        senders.retain(|sender| match sender.try_send(message.clone()) {
+            Ok(()) => true,
+            Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                sent = false;
+                true
+            }
+            Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => false,
+        });
+        sent
+    }
+
     /// Send a message to all the receiving channels.
     // This will block if at least one of the receiving channels is full
     pub async fn send(&self, message: T) -> Result<()> {
@@ -80,6 +98,23 @@ impl<T: Clone> BroadcastMpscSender<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn best_effort_send_skips_full_subscribers_and_keeps_them_registered() {
+        let broadcaster = BroadcastMpscSender::new(1);
+        let mut full = broadcaster.get_receiver().await;
+        broadcaster.send(1).await.unwrap();
+        let mut live = broadcaster.get_receiver().await;
+        assert!(!broadcaster.try_send(2));
+        assert_eq!(live.recv().await, Some(2));
+        assert_eq!(full.recv().await, Some(1));
+        assert!(broadcaster.try_send(3));
+        assert_eq!(full.recv().await, Some(3));
+        assert_eq!(live.recv().await, Some(3));
+        drop(full);
+        assert!(broadcaster.try_send(4));
+        assert_eq!(live.recv().await, Some(4));
+    }
 
     #[tokio::test]
     async fn disconnected_subscriber_does_not_block_later_subscribers() {

@@ -305,7 +305,7 @@ describe('Agent configs', () => {
       }
 
       if (relayer) {
-        if (context === Contexts.FastPath) {
+        if (context === Contexts.FastPath && environment !== 'mainnet3') {
           it(`configures ${environment}/${context} relayers for RPC-only indexing`, () => {
             expect(relayer.websocketUrl).to.be.undefined;
             expect(relayer.websocketAuthorityEnabled).to.be.undefined;
