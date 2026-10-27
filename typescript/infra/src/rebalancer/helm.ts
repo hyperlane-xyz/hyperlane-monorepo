@@ -1,16 +1,13 @@
 import { confirm } from '@inquirer/prompts';
-import fs from 'fs';
+import { execFileSync } from 'child_process';
 import path from 'path';
-import { z } from 'zod';
+import { stringify } from 'yaml';
 
 import {
-  type RebalancerConfigFileInput,
-  RebalancerConfigSchema,
-  getStrategyChainNames,
-} from '@hyperlane-xyz/rebalancer';
-import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
-import { rootLogger } from '@hyperlane-xyz/utils';
-import { readYaml } from '@hyperlane-xyz/utils/fs';
+  DEFAULT_GITHUB_REGISTRY,
+  GithubRegistry,
+} from '@hyperlane-xyz/registry';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
 import { getWarpCoreConfig } from '../../config/registry.js';
@@ -27,6 +24,55 @@ import {
 } from '../utils/helm.js';
 import { execCmdAndParseJson, getInfraPath } from '../utils/utils.js';
 
+import {
+  type RebalancerDeploymentConfig,
+  readRebalancerConfig,
+} from './config.js';
+
+export function buildRebalancerHelmValues(
+  { config, deployment, runtimeConfig }: RebalancerDeploymentConfig,
+  options: {
+    warpRouteId: string;
+    environment: DeployEnvironment;
+    registryCommit: string;
+    withMetrics: boolean;
+    monitorOnly: boolean;
+    chains: string[];
+  },
+) {
+  assert(
+    config.warpRouteId === options.warpRouteId,
+    'Rebalancer warp route ID mismatch',
+  );
+  return {
+    image: {
+      repository: DockerImageRepos.NODE_SERVICES,
+      tag: deployment.imageTag ?? mainnetDockerTags.rebalancer,
+      ...(deployment.imageDigest ? { digest: deployment.imageDigest } : {}),
+    },
+    serviceName: NODE_SERVICE_NAMES.REBALANCER,
+    warpRouteId: options.warpRouteId,
+    withMetrics: options.withMetrics,
+    fullnameOverride: getHelmReleaseName(
+      options.warpRouteId,
+      RebalancerHelmManager.helmReleasePrefix,
+    ),
+    hyperlane: {
+      runEnv: options.environment,
+      registryUri: `${DEFAULT_GITHUB_REGISTRY}/tree/${options.registryCommit}`,
+      rebalancerConfig: runtimeConfig,
+      withMetrics: options.withMetrics,
+      monitorOnly: options.monitorOnly,
+      chains: options.chains,
+      inventorySignerProtocols: Object.keys(config.inventorySigners ?? {}),
+      externalBridgeProviders: Object.keys(config.externalBridges ?? {}),
+      ...(deployment.swapsXyzApiKeySecret
+        ? { swapsXyzApiKeySecret: deployment.swapsXyzApiKeySecret }
+        : {}),
+    },
+  };
+}
+
 export class RebalancerHelmManager extends HelmManager {
   static helmReleasePrefix: string = 'hyperlane-rebalancer';
 
@@ -35,10 +81,8 @@ export class RebalancerHelmManager extends HelmManager {
     './helm/rebalancer',
   );
 
-  private rebalancerConfigContent: string = '';
+  private deploymentConfig?: RebalancerDeploymentConfig;
   private rebalancerChains: string[] = [];
-  private inventorySignerProtocols: string[] = [];
-  private externalBridgeProviders: string[] = [];
 
   constructor(
     readonly warpRouteId: string,
@@ -47,32 +91,25 @@ export class RebalancerHelmManager extends HelmManager {
     readonly rebalancerConfigFile: string,
     readonly rebalanceStrategy: string,
     readonly withMetrics: boolean,
+    readonly monitorOnly: boolean = false,
   ) {
     super();
   }
 
   async runPreflightChecks(localConfigPath: string) {
-    await this.checkAndHandleExistingMonitor();
-
-    const warpCoreConfig = getWarpCoreConfig(this.warpRouteId);
+    this.deploymentConfig = readRebalancerConfig(
+      path.join(getInfraPath(), localConfigPath),
+    );
+    // Resolve RPC-secret chains from the same registry revision as the runtime.
+    const registry = new GithubRegistry({
+      uri: `${DEFAULT_GITHUB_REGISTRY}/tree/${this.registryCommit}`,
+      logger: rootLogger,
+    });
+    const warpCoreConfig = await registry.getWarpRoute(this.warpRouteId);
     if (!warpCoreConfig) {
       throw new Error(
-        `Warp Route ID not found in registry: ${this.warpRouteId}`,
+        `Warp Route ID not found in registry at ${this.registryCommit}: ${this.warpRouteId}`,
       );
-    }
-
-    const rebalancerConfigFile = path.join(getInfraPath(), localConfigPath);
-
-    // Validate the rebalancer config file
-    const config: RebalancerConfigFileInput = readYaml(rebalancerConfigFile);
-    const validationResult = RebalancerConfigSchema.safeParse(config);
-    if (!validationResult.success) {
-      throw new Error(z.prettifyError(validationResult.error));
-    }
-
-    const chainNames = getStrategyChainNames(validationResult.data.strategy);
-    if (chainNames.length === 0) {
-      throw new Error('No chains configured');
     }
 
     // Store chains for helm values (used for private RPC secrets)
@@ -80,18 +117,6 @@ export class RebalancerHelmManager extends HelmManager {
     this.rebalancerChains = [
       ...new Set(warpCoreConfig.tokens.map((t) => t.chainName)),
     ];
-
-    // Store the config file content for helm values
-    this.rebalancerConfigContent = fs.readFileSync(
-      rebalancerConfigFile,
-      'utf8',
-    );
-    this.inventorySignerProtocols = Object.keys(
-      validationResult.data.inventorySigners ?? {},
-    );
-    this.externalBridgeProviders = Object.keys(
-      validationResult.data.externalBridges ?? {},
-    );
   }
 
   get namespace() {
@@ -99,28 +124,42 @@ export class RebalancerHelmManager extends HelmManager {
   }
 
   async helmValues() {
-    const registryUri = `${DEFAULT_GITHUB_REGISTRY}/tree/${this.registryCommit}`;
-
-    return {
-      image: {
-        repository: DockerImageRepos.NODE_SERVICES,
-        tag: mainnetDockerTags.rebalancer,
-      },
-      serviceName: NODE_SERVICE_NAMES.REBALANCER,
+    assert(
+      this.deploymentConfig,
+      'Run rebalancer preflight before generating Helm values',
+    );
+    return buildRebalancerHelmValues(this.deploymentConfig, {
       warpRouteId: this.warpRouteId,
+      environment: this.environment,
+      registryCommit: this.registryCommit,
       withMetrics: this.withMetrics,
-      fullnameOverride: this.helmReleaseName,
-      hyperlane: {
-        runEnv: this.environment,
-        registryUri,
-        rebalancerConfig: this.rebalancerConfigContent,
-        withMetrics: this.withMetrics,
-        // Used for fetching private RPC secrets
-        chains: this.rebalancerChains,
-        inventorySignerProtocols: this.inventorySignerProtocols,
-        externalBridgeProviders: this.externalBridgeProviders,
+      monitorOnly: this.monitorOnly,
+      chains: this.rebalancerChains,
+    });
+  }
+
+  // Local Helm rendering never uses the shared upgrade/diff helper or kubectl.
+  async renderManifest(): Promise<string> {
+    return execFileSync(
+      'helm',
+      [
+        'template',
+        this.helmReleaseName,
+        this.helmChartPath,
+        '--namespace',
+        this.namespace,
+        '-f',
+        '-',
+      ],
+      {
+        input: stringify(await this.helmValues()),
+        encoding: 'utf8',
       },
-    };
+    );
+  }
+
+  async prepareForDeployment(): Promise<void> {
+    await this.checkAndHandleExistingMonitor();
   }
 
   get helmReleaseName() {
