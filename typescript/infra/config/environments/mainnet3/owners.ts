@@ -48,12 +48,7 @@ export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
       {
         owner,
         ownerOverrides: {
-          // Tempo's existing proxies are already controlled by the V2 regular
-          // governance ICA. Keep application ownership with the deployer.
-          proxyAdmin:
-            local === 'tempo'
-              ? '0x889524709d5c1D58254d62e6dc031069EEd67A80'
-              : (upgradeTimelocks[local] ?? owner),
+          proxyAdmin: upgradeTimelocks[local] ?? owner,
           validatorAnnounce: DEPLOYER, // unused
           testRecipient: DEPLOYER,
           fallbackRoutingHook: DEPLOYER,
