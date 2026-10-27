@@ -35,6 +35,11 @@ Mainnet/testnet configs explicitly select `majority` and pin validator images
 containing its parser. The binary and local development validators also default
 to `majority`.
 
+`websocketUrl` streams only `merkle_tree_insertion`. All normal WebSocket validators
+use their assigned numeric chain reorg period as scraper `confirmations`, with RPC
+backfill. Block tags and lightweight mode use canonical replay. After rollbacks,
+stored fork leaves are repaired by the submitter's verified-root recovery.
+
 ## Lightweight indexing
 
 Enable `--lightweight` (alias: `--leightweigt`) with `--websocketUrl wss://...`.

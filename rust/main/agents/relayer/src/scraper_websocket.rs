@@ -2585,6 +2585,9 @@ impl ScraperWebSocketMonitor {
                     }
                     return Err(RejectedStream(error).into());
                 }
+                ServerMessage::Rollback => {
+                    bail!("Canonical scraper stream unexpectedly rolled back");
+                }
                 ServerMessage::Other => {}
             }
         }
@@ -3307,12 +3310,14 @@ fn subscription(
     };
     let mut streams = vec![
         SubscribeStream {
+            confirmations: None,
             cursors: Some(cursors(EventKind::Dispatch)?),
             domains: Some(domains.clone()),
             event_type: DISPATCH_EVENT_TYPE,
             stream_cursor_version: None,
         },
         SubscribeStream {
+            confirmations: None,
             cursors: Some(cursors(EventKind::MerkleTreeInsertion)?),
             domains: Some(domains.clone()),
             event_type: MERKLE_EVENT_TYPE,
@@ -3321,6 +3326,7 @@ fn subscription(
     ];
     if gas_payment_enabled {
         streams.push(SubscribeStream {
+            confirmations: None,
             cursors: Some(
                 gas_payment_cursors
                     .iter()
@@ -6425,6 +6431,7 @@ mod tests {
         let mut streams = [EventKind::Dispatch, EventKind::MerkleTreeInsertion]
             .into_iter()
             .map(|kind| SubscribedStream {
+                confirmations: None,
                 cursors: Some(
                     sequenced_subscription_cursors(sources.as_slice(), kind, plan)
                         .expect("cursor read"),
@@ -6435,6 +6442,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
         streams.push(SubscribedStream {
+            confirmations: None,
             cursors: Some(
                 sources
                     .iter()
@@ -9829,6 +9837,7 @@ mod tests {
         for streams in [
             subscribed_streams(&foreign_sources, &foreign_plan),
             vec![SubscribedStream {
+                confirmations: None,
                 cursors: None,
                 domains: Some(vec![5]),
                 event_type: DISPATCH_EVENT_TYPE.to_owned(),

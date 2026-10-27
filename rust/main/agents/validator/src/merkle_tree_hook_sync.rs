@@ -386,6 +386,7 @@ pub(crate) struct MerkleTreeHookWebSocketSync {
     domain: u32,
     merkle_tree_hook: H256,
     url: Secret<Url>,
+    confirmations: Option<u32>,
     websocket_active: IntGauge,
     websocket_healthy: Arc<AtomicBool>,
     fallback_active: IntGauge,
@@ -443,6 +444,7 @@ impl MerkleTreeHookWebSocketSync {
             domain,
             merkle_tree_hook,
             url: Secret::new(url),
+            confirmations: None,
             websocket_active,
             websocket_healthy: Arc::new(AtomicBool::new(false)),
             fallback_active,
@@ -482,7 +484,7 @@ impl MerkleTreeHookWebSocketSync {
 
     /// Prefers scraper-proxy once it has reached the validator's current cursor.
     pub(crate) async fn run(
-        self,
+        mut self,
         next_sequence: u32,
         backfill_target: u32,
         fallback_sync: Option<Arc<SequencedDataContractSync<MerkleTreeInsertion>>>,
@@ -490,6 +492,13 @@ impl MerkleTreeHookWebSocketSync {
         merkle_tree_hook: Arc<dyn MerkleTreeHook>,
         reorg_period: ReorgPeriod,
     ) {
+        // The same effective reorg period already controls signing and RPC indexing.
+        // Tags need canonical finality; lightweight mode needs canonical replay.
+        self.confirmations = if fallback_sync.is_some() {
+            reorg_period.as_blocks().ok()
+        } else {
+            None
+        };
         let retry_delay = RETRY_DELAY
             .checked_add(Duration::from_millis(
                 (self.domain % RETRY_JITTER_MS).into(),
@@ -528,9 +537,13 @@ impl MerkleTreeHookWebSocketSync {
         dependencies: StreamDependencies,
         mut start_fallback: impl FnMut() -> Option<RpcFallback>,
     ) {
-        // Historical replay uses the socket too. Only start RPC indexing after a
-        // connection, protocol, or freshness failure.
-        let mut fallback = None;
+        // Canonical streams replay over the socket. Custom streams are live-only
+        // and need RPC backfill before their first cutover.
+        let mut fallback = if self.confirmations.is_some() {
+            start_fallback()
+        } else {
+            None
+        };
         loop {
             let result = self
                 .stream_with_timeout(
@@ -575,7 +588,9 @@ impl MerkleTreeHookWebSocketSync {
         let mut cutover_target = None;
 
         loop {
-            if caught_up
+            // Custom streams hand off on the periodic probe while RPC fills their live frontier.
+            if self.confirmations.is_none()
+                && caught_up
                 && !activated
                 && *next_sequence >= backfill_target
                 && cutover_target.is_none_or(|target| *next_sequence >= target)
@@ -599,6 +614,14 @@ impl MerkleTreeHookWebSocketSync {
             else {
                 break;
             };
+            if self.confirmations.is_some() && fallback.is_some() {
+                // Follow RPC backfill while the custom stream supplies only live events.
+                let previous = *next_sequence;
+                *next_sequence = self.next_sequence_from(*next_sequence)?;
+                if *next_sequence > previous {
+                    health.reset();
+                }
+            }
             let message = match event {
                 SessionEvent::Message(message) => message,
                 SessionEvent::Cutover {
@@ -607,13 +630,30 @@ impl MerkleTreeHookWebSocketSync {
                 }
                 | SessionEvent::Progress((sequence, count)) => {
                     let onchain_count = count?;
-                    // The socket continues advancing during probes. Only a sample
-                    // taken at the current cursor can establish that it is ahead.
-                    if count_sample_is_stale(sequence, *next_sequence, onchain_count) {
+                    // Canonical streams reject ahead counts immediately, so ignore
+                    // samples taken before the socket advanced. Custom streams use grace.
+                    if self.confirmations.is_none()
+                        && count_sample_is_stale(sequence, *next_sequence, onchain_count)
+                    {
                         continue;
                     }
-                    health.observe(onchain_count, *next_sequence, fallback.is_none())?;
-                    if caught_up && !activated && *next_sequence >= backfill_target {
+                    if self.confirmations.is_some() && *next_sequence > onchain_count {
+                        // Allow head skew, but recover if the RPC never confirms the prefix.
+                        if !health.observe_probe_failure() {
+                            bail!(
+                                "Scraper WebSocket cursor remained ahead of canonical count: next sequence {}, on-chain count {onchain_count}",
+                                *next_sequence
+                            );
+                        }
+                    } else {
+                        health.observe(onchain_count, *next_sequence, fallback.is_none())?;
+                    }
+                    if caught_up
+                        && !activated
+                        && *next_sequence >= backfill_target
+                        && (self.confirmations.is_none()
+                            || cutover_target.is_some_and(|target| *next_sequence >= target))
+                    {
                         activated = self
                             .apply_cutover_count(
                                 *next_sequence,
@@ -700,15 +740,33 @@ impl MerkleTreeHookWebSocketSync {
                     }
                 }
                 ServerMessage::Event(event) => {
-                    if self.process_event(event, next_sequence)? {
-                        // During historical replay, advancing events prove that the
-                        // WebSocket is healthy. Only a lack of progress should trigger
-                        // fallback; live-stream lag is checked after `caught_up`.
-                        health.record_progress(caught_up);
+                    let previous = *next_sequence;
+                    if let Some(sequence) = self.process_event(
+                        event,
+                        next_sequence,
+                        self.confirmations.is_some() && fallback.is_some(),
+                    )? {
+                        if self.confirmations.is_some() {
+                            // A live event anchors the handoff beyond the proxy's initial frontier.
+                            caught_up = true;
+                            if !activated {
+                                let target = sequence
+                                    .checked_add(1)
+                                    .context("Merkle sequence exhausted")?;
+                                cutover_target = Some(cutover_target.unwrap_or(0).max(target));
+                            }
+                        }
+                        if *next_sequence > previous {
+                            health.record_progress(caught_up);
+                        }
                     }
                 }
                 ServerMessage::Error { error } => {
                     return Err(RejectedStream(error).into());
+                }
+                ServerMessage::Rollback => {
+                    // The submitter repairs stored fork leaves after verifying checkpoint roots.
+                    bail!("Scraper stream rolled back; resuming RPC indexing");
                 }
                 ServerMessage::Other => {}
             }
@@ -753,7 +811,12 @@ impl MerkleTreeHookWebSocketSync {
         fallback: &mut Option<RpcFallback>,
         cutover_target: &mut Option<u32>,
     ) -> Result<bool> {
-        if !validate_cutover_freshness(onchain_count, next_sequence)? {
+        let fresh = if self.confirmations.is_some() {
+            next_sequence >= onchain_count
+        } else {
+            validate_cutover_freshness(onchain_count, next_sequence)?
+        };
+        if !fresh {
             *cutover_target = Some(onchain_count);
             warn!(
                 domain = self.domain,
@@ -773,14 +836,17 @@ impl MerkleTreeHookWebSocketSync {
         let after_sequence = next_sequence.checked_sub(1).map(i64::from).unwrap_or(-1);
         SubscribeMessage {
             streams: vec![SubscribeStream {
-                cursors: Some(vec![StreamCursor::Sequence(SequenceCursor {
-                    address: hyperlane_base::scraper_websocket::format_address(
-                        self.merkle_tree_hook,
-                    ),
-                    allow_replay: Some(true),
-                    after_sequence: Some(after_sequence.to_string()),
-                    domain: self.domain,
-                })]),
+                confirmations: self.confirmations,
+                cursors: self.confirmations.is_none().then(|| {
+                    vec![StreamCursor::Sequence(SequenceCursor {
+                        address: hyperlane_base::scraper_websocket::format_address(
+                            self.merkle_tree_hook,
+                        ),
+                        allow_replay: Some(true),
+                        after_sequence: Some(after_sequence.to_string()),
+                        domain: self.domain,
+                    })]
+                }),
                 domains: Some(vec![self.domain]),
                 event_type: EVENT_TYPE,
                 stream_cursor_version: None,
@@ -789,7 +855,8 @@ impl MerkleTreeHookWebSocketSync {
         }
     }
 
-    /// Validates and stores an event, returning whether it advanced the cursor.
+    /// Returns the insertion sequence, or None for a foreign hook. During RPC
+    /// backfill, a valid sequence gap is reported without storing the insertion.
     ///
     /// Leaves are untrusted until the submitter matches the complete prefix against
     /// an independently read checkpoint. No RPC logs are fetched on this path.
@@ -797,7 +864,8 @@ impl MerkleTreeHookWebSocketSync {
         &self,
         event: EventMessage<EventData>,
         next_sequence: &mut u32,
-    ) -> Result<bool> {
+        allow_gap: bool,
+    ) -> Result<Option<u32>> {
         if event.event_type != EVENT_TYPE {
             bail!("Unexpected WebSocket event type {}", event.event_type);
         }
@@ -806,6 +874,12 @@ impl MerkleTreeHookWebSocketSync {
         }
         if event.domain != self.domain {
             bail!("Unexpected Merkle tree insertion domain {}", event.domain);
+        }
+        // Custom streams include every hook in the domain.
+        if self.confirmations.is_some()
+            && parse_address(&event.data.merkle_tree_hook)? != self.merkle_tree_hook
+        {
+            return Ok(None);
         }
         let sequence = event
             .sequence
@@ -819,6 +893,9 @@ impl MerkleTreeHookWebSocketSync {
                 .decode(self.domain, self.merkle_tree_hook, sequence)?;
         let leaf_index = insertion.index();
         if leaf_index > *next_sequence {
+            if allow_gap {
+                return Ok(Some(leaf_index));
+            }
             bail!(
                 "Unexpected Merkle tree insertion sequence: expected {}, received {leaf_index}",
                 *next_sequence
@@ -831,7 +908,7 @@ impl MerkleTreeHookWebSocketSync {
         if let Some(existing) = existing {
             if existing != insertion {
                 // A replay cannot overwrite a previously accepted or RPC-repaired leaf.
-                // Disconnect and let canonical fallback indexing resolve the conflict.
+                // Disconnect and let verified checkpoint recovery resolve the conflict.
                 bail!("Conflicting WebSocket Merkle tree insertion at leaf {leaf_index}");
             }
         }
@@ -846,9 +923,8 @@ impl MerkleTreeHookWebSocketSync {
             // This is only a wake hint: persistence does not authenticate a leaf.
             // The submitter checks the reconstructed root before signing.
             self.checkpoint_wake.notify_one();
-            return Ok(true);
         }
-        Ok(false)
+        Ok(Some(leaf_index))
     }
 
     fn persist_next_sequence(&self, next_sequence: u32) -> Result<()> {
@@ -1085,14 +1161,268 @@ mod tests {
             serde_json::from_str(request.to_text().expect("text request")).expect("request JSON");
         ack["type"] = serde_json::json!("subscribed");
         for stream in ack["streams"].as_array_mut().expect("streams") {
-            for cursor in stream["cursors"].as_array_mut().expect("cursors") {
-                cursor
-                    .as_object_mut()
-                    .expect("cursor")
-                    .remove("allowReplay");
+            if let Some(cursors) = stream["cursors"].as_array_mut() {
+                for cursor in cursors {
+                    cursor
+                        .as_object_mut()
+                        .expect("cursor")
+                        .remove("allowReplay");
+                }
             }
         }
         Message::Text(ack.to_string().into())
+    }
+
+    #[test]
+    fn custom_confirmations_subscribe_live_without_replay_cursors() {
+        for confirmations in [0, 1, 3] {
+            let (mut sync, _directory) = test_sync();
+            sync.confirmations = Some(confirmations);
+            let request = serde_json::to_value(sync.subscription(12)).expect("request");
+            assert_eq!(request["streams"][0]["confirmations"], confirmations);
+            assert_eq!(request["streams"][0]["eventType"], EVENT_TYPE);
+            assert_eq!(request["streams"][0]["domains"], serde_json::json!([1]));
+            assert!(request["streams"][0].get("cursors").is_none());
+        }
+        let (sync, _directory) = test_sync();
+        let request = serde_json::to_value(sync.subscription(12)).expect("request");
+        assert!(request["streams"][0].get("confirmations").is_none());
+        assert_eq!(request["streams"][0]["cursors"][0]["afterSequence"], "11");
+    }
+
+    #[tokio::test]
+    async fn custom_stream_requires_live_anchor_and_bounds_head_skew() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
+        let (mut sync, _directory) = test_sync();
+        sync.url = Url::parse(&format!(
+            "ws://{}",
+            listener.local_addr().expect("test operation")
+        ))
+        .expect("test operation")
+        .into();
+        sync.confirmations = Some(3);
+        let (send, mut frames) = tokio::sync::mpsc::channel::<Message>(4);
+        let subscriptions = Arc::new(AtomicUsize::new(0));
+        let accepted = subscriptions.clone();
+        let server = tokio::spawn(async move {
+            loop {
+                let (stream, _) = listener.accept().await.expect("test operation");
+                let mut socket = accept_async(stream).await.expect("test operation");
+                socket
+                    .send(Message::Text(r#"{"type":"ready"}"#.into()))
+                    .await
+                    .expect("test operation");
+                let request = socket
+                    .next()
+                    .await
+                    .expect("test operation")
+                    .expect("test operation");
+                let value: serde_json::Value =
+                    serde_json::from_str(request.to_text().expect("test operation"))
+                        .expect("test operation");
+                assert_eq!(value["streams"][0]["confirmations"], 3);
+                assert!(value["streams"][0].get("cursors").is_none());
+                socket
+                    .send(subscription_ack(request))
+                    .await
+                    .expect("test operation");
+                accepted.fetch_add(1, Ordering::SeqCst);
+                loop {
+                    tokio::select! {
+                        frame = frames.recv() => {
+                            let Some(frame) = frame else { return; };
+                            if socket.send(frame).await.is_err() { break; }
+                        }
+                        message = socket.next() => {
+                            if !matches!(message, Some(Ok(_))) { break; }
+                        }
+                    }
+                }
+            }
+        });
+        let db = sync.db.clone();
+        db.store_tree_insertion(&MerkleTreeInsertion::new(0, H256::from_low_u64_be(4)), 12)
+            .expect("initial RPC prefix");
+        let hook = format!("{:#x}", sync.merkle_tree_hook);
+        let active = sync.websocket_active.clone();
+        let fallback_active = sync.fallback_active.clone();
+        let starts = Arc::new(AtomicUsize::new(0));
+        let fallback_starts = starts.clone();
+        let count = Arc::new(AtomicUsize::new(1));
+        let probes = Arc::new(AtomicUsize::new(0));
+        let dependencies = StreamDependencies {
+            merkle_tree_hook: Some(Arc::new(CountHook {
+                count: count.clone(),
+                calls: Some(probes.clone()),
+                delay: None,
+                domain: HyperlaneDomain::new_test_domain("custom-count"),
+                pending: false,
+            })),
+            ..test_dependencies()
+        };
+        let task = tokio::spawn(async move {
+            sync.run_loop(
+                0,
+                1,
+                StreamTimeouts {
+                    read: UNREACHED,
+                    progress_check: Duration::from_millis(10),
+                    progress_grace: Duration::from_secs(60),
+                },
+                Duration::from_millis(1),
+                dependencies,
+                || {
+                    fallback_starts.fetch_add(1, Ordering::SeqCst);
+                    Some(test_fallback(&sync.fallback_active))
+                },
+            )
+            .await;
+        });
+        let event = |index: u32| {
+            Message::Text(serde_json::json!({
+            "type": "event", "domain": 1, "eventType": EVENT_TYPE,
+            "sequence": index.to_string(),
+            "data": {"block_number": 12, "domain": 1, "leaf_index": index,
+                "merkle_tree_hook": hook,
+                "message_id": format!("{:#x}", H256::from_low_u64_be(u64::from(index).saturating_add(4)))}
+        }).to_string().into())
+        };
+        wait_until("initial custom subscription", || {
+            subscriptions.load(Ordering::SeqCst) == 1 && probes.load(Ordering::SeqCst) >= 2
+        })
+        .await;
+        assert_eq!(active.get(), 0); // No live frontier yet, even though RPC is caught up.
+        assert_eq!(fallback_active.get(), 1);
+
+        // A cursorless stream must not activate on an unexpected replay marker.
+        let sampled = probes.load(Ordering::SeqCst);
+        send.send(Message::Text(format!(
+            r#"{{"type":"caught_up","address":"{hook}","domain":1,"eventType":"merkle_tree_insertion","sequence":"0"}}"#
+        ).into())).await.expect("send unexpected caught-up marker");
+        wait_until("unanchored probes", || {
+            probes.load(Ordering::SeqCst) >= sampled.saturating_add(2)
+        })
+        .await;
+        assert_eq!(active.get(), 0);
+        assert_eq!(fallback_active.get(), 1);
+
+        // Ignore a live gap while RPC backfills, without restarting the connection.
+        let sampled = probes.load(Ordering::SeqCst);
+        send.send(event(2)).await.expect("send live gap");
+        wait_until("gap probes", || {
+            probes.load(Ordering::SeqCst) >= sampled.saturating_add(2)
+        })
+        .await;
+        assert_eq!(starts.load(Ordering::SeqCst), 1);
+        assert_eq!(subscriptions.load(Ordering::SeqCst), 1);
+        assert_eq!(active.get(), 0);
+        assert!(db
+            .retrieve_merkle_tree_insertion_by_leaf_index(&2)
+            .expect("gap row")
+            .is_none());
+
+        // RPC backfill progress renews the lag grace, even after a live anchor.
+        count.store(3, Ordering::SeqCst);
+        let sampled = probes.load(Ordering::SeqCst);
+        wait_until("backfill lag probes", || {
+            probes.load(Ordering::SeqCst) >= sampled.saturating_add(2)
+        })
+        .await;
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(30)).await;
+        tokio::time::resume();
+        db.store_tree_insertion(&MerkleTreeInsertion::new(1, H256::from_low_u64_be(5)), 12)
+            .expect("RPC prefix");
+        let sampled = probes.load(Ordering::SeqCst);
+        wait_until("RPC progress probes", || {
+            probes.load(Ordering::SeqCst) >= sampled.saturating_add(2)
+        })
+        .await;
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(31)).await;
+        tokio::time::resume();
+        let sampled = probes.load(Ordering::SeqCst);
+        wait_until("renewed backfill grace", || {
+            probes.load(Ordering::SeqCst) >= sampled.saturating_add(2)
+        })
+        .await;
+        assert_eq!(starts.load(Ordering::SeqCst), 1);
+        assert_eq!(active.get(), 0);
+
+        // The anchored prefix can cut over while the proxy is ahead of the RPC head.
+        count.store(1, Ordering::SeqCst);
+        send.send(event(2)).await.expect("send insertion");
+        wait_until("live insertion", || {
+            db.retrieve_merkle_tree_insertion_by_leaf_index(&2)
+                .expect("row")
+                .is_some()
+        })
+        .await;
+        let sampled = probes.load(Ordering::SeqCst);
+        wait_until("ahead-of-RPC probes", || {
+            probes.load(Ordering::SeqCst) >= sampled.saturating_add(2)
+        })
+        .await;
+        assert_eq!(starts.load(Ordering::SeqCst), 1);
+        wait_until("custom cutover", || active.get() == 1).await;
+        assert_eq!(fallback_active.get(), 0);
+        count.store(3, Ordering::SeqCst);
+
+        // Head skew must also be tolerated after cutover.
+        send.send(event(3)).await.expect("send ahead insertion");
+        wait_until("ahead live row", || {
+            db.retrieve_merkle_tree_insertion_by_leaf_index(&3)
+                .expect("row")
+                .is_some()
+        })
+        .await;
+        let sampled = probes.load(Ordering::SeqCst);
+        wait_until("active skew probes", || {
+            probes.load(Ordering::SeqCst) >= sampled.saturating_add(2)
+        })
+        .await;
+        assert_eq!(starts.load(Ordering::SeqCst), 1);
+        assert_eq!(active.get(), 1);
+        count.store(4, Ordering::SeqCst);
+
+        send.send(Message::Text(
+            r#"{"type":"rollback","domain":1,"eventType":"merkle_tree_insertion","toHeight":"11"}"#
+                .into(),
+        ))
+        .await
+        .expect("send affected rewind");
+        wait_until("rollback reconnect", || {
+            subscriptions.load(Ordering::SeqCst) >= 2
+        })
+        .await;
+        assert_eq!(starts.load(Ordering::SeqCst), 2);
+        assert_eq!(active.get(), 0);
+        assert_eq!(fallback_active.get(), 1);
+        count.store(5, Ordering::SeqCst);
+        send.send(event(4))
+            .await
+            .expect("send live handoff after reconnect");
+        wait_until("reconnected custom cutover", || active.get() == 1).await;
+        assert_eq!(fallback_active.get(), 0);
+
+        // A silent rollback or permanent head skew must eventually resume RPC.
+        count.store(4, Ordering::SeqCst);
+        let sampled = probes.load(Ordering::SeqCst);
+        wait_until("sustained skew probes", || {
+            probes.load(Ordering::SeqCst) >= sampled.saturating_add(2)
+        })
+        .await;
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(61)).await;
+        tokio::time::resume();
+        wait_until("sustained skew fallback", || {
+            starts.load(Ordering::SeqCst) == 3
+        })
+        .await;
+        assert_eq!(active.get(), 0);
+        assert_eq!(fallback_active.get(), 1);
+        task.abort();
+        server.abort();
     }
 
     #[test]
@@ -1416,8 +1746,9 @@ mod tests {
                 stream_cursor: None,
             };
             assert!(sync
-                .process_event(event, &mut next_sequence)
-                .expect("valid event"));
+                .process_event(event, &mut next_sequence, false)
+                .expect("valid event")
+                .is_some());
         }
 
         let persisted: Option<u32> = sync
@@ -1554,7 +1885,7 @@ mod tests {
             sequence: Some("0".to_owned()),
         };
         assert!(sync
-            .process_event(row_cursor_event, &mut next_sequence)
+            .process_event(row_cursor_event, &mut next_sequence, false)
             .expect_err("Merkle stream must reject a row cursor")
             .to_string()
             .contains("unexpectedly included a row/stream cursor"));
@@ -1574,7 +1905,7 @@ mod tests {
             sequence: Some("0".to_owned()),
         };
         assert!(sync
-            .process_event(stream_cursor_event, &mut next_sequence)
+            .process_event(stream_cursor_event, &mut next_sequence, false)
             .expect_err("Merkle stream must reject a logical cursor")
             .to_string()
             .contains("unexpectedly included a row/stream cursor"));
@@ -1595,8 +1926,9 @@ mod tests {
         };
 
         assert!(sync
-            .process_event(event, &mut next_sequence)
-            .expect("valid event"));
+            .process_event(event, &mut next_sequence, false)
+            .expect("valid event")
+            .is_some());
         assert!(sync.checkpoint_wake.notified().now_or_never().is_some());
         assert_eq!(next_sequence, 1);
         assert_eq!(
@@ -1605,7 +1937,7 @@ mod tests {
                 .expect("retrieve insertion"),
             Some(MerkleTreeInsertion::new(0, H256::from_low_u64_be(4)))
         );
-        assert!(!sync
+        assert!(sync
             .process_event(
                 EventMessage {
                     data: EventData {
@@ -1623,8 +1955,10 @@ mod tests {
                     sequence: Some("0".to_owned()),
                 },
                 &mut next_sequence,
+                false,
             )
-            .expect("matching fallback insertion"));
+            .expect("matching fallback insertion")
+            .is_some());
         assert!(sync.checkpoint_wake.notified().now_or_never().is_none());
         assert_eq!(next_sequence, 1);
         assert_eq!(
@@ -1648,7 +1982,7 @@ mod tests {
             stream_cursor: None,
             sequence: Some("2".to_owned()),
         };
-        assert!(sync.process_event(gap, &mut next_sequence).is_err());
+        assert!(sync.process_event(gap, &mut next_sequence, false).is_err());
         assert!(sync.checkpoint_wake.notified().now_or_never().is_none());
     }
 
@@ -1709,7 +2043,9 @@ mod tests {
             stream_cursor: None,
         };
         let mut next_sequence = 1;
-        assert!(sync.process_event(event, &mut next_sequence).is_err());
+        assert!(sync
+            .process_event(event, &mut next_sequence, false)
+            .is_err());
         assert_eq!(next_sequence, 1);
         assert_eq!(
             sync.db
