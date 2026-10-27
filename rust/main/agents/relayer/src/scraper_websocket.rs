@@ -1,6 +1,6 @@
-//! Consume the trusted scraper-proxy protocol. The server owns filtering, sequence
-//! continuity, replay ordering and backpressure (`live/agent-subscription.ts`).
-//! This client owns decoding, durable writes/cursors and RPC takeover/fallback.
+//! Consume scraper-proxy events with sequence/payload checks, durable writes/cursors
+//! and RPC takeover/fallback. Filtering, replay and backpressure live on the server
+//! (`live/agent-subscription.ts`).
 
 use std::{
     collections::HashMap,
@@ -162,7 +162,9 @@ impl ScraperSource {
         let gas: Option<StoredGasCursor> = self
             .database
             .retrieve_value_by_key(GAS_CURSOR, &self.interchain_gas_paymaster)?;
-        streams[Kind::Gas.index()].last = Some(gas.map_or(0, |cursor| cursor.stream_cursor));
+        let progress = &mut streams[Kind::Gas.index()];
+        progress.last = Some(gas.as_ref().map_or(0, |cursor| cursor.stream_cursor));
+        progress.legacy_max = gas.map(|cursor| cursor.legacy_max_stream_cursor);
         Ok(SourceState {
             streams,
             health: std::array::from_fn(|_| StreamHealth::default()),
@@ -196,7 +198,9 @@ impl ScraperSource {
         if matches!(kind, Kind::Gas) {
             let cursor = StoredGasCursor {
                 fingerprint: None,
-                legacy_max_stream_cursor: progress.legacy_max,
+                legacy_max_stream_cursor: progress
+                    .legacy_max
+                    .context("Missing gas legacy boundary")?,
                 stream_cursor: last,
             };
             self.database.store_value_by_key(
@@ -256,9 +260,19 @@ impl ScraperSource {
                         .retrieve_message_by_id(&parse_address(&data.msg_id)?)?
                         .context("Legacy dispatch body needs RPC backfill")?,
                 };
+                ensure!(
+                    message.nonce == nonce && message.id() == parse_address(&data.msg_id)?,
+                    "Dispatch payload does not match its nonce/message ID"
+                );
                 let block = data.origin_block_height.as_u64("dispatch block")?;
                 let tx = parse_tx(&data.origin_tx_hash)?;
                 if write {
+                    ensure!(
+                        self.database
+                            .retrieve_message_by_nonce(nonce)?
+                            .is_none_or(|existing| existing == message),
+                        "Conflicting scraper dispatch"
+                    );
                     self.database.store_message(&message, block)?;
                     if tx != H512::zero() {
                         self.database
@@ -287,7 +301,12 @@ impl ScraperSource {
                 let (insertion, block) =
                     data.decode(self.domain, self.merkle_tree_hook, sequence)?;
                 if write {
-                    self.database.process_tree_insertion(&insertion, block)?;
+                    if let Some(existing) = self
+                        .database
+                        .store_tree_insertion_if_absent(&insertion, block)?
+                    {
+                        ensure!(existing == insertion, "Conflicting scraper Merkle leaf");
+                    }
                 }
             }
             Kind::Gas => {
@@ -418,7 +437,7 @@ struct Progress {
     baseline: Option<u32>,
     caught_up: bool,
     usable: bool,
-    legacy_max: u64,
+    legacy_max: Option<u64>,
 }
 impl Default for Progress {
     fn default() -> Self {
@@ -427,13 +446,31 @@ impl Default for Progress {
             baseline: None,
             caught_up: false,
             usable: true,
-            legacy_max: 0,
+            legacy_max: None,
         }
     }
 }
 impl Progress {
     fn ready(&self) -> bool {
         self.caught_up && self.usable && self.baseline.is_none()
+    }
+    fn check_gas_cursor(&self, last: u64, legacy: u64, marker: bool) -> Result<()> {
+        ensure!(
+            self.legacy_max.is_none_or(|known| known == legacy),
+            "Gas legacy boundary changed"
+        );
+        let previous = self.last.unwrap_or(0);
+        // Legacy IDs are sparse; a marker may cover their remaining empty tail.
+        let limit = previous.max(legacy);
+        ensure!(
+            if marker {
+                last == limit
+            } else {
+                last > 0 && last <= limit.saturating_add(1)
+            },
+            "Invalid gas cursor {last} after {previous} (legacy boundary {legacy})"
+        );
+        Ok(())
     }
 }
 struct SourceState {
@@ -451,7 +488,7 @@ impl SourceState {
 }
 
 // The old cursor contained a duplicate fingerprint. Decode it for compatibility;
-// DB log metadata deduplicates gas credits, and the server owns stream continuity.
+// DB log metadata deduplicates gas credits; versioned cursors detect gaps.
 struct StoredGasCursor {
     fingerprint: Option<H256>,
     legacy_max_stream_cursor: u64,
@@ -805,6 +842,7 @@ impl ScraperWebSocketMonitor {
                         }
                     }
                     ServerMessage::CaughtUp {
+                        address,
                         domain,
                         event_type,
                         sequence,
@@ -818,6 +856,10 @@ impl ScraperWebSocketMonitor {
                             .get(&domain)
                             .context("Unknown scraper domain")?;
                         ensure!(
+                            parse_address(&address)? == source.address(kind),
+                            "Unexpected caught-up address"
+                        );
+                        ensure!(
                             !matches!(kind, Kind::Gas) || gas,
                             "Unrequested scraper gas marker"
                         );
@@ -825,14 +867,27 @@ impl ScraperWebSocketMonitor {
                         let progress = &mut current.streams[kind.index()];
                         progress.caught_up = true;
                         if matches!(kind, Kind::Gas) {
-                            progress.legacy_max =
+                            ensure!(sequence.is_none(), "Gas marker includes a sequence");
+                            let legacy =
                                 parse_u64(legacy_max_stream_cursor, "gas legacy boundary")?;
-                            progress.last = Some(parse_u64(stream_cursor, "gas caught-up cursor")?);
-                        } else if progress.last.is_none() {
+                            let last = parse_u64(stream_cursor, "gas caught-up cursor")?;
+                            progress.check_gas_cursor(last, legacy, true)?;
+                            progress.legacy_max = Some(legacy);
+                            progress.last = Some(last);
+                        } else {
+                            ensure!(
+                                stream_cursor.is_none() && legacy_max_stream_cursor.is_none(),
+                                "Sequenced marker includes gas cursors"
+                            );
                             let last: i64 =
                                 sequence.context("Missing caught-up sequence")?.parse()?;
                             ensure!(last >= -1, "Invalid caught-up sequence");
-                            if last >= 0 {
+                            if let Some(previous) = progress.last {
+                                ensure!(last >= 0, "Empty caught-up marker does not match cursor");
+                                let last = u64::try_from(last)?;
+                                ensure!(last <= previous, "Caught-up marker skipped events");
+                                progress.caught_up = last == previous;
+                            } else if last >= 0 {
                                 let last = u32::try_from(last)?;
                                 progress.last = Some(u64::from(last));
                                 progress.baseline = Some(last);
@@ -844,7 +899,7 @@ impl ScraperWebSocketMonitor {
                         self.metrics
                             .caught_up
                             .with_label_values(&[source.chain.as_str(), kind.label()])
-                            .set(1);
+                            .set(i64::from(progress.caught_up));
                     }
                     ServerMessage::Error { error } => return Err(RejectedStream(error).into()),
                     ServerMessage::Rollback => {
@@ -862,24 +917,54 @@ impl ScraperWebSocketMonitor {
         kind: Kind,
         event: EventMessage<serde_json::Value>,
     ) -> Result<()> {
-        let last = if matches!(kind, Kind::Gas) {
-            parse_u64(event.stream_cursor, "gas stream cursor")?
+        let progress = &mut state.streams[kind.index()];
+        let (last, legacy_max) = if matches!(kind, Kind::Gas) {
+            ensure!(event.sequence.is_none(), "Gas event includes a sequence");
+            let last = parse_u64(event.stream_cursor, "gas stream cursor")?;
+            let legacy = parse_u64(event.legacy_max_stream_cursor, "gas legacy boundary")?;
+            progress.check_gas_cursor(last, legacy, false)?;
+            (last, Some(legacy))
         } else {
-            u64::from(
-                event
-                    .sequence
-                    .context("Missing event sequence")?
-                    .parse::<u32>()?,
+            ensure!(
+                event.row_id.is_none()
+                    && event.stream_cursor.is_none()
+                    && event.legacy_max_stream_cursor.is_none(),
+                "Sequenced event includes gas cursors"
+            );
+            (
+                u64::from(
+                    event
+                        .sequence
+                        .context("Missing event sequence")?
+                        .parse::<u32>()?,
+                ),
+                None,
             )
         };
+        if !matches!(kind, Kind::Gas) {
+            let next = progress
+                .last
+                .map_or(0, |previous| previous.saturating_add(1));
+            ensure!(
+                last <= next,
+                "Scraper sequence gap: expected {next}, received {last}"
+            );
+            let field = if matches!(kind, Kind::Dispatch) {
+                "nonce"
+            } else {
+                "leaf_index"
+            };
+            let sequence: StringOrNumber = serde_json::from_value(event.data[field].clone())?;
+            ensure!(
+                sequence.as_u64(field)? == last,
+                "Payload sequence does not match envelope"
+            );
+        }
         source
             .store(kind, event.data, self.authority_enabled)
             .await?;
-        let progress = &mut state.streams[kind.index()];
         progress.last = Some(progress.last.map_or(last, |previous| previous.max(last)));
-        if matches!(kind, Kind::Gas) {
-            progress.legacy_max = parse_u64(event.legacy_max_stream_cursor, "gas legacy boundary")?;
-        }
+        progress.legacy_max = legacy_max;
         if self.authority_enabled {
             source.persist(kind, progress)?;
         }
@@ -1208,7 +1293,7 @@ mod tests {
     }
     fn caught_up(kind: Kind, sequence: i64) -> Value {
         if matches!(kind, Kind::Gas) {
-            json!({"type":"caught_up", "domain":5, "address":format_address(H256::from_low_u64_be(3)), "eventType":kind.label(), "streamCursor":sequence.to_string(), "legacyMaxStreamCursor":"3"})
+            json!({"type":"caught_up", "domain":5, "address":format_address(H256::from_low_u64_be(3)), "eventType":kind.label(), "streamCursor":sequence.to_string(), "legacyMaxStreamCursor":sequence.min(3).to_string()})
         } else {
             json!({"type":"caught_up", "domain":5, "address":format_address(H256::from_low_u64_be(if matches!(kind, Kind::Dispatch) {1} else {2})), "eventType":kind.label(), "sequence":sequence.to_string()})
         }
@@ -1291,6 +1376,220 @@ mod tests {
             .retrieve_gas_payment_by_gas_payment_key(key)
             .expect("gas lookup")
             .map_or(U256::zero(), |payment| payment.payment)
+    }
+
+    #[tokio::test]
+    async fn sequenced_streams_accept_replays_but_reject_gaps_and_payload_mismatches() {
+        let fixture = Fixture::new(Url::parse("ws://localhost:1").expect("URL"), true);
+        for (kind, payload) in [
+            (Kind::Dispatch, dispatch as fn(u32) -> Value),
+            (Kind::Merkle, merkle),
+        ] {
+            let source = fixture.source();
+            let mut state = source.load().expect("state");
+            for sequence in [0, 0, 1, 0] {
+                fixture
+                    .monitor
+                    .consume(
+                        source,
+                        &mut state,
+                        kind,
+                        serde_json::from_value(event(
+                            kind,
+                            sequence,
+                            payload(u32::try_from(sequence).expect("sequence")),
+                        ))
+                        .expect("event"),
+                    )
+                    .await
+                    .expect("contiguous event or replay");
+            }
+            let mut mixed = event(kind, 2, payload(2));
+            mixed["rowId"] = json!("1");
+            for (row, error) in [
+                (event(kind, 3, payload(3)), "sequence gap"),
+                (event(kind, 2, payload(3)), "Payload sequence"),
+                (mixed, "includes gas cursors"),
+            ] {
+                let result = fixture
+                    .monitor
+                    .consume(
+                        source,
+                        &mut state,
+                        kind,
+                        serde_json::from_value(row).expect("event"),
+                    )
+                    .await;
+                assert!(result
+                    .expect_err("reject event")
+                    .to_string()
+                    .contains(error));
+                assert_eq!(state.streams[kind.index()].last, Some(1));
+                let saved: Option<u32> = source
+                    .database
+                    .retrieve_value_by_key(kind.prefix(), &source.address(kind))
+                    .expect("cursor");
+                assert_eq!(saved, Some(1));
+                assert!(!source
+                    .baseline_present(kind, 3)
+                    .expect("gap was not stored"));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn gas_cursor_checks_precede_writes_and_allow_sparse_legacy_replay() {
+        let fixture = Fixture::new(Url::parse("ws://localhost:1").expect("URL"), true);
+        let source = fixture.source();
+        let mut state = source.load().expect("state");
+        for cursor in [1, 3, 4, 4] {
+            fixture
+                .monitor
+                .consume(
+                    source,
+                    &mut state,
+                    Kind::Gas,
+                    serde_json::from_value(event(Kind::Gas, cursor, gas(cursor))).expect("event"),
+                )
+                .await
+                .expect("legacy gaps, contiguous events and duplicates");
+        }
+        for (cursor, field, value) in [
+            (6, "legacyMaxStreamCursor", json!("3")),
+            (5, "legacyMaxStreamCursor", json!("invalid")),
+            (5, "legacyMaxStreamCursor", json!("4")),
+            (5, "sequence", json!("5")),
+        ] {
+            let mut row = event(Kind::Gas, cursor, gas(cursor));
+            row[field] = value;
+            assert!(fixture
+                .monitor
+                .consume(
+                    source,
+                    &mut state,
+                    Kind::Gas,
+                    serde_json::from_value(row).expect("event"),
+                )
+                .await
+                .is_err());
+            assert_eq!(state.streams[Kind::Gas.index()].last, Some(4));
+            assert_eq!(payment_total(source), U256::from(3000));
+        }
+        let progress = Progress {
+            last: Some(1),
+            legacy_max: Some(3),
+            ..Progress::default()
+        };
+        assert!(progress.check_gas_cursor(3, 3, true).is_ok());
+        assert!(progress.check_gas_cursor(4, 3, false).is_ok());
+        assert_eq!(
+            source.load().expect("durable cursor").streams[Kind::Gas.index()].last,
+            Some(4)
+        );
+    }
+
+    #[tokio::test]
+    async fn conflicting_replays_preserve_existing_messages_and_leaves() {
+        let fixture = Fixture::new(Url::parse("ws://localhost:1").expect("URL"), true);
+        let source = fixture.source();
+        for (kind, data) in [(Kind::Dispatch, dispatch(0)), (Kind::Merkle, merkle(0))] {
+            source
+                .store(kind, data.clone(), true)
+                .await
+                .expect("RPC data");
+            let mut conflict = data;
+            if matches!(kind, Kind::Dispatch) {
+                let mut other = message(0);
+                other.destination = 7;
+                conflict["destination_domain"] = json!(7);
+                conflict["msg_id"] = json!(format!("{:#x}", other.id()));
+            } else {
+                conflict["message_id"] = json!(format!("{:#x}", H256::zero()));
+            }
+            assert!(source
+                .store(kind, conflict, true)
+                .await
+                .expect_err("conflict")
+                .to_string()
+                .contains("Conflicting"));
+        }
+        assert_eq!(
+            source
+                .database
+                .retrieve_message_by_nonce(0)
+                .expect("message"),
+            Some(message(0))
+        );
+        assert_eq!(
+            source
+                .database
+                .retrieve_merkle_tree_insertion_by_leaf_index(&0)
+                .expect("leaf"),
+            Some(MerkleTreeInsertion::new(0, message(0).id()))
+        );
+        let mut invalid = dispatch(1);
+        invalid["msg_id"] = json!(format!("{:#x}", H256::zero()));
+        assert!(source.store(Kind::Dispatch, invalid, true).await.is_err());
+        assert!(!source
+            .baseline_present(Kind::Dispatch, 1)
+            .expect("invalid dispatch"));
+    }
+
+    #[tokio::test]
+    async fn invalid_caught_up_markers_restore_rpc_without_advancing_the_cursor() {
+        for (kind, sequence, address, error) in [
+            (Kind::Dispatch, 1, 1, "skipped events"),
+            (Kind::Dispatch, 0, 9, "caught-up address"),
+            (Kind::Dispatch, -1, 1, "Empty caught-up marker"),
+            (Kind::Gas, 5, 3, "Invalid gas cursor"),
+            (Kind::Gas, 3, 3, "Invalid gas cursor"),
+        ] {
+            let (listener, url) = listener().await;
+            let fixture = Fixture::new(url, true);
+            let source = fixture.source();
+            source
+                .database
+                .store_value_by_key(DISPATCH_CURSOR, &source.mailbox, &0_u32)
+                .expect("saved cursor");
+            if matches!(kind, Kind::Gas) {
+                source
+                    .database
+                    .store_value_by_key(
+                        GAS_CURSOR,
+                        &source.interchain_gas_paymaster,
+                        &StoredGasCursor {
+                            fingerprint: None,
+                            legacy_max_stream_cursor: 3,
+                            stream_cursor: 4,
+                        },
+                    )
+                    .expect("saved gas cursor");
+            }
+            source.control.request();
+            source.control.set_gas(true);
+            let server = async {
+                let (mut socket, _) = handshake(&listener).await;
+                let mut marker = caught_up(kind, sequence);
+                marker["address"] = json!(format_address(H256::from_low_u64_be(address)));
+                send(&mut socket, marker).await;
+                while socket.next().await.is_some() {}
+            };
+            let ((), result) = timeout(Duration::from_secs(5), async {
+                tokio::join!(server, fixture.monitor.stream(timeouts()))
+            })
+            .await
+            .expect("marker handling");
+            assert!(result
+                .expect_err("invalid marker")
+                .to_string()
+                .contains(error));
+            assert!(!source.control.command.borrow().desired);
+            assert!(!*source.control.gas.borrow());
+            assert_eq!(
+                source.load().expect("durable cursor").streams[kind.index()].last,
+                Some(if matches!(kind, Kind::Gas) { 4 } else { 0 })
+            );
+        }
     }
 
     #[tokio::test]
@@ -1515,6 +1814,10 @@ mod tests {
                     };
                     if matches!(kind, Kind::Merkle) {
                         data["domain"] = json!(domain);
+                    } else {
+                        let mut message = message(0);
+                        message.origin = domain;
+                        data["msg_id"] = json!(format!("{:#x}", message.id()));
                     }
                     let mut row = event(kind, 0, data);
                     row["domain"] = json!(domain);
