@@ -129,7 +129,7 @@ impl LogMetaComposer {
 }
 
 pub fn is_message_dispatch_instruction(instruction_data: &[u8]) -> bool {
-    use hyperlane_sealevel_mailbox::instruction::Instruction;
+    use hyperlane_sealevel_interface::mailbox::instruction::Instruction;
 
     let instruction = match Instruction::from_instruction_data(instruction_data) {
         Ok(ii) => ii,
@@ -140,7 +140,7 @@ pub fn is_message_dispatch_instruction(instruction_data: &[u8]) -> bool {
 }
 
 pub fn is_message_delivery_instruction(instruction_data: &[u8]) -> bool {
-    use hyperlane_sealevel_mailbox::instruction::Instruction;
+    use hyperlane_sealevel_interface::mailbox::instruction::Instruction;
 
     let instruction = match Instruction::from_instruction_data(instruction_data) {
         Ok(ii) => ii,
@@ -151,7 +151,7 @@ pub fn is_message_delivery_instruction(instruction_data: &[u8]) -> bool {
 }
 
 pub fn is_interchain_payment_instruction(instruction_data: &[u8]) -> bool {
-    use hyperlane_sealevel_igp::instruction::Instruction;
+    use hyperlane_sealevel_interface::igp::instruction::Instruction;
 
     let instruction = match Instruction::from_instruction_data(instruction_data) {
         Ok(ii) => ii,

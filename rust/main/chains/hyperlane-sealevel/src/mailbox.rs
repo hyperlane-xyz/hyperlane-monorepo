@@ -9,7 +9,7 @@ use std::{
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_sealevel_mailbox::{
+use hyperlane_sealevel_interface::mailbox::{
     accounts::{Inbox, InboxAccount},
     instruction::InboxProcess,
     mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds, mailbox_process_authority_pda_seeds,
@@ -242,7 +242,7 @@ impl SealevelMailbox {
 
         let instruction = Instruction::new_with_borsh(
             self.program_id,
-            &hyperlane_sealevel_mailbox::instruction::Instruction::InboxGetRecipientIsm(
+            &hyperlane_sealevel_interface::mailbox::instruction::Instruction::InboxGetRecipientIsm(
                 recipient_program_id,
             ),
             accounts,
@@ -397,11 +397,12 @@ impl SealevelMailbox {
             .get_recipient_ism(recipient, ism_getter_account_metas.clone())
             .await?;
 
-        let ixn =
-            hyperlane_sealevel_mailbox::instruction::Instruction::InboxProcess(InboxProcess {
+        let ixn = hyperlane_sealevel_interface::mailbox::instruction::Instruction::InboxProcess(
+            InboxProcess {
                 metadata: metadata.to_vec(),
                 message: encoded_message.clone(),
-            });
+            },
+        );
         let ixn_data = ixn
             .into_instruction_data()
             .map_err(ChainCommunicationError::from_other)?;
@@ -1182,15 +1183,16 @@ mod tests {
             recipient: recipient.to_bytes().into(),
             body: vec![0; 64],
         };
-        let data =
-            hyperlane_sealevel_mailbox::instruction::Instruction::InboxProcess(InboxProcess {
+        let data = hyperlane_sealevel_interface::mailbox::instruction::Instruction::InboxProcess(
+            InboxProcess {
                 // Real aggregation metadata varies with validator signatures;
                 // this length conservatively represents the live 3-of-N proof.
                 metadata: vec![0; 384],
                 message: message.to_vec(),
-            })
-            .into_instruction_data()
-            .unwrap();
+            },
+        )
+        .into_instruction_data()
+        .unwrap();
 
         let mut static_accounts = vec![
             Pubkey::from_str(SYSTEM_PROGRAM).unwrap(),

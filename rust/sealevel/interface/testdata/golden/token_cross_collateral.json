@@ -1,0 +1,158 @@
+{
+  "program": "token_cross_collateral",
+  "values": [
+    {
+      "type": "token_cross_collateral.CrossCollateralInstruction",
+      "variant": "SetCrossCollateralRouters",
+      "encoding": "discriminator+borsh",
+      "discriminator": "0x0202020202020202",
+      "fields": [
+        {
+          "Add": {
+            "domain": 10,
+            "router": "0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+          }
+        },
+        {
+          "Remove": {
+            "domain": 11,
+            "router": "0x02030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021"
+          }
+        }
+      ],
+      "hex": "02020202020202020002000000000a0000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20010b0000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021"
+    },
+    {
+      "type": "token_cross_collateral.CrossCollateralInstruction",
+      "variant": "TransferRemoteTo",
+      "encoding": "discriminator+borsh",
+      "discriminator": "0x0202020202020202",
+      "fields": {
+        "destination_domain": 42161,
+        "recipient": "0x030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122",
+        "amount_or_id": "987654321",
+        "target_router": "0x0405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223"
+      },
+      "hex": "020202020202020201b1a40000030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122b168de3a000000000000000000000000000000000000000000000000000000000405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223"
+    },
+    {
+      "type": "token_cross_collateral.CrossCollateralInstruction",
+      "variant": "HandleLocal",
+      "encoding": "discriminator+borsh",
+      "discriminator": "0x0202020202020202",
+      "fields": {
+        "sender_program_id": "4wBqpZM9xaSheZzJSMawUKKwhdpChKbZ5eu5ky4Vigw",
+        "message": "0x101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b"
+      },
+      "hex": "0202020202020202020102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f203c000000101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b"
+    },
+    {
+      "type": "token_cross_collateral.CrossCollateralInstruction",
+      "variant": "HandleLocalAccountMetas",
+      "encoding": "discriminator+borsh",
+      "discriminator": "0x0202020202020202",
+      "fields": {
+        "sender_program_id": "8rUz82MkFsfqjpVjjgWEM66Brr1sm1R7VKZ991fF41e",
+        "message": "0x2021222324252627"
+      },
+      "hex": "02020202020202020302030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021080000002021222324252627"
+    },
+    {
+      "type": "token_cross_collateral.CrossCollateralState",
+      "variant": null,
+      "encoding": "account",
+      "fields": {
+        "bump": 255,
+        "dispatch_authority_bump": 254,
+        "local_domain": 1399811149,
+        "enrolled_routers": [
+          [
+            10,
+            [
+              "0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+              "0x404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f"
+            ]
+          ],
+          [
+            11,
+            []
+          ]
+        ]
+      },
+      "hex": "01fffe4d6c6f53020000000a000000020000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f0b00000000000000"
+    }
+  ],
+  "instructions": [
+    {
+      "name": "set_cross_collateral_routers_instruction",
+      "program_id": "CRJqtQo4W4UW8rbFad9wpXyUxNydMNfMRdd8scVi1gsh",
+      "accounts": [
+        {
+          "pubkey": "11111111111111111111111111111111",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "GkzAqzbNRvgAFS7Np9LHtUHZvdYaz74efMFjvEn9R9U5",
+          "is_signer": false,
+          "is_writable": true
+        },
+        {
+          "pubkey": "CwkrkY4jv1RZvpqGm9W3KDEvgQHxfSu42f9DRDK3Pycn",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "Cmn8RVNLZAtyq51B31RXDrrS24DYphEftzDCX4FzPLM",
+          "is_signer": true,
+          "is_writable": true
+        }
+      ],
+      "hex": "02020202020202020001000000000a0000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+    }
+  ],
+  "pdas": [
+    {
+      "name": "cross_collateral",
+      "program_id": "CRJqtQo4W4UW8rbFad9wpXyUxNydMNfMRdd8scVi1gsh",
+      "seeds": [
+        "68797065726c616e655f746f6b656e",
+        "2d",
+        "63726f73735f636f6c6c61746572616c"
+      ],
+      "address": "GkzAqzbNRvgAFS7Np9LHtUHZvdYaz74efMFjvEn9R9U5",
+      "bump": 254
+    },
+    {
+      "name": "dispatch_authority",
+      "program_id": "CRJqtQo4W4UW8rbFad9wpXyUxNydMNfMRdd8scVi1gsh",
+      "seeds": [
+        "68797065726c616e655f6363",
+        "2d",
+        "64697370617463685f617574686f72697479"
+      ],
+      "address": "DtirHxAMsEYxKB5mWRReyR97bXBESXuvKxm5gBuejUbj",
+      "bump": 255
+    }
+  ],
+  "errors": [
+    {
+      "name": "Error.UnauthorizedRouter",
+      "code": 1000
+    },
+    {
+      "name": "Error.InvalidDispatchAuthority",
+      "code": 1001
+    },
+    {
+      "name": "Error.SameDomainViaMailbox",
+      "code": 3618916391
+    }
+  ],
+  "constants": [
+    {
+      "name": "CROSS_COLLATERAL_INSTRUCTION_DISCRIMINATOR",
+      "value": "0x0202020202020202"
+    }
+  ]
+}

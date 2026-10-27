@@ -1,0 +1,35 @@
+[package]
+name = "hyperlane-sealevel-interface-goldens"
+version = "0.1.0"
+edition = "2021"
+description = "Golden-vector machinery and case definitions for hyperlane-sealevel-interface"
+
+[dependencies]
+borsh.workspace = true
+hex.workspace = true
+solana-program.workspace = true
+
+account-utils = { path = "../../libraries/account-utils" }
+hyperlane-core = { path = "../../../main/hyperlane-core" }
+
+# The on-chain program crates are the oracle the committed goldens are generated from.
+# They are dev-dependencies only, so nothing that depends on this crate's library pulls them.
+[dev-dependencies]
+hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = ["no-entrypoint"] }
+hyperlane-sealevel-igp = { path = "../../programs/hyperlane-sealevel-igp", features = ["no-entrypoint"] }
+hyperlane-sealevel-validator-announce = { path = "../../programs/validator-announce", features = ["no-entrypoint"] }
+hyperlane-sealevel-multisig-ism-message-id = { path = "../../programs/ism/multisig-ism-message-id", features = ["no-entrypoint"] }
+hyperlane-sealevel-composite-ism = { path = "../../programs/ism/composite-ism", features = ["no-entrypoint"] }
+hyperlane-sealevel-token-lib = { path = "../../libraries/hyperlane-sealevel-token" }
+hyperlane-sealevel-token = { path = "../../programs/hyperlane-sealevel-token", features = ["no-entrypoint"] }
+hyperlane-sealevel-token-collateral = { path = "../../programs/hyperlane-sealevel-token-collateral", features = ["no-entrypoint"] }
+hyperlane-sealevel-token-native = { path = "../../programs/hyperlane-sealevel-token-native", features = ["no-entrypoint"] }
+hyperlane-sealevel-token-cross-collateral = { path = "../../programs/hyperlane-sealevel-token-cross-collateral", features = ["no-entrypoint"] }
+hyperlane-sealevel-fee = { path = "../../programs/hyperlane-sealevel-fee", features = ["no-entrypoint"] }
+hyperlane-sealevel-connection-client = { path = "../../libraries/hyperlane-sealevel-connection-client" }
+hyperlane-sealevel-hello-world = { path = "../../programs/helloworld", features = ["no-entrypoint"] }
+hyperlane-sealevel-interchain-security-module-interface = { path = "../../libraries/interchain-security-module-interface" }
+hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
+multisig-ism = { path = "../../libraries/multisig-ism" }
+quote-verifier = { path = "../../libraries/quote-verifier" }
+serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
