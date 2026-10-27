@@ -141,6 +141,8 @@ constructor receives:
 - `customConsistencyLevelContract`: the local CCL contract address;
 - `customBaseConsistencyLevel`: the standard level Guardians wait for first; and
 - `additionalBlocks`: the extra blocks they wait after reaching that level.
+  Must be nonzero, since zero blocks would equal the base level, which is
+  available as a standard consistency level.
 
 The deployer must verify that the supplied address is the official CCL contract
 for the source chain.

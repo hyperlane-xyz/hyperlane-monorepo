@@ -7,7 +7,7 @@ import {CoreBridgeVM, ICoreBridge} from "wormhole-sdk/interfaces/ICoreBridge.sol
 import {WormholeVaaHookIsm} from "contracts/hooks/wormhole/WormholeVaaHookIsm.sol";
 import {WormholeMessage} from "contracts/libs/WormholeMessage.sol";
 import {ReverseMappingLib} from "contracts/libs/ReverseMapping.sol";
-import {WormholeConsistencyLevelConfig} from "contracts/hooks/wormhole/libs/CustomConsistencyLevel.sol";
+import {CustomConsistencyLevelLib, WormholeConsistencyLevelConfig} from "contracts/hooks/wormhole/libs/CustomConsistencyLevel.sol";
 import {StandardHookMetadata} from "contracts/hooks/libs/StandardHookMetadata.sol";
 import {IInterchainSecurityModule} from "contracts/interfaces/IInterchainSecurityModule.sol";
 import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
@@ -1311,7 +1311,7 @@ contract WormholeHookIsmTest is Test {
                 additionalBlocks: 0
             });
         vm.expectRevert(
-            WormholeVaaHookIsm.InvalidConsistencyLevelConfig.selector
+            CustomConsistencyLevelLib.InvalidConsistencyLevelConfig.selector
         );
         new WormholeVaaHookIsm(
             address(destinationMailbox),
@@ -1333,7 +1333,7 @@ contract WormholeHookIsmTest is Test {
             });
 
         vm.expectRevert(
-            WormholeVaaHookIsm.InvalidConsistencyLevelConfig.selector
+            CustomConsistencyLevelLib.InvalidConsistencyLevelConfig.selector
         );
         new WormholeVaaHookIsm(
             address(destinationMailbox),
@@ -1392,7 +1392,9 @@ contract WormholeHookIsmTest is Test {
             });
 
         vm.expectRevert(
-            WormholeVaaHookIsm.InvalidCustomConsistencyLevelConfig.selector
+            CustomConsistencyLevelLib
+                .InvalidCustomConsistencyLevelConfig
+                .selector
         );
         new WormholeVaaHookIsm(
             address(destinationMailbox),
@@ -1413,7 +1415,58 @@ contract WormholeHookIsmTest is Test {
             });
 
         vm.expectRevert(
-            WormholeVaaHookIsm.InvalidCustomConsistencyLevelConfig.selector
+            CustomConsistencyLevelLib
+                .InvalidCustomConsistencyLevelConfig
+                .selector
+        );
+        new WormholeVaaHookIsm(
+            address(destinationMailbox),
+            address(destinationCore),
+            invalid,
+            _urls()
+        );
+    }
+
+    function test_constructor_rejectsCustomConsistencyWithZeroAdditionalBlocks()
+        public
+    {
+        MockCustomConsistencyLevel ccl = new MockCustomConsistencyLevel();
+        WormholeConsistencyLevelConfig
+            memory invalid = WormholeConsistencyLevelConfig({
+                consistencyLevel: 203,
+                customConsistencyLevelContract: address(ccl),
+                customBaseConsistencyLevel: 200,
+                additionalBlocks: 0
+            });
+
+        vm.expectRevert(
+            CustomConsistencyLevelLib
+                .InvalidCustomConsistencyLevelConfig
+                .selector
+        );
+        new WormholeVaaHookIsm(
+            address(destinationMailbox),
+            address(destinationCore),
+            invalid,
+            _urls()
+        );
+    }
+
+    function test_constructor_rejectsCclContractForStandardConsistency()
+        public
+    {
+        WormholeConsistencyLevelConfig
+            memory invalid = WormholeConsistencyLevelConfig({
+                consistencyLevel: CONSISTENCY,
+                customConsistencyLevelContract: makeAddr("unusedCcl"),
+                customBaseConsistencyLevel: 0,
+                additionalBlocks: 0
+            });
+
+        vm.expectRevert(
+            CustomConsistencyLevelLib
+                .UnexpectedCustomConsistencyLevelConfig
+                .selector
         );
         new WormholeVaaHookIsm(
             address(destinationMailbox),
@@ -1435,7 +1488,9 @@ contract WormholeHookIsmTest is Test {
             });
 
         vm.expectRevert(
-            WormholeVaaHookIsm.UnexpectedCustomConsistencyLevelConfig.selector
+            CustomConsistencyLevelLib
+                .UnexpectedCustomConsistencyLevelConfig
+                .selector
         );
         new WormholeVaaHookIsm(
             address(destinationMailbox),

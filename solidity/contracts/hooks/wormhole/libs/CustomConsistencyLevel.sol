@@ -19,18 +19,22 @@ struct WormholeConsistencyLevelConfig {
     uint8 customBaseConsistencyLevel;
     /// @notice Number of blocks Guardians wait after reaching
     /// `customBaseConsistencyLevel`.
-    /// @dev Must be `0` unless `consistencyLevel` is `CUSTOM`.
+    /// @dev Must be nonzero if `consistencyLevel` is `CUSTOM`, otherwise `0`.
     uint16 additionalBlocks;
 }
 
 /**
- * @notice Wormhole EVM consistency constants and constructor validation rules.
+ * @notice Wormhole EVM consistency constants and validation rules.
  * @dev This allowlist catches likely configuration mistakes. It does not imply
  * that every listed behavior is available on every EVM chain.
  * See https://wormhole.com/docs/products/reference/consistency-levels/ for
  * Wormhole's per-chain support table.
  */
 library CustomConsistencyLevelLib {
+    error InvalidConsistencyLevelConfig();
+    error InvalidCustomConsistencyLevelConfig();
+    error UnexpectedCustomConsistencyLevelConfig();
+
     /// @dev Documented value 0: wait for the source chain's finalized state.
     uint8 internal constant ZERO_FINALIZED = 0;
     /// @dev Guardian sentinel 200: observe the latest block.
@@ -62,5 +66,51 @@ library CustomConsistencyLevelLib {
         uint8 level
     ) internal pure returns (bool) {
         return level == INSTANT || level == SAFE || level == GUARDIAN_FINALIZED;
+    }
+
+    /// @notice Reverts unless `config` is a valid consistency level configuration.
+    /// @dev A CCL contract accompanies only `CUSTOM`.
+    function validateConfig(
+        WormholeConsistencyLevelConfig memory config
+    ) internal pure {
+        validateCustomConfigSettings(
+            config.consistencyLevel,
+            config.customBaseConsistencyLevel,
+            config.additionalBlocks
+        );
+
+        if (
+            config.consistencyLevel != CUSTOM &&
+            config.customConsistencyLevelContract != address(0)
+        ) {
+            revert UnexpectedCustomConsistencyLevelConfig();
+        }
+    }
+
+    /// @notice Reverts unless `level` is allowed and the custom settings fit it.
+    /// @dev Only `CUSTOM` takes settings: an allowed base level and nonzero
+    /// additional blocks, since zero blocks would equal the base level.
+    function validateCustomConfigSettings(
+        uint8 level,
+        uint8 customBaseLevel,
+        uint16 additionalBlocks
+    ) internal pure {
+        if (!isAllowedConsistencyLevel(level)) {
+            revert InvalidConsistencyLevelConfig();
+        }
+
+        bool isCustom = level == CUSTOM;
+
+        if (!isCustom && (customBaseLevel != 0 || additionalBlocks != 0)) {
+            revert UnexpectedCustomConsistencyLevelConfig();
+        }
+
+        if (
+            isCustom &&
+            (!isAllowedCustomBaseConsistencyLevel(customBaseLevel) ||
+                additionalBlocks == 0)
+        ) {
+            revert InvalidCustomConsistencyLevelConfig();
+        }
     }
 }
