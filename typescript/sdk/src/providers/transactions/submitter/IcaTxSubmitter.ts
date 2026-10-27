@@ -1,3 +1,5 @@
+import { BigNumber } from 'ethers';
+
 import {
   Address,
   ProtocolType,
@@ -23,6 +25,10 @@ import { TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
 import { EvmIcaTxSubmitterProps } from './ethersV5/types.js';
 import type { SubmitterGetter } from './types.js';
+
+// Multiplier on the IGP quote so callRemote survives gas price increases before
+// execution. Overpayment is refunded to the owner via hookMetadata refundAddress.
+export const ICA_QUOTE_BUFFER_MULTIPLIER = 2;
 
 type EvmIcaTxSubmitterConstructorConfig = Omit<
   EvmIcaTxSubmitterProps,
@@ -180,6 +186,9 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
     return this.submitter.submit({
       chainId: this.multiProvider.getDomainId(this.config.chain),
       ...icaTx,
+      value: icaTx.value
+        ? BigNumber.from(icaTx.value).mul(ICA_QUOTE_BUFFER_MULTIPLIER)
+        : undefined,
       // callRemote derives the ICA from msg.sender, so `from` must be the owner (not the
       // populating signer) for file output to be self-describing. Live submitters are
       // unaffected: MultiProvider.sendTransaction calls prepareTx with no `from`, which
