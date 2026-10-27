@@ -318,8 +318,10 @@ contract LayerZeroV2HookIsm is
     }
 
     /// @notice Installs or replaces remote routes and their LayerZero policies atomically.
-    /// @dev All-zero configs select the library defaults. An abandoned
-    /// endpoint ID is blocked, but an unchanged path stays selected.
+    /// @dev All-zero configs select the library defaults. No minimum DVN or
+    /// confirmation count is enforced, so prefer explicit configs over the
+    /// defaults. An abandoned endpoint ID is blocked, but an unchanged path
+    /// stays selected.
     function enrollRemoteRouters(
         RemoteRouterConfig[] calldata newRemoteConfigs
     ) external onlyOwner {
@@ -412,17 +414,16 @@ contract LayerZeroV2HookIsm is
             revert InvalidLayerZeroPeer(newRemoteConfig.domainIsm);
         }
 
-        ReverseMappingLib.ReverseEntry
-            memory currentEndpoint = remoteEndpointIds.keyOf(
-                newRemoteConfig.endpointId
-            );
+        (
+            bool endpointIsAssigned,
+            uint32 assignedDomainId
+        ) = domainIdForRemoteLayerZeroEndpointId(newRemoteConfig.endpointId);
         if (
-            currentEndpoint.assigned &&
-            currentEndpoint.key != newRemoteConfig.domainId
+            endpointIsAssigned && assignedDomainId != newRemoteConfig.domainId
         ) {
             revert LayerZeroEndpointIdAssignedToAnotherDomain(
                 newRemoteConfig.endpointId,
-                currentEndpoint.key
+                assignedDomainId
             );
         }
 
@@ -691,13 +692,15 @@ contract LayerZeroV2HookIsm is
     function allowInitializePath(
         LayerZeroOrigin calldata origin
     ) external view returns (bool) {
-        ReverseMappingLib.ReverseEntry memory remoteEndpoint = remoteEndpointIds
-            .keyOf(origin.srcEid);
-        if (!remoteEndpoint.assigned) {
+        (
+            bool enrolled,
+            uint32 sourceDomainId
+        ) = domainIdForRemoteLayerZeroEndpointId(origin.srcEid);
+        if (!enrolled) {
             return false;
         }
 
-        return routers(remoteEndpoint.key) == origin.sender;
+        return routers(sourceDomainId) == origin.sender;
     }
 
     /// @notice Reports whether this OApp requires ordered message execution.
