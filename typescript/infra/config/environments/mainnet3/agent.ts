@@ -1033,7 +1033,9 @@ const fastPathEclipseUsdcMatchingList = warpRouteMatchingList(
   WarpRouteIds.EclipseUSDC,
 ).filter(
   ({ originDomain, destinationDomain }) =>
-    originDomain === getDomainId('ethereum') &&
+    ['arbitrum', 'base', 'ethereum'].some(
+      (chain) => originDomain === getDomainId(chain),
+    ) &&
     destinationDomain !== getDomainId('eclipsemainnet') &&
     destinationDomain !== getDomainId('solanamainnet'),
 );
