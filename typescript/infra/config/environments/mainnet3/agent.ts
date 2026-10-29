@@ -162,7 +162,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arc: true,
     avalanche: true,
     base: true,
-    blast: true, // temporarily re-enabled for withdrawals until Blast shutdown on 2026-10-26
+    blast: false, // temporarily disabled 2026-10-29 — Blast chain halted
     bob: true,
     bsc: true,
     celestia: true,
@@ -235,7 +235,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arc: true,
     avalanche: true,
     base: true,
-    blast: true, // temporarily re-enabled for withdrawals until Blast shutdown on 2026-10-26
+    blast: false, // temporarily disabled 2026-10-29 — Blast chain halted
     bob: true,
     bsc: true,
     celestia: true,
