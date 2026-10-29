@@ -40,6 +40,14 @@ static PERCENTILES: Lazy<Vec<f64>> = Lazy::new(|| {
         .collect::<Vec<_>>()
 });
 
+/// The estimated priority fee is capped at this multiple of the base fee.
+/// Some chains (e.g. Flare, Polygon) legitimately tip 2-3x the base fee.
+const MAX_PRIORITY_FEE_BASE_FEE_MULTIPLIER: u64 = 4;
+
+/// The priority fee cap never goes below this value (5 gwei), so chains with a
+/// near-zero base fee can still use a reasonable tip.
+const MAX_PRIORITY_FEE_FLOOR_WEI: u64 = 5_000_000_000;
+
 pub type Eip1559Fee = (
     EthersU256, // base fee
     EthersU256, // max fee
@@ -245,10 +253,43 @@ async fn estimate_eip1559_fees_default(
         eip1559_default_estimator(base_fee_per_gas, fee_history.reward)
     };
 
+    // The 100th percentile fallback in `ensure_non_empty_rewards` can return
+    // outlier (e.g. MEV) tips, so cap the estimated priority fee.
+    let (max_fee_per_gas, max_priority_fee_per_gas) =
+        cap_priority_fee(base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas);
+
     Ok((
         (base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas),
         latest_block,
     ))
+}
+
+/// Caps the priority fee at `max(base_fee * MULTIPLIER, FLOOR)`.
+/// The max fee is reduced by the same amount, since the estimator computes it as
+/// surged base fee + priority fee.
+fn cap_priority_fee(
+    base_fee: EthersU256,
+    max_fee: EthersU256,
+    max_priority_fee: EthersU256,
+) -> (EthersU256, EthersU256) {
+    let cap = base_fee
+        .saturating_mul(MAX_PRIORITY_FEE_BASE_FEE_MULTIPLIER.into())
+        .max(MAX_PRIORITY_FEE_FLOOR_WEI.into());
+
+    if max_priority_fee <= cap {
+        return (max_fee, max_priority_fee);
+    }
+
+    let capped_max_fee = max_fee.saturating_sub(max_priority_fee.saturating_sub(cap));
+    warn!(
+        ?base_fee,
+        ?max_fee,
+        ?max_priority_fee,
+        ?capped_max_fee,
+        capped_max_priority_fee = ?cap,
+        "Estimated priority fee is above the cap. Capping it."
+    );
+    (capped_max_fee, cap)
 }
 
 async fn latest_block(provider: &Arc<dyn EvmProviderForLander>) -> ChainResult<Block<TxHash>> {
@@ -320,4 +361,81 @@ fn has_rewards(fee_history: &FeeHistory) -> bool {
         .iter()
         .filter_map(|r| r.first())
         .any(|r| !r.is_zero())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const GWEI: u64 = 1_000_000_000;
+
+    fn gwei_milli(milli_gwei: u64) -> EthersU256 {
+        EthersU256::from(milli_gwei) * EthersU256::from(GWEI / 1000)
+    }
+
+    #[test]
+    fn test_cap_priority_fee_outlier_tip_on_low_base_fee() {
+        // Ethereum incident: 0.47 gwei base fee, 4146 gwei estimated tip
+        let base_fee = gwei_milli(470);
+        let priority_fee = gwei_milli(4_146_000);
+        let max_fee = base_fee * 2 + priority_fee;
+
+        let (capped_max_fee, capped_priority_fee) =
+            cap_priority_fee(base_fee, max_fee, priority_fee);
+
+        let cap = EthersU256::from(MAX_PRIORITY_FEE_FLOOR_WEI);
+        assert_eq!(capped_priority_fee, cap);
+        assert_eq!(capped_max_fee, base_fee * 2 + cap);
+    }
+
+    #[test]
+    fn test_cap_priority_fee_high_tip_relative_to_high_base_fee_unchanged() {
+        // Flare-like: 500 gwei base fee, 1500 gwei tip
+        let base_fee = gwei_milli(500_000);
+        let priority_fee = gwei_milli(1_500_000);
+        let max_fee = base_fee * 2 + priority_fee;
+
+        assert_eq!(
+            cap_priority_fee(base_fee, max_fee, priority_fee),
+            (max_fee, priority_fee)
+        );
+    }
+
+    #[test]
+    fn test_cap_priority_fee_below_cap_unchanged() {
+        let base_fee = gwei_milli(470);
+        let priority_fee = gwei_milli(2_000);
+        let max_fee = base_fee * 2 + priority_fee;
+
+        assert_eq!(
+            cap_priority_fee(base_fee, max_fee, priority_fee),
+            (max_fee, priority_fee)
+        );
+    }
+
+    #[test]
+    fn test_cap_priority_fee_relative_cap() {
+        let base_fee = gwei_milli(10_000);
+        let priority_fee = gwei_milli(100_000);
+        let max_fee = base_fee * 2 + priority_fee;
+
+        let (capped_max_fee, capped_priority_fee) =
+            cap_priority_fee(base_fee, max_fee, priority_fee);
+
+        let cap = base_fee * MAX_PRIORITY_FEE_BASE_FEE_MULTIPLIER;
+        assert_eq!(capped_priority_fee, cap);
+        assert_eq!(capped_max_fee, base_fee * 2 + cap);
+    }
+
+    #[test]
+    fn test_cap_priority_fee_huge_base_fee_no_overflow() {
+        let base_fee = EthersU256::MAX;
+        let priority_fee = EthersU256::MAX;
+        let max_fee = EthersU256::MAX;
+
+        assert_eq!(
+            cap_priority_fee(base_fee, max_fee, priority_fee),
+            (max_fee, priority_fee)
+        );
+    }
 }
