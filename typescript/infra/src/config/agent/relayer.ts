@@ -366,8 +366,37 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       '0x00000000000000000000000235aE95896583818d',
     ];
 
-    // Binance hot wallet exploit 2026-10-29
-    const binanceExploiter = ['0xA97bF7836F8A08F9Ed91D41453D371493FAE8d10'];
+    // Binance hot wallet exploit 2026-10-29 (tier 1 of the security team list).
+    // Solana and Tron entries are hex-encoded: 32-byte pubkey, 20-byte address.
+    const binanceExploiter = [
+      '0x5227f603C1eE34CE3C06eFe6477003BDfCCB2f8c',
+      '0x9749292D74Fd460982d0912eA9515EA24736C762',
+      '0x0Ddf0480016e6bCb2C1F5d190D221FBA1320697e',
+      '0x8d53903625b8e839b9DF4bd28B0EFb1CD6b8639A',
+      '0x77EDEf23FBd05921c26FE29fcc3A65e14D2ac3eb',
+      '0x811f15855476156ebf86ba3b84fafb8ceaa4e84c',
+      '0x8532fa14acaf483729c449b8458aeddb900543d4',
+      '0x7f9DC988B46336aD536828fAD50fa8fA1E5415E3',
+      '0xc887aF690E0301CD4edBbCe8F8d31b4EC65B286A',
+      '0xA97bF7836F8A08F9Ed91D41453D371493FAE8d10',
+      '0xE7024aB80143b1EF843EFE6a58368696Cb87958d',
+      '0xccbef95633adb5cd2b5038db5a38d77e726ca263',
+      '0x7aa4d3029e4c6a8e916300014ad95b6d6c03bfd1',
+      '0x7C8601d4645b93cea45F71e118A729332e6B5CA0',
+      '0xe4F9070e1316de2988fc6f869feaD8fb99cC74cd',
+      '0xFD41dA53D1175b29D40599A0e63545067F58f408',
+      '0x837810E3Be7a3E89C570E7A01A13d3B566aaFBc3',
+      '0x9C29BA2DE4b2d6c3630685650663cFE7B70dbB6B',
+      '0x24A4AE3674f08B70665fcB91F2Aa6Ad204ABa4dE',
+      '0x5c23023ca6633f91ded909b4a753a3ca00fea4fc',
+      '0x3E2bf1ac6bf0934BBba6456C341c2EcbCED632d5',
+      // Solana AffzFDKZbyMiU11zmVBoAqD25ugpr7xoWWyRyGigBEaU
+      '0x8fa155f74d49e7464faa0d27041225f2ec5b8a5632fc68efb022d57946ec19c9',
+      // Tron TG5iBMQPrDzJJAUM8GMVBf1hRaJ1wvzsGi
+      '0x430b9b4a60d18affe500b731a97b5aa622c7863f',
+      // Tron TPBkSjkCMn2ckrMuAP8n2J1jdjbw76bKN4
+      '0x90f8dfb1c5e5ebb29dcfbb66d7649fbde6a7293e',
+    ];
 
     const uniqueAddresses = new Set(
       [
