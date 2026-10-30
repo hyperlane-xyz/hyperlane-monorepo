@@ -1,8 +1,8 @@
-use std::{iter::once, str::FromStr, sync::Arc};
+use std::{str::FromStr, sync::Arc};
 
 use ethers::{
     abi::Detokenize,
-    contract::{builders::ContractCall, Lazy},
+    contract::builders::ContractCall,
     providers::{Middleware, ProviderError},
     types::{
         transaction::eip2718::TypedTransaction, Block, Eip1559TransactionRequest, H160,
@@ -19,7 +19,9 @@ use ethers_core::{
 use futures_util::{future::join_all, try_join};
 use tracing::{debug, warn};
 
-use hyperlane_core::{ChainCommunicationError, ChainResult, HyperlaneDomain, U256};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, HyperlaneDomain, KnownHyperlaneDomain, U256,
+};
 use hyperlane_ethereum::{EvmProviderForLander, TransactionOverrides, ZksyncEstimateFeeResponse};
 
 use crate::{adapter::EthereumTxPrecursor, LanderError};
@@ -30,22 +32,18 @@ type FeeEstimator = fn(EthersU256, Vec<Vec<EthersU256>>) -> (EthersU256, EthersU
 
 const EVM_RELAYER_ADDRESS: &str = "0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5";
 
-// We have 2 to 4 multiples of the default percentile, and we limit it to 100% percentile.
-// We add 100% percentile so that we increase the chance to get fee history with non-zero rewards.
-static PERCENTILES: Lazy<Vec<f64>> = Lazy::new(|| {
-    (2..5)
-        .map(|m| EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE * m as f64)
-        .filter(|p| *p < 100.0)
-        .chain(once(100.0))
-        .collect::<Vec<_>>()
-});
+// If p5 rewards are zero, try higher percentiles up to the gas-weighted median.
+// Never use p100: a block's highest tip can be an extreme MEV outlier, even when
+// ordinary transactions pay little or nothing. This applies to every chain using
+// this estimator.
+const FALLBACK_REWARD_PERCENTILES: [f64; 4] = [10.0, 15.0, 20.0, 50.0];
 
-/// The estimated priority fee is capped at this multiple of the base fee.
-/// Some chains (e.g. Flare, Polygon) legitimately tip 2-3x the base fee.
+/// Ethereum mainnet's estimated priority fee is capped at this multiple of the base fee.
+/// Other chains can require high tips independently of their base fee.
 const MAX_PRIORITY_FEE_BASE_FEE_MULTIPLIER: u64 = 4;
 
-/// The priority fee cap never goes below this value (5 gwei), so chains with a
-/// near-zero base fee can still use a reasonable tip.
+/// Ethereum's priority fee cap never goes below this value (5 gwei).
+/// This is a floor for the cap, not a minimum tip.
 const MAX_PRIORITY_FEE_FLOOR_WEI: u64 = 5_000_000_000;
 
 pub type Eip1559Fee = (
@@ -132,14 +130,7 @@ fn apply_1559_overrides(
     max_priority_fee: EthersU256,
     transaction_overrides: &TransactionOverrides,
 ) -> (EthersU256, EthersU256) {
-    let mut max_fee = transaction_overrides
-        .max_fee_per_gas
-        .map(Into::into)
-        .unwrap_or(max_fee);
-    if let Some(min_fee) = transaction_overrides.min_fee_per_gas {
-        max_fee = max_fee.max(min_fee.into());
-    }
-
+    let base_fee_allowance = max_fee.saturating_sub(max_priority_fee);
     let mut max_priority_fee = transaction_overrides
         .max_priority_fee_per_gas
         .map(Into::into)
@@ -148,8 +139,25 @@ fn apply_1559_overrides(
     if let Some(min_priority_fee) = transaction_overrides.min_priority_fee_per_gas {
         max_priority_fee = max_priority_fee.max(min_priority_fee.into());
     }
+
+    // A tip override must retain the estimated base-fee allowance, particularly
+    // when it raises a capped tip. Explicit total-fee settings still take precedence.
+    let mut max_fee = transaction_overrides
+        .max_fee_per_gas
+        .map(Into::into)
+        .unwrap_or_else(|| base_fee_allowance.saturating_add(max_priority_fee));
+    if let Some(min_fee) = transaction_overrides.min_fee_per_gas {
+        max_fee = max_fee.max(min_fee.into());
+    }
     max_fee = apply_gas_price_cap(max_fee, transaction_overrides);
-    (max_fee, max_priority_fee)
+    if max_priority_fee > max_fee {
+        warn!(
+            ?max_fee,
+            ?max_priority_fee,
+            "Priority fee override exceeds the total fee limit. Capping it to max fee."
+        );
+    }
+    (max_fee, max_priority_fee.min(max_fee))
 }
 
 fn apply_gas_price_cap(
@@ -179,7 +187,7 @@ pub(crate) async fn estimate_eip1559_fees(
     if domain.is_zksync_stack() {
         estimate_eip1559_fees_zksync(provider, tx).await
     } else {
-        estimate_eip1559_fees_default(provider, estimator).await
+        estimate_eip1559_fees_default(provider, estimator, domain).await
     }
 }
 
@@ -229,6 +237,7 @@ async fn zksync_estimate_fee(
 async fn estimate_eip1559_fees_default(
     provider: &Arc<dyn EvmProviderForLander>,
     estimator: Option<FeeEstimator>,
+    domain: &HyperlaneDomain,
 ) -> ChainResult<((EthersU256, EthersU256, EthersU256), Block<TxHash>)> {
     let latest_block = latest_block(provider);
 
@@ -253,10 +262,15 @@ async fn estimate_eip1559_fees_default(
         eip1559_default_estimator(base_fee_per_gas, fee_history.reward)
     };
 
-    // The 100th percentile fallback in `ensure_non_empty_rewards` can return
-    // outlier (e.g. MEV) tips, so cap the estimated priority fee.
+    // Bound Ethereum estimates even if lower percentiles contain extreme tips.
+    // Do not impose Ethereum's fee policy on chains such as Polygon,
+    // which requires a 25 gwei tip even when the base fee is near zero.
     let (max_fee_per_gas, max_priority_fee_per_gas) =
-        cap_priority_fee(base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas);
+        if domain == &KnownHyperlaneDomain::Ethereum.into() {
+            cap_priority_fee(base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas)
+        } else {
+            (max_fee_per_gas, max_priority_fee_per_gas)
+        };
 
     Ok((
         (base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas),
@@ -310,8 +324,7 @@ async fn ensure_non_empty_rewards(
         return Ok(default_fee_history);
     }
 
-    let fee_history_futures = PERCENTILES
-        .clone()
+    let fee_history_futures = FALLBACK_REWARD_PERCENTILES
         .into_iter()
         .map(|p| {
             let provider = provider.clone();
@@ -333,7 +346,7 @@ async fn ensure_non_empty_rewards(
 
     debug!(
         ?fee_histories,
-        ?PERCENTILES,
+        ?FALLBACK_REWARD_PERCENTILES,
         "fee history for each percentile"
     );
 
@@ -365,12 +378,280 @@ fn has_rewards(fee_history: &FeeHistory) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use hyperlane_core::{HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack};
+
+    use crate::adapter::chains::ethereum::tests::{
+        dummy_tx_precursor, ExpectedTxType, MockEvmProvider,
+    };
+
+    use super::super::escalator::escalate_gas_price_if_needed;
     use super::*;
 
     const GWEI: u64 = 1_000_000_000;
 
     fn gwei_milli(milli_gwei: u64) -> EthersU256 {
         EthersU256::from(milli_gwei) * EthersU256::from(GWEI / 1000)
+    }
+
+    async fn estimate_with_rewards(
+        domain: &HyperlaneDomain,
+        base_fee: EthersU256,
+        reward: EthersU256,
+        use_median_fallback: bool,
+        overrides: &TransactionOverrides,
+    ) -> GasPrice {
+        let mut provider = MockEvmProvider::new();
+        provider.expect_get_block().once().returning(move |_| {
+            Ok(Some(Block {
+                base_fee_per_gas: Some(base_fee),
+                ..Default::default()
+            }))
+        });
+        let percentiles = if use_median_fallback {
+            vec![5.0, 10.0, 15.0, 20.0, 50.0]
+        } else {
+            vec![5.0]
+        };
+        for percentile in percentiles {
+            let reward = if use_median_fallback && percentile < 50.0 {
+                EthersU256::zero()
+            } else {
+                reward
+            };
+            provider
+                .expect_fee_history()
+                .once()
+                .withf(move |_, _, percentiles| percentiles == [percentile])
+                .returning(move |_, _, _| {
+                    Ok(FeeHistory {
+                        oldest_block: 0.into(),
+                        reward: vec![vec![reward]; 10],
+                        base_fee_per_gas: vec![base_fee; 11],
+                        gas_used_ratio: vec![0.5; 10],
+                    })
+                });
+        }
+        let provider: Arc<dyn EvmProviderForLander> = Arc::new(provider);
+        let precursor = dummy_tx_precursor(ExpectedTxType::Eip1559, H160::zero());
+        estimate_gas_price(&provider, &precursor, overrides, domain).await
+    }
+
+    #[tokio::test]
+    async fn test_zero_low_percentiles_use_median_on_all_chains() {
+        for (domain, tip) in [
+            (KnownHyperlaneDomain::Ethereum, 2_000),
+            (KnownHyperlaneDomain::Polygon, 25_000),
+            (KnownHyperlaneDomain::Sepolia, 2_000),
+        ] {
+            // The mock expects p5/p10/p15/p20 to return zero and p50 to supply
+            // the ordinary tip. Any p100 request fails the test.
+            let estimate = estimate_with_rewards(
+                &domain.into(),
+                gwei_milli(1_000),
+                gwei_milli(tip),
+                true,
+                &TransactionOverrides::default(),
+            )
+            .await;
+            assert_eq!(
+                estimate,
+                GasPrice::Eip1559 {
+                    max_fee: gwei_milli(2_000 + tip).into(),
+                    max_priority_fee: gwei_milli(tip).into(),
+                }
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_ethereum_outlier_rewards_are_capped_through_estimation_and_escalation() {
+        let overrides = TransactionOverrides::default();
+        for use_median_fallback in [false, true] {
+            let estimate = estimate_with_rewards(
+                &KnownHyperlaneDomain::Ethereum.into(),
+                gwei_milli(470),
+                gwei_milli(4_146_000),
+                use_median_fallback,
+                &overrides,
+            )
+            .await;
+            assert_eq!(
+                estimate,
+                GasPrice::Eip1559 {
+                    max_fee: gwei_milli(5_940).into(),
+                    max_priority_fee: gwei_milli(5_000).into(),
+                }
+            );
+
+            let mut price = estimate.clone();
+            for _ in 0..100 {
+                price = escalate_gas_price_if_needed(&price, &estimate, &overrides);
+            }
+            assert_eq!(
+                price,
+                GasPrice::Eip1559 {
+                    max_fee: gwei_milli(17_820).into(),
+                    max_priority_fee: gwei_milli(15_000).into(),
+                }
+            );
+
+            // Deployment cannot lower an already submitted replacement fee.
+            let persisted = GasPrice::Eip1559 {
+                max_fee: gwei_milli(4_146_940).into(),
+                max_priority_fee: gwei_milli(4_146_000).into(),
+            };
+            assert_eq!(
+                escalate_gas_price_if_needed(&persisted, &estimate, &overrides),
+                persisted
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_ethereum_cap_does_not_raise_low_or_zero_rewards() {
+        for (reward, expected_tip) in [(0, 100_000), (2_000, 2 * GWEI), (5_000, 5 * GWEI)] {
+            let estimate = estimate_with_rewards(
+                &KnownHyperlaneDomain::Ethereum.into(),
+                gwei_milli(1_000),
+                gwei_milli(reward),
+                reward == 0,
+                &TransactionOverrides::default(),
+            )
+            .await;
+            assert_eq!(
+                estimate,
+                GasPrice::Eip1559 {
+                    max_fee: (EthersU256::from(2 * GWEI) + expected_tip).into(),
+                    max_priority_fee: expected_tip.into(),
+                }
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_other_chains_retain_priority_fees_independent_of_base_fee() {
+        let flare = HyperlaneDomain::from_config(
+            14,
+            "flare",
+            HyperlaneDomainProtocol::Ethereum,
+            HyperlaneDomainTechnicalStack::Other,
+        )
+        .unwrap();
+        let overrides = TransactionOverrides::default();
+        for (domain, base_fee, tip) in [
+            (KnownHyperlaneDomain::Polygon.into(), 1_000, 25_000),
+            (flare.clone(), 500_000, 1_500_000),
+            // A low base fee does not imply a low required tip on other chains.
+            (flare, 1_000, 1_500_000),
+        ] {
+            for use_median_fallback in [false, true] {
+                let estimate = estimate_with_rewards(
+                    &domain,
+                    gwei_milli(base_fee),
+                    gwei_milli(tip),
+                    use_median_fallback,
+                    &overrides,
+                )
+                .await;
+                assert_eq!(
+                    estimate,
+                    GasPrice::Eip1559 {
+                        max_fee: gwei_milli(base_fee * 2 + tip).into(),
+                        max_priority_fee: gwei_milli(tip).into(),
+                    }
+                );
+                assert_eq!(
+                    escalate_gas_price_if_needed(&estimate, &estimate, &overrides),
+                    GasPrice::Eip1559 {
+                        max_fee: gwei_milli((base_fee * 2 + tip) * 110 / 100).into(),
+                        max_priority_fee: gwei_milli(tip * 110 / 100).into(),
+                    }
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_priority_overrides_preserve_base_fee_headroom_after_capping() {
+        for (overrides, expected_tip) in [
+            (
+                TransactionOverrides {
+                    min_priority_fee_per_gas: Some(gwei_milli(25_000).into()),
+                    ..Default::default()
+                },
+                25_000,
+            ),
+            (
+                TransactionOverrides {
+                    max_priority_fee_per_gas: Some(gwei_milli(25_000).into()),
+                    ..Default::default()
+                },
+                25_000,
+            ),
+            (
+                TransactionOverrides {
+                    max_priority_fee_per_gas: Some(gwei_milli(1_000).into()),
+                    ..Default::default()
+                },
+                1_000,
+            ),
+            (
+                TransactionOverrides {
+                    min_priority_fee_per_gas: Some(gwei_milli(1_000).into()),
+                    ..Default::default()
+                },
+                5_000,
+            ),
+        ] {
+            let estimate = estimate_with_rewards(
+                &KnownHyperlaneDomain::Ethereum.into(),
+                gwei_milli(1_000),
+                gwei_milli(4_146_000),
+                true,
+                &overrides,
+            )
+            .await;
+            assert_eq!(
+                estimate,
+                GasPrice::Eip1559 {
+                    max_fee: gwei_milli(2_000 + expected_tip).into(),
+                    max_priority_fee: gwei_milli(expected_tip).into(),
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn test_priority_overrides_respect_explicit_total_fee_limits() {
+        for overrides in [
+            TransactionOverrides {
+                min_priority_fee_per_gas: Some(gwei_milli(25_000).into()),
+                max_fee_per_gas: Some(gwei_milli(7_000).into()),
+                ..Default::default()
+            },
+            TransactionOverrides {
+                min_priority_fee_per_gas: Some(gwei_milli(25_000).into()),
+                gas_price_cap: Some(gwei_milli(7_000).into()),
+                ..Default::default()
+            },
+        ] {
+            assert_eq!(
+                apply_1559_overrides(gwei_milli(7_000), gwei_milli(5_000), &overrides),
+                (gwei_milli(7_000), gwei_milli(7_000))
+            );
+        }
+    }
+
+    #[test]
+    fn test_priority_override_does_not_overflow_total_fee() {
+        let overrides = TransactionOverrides {
+            min_priority_fee_per_gas: Some(U256::MAX),
+            ..Default::default()
+        };
+        assert_eq!(
+            apply_1559_overrides(gwei_milli(7_000), gwei_milli(5_000), &overrides),
+            (EthersU256::MAX, EthersU256::MAX)
+        );
     }
 
     #[test]
