@@ -32,6 +32,8 @@ pub async fn estimate_gas_limit(
         .estimate_gas_limit(&estimate_tx, &tx_precursor.function)
         .await?;
     estimated_gas_limit = estimated_gas_limit.max(gas_floor);
+    // A cap may trim the safety buffer, but never the gas actually required.
+    let gas_floor = estimated_gas_limit;
 
     if with_gas_limit_overrides {
         estimated_gas_limit = apply_gas_estimate_buffer(estimated_gas_limit, domain)?;
@@ -84,7 +86,7 @@ pub async fn apply_gas_limit_caps(
         warn!(
             ?gas_floor,
             ?gas_limit,
-            "Gas cap cannot accommodate the prepared gas budget"
+            "Gas cap cannot accommodate the required gas budget"
         );
         return Err(LanderError::EstimationFailed);
     }
@@ -181,7 +183,7 @@ pub mod tests {
     }
 
     #[tokio::test]
-    async fn test_gas_limit_cap_applies() {
+    async fn test_gas_limit_cap_rejects_estimate_above_cap() {
         #[allow(deprecated)]
         let mut tx_precursor = EthereumTxPrecursor {
             tx: TypedTransaction::Eip1559(Eip1559TransactionRequest::default()),
@@ -212,19 +214,16 @@ pub mod tests {
         let domain = HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Ethereum);
         let with_gas_limit_overrides = false;
 
-        estimate_gas_limit(
+        let result = estimate_gas_limit(
             Arc::new(provider),
             &mut tx_precursor,
             &transaction_overrides,
             &domain,
             with_gas_limit_overrides,
         )
-        .await
-        .expect("Failed to estimate gas limit");
-
-        let expected_gas = EthersU256::from(100);
-        let expected = Some(&expected_gas);
-        assert_eq!(tx_precursor.tx.gas(), expected);
+        .await;
+        assert!(matches!(result, Err(LanderError::EstimationFailed)));
+        assert!(tx_precursor.tx.gas().is_none());
     }
 
     #[tokio::test]
@@ -244,7 +243,7 @@ pub mod tests {
 
         provider
             .expect_estimate_gas_limit()
-            .returning(|_, _| Ok(U256::from(10_000)));
+            .returning(|_, _| Ok(U256::from(90)));
         provider.expect_get_block().returning(|_| {
             Ok(Some(Block {
                 gas_limit: EthersU256::from(100_000),

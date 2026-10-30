@@ -443,13 +443,18 @@ mod tests {
         mock_get_block(&mut protected);
         protected
             .expect_estimate_gas_limit()
-            .times(5)
+            .times(7)
             .returning(|_, _| Ok(100_000.into()));
         protected
             .expect_simulate_batch()
             .times(1)
             .returning(|_| Ok((vec![0, 1], vec![])));
         let mut estimates = mockall::Sequence::new();
+        protected
+            .expect_estimate_batch()
+            .times(1)
+            .in_sequence(&mut estimates)
+            .returning(|_, _| Ok(300_000.into()));
         protected
             .expect_estimate_batch()
             .times(1)
@@ -484,7 +489,10 @@ mod tests {
             Err(LanderError::TxSubmissionDeferred)
         ));
         assert_eq!(recovered.payload_details.len(), 2);
-        assert!(recovered.precursor().tx.gas().is_none());
+        assert_eq!(
+            recovered.precursor().tx.gas().copied(),
+            Some(300_000.into())
+        );
         adapter.estimate_tx(&mut recovered).await.unwrap();
         assert_eq!(
             recovered.precursor().tx.gas().copied(),

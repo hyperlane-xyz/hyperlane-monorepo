@@ -17,6 +17,13 @@ export const ethereumChainNames = supportedChainNames.filter(
 export const agentSpecificChainMetadataOverrides: ChainMap<
   Partial<ChainMetadata>
 > = {
+  base: {
+    transactionOverrides: {
+      // Azul / EIP-7825 caps each transaction independently of the block limit.
+      // https://www.base.org/blog/introducing-base-azul
+      gasLimitCap: 16_777_216,
+    },
+  },
   ink: {
     transactionOverrides: {
       minGasPrice: 1, // 1 wei

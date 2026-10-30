@@ -146,7 +146,7 @@ async fn batched_delivery_preserves_paid_floors_or_falls_back_to_singles() {
             .returning(|_, _, _, _| Ok(empty_batch()));
         provider
             .expect_estimate_gas_limit()
-            .times(2)
+            .times(if split { 2 } else { 4 })
             .withf(|tx, _| tx.gas().is_none())
             .returning(|_, _| Ok(U256::from(551_905)));
         provider.expect_get_block().returning(move |_| {
@@ -157,7 +157,7 @@ async fn batched_delivery_preserves_paid_floors_or_falls_back_to_singles() {
         });
         provider
             .expect_estimate_batch()
-            .times(usize::from(!split))
+            .times(if split { 0 } else { 2 })
             .withf(|(tx, _), precursors| {
                 assert!(tx.gas().is_none());
                 let gas: Vec<_> = precursors.iter().map(|(tx, _)| tx.gas().copied()).collect();
@@ -214,6 +214,72 @@ async fn batched_delivery_preserves_paid_floors_or_falls_back_to_singles() {
 }
 
 #[tokio::test]
+async fn failed_batch_estimation_falls_back_to_singles() {
+    for (configured_cap, block_cap, paid, rpc_error) in [
+        (Some(1_000_000u64), 30_000_000u64, 100_000u64, false),
+        (None, 1_500_000, 100_000, false),
+        (Some(1_000_000), 30_000_000, 0, false),
+        (None, 30_000_000, 100_000, true),
+    ] {
+        let (payload_db, tx_db, nonce_db) = tmp_dbs();
+        let mut provider = MockEvmProvider::new();
+        provider
+            .expect_batch()
+            .once()
+            .returning(|_, _, _, _| Ok(empty_batch()));
+        provider.expect_get_block().returning(move |_| {
+            Ok(Some(ethers::types::Block {
+                gas_limit: block_cap.into(),
+                ..Default::default()
+            }))
+        });
+        provider
+            .expect_estimate_gas_limit()
+            .returning(|_, _| Ok(400_000.into()));
+        provider
+            .expect_estimate_batch()
+            .once()
+            .returning(move |_, _| {
+                if rpc_error {
+                    Err(hyperlane_core::ChainCommunicationError::CustomError(
+                        "batch exceeds RPC gas limit".into(),
+                    ))
+                } else {
+                    Ok(1_800_000.into())
+                }
+            });
+        let payloads = vec![
+            paid_payload(paid, KnownHyperlaneDomain::Ethereum.into()).await,
+            paid_payload(paid, KnownHyperlaneDomain::Ethereum.into()).await,
+        ];
+        for payload in &payloads {
+            payload_db.store_payload_by_uuid(payload).await.unwrap();
+        }
+        let mut adapter = mock_ethereum_adapter(
+            provider,
+            payload_db,
+            tx_db,
+            nonce_db,
+            H160::zero(),
+            Duration::ZERO,
+            Duration::ZERO,
+        );
+        adapter.transaction_overrides.gas_limit_cap = configured_cap.map(U256::from);
+        let mut built = adapter.build_transactions(&payloads).await;
+        assert_eq!(built.len(), 2);
+        for (built, payload) in built.iter_mut().zip(&payloads) {
+            let mut single = built.maybe_tx.take().unwrap();
+            assert_eq!(single.payload_details, vec![payload.details.clone()]);
+            adapter.estimate_tx(&mut single).await.unwrap();
+            assert_eq!(
+                single.precursor().tx.gas(),
+                Some(&EthersU256::from(515_000))
+            );
+        }
+    }
+}
+
+#[tokio::test]
 async fn batch_rebuilt_as_single_delivery_keeps_the_paid_budget() {
     let (payload_db, tx_db, nonce_db) = tmp_dbs();
     let mut provider = MockEvmProvider::new();
@@ -227,9 +293,13 @@ async fn batch_rebuilt_as_single_delivery_keeps_the_paid_budget() {
         .returning(|_| Ok((vec![1], vec![(0, "reverted".into())])));
     provider
         .expect_estimate_gas_limit()
-        .once()
+        .times(3)
         .withf(|tx, _| tx.gas().is_none())
         .returning(|_, _| Ok(100_000.into()));
+    provider
+        .expect_estimate_batch()
+        .once()
+        .returning(|_, _| Ok(2_000_000.into()));
     mock_get_block(&mut provider);
     let payloads = vec![
         paid_payload(1_011_344, KnownHyperlaneDomain::Arbitrum.into()).await,
@@ -273,12 +343,12 @@ async fn batch_buffers_larger_estimates_once_and_preserves_zero_floor_behavior()
             .returning(|_, _, _, _| Ok(empty_batch()));
         provider
             .expect_estimate_gas_limit()
-            .times(2)
+            .times(4)
             .withf(|tx, _| tx.gas().is_none())
             .returning(|_, _| Ok(500_000.into()));
         provider
             .expect_estimate_batch()
-            .once()
+            .times(2)
             .withf(move |_, precursors| {
                 precursors
                     .iter()

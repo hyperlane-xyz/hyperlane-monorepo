@@ -433,7 +433,10 @@ impl EthereumAdapter {
             .await
             .map(|(tx, f)| EthereumTxPrecursor::new(tx, f))?;
 
-        let transaction = TransactionFactory::build(multi_precursor, payload_details.clone());
+        let mut transaction = TransactionFactory::build(multi_precursor, payload_details.clone());
+        // Estimate while build_transactions can still fall back to singles.
+        // Inclusion re-estimates against current state before submitting.
+        self.estimate_tx(&mut transaction).await?;
 
         let tx_building_result = TxBuildingResult {
             payloads: payload_details,
@@ -720,6 +723,10 @@ impl AdaptsChain for EthereumAdapter {
         )
         .await?;
 
+        // Reject an updated estimate which no longer fits, rather than capping
+        // it below the required gas and submitting an underfunded batch.
+        let required_gas = gas_limit.max(gas_floor);
+
         // Buffer the total once, rather than adding a flat buffer for every member.
         let gas_limit = if gas_floor.is_zero() {
             gas_limit
@@ -732,7 +739,7 @@ impl AdaptsChain for EthereumAdapter {
                 provider.as_ref(),
                 &self.transaction_overrides,
                 gas_limit.max(gas_floor),
-                gas_floor,
+                required_gas,
             ),
         )
         .await?;
