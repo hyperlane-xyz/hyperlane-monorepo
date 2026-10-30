@@ -714,6 +714,65 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_katana_network_fees_follow_rising_base_fee() {
+        let domain = KnownHyperlaneDomain::Katana.into();
+        for base_fee in [50, 500] {
+            let estimate = estimate_with_rewards(
+                &domain,
+                gwei_milli(base_fee),
+                gwei_milli(5),
+                false,
+                &TransactionOverrides::default(),
+            )
+            .await
+            .unwrap();
+            assert_eq!(
+                estimate,
+                GasPrice::Eip1559 {
+                    max_fee: gwei_milli(base_fee * 2 + 5).into(),
+                    max_priority_fee: gwei_milli(5).into(),
+                }
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_katana_fixed_fee_stall_and_recovery() {
+        let domain = KnownHyperlaneDomain::Katana.into();
+        let pending = GasPrice::Eip1559 {
+            max_fee: gwei_milli(30).into(),
+            max_priority_fee: gwei_milli(30).into(),
+        };
+        for (max_fee, tip, expected) in [
+            // The former 0.01 gwei overrides prevent any further escalation.
+            (10, 10, pending.clone()),
+            // Recovery must bump both fields to replace the existing tx.
+            (
+                200,
+                50,
+                GasPrice::Eip1559 {
+                    max_fee: gwei_milli(200).into(),
+                    max_priority_fee: gwei_milli(50).into(),
+                },
+            ),
+        ] {
+            let overrides = TransactionOverrides {
+                max_fee_per_gas: Some(gwei_milli(max_fee).into()),
+                max_priority_fee_per_gas: Some(gwei_milli(tip).into()),
+                ..Default::default()
+            };
+            let estimate =
+                estimate_with_rewards(&domain, gwei_milli(50), gwei_milli(5), false, &overrides)
+                    .await
+                    .unwrap();
+            assert_eq!(
+                super::super::escalate_gas_price_if_needed(&pending, &estimate, &overrides),
+                expected
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn test_priority_overrides_preserve_base_fee_headroom_after_capping() {
         for (overrides, expected_tip) in [
             (
