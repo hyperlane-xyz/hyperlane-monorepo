@@ -365,7 +365,91 @@ mod tests {
             Err(LanderError::TxSubmissionDeferred)
         ));
         assert!(tx.precursor().tx.nonce().is_none());
+        assert_ne!(
+            tx.precursor().extract_gas_price(),
+            crate::adapter::chains::ethereum::gas_price::GasPrice::None
+        );
+        assert_eq!(tx.tx_hashes.len(), 1);
         assert!(adapter.submit(&mut tx).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn signing_failure_restores_fees_before_retrying_under_a_lower_cap() {
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        for initial_fee in [None, Some(1_000_000_000_u64)] {
+            for initial_nonce in [None, Some(1_u64)] {
+                let mut adapter = adapter(0, 1, false);
+                let base_fee = Arc::new(AtomicU64::new(2_000_000_000));
+                let mut estimator = MockEvmProvider::new();
+                let observed_base_fee = base_fee.clone();
+                estimator.expect_get_block().returning(move |_| {
+                    Ok(Some(ethers::types::Block {
+                        base_fee_per_gas: Some(observed_base_fee.load(Ordering::Relaxed).into()),
+                        ..Default::default()
+                    }))
+                });
+                estimator.expect_fee_history().returning(|_, _, _| {
+                    Ok(ethers::types::FeeHistory {
+                        reward: vec![vec![8_000_000_000_u64.into()]],
+                        oldest_block: 0.into(),
+                        base_fee_per_gas: vec![],
+                        gas_used_ratio: vec![],
+                    })
+                });
+                estimator.expect_send().never();
+                adapter.provider = Arc::new(estimator);
+
+                let mut signer = MockEvmProvider::new();
+                signer.expect_sign_transaction().times(1).returning(|tx| {
+                    let TypedTransaction::Eip1559(request) = tx else {
+                        panic!("expected EIP-1559 request");
+                    };
+                    assert_eq!(
+                        request.max_priority_fee_per_gas,
+                        Some(8_000_000_000_u64.into())
+                    );
+                    Err(ChainCommunicationError::CustomError(
+                        "KMS unavailable".into(),
+                    ))
+                });
+                signer.expect_send_raw_transaction().never();
+                let protected = std::mem::replace(
+                    &mut adapter.mev_submission.as_mut().unwrap().provider,
+                    Arc::new(signer),
+                );
+                let mut tx = transaction(&adapter, vec![payload(2, ROUTER, MAILBOX)]).await;
+                let TypedTransaction::Eip1559(request) = &mut tx.precursor_mut().tx else {
+                    panic!("expected EIP-1559 request");
+                };
+                request.max_fee_per_gas = initial_fee.map(Into::into);
+                request.max_priority_fee_per_gas = initial_fee.map(Into::into);
+                request.nonce = initial_nonce.map(Into::into);
+                let before = tx.precursor().tx.clone();
+
+                assert!(matches!(
+                    adapter.submit(&mut tx).await,
+                    Err(LanderError::TxSubmissionDeferred)
+                ));
+                assert_eq!(tx.precursor().tx, before);
+                assert!(tx.tx_hashes.is_empty());
+
+                // Cap falls from 8 to 5 gwei. Unsigned fees from the first attempt
+                // must not force a replacement bump or prevent the first send.
+                base_fee.store(1_000_000_000, Ordering::Relaxed);
+                adapter.mev_submission.as_mut().unwrap().provider = protected;
+                adapter.submit(&mut tx).await.unwrap();
+                let TypedTransaction::Eip1559(request) = &tx.precursor().tx else {
+                    panic!("expected EIP-1559 request");
+                };
+                assert_eq!(
+                    request.max_priority_fee_per_gas,
+                    Some(5_000_000_000_u64.into())
+                );
+                assert_eq!(request.nonce, Some(1_u64.into()));
+                assert_eq!(tx.tx_hashes.len(), 1);
+            }
+        }
     }
 
     #[tokio::test]

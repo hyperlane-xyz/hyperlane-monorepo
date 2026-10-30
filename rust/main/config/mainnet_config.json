@@ -1483,7 +1483,11 @@
       "quotedCalls": "0x74e134E2b52f126336fa2C50B01357DabCA3d636",
       "universalRouter": "0x52dd779c1b5eeb54d5f218EfA72D52117ca04115",
       "interchainAccountRouterV3": "0x386591e7a270a7f354832D0786c8ccb21C041033",
-      "quotedCallsV3": "0x34BcA2e2b1ba1Aa86D7488584aDfa142618B6804"
+      "quotedCallsV3": "0x34BcA2e2b1ba1Aa86D7488584aDfa142618B6804",
+      "transactionOverrides": {
+        "minPriorityFeePerGas": 25000000000,
+        "priorityFeeCap": 250000000000
+      }
     },
     "solanamainnet": {
       "blockExplorers": [
@@ -2637,7 +2641,10 @@
       "index": {
         "from": 66586
       },
-      "interchainAccountRouterV3": "0x4E5aa006BEAFDCCD96d95E9b46cC17AD96c22d13"
+      "interchainAccountRouterV3": "0x4E5aa006BEAFDCCD96d95E9b46cC17AD96c22d13",
+      "transactionOverrides": {
+        "priorityFeeCap": 50000000000
+      }
     },
     "kyve": {
       "bech32Prefix": "kyve",
@@ -3477,7 +3484,8 @@
       },
       "transactionOverrides": {
         "minFeePerGas": 2000000000,
-        "minPriorityFeePerGas": 2000000000
+        "minPriorityFeePerGas": 2000000000,
+        "priorityFeeCap": 30000000000
       },
       "quotedCalls": "0x81EeE1B7B4EF1C0775012a948Ac16F285DA1278E",
       "interchainAccountRouterV3": "0x1B947F6246ACe28abAf073FF11c098F31ce4f899",
