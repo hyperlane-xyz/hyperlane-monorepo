@@ -144,6 +144,9 @@ pub struct TransactionOverrides {
     pub max_fee_per_gas: Option<U256>,
     /// Max priority fee per gas to use for EIP-1559 transactions.
     pub max_priority_fee_per_gas: Option<U256>,
+    /// Lander priority fee ceiling, in wei, including replacement transactions.
+    /// When set, replaces the default max(4 * base fee, 5 gwei) ceiling.
+    pub priority_fee_cap: Option<U256>,
 
     /// Min gas price to use for Legacy transactions, in wei.
     pub min_gas_price: Option<U256>,

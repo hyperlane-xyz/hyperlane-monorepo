@@ -181,38 +181,6 @@ impl EthereumAdapter {
         self.nonce_manager.calculate_next_nonce(tx).await
     }
 
-    async fn estimate_gas_price(&self, tx: &Transaction) -> Result<GasPrice, LanderError> {
-        // even if the gas price is already set, we still want to (re-)estimate it
-        // to be resilient to gas spikes
-        let old_tx_precursor = tx.precursor();
-
-        let old_gas_price = old_tx_precursor.extract_gas_price();
-
-        // first, estimate the gas price
-        let estimated_gas_price = gas_price::estimate_gas_price(
-            &self.provider,
-            old_tx_precursor,
-            &self.transaction_overrides,
-            &self.domain,
-        )
-        .await;
-
-        // then, compare the estimated gas price with `current * escalation_multiplier`
-        let escalated_gas_price = gas_price::escalate_gas_price_if_needed(
-            &old_gas_price,
-            &estimated_gas_price,
-            &self.transaction_overrides,
-        );
-
-        let new_gas_price = match escalated_gas_price {
-            GasPrice::None => estimated_gas_price,
-            _ => escalated_gas_price,
-        };
-
-        info!(old=?old_tx_precursor, new=?new_gas_price, "estimated and escalated gas price for transaction");
-        Ok(new_gas_price)
-    }
-
     fn check_if_resubmission_makes_sense(
         tx: &Transaction,
         gas_price: &GasPrice,
@@ -747,7 +715,15 @@ impl AdaptsChain for EthereumAdapter {
 
         let provider = self.submission_provider(tx).await?;
 
-        let (nonce, gas_price) = try_join!(self.calculate_nonce(tx), self.estimate_gas_price(tx))?;
+        let (nonce, gas_price) = try_join!(
+            self.calculate_nonce(tx),
+            gas_price::estimate_gas_price(
+                &self.provider,
+                tx.precursor(),
+                &self.transaction_overrides,
+                &self.domain
+            )
+        )?;
         let gas_price_unchanged =
             gas_price != GasPrice::None && tx.precursor().extract_gas_price() == gas_price;
 
