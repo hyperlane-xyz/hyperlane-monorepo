@@ -30,7 +30,9 @@ use crate::adapter::chains::radix::adapter::tests::tests_common::{
 };
 use crate::adapter::{AdaptsChain, TxBuildingResult};
 use crate::payload::PayloadDetails;
-use crate::tests::evm::test_utils::mock_ethereum_adapter;
+use crate::tests::evm::test_utils::{
+    mock_estimate_gas_limit, mock_ethereum_adapter, mock_get_block,
+};
 use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::VmSpecificTxData;
 use crate::FullPayload;
@@ -66,6 +68,12 @@ async fn test_build_transactions_contract_batch_happy_path() {
     let (payload_db, tx_db, nonce_db) = tmp_dbs();
 
     let mut provider = MockEvmProvider::new();
+    mock_estimate_gas_limit(&mut provider);
+    mock_get_block(&mut provider);
+    provider
+        .expect_estimate_batch()
+        .once()
+        .returning(|_, _| Ok(50_000.into()));
     // batching will succeed
     provider.expect_batch().returning(|_, _, _, _| {
         let typed_tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
@@ -115,6 +123,9 @@ async fn test_build_transactions_contract_batch_happy_path() {
     payload2.data = json_data.clone();
 
     let payloads = vec![payload1, payload2];
+    for payload in &payloads {
+        payload_db.store_payload_by_uuid(payload).await.unwrap();
+    }
     let res = adapter.build_transactions(&payloads).await;
 
     // We should've succeeded batching
