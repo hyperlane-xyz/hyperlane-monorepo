@@ -1,3 +1,9 @@
+## [3.1.0] - 2026-10-30
+
+* fix(katana): use network fee estimates for relayers (#9939)
+* fix(lander): remove p100 fee fallback and cap Ethereum priority fees (#9935)
+* fix: enforce priority fee caps across EVM chains (#9938)
+
 ## [3.0.0] - 2026-10-23
 
 * chore: remove unused Fuel integration (#9723)

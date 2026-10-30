@@ -1,3 +1,8 @@
+## [3.1.0] - 2026-10-30
+
+* feat(infra): deploy Tempo core, V3 routers, and agents (#9914)
+* feat(validator): use reorg periods for scraper confirmations (#9910)
+
 ## [3.0.0] - 2026-10-23
 
 * chore(infra): deploy relayer WebSocket indexing (#9580)

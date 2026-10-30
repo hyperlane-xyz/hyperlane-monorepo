@@ -1,3 +1,7 @@
+## [3.1.0] - 2026-10-30
+
+* fix(sealevel): return errors for invalid hash lengths (#9797)
+
 ## [3.0.0] - 2026-10-23
 
 * feat(ccs): standardize EVM authentication across read APIs (#9873)
