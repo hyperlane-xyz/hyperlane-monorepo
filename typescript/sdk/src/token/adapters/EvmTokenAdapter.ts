@@ -349,9 +349,8 @@ export class EvmHypSyntheticAdapter
         return super.isRevokeApprovalRequired(owner, predicateWrapper);
       }
 
-      if (!(await this.hasTokenFeeHook())) {
-        return false;
-      }
+      // Synthetic ERC20s allow replacing a nonzero router allowance directly.
+      return false;
     }
     return super.isRevokeApprovalRequired(owner, spender);
   }

@@ -163,6 +163,7 @@ describe('WarpCore synthetic token-IGP approvals', () => {
     for (const allowance of [
       0n,
       IGP,
+      APPROVAL_AMOUNT - IGP,
       APPROVAL_AMOUNT - 1n,
       APPROVAL_AMOUNT,
       APPROVAL_AMOUNT + 1n,
@@ -173,15 +174,9 @@ describe('WarpCore synthetic token-IGP approvals', () => {
           standard,
         });
         const categories =
-          allowance === 0n
+          allowance < APPROVAL_AMOUNT
             ? [WarpTxCategory.Approval, WarpTxCategory.Transfer]
-            : allowance < APPROVAL_AMOUNT
-              ? [
-                  WarpTxCategory.Revoke,
-                  WarpTxCategory.Approval,
-                  WarpTxCategory.Transfer,
-                ]
-              : [WarpTxCategory.Transfer];
+            : [WarpTxCategory.Transfer];
         expect(txs.map((tx) => tx.category)).to.eql(categories);
         expect(
           approvals.map((args) => [
@@ -189,14 +184,7 @@ describe('WarpCore synthetic token-IGP approvals', () => {
             BigNumber.from(args[1]).toBigInt(),
           ]),
         ).to.eql(
-          allowance === 0n
-            ? [[ROUTER, APPROVAL_AMOUNT]]
-            : allowance < APPROVAL_AMOUNT
-              ? [
-                  [ROUTER, 0n],
-                  [ROUTER, APPROVAL_AMOUNT],
-                ]
-              : [],
+          allowance < APPROVAL_AMOUNT ? [[ROUTER, APPROVAL_AMOUNT]] : [],
         );
         expect(allowanceRead.called).to.equal(true);
         const tx = txs.at(-1)!;
@@ -240,6 +228,24 @@ describe('WarpCore synthetic token-IGP approvals', () => {
     if (tx.type !== ProviderType.EthersV5)
       throw new Error('Expected EVM transfer');
     expect(tx.transaction.to).to.equal(WRAPPER);
+  });
+
+  it('preserves allowance resets for Predicate wrapper approvals', async () => {
+    const { approvals, txs } = await transfer({
+      predicate: true,
+      allowance: 1n,
+    });
+    expect(txs.map((tx) => tx.category)).to.eql([
+      WarpTxCategory.Revoke,
+      WarpTxCategory.Approval,
+      WarpTxCategory.Transfer,
+    ]);
+    expect(
+      approvals.map((args) => [args[0], BigNumber.from(args[1]).toBigInt()]),
+    ).to.eql([
+      [WRAPPER, 0n],
+      [WRAPPER, APPROVAL_AMOUNT],
+    ]);
   });
 
   it('keeps legacy burn-only routers approval-free without reading feeHook', async () => {
