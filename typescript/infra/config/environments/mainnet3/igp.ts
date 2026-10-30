@@ -34,7 +34,7 @@ function getOracleConfigWithOverrides(origin: ChainName) {
   // Applying changes on-chain requires a separate owner-authorized update.
   if (origin === 'solaxy') {
     oracleConfig.ethereum = {
-      gasPrice: '2000000000',
+      gasPrice: '25000000000',
       tokenExchangeRate: '691771710368053885013231',
       tokenDecimals: 18,
     };
@@ -75,31 +75,6 @@ function getOracleConfigWithOverrides(origin: ChainName) {
             : {}),
         };
       }
-    }
-  }
-
-  // base→ethereum at 0.5 gwei instead of the global 2 gwei ethereum price
-  // (#9729, set during the Sep 2026 spike). With ETH gas at ~0.15 gwei, Aero
-  // base→ethereum votes paid ~30x delivery cost. Already applied on-chain.
-  if (origin === 'base') {
-    const laneConfig = oracleConfig.ethereum;
-    if (laneConfig) {
-      const oldGasPrice = Number(laneConfig.gasPrice);
-      const newGasPrice = 500_000_000;
-      oracleConfig.ethereum = {
-        ...laneConfig,
-        gasPrice: newGasPrice.toString(),
-        ...(laneConfig.typicalCost
-          ? {
-              typicalCost: {
-                ...laneConfig.typicalCost,
-                totalUsdCost:
-                  (laneConfig.typicalCost.totalUsdCost * newGasPrice) /
-                  oldGasPrice,
-              },
-            }
-          : {}),
-      };
     }
   }
 
