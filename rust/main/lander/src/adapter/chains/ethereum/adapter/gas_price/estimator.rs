@@ -115,6 +115,7 @@ pub async fn estimate_gas_price(
         apply_1559_overrides(max_fee, max_priority_fee, transaction_overrides);
 
     if max_priority_fee > cap {
+        warn!(?cap, ?max_priority_fee, "Priority fee overrides exceed the cap; check priorityFeeCap and priority fee overrides");
         return Err(LanderError::TxGasCapReached);
     }
     let price = escalate(GasPrice::Eip1559 {
@@ -503,7 +504,7 @@ mod tests {
         reward: EthersU256,
         use_median_fallback: bool,
         overrides: &TransactionOverrides,
-    ) -> GasPrice {
+    ) -> Result<GasPrice, LanderError> {
         let mut provider = MockEvmProvider::new();
         provider.expect_get_block().once().returning(move |_| {
             Ok(Some(Block {
@@ -537,9 +538,61 @@ mod tests {
         }
         let provider: Arc<dyn EvmProviderForLander> = Arc::new(provider);
         let precursor = dummy_tx_precursor(ExpectedTxType::Eip1559, H160::zero());
-        estimate_gas_price(&provider, &precursor, overrides, domain)
-            .await
-            .unwrap()
+        estimate_gas_price(&provider, &precursor, overrides, domain).await
+    }
+
+    #[tokio::test]
+    async fn priority_override_conflicts_use_the_final_fee_bounds() {
+        for custom_cap in [None, Some(10 * GWEI)] {
+            let cap = custom_cap.unwrap_or(5 * GWEI);
+            for fixed_tip in [false, true] {
+                for (max_fee, min_fee, total_cap, succeeds) in [
+                    (None, None, None, false),
+                    (None, None, Some(cap), true),
+                    (Some(cap), None, None, true),
+                    (Some(cap), Some(cap + 1), None, false),
+                    (Some(cap), Some(cap + 1), Some(cap), true),
+                ] {
+                    let mut overrides = TransactionOverrides {
+                        priority_fee_cap: custom_cap.map(Into::into),
+                        max_fee_per_gas: max_fee.map(Into::into),
+                        min_fee_per_gas: min_fee.map(Into::into),
+                        gas_price_cap: total_cap.map(Into::into),
+                        ..Default::default()
+                    };
+                    if fixed_tip {
+                        overrides.max_priority_fee_per_gas = Some((25 * GWEI).into());
+                    } else {
+                        overrides.min_priority_fee_per_gas = Some((25 * GWEI).into());
+                    }
+                    let result = estimate_with_rewards(
+                        &KnownHyperlaneDomain::Ethereum.into(),
+                        GWEI.into(),
+                        GWEI.into(),
+                        false,
+                        &overrides,
+                    )
+                    .await;
+                    if succeeds {
+                        assert!(
+                            matches!(result.unwrap(), GasPrice::Eip1559 { max_priority_fee, .. } if max_priority_fee == cap.into())
+                        );
+                    } else {
+                        assert!(matches!(result, Err(LanderError::TxGasCapReached)));
+                    }
+                    // These EIP-1559-only settings must not reject a legacy chain.
+                    assert!(estimate_with_rewards(
+                        &KnownHyperlaneDomain::BinanceSmartChain.into(),
+                        0.into(),
+                        GWEI.into(),
+                        false,
+                        &overrides
+                    )
+                    .await
+                    .is_ok());
+                }
+            }
+        }
     }
 
     #[tokio::test]
@@ -558,7 +611,8 @@ mod tests {
                 true,
                 &TransactionOverrides::default(),
             )
-            .await;
+            .await
+            .unwrap();
             assert_eq!(
                 estimate,
                 GasPrice::Eip1559 {
@@ -580,7 +634,8 @@ mod tests {
                 use_median_fallback,
                 &overrides,
             )
-            .await;
+            .await
+            .unwrap();
             assert_eq!(
                 estimate,
                 GasPrice::Eip1559 {
@@ -601,7 +656,8 @@ mod tests {
                 reward == 0,
                 &TransactionOverrides::default(),
             )
-            .await;
+            .await
+            .unwrap();
             assert_eq!(
                 estimate,
                 GasPrice::Eip1559 {
@@ -644,7 +700,8 @@ mod tests {
                     use_median_fallback,
                     &overrides,
                 )
-                .await;
+                .await
+                .unwrap();
                 assert_eq!(
                     estimate,
                     GasPrice::Eip1559 {
@@ -697,7 +754,8 @@ mod tests {
                 true,
                 &overrides,
             )
-            .await;
+            .await
+            .unwrap();
             assert_eq!(
                 estimate,
                 GasPrice::Eip1559 {

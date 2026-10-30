@@ -12,7 +12,6 @@ use ethers_core::types::Eip1559TransactionRequest;
 use eyre::eyre;
 use futures_util::future;
 use tokio::sync::Mutex;
-use tokio::try_join;
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
@@ -715,15 +714,16 @@ impl AdaptsChain for EthereumAdapter {
 
         let provider = self.submission_provider(tx).await?;
 
-        let (nonce, gas_price) = try_join!(
-            self.calculate_nonce(tx),
-            gas_price::estimate_gas_price(
-                &self.provider,
-                tx.precursor(),
-                &self.transaction_overrides,
-                &self.domain
-            )
-        )?;
+        // Fee estimation can defer indefinitely. Do not reserve a fresh nonce
+        // until it succeeds, or later transactions could queue behind a gap.
+        let gas_price = gas_price::estimate_gas_price(
+            &self.provider,
+            tx.precursor(),
+            &self.transaction_overrides,
+            &self.domain,
+        )
+        .await?;
+        let nonce = self.calculate_nonce(tx).await?;
         let gas_price_unchanged =
             gas_price != GasPrice::None && tx.precursor().extract_gas_price() == gas_price;
 

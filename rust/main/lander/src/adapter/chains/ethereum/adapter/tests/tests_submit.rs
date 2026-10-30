@@ -1281,3 +1281,77 @@ async fn test_submit_obeys_priority_fee_cap() {
         }
     }
 }
+
+#[tokio::test]
+async fn fee_estimation_deferral_does_not_reserve_a_nonce() {
+    use crate::adapter::chains::ethereum::tests::{dummy_evm_tx, ExpectedTxType};
+    use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack};
+
+    for zksync in [false, true] {
+        let (payload_db, tx_db, nonce_db) = tmp_dbs();
+        let signer = Address::random();
+        let mut provider = MockEvmProvider::new();
+        provider.expect_get_block().returning(|_| {
+            Ok(Some(ethers::types::Block {
+                base_fee_per_gas: Some(1_000_000_000u64.into()),
+                ..Default::default()
+            }))
+        });
+        provider.expect_get_finalized_block_number().never();
+        provider.expect_get_next_nonce_on_finalized_block().never();
+        provider.expect_send().never();
+        if zksync {
+            provider.expect_get_signer().returning(|| None);
+            provider.expect_zk_estimate_fee().returning(|_| {
+                Err(ChainCommunicationError::CustomError(
+                    "execution reverted".into(),
+                ))
+            });
+        } else {
+            provider.expect_fee_history().returning(|_, _, _| {
+                Err(ChainCommunicationError::CustomError(
+                    "RPC unavailable".into(),
+                ))
+            });
+        }
+        let mut adapter = mock_ethereum_adapter(
+            provider,
+            payload_db,
+            tx_db,
+            nonce_db.clone(),
+            signer,
+            Duration::from_millis(100),
+            Duration::from_millis(100),
+        );
+        if zksync {
+            adapter.domain = HyperlaneDomain::from_config(
+                999_999,
+                "testzksync",
+                HyperlaneDomainProtocol::Ethereum,
+                HyperlaneDomainTechnicalStack::ZkSync,
+            )
+            .unwrap();
+        }
+        let mut tx = dummy_evm_tx(
+            ExpectedTxType::Eip1559,
+            vec![],
+            crate::TransactionStatus::PendingInclusion,
+            signer,
+        );
+        for _ in 0..2 {
+            assert!(matches!(
+                adapter.submit(&mut tx).await,
+                Err(LanderError::TxSubmissionDeferred)
+            ));
+            assert_eq!(tx.precursor().tx.nonce(), None);
+            assert_eq!(
+                nonce_db
+                    .retrieve_nonce_by_transaction_uuid(&signer, &tx.uuid)
+                    .await
+                    .unwrap(),
+                None
+            );
+            assert!(tx.tx_hashes.is_empty());
+        }
+    }
+}
