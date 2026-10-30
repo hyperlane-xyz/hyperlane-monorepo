@@ -36,7 +36,8 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneMessage, Indexer, InterchainGasPayment, MerkleTreeInsertion, U256,
+    HyperlaneDomain, HyperlaneMessage, Indexer, InterchainGasPayment, MerkleTreeInsertion,
+    ReorgPeriod, U256,
 };
 use lander::{CommandEntrypoint, DispatcherMetrics};
 
@@ -447,20 +448,24 @@ impl BaseAgent for Relayer {
         let scraper_sources = origins
             .iter()
             .map(|(domain, origin)| {
-                ScraperSource::new(
+                Ok(ScraperSource::new(
                     domain.name().to_owned(),
                     domain.id(),
                     origin.chain_conf.addresses.mailbox,
                     origin.chain_conf.addresses.interchain_gas_paymaster,
                     origin.chain_conf.addresses.merkle_tree_hook,
                     origin.database.clone(),
-                )
+                    match &origin.chain_conf.reorg_period {
+                        ReorgPeriod::Blocks(blocks) => Some(blocks.get()),
+                        _ => None,
+                    },
+                )?
                 .with_broadcaster(origin.message_sync.get_broadcaster())
                 .with_freshness_indexer(origin.message_sequence_indexer.clone())
                 .with_sync_metrics(origin.sync_metrics.clone())
-                .with_merkle_freshness_indexer(origin.merkle_sequence_indexer.clone())
+                .with_merkle_freshness_indexer(origin.merkle_sequence_indexer.clone()))
             })
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
         let scraper_websocket_monitor = settings
             .websocket_url
             .map(|url| {

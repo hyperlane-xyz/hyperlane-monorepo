@@ -160,7 +160,15 @@ pub enum ServerMessage<T> {
         sequence: Option<String>,
     },
     /// Provisional history was rolled back; consumers must recover before resuming.
-    Rollback,
+    #[serde(rename_all = "camelCase")]
+    Rollback {
+        /// Origin whose provisional history changed.
+        domain: u32,
+        /// Stream affected by the rollback.
+        event_type: String,
+        /// Last retained block; rows above it require recovery.
+        to_height: StringOrNumber,
+    },
     /// One event from a requested stream.
     Event(EventMessage<T>),
     /// The server rejected the request or stream.
@@ -375,7 +383,7 @@ mod tests {
             serde_json::from_str::<ServerMessage<serde_json::Value>>(
                 r#"{"type":"rollback","domain":1,"eventType":"merkle_tree_insertion","toHeight":"12"}"#
             ).expect("test protocol"),
-            ServerMessage::Rollback
+            ServerMessage::Rollback { domain: 1, .. }
         ));
     }
 

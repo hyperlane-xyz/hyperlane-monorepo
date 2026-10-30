@@ -764,7 +764,7 @@ impl MerkleTreeHookWebSocketSync {
                 ServerMessage::Error { error } => {
                     return Err(RejectedStream(error).into());
                 }
-                ServerMessage::Rollback => {
+                ServerMessage::Rollback { .. } => {
                     // The submitter repairs stored fork leaves after verifying checkpoint roots.
                     bail!("Scraper stream rolled back; resuming RPC indexing");
                 }
