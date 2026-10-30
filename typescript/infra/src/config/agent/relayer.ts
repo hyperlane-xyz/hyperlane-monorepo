@@ -366,11 +366,15 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       '0x00000000000000000000000235aE95896583818d',
     ];
 
+    // Binance hot wallet exploit 2026-10-29
+    const binanceExploiter = ['0xA97bF7836F8A08F9Ed91D41453D371493FAE8d10'];
+
     const uniqueAddresses = new Set(
       [
         ...sanctionedEthereumAddresses,
         ...radiantExploiter,
         ...flowAddresses,
+        ...binanceExploiter,
       ].map((address) => address.toLowerCase()),
     );
 
