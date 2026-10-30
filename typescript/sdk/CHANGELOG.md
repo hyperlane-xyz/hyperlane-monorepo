@@ -1,5 +1,45 @@
 # @hyperlane-xyz/sdk
 
+## 45.1.0
+
+### Minor Changes
+
+- 1467e4c: Added additional ICA router addresses to protected submission configuration so concurrently deployed router versions received the same private RPC protection.
+- a27ce72: Standardized EVM signature authentication across CCS read APIs with shared verification and a service signer whitelist. Preserved the existing EVM reveal signing format and added EVM signer configuration for Solana calldata retrieval.
+- 4b0f32c: The `ERC20_FEE_AGGREGATION_HOOK_VERSION` constant, naming 11.0.1 as the first `@hyperlane-xyz/core` version that unambiguously identifies a `StaticAggregationHook` accepting ERC20 fee metadata (11.0.0 shipped the fix, but hooks built without it already reported 11.0.0), was exported together with the `getTxConfigBatchSize` helper and the `submitRoutingHookConfigs` helper, which sends routing hook `setHooks` configs in transactions sized per chain. `HyperlaneHookDeployer` was changed to send its routing hook configs through `submitRoutingHookConfigs`.
+- 341418a: Signed reads were added for shielded token state on Seismic chains. `SeismicSigner.signedCall` issues an encrypted, EIP-712-signed `eth_call`; `MultiProviderAdapter` can carry Seismic chains' signers (`fromMultiProvider`, `setSeismicSigners`, `tryGetSeismicSigner`); `EvmTokenAdapter` reads the sender's own `balanceOf`/`allowance` as signed reads on Seismic when that signer is available. The CLI attaches the Seismic signers in `signerMiddleware`, so `warp send` from a Seismic origin no longer fails on shielded balance checks.
+- 5a8eed5: Added optional EVM ICA reveal protection to keep delivery estimates and submissions on protected RPC endpoints.
+- 670000c: Added explicit ICA router overrides to commitment registration and honored destination router overrides during account derivation and deployment, allowing V2 and V3 routers to operate in parallel. Preserved account lookup and deployment for pre-salt routers when no custom salt was requested.
+
+### Patch Changes
+
+- b6fdd2d: Router-map key resolution for warp deploy configs was moved into the SDK as `resolveWarpDeployConfigRouterKeys` and reused by the CLI and infra warp checker.
+- a7b65cb: The ICA tx submitter doubled the IGP quote sent with callRemote, so ICA batches proposed via warp apply no longer reverted when IGP gas prices rose before execution. Overpayment was refunded to the owner.
+- 447569f: CCTP V2 domain mappings were reconciled during warp route deployment and apply.
+- b43bc9f: The Blast default multisig validator configuration was restored so the mainnet3 relayer can deliver Blast-origin messages until Blast shuts down.
+- 0ceb556: Routing ISMs were initialized with their final owner when all routes fit in the deployment batch, avoiding a separate ownership transfer that lagging RPCs could underestimate before observing the deployed contract.
+- 5c6593b: Seismic signed reads and gas estimates retained connected-provider RPC fallback, custom connections, and the explicit RPC URL for offline or non-RPC signers. Client initialization was reused while replay protection remained fresh, and decrypted reverts were exposed as ethers-compatible errors. Authenticated reads retained explicit failures for unsupported signers.
+
+  Added `HyperlaneSmartProvider.sendReadRpc`, `ProviderMethod.ReadRpc`, and `ReadRpcMethods` for bounded raw reads without advertising a general JSON-RPC `send` method.
+
+- 62225a3: `SeismicSigner.sendTransaction` was updated to fill a missing `gasLimit` from the signed-read gas estimate instead of letting the inner signer run an unsigned `eth_estimateGas`, which Seismic executes with `msg.sender = 0x0` and which therefore failed for every owner-gated write during `core deploy` and `warp deploy`.
+
+  `seismic-viem` was updated to `4.0.0` to support the signed-read gas-payment format.
+
+- 0063de6: Synthetic warp adapters were updated to check router allowances when a token-paid fee hook was configured. Direct synthetic approvals no longer required resetting nonzero allowances. Burn-only transfers, legacy routers, and Predicate wrapper approvals retained their existing behavior.
+- 77dbf5d: Added Tempo's 2-of-2 Abacus Works and Mitosis validator configuration and ERC20 gas-token funding, balance metrics, IGP claims, and sweeping for pathUSD. Configured gas-token decimals were checked against the token before claims, funding, or sweeping.
+- bfbb755: `WarpCore.getLocalTransferFee` was updated to simulate the transfer with the actual recipient instead of the sender's address. Origin-side policies that inspect the recipient (for example an allowlist post-dispatch hook or a Sealevel fee program) rejected the placeholder, so a valid transfer failed pre-flight validation. `validateTransfer`, `estimateTransferRemoteFees`, `estimateCrossCollateralFees` and `getMaxTransferAmount` now pass the recipient through; the sender fallback is kept when none is given.
+- Updated dependencies [78a31fa]
+  - @hyperlane-xyz/aleo-sdk@45.1.0
+  - @hyperlane-xyz/deploy-sdk@11.0.2
+  - @hyperlane-xyz/starknet-core@45.1.0
+  - @hyperlane-xyz/cosmos-sdk@45.1.0
+  - @hyperlane-xyz/radix-sdk@45.1.0
+  - @hyperlane-xyz/utils@45.1.0
+  - @hyperlane-xyz/core@12.2.0
+  - @hyperlane-xyz/provider-sdk@11.0.2
+  - @hyperlane-xyz/tron-sdk@26.0.2
+
 ## 45.0.1
 
 ### Patch Changes
