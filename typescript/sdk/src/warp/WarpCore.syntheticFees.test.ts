@@ -46,7 +46,8 @@ describe('WarpCore synthetic token-IGP approvals', () => {
     pinned = true,
     failQuote = false,
     failFeeHook = false,
-    contractVersion = '10.0.0',
+    missingFeeHook = false,
+    contractVersion = '11.0.0',
   } = {}) {
     const multiProvider = new MultiProtocolProvider({
       [test1.name]: {
@@ -68,9 +69,7 @@ describe('WarpCore synthetic token-IGP approvals', () => {
       name: 'Test synthetic',
     });
     const allowanceRead = sandbox.stub().returns(allowance);
-    const feeHookRead = sandbox
-      .stub()
-      .returns(tokenIgp > 0n ? WRAPPER : constants.AddressZero);
+    const feeHookRead = sandbox.spy();
     // Keep real WarpCore, adapter decisions and calldata builders. Only RPC
     // reads are supplied here, including fee-hook configuration and allowances.
     sandbox
@@ -85,8 +84,12 @@ describe('WarpCore synthetic token-IGP approvals', () => {
           case 'hook':
             return abi.encodeFunctionResult(name, [constants.AddressZero]);
           case 'feeHook':
+            feeHookRead();
+            if (missingFeeHook) return '0x';
             if (failFeeHook) throw new Error('Fee hook RPC unavailable');
-            return abi.encodeFunctionResult(name, [feeHookRead()]);
+            return abi.encodeFunctionResult(name, [
+              tokenIgp > 0n ? WRAPPER : constants.AddressZero,
+            ]);
           case 'allowance':
             expect(args[0]).to.equal(SENDER);
             expect(args[1]).to.equal(predicate ? WRAPPER : ROUTER);
@@ -248,6 +251,23 @@ describe('WarpCore synthetic token-IGP approvals', () => {
     expect(allowanceRead.called).to.equal(false);
     expect(feeHookRead.called).to.equal(false);
   });
+
+  for (const contractVersion of ['10.0.0', '10.2.0']) {
+    for (const pinned of [true, false]) {
+      it(`transfers on ${contractVersion} without a feeHook selector (${pinned ? 'pinned' : 'quoted'} fees)`, async () => {
+        const { txs, allowanceRead, feeHookRead } = await transfer({
+          contractVersion,
+          pinned,
+          missingFeeHook: true,
+          tokenIgp: 0n,
+          nativeIgp: 7n,
+        });
+        expect(txs.map((tx) => tx.category)).to.eql([WarpTxCategory.Transfer]);
+        expect(allowanceRead.called).to.equal(false);
+        expect(feeHookRead.called).to.equal(false);
+      });
+    }
+  }
 
   it('propagates fee-hook read failures rather than omitting approval', async () => {
     try {

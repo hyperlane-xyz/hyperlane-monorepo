@@ -97,6 +97,7 @@ const toEvmAddress = (address: Address): Address =>
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
 export const EVM_TRANSFER_REMOTE_GAS_ESTIMATE = 450_000n;
 const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
+const TOKEN_IGP_CONTRACT_VERSION = '11.0.0';
 type RawTupleQuote = { 0: string; 1: BigNumber };
 type RawTokenBridgeQuote = { token: string; amount: BigNumber };
 
@@ -579,7 +580,7 @@ export class EvmHypSyntheticAdapter
     if (
       !isValidContractVersion(
         await this.getContractPackageVersion(),
-        TOKEN_FEE_CONTRACT_VERSION,
+        TOKEN_IGP_CONTRACT_VERSION,
       )
     ) {
       return false;
