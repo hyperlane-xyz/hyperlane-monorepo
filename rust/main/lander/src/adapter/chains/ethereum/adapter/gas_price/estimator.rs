@@ -724,7 +724,8 @@ mod tests {
                 false,
                 &TransactionOverrides::default(),
             )
-            .await;
+            .await
+            .unwrap();
             assert_eq!(
                 estimate,
                 GasPrice::Eip1559 {
@@ -762,9 +763,10 @@ mod tests {
             };
             let estimate =
                 estimate_with_rewards(&domain, gwei_milli(50), gwei_milli(5), false, &overrides)
-                    .await;
+                    .await
+                    .unwrap();
             assert_eq!(
-                escalate_gas_price_if_needed(&pending, &estimate, &overrides),
+                super::super::escalate_gas_price_if_needed(&pending, &estimate, &overrides),
                 expected
             );
         }
