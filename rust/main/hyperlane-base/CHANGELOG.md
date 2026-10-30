@@ -1,3 +1,7 @@
+## [3.1.0] - 2026-10-30
+
+* fix: enforce priority fee caps across EVM chains (#9938)
+
 ## [3.0.0] - 2026-10-23
 
 * chore: remove unused Fuel integration (#9723)
