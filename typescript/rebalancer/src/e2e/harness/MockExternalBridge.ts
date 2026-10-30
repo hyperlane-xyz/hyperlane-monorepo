@@ -155,7 +155,7 @@ export class MockExternalBridge implements IExternalBridge {
         bridgeRouteAddress,
         signer,
       );
-      tx = await bridgeRoute.transferRemote(
+      tx = await bridgeRoute['transferRemote(uint32,bytes32,uint256)'](
         destinationDomain,
         recipientBytes32,
         quote.fromAmount,
@@ -165,7 +165,7 @@ export class MockExternalBridge implements IExternalBridge {
         bridgeRouteAddress,
         signer,
       );
-      tx = await bridgeRoute.transferRemote(
+      tx = await bridgeRoute['transferRemote(uint32,bytes32,uint256)'](
         destinationDomain,
         recipientBytes32,
         quote.fromAmount,
@@ -315,12 +315,12 @@ export class MockExternalBridge implements IExternalBridge {
         bridgeRouteAddress,
         provider,
       );
-      const gasEstimate = await bridgeRoute.estimateGas.transferRemote(
-        destinationDomain,
-        recipientBytes32,
-        estimateAmount,
-        { value: estimateAmount, from: fromAddress },
-      );
+      const gasEstimate = await bridgeRoute.estimateGas[
+        'transferRemote(uint32,bytes32,uint256)'
+      ](destinationDomain, recipientBytes32, estimateAmount, {
+        value: estimateAmount,
+        from: fromAddress,
+      });
       const gasPrice = await provider.getGasPrice();
       return gasEstimate.mul(gasPrice).toBigInt();
     }

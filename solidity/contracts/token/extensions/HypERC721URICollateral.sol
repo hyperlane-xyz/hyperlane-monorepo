@@ -18,15 +18,21 @@ contract HypERC721URICollateral is HypERC721Collateral {
         address _mailbox
     ) HypERC721Collateral(erc721, _mailbox) {}
 
+    /// @inheritdoc TokenRouter
+    function _validateMetadata(bytes memory _metadata) internal pure override {
+        if (_metadata.length != 0) revert MetadataNotSupported();
+    }
+
     /**
      * @inheritdoc TokenRouter
      * @dev Overrides to fetch the URI and pass it to the token message.
      */
-    function transferRemote(
+    function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _tokenId
-    ) public payable override returns (bytes32 messageId) {
+        uint256 _tokenId,
+        bytes memory
+    ) internal override returns (bytes32 messageId) {
         (, uint256 remainingNativeValue) = _calculateFeesAndCharge(
             _destination,
             _recipient,

@@ -14,6 +14,9 @@ pragma solidity ^0.8.13;
 @@@@@@@@@       @@@@@@@@*/
 
 import "forge-std/Test.sol";
+import {AbstractPostDispatchHook} from "../../contracts/hooks/libs/AbstractPostDispatchHook.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {Mailbox} from "../../contracts/Mailbox.sol";
@@ -40,6 +43,43 @@ import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
+
+/// @dev Charges per byte of the complete dispatched message in either fee token.
+contract MessageBodyFeeHook is AbstractPostDispatchHook {
+    using Message for bytes;
+    using StandardHookMetadata for bytes;
+
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.HookTypes.UNUSED);
+    }
+
+    function _quoteDispatch(
+        bytes calldata,
+        bytes calldata message
+    ) internal pure override returns (uint256) {
+        return message.length;
+    }
+
+    function _postDispatch(
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal override {
+        address feeToken = metadata.feeToken();
+        if (feeToken == address(0)) {
+            require(msg.value == message.length, "Incorrect native fee");
+        } else {
+            require(msg.value == 0, "Unexpected native fee");
+            require(
+                IERC20(feeToken).transferFrom(
+                    message.senderAddress(),
+                    address(this),
+                    message.length
+                ),
+                "Fee transfer failed"
+            );
+        }
+    }
+}
 
 abstract contract HypTokenTest is Test {
     using TypeCasts for address;
@@ -327,7 +367,120 @@ abstract contract HypTokenTest is Test {
     }
 }
 
-contract HypERC20Test is HypTokenTest {
+abstract contract HypTokenMetadataTest is HypTokenTest {
+    using TypeCasts for address;
+    using Message for bytes;
+
+    function _prepareMetadataTransfer() internal returns (uint256 value) {
+        value = REQUIRED_VALUE;
+        if (address(primaryToken) == address(0)) {
+            value += TRANSFER_AMT;
+        } else {
+            vm.prank(ALICE);
+            primaryToken.approve(address(localToken), TRANSFER_AMT);
+        }
+    }
+
+    function testRemoteTransfer_withMetadata(bytes memory metadata) public {
+        uint256 value = _prepareMetadataTransfer();
+        uint256 senderBefore = _localTokenBalanceOf(ALICE);
+        uint256 scaledAmount = (TRANSFER_AMT * localToken.scaleNumerator()) /
+            localToken.scaleDenominator();
+
+        vm.prank(ALICE);
+        bytes32 messageId = localToken.transferRemote{value: value}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT,
+            metadata
+        );
+
+        bytes memory message = remoteMailbox.inboundMessages(0);
+        assertEq(message.id(), messageId);
+        assertEq(
+            message,
+            abi.encodePacked(
+                localMailbox.VERSION(),
+                uint32(0),
+                ORIGIN,
+                address(localToken).addressToBytes32(),
+                DESTINATION,
+                address(remoteToken).addressToBytes32(),
+                abi.encodePacked(BOB.addressToBytes32(), scaledAmount, metadata)
+            )
+        );
+        assertEq(
+            _localTokenBalanceOf(ALICE),
+            senderBefore -
+                TRANSFER_AMT -
+                (address(primaryToken) == address(0) ? REQUIRED_VALUE : 0)
+        );
+
+        // Standard receivers still deliver tokens when trailing metadata is present.
+        _processTransfers();
+        assertEq(remoteToken.balanceOf(BOB), scaledAmount);
+    }
+
+    function testRemoteTransfer_metadataAwareNativeQuote(
+        bytes memory metadata
+    ) public {
+        MessageBodyFeeHook bodyHook = new MessageBodyFeeHook();
+        localToken.setHook(address(bodyHook));
+        Quote[] memory legacy = localToken.quoteTransferRemote(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
+        Quote[] memory quoted = localToken.quoteTransferRemote(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT,
+            metadata
+        );
+        assertEq(quoted[0].amount, legacy[0].amount + metadata.length);
+        Quote[] memory empty = localToken.quoteTransferRemote(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT,
+            ""
+        );
+        assertEq(abi.encode(empty), abi.encode(legacy));
+        uint256 value = _prepareMetadataTransfer() + quoted[0].amount;
+        vm.prank(ALICE);
+        localToken.transferRemote{value: value}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT,
+            metadata
+        );
+        assertEq(address(bodyHook).balance, quoted[0].amount);
+        _processTransfers();
+    }
+
+    function testRemoteTransfer_emptyMetadataMatchesLegacy() public {
+        uint256 value = _prepareMetadataTransfer();
+        uint256 snapshot = vm.snapshot();
+        vm.prank(ALICE);
+        bytes32 legacyId = localToken.transferRemote{value: value}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
+
+        assertTrue(vm.revertTo(snapshot));
+        vm.prank(ALICE);
+        bytes32 metadataId = localToken.transferRemote{value: value}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT,
+            ""
+        );
+        assertEq(metadataId, legacyId);
+        _processTransfers();
+    }
+}
+
+contract HypERC20Test is HypTokenMetadataTest {
     using TypeCasts for address;
 
     HypERC20 internal erc20Token;
@@ -437,7 +590,7 @@ contract HypERC20Test is HypTokenTest {
     }
 }
 
-contract HypERC20CollateralTest is HypTokenTest {
+contract HypERC20CollateralTest is HypTokenMetadataTest {
     using TypeCasts for address;
 
     HypERC20Collateral internal erc20Collateral;
@@ -513,7 +666,7 @@ contract HypERC20CollateralTest is HypTokenTest {
     }
 }
 
-contract HypXERC20Test is HypTokenTest {
+contract HypXERC20Test is HypTokenMetadataTest {
     using TypeCasts for address;
 
     HypXERC20 internal xerc20Collateral;
@@ -570,7 +723,7 @@ contract HypXERC20Test is HypTokenTest {
     }
 }
 
-contract HypXERC20LockboxTest is HypTokenTest {
+contract HypXERC20LockboxTest is HypTokenMetadataTest {
     using TypeCasts for address;
 
     HypXERC20Lockbox internal xerc20Lockbox;
@@ -653,7 +806,7 @@ contract HypXERC20LockboxTest is HypTokenTest {
     }
 }
 
-contract HypFiatTokenTest is HypTokenTest {
+contract HypFiatTokenTest is HypTokenMetadataTest {
     using TypeCasts for address;
 
     HypFiatToken internal fiatToken;
@@ -716,7 +869,7 @@ contract HypFiatTokenTest is HypTokenTest {
     }
 }
 
-contract HypNativeTest is HypTokenTest {
+contract HypNativeTest is HypTokenMetadataTest {
     using TypeCasts for address;
 
     HypNative internal nativeToken;
@@ -823,7 +976,7 @@ contract HypERC20ConstructorTest is Test {
     }
 }
 
-contract HypERC20ScaledTest is HypTokenTest {
+contract HypERC20ScaledTest is HypTokenMetadataTest {
     using TypeCasts for address;
 
     HypERC20 internal erc20Token;
@@ -967,7 +1120,7 @@ contract HypERC20ScaledTest is HypTokenTest {
     }
 }
 
-contract HypERC20CollateralScaledDownRoundingTest is HypTokenTest {
+contract HypERC20CollateralScaledDownRoundingTest is HypTokenMetadataTest {
     using TypeCasts for address;
 
     HypERC20Collateral internal collateralToken;

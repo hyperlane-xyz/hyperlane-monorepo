@@ -13,6 +13,7 @@ pragma solidity ^0.8.13;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
+import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
@@ -46,6 +47,26 @@ contract HypERC4626CollateralTest is HypTokenTest {
     HypERC4626 peerRebasingToken;
 
     event ExchangeRateUpdated(uint256 newExchangeRate, uint32 rateUpdateNonce);
+
+    function test_quoteTransferRemote_rejectsCustomMetadata() public {
+        vm.expectRevert(TokenRouter.MetadataNotSupported.selector);
+        localToken.quoteTransferRemote(
+            DESTINATION,
+            bytes32(uint256(1)),
+            1,
+            hex"1234"
+        );
+    }
+
+    function test_transferRemote_rejectsCustomMetadata() public {
+        vm.expectRevert(TokenRouter.MetadataNotSupported.selector);
+        localToken.transferRemote(
+            DESTINATION,
+            bytes32(uint256(1)),
+            1,
+            hex"1234"
+        );
+    }
 
     function setUp() public override {
         super.setUp();

@@ -238,11 +238,9 @@ describe('aggregation hook upgrade on an Ethereum fork', () => {
         DESTINATION_GAS,
       )
     ).wait();
-    const [gasQuote] = await router.quoteTransferRemote(
-      DESTINATION_DOMAIN,
-      recipient,
-      TRANSFER_AMOUNT,
-    );
+    const [gasQuote] = await router[
+      'quoteTransferRemote(uint32,bytes32,uint256)'
+    ](DESTINATION_DOMAIN, recipient, TRANSFER_AMOUNT);
     expect(gasQuote.token).to.equal(USDC);
     expect(gasQuote.amount.gt(0)).to.equal(true);
     const approveForTransfer = async () =>
@@ -252,7 +250,11 @@ describe('aggregation hook upgrade on an Ethereum fork', () => {
     await approveForTransfer();
 
     const transfer = () =>
-      router.transferRemote(DESTINATION_DOMAIN, recipient, TRANSFER_AMOUNT);
+      router['transferRemote(uint32,bytes32,uint256)'](
+        DESTINATION_DOMAIN,
+        recipient,
+        TRANSFER_AMOUNT,
+      );
     const expectFeePaid = async () => {
       await approveForTransfer();
       const before = await usdc.balanceOf(ETHEREUM_IGP);
@@ -284,7 +286,7 @@ describe('aggregation hook upgrade on an Ethereum fork', () => {
 
     expect(
       await revertMessage(
-        router.callStatic.transferRemote(
+        router.callStatic['transferRemote(uint32,bytes32,uint256)'](
           DESTINATION_DOMAIN,
           recipient,
           TRANSFER_AMOUNT,

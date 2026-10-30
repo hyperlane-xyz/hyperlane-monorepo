@@ -138,15 +138,21 @@ abstract contract TokenBridgeCctpBase is
         wrappedToken.approve(address(tokenMessenger), type(uint256).max);
     }
 
+    /// @inheritdoc TokenRouter
+    function _validateMetadata(bytes memory _metadata) internal pure override {
+        if (_metadata.length != 0) revert MetadataNotSupported();
+    }
+
     /**
      * @inheritdoc TokenRouter
      * @dev Overrides to bridge the tokens via Circle.
      */
-    function transferRemote(
+    function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount
-    ) public payable override returns (bytes32 messageId) {
+        uint256 _amount,
+        bytes memory
+    ) internal override returns (bytes32 messageId) {
         // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
         (
             uint256 externalFee,

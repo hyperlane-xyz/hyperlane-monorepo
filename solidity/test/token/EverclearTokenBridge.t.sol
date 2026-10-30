@@ -13,6 +13,7 @@ pragma solidity ^0.8.22;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
+import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -73,6 +74,21 @@ contract EverclearTokenBridgeTest is Test {
     // Events to test
     event FeeParamsUpdated(uint32 destination, uint256 fee, uint256 deadline);
     event OutputAssetSet(uint32 destination, bytes32 outputAsset);
+
+    function test_quoteTransferRemote_rejectsCustomMetadata() public {
+        vm.expectRevert(TokenRouter.MetadataNotSupported.selector);
+        bridge.quoteTransferRemote(
+            DESTINATION,
+            bytes32(uint256(1)),
+            1,
+            hex"1234"
+        );
+    }
+
+    function test_transferRemote_rejectsCustomMetadata() public {
+        vm.expectRevert(TokenRouter.MetadataNotSupported.selector);
+        bridge.transferRemote(DESTINATION, bytes32(uint256(1)), 1, hex"1234");
+    }
 
     function setUp() public {
         // Setup basic infrastructure

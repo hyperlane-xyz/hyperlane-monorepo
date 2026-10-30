@@ -55,7 +55,7 @@ Warp routes are unique amongst token bridging solutions because they provide mod
 
 ## Remote Transfer Lifecycle
 
-To initiate a remote transfer, users call the `TokenRouter.transferRemote` function with the `destination` chain ID, `recipient` address, and transfer `amount`.
+To initiate a remote transfer, users call the `TokenRouter.transferRemote` function with the `destination` domain ID, `recipient` address, and transfer `amount`.
 
 ```solidity
 interface TokenRouter {
@@ -66,6 +66,29 @@ interface TokenRouter {
     ) public returns (bytes32 messageId);
 }
 ```
+
+Native, ERC20 collateral, and synthetic routes also accept optional message metadata:
+
+```solidity
+quoteTransferRemote(destination, recipient, amount, metadata);
+transferRemote(destination, recipient, amount, metadata);
+```
+
+Both three-argument calls remain available and default to empty metadata.
+Pass the same metadata to quoting and transfer so hooks price the actual message;
+ERC20-paid hook fees also use that complete message when charging the sender. Metadata is appended
+as `recipient | amount | metadata` in the warp message body; it is separate from hook
+metadata. Standard destination routers deliver the tokens and ignore the extra bytes.
+Custom destination logic is needed to interpret them.
+
+Specialized transfer implementations (cross-collateral, ERC4626 collateral, NFT URI,
+CCTP, Everclear, and OP bridges) retain their existing behavior and reject nonempty
+caller metadata in both quoting and transfer. Receive-only OP bridges continue to reject all transfers.
+
+With ethers v5, select the signature explicitly when using the overloaded ABI:
+`router['transferRemote(uint32,bytes32,uint256)'](...)` or
+`router['transferRemote(uint32,bytes32,uint256,bytes)'](...)`. Use the corresponding
+explicit signatures for `quoteTransferRemote` as well.
 
 **NOTE:** The [Relayer](https://docs.hyperlane.xyz/docs/operate/relayer/run-relayer) shown below must be compensated. Please refer to the details on [paying for interchain gas](https://docs.hyperlane.xyz/docs/protocol/interchain-gas-payment).
 

@@ -83,7 +83,7 @@ export async function executeWarpTransfer(
 
   const gasQuote = await router.quoteGasPayment(destinationDomain);
 
-  const tx = await router.transferRemote(
+  const tx = await router['transferRemote(uint32,bytes32,uint256)'](
     destinationDomain,
     recipientBytes32,
     amount,
