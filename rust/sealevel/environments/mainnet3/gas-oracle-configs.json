@@ -107,7 +107,7 @@
     "ethereum": {
       "oracleConfig": {
         "tokenExchangeRate": "352047357782269708345",
-        "gasPrice": "10000000000",
+        "gasPrice": "25000000000",
         "tokenDecimals": 18
       },
       "overhead": 166887
@@ -349,7 +349,7 @@
     "ethereum": {
       "oracleConfig": {
         "tokenExchangeRate": "15000000000000000000",
-        "gasPrice": "10000000000",
+        "gasPrice": "25000000000",
         "tokenDecimals": 18
       },
       "overhead": 166460
@@ -488,7 +488,7 @@
   "solaxy": {
     "ethereum": {
       "oracleConfig": {
-        "gasPrice": "10000000000",
+        "gasPrice": "25000000000",
         "tokenExchangeRate": "691771710368053885013231",
         "tokenDecimals": 18
       },
