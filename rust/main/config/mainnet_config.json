@@ -2772,11 +2772,7 @@
       },
       "quotedCalls": "0x90f9a2E9eCe93516d65FdaB726a3c62F5960a1b9",
       "interchainAccountRouterV3": "0x530b6596af6B6aB4D355d7Af2b5FF12eAeef8261",
-      "quotedCallsV3": "0x6D6e6DDED88646Ed251BDefcf287a16f8BC0fCcB",
-      "transactionOverrides": {
-        "maxFeePerGas": 10000000,
-        "maxPriorityFeePerGas": 10000000
-      }
+      "quotedCallsV3": "0x6D6e6DDED88646Ed251BDefcf287a16f8BC0fCcB"
     },
     "edgenchain": {
       "blockExplorers": [
