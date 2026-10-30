@@ -17,14 +17,14 @@ ignored_warnings_from = ['lib', 'test', 'contracts/test']
 
 # Pin CrossCollateralRouter below the suite-wide optimizer_runs to keep its
 # runtime bytecode under the EIP-170 24576-byte limit. Mirrors the Hardhat
-# overrides entry in rootHardhatConfig.cts; keep the two in sync.
+# overrides entry in hardhat.config.cts; keep the two in sync.
 [[profile.default.additional_compiler_profiles]]
 name = "size-optimized"
-optimizer_runs = 3_599
+optimizer_runs = 500
 
 [[profile.default.compilation_restrictions]]
 paths = "contracts/token/CrossCollateralRouter.sol"
-optimizer_runs = 3_599
+optimizer_runs = 500
 
 [profile.ci]
 verbosity = 4

@@ -58,6 +58,26 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
     bytes32 internal userB32 = user.addressToBytes32();
     Quote[] internal quotes;
 
+    function test_quoteTransferRemote_rejectsCustomMetadata() public {
+        vm.expectRevert(TokenRouter.MetadataNotSupported.selector);
+        vtbOrigin.quoteTransferRemote(
+            destination,
+            bytes32(uint256(1)),
+            1,
+            hex"1234"
+        );
+    }
+
+    function test_transferRemote_rejectsCustomMetadata() public {
+        vm.expectRevert(TokenRouter.MetadataNotSupported.selector);
+        vtbOrigin.transferRemote(
+            destination,
+            bytes32(uint256(1)),
+            1,
+            hex"1234"
+        );
+    }
+
     function setUp() public {
         environment = new MockHyperlaneEnvironment(origin, destination);
 
@@ -237,6 +257,16 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
             address(vtbDestination.interchainSecurityModule()),
             address(vtbDestination),
             "vtbDestination should be the configured ISM"
+        );
+    }
+
+    function test_OpL1_transferRemote_withMetadata_reverts() public {
+        vm.expectRevert("OP L1 token bridge should not send messages");
+        vtbDestination.transferRemote(
+            origin,
+            userB32,
+            transferAmount,
+            hex"1234"
         );
     }
 

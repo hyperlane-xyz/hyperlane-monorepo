@@ -5,7 +5,7 @@ pragma solidity >=0.8.0;
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {GasRouter} from "../../client/GasRouter.sol";
 import {TokenMessage} from "./TokenMessage.sol";
-import {Quote, ITokenBridge, ITokenFee} from "../../interfaces/ITokenBridge.sol";
+import {Quote, ITokenBridgeWithMetadata, ITokenFee} from "../../interfaces/ITokenBridge.sol";
 import {Quotes} from "./Quotes.sol";
 import {StandardHookMetadata} from "../../hooks/libs/StandardHookMetadata.sol";
 
@@ -22,11 +22,14 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
  *  - _transferFromSender(uint256): pull tokens/ETH from msg.sender
  *  - _transferTo(address,uint256): send tokens/ETH to the recipient
  *  - _externalFeeAmount(uint32,bytes32,uint256): compute external fees (default returns 0)
- * @dev Override transferRemote only to implement custom logic that can't be accomplished with the above functions.
+ * @dev Override _transferRemote only to implement custom logic that can't be accomplished with the above functions.
  *
  * @author Abacus Works
  */
-abstract contract TokenRouter is GasRouter, ITokenBridge {
+abstract contract TokenRouter is GasRouter, ITokenBridgeWithMetadata {
+    /// @notice This route does not support caller-provided message metadata.
+    error MetadataNotSupported();
+
     using TypeCasts for bytes32;
     using TypeCasts for address;
     using TokenMessage for bytes;
@@ -121,6 +124,28 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         bytes32 _recipient,
         uint256 _amount
     ) external view virtual override returns (Quote[] memory quotes) {
+        return _quoteTransferRemote(_destination, _recipient, _amount, "");
+    }
+
+    /// @inheritdoc ITokenBridgeWithMetadata
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes calldata _metadata
+    ) external view returns (Quote[] memory quotes) {
+        _validateMetadata(_metadata);
+        return
+            _quoteTransferRemote(_destination, _recipient, _amount, _metadata);
+    }
+
+    /// @notice Shared quote implementation for both public overloads.
+    function _quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes memory _metadata
+    ) internal view virtual returns (Quote[] memory quotes) {
         address _feeToken = feeToken();
         quotes = new Quote[](3);
         quotes[0] = Quote({
@@ -129,7 +154,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
                 _destination,
                 _recipient,
                 _amount,
-                _feeToken
+                _feeToken,
+                _metadata
             )
         });
         (, uint256 feeAmount) = _feeRecipientAndAmount(
@@ -148,13 +174,13 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * @notice Transfers `_amount` token to `_recipient` on the `_destination` domain.
      * @dev Delegates transfer logic to `_transferFromSender` implementation.
      * Emits `SentTransferRemote` event on the origin chain.
-     * Override with custom behavior for storing or forwarding tokens.
-     * Known overrides:
+     * Override _transferRemote for custom behavior shared by both overloads.
+     * Known _transferRemote overrides:
      * - OPL2ToL1TokenBridgeNative: adds hook metadata for message dispatch.
      * - EverclearTokenBridge: creates Everclear intent for cross-chain token transfer.
      * - TokenBridgeCctpBase: adds CCTP-specific metadata for message dispatch.
      * - HypERC4626Collateral: deposits into vault and handles shares.
-     * When overriding, mirror the general flow of this function for consistency:
+     * When overriding _transferRemote, preserve the following flow:
      * 1. Calculate fees and charge the sender.
      * 2. Prepare the token message with recipient, amount, and any additional metadata.
      * 3. Emit `SentTransferRemote` event.
@@ -169,14 +195,27 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         bytes32 _recipient,
         uint256 _amount
     ) public payable virtual returns (bytes32 messageId) {
-        return _transferRemote(_destination, _recipient, _amount);
+        return _transferRemote(_destination, _recipient, _amount, "");
     }
 
-    /// @notice Internal transfer implementation.
+    /// @inheritdoc ITokenBridgeWithMetadata
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes calldata _metadata
+    ) external payable virtual returns (bytes32 messageId) {
+        _validateMetadata(_metadata);
+        return _transferRemote(_destination, _recipient, _amount, _metadata);
+    }
+
+    /// @notice Shared transfer implementation for both public overloads.
+    /// @dev Override this function to preserve custom behavior for both entry points.
     function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount
+        uint256 _amount,
+        bytes memory _metadata
     ) internal virtual returns (bytes32 messageId) {
         address _feeHook = feeHook();
         address _feeToken = feeToken();
@@ -187,15 +226,17 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             _recipient,
             _amount,
             msg.value,
-            _feeHook
+            _feeHook,
+            _metadata
         );
 
         uint256 scaledAmount = _outboundAmount(_amount);
 
-        // 2. Prepare the token message with the recipient and amount
+        // 2. Prepare the token message with the recipient, amount, and metadata
         bytes memory _tokenMessage = TokenMessage.format(
             _recipient,
-            scaledAmount
+            scaledAmount,
+            _metadata
         );
 
         messageId = _emitAndDispatch(
@@ -217,7 +258,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         bytes32 _recipient,
         uint256 _amount,
         uint256 _msgValue,
-        address _feeHook
+        address _feeHook,
+        bytes memory _metadata
     ) internal returns (uint256 externalFee, uint256 remainingNativeValue) {
         (address _feeRecipient, uint256 feeAmount) = _feeRecipientAndAmount(
             _destination,
@@ -235,7 +277,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
                 _destination,
                 _recipient,
                 _amount,
-                _token
+                _token,
+                _metadata
             );
 
             // For collateral routers (token() != address(this)), we can add hook fee to charge
@@ -290,7 +333,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
                 _recipient,
                 _amount,
                 _msgValue,
-                feeHook()
+                feeHook(),
+                ""
             );
     }
 
@@ -479,12 +523,17 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,
-        address _feeToken
+        address _feeToken,
+        bytes memory _metadata
     ) internal view virtual returns (uint256) {
         return
             _Router_quoteDispatch(
                 _destination,
-                TokenMessage.format(_recipient, _outboundAmount(_amount)),
+                TokenMessage.format(
+                    _recipient,
+                    _outboundAmount(_amount),
+                    _metadata
+                ),
                 _generateHookMetadata(_destination, _feeToken),
                 address(hook)
             );
@@ -513,6 +562,10 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     // ===========================
     // ========== Internal virtual functions for token handling ==========
     // ===========================
+
+    /// @dev Specialized routes override this to reject unsupported caller metadata
+    /// consistently in both the transfer and quote entry points.
+    function _validateMetadata(bytes memory) internal pure virtual {}
 
     /**
      * @dev Should transfer `_amount` of tokens from `msg.sender` to this token router.
