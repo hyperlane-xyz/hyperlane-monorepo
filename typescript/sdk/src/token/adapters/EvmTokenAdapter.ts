@@ -320,14 +320,18 @@ export class EvmHypSyntheticAdapter
   ): Promise<boolean> {
     if (eqAddress(spender, this.addresses.token)) {
       // Synthetics with PredicateWrapper need approval to the wrapper instead.
-      // Without a wrapper, transferRemote burns directly from msg.sender — no approval needed.
+      // Without a wrapper, only a token-paid fee hook needs a router allowance.
       const predicateWrapper = await this.getPredicateWrapperAddress();
-      if (!predicateWrapper) return false;
-      const allowance = await this.allowanceAs(owner, predicateWrapper);
-      return allowance.lt(weiAmountOrId);
+      if (predicateWrapper) {
+        return super.isApproveRequired(owner, predicateWrapper, weiAmountOrId);
+      }
+
+      if (!(await this.hasTokenFeeHook())) {
+        return false;
+      }
     }
 
-    // External spenders (e.g. QuotedCalls) get the standard ERC20 allowance check.
+    // Token-paid gas and external spenders use the standard ERC20 allowance check.
     return super.isApproveRequired(owner, spender, weiAmountOrId);
   }
 
@@ -340,8 +344,13 @@ export class EvmHypSyntheticAdapter
       // Check whether the wrapper has a non-zero allowance that must be revoked first
       // (relevant for USDT-like tokens that require zeroing before re-approval).
       const predicateWrapper = await this.getPredicateWrapperAddress();
-      if (!predicateWrapper) return false;
-      return super.isRevokeApprovalRequired(owner, predicateWrapper);
+      if (predicateWrapper) {
+        return super.isRevokeApprovalRequired(owner, predicateWrapper);
+      }
+
+      if (!(await this.hasTokenFeeHook())) {
+        return false;
+      }
     }
     return super.isRevokeApprovalRequired(owner, spender);
   }
@@ -564,6 +573,18 @@ export class EvmHypSyntheticAdapter
       igpQuote: { amount: nativeAmount },
       tokenFeeQuote,
     };
+  }
+
+  protected async hasTokenFeeHook(): Promise<boolean> {
+    if (
+      !isValidContractVersion(
+        await this.getContractPackageVersion(),
+        TOKEN_FEE_CONTRACT_VERSION,
+      )
+    ) {
+      return false;
+    }
+    return !isZeroishAddress(await this.contract.feeHook());
   }
 
   /**
