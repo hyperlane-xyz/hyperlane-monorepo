@@ -727,6 +727,8 @@ impl AdaptsChain for EthereumAdapter {
         let gas_price_unchanged =
             gas_price != GasPrice::None && tx.precursor().extract_gas_price() == gas_price;
 
+        let protected = self.is_protected_provider(provider);
+        let previous_request = protected.then(|| tx.precursor().tx.clone());
         let previous_nonce: Option<U256> = tx.precursor().tx.nonce().map(|n| (*n).into());
         let nonce_changed = previous_nonce != Some(nonce);
 
@@ -753,8 +755,7 @@ impl AdaptsChain for EthereumAdapter {
 
         info!(?tx, "submitting transaction");
 
-        let protected = self.is_protected_provider(provider);
-        let send_result = if protected {
+        let send_result = if let Some(previous_request) = previous_request {
             let signed = match mev_submission::preflight(
                 true,
                 provider.sign_transaction(&tx.precursor().tx),
@@ -763,16 +764,9 @@ impl AdaptsChain for EthereumAdapter {
             {
                 Ok(signed) => signed,
                 Err(err) => {
-                    // Signing cannot broadcast. Keep a newly reserved nonce
-                    // distinguishable from a previous broadcast on the next pass.
-                    if nonce_changed {
-                        match previous_nonce {
-                            Some(nonce) => {
-                                tx.precursor_mut().tx.set_nonce(nonce);
-                            }
-                            None => clear_nonce(&mut tx.precursor_mut().tx),
-                        }
-                    }
+                    // Signing cannot broadcast. Restore nonce and fees so a failed
+                    // attempt cannot pin an unsent transaction above a later cap.
+                    tx.precursor_mut().tx = previous_request;
                     return Err(err);
                 }
             };
