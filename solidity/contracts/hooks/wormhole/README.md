@@ -165,8 +165,10 @@ payload, and the destination compares them with the route's expected values.
 This catches an enrollment that does not match the remote hook's configuration;
 it does not prove when Guardians observed the message.
 
-Enrollment applies the same checks to a route's expected level and custom
-settings as the constructor applies to the local ones.
+Enrollment checks a route's expected level against the values a VAA can carry:
+the levels above, plus `1` (Confirmed) and `32` (Finalized), which Solana VAAs
+carry in place of the `0` and `1` its instruction takes. The custom-settings
+checks are the same as the constructor's.
 
 ## Fees and refunds
 

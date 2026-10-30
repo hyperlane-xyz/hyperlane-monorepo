@@ -306,7 +306,7 @@ contract WormholeVaaHookIsm is
             revert InvalidRemoteWormholeChainId();
         }
 
-        CustomConsistencyLevelLib.validateCustomConfigSettings(
+        CustomConsistencyLevelLib.validateVaaConfig(
             newRemoteConfig.expectedConsistencyLevel,
             newRemoteConfig.expectedCustomBaseConsistencyLevel,
             newRemoteConfig.expectedAdditionalBlocks
@@ -542,7 +542,7 @@ contract WormholeVaaHookIsm is
     function _validateAndConfigureConsistencyLevel(
         WormholeConsistencyLevelConfig memory config
     ) private {
-        CustomConsistencyLevelLib.validateConfig(config);
+        CustomConsistencyLevelLib.validateEvmConfig(config);
 
         if (config.consistencyLevel == CustomConsistencyLevelLib.CUSTOM) {
             _validateAndConfigureCustomConsistencyLevel(config);

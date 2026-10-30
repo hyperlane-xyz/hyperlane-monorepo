@@ -45,11 +45,15 @@ library CustomConsistencyLevelLib {
     uint8 internal constant GUARDIAN_FINALIZED = 202;
     /// @dev Guardian sentinel 203: read the emitter's configuration from CCL.
     uint8 internal constant CUSTOM = CONSISTENCY_LEVEL_CUSTOM;
+    /// @dev Solana VAA value 1: Confirmed (the instruction input is 0).
+    uint8 internal constant SOLANA_VAA_CONFIRMED = 1;
+    /// @dev Solana VAA value 32: Finalized (the instruction input is 1).
+    uint8 internal constant SOLANA_VAA_FINALIZED = 32;
 
-    /// @notice Whether `level` may be assigned to `consistencyLevel`.
+    /// @notice Whether an EVM hook may publish with `level`.
     /// @dev Accepts the documented finalized value 0 and EVM Guardian
     /// sentinels 200 through 203.
-    function isAllowedConsistencyLevel(
+    function isAllowedEvmConsistencyLevel(
         uint8 level
     ) internal pure returns (bool) {
         return
@@ -60,6 +64,17 @@ library CustomConsistencyLevelLib {
             level == CUSTOM;
     }
 
+    /// @notice Whether a VAA may carry `level`.
+    /// @dev Accepts the EVM levels and the Solana values 1 and 32.
+    function isAllowedVaaConsistencyLevel(
+        uint8 level
+    ) internal pure returns (bool) {
+        return
+            isAllowedEvmConsistencyLevel(level) ||
+            level == SOLANA_VAA_CONFIRMED ||
+            level == SOLANA_VAA_FINALIZED;
+    }
+
     /// @notice Whether `level` may be assigned to `customBaseConsistencyLevel`.
     /// @dev Guardian CCL only accepts sentinels 200, 201, and 202 here.
     function isAllowedCustomBaseConsistencyLevel(
@@ -68,11 +83,16 @@ library CustomConsistencyLevelLib {
         return level == INSTANT || level == SAFE || level == GUARDIAN_FINALIZED;
     }
 
-    /// @notice Reverts unless `config` is a valid consistency level configuration.
+    /// @notice Reverts unless `config` is a valid EVM consistency level
+    /// configuration.
     /// @dev A CCL contract accompanies only `CUSTOM`.
-    function validateConfig(
+    function validateEvmConfig(
         WormholeConsistencyLevelConfig memory config
     ) internal pure {
+        if (!isAllowedEvmConsistencyLevel(config.consistencyLevel)) {
+            revert InvalidConsistencyLevelConfig();
+        }
+
         validateCustomConfigSettings(
             config.consistencyLevel,
             config.customBaseConsistencyLevel,
@@ -87,7 +107,21 @@ library CustomConsistencyLevelLib {
         }
     }
 
-    /// @notice Reverts unless `level` is allowed and the custom settings fit it.
+    /// @notice Reverts unless a VAA may carry `level` and the custom settings
+    /// fit it.
+    function validateVaaConfig(
+        uint8 level,
+        uint8 customBaseLevel,
+        uint16 additionalBlocks
+    ) internal pure {
+        if (!isAllowedVaaConsistencyLevel(level)) {
+            revert InvalidConsistencyLevelConfig();
+        }
+
+        validateCustomConfigSettings(level, customBaseLevel, additionalBlocks);
+    }
+
+    /// @notice Reverts unless the custom settings fit `level`.
     /// @dev Only `CUSTOM` takes settings: an allowed base level and nonzero
     /// additional blocks, since zero blocks would equal the base level.
     function validateCustomConfigSettings(
@@ -95,10 +129,6 @@ library CustomConsistencyLevelLib {
         uint8 customBaseLevel,
         uint16 additionalBlocks
     ) internal pure {
-        if (!isAllowedConsistencyLevel(level)) {
-            revert InvalidConsistencyLevelConfig();
-        }
-
         bool isCustom = level == CUSTOM;
 
         if (!isCustom && (customBaseLevel != 0 || additionalBlocks != 0)) {

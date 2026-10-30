@@ -731,6 +731,28 @@ contract WormholeHookIsmTest is Test {
         _enrollConfig(originRouter, config);
     }
 
+    function test_enroll_acceptsSolanaVaaConsistencyLevels() public {
+        uint8[2] memory levels = [uint8(1), uint8(32)];
+        for (uint256 i; i < levels.length; ++i) {
+            uint32 domainId = 3000 + uint32(i);
+            WormholeVaaHookIsm.RemoteRouterConfig
+                memory config = _remoteRouterConfig(
+                    domainId,
+                    address(uint160(0xA000 + i)),
+                    42 + uint16(i)
+                );
+            config.expectedConsistencyLevel = levels[i];
+            _enrollConfig(originRouter, config);
+
+            (
+                ,
+                WormholeVaaHookIsm.ExpectedConsistencyLevelConfig
+                    memory expected
+            ) = originRouter.remoteRouterConfigs(domainId);
+            assertEq(expected.consistencyLevel, levels[i]);
+        }
+    }
+
     function test_enroll_rejectsCustomFieldsForNonCustomLevel() public {
         WormholeVaaHookIsm.RemoteRouterConfig
             memory config = _remoteRouterConfig(3000, makeAddr("remote"), 42);
@@ -1313,6 +1335,31 @@ contract WormholeHookIsmTest is Test {
         _verify(message, metadata);
     }
 
+    function test_verify_acceptsSolanaVaaConsistencyLevel() public {
+        WormholeVaaHookIsm.RemoteRouterConfig
+            memory config = _remoteRouterConfig(
+                ORIGIN,
+                address(originRouter),
+                WH_ORIGIN
+            );
+        config.expectedConsistencyLevel = 32;
+        _enrollConfig(destinationRouter, config);
+        (bytes memory message, ) = _dispatch();
+        bytes memory metadata = _wrapVaa(
+            _vaa(
+                WH_ORIGIN,
+                address(originRouter).addressToBytes32(),
+                0,
+                _nonce(message),
+                32,
+                0,
+                _payloadFor(message)
+            )
+        );
+
+        assertTrue(_verify(message, metadata));
+    }
+
     function test_process_rejectsWrongDestinationBeforeVerification() public {
         bytes memory message = originMailbox.buildOutboundMessage(
             DESTINATION + 1,
@@ -1642,6 +1689,26 @@ contract WormholeHookIsmTest is Test {
         WormholeConsistencyLevelConfig
             memory invalid = WormholeConsistencyLevelConfig({
                 consistencyLevel: 1,
+                customConsistencyLevelContract: address(0),
+                customBaseConsistencyLevel: 0,
+                additionalBlocks: 0
+            });
+
+        vm.expectRevert(
+            CustomConsistencyLevelLib.InvalidConsistencyLevelConfig.selector
+        );
+        new WormholeVaaHookIsm(
+            address(destinationMailbox),
+            address(destinationCore),
+            invalid,
+            _urls()
+        );
+    }
+
+    function test_constructor_rejectsSolanaVaaConsistencyLevel() public {
+        WormholeConsistencyLevelConfig
+            memory invalid = WormholeConsistencyLevelConfig({
+                consistencyLevel: 32,
                 customConsistencyLevelContract: address(0),
                 customBaseConsistencyLevel: 0,
                 additionalBlocks: 0
