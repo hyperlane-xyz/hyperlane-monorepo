@@ -2091,3 +2091,39 @@ async fn standalone_cleanup_forces_restart_recovery_of_replacement() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn runtime_denylist_skips_message_and_reloads_it_after_rule_removed() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let (mut loader, mut receiver) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        finish_legacy_migration(&mut loader).await;
+
+        let message = dummy_hyperlane_message(&destination, 0);
+        add_db_entry(&db, &message, 0);
+        let denylist = Arc::new(RuntimeDenylist::from_rules_for_test(serde_json::json!([
+            { "reason": "test", "addedBy": "test", "match": { "messageId": format!("{:?}", message.id()) } }
+        ])));
+        loader.set_runtime_denylist(denylist.clone());
+        point_destination_scan_at(&mut loader, 0);
+
+        assert!(loader.try_load_destination(0).await.unwrap());
+        assert!(receiver.try_recv().is_err());
+        assert_eq!(
+            destination_outcome_count(&loader, DESTINATION_OUTCOME_RUNTIME_DENYLISTED),
+            1
+        );
+
+        denylist.set_rules_for_test(serde_json::json!([]));
+        loader.tick().await.unwrap();
+
+        assert_eq!(
+            only_operation(receiver.try_recv().expect("reloaded message")).id(),
+            message.id()
+        );
+    })
+    .await;
+}

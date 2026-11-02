@@ -9,6 +9,7 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
+bs58 = { workspace = true, features = ["check"] }
 redact.workspace = true
 async-trait.workspace = true
 axum.workspace = true

@@ -646,6 +646,26 @@ async fn test_blacklisted_message_rejected() {
 }
 
 #[tokio::test]
+async fn test_runtime_denylisted_message_rejected() {
+    let msg = test_msg(ORIGIN_ID, DEST_ID, 1);
+    let denylist = Arc::new(
+        crate::msg::runtime_denylist::RuntimeDenylist::from_rules_for_test(serde_json::json!([
+            { "reason": "test", "addedBy": "test", "match": { "messageId": format!("{:?}", msg.id()) } }
+        ])),
+    );
+    let TestHarness {
+        state,
+        rx,
+        _tempdir,
+    } = make_state(Arc::new(MockIndexer::cctp(msg)), ORIGIN_ID, DEST_ID).await;
+
+    let status = send_relay(state.with_runtime_denylist(denylist).router(), TX_HASH).await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(rx.len(), 0, "nothing should be enqueued");
+}
+
+#[tokio::test]
 async fn test_non_whitelisted_message_rejected() {
     let msg = test_msg(ORIGIN_ID, DEST_ID, 1);
     let TestHarness {

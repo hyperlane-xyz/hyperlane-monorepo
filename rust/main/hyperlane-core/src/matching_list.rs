@@ -282,6 +282,33 @@ pub struct ListElement {
 }
 
 impl ListElement {
+    /// Whether any field other than `bodyregex` is set to specific values.
+    /// Missing fields are wildcards, so an element without one can match far
+    /// more than intended (e.g. a `bodyregex` of `.*` matches every message).
+    pub fn constrains_exact_field(&self) -> bool {
+        [
+            matches!(self.message_id, Filter::Enumerated(_)),
+            matches!(self.origin_domain, Filter::Enumerated(_)),
+            matches!(self.sender_address, Filter::Enumerated(_)),
+            matches!(self.destination_domain, Filter::Enumerated(_)),
+            matches!(self.recipient_address, Filter::Enumerated(_)),
+        ]
+        .contains(&true)
+    }
+
+    /// Whether any field is an empty list. Every field must match, so such
+    /// an element matches nothing.
+    pub fn has_empty_filter(&self) -> bool {
+        fn empty<T>(filter: &Filter<T>) -> bool {
+            matches!(filter, Filter::Enumerated(values) if values.is_empty())
+        }
+        empty(&self.message_id)
+            || empty(&self.origin_domain)
+            || empty(&self.sender_address)
+            || empty(&self.destination_domain)
+            || empty(&self.recipient_address)
+    }
+
     fn matches_route(
         &self,
         src_domain: u32,

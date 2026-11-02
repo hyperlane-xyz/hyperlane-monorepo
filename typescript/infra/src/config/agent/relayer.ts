@@ -125,6 +125,7 @@ export interface BaseRelayerConfig {
   whitelist?: MatchingList;
   blacklist?: MatchingList;
   addressBlacklist?: string;
+  runtimeDenylist?: RuntimeDenylistConfig;
   transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: string[];
   metricAppContextsGetter?: () => MetricAppContext[];
@@ -142,6 +143,23 @@ export interface BaseRelayerConfig {
   reorgPeriodOverrides?: ChainMap<number>;
   interval?: number;
   relayApi?: RelayApiConfig;
+}
+
+function isValidRuntimeDenylistUrl(url: string): boolean {
+  try {
+    const { protocol, hostname } = new URL(url);
+    if (protocol === 'file:') return hostname.length === 0;
+    return (
+      (protocol === 'https:' || protocol === 'http:') && hostname.length > 0
+    );
+  } catch {
+    return false;
+  }
+}
+
+export interface RuntimeDenylistConfig {
+  url: string;
+  pollIntervalSecs?: number;
 }
 
 export interface RelayApiConfig {
@@ -234,6 +252,26 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     relayerConfig.addressBlacklist = (await this.getSanctionedAddresses()).join(
       ',',
     );
+
+    if (baseConfig.runtimeDenylist) {
+      const { url, pollIntervalSecs } = baseConfig.runtimeDenylist;
+      // Same checks as the agent schema and the relayer, so a bad value fails
+      // the deploy rather than the relayer's startup. Don't echo the URL,
+      // which can carry a token.
+      assert(
+        isValidRuntimeDenylistUrl(url),
+        'runtimeDenylist.url must be a valid https://, http:// or file:// URL',
+      );
+      assert(
+        pollIntervalSecs === undefined ||
+          (Number.isInteger(pollIntervalSecs) && pollIntervalSecs > 0),
+        'runtimeDenylist.pollIntervalSecs must be a positive integer',
+      );
+      relayerConfig.runtimeDenylistUrl = url;
+      if (pollIntervalSecs !== undefined) {
+        relayerConfig.runtimeDenylistPollIntervalSecs = pollIntervalSecs;
+      }
+    }
 
     if (baseConfig.transactionGasLimit) {
       relayerConfig.transactionGasLimit =

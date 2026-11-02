@@ -6,7 +6,7 @@ use hyperlane_core::{QueueOperation, ReprepareReason};
 use lander::Entrypoint;
 use tracing::warn;
 
-use crate::msg::op_queue::OpQueue;
+use crate::msg::{op_queue::OpQueue, runtime_denylist::RuntimeDenylist};
 
 use super::super::disposition::{operation_disposition_by_payload_status, OperationDisposition};
 use super::super::{confirm_op, MessageProcessorMetrics};
@@ -14,6 +14,7 @@ use super::super::{confirm_op, MessageProcessorMetrics};
 /// Filters operations from the Submit queue to determine their next stage.
 ///
 /// This function determines the disposition of each operation and routes them accordingly:
+/// - `Unknown`: Operations retained for another payload-status read
 /// - `PreSubmit`: Operations returned for immediate resubmission (payload failed/dropped before submission)
 /// - `Submit`: Operations re-queued to submit queue (still in submission pipeline: ReadyToSubmit, PendingInclusion, Mempool)
 /// - `PostSubmitSuccess`: Operations moved to confirm queue (transaction included/finalized in block)
@@ -59,6 +60,10 @@ pub(crate) async fn filter_operations_for_submit(
     let mut ops_to_submit = Vec::new();
     for (op, disposition) in operations_with_disposition {
         match disposition {
+            OperationDisposition::Unknown => {
+                // The submit task polls again without creating a new payload.
+                submit_queue.push(op, None).await;
+            }
             PreSubmit => {
                 ops_to_submit.push(op);
             }
@@ -89,6 +94,21 @@ pub(crate) async fn filter_operations_for_submit(
     }
 
     ops_to_submit
+}
+
+/// Drop an operation matching the current rules immediately before its new
+/// payload is handed to lander. Payloads already in flight never get here.
+pub(crate) fn drop_denied_before_submission(
+    denylist: &RuntimeDenylist,
+    op: QueueOperation,
+) -> Option<QueueOperation> {
+    let Some(reason) = denylist.deny_reason_for_op(op.as_ref()) else {
+        return Some(op);
+    };
+    warn!(id = ?op.id(), %reason, "Dropping operation matching runtime denylist before submission");
+    op.decrement_metric_if_exists();
+    denylist.record_eviction(op.destination_domain().name(), "submit_queue");
+    None
 }
 
 #[cfg(test)]

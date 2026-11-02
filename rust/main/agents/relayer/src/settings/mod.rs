@@ -4,7 +4,7 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-use std::{collections::HashSet, ops::Add, path::PathBuf, sync::Arc};
+use std::{collections::HashSet, ops::Add, path::PathBuf, sync::Arc, time::Duration};
 
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use ethers::utils::hex;
@@ -23,11 +23,16 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    msg::{metadata::IsmCacheConfig, pending_message::DEFAULT_MAX_MESSAGE_RETRIES},
+    msg::{
+        metadata::IsmCacheConfig, pending_message::DEFAULT_MAX_MESSAGE_RETRIES,
+        runtime_denylist::RuntimeDenylistConf,
+    },
     settings::matching_list::MatchingList,
 };
 
 pub mod matching_list;
+
+const DEFAULT_RUNTIME_DENYLIST_POLL_INTERVAL_SECS: u64 = 60;
 
 /// Settings for `Relayer`
 #[derive(Debug, AsRef, AsMut, Deref, DerefMut)]
@@ -54,6 +59,10 @@ pub struct RelayerSettings {
     /// This is intentionally not an H256 to allow for addresses of any length without
     /// adding any padding.
     pub address_blacklist: Vec<Vec<u8>>,
+    /// Denylist fetched from a URL and re-polled, so rules change without a
+    /// redeploy. If a fetch fails the previous rules stay active; if the first
+    /// fetch at startup fails, the relayer starts with no runtime rules.
+    pub runtime_denylist: Option<RuntimeDenylistConf>,
     /// This is optional. If not specified, any amount of gas will be valid, otherwise this
     /// is the max allowed gas in wei to relay a transaction.
     pub transaction_gas_limit: Option<U256>,
@@ -309,6 +318,42 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .map(|str| parse_address_list(str, &mut err, || (&p.cwp).add("address_blacklist")))
             .unwrap_or_default();
 
+        let runtime_denylist_url: Option<url::Url> = p
+            .chain(&mut err)
+            .get_opt_key("runtimeDenylistUrl")
+            .parse_from_str("Expected a valid runtime denylist URL")
+            .end();
+        if let Some(url) = &runtime_denylist_url {
+            if !matches!(url.scheme(), "https" | "http" | "file") {
+                err.push(
+                    (&p.cwp).add("runtime_denylist_url"),
+                    eyre::eyre!("`runtimeDenylistUrl` must use https://, http:// or file://"),
+                );
+            }
+            if url.scheme() == "file" && url.to_file_path().is_err() {
+                err.push(
+                    (&p.cwp).add("runtime_denylist_url"),
+                    eyre::eyre!("`runtimeDenylistUrl` must use a local file:// URL"),
+                );
+            }
+        }
+        let runtime_denylist_poll_interval_secs = p
+            .chain(&mut err)
+            .get_opt_key("runtimeDenylistPollIntervalSecs")
+            .parse_u64()
+            .unwrap_or(DEFAULT_RUNTIME_DENYLIST_POLL_INTERVAL_SECS);
+        if runtime_denylist_poll_interval_secs == 0 {
+            err.push(
+                (&p.cwp).add("runtime_denylist_poll_interval_secs"),
+                eyre::eyre!("`runtimeDenylistPollIntervalSecs` must be greater than 0"),
+            );
+        }
+        let runtime_denylist = runtime_denylist_url.map(|url| RuntimeDenylistConf {
+            url,
+            poll_interval: Duration::from_secs(runtime_denylist_poll_interval_secs),
+            cache_path: db.join("runtime_denylist_cache.json"),
+        });
+
         let transaction_gas_limit = p
             .chain(&mut err)
             .get_opt_key("transactionGasLimit")
@@ -501,6 +546,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             whitelist,
             blacklist,
             address_blacklist,
+            runtime_denylist,
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers,
@@ -743,5 +789,76 @@ mod test {
         .to_string();
 
         assert!(error.contains("requires `websocketUrl`"));
+    }
+
+    #[test]
+    fn parses_runtime_denylist() {
+        let settings = parse_settings(json!({
+            "relaychains": "legacy",
+            "runtimedenylisturl": "https://raw.githubusercontent.com/org/repo/main/denylist.json",
+            "runtimedenylistpollintervalsecs": 15,
+            "chains": {
+                "legacy": chain_config("legacy", 1000),
+            },
+        }))
+        .expect("valid runtime denylist should parse");
+        let conf = settings.runtime_denylist.expect("configured");
+        assert_eq!(conf.url.scheme(), "https");
+        assert_eq!(conf.poll_interval, Duration::from_secs(15));
+
+        let settings = parse_settings(json!({
+            "relaychains": "legacy",
+            "chains": {
+                "legacy": chain_config("legacy", 1000),
+            },
+        }))
+        .expect("unset runtime denylist should parse");
+        assert!(settings.runtime_denylist.is_none());
+    }
+
+    #[test]
+    fn rejects_invalid_runtime_denylist() {
+        for (url, interval, expected) in [
+            ("gs://bucket/denylist.json", 60, "must use https://"),
+            ("file://denylist.json", 60, "must use a local file://"),
+            (
+                "file://remote/denylist.json",
+                60,
+                "must use a local file://",
+            ),
+            (
+                "https://example.com/denylist.json",
+                0,
+                "must be greater than 0",
+            ),
+        ] {
+            let error = parse_settings(json!({
+                "relaychains": "legacy",
+                "runtimedenylisturl": url,
+                "runtimedenylistpollintervalsecs": interval,
+                "chains": {
+                    "legacy": chain_config("legacy", 1000),
+                },
+            }))
+            .expect_err("invalid runtime denylist must reject")
+            .to_string();
+            assert!(error.contains(expected), "{error}");
+        }
+    }
+
+    #[test]
+    fn accepts_local_runtime_denylist_files() {
+        for url in [
+            "file:///tmp/denylist.json",
+            "file://localhost/tmp/denylist.json",
+        ] {
+            let settings = parse_settings(json!({
+                "relaychains": "legacy",
+                "runtimedenylisturl": url,
+                "chains": { "legacy": chain_config("legacy", 1000) },
+            }))
+            .expect("local file URL should parse");
+            assert!(settings.runtime_denylist.is_some());
+        }
     }
 }

@@ -645,6 +645,33 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .string()
     .optional()
     .describe('Comma separated list of addresses to blacklist.'),
+  runtimeDenylistUrl: z
+    .url()
+    .refine(
+      (value) => {
+        if (!URL.canParse(value)) return false;
+        const { protocol, hostname } = new URL(value);
+        return (
+          ((protocol === 'https:' || protocol === 'http:') &&
+            hostname.length > 0) ||
+          (protocol === 'file:' && hostname.length === 0)
+        );
+      },
+      {
+        message:
+          'runtimeDenylistUrl must use https://, http:// or a local file:// URL',
+      },
+    )
+    .optional()
+    .describe(
+      'URL (https://, http:// or file://) of a JSON denylist the relayer polls, so rules apply without a redeploy.',
+    ),
+  runtimeDenylistPollIntervalSecs: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Seconds between runtime denylist fetches. Defaults to 60.'),
   transactionGasLimit: ZUWei.optional().describe(
     'This is optional. If not specified, any amount of gas will be valid, otherwise this is the max allowed gas in wei to relay a transaction.',
   ),
