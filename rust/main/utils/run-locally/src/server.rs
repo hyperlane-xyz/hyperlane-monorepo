@@ -34,7 +34,7 @@ async fn send_retry_request_non_blocking() -> io::Result<MessageRetryResponse> {
     })?;
 
     let body = vec![serde_json::json!({
-        "message_id": "*"
+        "messageId": "*"
     })];
     let response = client
         .post(url)

@@ -963,6 +963,10 @@ impl MessageDbLoader {
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         }
+        // Passed every list, so log again if it's denied later.
+        self.destination_iterators[iterator_index]
+            .logged_denials
+            .remove(&message.id());
         let Some(destination_msg_ctx) = self.destination_ctxs.get(&destination) else {
             self.metrics
                 .record_destination_outcome(DESTINATION_OUTCOME_MISSING_CONTEXT);

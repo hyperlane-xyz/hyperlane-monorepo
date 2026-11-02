@@ -53,15 +53,6 @@ const ORIGIN_SIGNER_CACHE_CAPACITY: u64 = 100_000;
 const FETCH_TIMEOUT: Duration = Duration::from_secs(10);
 const INITIAL_FETCH_ATTEMPTS: u32 = 3;
 const INITIAL_FETCH_BACKOFF: Duration = Duration::from_secs(2);
-const MATCH_KEYS: [&str; 6] = [
-    "messageid",
-    "origindomain",
-    "senderaddress",
-    "destinationdomain",
-    "recipientaddress",
-    "bodyregex",
-];
-
 /// Where the runtime denylist is fetched from and how often.
 #[derive(Debug, Clone)]
 pub struct RuntimeDenylistConf {
@@ -262,17 +253,9 @@ fn parse_rule(rule: RawRule, canonical: String) -> Result<ParsedRule> {
 
 fn parse_match(match_: Map<String, Value>) -> Result<MatchingList> {
     verify_match_tron_addresses(&match_)?;
-    let mut lowercased = Map::new();
-    for (key, value) in match_ {
-        let key = key.to_lowercase();
-        ensure!(
-            MATCH_KEYS.contains(&key.as_str()),
-            "Unknown `match` field `{key}`"
-        );
-        lowercased.insert(key, value);
-    }
+    // `ListElement` rejects unknown keys and accepts camelCase.
     let element: ListElement =
-        serde_json::from_value(Value::Object(lowercased)).context("Invalid `match`")?;
+        serde_json::from_value(Value::Object(match_)).context("Invalid `match`")?;
     // Missing fields are wildcards, and `bodyRegex` alone can match anything
     // (`.*`, `""`), so require a specific value in at least one other field.
     ensure!(

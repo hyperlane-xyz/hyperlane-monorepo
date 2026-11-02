@@ -2128,6 +2128,7 @@ async fn runtime_denylist_skips_message_and_reloads_it_after_rule_removed() {
     .await;
 }
 
+#[tracing_test::traced_test]
 #[tokio::test]
 async fn released_denylist_drop_is_reconsidered_after_a_missed_rescan() {
     test_utils::run_test_db(|raw_db| async move {
@@ -2301,10 +2302,26 @@ async fn denied_message_is_logged_once_across_rescans() {
             destination_outcome_count(&loader, DESTINATION_OUTCOME_MESSAGE_BLACKLISTED),
             2
         );
+        logs_assert(|lines: &[&str]| {
+            match lines
+                .iter()
+                .filter(|line| line.contains("Message denied, not relaying"))
+                .count()
+            {
+                1 => Ok(()),
+                n => Err(format!("expected one denial log, got {n}")),
+            }
+        });
+
+        // Once it passes the lists it's forgotten, so a later denial logs again.
+        loader.message_blacklist = Arc::new(MatchingList::default());
+        point_destination_scan_at(&mut loader, 0);
+        assert!(loader.try_load_destination(0).await.unwrap());
         assert_eq!(
-            loader.destination_iterators[0].logged_denials,
-            HashSet::from([message.id()])
+            destination_outcome_count(&loader, DESTINATION_OUTCOME_QUEUED),
+            1
         );
+        assert!(loader.destination_iterators[0].logged_denials.is_empty());
     })
     .await;
 }

@@ -672,17 +672,22 @@ mod test {
     #[test]
     fn test_parse_address_blacklist_skips_empty_entries() {
         let address = H160::random().as_bytes().to_vec();
-        for input in [
-            String::new(),
-            ",".to_owned(),
-            " 0x ".to_owned(),
-            format!("0x{},,", hex::encode(&address)),
-            format!(", 0x{} ,", hex::encode(&address)),
+        for (input, expected) in [
+            (String::new(), vec![]),
+            (",".to_owned(), vec![]),
+            (" 0x ".to_owned(), vec![]),
+            (
+                format!("0x{},,", hex::encode(&address)),
+                vec![address.clone()],
+            ),
+            (
+                format!(", 0x{} ,", hex::encode(&address)),
+                vec![address.clone()],
+            ),
         ] {
             let mut err = ConfigParsingError::default();
             let res = parse_address_list(&input, &mut err, ConfigPath::default);
-            assert!(res.iter().all(|entry| !entry.is_empty()), "{input:?}");
-            assert!(res.len() <= 1, "{input:?}");
+            assert_eq!(res, expected, "{input:?}");
             assert!(err.is_ok(), "{input:?}");
         }
     }

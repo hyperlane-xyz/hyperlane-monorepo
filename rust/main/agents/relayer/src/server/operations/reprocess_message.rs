@@ -14,16 +14,18 @@ use crate::{
         blacklist::AddressBlacklist,
         op_queue::OpQueue,
         pending_message::{MessageContext, PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES},
+        runtime_denylist::RuntimeDenylist,
     },
     settings::matching_list::MatchingList,
 };
 
-/// The relayer's static whitelist and blacklists.
+/// The relayer's whitelist and blacklists, static and runtime.
 #[derive(Clone, Debug, Default)]
 pub struct MessageFilters {
     pub whitelist: Arc<MatchingList>,
     pub blacklist: Arc<MatchingList>,
     pub address_blacklist: Arc<AddressBlacklist>,
+    pub runtime_denylist: Arc<RuntimeDenylist>,
 }
 
 impl MessageFilters {
@@ -39,6 +41,12 @@ impl MessageFilters {
             .is_some()
         {
             Some("Message involves a blacklisted address")
+        } else if self
+            .runtime_denylist
+            .deny_reason_for_message(message)
+            .is_some()
+        {
+            Some("Message matches the runtime denylist")
         } else {
             None
         }
@@ -477,7 +485,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_reprocess_message_respects_static_lists() {
+    async fn test_reprocess_message_respects_message_filters() {
         let domains = &[
             HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
             HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
@@ -504,6 +512,16 @@ mod tests {
                     .recipient
                     .as_bytes()[24..]
                     .to_vec()])),
+                ..Default::default()
+            },
+            MessageFilters {
+                runtime_denylist: Arc::new(RuntimeDenylist::from_rules_for_test(
+                    serde_json::json!([{
+                        "reason": "test",
+                        "addedBy": "test",
+                        "match": { "messageId": format!("{:?}", message.id()) },
+                    }]),
+                )),
                 ..Default::default()
             },
         ];

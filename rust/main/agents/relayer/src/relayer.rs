@@ -1010,6 +1010,7 @@ impl Relayer {
                     whitelist: self.message_whitelist.clone(),
                     blacklist: self.message_blacklist.clone(),
                     address_blacklist: self.address_blacklist.clone(),
+                    runtime_denylist: self.runtime_denylist.clone(),
                 },
             )
             .router();
