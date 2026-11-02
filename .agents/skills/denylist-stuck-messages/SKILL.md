@@ -1,18 +1,18 @@
 ---
 name: denylist-stuck-messages
 description:
-  Add message IDs to the registry's mainnet relayer runtime denylist after
+  Add message IDs to the registry's environment-specific relayer runtime denylist after
   investigating stuck messages. Updates apply after merge without a redeploy.
 ---
 
 # Denylist Stuck Messages
 
-Mainnet relayers in `hyperlane`, `rc`, and `fastpath` poll
-`deployments/relayer/mainnet-denylist.json` in `hyperlane-registry` every minute.
-Change that file in `/Users/pbio/work/hyperlane-registry`; do not add a static
-monorepo blacklist or bump `.registryrc` for a runtime rule change.
-
-This workflow targets `mainnet3`. Testnet relayers do not consume this feed.
+Relayers in `hyperlane`, `rc`, and `fastpath` poll their environment's registry
+feed every minute: `deployments/relayer/mainnet-denylist.json` for `mainnet3`,
+or `deployments/relayer/testnet-denylist.json` for `testnet4`. Confirm the
+environment from the investigation or user instruction before editing. Change
+the appropriate file in `/Users/pbio/work/hyperlane-registry`; do not add a
+static monorepo blacklist or bump `.registryrc` for a runtime rule change.
 
 ## Input
 
@@ -42,7 +42,7 @@ Use `/Users/pbio/work/hyperlane-registry`, or the registry checkout explicitly
 specified by the user. Inspect status and preserve existing work. Start a fresh
 branch from current `main`, such as `<handle>/denylist-<app-context-slug>`.
 
-Read `deployments/relayer/README.md` and the current JSON file. Check whether each
+Read `deployments/relayer/README.md` and the selected environment's JSON file. Check whether each
 message is already denied before adding anything. Preserve existing rules and
 their attribution.
 
@@ -73,7 +73,7 @@ Use the registry's pinned Node version, format the JSON, and run its unit tests:
 ```bash
 cd /Users/pbio/work/hyperlane-registry
 nvm use
-pnpm exec oxfmt --check deployments/relayer/mainnet-denylist.json
+pnpm exec oxfmt --check deployments/relayer/*-denylist.json
 pnpm run test:unit
 ```
 
