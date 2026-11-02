@@ -64,6 +64,7 @@ use crate::{
         },
         op_queue::OpQueue,
         pending_message::MessageContext,
+        runtime_denylist::{RuntimeDenylist, RuntimeDenylistMetrics},
         QueueOperationBatch,
     },
     server::{self as relayer_server},
@@ -240,6 +241,7 @@ pub struct Relayer {
     message_whitelist: Arc<MatchingList>,
     message_blacklist: Arc<MatchingList>,
     address_blacklist: Arc<AddressBlacklist>,
+    runtime_denylist: Arc<RuntimeDenylist>,
     transaction_gas_limit: Option<U256>,
     skip_transaction_gas_limit_for: HashSet<u32>,
     allow_local_checkpoint_syncers: bool,
@@ -359,6 +361,13 @@ impl BaseAgent for Relayer {
         let message_whitelist = Arc::new(settings.whitelist);
         let message_blacklist = Arc::new(settings.blacklist);
         let address_blacklist = Arc::new(AddressBlacklist::new(settings.address_blacklist));
+        let runtime_denylist = Arc::new(RuntimeDenylist::new(
+            settings.runtime_denylist.clone(),
+            RuntimeDenylistMetrics::new(&core_metrics)?,
+        )?);
+        // Load before message processing starts so queued messages are
+        // checked against the current rules.
+        runtime_denylist.initial_load().await;
         let skip_transaction_gas_limit_for = settings.skip_transaction_gas_limit_for;
         let transaction_gas_limit = settings.transaction_gas_limit;
 
@@ -501,6 +510,7 @@ impl BaseAgent for Relayer {
             message_whitelist,
             message_blacklist,
             address_blacklist,
+            runtime_denylist,
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
@@ -563,6 +573,20 @@ impl BaseAgent for Relayer {
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started tokio console server", "Relayer startup duration measurement");
 
+        if self.runtime_denylist.is_enabled() {
+            let runtime_denylist = tokio::task::Builder::new()
+                .name("runtime_denylist")
+                .spawn(TaskMonitor::instrument(
+                    &task_monitor,
+                    self.runtime_denylist
+                        .clone()
+                        .poll()
+                        .instrument(info_span!("RuntimeDenylist")),
+                ))
+                .expect("spawning tokio task from Builder is infallible");
+            tasks.push(runtime_denylist);
+        }
+
         let sender = BroadcastSender::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
         // send channels by destination chain
         let mut send_channels = HashMap::with_capacity(self.destinations.len());
@@ -622,7 +646,8 @@ impl BaseAgent for Relayer {
                 task_monitor.clone(),
                 dispatcher_entrypoint,
                 db,
-            );
+            )
+            .with_runtime_denylist(self.runtime_denylist.clone());
             prep_queues.insert(dest_domain.id(), message_processor.prepare_queue().await);
 
             tasks.push(self.run_destination_processor(
@@ -950,7 +975,8 @@ impl Relayer {
                 .with_cors_origins(self.relay_api_cors_origins.clone())
                 .with_message_whitelist(self.message_whitelist.clone())
                 .with_message_blacklist(self.message_blacklist.clone())
-                .with_address_blacklist(self.address_blacklist.clone()),
+                .with_address_blacklist(self.address_blacklist.clone())
+                .with_runtime_denylist(self.runtime_denylist.clone()),
             )
         } else {
             None
@@ -964,6 +990,7 @@ impl Relayer {
             .with_msg_ctxs(msg_ctxs)
             .with_prover_sync(prover_syncs)
             .with_dispatcher_command_entrypoints(dispatcher_entrypoints)
+            .with_runtime_denylist(self.runtime_denylist.clone())
             .router();
 
         (router, maybe_relay_api_state)
@@ -1412,6 +1439,7 @@ impl Relayer {
         let message_whitelist = self.message_whitelist.clone();
         let message_blacklist = self.message_blacklist.clone();
         let address_blacklist = self.address_blacklist.clone();
+        let runtime_denylist = self.runtime_denylist.clone();
         let metric_app_contexts = self.metric_app_contexts.clone();
         let max_retries = self.max_retries;
         let origin_domain = origin.domain.clone();
@@ -1470,6 +1498,7 @@ impl Relayer {
                         }
                     }
                 };
+                message_db_loader.set_runtime_denylist(runtime_denylist);
                 message_db_loader.set_index_notifications(
                     BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
                 );

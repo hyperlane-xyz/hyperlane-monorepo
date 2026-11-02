@@ -23,7 +23,7 @@ use tracing::{debug, instrument, trace};
 
 use super::{
     blacklist::AddressBlacklist, metadata::AppContextClassifier, pending_message::*,
-    QueueOperationBatch,
+    runtime_denylist::RuntimeDenylist, QueueOperationBatch,
 };
 use crate::{db_loader::DbLoaderExt, settings::matching_list::MatchingList};
 
@@ -35,6 +35,7 @@ const DESTINATION_OUTCOME_ALREADY_LOADED: &str = "already_loaded";
 const DESTINATION_OUTCOME_NOT_WHITELISTED: &str = "not_whitelisted";
 const DESTINATION_OUTCOME_MESSAGE_BLACKLISTED: &str = "message_blacklisted";
 const DESTINATION_OUTCOME_ADDRESS_BLACKLISTED: &str = "address_blacklisted";
+const DESTINATION_OUTCOME_RUNTIME_DENYLISTED: &str = "runtime_denylisted";
 const DESTINATION_OUTCOME_MISSING_CONTEXT: &str = "missing_context";
 const DESTINATION_OUTCOME_RETRY_INELIGIBLE: &str = "retry_ineligible";
 const DESTINATION_OUTCOME_QUEUED: &str = "queued";
@@ -49,6 +50,10 @@ pub struct MessageDbLoader {
     message_blacklist: Arc<MatchingList>,
     /// Addresses that messages may not interact with.
     address_blacklist: Arc<AddressBlacklist>,
+    /// Rules fetched at runtime; see `RuntimeDenylist`.
+    runtime_denylist: Arc<RuntimeDenylist>,
+    /// Denylist version last seen, to rescan skipped messages when it changes.
+    runtime_denylist_version: u64,
     metrics: MessageDbLoaderMetrics,
     /// channel for each destination chain to send operations (i.e. message
     /// submissions) to
@@ -446,6 +451,7 @@ impl DbLoaderExt for MessageDbLoader {
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
+        self.check_runtime_denylist_version();
         self.drain_index_notifications()?;
         let migration_was_active = self.migration_iterator.is_some();
         self.migrate_legacy_batch().await?;
@@ -543,6 +549,8 @@ impl MessageDbLoader {
             message_whitelist,
             message_blacklist,
             address_blacklist,
+            runtime_denylist: Default::default(),
+            runtime_denylist_version: 0,
             metrics,
             send_channels,
             destination_ctxs,
@@ -556,6 +564,21 @@ impl MessageDbLoader {
             max_retries,
             index_notifications: None,
         })
+    }
+
+    pub fn set_runtime_denylist(&mut self, runtime_denylist: Arc<RuntimeDenylist>) {
+        self.runtime_denylist_version = runtime_denylist.version();
+        self.runtime_denylist = runtime_denylist;
+    }
+
+    /// Rescan when runtime rules change, so messages skipped under a removed
+    /// rule are loaded again.
+    fn check_runtime_denylist_version(&mut self) {
+        let version = self.runtime_denylist.version();
+        if version != self.runtime_denylist_version {
+            self.runtime_denylist_version = version;
+            self.request_low_range_reopens();
+        }
     }
 
     pub fn set_index_notifications(
@@ -871,6 +894,13 @@ impl MessageDbLoader {
                 blacklisted_address = hex::encode(blacklisted_address),
                 "Message involves blacklisted address, skipping"
             );
+            self.destination_iterators[iterator_index].advance(direction, nonce);
+            return Ok(true);
+        }
+        if let Some(reason) = self.runtime_denylist.deny_reason_for_message(&message) {
+            self.metrics
+                .record_destination_outcome(DESTINATION_OUTCOME_RUNTIME_DENYLISTED);
+            debug!(?message, %reason, "Message matches runtime denylist, skipping");
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         }
