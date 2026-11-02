@@ -1,230 +1,113 @@
 ---
 name: denylist-stuck-messages
 description:
-  Add message IDs to the relayer denylist. Use after investigating stuck
-  messages with /investigate-stuck-messages, or when you have specific message IDs
-  to denylist.
+  Add message IDs to the registry's mainnet relayer runtime denylist after
+  investigating stuck messages. Updates apply after merge without a redeploy.
 ---
 
 # Denylist Stuck Messages
 
-Add message IDs to the relayer denylist configuration, create a PR, and deploy.
+Mainnet relayers in `hyperlane`, `rc`, and `fastpath` poll
+`deployments/relayer/mainnet-denylist.json` in `hyperlane-registry` every minute.
+Change that file in `/Users/pbio/work/hyperlane-registry`; do not add a static
+monorepo blacklist or bump `.registryrc` for a runtime rule change.
 
-## When to Use
+This workflow targets `mainnet3`. Testnet relayers do not consume this feed.
 
-1. **After investigation:**
-   - User ran `/investigate-stuck-messages` and wants to denylist the found messages
-   - User says "denylist these" or "add these to blacklist"
+## Input
 
-2. **Direct denylist request:**
-   - User provides specific message IDs to denylist
-   - User pastes message IDs from explorer or logs
+- Message IDs: `0x` followed by exactly 64 hexadecimal characters.
+- App context and reason: use the investigation results or the user's explanation.
+- `addedBy`: the author, normally their GitHub handle.
+- `expiresAt`: optional RFC 3339 expiry, only when requested.
 
-## Input Parameters
+Example:
 
-```
-/denylist-stuck-messages <message_ids> [app_context=NAME] [reason=REASON]
-```
-
-| Parameter     | Required | Default                  | Description                                    |
-| ------------- | -------- | ------------------------ | ---------------------------------------------- |
-| `message_ids` | Yes      | -                        | Space or newline separated message IDs (0x...) |
-| `app_context` | No       | Inferred or "Unknown"    | App context name for the comment               |
-| `reason`      | No       | "stuck in prepare queue" | Reason for denylisting (for comment)           |
-| `environment` | No       | `mainnet3`               | Deployment environment                         |
-
-**Examples:**
-
-```
-/denylist-stuck-messages 0xabc123 0xdef456 app_context=USDC/mainnet-cctp-v2-standard
-```
-
-```
-/denylist-stuck-messages
-0xabc123
-0xdef456
-0x789ghi
+```text
+/denylist-stuck-messages <message_ids> app_context=USDC/mainnet-cctp-v2-standard reason=<reason>
 ```
 
 ## Workflow
 
-### Step 1: Parse Message IDs
+### 1. Verify the targets
 
-Extract all message IDs from the input. Valid formats:
+Parse space-, newline-, or comma-separated message IDs. Validate every ID and
+remove duplicates. Show the app context, reason, and exact IDs before making
+changes. Ask for confirmation when the intended targets are unclear; an explicit
+instruction to denylist the supplied IDs already authorizes the edit.
 
-- Space-separated: `0xabc 0xdef 0x123`
-- Newline-separated
-- Comma-separated: `0xabc, 0xdef, 0x123`
+### 2. Prepare the registry checkout
 
-Validate each ID:
+Use `/Users/pbio/work/hyperlane-registry`, or the registry checkout explicitly
+specified by the user. Inspect status and preserve existing work. Start a fresh
+branch from current `main`, such as `<handle>/denylist-<app-context-slug>`.
 
-- Must start with `0x`
-- Must be 66 characters (0x + 64 hex chars)
+Read `deployments/relayer/README.md` and the current JSON file. Check whether each
+message is already denied before adding anything. Preserve existing rules and
+their attribution.
 
-### Step 2: Confirm with User
+### 3. Add rules
 
-Ask the user to confirm:
+Append one rule per new message ID to the existing `rules` array:
 
-```
-Ready to denylist X messages for [APP_CONTEXT]:
-
-| Message ID |
-|------------|
-| 0xabc123... |
-| 0xdef456... |
-
-Proceed?
-```
-
-Options:
-
-1. "Yes, denylist all" (Recommended)
-2. "Let me modify the list"
-3. "Cancel"
-
-### Step 3: Get User's GitHub Handle
-
-Ask for GitHub handle if not known:
-
-```
-What is your GitHub handle for the branch name?
+```json
+{
+  "reason": "<APP_CONTEXT>: <REASON> [YYYY-MM-DD]",
+  "addedBy": "<github_handle>",
+  "match": {
+    "messageId": "<0x followed by 64 hex characters>"
+  }
+}
 ```
 
-### Step 4: Update Blacklist Configuration
+JSON does not support comments. Include destination/grouping context in `reason`.
+For other rule types, follow the registry README: exactly one of `match` or
+`address`; a `match` needs at least one non-wildcard exact-match field.
+`bodyRegex` alone does not qualify. Never add a broad rule just to avoid listing
+specific message IDs.
 
-Edit `typescript/infra/config/environments/mainnet3/customBlacklist.ts`:
+### 4. Validate and open a registry PR
 
-1. Read the current file
-2. Add new message IDs to the `blacklistedMessageIds` array
-3. Include a comment with:
-   - App context name
-   - Date (YYYY-MM-DD format)
-   - Reason
-
-Example addition:
-
-```typescript
-  // [APP_CONTEXT] [REASON] [YYYY-MM-DD]
-  '0xabc123...',
-  '0xdef456...',
-```
-
-Add entries near the end of the array, before the closing bracket.
-
-### Step 5: Create Branch and Pull Request
+Use the registry's pinned Node version, format the JSON, and run its unit tests:
 
 ```bash
-# Checkout main and pull latest
-git checkout main && git pull origin main
-
-# Create branch
-git checkout -b <github_handle>/denylist-<app_context>
-
-# Stage changes
-git add typescript/infra/config/environments/mainnet3/customBlacklist.ts
-
-# Commit
-git commit -m "chore: denylist <APP_CONTEXT> stuck messages
-
-Added X message IDs to denylist for <APP_CONTEXT> route.
-Reason: <REASON>
-"
-
-# Push and create PR
-git push -u origin HEAD
-gh pr create --title "chore: denylist <APP_CONTEXT> stuck messages" --body "$(cat <<'EOF'
-## Summary
-- Added X message IDs to the relayer denylist
-- App context: `<APP_CONTEXT>`
-- Reason: <REASON>
-
-## Message IDs
-<list of message IDs>
-
-## Test plan
-- [ ] Review message IDs are correct
-- [ ] Deploy relayer with updated denylist
-
-EOF
-)"
+cd /Users/pbio/work/hyperlane-registry
+nvm use
+pnpm exec oxfmt --check deployments/relayer/mainnet-denylist.json
+pnpm run test:unit
 ```
 
-### Step 6: Output Slack Message
+Follow registry changeset conventions; write any required changeset directly
+rather than running the interactive changeset CLI. Commit with hooks enabled,
+push, and open a PR in `hyperlane-xyz/hyperlane-registry`.
 
-Before asking about deployment, output the Slack message:
+Use Problem / Solution / Validation in the PR description. Include the exact
+message IDs, reason, app context, and test result. Use a body file or structured
+API argument to preserve the Markdown. Report the PR URL. Merge only when the
+user has authorized it.
 
-```
-**Slack Message (copy/paste to #relayer-alerts):**
+### 5. Verify activation after merge
 
-:no_entry_sign: *Denylist PR created*
+A rule edit needs no relayer deployment once runtime denylisting is enabled.
+`raw.githubusercontent.com` caches responses for up to five minutes, followed by
+the relayer's one-minute poll, so allow about six minutes after merge.
 
-App context: `<APP_CONTEXT>`
-Messages denylisted: X
-Reason: <REASON>
+Read back the merged file and check the relayers' loaded rule counts and denial
+logs in all three contexts. For an urgent refresh, the configured relayer's
+`POST /runtime_denylist/refresh` endpoint fetches immediately, but can still read a
+cached GitHub response. Do not claim activation from merge or endpoint success
+alone; verify the rule was loaded and the target messages are denied.
 
-PR: <PR_URL>
-```
+A failed refresh logs an error and retains the last good rules. On startup, a
+failed fetch uses the disk cache; without a valid cache the relayer starts with
+no runtime rules and logs an error. Surface a load failure and investigate it.
 
-### Step 7: Ask About Deployment
+If runtime denylisting has not yet been deployed, report that prerequisite and
+prepare the three-context relayer rollout separately. Adding a registry rule
+does not upgrade an older agent.
 
-Ask the user:
+## Handoff
 
-```
-PR created. Deploy the relayer now with the updated denylist?
-```
-
-Options:
-
-1. "Yes, deploy now" (Recommended)
-2. "No, I'll deploy later"
-
-If user confirms, deploy every mainnet3 relayer context. They share the same blacklist, so deploying only `hyperlane` leaves `rc` and `fastpath` relaying the messages:
-
-```bash
-for context in hyperlane rc fastpath; do
-  pnpm --dir typescript/infra exec tsx ./scripts/agents/deploy-agents.ts -e mainnet3 --context "$context" --role relayer
-done
-```
-
-If user skips, output the command for later use.
-
-### Step 8: Update Slack Message After Deploy
-
-If deployed, update the Slack message:
-
-```
-:no_entry_sign: *Denylist deployed*
-
-App context: `<APP_CONTEXT>`
-Messages denylisted: X
-Reason: <REASON>
-
-PR: <PR_URL>
-```
-
-## Grouping by Destination
-
-If message IDs are for multiple destinations (from investigation output), group them in the blacklist file:
-
-```typescript
-  // [APP_CONTEXT] stuck messages [YYYY-MM-DD]
-  // dest: arbitrum
-  '0xabc123...',
-  '0xdef456...',
-  // dest: optimism
-  '0x789ghi...',
-  '0xjkl012...',
-```
-
-## Error Handling
-
-- **Invalid message ID format**: Show which IDs are invalid, ask user to fix
-- **Git conflicts**: Pull latest main and retry
-- **PR creation fails**: Check gh auth status
-- **Deployment fails**: Show error, suggest manual deployment
-
-## Prerequisites
-
-- `gh` CLI authenticated
-- Git configured with push access to the repo
-- For deployment: `kubectl` configured with mainnet cluster access
+Report the registry PR, number of new rules, reason, validation, and whether
+activation was verified or remains pending. If useful, provide a Slack message
+for the user to copy; do not send it unless explicitly authorized.

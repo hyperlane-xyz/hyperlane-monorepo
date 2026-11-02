@@ -357,8 +357,8 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
   }
 
   async getSanctionedAddresses() {
-    // Only mainnet relays real value; testnets keep the exploit lists below
-    // but skip the network fetch.
+    // Mainnet exploit rules live in the runtime registry feed. Testnets keep
+    // the legacy exploit lists below and skip the OFAC network fetch.
     const sanctionedEthereumAddresses =
       this.runEnv === 'mainnet3' ? await this.fetchOfacEvmAddresses() : [];
 
@@ -378,12 +378,10 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     const binanceExploiter = ['0xA97bF7836F8A08F9Ed91D41453D371493FAE8d10'];
 
     const uniqueAddresses = new Set(
-      [
-        ...sanctionedEthereumAddresses,
-        ...radiantExploiter,
-        ...flowAddresses,
-        ...binanceExploiter,
-      ].map((address) => address.toLowerCase()),
+      (this.runEnv === 'mainnet3'
+        ? sanctionedEthereumAddresses
+        : [...radiantExploiter, ...flowAddresses, ...binanceExploiter]
+      ).map((address) => address.toLowerCase()),
     );
 
     return Array.from(uniqueAddresses);
