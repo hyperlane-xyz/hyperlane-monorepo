@@ -34,7 +34,7 @@ use crate::msg::pending_message::CONFIRM_DELAY;
 use crate::server::operations::message_retry::MessageRetryRequest;
 
 use super::op_batch::OperationBatch;
-use super::{op_queue::OpQueue, QueueOperationBatch};
+use super::{op_queue::OpQueue, runtime_denylist::RuntimeDenylist, QueueOperationBatch};
 
 use stage::prepare;
 use stage::submit::filter_operations_for_submit;
@@ -163,6 +163,15 @@ impl MessageProcessor {
             payload_dispatcher_entrypoint,
             db: Arc::new(db),
         }
+    }
+
+    /// Drop operations matching `denylist` from the prepare and submit
+    /// queues. Confirm-queue operations, and lander payloads already handed to
+    /// the dispatcher, have been submitted and are not recalled.
+    pub fn with_runtime_denylist(mut self, denylist: Arc<RuntimeDenylist>) -> Self {
+        self.prepare_queue = self.prepare_queue.with_runtime_denylist(denylist.clone());
+        self.submit_queue = self.submit_queue.with_runtime_denylist(denylist);
+        self
     }
 
     pub async fn prepare_queue(&self) -> OpQueue {

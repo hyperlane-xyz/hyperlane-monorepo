@@ -125,6 +125,7 @@ export interface BaseRelayerConfig {
   whitelist?: MatchingList;
   blacklist?: MatchingList;
   addressBlacklist?: string;
+  runtimeDenylist?: RuntimeDenylistConfig;
   transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: string[];
   metricAppContextsGetter?: () => MetricAppContext[];
@@ -142,6 +143,11 @@ export interface BaseRelayerConfig {
   reorgPeriodOverrides?: ChainMap<number>;
   interval?: number;
   relayApi?: RelayApiConfig;
+}
+
+export interface RuntimeDenylistConfig {
+  url: string;
+  pollIntervalSecs?: number;
 }
 
 export interface RelayApiConfig {
@@ -234,6 +240,14 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     relayerConfig.addressBlacklist = (await this.getSanctionedAddresses()).join(
       ',',
     );
+
+    if (baseConfig.runtimeDenylist) {
+      relayerConfig.runtimeDenylistUrl = baseConfig.runtimeDenylist.url;
+      if (baseConfig.runtimeDenylist.pollIntervalSecs !== undefined) {
+        relayerConfig.runtimeDenylistPollIntervalSecs =
+          baseConfig.runtimeDenylist.pollIntervalSecs;
+      }
+    }
 
     if (baseConfig.transactionGasLimit) {
       relayerConfig.transactionGasLimit =

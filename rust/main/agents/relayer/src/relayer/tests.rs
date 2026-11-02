@@ -280,6 +280,7 @@ fn generate_test_relayer_settings(
         whitelist: MatchingList::default(),
         blacklist: MatchingList::default(),
         address_blacklist: Vec::new(),
+        runtime_denylist: None,
         transaction_gas_limit: None,
         skip_transaction_gas_limit_for: HashSet::new(),
         allow_local_checkpoint_syncers: true,
