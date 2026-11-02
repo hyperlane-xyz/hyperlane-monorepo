@@ -52,7 +52,7 @@ impl OpQueue {
     /// rule stays active and reloads it after the rule is removed.
     async fn evict_denied(&self, popped: Vec<QueueOperation>) -> Vec<QueueOperation> {
         let mut kept = Vec::with_capacity(popped.len());
-        for op in popped {
+        for mut op in popped {
             let Some(reason) = self.denylist.deny_reason_for_queued_op(op.as_ref()).await else {
                 kept.push(op);
                 continue;
@@ -63,6 +63,7 @@ impl OpQueue {
                 %reason,
                 "Dropping operation matching runtime denylist"
             );
+            op.on_runtime_denylist_drop();
             op.decrement_metric_if_exists();
             self.denylist
                 .record_eviction(op.destination_domain().name(), &self.queue_metrics_label);

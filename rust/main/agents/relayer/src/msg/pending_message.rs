@@ -281,16 +281,6 @@ impl PendingMessage {
         }
     }
 
-    /// After a denylist drop, have the loader look at this message again
-    /// once it's released. A rule removed while the drop was still being
-    /// processed would otherwise leave the message unloaded: the loader's
-    /// rescan saw it as already loaded and moved past it.
-    fn reconsider_on_release(&mut self) {
-        if let Some(guard) = self.loaded_message_guard.as_mut() {
-            guard.reconsider_on_release();
-        }
-    }
-
     pub(super) fn set_loaded_message_guard(&mut self, guard: LoadedMessageGuard) {
         self.loaded_message_guard = Some(guard);
     }
@@ -382,6 +372,12 @@ impl TryBatchAs<HyperlaneMessage> for PendingMessage {
 #[async_trait]
 #[typetag::serialize]
 impl PendingOperation for PendingMessage {
+    fn on_runtime_denylist_drop(&mut self) {
+        if let Some(guard) = self.loaded_message_guard.as_mut() {
+            guard.reconsider_on_release();
+        }
+    }
+
     fn id(&self) -> H256 {
         self.message.id()
     }
@@ -521,7 +517,7 @@ impl PendingOperation for PendingMessage {
                     warn!(?message_id, %reason, "Dropping message: origin tx signer matches runtime denylist");
                     check.record_drop(self.ctx.destination_mailbox.domain().name());
                     // Not terminal: the loader reloads it if the rule is removed.
-                    self.reconsider_on_release();
+                    self.on_runtime_denylist_drop();
                     return PendingOperationResult::Drop;
                 }
                 Ok(None) if lookup_paused => {}

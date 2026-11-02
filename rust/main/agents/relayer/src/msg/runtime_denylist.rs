@@ -765,7 +765,7 @@ impl OriginSenderCheck {
 
     /// Returns the reason if a signer of the origin tx is denied. Lookups are
     /// cached and shared, including an empty result when the signers can't
-    /// be determined (no stored tx, tx not found, zero sender). Other errors
+    /// be determined (no matching dispatch, tx not found, zero sender). Other errors
     /// aren't cached, so the caller can retry.
     pub async fn deny_reason(
         &self,

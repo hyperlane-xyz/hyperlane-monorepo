@@ -233,10 +233,10 @@ impl SealevelMailboxIndexer {
                 message_account_slot,
                 |previous_slot| rpc_client.get_block(previous_slot),
             )
-            .await?
+            .await
         {
-            Ok(log_meta) => Ok(DispatchLogMeta::Found(log_meta)),
-            Err(err) if err.is_log_meta_unresolvable() => {
+            Ok(Ok(log_meta)) => Ok(DispatchLogMeta::Found(log_meta)),
+            Ok(Err(err)) if err.is_log_meta_unresolvable() => {
                 warn!(
                     ?err,
                     ?message_storage_pda_pubkey,
@@ -245,7 +245,12 @@ impl SealevelMailboxIndexer {
                 );
                 Ok(DispatchLogMeta::NotInBlock)
             }
-            Err(err) => Err(err.into()),
+            Ok(Err(err)) => Err(err.into()),
+            Err(err) if is_get_block_unresolvable_after_retries(&err) => {
+                warn!(?err, "Previous-slot block unavailable after provider retries; falling back to basic log meta");
+                Ok(DispatchLogMeta::BlockUnavailable)
+            }
+            Err(err) => Err(err),
         }
     }
 
@@ -366,10 +371,10 @@ impl SealevelMailboxIndexer {
                 message_account_slot,
                 |previous_slot| rpc_client.get_block(previous_slot),
             )
-            .await?
+            .await
         {
-            Ok(log_meta) => Ok(Some(log_meta)),
-            Err(err) if err.is_log_meta_unresolvable() => {
+            Ok(Ok(log_meta)) => Ok(Some(log_meta)),
+            Ok(Err(err)) if err.is_log_meta_unresolvable() => {
                 warn!(
                     ?err,
                     ?message_storage_pda_pubkey,
@@ -378,7 +383,12 @@ impl SealevelMailboxIndexer {
                 );
                 Ok(None)
             }
-            Err(err) => Err(err.into()),
+            Ok(Err(err)) => Err(err.into()),
+            Err(err) if is_get_block_unresolvable_after_retries(&err) => {
+                warn!(?err, "Previous-slot block unavailable after provider retries; falling back to basic log meta");
+                Ok(None)
+            }
+            Err(err) => Err(err),
         }
     }
 }

@@ -40,7 +40,7 @@ use stage::prepare;
 use stage::submit::{self, filter_operations_for_submit};
 
 mod disposition;
-mod stage;
+pub(crate) mod stage;
 
 /// This is needed for logic where we need to allocate
 /// based on how many queues exist in each MessageProcessor.

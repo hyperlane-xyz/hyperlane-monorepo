@@ -2175,3 +2175,105 @@ async fn released_denylist_drop_is_reconsidered_after_a_missed_rescan() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn signer_denied_queue_drop_stays_unloaded_until_rule_removed() {
+    assert_signer_denied_drop_reloads(false).await;
+}
+
+#[tokio::test]
+async fn signer_denied_lander_drop_stays_unloaded_until_rule_removed() {
+    assert_signer_denied_drop_reloads(true).await;
+}
+
+async fn assert_signer_denied_drop_reloads(lander: bool) {
+    use crate::msg::{
+        message_processor::stage::submit::drop_denied_before_submission, op_queue::OpQueue,
+    };
+
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let (mut loader, mut receiver) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        let mut mailbox = hyperlane_test::mocks::MockMailboxContract::new();
+        mailbox.expect__domain().return_const(destination.clone());
+        Arc::get_mut(loader.destination_ctxs.get_mut(&destination.id()).unwrap())
+            .unwrap()
+            .destination_mailbox = Arc::new(mailbox);
+        finish_legacy_migration(&mut loader).await;
+        let message = dummy_hyperlane_message(&destination, 0);
+        add_db_entry(&db, &message, 0);
+        let denylist = Arc::new(RuntimeDenylist::default());
+        let signer = H256::from_low_u64_be(123);
+        denylist
+            .cache_origin_signers_for_test(message.id(), vec![signer])
+            .await;
+        loader.set_runtime_denylist(denylist.clone());
+        point_destination_scan_at(&mut loader, 0);
+        assert!(loader.try_load_destination(0).await.unwrap());
+        let batch = receiver.try_recv().expect("initial load");
+
+        // The rule lands while this message is loaded. Its rescan advances
+        // past the live operation, so a later drop must hand it back.
+        denylist.set_rules_for_test(serde_json::json!([
+            { "reason": "test", "addedBy": "test", "address": format!("{signer:?}") }
+        ]));
+        loader.tick().await.unwrap();
+        assert!(receiver.try_recv().is_err());
+        if lander {
+            assert!(
+                drop_denied_before_submission(&denylist, only_operation(batch))
+                    .await
+                    .is_none()
+            );
+        } else {
+            let (_, retry_receiver) = tokio::sync::broadcast::channel(1);
+            let metrics = IntGaugeVec::new(
+                prometheus::Opts::new("test_denylist_queue", "test"),
+                &[
+                    "destination",
+                    "queue_metrics_label",
+                    "operation_status",
+                    "app_context",
+                ],
+            )
+            .unwrap();
+            let mut queue = OpQueue::new(
+                metrics,
+                "prepare_queue".to_owned(),
+                Arc::new(tokio::sync::Mutex::new(retry_receiver)),
+            )
+            .with_runtime_denylist(denylist.clone());
+            queue.push(only_operation(batch), None).await;
+            assert!(queue.pop_many(1).await.is_empty());
+        }
+        assert_eq!(
+            *loader.destination_iterators[0]
+                .released_for_reconsideration
+                .lock(),
+            vec![message.nonce],
+            "every denylist drop must hand back its nonce on release"
+        );
+
+        // A handback must not load a cached denied signer into another
+        // prepare cycle, including on lander where queue eviction is disabled.
+        for _ in 0..3 {
+            loader.tick().await.unwrap();
+            assert!(receiver.try_recv().is_err());
+            assert!(loader.destination_iterators[0]
+                .loaded_messages
+                .lock()
+                .is_empty());
+        }
+        assert!(destination_outcome_count(&loader, DESTINATION_OUTCOME_RUNTIME_DENYLISTED) > 0);
+        denylist.set_rules_for_test(serde_json::json!([]));
+        loader.tick().await.unwrap();
+        assert_eq!(
+            only_operation(receiver.try_recv().expect("unblocked")).id(),
+            message.id()
+        );
+    })
+    .await;
+}

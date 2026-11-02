@@ -923,7 +923,15 @@ impl MessageDbLoader {
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         }
-        if let Some(reason) = self.runtime_denylist.deny_reason_for_message(&message) {
+        let deny_reason = match self.runtime_denylist.deny_reason_for_message(&message) {
+            Some(reason) => Some(reason),
+            None => {
+                self.runtime_denylist
+                    .deny_reason_for_cached_signers(&message.id())
+                    .await
+            }
+        };
+        if let Some(reason) = deny_reason {
             self.metrics
                 .record_destination_outcome(DESTINATION_OUTCOME_RUNTIME_DENYLISTED);
             debug!(?message, %reason, "Message matches runtime denylist, skipping");
