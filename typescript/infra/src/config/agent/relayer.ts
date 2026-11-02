@@ -396,6 +396,12 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       '0x430b9b4a60d18affe500b731a97b5aa622c7863f',
       // Tron TPBkSjkCMn2ckrMuAP8n2J1jdjbw76bKN4
       '0x90f8dfb1c5e5ebb29dcfbb66d7649fbde6a7293e',
+      // Reported by ZeroShadow 2026-10-31; bridged Tron->Ethereum via Hyperlane
+      '0xb196981c37cfe105506613d1bd4153b9e63df92e',
+      // Tron TQXm9qEL64YmGAzZoMspM8qyWPZ3tbqt6X
+      '0x9fb9e907c054fbf59735818d95514cbacbffb79b',
+      // Tron TQrzMj8eKRAhizejiejaQVjiL95XsbxcAD
+      '0xa35cd62b3ee93f358eebf025229a79ff09ac2ee6',
     ];
 
     const uniqueAddresses = new Set(
