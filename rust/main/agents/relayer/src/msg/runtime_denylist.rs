@@ -42,7 +42,7 @@ use prometheus::{IntCounter, IntCounterVec, IntGauge, IntGaugeVec};
 use serde::Deserialize;
 use serde_json::{Map, Value};
 use tokio::io::AsyncReadExt;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 use url::Url;
 
 use crate::settings::matching_list::{MatchInfo, MatchingList};
@@ -816,12 +816,11 @@ impl OriginSenderCheck {
         {
             return Ok(non_zero(signers, &message_id));
         }
+        // The hash is written after the message (and by scraper backfill
+        // later still), so a missing one may just not be stored yet. Retry
+        // through the caller's bounded backoff rather than caching unknown.
         let Some(tx_hash) = tx_hash else {
-            debug!(
-                ?message_id,
-                "Dispatch tx unknown; skipping origin sender check"
-            );
-            return Ok(vec![]);
+            bail!("Dispatch tx hash for {message_id:?} isn't stored yet");
         };
         match self.provider.get_txn_by_hash(&tx_hash).await {
             Ok(txn) => Ok(non_zero(vec![txn.sender], &message_id)),

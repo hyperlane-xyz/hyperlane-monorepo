@@ -649,7 +649,7 @@ pub(crate) mod origin_sender {
     }
 
     #[tokio::test]
-    async fn skips_lookup_without_address_rules_and_caches_unknown_tx() {
+    async fn skips_lookup_without_address_rules() {
         let s = setup(json!([message_rule(H256::random())]), None);
         let message = stored_message(&s.db);
         assert_eq!(
@@ -657,27 +657,28 @@ pub(crate) mod origin_sender {
             None
         );
         assert_eq!(s.indexer.calls.load(Ordering::SeqCst), 0);
-
-        let s = setup(json!([address_rule(EVM_ADDRESS)]), None);
-        let unknown = HyperlaneMessage::default();
-        for _ in 0..2 {
-            let reason = s.check.deny_reason(&s.db, &unknown).await.expect("ok");
-            assert_eq!(reason, None);
-        }
-        assert_eq!(s.indexer.calls.load(Ordering::SeqCst), 1);
-        assert_eq!(s.provider.calls.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test]
-    async fn zero_tx_hash_or_zero_sender_is_unknown() {
-        let s = setup(json!([address_rule(EVM_ADDRESS)]), None);
+    async fn hash_not_stored_yet_is_retried_until_it_is() {
+        // The hash is written after the message, so a missing (or zero) hash
+        // must not be cached as unknown: that would bypass the check.
+        let s = setup(json!([address_rule(EVM_ADDRESS)]), Some(evm(EVM_ADDRESS)));
         let message = HyperlaneMessage::default();
+        assert!(s.check.deny_reason(&s.db, &message).await.is_err());
         s.db.store_dispatched_tx_hash_by_message_id(&message.id(), &H512::zero())
             .expect("store");
-        let reason = s.check.deny_reason(&s.db, &message).await.expect("ok");
-        assert_eq!(reason, None);
+        assert!(s.check.deny_reason(&s.db, &message).await.is_err());
         assert_eq!(s.provider.calls.load(Ordering::SeqCst), 0);
 
+        s.db.store_dispatched_tx_hash_by_message_id(&message.id(), &H512::random())
+            .expect("store");
+        let reason = s.check.deny_reason(&s.db, &message).await.expect("ok");
+        assert!(reason.is_some());
+    }
+
+    #[tokio::test]
+    async fn zero_sender_is_unknown() {
         let s = setup(json!([address_rule(EVM_ADDRESS)]), Some(H256::zero()));
         let message = stored_message(&s.db);
         let reason = s.check.deny_reason(&s.db, &message).await.expect("ok");
