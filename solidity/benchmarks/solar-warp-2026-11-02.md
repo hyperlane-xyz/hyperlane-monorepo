@@ -29,7 +29,7 @@ Existing-route replacement implementations and two EOA-controlled ProxyAdmin upg
 | Solar routers + new Solar ISM factory/clone | 9,338                            | 419               | 23.11%           |
 | Solar routers + supporting core/ISM factory | 5,434                            | 158               | 55.26%           |
 
-The broad-core case executed 55.26% fewer opcodes but used only 7.51% less receipt gas on the second transfer. CPU cycles/throughput were not measured. Quoted IGP payment stayed 350,000 fixture wei in every case; execution savings did not reprice fees.
+The broad-core case executed 55.26% fewer opcodes but used only 7.51% less receipt gas on the second transfer. The added [execution report](solar-execution-2026-11-02.md) measured 22.12% fewer evm2 CPU cycles in that case and 4.47% fewer with routers alone. Local source capacity stayed at 30 transfers per 5M-gas block for routers-only changes and rose to 32 with supporting-core changes; live-chain TPS remains unmeasured. Quoted IGP payment stayed 350,000 fixture wei in every case; execution savings did not reprice fees.
 
 | Second-transfer gas bucket            | Gas    | Share |
 | ------------------------------------- | ------ | ----- |

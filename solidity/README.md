@@ -80,6 +80,7 @@ The `Solidity Solar` workflow uploads the same evidence on contract PRs.
 
 [Local benchmark results and method](benchmarks/solar-2026-11-02.md).
 [Warp deployment, transfer receipts and opcode counts](benchmarks/solar-warp-2026-11-02.md).
+[Interpreter CPU, block capacity and source-edit recompilation](benchmarks/solar-execution-2026-11-02.md).
 [Full assessment and deployment economics](https://gist.github.com/paulbalaji/054371c203a43543801e4d9213d3c4b6).
 
 ### Fixtures
