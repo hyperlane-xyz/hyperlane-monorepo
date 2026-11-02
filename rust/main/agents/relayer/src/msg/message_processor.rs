@@ -463,6 +463,7 @@ async fn prepare_lander_task(
 
         let batch_to_process = prepare::filter_operations_for_preparation(
             entrypoint.clone() as Arc<dyn Entrypoint + Send + Sync>,
+            &prepare_queue,
             &submit_queue,
             &confirm_queue,
             db.clone(),

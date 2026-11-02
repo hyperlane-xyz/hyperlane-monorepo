@@ -272,3 +272,173 @@ async fn lander_submission_rechecks_later_operations_in_a_stalled_batch() {
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
 }
+
+#[tokio::test]
+async fn unreadable_lander_status_keeps_tracking_until_recovery() {
+    for prepare_stage in [true, false] {
+        for payload_status_error in [true, false] {
+            assert_unreadable_status_recovers(prepare_stage, payload_status_error).await;
+        }
+    }
+}
+
+async fn assert_unreadable_status_recovers(prepare_stage: bool, payload_status_error: bool) {
+    use crate::msg::runtime_denylist::RuntimeDenylist;
+    use hyperlane_base::db::DbError;
+    use hyperlane_core::identifiers::UniqueIdentifier;
+    use lander::{LanderError, PayloadStatus, TransactionStatus};
+    use std::sync::atomic::Ordering;
+    use tests_common::{create_test_metrics, MockDispatcherEntrypoint, MockHyperlaneDb};
+
+    let id = H256::from_low_u64_be(7);
+    let status = if prepare_stage {
+        PendingOperationStatus::FirstPrepareAttempt
+    } else {
+        PendingOperationStatus::ReadyToSubmit
+    };
+    let mut op = MockQueueOperation::new(
+        id,
+        status.clone(),
+        hyperlane_core::HyperlaneDomain::new_test_domain("test"),
+    );
+    op.retries = 3;
+    let callbacks = op.submission_callbacks.clone();
+    let denylist = RuntimeDenylist::from_rules_for_test(serde_json::json!([
+        { "reason": "test", "addedBy": "test", "match": { "messageId": format!("{id:?}") } }
+    ]));
+    assert!(denylist.deny_reason_for_op(&op).is_some());
+    let uuid = UniqueIdentifier::new(uuid::Uuid::new_v4());
+    let mut db = MockHyperlaneDb::new();
+    let mut db_sequence = mockall::Sequence::new();
+    if !payload_status_error {
+        db.expect_retrieve_payload_uuids_by_message_id()
+            .once()
+            .in_sequence(&mut db_sequence)
+            .returning(|_| Err(DbError::Other("temporary UUID read failure".to_owned())));
+    }
+    db.expect_retrieve_payload_uuids_by_message_id()
+        .times(if payload_status_error { 3 } else { 2 })
+        .in_sequence(&mut db_sequence)
+        .returning(move |_| Ok(Some(vec![uuid.clone()])));
+    let mut entrypoint = MockDispatcherEntrypoint::new();
+    let mut status_sequence = mockall::Sequence::new();
+    if payload_status_error {
+        entrypoint
+            .expect_payload_status()
+            .once()
+            .in_sequence(&mut status_sequence)
+            .returning(|_| {
+                Err(LanderError::DbError(DbError::Other(
+                    "temporary payload read failure".to_owned(),
+                )))
+            });
+    }
+    entrypoint
+        .expect_payload_status()
+        .once()
+        .in_sequence(&mut status_sequence)
+        .returning(|_| {
+            Ok(PayloadStatus::InTransaction(
+                TransactionStatus::PendingInclusion,
+            ))
+        });
+    entrypoint
+        .expect_payload_status()
+        .once()
+        .in_sequence(&mut status_sequence)
+        .returning(|_| Ok(PayloadStatus::InTransaction(TransactionStatus::Included)));
+    let db = Arc::new(db);
+    let entrypoint = Arc::new(entrypoint);
+    let mut prepare_queue = create_test_queue();
+    let mut submit_queue = create_test_queue();
+    let confirm_queue = create_test_queue();
+    let metrics = create_test_metrics();
+    let batch: Vec<QueueOperation> = vec![Box::new(op)];
+
+    let new_payloads = if prepare_stage {
+        super::stage::prepare::filter_operations_for_preparation(
+            entrypoint.clone(),
+            &prepare_queue,
+            &submit_queue,
+            &confirm_queue,
+            db.clone(),
+            batch,
+        )
+        .await
+    } else {
+        super::stage::submit::filter_operations_for_submit(
+            entrypoint.clone(),
+            &prepare_queue,
+            &submit_queue,
+            &confirm_queue,
+            &metrics,
+            db.clone(),
+            batch,
+        )
+        .await
+    };
+    assert!(
+        new_payloads.is_empty(),
+        "unknown status must not reach payload creation or denylist disposal"
+    );
+    assert_eq!(confirm_queue.len().await, 0);
+    let batch = if prepare_stage {
+        assert_eq!(submit_queue.len().await, 0);
+        let (ready, deadline) = prepare_queue.pop_many_ready(1).await;
+        assert!(ready.is_empty(), "failed status reads must back off");
+        assert!(deadline.is_some());
+        prepare_queue.pop_many(1).await
+    } else {
+        assert_eq!(prepare_queue.len().await, 0);
+        submit_queue.pop_many(1).await
+    };
+    assert_eq!(batch.len(), 1);
+    assert_eq!(batch[0].id(), id);
+    assert_eq!(batch[0].status(), status);
+    assert_eq!(batch[0].get_retries(), 3);
+    if prepare_stage {
+        assert!(super::stage::prepare::filter_operations_for_preparation(
+            entrypoint.clone(),
+            &prepare_queue,
+            &submit_queue,
+            &confirm_queue,
+            db.clone(),
+            batch,
+        )
+        .await
+        .is_empty());
+    } else {
+        assert!(super::stage::submit::filter_operations_for_submit(
+            entrypoint.clone(),
+            &prepare_queue,
+            &submit_queue,
+            &confirm_queue,
+            &metrics,
+            db.clone(),
+            batch,
+        )
+        .await
+        .is_empty());
+    }
+    assert_eq!(
+        submit_queue.len().await,
+        1,
+        "the recovered in-flight payload stays tracked despite the rule"
+    );
+    let batch = submit_queue.pop_many(1).await;
+    assert!(super::stage::submit::filter_operations_for_submit(
+        entrypoint,
+        &prepare_queue,
+        &submit_queue,
+        &confirm_queue,
+        &metrics,
+        db,
+        batch,
+    )
+    .await
+    .is_empty());
+    assert_eq!(callbacks.load(Ordering::SeqCst), 1);
+    assert_eq!(submit_queue.len().await, 0);
+    assert_eq!(confirm_queue.len().await, 1);
+    assert_eq!(confirm_queue.queue.lock().await.peek().unwrap().0.id(), id);
+}

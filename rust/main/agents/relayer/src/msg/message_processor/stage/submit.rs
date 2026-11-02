@@ -14,6 +14,7 @@ use super::super::{confirm_op, MessageProcessorMetrics};
 /// Filters operations from the Submit queue to determine their next stage.
 ///
 /// This function determines the disposition of each operation and routes them accordingly:
+/// - `Unknown`: Operations retained for another payload-status read
 /// - `PreSubmit`: Operations returned for immediate resubmission (payload failed/dropped before submission)
 /// - `Submit`: Operations re-queued to submit queue (still in submission pipeline: ReadyToSubmit, PendingInclusion, Mempool)
 /// - `PostSubmitSuccess`: Operations moved to confirm queue (transaction included/finalized in block)
@@ -59,6 +60,10 @@ pub(crate) async fn filter_operations_for_submit(
     let mut ops_to_submit = Vec::new();
     for (op, disposition) in operations_with_disposition {
         match disposition {
+            OperationDisposition::Unknown => {
+                // The submit task polls again without creating a new payload.
+                submit_queue.push(op, None).await;
+            }
             PreSubmit => {
                 ops_to_submit.push(op);
             }

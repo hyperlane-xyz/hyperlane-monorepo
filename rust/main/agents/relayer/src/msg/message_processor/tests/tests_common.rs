@@ -46,6 +46,8 @@ pub struct MockQueueOperation {
     pub delivered: Option<bool>,
     #[serde(skip)]
     pub confirmations: Arc<AtomicUsize>,
+    #[serde(skip)]
+    pub submission_callbacks: Arc<AtomicUsize>,
     pub gas_limit: Option<U256>,
     pub payload_data: Vec<u8>,
     #[serde(skip)]
@@ -66,6 +68,7 @@ impl MockQueueOperation {
             retries: 0,
             delivered: None,
             confirmations: Arc::new(AtomicUsize::new(0)),
+            submission_callbacks: Arc::new(AtomicUsize::new(0)),
             gas_limit: None,
             payload_data: Vec::new(),
             payload_gate: None,
@@ -180,6 +183,9 @@ impl PendingOperation for MockQueueOperation {
     }
     fn get_retries(&self) -> u32 {
         self.retries
+    }
+    fn on_submitted_success(&self) {
+        self.submission_callbacks.fetch_add(1, Ordering::SeqCst);
     }
     async fn payload(&self) -> ChainResult<Vec<u8>> {
         if let Some(gate) = &self.payload_gate {

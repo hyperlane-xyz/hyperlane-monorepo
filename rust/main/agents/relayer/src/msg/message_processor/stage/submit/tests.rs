@@ -423,7 +423,7 @@ async fn test_filter_operations_for_submit_retry_status() {
 
 #[tokio::test]
 async fn test_filter_operations_for_submit_db_error() {
-    // Test that DB error returns operation for resubmission
+    // Test that DB error retains operation for another payload-status read
     let mut mock_db = MockHyperlaneDb::new();
     let mock_entrypoint = MockDispatcherEntrypoint::new();
     let submit_queue = create_test_queue();
@@ -456,12 +456,12 @@ async fn test_filter_operations_for_submit_db_error() {
 
     assert_eq!(
         result.len(),
-        1,
-        "DB error should return operation for resubmission"
+        0,
+        "DB error should retain operation for another payload-status read"
     );
 
-    // Verify queues are empty
-    assert_eq!(submit_queue.len().await, 0);
+    // The operation stays tracked in the submit queue
+    assert_eq!(submit_queue.len().await, 1);
     assert_eq!(confirm_queue.len().await, 0);
 }
 
@@ -514,7 +514,7 @@ async fn test_filter_operations_for_submit_entrypoint_error_payload_not_found() 
 
 #[tokio::test]
 async fn test_filter_operations_for_submit_entrypoint_error_network() {
-    // Test that NetworkError returns operation for resubmission
+    // Test that NetworkError retains operation for another payload-status read
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
     let submit_queue = create_test_queue();
@@ -550,12 +550,12 @@ async fn test_filter_operations_for_submit_entrypoint_error_network() {
 
     assert_eq!(
         result.len(),
-        1,
-        "NetworkError should return operation for resubmission"
+        0,
+        "NetworkError should retain operation for another payload-status read"
     );
 
-    // Verify queues are empty
-    assert_eq!(submit_queue.len().await, 0);
+    // The operation stays tracked in the submit queue
+    assert_eq!(submit_queue.len().await, 1);
     assert_eq!(confirm_queue.len().await, 0);
 }
 
