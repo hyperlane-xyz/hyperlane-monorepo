@@ -2277,3 +2277,34 @@ async fn assert_signer_denied_drop_reloads(lander: bool) {
     })
     .await;
 }
+
+#[tokio::test]
+async fn denied_message_is_logged_once_across_rescans() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let (mut loader, _receiver) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        finish_legacy_migration(&mut loader).await;
+
+        let message = dummy_hyperlane_message(&destination, 0);
+        add_db_entry(&db, &message, 0);
+        loader.message_blacklist = Arc::new(MatchingList::with_message_id(message.id()));
+
+        for _ in 0..2 {
+            point_destination_scan_at(&mut loader, 0);
+            assert!(loader.try_load_destination(0).await.unwrap());
+        }
+
+        assert_eq!(
+            destination_outcome_count(&loader, DESTINATION_OUTCOME_MESSAGE_BLACKLISTED),
+            2
+        );
+        assert_eq!(
+            loader.destination_iterators[0].logged_denials,
+            HashSet::from([message.id()])
+        );
+    })
+    .await;
+}
