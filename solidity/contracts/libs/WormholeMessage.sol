@@ -21,7 +21,7 @@ library WormholeMessage {
 
     bytes4 internal constant MAGIC = bytes4(keccak256("HYPERLANE_WORMHOLE"));
     uint8 internal constant VERSION = 1;
-    uint256 internal constant ENCODED_LENGTH = 4 + 1 + 32 + 32;
+    uint256 internal constant ENCODED_LENGTH = 4 + 1 + 32 + 32 + 1 + 2;
 
     // ============ Types ============
 
@@ -30,15 +30,27 @@ library WormholeMessage {
         uint8 version;
         bytes32 destinationHookIsm;
         bytes32 messageId;
+        uint8 customBaseConsistencyLevel;
+        uint16 additionalBlocks;
     }
 
     // ============ Functions ============
 
     function encode(
         bytes32 destinationHookIsm,
-        bytes32 messageId
+        bytes32 messageId,
+        uint8 customBaseConsistencyLevel,
+        uint16 additionalBlocks
     ) internal pure returns (bytes memory) {
-        return abi.encodePacked(MAGIC, VERSION, destinationHookIsm, messageId);
+        return
+            abi.encodePacked(
+                MAGIC,
+                VERSION,
+                destinationHookIsm,
+                messageId,
+                customBaseConsistencyLevel,
+                additionalBlocks
+            );
     }
 
     function decode(
@@ -52,7 +64,11 @@ library WormholeMessage {
         (m.magic, offset) = payload.asBytes4MemUnchecked(offset);
         (m.version, offset) = payload.asUint8MemUnchecked(offset);
         (m.destinationHookIsm, offset) = payload.asBytes32MemUnchecked(offset);
-        (m.messageId, ) = payload.asBytes32MemUnchecked(offset);
+        (m.messageId, offset) = payload.asBytes32MemUnchecked(offset);
+        (m.customBaseConsistencyLevel, offset) = payload.asUint8MemUnchecked(
+            offset
+        );
+        (m.additionalBlocks, ) = payload.asUint16MemUnchecked(offset);
 
         if (m.magic != MAGIC) {
             revert InvalidPayloadMagic();

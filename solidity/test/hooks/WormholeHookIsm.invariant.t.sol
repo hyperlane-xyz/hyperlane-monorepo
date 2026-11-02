@@ -144,7 +144,9 @@ contract WormholeVaaHandler is Test {
             domainId: domainId,
             domainIsm: remoteRouter.addressToBytes32(),
             wormholeChainId: wormholeChainId,
-            expectedConsistencyLevel: CONSISTENCY
+            expectedConsistencyLevel: CONSISTENCY,
+            expectedCustomBaseConsistencyLevel: 0,
+            expectedAdditionalBlocks: 0
         });
         try destinationRouter.enrollRemoteRouters(configs) {} catch {}
     }
@@ -170,7 +172,9 @@ contract WormholeVaaHandler is Test {
     ) private view returns (bytes memory) {
         bytes memory payload = WormholeMessage.encode(
             address(destinationRouter).addressToBytes32(),
-            message.id()
+            message.id(),
+            0,
+            0
         );
         bytes memory encodedVaa = abi.encode(
             MockWormholeCore.MockVaa({
@@ -253,7 +257,9 @@ contract WormholeHookIsmTest_Invariants is Test {
             domainId: DESTINATION,
             domainIsm: address(destinationRouter).addressToBytes32(),
             wormholeChainId: WH_DESTINATION,
-            expectedConsistencyLevel: CONSISTENCY
+            expectedConsistencyLevel: CONSISTENCY,
+            expectedCustomBaseConsistencyLevel: 0,
+            expectedAdditionalBlocks: 0
         });
         originRouter.enrollRemoteRouters(configs);
 
@@ -261,7 +267,9 @@ contract WormholeHookIsmTest_Invariants is Test {
             domainId: ORIGIN,
             domainIsm: address(originRouter).addressToBytes32(),
             wormholeChainId: WH_ORIGIN,
-            expectedConsistencyLevel: CONSISTENCY
+            expectedConsistencyLevel: CONSISTENCY,
+            expectedCustomBaseConsistencyLevel: 0,
+            expectedAdditionalBlocks: 0
         });
         destinationRouter.enrollRemoteRouters(configs);
 
