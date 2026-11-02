@@ -8,6 +8,9 @@ cache_path = 'forge-cache'
 solc_version = '0.8.33'
 evm_version= 'cancun'
 optimizer_runs = 10_000
+# Preserve Foundry v1.5's same-transaction tests on newer runners. Isolation
+# clears transient fee quotes between external calls within a test.
+isolate = false
 fs_permissions = [
     { access = "read", path = "./script/avs/" },
     { access = "read", path = "../vectors" },
@@ -31,6 +34,13 @@ verbosity = 4
 # disable metadata for bytecode comparison
 cbor_metadata = false
 bytecode_hash = "none"
+
+# Experimental local build/test path. Keep published artifacts on solc until
+# the differential suite passes. Solar must be on PATH (see README.md).
+[profile.solar]
+solc_version = 'solar'
+out = 'out-solar'
+cache_path = 'forge-cache-solar'
 
 [profile.coverage]
 # Reduce optimizer runs for coverage to save memory (25k -> 200)
