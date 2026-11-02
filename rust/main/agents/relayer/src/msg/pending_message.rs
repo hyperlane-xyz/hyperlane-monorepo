@@ -46,7 +46,8 @@ use super::{
 /// https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/5468
 pub const DEFAULT_MAX_MESSAGE_RETRIES: u32 = 66;
 /// Failed origin tx signer lookups before relaying without that check.
-/// Backoff doubles from `ORIGIN_LOOKUP_BACKOFF`: about 15 minutes in total.
+/// Backoff doubles from `ORIGIN_LOOKUP_BACKOFF` (30+60+120+240s): about 8
+/// minutes of failed lookups before giving up.
 const ORIGIN_LOOKUP_MAX_FAILURES: u32 = 5;
 const ORIGIN_LOOKUP_BACKOFF: Duration = Duration::from_secs(30);
 pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
