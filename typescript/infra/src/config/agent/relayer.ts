@@ -222,6 +222,10 @@ export interface HelmRelayerChainValues {
   ccsSigner?: KeyConfig;
 }
 
+// Pinned so the same monorepo commit always builds the same list and an
+// upstream push can't change or break a deploy. Bump it to pick up new entries.
+const OFAC_LISTS_COMMIT = 'abad1e7bc0956b89211f8eaa28a4fc795188738d';
+
 export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
   readonly relayerConfig: BaseRelayerConfig;
   readonly logger: Logger<never>;
@@ -353,45 +357,10 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
   }
 
   async getSanctionedAddresses() {
-    // All Ethereum-style addresses from https://github.com/0xB10C/ofac-sanctioned-digital-currency-addresses/tree/lists
-    const currencies = ['ARB', 'BSC', 'ETC', 'ETH', 'USDC', 'USDT'];
-
-    const schema = z.array(z.string());
-
-    const allSanctionedAddresses = await Promise.all(
-      currencies.map(async (currency) => {
-        const rawUrl = `https://raw.githubusercontent.com/0xB10C/ofac-sanctioned-digital-currency-addresses/lists/sanctioned_addresses_${currency}.json`;
-        this.logger.debug(
-          {
-            currency,
-            rawUrl,
-          },
-          'Fetching sanctioned addresses',
-        );
-        const sanctionedAddresses = await retryAsync(
-          async () => {
-            const json = await fetch(rawUrl);
-            return schema.parse(await json.json());
-          },
-          3, // attempts
-          1000, // 1s base delay
-        );
-        return sanctionedAddresses;
-      }),
-    );
-
-    const sanctionedEthereumAddresses = allSanctionedAddresses
-      .flat()
-      .filter((address) => {
-        if (!isValidAddressEvm(address)) {
-          this.logger.debug(
-            { address },
-            'Invalid sanctioned address, throwing out',
-          );
-          return false;
-        }
-        return true;
-      });
+    // Only mainnet relays real value; testnets keep the exploit lists below
+    // but skip the network fetch.
+    const sanctionedEthereumAddresses =
+      this.runEnv === 'mainnet3' ? await this.fetchOfacEvmAddresses() : [];
 
     const radiantExploiter = [
       '0xA0e768A68ba1BFffb9F4366dfC8D9195EE7217d1',
@@ -418,6 +387,47 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     );
 
     return Array.from(uniqueAddresses);
+  }
+
+  // All Ethereum-style addresses from
+  // https://github.com/0xB10C/ofac-sanctioned-digital-currency-addresses/tree/lists
+  private async fetchOfacEvmAddresses(): Promise<string[]> {
+    const currencies = ['ARB', 'BSC', 'ETC', 'ETH', 'USDC', 'USDT'];
+
+    const schema = z.array(z.string());
+
+    const allSanctionedAddresses = await Promise.all(
+      currencies.map(async (currency) => {
+        const rawUrl = `https://raw.githubusercontent.com/0xB10C/ofac-sanctioned-digital-currency-addresses/${OFAC_LISTS_COMMIT}/sanctioned_addresses_${currency}.json`;
+        this.logger.debug(
+          {
+            currency,
+            rawUrl,
+          },
+          'Fetching sanctioned addresses',
+        );
+        const sanctionedAddresses = await retryAsync(
+          async () => {
+            const json = await fetch(rawUrl);
+            return schema.parse(await json.json());
+          },
+          3, // attempts
+          1000, // 1s base delay
+        );
+        return sanctionedAddresses;
+      }),
+    );
+
+    return allSanctionedAddresses.flat().filter((address) => {
+      if (!isValidAddressEvm(address)) {
+        this.logger.debug(
+          { address },
+          'Invalid sanctioned address, throwing out',
+        );
+        return false;
+      }
+      return true;
+    });
   }
 
   // Returns whether the relayer requires AWS credentials
