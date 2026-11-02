@@ -36,8 +36,12 @@ async fn refresh(
     State(state): State<ServerState>,
 ) -> Result<Json<RuntimeDenylistSummary>, (StatusCode, String)> {
     state.denylist.refresh().await.map(Json).map_err(|err| {
+        // The error can include the URL, which may carry a token.
         tracing::warn!(error = ?err, "Manual runtime denylist refresh failed");
-        (StatusCode::BAD_GATEWAY, format!("{err:#}"))
+        (
+            StatusCode::BAD_GATEWAY,
+            "Runtime denylist refresh failed; see relayer logs".to_owned(),
+        )
     })
 }
 

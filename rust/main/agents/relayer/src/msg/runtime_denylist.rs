@@ -69,20 +69,30 @@ pub struct RuntimeDenylistConf {
     pub cache_path: PathBuf,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct MessageRule {
     list: MatchingList,
     reason: String,
+    expires_at: Option<DateTime<Utc>>,
+    /// The rule's JSON, for change detection.
+    canonical: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct AddressRule {
     address: H256,
     reason: String,
+    expires_at: Option<DateTime<Utc>>,
+    /// The rule's JSON, for change detection.
+    canonical: String,
+}
+
+fn expired(expires_at: Option<DateTime<Utc>>, now: DateTime<Utc>) -> bool {
+    expires_at.is_some_and(|expires_at| expires_at <= now)
 }
 
 /// Rules active at one point in time.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 struct ActiveRules {
     messages: Vec<MessageRule>,
     /// All `messages` rules in one list, so a miss costs one pass.
@@ -93,6 +103,51 @@ struct ActiveRules {
 }
 
 impl ActiveRules {
+    fn new(messages: Vec<MessageRule>, addresses: Vec<AddressRule>) -> Self {
+        let mut fingerprint: Vec<_> = messages
+            .iter()
+            .map(|rule| rule.canonical.clone())
+            .chain(addresses.iter().map(|rule| rule.canonical.clone()))
+            .collect();
+        fingerprint.sort_unstable();
+        let elements: Vec<_> = messages
+            .iter()
+            .filter_map(|rule| rule.list.0.as_ref())
+            .flatten()
+            .cloned()
+            .collect();
+        Self {
+            messages,
+            all_messages: MatchingList(Some(elements).filter(|e| !e.is_empty())),
+            addresses,
+            fingerprint,
+        }
+    }
+
+    /// The rules still active at `now`, if any have expired.
+    fn without_expired(&self, now: DateTime<Utc>) -> Option<Self> {
+        let any_expired = self
+            .messages
+            .iter()
+            .map(|rule| rule.expires_at)
+            .chain(self.addresses.iter().map(|rule| rule.expires_at))
+            .any(|expires_at| expired(expires_at, now));
+        any_expired.then(|| {
+            Self::new(
+                self.messages
+                    .iter()
+                    .filter(|rule| !expired(rule.expires_at, now))
+                    .cloned()
+                    .collect(),
+                self.addresses
+                    .iter()
+                    .filter(|rule| !expired(rule.expires_at, now))
+                    .cloned()
+                    .collect(),
+            )
+        })
+    }
+
     fn is_empty(&self) -> bool {
         self.messages.is_empty() && self.addresses.is_empty()
     }
@@ -146,72 +201,59 @@ struct RawRule {
 /// Any invalid rule rejects the whole file.
 fn parse_rules(bytes: &[u8], now: DateTime<Utc>) -> Result<ActiveRules> {
     let file: RawFile = serde_json::from_slice(bytes).context("Invalid denylist JSON")?;
-    let mut active = ActiveRules::default();
+    let mut messages = vec![];
+    let mut addresses = vec![];
     for (index, raw) in file.rules.into_iter().enumerate() {
         let canonical = raw.to_string();
         let rule: RawRule = serde_json::from_value(raw)
             .with_context(|| format!("Invalid denylist rule at index {index}"))?;
-        let parsed = parse_rule(rule, now)
+        let parsed = parse_rule(rule, canonical)
             .with_context(|| format!("Invalid denylist rule at index {index}"))?;
+        // Expired rules are still validated, so a typo is caught early.
         match parsed {
-            ParsedRule::Expired => {}
-            ParsedRule::Message(rule) => {
-                active.messages.push(rule);
-                active.fingerprint.push(canonical);
-            }
-            ParsedRule::Address(rule) => {
-                active.addresses.push(rule);
-                active.fingerprint.push(canonical);
-            }
+            ParsedRule::Message(rule) if !expired(rule.expires_at, now) => messages.push(rule),
+            ParsedRule::Address(rule) if !expired(rule.expires_at, now) => addresses.push(rule),
+            _ => {}
         }
     }
-    active.fingerprint.sort_unstable();
-    let elements: Vec<_> = active
-        .messages
-        .iter()
-        .filter_map(|rule| rule.list.0.as_ref())
-        .flatten()
-        .cloned()
-        .collect();
-    active.all_messages = MatchingList(Some(elements).filter(|e| !e.is_empty()));
-    Ok(active)
+    Ok(ActiveRules::new(messages, addresses))
 }
 
 enum ParsedRule {
-    Expired,
     Message(MessageRule),
     Address(AddressRule),
 }
 
-fn parse_rule(rule: RawRule, now: DateTime<Utc>) -> Result<ParsedRule> {
+fn parse_rule(rule: RawRule, canonical: String) -> Result<ParsedRule> {
     ensure!(!rule.reason.trim().is_empty(), "`reason` must not be empty");
     ensure!(
         !rule.added_by.trim().is_empty(),
         "`addedBy` must not be empty"
     );
-    let expired = match &rule.expires_at {
-        Some(expires_at) => {
-            DateTime::parse_from_rfc3339(expires_at)
-                .context("`expiresAt` must be an RFC 3339 timestamp")?
-                .with_timezone(&Utc)
-                <= now
-        }
-        None => false,
-    };
+    let expires_at = rule
+        .expires_at
+        .map(|expires_at| {
+            DateTime::parse_from_rfc3339(&expires_at)
+                .map(|expires_at| expires_at.with_timezone(&Utc))
+                .context("`expiresAt` must be an RFC 3339 timestamp")
+        })
+        .transpose()?;
     let reason = format!("{} (added by {})", rule.reason.trim(), rule.added_by.trim());
-    let parsed = match (rule.match_, rule.address) {
+    Ok(match (rule.match_, rule.address) {
         (Some(match_), None) => ParsedRule::Message(MessageRule {
             list: parse_match(match_)?,
             reason,
+            expires_at,
+            canonical,
         }),
         (None, Some(address)) => ParsedRule::Address(AddressRule {
             address: parse_address(&address)?,
             reason,
+            expires_at,
+            canonical,
         }),
         _ => bail!("Exactly one of `match` or `address` must be set"),
-    };
-    // Validate expired rules too, so a typo is caught before the rule matters.
-    Ok(if expired { ParsedRule::Expired } else { parsed })
+    })
 }
 
 fn parse_match(match_: Map<String, Value>) -> Result<MatchingList> {
@@ -224,15 +266,14 @@ fn parse_match(match_: Map<String, Value>) -> Result<MatchingList> {
         );
         lowercased.insert(key, value);
     }
-    // ListElement treats a missing field as a wildcard, so an empty or
-    // all-wildcard rule would block every message.
-    let has_filter = lowercased.values().any(|value| value.as_str() != Some("*"));
-    ensure!(
-        has_filter,
-        "`match` must constrain at least one field; it would block every message"
-    );
     let element: ListElement =
         serde_json::from_value(Value::Object(lowercased)).context("Invalid `match`")?;
+    // Missing fields are wildcards, and `bodyRegex` alone can match anything
+    // (`.*`, `""`), so require a specific value in at least one other field.
+    ensure!(
+        element.constrains_exact_field(),
+        "`match` must set messageId, originDomain, senderAddress, destinationDomain or recipientAddress; otherwise it can block every message"
+    );
     Ok(MatchingList(Some(vec![element])))
 }
 
@@ -493,6 +534,18 @@ impl RuntimeDenylist {
             if let Err(err) = self.refresh().await {
                 error!(url = %source.conf.url, error = ?err, "Failed to refresh runtime denylist; keeping previous rules");
             }
+            // Expiries apply even while fetches fail.
+            self.prune_expired().await;
+        }
+    }
+
+    /// Drop rules whose `expiresAt` has passed. Bumps the version, so the
+    /// loader rescans messages they were blocking.
+    async fn prune_expired(&self) {
+        let _guard = self.refresh_lock.lock().await;
+        let pruned = self.rules.read().without_expired(Utc::now());
+        if let Some(rules) = pruned {
+            self.replace(rules, false);
         }
     }
 }
@@ -505,32 +558,44 @@ async fn write_cache(path: &Path, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
+/// Read at most `MAX_FILE_BYTES`, rejecting larger files before buffering them.
 async fn fetch(client: &reqwest::Client, url: &Url) -> Result<Vec<u8>> {
-    let bytes = match url.scheme() {
+    let too_large =
+        |len: u64| eyre!("Runtime denylist is at least {len} bytes; the limit is {MAX_FILE_BYTES}");
+    match url.scheme() {
         "file" => {
             let path = url
                 .to_file_path()
                 .map_err(|()| eyre!("Invalid file URL {url}"))?;
-            tokio::fs::read(&path)
+            let len = tokio::fs::metadata(&path)
                 .await
                 .with_context(|| format!("Failed to read {}", path.display()))?
+                .len();
+            if len > MAX_FILE_BYTES as u64 {
+                return Err(too_large(len));
+            }
+            tokio::fs::read(&path)
+                .await
+                .with_context(|| format!("Failed to read {}", path.display()))
         }
-        "http" | "https" => client
-            .get(url.clone())
-            .send()
-            .await?
-            .error_for_status()?
-            .bytes()
-            .await?
-            .to_vec(),
+        "http" | "https" => {
+            let mut response = client.get(url.clone()).send().await?.error_for_status()?;
+            if let Some(len) = response.content_length() {
+                if len > MAX_FILE_BYTES as u64 {
+                    return Err(too_large(len));
+                }
+            }
+            let mut body = Vec::new();
+            while let Some(chunk) = response.chunk().await? {
+                if body.len().saturating_add(chunk.len()) > MAX_FILE_BYTES {
+                    return Err(too_large(body.len().saturating_add(chunk.len()) as u64));
+                }
+                body.extend_from_slice(&chunk);
+            }
+            Ok(body)
+        }
         scheme => bail!("Unsupported runtime denylist URL scheme `{scheme}`"),
-    };
-    ensure!(
-        bytes.len() <= MAX_FILE_BYTES,
-        "Runtime denylist is {} bytes; the limit is {MAX_FILE_BYTES}",
-        bytes.len()
-    );
-    Ok(bytes)
+    }
 }
 
 /// Metrics for the runtime denylist.

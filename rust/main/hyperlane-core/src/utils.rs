@@ -7,6 +7,9 @@ use std::time::Duration;
 
 use crate::{KnownHyperlaneDomain, H160, H256, U256};
 
+/// Tron base58check addresses start with this version byte.
+const TRON_ADDRESS_PREFIX: u8 = 0x41;
+
 /// Converts a hex or base58 string to an H256.
 pub fn hex_or_base58_or_bech32_to_h256(string: &str) -> Result<H256> {
     let h256 = if string.starts_with("0x") {
@@ -29,10 +32,14 @@ pub fn hex_or_base58_or_bech32_to_h256(string: &str) -> Result<H256> {
             H256::from_slice(padded.as_slice())
         } else {
             let bytes = bs58::decode(string).into_vec()?;
-            // Tron address
+            // Tron address: 0x41 prefix, 20-byte address, 4-byte checksum
             if bytes.len() == 25 {
-                // Drop the first byte (address type) and last 4 bytes (checksum)
-                return Ok(H160::from_slice(&bytes[1..21]).into());
+                // A typo otherwise still decodes to some 20 bytes.
+                let payload = bs58::decode(string).with_check(None).into_vec()?;
+                if payload.first() != Some(&TRON_ADDRESS_PREFIX) {
+                    eyre::bail!("Invalid Tron address prefix")
+                }
+                return Ok(H160::from_slice(&payload[1..21]).into());
             }
             if bytes.len() != 32 {
                 eyre::bail!("Invalid length of base58 string")
@@ -272,5 +279,11 @@ mod test {
         // Should have leading zeros since it's converted from H160
         assert_eq!(&h256.0[0..12], &[0u8; 12]);
         assert_eq!(&h256.0[12..32], &expected);
+    }
+
+    #[test]
+    fn test_hex_or_base58_or_bech32_to_h256_rejects_bad_tron_checksum() {
+        // One character changed from TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t.
+        assert!(hex_or_base58_or_bech32_to_h256("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6u").is_err());
     }
 }

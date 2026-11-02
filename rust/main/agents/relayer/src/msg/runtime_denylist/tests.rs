@@ -101,6 +101,12 @@ fn rejects_invalid_rules() {
         // Would block every message.
         json!({ "reason": "r", "addedBy": "a", "match": {} }),
         json!({ "reason": "r", "addedBy": "a", "match": { "originDomain": "*", "messageId": "*" } }),
+        // `bodyRegex` alone, or a null field, still leaves every exact field a wildcard.
+        json!({ "reason": "r", "addedBy": "a", "match": { "bodyRegex": "" } }),
+        json!({ "reason": "r", "addedBy": "a", "match": { "bodyRegex": ".*" } }),
+        json!({ "reason": "r", "addedBy": "a", "match": { "messageId": null } }),
+        // A Tron address with a one-character typo fails its checksum.
+        json!({ "reason": "r", "addedBy": "a", "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6u" }),
         json!({ "reason": "r", "addedBy": "a", "address": "0x0000000000000000000000000000000000000000" }),
         json!({ "reason": "r", "addedBy": "a", "address": "" }),
         // Typo would otherwise become a wildcard.
@@ -263,6 +269,64 @@ async fn startup_falls_back_to_cached_file_when_fetch_fails() {
     let restarted = denylist_at(Url::from_file_path(&source).expect("url"), cache);
     restarted.initial_load().await;
     assert_eq!(restarted.summary().address_rules, 1);
+}
+
+#[test]
+fn without_expired_drops_only_expired_rules() {
+    let rules = parse(json!([
+        { "reason": "r", "addedBy": "a", "expiresAt": "2026-11-03T00:00:00Z", "address": EVM_ADDRESS },
+        message_rule(H256::random()),
+    ]))
+    .expect("valid");
+    assert!(rules.without_expired(now()).is_none());
+    let later = DateTime::parse_from_rfc3339("2026-11-04T00:00:00Z")
+        .expect("valid timestamp")
+        .with_timezone(&Utc);
+    let pruned = rules.without_expired(later).expect("one rule expired");
+    assert_eq!((pruned.messages.len(), pruned.addresses.len()), (1, 0));
+    assert_eq!(pruned.fingerprint.len(), 1);
+}
+
+#[tokio::test]
+async fn prune_expired_applies_without_a_fetch() {
+    let soon = (Utc::now() + chrono::Duration::milliseconds(300)).to_rfc3339();
+    let denylist = denylist_with(json!([
+        { "reason": "r", "addedBy": "a", "expiresAt": soon, "address": EVM_ADDRESS }
+    ]));
+    let version = denylist.version();
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    denylist.prune_expired().await;
+    assert_eq!(denylist.summary().address_rules, 0);
+    assert_eq!(denylist.version(), version + 1);
+}
+
+#[tokio::test]
+async fn startup_without_fetch_or_cache_has_no_rules() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let missing = Url::from_file_path(dir.path().join("missing.json")).expect("url");
+    let denylist = denylist_at(missing, dir.path().join("cache.json"));
+    denylist.initial_load().await;
+    assert_eq!(
+        denylist.summary(),
+        RuntimeDenylistSummary {
+            version: 0,
+            message_rules: 0,
+            address_rules: 0,
+        }
+    );
+}
+
+#[tokio::test]
+async fn fetch_rejects_oversized_files_before_reading() {
+    let mut tmp = NamedTempFile::new().expect("tempfile");
+    tmp.as_file_mut()
+        .set_len(MAX_FILE_BYTES as u64 + 1)
+        .expect("grow file");
+    let url = Url::from_file_path(tmp.path()).expect("url");
+    let err = fetch(&reqwest::Client::new(), &url)
+        .await
+        .expect_err("too large");
+    assert!(err.to_string().contains("limit"), "{err}");
 }
 
 #[tokio::test]

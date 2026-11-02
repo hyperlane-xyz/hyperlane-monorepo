@@ -646,8 +646,10 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .optional()
     .describe('Comma separated list of addresses to blacklist.'),
   runtimeDenylistUrl: z
-    .string()
     .url()
+    .refine((value) => /^(https?|file):\/\//.test(value), {
+      message: 'runtimeDenylistUrl must use https://, http:// or file://',
+    })
     .optional()
     .describe(
       'URL (https://, http:// or file://) of a JSON denylist the relayer polls, so rules apply without a redeploy.',
