@@ -319,6 +319,9 @@ pub enum ReprepareReason {
     #[strum(to_string = "Awaiting ICA reveal commit confirmation")]
     /// ICA reveal commit not yet confirmed on-chain; polling until visible
     AwaitingIcaReveal,
+    #[strum(to_string = "Error fetching origin transaction sender")]
+    /// Could not look up the origin transaction sender for the runtime denylist
+    ErrorFetchingOriginTxSender,
 }
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]

@@ -444,3 +444,154 @@ async fn fetch_rejects_oversized_http_bodies() {
 async fn refresh_without_url_fails() {
     assert!(RuntimeDenylist::default().refresh().await.is_err());
 }
+
+pub(crate) mod origin_sender {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use hyperlane_base::db::{HyperlaneRocksDB, DB};
+    use hyperlane_core::{
+        BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain,
+        HyperlaneDomain, HyperlaneProvider, KnownHyperlaneDomain, TxnInfo, H512, U256,
+    };
+
+    use super::*;
+
+    #[derive(Debug)]
+    pub(crate) struct SenderProvider {
+        pub(crate) sender: Option<H256>,
+        pub(crate) calls: AtomicUsize,
+    }
+
+    impl HyperlaneChain for SenderProvider {
+        fn domain(&self) -> &HyperlaneDomain {
+            unimplemented!()
+        }
+        fn provider(&self) -> Box<dyn HyperlaneProvider> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl HyperlaneProvider for SenderProvider {
+        async fn get_block_by_height(&self, _: u64) -> ChainResult<BlockInfo> {
+            unimplemented!()
+        }
+        async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            let sender = self
+                .sender
+                .ok_or_else(|| ChainCommunicationError::from_other_str("rpc down"))?;
+            Ok(TxnInfo {
+                hash: *hash,
+                gas_limit: U256::zero(),
+                max_priority_fee_per_gas: None,
+                max_fee_per_gas: None,
+                gas_price: None,
+                nonce: 0,
+                sender,
+                recipient: None,
+                receipt: None,
+                raw_input_data: None,
+            })
+        }
+        async fn is_contract(&self, _: &H256) -> ChainResult<bool> {
+            unimplemented!()
+        }
+        async fn get_balance(&self, _: String) -> ChainResult<U256> {
+            unimplemented!()
+        }
+        async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
+            unimplemented!()
+        }
+    }
+
+    struct Setup {
+        _dir: tempfile::TempDir,
+        db: HyperlaneRocksDB,
+        provider: Arc<SenderProvider>,
+        check: OriginSenderCheck,
+    }
+
+    fn setup(rules: serde_json::Value, sender: Option<H256>) -> Setup {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+        let db = HyperlaneRocksDB::new(&domain, DB::from_path(dir.path()).expect("db"));
+        let provider = Arc::new(SenderProvider {
+            sender,
+            calls: AtomicUsize::new(0),
+        });
+        let check = OriginSenderCheck::new(
+            Arc::new(RuntimeDenylist::from_rules_for_test(rules)),
+            provider.clone(),
+        );
+        Setup {
+            _dir: dir,
+            db,
+            provider,
+            check,
+        }
+    }
+
+    fn stored_message(db: &HyperlaneRocksDB) -> H256 {
+        let id = H256::random();
+        db.store_dispatched_tx_hash_by_message_id(&id, &H512::random())
+            .expect("store tx hash");
+        id
+    }
+
+    #[tokio::test]
+    async fn denies_listed_origin_sender_and_caches_lookup() {
+        let s = setup(
+            json!([address_rule(TRON_ADDRESS)]),
+            Some(evm(TRON_ADDRESS_HEX)),
+        );
+        let id = stored_message(&s.db);
+        let mut cached = None;
+        for _ in 0..2 {
+            let reason = s
+                .check
+                .deny_reason(&s.db, id, &mut cached)
+                .await
+                .expect("ok");
+            assert!(reason.is_some());
+        }
+        assert_eq!(cached, Some(evm(TRON_ADDRESS_HEX)));
+        assert_eq!(s.provider.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn allows_unlisted_origin_sender() {
+        let s = setup(json!([address_rule(EVM_ADDRESS)]), Some(H256::random()));
+        let id = stored_message(&s.db);
+        let reason = s.check.deny_reason(&s.db, id, &mut None).await.expect("ok");
+        assert_eq!(reason, None);
+    }
+
+    #[tokio::test]
+    async fn skips_lookup_without_address_rules_or_tx_hash() {
+        let s = setup(json!([message_rule(H256::random())]), None);
+        let id = stored_message(&s.db);
+        assert_eq!(
+            s.check.deny_reason(&s.db, id, &mut None).await.expect("ok"),
+            None
+        );
+
+        let s = setup(json!([address_rule(EVM_ADDRESS)]), None);
+        let unknown = H256::random();
+        assert_eq!(
+            s.check
+                .deny_reason(&s.db, unknown, &mut None)
+                .await
+                .expect("ok"),
+            None
+        );
+        assert_eq!(s.provider.calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn lookup_failure_is_an_error() {
+        let s = setup(json!([address_rule(EVM_ADDRESS)]), None);
+        let id = stored_message(&s.db);
+        assert!(s.check.deny_reason(&s.db, id, &mut None).await.is_err());
+    }
+}
