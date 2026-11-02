@@ -19,7 +19,7 @@ use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, QueueOperation, H256};
 use parking_lot::Mutex;
 use prometheus::{HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec};
 use tokio::sync::mpsc::{error::TryRecvError, error::TrySendError, Receiver, Sender};
-use tracing::{debug, instrument, trace};
+use tracing::{debug, info, instrument, trace};
 
 use super::{
     blacklist::AddressBlacklist, metadata::AppContextClassifier, pending_message::*,
@@ -39,6 +39,9 @@ const DESTINATION_OUTCOME_RUNTIME_DENYLISTED: &str = "runtime_denylisted";
 const DESTINATION_OUTCOME_MISSING_CONTEXT: &str = "missing_context";
 const DESTINATION_OUTCOME_RETRY_INELIGIBLE: &str = "retry_ineligible";
 const DESTINATION_OUTCOME_QUEUED: &str = "queued";
+const LOGGED_DENIALS_CAPACITY: u64 = 100_000;
+/// A denied message is logged again at most once a day.
+const LOGGED_DENIALS_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 
 /// Finds unprocessed messages from an origin and submits them through a channel
 /// for to the appropriate destination.
@@ -71,6 +74,10 @@ pub struct MessageDbLoader {
     destination_scan_pending: bool,
     max_retries: u32,
     index_notifications: Option<Receiver<IndexingNotification>>,
+    /// Denied messages already logged, for all destinations. Created on the
+    /// first denial, so a loader that never denies anything allocates none.
+    logged_denials: Option<LoggedDenials>,
+    logged_denials_ttl: Duration,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -78,6 +85,23 @@ enum IndexDirection {
     High,
     Low,
     Reconsider,
+}
+
+/// Denied messages already logged. Bounded by size and age: a message can
+/// leave the pending index (e.g. delivered elsewhere) without the loader
+/// seeing it again, so entries can't rely on being removed.
+#[derive(Debug)]
+struct LoggedDenials(moka::future::Cache<H256, ()>);
+
+impl LoggedDenials {
+    fn new(ttl: Duration) -> Self {
+        Self(
+            moka::future::Cache::builder()
+                .max_capacity(LOGGED_DENIALS_CAPACITY)
+                .time_to_live(ttl)
+                .build(),
+        )
+    }
 }
 
 #[derive(Debug)]
@@ -567,7 +591,40 @@ impl MessageDbLoader {
             destination_scan_pending: true,
             max_retries,
             index_notifications: None,
+            logged_denials: None,
+            logged_denials_ttl: LOGGED_DENIALS_TTL,
         })
+    }
+
+    /// Log a denied message at info the first time this loader skips it, so
+    /// "why isn't this relayed" is answerable from default logs without
+    /// re-logging on every rescan.
+    /// `detail` is what matched: a runtime rule's reason, or a blacklisted
+    /// address.
+    async fn log_denial_once(
+        &mut self,
+        message: &HyperlaneMessage,
+        list: &str,
+        detail: Option<&str>,
+    ) {
+        let message_id = message.id();
+        let ttl = self.logged_denials_ttl;
+        let logged = &self
+            .logged_denials
+            .get_or_insert_with(|| LoggedDenials::new(ttl))
+            .0;
+        if logged.get(&message_id).await.is_none() {
+            logged.insert(message_id, ()).await;
+            info!(
+                ?message_id,
+                origin = message.origin,
+                destination = message.destination,
+                nonce = message.nonce,
+                list,
+                detail,
+                "Message denied, not relaying"
+            );
+        }
     }
 
     pub fn set_runtime_denylist(&mut self, runtime_denylist: Arc<RuntimeDenylist>) {
@@ -907,7 +964,7 @@ impl MessageDbLoader {
         if self.message_blacklist.msg_matches(&message, false) {
             self.metrics
                 .record_destination_outcome(DESTINATION_OUTCOME_MESSAGE_BLACKLISTED);
-            debug!(?message, "Message blacklisted, skipping");
+            self.log_denial_once(&message, "blacklist", None).await;
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         }
@@ -915,11 +972,9 @@ impl MessageDbLoader {
         {
             self.metrics
                 .record_destination_outcome(DESTINATION_OUTCOME_ADDRESS_BLACKLISTED);
-            debug!(
-                ?message,
-                blacklisted_address = hex::encode(blacklisted_address),
-                "Message involves blacklisted address, skipping"
-            );
+            let blacklisted_address = hex::encode(blacklisted_address);
+            self.log_denial_once(&message, "address_blacklist", Some(&blacklisted_address))
+                .await;
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         }
@@ -934,9 +989,14 @@ impl MessageDbLoader {
         if let Some(reason) = deny_reason {
             self.metrics
                 .record_destination_outcome(DESTINATION_OUTCOME_RUNTIME_DENYLISTED);
-            debug!(?message, %reason, "Message matches runtime denylist, skipping");
+            self.log_denial_once(&message, "runtime_denylist", Some(&reason))
+                .await;
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
+        }
+        // Passed every list, so log again if it's denied later.
+        if let Some(logged) = &self.logged_denials {
+            logged.0.invalidate(&message.id()).await;
         }
         let Some(destination_msg_ctx) = self.destination_ctxs.get(&destination) else {
             self.metrics

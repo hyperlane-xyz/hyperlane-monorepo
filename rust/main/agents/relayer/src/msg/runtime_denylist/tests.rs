@@ -73,13 +73,57 @@ fn parses_message_and_address_rules() {
 }
 
 #[test]
-fn match_accepts_camel_and_lower_case_keys() {
+fn match_accepts_case_insensitive_keys() {
     let msg = message(H256::random(), H256::random(), vec![]);
-    for key in ["messageId", "messageid"] {
+    for key in ["messageId", "messageid", "MESSAGEID", "MeSsAgEiD"] {
         let denylist = denylist_with(json!([
             { "reason": "r", "addedBy": "a", "match": { key: format!("{:?}", msg.id()) } }
         ]));
         assert!(denylist.deny_reason_for_message(&msg).is_some(), "{key}");
+    }
+}
+
+#[test]
+fn mixed_case_match_keys_preserve_constraints_and_regex_case() {
+    let msg = message(evm(EVM_ADDRESS), H256::random(), vec![0xab]);
+    let denylist = denylist_with(json!([
+        { "reason": "r", "addedBy": "a", "match": {
+            "MeSsAgEiD": format!("{:?}", msg.id()),
+            "ORIGINDOMAIN": msg.origin,
+            "SenderAddress": EVM_ADDRESS,
+            "DestinationDomain": msg.destination,
+            "RECIPIENTADDRESS": format!("{:?}", msg.recipient),
+            "BodyRegex": "^a\\D$"
+        } }
+    ]));
+    assert!(denylist.deny_reason_for_message(&msg).is_some());
+    assert!(denylist
+        .deny_reason_for_message(&message(evm(EVM_ADDRESS), H256::random(), vec![0xab]))
+        .is_none());
+}
+
+#[test]
+fn identical_match_aliases_are_harmless() {
+    let msg = message(H256::random(), H256::random(), vec![]);
+    let id = format!("{:?}", msg.id());
+    let denylist = denylist_with(json!([
+        { "reason": "r", "addedBy": "a", "match": { "messageId": id, "MESSAGEID": id } }
+    ]));
+    assert!(denylist.deny_reason_for_message(&msg).is_some());
+}
+
+#[test]
+fn conflicting_match_aliases_are_rejected() {
+    for match_ in [
+        json!({ "originDomain": 1, "ORIGINDOMAIN": "*" }),
+        json!({ "originDomain": "*", "ORIGINDOMAIN": 1 }),
+        json!({ "originDomain": 1, "bodyRegex": "\\D", "BODYREGEX": "\\d" }),
+    ] {
+        let error = parse(json!([
+            { "reason": "r", "addedBy": "a", "match": match_ }
+        ]))
+        .expect_err("conflicting aliases must reject");
+        assert!(format!("{error:#}").contains("Conflicting `match` aliases"));
     }
 }
 
@@ -250,6 +294,22 @@ async fn refresh_from_file_keeps_previous_rules_on_bad_file() {
     let blocked = message(H256::random(), evm(EVM_ADDRESS), vec![]);
     assert!(denylist.deny_reason_for_message(&blocked).is_some());
 
+    let cache_path = tmp.path().with_extension("cache.json");
+    let cached = tokio::fs::read(&cache_path).await.expect("cached rules");
+    write(
+        &mut tmp,
+        &file(json!([
+            { "reason": "r", "addedBy": "a", "match": { "originDomain": 1, "ORIGINDOMAIN": "*" } }
+        ])),
+    );
+    assert!(denylist.refresh().await.is_err());
+    assert_eq!(denylist.version(), 1);
+    assert!(denylist.deny_reason_for_message(&blocked).is_some());
+    assert_eq!(
+        tokio::fs::read(&cache_path).await.expect("cached rules"),
+        cached
+    );
+
     write(&mut tmp, &file(json!([])));
     let summary = denylist.refresh().await.expect("refresh");
     assert_eq!(summary.address_rules, 0);
@@ -262,7 +322,15 @@ async fn startup_falls_back_to_cached_file_when_fetch_fails() {
     let dir = tempfile::tempdir().expect("tempdir");
     let source = dir.path().join("denylist.json");
     let cache = dir.path().join("cache.json");
-    std::fs::write(&source, file(json!([address_rule(EVM_ADDRESS)]))).expect("write");
+    let msg = message(H256::random(), H256::random(), vec![]);
+    std::fs::write(
+        &source,
+        file(json!([
+            address_rule(EVM_ADDRESS),
+            { "reason": "r", "addedBy": "a", "match": { "MESSAGEID": format!("{:?}", msg.id()) } }
+        ])),
+    )
+    .expect("write");
 
     let first = denylist_at(Url::from_file_path(&source).expect("url"), cache.clone());
     first.refresh().await.expect("refresh");
@@ -272,6 +340,8 @@ async fn startup_falls_back_to_cached_file_when_fetch_fails() {
     let restarted = denylist_at(Url::from_file_path(&source).expect("url"), cache);
     restarted.initial_load().await;
     assert_eq!(restarted.summary().address_rules, 1);
+    assert_eq!(restarted.summary().message_rules, 1);
+    assert!(restarted.deny_reason_for_message(&msg).is_some());
 }
 
 #[test]

@@ -594,6 +594,11 @@ fn parse_address_list(
             if let Some(stripped) = s.strip_prefix("0x") {
                 s = stripped.to_owned();
             }
+            // An empty entry would match every message, e.g. from a trailing
+            // comma or an empty list.
+            if s.is_empty() {
+                return None;
+            }
             hex::decode(s).take_err(err, &err_path)
         })
         .collect_vec()
@@ -662,6 +667,29 @@ mod test {
         let res = parse_address_list(&input, &mut err, ConfigPath::default);
         assert_eq!(res, vec![valid_address1, valid_address2]);
         assert!(!err.is_ok());
+    }
+
+    #[test]
+    fn test_parse_address_blacklist_skips_empty_entries() {
+        let address = H160::random().as_bytes().to_vec();
+        for (input, expected) in [
+            (String::new(), vec![]),
+            (",".to_owned(), vec![]),
+            (" 0x ".to_owned(), vec![]),
+            (
+                format!("0x{},,", hex::encode(&address)),
+                vec![address.clone()],
+            ),
+            (
+                format!(", 0x{} ,", hex::encode(&address)),
+                vec![address.clone()],
+            ),
+        ] {
+            let mut err = ConfigParsingError::default();
+            let res = parse_address_list(&input, &mut err, ConfigPath::default);
+            assert_eq!(res, expected, "{input:?}");
+            assert!(err.is_ok(), "{input:?}");
+        }
     }
 
     #[test]

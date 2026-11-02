@@ -2128,6 +2128,7 @@ async fn runtime_denylist_skips_message_and_reloads_it_after_rule_removed() {
     .await;
 }
 
+#[tracing_test::traced_test]
 #[tokio::test]
 async fn released_denylist_drop_is_reconsidered_after_a_missed_rescan() {
     test_utils::run_test_db(|raw_db| async move {
@@ -2274,6 +2275,113 @@ async fn assert_signer_denied_drop_reloads(lander: bool) {
             only_operation(receiver.try_recv().expect("unblocked")).id(),
             message.id()
         );
+    })
+    .await;
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn denied_message_is_logged_once_across_rescans() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let (mut loader, _receiver) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        finish_legacy_migration(&mut loader).await;
+
+        let message = dummy_hyperlane_message(&destination, 0);
+        add_db_entry(&db, &message, 0);
+        loader.message_blacklist = Arc::new(MatchingList::with_message_id(message.id()));
+
+        for _ in 0..2 {
+            point_destination_scan_at(&mut loader, 0);
+            assert!(loader.try_load_destination(0).await.unwrap());
+        }
+
+        assert_eq!(
+            destination_outcome_count(&loader, DESTINATION_OUTCOME_MESSAGE_BLACKLISTED),
+            2
+        );
+        logs_assert(|lines: &[&str]| {
+            match lines
+                .iter()
+                .filter(|line| line.contains("Message denied, not relaying"))
+                .count()
+            {
+                1 => Ok(()),
+                n => Err(format!("expected one denial log, got {n}")),
+            }
+        });
+
+        // A runtime rule's reason is in the INFO line, not just DEBUG.
+        let runtime = dummy_hyperlane_message(&destination, 1);
+        add_db_entry(&db, &runtime, 0);
+        loader.set_runtime_denylist(Arc::new(RuntimeDenylist::from_rules_for_test(
+            serde_json::json!([{
+                "reason": "exploit 2026-10-29",
+                "addedBy": "test",
+                "match": { "messageId": format!("{:?}", runtime.id()) }
+            }]),
+        )));
+        point_destination_scan_at(&mut loader, 1);
+        assert!(loader.try_load_destination(0).await.unwrap());
+        assert!(logs_contain("exploit 2026-10-29 (added by test)"));
+        loader.set_runtime_denylist(Arc::default());
+
+        // Once it passes the lists it's forgotten, so a later denial logs again.
+        loader.message_blacklist = Arc::new(MatchingList::default());
+        point_destination_scan_at(&mut loader, 0);
+        assert!(loader.try_load_destination(0).await.unwrap());
+        assert_eq!(
+            destination_outcome_count(&loader, DESTINATION_OUTCOME_QUEUED),
+            1
+        );
+        assert!(loader
+            .logged_denials
+            .as_ref()
+            .expect("created on the first denial")
+            .0
+            .get(&message.id())
+            .await
+            .is_none());
+    })
+    .await;
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn denied_message_logs_again_after_the_ttl() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let (mut loader, _receiver) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        finish_legacy_migration(&mut loader).await;
+        assert!(loader.logged_denials.is_none(), "no cache until a denial");
+        loader.logged_denials_ttl = Duration::from_millis(100);
+
+        let message = dummy_hyperlane_message(&destination, 0);
+        add_db_entry(&db, &message, 0);
+        loader.message_blacklist = Arc::new(MatchingList::with_message_id(message.id()));
+        for _ in 0..2 {
+            point_destination_scan_at(&mut loader, 0);
+            assert!(loader.try_load_destination(0).await.unwrap());
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+
+        // A plain set would log once; the TTL lets it log again.
+        logs_assert(|lines: &[&str]| {
+            match lines
+                .iter()
+                .filter(|line| line.contains("Message denied, not relaying"))
+                .count()
+            {
+                2 => Ok(()),
+                n => Err(format!("expected two denial logs, got {n}")),
+            }
+        });
     })
     .await;
 }
