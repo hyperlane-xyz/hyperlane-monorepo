@@ -366,9 +366,12 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       '0x00000000000000000000000235aE95896583818d',
     ];
 
-    // Binance hot wallet exploit 2026-10-29 (tier 1 of the security team list).
+    // Binance hot wallet exploit 2026-10-29.
     // Solana and Tron entries are hex-encoded: 32-byte pubkey, 20-byte address.
+    // Entries only match a message whose sender, recipient or body contains them
+    // (e.g. as warp recipient), never the origin tx sender (depositor).
     const binanceExploiter = [
+      // Source: security team tier-1 ("blacklist now") list, 2026-10-29
       '0x5227f603C1eE34CE3C06eFe6477003BDfCCB2f8c',
       '0x9749292D74Fd460982d0912eA9515EA24736C762',
       '0x0Ddf0480016e6bCb2C1F5d190D221FBA1320697e',
@@ -396,10 +399,11 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       '0x430b9b4a60d18affe500b731a97b5aa622c7863f',
       // Tron TPBkSjkCMn2ckrMuAP8n2J1jdjbw76bKN4
       '0x90f8dfb1c5e5ebb29dcfbb66d7649fbde6a7293e',
-      // Reported by ZeroShadow 2026-10-31; bridged Tron->Ethereum via Hyperlane
+      // Source: ZeroShadow report 2026-10-31, Tron->Ethereum bridging via Hyperlane
       '0xb196981c37cfe105506613d1bd4153b9e63df92e',
       // Tron TQXm9qEL64YmGAzZoMspM8qyWPZ3tbqt6X
       '0x9fb9e907c054fbf59735818d95514cbacbffb79b',
+      // Not in ZeroShadow report; inferred linked, sent to the same recipient.
       // Tron TQrzMj8eKRAhizejiejaQVjiL95XsbxcAD
       '0xa35cd62b3ee93f358eebf025229a79ff09ac2ee6',
     ];
