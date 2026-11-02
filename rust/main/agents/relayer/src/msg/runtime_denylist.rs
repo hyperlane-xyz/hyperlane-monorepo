@@ -40,12 +40,15 @@ use parking_lot::RwLock;
 use prometheus::{IntCounter, IntCounterVec, IntGauge, IntGaugeVec};
 use serde::Deserialize;
 use serde_json::{Map, Value};
+use sha2::{Digest, Sha256};
+use tokio::io::AsyncReadExt;
 use tracing::{error, info, warn};
 use url::Url;
 
 use crate::settings::matching_list::{MatchInfo, MatchingList};
 
 const MAX_FILE_BYTES: usize = 4 * 1024 * 1024;
+const TRON_ADDRESS_PREFIX: u8 = 0x41;
 const FETCH_TIMEOUT: Duration = Duration::from_secs(10);
 const INITIAL_FETCH_ATTEMPTS: u32 = 3;
 const INITIAL_FETCH_BACKOFF: Duration = Duration::from_secs(2);
@@ -271,6 +274,10 @@ fn parse_match(match_: Map<String, Value>) -> Result<MatchingList> {
     // Missing fields are wildcards, and `bodyRegex` alone can match anything
     // (`.*`, `""`), so require a specific value in at least one other field.
     ensure!(
+        !element.has_empty_filter(),
+        "`match` has an empty list, so it would block nothing"
+    );
+    ensure!(
         element.constrains_exact_field(),
         "`match` must set messageId, originDomain, senderAddress, destinationDomain or recipientAddress; otherwise it can block every message"
     );
@@ -278,11 +285,39 @@ fn parse_match(match_: Map<String, Value>) -> Result<MatchingList> {
 }
 
 fn parse_address(address: &str) -> Result<H256> {
-    let address = hex_or_base58_or_bech32_to_h256(address.trim())
+    let address = address.trim();
+    let parsed = hex_or_base58_or_bech32_to_h256(address)
         .context("`address` must be EVM hex, base58 or bech32")?;
+    verify_tron_checksum(address, &parsed)?;
+    let address = parsed;
     // The zero address is the padding in short addresses and empty fields.
     ensure!(!address.is_zero(), "`address` must not be zero");
     Ok(address)
+}
+
+/// The shared parser reads any 25-byte base58 string as a Tron address
+/// without checking it, so a typo would load and never match. Check the
+/// `0x41` prefix and base58check checksum here rather than in the shared
+/// parser, which is also compiled into the Sealevel programs.
+fn verify_tron_checksum(address: &str, parsed: &H256) -> Result<()> {
+    let Ok(bytes) = bs58::decode(address).into_vec() else {
+        return Ok(());
+    };
+    // Only when the shared parser took its Tron branch (not bech32).
+    if bytes.len() != 25 || parsed.as_bytes()[12..] != bytes[1..21] {
+        return Ok(());
+    }
+    let (payload, checksum) = bytes.split_at(21);
+    ensure!(
+        payload.first() == Some(&TRON_ADDRESS_PREFIX),
+        "Tron `address` must start with 0x41"
+    );
+    let hash = Sha256::digest(Sha256::digest(payload));
+    ensure!(
+        hash.get(..4) == Some(checksum),
+        "Tron `address` checksum doesn't match; check for a typo"
+    );
+    Ok(())
 }
 
 /// Shared, hot-swappable view of the runtime denylist.
@@ -567,16 +602,20 @@ async fn fetch(client: &reqwest::Client, url: &Url) -> Result<Vec<u8>> {
             let path = url
                 .to_file_path()
                 .map_err(|()| eyre!("Invalid file URL {url}"))?;
-            let len = tokio::fs::metadata(&path)
+            let file = tokio::fs::File::open(&path)
                 .await
-                .with_context(|| format!("Failed to read {}", path.display()))?
-                .len();
-            if len > MAX_FILE_BYTES as u64 {
-                return Err(too_large(len));
+                .with_context(|| format!("Failed to read {}", path.display()))?;
+            // Read one byte past the limit, so an oversized file is detected
+            // without buffering all of it.
+            let mut bytes = Vec::new();
+            file.take((MAX_FILE_BYTES as u64).saturating_add(1))
+                .read_to_end(&mut bytes)
+                .await
+                .with_context(|| format!("Failed to read {}", path.display()))?;
+            if bytes.len() > MAX_FILE_BYTES {
+                return Err(too_large(bytes.len() as u64));
             }
-            tokio::fs::read(&path)
-                .await
-                .with_context(|| format!("Failed to read {}", path.display()))
+            Ok(bytes)
         }
         "http" | "https" => {
             let mut response = client.get(url.clone()).send().await?.error_for_status()?;

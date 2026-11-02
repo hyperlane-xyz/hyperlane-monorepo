@@ -105,6 +105,9 @@ fn rejects_invalid_rules() {
         json!({ "reason": "r", "addedBy": "a", "match": { "bodyRegex": "" } }),
         json!({ "reason": "r", "addedBy": "a", "match": { "bodyRegex": ".*" } }),
         json!({ "reason": "r", "addedBy": "a", "match": { "messageId": null } }),
+        // An empty list matches nothing, so the rule would silently do nothing.
+        json!({ "reason": "r", "addedBy": "a", "match": { "messageId": [] } }),
+        json!({ "reason": "r", "addedBy": "a", "match": { "originDomain": 1, "senderAddress": [] } }),
         // A Tron address with a one-character typo fails its checksum.
         json!({ "reason": "r", "addedBy": "a", "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6u" }),
         json!({ "reason": "r", "addedBy": "a", "address": "0x0000000000000000000000000000000000000000" }),
@@ -317,16 +320,92 @@ async fn startup_without_fetch_or_cache_has_no_rules() {
 }
 
 #[tokio::test]
-async fn fetch_rejects_oversized_files_before_reading() {
+async fn fetch_caps_file_size() {
+    let client = reqwest::Client::new();
     let mut tmp = NamedTempFile::new().expect("tempfile");
+    let url = Url::from_file_path(tmp.path()).expect("url");
+
+    tmp.as_file_mut()
+        .set_len(MAX_FILE_BYTES as u64)
+        .expect("resize file");
+    assert_eq!(
+        fetch(&client, &url).await.expect("at the limit").len(),
+        MAX_FILE_BYTES
+    );
+
     tmp.as_file_mut()
         .set_len(MAX_FILE_BYTES as u64 + 1)
-        .expect("grow file");
-    let url = Url::from_file_path(tmp.path()).expect("url");
-    let err = fetch(&reqwest::Client::new(), &url)
+        .expect("resize file");
+    let err = fetch(&client, &url).await.expect_err("over the limit");
+    assert!(err.to_string().contains("is at least"), "{err}");
+}
+
+/// Serve one raw HTTP response and return its URL.
+async fn serve_once(head: String, body: Vec<Vec<u8>>) -> Url {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
-        .expect_err("too large");
-    assert!(err.to_string().contains("limit"), "{err}");
+        .expect("bind");
+    let url = Url::parse(&format!(
+        "http://{}/denylist.json",
+        listener.local_addr().expect("addr")
+    ))
+    .expect("url");
+    tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.expect("accept");
+        let mut request = [0u8; 1024];
+        let _ = stream.read(&mut request).await;
+        let _ = stream.write_all(head.as_bytes()).await;
+        for part in body {
+            if stream.write_all(&part).await.is_err() {
+                return;
+            }
+        }
+    });
+    url
+}
+
+#[tokio::test]
+async fn fetch_rejects_oversized_http_bodies() {
+    let client = reqwest::Client::new();
+
+    // A declared length over the limit is rejected before any body is read.
+    let url = serve_once(
+        format!(
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n",
+            MAX_FILE_BYTES + 1
+        ),
+        vec![],
+    )
+    .await;
+    let err = fetch(&client, &url).await.expect_err("declared too large");
+    assert!(err.to_string().contains("is at least"), "{err}");
+
+    // Without a length, the stream is cut off once it passes the limit.
+    let chunk = vec![b'x'; 64 * 1024];
+    let chunks = (0..=MAX_FILE_BYTES / chunk.len())
+        .map(|_| {
+            let mut part = format!("{:x}\r\n", chunk.len()).into_bytes();
+            part.extend_from_slice(&chunk);
+            part.extend_from_slice(b"\r\n");
+            part
+        })
+        .chain(std::iter::once(b"0\r\n\r\n".to_vec()))
+        .collect();
+    let url = serve_once(
+        "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n".to_owned(),
+        chunks,
+    )
+    .await;
+    let err = fetch(&client, &url).await.expect_err("streamed too large");
+    assert!(err.to_string().contains("is at least"), "{err}");
+
+    let url = serve_once(
+        "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n".to_owned(),
+        vec![b"{}".to_vec()],
+    )
+    .await;
+    assert_eq!(fetch(&client, &url).await.expect("small body"), b"{}");
 }
 
 #[tokio::test]

@@ -296,6 +296,19 @@ impl ListElement {
         .contains(&true)
     }
 
+    /// Whether any field is an empty list. Fields are ANDed, so such an
+    /// element matches nothing.
+    pub fn has_empty_filter(&self) -> bool {
+        fn empty<T>(filter: &Filter<T>) -> bool {
+            matches!(filter, Filter::Enumerated(values) if values.is_empty())
+        }
+        empty(&self.message_id)
+            || empty(&self.origin_domain)
+            || empty(&self.sender_address)
+            || empty(&self.destination_domain)
+            || empty(&self.recipient_address)
+    }
+
     fn matches_route(
         &self,
         src_domain: u32,

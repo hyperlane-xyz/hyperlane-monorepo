@@ -242,7 +242,14 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     );
 
     if (baseConfig.runtimeDenylist) {
-      relayerConfig.runtimeDenylistUrl = baseConfig.runtimeDenylist.url;
+      const { url } = baseConfig.runtimeDenylist;
+      // The relayer refuses to start on any other scheme. Don't echo the URL,
+      // which can carry a token.
+      assert(
+        /^(https?|file):\/\//.test(url),
+        `runtimeDenylist.url must use https://, http:// or file://`,
+      );
+      relayerConfig.runtimeDenylistUrl = url;
       if (baseConfig.runtimeDenylist.pollIntervalSecs !== undefined) {
         relayerConfig.runtimeDenylistPollIntervalSecs =
           baseConfig.runtimeDenylist.pollIntervalSecs;
