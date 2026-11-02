@@ -148,7 +148,7 @@ export interface BaseRelayerConfig {
 function isValidRuntimeDenylistUrl(url: string): boolean {
   try {
     const { protocol, hostname } = new URL(url);
-    if (protocol === 'file:') return true;
+    if (protocol === 'file:') return hostname.length === 0;
     return (
       (protocol === 'https:' || protocol === 'http:') && hostname.length > 0
     );

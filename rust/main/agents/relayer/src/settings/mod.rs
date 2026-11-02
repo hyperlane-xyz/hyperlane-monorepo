@@ -330,6 +330,12 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                     eyre::eyre!("`runtimeDenylistUrl` must use https://, http:// or file://"),
                 );
             }
+            if url.scheme() == "file" && url.to_file_path().is_err() {
+                err.push(
+                    (&p.cwp).add("runtime_denylist_url"),
+                    eyre::eyre!("`runtimeDenylistUrl` must use a local file:// URL"),
+                );
+            }
         }
         let runtime_denylist_poll_interval_secs = p
             .chain(&mut err)
@@ -814,6 +820,12 @@ mod test {
     fn rejects_invalid_runtime_denylist() {
         for (url, interval, expected) in [
             ("gs://bucket/denylist.json", 60, "must use https://"),
+            ("file://denylist.json", 60, "must use a local file://"),
+            (
+                "file://remote/denylist.json",
+                60,
+                "must use a local file://",
+            ),
             (
                 "https://example.com/denylist.json",
                 0,
@@ -831,6 +843,22 @@ mod test {
             .expect_err("invalid runtime denylist must reject")
             .to_string();
             assert!(error.contains(expected), "{error}");
+        }
+    }
+
+    #[test]
+    fn accepts_local_runtime_denylist_files() {
+        for url in [
+            "file:///tmp/denylist.json",
+            "file://localhost/tmp/denylist.json",
+        ] {
+            let settings = parse_settings(json!({
+                "relaychains": "legacy",
+                "runtimedenylisturl": url,
+                "chains": { "legacy": chain_config("legacy", 1000) },
+            }))
+            .expect("local file URL should parse");
+            assert!(settings.runtime_denylist.is_some());
         }
     }
 }
