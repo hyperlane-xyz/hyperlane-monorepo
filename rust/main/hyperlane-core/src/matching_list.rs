@@ -265,7 +265,7 @@ impl PartialEq for RegexWrapper {
 
 /// A single element in a matching list
 #[derive(Debug, Deserialize, Clone, PartialEq, new)]
-#[serde(tag = "type")]
+#[serde(tag = "type", deny_unknown_fields)]
 pub struct ListElement {
     #[serde(default, rename = "messageid")]
     message_id: Filter<H256>,
@@ -650,6 +650,22 @@ mod test {
         assert!(MatchingList(None).matches(info.clone(), true));
         // blacklist use
         assert!(!MatchingList(None).matches(info, false));
+    }
+
+    #[test]
+    fn rejects_unknown_fields() {
+        // A typo or camelCase key must not silently become a wildcard.
+        for config in [
+            r#"[{"messageId": "0x01"}]"#,
+            r#"[{"destinationdomain": 1, "recipient": "0x01"}]"#,
+        ] {
+            assert!(
+                serde_json::from_str::<MatchingList>(config).is_err(),
+                "{config}"
+            );
+        }
+        serde_json::from_str::<MatchingList>(r#"[{"destinationdomain": 1}]"#).unwrap();
+        serde_json::from_str::<MatchingList>(r#"[{}]"#).unwrap();
     }
 
     #[test]
