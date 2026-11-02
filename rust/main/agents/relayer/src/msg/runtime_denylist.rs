@@ -40,7 +40,6 @@ use parking_lot::RwLock;
 use prometheus::{IntCounter, IntCounterVec, IntGauge, IntGaugeVec};
 use serde::Deserialize;
 use serde_json::{Map, Value};
-use sha2::{Digest, Sha256};
 use tokio::io::AsyncReadExt;
 use tracing::{error, info, warn};
 use url::Url;
@@ -260,6 +259,7 @@ fn parse_rule(rule: RawRule, canonical: String) -> Result<ParsedRule> {
 }
 
 fn parse_match(match_: Map<String, Value>) -> Result<MatchingList> {
+    verify_match_tron_addresses(&match_)?;
     let mut lowercased = Map::new();
     for (key, value) in match_ {
         let key = key.to_lowercase();
@@ -307,16 +307,36 @@ fn verify_tron_checksum(address: &str, parsed: &H256) -> Result<()> {
     if bytes.len() != 25 || parsed.as_bytes()[12..] != bytes[1..21] {
         return Ok(());
     }
-    let (payload, checksum) = bytes.split_at(21);
-    ensure!(
-        payload.first() == Some(&TRON_ADDRESS_PREFIX),
-        "Tron `address` must start with 0x41"
-    );
-    let hash = Sha256::digest(Sha256::digest(payload));
-    ensure!(
-        hash.get(..4) == Some(checksum),
-        "Tron `address` checksum doesn't match; check for a typo"
-    );
+    bs58::decode(address)
+        .with_check(Some(TRON_ADDRESS_PREFIX))
+        .into_vec()
+        .map(|_| ())
+        .map_err(|err| eyre!("Tron address `{address}` failed its prefix or checksum check ({err}); check for a typo"))
+}
+
+/// Tron addresses in a `match` rule's sender or recipient get the same check
+/// as `address` rules.
+fn verify_match_tron_addresses(match_: &Map<String, Value>) -> Result<()> {
+    let addresses = match_
+        .iter()
+        .filter(|(key, _)| {
+            matches!(
+                key.to_lowercase().as_str(),
+                "senderaddress" | "recipientaddress"
+            )
+        })
+        .flat_map(|(_, value)| match value {
+            Value::Array(values) => values.iter().collect(),
+            value => vec![value],
+        })
+        .filter_map(Value::as_str)
+        .filter(|address| *address != "*");
+    for address in addresses {
+        // Invalid values fail when the rule is deserialized.
+        if let Ok(parsed) = hex_or_base58_or_bech32_to_h256(address) {
+            verify_tron_checksum(address, &parsed)?;
+        }
+    }
     Ok(())
 }
 

@@ -296,8 +296,8 @@ impl ListElement {
         .contains(&true)
     }
 
-    /// Whether any field is an empty list. Fields are ANDed, so such an
-    /// element matches nothing.
+    /// Whether any field is an empty list. Every field must match, so such
+    /// an element matches nothing.
     pub fn has_empty_filter(&self) -> bool {
         fn empty<T>(filter: &Filter<T>) -> bool {
             matches!(filter, Filter::Enumerated(values) if values.is_empty())

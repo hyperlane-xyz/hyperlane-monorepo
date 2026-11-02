@@ -9,7 +9,7 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
-bs58.workspace = true
+bs58 = { workspace = true, features = ["check"] }
 redact.workspace = true
 async-trait.workspace = true
 axum.workspace = true
@@ -37,7 +37,6 @@ prometheus.workspace = true
 rand.workspace = true
 regex.workspace = true
 reqwest = { workspace = true, features = ["json"] }
-sha2.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha3.workspace = true

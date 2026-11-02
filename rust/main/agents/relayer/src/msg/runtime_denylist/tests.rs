@@ -340,6 +340,38 @@ async fn fetch_caps_file_size() {
     assert!(err.to_string().contains("is at least"), "{err}");
 }
 
+/// `/dev/zero` reports a length of 0 and never ends, so only a capped read
+/// returns (a metadata check passes, then an uncapped read never finishes).
+#[cfg(unix)]
+#[tokio::test]
+async fn fetch_caps_files_that_misreport_their_size() {
+    let url = Url::from_file_path("/dev/zero").expect("url");
+    let err = tokio::time::timeout(
+        Duration::from_secs(10),
+        fetch(&reqwest::Client::new(), &url),
+    )
+    .await
+    .expect("capped read returns")
+    .expect_err("over the limit");
+    assert!(err.to_string().contains("is at least"), "{err}");
+}
+
+#[test]
+fn tron_addresses_need_the_0x41_prefix_and_checksum() {
+    // A valid base58check string with the wrong version byte.
+    let wrong_prefix = bs58::encode([0x42u8; 21]).with_check().into_string();
+    for address in [wrong_prefix.as_str(), "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6u"] {
+        assert!(parse(json!([address_rule(address)])).is_err(), "{address}");
+        // Also inside a match rule's sender or recipient.
+        let rule =
+            json!({ "reason": "r", "addedBy": "a", "match": { "senderAddress": [address] } });
+        assert!(parse(json!([rule])).is_err(), "{address}");
+    }
+    let rule =
+        json!({ "reason": "r", "addedBy": "a", "match": { "recipientAddress": TRON_ADDRESS } });
+    assert!(parse(json!([rule])).is_ok());
+}
+
 /// Serve one raw HTTP response and return its URL.
 async fn serve_once(head: String, body: Vec<Vec<u8>>) -> Url {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
