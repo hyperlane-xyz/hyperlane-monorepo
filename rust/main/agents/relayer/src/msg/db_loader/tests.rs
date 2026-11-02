@@ -2321,7 +2321,12 @@ async fn denied_message_is_logged_once_across_rescans() {
             destination_outcome_count(&loader, DESTINATION_OUTCOME_QUEUED),
             1
         );
-        assert!(loader.destination_iterators[0].logged_denials.is_empty());
+        assert!(loader.destination_iterators[0]
+            .logged_denials
+            .0
+            .get(&message.id())
+            .await
+            .is_none());
     })
     .await;
 }

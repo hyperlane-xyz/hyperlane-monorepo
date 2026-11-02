@@ -30,7 +30,7 @@ pub struct MessageFilters {
 
 impl MessageFilters {
     /// Returns why the message must not be relayed, if it must not.
-    fn rejection(&self, message: &HyperlaneMessage) -> Option<&'static str> {
+    async fn rejection(&self, message: &HyperlaneMessage) -> Option<&'static str> {
         if !self.whitelist.msg_matches(message, true) {
             Some("Message not whitelisted")
         } else if self.blacklist.msg_matches(message, false) {
@@ -47,6 +47,14 @@ impl MessageFilters {
             .is_some()
         {
             Some("Message matches the runtime denylist")
+        } else if self
+            .runtime_denylist
+            .deny_reason_for_cached_signers(&message.id())
+            .await
+            .is_some()
+        {
+            // Matches the queues, which drop it on pop for the same reason.
+            Some("Message's origin transaction signer matches the runtime denylist")
         } else {
             None
         }
@@ -163,7 +171,7 @@ async fn handler(
         })?;
 
     // Reprocessing is for reorg recovery, not a way around the blacklists.
-    if let Some(error_msg) = state.filters.rejection(&message) {
+    if let Some(error_msg) = state.filters.rejection(&message).await {
         tracing::warn!(domain_id, ?message_id, "{error_msg}; refusing to reprocess");
         return Err(ServerErrorResponse::new(
             StatusCode::FORBIDDEN,
@@ -522,6 +530,21 @@ mod tests {
                         "match": { "messageId": format!("{:?}", message.id()) },
                     }]),
                 )),
+                ..Default::default()
+            },
+            MessageFilters {
+                runtime_denylist: {
+                    let signer = H256::random();
+                    let denylist = RuntimeDenylist::from_rules_for_test(serde_json::json!([{
+                        "reason": "test",
+                        "addedBy": "test",
+                        "address": format!("{signer:?}"),
+                    }]));
+                    denylist
+                        .cache_origin_signers_for_test(message.id(), vec![signer])
+                        .await;
+                    Arc::new(denylist)
+                },
                 ..Default::default()
             },
         ];
