@@ -79,6 +79,7 @@ difference returns a nonzero exit code. Matching failures are still failures.
 The `Solidity Solar` workflow uploads the same evidence on contract PRs.
 
 [Local benchmark results and method](benchmarks/solar-2026-11-02.md).
+[Warp deployment, transfer receipts and opcode counts](benchmarks/solar-warp-2026-11-02.md).
 
 ### Fixtures
 
