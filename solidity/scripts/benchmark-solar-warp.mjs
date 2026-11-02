@@ -56,6 +56,7 @@ const anvil = spawn(
     String(port),
     '--hardfork',
     'cancun',
+    '--steps-tracing',
     '--silent',
   ],
   { stdio: 'ignore' },
@@ -145,6 +146,21 @@ try {
           { tracer: 'callTracer' },
         ]);
         row.trace = t;
+        const execution = await provider.send('debug_traceTransaction', [
+          tx.hash,
+          { disableStack: true, disableStorage: true, enableMemory: false },
+        ]);
+        assert(execution.structLogs.length > 0, 'Missing opcode trace');
+        row.opcodes = {
+          total: execution.structLogs.length,
+          jump: execution.structLogs.filter((step) => step.op === 'JUMP')
+            .length,
+          jumpi: execution.structLogs.filter((step) => step.op === 'JUMPI')
+            .length,
+          jumpdest: execution.structLogs.filter(
+            (step) => step.op === 'JUMPDEST',
+          ).length,
+        };
       }
       rows.push(row);
       return r;
