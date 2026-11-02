@@ -267,17 +267,17 @@ impl PartialEq for RegexWrapper {
 #[derive(Debug, Deserialize, Clone, PartialEq, new)]
 #[serde(tag = "type", deny_unknown_fields)]
 pub struct ListElement {
-    #[serde(default, rename = "messageid")]
+    #[serde(default, rename = "messageid", alias = "messageId")]
     message_id: Filter<H256>,
-    #[serde(default, rename = "origindomain")]
+    #[serde(default, rename = "origindomain", alias = "originDomain")]
     origin_domain: Filter<u32>,
-    #[serde(default, rename = "senderaddress")]
+    #[serde(default, rename = "senderaddress", alias = "senderAddress")]
     sender_address: Filter<H256>,
-    #[serde(default, rename = "destinationdomain")]
+    #[serde(default, rename = "destinationdomain", alias = "destinationDomain")]
     destination_domain: Filter<u32>,
-    #[serde(default, rename = "recipientaddress")]
+    #[serde(default, rename = "recipientaddress", alias = "recipientAddress")]
     recipient_address: Filter<H256>,
-    #[serde(default, rename = "bodyregex")]
+    #[serde(default, rename = "bodyregex", alias = "bodyRegex")]
     body_regex: Option<RegexWrapper>,
 }
 
@@ -681,9 +681,9 @@ mod test {
 
     #[test]
     fn rejects_unknown_fields() {
-        // A typo or camelCase key must not silently become a wildcard.
+        // A typo must not silently become a wildcard.
         for config in [
-            r#"[{"messageId": "0x01"}]"#,
+            r#"[{"messageID": "0x01"}]"#,
             r#"[{"destinationdomain": 1, "recipient": "0x01"}]"#,
         ] {
             assert!(
@@ -693,6 +693,20 @@ mod test {
         }
         serde_json::from_str::<MatchingList>(r#"[{"destinationdomain": 1}]"#).unwrap();
         serde_json::from_str::<MatchingList>(r#"[{}]"#).unwrap();
+    }
+
+    #[test]
+    fn accepts_camel_case_keys() {
+        // The relayer's HTTP endpoints take raw JSON; camelCase matches the TS SDK.
+        let camel: MatchingList = serde_json::from_str(
+            r#"[{"messageId": "*", "originDomain": 1, "senderAddress": "*", "destinationDomain": 2, "recipientAddress": "*", "bodyRegex": "ab"}]"#,
+        )
+        .unwrap();
+        let lower: MatchingList = serde_json::from_str(
+            r#"[{"messageid": "*", "origindomain": 1, "senderaddress": "*", "destinationdomain": 2, "recipientaddress": "*", "bodyregex": "ab"}]"#,
+        )
+        .unwrap();
+        assert_eq!(camel.0, lower.0);
     }
 
     #[test]
