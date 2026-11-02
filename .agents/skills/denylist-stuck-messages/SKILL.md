@@ -61,6 +61,9 @@ Append one rule per new message ID to the existing `rules` array:
 ```
 
 JSON does not support comments. Include destination/grouping context in `reason`.
+When the user supplies an expiry, add `expiresAt` to each applicable rule and
+validate it as an RFC 3339 timestamp before opening the PR. Omit it when no expiry
+was requested.
 For other rule types, follow the registry README: exactly one of `match` or
 `address`; a `match` needs at least one non-wildcard exact-match field.
 `bodyRegex` alone does not qualify. Never add a broad rule just to avoid listing
