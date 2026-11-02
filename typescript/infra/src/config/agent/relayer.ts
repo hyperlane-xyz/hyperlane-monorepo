@@ -161,10 +161,11 @@ export interface RelayApiConfig {
 // Full relayer-specific agent config for a single chain
 export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig>;
 // Config intended to be set as configMap values, these are usually really long
-// and are intended to derisk hitting max env var length limits.
+// and are intended to derisk hitting max env var length limits. The message
+// blacklist alone is ~43 KB and grows with every denylist PR.
 export type RelayerConfigMapConfig = Pick<
   RelayerConfig,
-  'addressBlacklist' | 'gasPaymentEnforcement' | 'ismCacheConfigs'
+  'addressBlacklist' | 'blacklist' | 'gasPaymentEnforcement' | 'ismCacheConfigs'
 >;
 // Config that will be embedded into relayer docker image because
 // of its large size.
