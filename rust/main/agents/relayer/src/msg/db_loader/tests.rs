@@ -2279,6 +2279,7 @@ async fn assert_signer_denied_drop_reloads(lander: bool) {
     .await;
 }
 
+#[tracing_test::traced_test]
 #[tokio::test]
 async fn denied_message_is_logged_once_across_rescans() {
     test_utils::run_test_db(|raw_db| async move {
@@ -2312,6 +2313,21 @@ async fn denied_message_is_logged_once_across_rescans() {
                 n => Err(format!("expected one denial log, got {n}")),
             }
         });
+
+        // A runtime rule's reason is in the INFO line, not just DEBUG.
+        let runtime = dummy_hyperlane_message(&destination, 1);
+        add_db_entry(&db, &runtime, 0);
+        loader.set_runtime_denylist(Arc::new(RuntimeDenylist::from_rules_for_test(
+            serde_json::json!([{
+                "reason": "exploit 2026-10-29",
+                "addedBy": "test",
+                "match": { "messageId": format!("{:?}", runtime.id()) }
+            }]),
+        )));
+        point_destination_scan_at(&mut loader, 1);
+        assert!(loader.try_load_destination(0).await.unwrap());
+        assert!(logs_contain("exploit 2026-10-29 (added by test)"));
+        loader.set_runtime_denylist(Arc::default());
 
         // Once it passes the lists it's forgotten, so a later denial logs again.
         loader.message_blacklist = Arc::new(MatchingList::default());

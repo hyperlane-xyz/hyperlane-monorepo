@@ -599,7 +599,14 @@ impl MessageDbLoader {
     /// Log a denied message at info the first time this loader skips it, so
     /// "why isn't this relayed" is answerable from default logs without
     /// re-logging on every rescan.
-    async fn log_denial_once(&mut self, message: &HyperlaneMessage, list: &str) {
+    /// `detail` is what matched: a runtime rule's reason, or a blacklisted
+    /// address.
+    async fn log_denial_once(
+        &mut self,
+        message: &HyperlaneMessage,
+        list: &str,
+        detail: Option<&str>,
+    ) {
         let message_id = message.id();
         let ttl = self.logged_denials_ttl;
         let logged = &self
@@ -614,6 +621,7 @@ impl MessageDbLoader {
                 destination = message.destination,
                 nonce = message.nonce,
                 list,
+                detail,
                 "Message denied, not relaying"
             );
         }
@@ -956,7 +964,7 @@ impl MessageDbLoader {
         if self.message_blacklist.msg_matches(&message, false) {
             self.metrics
                 .record_destination_outcome(DESTINATION_OUTCOME_MESSAGE_BLACKLISTED);
-            self.log_denial_once(&message, "blacklist").await;
+            self.log_denial_once(&message, "blacklist", None).await;
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         }
@@ -964,12 +972,9 @@ impl MessageDbLoader {
         {
             self.metrics
                 .record_destination_outcome(DESTINATION_OUTCOME_ADDRESS_BLACKLISTED);
-            debug!(
-                message_id = ?message.id(),
-                blacklisted_address = hex::encode(blacklisted_address),
-                "Blacklisted address"
-            );
-            self.log_denial_once(&message, "address_blacklist").await;
+            let blacklisted_address = hex::encode(blacklisted_address);
+            self.log_denial_once(&message, "address_blacklist", Some(&blacklisted_address))
+                .await;
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         }
@@ -984,8 +989,8 @@ impl MessageDbLoader {
         if let Some(reason) = deny_reason {
             self.metrics
                 .record_destination_outcome(DESTINATION_OUTCOME_RUNTIME_DENYLISTED);
-            debug!(message_id = ?message.id(), %reason, "Runtime denylist rule");
-            self.log_denial_once(&message, "runtime_denylist").await;
+            self.log_denial_once(&message, "runtime_denylist", Some(&reason))
+                .await;
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         }
