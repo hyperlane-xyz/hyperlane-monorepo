@@ -1,0 +1,31 @@
+warpRouteId: USDT/eni
+intentTTL: 1209600
+inventorySigners:
+  ethereum: "0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9"
+  tron: "0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9"
+externalBridges:
+  debridge:
+    maxFeeBps: 50
+    maxTronNativeValueSun: 20000000
+  swapsxyz:
+    defaultSlippage: 0.005
+    maxQuoteLossBps: 50
+    maxEvmNativeFeeWei: "10000000000000000"
+strategy:
+  rebalanceStrategy: minAmount
+  chains:
+    bsc:
+      executionType: inventory
+      externalBridge: swapsxyz
+      minAmount:
+        min: 1000
+        target: 2000
+        type: absolute
+    tron:
+      executionType: inventory
+      externalBridge: debridge
+      minAmount:
+        min: 1000
+        target: 1500
+        type: absolute
+
