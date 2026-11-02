@@ -1,6 +1,6 @@
 # Solar warp deployment and transfer receipts
 
-Full analysis, build benchmarks and deployment implications are being published with [PR #9956](https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/9956). This file records the new local fixture and its principal measurements.
+[Full analysis, build benchmarks and deployment implications](https://gist.github.com/paulbalaji/054371c203a43543801e4d9213d3c4b6), with the concise decision in [PR #9956](https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/9956). This file records the local fixture and its principal measurements.
 
 | Bytecode used                               | First transfer gas | Second transfer gas | Second-transfer saving |
 | ------------------------------------------- | ------------------ | ------------------- | ---------------------- |
