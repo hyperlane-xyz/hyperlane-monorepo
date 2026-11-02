@@ -652,8 +652,8 @@ async fn submit_classic_task(
 
 #[allow(clippy::too_many_arguments)]
 #[instrument(skip_all, fields(domain=%_domain))]
-async fn submit_lander_task(
-    entrypoint: Arc<DispatcherEntrypoint>,
+async fn submit_lander_task<E: Entrypoint + Send + Sync + 'static>(
+    entrypoint: Arc<E>,
     _domain: HyperlaneDomain, // used for instrumentation only
     prepare_queue: OpQueue,
     mut submit_queue: OpQueue,
@@ -679,11 +679,6 @@ async fn submit_lander_task(
         )
         .await;
 
-        // Only ops about to get a new payload: those already with the
-        // dispatcher went back to a queue above and keep being tracked.
-        let operations_to_process =
-            submit::drop_denied_before_submission(&denylist, operations_to_process);
-
         if operations_to_process.is_empty() {
             // There are no operations to submit, so give some time before checking again
             sleep(Duration::from_millis(100)).await;
@@ -693,7 +688,15 @@ async fn submit_lander_task(
         // Process remaining operations in submit queue
         for op in operations_to_process {
             // Operation needs a new payload created and sent
-            submit_via_lander(op, &entrypoint, &prepare_queue, &submit_queue, db.clone()).await;
+            submit_via_lander(
+                op,
+                &entrypoint,
+                &prepare_queue,
+                &submit_queue,
+                db.clone(),
+                &denylist,
+            )
+            .await;
         }
     }
 }
@@ -704,7 +707,12 @@ async fn submit_via_lander<E: Entrypoint + Send + Sync>(
     prepare_queue: &OpQueue,
     submit_queue: &OpQueue,
     db: Arc<dyn HyperlaneDb>,
+    denylist: &RuntimeDenylist,
 ) {
+    // Avoid payload RPCs for a rule that landed while an earlier op awaited.
+    let Some(op) = submit::drop_denied_before_submission(denylist, op) else {
+        return;
+    };
     let operation_payload = match op.payload().await {
         Ok(p) => p,
         Err(e) => {
@@ -747,6 +755,12 @@ async fn submit_via_lander<E: Entrypoint + Send + Sync>(
         operation_success_criteria,
         mailbox,
     );
+
+    // Payload construction can await RPCs, as can earlier operations in the
+    // same batch. Apply the latest rules at the handoff to lander.
+    let Some(op) = submit::drop_denied_before_submission(denylist, op) else {
+        return;
+    };
 
     if let Err(e) = entrypoint.send_payload(&payload).await {
         let reason = ReprepareReason::ErrorSubmitting;

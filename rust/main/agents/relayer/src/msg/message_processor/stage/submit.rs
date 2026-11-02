@@ -91,23 +91,19 @@ pub(crate) async fn filter_operations_for_submit(
     ops_to_submit
 }
 
-/// Drop ops matching the runtime denylist before a new lander payload is
-/// created for them. Ops whose payload is already in flight never get here.
+/// Drop an operation matching the current rules immediately before its new
+/// payload is handed to lander. Payloads already in flight never get here.
 pub(crate) fn drop_denied_before_submission(
     denylist: &RuntimeDenylist,
-    ops: Vec<QueueOperation>,
-) -> Vec<QueueOperation> {
-    ops.into_iter()
-        .filter(|op| {
-            let Some(reason) = denylist.deny_reason_for_op(op.as_ref()) else {
-                return true;
-            };
-            warn!(id = ?op.id(), %reason, "Dropping operation matching runtime denylist before submission");
-            op.decrement_metric_if_exists();
-            denylist.record_eviction(op.destination_domain().name(), "submit_queue");
-            false
-        })
-        .collect()
+    op: QueueOperation,
+) -> Option<QueueOperation> {
+    let Some(reason) = denylist.deny_reason_for_op(op.as_ref()) else {
+        return Some(op);
+    };
+    warn!(id = ?op.id(), %reason, "Dropping operation matching runtime denylist before submission");
+    op.decrement_metric_if_exists();
+    denylist.record_eviction(op.destination_domain().name(), "submit_queue");
+    None
 }
 
 #[cfg(test)]

@@ -1051,7 +1051,10 @@ async fn denylist_drops_only_ops_without_a_payload_in_flight() {
         ],
     )
     .await;
-    let to_submit = super::drop_denied_before_submission(&denylist, to_submit);
+    let to_submit: Vec<_> = to_submit
+        .into_iter()
+        .filter_map(|op| super::drop_denied_before_submission(&denylist, op))
+        .collect();
 
     assert!(to_submit.is_empty());
     // The in-flight op is still queued for its payload to be tracked.
