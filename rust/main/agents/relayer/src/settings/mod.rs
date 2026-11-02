@@ -345,6 +345,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
         let runtime_denylist = runtime_denylist_url.map(|url| RuntimeDenylistConf {
             url,
             poll_interval: Duration::from_secs(runtime_denylist_poll_interval_secs),
+            cache_path: db.join("runtime_denylist_cache.json"),
         });
 
         let transaction_gas_limit = p

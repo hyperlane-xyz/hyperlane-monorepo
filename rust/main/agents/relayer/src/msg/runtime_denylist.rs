@@ -20,6 +20,7 @@
 //! the first fetch at startup fails, the relayer starts with no runtime rules.
 
 use std::{
+    path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -64,6 +65,8 @@ pub struct RuntimeDenylistConf {
     pub url: Url,
     /// Time between fetches.
     pub poll_interval: Duration,
+    /// Last successfully fetched file, used if the startup fetch fails.
+    pub cache_path: PathBuf,
 }
 
 #[derive(Debug)]
@@ -301,7 +304,7 @@ impl RuntimeDenylist {
     #[cfg(test)]
     pub(crate) fn set_rules_for_test(&self, rules: serde_json::Value) {
         let bytes = serde_json::to_vec(&serde_json::json!({ "rules": rules })).expect("json");
-        self.replace(parse_rules(&bytes, Utc::now()).expect("valid rules"));
+        self.replace(parse_rules(&bytes, Utc::now()).expect("valid rules"), true);
     }
 
     /// Whether a source URL is configured.
@@ -366,7 +369,8 @@ impl RuntimeDenylist {
     }
 
     /// Replace the active rules. Bumps the version only if they changed.
-    fn replace(&self, rules: ActiveRules) {
+    /// `fetched` is false when the rules come from the on-disk cache.
+    fn replace(&self, rules: ActiveRules, fetched: bool) {
         let changed = {
             let mut current = self.rules.write();
             if current.fingerprint == rules.fingerprint {
@@ -389,9 +393,11 @@ impl RuntimeDenylist {
                 .active_rules
                 .with_label_values(&["address"])
                 .set(summary.address_rules as i64);
-            metrics
-                .last_refresh_success_timestamp
-                .set(Utc::now().timestamp());
+            if fetched {
+                metrics
+                    .last_refresh_success_timestamp
+                    .set(Utc::now().timestamp());
+            }
         }
         if changed {
             info!(?summary, "Runtime denylist updated");
@@ -408,12 +414,15 @@ impl RuntimeDenylist {
         let _guard = self.refresh_lock.lock().await;
         let result = async {
             let bytes = fetch(&source.client, &source.conf.url).await?;
-            parse_rules(&bytes, Utc::now())
+            parse_rules(&bytes, Utc::now()).map(|rules| (rules, bytes))
         }
         .await;
         match result {
-            Ok(rules) => {
-                self.replace(rules);
+            Ok((rules, bytes)) => {
+                self.replace(rules, true);
+                if let Err(err) = write_cache(&source.conf.cache_path, &bytes).await {
+                    warn!(error = ?err, "Failed to cache runtime denylist");
+                }
                 Ok(self.summary())
             }
             Err(err) => {
@@ -449,10 +458,25 @@ impl RuntimeDenylist {
                 tokio::time::sleep(INITIAL_FETCH_BACKOFF).await;
             }
         }
-        error!(
-            url = %source.conf.url,
-            "Starting without runtime denylist rules; messages they would block will be relayed until a fetch succeeds"
-        );
+        let cached = tokio::fs::read(&source.conf.cache_path)
+            .await
+            .map_err(eyre::Report::from)
+            .and_then(|bytes| parse_rules(&bytes, Utc::now()));
+        match cached {
+            Ok(rules) => {
+                self.replace(rules, false);
+                error!(
+                    url = %source.conf.url,
+                    summary = ?self.summary(),
+                    "Starting with the cached runtime denylist; it may be stale until a fetch succeeds"
+                );
+            }
+            Err(err) => error!(
+                url = %source.conf.url,
+                error = ?err,
+                "Starting without runtime denylist rules; messages they would block will be relayed until a fetch succeeds"
+            ),
+        }
     }
 
     /// Re-fetch the denylist forever. Returns immediately if no URL is set.
@@ -471,6 +495,14 @@ impl RuntimeDenylist {
             }
         }
     }
+}
+
+/// Write via a temp file so a crash can't leave a truncated cache.
+async fn write_cache(path: &Path, bytes: &[u8]) -> Result<()> {
+    let tmp = path.with_extension("tmp");
+    tokio::fs::write(&tmp, bytes).await?;
+    tokio::fs::rename(&tmp, path).await?;
+    Ok(())
 }
 
 async fn fetch(client: &reqwest::Client, url: &Url) -> Result<Vec<u8>> {

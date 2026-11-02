@@ -40,7 +40,7 @@ fn parse(rules: serde_json::Value) -> Result<ActiveRules> {
 
 fn denylist_with(rules: serde_json::Value) -> RuntimeDenylist {
     let denylist = RuntimeDenylist::default();
-    denylist.replace(parse(rules).expect("valid rules"));
+    denylist.replace(parse(rules).expect("valid rules"), true);
     denylist
 }
 
@@ -187,20 +187,28 @@ fn replace_bumps_version_only_on_change() {
     let denylist = RuntimeDenylist::default();
     assert_eq!(denylist.version(), 0);
     let rules = json!([address_rule(EVM_ADDRESS)]);
-    denylist.replace(parse(rules.clone()).expect("valid"));
+    denylist.replace(parse(rules.clone()).expect("valid"), true);
     assert_eq!(denylist.version(), 1);
-    denylist.replace(parse(rules).expect("valid"));
+    denylist.replace(parse(rules).expect("valid"), true);
     assert_eq!(denylist.version(), 1);
-    denylist.replace(parse(json!([])).expect("valid"));
+    denylist.replace(parse(json!([])).expect("valid"), true);
     assert_eq!(denylist.version(), 2);
 }
 
 fn file_denylist(file: &NamedTempFile) -> RuntimeDenylist {
-    let url = Url::from_file_path(file.path()).expect("absolute path");
+    let cache_path = file.path().with_extension("cache.json");
+    denylist_at(
+        Url::from_file_path(file.path()).expect("absolute path"),
+        cache_path,
+    )
+}
+
+fn denylist_at(url: Url, cache_path: std::path::PathBuf) -> RuntimeDenylist {
     RuntimeDenylist::new(
         Some(RuntimeDenylistConf {
             url,
             poll_interval: Duration::from_secs(1),
+            cache_path,
         }),
         RuntimeDenylistMetrics::new(
             &CoreMetrics::new("test", 9090, prometheus::Registry::new()).expect("metrics"),
@@ -238,6 +246,23 @@ async fn refresh_from_file_keeps_previous_rules_on_bad_file() {
     assert_eq!(summary.address_rules, 0);
     assert_eq!(summary.version, 2);
     assert_eq!(denylist.deny_reason_for_message(&blocked), None);
+}
+
+#[tokio::test]
+async fn startup_falls_back_to_cached_file_when_fetch_fails() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let source = dir.path().join("denylist.json");
+    let cache = dir.path().join("cache.json");
+    std::fs::write(&source, file(json!([address_rule(EVM_ADDRESS)]))).expect("write");
+
+    let first = denylist_at(Url::from_file_path(&source).expect("url"), cache.clone());
+    first.refresh().await.expect("refresh");
+    assert!(cache.exists());
+
+    std::fs::remove_file(&source).expect("remove");
+    let restarted = denylist_at(Url::from_file_path(&source).expect("url"), cache);
+    restarted.initial_load().await;
+    assert_eq!(restarted.summary().address_rules, 1);
 }
 
 #[tokio::test]
