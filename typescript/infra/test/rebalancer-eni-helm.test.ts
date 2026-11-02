@@ -92,12 +92,12 @@ describe('USDT Eni production manifest', () => {
     expect(runtime.strategy.chains.bsc).to.deep.include({
       executionType: 'inventory',
       externalBridge: 'swapsxyz',
-      minAmount: { min: 3000, target: 4500, type: 'absolute' },
+      minAmount: { min: 1000, target: 2000, type: 'absolute' },
     });
     expect(runtime.strategy.chains.tron).to.deep.include({
       executionType: 'inventory',
       externalBridge: 'debridge',
-      minAmount: { min: 2000, target: 3500, type: 'absolute' },
+      minAmount: { min: 1000, target: 1500, type: 'absolute' },
     });
   });
 });

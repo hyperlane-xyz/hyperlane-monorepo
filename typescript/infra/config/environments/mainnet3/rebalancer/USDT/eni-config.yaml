@@ -27,13 +27,13 @@ strategy:
       executionType: inventory
       externalBridge: swapsxyz
       minAmount:
-        min: 3000
-        target: 4500
+        min: 1000
+        target: 2000
         type: absolute
     tron:
       executionType: inventory
       externalBridge: debridge
       minAmount:
-        min: 2000
-        target: 3500
+        min: 1000
+        target: 1500
         type: absolute
