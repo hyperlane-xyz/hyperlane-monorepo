@@ -60,6 +60,13 @@ owner must check that the send policy on A and receive policy on B are
 compatible. See LayerZero's
 [pathway configuration guide](https://docs.layerzero.network/v2/get-started/create-lz-oapp/configuring-pathways).
 
+The hook/ISM does not enforce a minimum number of DVNs or confirmations. It
+accepts any policy the selected library accepts, including a single DVN or zero
+confirmations. LayerZero resolves a default when it sends or commits a packet,
+not when the route is enrolled, so a change by the library owner applies to
+existing routes. Owners should set `sendUlnConfig` and `receiveUlnConfig`
+explicitly, including DVNs and confirmations, instead of relying on defaults.
+
 This pull verifier decodes Endpoint V2 PacketV1 data and calls
 `IReceiveUlnE2.commitVerification` for packets not already committed. Select
 compatible message libraries; Endpoint registration alone does not establish
