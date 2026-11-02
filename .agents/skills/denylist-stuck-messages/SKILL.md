@@ -178,10 +178,12 @@ Options:
 1. "Yes, deploy now" (Recommended)
 2. "No, I'll deploy later"
 
-If user confirms, run:
+If user confirms, deploy every mainnet3 relayer context. They share the same blacklist, so deploying only `hyperlane` leaves `rc` and `fastpath` relaying the messages:
 
 ```bash
-pnpm --dir typescript/infra exec tsx ./scripts/agents/deploy-agents.ts -e mainnet3 --context hyperlane --role relayer
+for context in hyperlane rc fastpath; do
+  pnpm --dir typescript/infra exec tsx ./scripts/agents/deploy-agents.ts -e mainnet3 --context "$context" --role relayer
+done
 ```
 
 If user skips, output the command for later use.
