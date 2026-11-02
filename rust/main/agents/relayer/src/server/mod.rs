@@ -50,6 +50,8 @@ pub struct Server {
     dispatcher_command_entrypoints: Option<HashMap<u32, Arc<dyn CommandEntrypoint>>>,
     #[new(default)]
     runtime_denylist: Option<Arc<RuntimeDenylist>>,
+    #[new(default)]
+    message_filters: operations::reprocess_message::MessageFilters,
 }
 
 impl Server {
@@ -100,6 +102,14 @@ impl Server {
         self
     }
 
+    pub fn with_message_filters(
+        mut self,
+        filters: operations::reprocess_message::MessageFilters,
+    ) -> Self {
+        self.message_filters = filters;
+        self
+    }
+
     pub fn with_runtime_denylist(mut self, denylist: Arc<RuntimeDenylist>) -> Self {
         self.runtime_denylist = Some(denylist);
         self
@@ -128,6 +138,7 @@ impl Server {
                         op_queues.clone(),
                         self.msg_ctxs.clone(),
                     )
+                    .with_filters(self.message_filters.clone())
                     .router(),
                 );
             }

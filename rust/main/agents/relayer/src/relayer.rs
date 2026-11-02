@@ -991,6 +991,13 @@ impl Relayer {
             .with_prover_sync(prover_syncs)
             .with_dispatcher_command_entrypoints(dispatcher_entrypoints)
             .with_runtime_denylist(self.runtime_denylist.clone())
+            .with_message_filters(
+                relayer_server::operations::reprocess_message::MessageFilters {
+                    whitelist: self.message_whitelist.clone(),
+                    blacklist: self.message_blacklist.clone(),
+                    address_blacklist: self.address_blacklist.clone(),
+                },
+            )
             .router();
 
         (router, maybe_relay_api_state)

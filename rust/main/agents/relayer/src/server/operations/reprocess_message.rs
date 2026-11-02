@@ -6,22 +6,60 @@ use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB},
     server::utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
 };
-use hyperlane_core::{PendingOperationStatus, ReprepareReason, H256};
+use hyperlane_core::{HyperlaneMessage, PendingOperationStatus, ReprepareReason, H256};
 use serde::{Deserialize, Serialize};
 
-use crate::msg::{
-    op_queue::OpQueue,
-    pending_message::{MessageContext, PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES},
+use crate::{
+    msg::{
+        blacklist::AddressBlacklist,
+        op_queue::OpQueue,
+        pending_message::{MessageContext, PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES},
+    },
+    settings::matching_list::MatchingList,
 };
+
+/// The relayer's static whitelist and blacklists.
+#[derive(Clone, Debug, Default)]
+pub struct MessageFilters {
+    pub whitelist: Arc<MatchingList>,
+    pub blacklist: Arc<MatchingList>,
+    pub address_blacklist: Arc<AddressBlacklist>,
+}
+
+impl MessageFilters {
+    /// Returns why the message must not be relayed, if it must not.
+    fn rejection(&self, message: &HyperlaneMessage) -> Option<&'static str> {
+        if !self.whitelist.msg_matches(message, true) {
+            Some("Message not whitelisted")
+        } else if self.blacklist.msg_matches(message, false) {
+            Some("Message blacklisted")
+        } else if self
+            .address_blacklist
+            .find_blacklisted_address(message)
+            .is_some()
+        {
+            Some("Message involves a blacklisted address")
+        } else {
+            None
+        }
+    }
+}
 
 #[derive(Clone, new)]
 pub struct ServerState {
     pub dbs: HashMap<u32, HyperlaneRocksDB>,
     pub op_queues: HashMap<u32, OpQueue>,
     pub msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>,
+    #[new(default)]
+    pub filters: MessageFilters,
 }
 
 impl ServerState {
+    pub fn with_filters(mut self, filters: MessageFilters) -> Self {
+        self.filters = filters;
+        self
+    }
+
     pub fn router(self) -> Router {
         Router::new()
             .route("/reprocess_message", routing::post(handler))
@@ -116,6 +154,17 @@ async fn handler(
             )
         })?;
 
+    // Reprocessing is for reorg recovery, not a way around the blacklists.
+    if let Some(error_msg) = state.filters.rejection(&message) {
+        tracing::warn!(domain_id, ?message_id, "{error_msg}; refusing to reprocess");
+        return Err(ServerErrorResponse::new(
+            StatusCode::FORBIDDEN,
+            ServerErrorBody {
+                message: error_msg.to_string(),
+            },
+        ));
+    }
+
     let app_context = state
         .msg_ctxs
         .get(&(message.origin, message.destination))
@@ -199,6 +248,13 @@ mod tests {
     }
 
     fn setup_test_server(domains: &[HyperlaneDomain]) -> TestServerSetup {
+        setup_test_server_with_filters(domains, MessageFilters::default())
+    }
+
+    fn setup_test_server_with_filters(
+        domains: &[HyperlaneDomain],
+        filters: MessageFilters,
+    ) -> TestServerSetup {
         let dbs: HashMap<_, _> = domains
             .iter()
             .map(|domain| {
@@ -254,7 +310,8 @@ mod tests {
             }
         }
 
-        let server_state = ServerState::new(dbs.clone(), op_queues.clone(), msg_ctxs);
+        let server_state =
+            ServerState::new(dbs.clone(), op_queues.clone(), msg_ctxs).with_filters(filters);
         let app = server_state.router();
 
         TestServerSetup {
@@ -417,5 +474,60 @@ mod tests {
             .len()
             .await;
         assert_eq!(op_queue_len, 0);
+    }
+
+    #[tokio::test]
+    async fn test_reprocess_message_respects_static_lists() {
+        let domains = &[
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        ];
+        let message = HyperlaneMessage {
+            nonce: 7,
+            origin: KnownHyperlaneDomain::Arbitrum as u32,
+            sender: H256::from_low_u64_be(100),
+            destination: KnownHyperlaneDomain::Ethereum as u32,
+            recipient: H256::from_low_u64_be(200),
+            ..Default::default()
+        };
+        let cases = [
+            MessageFilters {
+                blacklist: Arc::new(MatchingList::with_message_id(message.id())),
+                ..Default::default()
+            },
+            MessageFilters {
+                whitelist: Arc::new(MatchingList::with_destination_domain(999_999)),
+                ..Default::default()
+            },
+            MessageFilters {
+                address_blacklist: Arc::new(AddressBlacklist::new(vec![message
+                    .recipient
+                    .as_bytes()[24..]
+                    .to_vec()])),
+                ..Default::default()
+            },
+        ];
+        for filters in cases {
+            let TestServerSetup {
+                app,
+                dbs,
+                op_queues,
+                _retry_sender,
+            } = setup_test_server_with_filters(domains, filters);
+            insert_message(&dbs, &domains[0], &message, 1000);
+
+            let response = send_request(
+                app,
+                KnownHyperlaneDomain::Arbitrum as u32,
+                format!("0x{:x}", message.id()),
+            )
+            .await;
+
+            assert_eq!(response.status(), StatusCode::FORBIDDEN);
+            let queue = op_queues
+                .get(&(KnownHyperlaneDomain::Ethereum as u32))
+                .expect("Queue not found");
+            assert_eq!(queue.len().await, 0);
+        }
     }
 }
