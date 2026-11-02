@@ -253,5 +253,78 @@
         }
       }
     }
+  },
+  "ci": {
+    "sourceCommit": "3a848060d4265ee5aff8ae23d3e0cb8ff74b6cca",
+    "sourceDirty": false,
+    "measuredAt": "2026-11-02T19:43:37.151Z",
+    "host": {
+      "platform": "linux",
+      "release": "6.17.0-1019-aws",
+      "cpu": "Intel(R) Xeon(R) 6975P-C",
+      "threads": 8,
+      "memoryBytes": 66330808320
+    },
+    "runs": 5,
+    "speedup": 14.998134251592855,
+    "artifactCount": 312,
+    "compatibility": [],
+    "statusDifferences": [],
+    "workflowRun": "https://github.com/hyperlane-xyz/hyperlane-monorepo/actions/runs/41512213782",
+    "results": {
+      "solc": {
+        "coldMs": [
+          21769.678437000002, 21484.937165000003, 21529.365038000004,
+          21552.636759999994, 21613.63236399999
+        ],
+        "cachedMs": [
+          640.0542999999998, 650.1359799999991, 653.9711950000055,
+          655.5439690000057, 642.3629859999928
+        ],
+        "coldMedianMs": 21552.636759999994,
+        "cachedMedianMs": 650.1359799999991,
+        "testExitCode": 0,
+        "counts": {
+          "Success": 1480,
+          "Skipped": 1
+        }
+      },
+      "solar": {
+        "coldMs": [
+          1440.8161039999977, 1442.5951879999993, 1437.0211920000002,
+          1435.494675000009, 1427.9299619999947
+        ],
+        "cachedMs": [
+          647.8811700000006, 649.4462970000022, 652.1261579999991,
+          653.2109449999989, 650.0404950000084
+        ],
+        "coldMedianMs": 1437.0211920000002,
+        "cachedMedianMs": 650.0404950000084,
+        "testExitCode": 0,
+        "counts": {
+          "Success": 1480,
+          "Skipped": 1
+        }
+      }
+    }
+  },
+  "packageBuildContext": {
+    "command": "pnpm -C solidity build",
+    "compiler": "solc-js 0.8.33+commit.64118f21 (WASM)",
+    "samples": [
+      {
+        "name": "package-cold",
+        "command": ["pnpm", "-C", "solidity", "build"],
+        "seconds": 71.38887645793147,
+        "exitCode": 0
+      },
+      {
+        "name": "package-cached",
+        "command": ["pnpm", "-C", "solidity", "build"],
+        "seconds": 3.8479750000406057,
+        "exitCode": 0
+      }
+    ],
+    "method": "One cold package build from absent Hardhat artifacts/cache, dist and generated TypeChain, then one unchanged package build. Node/Soldeer dependencies, utils and the compiler download were prepared before timing. Includes version update, Hardhat, TypeChain, tsc, compatibility fixes and artifact exports. Same Mac as the Forge results. Solar has no equivalent package export build in this PR."
   }
 }

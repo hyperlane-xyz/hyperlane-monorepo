@@ -70,6 +70,10 @@ The separate IGP gas report uses the fixed `testPayForGas()` inputs and reports
 contract calls and deployment gas. Fuzz gas is retained as raw evidence; a fixed
 seed alone does not fix the compiler-dependent fuzz dictionary.
 
+The build comparison uses native compilers under Forge. It does not time
+`pnpm build`, which also runs Hardhat, TypeChain, TypeScript and artifact exports.
+The cached row is a no-op Forge invocation with compilation skipped.
+
 Any test failure, missing test, changed result, ABI difference or storage-layout
 difference returns a nonzero exit code. Matching failures are still failures.
 The `Solidity Solar` workflow uploads the same evidence on contract PRs.
