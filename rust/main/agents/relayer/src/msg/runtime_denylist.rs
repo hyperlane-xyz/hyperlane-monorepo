@@ -253,9 +253,23 @@ fn parse_rule(rule: RawRule, canonical: String) -> Result<ParsedRule> {
 
 fn parse_match(match_: Map<String, Value>) -> Result<MatchingList> {
     verify_match_tron_addresses(&match_)?;
-    // `ListElement` rejects unknown keys and accepts camelCase.
+    // Runtime feeds and their caches historically accepted any key casing.
+    // Normalize keys only; addresses and regexes can be case-sensitive.
+    let mut normalized = Map::new();
+    for (key, value) in match_ {
+        let key = key.to_lowercase();
+        if let Some(existing) = normalized.get(&key) {
+            ensure!(
+                existing == &value,
+                "Conflicting `match` aliases for `{key}`"
+            );
+            continue;
+        }
+        normalized.insert(key, value);
+    }
+    // Keep the shared parser strict, including unknown-field rejection.
     let element: ListElement =
-        serde_json::from_value(Value::Object(match_)).context("Invalid `match`")?;
+        serde_json::from_value(Value::Object(normalized)).context("Invalid `match`")?;
     // Missing fields are wildcards, and `bodyRegex` alone can match anything
     // (`.*`, `""`), so require a specific value in at least one other field.
     ensure!(
