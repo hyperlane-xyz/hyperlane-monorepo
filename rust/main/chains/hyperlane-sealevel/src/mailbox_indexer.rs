@@ -404,7 +404,9 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
                             slot = account.slot,
                             "Could not find the dispatch transaction in its block; signers unknown"
                         );
-                        return Ok(None);
+                        // Definite: the block scan already treats transient
+                        // RPC errors as errors.
+                        return Ok(Some(vec![]));
                     }
                 }
             }

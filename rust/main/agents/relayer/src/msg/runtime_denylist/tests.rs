@@ -665,10 +665,20 @@ pub(crate) mod origin_sender {
         // must not be cached as unknown: that would bypass the check.
         let s = setup(json!([address_rule(EVM_ADDRESS)]), Some(evm(EVM_ADDRESS)));
         let message = HyperlaneMessage::default();
-        assert!(s.check.deny_reason(&s.db, &message).await.is_err());
+        let err = s
+            .check
+            .deny_reason(&s.db, &message)
+            .await
+            .expect_err("no hash");
+        assert!(is_hash_not_stored(&err), "{err}");
         s.db.store_dispatched_tx_hash_by_message_id(&message.id(), &H512::zero())
             .expect("store");
-        assert!(s.check.deny_reason(&s.db, &message).await.is_err());
+        let err = s
+            .check
+            .deny_reason(&s.db, &message)
+            .await
+            .expect_err("zero hash");
+        assert!(is_hash_not_stored(&err), "{err}");
         assert_eq!(s.provider.calls.load(Ordering::SeqCst), 0);
 
         s.db.store_dispatched_tx_hash_by_message_id(&message.id(), &H512::random())
@@ -730,6 +740,29 @@ pub(crate) mod origin_sender {
             .deny_reason(&s.db, &HyperlaneMessage::default())
             .await
             .is_err());
+    }
+
+    #[tokio::test]
+    async fn indexer_reporting_no_tx_is_unknown() {
+        // Sealevel returns no signers when the dispatch block has no matching
+        // tx: a definite unknown, so no retry or provider fallback.
+        let s = setup_with(
+            json!([address_rule(EVM_ADDRESS)]),
+            SenderProvider::new(None),
+            SignerIndexer {
+                signers: Some(vec![]),
+                ..SignerIndexer::unsupported()
+            },
+        );
+        let message = HyperlaneMessage::default();
+        for _ in 0..2 {
+            assert_eq!(
+                s.check.deny_reason(&s.db, &message).await.expect("ok"),
+                None
+            );
+        }
+        assert_eq!(s.indexer.calls.load(Ordering::SeqCst), 1);
+        assert_eq!(s.provider.calls.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test]

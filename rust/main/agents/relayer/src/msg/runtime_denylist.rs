@@ -772,7 +772,13 @@ impl OriginSenderCheck {
                 self.lookup_signers(db, message).await.map(Arc::new)
             })
             .await
-            .map_err(|err| eyre!("{err:#}"))?;
+            .map_err(|err| {
+                if is_hash_not_stored(&err) {
+                    DispatchHashNotStored.into()
+                } else {
+                    eyre!("{err:#}")
+                }
+            })?;
         Ok(signers
             .iter()
             .find_map(|signer| self.denylist.deny_reason_for_address(signer)))
@@ -793,6 +799,7 @@ impl OriginSenderCheck {
         let outcome = match &result {
             Ok(signers) if signers.is_empty() => "unknown",
             Ok(_) => "found",
+            Err(err) if is_hash_not_stored(err) => "no_hash",
             Err(_) => "error",
         };
         self.denylist.record_origin_lookup(outcome);
@@ -817,10 +824,10 @@ impl OriginSenderCheck {
             return Ok(non_zero(signers, &message_id));
         }
         // The hash is written after the message (and by scraper backfill
-        // later still), so a missing one may just not be stored yet. Retry
-        // through the caller's bounded backoff rather than caching unknown.
+        // later still), so a missing one may just not be stored yet. Don't
+        // cache unknown; the caller waits briefly and reads the DB again.
         let Some(tx_hash) = tx_hash else {
-            bail!("Dispatch tx hash for {message_id:?} isn't stored yet");
+            return Err(DispatchHashNotStored.into());
         };
         match self.provider.get_txn_by_hash(&tx_hash).await {
             Ok(txn) => Ok(non_zero(vec![txn.sender], &message_id)),
@@ -837,6 +844,17 @@ impl OriginSenderCheck {
             Err(err) => Err(err.into()),
         }
     }
+}
+
+/// No dispatch tx hash is stored for the message: either not written yet, or
+/// never (e.g. Cosmos block-level events, old DB backlog).
+#[derive(Debug, thiserror::Error)]
+#[error("Dispatch tx hash isn't stored")]
+pub struct DispatchHashNotStored;
+
+/// Whether a lookup failed only because no dispatch tx hash is stored.
+pub fn is_hash_not_stored(err: &eyre::Report) -> bool {
+    err.downcast_ref::<DispatchHashNotStored>().is_some()
 }
 
 /// Drop zero signers, which some providers (e.g. Radix, Aleo) return when

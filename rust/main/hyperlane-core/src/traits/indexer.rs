@@ -61,7 +61,8 @@ pub trait Indexer<T: Sized>: Send + Sync + Debug {
     /// Signers of the transaction that emitted the log with this sequence, for
     /// indexers that can't store transaction ids (the Sealevel mailbox).
     /// `tx_hash` skips the lookup when the transaction is already known.
-    /// `Ok(None)` means unsupported, or the transaction can't be resolved.
+    /// `Ok(None)` means unsupported; `Ok(Some(vec![]))` means the transaction
+    /// can't be found.
     async fn fetch_tx_signers_by_sequence(
         &self,
         _sequence: u32,
