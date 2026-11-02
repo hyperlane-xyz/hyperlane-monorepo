@@ -1017,3 +1017,31 @@ async fn pop_many_ready_bounds_work_on_a_denied_backlog() {
     assert!(deadline.is_some(), "caller must poll again, not sleep");
     assert_eq!(queue.len().await, 1);
 }
+
+#[tokio::test]
+async fn pop_many_drops_ops_whose_cached_origin_signer_is_denied() {
+    // An address rule added after an op was prepared: its signers were
+    // already looked up, so the queue can drop it without an RPC call.
+    let signer = H256::random();
+    let denylist = Arc::new(RuntimeDenylist::from_rules_for_test(serde_json::json!([
+        { "reason": "test", "addedBy": "test", "address": format!("{signer:?}") }
+    ])));
+    let broadcaster = sync::broadcast::Sender::new(10);
+    let destination: HyperlaneDomain = KnownHyperlaneDomain::Base.into();
+    let denied = MockPendingOperation::new(1, destination.clone());
+    let allowed = MockPendingOperation::new(2, destination);
+    let allowed_id = allowed.id();
+    denylist
+        .cache_origin_signers_for_test(denied.id(), vec![signer])
+        .await;
+    let mut queue = initialize_queue(&broadcaster).with_runtime_denylist(denylist);
+    queue.push(Box::new(denied), None).await;
+    queue.push(Box::new(allowed), None).await;
+
+    let popped = queue.pop_many(10).await;
+
+    assert_eq!(
+        popped.iter().map(|op| op.id()).collect::<Vec<_>>(),
+        vec![allowed_id]
+    );
+}

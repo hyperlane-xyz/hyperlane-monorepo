@@ -397,7 +397,15 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
                     .await?
                 {
                     Some(log_meta) if !log_meta.transaction_id.is_zero() => log_meta.transaction_id,
-                    _ => return Ok(None),
+                    _ => {
+                        warn!(
+                            nonce = sequence,
+                            dispatched_message_pda = %pda,
+                            slot = account.slot,
+                            "Could not find the dispatch transaction in its block; signers unknown"
+                        );
+                        return Ok(None);
+                    }
                 }
             }
         };

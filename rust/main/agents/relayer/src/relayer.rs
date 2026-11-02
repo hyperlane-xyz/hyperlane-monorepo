@@ -370,21 +370,17 @@ impl BaseAgent for Relayer {
         runtime_denylist.initial_load().await;
         // Looks up origin tx senders while runtime `address` rules exist,
         // reusing the origin's existing provider.
-        let origin_sender_checks: HashMap<_, _> = origins
-            .iter()
-            .filter(|_| runtime_denylist.is_enabled())
-            .map(|(origin_domain, origin)| {
-                let provider = Arc::from(origin.validator_announce.provider());
-                (
-                    origin_domain.clone(),
-                    Arc::new(OriginSenderCheck::new(
-                        runtime_denylist.clone(),
-                        provider,
-                        origin.message_indexer.clone(),
-                    )),
-                )
-            })
-            .collect();
+        let mut origin_sender_checks = HashMap::new();
+        if runtime_denylist.is_enabled() {
+            for (origin_domain, origin) in origins.iter() {
+                let check = OriginSenderCheck::new(
+                    runtime_denylist.clone(),
+                    Arc::from(origin.validator_announce.provider()),
+                    origin.message_indexer.clone(),
+                );
+                origin_sender_checks.insert(origin_domain.clone(), Arc::new(check));
+            }
+        }
         let skip_transaction_gas_limit_for = settings.skip_transaction_gas_limit_for;
         let transaction_gas_limit = settings.transaction_gas_limit;
 

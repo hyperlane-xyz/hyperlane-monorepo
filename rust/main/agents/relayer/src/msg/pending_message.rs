@@ -45,6 +45,10 @@ use super::{
 /// See this PR for why 66 retries means 2 weeks:
 /// https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/5468
 pub const DEFAULT_MAX_MESSAGE_RETRIES: u32 = 66;
+/// Failed origin tx signer lookups before relaying without that check.
+/// Backoff doubles from `ORIGIN_LOOKUP_BACKOFF`: about 15 minutes in total.
+const ORIGIN_LOOKUP_MAX_FAILURES: u32 = 5;
+const ORIGIN_LOOKUP_BACKOFF: Duration = Duration::from_secs(30);
 pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
     // Wait 5 seconds after submitting the message before confirming in test mode
     Duration::from_secs(5)
@@ -193,9 +197,10 @@ pub struct PendingMessage {
     ica_reveal_attempts: u32,
     #[serde(skip_serializing)]
     loaded_message_guard: Option<LoadedMessageGuard>,
-    /// Origin tx signers, once looked up for the runtime denylist.
+    /// Consecutive failed origin tx signer lookups. Tracked apart from
+    /// `num_retries` so an RPC outage can't use up the retry budget.
     #[serde(skip_serializing)]
-    origin_tx_signers: Option<Vec<H256>>,
+    origin_lookup_failures: u32,
 }
 
 impl PendingMessage {
@@ -231,7 +236,7 @@ impl PendingMessage {
             fail_fast: false,
             ica_reveal_attempts: 0,
             loaded_message_guard: None,
-            origin_tx_signers: None,
+            origin_lookup_failures: 0,
         }
     }
 
@@ -419,30 +424,40 @@ impl PendingOperation for PendingMessage {
         }
 
         if let Some(check) = self.ctx.origin_sender_check.clone() {
-            let denial = check
-                .deny_reason(
-                    self.ctx.origin_db.as_ref(),
-                    &self.message,
-                    &mut self.origin_tx_signers,
-                )
-                .await;
-            match denial {
+            match check
+                .deny_reason(self.ctx.origin_db.as_ref(), &self.message)
+                .await
+            {
                 Ok(Some(reason)) => {
-                    warn!(
-                        origin_tx_signers = ?self.origin_tx_signers,
-                        %reason,
-                        "Dropping message: origin tx sender matches runtime denylist"
-                    );
+                    warn!(%reason, "Dropping message: origin tx signer matches runtime denylist");
                     check.record_drop(self.ctx.destination_mailbox.domain().name());
                     // Not terminal: the loader reloads it if the rule is removed.
                     return PendingOperationResult::Drop;
                 }
-                Ok(None) => {}
-                // Fail closed: an address rule is active and we can't tell
-                // who sent this, so retry rather than relay.
+                Ok(None) => self.origin_lookup_failures = 0,
                 Err(err) => {
-                    return self
-                        .on_reprepare(Some(err), ReprepareReason::ErrorFetchingOriginTxSender)
+                    self.origin_lookup_failures = self.origin_lookup_failures.saturating_add(1);
+                    if self.origin_lookup_failures < ORIGIN_LOOKUP_MAX_FAILURES {
+                        // Fail closed while an address rule exists: wait for
+                        // the RPC rather than relay a possibly denied message.
+                        warn!(
+                            error = ?err,
+                            attempt = self.origin_lookup_failures,
+                            "Origin tx signer lookup failed; retrying"
+                        );
+                        let delay = ORIGIN_LOOKUP_BACKOFF
+                            .saturating_mul(1 << self.origin_lookup_failures.saturating_sub(1));
+                        return self
+                            .delay_reprepare(delay, ReprepareReason::ErrorFetchingOriginTxSender);
+                    }
+                    // Persistent failures are usually permanent (pruned or
+                    // unparsable tx), so stop blocking the message.
+                    warn!(
+                        error = ?err,
+                        attempts = self.origin_lookup_failures,
+                        "Origin tx signer lookup keeps failing; relaying without the origin sender check"
+                    );
+                    check.give_up(self.message.id()).await;
                 }
             }
         }
@@ -2224,51 +2239,85 @@ mod test {
         }
     }
 
-    #[tokio::test]
-    async fn prepare_checks_origin_tx_sender_against_runtime_denylist() {
+    fn pending_with_origin_check(
+        sender: Option<H256>,
+        blocked: H256,
+        delivered_calls: usize,
+    ) -> (tempfile::TempDir, PendingMessage) {
         use crate::msg::runtime_denylist::{
             tests::origin_sender::{SenderProvider, SignerIndexer},
             OriginSenderCheck, RuntimeDenylist,
         };
 
+        let mut mailbox = contract_test_mailbox();
+        mailbox.expect__provider().times(0);
+        mailbox
+            .expect__delivered()
+            .times(delivered_calls)
+            .returning(|_| Ok(false));
+        let check = Arc::new(OriginSenderCheck::new(
+            Arc::new(RuntimeDenylist::from_rules_for_test(serde_json::json!([
+                { "reason": "exploit", "addedBy": "test", "address": format!("{blocked:?}") }
+            ]))),
+            Arc::new(SenderProvider::new(sender)),
+            Arc::new(SignerIndexer::unsupported()),
+        ));
+        let (dir, pending) = pending_with_sender_check(mailbox, None, Some(check));
+        pending
+            .ctx
+            .origin_db
+            .store_dispatched_tx_hash_by_message_id(&pending.message.id(), &H512::random())
+            .expect("store tx hash");
+        (dir, pending)
+    }
+
+    #[tokio::test]
+    async fn prepare_drops_message_with_denied_origin_tx_signer() {
         let blocked = H256::random();
-        let rules = serde_json::json!([
-            { "reason": "exploit", "addedBy": "test", "address": format!("{blocked:?}") }
-        ]);
-        // (provider sender, expected result): listed → Drop, lookup error → Reprepare.
-        for (sender, expect_drop) in [(Some(blocked), true), (None, false)] {
-            let mut mailbox = contract_test_mailbox();
-            mailbox.expect__provider().times(0);
-            mailbox
-                .expect__delivered()
-                .times(1)
-                .returning(|_| Ok(false));
-            let check = Arc::new(OriginSenderCheck::new(
-                Arc::new(RuntimeDenylist::from_rules_for_test(rules.clone())),
-                Arc::new(SenderProvider {
-                    sender,
-                    calls: Default::default(),
-                }),
-                Arc::new(SignerIndexer::unsupported()),
+        let (_dir, mut pending) = pending_with_origin_check(Some(blocked), blocked, 1);
+        assert!(matches!(
+            pending.prepare().await,
+            PendingOperationResult::Drop
+        ));
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn prepare_retries_failed_origin_lookups_then_gives_up() {
+        // `None` makes every lookup a transport error.
+        let (_dir, mut pending) = pending_with_origin_check(
+            None,
+            H256::random(),
+            super::ORIGIN_LOOKUP_MAX_FAILURES as usize,
+        );
+        pending
+            .store_to_cache(
+                "arbitrum",
+                "is_contract",
+                &pending.message.recipient,
+                &false,
+            )
+            .await;
+
+        for attempt in 1..super::ORIGIN_LOOKUP_MAX_FAILURES {
+            assert!(matches!(
+                pending.prepare().await,
+                PendingOperationResult::Reprepare(ReprepareReason::ErrorFetchingOriginTxSender)
             ));
-            let (_dir, mut pending) = pending_with_sender_check(mailbox, None, Some(check));
-            pending
-                .ctx
-                .origin_db
-                .store_dispatched_tx_hash_by_message_id(&pending.message.id(), &H512::random())
-                .expect("store tx hash");
-
-            let result = pending.prepare().await;
-
-            if expect_drop {
-                assert!(matches!(result, PendingOperationResult::Drop));
-            } else {
-                assert!(matches!(
-                    result,
-                    PendingOperationResult::Reprepare(ReprepareReason::ErrorFetchingOriginTxSender)
-                ));
-            }
+            // Fail closed with backoff, without spending the retry budget.
+            assert_eq!(pending.num_retries, 0);
+            assert!(pending.next_attempt_after.is_some(), "attempt {attempt}");
+            pending.next_attempt_after = None;
         }
+
+        // The last failure gives up and prepare carries on (here, to the
+        // cached "recipient is not a contract" drop).
+        assert!(matches!(
+            pending.prepare().await,
+            PendingOperationResult::Drop
+        ));
+        assert!(logs_contain("relaying without the origin sender check"));
+        assert!(logs_contain("recipient is not a contract"));
     }
 
     #[tokio::test]
