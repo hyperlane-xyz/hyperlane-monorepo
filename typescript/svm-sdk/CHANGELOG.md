@@ -1,5 +1,14 @@
 # @hyperlane-xyz/sealevel-sdk
 
+## 45.1.0
+
+### Patch Changes
+
+- d3b865d: The embedded Sealevel source hash was refreshed after the program-linked Rust crates were pinned to their current version; program bytes are unchanged.
+  - @hyperlane-xyz/utils@45.1.0
+  - @hyperlane-xyz/forking-sdk@10.0.2
+  - @hyperlane-xyz/provider-sdk@11.0.2
+
 ## 45.0.1
 
 ### Patch Changes
