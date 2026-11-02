@@ -301,6 +301,7 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       addressBlacklist: config.addressBlacklist,
       gasPaymentEnforcement: config.gasPaymentEnforcement,
       ismCacheConfigs: config.ismCacheConfigs,
+      ...(config.blacklist !== undefined && { blacklist: config.blacklist }),
     };
     const envConfig = objOmitKeys<RelayerConfig>(config, [
       ...Object.keys(configMapConfig),
