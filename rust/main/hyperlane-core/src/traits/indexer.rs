@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use serde::Deserialize;
 
-use crate::{ChainResult, Indexed, LogMeta, H512};
+use crate::{ChainResult, Indexed, LogMeta, H256, H512};
 
 /// Indexing mode.
 #[derive(Copy, Debug, Default, Deserialize, Clone)]
@@ -56,6 +56,18 @@ pub trait Indexer<T: Sized>: Send + Sync + Debug {
         _tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
         Ok(vec![])
+    }
+
+    /// Signers of the transaction that emitted the log with this sequence, for
+    /// indexers that can't store transaction ids (the Sealevel mailbox).
+    /// `tx_hash` skips the lookup when the transaction is already known.
+    /// `Ok(None)` means unsupported, or the transaction can't be resolved.
+    async fn fetch_tx_signers_by_sequence(
+        &self,
+        _sequence: u32,
+        _tx_hash: Option<H512>,
+    ) -> ChainResult<Option<Vec<H256>>> {
+        Ok(None)
     }
 
     /// Fetch logs and check CCTP V2 status from a single transaction.

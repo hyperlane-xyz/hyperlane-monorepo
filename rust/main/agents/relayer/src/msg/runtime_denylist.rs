@@ -34,7 +34,7 @@ use hyperlane_base::db::HyperlaneDb;
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
     matching_list::ListElement, utils::hex_or_base58_or_bech32_to_h256, HyperlaneMessage,
-    HyperlaneProvider, PendingOperation, H256,
+    HyperlaneProvider, Indexer, PendingOperation, H256,
 };
 use parking_lot::RwLock;
 use prometheus::{IntCounter, IntCounterVec, IntGauge, IntGaugeVec};
@@ -523,6 +523,8 @@ async fn fetch(client: &reqwest::Client, url: &Url) -> Result<Vec<u8>> {
 pub struct OriginSenderCheck {
     denylist: Arc<RuntimeDenylist>,
     provider: Arc<dyn HyperlaneProvider>,
+    /// Resolves dispatch tx signers where the tx id isn't stored (Sealevel).
+    indexer: Arc<dyn Indexer<HyperlaneMessage>>,
 }
 
 impl std::fmt::Debug for OriginSenderCheck {
@@ -532,8 +534,16 @@ impl std::fmt::Debug for OriginSenderCheck {
 }
 
 impl OriginSenderCheck {
-    pub fn new(denylist: Arc<RuntimeDenylist>, provider: Arc<dyn HyperlaneProvider>) -> Self {
-        Self { denylist, provider }
+    pub fn new(
+        denylist: Arc<RuntimeDenylist>,
+        provider: Arc<dyn HyperlaneProvider>,
+        indexer: Arc<dyn Indexer<HyperlaneMessage>>,
+    ) -> Self {
+        Self {
+            denylist,
+            provider,
+            indexer,
+        }
     }
 
     /// Record a message dropped at prepare because of its origin tx sender.
@@ -541,35 +551,48 @@ impl OriginSenderCheck {
         self.denylist.record_eviction(destination, "origin_sender");
     }
 
-    /// Returns the reason if the origin tx sender is denied. `sender` caches
-    /// the looked-up sender across calls. Messages without a stored dispatch
-    /// tx hash (e.g. Sealevel origins) aren't checked.
+    /// Returns the reason if a signer of the origin tx is denied. `signers`
+    /// caches the lookup across calls, including an empty result when the
+    /// tx can't be resolved, so it runs once per loaded message.
     pub async fn deny_reason(
         &self,
         db: &dyn HyperlaneDb,
-        message_id: H256,
-        sender: &mut Option<H256>,
+        message: &HyperlaneMessage,
+        signers: &mut Option<Vec<H256>>,
     ) -> Result<Option<String>> {
         if !self.denylist.has_address_rules() {
             return Ok(None);
         }
-        let origin_sender = match sender {
-            Some(origin_sender) => *origin_sender,
-            None => {
-                let Some(tx_hash) = db.retrieve_dispatched_tx_hash_by_message_id(&message_id)?
-                else {
-                    debug!(
-                        ?message_id,
-                        "No dispatch tx hash stored; skipping origin sender check"
-                    );
-                    return Ok(None);
-                };
-                let origin_sender = self.provider.get_txn_by_hash(&tx_hash).await?.sender;
-                *sender = Some(origin_sender);
-                origin_sender
-            }
+        if signers.is_none() {
+            *signers = Some(self.lookup_signers(db, message).await?);
+        }
+        Ok(signers
+            .iter()
+            .flatten()
+            .find_map(|signer| self.denylist.deny_reason_for_address(signer)))
+    }
+
+    async fn lookup_signers(
+        &self,
+        db: &dyn HyperlaneDb,
+        message: &HyperlaneMessage,
+    ) -> Result<Vec<H256>> {
+        // Some writers (e.g. the relay API) can store a zero hash.
+        let tx_hash = db
+            .retrieve_dispatched_tx_hash_by_message_id(&message.id())?
+            .filter(|tx_hash| !tx_hash.is_zero());
+        if let Some(signers) = self
+            .indexer
+            .fetch_tx_signers_by_sequence(message.nonce, tx_hash)
+            .await?
+        {
+            return Ok(signers);
+        }
+        let Some(tx_hash) = tx_hash else {
+            debug!(message_id = ?message.id(), "Dispatch tx unknown; skipping origin sender check");
+            return Ok(vec![]);
         };
-        Ok(self.denylist.deny_reason_for_address(&origin_sender))
+        Ok(vec![self.provider.get_txn_by_hash(&tx_hash).await?.sender])
     }
 }
 
