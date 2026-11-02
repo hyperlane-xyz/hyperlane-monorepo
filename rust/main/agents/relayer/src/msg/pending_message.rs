@@ -125,6 +125,9 @@ pub(super) struct LoadedMessageGuard {
     message_id: H256,
     loaded_messages: Arc<Mutex<HashSet<H256>>>,
     db: HyperlaneRocksDB,
+    /// Hands the nonce back to the loader on release, when set.
+    reconsider: Option<(u32, Arc<Mutex<Vec<u32>>>)>,
+    reconsider_on_release: bool,
 }
 
 impl LoadedMessageGuard {
@@ -140,7 +143,24 @@ impl LoadedMessageGuard {
             message_id,
             loaded_messages,
             db,
+            reconsider: None,
+            reconsider_on_release: false,
         })
+    }
+
+    /// Where to hand back `nonce` if the message is released for the loader
+    /// to look at again.
+    pub(super) fn with_reconsideration(
+        mut self,
+        nonce: u32,
+        released: Arc<Mutex<Vec<u32>>>,
+    ) -> Self {
+        self.reconsider = Some((nonce, released));
+        self
+    }
+
+    pub(super) fn reconsider_on_release(&mut self) {
+        self.reconsider_on_release = true;
     }
 
     fn mark_terminal(&self) -> hyperlane_base::db::DbResult<()> {
@@ -151,6 +171,11 @@ impl LoadedMessageGuard {
 impl Drop for LoadedMessageGuard {
     fn drop(&mut self) {
         self.loaded_messages.lock().remove(&self.message_id);
+        if self.reconsider_on_release {
+            if let Some((nonce, released)) = &self.reconsider {
+                released.lock().push(*nonce);
+            }
+        }
     }
 }
 
@@ -253,6 +278,16 @@ impl PendingMessage {
             origin_lookup_failures: 0,
             origin_hash_waited: false,
             origin_lookup_skip_until: None,
+        }
+    }
+
+    /// After a denylist drop, have the loader look at this message again
+    /// once it's released. A rule removed while the drop was still being
+    /// processed would otherwise leave the message unloaded: the loader's
+    /// rescan saw it as already loaded and moved past it.
+    fn reconsider_on_release(&mut self) {
+        if let Some(guard) = self.loaded_message_guard.as_mut() {
+            guard.reconsider_on_release();
         }
     }
 
@@ -467,33 +502,42 @@ impl PendingOperation for PendingMessage {
 
         // After the gas preflight, so unpaid messages don't cost origin RPC
         // lookups that could push real deposits into giving up.
-        let lookup_skipped = self
-            .origin_lookup_skip_until
-            .is_some_and(|until| Instant::now() < until);
-        if let Some(check) = self
-            .ctx
-            .origin_sender_check
-            .clone()
-            .filter(|_| !lookup_skipped)
-        {
-            match check
-                .deny_reason(self.ctx.origin_db.as_ref(), &self.message)
-                .await
-            {
+        if let Some(check) = self.ctx.origin_sender_check.clone() {
+            let message_id = self.message.id();
+            let lookup_paused = self
+                .origin_lookup_skip_until
+                .is_some_and(|until| Instant::now() < until);
+            // While paused after a give-up, skip only the RPC: a signer that
+            // is already cached still applies.
+            let denial = if lookup_paused {
+                Ok(check.cached_deny_reason(&self.message).await)
+            } else {
+                check
+                    .deny_reason(self.ctx.origin_db.as_ref(), &self.message)
+                    .await
+            };
+            match denial {
                 Ok(Some(reason)) => {
-                    warn!(%reason, "Dropping message: origin tx signer matches runtime denylist");
+                    warn!(?message_id, %reason, "Dropping message: origin tx signer matches runtime denylist");
                     check.record_drop(self.ctx.destination_mailbox.domain().name());
                     // Not terminal: the loader reloads it if the rule is removed.
+                    self.reconsider_on_release();
                     return PendingOperationResult::Drop;
                 }
+                Ok(None) if lookup_paused => {}
                 Ok(None) => {
                     self.origin_lookup_failures = 0;
                     self.origin_lookup_skip_until = None;
                 }
+                // Relay API ops keep their drop-after-budget behaviour.
+                Err(err) if self.fail_fast => {
+                    return self
+                        .on_reprepare(Some(err), ReprepareReason::ErrorFetchingOriginTxSender);
+                }
                 Err(err) if is_hash_not_stored(&err) => {
                     if !self.origin_hash_waited {
                         self.origin_hash_waited = true;
-                        debug!("Dispatch tx hash not stored yet; waiting before the origin sender check");
+                        debug!(?message_id, "Dispatch tx hash not stored yet; waiting before the origin sender check");
                         return self.delay_reprepare(
                             ORIGIN_HASH_WAIT,
                             ReprepareReason::ErrorFetchingOriginTxSender,
@@ -501,12 +545,10 @@ impl PendingOperation for PendingMessage {
                     }
                     // Nothing to check against. Not cached: a later prepare
                     // reads the DB again, so a late hash still gets checked.
-                    debug!("No dispatch tx hash stored; relaying without the origin sender check");
-                }
-                // Relay API ops keep their drop-after-budget behaviour.
-                Err(err) if self.fail_fast => {
-                    return self
-                        .on_reprepare(Some(err), ReprepareReason::ErrorFetchingOriginTxSender);
+                    debug!(
+                        ?message_id,
+                        "No dispatch tx hash stored; relaying without the origin sender check"
+                    );
                 }
                 Err(err) => {
                     self.origin_lookup_failures = self.origin_lookup_failures.saturating_add(1);
@@ -514,6 +556,7 @@ impl PendingOperation for PendingMessage {
                         // Fail closed while an address rule exists: wait for
                         // the RPC rather than relay a possibly denied message.
                         warn!(
+                            ?message_id,
                             error = ?err,
                             attempt = self.origin_lookup_failures,
                             "Origin tx signer lookup failed; retrying"
@@ -528,6 +571,7 @@ impl PendingOperation for PendingMessage {
                     // is cached; after a cooldown the next prepare looks up
                     // again, so a recovered RPC or a new rule still applies.
                     warn!(
+                        ?message_id,
                         error = ?err,
                         attempts = self.origin_lookup_failures,
                         "Origin tx signer lookup keeps failing; relaying without the origin sender check"
@@ -2294,6 +2338,7 @@ mod test {
         _dir: tempfile::TempDir,
         pending: PendingMessage,
         provider: Arc<crate::msg::runtime_denylist::tests::origin_sender::SenderProvider>,
+        denylist: Arc<crate::msg::runtime_denylist::RuntimeDenylist>,
     }
 
     impl OriginCheckSetup {
@@ -2336,10 +2381,11 @@ mod test {
                 })
             });
         let provider = Arc::new(SenderProvider::new(sender));
+        let denylist = Arc::new(RuntimeDenylist::from_rules_for_test(serde_json::json!([
+            { "reason": "exploit", "addedBy": "test", "address": format!("{blocked:?}") }
+        ])));
         let check = Arc::new(OriginSenderCheck::new(
-            Arc::new(RuntimeDenylist::from_rules_for_test(serde_json::json!([
-                { "reason": "exploit", "addedBy": "test", "address": format!("{blocked:?}") }
-            ]))),
+            denylist.clone(),
             provider.clone(),
             Arc::new(SignerIndexer::unsupported()),
         ));
@@ -2359,6 +2405,7 @@ mod test {
             _dir: dir,
             pending,
             provider,
+            denylist,
         }
     }
 
@@ -2455,6 +2502,32 @@ mod test {
             PendingOperationResult::Success
         ));
         assert_eq!(s.lookups(), max as usize + 1);
+    }
+
+    #[tokio::test]
+    async fn prepare_still_checks_cached_signers_during_the_give_up_pause() {
+        let blocked = H256::random();
+        let mut s = pending_with_origin_check(None, blocked, 1, 0, true).await;
+        s.pending.origin_lookup_skip_until = Instant::now().checked_add(Duration::from_secs(60));
+        s.denylist
+            .cache_origin_signers_for_test(s.pending.message.id(), vec![blocked])
+            .await;
+        assert!(matches!(
+            s.pending.prepare().await,
+            PendingOperationResult::Drop
+        ));
+        assert_eq!(s.lookups(), 0, "no RPC during the pause");
+    }
+
+    #[tokio::test]
+    async fn prepare_drops_fail_fast_ops_without_a_hash_after_their_budget() {
+        let mut s = pending_with_origin_check(None, H256::random(), 1, 0, false).await;
+        s.pending.fail_fast = true;
+        s.pending.max_retries = 1;
+        assert!(matches!(
+            s.pending.prepare().await,
+            PendingOperationResult::Drop
+        ));
     }
 
     #[tokio::test]

@@ -90,6 +90,8 @@ struct DestinationIndexIterator {
     reconsider_nonces: BTreeSet<u32>,
     low_range_reopen_pending: bool,
     loaded_messages: Arc<Mutex<HashSet<H256>>>,
+    /// Nonces of denylist-dropped messages, handed back on release.
+    released_for_reconsideration: Arc<Mutex<Vec<u32>>>,
 }
 
 impl DestinationIndexIterator {
@@ -103,6 +105,7 @@ impl DestinationIndexIterator {
             reconsider_nonces: BTreeSet::new(),
             low_range_reopen_pending: false,
             loaded_messages: Default::default(),
+            released_for_reconsideration: Default::default(),
         }
     }
 
@@ -452,6 +455,7 @@ impl DbLoaderExt for MessageDbLoader {
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
         self.check_runtime_denylist_version();
+        self.reconsider_released_messages();
         self.drain_index_notifications()?;
         let migration_was_active = self.migration_iterator.is_some();
         self.migrate_legacy_batch().await?;
@@ -569,6 +573,20 @@ impl MessageDbLoader {
     pub fn set_runtime_denylist(&mut self, runtime_denylist: Arc<RuntimeDenylist>) {
         self.runtime_denylist_version = runtime_denylist.version();
         self.runtime_denylist = runtime_denylist;
+    }
+
+    /// Revisit messages dropped by the denylist once their guard is released,
+    /// in case their rule went away meanwhile.
+    fn reconsider_released_messages(&mut self) {
+        for iterator in &mut self.destination_iterators {
+            let released = std::mem::take(&mut *iterator.released_for_reconsideration.lock());
+            if !released.is_empty() {
+                self.destination_scan_pending = true;
+            }
+            for nonce in released {
+                iterator.reconsider(nonce);
+            }
+        }
     }
 
     /// Rescan when runtime rules change, so messages skipped under a removed
@@ -862,7 +880,15 @@ impl MessageDbLoader {
                 .loaded_messages
                 .clone(),
             self.db.clone(),
-        ) else {
+        )
+        .map(|guard| {
+            guard.with_reconsideration(
+                nonce,
+                self.destination_iterators[iterator_index]
+                    .released_for_reconsideration
+                    .clone(),
+            )
+        }) else {
             self.metrics
                 .record_destination_outcome(DESTINATION_OUTCOME_ALREADY_LOADED);
             self.destination_iterators[iterator_index].advance(direction, nonce);

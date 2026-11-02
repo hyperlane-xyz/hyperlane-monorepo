@@ -453,6 +453,17 @@ impl RuntimeDenylist {
         !self.rules.read().addresses.is_empty()
     }
 
+    /// Returns the reason if a queued operation is denied: by its message
+    /// fields, or by origin tx signers already looked up at prepare (so an
+    /// address rule added after prepare still applies). Never makes an RPC
+    /// call.
+    pub async fn deny_reason_for_queued_op(&self, op: &dyn PendingOperation) -> Option<String> {
+        match self.deny_reason_for_op(op) {
+            Some(reason) => Some(reason),
+            None => self.deny_reason_for_cached_signers(&op.id()).await,
+        }
+    }
+
     /// Returns the reason if an already looked-up origin tx signer of the
     /// message is denied. Never makes an RPC call.
     pub async fn deny_reason_for_cached_signers(&self, message_id: &H256) -> Option<String> {
@@ -782,6 +793,14 @@ impl OriginSenderCheck {
         Ok(signers
             .iter()
             .find_map(|signer| self.denylist.deny_reason_for_address(signer)))
+    }
+
+    /// Returns the reason if a signer already looked up for the message is
+    /// denied. Never makes an RPC call.
+    pub async fn cached_deny_reason(&self, message: &HyperlaneMessage) -> Option<String> {
+        self.denylist
+            .deny_reason_for_cached_signers(&message.id())
+            .await
     }
 
     /// Record that a lookup kept failing and the message relays without

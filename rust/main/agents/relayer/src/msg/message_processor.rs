@@ -711,7 +711,7 @@ async fn submit_via_lander<E: Entrypoint + Send + Sync>(
     denylist: &RuntimeDenylist,
 ) {
     // Avoid payload RPCs for a rule that landed while an earlier op awaited.
-    let Some(op) = submit::drop_denied_before_submission(denylist, op) else {
+    let Some(op) = submit::drop_denied_before_submission(denylist, op).await else {
         return;
     };
     let operation_payload = match op.payload().await {
@@ -759,7 +759,7 @@ async fn submit_via_lander<E: Entrypoint + Send + Sync>(
 
     // Payload construction can await RPCs, as can earlier operations in the
     // same batch. Apply the latest rules at the handoff to lander.
-    let Some(op) = submit::drop_denied_before_submission(denylist, op) else {
+    let Some(op) = submit::drop_denied_before_submission(denylist, op).await else {
         return;
     };
 

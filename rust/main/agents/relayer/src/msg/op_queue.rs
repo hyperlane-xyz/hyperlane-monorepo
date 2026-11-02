@@ -53,14 +53,7 @@ impl OpQueue {
     async fn evict_denied(&self, popped: Vec<QueueOperation>) -> Vec<QueueOperation> {
         let mut kept = Vec::with_capacity(popped.len());
         for op in popped {
-            // Message fields first, then origin tx signers already looked up
-            // at prepare (so an address rule added after prepare still
-            // catches a queued op without another RPC call).
-            let reason = match self.denylist.deny_reason_for_op(op.as_ref()) {
-                Some(reason) => Some(reason),
-                None => self.denylist.deny_reason_for_cached_signers(&op.id()).await,
-            };
-            let Some(reason) = reason else {
+            let Some(reason) = self.denylist.deny_reason_for_queued_op(op.as_ref()).await else {
                 kept.push(op);
                 continue;
             };

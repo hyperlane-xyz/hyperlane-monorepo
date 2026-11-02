@@ -168,8 +168,9 @@ impl SealevelMailboxIndexer {
     ///
     /// Returns `Ok(None)` when the log meta cannot be resolved from the block
     /// recorded on the message account (the block does not contain the dispatch
-    /// transaction). This is non-retryable, so callers fall back to basic log
-    /// meta instead of stalling the sequence-aware cursor. Transient RPC errors
+    /// transaction, or it is unavailable after provider retries). This is
+    /// non-retryable for indexing, so callers fall back to basic log meta
+    /// instead of stalling the sequence-aware cursor. Transient RPC errors
     /// still propagate as `Err` so they are retried.
     async fn dispatch_message_log_meta(
         &self,
@@ -177,6 +178,30 @@ impl SealevelMailboxIndexer {
         message_storage_pda_pubkey: &Pubkey,
         message_account_slot: &Slot,
     ) -> ChainResult<Option<LogMeta>> {
+        Ok(
+            match self
+                .resolve_dispatch_log_meta(
+                    log_index,
+                    message_storage_pda_pubkey,
+                    message_account_slot,
+                )
+                .await?
+            {
+                DispatchLogMeta::Found(log_meta) => Some(log_meta),
+                DispatchLogMeta::BlockUnavailable | DispatchLogMeta::NotInBlock => None,
+            },
+        )
+    }
+
+    /// Like `dispatch_message_log_meta`, but tells apart a block that's
+    /// unavailable (possibly only for now) from one fetched without a single
+    /// matching dispatch transaction.
+    async fn resolve_dispatch_log_meta(
+        &self,
+        log_index: U256,
+        message_storage_pda_pubkey: &Pubkey,
+        message_account_slot: &Slot,
+    ) -> ChainResult<DispatchLogMeta> {
         let block = match self
             .mailbox
             .provider
@@ -193,7 +218,7 @@ impl SealevelMailboxIndexer {
                     "Block for message dispatch is unavailable after provider retries; \
                      falling back to basic log meta",
                 );
-                return Ok(None);
+                return Ok(DispatchLogMeta::BlockUnavailable);
             }
             Err(err) => return Err(err),
         };
@@ -210,7 +235,7 @@ impl SealevelMailboxIndexer {
             )
             .await?
         {
-            Ok(log_meta) => Ok(Some(log_meta)),
+            Ok(log_meta) => Ok(DispatchLogMeta::Found(log_meta)),
             Err(err) if err.is_log_meta_unresolvable() => {
                 warn!(
                     ?err,
@@ -218,7 +243,7 @@ impl SealevelMailboxIndexer {
                     slot = message_account_slot,
                     "Could not resolve advanced log meta for message dispatch; falling back to basic log meta",
                 );
-                Ok(None)
+                Ok(DispatchLogMeta::NotInBlock)
             }
             Err(err) => Err(err.into()),
         }
@@ -393,19 +418,29 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
                 // Scans the dispatch slot's block, as the scraper does; immune
                 // to unrelated transactions touching the PDA later.
                 match self
-                    .dispatch_message_log_meta(U256::from(sequence), &pda, &account.slot)
+                    .resolve_dispatch_log_meta(U256::from(sequence), &pda, &account.slot)
                     .await?
                 {
-                    Some(log_meta) if !log_meta.transaction_id.is_zero() => log_meta.transaction_id,
-                    _ => {
+                    DispatchLogMeta::Found(log_meta) if !log_meta.transaction_id.is_zero() => {
+                        log_meta.transaction_id
+                    }
+                    // A lagging RPC can report the block unavailable, so let
+                    // the caller retry rather than treat the signers as unknown.
+                    DispatchLogMeta::BlockUnavailable => {
+                        return Err(ChainCommunicationError::from_other_str(&format!(
+                            "Dispatch block {} for nonce {sequence} is unavailable",
+                            account.slot
+                        )));
+                    }
+                    // The block was fetched and has no single matching
+                    // dispatch: that won't change, so the signers are unknown.
+                    DispatchLogMeta::Found(_) | DispatchLogMeta::NotInBlock => {
                         warn!(
                             nonce = sequence,
                             dispatched_message_pda = %pda,
                             slot = account.slot,
                             "Could not find the dispatch transaction in its block; signers unknown"
                         );
-                        // Definite: the block scan already treats transient
-                        // RPC errors as errors.
                         return Ok(Some(vec![]));
                     }
                 }
@@ -429,6 +464,14 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
         // since block slot cannot be used as watermark
         unimplemented!()
     }
+}
+
+enum DispatchLogMeta {
+    Found(LogMeta),
+    /// getBlock failed at every provider; can be transient.
+    BlockUnavailable,
+    /// The block was fetched but has no single matching dispatch tx.
+    NotInBlock,
 }
 
 /// Signers of a JsonParsed transaction, in account-key order.

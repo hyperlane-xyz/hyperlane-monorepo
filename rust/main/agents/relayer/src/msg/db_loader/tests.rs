@@ -2127,3 +2127,51 @@ async fn runtime_denylist_skips_message_and_reloads_it_after_rule_removed() {
     })
     .await;
 }
+
+#[tokio::test]
+async fn released_denylist_drop_is_reconsidered_after_a_missed_rescan() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let (mut loader, mut receiver) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        finish_legacy_migration(&mut loader).await;
+
+        let message = dummy_hyperlane_message(&destination, 0);
+        add_db_entry(&db, &message, 0);
+        // An op for the message is still alive (its denylist drop hasn't
+        // been processed yet), so the rescan after the rule's removal sees
+        // it as already loaded and moves past it.
+        let mut guard = LoadedMessageGuard::try_acquire(
+            message.id(),
+            loader.destination_iterators[0].loaded_messages.clone(),
+            db.clone(),
+        )
+        .expect("acquire")
+        .with_reconsideration(
+            message.nonce,
+            loader.destination_iterators[0]
+                .released_for_reconsideration
+                .clone(),
+        );
+        point_destination_scan_at(&mut loader, 0);
+        assert!(loader.try_load_destination(0).await.unwrap());
+        assert_eq!(
+            destination_outcome_count(&loader, DESTINATION_OUTCOME_ALREADY_LOADED),
+            1
+        );
+        assert!(receiver.try_recv().is_err());
+
+        // The drop is processed and releases the guard: the loader picks the
+        // message up again.
+        guard.reconsider_on_release();
+        drop(guard);
+        loader.tick().await.unwrap();
+        assert_eq!(
+            only_operation(receiver.try_recv().expect("reloaded")).id(),
+            message.id()
+        );
+    })
+    .await;
+}
