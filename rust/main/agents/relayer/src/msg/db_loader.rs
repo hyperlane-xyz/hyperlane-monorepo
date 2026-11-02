@@ -74,6 +74,10 @@ pub struct MessageDbLoader {
     destination_scan_pending: bool,
     max_retries: u32,
     index_notifications: Option<Receiver<IndexingNotification>>,
+    /// Denied messages already logged, for all destinations. Created on the
+    /// first denial, so a loader that never denies anything allocates none.
+    logged_denials: Option<LoggedDenials>,
+    logged_denials_ttl: Duration,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -89,12 +93,12 @@ enum IndexDirection {
 #[derive(Debug)]
 struct LoggedDenials(moka::future::Cache<H256, ()>);
 
-impl Default for LoggedDenials {
-    fn default() -> Self {
+impl LoggedDenials {
+    fn new(ttl: Duration) -> Self {
         Self(
             moka::future::Cache::builder()
                 .max_capacity(LOGGED_DENIALS_CAPACITY)
-                .time_to_live(LOGGED_DENIALS_TTL)
+                .time_to_live(ttl)
                 .build(),
         )
     }
@@ -112,8 +116,6 @@ struct DestinationIndexIterator {
     loaded_messages: Arc<Mutex<HashSet<H256>>>,
     /// Nonces of denylist-dropped messages, handed back on release.
     released_for_reconsideration: Arc<Mutex<Vec<u32>>>,
-    /// Denied messages already logged; rescans revisit them.
-    logged_denials: LoggedDenials,
 }
 
 impl DestinationIndexIterator {
@@ -128,7 +130,6 @@ impl DestinationIndexIterator {
             low_range_reopen_pending: false,
             loaded_messages: Default::default(),
             released_for_reconsideration: Default::default(),
-            logged_denials: LoggedDenials::default(),
         }
     }
 
@@ -590,15 +591,21 @@ impl MessageDbLoader {
             destination_scan_pending: true,
             max_retries,
             index_notifications: None,
+            logged_denials: None,
+            logged_denials_ttl: LOGGED_DENIALS_TTL,
         })
     }
 
     /// Log a denied message at info the first time this loader skips it, so
     /// "why isn't this relayed" is answerable from default logs without
     /// re-logging on every rescan.
-    async fn log_denial_once(&self, iterator_index: usize, message: &HyperlaneMessage, list: &str) {
+    async fn log_denial_once(&mut self, message: &HyperlaneMessage, list: &str) {
         let message_id = message.id();
-        let logged = &self.destination_iterators[iterator_index].logged_denials.0;
+        let ttl = self.logged_denials_ttl;
+        let logged = &self
+            .logged_denials
+            .get_or_insert_with(|| LoggedDenials::new(ttl))
+            .0;
         if logged.get(&message_id).await.is_none() {
             logged.insert(message_id, ()).await;
             info!(
@@ -949,8 +956,7 @@ impl MessageDbLoader {
         if self.message_blacklist.msg_matches(&message, false) {
             self.metrics
                 .record_destination_outcome(DESTINATION_OUTCOME_MESSAGE_BLACKLISTED);
-            self.log_denial_once(iterator_index, &message, "blacklist")
-                .await;
+            self.log_denial_once(&message, "blacklist").await;
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         }
@@ -963,8 +969,7 @@ impl MessageDbLoader {
                 blacklisted_address = hex::encode(blacklisted_address),
                 "Blacklisted address"
             );
-            self.log_denial_once(iterator_index, &message, "address_blacklist")
-                .await;
+            self.log_denial_once(&message, "address_blacklist").await;
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         }
@@ -980,17 +985,14 @@ impl MessageDbLoader {
             self.metrics
                 .record_destination_outcome(DESTINATION_OUTCOME_RUNTIME_DENYLISTED);
             debug!(message_id = ?message.id(), %reason, "Runtime denylist rule");
-            self.log_denial_once(iterator_index, &message, "runtime_denylist")
-                .await;
+            self.log_denial_once(&message, "runtime_denylist").await;
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);
         }
         // Passed every list, so log again if it's denied later.
-        self.destination_iterators[iterator_index]
-            .logged_denials
-            .0
-            .invalidate(&message.id())
-            .await;
+        if let Some(logged) = &self.logged_denials {
+            logged.0.invalidate(&message.id()).await;
+        }
         let Some(destination_msg_ctx) = self.destination_ctxs.get(&destination) else {
             self.metrics
                 .record_destination_outcome(DESTINATION_OUTCOME_MISSING_CONTEXT);
