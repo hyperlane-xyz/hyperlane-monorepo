@@ -1,0 +1,34 @@
+name: Solar Execution
+
+on:
+  pull_request:
+    paths:
+      - 'solidity/benchmarks/evm-execution/**'
+      - 'solidity/scripts/benchmark-solar-warp.mjs'
+      - '.github/workflows/solar-execution.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: solar-execution-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  execution:
+    runs-on: depot-ubuntu-24.04-8
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Probe hardware counters
+        run: |
+          sudo -n python3 solidity/benchmarks/evm-execution/probe-perf.py | tee "$RUNNER_TEMP/perf-counters.json"
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: solar-execution
+          path: ${{ runner.temp }}/perf-counters.json
+          if-no-files-found: error
