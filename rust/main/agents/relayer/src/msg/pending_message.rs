@@ -193,9 +193,9 @@ pub struct PendingMessage {
     ica_reveal_attempts: u32,
     #[serde(skip_serializing)]
     loaded_message_guard: Option<LoadedMessageGuard>,
-    /// Origin tx sender, once looked up for the runtime denylist.
+    /// Origin tx signers, once looked up for the runtime denylist.
     #[serde(skip_serializing)]
-    origin_tx_sender: Option<H256>,
+    origin_tx_signers: Option<Vec<H256>>,
 }
 
 impl PendingMessage {
@@ -231,7 +231,7 @@ impl PendingMessage {
             fail_fast: false,
             ica_reveal_attempts: 0,
             loaded_message_guard: None,
-            origin_tx_sender: None,
+            origin_tx_signers: None,
         }
     }
 
@@ -422,14 +422,14 @@ impl PendingOperation for PendingMessage {
             let denial = check
                 .deny_reason(
                     self.ctx.origin_db.as_ref(),
-                    self.message.id(),
-                    &mut self.origin_tx_sender,
+                    &self.message,
+                    &mut self.origin_tx_signers,
                 )
                 .await;
             match denial {
                 Ok(Some(reason)) => {
                     warn!(
-                        origin_tx_sender = ?self.origin_tx_sender,
+                        origin_tx_signers = ?self.origin_tx_signers,
                         %reason,
                         "Dropping message: origin tx sender matches runtime denylist"
                     );
@@ -2227,7 +2227,8 @@ mod test {
     #[tokio::test]
     async fn prepare_checks_origin_tx_sender_against_runtime_denylist() {
         use crate::msg::runtime_denylist::{
-            tests::origin_sender::SenderProvider, OriginSenderCheck, RuntimeDenylist,
+            tests::origin_sender::{SenderProvider, SignerIndexer},
+            OriginSenderCheck, RuntimeDenylist,
         };
 
         let blocked = H256::random();
@@ -2248,6 +2249,7 @@ mod test {
                     sender,
                     calls: Default::default(),
                 }),
+                Arc::new(SignerIndexer::unsupported()),
             ));
             let (_dir, mut pending) = pending_with_sender_check(mailbox, None, Some(check));
             pending

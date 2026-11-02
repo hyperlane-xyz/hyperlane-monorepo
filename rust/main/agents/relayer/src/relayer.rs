@@ -377,7 +377,11 @@ impl BaseAgent for Relayer {
                 let provider = Arc::from(origin.validator_announce.provider());
                 (
                     origin_domain.clone(),
-                    Arc::new(OriginSenderCheck::new(runtime_denylist.clone(), provider)),
+                    Arc::new(OriginSenderCheck::new(
+                        runtime_denylist.clone(),
+                        provider,
+                        origin.message_indexer.clone(),
+                    )),
                 )
             })
             .collect();

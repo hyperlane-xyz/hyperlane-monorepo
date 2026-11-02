@@ -6,12 +6,13 @@ use std::{ops::RangeInclusive, sync::Arc};
 use async_trait::async_trait;
 use hyperlane_sealevel_mailbox::{
     accounts::{
-        DispatchedMessageAccount, InboxAccount, OutboxAccount, ProcessedMessageAccount,
-        DISPATCHED_MESSAGE_DISCRIMINATOR, PROCESSED_MESSAGE_DISCRIMINATOR,
+        DispatchedMessage, DispatchedMessageAccount, InboxAccount, OutboxAccount,
+        ProcessedMessageAccount, DISPATCHED_MESSAGE_DISCRIMINATOR, PROCESSED_MESSAGE_DISCRIMINATOR,
     },
     mailbox_dispatched_message_pda_seeds, mailbox_processed_message_pda_seeds,
 };
-use solana_sdk::{account::Account, clock::Slot, pubkey::Pubkey};
+use solana_sdk::{account::Account, clock::Slot, pubkey::Pubkey, signature::Signature};
+use solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta;
 use tracing::{debug, info, warn};
 
 use hyperlane_core::{
@@ -25,8 +26,9 @@ use crate::fallback::SubmitSealevelRpc;
 use crate::log_meta_composer::{
     is_message_delivery_instruction, is_message_dispatch_instruction, LogMetaComposer,
 };
+use crate::provider::transaction::{parsed_message, txn};
 use crate::tx_submitter::TransactionSubmitter;
-use crate::utils::decode_h256_bytes;
+use crate::utils::{decode_h256_bytes, decode_pubkey};
 use crate::{ConnectionConf, SealevelMailbox, SealevelProvider};
 
 /// Struct that retrieves event data for a Sealevel Mailbox contract
@@ -73,10 +75,11 @@ impl SealevelMailboxIndexer {
         })
     }
 
-    async fn get_dispatched_message_with_nonce(
+    /// The dispatched-message PDA for `nonce` and its decoded account.
+    async fn dispatched_message_with_pda(
         &self,
         nonce: u32,
-    ) -> ChainResult<(Indexed<HyperlaneMessage>, LogMeta)> {
+    ) -> ChainResult<(Pubkey, DispatchedMessage)> {
         let nonce_bytes = nonce.to_le_bytes();
         let unique_dispatched_message_pubkey_offset = 1 + 8 + 4 + 8; // the offset to get the `unique_message_pubkey` field
         let unique_dispatch_message_pubkey_length = 32; // the length of the `unique_message_pubkey` field
@@ -105,6 +108,18 @@ impl SealevelMailboxIndexer {
             DispatchedMessageAccount::fetch(&mut account.data.as_ref())
                 .map_err(ChainCommunicationError::from_other)?
                 .into_inner();
+        Ok((
+            valid_message_storage_pda_pubkey,
+            *dispatched_message_account,
+        ))
+    }
+
+    async fn get_dispatched_message_with_nonce(
+        &self,
+        nonce: u32,
+    ) -> ChainResult<(Indexed<HyperlaneMessage>, LogMeta)> {
+        let (valid_message_storage_pda_pubkey, dispatched_message_account) =
+            self.dispatched_message_with_pda(nonce).await?;
         let hyperlane_message =
             HyperlaneMessage::read_from(&mut &dispatched_message_account.encoded_message[..])?;
 
@@ -362,12 +377,60 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
         Ok(messages)
     }
 
+    /// Every signer of the dispatch transaction: the fee payer, the token
+    /// sender (mailbox payer) and the unique message key. A sponsored
+    /// transfer's depositor isn't the fee payer, so checking only the first
+    /// signer can be bypassed.
+    async fn fetch_tx_signers_by_sequence(
+        &self,
+        sequence: u32,
+        tx_hash: Option<H512>,
+    ) -> ChainResult<Option<Vec<H256>>> {
+        let tx_hash = match tx_hash {
+            Some(tx_hash) => tx_hash,
+            None => {
+                let (pda, account) = self.dispatched_message_with_pda(sequence).await?;
+                // Scans the dispatch slot's block, as the scraper does; immune
+                // to unrelated transactions touching the PDA later.
+                match self
+                    .dispatch_message_log_meta(U256::from(sequence), &pda, &account.slot)
+                    .await?
+                {
+                    Some(log_meta) if !log_meta.transaction_id.is_zero() => log_meta.transaction_id,
+                    _ => return Ok(None),
+                }
+            }
+        };
+        let signature = Signature::try_from(tx_hash.as_bytes()).map_err(|e| {
+            ChainCommunicationError::from_other_str(&format!("Invalid signature: {e}"))
+        })?;
+        let transaction = self
+            .mailbox
+            .provider
+            .rpc_client()
+            .get_transaction(signature)
+            .await?;
+        transaction_signers(&transaction).map(Some)
+    }
+
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         // we should not report block height since SequenceAwareIndexer uses block slot in
         // `latest_sequence_count_and_tip` and we should not report block slot here
         // since block slot cannot be used as watermark
         unimplemented!()
     }
+}
+
+/// Signers of a JsonParsed transaction, in account-key order.
+fn transaction_signers(
+    transaction: &EncodedConfirmedTransactionWithStatusMeta,
+) -> ChainResult<Vec<H256>> {
+    parsed_message(txn(&transaction.transaction)?)?
+        .account_keys
+        .iter()
+        .filter(|key| key.signer)
+        .map(|key| Ok(H256::from(decode_pubkey(&key.pubkey)?.to_bytes())))
+        .collect()
 }
 
 #[async_trait]
@@ -439,6 +502,25 @@ impl SequenceAwareIndexer<H256> for SealevelMailboxIndexer {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn transaction_signers_returns_every_signer() {
+        let json = include_str!(
+            "provider/recipient/solana_complex_transaction_including_token_transfer.json"
+        );
+        let transaction =
+            serde_json::from_str::<super::EncodedConfirmedTransactionWithStatusMeta>(json)
+                .expect("fixture parses");
+        let signers = super::transaction_signers(&transaction).expect("parsed message");
+        let expected: Vec<_> = [
+            "EPvHL5ZBdqFqx7E3LJEjkApzbhHXaXjgsPs6X2PGqC4v",
+            "4NdU7cVfGD8rwyCf1qAqm7GTmoz7QJCWtkCyZbW6nfme",
+        ]
+        .iter()
+        .map(|key| super::H256::from(super::decode_pubkey(key).expect("pubkey").to_bytes()))
+        .collect();
+        assert_eq!(signers, expected);
+    }
+
     use super::*;
 
     /// Invalid message ID lengths must return an error rather than panic.
