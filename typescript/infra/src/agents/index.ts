@@ -8,7 +8,12 @@ import {
   RelayerConfig,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, objOmitKeys } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  deepEquals,
+  objOmitKeys,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChain, getRegistry } from '../../config/registry.js';
@@ -20,7 +25,6 @@ import {
   KubernetesResources,
   RootAgentConfig,
 } from '../config/agent/agent.js';
-import { blockedQuorumRpcUrls } from '../config/rpcBlocklist.js';
 import {
   RelayerConfigHelper,
   RelayerConfigMapConfig,
@@ -34,7 +38,6 @@ import { ValidatorConfigHelper } from '../config/agent/validator.js';
 import { DeployEnvironment } from '../config/deploy-environment.js';
 import { AgentRole, Role } from '../roles.js';
 import {
-  bindWorkloadIdentityUserIfNotExists,
   createServiceAccountIfNotExists,
   createServiceAccountKey,
   fetchGCPSecret,
@@ -43,7 +46,12 @@ import {
   grantServiceAccountStorageRoleIfNotExists,
   setGCPSecretUsingClient,
 } from '../utils/gcloud.js';
-import { HelmManager } from '../utils/helm.js';
+import {
+  HelmCommand,
+  HelmManager,
+  type HelmCommandOptions,
+  type HelmValues,
+} from '../utils/helm.js';
 import {
   execCmd,
   getInfraPath,
@@ -111,6 +119,10 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
         aws: !!this.config.aws,
         chains: this.config.contextChainNames[this.role].map((chain) => {
           const metadata = getChain(chain);
+          const mevSubmission =
+            this.role === Role.Relayer
+              ? this.config.rawConfig.relayer?.mevSubmission?.[chain]
+              : undefined;
           const reorgPeriod =
             this.config.rawConfig.relayer?.reorgPeriodOverrides?.[chain] ??
             metadata.blocks?.reorgPeriod;
@@ -137,7 +149,10 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
           }
 
           let urReveal: AgentSealevelUrReveal | undefined;
-          if (getChain(chain).protocol === ProtocolType.Sealevel) {
+          if (
+            this.role === Role.Relayer &&
+            getChain(chain).protocol === ProtocolType.Sealevel
+          ) {
             urReveal =
               this.config.rawConfig.sealevel?.urRevealConfigGetter?.(chain);
           }
@@ -178,6 +193,11 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
             priorityFeeOracle,
             transactionSubmitter,
             urReveal,
+            ...(mevSubmission
+              ? {
+                  mevSubmission,
+                }
+              : {}),
           };
         }),
       },
@@ -185,8 +205,8 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
   }
 
   rpcConsensusType(chain: ChainName): RpcConsensusType {
-    // Non-Ethereum chains only support Single
-    if (!isEthereumProtocolChain(chain)) {
+    // Validators implement quorum/majority over checkpoint histories on every VM.
+    if (this.role !== Role.Validator && !isEthereumProtocolChain(chain)) {
       return RpcConsensusType.Single;
     }
 
@@ -306,10 +326,22 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
     };
 
     const signers = await this.config.signers();
-    values.hyperlane.relayerChains = this.config.relayChains.map((name) => ({
-      name,
-      signer: signers[name],
-    }));
+    // EVM chains in a relayer context share its service identity.
+    const evmChain = this.config.relayChains.find(
+      (name) => getChain(name).protocol === ProtocolType.Ethereum,
+    );
+    values.hyperlane.relayerChains = this.config.relayChains.map((name) => {
+      const urReveal =
+        getChain(name).protocol === ProtocolType.Sealevel &&
+        this.config.rawConfig.sealevel?.urRevealConfigGetter?.(name);
+      if (urReveal && !evmChain)
+        throw new Error('UR reveals require an EVM CCS signer');
+      return {
+        name,
+        signer: signers[name],
+        ...(urReveal && evmChain ? { ccsSigner: signers[evmChain] } : {}),
+      };
+    });
 
     if (!values.tolerations) {
       values.tolerations = [];
@@ -499,6 +531,71 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
     return this.config.validators.length;
   }
 
+  async getKeysToCreate(): Promise<string[]> {
+    const keys = this.config.keys.filter(
+      (key) =>
+        !key.chainName ||
+        getChain(key.chainName).protocol !== ProtocolType.Starknet,
+    );
+    return (
+      await Promise.all(
+        keys.map(async (key) => ((await key.exists()) ? [] : [key.identifier])),
+      )
+    ).flat();
+  }
+
+  override async runHelmCommand(
+    action: HelmCommand,
+    options?: HelmCommandOptions,
+  ): Promise<void> {
+    if (!this.config.gcp || action === HelmCommand.Remove) {
+      return super.runHelmCommand(action, options);
+    }
+
+    const proposed = await this.helmValues();
+    if (action === HelmCommand.InstallOrUpgrade && !options?.dryRun) {
+      const deployed = await this.getDeployedHelmValues({ throwOnError: true });
+      if (this.compareResourceConfigurations(deployed, proposed).length > 0) {
+        assert(
+          options?.allowResourceProvisioning,
+          'GCP validator resource changes require confirmation. Run deployment with preflight checks enabled.',
+        );
+        await this.config.provisionGcpResources(
+          this.namespace,
+          this.helmReleaseName,
+        );
+      }
+    }
+
+    await super.runHelmCommand(action, options, proposed);
+  }
+
+  protected override compareResourceConfigurations(
+    deployed: HelmValues | null,
+    proposed: HelmRootAgentValues,
+  ): string[] {
+    if (!this.config.gcp) return [];
+    const configs = proposed.hyperlane.validator?.configs;
+    assert(configs, 'Missing validator configuration');
+    const changes: string[] = [];
+    if (!deepEquals(deployed?.serviceAccount, proposed.serviceAccount)) {
+      changes.push('Service account / Workload Identity');
+    }
+    for (const [index, config] of configs.entries()) {
+      const current = deployed?.hyperlane?.validator?.configs?.[index];
+      if (!deepEquals(current?.validator, config.validator)) {
+        changes.push(`Validator ${index} signing key`);
+      }
+      if (!deepEquals(current?.chainSigner, config.chainSigner)) {
+        changes.push(`Validator ${index} chain signer`);
+      }
+      if (!deepEquals(current?.checkpointSyncer, config.checkpointSyncer)) {
+        changes.push(`Validator ${index} checkpoint storage`);
+      }
+    }
+    return changes;
+  }
+
   async helmValues(): Promise<HelmRootAgentValues> {
     const helmValues = await super.helmValues();
     const cfg = await this.config.buildConfig();
@@ -520,25 +617,6 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
       ...originChain.index,
       interval: cfg.interval,
     };
-    // Additional public RPCs for CUSTOMADDITIONALQUORUMRPCURLS. rpcUrls already
-    // votes in the same quorum group (see external-secret.yaml), so no private
-    // batch is merged in here. Gated on explicit per-chain opt-in:
-    // external-secret.yaml emits CUSTOMADDITIONALQUORUMRPCURLS whenever
-    // publicRpcUrls is non-empty, so leaving this unset keeps quorum verification
-    // off until a chain deliberately enables it.
-    //
-    // Chronically-erroring public RPCs are stripped here (see rpcBlocklist.ts).
-    // These are the validator's additional quorum pool, where every request is
-    // fanned out to all providers, so a bad endpoint counts against reaching
-    // majority. Matched by exact full-URL equality, so private URLs that share a
-    // host (but carry an API key) are never dropped.
-    if (this.config.quorumVerificationEnabled) {
-      const blocked = new Set(blockedQuorumRpcUrls[cfg.originChainName] ?? []);
-      originChain.publicRpcUrls = getChain(cfg.originChainName)
-        .rpcUrls.map((rpc) => rpc.http)
-        .filter((url) => !blocked.has(url));
-    }
-
     helmValues.hyperlane.validator = {
       enabled: true,
       configs: cfg.validators.map((c) => ({
@@ -569,12 +647,6 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
           'iam.gke.io/gcp-service-account': serviceAccountEmail,
         },
       };
-      await bindWorkloadIdentityUserIfNotExists(
-        serviceAccountEmail,
-        this.config.gcp.project,
-        this.namespace,
-        ksaName,
-      );
     }
 
     return helmValues;

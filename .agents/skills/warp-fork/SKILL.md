@@ -1,0 +1,49 @@
+---
+name: warp-fork
+description:
+  Fork a warp route from the local HTTP registry for development and testing.
+  Forks each chain with the right local node per protocol — anvil for EVM chains,
+  surfpool (Solana mainnet fork) for Sealevel chains. Use when the goal is to simulate
+  transactions on a set of local forks before submitting them on-chain.
+---
+
+# Warp Fork
+
+Fork a warp route using the local HTTP registry.
+
+**Instructions:**
+
+0. Check if `http://localhost:3333` is running. If not, run the start-http-registry SKILL. If that fails, ask the user to prompt the user for an alternate registry URL to use instead of `http://localhost:3333`.
+
+1. First, ask the user to prompt the user for the warp route ID:
+   - Question: "Which warp route would you like to fork?"
+   - Header: "Warp Route"
+   - Options: Provide 2-3 common examples if known, otherwise use generic placeholders. Note that the fork may fail if the warp routes are invalid. Re-prompt the user!
+
+2. Run the command in the background:
+
+   ```bash
+   pnpm -C typescript/cli exec tsx cli.ts warp fork --registry $REGISTRY --warpRouteId $WARP_ROUTE_ID
+   ```
+
+   - Use the registry URL from step 0 for $REGISTRY (`http://localhost:3333` by default, or user-provided if the local registry failed)
+   - Use `run_in_background: true` so it doesn't block the conversation.
+
+3. After starting, report the task/shell ID and the fork registry server port back to the user.
+
+4. Remind the user they can stop it later with `KillShell` using that ID
+
+**Prerequisites:**
+
+- The http-registry server must be running on port 3333. If not, start it first with `/start-http-registry`.
+- Forking is per-protocol: EVM chains need Foundry `anvil` on `PATH`; Sealevel chains need a locally-installed `surfpool` binary (`>= 1.5.0`) on `PATH` — there is **no Docker fallback** in the CLI. Install the pinned, checksum-verified `surfpool` release the way CI does — see the `Install surfpool` step in `.github/workflows/test-cli-e2e.yml` (a pinned `v1.5.0` release tarball verified against its SHA-256); do **not** pipe the mutable `run.surfpool.run` installer to a shell. If the binary is missing, `warp fork` aborts with a "surfpool 1.5.0+ is required" error before forking.
+
+**Related skills:**
+
+- `/warp-simulate-safe-txs` — EVM fork → replay a Safe batch → check.
+- `/warp-simulate-svm-txs` — Sealevel fork → replay SVM/Squads governance txs → check.
+
+**Example output:**
+
+> Started warp fork for `EZETH/ethereum-megaeth` in background (shell ID: `shell_abc123`).
+> To stop it later, I can use KillShell with that ID.

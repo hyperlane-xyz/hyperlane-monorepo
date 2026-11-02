@@ -19,13 +19,36 @@ void describe('scraper database SQL', () => {
     assert.deepEqual(query.values, [1, 'ethereum', 5, 2]);
   });
 
+  void it('preserves parameters supplied by a custom relation', () => {
+    const query = buildSelect(
+      'message_view',
+      { limit: 5, where: { origin_domain_id: { _eq: 1 } } },
+      { relation: 'provisional_message_view', values: [0] },
+    );
+    assert.match(
+      query.sql,
+      /FROM "provisional_message_view" WHERE \(\("origin_domain_id" = \$2\)\) LIMIT \$3$/,
+    );
+    assert.deepEqual(query.values, [0, 1, 5]);
+  });
+
+  void it('preserves the public dispatch name while filtering every read through confirmed history', () => {
+    for (const query of [
+      buildSelect('raw_message_dispatch'),
+      buildCount('raw_message_dispatch'),
+      buildByPk('raw_message_dispatch', 1),
+    ]) {
+      assert.match(query.sql, /FROM "confirmed_raw_message_dispatch"/);
+    }
+  });
+
   void it('builds cursor ordering and windowed counts', () => {
-    const select = buildSelect('raw_message_dispatch', {
-      cursor: [{ initial_value: { nonce: 10 }, ordering: 'DESC' }],
+    const select = buildSelect('message_view', {
+      cursor: [{ initial_value: { id: 10 }, ordering: 'DESC' }],
     });
     assert.match(
       select.sql,
-      /WHERE \("nonce" < \$1\) ORDER BY "nonce" DESC LIMIT \$2$/,
+      /WHERE \("id" < \$1\) ORDER BY "id" DESC LIMIT \$2$/,
     );
     assert.deepEqual(select.values, [10, 500]);
 
@@ -36,7 +59,7 @@ void describe('scraper database SQL', () => {
     });
     assert.equal(
       count.sql,
-      'SELECT COUNT(*)::int AS count FROM (SELECT DISTINCT ON ("origin_domain") 1 FROM "message_view" LIMIT $1 OFFSET $2) AS rows',
+      'SELECT COUNT(*)::int AS count FROM (SELECT DISTINCT ON ("origin_domain") 1 FROM (SELECT *, FALSE AS is_provisional FROM "message_view") AS "message_view" LIMIT $1 OFFSET $2) AS rows',
     );
     assert.deepEqual(count.values, [2, 1]);
   });
@@ -51,7 +74,7 @@ void describe('scraper database SQL', () => {
           distinct: true,
         },
       ).sql,
-      'SELECT COUNT(DISTINCT "origin_domain")::int AS count FROM "message_view"',
+      'SELECT COUNT(DISTINCT "origin_domain")::int AS count FROM (SELECT *, FALSE AS is_provisional FROM "message_view") AS "message_view"',
     );
     assert.equal(
       buildCount(
@@ -59,7 +82,7 @@ void describe('scraper database SQL', () => {
         { limit: 10, order_by: { nonce: 'desc' } },
         { columns: ['origin_domain', 'destination_domain'], distinct: true },
       ).sql,
-      'SELECT COUNT(DISTINCT ("origin_domain", "destination_domain"))::int AS count FROM (SELECT "origin_domain", "destination_domain" FROM "message_view" ORDER BY "nonce" DESC LIMIT $1) AS rows',
+      'SELECT COUNT(DISTINCT ("origin_domain", "destination_domain"))::int AS count FROM (SELECT "origin_domain", "destination_domain" FROM (SELECT *, FALSE AS is_provisional FROM "message_view") AS "message_view" ORDER BY "nonce" DESC LIMIT $1) AS rows',
     );
   });
 
@@ -148,11 +171,6 @@ void describe('scraper database SQL', () => {
         }),
       /cursor value must be non-null/,
     );
-    assert.doesNotThrow(() =>
-      buildSelect('domain', {
-        cursor: [{ initial_value: { id: 1, name: 'ethereum' } }],
-      }),
-    );
     assert.throws(
       () =>
         buildSelect('domain', { where: { id: { _in: Array(201).fill(1) } } }),
@@ -161,6 +179,26 @@ void describe('scraper database SQL', () => {
     assert.throws(
       () => buildSelect('domain', { where: { id: { _contains: 'x' } } }),
       /Unsupported comparison operator/,
+    );
+  });
+
+  void it('bounds predicate depth and work even when an empty OR would match everything', () => {
+    const predicate = { id: { _eq: 1 } };
+    let nested: Record<string, unknown> = predicate;
+    for (let depth = 0; depth < 8; depth++) nested = { _not: nested };
+    assert.doesNotThrow(() => buildSelect('domain', { where: nested }));
+    assert.throws(
+      () => buildSelect('domain', { where: { _not: nested } }),
+      /maximum depth/,
+    );
+
+    const predicates = Array.from({ length: 50 }, () => predicate);
+    assert.doesNotThrow(() =>
+      buildSelect('domain', { where: { _and: predicates } }),
+    );
+    assert.throws(
+      () => buildSelect('domain', { where: { _or: [{}, ...predicates] } }),
+      /maximum of 100 predicates/,
     );
   });
 

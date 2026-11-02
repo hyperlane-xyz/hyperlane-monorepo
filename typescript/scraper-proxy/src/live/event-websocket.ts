@@ -2,7 +2,7 @@ import type { IncomingMessage, Server } from 'node:http';
 import { isIP } from 'node:net';
 import type { Duplex } from 'node:stream';
 
-import { Logger } from '@nestjs/common';
+import { rootLogger } from '@hyperlane-xyz/utils';
 import { formatError } from '@hyperlane-xyz/utils/errors';
 import { WebSocket, WebSocketServer } from 'ws';
 
@@ -17,33 +17,55 @@ import {
   websocketNotificationQueueOverflows,
   websocketSendFailures,
 } from '../metrics.js';
-import { quoteIdentifier as q, tables } from '../scraperdb/tables.js';
 import {
   displayAddress,
-  EVENT_TYPES,
+  SUBSCRIPTION_TYPES,
+  type BlockStreamRequest,
   type EventNotification,
   type EventType,
-  isDomain,
-  isSequencedEventType,
-  normalizeSequenceAddress,
+  parseDatabaseDomain,
   parseClientMessage,
   parseEventNotification,
   parseExplorerNotification,
+  parseExplorerConfirmations,
+  parseExplorerBlocks,
+  parseOptionalBlockHash,
+  parseHeadNotification,
   parseId,
-  parseInteger,
-  type GasPaymentCursor,
-  type SequenceCursor,
-  type StreamCursor,
   type StreamRequest,
   STREAM_CURSOR_VERSIONS,
 } from './protocol.js';
+import {
+  ConfirmationStream,
+  ConfirmationUnavailableError,
+} from './confirmation-stream.js';
+import {
+  type Row,
+  STREAMS,
+  compareRows,
+  rowCursorKey,
+  rowDomain,
+  EventStore,
+} from './event-store.js';
 import { rawData } from './websocket-data.js';
+import { NotificationWorker } from './notification-worker.js';
+import { AgentSubscription, MAX_PENDING_EVENTS } from './agent-subscription.js';
+
+// Explorer types first: a failure in an agent-only type must not close Explorer
+// clients that already received this range. No cross-type order is promised.
+const HEAD_PUBLICATION_ORDER = [
+  'delivery',
+  'gas_payment',
+  'dispatch',
+  'merkle_tree_insertion',
+] as const satisfies readonly EventType[];
 
 const AGENT_PATH = '/agents';
 const MAX_AGENT_MESSAGE_BYTES = 1_048_576;
 const MESSAGE_PATH = '/messages';
 const EVENT_CHANNEL = 'scraper_event';
 const EXPLORER_CHANNEL = 'scraper_explorer_event';
+const HEAD_CHANNEL = 'scraper_head';
 const HEARTBEAT_MS = 30_000;
 // Node's setInterval() warns and clamps to 1 for non-positive values and
 // overflows above a signed 32-bit integer, so heartbeat overrides must stay
@@ -58,43 +80,18 @@ const MAX_EXPLORER_CLIENTS_PER_IP = 5;
 const MAX_EXPLORER_PENDING_BYTES = 16_777_216;
 const MAX_EXPLORER_PENDING_MESSAGES = 2_000;
 const MAX_CLIENT_MESSAGES = 30;
-const MAX_PENDING_EVENTS = 5_000;
 const MAX_PENDING_NOTIFICATIONS = 10_000;
-const GAS_PAYMENT_STREAM_CURSOR = 'gas_payment_stream_cursor';
-const GAS_PAYMENT_STREAM_HEAD = 'gas_payment_stream_head';
-const STREAM_CURSOR_COLUMN = 'scraper_stream_cursor';
-const GAS_PAYMENT_TRANSACTION = 'event_transaction';
-const GAS_PAYMENT_BLOCK = 'event_block';
-
-type Row = Record<string, unknown>;
-type NotifiedRow = Row & { notification_id: number | string };
-type Stream = {
-  columns: readonly string[];
-  domain: string;
-  projection: string;
-  sequence?: { address: string; value: string };
-  table: string;
-};
-type Subscription = {
-  catchUpRows: number;
-  catchUpStartedAt: number;
-  catchingUp: boolean;
-  cursorKeys?: Set<string>;
-  domains?: Set<number>;
-  gasPaymentLegacyMaxIds: Map<string, bigint>;
-  pending: Row[];
-  streamCursors: Map<string, bigint>;
-  sequences: Map<string, bigint>;
-  waiting: boolean;
-};
+const MAX_HEAD_PUBLICATION_FAILURES = 3;
 type Client = {
   alive: boolean;
   messages: number;
   messageWindow: number;
-  subscriptions: Map<EventType, Subscription>;
+  subscriptions: Map<EventType, AgentSubscription>;
+  subscribing: boolean;
 };
 type ExplorerClient = {
   alive: boolean;
+  custom: boolean;
   ip: string;
   queuedBytes: number;
   queue: SerializedMessage[];
@@ -109,76 +106,74 @@ type Limits = {
   maxAgentClients: number;
   maxBufferedBytes: number;
   maxCatchUpMs: number;
-  maxCatchUpRows: number;
   maxConcurrentCatchUps: number;
   maxExplorerClients: number;
   maxTotalBufferedBytes: number;
 };
-type SerializedMessage = { bytes: number; text: string };
+type SerializedMessage = Buffer;
+type HeadRange = { after: bigint; through: bigint };
+type Block = {
+  type: 'block';
+  domain: number;
+  height: string;
+  hash: string;
+  headHeight: string;
+};
+type BlockSubscription = {
+  domains?: Set<number>;
+  started: boolean;
+  latest: Map<number, Block>;
+};
 export type EventDatabase = Pick<DbService, 'listen' | 'queryLive'>;
 
-function stream(
-  table: string,
-  domain: string,
-  columns: readonly string[],
-  address?: string,
-  sequence?: string,
-): Stream {
-  return {
-    columns,
-    domain,
-    projection: columns.map(q).join(', '),
-    sequence: address && sequence ? { address, value: sequence } : undefined,
-    table,
-  };
+class HeadPublicationError extends Error {
+  constructor(
+    readonly original: unknown,
+    readonly partialAgent: boolean,
+    readonly explorerAffected: boolean,
+  ) {
+    super(`frontier publication failed: ${formatError(original)}`);
+  }
 }
 
-const STREAMS: Record<EventType, Stream> = {
-  dispatch: stream(
-    'raw_message_dispatch',
-    'origin_domain',
-    tables.raw_message_dispatch.columns,
-    'origin_mailbox',
-    'nonce',
-  ),
-  delivery: stream(
-    'delivered_message',
-    'domain',
-    'time_created msg_id domain destination_mailbox destination_tx_id sequence'.split(
-      ' ',
-    ),
-  ),
-  gas_payment: stream(
-    'gas_payment',
-    'domain',
-    'id time_created domain msg_id payment gas_amount tx_id log_index origin destination interchain_gas_paymaster sequence'.split(
-      ' ',
-    ),
-  ),
-  merkle_tree_insertion: stream(
-    'merkle_tree_insertion',
-    'domain',
-    'domain merkle_tree_hook leaf_index message_id block_number'.split(' '),
-    'merkle_tree_hook',
-    'leaf_index',
-  ),
-};
-
 export class EventWebSocketServer {
-  private readonly logger = new Logger(EventWebSocketServer.name);
+  private readonly logger = rootLogger.child({
+    module: EventWebSocketServer.name,
+  });
   private readonly clients = new Map<WebSocket, Client>();
+  private readonly blockSubscriptions = new Map<WebSocket, BlockSubscription>();
+  private readonly confirmationStreams = new Map<
+    WebSocket,
+    ConfirmationStream[]
+  >();
   private readonly terminatedSockets = new WeakSet<WebSocket>();
   private readonly explorerClients = new Map<WebSocket, ExplorerClient>();
   private readonly explorerClientsByIp = new Map<string, number>();
   private readonly catchUpWaiters: CatchUpWaiter[] = [];
   private readonly explorerNotifications = new Set<string>();
   private readonly notifications = new Map<string, EventNotification>();
+  private readonly headRanges = new Map<number, HeadRange>();
+  private readonly headFailures = new Map<number, number>();
   private heartbeatTimer?: NodeJS.Timeout;
   private listenerRetryTimer?: NodeJS.Timeout;
-  private agentNotificationTimer?: NodeJS.Timeout;
-  private explorerNotificationTimer?: NodeJS.Timeout;
-  private drainingAgentNotifications = false;
-  private drainingExplorerNotifications = false;
+  private readonly agentNotifications = new NotificationWorker(
+    NOTIFICATION_BATCH_MS,
+    () => this.drainAgentNotifications(),
+    (error) => this.failAgentStream(error),
+  );
+  private readonly explorerUpdates = new NotificationWorker(
+    NOTIFICATION_BATCH_MS,
+    () => this.drainExplorerNotifications(),
+    (error) => this.failExplorerStream(error),
+  );
+  private readonly headUpdates = new NotificationWorker(
+    NOTIFICATION_BATCH_MS,
+    () => this.drainHeadNotifications(),
+    (error) => {
+      this.logger.error(`frontier publication failed: ${formatError(error)}`);
+      this.headUpdates.schedule(LISTENER_RETRY_MS);
+    },
+  );
   private catchUps = 0;
   private pendingBytes = 0;
   private listenerReady = false;
@@ -188,17 +183,18 @@ export class EventWebSocketServer {
   private agentServer?: WebSocketServer;
   private explorerServer?: WebSocketServer;
   private readonly limits: Limits;
+  private readonly store: EventStore;
 
   constructor(
     private readonly db: EventDatabase,
     limits: Partial<Limits> = {},
   ) {
+    this.store = new EventStore(db);
     this.limits = {
       heartbeatMs: HEARTBEAT_MS,
       maxAgentClients: config.EVENT_STREAM_MAX_AGENT_CLIENTS,
       maxBufferedBytes: config.EVENT_STREAM_MAX_BUFFERED_BYTES,
       maxCatchUpMs: config.EVENT_STREAM_HISTORY_MAX_MS,
-      maxCatchUpRows: config.EVENT_STREAM_HISTORY_MAX_ROWS,
       maxConcurrentCatchUps: config.EVENT_STREAM_HISTORY_MAX_CONCURRENT,
       maxExplorerClients: MAX_EXPLORER_CLIENTS,
       maxTotalBufferedBytes: config.EVENT_STREAM_MAX_TOTAL_BUFFERED_BYTES,
@@ -233,25 +229,33 @@ export class EventWebSocketServer {
     this.httpServer = server;
     server.on('upgrade', this.handleUpgrade);
     this.agentServer.on('connection', (socket) => this.connectAgent(socket));
-    this.explorerServer.on('connection', (socket, request) =>
-      this.connectExplorer(socket, request),
+    this.explorerServer.on(
+      'connection',
+      (socket, request) =>
+        void this.connectExplorer(socket, request).catch((error) =>
+          this.failSocket(socket, formatError(error)),
+        ),
     );
     this.heartbeatTimer = setInterval(() => this.heartbeat(), heartbeatMs);
-    this.logger.log(
+    this.logger.info(
       `event websockets listening on ${AGENT_PATH}, ${MESSAGE_PATH} batchSize=${config.EVENT_STREAM_BATCH_SIZE} maxAgentClients=${this.limits.maxAgentClients} maxBufferedBytes=${this.limits.maxBufferedBytes} maxTotalBufferedBytes=${this.limits.maxTotalBufferedBytes}`,
     );
   }
 
   async stop(): Promise<void> {
     this.stopped = true;
-    [
-      this.heartbeatTimer,
-      this.listenerRetryTimer,
-      this.agentNotificationTimer,
-      this.explorerNotificationTimer,
-    ].forEach((timer) => timer && clearTimeout(timer));
+    [this.heartbeatTimer, this.listenerRetryTimer].forEach(
+      (timer) => timer && clearTimeout(timer),
+    );
+    for (const worker of [
+      this.agentNotifications,
+      this.explorerUpdates,
+      this.headUpdates,
+    ])
+      worker.stop();
     this.explorerNotifications.clear();
     this.notifications.clear();
+    this.headRanges.clear();
     await this.stopListening?.();
     this.httpServer?.off('upgrade', this.handleUpgrade);
     this.closeClients('Server stopping', 1001);
@@ -283,14 +287,14 @@ export class EventWebSocketServer {
     for (const client of this.clients.values()) {
       for (const [eventType, subscription] of client.subscriptions) {
         subscriptions[eventType][
-          subscription.catchingUp ? 'catchingUp' : 'live'
+          subscription.state === 'live' ? 'live' : 'catchingUp'
         ]++;
-        pendingCatchUpEvents += subscription.pending.length;
+        pendingCatchUpEvents += subscription.pendingCount;
         maxPendingCatchUpEvents = Math.max(
           maxPendingCatchUpEvents,
-          subscription.pending.length,
+          subscription.pendingCount,
         );
-        if (subscription.catchingUp) {
+        if (subscription.state !== 'live') {
           maxCatchUpDurationMs = Math.max(
             maxCatchUpDurationMs,
             now - subscription.catchUpStartedAt,
@@ -334,7 +338,6 @@ export class EventWebSocketServer {
       limits: {
         agentConnections: this.limits.maxAgentClients,
         catchUpMs: this.limits.maxCatchUpMs,
-        catchUpRows: this.limits.maxCatchUpRows,
         clientMessagesPerMinute: MAX_CLIENT_MESSAGES,
         concurrentCatchUps: this.limits.maxConcurrentCatchUps,
         explorerPendingBytes: MAX_EXPLORER_PENDING_BYTES,
@@ -365,23 +368,22 @@ export class EventWebSocketServer {
   }
 
   private connectAgent(socket: WebSocket): void {
+    this.watch(socket);
     if (!this.accept(socket, 'agent')) return;
     this.clients.set(socket, {
       alive: true,
       messages: 0,
       messageWindow: Date.now(),
       subscriptions: new Map(),
+      subscribing: false,
     });
     websocketConnections.inc({ route: 'agent' });
     this.send(socket, {
-      eventTypes: EVENT_TYPES,
+      confirmations: { unit: 'blocks', liveOnly: true },
+      eventTypes: SUBSCRIPTION_TYPES,
       historicalStreaming: true,
       streamCursorVersions: STREAM_CURSOR_VERSIONS,
       type: 'ready',
-    });
-    this.watch(socket, this.clients, (client) => {
-      client.subscriptions.clear();
-      this.cancelCatchUp(socket);
     });
     socket.on('message', (data) => void this.onMessage(socket, rawData(data)));
   }
@@ -407,8 +409,21 @@ export class EventWebSocketServer {
     );
   };
 
-  private connectExplorer(socket: WebSocket, request: IncomingMessage): void {
+  private async connectExplorer(
+    socket: WebSocket,
+    request: IncomingMessage,
+  ): Promise<void> {
+    this.watch(socket);
     if (!this.accept(socket, 'explorer')) return;
+    let custom: ReturnType<typeof parseExplorerConfirmations>;
+    let blocks: boolean;
+    try {
+      custom = parseExplorerConfirmations(request.url);
+      blocks = parseExplorerBlocks(request.url);
+    } catch (error) {
+      this.rejectNegotiation(socket, formatError(error));
+      return;
+    }
     const ip = clientIp(request);
     if (!ip) {
       websocketConnectionRejections.inc({
@@ -430,20 +445,93 @@ export class EventWebSocketServer {
     this.explorerClientsByIp.set(ip, connections + 1);
     this.explorerClients.set(socket, {
       alive: true,
+      custom: custom !== undefined,
       ip,
       queuedBytes: 0,
       queue: [],
       sending: false,
     });
     websocketConnections.inc({ route: 'messages' });
+    let confirmationStream: ConfirmationStream | undefined;
+    try {
+      if (blocks) await this.subscribeBlocks(socket, custom?.domains);
+      if (custom)
+        confirmationStream = await this.createConfirmationStream(
+          socket,
+          custom.confirmations,
+          custom.domains,
+        );
+    } catch (error) {
+      if (!(error instanceof ConfirmationUnavailableError)) throw error;
+      this.rejectNegotiation(socket, formatError(error));
+      return;
+    }
     this.send(socket, {
-      eventTypes: ['message_upsert'],
+      ...(custom && {
+        confirmations: custom.confirmations,
+        domains: [...custom.domains],
+        customDomains: confirmationStream?.customDomains,
+        canonicalDomains: confirmationStream?.canonicalDomains,
+      }),
+      eventTypes: [
+        'message_upsert',
+        ...(custom ? ['rollback'] : []),
+        ...(blocks ? ['block'] : []),
+      ],
       type: 'ready',
     });
-    this.watch(socket, this.explorerClients, (client) => {
-      this.clearExplorerQueue(client);
-      this.releaseExplorerClient(client.ip);
-    });
+    confirmationStream?.start();
+    this.startBlocks(socket);
+  }
+
+  private async subscribeBlocks(
+    socket: WebSocket,
+    domains?: Set<number>,
+  ): Promise<void> {
+    const subscription: BlockSubscription = {
+      domains,
+      started: false,
+      latest: new Map(),
+    };
+    this.blockSubscriptions.set(socket, subscription);
+    // Register before the snapshot: notifications received during the query win,
+    // including lower heights and replacement hashes after a reorg.
+    const rows = await this.store.blockHeads(domains);
+    for (const row of rows) {
+      const domain = parseDatabaseDomain(row.domain, 'Invalid block domain');
+      const hash = parseOptionalBlockHash(row.hash);
+      if (hash && !subscription.latest.has(domain))
+        subscription.latest.set(domain, {
+          type: 'block',
+          domain,
+          height: row.indexed_height,
+          hash,
+          headHeight: row.head_height,
+        });
+    }
+  }
+
+  private startBlocks(socket: WebSocket): void {
+    const subscription = this.blockSubscriptions.get(socket);
+    if (!subscription) return;
+    subscription.started = true;
+    for (const block of subscription.latest.values()) this.send(socket, block);
+  }
+
+  private publishBlock(block: Block): void {
+    for (const [socket, subscription] of this.blockSubscriptions) {
+      if (subscription.domains && !subscription.domains.has(block.domain))
+        continue;
+      const previous = subscription.latest.get(block.domain);
+      if (
+        previous?.height === block.height &&
+        previous.hash === block.hash &&
+        previous.headHeight === block.headHeight
+      )
+        continue;
+      subscription.latest.set(block.domain, block);
+      if (subscription.started) this.send(socket, block);
+    }
   }
 
   private accept(socket: WebSocket, route: 'agent' | 'explorer'): boolean {
@@ -467,24 +555,91 @@ export class EventWebSocketServer {
     return true;
   }
 
-  private watch<T extends { alive: boolean }>(
+  private async createConfirmationStream(
     socket: WebSocket,
-    clients: Map<WebSocket, T>,
-    removed?: (client: T) => void,
-  ): void {
+    confirmations: number,
+    domains: Set<number>,
+    eventType?: EventType,
+  ): Promise<ConfirmationStream> {
+    const stream = new ConfirmationStream(confirmations, domains, {
+      active: () =>
+        this.clients.has(socket) || this.explorerClients.has(socket),
+      read: (domain, after, through, frontiers) =>
+        eventType
+          ? this.store.confirmationEventRows(
+              eventType,
+              domain,
+              after,
+              through,
+              confirmations,
+            )
+          : this.store.confirmationMessageRows(
+              domain,
+              after,
+              through,
+              frontiers,
+              confirmations,
+            ),
+      send: (message) => this.sendAndWait(socket, message),
+      messageId: eventType
+        ? undefined
+        : (message) => {
+            const data = message.data;
+            if (
+              typeof data !== 'object' ||
+              data === null ||
+              !('msg_id' in data)
+            )
+              return undefined;
+            return typeof data.msg_id === 'string' ? data.msg_id : undefined;
+          },
+      enrich: eventType
+        ? undefined
+        : async (ids, frontiers) => {
+            const rows = await this.store.provisionalMessages(ids, frontiers);
+            return rows
+              .filter(
+                ({ data }) =>
+                  domains.has(rowDomain(data, 'origin_domain_id')) ||
+                  domains.has(rowDomain(data, 'destination_domain_id')),
+              )
+              .map(({ data, domains }) => ({
+                domains,
+                message: { type: 'message_upsert', confirmations, data },
+              }));
+          },
+      rollback: (domain, from, to) => {
+        this.send(socket, {
+          type: 'rollback',
+          domain,
+          eventType,
+          confirmations,
+          fromHeight: from.toString(),
+          toHeight: to.toString(),
+        });
+      },
+      fail: (error) => this.failSocket(socket, formatError(error)),
+    });
+    const streams = this.confirmationStreams.get(socket) ?? [];
+    streams.push(stream);
+    this.confirmationStreams.set(socket, streams);
+    await stream.initialize(
+      () => this.store.confirmationHeads(domains),
+      eventType === undefined,
+    );
+    return stream;
+  }
+
+  private watch(socket: WebSocket): void {
     socket.on('pong', () => {
-      const client = clients.get(socket);
+      const client =
+        this.clients.get(socket) ?? this.explorerClients.get(socket);
       if (client) client.alive = true;
     });
-    const remove = (): void => {
-      const client = clients.get(socket);
-      if (client) removed?.(client);
-      clients.delete(socket);
-    };
-    socket.on('close', remove);
+    socket.on('close', () => this.disconnect(socket));
     socket.on('error', (error) => {
       this.logger.warn(`websocket error: ${error.message}`);
-      remove();
+      this.disconnect(socket);
     });
   }
 
@@ -509,37 +664,79 @@ export class EventWebSocketServer {
       this.send(socket, { type: 'pong' });
       return;
     }
-    if (client.subscriptions.size) {
+    if (
+      client.subscriptions.size ||
+      client.subscribing ||
+      this.blockSubscriptions.has(socket)
+    ) {
       this.sendError(socket, 'Already subscribed');
       return;
     }
 
-    for (const request of message.streams) {
-      client.subscriptions.set(request.eventType, {
-        catchUpRows: 0,
-        catchUpStartedAt: Date.now(),
-        catchingUp: !!request.cursors,
-        cursorKeys: request.cursors
-          ? new Set(
-              request.cursors.map(({ address, domain }) =>
-                sequenceKey(domain, address),
-              ),
-            )
-          : undefined,
-        domains: request.domains,
-        gasPaymentLegacyMaxIds: new Map(),
-        pending: [],
-        streamCursors: new Map(),
-        sequences: new Map(),
-        waiting: !!request.cursors,
-      });
+    if (
+      message.streams.some(
+        ({ eventType, confirmations }) =>
+          eventType === 'delivery' && confirmations !== undefined,
+      )
+    ) {
+      this.rejectNegotiation(
+        socket,
+        'Custom confirmations unavailable for delivery streams',
+      );
+      return;
     }
+    client.subscribing = true;
+    const eventStreams = message.streams.filter(
+      (request) => request.eventType !== 'blocks',
+    );
+    try {
+      const blocks = message.streams.find(
+        (request) => request.eventType === 'blocks',
+      );
+      if (blocks) await this.subscribeBlocks(socket, blocks.domains);
+      for (const request of eventStreams) {
+        if (request.confirmations !== undefined && request.domains)
+          await this.createConfirmationStream(
+            socket,
+            request.confirmations,
+            request.domains,
+            request.eventType,
+          );
+      }
+    } catch (error) {
+      if (error instanceof ConfirmationUnavailableError)
+        this.rejectNegotiation(socket, formatError(error));
+      else this.failSocket(socket, formatError(error));
+      return;
+    }
+    if (this.clients.get(socket) !== client) return;
+    for (const request of eventStreams) {
+      const subscription = new AgentSubscription(
+        request,
+        this.store,
+        this.limits.maxCatchUpMs,
+        {
+          active: () =>
+            this.clients.get(socket) === client &&
+            client.subscriptions.get(request.eventType) === subscription,
+          send: (message) => this.sendAndWait(socket, message),
+          close: (reason) => {
+            socket.close(1013, reason);
+          },
+        },
+      );
+      client.subscriptions.set(request.eventType, subscription);
+    }
+
+    client.subscribing = false;
     this.send(socket, {
       streams: message.streams.map(subscriptionResponse),
       type: 'subscribed',
     });
+    this.confirmationStreams.get(socket)?.forEach((stream) => stream.start());
+    this.startBlocks(socket);
     await Promise.all(
-      message.streams
+      eventStreams
         .filter(({ cursors }) => cursors)
         .map((request) => this.catchUp(socket, client, request)),
     );
@@ -553,63 +750,10 @@ export class EventWebSocketServer {
     const subscription = client.subscriptions.get(request.eventType);
     if (!subscription) return;
     if (!(await this.reserveCatchUp(socket))) return;
-    subscription.catchUpStartedAt = Date.now();
-    subscription.waiting = false;
     try {
-      for (const cursor of request.cursors ?? []) {
-        if (
-          this.clients.get(socket) !== client ||
-          client.subscriptions.get(request.eventType) !== subscription
-        ) {
-          websocketCatchUps.inc({ outcome: 'aborted' });
-          return;
-        }
-        const completed = await this.catchUpCursor(
-          socket,
-          client,
-          request.eventType,
-          subscription,
-          cursor,
-        );
-        if (!completed) {
-          websocketCatchUps.inc({ outcome: 'aborted' });
-          return;
-        }
-      }
-      while (subscription.pending.length) {
-        if (
-          this.clients.get(socket) !== client ||
-          client.subscriptions.get(request.eventType) !== subscription
-        ) {
-          websocketCatchUps.inc({ outcome: 'aborted' });
-          return;
-        }
-        const pending = subscription.pending.sort((a, b) =>
-          compareRows(request.eventType, a, b),
-        );
-        subscription.pending = [];
-        for (const row of pending) {
-          this.assertCatchUpBudget(subscription);
-          if (
-            !(await this.deliverAndWait(
-              socket,
-              request.eventType,
-              subscription,
-              row,
-            ))
-          ) {
-            websocketCatchUps.inc({ outcome: 'failure' });
-            return;
-          }
-        }
-      }
-      subscription.catchingUp = false;
-      websocketCatchUps.inc({ outcome: 'success' });
+      websocketCatchUps.inc({ outcome: await subscription.replay() });
     } catch (error) {
-      const active =
-        this.clients.get(socket) === client &&
-        client.subscriptions.get(request.eventType) === subscription;
-      if (!active) {
+      if (!subscription.isActive()) {
         websocketCatchUps.inc({ outcome: 'aborted' });
         return;
       }
@@ -651,381 +795,33 @@ export class EventWebSocketServer {
     }
   }
 
-  private async catchUpCursor(
-    socket: WebSocket,
-    client: Client,
-    eventType: EventType,
-    subscription: Subscription,
-    cursor: StreamCursor,
-  ): Promise<boolean> {
-    return cursor.kind === 'gas_payment'
-      ? this.catchUpGasPaymentCursor(
-          socket,
-          client,
-          eventType,
-          subscription,
-          cursor,
-        )
-      : this.catchUpSequenceCursor(
-          socket,
-          client,
-          eventType,
-          subscription,
-          cursor,
-        );
-  }
-
-  private async catchUpSequenceCursor(
-    socket: WebSocket,
-    client: Client,
-    eventType: EventType,
-    subscription: Subscription,
-    cursor: SequenceCursor,
-  ): Promise<boolean> {
-    const key = sequenceKey(cursor.domain, cursor.address);
-    const { first, last } = await this.sequenceBounds(eventType, cursor);
-    if (last < first) {
-      if (cursor.afterSequence !== undefined && cursor.afterSequence !== -1n) {
-        throw new Error(
-          `No ${eventType} history for domain ${cursor.domain} address ${displayAddress(cursor.address)}`,
-        );
-      }
-      subscription.sequences.set(key, last);
-      return this.sendAndWait(socket, {
-        address: displayAddress(cursor.address),
-        domain: cursor.domain,
-        eventType,
-        sequence: last.toString(),
-        type: 'caught_up',
-      });
-    }
-    const requestedAfter = cursor.afterSequence ?? last;
-    if (requestedAfter > last && !cursor.allowReplay) {
-      throw new Error(
-        `Sequence ${requestedAfter} is ahead of current ${eventType} sequence ${last}`,
-      );
-    }
-    const after = requestedAfter > last ? last : requestedAfter;
-    subscription.sequences.set(key, after);
-
-    while ((subscription.sequences.get(key) ?? -1n) < last) {
-      if (
-        this.clients.get(socket) !== client ||
-        client.subscriptions.get(eventType) !== subscription
-      ) {
-        return false;
-      }
-      const current = subscription.sequences.get(key) ?? -1n;
-      this.assertCatchUpBudget(subscription);
-      const rows = await this.sequenceRows(eventType, cursor, current, last);
-      subscription.catchUpRows += rows.length;
-      this.assertCatchUpBudget(subscription);
-      if (!rows.length)
-        throw new Error(`Missing ${eventType} sequence ${current + 1n}`);
-      for (const row of rows) {
-        this.assertCatchUpBudget(subscription);
-        if (
-          !(await this.deliverAndWait(socket, eventType, subscription, row))
-        ) {
-          throw new Error(`Gap in ${eventType} sequence after ${current}`);
-        }
-      }
-    }
-    if (
-      !(await this.sendAndWait(socket, {
-        address: displayAddress(cursor.address),
-        domain: cursor.domain,
-        eventType,
-        sequence: last.toString(),
-        type: 'caught_up',
-      }))
-    )
-      throw new Error('Websocket closed during catch-up');
-    return true;
-  }
-
-  private async catchUpGasPaymentCursor(
-    socket: WebSocket,
-    client: Client,
-    eventType: EventType,
-    subscription: Subscription,
-    cursor: GasPaymentCursor,
-  ): Promise<boolean> {
-    const key = sequenceKey(cursor.domain, cursor.address);
-    const { lastCursor, legacyMaxId } =
-      await this.gasPaymentCursorBounds(cursor);
-    const after = cursor.afterStreamCursor ?? lastCursor;
-    if (after > lastCursor) {
-      throw new Error(
-        `Cursor ${after} is ahead of current ${eventType} cursor ${lastCursor}`,
-      );
-    }
-    subscription.gasPaymentLegacyMaxIds.set(key, legacyMaxId);
-    subscription.streamCursors.set(key, after);
-
-    while ((subscription.streamCursors.get(key) ?? 0n) < lastCursor) {
-      if (
-        this.clients.get(socket) !== client ||
-        client.subscriptions.get(eventType) !== subscription
-      ) {
-        return false;
-      }
-      const current = subscription.streamCursors.get(key) ?? 0n;
-      this.assertCatchUpBudget(subscription);
-      const legacyPhase = current < legacyMaxId;
-      const through = legacyPhase ? legacyMaxId : lastCursor;
-      const rows = legacyPhase
-        ? await this.legacyGasPaymentRows(cursor, current, through)
-        : await this.mappedGasPaymentRows(cursor, current, through);
-      subscription.catchUpRows += rows.length;
-      this.assertCatchUpBudget(subscription);
-      if (!rows.length) {
-        if (!legacyPhase) {
-          throw new Error(`Missing ${eventType} stream cursor ${current + 1n}`);
-        }
-        subscription.streamCursors.set(key, through);
-        continue;
-      }
-      for (const row of rows) {
-        this.assertCatchUpBudget(subscription);
-        if (
-          !(await this.deliverAndWait(socket, eventType, subscription, row))
-        ) {
-          throw new Error(`Gap in ${eventType} stream cursor after ${current}`);
-        }
-      }
-    }
-    const streamCursor = subscription.streamCursors.get(key) ?? after;
-    if (
-      !(await this.sendAndWait(socket, {
-        address: displayAddress(cursor.address),
-        domain: cursor.domain,
-        eventType,
-        legacyMaxStreamCursor: legacyMaxId.toString(),
-        streamCursor: streamCursor.toString(),
-        type: 'caught_up',
-      }))
-    )
-      throw new Error('Websocket closed during catch-up');
-    return true;
-  }
-
   private publish(eventType: EventType, row: Row): void {
     const domain = rowDomain(row, STREAMS[eventType].domain);
     const key = rowCursorKey(eventType, domain, row);
+    let serialized: SerializedMessage | undefined;
     for (const [socket, client] of this.clients) {
       const subscription = client.subscriptions.get(eventType);
-      if (!subscription || !matches(subscription, domain, key)) continue;
-      if (!subscription.catchingUp) {
-        this.deliver(socket, eventType, subscription, row);
-      } else if (
-        !subscription.waiting &&
-        subscription.pending.push(row) > MAX_PENDING_EVENTS
-      ) {
+      if (!subscription?.matches(domain, key)) continue;
+      if (subscription.state === 'live') {
+        const message = subscription.eventForDelivery(row);
+        if (!message) continue;
+        // Gas payment envelopes include each subscriber's legacy cursor boundary.
+        const payload =
+          eventType === 'gas_payment'
+            ? serialize(message)
+            : (serialized ??= serialize(message));
+        this.sendSerialized(socket, payload);
+      } else if (!subscription.buffer(row)) {
         this.disconnect(socket);
         socket.close(1013, 'Event catch-up buffer exceeded');
       }
     }
   }
 
-  private deliver(
-    socket: WebSocket,
-    eventType: EventType,
-    subscription: Subscription,
-    row: Row,
-  ): boolean {
-    const message = this.eventForDelivery(socket, eventType, subscription, row);
-    if (message === false) return false;
-    return message === undefined || this.send(socket, message);
-  }
-
-  private async deliverAndWait(
-    socket: WebSocket,
-    eventType: EventType,
-    subscription: Subscription,
-    row: Row,
-  ): Promise<boolean> {
-    const message = this.eventForDelivery(socket, eventType, subscription, row);
-    if (message === false) return false;
-    if (message === undefined) return true;
-    if (!(await this.sendAndWait(socket, message))) {
-      throw new Error('Websocket closed during catch-up');
-    }
-    return true;
-  }
-
-  private eventForDelivery(
-    socket: WebSocket,
-    eventType: EventType,
-    subscription: Subscription,
-    row: Row,
-  ): Record<string, unknown> | false | undefined {
-    const domain = rowDomain(row, STREAMS[eventType].domain);
-    const key = rowCursorKey(eventType, domain, row);
-    if (!matches(subscription, domain, key)) return undefined;
-    const streamCursor = gasPaymentStreamCursor(eventType, row);
-    if (streamCursor && subscription.cursorKeys) {
-      const streamCursorKey = sequenceKey(domain, streamCursor.address);
-      const current = subscription.streamCursors.get(streamCursorKey);
-      if (current !== undefined) {
-        if (streamCursor.value <= current) return undefined;
-        const legacyMaxId =
-          subscription.gasPaymentLegacyMaxIds.get(streamCursorKey);
-        if (
-          legacyMaxId !== undefined &&
-          streamCursor.value > legacyMaxId &&
-          streamCursor.value !== current + 1n
-        ) {
-          socket.close(
-            1013,
-            `${eventType} stream cursor gap: expected ${current + 1n}, received ${streamCursor.value}`,
-          );
-          return false;
-        }
-        subscription.streamCursors.set(streamCursorKey, streamCursor.value);
-      }
-    }
-    const sequence = rowSequence(eventType, row);
-    if (sequence) {
-      const sequenceCursorKey = sequenceKey(domain, sequence.address);
-      const current = subscription.sequences.get(sequenceCursorKey);
-      if (current !== undefined) {
-        if (sequence.value <= current) return undefined;
-        if (sequence.value !== current + 1n) {
-          socket.close(
-            1013,
-            `${eventType} sequence gap: expected ${current + 1n}, received ${sequence.value}`,
-          );
-          return false;
-        }
-        subscription.sequences.set(sequenceCursorKey, sequence.value);
-      }
-    }
-    const data = eventType === 'gas_payment' ? withoutStreamCursor(row) : row;
-    const rowId =
-      eventType === 'gas_payment' ? parseId(row.id).toString() : undefined;
-    const legacyMaxStreamCursor = streamCursor
-      ? subscription.gasPaymentLegacyMaxIds.get(
-          sequenceKey(domain, streamCursor.address),
-        )
-      : undefined;
-    return {
-      data,
-      domain,
-      eventType,
-      legacyMaxStreamCursor: legacyMaxStreamCursor?.toString(),
-      rowId,
-      streamCursor: streamCursor?.value.toString(),
-      sequence: sequence?.value.toString(),
-      type: 'event',
-    };
-  }
-
-  private assertCatchUpBudget(subscription: Subscription): void {
-    if (subscription.catchUpRows > this.limits.maxCatchUpRows) {
-      throw new Error(
-        `Historical streaming row limit exceeded (${this.limits.maxCatchUpRows})`,
-      );
-    }
-    if (Date.now() - subscription.catchUpStartedAt > this.limits.maxCatchUpMs) {
-      throw new Error(
-        `Historical streaming time limit exceeded (${this.limits.maxCatchUpMs}ms)`,
-      );
-    }
-  }
-
-  private sequenceRows(
-    eventType: EventType,
-    cursor: SequenceCursor,
-    after: bigint,
-    through: bigint,
-  ): Promise<Row[]> {
-    const stream = STREAMS[eventType];
-    const sequence = sequenceConfig(stream);
-    return this.db.queryLive<Row>(
-      `SELECT ${columns(stream)} FROM ${q(stream.table)} WHERE ${q(stream.domain)} = $1 AND ${q(sequence.address)} = $2::bytea AND ${q(sequence.value)} > $3::bigint AND ${q(sequence.value)} <= $4::bigint ORDER BY ${q(sequence.value)} ASC LIMIT $5`,
-      [
-        cursor.domain,
-        cursor.address,
-        after.toString(),
-        through.toString(),
-        config.EVENT_STREAM_BATCH_SIZE,
-      ],
-    );
-  }
-
-  private async sequenceBounds(
-    eventType: EventType,
-    cursor: SequenceCursor,
-  ): Promise<{ first: bigint; last: bigint }> {
-    const stream = STREAMS[eventType];
-    const sequence = sequenceConfig(stream);
-    const [row] = await this.db.queryLive<{ first: string; last: string }>(
-      `SELECT COALESCE(MIN(${q(sequence.value)}), 0)::text AS first, COALESCE(MAX(${q(sequence.value)}), -1)::text AS last FROM ${q(stream.table)} WHERE ${q(stream.domain)} = $1 AND ${q(sequence.address)} = $2::bytea`,
-      [cursor.domain, cursor.address],
-    );
-    return {
-      first: parseSequence(row?.first ?? '0'),
-      last: parseSequence(row?.last ?? '-1'),
-    };
-  }
-
-  private legacyGasPaymentRows(
-    cursor: GasPaymentCursor,
-    after: bigint,
-    through: bigint,
-  ): Promise<Row[]> {
-    const stream = STREAMS.gas_payment;
-    return this.db.queryLive<Row>(
-      `SELECT ${gasPaymentColumns(stream)}, ${q('event_row')}.${q('id')} AS ${q(STREAM_CURSOR_COLUMN)} FROM ${q(stream.table)} AS ${q('event_row')}${gasPaymentMetadataJoins('LEFT JOIN')} WHERE ${q('event_row')}.${q(stream.domain)} = $1 AND ${q('event_row')}.${q('interchain_gas_paymaster')} = $2::bytea AND ${q('event_row')}.${q('id')} > $3::bigint AND ${q('event_row')}.${q('id')} <= $4::bigint ORDER BY ${q('event_row')}.${q('id')} ASC LIMIT $5`,
-      [
-        cursor.domain,
-        cursor.address,
-        after.toString(),
-        through.toString(),
-        config.EVENT_STREAM_BATCH_SIZE,
-      ],
-    );
-  }
-
-  private mappedGasPaymentRows(
-    cursor: GasPaymentCursor,
-    after: bigint,
-    through: bigint,
-  ): Promise<Row[]> {
-    const stream = STREAMS.gas_payment;
-    return this.db.queryLive<Row>(
-      `SELECT ${gasPaymentColumns(stream)}, ${q('event_cursor')}.${q('stream_cursor')} AS ${q(STREAM_CURSOR_COLUMN)} FROM ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} INNER JOIN ${q(stream.table)} AS ${q('event_row')} ON ${q('event_row')}.${q('id')} = ${q('event_cursor')}.${q('gas_payment_id')}${gasPaymentMetadataJoins('LEFT JOIN')} WHERE ${q('event_cursor')}.${q('domain')} = $1 AND ${q('event_cursor')}.${q('interchain_gas_paymaster')} = $2::bytea AND ${q('event_cursor')}.${q('stream_cursor')} > $3::bigint AND ${q('event_cursor')}.${q('stream_cursor')} <= $4::bigint ORDER BY ${q('event_cursor')}.${q('stream_cursor')} ASC LIMIT $5`,
-      [
-        cursor.domain,
-        cursor.address,
-        after.toString(),
-        through.toString(),
-        config.EVENT_STREAM_BATCH_SIZE,
-      ],
-    );
-  }
-
-  private async gasPaymentCursorBounds(
-    cursor: GasPaymentCursor,
-  ): Promise<{ lastCursor: bigint; legacyMaxId: bigint }> {
-    const [row] = await this.db.queryLive<{
-      last_cursor: string;
-      legacy_max_id: string;
-    }>(
-      `SELECT COALESCE(${q('legacy_max_id')}, 0)::text AS legacy_max_id, COALESCE(${q('last_cursor')}, 0)::text AS last_cursor FROM ${q(GAS_PAYMENT_STREAM_HEAD)} WHERE ${q('domain')} = $1 AND ${q('interchain_gas_paymaster')} = $2::bytea`,
-      [cursor.domain, cursor.address],
-    );
-    return {
-      lastCursor: parseId(row?.last_cursor ?? '0'),
-      legacyMaxId: parseId(row?.legacy_max_id ?? '0'),
-    };
-  }
-
   private async connectListener(): Promise<void> {
     try {
       this.stopListening = await this.db.listen(
-        [EVENT_CHANNEL, EXPLORER_CHANNEL],
+        [EVENT_CHANNEL, EXPLORER_CHANNEL, HEAD_CHANNEL],
         (channel, payload) => this.queueNotification(channel, payload),
         (error) => this.listenerDisconnected(error),
       );
@@ -1041,22 +837,45 @@ export class EventWebSocketServer {
     payload: string | undefined,
   ): void {
     try {
-      if (channel === EXPLORER_CHANNEL) {
-        if (!this.explorerClients.size) return;
-        const messageId = parseExplorerNotification(payload).messageId;
+      if (channel === HEAD_CHANNEL) {
+        if (!this.clients.size && !this.explorerClients.size) return;
+        const head = parseHeadNotification(payload);
         if (
-          !this.explorerNotifications.has(messageId) &&
-          this.explorerNotifications.size >= MAX_PENDING_NOTIFICATIONS
+          head.indexedHeight !== undefined &&
+          head.indexedHash !== undefined &&
+          head.headHeight !== undefined
         ) {
-          websocketSendFailures.inc({ reason: 'notification_queue_limit' });
-          websocketNotificationQueueOverflows.inc({ route: 'messages' });
-          this.failExplorerStream(
-            new Error('Explorer notification queue limit exceeded'),
-          );
-          return;
+          this.publishBlock({
+            type: 'block',
+            domain: head.domain,
+            height: head.indexedHeight.toString(),
+            hash: head.indexedHash,
+            headHeight: head.headHeight.toString(),
+          });
         }
-        this.explorerNotifications.add(messageId);
-        this.scheduleExplorerDrain();
+        this.store.invalidateMessages();
+        for (const streams of this.confirmationStreams.values())
+          for (const stream of streams) stream.notify(head);
+        if (
+          head.previousConfirmedHeight === undefined ||
+          head.confirmedHeight <= head.previousConfirmedHeight
+        )
+          return;
+        const current = this.headRanges.get(head.domain);
+        this.headRanges.set(head.domain, {
+          after:
+            current && current.after < head.previousConfirmedHeight
+              ? current.after
+              : head.previousConfirmedHeight,
+          through:
+            current && current.through > head.confirmedHeight
+              ? current.through
+              : head.confirmedHeight,
+        });
+        this.headUpdates.schedule();
+      } else if (channel === EXPLORER_CHANNEL) {
+        const messageId = parseExplorerNotification(payload).messageId;
+        this.queueExplorerNotification(messageId);
       } else {
         const notification = parseEventNotification(payload);
         if (!this.hasSubscriber(notification)) return;
@@ -1065,7 +884,9 @@ export class EventWebSocketServer {
           !this.notifications.has(key) &&
           this.notifications.size >= MAX_PENDING_NOTIFICATIONS
         ) {
-          websocketSendFailures.inc({ reason: 'notification_queue_limit' });
+          websocketSendFailures.inc({
+            reason: 'notification_queue_limit',
+          });
           websocketNotificationQueueOverflows.inc({ route: 'agent' });
           this.failAgentStream(
             new Error('Agent notification queue limit exceeded'),
@@ -1073,7 +894,7 @@ export class EventWebSocketServer {
           return;
         }
         this.notifications.set(key, notification);
-        this.scheduleAgentDrain();
+        this.agentNotifications.schedule();
       }
     } catch (error) {
       this.logger.warn(
@@ -1083,73 +904,175 @@ export class EventWebSocketServer {
     }
   }
 
-  private scheduleAgentDrain(): void {
-    if (!this.agentNotificationTimer && !this.drainingAgentNotifications) {
-      this.agentNotificationTimer = setTimeout(() => {
-        this.agentNotificationTimer = undefined;
-        void this.drainAgentNotifications().catch((error) =>
-          this.failAgentStream(error),
-        );
-      }, NOTIFICATION_BATCH_MS);
-    }
-  }
-
-  private scheduleExplorerDrain(): void {
+  private queueExplorerNotification(messageId: string): void {
+    if (!this.explorerClients.size) return;
     if (
-      !this.explorerNotificationTimer &&
-      !this.drainingExplorerNotifications
+      !this.explorerNotifications.has(messageId) &&
+      this.explorerNotifications.size >= MAX_PENDING_NOTIFICATIONS
     ) {
-      this.explorerNotificationTimer = setTimeout(() => {
-        this.explorerNotificationTimer = undefined;
-        void this.drainExplorerNotifications().catch((error) =>
-          this.failExplorerStream(error),
-        );
-      }, NOTIFICATION_BATCH_MS);
+      websocketSendFailures.inc({ reason: 'notification_queue_limit' });
+      websocketNotificationQueueOverflows.inc({ route: 'messages' });
+      this.failExplorerStream(
+        new Error('Explorer notification queue limit exceeded'),
+      );
+      return;
     }
+    this.explorerNotifications.add(messageId);
+    this.explorerUpdates.schedule();
   }
 
   private async drainAgentNotifications(): Promise<void> {
-    if (this.drainingAgentNotifications) return;
-    this.drainingAgentNotifications = true;
+    while (this.notifications.size) {
+      const batch = [...this.notifications.entries()].slice(
+        0,
+        NOTIFICATION_BATCH_SIZE,
+      );
+      const grouped = new Map<EventType, EventNotification[]>();
+      for (const [key, notification] of batch) {
+        this.notifications.delete(key);
+        if (!this.hasSubscriber(notification)) continue;
+        const group = grouped.get(notification.eventType) ?? [];
+        group.push(notification);
+        grouped.set(notification.eventType, group);
+      }
+      for (const [eventType, notifications] of grouped) {
+        await this.publishNotifications(eventType, notifications);
+      }
+    }
+  }
+
+  private async drainHeadNotifications(): Promise<void> {
     try {
-      while (this.notifications.size) {
-        const batch = [...this.notifications.entries()].slice(
-          0,
-          NOTIFICATION_BATCH_SIZE,
-        );
-        const grouped = new Map<EventType, EventNotification[]>();
-        for (const [key, notification] of batch) {
-          this.notifications.delete(key);
-          if (!this.hasSubscriber(notification)) continue;
-          const group = grouped.get(notification.eventType) ?? [];
-          group.push(notification);
-          grouped.set(notification.eventType, group);
+      for (const [domain, range] of this.headRanges) {
+        try {
+          await this.publishHeadRange(domain, range);
+          this.headFailures.delete(domain);
+        } catch (error) {
+          const failure =
+            error instanceof HeadPublicationError
+              ? error
+              : new HeadPublicationError(error, false, false);
+          const failures = (this.headFailures.get(domain) ?? 0) + 1;
+          this.headFailures.set(domain, failures);
+          this.logger.error(
+            `frontier publication failed for domain ${domain} (${failures}/${MAX_HEAD_PUBLICATION_FAILURES}): ${formatError(error)}`,
+          );
+          if (
+            failure.partialAgent ||
+            failures >= MAX_HEAD_PUBLICATION_FAILURES
+          ) {
+            this.failAgentDomain(domain, failure.original);
+            if (failure.explorerAffected && this.explorerClients.size)
+              this.failExplorerStream(failure.original);
+            this.releaseHeadRange(domain, range);
+            this.headFailures.delete(domain);
+          }
+          continue;
         }
-        for (const [eventType, notifications] of grouped) {
-          await this.publishNotifications(eventType, notifications);
-        }
+        this.releaseHeadRange(domain, range);
       }
     } finally {
-      this.drainingAgentNotifications = false;
+      if (this.headRanges.size)
+        this.headUpdates.schedule(
+          this.headFailures.size ? LISTENER_RETRY_MS : NOTIFICATION_BATCH_MS,
+        );
+    }
+  }
+
+  /** Drop a handled range, keeping any extension that arrived meanwhile. */
+  private releaseHeadRange(domain: number, range: HeadRange): void {
+    const current = this.headRanges.get(domain);
+    if (!current) return;
+    if (current.through <= range.through) {
+      this.headRanges.delete(domain);
+    } else {
+      this.headRanges.set(domain, {
+        after: range.through,
+        through: current.through,
+      });
+    }
+  }
+
+  private async publishHeadRange(
+    domain: number,
+    { after, through }: HeadRange,
+  ): Promise<void> {
+    let agentPublished = false;
+    let explorerPending = this.explorerClients.size > 0;
+    // Delivery and gas share message ids; queue each Explorer id once per range.
+    const explorerIds = new Set<string>();
+    for (const eventType of HEAD_PUBLICATION_ORDER) {
+      const agentInterested = this.hasSubscriber({
+        domain,
+        eventType,
+        id: 0n,
+      });
+      const explorerInterested =
+        this.explorerClients.size > 0 &&
+        (eventType === 'delivery' || eventType === 'gas_payment');
+      if (!agentInterested && !explorerInterested) continue;
+      try {
+        for await (const events of this.store.headEvents(
+          eventType,
+          domain,
+          after,
+          through,
+        )) {
+          if (this.stopped) return;
+          if (agentInterested) {
+            agentPublished = true;
+            events.forEach((row) => this.publish(eventType, row));
+          }
+          if (explorerInterested && this.explorerClients.size) {
+            const batch: string[] = [];
+            events.forEach((row) => {
+              const messageId = row.msg_id ?? row.message_id;
+              if (
+                typeof messageId === 'string' &&
+                !explorerIds.has(messageId)
+              ) {
+                explorerIds.add(messageId);
+                batch.push(messageId);
+              }
+            });
+            // A range after an outage can hold more ids than the queue cap;
+            // queue page by page and let the drain make room first.
+            await this.waitForExplorerCapacity(batch.length);
+            if (this.stopped) return;
+            batch.forEach((messageId) =>
+              this.queueExplorerNotification(messageId),
+            );
+          }
+        }
+      } catch (error) {
+        throw new HeadPublicationError(error, agentPublished, explorerPending);
+      }
+      if (eventType === 'gas_payment') explorerPending = false;
+    }
+  }
+
+  /** Wait until the Explorer queue can take `count` more ids without overflowing. */
+  private async waitForExplorerCapacity(count: number): Promise<void> {
+    const limit = MAX_PENDING_NOTIFICATIONS - count;
+    while (
+      !this.stopped &&
+      this.explorerClients.size &&
+      this.explorerNotifications.size > limit
+    ) {
+      await this.explorerUpdates.flush();
     }
   }
 
   private async drainExplorerNotifications(): Promise<void> {
-    if (this.drainingExplorerNotifications) return;
-    this.drainingExplorerNotifications = true;
-    try {
-      while (this.explorerNotifications.size) {
-        const messageIds = [...this.explorerNotifications].slice(
-          0,
-          EXPLORER_NOTIFICATION_BATCH_SIZE,
-        );
-        messageIds.forEach((messageId) =>
-          this.explorerNotifications.delete(messageId),
-        );
-        await this.publishExplorer(messageIds);
-      }
-    } finally {
-      this.drainingExplorerNotifications = false;
+    while (this.explorerNotifications.size) {
+      const messageIds = [...this.explorerNotifications].slice(
+        0,
+        EXPLORER_NOTIFICATION_BATCH_SIZE,
+      );
+      messageIds.forEach((messageId) =>
+        this.explorerNotifications.delete(messageId),
+      );
+      await this.publishExplorer(messageIds);
     }
   }
 
@@ -1164,24 +1087,9 @@ export class EventWebSocketServer {
       ]),
     );
     const stream = STREAMS[eventType];
-    const gasPaymentCursor =
-      eventType === 'gas_payment'
-        ? ` LEFT JOIN ${q(GAS_PAYMENT_STREAM_CURSOR)} AS ${q('event_cursor')} ON ${q('event_cursor')}.${q('gas_payment_id')} = ${q('event_row')}.${q('id')}`
-        : '';
-    const gasPaymentMetadata =
-      eventType === 'gas_payment' ? gasPaymentMetadataJoins('LEFT JOIN') : '';
-    const eventProjection =
-      eventType === 'gas_payment'
-        ? gasPaymentColumns(stream)
-        : columns(stream, 'event_row');
-    const cursorProjection =
-      eventType === 'gas_payment'
-        ? `, ${gasPaymentCursorExpression()} AS ${q(STREAM_CURSOR_COLUMN)}`
-        : '';
-    const rows = await this.db.queryLive<NotifiedRow>(
-      `SELECT ${q('event_row')}.${q('id')} AS ${q('notification_id')}, ${eventProjection}${cursorProjection} FROM ${q(stream.table)} AS ${q('event_row')}${gasPaymentMetadata}${gasPaymentCursor} WHERE ${q('event_row')}.${q('id')} = ANY($1::bigint[]) ORDER BY ${q('event_row')}.${q('id')} ASC`,
-      [[...expected.keys()]],
-    );
+    const rows = await this.store.notifiedEvents(eventType, [
+      ...expected.keys(),
+    ]);
     const returned = new Set<string>();
     for (const { notification_id } of rows) {
       try {
@@ -1220,14 +1128,21 @@ export class EventWebSocketServer {
 
   private async publishExplorer(messageIds: string[]): Promise<void> {
     if (!this.explorerClients.size) return;
-    const rows = await this.db.queryLive<Row>(
-      `SELECT ${tables.message_view.columns.map(q).join(', ')} FROM ${q('message_view')} WHERE ${q('msg_id')} = ANY($1::bytea[]) AND ${q('send_occurred_at')} IS NOT NULL`,
-      [messageIds],
-    );
+    this.store.invalidateMessages();
+    for (const [socket, client] of this.explorerClients) {
+      if (client.custom)
+        this.confirmationStreams
+          .get(socket)
+          ?.forEach((stream) => stream.refresh(messageIds));
+    }
+    if (![...this.explorerClients.values()].some((client) => !client.custom))
+      return;
+    const rows = await this.store.canonicalMessages(messageIds);
     const messages = rows.map((row) =>
       serialize({ data: row, type: 'message_upsert' }),
     );
     for (const [socket, client] of this.explorerClients) {
+      if (client.custom) continue;
       this.enqueueExplorer(socket, client, messages);
     }
   }
@@ -1237,7 +1152,10 @@ export class EventWebSocketServer {
     client: ExplorerClient,
     messages: SerializedMessage[],
   ): void {
-    const bytes = messages.reduce((total, message) => total + message.bytes, 0);
+    const bytes = messages.reduce(
+      (total, message) => total + message.length,
+      0,
+    );
     if (
       client.queue.length + messages.length > MAX_EXPLORER_PENDING_MESSAGES ||
       client.queuedBytes + bytes > MAX_EXPLORER_PENDING_BYTES
@@ -1260,7 +1178,7 @@ export class EventWebSocketServer {
       while (this.explorerClients.get(socket) === client) {
         const message = client.queue.shift();
         if (!message) return;
-        client.queuedBytes = Math.max(0, client.queuedBytes - message.bytes);
+        client.queuedBytes = Math.max(0, client.queuedBytes - message.length);
         if (!(await this.sendSerializedAndWait(socket, message))) return;
       }
     } finally {
@@ -1271,7 +1189,12 @@ export class EventWebSocketServer {
   private hasSubscriber({ domain, eventType }: EventNotification): boolean {
     for (const client of this.clients.values()) {
       const subscription = client.subscriptions.get(eventType);
-      if (subscription && matchesDomain(subscription, domain)) return true;
+      if (
+        subscription &&
+        subscription.request.confirmations === undefined &&
+        subscription.matchesDomain(domain)
+      )
+        return true;
     }
     return false;
   }
@@ -1299,31 +1222,51 @@ export class EventWebSocketServer {
     this.closeAgentClients('Event stream read failed');
   }
 
+  private failAgentDomain(domain: number, error: unknown): void {
+    this.logger.error(
+      `agent event stream failed for domain ${domain}: ${formatError(error)}`,
+    );
+    for (const [socket, client] of this.clients) {
+      if (
+        [...client.subscriptions.values()].some((subscription) =>
+          subscription.matchesDomain(domain),
+        )
+      ) {
+        this.disconnect(socket);
+        socket.close(1013, 'Event stream read failed');
+      }
+    }
+  }
+
   private failExplorerStream(error: unknown): void {
     this.logger.error(`Explorer event stream failed: ${formatError(error)}`);
     this.closeExplorerClients('Event stream read failed');
   }
 
   private closeClients(reason: string, code = 1013): void {
+    this.confirmationStreams.clear();
+    this.store.invalidateMessages();
     this.closeAgentClients(reason, code);
     this.closeExplorerClients(reason, code);
   }
 
   private closeAgentClients(reason: string, code = 1013): void {
     this.notifications.clear();
-    this.clients.forEach((_client, socket) => {
-      this.cancelCatchUp(socket);
+    this.headRanges.clear();
+    this.headFailures.clear();
+    for (const socket of this.clients.keys()) {
+      this.disconnect(socket);
       socket.close(code, reason);
-    });
+    }
     this.clients.clear();
   }
 
   private closeExplorerClients(reason: string, code = 1013): void {
     this.explorerNotifications.clear();
-    this.explorerClients.forEach((client, socket) => {
-      this.clearExplorerQueue(client);
+    for (const socket of this.explorerClients.keys()) {
+      this.disconnect(socket);
       socket.close(code, reason);
-    });
+    }
     this.explorerClients.clear();
     this.explorerClientsByIp.clear();
   }
@@ -1383,22 +1326,22 @@ export class EventWebSocketServer {
     )
       return false;
     if (
-      socket.bufferedAmount + message.bytes > this.limits.maxBufferedBytes ||
-      this.pendingBytes + message.bytes > this.limits.maxTotalBufferedBytes
+      socket.bufferedAmount + message.length > this.limits.maxBufferedBytes ||
+      this.pendingBytes + message.length > this.limits.maxTotalBufferedBytes
     ) {
       websocketSendFailures.inc({ reason: 'buffer_limit' });
       this.failSocket(socket, 'outbound buffer limit exceeded');
       return false;
     }
-    this.pendingBytes += message.bytes;
+    this.pendingBytes += message.length;
     try {
-      socket.send(message.text, (error) => {
-        this.pendingBytes = Math.max(0, this.pendingBytes - message.bytes);
+      socket.send(message, { binary: false }, (error) => {
+        this.pendingBytes = Math.max(0, this.pendingBytes - message.length);
         completed?.(!error);
         if (error) this.failSend(socket, error.message);
       });
     } catch (error) {
-      this.pendingBytes = Math.max(0, this.pendingBytes - message.bytes);
+      this.pendingBytes = Math.max(0, this.pendingBytes - message.length);
       completed?.(false);
       this.failSend(socket, formatError(error));
       return false;
@@ -1426,6 +1369,8 @@ export class EventWebSocketServer {
   }
 
   private disconnect(socket: WebSocket): void {
+    this.blockSubscriptions.delete(socket);
+    this.confirmationStreams.delete(socket);
     this.cancelCatchUp(socket);
     this.clients.get(socket)?.subscriptions.clear();
     this.clients.delete(socket);
@@ -1449,18 +1394,27 @@ export class EventWebSocketServer {
     else this.explorerClientsByIp.set(ip, connections - 1);
   }
 
+  private rejectNegotiation(socket: WebSocket, error: string): void {
+    this.sendError(socket, error);
+    this.disconnect(socket);
+    socket.close(1008, 'Invalid subscription');
+  }
+
   private sendError(socket: WebSocket, error: string): void {
     this.send(socket, { error, type: 'error' });
   }
 }
 
 function serialize(message: Record<string, unknown>): SerializedMessage {
-  const text = JSON.stringify(message);
-  return { bytes: Buffer.byteLength(text), text };
+  // Explorer broadcasts share this payload; encode UTF-8 once for every recipient.
+  return Buffer.from(JSON.stringify(message));
 }
 
-function subscriptionResponse(request: StreamRequest): Record<string, unknown> {
+function subscriptionResponse(
+  request: StreamRequest | BlockStreamRequest,
+): Record<string, unknown> {
   return {
+    confirmations: request.confirmations,
     cursors: request.cursors?.map((cursor) =>
       cursor.kind === 'gas_payment'
         ? {
@@ -1487,126 +1441,6 @@ function consumeMessage(client: Client): boolean {
     client.messages = 0;
   }
   return ++client.messages <= MAX_CLIENT_MESSAGES;
-}
-
-function matches(
-  subscription: Subscription,
-  domain: number,
-  cursorKey?: string,
-): boolean {
-  return (
-    matchesDomain(subscription, domain) &&
-    (!subscription.cursorKeys ||
-      (cursorKey !== undefined && subscription.cursorKeys.has(cursorKey)))
-  );
-}
-
-function matchesDomain(subscription: Subscription, domain: number): boolean {
-  return !subscription.domains || subscription.domains.has(domain);
-}
-
-function columns(stream: Stream, relation?: string): string {
-  return relation
-    ? stream.columns.map((column) => `${q(relation)}.${q(column)}`).join(', ')
-    : stream.projection;
-}
-
-export function gasPaymentColumns(stream: Stream): string {
-  return [
-    columns(stream, 'event_row'),
-    `${q(GAS_PAYMENT_TRANSACTION)}.${q('hash')} AS ${q('origin_tx_hash')}`,
-    `${q(GAS_PAYMENT_BLOCK)}.${q('hash')} AS ${q('origin_block_hash')}`,
-    `${q(GAS_PAYMENT_BLOCK)}.${q('height')} AS ${q('origin_block_height')}`,
-  ].join(', ');
-}
-
-export function gasPaymentMetadataJoins(join = 'INNER JOIN'): string {
-  return ` ${join} ${q('transaction')} AS ${q(GAS_PAYMENT_TRANSACTION)} ON ${q(GAS_PAYMENT_TRANSACTION)}.${q('id')} = ${q('event_row')}.${q('tx_id')} ${join} ${q('block')} AS ${q(GAS_PAYMENT_BLOCK)} ON ${q(GAS_PAYMENT_BLOCK)}.${q('id')} = ${q(GAS_PAYMENT_TRANSACTION)}.${q('block_id')}`;
-}
-
-function gasPaymentCursorExpression(): string {
-  return `COALESCE(${q('event_cursor')}.${q('stream_cursor')}, ${q('event_row')}.${q('id')})`;
-}
-
-function sequenceConfig(stream: Stream): NonNullable<Stream['sequence']> {
-  if (!stream.sequence) throw new Error('Stream has no native sequence');
-  return stream.sequence;
-}
-
-function rowDomain(row: Row, column: string): number {
-  const value = row[column];
-  const domain = typeof value === 'string' ? Number(value) : value;
-  if (!isDomain(domain)) throw new Error(`Invalid ${column} in event row`);
-  return domain;
-}
-
-function rowSequence(
-  eventType: EventType,
-  row: Row,
-): { address: string; value: bigint } | undefined {
-  if (!isSequencedEventType(eventType)) return undefined;
-  const sequence = sequenceConfig(STREAMS[eventType]);
-  const address = row[sequence.address];
-  if (typeof address !== 'string') {
-    throw new Error(`Invalid ${sequence.address} in event row`);
-  }
-  return {
-    address: normalizeSequenceAddress(address),
-    value: parseSequence(row[sequence.value]),
-  };
-}
-
-function parseSequence(value: unknown): bigint {
-  return parseInteger(value, -1, 'Invalid event sequence');
-}
-
-function sequenceKey(domain: number, address: string): string {
-  return `${domain}:${normalizeSequenceAddress(address)}`;
-}
-
-function rowCursorKey(
-  eventType: EventType,
-  domain: number,
-  row: Row,
-): string | undefined {
-  const sequence = rowSequence(eventType, row);
-  const streamCursor = gasPaymentStreamCursor(eventType, row);
-  const cursor = sequence ?? streamCursor;
-  return cursor && sequenceKey(domain, cursor.address);
-}
-
-function gasPaymentStreamCursor(
-  eventType: EventType,
-  row: Row,
-): { address: string; value: bigint } | undefined {
-  if (eventType !== 'gas_payment') return undefined;
-  const address = row.interchain_gas_paymaster;
-  if (typeof address !== 'string') {
-    throw new Error('Invalid interchain_gas_paymaster in event row');
-  }
-  return {
-    address: normalizeSequenceAddress(address),
-    value: parseId(row[STREAM_CURSOR_COLUMN]),
-  };
-}
-
-function withoutStreamCursor(row: Row): Row {
-  const { [STREAM_CURSOR_COLUMN]: _streamCursor, ...data } = row;
-  return data;
-}
-
-function compareRows(eventType: EventType, a: Row, b: Row): number {
-  const left =
-    rowSequence(eventType, a)?.value ??
-    gasPaymentStreamCursor(eventType, a)?.value;
-  const right =
-    rowSequence(eventType, b)?.value ??
-    gasPaymentStreamCursor(eventType, b)?.value;
-  return left === undefined || right === undefined || left === right
-    ? 0
-    : left < right
-      ? -1
-      : 1;
 }
 
 function clientIp(request: IncomingMessage): string | undefined {

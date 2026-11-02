@@ -3,13 +3,14 @@ import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 
 export type ChainName = string;
 export type ChainMap<T> = Record<ChainName, T>;
+type RpcUrl = NonNullable<ChainMetadataForAltVM['rpcUrls']>[number];
 
 /**
  * Provider-sdk-typed override slice describing a forked chain's local endpoint.
  * rpcUrls is required (the local fork endpoint must always be present).
  */
 export type ForkedChainMetadata = {
-  rpcUrls: NonNullable<ChainMetadataForAltVM['rpcUrls']>;
+  rpcUrls: [RpcUrl, ...RpcUrl[]];
   blocks?: ChainMetadataForAltVM['blocks'];
 };
 

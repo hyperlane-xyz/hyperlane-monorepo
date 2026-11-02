@@ -10,7 +10,7 @@ use crate::LanderError;
 /// Classifies Tron transaction submission errors into appropriate LanderError variants
 ///
 /// Based on Tron node error responses documented at:
-/// https://developers.tron.network/docs/faq#12-broadcast-response-code
+/// https://developers.tron.network/docs/broadcast-and-rpc-errors
 fn classify_tron_error(err: ChainCommunicationError) -> LanderError {
     let err_str = err.to_string();
 
@@ -22,10 +22,6 @@ fn classify_tron_error(err: ChainCommunicationError) -> LanderError {
         || err_str.contains("OTHER_ERROR")
     {
         return LanderError::TxSubmissionError(err_str);
-    }
-
-    if err_str.contains("BANDWITH_ERROR") {
-        return LanderError::TxGasCapReached;
     }
 
     if err_str.contains("DUP_TRANSACTION_ERROR") {
@@ -40,6 +36,13 @@ fn classify_tron_error(err: ChainCommunicationError) -> LanderError {
         || err_str.contains("CONTRACT_EXE_ERROR")
     {
         return LanderError::NonRetryableError(err_str);
+    }
+
+    // BANDWITH_ERROR means the payer cannot currently cover Tron's pre-broadcast
+    // resource cost. Keep the gas-cap classification so the inclusion stage can
+    // defer the transaction until the chain-specific resubmission interval.
+    if err_str.contains("BANDWITH_ERROR") {
+        return LanderError::TxGasCapReached;
     }
 
     // Default: convert to ChainCommunicationError for generic handling

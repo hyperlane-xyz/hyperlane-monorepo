@@ -81,6 +81,7 @@ import {
   resolveRouterMapConfig,
 } from '../router/types.js';
 import { EvmWarpModule } from '../token/EvmWarpModule.js';
+import { deriveCctpDomains } from '../token/cctp.js';
 import { MAX_GAS_OVERHEAD, TokenType, gasOverhead } from '../token/config.js';
 import { HypERC20Factories, hypERC20factories } from '../token/contracts.js';
 import { HypERC20Deployer, HypERC721Deployer } from '../token/deploy.js';
@@ -1895,6 +1896,7 @@ export async function enrollCrossChainRouters(
     gas: gasOverhead(config.type),
     ...config,
   }));
+  const cctpDomains = await deriveCctpDomains(multiProvider, resolvedConfigMap);
 
   const supportedChains = Object.keys(
     objFilter(
@@ -1928,7 +1930,12 @@ export async function enrollCrossChainRouters(
         ...userRemoteRouters,
         ...Object.fromEntries(
           Object.entries(deployedContracts)
-            .filter(([chain, _address]) => chain !== currentChain)
+            .filter(
+              ([chain]) =>
+                chain !== currentChain &&
+                resolvedConfigMap[chain].type !==
+                  TokenType.atomicLocalRebalancing,
+            )
             .map(([chain, address]) => [
               multiProvider.getDomainId(chain).toString(),
               {
@@ -1956,7 +1963,12 @@ export async function enrollCrossChainRouters(
         ...defaultGasForUserRouters,
         ...Object.fromEntries(
           Object.entries(deployedContracts)
-            .filter(([chain, _address]) => chain !== currentChain)
+            .filter(
+              ([chain]) =>
+                chain !== currentChain &&
+                resolvedConfigMap[chain].type !==
+                  TokenType.atomicLocalRebalancing,
+            )
             .map(([chain, _address]) => [
               multiProvider.getDomainId(chain).toString(),
               resolvedConfigMap[chain].gas.toString(),
@@ -2059,6 +2071,7 @@ export async function enrollCrossChainRouters(
                 parseInt(domain, 10),
               ),
             },
+            cctpDomains,
           );
           transactions = [...txs, ...feeTxs];
 

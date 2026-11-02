@@ -121,12 +121,22 @@ pub struct SealevelMailbox {
     system_program: Pubkey,
     spl_noop: Pubkey,
     ur_reveal: Option<UniversalRouterRevealConfig>,
+    ccs_signer: Option<Arc<dyn hyperlane_core::HyperlaneSigner>>,
     /// Tracks commitments for which a reveal task has already been spawned,
     /// preventing duplicate tasks across repeated `process_estimate_costs` calls.
     seen_reveal_commitments: Arc<Mutex<HashSet<[u8; 32]>>>,
 }
 
 impl SealevelMailbox {
+    /// Attach the EVM identity used for CCS reads, independently of the Solana payer.
+    pub fn with_ccs_signer(
+        mut self,
+        signer: Option<Arc<dyn hyperlane_core::HyperlaneSigner>>,
+    ) -> Self {
+        self.ccs_signer = signer;
+        self
+    }
+
     /// Create a new sealevel mailbox
     pub fn new(
         provider: Arc<SealevelProvider>,
@@ -157,6 +167,7 @@ impl SealevelMailbox {
             outbox,
             payer,
             signer,
+            ccs_signer: None,
             priority_fee_oracle: conf.priority_fee_oracle.create_oracle(),
             tx_submitter,
             mailbox_process_alts: conf.mailbox_process_alts.clone(),
@@ -725,7 +736,7 @@ impl SealevelMailbox {
         message: &HyperlaneMessage,
         err: &ChainCommunicationError,
     ) -> bool {
-        let Some(ref cfg) = self.ur_reveal else {
+        let (Some(cfg), Some(ccs_signer)) = (&self.ur_reveal, &self.ccs_signer) else {
             return false;
         };
         if !err.to_string().contains("Custom(10)") {
@@ -744,6 +755,7 @@ impl SealevelMailbox {
             self.provider.rpc_client(),
             self.priority_fee_oracle.clone(),
             payer,
+            ccs_signer.as_ref(),
         )
         .await
         {
@@ -756,7 +768,7 @@ impl SealevelMailbox {
     }
 
     fn maybe_spawn_reveal_for_message(&self, message: &HyperlaneMessage) {
-        if let Some(ref cfg) = self.ur_reveal {
+        if let (Some(cfg), Some(ccs_signer)) = (&self.ur_reveal, &self.ccs_signer) {
             if message.body.len() != COMMIT_BODY_LEN {
                 return;
             }
@@ -806,6 +818,7 @@ impl SealevelMailbox {
                                     self.provider.rpc_client().clone(),
                                     self.priority_fee_oracle.clone(),
                                     payer.clone(),
+                                    ccs_signer.clone(),
                                 );
                             }
                             Err(e) => {

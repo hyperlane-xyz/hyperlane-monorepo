@@ -72,10 +72,7 @@ import {
   getGovernanceTimelocks,
   getLegacyGovernanceIcas,
 } from '../../config/environments/mainnet3/governance/utils.js';
-import {
-  icaOwnerChain,
-  timelocks as legacyTimelocks,
-} from '../../config/environments/mainnet3/owners.js';
+import { timelocks as legacyTimelocks } from '../../config/environments/mainnet3/owners.js';
 import {
   getEnvironmentConfig,
   getHyperlaneCore,
@@ -393,9 +390,14 @@ export class GovernTransactionReader {
     }
   }
 
+  /**
+   * @param sender The account executing `tx` (msg.sender). Defaults to the
+   * chain's governance Safe; nested readers pass the actual executor.
+   */
   async read(
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
+    sender: Address | undefined = this.safes[chain],
   ): Promise<GovernTransaction> {
     // If it's an Ownable transaction
     if (await this.isOwnableTransaction(tx)) {
@@ -409,7 +411,7 @@ export class GovernTransactionReader {
 
     // If it's to an ICA
     if (this.isIcaTransaction(chain, tx)) {
-      return this.readIcaTransaction(chain, tx);
+      return this.readIcaTransaction(chain, tx, sender);
     }
 
     // If it's to a Mailbox
@@ -424,7 +426,7 @@ export class GovernTransactionReader {
 
     // If it's a Multisend or MultisendCallOnly transaction
     if (await this.isMultisendTransaction(tx)) {
-      return this.readMultisendTransaction(chain, tx);
+      return this.readMultisendTransaction(chain, tx, sender);
     }
 
     // If it's an ERC20 transaction (check before warp module since HypERC20 tokens are also ERC20)
@@ -789,11 +791,15 @@ export class GovernTransactionReader {
       ].name
     ) {
       const [target, value, data, _predecessor, _salt, delay] = decoded.args;
-      const inner = await this.read(chain, {
-        to: target,
-        data,
-        value,
-      });
+      const inner = await this.read(
+        chain,
+        {
+          to: target,
+          data,
+          value,
+        },
+        tx.to,
+      );
 
       const eta = new Date(Date.now() + delay.toNumber() * 1000);
 
@@ -812,11 +818,15 @@ export class GovernTransactionReader {
       const numOfTxs = targets.length;
       for (let i = 0; i < numOfTxs; i++) {
         calls.push(
-          await this.read(chain, {
-            to: targets[i],
-            data: data[i],
-            value: values[i],
-          }),
+          await this.read(
+            chain,
+            {
+              to: targets[i],
+              data: data[i],
+              value: values[i],
+            },
+            tx.to,
+          ),
         );
       }
 
@@ -847,11 +857,15 @@ export class GovernTransactionReader {
       const numOfTxs = targets.length;
       for (let i = 0; i < numOfTxs; i++) {
         calls.push(
-          await this.read(chain, {
-            to: targets[i],
-            data: data[i],
-            value: values[i],
-          }),
+          await this.read(
+            chain,
+            {
+              to: targets[i],
+              data: data[i],
+              value: values[i],
+            },
+            tx.to,
+          ),
         );
       }
 
@@ -1815,10 +1829,17 @@ export class GovernTransactionReader {
   private async readIcaTransaction(
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
+    sender: Address | undefined,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
       throw new Error('No data in ICA transaction');
     }
+    assert(tx.to, 'No destination in ICA transaction');
+    const routerName =
+      this.chainAddresses[chain].interchainAccountRouterV3 &&
+      eqAddress(tx.to, this.chainAddresses[chain].interchainAccountRouterV3)
+        ? 'interchainAccountRouterV3'
+        : 'interchainAccountRouter';
     const { symbol } = await this.multiProvider.getNativeToken(chain);
     const icaInterface =
       interchainAccountFactories.interchainAccountRouter.interface;
@@ -1845,38 +1866,35 @@ export class GovernTransactionReader {
       decoded.functionFragment.name ===
       icaInterface.functions['enrollRemoteRouter(uint32,bytes32)'].name
     ) {
-      prettyArgs = await this.formatRouterEnrollments(
-        chain,
-        'interchainAccountRouter',
-        args,
-      );
+      prettyArgs = await this.formatRouterEnrollments(chain, routerName, {
+        _domains: [args._domain],
+        _addresses: [args._router],
+      });
     } else if (
       decoded.functionFragment.name ===
       icaInterface.functions['enrollRemoteRouters(uint32[],bytes32[])'].name
     ) {
-      prettyArgs = await this.formatRouterEnrollments(
-        chain,
-        'interchainAccountRouter',
-        args,
-      );
+      prettyArgs = await this.formatRouterEnrollments(chain, routerName, args);
     } else if (decoded.functionFragment.name === 'callRemoteWithOverrides') {
-      prettyArgs = await this.readIcaRemoteCall(chain, args);
+      prettyArgs = await this.readIcaRemoteCall(
+        chain,
+        args,
+        tx.to,
+        routerName,
+        sender,
+      );
     } else if (decoded.signature === 'transferOwnership(address)') {
       const ownableTx = await this.readOwnableTransaction(chain, tx);
       return {
         ...ownableTx,
-        to: `ICA Router (${chain} ${this.chainAddresses[chain].interchainAccountRouter})`,
+        to: `ICA Router (${chain} ${tx.to})`,
         signature: decoded.signature,
       };
     }
 
     const isLegacy = this.isLegacyEthIcaRouter(tx);
-    const routerAddress = isLegacy
-      ? this.chainAddresses.ethereum.legacyInterchainAccountRouter
-      : this.chainAddresses[chain].interchainAccountRouter;
-
     return {
-      to: `ICA Router${isLegacy ? ' (Legacy)' : ''} (${chain} ${routerAddress})`,
+      to: `ICA Router${isLegacy ? ' (Legacy)' : ''} (${chain} ${tx.to})`,
       value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
       signature: decoded.signature,
       args: prettyArgs,
@@ -2124,6 +2142,9 @@ export class GovernTransactionReader {
   private async readIcaRemoteCall(
     chain: ChainName,
     args: Record<string, any>,
+    originRouter: Address,
+    routerName: string,
+    sender: Address | undefined,
   ): Promise<IcaRemoteCallInsight> {
     const {
       _destination: destination,
@@ -2134,8 +2155,7 @@ export class GovernTransactionReader {
     } = args;
     const remoteChainName = this.multiProvider.getChainName(destination);
 
-    const expectedRouter =
-      this.chainAddresses[remoteChainName].interchainAccountRouter;
+    const expectedRouter = this.chainAddresses[remoteChainName][routerName];
     const matchesExpectedRouter =
       eqAddress(expectedRouter, bytes32ToAddress(router)) &&
       // Poor man's check that the 12 byte padding is all zeroes
@@ -2165,6 +2185,7 @@ export class GovernTransactionReader {
       ismInsight = `❌ fatal mismatch, expected zero hash`;
     }
 
+    assert(sender, `No governance Safe configured for ICA origin ${chain}`);
     const expectedRemoteIcaAddress = this.icas[remoteChainName];
     const expectedLegacyRemoteIcaAddress = this.legacyIcas[remoteChainName];
     let remoteIcaAddress: string | undefined;
@@ -2175,10 +2196,12 @@ export class GovernTransactionReader {
         this.chainAddresses,
         this.multiProvider,
       ).getAccount(remoteChainName, {
-        owner: this.safes[icaOwnerChain],
-        origin: icaOwnerChain,
+        owner: sender,
+        origin: chain,
+        localRouter: originRouter,
         routerOverride: router,
         ismOverride: ism,
+        userSalt: args._userSalt ?? args._salt,
       });
 
       if (!expectedRemoteIcaAddress && !expectedLegacyRemoteIcaAddress) {
@@ -2227,7 +2250,11 @@ export class GovernTransactionReader {
           data: call[2],
         };
         try {
-          return await this.read(remoteChainName, icaCallAsTx);
+          return await this.read(
+            remoteChainName,
+            icaCallAsTx,
+            remoteIcaAddress,
+          );
         } catch (error: unknown) {
           this.logger.error(
             `Failed to decode ICA call to ${icaCallAsTx.to} on ${remoteChainName}: ${summarizeError(error)}`,
@@ -2271,6 +2298,7 @@ export class GovernTransactionReader {
   private async readMultisendTransaction(
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
+    sender: Address | undefined,
   ): Promise<MultiSendGovernTransactions> {
     if (!tx.data) {
       throw new Error('No data in multisend transaction');
@@ -2285,6 +2313,7 @@ export class GovernTransactionReader {
           const decoded = await this.read(
             chain,
             metaTransactionDataToEV5Transaction(multisend),
+            sender,
           );
           return {
             chain,
@@ -2364,15 +2393,16 @@ export class GovernTransactionReader {
   }
 
   isIcaTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean {
-    if (tx.to === undefined) return false;
+    const target = tx.to;
+    if (target === undefined) return false;
 
-    const isCurrentRouter = eqAddress(
-      tx.to,
+    const isCurrentRouter = [
       this.chainAddresses[chain].interchainAccountRouter,
-    );
+      this.chainAddresses[chain].interchainAccountRouterV3,
+    ].some((router) => router !== undefined && eqAddress(target, router));
     // Check for legacy ETH ICA router (used for legacy ICA chains like arcadia)
     const isLegacyEthRouter = eqAddress(
-      tx.to,
+      target,
       this.chainAddresses.ethereum.legacyInterchainAccountRouter,
     );
 
@@ -2476,7 +2506,13 @@ export class GovernTransactionReader {
       );
     }
 
-    return this.readGeneralSafeTransaction(chain, decoded, args, toInsight);
+    return this.readGeneralSafeTransaction(
+      chain,
+      tx.to,
+      decoded,
+      args,
+      toInsight,
+    );
   }
 
   private async readApproveHashTransaction(
@@ -2526,6 +2562,7 @@ export class GovernTransactionReader {
 
   private async readGeneralSafeTransaction(
     chain: ChainName,
+    safe: Address,
     decoded: {
       functionFragment: ethers.utils.FunctionFragment;
       args: Result;
@@ -2538,29 +2575,41 @@ export class GovernTransactionReader {
     let innerTx;
     switch (decoded.functionFragment.name) {
       case 'execTransaction': {
-        innerTx = await this.read(chain, {
-          to: args.to,
-          data: args.data,
-          value: args.value,
-        });
+        innerTx = await this.read(
+          chain,
+          {
+            to: args.to,
+            data: args.data,
+            value: args.value,
+          },
+          safe,
+        );
         insight = `Execute transaction`;
         break;
       }
       case 'execTransactionFromModule': {
-        innerTx = await this.read(chain, {
-          to: args.to,
-          data: args.data,
-          value: args.value,
-        });
+        innerTx = await this.read(
+          chain,
+          {
+            to: args.to,
+            data: args.data,
+            value: args.value,
+          },
+          safe,
+        );
         insight = `Execute transaction from module`;
         break;
       }
       case 'execTransactionFromModuleReturnData': {
-        innerTx = await this.read(chain, {
-          to: args.to,
-          data: args.data,
-          value: args.value,
-        });
+        innerTx = await this.read(
+          chain,
+          {
+            to: args.to,
+            data: args.data,
+            value: args.value,
+          },
+          safe,
+        );
         insight = `Execute transaction from module with return data`;
         break;
       }

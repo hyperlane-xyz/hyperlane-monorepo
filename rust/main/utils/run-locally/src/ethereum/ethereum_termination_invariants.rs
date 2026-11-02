@@ -9,7 +9,10 @@ use crate::invariants::{
 };
 use crate::logging::log;
 use crate::server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count};
-use crate::{FAILED_MESSAGE_COUNT, RELAYER_METRICS_PORT, ZERO_MERKLE_INSERTION_KATHY_MESSAGES};
+use crate::{
+    ETHEREUM_SCRAPER_METRICS_PORTS, FAILED_MESSAGE_COUNT, RELAYER_METRICS_PORT,
+    ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
+};
 
 /// Use the metrics to check if the relayer queues are empty and the expected
 /// number of messages have been sent.
@@ -56,7 +59,7 @@ pub fn termination_invariants_met(
         delivered_messages_scraped_expected: total_messages_expected,
     };
 
-    if !scraper_termination_invariants_met(params)? {
+    if !scraper_termination_invariants_met(params, &ETHEREUM_SCRAPER_METRICS_PORTS)? {
         return Ok(false);
     }
 

@@ -1,3 +1,4 @@
+use hyperlane_metric::utils::url_to_host_info;
 use std::{ops::Deref, time::Duration};
 
 /// Fallback HttpTransport
@@ -57,6 +58,8 @@ impl FallbackHttpTransport {
         metrics: PrometheusClientMetrics,
         chain: Option<ChainInfo>,
     ) -> ChainResult<Self> {
+        let urls: Vec<_> = urls.into_iter().collect();
+        let hosts = urls.iter().map(url_to_host_info).collect();
         let providers = urls
             .into_iter()
             .map(|url| {
@@ -67,7 +70,11 @@ impl FallbackHttpTransport {
             })
             .collect::<ChainResult<Vec<_>>>()?;
         Ok(Self {
-            fallback: FallbackProvider::new(providers),
+            fallback: FallbackProvider::new(providers).with_rpc_context(
+                PrometheusConfig::chain_name(&chain).to_owned(),
+                "rpcUrls",
+                hosts,
+            ),
         })
     }
 }
@@ -118,7 +125,10 @@ impl JsonRpcTransport for FallbackHttpTransport {
                 match result {
                     Ok(resp) => return Ok(resp),
                     Err(e) => {
+                        let rpc_span = self.rpc_span(priority.index);
+                        let _rpc = rpc_span.enter();
                         warn!(
+                            method = ?method,
                             error=?e,
                             "Got error from inner fallback provider",
                         );

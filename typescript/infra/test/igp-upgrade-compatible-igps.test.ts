@@ -4,6 +4,7 @@ import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 import sinon from 'sinon';
 
+import { mergeVerificationInputs } from '../src/deployment/verification-inputs.js';
 import { Owner } from '../src/governance.js';
 import { GovernanceType } from '../src/governanceTypes.js';
 import { getTimelockLogBlockRange } from '../src/utils/timelock.js';
@@ -13,7 +14,6 @@ import {
   executeDeployerOwnedCall,
   getUpgradeTargetImplementation,
   isMissingPackageVersionError,
-  mergeVerificationInputs,
   orderUpgradeCalls,
   splitProposableGroups,
 } from '../scripts/igp/upgrade-compatible-igps.js';
@@ -96,6 +96,26 @@ describe('upgrade-compatible-igps', () => {
         { arbitrum: [duplicateInput, newInput] },
       ),
     ).to.deep.equal({ arbitrum: [existingInput, newInput] });
+  });
+
+  it('updates implementation metadata without duplicating a proxy verification record', () => {
+    const previous: ContractVerificationInput = {
+      name: 'InterchainGasPaymaster',
+      address: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      constructorArguments: '',
+      isProxy: true,
+      expectedimplementation: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    };
+    const updated: ContractVerificationInput = {
+      ...previous,
+      expectedimplementation: '0xcccccccccccccccccccccccccccccccccccccccc',
+    };
+    const existing = { arbitrum: [previous] };
+
+    expect(
+      mergeVerificationInputs(existing, { arbitrum: [updated] }),
+    ).to.deep.equal({ arbitrum: [updated] });
+    expect(existing).to.deep.equal({ arbitrum: [previous] });
   });
 
   it('reports failed deployer-owned execution as an error', async () => {

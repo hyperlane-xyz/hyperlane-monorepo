@@ -1,12 +1,46 @@
 use ethers::providers::Middleware;
 use ethers_core::types::{BlockId, BlockNumber};
-use std::time::Duration;
+use std::{fmt, time::Duration};
 use url::Url;
 
 use hyperlane_core::{
     config::OpSubmissionConfig, utils::hex_or_base58_or_bech32_to_h256, ChainCommunicationError,
-    ChainResult, ReorgPeriod, H256, U256,
+    ChainResult, HyperlaneMessage, ReorgPeriod, H256, U256,
 };
+use redact::Secret;
+
+/// Protected RPCs for matching delivery preflights and EVM Lander submission.
+#[derive(Clone)]
+pub struct MevSubmissionConfig {
+    /// Endpoints that preserve transaction privacy, with no public fallback.
+    pub rpc_urls: Secret<Vec<Url>>,
+    /// Canonical ICA router receiving reveal messages on this chain.
+    pub ica_router: H256,
+    /// Other deployed ICA router versions protected by the same endpoints.
+    pub additional_ica_routers: Vec<H256>,
+}
+
+impl MevSubmissionConfig {
+    /// Protect messages addressed to the ICA router with reveal type, regardless
+    /// of origin or sender. Reveals do not enforce remote-router enrollment.
+    /// Commits use ordinary RPCs.
+    pub fn matches(&self, message: &HyperlaneMessage) -> bool {
+        const ICA_REVEAL: u8 = 2;
+        (message.recipient == self.ica_router
+            || self.additional_ica_routers.contains(&message.recipient))
+            && message.body.first() == Some(&ICA_REVEAL)
+    }
+}
+
+impl fmt::Debug for MevSubmissionConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MevSubmissionConfig")
+            .field("endpoint_count", &self.rpc_urls.expose_secret().len())
+            .field("ica_router", &self.ica_router)
+            .field("additional_ica_routers", &self.additional_ica_routers)
+            .finish()
+    }
+}
 
 static BATCH_CONTRACT_ADDRESS_DEFAULT: &str = "0xcA11bde05977b3631167028862bE2a173976CA11";
 
@@ -25,28 +59,30 @@ pub enum RpcConnectionConf {
     /// An HTTP-only quorum.
     HttpQuorum {
         /// List of urls to connect to
-        urls: Vec<Url>,
+        urls: Secret<Vec<Url>>,
     },
     /// An HTTP-only fallback set.
     HttpFallback {
         /// List of urls to connect to in order of priority
-        urls: Vec<Url>,
+        urls: Secret<Vec<Url>>,
     },
     /// HTTP connection details
     Http {
         /// Url to connect to
-        url: Url,
+        url: Secret<Url>,
     },
     /// Websocket connection details
     Ws {
         /// Url to connect to
-        url: Url,
+        url: Secret<Url>,
     },
 }
 
 impl Default for RpcConnectionConf {
     fn default() -> Self {
-        RpcConnectionConf::HttpFallback { urls: vec![] }
+        RpcConnectionConf::HttpFallback {
+            urls: Secret::new(vec![]),
+        }
     }
 }
 
@@ -66,6 +102,8 @@ pub struct ConnectionConf {
     /// Optional hedging for explicitly allowlisted immutable/finalized reads.
     /// Disabled when unset.
     pub fallback_hedge: Option<FallbackHedgeConfig>,
+    /// Optional protected RPC policy for delivery estimates and EVM Lander submission.
+    pub mev_submission: Option<MevSubmissionConfig>,
 }
 
 impl ConnectionConf {
@@ -75,8 +113,8 @@ impl ConnectionConf {
         use RpcConnectionConf::{Http, HttpFallback, HttpQuorum, Ws};
 
         match &self.rpc_connection {
-            HttpQuorum { urls } | HttpFallback { urls } => urls.clone(),
-            Http { url } => vec![url.clone()],
+            HttpQuorum { urls } | HttpFallback { urls } => urls.expose_secret().clone(),
+            Http { url } => vec![url.expose_secret().clone()],
             Ws { .. } => panic!("Websocket connection is not supported"),
         }
     }
@@ -106,6 +144,9 @@ pub struct TransactionOverrides {
     pub max_fee_per_gas: Option<U256>,
     /// Max priority fee per gas to use for EIP-1559 transactions.
     pub max_priority_fee_per_gas: Option<U256>,
+    /// Lander priority fee ceiling, in wei, including replacement transactions.
+    /// When set, replaces the default max(4 * base fee, 5 gwei) ceiling.
+    pub priority_fee_cap: Option<U256>,
 
     /// Min gas price to use for Legacy transactions, in wei.
     pub min_gas_price: Option<U256>,

@@ -16,6 +16,7 @@ import {
   MinimalProviderRegistryOptions,
 } from './MinimalProviderRegistry.js';
 import { MultiProvider, MultiProviderOptions } from './MultiProvider.js';
+import { SeismicSigner } from './SeismicSigner.js';
 import {
   EthersV5Provider,
   PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
@@ -31,7 +32,33 @@ import {
   estimateTransactionFee,
 } from './transactionFeeEstimators.js';
 
-export interface MultiProviderAdapterOptions extends MinimalProviderRegistryOptions {}
+export interface MultiProviderAdapterOptions extends MinimalProviderRegistryOptions {
+  /**
+   * Signers for Seismic chains only, used for signed reads of shielded state
+   * (see `tryGetSeismicSigner`). Adapters retain these supplied signers, which
+   * may be backed by wallets holding key material, without extracting raw keys.
+   * This is deliberately not a general signer registry.
+   */
+  seismicSigners?: ChainMap<SeismicSigner>;
+}
+
+/**
+ * Picks the signers of Seismic chains out of a MultiProvider. MultiProvider
+ * already wraps those in SeismicSigner; anything else is dropped.
+ */
+export function pickSeismicSigners<MetaExt = {}>(
+  chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
+  mp: MultiProvider<MetaExt>,
+): ChainMap<SeismicSigner> {
+  const seismicSigners: ChainMap<SeismicSigner> = {};
+  for (const chain of Object.keys(mp.signers)) {
+    if (chainMetadata[chain]?.technicalStack !== ChainTechnicalStack.Seismic)
+      continue;
+    const signer = mp.tryGetSigner(chain);
+    if (signer && SeismicSigner.is(signer)) seismicSigners[chain] = signer;
+  }
+  return seismicSigners;
+}
 
 export function wrapMultiProviderProviders<MetaExt = {}>(
   chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
@@ -94,6 +121,10 @@ export function createAdapterFromMultiProvider<
         [ProviderType.EthersV5]: wrapMultiProviderBuilder(mp.providerBuilder),
         [ProviderType.ZkSync]: defaultZKSyncProviderBuilder,
       },
+      seismicSigners: {
+        ...options?.seismicSigners,
+        ...pickSeismicSigners(mp.metadata, mp),
+      },
     } as TOptions;
   const newMp = new AdapterClass(mp.metadata, adapterOptions);
   newMp.setProviders(wrapMultiProviderProviders(mp.metadata, mp.providers));
@@ -118,11 +149,15 @@ export class MultiProviderAdapter<
     return PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[metadata.protocol];
   }
 
+  /** Signed-read signers for Seismic chains; see `MultiProviderAdapterOptions`. */
+  protected seismicSigners: ChainMap<SeismicSigner>;
+
   constructor(
     chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
     protected readonly options: MultiProviderAdapterOptions = {},
   ) {
     super(chainMetadata, options);
+    this.seismicSigners = { ...options.seismicSigners };
   }
 
   static fromMultiProvider<MetaExt = {}>(
@@ -130,6 +165,30 @@ export class MultiProviderAdapter<
     options: MultiProviderAdapterOptions = {},
   ): MultiProviderAdapter<MetaExt> {
     return createAdapterFromMultiProvider(MultiProviderAdapter, mp, options);
+  }
+
+  /**
+   * Signer for signed reads on a Seismic chain, if one was supplied (e.g. via
+   * `fromMultiProvider` from a MultiProvider holding that chain's signer).
+   * Always undefined for non-Seismic chains and for read-only instances.
+   */
+  tryGetSeismicSigner(chainNameOrId: ChainNameOrId): SeismicSigner | undefined {
+    const metadata = this.tryGetChainMetadata(chainNameOrId);
+    if (metadata?.technicalStack !== ChainTechnicalStack.Seismic)
+      return undefined;
+    return this.seismicSigners[metadata.name];
+  }
+
+  /**
+   * Adopts the Seismic chains' signers of a MultiProvider, for instances that
+   * were built from metadata before signers existed (the CLI creates its
+   * MultiProtocolProvider at context setup and attaches keys afterwards).
+   * Only Seismic chains are considered; see `seismicSigners`. The snapshot is
+   * replaced, not merged, so a signer the source has since dropped is dropped
+   * here too.
+   */
+  setSeismicSigners(mp: MultiProvider<MetaExt>): void {
+    this.seismicSigners = pickSeismicSigners(this.metadata, mp);
   }
 
   override tryGetProvider(
@@ -174,6 +233,7 @@ export class MultiProviderAdapter<
       ...this.options,
       providers: this.providers,
       providerBuilders: this.providerBuilders,
+      seismicSigners: this.seismicSigners,
     });
   }
 
@@ -191,6 +251,7 @@ export class MultiProviderAdapter<
         ...this.options,
         providers: pick(this.providers, intersection),
         providerBuilders: this.providerBuilders,
+        seismicSigners: pick(this.seismicSigners, intersection),
       }),
     };
   }

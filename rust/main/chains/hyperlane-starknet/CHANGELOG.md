@@ -1,3 +1,10 @@
+## [3.0.0] - 2026-10-23
+
+* feat(starknet): upgrade starknet-rs 0.15->0.17 (JSON-RPC v0.9) (#9355)
+* fix(rust): centralize secret redaction and preserve RPC diagnostics (#9897)
+* fix(starknet): read at latest block for version-safe RPC compatibility (#9208)
+* perf(metrics): avoid redundant block detail reads (#9442)
+
 ## [2.2.0] - 2026-03-09
 
 * chore: migrate spellchecker from codespell to typos (#8214)

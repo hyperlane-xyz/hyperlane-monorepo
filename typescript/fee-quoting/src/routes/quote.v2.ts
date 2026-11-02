@@ -1,12 +1,12 @@
-import { Request, Response, Router } from 'express';
 import { z } from 'zod';
 
 import { type QuoteV2Response, ZHash } from '@hyperlane-xyz/sdk';
 import { isValidAddressSealevel } from '@hyperlane-xyz/utils';
 
+import type { FeeQuotingApp } from '../http.js';
+import type { createApiKeyAuth } from '../middleware/apiKeyAuth.js';
 import type { QuoteService } from '../services/quoteService.js';
 
-import { asyncHandler } from './asyncHandler.js';
 import { bytes32Schema, domainSchema } from './commonSchemas.js';
 import { parseAndValidate } from './parseAndValidate.js';
 
@@ -51,28 +51,24 @@ const CompiledIgpQuerySchema = z.compile(IgpQuerySchema);
  * Both reuse the same protocol-dispatch path through
  * `IProtocolQuoteService`; Phase 4 widens the registry with the Sealevel impl.
  */
-export function createQuoteV2Router(quoteService: QuoteService): Router {
-  const router = Router();
+export function registerQuoteV2Routes(
+  app: FeeQuotingApp,
+  quoteService: QuoteService,
+  onRequest: ReturnType<typeof createApiKeyAuth>,
+): void {
+  const routeOptions = { onRequest };
 
-  router.get(
-    '/warp',
-    asyncHandler(async (req: Request, res: Response) => {
-      const data = parseAndValidate(CompiledWarpQuerySchema, req.query);
-      const quote = await quoteService.getWarpQuoteV2(data);
-      const response: QuoteV2Response = { quote };
-      res.json(response);
-    }),
-  );
+  app.get('/v2/quote/warp', routeOptions, async (request, reply) => {
+    const data = parseAndValidate(CompiledWarpQuerySchema, request.query);
+    const quote = await quoteService.getWarpQuoteV2(data);
+    const response: QuoteV2Response = { quote };
+    return reply.send(response);
+  });
 
-  router.get(
-    '/igp',
-    asyncHandler(async (req: Request, res: Response) => {
-      const data = parseAndValidate(CompiledIgpQuerySchema, req.query);
-      const quote = await quoteService.getIgpQuoteV2(data);
-      const response: QuoteV2Response = { quote };
-      res.json(response);
-    }),
-  );
-
-  return router;
+  app.get('/v2/quote/igp', routeOptions, async (request, reply) => {
+    const data = parseAndValidate(CompiledIgpQuerySchema, request.query);
+    const quote = await quoteService.getIgpQuoteV2(data);
+    const response: QuoteV2Response = { quote };
+    return reply.send(response);
+  });
 }

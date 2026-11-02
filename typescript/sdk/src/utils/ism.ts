@@ -92,6 +92,7 @@ function ismTreeSome(
       );
     case IsmType.COMPOSITE:
       return compositeIsmNodeSome(ism.root, matches);
+    case IsmType.ROUTING_MESSAGE_ID_MULTISIG:
     case IsmType.TEST_ISM:
     case IsmType.OP_STACK:
     case IsmType.PAUSABLE:

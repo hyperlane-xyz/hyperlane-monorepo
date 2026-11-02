@@ -2,7 +2,7 @@ use std::{ops::Add, str::FromStr, time::Duration};
 
 use eyre::eyre;
 use hyperlane_sealevel::{
-    HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig, NonEmptyAltAddresses,
+    validate_ccs_url, HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig, NonEmptyAltAddresses,
     PriorityFeeOracleConfig, ProcessAltOverride, SealevelTransactionFormat,
     UniversalRouterRevealConfig,
 };
@@ -42,12 +42,14 @@ pub fn build_ethereum_connection_conf(
         .unwrap_or(default_rpc_consensus_type);
 
     let rpc_connection_conf = match rpc_consensus_type {
-        "single" => Some(h_eth::RpcConnectionConf::Http { url: first_url }),
+        "single" => Some(h_eth::RpcConnectionConf::Http {
+            url: first_url.into(),
+        }),
         "fallback" => Some(h_eth::RpcConnectionConf::HttpFallback {
-            urls: rpcs.to_owned().clone(),
+            urls: rpcs.to_owned().clone().into(),
         }),
         "quorum" => Some(h_eth::RpcConnectionConf::HttpQuorum {
-            urls: rpcs.to_owned().clone(),
+            urls: rpcs.to_owned().clone().into(),
         }),
         ty => Err(eyre!("unknown rpc consensus type `{ty}`"))
             .take_err(err, || (&chain.cwp).add("rpc_consensus_type")),
@@ -76,6 +78,11 @@ pub fn build_ethereum_connection_conf(
             max_priority_fee_per_gas: value_parser
                 .chain(err)
                 .get_opt_key("maxPriorityFeePerGas")
+                .parse_u256()
+                .end(),
+            priority_fee_cap: value_parser
+                .chain(err)
+                .get_opt_key("priorityFeeCap")
                 .parse_u256()
                 .end(),
 
@@ -182,7 +189,83 @@ pub fn build_ethereum_connection_conf(
         op_submission_config: operation_batch,
         consider_null_transaction_receipt,
         fallback_hedge,
+        mev_submission: parse_mev_submission_config(chain, err),
     }))
+}
+
+fn parse_mev_submission_config(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> Option<h_eth::MevSubmissionConfig> {
+    let config = chain.chain(err).get_opt_key("mevSubmission").end()?;
+    let urls = config.chain(err).get_key("rpcUrls").end()?;
+    let Some((path, value)) = parse_json_array(urls) else {
+        err.push(
+            (&config.cwp).add("rpc_urls"),
+            eyre!("Expected MEV RPC URL array"),
+        );
+        return None;
+    };
+    let rpc_urls: Vec<Url> = ValueParser::new(path, &value)
+        .chain(err)
+        .into_array_iter()?
+        .filter_map(|url| {
+            match url
+                .value()
+                .as_str()
+                .and_then(|value| Url::parse(value).ok())
+            {
+                Some(url) => Some(url),
+                None => {
+                    err.push(url.cwp.clone(), eyre!("Invalid MEV RPC URL"));
+                    None
+                }
+            }
+        })
+        .collect();
+    if rpc_urls.is_empty() || rpc_urls.iter().any(|url| url.scheme() != "https") {
+        err.push(
+            (&config.cwp).add("rpc_urls"),
+            eyre!("MEV submission requires HTTPS endpoints"),
+        );
+        return None;
+    }
+    let ica_router = config
+        .chain(err)
+        .get_key("icaRouter")
+        .parse_address_hash()
+        .end()?;
+    let additional_ica_routers = match config.chain(err).get_opt_key("additionalIcaRouters").end() {
+        None => Vec::new(),
+        Some(routers) => {
+            // Helm flattens arrays into indexed env vars, which arrive as index-keyed objects.
+            let json;
+            let routers = if routers.value().is_string() {
+                let Some((path, value)) = parse_json_array(routers) else {
+                    err.push(
+                        (&config.cwp).add("additional_ica_routers"),
+                        eyre!("Expected additional ICA router array"),
+                    );
+                    return None;
+                };
+                json = value;
+                ValueParser::new(path, &json)
+            } else {
+                routers
+            };
+            let parsed = routers
+                .chain(err)
+                .into_array_iter()?
+                .map(|router| router.chain(err).parse_address_hash().end())
+                .collect::<Option<Vec<_>>>()?;
+            parsed
+        }
+    };
+    Some(h_eth::MevSubmissionConfig {
+        rpc_urls: rpc_urls.into(),
+        ica_router,
+        additional_ica_routers,
+    })
 }
 
 pub fn build_cosmos_connection_conf(
@@ -325,7 +408,7 @@ fn build_starknet_connection_conf(
     };
 
     Some(ChainConnectionConf::Starknet(h_starknet::ConnectionConf {
-        urls: urls.to_vec(),
+        urls: urls.to_vec().into(),
         native_token_address,
         op_submission_config: operation_batch,
     }))
@@ -372,7 +455,7 @@ fn build_sealevel_connection_conf(
     let priority_fee_oracle = priority_fee_oracle?;
     let transaction_submitter = transaction_submitter?;
     Some(ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf {
-        urls: urls.to_owned(),
+        urls: urls.to_owned().into(),
         op_submission_config: operation_batch,
         native_token,
         priority_fee_oracle,
@@ -492,16 +575,16 @@ fn parse_sealevel_ur_reveal(
     match (ccs_url, program_id) {
         (Some(ccs_url), Some(program_id)) => {
             // Validate at startup so misconfiguration fails fast rather than at first reveal.
-            if Url::parse(&ccs_url).is_err() {
+            if let Err(error) = validate_ccs_url(&ccs_url) {
                 err.push(
-                    (&chain.cwp).add("urReveal").add("ccsUrl"),
-                    eyre!("urReveal.ccsUrl is not a valid URL: {ccs_url}"),
+                    (&chain.cwp).add("urreveal").add("ccsurl"),
+                    eyre!("Invalid urReveal.ccsUrl: {error}"),
                 );
                 return None;
             }
             if Pubkey::from_str(&program_id).is_err() {
                 err.push(
-                    (&chain.cwp).add("urReveal").add("programId"),
+                    (&chain.cwp).add("urreveal").add("programid"),
                     eyre!("urReveal.programId is not a valid Solana pubkey: {program_id}"),
                 );
                 return None;
@@ -514,7 +597,7 @@ fn parse_sealevel_ur_reveal(
         (None, None) => None,
         _ => {
             err.push(
-                (&chain.cwp).add("urReveal"),
+                (&chain.cwp).add("urreveal"),
                 eyre!("urReveal requires both ccsUrl and programId"),
             );
             None
@@ -651,7 +734,10 @@ fn parse_sealevel_priority_fee_oracle_config(
                     .parse_from_str("Invalid url")
                     .end()?;
                 let fee_level = fee_level?;
-                let config = HeliusPriorityFeeOracleConfig { url, fee_level };
+                let config = HeliusPriorityFeeOracleConfig {
+                    url: url.into(),
+                    fee_level,
+                };
                 Some(PriorityFeeOracleConfig::Helius(config))
             }
             _ => {
@@ -724,7 +810,7 @@ fn parse_transaction_submitter_config(
                     .parse_string()
                     .map(|str| str.split(",").map(|s| s.to_owned()).collect())
                     .unwrap_or_default();
-                Some(h_sealevel::config::TransactionSubmitterConfig::Rpc { urls })
+                Some(h_sealevel::config::TransactionSubmitterConfig::Rpc { urls: urls.into() })
             }
             "jito" => {
                 let urls: Vec<String> = chain
@@ -734,7 +820,7 @@ fn parse_transaction_submitter_config(
                     .parse_string()
                     .map(|str| str.split(",").map(|s| s.to_owned()).collect())
                     .unwrap_or_default();
-                Some(h_sealevel::config::TransactionSubmitterConfig::Jito { urls })
+                Some(h_sealevel::config::TransactionSubmitterConfig::Jito { urls: urls.into() })
             }
             _ => {
                 err.push(
@@ -972,10 +1058,6 @@ pub fn build_connection_conf(
             default_rpc_consensus_type,
             operation_batch,
         ),
-        HyperlaneDomainProtocol::Fuel => rpcs
-            .iter()
-            .next()
-            .map(|url| ChainConnectionConf::Fuel(h_fuel::ConnectionConf { url: url.clone() })),
         HyperlaneDomainProtocol::Sealevel => {
             let urls = rpcs.to_vec();
             build_sealevel_connection_conf(&urls, chain, err, operation_batch)
@@ -1006,7 +1088,7 @@ pub fn build_connection_conf(
 pub fn is_protocol_supported(protocol: HyperlaneDomainProtocol) -> bool {
     use HyperlaneDomainProtocol::*;
     match protocol {
-        Ethereum | Fuel | Sealevel | Cosmos | CosmosNative | Starknet | Radix | Tron => true,
+        Ethereum | Sealevel | Cosmos | CosmosNative | Starknet | Radix | Tron => true,
         // Aleo is feature-gated - only supported when the "aleo" feature is enabled
         Aleo => cfg!(feature = "aleo"),
     }
@@ -1062,6 +1144,23 @@ mod tests {
     }
 
     #[test]
+    fn ethereum_priority_fee_cap_is_optional() {
+        for cap in [None, Some(0u64), Some(250_000_000_000)] {
+            let overrides = cap.map_or(json!({}), |cap| json!({"priorityfeecap": cap.to_string()}));
+            let (connection, errors) =
+                parse_ethereum_hedge(json!({"transactionoverrides": overrides}));
+            assert!(errors.is_ok());
+            let ChainConnectionConf::Ethereum(connection) = connection else {
+                panic!("expected ethereum connection");
+            };
+            assert_eq!(
+                connection.transaction_overrides.priority_fee_cap,
+                cap.map(Into::into)
+            );
+        }
+    }
+
+    #[test]
     fn ethereum_fallback_hedging_is_default_off() {
         let (connection, errors) = parse_ethereum_hedge(json!({}));
         assert!(errors.is_ok());
@@ -1069,6 +1168,115 @@ mod tests {
             panic!("expected ethereum connection");
         };
         assert_eq!(connection.fallback_hedge, None);
+        assert!(connection.mev_submission.is_none());
+    }
+
+    #[test]
+    fn parses_mev_submission_urls_from_config_and_secret_json() {
+        for urls in [
+            json!(["https://protected.example/rpc"]),
+            json!("[\"https://protected.example/rpc\"]"),
+        ] {
+            let (connection, errors) = parse_ethereum_hedge(json!({
+                "mevsubmission": {
+                    "rpcurls": urls,
+                    "icarouter": "0x0000000000000000000000000000000000000001",
+                },
+            }));
+            assert!(errors.is_ok(), "{errors:?}");
+            let ChainConnectionConf::Ethereum(connection) = connection else {
+                panic!("expected EVM")
+            };
+            let mev = connection.mev_submission.unwrap();
+            assert_eq!(mev.rpc_urls.expose_secret().len(), 1);
+            assert_eq!(mev.ica_router, hyperlane_core::H256::from_low_u64_be(1));
+            assert!(mev.additional_ica_routers.is_empty());
+        }
+    }
+
+    #[test]
+    fn parses_additional_mev_routers_from_arrays_and_environment_json() {
+        let router = "0x0000000000000000000000000000000000000002";
+        for routers in [
+            json!([router]),
+            json!(format!("[\"{router}\"]")),
+            // Shape produced by Helm's indexed `..._ADDITIONALICAROUTERS_0` env vars.
+            json!({ "0": router }),
+        ] {
+            let (connection, errors) = parse_ethereum_hedge(json!({
+                "mevsubmission": {
+                    "rpcurls": ["https://protected.example/rpc"],
+                    "icarouter": "0x0000000000000000000000000000000000000001",
+                    "additionalicarouters": routers,
+                },
+            }));
+            assert!(errors.is_ok(), "{errors:?}");
+            let ChainConnectionConf::Ethereum(connection) = connection else {
+                panic!("expected EVM")
+            };
+            assert_eq!(
+                connection.mev_submission.unwrap().additional_ica_routers,
+                vec![hyperlane_core::H256::from_low_u64_be(2)]
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_invalid_additional_mev_router_without_public_fallback() {
+        for routers in [
+            json!("not json"),
+            json!(7),
+            json!(["invalid"]),
+            json!([7]),
+            json!({ "1": "0x0000000000000000000000000000000000000002" }),
+            json!({ "router": "0x0000000000000000000000000000000000000002" }),
+        ] {
+            let (_, errors) = parse_ethereum_hedge(json!({
+                "mevsubmission": {
+                    "rpcurls": ["https://protected.example/rpc"],
+                    "icarouter": "0x0000000000000000000000000000000000000001",
+                    "additionalicarouters": routers,
+                },
+            }));
+            assert!(
+                !errors.is_ok(),
+                "accepted malformed additional MEV router config"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_incomplete_or_invalid_mev_submission_without_fallback() {
+        for config in [
+            json!({"icarouter": "0x0000000000000000000000000000000000000001"}),
+            json!({"rpcurls": [], "icarouter": "0x0000000000000000000000000000000000000001"}),
+            json!({"rpcurls": "not json", "icarouter": "0x0000000000000000000000000000000000000001"}),
+            json!({"rpcurls": ["wss://protected.example"], "icarouter": "0x0000000000000000000000000000000000000001"}),
+            json!({"rpcurls": ["http://protected.example"], "icarouter": "0x0000000000000000000000000000000000000001"}),
+            json!({"rpcurls": ["https://protected.example"]}),
+            json!({"rpcurls": ["https://protected.example"], "icarouter": ""}),
+            json!({"rpcurls": ["https://protected.example"], "icarouter": "bad"}),
+            json!({"rpcurls": ["https://protected.example"], "icarouter": []}),
+        ] {
+            let (_, errors) = parse_ethereum_hedge(json!({"mevsubmission": config}));
+            assert!(!errors.is_ok(), "accepted invalid MEV configuration");
+        }
+    }
+
+    #[test]
+    fn mev_submission_endpoint_errors_do_not_expose_credentials() {
+        for urls in [
+            json!(["http://user:private-credential@protected.example"]),
+            json!(["https://protected.example:bad/private-credential"]),
+            json!([{"url": "https://protected.example/private-credential"}]),
+        ] {
+            let (_, errors) = parse_ethereum_hedge(json!({"mevsubmission": {
+                "rpcurls": urls,
+                "icarouter": "0x0000000000000000000000000000000000000001",
+            }}));
+            assert!(!errors.is_ok());
+            assert!(!errors.to_string().contains("private-credential"));
+        }
     }
 
     #[test]

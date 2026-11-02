@@ -96,16 +96,16 @@ async fn test_inclusion_gas_spike() {
     mock_get_block(&mut mock_evm_provider);
     mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
 
-    // return the mock receipt that has no block for the first 3 submissions, then full receipt for the last one
+    // One receipt read per unique hash: include after the third submission.
     let mut tx_receipt_call_counter = 0;
     mock_evm_provider
         .expect_get_transaction_receipt()
         .returning(move |_| {
             tx_receipt_call_counter += 1;
-            if tx_receipt_call_counter < 4 {
-                Ok(Some(mock_tx_receipt(None, hash))) // No block number for the first 3 submissions
+            if tx_receipt_call_counter < 3 {
+                Ok(Some(mock_tx_receipt(None, hash)))
             } else {
-                Ok(Some(mock_tx_receipt(Some(50), hash))) // Block number for the last submission
+                Ok(Some(mock_tx_receipt(Some(50), hash)))
             }
         });
 
@@ -1288,7 +1288,19 @@ async fn run_and_expect_successful_inclusion(
 
 #[tokio::test]
 #[traced_test]
-async fn test_tx_dropped_when_gas_reaches_3x_cap() {
+async fn test_tx_kept_pending_when_gas_reaches_3x_cap() {
+    assert_capped_rebroadcast_failure_keeps_tx("replacement transaction underpriced").await;
+}
+
+/// A transport failure on an identical capped rebroadcast must not drop the
+/// transaction: it was broadcast before and its nonce must stay reserved.
+#[tokio::test]
+#[traced_test]
+async fn test_capped_tx_kept_pending_when_rebroadcast_send_fails() {
+    assert_capped_rebroadcast_failure_keeps_tx("connection reset by peer").await;
+}
+
+async fn assert_capped_rebroadcast_failure_keeps_tx(send_error: &'static str) {
     let block_time = TEST_BLOCK_TIME;
     let signer = H160::random();
 
@@ -1306,7 +1318,7 @@ async fn test_tx_dropped_when_gas_reaches_3x_cap() {
     // - Escalated: 600000 * 1.1 = 660000
     // - Capped: min(660000, 600000) = 600000
     // - RBF protected: max(600000, 600000) = 600000 (stays the same!)
-    // This triggers TxWontBeResubmitted
+    // A same-price broadcast is attempted; a fee rejection returns TxGasCapReached.
     mock_evm_provider
         .expect_fee_history()
         .returning(|_, _, _| Ok(mock_fee_history(200000, 10)));
@@ -1315,11 +1327,11 @@ async fn test_tx_dropped_when_gas_reaches_3x_cap() {
     mock_evm_provider
         .expect_get_transaction_receipt()
         .returning(|_| Ok(None));
-
-    // Mock send for the new transaction (after the first one is dropped)
-    mock_evm_provider
-        .expect_send()
-        .returning(|_, _| Ok(H256::random()));
+    mock_evm_provider.expect_send().once().returning(|tx, _| {
+        assert_eq!(tx.nonce(), Some(&EthersU256::from(1)));
+        assert_eq!(tx.gas_price(), Some(EthersU256::from(600000)));
+        Err(ChainCommunicationError::CustomError(send_error.to_owned()))
+    });
 
     let (payload_db, tx_db, nonce_db) = tmp_dbs();
     let mut adapter = mock_ethereum_adapter(
@@ -1369,7 +1381,7 @@ async fn test_tx_dropped_when_gas_reaches_3x_cap() {
     // - Cap: 200000 * 3 = 600000
     // - Capped: min(660000, 600000) = 600000
     // - RBF protected: max(600000, 600000) = 600000 (stays the same!)
-    // This triggers TxWontBeResubmitted because new gas == old gas
+    // A rejected rebroadcast at this unchanged price triggers TxGasCapReached.
     created_tx.tx_hashes.push(H512::random());
     created_tx.submission_attempts = 5; // Simulate multiple submissions
     let precursor = created_tx.precursor_mut();
@@ -1398,7 +1410,7 @@ async fn test_tx_dropped_when_gas_reaches_3x_cap() {
         .await
         .insert(tx_uuid.clone(), created_tx.clone());
 
-    // Process the transaction - it should be dropped due to hitting gas cap
+    // Process the transaction - it should remain pending after hitting the gas cap
     let result = InclusionStage::process_txs_step(
         &inclusion_stage_pool,
         &finality_stage_sender,
@@ -1410,25 +1422,22 @@ async fn test_tx_dropped_when_gas_reaches_3x_cap() {
     // The result should be Ok (error is handled internally)
     assert!(result.is_ok(), "Inclusion stage should handle the error");
 
-    // The pool should be empty (tx was dropped)
+    // The transaction remains in the pool for a later resubmission attempt.
     assert!(
-        inclusion_stage_pool.lock().await.is_empty(),
-        "Transaction should be removed from pool"
+        inclusion_stage_pool.lock().await.contains_key(&tx_uuid),
+        "Transaction should remain in pool"
     );
 
-    // The transaction should be marked as Dropped in the DB
+    // The failed attempt is persisted without dropping the transaction or payload.
     let retrieved_tx = tx_db
         .retrieve_transaction_by_uuid(&tx_uuid)
         .await
         .unwrap()
         .unwrap();
-    assert!(
-        matches!(retrieved_tx.status, TransactionStatus::Dropped(_)),
-        "Transaction should be dropped, got {:?}",
-        retrieved_tx.status
-    );
+    assert_eq!(retrieved_tx.status, TransactionStatus::PendingInclusion);
+    assert_eq!(retrieved_tx.submission_attempts, 6);
+    assert!(retrieved_tx.last_submission_attempt.is_some());
 
-    // The payload should be marked as Dropped in the DB
     for detail in &created_tx.payload_details {
         let payload = dispatcher_state
             .payload_db
@@ -1439,9 +1448,9 @@ async fn test_tx_dropped_when_gas_reaches_3x_cap() {
         assert!(
             matches!(
                 payload.status,
-                PayloadStatus::InTransaction(TransactionStatus::Dropped(_))
+                PayloadStatus::InTransaction(TransactionStatus::PendingInclusion)
             ),
-            "Payload should be dropped"
+            "Payload should remain pending"
         );
     }
 
@@ -1455,47 +1464,23 @@ async fn test_tx_dropped_when_gas_reaches_3x_cap() {
         "No transaction should be sent to finality stage"
     );
 
-    // CRITICAL TEST: Verify nonce is available for reuse
-    // Create a new transaction with the same signer
-    let new_txs = mock_evm_txs(
-        1,
-        &dispatcher_state.payload_db,
-        &dispatcher_state.tx_db,
-        TransactionStatus::PendingInclusion,
-        signer,
-        ExpectedTxType::Eip1559,
-    )
-    .await;
-    let new_tx = new_txs[0].clone();
-
-    inclusion_stage_pool
-        .lock()
-        .await
-        .insert(new_tx.uuid.clone(), new_tx.clone());
-
-    // Process the new transaction - it should be able to use the freed nonce
-    let result = InclusionStage::process_txs_step(
-        &inclusion_stage_pool,
-        &finality_stage_sender,
-        &dispatcher_state,
-        mock_domain,
-    )
-    .await;
-
-    assert!(
-        result.is_ok(),
-        "New transaction should be processed successfully"
-    );
-
-    // Verify the new transaction got assigned a nonce (nonce 1 should be reused)
+    // The pending transaction keeps ownership of its nonce.
     let stored_nonce = nonce_db
-        .retrieve_nonce_by_transaction_uuid(&signer, &new_tx.uuid)
+        .retrieve_nonce_by_transaction_uuid(&signer, &tx_uuid)
         .await
         .unwrap();
     assert_eq!(
         stored_nonce,
         Some(U256::from(1)),
-        "New transaction should reuse the freed nonce"
+        "Pending transaction should retain its nonce"
+    );
+    assert_eq!(
+        dispatcher_state
+            .metrics
+            .inclusion_stage_error
+            .with_label_values(&[mock_domain, "TxGasCapReached", "false"])
+            .get(),
+        1
     );
 }
 

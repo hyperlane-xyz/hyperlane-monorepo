@@ -36,10 +36,7 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
     cosmosSigner = await createSigner('alice');
     signer = cosmosSigner;
 
-    const [rpc, ...otherRpcUrls] = cosmosSigner.getRpcUrls();
-    assert(rpc, 'At least one rpc is required');
-
-    artifactManager = new CosmosIsmArtifactManager([rpc, ...otherRpcUrls]);
+    artifactManager = new CosmosIsmArtifactManager(cosmosSigner.getRpcUrls());
   });
 
   describe('Non composite ISMs', () => {
@@ -206,12 +203,12 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
       expect(readIsm.config.type).to.equal(AltVM.IsmType.ROUTING);
       expect(readIsm.config.owner).to.equal(cosmosSigner.getSignerAddress());
       expect(Object.keys(readIsm.config.domains)).to.have.length(2);
-      expect(readIsm.config.domains[DOMAIN_1].deployed.address).to.equal(
-        testIsmAddress,
-      );
-      expect(readIsm.config.domains[DOMAIN_2].deployed.address).to.equal(
-        multisigIsmAddress,
-      );
+      const domain1Ism = readIsm.config.domains[DOMAIN_1];
+      const domain2Ism = readIsm.config.domains[DOMAIN_2];
+      assert(domain1Ism, `Expected ISM for domain ${DOMAIN_1}`);
+      assert(domain2Ism, `Expected ISM for domain ${DOMAIN_2}`);
+      expect(domain1Ism.deployed.address).to.equal(testIsmAddress);
+      expect(domain2Ism.deployed.address).to.equal(multisigIsmAddress);
     });
 
     it('should add a new domain ISM', async () => {
@@ -243,14 +240,16 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
 
       const reader = artifactManager.createReader(AltVM.IsmType.ROUTING);
       const readIsm = await reader.read(routingIsm.deployed.address);
-      expect(readIsm.config.domains[DOMAIN_3].deployed.address).to.equal(
-        testIsmAddress,
-      );
+      const domain3Ism = readIsm.config.domains[DOMAIN_3];
+      assert(domain3Ism, `Expected ISM for domain ${DOMAIN_3}`);
+      expect(domain3Ism.deployed.address).to.equal(testIsmAddress);
       expect(Object.keys(readIsm.config.domains)).to.have.length(3);
     });
 
     it('should remove a domain ISM', async () => {
       const [routingIsm] = await routingIsmWriter.create({ config });
+      const domain1Ism = routingIsm.config.domains[DOMAIN_1];
+      assert(domain1Ism, `Expected ISM for domain ${DOMAIN_1}`);
 
       const updatedConfig: ArtifactDeployed<
         RawRoutingIsmArtifactConfig,
@@ -260,7 +259,7 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
         config: {
           ...routingIsm.config,
           domains: {
-            [DOMAIN_1]: routingIsm.config.domains[DOMAIN_1],
+            [DOMAIN_1]: domain1Ism,
           },
         },
       };
@@ -288,6 +287,8 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
       const [freshIsm] = await testWriter.create({
         config: { type: AltVM.IsmType.TEST_ISM },
       });
+      const domain2Ism = routingIsm.config.domains[DOMAIN_2];
+      assert(domain2Ism, `Expected ISM for domain ${DOMAIN_2}`);
 
       const updatedConfig: ArtifactDeployed<
         RawRoutingIsmArtifactConfig,
@@ -301,7 +302,7 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
               artifactState: ArtifactState.UNDERIVED,
               deployed: { address: freshIsm.deployed.address },
             },
-            [DOMAIN_2]: routingIsm.config.domains[DOMAIN_2],
+            [DOMAIN_2]: domain2Ism,
           },
         },
       };
@@ -315,9 +316,9 @@ describe('Cosmos ISM Artifact API (e2e)', function () {
 
       const reader = artifactManager.createReader(AltVM.IsmType.ROUTING);
       const readIsm = await reader.read(routingIsm.deployed.address);
-      expect(readIsm.config.domains[DOMAIN_1].deployed.address).to.equal(
-        freshIsm.deployed.address,
-      );
+      const domain1Ism = readIsm.config.domains[DOMAIN_1];
+      assert(domain1Ism, `Expected ISM for domain ${DOMAIN_1}`);
+      expect(domain1Ism.deployed.address).to.equal(freshIsm.deployed.address);
     });
 
     it('should transfer ownership of the ISM', async () => {

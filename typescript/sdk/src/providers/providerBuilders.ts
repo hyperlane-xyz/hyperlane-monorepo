@@ -10,7 +10,6 @@ export {
 } from './builders/cosmos.js';
 export {
   defaultEthersV5ProviderBuilder,
-  defaultFuelProviderBuilder,
   defaultProviderBuilder,
 } from './builders/ethersV5.js';
 export { defaultRadixProviderBuilder } from './builders/radix.js';

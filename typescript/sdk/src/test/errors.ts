@@ -17,3 +17,55 @@ export function networkError(): Error & { code: string } {
 export function wrappedError(cause: Error): Error {
   return new Error('wrapped provider error', { cause });
 }
+
+export function panicRevertError(): Error & { code: string; data: string } {
+  return Object.assign(new Error('call revert exception'), {
+    code: 'CALL_EXCEPTION',
+    data: `0x4e487b71${'0'.repeat(62)}11`,
+  });
+}
+
+export function errorStringRevertError(): Error & {
+  code: string;
+  data: string;
+} {
+  return Object.assign(new Error('call revert exception'), {
+    code: 'CALL_EXCEPTION',
+    data: `0x08c379a0${'0'.repeat(62)}20${'0'.repeat(62)}06${'706175736564'}${'0'.repeat(52)}`,
+  });
+}
+
+export function lsp17NoExtensionError(): Error & {
+  code: string;
+  data: string;
+} {
+  return Object.assign(new Error('call revert exception'), {
+    code: 'CALL_EXCEPTION',
+    data: `0xbb370b2b46904840${'0'.repeat(56)}`,
+  });
+}
+
+export function unrecognisedCustomRevertError(): Error & {
+  code: string;
+  data: string;
+} {
+  return Object.assign(new Error('call revert exception'), {
+    code: 'CALL_EXCEPTION',
+    data: `0xdeadbeef${'0'.repeat(64)}`,
+  });
+}
+
+/**
+ * Shape of the CALL_EXCEPTION ethers v5 JsonRpcProvider throws for an eth_call
+ * that failed without revert data: data "0x" with the original error nested.
+ */
+export function ethersCallExceptionWithNestedError(
+  nested: object,
+): Error & { code: string; data: string; error: object } {
+  return Object.assign(
+    new Error(
+      'missing revert data in call exception; Transaction reverted without a reason string [ See: https://links.ethers.org/v5-errors-CALL_EXCEPTION ] (data="0x", transaction={}, error={}, code=CALL_EXCEPTION, version=providers/5.8.0)',
+    ),
+    { code: 'CALL_EXCEPTION', data: '0x', error: nested },
+  );
+}

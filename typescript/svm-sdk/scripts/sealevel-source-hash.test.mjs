@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import { productionSourceFiles } from './sealevel-source-hash.mjs';
@@ -19,4 +20,16 @@ test('fingerprints embedded program dependencies, excluding host test crates', (
     assert(!path.includes('/test-utils/'), path);
     assert(!path.includes('/test-transaction-utils/'), path);
   }
+});
+
+test('CI change detection covers every fingerprinted input', () => {
+  const workflow = readFileSync(
+    new URL('../../../.github/workflows/test.yml', import.meta.url),
+    'utf8',
+  );
+  const pattern = workflow.match(/SVM_PROGRAM_INPUTS='([^']+)'/)?.[1];
+  assert(pattern, 'SVM_PROGRAM_INPUTS not found in test.yml');
+  const inputs = new RegExp(pattern);
+  for (const path of productionSourceFiles())
+    assert(inputs.test(path), `SVM_PROGRAM_INPUTS misses ${path}`);
 });

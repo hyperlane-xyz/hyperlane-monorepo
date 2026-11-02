@@ -19,6 +19,7 @@ import {
   assertAuthorizedByVault,
   assertSimpleReceipt,
   collectSignerAuthorities,
+  combineReceiptProposals,
   parseFilename,
   planReceiptProposals,
   resolveWireAddressLookupTables,
@@ -586,6 +587,31 @@ describe('warp-propose-squads', () => {
           [[]],
         ),
       ).to.throw('Receipt instructions do not match wire payload');
+    });
+  });
+
+  describe('combineReceiptProposals', () => {
+    it('combines source transaction instructions into one proposal', () => {
+      const first = ownerInstruction(VAULT);
+      const second = ownerInstruction(VAULT);
+
+      const combined = combineReceiptProposals([
+        { instructions: [first] },
+        { instructions: [second] },
+      ]);
+
+      expect(combined.instructions).to.deep.equal([first, second]);
+    });
+
+    it('rejects source transactions with individual compute requirements', () => {
+      expect(() =>
+        combineReceiptProposals([
+          {
+            instructions: [ownerInstruction(VAULT)],
+            computeUnits: 1_400_000,
+          },
+        ]),
+      ).to.throw('individual compute-unit requirements');
     });
   });
 

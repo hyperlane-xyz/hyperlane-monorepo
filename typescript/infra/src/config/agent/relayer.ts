@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import {
   AgentConfig,
+  AgentChainMetadata,
   ChainMap,
   GasPaymentEnforcement,
   HyperlaneAddressesMap,
@@ -15,6 +16,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
+  ZERO_ADDRESS_HEX_32,
   addressToBytes32,
   assert,
   isEVMLike,
@@ -26,8 +28,8 @@ import {
 
 import {
   getChain,
-  getChainAddresses,
   getDomainId,
+  getIcaRouterAddresses,
   getWarpAddresses,
 } from '../../../config/registry.js';
 import { AgentAwsUser } from '../../agents/aws/user.js';
@@ -112,6 +114,13 @@ export function buildWarpRouteProcessAltOverrides(
 
 // Incomplete basic relayer agent config
 export interface BaseRelayerConfig {
+  // URLs are injected from per-chain Secret Manager secrets by Helm.
+  mevSubmission?: ChainMap<
+    Pick<
+      NonNullable<AgentChainMetadata['mevSubmission']>,
+      'icaRouter' | 'additionalIcaRouters'
+    >
+  >;
   gasPaymentEnforcement: GasPaymentEnforcement[];
   whitelist?: MatchingList;
   blacklist?: MatchingList;
@@ -191,6 +200,7 @@ export interface RelayerDbBootstrapConfig {
 export interface HelmRelayerChainValues {
   name: string;
   signer: KeyConfig;
+  ccsSigner?: KeyConfig;
 }
 
 export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
@@ -356,11 +366,15 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       '0x00000000000000000000000235aE95896583818d',
     ];
 
+    // Binance hot wallet exploit 2026-10-29
+    const binanceExploiter = ['0xA97bF7836F8A08F9Ed91D41453D371493FAE8d10'];
+
     const uniqueAddresses = new Set(
       [
         ...sanctionedEthereumAddresses,
         ...radiantExploiter,
         ...flowAddresses,
+        ...binanceExploiter,
       ].map((address) => address.toLowerCase()),
     );
 
@@ -468,6 +482,87 @@ export function multiAddressChainMapMatchingList(
   return list;
 }
 
+const metadexVoterMessageTypes = [
+  { name: 'allocate_chain', type: 1, direction: 'rootToLeaf' },
+  { name: 'allocate_gauge', type: 2, direction: 'rootToLeaf' },
+  { name: 'claim_rewards', type: 3, direction: 'rootToLeaf' },
+  { name: 'redeem', type: 4, direction: 'leafToRoot' },
+  { name: 'set_operator', type: 5, direction: 'rootToLeaf' },
+  { name: 'deallocate', type: 6, direction: 'leafToRoot' },
+  { name: 'reduce_cooldown', type: 7, direction: 'rootToLeaf' },
+  { name: 'emergency_deallocate', type: 8, direction: 'rootToLeaf' },
+] as const;
+
+export interface MetadexVoterAdapterTopology {
+  /** App context name prefix, e.g. `metadex` or `metadex_staging`. */
+  prefix: string;
+  rootChain: string;
+  leaves: ChainMap<{
+    rootAdapter: Address;
+    leafAdapters: Address[];
+  }>;
+}
+
+/**
+ * Creates bounded relayer metric contexts for MetaDEX voter messages.
+ * The first byte of the adapter payload is the voter message type.
+ */
+export function metadexVoterMetricAppContexts(
+  topology: MetadexVoterAdapterTopology,
+): MetricAppContext[] {
+  assert(topology.prefix.length > 0, 'MetaDEX app context prefix is required');
+  const rootDomain = getDomainId(topology.rootChain);
+  const rootToLeaf: MatchingList = [];
+  const leafToRoot: MatchingList = [];
+
+  for (const [leafChain, route] of Object.entries(topology.leaves)) {
+    assert(
+      leafChain !== topology.rootChain,
+      'MetaDEX root chain cannot also be a leaf',
+    );
+    const rootAdapter = addressToBytes32(route.rootAdapter);
+    assert(
+      rootAdapter !== ZERO_ADDRESS_HEX_32,
+      `Invalid zero MetaDEX root adapter for leaf ${leafChain}`,
+    );
+    const leafAdapters = Array.from(
+      new Set(route.leafAdapters.map((address) => addressToBytes32(address))),
+    );
+    assert(
+      leafAdapters.length > 0,
+      `No MetaDEX adapters configured for leaf ${leafChain}`,
+    );
+    assert(
+      leafAdapters.every((address) => address !== ZERO_ADDRESS_HEX_32),
+      `Invalid zero MetaDEX leaf adapter for leaf ${leafChain}`,
+    );
+    const leafDomain = getDomainId(leafChain);
+    rootToLeaf.push({
+      originDomain: rootDomain,
+      senderAddress: rootAdapter,
+      destinationDomain: leafDomain,
+      recipientAddress: leafAdapters,
+    });
+    leafToRoot.push({
+      originDomain: leafDomain,
+      senderAddress: leafAdapters,
+      destinationDomain: rootDomain,
+      recipientAddress: rootAdapter,
+    });
+  }
+  assert(rootToLeaf.length > 0, 'No MetaDEX leaf routes configured');
+
+  return metadexVoterMessageTypes.map(({ name, type, direction }) => ({
+    name: `${topology.prefix}_${name}`,
+    matchingList: (direction === 'rootToLeaf' ? rootToLeaf : leafToRoot).map(
+      (entry) => ({
+        ...entry,
+        bodyRegex: `^${type.toString(16).padStart(2, '0')}`,
+      }),
+    ),
+  }));
+}
+
 // Create a matching list for the given contract addresses
 export function matchingList<F extends HyperlaneFactories>(
   addressesMap: HyperlaneAddressesMap<F>,
@@ -522,7 +617,6 @@ export interface IcaBodyMatchOptions {
 export function icaMatchingList(
   icaMatchers: ChainMap<IcaBodyMatchOptions>,
 ): MatchingList {
-  const chainAddresses = getChainAddresses();
   const matchingList: MatchingList = [];
 
   // Get all chains that have matchers defined
@@ -530,8 +624,10 @@ export function icaMatchingList(
 
   for (const source of chains) {
     // Get the ICA router address from the registry
-    const sourceRouter = chainAddresses[source]?.interchainAccountRouter;
-    if (!sourceRouter) {
+    const sourceRouters = getIcaRouterAddresses(source).map((router) =>
+      addressToBytes32(router),
+    );
+    if (sourceRouters.length === 0) {
       throw new Error(
         `No ICA router found for chain ${source} in registry. Cannot create ICA matching list.`,
       );
@@ -612,9 +708,10 @@ export function icaMatchingList(
       }
 
       // Get the ICA router address from the registry
-      const destinationRouter =
-        chainAddresses[destination]?.interchainAccountRouter;
-      if (!destinationRouter) {
+      const destinationRouters = getIcaRouterAddresses(destination).map(
+        (router) => addressToBytes32(router),
+      );
+      if (destinationRouters.length === 0) {
         throw new Error(
           `No ICA router found for chain ${destination} in registry. Cannot create ICA matching list.`,
         );
@@ -622,9 +719,13 @@ export function icaMatchingList(
 
       matchingList.push({
         originDomain: getDomainId(source),
-        senderAddress: addressToBytes32(sourceRouter),
+        senderAddress:
+          sourceRouters.length === 1 ? sourceRouters[0] : sourceRouters,
         destinationDomain: getDomainId(destination),
-        recipientAddress: addressToBytes32(destinationRouter),
+        recipientAddress:
+          destinationRouters.length === 1
+            ? destinationRouters[0]
+            : destinationRouters,
         bodyRegex,
       });
     }

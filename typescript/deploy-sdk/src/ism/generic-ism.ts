@@ -19,7 +19,7 @@ import {
   RawRoutingIsmArtifactConfig,
   RoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import { Logger, rootLogger } from '@hyperlane-xyz/utils';
+import { Logger, rootLogger, isNonEmptyArray } from '@hyperlane-xyz/utils';
 
 /**
  * Factory function to create an IsmReader instance.
@@ -41,8 +41,12 @@ export function createIsmReader(
   chainLookup: ChainLookup,
 ): IsmReader {
   const protocolProvider = getProtocolProvider(chainMetadata.protocol);
+  const knownDomainIds = [...chainLookup.getKnownDomainIds()];
   const artifactManager: IRawIsmArtifactManager =
-    protocolProvider.createIsmArtifactManager(chainMetadata);
+    protocolProvider.createIsmArtifactManager(
+      chainMetadata,
+      isNonEmptyArray(knownDomainIds) ? { knownDomainIds } : undefined,
+    );
 
   return new IsmReader(artifactManager, chainLookup);
 }
@@ -72,6 +76,18 @@ export class IsmReader implements ArtifactReader<
     // For routing ISMs, expand nested domain ISMs recursively
     if (config.type === AltVM.IsmType.ROUTING) {
       return this.expandRoutingIsm({ artifactState, config, deployed });
+    }
+
+    if (config.type === AltVM.IsmType.AGGREGATION) {
+      const modules: DeployedIsmArtifact[] = [];
+      for (const module of config.modules) {
+        modules.push(
+          isArtifactDeployed(module)
+            ? module
+            : await this.read(module.deployed.address),
+        );
+      }
+      return { artifactState, config: { ...config, modules }, deployed };
     }
 
     // For non-routing ISMs, the raw and expanded configs are identical

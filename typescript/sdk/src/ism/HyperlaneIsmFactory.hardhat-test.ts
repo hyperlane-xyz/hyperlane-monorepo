@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
+import { ethers } from 'ethers';
 import hre from 'hardhat';
 import sinon from 'sinon';
 import { ZodError } from 'zod';
@@ -1222,6 +1223,206 @@ describe('HyperlaneIsmFactory', async () => {
       }
     });
   }
+
+  it('batches multiple routing ISM enrollments and removals', async () => {
+    const owner = await multiProvider.getSignerAddress(chain);
+    const config: DomainRoutingIsmConfig = {
+      type: IsmType.ROUTING,
+      owner,
+      domains: {},
+    };
+    const routingIsm = await ismFactory.deploy({
+      destination: chain,
+      config,
+    });
+    const module = await new TestIsm__factory(
+      multiProvider.getSigner(chain),
+    ).deploy();
+    await module.deployed();
+
+    const provider = multiProvider.getProvider(chain);
+    config.domains = {
+      [TestChainName.test2]: module.address,
+      [TestChainName.test3]: module.address,
+    };
+    const enrollStartBlock = await provider.getBlockNumber();
+    await ismFactory.deploy({
+      destination: chain,
+      config,
+      existingIsmAddress: routingIsm.address,
+    });
+    const routingContract = DomainRoutingIsm__factory.connect(
+      routingIsm.address,
+      provider,
+    );
+    const moduleSetEvents = await routingContract.queryFilter(
+      routingContract.filters.ModuleSet(),
+      enrollStartBlock + 1,
+    );
+    expect(
+      moduleSetEvents.map(({ args }) => [args.domain, args.module]),
+    ).to.deep.equal([
+      [multiProvider.getDomainId(TestChainName.test2), module.address],
+      [multiProvider.getDomainId(TestChainName.test3), module.address],
+    ]);
+    expect(
+      new Set(moduleSetEvents.map((event) => event.transactionHash)).size,
+    ).to.equal(1);
+    const enrollTransaction = await provider.getTransaction(
+      moduleSetEvents[0].transactionHash,
+    );
+    expect(
+      routingContract.interface.parseTransaction({
+        data: enrollTransaction.data,
+        value: enrollTransaction.value,
+      }).name,
+    ).to.equal('setIsms');
+    expect((await routingContract.domains()).map(Number)).to.have.members([
+      multiProvider.getDomainId(TestChainName.test2),
+      multiProvider.getDomainId(TestChainName.test3),
+    ]);
+
+    config.domains = {};
+    const removeStartBlock = await provider.getBlockNumber();
+    await ismFactory.deploy({
+      destination: chain,
+      config,
+      existingIsmAddress: routingIsm.address,
+    });
+    const moduleRemovedEvents = await routingContract.queryFilter(
+      routingContract.filters.ModuleRemoved(),
+      removeStartBlock + 1,
+    );
+    expect(moduleRemovedEvents.map(({ args }) => args.domain)).to.deep.equal([
+      multiProvider.getDomainId(TestChainName.test2),
+      multiProvider.getDomainId(TestChainName.test3),
+    ]);
+    expect(
+      new Set(moduleRemovedEvents.map((event) => event.transactionHash)).size,
+    ).to.equal(1);
+    const removeTransaction = await provider.getTransaction(
+      moduleRemovedEvents[0].transactionHash,
+    );
+    expect(
+      routingContract.interface.parseTransaction({
+        data: removeTransaction.data,
+        value: removeTransaction.value,
+      }).name,
+    ).to.equal('removeIsms');
+    expect(await routingContract.domains()).to.be.empty;
+  });
+
+  describe('routing ISM ownership initialization', () => {
+    const sandbox = sinon.createSandbox();
+
+    afterEach(() => sandbox.restore());
+
+    for (const type of [
+      IsmType.ROUTING,
+      IsmType.FALLBACK_ROUTING,
+      IsmType.INCREMENTAL_ROUTING,
+    ]) {
+      for (const hasDomains of [false, true]) {
+        it(`initializes the final owner atomically for ${type} with ${hasDomains ? 'routes' : 'no routes'}`, async () => {
+          const provider = multiProvider.getProvider(chain);
+          const estimateGas = provider.estimateGas.bind(provider);
+          let ownershipEstimates = 0;
+          sandbox.stub(provider, 'estimateGas').callsFake(async (tx) => {
+            const { data } = await ethers.utils.resolveProperties(tx);
+            if (data && ethers.utils.hexlify(data).startsWith('0xf2fde38b')) {
+              // A lagging RPC estimates only intrinsic gas before seeing the code.
+              ownershipEstimates++;
+              return ethers.BigNumber.from(21_662);
+            }
+            return estimateGas(tx);
+          });
+
+          const config = {
+            ...exampleRoutingConfig,
+            type,
+            owner: randomAddress(),
+            domains: hasDomains ? exampleRoutingConfig.domains : {},
+          };
+          const ism = await ismFactory.deploy({
+            destination: chain,
+            config,
+            mailbox: mailboxAddress,
+          });
+
+          expect(
+            await DomainRoutingIsm__factory.connect(
+              ism.address,
+              provider,
+            ).owner(),
+          ).to.equal(ethers.utils.getAddress(config.owner));
+          expect(ownershipEstimates).to.equal(0);
+          expect(
+            await moduleMatchesConfig(
+              chain,
+              ism.address,
+              config,
+              multiProvider,
+              ismFactory.getContracts(chain),
+              mailboxAddress,
+            ),
+          ).to.be.true;
+        });
+      }
+
+      it(`retains deployer ownership until all batches are enrolled for ${type}`, async () => {
+        const provider = multiProvider.getProvider(chain);
+        const metadata = multiProvider.getChainMetadata(chain);
+        const destination = 'tempo'; // Uses batches of 30 domains.
+        multiProvider.addChain({
+          ...metadata,
+          name: destination,
+          chainId: 10_000,
+          domainId: 10_000,
+        });
+        multiProvider.setProvider(destination, provider);
+        const remoteDomains = Array.from({ length: 31 }, (_, i) => 20_000 + i);
+        for (const domainId of remoteDomains) {
+          multiProvider.addChain({
+            ...metadata,
+            name: `remote${domainId}`,
+            chainId: domainId,
+            domainId,
+          });
+        }
+        const submodule = await ismFactory.deploy({
+          destination: chain,
+          config: { type: IsmType.TEST_ISM },
+        });
+        const factory = new HyperlaneIsmFactory(
+          { [destination]: contractsMap[chain] },
+          multiProvider,
+        );
+        const owner = randomAddress();
+        const ism = await factory.deploy({
+          destination,
+          config: {
+            type,
+            owner,
+            domains: Object.fromEntries(
+              remoteDomains.map((domain) => [
+                `remote${domain}`,
+                submodule.address,
+              ]),
+            ),
+          },
+          mailbox: mailboxAddress,
+        });
+        const routing = DomainRoutingIsm__factory.connect(
+          ism.address,
+          provider,
+        );
+        expect(await routing.owner()).to.equal(ethers.utils.getAddress(owner));
+        expect((await routing.domains()).map(Number)).to.have.members(
+          remoteDomains,
+        );
+      });
+    }
+  });
 
   for (const type of [IsmType.ROUTING, IsmType.FALLBACK_ROUTING]) {
     it(`deploys ${type} routingIsm with correct routes`, async () => {

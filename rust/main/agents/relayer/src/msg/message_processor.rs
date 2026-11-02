@@ -672,9 +672,9 @@ async fn submit_lander_task(
     }
 }
 
-async fn submit_via_lander(
+async fn submit_via_lander<E: Entrypoint + Send + Sync>(
     op: QueueOperation,
-    entrypoint: &Arc<DispatcherEntrypoint>,
+    entrypoint: &Arc<E>,
     prepare_queue: &OpQueue,
     submit_queue: &OpQueue,
     db: Arc<dyn HyperlaneDb>,
@@ -699,6 +699,13 @@ async fn submit_via_lander(
         }
     };
 
+    let Some(gas_limit) = op.get_tx_cost_estimate() else {
+        let reason = ReprepareReason::ErrorCreatingPayload;
+        let msg = "Prepared operation has no policy-selected gas budget";
+        prepare_op(op, prepare_queue, msg, msg, reason).await;
+        return;
+    };
+
     let message_id = op.id();
     let metadata = format!("{message_id:?}");
     let mailbox = op
@@ -710,6 +717,7 @@ async fn submit_via_lander(
         payload_uuid,
         metadata,
         operation_payload,
+        gas_limit,
         operation_success_criteria,
         mailbox,
     );

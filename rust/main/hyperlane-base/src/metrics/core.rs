@@ -50,6 +50,8 @@ pub struct CoreMetrics {
     merkle_tree_ingest_message_ids_count: IntCounterVec,
 
     submitter_queue_length: IntGaugeVec,
+    pending_message_active: IntGaugeVec,
+    pending_message_oldest_timestamp_seconds: IntGaugeVec,
 
     operations_processed_count: IntCounterVec,
     messages_processed_count: IntCounterVec,
@@ -59,6 +61,7 @@ pub struct CoreMetrics {
 
     announced: IntGaugeVec,
     backfill_complete: IntGaugeVec,
+    validator_merkle_tree_leaf_count: IntGaugeVec,
     reached_initial_consistency: IntGaugeVec,
 
     // metadata building metrics
@@ -217,6 +220,26 @@ impl CoreMetrics {
             registry
         )?;
 
+        let pending_message_active = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("pending_message_active"),
+                "Messages currently pending delivery in this relayer process",
+                const_labels_ref
+            ),
+            &["app_context", "origin", "remote"],
+            registry
+        )?;
+
+        let pending_message_oldest_timestamp_seconds = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("pending_message_oldest_timestamp_seconds"),
+                "Unix timestamp when the oldest active message was first observed by this relayer process",
+                const_labels_ref
+            ),
+            &["app_context", "origin", "remote"],
+            registry
+        )?;
+
         let latest_checkpoint = register_int_gauge_vec_with_registry!(
             opts!(
                 namespaced!("latest_checkpoint"),
@@ -244,6 +267,16 @@ impl CoreMetrics {
                 const_labels_ref
             ),
             &["chain"],
+            registry
+        )?;
+
+        let validator_merkle_tree_leaf_count = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("validator_merkle_tree_leaf_count"),
+                "Validator progress: leaves rebuilt for verification or historical_reconstruction, or checkpoints confirmed published for historical_publication",
+                const_labels_ref
+            ),
+            &["chain", "phase"],
             registry
         )?;
 
@@ -375,6 +408,8 @@ impl CoreMetrics {
             merkle_tree_ingest_message_ids_count,
 
             submitter_queue_length,
+            pending_message_active,
+            pending_message_oldest_timestamp_seconds,
 
             operations_processed_count,
             messages_processed_count,
@@ -384,6 +419,7 @@ impl CoreMetrics {
 
             announced,
             backfill_complete,
+            validator_merkle_tree_leaf_count,
             reached_initial_consistency,
 
             metadata_build_count,
@@ -607,6 +643,12 @@ impl CoreMetrics {
         self.backfill_complete.clone()
     }
 
+    /// Validator progress by chain and phase: reconstructed leaves for `verification`
+    /// or `historical_reconstruction`, confirmed published checkpoints for `historical_publication`.
+    pub fn validator_merkle_tree_leaf_count(&self) -> IntGaugeVec {
+        self.validator_merkle_tree_leaf_count.clone()
+    }
+
     /// Whether the validator has ever synced to the tip of the chain.
     ///
     /// Labels:
@@ -622,6 +664,21 @@ impl CoreMetrics {
     /// - `queue_name`: Which queue the message is in.
     pub fn processor_queue_length(&self) -> IntGaugeVec {
         self.submitter_queue_length.clone()
+    }
+
+    /// Number of messages currently pending delivery.
+    ///
+    /// Labels: `app_context`, `origin`, `remote`.
+    pub fn pending_message_active(&self) -> IntGaugeVec {
+        self.pending_message_active.clone()
+    }
+
+    /// Unix timestamp when the oldest active message was first observed by
+    /// this relayer process. Zero means no messages are active.
+    ///
+    /// Labels: `app_context`, `origin`, `remote`.
+    pub fn pending_message_oldest_timestamp_seconds(&self) -> IntGaugeVec {
+        self.pending_message_oldest_timestamp_seconds.clone()
     }
 
     /// The number of operations successfully submitted by this process during

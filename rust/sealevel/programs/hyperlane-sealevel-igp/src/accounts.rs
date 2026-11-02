@@ -931,6 +931,17 @@ mod test {
     // --- compute_gas_fee ---
 
     #[test]
+    fn test_solaxy_to_solana_fee_uses_six_native_decimals() {
+        // Matches mainnet3's decimal-compensated Solaxy -> Solana oracle.
+        let fee = compute_gas_fee(27_849_410_632_667_789_280_000, 6, 900_000, 9).unwrap();
+        assert_eq!(fee, 15_038_681_741);
+        // SOLX has six native decimals; the IGP's hardcoded nine decimals are
+        // already compensated by the rate and must not be applied again.
+        let usd_micros = u128::from(fee) * 3_243 / 100_000_000;
+        assert!(usd_micros >= 450_000);
+    }
+
+    #[test]
     fn test_compute_gas_fee_matches_oracle_path() {
         // Same inputs as the oracle would provide — result must match.
         let exchange_rate: u128 = 10u128.pow(19); // 1:1

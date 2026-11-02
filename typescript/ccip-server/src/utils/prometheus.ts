@@ -1,5 +1,7 @@
 import { Counter, Registry } from 'prom-client';
 
+import type { CcipApp } from '../http.js';
+
 /**
  * Error reasons for unhandled errors
  */
@@ -74,6 +76,23 @@ export function initializeMetrics(register: Registry): void {
     help: 'Total number of rate-limited requests',
     labelNames: ['method', 'route'],
     registers: [register],
+  });
+}
+
+export function registerLookupMetrics(
+  app: CcipApp,
+  enabledModules: readonly string[],
+): void {
+  app.addHook('onResponse', async (request, reply) => {
+    if (request.method === 'OPTIONS') return;
+    const path = request.raw.url?.split('?', 1)[0] ?? '';
+    const moduleName = enabledModules.find(
+      (name) => path === `/${name}` || path.startsWith(`/${name}/`),
+    );
+    if (moduleName) {
+      // TODO: add a success label to the metric, once we properly distinguish unhandled errors from handled errors
+      PrometheusMetrics.logLookupRequest(moduleName, reply.statusCode);
+    }
   });
 }
 

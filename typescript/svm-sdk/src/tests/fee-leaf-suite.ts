@@ -41,7 +41,7 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
   ): Promise<void> {
     const { signer } = getContext();
     for (const tx of txs) {
-      await signer.send({ instructions: tx.instructions });
+      await signer.send({ instructions: tx['instructions'] });
     }
   }
 
@@ -138,7 +138,7 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
     expect(updateTxs).to.have.length(1);
     const [updateTx] = updateTxs;
     assert(updateTx, 'expected one update tx');
-    expect(updateTx.instructions).to.have.length(1);
+    expect(updateTx['instructions']).to.have.length(1);
     await executeUpdateTxs(updateTxs);
 
     const readResult = await reader.read(deployed.deployed.programId);
@@ -159,8 +159,8 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
     expect(updateTxs).to.have.length(1);
     const [updateTx] = updateTxs;
     assert(updateTx, 'expected one update tx');
-    expect(updateTx.instructions).to.have.length(1);
-    expect(updateTx.instructions[0]?.programAddress).to.equal(
+    expect(updateTx['instructions']).to.have.length(1);
+    expect(updateTx['instructions'][0]?.programAddress).to.equal(
       ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
     );
     await executeUpdateTxs(updateTxs);
@@ -199,8 +199,8 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
     const [updateTx] = updateTxs;
     assert(updateTx, 'expected one update tx');
     // ATA-idempotent ix prepended to the SetBeneficiary ix in the same tx.
-    expect(updateTx.instructions).to.have.length(2);
-    expect(updateTx.instructions[0]?.programAddress).to.equal(
+    expect(updateTx['instructions']).to.have.length(2);
+    expect(updateTx['instructions'][0]?.programAddress).to.equal(
       ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
     );
     await executeUpdateTxs(updateTxs);
@@ -263,7 +263,7 @@ export function defineLeafFeeTests<C extends ParamsFeeConfig>(
     });
     expect(paramUpdateTxs.length).to.be.greaterThan(0);
     for (const tx of paramUpdateTxs) {
-      await newOwnerSigner.send({ instructions: tx.instructions });
+      await newOwnerSigner.send({ instructions: tx['instructions'] });
     }
 
     const afterUpdate = await reader.read(deployed.deployed.programId);

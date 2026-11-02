@@ -21,6 +21,8 @@ import {
 import { expect } from 'chai';
 import { describe, it } from 'mocha';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import {
   COMPUTE_BUDGET_PROGRAM_ID,
   DEFAULT_COMPUTE_UNITS,
@@ -196,11 +198,15 @@ describe('buildForkReplayTransaction', () => {
     const instructions = decodeInstructions(wire);
 
     expect(instructions).to.have.length(2);
-    expect(instructions[0].programAddress).to.equal(COMPUTE_BUDGET_PROGRAM_ID);
-    expect(decodeComputeUnitLimit(instructions[0].data)).to.equal(
+    const [computeBudgetInstruction, payload] = instructions;
+    assert(computeBudgetInstruction && payload, 'Expected two instructions');
+    expect(computeBudgetInstruction.programAddress).to.equal(
+      COMPUTE_BUDGET_PROGRAM_ID,
+    );
+    expect(decodeComputeUnitLimit(computeBudgetInstruction.data)).to.equal(
       requestedUnits,
     );
-    expect(instructions[1].programAddress).to.equal(PAYLOAD_PROGRAM);
+    expect(payload.programAddress).to.equal(PAYLOAD_PROGRAM);
   });
 
   it('prepends the default compute budget when computeUnits is unset', async () => {
@@ -214,11 +220,15 @@ describe('buildForkReplayTransaction', () => {
     // Full parity with live/Squads execution, which defaults to
     // DEFAULT_COMPUTE_UNITS when the tx carries no explicit computeUnits.
     expect(instructions).to.have.length(2);
-    expect(instructions[0].programAddress).to.equal(COMPUTE_BUDGET_PROGRAM_ID);
-    expect(decodeComputeUnitLimit(instructions[0].data)).to.equal(
+    const [computeBudgetInstruction, payload] = instructions;
+    assert(computeBudgetInstruction && payload, 'Expected two instructions');
+    expect(computeBudgetInstruction.programAddress).to.equal(
+      COMPUTE_BUDGET_PROGRAM_ID,
+    );
+    expect(decodeComputeUnitLimit(computeBudgetInstruction.data)).to.equal(
       DEFAULT_COMPUTE_UNITS,
     );
-    expect(instructions[1].programAddress).to.equal(PAYLOAD_PROGRAM);
+    expect(payload.programAddress).to.equal(PAYLOAD_PROGRAM);
   });
 
   it('preserves ALT compression when rebuilding a compressed tx', async () => {
@@ -254,16 +264,22 @@ describe('buildForkReplayTransaction', () => {
     // Compression preserved: still one lookup table, still under the packet
     // limit. Without the re-compress step this would be [] (accounts inlined).
     expect(lookups).to.have.length(1);
-    expect(lookups[0].lookupTableAddress).to.equal(ALT_ADDRESS);
+    const [lookup] = lookups;
+    assert(lookup, 'Expected one address table lookup');
+    expect(lookup.lookupTableAddress).to.equal(ALT_ADDRESS);
     expect(byteLength).to.be.lessThan(1232);
 
     const instructions = decodeInstructions(wire, altMap);
     expect(instructions).to.have.length(2);
-    expect(instructions[0].programAddress).to.equal(COMPUTE_BUDGET_PROGRAM_ID);
-    expect(decodeComputeUnitLimit(instructions[0].data)).to.equal(
+    const [computeBudgetInstruction, payload] = instructions;
+    assert(computeBudgetInstruction && payload, 'Expected two instructions');
+    expect(computeBudgetInstruction.programAddress).to.equal(
+      COMPUTE_BUDGET_PROGRAM_ID,
+    );
+    expect(decodeComputeUnitLimit(computeBudgetInstruction.data)).to.equal(
       DEFAULT_COMPUTE_UNITS * 3,
     );
-    expect(instructions[1].programAddress).to.equal(PAYLOAD_PROGRAM);
+    expect(payload.programAddress).to.equal(PAYLOAD_PROGRAM);
   });
 });
 

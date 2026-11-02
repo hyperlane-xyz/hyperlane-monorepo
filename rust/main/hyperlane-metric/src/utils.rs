@@ -1,30 +1,40 @@
-use std::fmt::Write;
-
 use url::Url;
 
-/// converts url into a host:port string
+/// Converts a parsed URL into a host:port label, excluding credentials and paths.
 pub fn url_to_host_info(url: &Url) -> Option<String> {
-    // check if url has scheme, if not, then add a dummy one
-    // to satisfy Url's parsing schema
-    match url.domain() {
-        None => {
-            let with_dummy_scheme = format!("https://{url}");
-            let url = Url::parse(&with_dummy_scheme).ok()?;
-            schemed_url_to_host_info(&url)
-        }
-        Some(_) => schemed_url_to_host_info(url),
-    }
-}
-
-fn schemed_url_to_host_info(url: &Url) -> Option<String> {
-    if let Some(host) = url.host_str() {
-        let mut s = String::new();
-        s.push_str(host);
-        if let Some(port) = url.port_or_known_default() {
-            write!(&mut s, ":{port}").unwrap();
-        }
-        Some(s)
+    // Legacy gRPC inputs such as `grpc.example.com:443` parse as opaque URLs.
+    // Keep that support while using parsed hosts directly for IPv4/IPv6 URLs.
+    let schemed_url = if url.host_str().is_none() && url.cannot_be_a_base() {
+        Some(Url::parse(&format!("https://{url}")).ok()?)
     } else {
         None
+    };
+    let url = schemed_url.as_ref().unwrap_or(url);
+    url.host_str()
+        .map(|host| match url.port_or_known_default() {
+            Some(port) => format!("{host}:{port}"),
+            None => host.to_owned(),
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rpc_host_labels_exclude_credentials_and_support_ip_addresses() {
+        for (url, expected) in [
+            ("https://private-user:private-password@rpc.example/private-path?key=private-query#private-fragment", "rpc.example:443"),
+            ("http://127.0.0.1:8545/private-path?key=private-query", "127.0.0.1:8545"),
+            ("http://[::1]:8545/private-path", "[::1]:8545"),
+            ("wss://rpc.example/private-path", "rpc.example:443"),
+        ] {
+            let url = Url::parse(url).expect("test URL");
+            assert_eq!(url_to_host_info(&url).as_deref(), Some(expected));
+        }
+        assert_eq!(
+            url_to_host_info(&Url::parse("file:///private-path").expect("test URL")),
+            None
+        );
     }
 }

@@ -17,13 +17,14 @@ export class TronSigner
     privateKey: string,
   ): Promise<TronSigner> {
     const rpcUrls = (metadata.rpcUrls ?? []).map((rpc) => rpc.http);
-    assert(rpcUrls.length > 0, `got no rpcUrls`);
+    const [rpcUrl, ...otherRpcUrls] = rpcUrls;
+    assert(rpcUrl, `got no rpcUrls`);
 
-    return new TronSigner(rpcUrls, metadata, privateKey);
+    return new TronSigner([rpcUrl, ...otherRpcUrls], metadata, privateKey);
   }
 
   protected constructor(
-    rpcUrls: string[],
+    rpcUrls: [string, ...string[]],
     chainMetadata: ChainMetadataForAltVM,
     privateKey: string,
   ) {

@@ -55,3 +55,32 @@ A couple of env variables are used to influence the behaviour of the aleo-sdk.
 ## Setup
 
 Node 22 or newer is required.
+
+## Deploying v3 ARC-22 warp routes
+
+Use the existing synthetic deployment flow with a compiled program override:
+
+```bash
+export ALEO_HYP_SYNTHETIC=/absolute/path/to/hyp_warp_token_usdt_v3.aleo
+hyperlane warp deploy --warp-route-id USDT/aleo-ethereum
+```
+
+Use your registered warp route ID in place of the example.
+
+The file must be compiled Aleo instructions, not Leo source. Compile with the Leo
+version specified by the route's `program.json` (USDT v3 specifies 4.4.4). The
+synthetic deploy config supplies `name`, `symbol`, `decimals`, and optional `scale`;
+`scale` determines the remote decimals relative to the local decimals.
+
+The override is deployed verbatim: program IDs, imports, and the constructor are
+preserved. `ALEO_WARP_SUFFIX` and `ALEO_UPGRADE_AUTHORITY` do not rewrite an override.
+Setting a v3 suffix without an override still deploys the bundled template.
+
+All imported programs must already be deployed on the selected network, including
+the ARC-22 token, freeze list, Hyperlane core, and any imported previous route.
+Configure the token's mint/burn permissions for the new route separately. The
+warp deployment initializes the route and configures its routers, ISM, and hook;
+it does not deploy or administer the ARC-22 token or freeze list.
+
+V2 and v3 route reads resolve token metadata, public balances, and supply from the
+imported ARC-20/ARC-22 program. Bridging uses the existing public mint/burn flow.

@@ -1,1 +1,74 @@
-{}
+{
+  "basesepolia": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xB6b315304f3F08B448D186659557dab62C70BB9b",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "arbitrumsepolia": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x0346FE0a1ad1033fFc6B19A8485A3543370F04c5",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "bsctestnet": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x90c2522eB47112b89b9ba4399f8ef001b61496C4",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "hyperliquidevmtestnet": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xd2B8B3760b9Bd4F970d2c6cbec0580D1A22FB714",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "optimismsepolia": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x11FBf48819109209e8E17428659de2881f674b1F",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "polygonamoy": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x24D31e12E4d3bc2C46C994FcE0c828b218A1aeAb",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "somniatestnet": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xED7548eaeb72b6c296d1B7F92e62EF8F0a6AFBE4",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "sepolia": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xC3402a956Ac7993B00a33020861c3570D1742B0c",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "tronshasta": [
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0x346219685f1d55B2C7b9d033a32687a751442aaD",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ]
+}

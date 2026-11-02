@@ -1,44 +1,57 @@
-# Running Migrator CLI
+# Running scraper migrations
 
-- Generate a new migration file
-  ```sh
-  cargo run -- migrate generate MIGRATION_NAME
-  ```
-- Apply all pending migrations
-  ```sh
-  cargo run
-  ```
-  ```sh
-  cargo run -- up
-  ```
-- Apply first 10 pending migrations
-  ```sh
-  cargo run -- up -n 10
-  ```
-- Rollback last applied migrations
-  ```sh
-  cargo run -- down
-  ```
-- Rollback last 10 applied migrations
-  ```sh
-  cargo run -- down -n 10
-  ```
-- Drop all tables from the database, then reapply all migrations
-  ```sh
-  cargo run -- fresh
-  ```
-- Rollback all applied migrations, then reapply all migrations
-  ```sh
-  cargo run -- refresh
-  ```
-- Rollback all applied migrations
-  ```sh
-  cargo run -- reset
-  ```
-- Check the status of all migrations
-  ```sh
-  cargo run -- status
-  ```
+From `rust/main`, with `DATABASE_URL` set to the intended database:
+
+```sh
+cargo run --release -p migration --bin init-db
+```
+
+This single command applies pending transactional migrations, then creates and
+verifies the raw-dispatch reconciliation, raw-dispatch native-sequence, delivery
+scope, Merkle block-height, gas payment paymaster-scope, gas payment transaction-log,
+and the three frontier indexes (`delivery_frontier_unenriched`,
+`gas_payment_frontier_unenriched`, `gas_payment_frontier_height`) concurrently,
+then runs `ANALYZE` on the four event tables (also when an index build fails). The
+collision-safe transaction-log index is verified before `init-db` concurrently
+drops the superseded `gas_payment_transaction_log` index. It works for both empty and existing DBs. Reruns
+retain matching valid indexes and reject invalid or conflicting definitions. If
+index setup fails, the schema migrations stay committed; repair the reported index
+and rerun the same command. Concurrent indexes survive schema rollback, except the
+three frontier indexes and gas payment log index, which their down
+migrations drop. Scraper startup refuses to run until the collision-safe gas
+payment log index is valid and `gas_payment_transaction_log` is gone.
+
+Before dropping a column during rollback, stop or roll back every scraper binary
+that references it. Scraper startup does not apply migrations.
+
+Schema rollback does not recreate indexes managed concurrently by `init-db`.
+Before starting an older scraper image, run that image's `init-db`; it restores
+and verifies the index definitions expected by that version.
+
+Rolling back past `m20261003_000017` recreates the legacy unique
+`(domain, block_hash, log_index)` index without `CONCURRENTLY`, so it blocks
+gas payment writes while it builds. It fails once a chain that numbers logs per
+transaction (e.g. ENI) has stored two payments at the same log index in one
+block; such rows are valid and must not be deleted to force a downgrade.
+
+From `rust/main`, the operational binaries are:
+
+```sh
+cargo run -p migration --bin down -- 1   # Roll back one migration
+cargo run -p migration --bin fresh       # Drop tables and rebuild schema
+cargo run -p migration --bin recreate-db # Run down, then up
+cargo run -p migration --bin init-db     # Apply schema and managed indexes
+```
+
+`fresh` and `recreate-db` only rebuild the schema. Follow them with `init-db`
+to install separately managed indexes before starting the scraper.
+
+## Merkle block-height index
+
+`init-db` also installs `merkle_insertion_block_height` on
+`merkle_tree_insertion(domain, block_number)`. Automatic cutover selection and the
+first-start overlap check need confirmed legacy rows as well as provisional rows,
+which a partial index over unconfirmed rows cannot serve.
 
 ## Event scope indexes
 
@@ -62,14 +75,26 @@ From `rust/main`, with `DATABASE_URL` set to the intended database:
 cargo run --release -p migration --bin create-event-scope-indexes
 ```
 
-Run this separately from SeaORM migrations: PostgreSQL forbids `CREATE INDEX
-CONCURRENTLY` inside a transaction. The binary retains existing indexes and verifies
-that the index is a valid, ready, nonpartial B-tree with the expected table and
-three keys. Reruns accept a matching valid index. If an interrupted concurrent build
-leaves an invalid index, or its name belongs to another definition, the command fails
-instead of treating `IF NOT EXISTS` as success. Inspect `pg_index` and
-`pg_get_indexdef` and repair the named index explicitly before retrying; the command
-never drops indexes.
+The scraper-proxy's legacy gas payment replay pages one paymaster's rows by ID.
+Without a matching index, PostgreSQL can combine the domain and paymaster indexes
+and sort every remaining row in the range for each page:
+
+- `gas_payment_domain_paymaster_id_idx`:
+  `gas_payment(domain, interchain_gas_paymaster, id)`
+
+```sh
+cargo run --release -p migration --bin create-gas-payment-scope-index
+```
+
+`init-db` runs these automatically after SeaORM migrations commit: PostgreSQL
+forbids `CREATE INDEX CONCURRENTLY` inside a transaction. The binary retains
+existing indexes and verifies that each index is a valid, ready, nonpartial
+B-tree with the expected table and keys. Reruns accept a matching valid index. If
+an interrupted concurrent build leaves an invalid index, or its name belongs to
+another definition, the command fails instead of treating `IF NOT EXISTS` as
+success. Inspect `pg_index` and `pg_get_indexdef` and repair the named index
+explicitly before retrying. The only automatic removal is the superseded
+`gas_payment_transaction_log`, after its replacement has been verified.
 
 Concurrent builds permit normal writes but consume database I/O, CPU, disk and
 WAL, and can wait for existing transactions. Schedule the build accordingly and

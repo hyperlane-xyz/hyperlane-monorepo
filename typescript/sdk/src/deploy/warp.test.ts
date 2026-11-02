@@ -11,6 +11,7 @@ import { RemoteRouters } from '../router/types.js';
 import { contractDouble } from '../test/contractDouble.js';
 import { randomAddress } from '../test/testUtils.js';
 import { TokenType } from '../token/config.js';
+import { EvmWarpModule } from '../token/EvmWarpModule.js';
 import { HypERC20Deployer } from '../token/deploy.js';
 import { WarpRouteDeployConfigMailboxRequired } from '../token/types.js';
 import { collectHybridIsmNodes } from '../utils/ism.js';
@@ -18,6 +19,7 @@ import { collectHybridIsmNodes } from '../utils/ism.js';
 import {
   assertDelayedFlowRouteCoverage,
   assertDelayedFlowRoutePreconditions,
+  enrollCrossChainRouters,
   executeWarpDeploy,
   executeWarpRouteExtensionDeploy,
 } from './warp.js';
@@ -488,5 +490,68 @@ describe('delayed flow route preconditions', () => {
         `Registry factory addresses not found for ${TestChainName.test3}`,
       );
     });
+  });
+});
+
+describe('ALRB router enrollment', () => {
+  it('preserves the legitimate router and gas configuration for the ALRB domain', async () => {
+    const multiProvider = MultiProvider.createTestMultiProvider();
+    const owner = randomAddress();
+    const mailbox = randomAddress();
+    const trustedRouter = randomAddress();
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      test1: {
+        type: TokenType.atomicLocalRebalancing,
+        owner,
+        mailbox,
+        sourceRouter: randomAddress(),
+      },
+      test2: {
+        type: TokenType.synthetic,
+        owner,
+        mailbox,
+        name: 'Test',
+        symbol: 'TST',
+        decimals: 18,
+        remoteRouters: { test1: { address: trustedRouter } },
+        destinationGas: { test1: '123456' },
+      },
+    };
+    const sandbox = sinon.createSandbox();
+    try {
+      sandbox.stub(EvmWarpModule.prototype, 'read').resolves({
+        type: TokenType.synthetic,
+        owner,
+        mailbox,
+        name: 'Test',
+        symbol: 'TST',
+        decimals: 18,
+        tokenFee: undefined,
+        hook: randomAddress(),
+        interchainSecurityModule: randomAddress(),
+      });
+      const update = sandbox
+        .stub(EvmWarpModule.prototype, 'updateSplit')
+        .resolves({ txs: [], feeTxs: [], ownershipTxs: [] });
+      await enrollCrossChainRouters(
+        {
+          multiProvider,
+          altVmSigners: {},
+          registryAddresses: { test2: {} },
+          warpDeployConfig: config,
+        },
+        { test1: randomAddress(), test2: randomAddress() },
+      );
+      expect(update.callCount).to.equal(1);
+      const domain = multiProvider.getDomainId('test1').toString();
+      expect(update.firstCall.args[0].remoteRouters).to.deep.equal({
+        [domain]: { address: addressToBytes32(trustedRouter) },
+      });
+      expect(update.firstCall.args[0].destinationGas).to.deep.equal({
+        [domain]: '123456',
+      });
+    } finally {
+      sandbox.restore();
+    }
   });
 });

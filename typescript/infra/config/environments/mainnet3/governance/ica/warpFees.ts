@@ -12,7 +12,6 @@ export const warpFeesIcas: ChainMap<Address> = {
 
   // Jan 12, 2026 - Provisioning Warp Fees ICAs
   // ----------------------------------------------------------
-  adichain: '0x54818CBcAC326d1D7C1c194BF13E038AA79327EE',
   apechain: '0x46D9c004f83D4187CEED673b65d453613A01cB74',
   avalanche: '0xDE41E9C00B8aCb0e0013Bc197560e6bA5E7c3E67',
   berachain: '0x6CdC19aABeE4E1e992f9C3e81E317ea32054EF6b',
@@ -82,4 +81,9 @@ export const warpFeesIcas: ChainMap<Address> = {
   nexus: '0x02A71708821D6e0bC9D4ecBF62e539157971987B',
   robinhood: '0x41dEC5AB11f4481F78ba3a05f93369179dbc0d0f',
   tea: '0x37a5630cF1C8DCf2F8E1F601a2Ea9700ADaAff60',
+
+  // Sep 10, 2026
+  // ----------------------------------------------------------
+  arc: '0xDE1d71FCccf8a67332B281ce57FcE22Cf786Ad8C',
+  viction: '0xD0d988ee307376Cf545d8737dd448083C05bD8F3',
 };

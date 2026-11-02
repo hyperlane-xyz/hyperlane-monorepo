@@ -17,7 +17,7 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { normalizeConfig } from '@hyperlane-xyz/utils';
+import { assert, normalizeConfig } from '@hyperlane-xyz/utils';
 
 import { AleoSigner } from '../clients/signer.js';
 import { AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
@@ -38,6 +38,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
     '0xf719b4CC64d0E3a380e52c2720Abab13835F6d9c',
     '0x98A56EdE1d6Dd386216DA8217D9ac1d2EE7c27c7',
   ].sort();
+  const [firstValidator] = validators;
+  assert(firstValidator, 'Expected at least one test validator');
 
   before(async () => {
     // test private key with funds
@@ -187,7 +189,7 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
       const [multisigIsm] = await multisigWriter.create({
         config: {
           type: AltVM.IsmType.MESSAGE_ID_MULTISIG,
-          validators: [validators[0]],
+          validators: [firstValidator],
           threshold: 1,
         },
       });
@@ -227,6 +229,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
       expect(readIsm.config.type).to.equal(AltVM.IsmType.ROUTING);
       expect(readIsm.config.owner).to.equal(signer.getSignerAddress());
       expect(Object.keys(readIsm.config.domains)).to.have.length(2);
+      assert(readIsm.config.domains[DOMAIN_1], `Missing domain ${DOMAIN_1}`);
+      assert(readIsm.config.domains[DOMAIN_2], `Missing domain ${DOMAIN_2}`);
       expect(readIsm.config.domains[DOMAIN_1].deployed.address).to.equal(
         testIsmAddress,
       );
@@ -271,6 +275,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
 
       // Verify domains
       expect(Object.keys(routingConfig.domains)).to.have.length(2);
+      assert(routingConfig.domains[DOMAIN_1], `Missing domain ${DOMAIN_1}`);
+      assert(routingConfig.domains[DOMAIN_2], `Missing domain ${DOMAIN_2}`);
       expect(routingConfig.domains[DOMAIN_1].deployed.address).to.equal(
         testIsmAddress,
       );
@@ -308,6 +314,7 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
         readRoutingIsm.config as RawRoutingIsmArtifactConfig;
 
       // Read the nested Test ISM from routing config
+      assert(routingConfig.domains[DOMAIN_1], `Missing domain ${DOMAIN_1}`);
       const nestedTestIsm = await artifactManager.readIsm(
         routingConfig.domains[DOMAIN_1].deployed.address,
       );
@@ -315,6 +322,7 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
       expect(nestedTestIsm.deployed.address).to.equal(testIsmAddress);
 
       // Read the nested Multisig ISM from routing config
+      assert(routingConfig.domains[DOMAIN_2], `Missing domain ${DOMAIN_2}`);
       const nestedMultisigIsm = await artifactManager.readIsm(
         routingConfig.domains[DOMAIN_2].deployed.address,
       );
@@ -375,6 +383,7 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
       // Read back and verify
       const reader = artifactManager.createReader(AltVM.IsmType.ROUTING);
       const readIsm = await reader.read(routingIsm.deployed.address);
+      assert(readIsm.config.domains[DOMAIN_3], `Missing domain ${DOMAIN_3}`);
       expect(readIsm.config.domains[DOMAIN_3].deployed.address).to.equal(
         testIsmAddress,
       );
@@ -402,6 +411,7 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
         signer,
       );
       const [routingIsm] = await writer.create({ config });
+      assert(routingIsm.config.domains[DOMAIN_1], `Missing domain ${DOMAIN_1}`);
 
       // Remove DOMAIN_2
       const updatedConfig: ArtifactDeployed<
@@ -453,6 +463,7 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
         signer,
       );
       const [routingIsm] = await writer.create({ config });
+      assert(routingIsm.config.domains[DOMAIN_2], `Missing domain ${DOMAIN_2}`);
 
       // Update DOMAIN_1 to use multisig ISM instead of test ISM
       const updatedConfig: ArtifactDeployed<
@@ -483,6 +494,7 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
       // Read back and verify
       const reader = artifactManager.createReader(AltVM.IsmType.ROUTING);
       const readIsm = await reader.read(routingIsm.deployed.address);
+      assert(readIsm.config.domains[DOMAIN_1], `Missing domain ${DOMAIN_1}`);
       expect(readIsm.config.domains[DOMAIN_1].deployed.address).to.equal(
         multisigIsmAddress,
       );

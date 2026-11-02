@@ -17,6 +17,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { getSquadsKeys } from '../src/config/squads.js';
+import { GovernanceType } from '../src/governanceTypes.js';
 import {
   readAttachedTransactionIndexes,
   readCreatedTransactionIndex,
@@ -56,6 +57,47 @@ function buildMultisigAccountInfo(
 }
 
 describe('squads', () => {
+  describe('getSquadsKeys', () => {
+    it('returns regular Squads keys by default', () => {
+      const { multisigPda, vault } = getSquadsKeys('solanamainnet');
+
+      expect(multisigPda.toBase58()).to.equal(
+        'EvptYJrjGUB3FXDoW8w8LTpwg1TTS4W1f628c1BnscB4',
+      );
+      expect(vault.toBase58()).to.equal(
+        '3oocunLfAgATEqoRyW7A5zirsQuHJh6YjD4kReiVVKLa',
+      );
+    });
+
+    it('returns Abacus Works Squads keys when selected', () => {
+      const { multisigPda, vault } = getSquadsKeys(
+        'solanamainnet',
+        GovernanceType.AbacusWorks,
+      );
+
+      expect(multisigPda.toBase58()).to.equal(
+        'BjKsMZUxVovbzZf3uZjdhorE1YqAtvD7yKF2E8wv2cje',
+      );
+      expect(vault.toBase58()).to.equal(
+        'BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ',
+      );
+    });
+
+    it('returns Eclipse Abacus Works Squads keys when selected', () => {
+      const { multisigPda, vault } = getSquadsKeys(
+        'eclipsemainnet',
+        GovernanceType.AbacusWorks,
+      );
+
+      expect(multisigPda.toBase58()).to.equal(
+        'EC5f1WufYD5SHXyH5XEAy8Ud66eh88N1MuekpQJuVpV6',
+      );
+      expect(vault.toBase58()).to.equal(
+        'E4TncCw3WMqQZbkACVcomX3HqcSzLfNyhTnqKN1DimGr',
+      );
+    });
+  });
+
   describe('readCreatedTransactionIndex', () => {
     it('reads a bigint createdTransactionIndex attached to an error', () => {
       const error = Object.assign(new Error('boom'), {

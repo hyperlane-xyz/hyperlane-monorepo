@@ -24,16 +24,16 @@ import {
   getBalanceKey,
   getProgramIdFromSuffix,
   getProgramSuffix,
-  isArc20ProgramId,
-  isV2WarpToken,
+  isArcTokenProgramId,
+  isArcWarpToken,
   toAleoAddress,
 } from '../utils/helper.js';
 import type { AleoSdk } from '../utils/provable.js';
 import { AleoTokenType, type AleoTransaction } from '../utils/types.js';
 import {
   callViewFunction,
-  getArc20ProgramId,
-  getArc20TokenMetadata,
+  getArcTokenProgramId,
+  getArcTokenMetadata,
   getRemoteRouters,
   parseAleoUint,
 } from '../warp/provider-query.js';
@@ -117,7 +117,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     return latestBlockHeight > 0;
   }
 
-  getRpcUrls(): string[] {
+  getRpcUrls(): [string, ...string[]] {
     return this.rpcUrls;
   }
 
@@ -129,11 +129,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     let aleoAddress = req.address;
 
     if (aleoAddress.includes('/')) {
-      aleoAddress = req.address.split('/')[1];
+      const [, address] = req.address.split('/');
+      assert(address, `Invalid Aleo address: ${req.address}`);
+      aleoAddress = address;
     }
 
     if (req.denom && req.denom !== 'credits' && req.denom !== '0field') {
-      if (isArc20ProgramId(req.denom)) {
+      if (isArcTokenProgramId(req.denom)) {
         const raw = await callViewFunction(
           this.aleoClient,
           req.denom,
@@ -167,7 +169,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       return 0n;
     }
 
-    if (isArc20ProgramId(req.denom)) {
+    if (isArcTokenProgramId(req.denom)) {
       const raw = await callViewFunction(this.aleoClient, req.denom, 'supply');
       return parseAleoUint(raw);
     }
@@ -340,19 +342,19 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       tokenMetadata.hook === ALEO_NULL_ADDRESS
         ? ''
         : `${getProgramIdFromSuffix(this.prefix, 'hook_manager', getProgramSuffix(mailboxProgramId))}/${tokenMetadata.hook}`;
-    if (isV2WarpToken(programId)) {
-      const arc20ProgramId = await getArc20ProgramId(
+    if (isArcWarpToken(programId)) {
+      const arcTokenProgramId = await getArcTokenProgramId(
         this.aleoClient,
         programId,
       );
-      token.denom = arc20ProgramId;
-      const arc20Metadata = await getArc20TokenMetadata(
+      token.denom = arcTokenProgramId;
+      const arcTokenMetadata = await getArcTokenMetadata(
         this.aleoClient,
-        arc20ProgramId,
+        arcTokenProgramId,
       );
-      token.name = arc20Metadata.name;
-      token.symbol = arc20Metadata.symbol;
-      token.decimals = arc20Metadata.decimals;
+      token.name = arcTokenMetadata.name;
+      token.symbol = arcTokenMetadata.symbol;
+      token.decimals = arcTokenMetadata.decimals;
     } else {
       token.denom = tokenMetadata.token_id || '';
       if (token.denom) {
@@ -406,8 +408,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       'true',
     );
 
-    const arc20ProgramId = isV2WarpToken(programId)
-      ? await getArc20ProgramId(this.aleoClient, programId)
+    const arcTokenProgramId = isArcWarpToken(programId)
+      ? await getArcTokenProgramId(this.aleoClient, programId)
       : undefined;
 
     switch (metadata['token_type']) {
@@ -419,14 +421,14 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       }
       case AleoTokenType.SYNTHETIC: {
         return this.getTotalSupply({
-          denom: arc20ProgramId ?? metadata['token_id'],
+          denom: arcTokenProgramId ?? metadata['token_id'],
           programId,
         });
       }
       case AleoTokenType.COLLATERAL: {
         return this.getBalance({
           address: getAddressFromProgramId(this.sdk, programId),
-          denom: arc20ProgramId ?? metadata['token_id'],
+          denom: arcTokenProgramId ?? metadata['token_id'],
         });
       }
       default: {
@@ -602,7 +604,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqTransfer,
   ): Promise<AleoTransaction> {
     if (req.denom) {
-      if (isArc20ProgramId(req.denom)) {
+      if (isArcTokenProgramId(req.denom)) {
         return {
           programName: req.denom,
           functionName: 'transfer_public',
@@ -695,10 +697,10 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       `total quote ${total_quote} is bigger than max fee ${req.maxFee.amount}`,
     );
 
-    for (let i = 0; i < quotes.length; i++) {
+    quotes.forEach((quote, i) => {
       creditAllowance[i] =
-        `{spender:${quotes[i].spender},amount:${quotes[i].quote}u64}`;
-    }
+        `{spender:${quote.spender},amount:${quote.quote}u64}`;
+    });
 
     const mailboxValue = `{
       default_hook:${mailbox.defaultHook ? fromAleoAddress(mailbox.defaultHook).address : ALEO_NULL_ADDRESS},

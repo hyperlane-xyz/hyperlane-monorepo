@@ -1,4 +1,4 @@
-import type { NextFunction, Request, Response } from 'express';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Logger } from 'pino';
 
 import {
@@ -10,7 +10,7 @@ import {
 /**
  * Base class for HTTP errors thrown by route handlers. Subclasses override
  * `toBody()` when they need to emit a custom JSON shape; the default body is
- * `{ message }`. The error middleware dispatches uniformly on `ApiError` and
+ * `{ message }`. The error handler dispatches uniformly on `ApiError` and
  * never has to learn about new subclasses.
  */
 export class ApiError extends Error {
@@ -52,13 +52,12 @@ export class NoQuoteAvailableError extends ApiError {
 }
 
 export function createErrorHandler(logger: Logger) {
-  return (err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  return (err: Error, _request: FastifyRequest, reply: FastifyReply) => {
     if (err instanceof ApiError) {
-      res.status(err.statusCode).json(err.toBody());
-      return;
+      return reply.code(err.statusCode).send(err.toBody());
     }
 
     logger.error({ err }, 'Unhandled error');
-    res.status(500).json({ message: 'Internal server error' });
+    return reply.code(500).send({ message: 'Internal server error' });
   };
 }

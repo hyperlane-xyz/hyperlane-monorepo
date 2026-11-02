@@ -140,7 +140,7 @@ impl Dispatcher {
         tasks.push(finality_task);
 
         let transaction_db_loader = TransactionDbLoader::new(
-            self.inner.tx_db.clone(),
+            self.inner.clone(),
             inclusion_stage_sender.clone(),
             finality_stage_sender.clone(),
             self.domain.clone(),

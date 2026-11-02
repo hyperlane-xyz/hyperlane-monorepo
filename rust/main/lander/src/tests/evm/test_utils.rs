@@ -137,6 +137,7 @@ pub fn mock_ethereum_adapter(
         transaction_overrides: Default::default(),
         submission_config: op_submission_config,
         provider,
+        mev_submission: None,
         reorg_period,
         nonce_manager,
         batch_cache: Default::default(),

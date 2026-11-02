@@ -297,13 +297,15 @@ export async function executeDeployPlan(
     const failedStages: DeployStage[] = [];
 
     results.forEach((currWriteStageRes, idx) => {
+      const stage = batch[idx];
+      assert(stage, `Missing write stage at batch index ${idx}`);
       if (currWriteStageRes.status === 'fulfilled') {
         fulfilled.push(currWriteStageRes.value);
       } else {
-        logger.debug(`Write stage ${batch[idx].label} failed, will retry`, {
+        logger.debug(`Write stage ${stage.label} failed, will retry`, {
           error: currWriteStageRes.reason,
         });
-        failedStages.push(batch[idx]);
+        failedStages.push(stage);
       }
     });
     receipts.push(...fulfilled);

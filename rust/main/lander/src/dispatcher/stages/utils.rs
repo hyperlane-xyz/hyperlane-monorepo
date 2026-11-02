@@ -127,6 +127,9 @@ where
         match f().await {
             Ok(result) => return Ok(result),
             Err(err) => {
+                if matches!(err, LanderError::TxSubmissionDeferred) {
+                    return Err(err);
+                }
                 if err.is_retryable() {
                     error!(?err, ?action, "Error making call. Retrying...");
                     sleep(Duration::from_secs(1)).await;

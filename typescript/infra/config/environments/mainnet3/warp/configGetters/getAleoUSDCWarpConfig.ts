@@ -1,5 +1,7 @@
 import {
   ChainMap,
+  HookConfig,
+  HookType,
   HypTokenRouterConfig,
   OwnableConfig,
   TokenType,
@@ -24,6 +26,22 @@ const owners = {
   polygon: '0xac4AB5850b8dE9c07A2756c1c79266aB36183822',
   solanamainnet: 'ABJnd4eWexNte9GYy21ud5hvSwFKWedveP6GCFxXKkCw',
 };
+
+// Customer paused Aleo-bound transfers on-chain while keeping other routes live.
+const pausedAleoHook = (owner: string): HookConfig => ({
+  type: HookType.FALLBACK_ROUTING,
+  owner,
+  fallback: {
+    type: HookType.MAILBOX_DEFAULT,
+  },
+  domains: {
+    aleo: {
+      type: HookType.PAUSABLE,
+      owner,
+      paused: true,
+    },
+  },
+});
 
 export const getAleoUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -57,6 +75,7 @@ export const getAleoUSDCWarpConfig = async (
     type: TokenType.collateral,
     token: tokens.arbitrum.USDC,
     ...rebalancingConfig.arbitrum,
+    hook: pausedAleoHook(owners.arbitrum),
   };
 
   const avalanche: HypTokenRouterConfig = {
@@ -67,6 +86,7 @@ export const getAleoUSDCWarpConfig = async (
     type: TokenType.collateral,
     token: tokens.avalanche.USDC,
     ...rebalancingConfig.avalanche,
+    hook: pausedAleoHook(owners.avalanche),
   };
 
   const base: HypTokenRouterConfig = {
@@ -77,6 +97,7 @@ export const getAleoUSDCWarpConfig = async (
     type: TokenType.collateral,
     token: tokens.base.USDC,
     ...rebalancingConfig.base,
+    hook: pausedAleoHook(owners.base),
   };
 
   const bsc: HypTokenRouterConfig = {
@@ -88,6 +109,7 @@ export const getAleoUSDCWarpConfig = async (
     owner: owners.bsc,
     type: TokenType.collateral,
     token: tokens.bsc.USDC,
+    hook: pausedAleoHook(owners.bsc),
   };
 
   const ethereum: HypTokenRouterConfig = {
@@ -98,6 +120,7 @@ export const getAleoUSDCWarpConfig = async (
     type: TokenType.collateral,
     token: tokens.ethereum.USDC,
     ...rebalancingConfig.ethereum,
+    hook: pausedAleoHook(owners.ethereum),
   };
 
   const optimism: HypTokenRouterConfig = {
@@ -108,6 +131,7 @@ export const getAleoUSDCWarpConfig = async (
     type: TokenType.collateral,
     token: tokens.optimism.USDC,
     ...rebalancingConfig.optimism,
+    hook: pausedAleoHook(owners.optimism),
   };
 
   const polygon: HypTokenRouterConfig = {
@@ -118,6 +142,7 @@ export const getAleoUSDCWarpConfig = async (
     type: TokenType.collateral,
     token: tokens.polygon.USDC,
     ...rebalancingConfig.polygon,
+    hook: pausedAleoHook(owners.polygon),
   };
 
   const solanamainnet: HypTokenRouterConfig = {
@@ -129,6 +154,16 @@ export const getAleoUSDCWarpConfig = async (
     token: tokens.solanamainnet.USDC,
     foreignDeployment: 'EiUymjh3vJ2486ozY24s1A1YWXoH6QnSGjWuP95ph35G',
     gas: 300_000,
+    // Customer unenrolled Aleo on-chain from Solana while keeping other routers.
+    remoteRouters: {
+      1: { address: '0x78Ac7FECD1857f5BEEe98AB39096c9781F976D97' },
+      10: { address: '0x1FdA66FA15A261F01F1E09228D41bD0A806d7529' },
+      56: { address: '0x5284D803a4563DC5eE83feA80c688b096d70eb75' },
+      137: { address: '0x1FdA66FA15A261F01F1E09228D41bD0A806d7529' },
+      8453: { address: '0xB46930ca998587A95D9Ee000FA73A071ADD56B64' },
+      42161: { address: '0x1FdA66FA15A261F01F1E09228D41bD0A806d7529' },
+      43114: { address: '0x1FdA66FA15A261F01F1E09228D41bD0A806d7529' },
+    },
     destinationGas: {
       '1634493807': '64000', // aleo
       '42161': '68000', // arbitrum

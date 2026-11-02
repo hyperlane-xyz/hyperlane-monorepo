@@ -19,6 +19,7 @@ const chainLookup: ChainLookup = {
   getDomainId: () => null,
   getChainName: () => null,
   getKnownChainNames: () => [],
+  getKnownDomainIds: () => new Set(),
 };
 
 describe('HookWriter', () => {

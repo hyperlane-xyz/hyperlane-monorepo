@@ -115,9 +115,9 @@ export class WarpTokenWriter
   protected readonly hookWriterFactory: (mailbox: string) => HookWriter;
 
   constructor(
-    protected readonly artifactManager: IRawWarpArtifactManager,
-    protected readonly chainMetadata: ChainMetadataForAltVM,
-    protected readonly chainLookup: ChainLookup,
+    protected override readonly artifactManager: IRawWarpArtifactManager,
+    protected override readonly chainMetadata: ChainMetadataForAltVM,
+    protected override readonly chainLookup: ChainLookup,
     protected readonly signer: ISigner<AnnotatedTx, TxReceipt>,
   ) {
     super(artifactManager, chainMetadata, chainLookup);

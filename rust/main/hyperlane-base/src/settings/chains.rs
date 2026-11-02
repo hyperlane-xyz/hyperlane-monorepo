@@ -19,6 +19,7 @@ use hyperlane_core::{
 };
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
+use redact::Secret;
 
 #[cfg(feature = "aleo")]
 use hyperlane_aleo::{self as h_aleo, AleoProvider};
@@ -29,7 +30,6 @@ use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
     EthereumReorgPeriod, EthereumValidatorAnnounceAbi,
 };
-use hyperlane_fuel as h_fuel;
 use hyperlane_radix::{self as h_radix, RadixProvider};
 use hyperlane_sealevel::{
     self as h_sealevel, fallback::SealevelFallbackRpcClient, SealevelProvider, TransactionSubmitter,
@@ -60,11 +60,11 @@ pub trait TryFromWithMetrics<T>: Sized {
 /// AdaptsChain trait implementation.
 #[allow(dead_code)]
 #[derive(Clone, Debug, Default)]
-pub struct RawChainConf(Value);
+pub struct RawChainConf(Secret<Value>);
 
 impl From<Value> for RawChainConf {
     fn from(value: Value) -> Self {
-        Self(value)
+        Self(value.into())
     }
 }
 
@@ -76,6 +76,8 @@ pub struct ChainConf {
     pub domain: HyperlaneDomain,
     /// Signer configuration for this chain
     pub signer: Option<SignerConf>,
+    /// EVM signer used for authenticated CCS reads on Sealevel.
+    pub ccs_signer: Option<SignerConf>,
     /// Identity keypair used as the relayer's on-chain identity (e.g. for TrustedRelayer ISMs).
     /// Only valid for Sealevel chains — an error is returned if set on other protocols.
     /// Falls back to `signer` if not set.
@@ -179,8 +181,6 @@ impl TryFromWithMetrics<ChainConf> for MerkleTreeHookIndexer {
 pub enum ChainConnectionConf {
     /// Ethereum configuration
     Ethereum(h_eth::ConnectionConf),
-    /// Fuel configuration
-    Fuel(h_fuel::ConnectionConf),
     /// Sealevel configuration.
     Sealevel(h_sealevel::ConnectionConf),
     /// Cosmos configuration.
@@ -203,7 +203,6 @@ impl ChainConnectionConf {
     pub fn protocol(&self) -> HyperlaneDomainProtocol {
         match self {
             Self::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
-            Self::Fuel(_) => HyperlaneDomainProtocol::Fuel,
             Self::Sealevel(_) => HyperlaneDomainProtocol::Sealevel,
             Self::Cosmos(_) => HyperlaneDomainProtocol::Cosmos,
             Self::Starknet(_) => HyperlaneDomainProtocol::Starknet,
@@ -296,7 +295,6 @@ impl ChainConf {
                 h_eth::application::EthereumApplicationOperationVerifier::new(),
             )
                 as Box<dyn ApplicationOperationVerifier>),
-            ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let provider =
                     Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
@@ -342,7 +340,6 @@ impl ChainConf {
                 self.build_ethereum(conf, &locator, metrics, h_eth::HyperlaneProviderBuilder {})
                     .await
             }
-            ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let provider = build_sealevel_provider(
                     self,
@@ -385,10 +382,8 @@ impl ChainConf {
         .context(ctx)
     }
 
-    /// Try to convert the chain setting into a Mailbox contract
-    pub async fn build_mailbox(&self, metrics: &CoreMetrics) -> Result<Box<dyn Mailbox>> {
-        let ctx = "Building mailbox";
-
+    /// Validate mailbox configuration before constructing providers or signers.
+    pub fn validate_mailbox_config(&self) -> Result<()> {
         if self.identity.is_some()
             && self.connection.protocol() != HyperlaneDomainProtocol::Sealevel
         {
@@ -399,19 +394,50 @@ impl ChainConf {
             ));
         }
 
+        if let ChainConnectionConf::Sealevel(conf) = &self.connection {
+            if let Some(reveal) = &conf.ur_reveal {
+                h_sealevel::validate_ccs_url(&reveal.ccs_url).context("Invalid urReveal.ccsUrl")?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Try to convert the chain setting into a Mailbox contract
+    pub async fn build_mailbox(&self, metrics: &CoreMetrics) -> Result<Box<dyn Mailbox>> {
+        let ctx = "Building mailbox";
+        self.validate_mailbox_config()?;
+
         let locator = self.locator(self.addresses.mailbox);
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
-                self.build_ethereum(conf, &locator, metrics, h_eth::MailboxBuilder {})
-                    .await
-            }
-            ChainConnectionConf::Fuel(conf) => {
-                let wallet = self.fuel_signer().await.context(ctx)?;
-                hyperlane_fuel::FuelMailbox::new(conf, locator, wallet)
-                    .await
-                    .map(|m| Box::new(m) as Box<dyn Mailbox>)
-                    .map_err(Into::into)
+                let protected_estimator = if let Some(config) = &conf.mev_submission {
+                    let mut protected_conf = conf.clone();
+                    protected_conf.rpc_connection = h_eth::RpcConnectionConf::HttpFallback {
+                        urls: config.rpc_urls.clone(),
+                    };
+                    protected_conf.mev_submission = None;
+                    Some(
+                        self.build_ethereum(
+                            &protected_conf,
+                            &locator,
+                            metrics,
+                            h_eth::MailboxEstimateBuilder {},
+                        )
+                        .await?,
+                    )
+                } else {
+                    None
+                };
+                self.build_ethereum(
+                    conf,
+                    &locator,
+                    metrics,
+                    h_eth::MailboxBuilder {
+                        protected_estimator,
+                    },
+                )
+                .await
             }
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
@@ -422,6 +448,24 @@ impl ChainConf {
                 let tx_submitter =
                     build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
 
+                let ccs_signer: Option<Arc<dyn hyperlane_core::HyperlaneSigner>> =
+                    if conf.ur_reveal.is_some() && keypair.is_some() {
+                        match &self.ccs_signer {
+                            Some(config) => match config.build::<h_eth::Signers>().await {
+                                Ok(signer) => Some(Arc::new(signer)),
+                                Err(error) => {
+                                    warn!(chain = %self.domain.name(), %error, "CCS signer unavailable; automated UR reveals disabled");
+                                    None
+                                }
+                            },
+                            None => {
+                                warn!(chain = %self.domain.name(), "No ccsSigner configured; automated UR reveals disabled");
+                                None
+                            }
+                        }
+                    } else {
+                        None
+                    };
                 h_sealevel::SealevelMailbox::new(
                     provider,
                     tx_submitter,
@@ -430,7 +474,7 @@ impl ChainConf {
                     keypair.map(h_sealevel::SealevelKeypair::new),
                     identity_keypair.map(h_sealevel::SealevelKeypair::new),
                 )
-                .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                .map(|m| Box::new(m.with_ccs_signer(ccs_signer)) as Box<dyn Mailbox>)
                 .map_err(Into::into)
             }
             ChainConnectionConf::Cosmos(conf) => {
@@ -491,9 +535,6 @@ impl ChainConf {
             ChainConnectionConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::MerkleTreeHookBuilder {})
                     .await
-            }
-            ChainConnectionConf::Fuel(_conf) => {
-                todo!("Fuel does not support merkle tree hooks yet")
             }
             ChainConnectionConf::Sealevel(conf) => {
                 let provider =
@@ -568,7 +609,6 @@ impl ChainConf {
                 )
                 .await
             }
-            ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let provider =
                     Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
@@ -657,7 +697,6 @@ impl ChainConf {
                 )
                 .await
             }
-            ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let provider =
                     Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
@@ -740,7 +779,6 @@ impl ChainConf {
                 )
                 .await
             }
-            ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let provider =
                     Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
@@ -822,7 +860,6 @@ impl ChainConf {
                 )
                 .await
             }
-            ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let provider =
                     Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
@@ -844,8 +881,13 @@ impl ChainConf {
                 ));
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
-            ChainConnectionConf::Starknet(_) => {
-                let indexer = Box::new(h_starknet::StarknetInterchainGasPaymasterIndexer {});
+            ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let indexer = Box::new(h_starknet::StarknetInterchainGasPaymasterIndexer::new(
+                    provider,
+                    locator.address,
+                    &self.reorg_period,
+                )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -940,7 +982,6 @@ impl ChainConf {
                 )
                 .await
             }
-            ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let provider =
                     Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
@@ -1007,6 +1048,25 @@ impl ChainConf {
         .context(ctx)
     }
 
+    /// Build an announcement reader without Ethereum transaction middleware.
+    pub async fn build_validator_announce_reader(
+        &self,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn ValidatorAnnounce>> {
+        if let ChainConnectionConf::Ethereum(conf) = &self.connection {
+            let locator = self.locator(self.addresses.validator_announce);
+            self.build_ethereum(
+                conf,
+                &locator,
+                metrics,
+                h_eth::ValidatorAnnounceReaderBuilder {},
+            )
+            .await
+        } else {
+            self.build_validator_announce(metrics).await
+        }
+    }
+
     /// Try to convert the chain settings into a ValidatorAnnounce
     pub async fn build_validator_announce(
         &self,
@@ -1019,7 +1079,6 @@ impl ChainConf {
                 self.build_ethereum(conf, &locator, metrics, h_eth::ValidatorAnnounceBuilder {})
                     .await
             }
-            ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let signer = self.sealevel_signer().await.context(ctx)?;
                 let provider =
@@ -1115,7 +1174,6 @@ impl ChainConf {
                 )
                 .await
             }
-            ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
                 let provider =
@@ -1183,7 +1241,6 @@ impl ChainConf {
                 self.build_ethereum(conf, &locator, metrics, h_eth::MultisigIsmBuilder {})
                     .await
             }
-            ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
                 let provider =
@@ -1279,7 +1336,6 @@ impl ChainConf {
                 self.build_ethereum(conf, &locator, metrics, h_eth::RoutingIsmBuilder {})
                     .await
             }
-            ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support routing ISM yet")).context(ctx)
             }
@@ -1339,7 +1395,6 @@ impl ChainConf {
                 self.build_ethereum(conf, &locator, metrics, h_eth::AggregationIsmBuilder {})
                     .await
             }
-            ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support aggregation ISM yet")).context(ctx)
             }
@@ -1395,7 +1450,6 @@ impl ChainConf {
                 self.build_ethereum(conf, &locator, metrics, h_eth::CcipReadIsmBuilder {})
                     .await
             }
-            ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => {
                 Err(eyre!("Sealevel does not support CCIP read ISM yet")).context(ctx)
             }
@@ -1436,9 +1490,6 @@ impl ChainConf {
         if let Some(conf) = &self.signer {
             let chain_signer: Box<dyn ChainSigner> = match &self.connection {
                 ChainConnectionConf::Ethereum(_) => Box::new(conf.build::<h_eth::Signers>().await?),
-                ChainConnectionConf::Fuel(_) => {
-                    Box::new(conf.build::<fuels::prelude::WalletUnlocked>().await?)
-                }
                 ChainConnectionConf::Sealevel(_) => {
                     Box::new(conf.build::<h_sealevel::Keypair>().await?)
                 }
@@ -1464,12 +1515,6 @@ impl ChainConf {
     /// Build an ethereum signer
     async fn ethereum_signer(&self) -> Result<Option<h_eth::Signers>> {
         self.signer().await
-    }
-
-    async fn fuel_signer(&self) -> Result<fuels::prelude::WalletUnlocked> {
-        self.signer().await.and_then(|opt| {
-            opt.ok_or_else(|| eyre!("Fuel requires a signer to construct contract instances"))
-        })
     }
 
     async fn sealevel_signer(&self) -> Result<Option<h_sealevel::Keypair>> {
@@ -1621,8 +1666,9 @@ fn build_sealevel_provider(
     let client_metrics = metrics.client_metrics();
 
     let chain = middleware_metrics.chain.clone();
-    let urls = conf.urls.clone();
+    let urls = conf.urls.expose_secret().clone();
     let rpc_client = SealevelFallbackRpcClient::from_urls(
+        "rpcUrls",
         chain,
         urls,
         client_metrics,

@@ -24,7 +24,7 @@ export type AnyAleoNetworkClient =
 export type AnyProgramManager = MainnetProgramManager | TestnetProgramManager;
 
 export class AleoBase {
-  protected readonly rpcUrls: string[];
+  protected readonly rpcUrls: [string, ...string[]];
   protected readonly chainId: number;
   protected readonly sdk: AleoSdk;
 
@@ -39,13 +39,17 @@ export class AleoBase {
 
   constructor(rpcUrls: string[], chainId: string | number, sdk: AleoSdk) {
     const aleoNetworkId = toAleoNetworkId(+chainId);
-    assert(rpcUrls.length > 0, `got no rpcUrls`);
+    const [rpcUrl, ...otherRpcUrls] = rpcUrls;
+    assert(rpcUrl, `got no rpcUrls`);
 
     // because the aleo provable sdk appends /testnet or /mainnet to the base
     // rpc automatically we need to remove it here
-    this.rpcUrls = rpcUrls.map((r) =>
-      r.replaceAll('/testnet', '').replaceAll('/mainnet', ''),
-    );
+    const normalizeRpcUrl = (url: string) =>
+      url.replaceAll('/testnet', '').replaceAll('/mainnet', '');
+    this.rpcUrls = [
+      normalizeRpcUrl(rpcUrl),
+      ...otherRpcUrls.map(normalizeRpcUrl),
+    ];
     this.chainId = aleoNetworkId;
     this.sdk = sdk;
 

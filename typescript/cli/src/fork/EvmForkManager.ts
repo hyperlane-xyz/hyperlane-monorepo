@@ -63,6 +63,8 @@ type SpawnAnvil = (config: EvmForkManagerConfig) => AnvilProcessHandle;
 export type WaitForEvmRpcReady = (
   provider: JsonRpcProvider,
   signal: AbortSignal,
+  chainName: ChainName,
+  chainId: string | number,
 ) => Promise<void>;
 
 interface StartEvmForkDeps {
@@ -70,17 +72,48 @@ interface StartEvmForkDeps {
   waitForReady: WaitForEvmRpcReady;
 }
 
+// The registry currently marks Arc's technicalStack as "other". Match its
+// canonical name and known network IDs so custom metadata names also work.
+const ARC_CHAIN_NAMES = new Set(['arc', 'arctestnet']);
+const ARC_CHAIN_IDS = new Set(['5042', '5042002']);
+
+function isArcChain(chainName: ChainName, chainId: string | number): boolean {
+  return ARC_CHAIN_NAMES.has(chainName) || ARC_CHAIN_IDS.has(String(chainId));
+}
+
+export function getAnvilCommand(config: EvmForkManagerConfig): {
+  binary: string;
+  args: string[];
+} {
+  const isArc = isArcChain(config.chainName, config.chainId);
+  return {
+    binary: isArc ? 'arc-anvil' : 'anvil',
+    args: [
+      '--port',
+      String(config.port),
+      '--chain-id',
+      String(config.chainId),
+      '--fork-url',
+      config.upstreamRpcUrl,
+      // Arc derives its block gas limit from protocol configuration and rejects
+      // this flag. Keep the existing behavior for other EVM chains.
+      ...(!isArc ? ['--disable-block-gas-limit'] : []),
+    ],
+  };
+}
+
 function defaultSpawnAnvil(config: EvmForkManagerConfig): AnvilProcessHandle {
-  return execa`anvil --port ${config.port} --chain-id ${config.chainId} --fork-url ${config.upstreamRpcUrl} --disable-block-gas-limit`;
+  const { binary, args } = getAnvilCommand(config);
+  return execa(binary, args);
 }
 
 /**
- * execa renders the full anvil command — including the credential-bearing
+ * execa renders the full Anvil command — including the credential-bearing
  * `--fork-url` argument — into its error's message/command fields, and shell-
  * quotes it, so a URL containing a quote survives an exact-string strip. We
  * therefore surface a fixed error derived from none of execa's rendered-command
  * fields, copying only non-command diagnostics so failures stay debuggable.
- * anvil has no env option for `--fork-url`, so the URL stays in argv (visible to
+ * Anvil has no env option for `--fork-url`, so the URL stays in argv (visible to
  * a local-machine `ps` only); this keeps it out of every error we log or rethrow.
  */
 class AnvilStartError extends Error {
@@ -89,14 +122,27 @@ class AnvilStartError extends Error {
   signalDescription?: unknown;
   code?: unknown;
 
-  constructor() {
-    super('anvil failed to start');
+  constructor(binary: string, missingBinary: boolean) {
+    super(
+      missingBinary && binary === 'arc-anvil'
+        ? 'arc-anvil not found on PATH; install Arc Foundry from https://github.com/circlefin/arc-foundry'
+        : `${binary} failed to start`,
+    );
     this.name = 'AnvilStartError';
   }
 }
 
-function sanitizeAnvilError(error: unknown): AnvilStartError {
-  const sanitized = new AnvilStartError();
+function sanitizeAnvilError(
+  error: unknown,
+  config: EvmForkManagerConfig,
+): AnvilStartError {
+  const binary = getAnvilCommand(config).binary;
+  const missingBinary =
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === 'ENOENT';
+  const sanitized = new AnvilStartError(binary, missingBinary);
   if (typeof error === 'object' && error !== null) {
     if ('exitCode' in error) sanitized.exitCode = error.exitCode;
     if ('signal' in error) sanitized.signal = error.signal;
@@ -108,9 +154,11 @@ function sanitizeAnvilError(error: unknown): AnvilStartError {
   return sanitized;
 }
 
-async function waitForEvmRpcReady(
+export async function waitForEvmRpcReady(
   provider: JsonRpcProvider,
   signal: AbortSignal,
+  chainName: ChainName,
+  chainId: string | number,
 ): Promise<void> {
   await waitUntilReady(
     () =>
@@ -121,6 +169,21 @@ async function waitForEvmRpcReady(
       ),
     { attempts: 10, baseRetryMs: 500, signal },
   );
+
+  if (isArcChain(chainName, chainId)) {
+    const nodeInfo: unknown = await timeout(
+      provider.send('anvil_nodeInfo', []),
+      RPC_PROBE_TIMEOUT_MS,
+      'Arc Anvil mode probe timed out',
+    );
+    assert(
+      typeof nodeInfo === 'object' &&
+        nodeInfo !== null &&
+        'network' in nodeInfo &&
+        nodeInfo.network === 'arc',
+      'Arc Anvil did not start in Arc mode',
+    );
+  }
 }
 
 const DEFAULT_START_EVM_FORK_DEPS: StartEvmForkDeps = {
@@ -193,7 +256,7 @@ async function startEvmFork(
       // A synchronous spawn throw (e.g. execa rejecting an argument that
       // contains a NUL byte) can embed the credential-bearing URL in its
       // message; sanitize it at the source so it never leaks.
-      throw sanitizeAnvilError(error);
+      throw sanitizeAnvilError(error, config);
     }
 
     const onProcessExit = (): void => {
@@ -224,7 +287,12 @@ async function startEvmFork(
     // Abort the readiness probe the instant the race settles so no retry timer
     // keeps polling a dead port after anvil exits before its RPC is ready.
     const controller = new AbortController();
-    const readiness = deps.waitForReady(provider, controller.signal);
+    const readiness = deps.waitForReady(
+      provider,
+      controller.signal,
+      config.chainName,
+      config.chainId,
+    );
     // Reject if anvil exits before its RPC is ready (e.g. the port is already
     // occupied) so we never treat another process's RPC as our fork.
     const exited = anvilProcess.then(
@@ -232,7 +300,7 @@ async function startEvmFork(
         throw new Error('anvil exited before its RPC was ready');
       },
       (error: unknown) => {
-        throw sanitizeAnvilError(error);
+        throw sanitizeAnvilError(error, config);
       },
     );
     // A later exit (e.g. on kill once readiness has won) must not surface as an
@@ -315,13 +383,15 @@ export class EvmForkManager implements IForkManager<ForkedChainConfig> {
 export function createEvmForkManagerFactory(
   multiProvider: MultiProvider,
 ): ForkManagerFactory {
-  return (ctx) =>
-    new EvmForkManager({
-      chainName: ctx.chainName,
-      chainId: multiProvider.getChainMetadata(ctx.chainName).chainId,
+  return (ctx) => {
+    const metadata = multiProvider.getChainMetadata(ctx.chainName);
+    return new EvmForkManager({
+      chainName: metadata.name,
+      chainId: metadata.chainId,
       upstreamRpcUrl: ctx.upstreamRpcUrl,
       port: ctx.port,
     });
+  };
 }
 
 async function handleImpersonations(

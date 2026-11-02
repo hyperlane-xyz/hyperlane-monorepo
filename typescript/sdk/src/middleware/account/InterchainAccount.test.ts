@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { BigNumber, constants, utils } from 'ethers';
+import { BigNumber, VoidSigner, constants, providers, utils } from 'ethers';
 import sinon from 'sinon';
 
 import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
@@ -204,11 +204,20 @@ describe('InterchainAccount.getAccount', () => {
       'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)': sinon
         .stub()
         .resolves(expectedAccount()),
+      'getLocalInterchainAccount(uint32,address,address,address)': sinon
+        .stub()
+        .resolves(expectedAccount()),
       'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)':
         sinon.stub().resolves({ hash: '0x1234' }),
+      'getDeployedInterchainAccount(uint32,address,address,address)': sinon
+        .stub()
+        .resolves({ hash: '0x1234' }),
       estimateGas: {
         'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)':
           sinon.stub().resolves(BigNumber.from(100_000)),
+        'getDeployedInterchainAccount(uint32,address,address,address)': sinon
+          .stub()
+          .resolves(BigNumber.from(100_000)),
       },
     };
     const provider = {
@@ -216,6 +225,7 @@ describe('InterchainAccount.getAccount', () => {
     };
     const multiProvider = {
       getProvider: sinon.stub().returns(provider),
+      getSignerOrProvider: sinon.stub().returns(provider),
       getTransactionOverrides: sinon.stub().returns({}),
       handleTx: sinon.stub().resolves(),
       getProtocol: sinon.stub().returns(protocol),
@@ -316,6 +326,66 @@ describe('InterchainAccount.getAccount', () => {
     expect(destinationRouter.isms.called).to.be.false;
   });
 
+  it('derives V2 and V3 accounts in parallel using the selected destination router', async () => {
+    const { app, destinationRouter } = createApp();
+    const v3Address = '0x' + '66'.repeat(20);
+    const v3Origin = '0x' + '77'.repeat(20);
+    const v3Hash = '0x' + '88'.repeat(32);
+    const v3Provider = new providers.JsonRpcProvider();
+    const signer = new VoidSigner(owner, v3Provider);
+    app.multiProvider.getSignerOrProvider.returns(signer);
+    const v3Router = InterchainAccountRouter__factory.connect(
+      v3Address,
+      v3Provider,
+    );
+    const call = sinon.stub(v3Provider, 'call');
+    call.callsFake(async (tx) => {
+      const data = await tx.data;
+      if (data === v3Router.interface.encodeFunctionData('bytecodeHash')) {
+        return utils.defaultAbiCoder.encode(['bytes32'], [v3Hash]);
+      }
+      if (
+        data === v3Router.interface.encodeFunctionData('isms', [originDomain])
+      ) {
+        return utils.defaultAbiCoder.encode(['bytes32'], [constants.HashZero]);
+      }
+      throw new Error(`Unexpected V3 router call: ${data}`);
+    });
+    const connect = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .returns(v3Router);
+    const userSalt = '0x' + '99'.repeat(32);
+    const v3Salt = utils.solidityKeccak256(
+      ['uint32', 'bytes32', 'bytes32', 'bytes32', 'bytes32'],
+      [
+        originDomain,
+        addressToBytes32(owner),
+        addressToBytes32(v3Origin),
+        constants.HashZero,
+        userSalt,
+      ],
+    );
+
+    expect(await app.getAccount(destination, { origin, owner })).to.equal(
+      expectedAccount(),
+    );
+    expect(
+      await app.getAccount(destination, {
+        origin,
+        owner,
+        localRouter: addressToBytes32(v3Origin),
+        routerOverride: addressToBytes32(v3Address),
+        userSalt,
+      }),
+    ).to.equal(utils.getCreate2Address(v3Address, v3Salt, v3Hash));
+    sinon.assert.calledOnceWithExactly(connect, v3Address, signer);
+    sinon.assert.calledOnce(destinationRouter.bytecodeHash);
+    sinon.assert.calledTwice(call);
+    expect(await app.getAccount(destination, { origin, owner })).to.equal(
+      expectedAccount(),
+    );
+  });
+
   it('preserves custom salts and bytes32 normalization', async () => {
     const accountOwner = '0x' + '66'.repeat(32);
     const router = `0x${'77'.repeat(12)}${'88'.repeat(20)}`;
@@ -395,6 +465,90 @@ describe('InterchainAccount.getAccount', () => {
     expect(app.knownAccounts[account]).to.deep.equal(config);
   });
 
+  for (const userSalt of [undefined, InterchainAccount.EMPTY_SALT]) {
+    it(`supports pre-salt router lookup and deployment with salt ${userSalt}`, async () => {
+      const missingSelector = Object.assign(new Error('missing selector'), {
+        code: 'CALL_EXCEPTION',
+        data: '0x',
+      });
+      const { app, destinationRouter, multiProvider } = createApp({
+        hash: missingSelector,
+      });
+      destinationRouter[
+        'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+      ].rejects(missingSelector);
+      const config = { origin, owner, userSalt };
+
+      expect(await app.deployAccount(destination, config)).to.equal(
+        expectedAccount(),
+      );
+      sinon.assert.calledOnceWithExactly(
+        destinationRouter[
+          'getLocalInterchainAccount(uint32,address,address,address)'
+        ],
+        originDomain,
+        owner,
+        originRouterAddress,
+        ismAddress,
+      );
+      sinon.assert.calledOnce(
+        destinationRouter.estimateGas[
+          'getDeployedInterchainAccount(uint32,address,address,address)'
+        ],
+      );
+      sinon.assert.calledOnce(
+        destinationRouter[
+          'getDeployedInterchainAccount(uint32,address,address,address)'
+        ],
+      );
+      sinon.assert.notCalled(
+        destinationRouter.estimateGas[
+          'getDeployedInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+        ],
+      );
+      sinon.assert.calledOnce(multiProvider.handleTx);
+    });
+  }
+
+  it('does not discard custom salts or mask lookup failures on pre-salt routers', async () => {
+    const missingSelector = Object.assign(new Error('missing selector'), {
+      code: 'CALL_EXCEPTION',
+      data: '0x',
+    });
+    const rpcError = Object.assign(new Error('RPC unavailable'), {
+      code: 'CALL_EXCEPTION',
+      data: '0x',
+      error: { code: -32000, message: 'header not found' },
+    });
+    const revert = Object.assign(new Error('lookup reverted'), {
+      code: 'CALL_EXCEPTION',
+      data: '0x12345678',
+    });
+    for (const [error, userSalt] of [
+      [missingSelector, '0x' + 'ab'.repeat(32)],
+      [rpcError, undefined],
+      [revert, undefined],
+    ] as const) {
+      const { app, destinationRouter } = createApp({ hash: missingSelector });
+      destinationRouter[
+        'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+      ].rejects(error);
+      const caught = await app
+        .getAccount(destination, { origin, owner, userSalt })
+        .then(
+          () => undefined,
+          (caught: unknown) => caught,
+        );
+
+      expect(caught).to.equal(error);
+      sinon.assert.notCalled(
+        destinationRouter[
+          'getLocalInterchainAccount(uint32,address,address,address)'
+        ],
+      );
+    }
+  });
+
   it('rejects a destination without an ICA router', async () => {
     const { app } = createApp({ configuredDestination: false });
     let caught: unknown;
@@ -431,6 +585,10 @@ describe('InterchainAccount.getCallRemote', () => {
   let multiProvider: MultiProvider;
   let app: InterchainAccount;
   let mockLocalRouter: Record<string, any>;
+  let connectRouter: sinon.SinonStub<
+    Parameters<typeof InterchainAccountRouter__factory.connect>,
+    ReturnType<typeof InterchainAccountRouter__factory.connect>
+  >;
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
@@ -458,7 +616,7 @@ describe('InterchainAccount.getCallRemote', () => {
       },
     };
 
-    sandbox
+    connectRouter = sandbox
       .stub(InterchainAccountRouter__factory, 'connect')
       .returns(mockLocalRouter as any);
   });
@@ -476,6 +634,28 @@ describe('InterchainAccount.getCallRemote', () => {
   };
 
   const baseCalls = [{ to: randomAddress(), data: '0x', value: '0' }];
+
+  it('normalizes bytes32 source and destination router overrides', async () => {
+    await app.getCallRemote({
+      chain,
+      destination,
+      innerCalls: baseCalls,
+      config: {
+        ...baseConfig,
+        localRouter: addressToBytes32(baseConfig.localRouter),
+        routerOverride: addressToBytes32(baseConfig.routerOverride),
+      },
+    });
+
+    sinon.assert.calledWith(
+      connectRouter,
+      bytes32ToAddress(baseConfig.localRouter),
+    );
+    sinon.assert.calledWith(
+      connectRouter,
+      bytes32ToAddress(baseConfig.routerOverride),
+    );
+  });
 
   it('uses IGP default gas when hookMetadata is missing', async () => {
     await app.getCallRemote({
@@ -581,7 +761,7 @@ describe('InterchainAccount.getCallRemote', () => {
     sandbox
       .stub(InterchainAccountRouter__factory, 'connect')
       .callsFake((address: string) => {
-        if (address === destRouterAddress) {
+        if (address.toLowerCase() === destRouterAddress.toLowerCase()) {
           return mockDestRouter as any;
         }
         return mockLocalRouter as any;
@@ -695,6 +875,30 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
     expect(result.toString()).to.equal(expectedWithBuffer.toString());
   });
 
+  it('normalizes a bytes32 destination router override for handle estimation', async () => {
+    const router = app.getContracts(destination).interchainAccountRouter;
+    const connect = sandbox
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .returns(router);
+    mockDestRouter.estimateGas.handle.resolves(BigNumber.from(100_000));
+
+    await app.estimateIcaHandleGas({
+      origin: chain,
+      destination,
+      innerCalls: baseCalls,
+      config: {
+        ...baseConfig,
+        routerOverride: addressToBytes32(router.address),
+      },
+    });
+
+    sinon.assert.calledOnce(connect);
+    expect(connect.firstCall.args).to.deep.equal([
+      bytes32ToAddress(router.address),
+      mockProvider,
+    ]);
+  });
+
   it('falls back to individual estimation when handle() fails', async () => {
     mockDestRouter.estimateGas.handle.rejects(new Error('handle failed'));
 
@@ -732,7 +936,12 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
   it('falls back to legacy ICA account lookup for individual estimation', async () => {
     mockDestRouter[
       'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
-    ].rejects(new Error('missing overload'));
+    ].rejects(
+      Object.assign(new Error('missing overload'), {
+        code: 'CALL_EXCEPTION',
+        data: '0x',
+      }),
+    );
     mockDestRouter.estimateGas.handle.rejects(new Error('handle failed'));
     mockProvider.estimateGas.resolves(BigNumber.from(30_000));
 

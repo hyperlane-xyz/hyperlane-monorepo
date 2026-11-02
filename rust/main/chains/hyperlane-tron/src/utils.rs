@@ -1,23 +1,16 @@
-use std::time::Duration;
+use hyperlane_metric::utils::url_to_host_info;
 
-use ethers::providers::Http;
 use ethers_core::k256::sha2::{Digest, Sha256};
 use prost::Message;
-use reqwest::Client;
 use tron_rs::tron::protocol::transaction;
 use url::Url;
 
 use ethers_prometheus::json_rpc_client::{JsonRpcBlockGetter, PrometheusJsonRpcClient};
-use hyperlane_core::{rpc_clients::FallbackProvider, ChainCommunicationError, ChainResult, H256};
-use hyperlane_ethereum::EthereumFallbackProvider;
+use hyperlane_core::{rpc_clients::FallbackProvider, ChainResult, H256};
+use hyperlane_ethereum::{build_http_provider, EthereumFallbackProvider, StatusAwareHttp};
 use hyperlane_metric::prometheus_metric::{
     self, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
-use reqwest_utils::parse_custom_rpc_headers;
-
-use crate::HyperlaneTronError;
-
-const HTTP_CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Returns the ref block bytes according to the specification here: https://developers.tron.network/docs/faq#19-how-to-set-reference-block-information-for-a-transaction
 pub(crate) fn calculate_ref_block_bytes(number: i64) -> Vec<u8> {
@@ -37,8 +30,8 @@ pub(crate) fn calculate_txid(raw_data: &transaction::Raw) -> H256 {
 }
 
 pub(crate) type JsonProvider = EthereumFallbackProvider<
-    PrometheusJsonRpcClient<Http>,
-    JsonRpcBlockGetter<PrometheusJsonRpcClient<Http>>,
+    PrometheusJsonRpcClient<StatusAwareHttp>,
+    JsonRpcBlockGetter<PrometheusJsonRpcClient<StatusAwareHttp>>,
 >;
 
 pub(crate) fn build_fallback_provider(
@@ -53,7 +46,11 @@ pub(crate) fn build_fallback_provider(
             wrap_rpc_with_metrics(http_provider, url.clone(), metrics.clone(), chain.clone());
         builder = builder.add_provider(metrics_provider);
     }
-    let fallback_provider = builder.build();
+    let fallback_provider = builder.build().with_rpc_context(
+        PrometheusConfig::chain_name(&chain).to_owned(),
+        "rpcUrls",
+        rpcs.iter().map(url_to_host_info).collect(),
+    );
     let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider, false);
 
     Ok(ethereum_fallback_provider)
@@ -73,27 +70,76 @@ fn wrap_rpc_with_metrics<C>(
     )
 }
 
-fn build_http_provider(url: Url) -> ChainResult<Http> {
-    let client = get_reqwest_client(&url)?;
-    Ok(Http::new_with_client(url, client))
-}
-
-/// Gets a cached reqwest client for the given URL, or builds a new one if it doesn't exist.
-fn get_reqwest_client(url: &Url) -> ChainResult<Client> {
-    let (headers, _) =
-        parse_custom_rpc_headers(url).map_err(ChainCommunicationError::from_other)?;
-    let client = Client::builder()
-        .timeout(HTTP_CLIENT_TIMEOUT)
-        .default_headers(headers)
-        .build()
-        .map_err(HyperlaneTronError::from)?;
-
-    Ok(client)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn json_rpc_pool_strips_custom_header_query_and_transport_error_urls() {
+        use ethers::providers::JsonRpcClient;
+        use tokio::{
+            io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
+            net::TcpListener,
+        };
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
+        let address = listener.local_addr().expect("address");
+        let url = format!("http://private-user:private-password@{address}/private-path?api-key=private-query&custom_rpc_header=x-api-key:private-header")
+            .parse().expect("test URL");
+        let pool = build_fallback_provider(&vec![url], Default::default(), None).expect("pool");
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.expect("request");
+            let mut socket = BufReader::new(socket);
+            let mut request = String::new();
+            let mut content_length = 0;
+            loop {
+                let mut line = String::new();
+                assert!(socket.read_line(&mut line).await.expect("header") > 0);
+                if let Some((name, value)) = line.split_once(':') {
+                    if name.eq_ignore_ascii_case("content-length") {
+                        content_length = value.trim().parse::<usize>().expect("request length");
+                    }
+                }
+                request.push_str(&line);
+                if line == "\r\n" {
+                    break;
+                }
+            }
+            assert!(request.starts_with("POST /private-path?api-key=private-query HTTP/1.1"));
+            assert!(request.contains("x-api-key: private-header"));
+            assert!(!request.contains("custom_rpc_header"));
+            let mut request_body = vec![0; content_length];
+            socket
+                .read_exact(&mut request_body)
+                .await
+                .expect("request body");
+            let body = r#"{"jsonrpc":"2.0","id":1,"result":"0x1"}"#;
+            socket
+                .get_mut()
+                .write_all(
+                    format!(
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                        body.len()
+                    )
+                    .as_bytes(),
+                )
+                .await
+                .expect("response");
+        });
+        let result: String = pool.inner.providers[0]
+            .request("eth_blockNumber", ())
+            .await
+            .expect("RPC result");
+        assert_eq!(result, "0x1");
+        server.await.expect("server");
+        let error = pool
+            .request::<_, String>("eth_blockNumber", ())
+            .await
+            .expect_err("closed server");
+        let output = format!("{pool:?} {error:?} {error}");
+        assert!(!output.contains("private-"));
+        assert!(output.contains("AllProvidersFailed"));
+    }
 
     #[test]
     fn test_calculate_ref_block_bytes() {

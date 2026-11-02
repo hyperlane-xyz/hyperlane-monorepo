@@ -22,6 +22,7 @@ fn test_configuration_fields() {
         signer: Some(SignerConf::HexKey {
             key: Default::default(),
         }),
+        ccs_signer: None,
         identity: None,
         submitter: SubmitterType::Lander,
         estimated_block_time: expected_estimated_block_time,
@@ -29,7 +30,7 @@ fn test_configuration_fields() {
         addresses: Default::default(),
         connection: ChainConnectionConf::Sealevel(hyperlane_sealevel::ConnectionConf {
             max_supported_transaction_version: 0,
-            urls: vec![],
+            urls: vec![].into(),
             op_submission_config: OpSubmissionConfig {
                 batch_contract_address: None,
                 max_batch_size: expected_max_batch_size,

@@ -8,7 +8,6 @@ use std::{
     fs,
     path::Path,
     sync::atomic::Ordering,
-    thread::sleep,
     time::{Duration, Instant},
 };
 
@@ -26,7 +25,7 @@ use crate::{
     sealevel::{sealevel_termination_invariants::*, solana::*},
     utils::{
         concat_path, get_sealevel_path, get_ts_infra_path, get_workspace_path, make_static,
-        start_postgres, TaskHandle,
+        poll_until, start_postgres, TaskHandle,
     },
     wait_for_condition, State, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT,
 };
@@ -246,9 +245,6 @@ fn run_locally() {
         .join();
     state.push_agent(scraper_env.spawn("SCR", None));
 
-    // sleep some more to avoid flakes when sending transfers below
-    sleep(Duration::from_secs(10));
-
     // Send messages BEFORE agents start (test backward indexing cursor)
     // Half to sealeveltest2 (will use versioned tx with ALT)
     for _i in 0..(SOL_MESSAGES_EXPECTED_SEALEVELTEST2 / 2) {
@@ -266,6 +262,9 @@ fn run_locally() {
         )
         .join();
     }
+
+    // Agents index at finalized; wait so the messages above are only reachable by backfill.
+    wait_for_finalized(&solana_cli_tools_path, &solana_config_path);
 
     // spawn validators (single validator on sealeveltest1 only)
     for (i, validator_env) in validator_envs.into_iter().enumerate() {
@@ -311,14 +310,10 @@ fn run_locally() {
     log!("Ctrl+C to end execution...");
 
     let loop_start = Instant::now();
-    // give things a chance to fully start.
-    sleep(Duration::from_secs(10));
-
-    if !post_startup_invariants(&checkpoints_dirs) {
-        panic!("Failure: Post startup invariants are not met");
-    } else {
-        log!("Success: Post startup invariants are met");
-    }
+    poll_until("post startup invariants", Duration::from_secs(60), || {
+        post_startup_invariants(&checkpoints_dirs)
+    });
+    log!("Success: Post startup invariants are met");
 
     let starting_relayer_balance: f64 = agent_balance_sum(9092).unwrap();
 

@@ -30,11 +30,6 @@ const ConfigSchema = z.object({
     .int()
     .min(1_000)
     .default(1_800_000),
-  EVENT_STREAM_HISTORY_MAX_ROWS: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .default(1_000_000),
   EVENT_STREAM_MAX_AGENT_CLIENTS: z.coerce
     .number()
     .int()
@@ -52,6 +47,7 @@ const ConfigSchema = z.object({
     .min(1_024)
     .default(33_554_432),
   GRAPHQL_MAX_ACTIVE_REQUESTS: z.coerce.number().int().min(1).default(25),
+  GRAPHQL_MAX_ACTIVE_UPLOADS: z.coerce.number().int().min(1).default(50),
   PORT: z.coerce.number().int().positive().default(8383),
 });
 

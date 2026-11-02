@@ -77,7 +77,7 @@ const MAILBOX: Address = address(
 );
 const ISM = address('4U8MZmUnwVb3rEsuX7xZcHjm3Jb4oCv1N8rwh6R1TKFV');
 const FALLBACK_ISM = address('LwNfVYMDzAe5dCJgA5CipTZcT34Eyf74zLr81K91jxk');
-const ORIGINS = [8453, 42161];
+const ORIGINS = [8453, 42161] as const;
 const IGP_PROGRAM: Address = address(
   'BCYqLqWsXmA3sP7VBR1G64rUQXqXM6JzkqpYxbFv5Yu1',
 );
@@ -1067,6 +1067,7 @@ function stubAltWriter(yieldAddresses: Address[]) {
   let i = 0;
   writer.create.callsFake(async () => {
     const addr = yieldAddresses[i++];
+    assert(addr, 'Stub ALT address queue exhausted');
     return [
       {
         artifactState: ArtifactState.DEPLOYED,

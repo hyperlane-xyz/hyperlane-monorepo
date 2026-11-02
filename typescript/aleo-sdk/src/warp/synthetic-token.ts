@@ -26,6 +26,7 @@ import {
 import { getSyntheticWarpTokenConfig } from './warp-query.js';
 import {
   getCreateSyntheticTokenTx,
+  scaleToRemoteDecimals,
   getPostDeploymentUpdateTxs,
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
@@ -111,6 +112,7 @@ export class AleoSyntheticTokenWriter
     ]
   > {
     const { config } = artifact;
+    const remoteDecimals = scaleToRemoteDecimals(config.decimals, config.scale);
     const allReceipts: AleoReceipt[] = [];
     const signerAddress = this.signer.getSignerAddress();
 
@@ -143,6 +145,7 @@ export class AleoSyntheticTokenWriter
       config.name,
       config.symbol,
       config.decimals,
+      remoteDecimals,
     );
     const initReceipt = await this.signer
       .sendAndConfirmTransaction(initTx)

@@ -13,6 +13,7 @@ use rusoto_kms::KmsClient;
 use tracing::instrument;
 
 use hyperlane_core::{AccountAddressType, H256};
+use redact::Secret;
 
 use super::aws_credentials::AwsChainCredentialsProvider;
 use crate::types::utils;
@@ -98,7 +99,7 @@ pub enum SignerConf {
     /// A local hex key
     HexKey {
         /// Private key value
-        key: H256,
+        key: Secret<H256>,
     },
     /// An AWS signer. Note that AWS credentials must be inserted into the env
     /// separately.
@@ -118,7 +119,7 @@ pub enum SignerConf {
     /// Cosmos Specific key
     CosmosKey {
         /// Private key value
-        key: H256,
+        key: Secret<H256>,
         /// Prefix for cosmos address
         prefix: String,
         /// Account address type for cosmos address
@@ -127,14 +128,14 @@ pub enum SignerConf {
     /// Radix Specific key
     RadixKey {
         /// private key
-        key: H256,
+        key: Secret<H256>,
         /// suffix for address formatting
         suffix: String,
     },
     /// Starknet Specific key
     StarkKey {
         /// Private key value
-        key: H256,
+        key: Secret<H256>,
         /// Starknet address
         address: H256,
         /// Whether the Starknet signer is legacy
@@ -146,8 +147,21 @@ pub enum SignerConf {
 }
 
 impl SignerConf {
+    /// Config name of the signer variant, safe to include in error messages.
+    fn variant_name(&self) -> &'static str {
+        match self {
+            SignerConf::HexKey { .. } => "hexKey",
+            SignerConf::Aws { .. } => "aws",
+            SignerConf::Gcp { .. } => "gcp",
+            SignerConf::CosmosKey { .. } => "cosmosKey",
+            SignerConf::RadixKey { .. } => "radixKey",
+            SignerConf::StarkKey { .. } => "starkKey",
+            SignerConf::Node => "node",
+        }
+    }
+
     /// Try to convert the ethereum signer to a local wallet
-    #[instrument(err)]
+    #[instrument(skip(self), fields(signer = self.variant_name()), err)]
     pub async fn build<S: BuildableWithSignerConf>(&self) -> Result<S, Report> {
         S::build(self).await
     }
@@ -174,7 +188,7 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
         Ok(match conf {
             SignerConf::HexKey { key } => hyperlane_ethereum::Signers::Local(LocalWallet::from(
                 ethers::core::k256::ecdsa::SigningKey::from(
-                    ethers::core::k256::SecretKey::from_be_bytes(key.as_bytes())
+                    ethers::core::k256::SecretKey::from_be_bytes(key.expose_secret().as_bytes())
                         .context("Invalid ethereum signer key")?,
                 ),
             )),
@@ -212,7 +226,8 @@ impl BuildableWithSignerConf for hyperlane_tron::TronSigner {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
         match conf {
             SignerConf::HexKey { key } => {
-                let key = ethers::core::k256::SecretKey::from_be_bytes(key.as_bytes())?;
+                let key =
+                    ethers::core::k256::SecretKey::from_be_bytes(key.expose_secret().as_bytes())?;
                 let wallet = ethers::core::k256::ecdsa::SigningKey::from(key);
                 Ok(hyperlane_tron::TronSigner::from(wallet))
             }
@@ -222,7 +237,7 @@ impl BuildableWithSignerConf for hyperlane_tron::TronSigner {
             SignerConf::Gcp { key_version_name } => Ok(hyperlane_tron::TronSigner::Gcp(
                 build_gcp_signer(key_version_name).await?,
             )),
-            _ => bail!(format!("{conf:?} key is not supported by tron")),
+            _ => bail!("{} signer is not supported by tron", conf.variant_name()),
         }
     }
 }
@@ -249,36 +264,15 @@ impl ChainSigner for hyperlane_tron::TronSigner {
 }
 
 #[async_trait]
-impl BuildableWithSignerConf for fuels::prelude::WalletUnlocked {
-    async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        if let SignerConf::HexKey { key } = conf {
-            let key = fuels::crypto::SecretKey::try_from(key.as_bytes())
-                .context("Invalid fuel signer key")?;
-            Ok(fuels::prelude::WalletUnlocked::new_from_private_key(
-                key, None,
-            ))
-        } else {
-            bail!(format!("{conf:?} key is not supported by fuel"));
-        }
-    }
-}
-
-impl ChainSigner for fuels::prelude::WalletUnlocked {
-    fn address_string(&self) -> String {
-        self.address().to_string()
-    }
-    fn address_h256(&self) -> H256 {
-        H256::from_slice(fuels::types::Address::from(self.address()).as_slice())
-    }
-}
-
-#[async_trait]
 impl BuildableWithSignerConf for hyperlane_sealevel::Keypair {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
         if let SignerConf::HexKey { key } = conf {
-            hyperlane_sealevel::create_keypair(key)
+            hyperlane_sealevel::create_keypair(key.expose_secret())
         } else {
-            bail!(format!("{conf:?} key is not supported by sealevel"));
+            bail!(
+                "{} signer is not supported by sealevel",
+                conf.variant_name()
+            );
         }
     }
 }
@@ -302,12 +296,12 @@ impl BuildableWithSignerConf for hyperlane_cosmos::Signer {
         } = conf
         {
             Ok(hyperlane_cosmos::Signer::new(
-                key.as_bytes().to_vec(),
+                key.expose_secret().as_bytes().to_vec(),
                 prefix.clone(),
                 account_address_type,
             )?)
         } else {
-            bail!(format!("{conf:?} key is not supported by cosmos"));
+            bail!("{} signer is not supported by cosmos", conf.variant_name());
         }
     }
 }
@@ -330,9 +324,16 @@ impl BuildableWithSignerConf for hyperlane_starknet::Signer {
             is_legacy,
         } = conf
         {
-            Ok(hyperlane_starknet::Signer::new(key, address, *is_legacy)?)
+            Ok(hyperlane_starknet::Signer::new(
+                key.expose_secret(),
+                address,
+                *is_legacy,
+            )?)
         } else {
-            bail!(format!("{conf:?} key is not supported by starknet"));
+            bail!(
+                "{} signer is not supported by starknet",
+                conf.variant_name()
+            );
         }
     }
 }
@@ -352,11 +353,11 @@ impl BuildableWithSignerConf for hyperlane_radix::RadixSigner {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
         if let SignerConf::RadixKey { key, suffix } = conf {
             Ok(hyperlane_radix::RadixSigner::new(
-                key.as_bytes().to_vec(),
+                key.expose_secret().as_bytes().to_vec(),
                 suffix.to_string(),
             )?)
         } else {
-            bail!(format!("{conf:?} key is not supported by radix"));
+            bail!("{} signer is not supported by radix", conf.variant_name());
         }
     }
 }
@@ -376,9 +377,11 @@ impl ChainSigner for hyperlane_radix::RadixSigner {
 impl BuildableWithSignerConf for hyperlane_aleo::AleoSigner {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
         if let SignerConf::HexKey { key } = conf {
-            Ok(hyperlane_aleo::AleoSigner::new(key.as_bytes())?)
+            Ok(hyperlane_aleo::AleoSigner::new(
+                key.expose_secret().as_bytes(),
+            )?)
         } else {
-            bail!(format!("{conf:?} key is not supported by aleo"));
+            bail!("{} signer is not supported by aleo", conf.variant_name());
         }
     }
 }
@@ -525,29 +528,6 @@ mod tests {
     }
 
     #[test]
-    fn address_h256_fuel() {
-        const PRIVATE_KEY: &str =
-            "0a83ee2a87f328704512567198ee25578c27c707b26fdf3be9ea8bf8588f3b65";
-        const PUBLIC_KEY: &str = "b43425b2256e7dcdd61752808b137b23f4f697cfaf21175ed81d0610ebab5a87";
-
-        let private_key = fuels::crypto::SecretKey::try_from(
-            hex::decode(PRIVATE_KEY)
-                .expect("Failed to decode private key")
-                .as_slice(),
-        )
-        .expect("Failed to create secret key");
-
-        let chain_signer = fuels::prelude::WalletUnlocked::new_from_private_key(private_key, None);
-
-        let address_h256 = H256::from_slice(
-            hex::decode(PUBLIC_KEY)
-                .expect("Failed to decode public key")
-                .as_slice(),
-        );
-        assert_eq!(chain_signer.address_h256(), address_h256);
-    }
-
-    #[test]
     fn address_h256_cosmos() {
         const PRIVATE_KEY: &str =
             "5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26";
@@ -588,7 +568,8 @@ mod tests {
                 hex::decode(PRIVATE_KEY)
                     .expect("Failed to decode private key")
                     .as_slice(),
-            ),
+            )
+            .into(),
         };
 
         let tron_signer = hyperlane_tron::TronSigner::build(&signer_config)
@@ -600,5 +581,49 @@ mod tests {
             "TWfaDp7My62uVWnxPiohWau4HyanfDG31N",
             tron_signer.address_string()
         );
+    }
+
+    fn secret_key() -> H256 {
+        H256::from_slice(&[0xde, 0xad, 0xbe, 0xef].repeat(8))
+    }
+
+    #[test]
+    fn signer_conf_debug_redacts_keys() {
+        let key = secret_key().into();
+        let confs = [
+            SignerConf::HexKey { key },
+            SignerConf::CosmosKey {
+                key,
+                prefix: "neutron".to_owned(),
+                account_address_type: AccountAddressType::Bitcoin,
+            },
+            SignerConf::RadixKey {
+                key,
+                suffix: "rdx".to_owned(),
+            },
+            SignerConf::StarkKey {
+                key,
+                address: H256::zero(),
+                is_legacy: false,
+            },
+        ];
+        for conf in confs {
+            let debug = format!("{conf:?}");
+            assert!(!debug.contains("deadbeef"), "key leaked: {debug}");
+            assert!(debug.contains("[REDACTED"));
+        }
+    }
+
+    #[tokio::test]
+    async fn wrong_signer_type_error_redacts_key() {
+        use crate::settings::signers::BuildableWithSignerConf;
+
+        let conf = SignerConf::HexKey {
+            key: secret_key().into(),
+        };
+        let err = hyperlane_cosmos::Signer::build(&conf).await.unwrap_err();
+        let err = format!("{err:?}");
+        assert!(!err.contains("deadbeef"), "key leaked: {err}");
+        assert!(err.contains("hexKey signer is not supported by cosmos"));
     }
 }

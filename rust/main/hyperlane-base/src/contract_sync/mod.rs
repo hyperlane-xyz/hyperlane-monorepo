@@ -487,6 +487,9 @@ where
             // Update cursor
             if let Err(err) = cursor.update(logs, range).await {
                 warn!(?err, "Error updating cursor");
+                // A failed checkpoint can leave historical work immediately
+                // queryable. Bound retries just as for failed log storage.
+                sleep(SLEEP_DURATION).await;
             };
         }
     }
@@ -899,6 +902,82 @@ mod tests {
             self.updates.fetch_add(1, Ordering::SeqCst);
             Ok(())
         }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn cursor_update_errors_delay_same_range_retries() {
+        #[derive(Debug)]
+        struct FailingCheckpointCursor(StdArc<AtomicUsize>);
+
+        #[async_trait]
+        impl ContractSyncCursor<HyperlaneMessage> for FailingCheckpointCursor {
+            async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
+                if self.0.load(Ordering::SeqCst) >= 3 {
+                    return pending().await;
+                }
+                Ok((CursorAction::Query(7..=9), Duration::ZERO))
+            }
+
+            fn latest_queried_block(&self) -> u32 {
+                6
+            }
+
+            async fn update(
+                &mut self,
+                _: Vec<(Indexed<HyperlaneMessage>, LogMeta)>,
+                range: RangeInclusive<u32>,
+            ) -> Result<()> {
+                assert_eq!(range, 7..=9, "retry must retain the uncheckpointed range");
+                if self.0.fetch_add(1, Ordering::SeqCst) < 2 {
+                    eyre::bail!("checkpoint unavailable");
+                }
+                Ok(())
+            }
+        }
+
+        let calls = StdArc::new(AtomicUsize::new(0));
+        let updates = StdArc::new(AtomicUsize::new(0));
+        let retries = fetch_retries_metric();
+        let task = tokio::spawn(ContractSync::<
+            HyperlaneMessage,
+            StoreResult,
+            FailingThenSuccessfulIndexer,
+        >::cursor_indexer_task(
+            test_domain(),
+            FailingThenSuccessfulIndexer {
+                failures: 0,
+                calls: calls.clone(),
+            },
+            Arc::new(Mutex::new(StoreResult {
+                stored: 0,
+                error: None,
+                calls: None,
+            })),
+            Box::new(FailingCheckpointCursor(updates.clone())),
+            None,
+            stored_logs_metric(),
+            indexed_height_metric(),
+            liveness_metric(),
+            retries.clone(),
+            fetch_backoff_metric(),
+        ));
+
+        run_pending_tasks().await;
+        for expected in 1..=2 {
+            assert_eq!(calls.load(Ordering::SeqCst), expected);
+            assert_eq!(updates.load(Ordering::SeqCst), expected);
+            tokio::time::advance(Duration::from_secs(4)).await;
+            run_pending_tasks().await;
+            assert_eq!(calls.load(Ordering::SeqCst), expected);
+            assert_eq!(updates.load(Ordering::SeqCst), expected);
+            tokio::time::advance(Duration::from_secs(1)).await;
+            run_pending_tasks().await;
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), 3);
+        assert_eq!(updates.load(Ordering::SeqCst), 3);
+        assert_eq!(retries.get(), 0, "checkpoint errors are not fetch failures");
+        task.abort();
+        let _ = task.await;
     }
 
     #[tokio::test(start_paused = true)]

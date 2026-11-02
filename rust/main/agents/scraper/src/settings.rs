@@ -9,6 +9,7 @@ use std::{
     default::Default,
     ops::Add,
     str::FromStr,
+    time::Duration,
 };
 
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
@@ -21,6 +22,7 @@ use hyperlane_base::{
     },
 };
 use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, H160};
+use redact::Secret;
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -33,7 +35,9 @@ pub struct ScraperSettings {
     #[deref_mut]
     pub base: Settings,
 
-    pub db: String,
+    pub db: Secret<String>,
+    pub db_max_connections: u32,
+    pub db_acquire_timeout: Duration,
     pub chains_to_scrape: Vec<HyperlaneDomain>,
     /// Per-domain CCR contract → underlying ERC20 token mapping.
     /// Domain ID → { router_address → token_address }.
@@ -43,7 +47,7 @@ pub struct ScraperSettings {
 
 #[derive(Debug, Deserialize)]
 #[serde(transparent)]
-struct RawScraperSettings(Value);
+struct RawScraperSettings(Secret<Value>);
 
 impl_loadable_from_settings!(Scraper, RawScraperSettings -> ScraperSettings);
 
@@ -56,7 +60,7 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
     ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
-        let p = ValueParser::new(cwp.clone(), &raw.0);
+        let p = ValueParser::new(cwp.clone(), raw.0.expose_secret());
 
         let chains_names_to_scrape: Option<HashSet<&str>> = p
             .chain(&mut err)
@@ -80,6 +84,20 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
             .end()
             .map(|v| v.to_owned());
 
+        let db_max_connections = p
+            .chain(&mut err)
+            .get_opt_key("dbMaxConnections")
+            .parse_u32()
+            .end()
+            .unwrap_or(10);
+        let db_acquire_timeout = Duration::from_millis(u64::from(
+            p.chain(&mut err)
+                .get_opt_key("dbAcquireTimeoutMillis")
+                .parse_u32()
+                .end()
+                .unwrap_or(15_000),
+        ));
+
         let chains_to_scrape = if let (Some(base), Some(chains)) = (&base, chains_names_to_scrape) {
             chains
                 .into_iter()
@@ -89,7 +107,7 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
                         .into_config_result(|| cwp.add("chains_to_scrape"))
                         .take_config_err(&mut err)
                 })
-                .collect()
+                .collect::<Vec<HyperlaneDomain>>()
         } else {
             Default::default()
         };
@@ -141,7 +159,9 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
 
         err.into_result(Self {
             base,
-            db,
+            db: Secret::new(db),
+            db_max_connections,
+            db_acquire_timeout,
             chains_to_scrape,
             ccr_routers,
         })

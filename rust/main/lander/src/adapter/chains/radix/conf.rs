@@ -7,7 +7,7 @@ pub fn create_signer(conf: &ChainConf) -> eyre::Result<RadixSigner> {
     let signer_conf = conf.signer.as_ref().wrap_err("Signer is missing")?;
     if let SignerConf::RadixKey { key, suffix } = signer_conf {
         Ok(hyperlane_radix::RadixSigner::new(
-            key.as_bytes().to_vec(),
+            key.expose_secret().as_bytes().to_vec(),
             suffix.to_string(),
         )?)
     } else {
@@ -42,6 +42,7 @@ mod tests {
         ChainConf {
             domain,
             signer,
+            ccs_signer: None,
             identity: None,
             submitter: SubmitterType::Lander,
             estimated_block_time: Duration::from_secs(1),
@@ -65,10 +66,12 @@ mod tests {
     fn test_create_signer_happy_path() {
         let conf = create_chain_conf(
             HyperlaneDomain::Known(KnownHyperlaneDomain::Radix),
-            Some(SignerConf::HexKey { key: H256::zero() }),
+            Some(SignerConf::HexKey {
+                key: H256::zero().into(),
+            }),
             ChainConnectionConf::Radix(hyperlane_radix::ConnectionConf {
-                core: Vec::new(),
-                gateway: Vec::new(),
+                core: Vec::new().into(),
+                gateway: Vec::new().into(),
                 network: NetworkDefinition::mainnet(),
             }),
         );
@@ -83,8 +86,8 @@ mod tests {
             HyperlaneDomain::Known(KnownHyperlaneDomain::Radix),
             None,
             ChainConnectionConf::Radix(hyperlane_radix::ConnectionConf {
-                core: Vec::new(),
-                gateway: Vec::new(),
+                core: Vec::new().into(),
+                gateway: Vec::new().into(),
                 network: NetworkDefinition::mainnet(),
             }),
         );
@@ -100,12 +103,15 @@ mod tests {
             Some(SignerConf::Node),
             ChainConnectionConf::Ethereum(hyperlane_ethereum::ConnectionConf {
                 rpc_connection: RpcConnectionConf::Http {
-                    url: Url::parse("https://hyperlane.xyz").expect("Failed to parse url"),
+                    url: Url::parse("https://hyperlane.xyz")
+                        .expect("Failed to parse url")
+                        .into(),
                 },
                 transaction_overrides: TransactionOverrides::default(),
                 op_submission_config: OpSubmissionConfig::default(),
                 consider_null_transaction_receipt: false,
                 fallback_hedge: None,
+                mev_submission: None,
             }),
         );
 

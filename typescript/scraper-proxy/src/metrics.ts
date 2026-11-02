@@ -1,4 +1,3 @@
-import { Controller, Get, Header } from '@nestjs/common';
 import {
   collectDefaultMetrics,
   Counter,
@@ -23,7 +22,6 @@ export type WebSocketMetricsSnapshot = {
   limits: {
     agentConnections: number;
     catchUpMs: number;
-    catchUpRows: number;
     clientMessagesPerMinute: number;
     concurrentCatchUps: number;
     explorerPendingBytes: number;
@@ -91,7 +89,7 @@ export const graphqlRequests = new Counter({
 });
 
 export const graphqlErrors = new Counter({
-  help: 'GraphQL errors returned by Apollo.',
+  help: 'GraphQL errors returned to clients.',
   name: `${PREFIX}graphql_errors_total`,
   registers: [metricsRegistry],
 });
@@ -205,43 +203,29 @@ export function setWebSocketMetricsProvider(
   websocketMetricsProvider = provider;
 }
 
-function snapshotGauge(
-  name: string,
-  help: string,
-  collect: (gauge: Gauge, snapshot: WebSocketMetricsSnapshot) => void,
-  labelNames: string[] = [],
-): void {
-  new Gauge({
-    collect() {
-      this.reset();
-      const snapshot = websocketMetricsProvider?.();
-      if (snapshot) collect(this, snapshot);
-    },
-    help,
-    labelNames,
-    name: `${PREFIX}${name}`,
-    registers: [metricsRegistry],
-  });
+function snapshotGauges<T>(provider: () => T | undefined) {
+  return (
+    name: string,
+    help: string,
+    collect: (gauge: Gauge, snapshot: T) => void,
+    labelNames: string[] = [],
+  ) => {
+    new Gauge({
+      collect() {
+        this.reset();
+        const snapshot = provider();
+        if (snapshot) collect(this, snapshot);
+      },
+      help,
+      labelNames,
+      name: `${PREFIX}${name}`,
+      registers: [metricsRegistry],
+    });
+  };
 }
 
-function databaseSnapshotGauge(
-  name: string,
-  help: string,
-  collect: (gauge: Gauge, snapshot: DatabaseMetricsSnapshot) => void,
-  labelNames: string[] = [],
-): void {
-  new Gauge({
-    collect() {
-      this.reset();
-      const snapshot = databaseMetricsProvider?.();
-      if (snapshot) collect(this, snapshot);
-    },
-    help,
-    labelNames,
-    name: `${PREFIX}${name}`,
-    registers: [metricsRegistry],
-  });
-}
+const databaseSnapshotGauge = snapshotGauges(() => databaseMetricsProvider?.());
+const snapshotGauge = snapshotGauges(() => websocketMetricsProvider?.());
 
 databaseSnapshotGauge(
   'database_pool_connections',
@@ -325,11 +309,6 @@ snapshotGauge(
   'websocket_catch_up_concurrency_limit',
   'Maximum concurrent historical WebSocket catch-ups.',
   (gauge, snapshot) => gauge.set(snapshot.limits.concurrentCatchUps),
-);
-snapshotGauge(
-  'websocket_catch_up_row_limit',
-  'Maximum rows delivered by one historical WebSocket catch-up.',
-  (gauge, snapshot) => gauge.set(snapshot.limits.catchUpRows),
 );
 snapshotGauge(
   'websocket_max_catch_up_rows',
@@ -450,12 +429,3 @@ snapshotGauge(
   'Maximum ws bufferedAmount allowed for one client.',
   (gauge, snapshot) => gauge.set(snapshot.limits.socketBufferedBytes),
 );
-
-@Controller('metrics')
-export class MetricsController {
-  @Get()
-  @Header('Content-Type', metricsRegistry.contentType)
-  getMetrics(): Promise<string> {
-    return metricsRegistry.metrics();
-  }
-}

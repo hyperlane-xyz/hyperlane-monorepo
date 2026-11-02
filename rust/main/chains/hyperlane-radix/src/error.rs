@@ -13,7 +13,7 @@ use crate::EventParseError;
 pub enum HyperlaneRadixError {
     /// Reqwest Error
     #[error("Reqwest error: {0}")]
-    ReqwestError(#[from] reqwest::Error),
+    ReqwestError(#[source] reqwest::Error),
     /// Serde Error
     #[error("Serde error: {0}")]
     Serde(#[from] serde_json::Error),
@@ -61,6 +61,12 @@ pub enum HyperlaneRadixError {
     Other(String),
 }
 
+impl From<reqwest::Error> for HyperlaneRadixError {
+    fn from(error: reqwest::Error) -> Self {
+        Self::ReqwestError(error.without_url())
+    }
+}
+
 impl From<HyperlaneRadixError> for ChainCommunicationError {
     fn from(value: HyperlaneRadixError) -> Self {
         ChainCommunicationError::from_other(value)
@@ -70,7 +76,7 @@ impl From<HyperlaneRadixError> for ChainCommunicationError {
 impl<T: std::fmt::Debug> From<CoreError<T>> for HyperlaneRadixError {
     fn from(value: CoreError<T>) -> Self {
         match value {
-            CoreError::Reqwest(err) => Self::ReqwestError(err),
+            CoreError::Reqwest(err) => Self::from(err),
             CoreError::Serde(err) => Self::Serde(err),
             CoreError::Io(err) => Self::Io(err),
             CoreError::ResponseError(response) => Self::ResponseError(format!("{response:?}")),
@@ -81,7 +87,7 @@ impl<T: std::fmt::Debug> From<CoreError<T>> for HyperlaneRadixError {
 impl<T: std::fmt::Debug> From<GatewayError<T>> for HyperlaneRadixError {
     fn from(value: GatewayError<T>) -> Self {
         match value {
-            GatewayError::Reqwest(err) => Self::ReqwestError(err),
+            GatewayError::Reqwest(err) => Self::from(err),
             GatewayError::Serde(err) => Self::Serde(err),
             GatewayError::Io(err) => Self::Io(err),
             GatewayError::ResponseError(response) => Self::ResponseError(format!("{response:?}")),
@@ -98,5 +104,36 @@ impl From<sbor::DecodeError> for HyperlaneRadixError {
 impl From<sbor::EncodeError> for HyperlaneRadixError {
     fn from(err: sbor::EncodeError) -> Self {
         Self::SborEncode(format!("{err:?}"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn http_errors_omit_endpoint_credentials() {
+        let request_error = || {
+            let url =
+                reqwest::Url::parse("http://localhost/private-path?key=private-query").unwrap();
+            reqwest::Client::new()
+                .get(url.clone())
+                .header("invalid\nheader", "value")
+                .build()
+                .unwrap_err()
+                .with_url(url)
+        };
+        for error in [
+            HyperlaneRadixError::from(request_error()),
+            HyperlaneRadixError::from(CoreError::<()>::Reqwest(request_error())),
+            HyperlaneRadixError::from(GatewayError::<()>::Reqwest(request_error())),
+        ] {
+            assert!(!format!("{error:?} {error}").contains("private-"));
+            let HyperlaneRadixError::ReqwestError(error) = error else {
+                panic!("expected HTTP error");
+            };
+            assert!(error.url().is_none());
+            assert!(error.is_builder());
+        }
     }
 }

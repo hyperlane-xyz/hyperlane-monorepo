@@ -20,7 +20,9 @@ import { getAleoUSDCWarpConfig } from './environments/mainnet3/warp/configGetter
 import {
   getCCTPV1StrategyConfig,
   getCCTPV1WarpConfig,
+  getCCTPV2FastStagingWarpConfig,
   getCCTPV2FastWarpConfig,
+  getCCTPV2StandardStagingWarpConfig,
   getCCTPV2StandardWarpConfig,
   getCCTPV2StrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getCCTPConfig.js';
@@ -60,6 +62,7 @@ import { getMitosisMITOWarpConfig } from './environments/mainnet3/warp/configGet
 import { getETHStageWarpConfig } from './environments/mainnet3/warp/configGetters/getETHStageWarpConfig.js';
 import { getParadexUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getParadexUSDCWarpConfig.js';
 import { getPulsechainUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getPulsechainUSDCWarpConfig.js';
+import { getRadixUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getRadixUSDCWarpConfig.js';
 import { getEZETHFileSubmitterStrategyConfig } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
 import { getREZBaseEthereumWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoREZBaseEthereum.js';
 import {
@@ -88,6 +91,7 @@ import { getCrossMoonpayLocalBridgeWarpConfig } from './environments/mainnet3/wa
 import { getUSDCCitreaMoonpayWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDCCitreaMoonpayWarpConfig.js';
 import { getUSDCCitreaMoonpayStagingWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDCCitreaMoonpayStagingWarpConfig.js';
 import { getUSDTCitreaMoonpayWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTCitreaMoonpayWarpConfig.js';
+import { getUSDGRobinhoodMoonpayWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDGRobinhoodMoonpayWarpConfig.js';
 import { getUSDTCitreaMoonpayStagingWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTCitreaMoonpayStagingWarpConfig.js';
 import { getUSDTOftWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTOftWarpConfig.js';
 import { getUSDTOftLegacyWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTOftLegacyWarpConfig.js';
@@ -124,8 +128,12 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.MainnetCCTPV1]: getCCTPV1WarpConfig,
   [WarpRouteIds.MainnetCCTPV2Fast]: getCCTPV2FastWarpConfig,
   [WarpRouteIds.MainnetCCTPV2Standard]: getCCTPV2StandardWarpConfig,
+  [WarpRouteIds.MainnetCCTPV2StandardStaging]:
+    getCCTPV2StandardStagingWarpConfig,
+  [WarpRouteIds.MainnetCCTPV2FastStaging]: getCCTPV2FastStagingWarpConfig,
   [WarpRouteIds.MitosisMITO]: getMitosisMITOWarpConfig,
   [WarpRouteIds.PulsechainUSDC]: getPulsechainUSDCWarpConfig,
+  [WarpRouteIds.RadixUSDC]: getRadixUSDCWarpConfig,
   [WarpRouteIds.ElectroneumUSDC]: getElectroneumUSDCWarpConfig,
   [WarpRouteIds.IgraUSDC]: getIgraUSDCWarpConfig,
   [WarpRouteIds.MantraUSDC]: getMantraUSDCWarpConfig,
@@ -141,6 +149,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.USDCCitreaIronBridge]: getUSDCCitreaIronBridgeWarpConfig,
   [WarpRouteIds.USDCCitreaMoonpay]: getUSDCCitreaMoonpayWarpConfig,
   [WarpRouteIds.USDTCitreaMoonpay]: getUSDTCitreaMoonpayWarpConfig,
+  [WarpRouteIds.USDGRobinhoodMoonpay]: getUSDGRobinhoodMoonpayWarpConfig,
   [WarpRouteIds.USDCCitreaMoonpaySTAGING]:
     getUSDCCitreaMoonpayStagingWarpConfig,
   [WarpRouteIds.USDTCitreaMoonpaySTAGING]:

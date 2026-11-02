@@ -16,7 +16,12 @@ import {
   ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { Address, addressToBytes32, objMap } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  addressToBytes32,
+  assert,
+  objMap,
+} from '@hyperlane-xyz/utils';
 
 import {
   AgentChainConfig,
@@ -31,8 +36,10 @@ import {
   MetricAppContext,
   chainMapMatchingList,
   consistentSenderRecipientMatchingList,
+  MetadexVoterAdapterTopology,
   icaMatchingList,
   matchingList,
+  metadexVoterMetricAppContexts,
   multiAddressChainMapMatchingList,
   routerMatchingList,
   senderMatchingList,
@@ -42,7 +49,11 @@ import { BaseScraperConfig } from '../../../src/config/agent/scraper.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts, RELEASE_CANDIDATE_INDEX_FROM } from '../../contexts.js';
 import { DockerImageRepos, mainnetDockerTags } from '../../docker.js';
-import { getDomainId, getWarpAddresses } from '../../registry.js';
+import {
+  getIcaRouterAddresses,
+  getDomainId,
+  getWarpAddresses,
+} from '../../registry.js';
 import { fallbackHedgeConfig } from '../utils.js';
 
 import { environment, ethereumChainNames } from './chains.js';
@@ -72,18 +83,15 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   // Generally, we run all production validators in the Hyperlane context.
   [Role.Validator]: {
     abstract: true,
-    adichain: true,
     aleo: true,
     apechain: true,
     arbitrum: true,
     arc: true,
     avalanche: true,
     base: true,
-    berachain: true,
-    blast: true,
+    blast: false,
     bob: true,
     bsc: true,
-    carrchain: true,
     celestia: true,
     celo: true,
     citrea: true,
@@ -111,7 +119,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lukso: true,
     mantle: true,
     mantra: true,
-    megaeth: true,
     metal: true,
     metis: true,
     mitosis: true,
@@ -120,15 +127,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monad: true,
     nesa: false, // disabled — superseded by nesachain after the Nesa incident
     nesachain: true,
-    nexus: true,
+    nexus: false, // disabled — Nexus chain shut down by the Nexus team
     optimism: true,
     paradex: true,
     plasma: true,
     polygon: true,
     pulsechain: true,
-    radix: false, // disabled — removed from agent operations per request
+    radix: true,
     robinhood: true,
-    sei: true,
     solanamainnet: true,
     solaxy: true,
     somnia: true,
@@ -139,31 +145,26 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     starknet: true,
     subtensor: true,
 
-    tac: true, // re-enabled 2026-09-07 — block production resumed
-    taiko: false, // temporarily disabled out of caution (Taiko network incident)
     tea: true,
+    tempo: true,
     tron: true,
     unichain: true,
     viction: true,
     worldchain: true,
     xlayer: true,
     zerogravity: true,
-    zksync: true,
   },
   [Role.Relayer]: {
     abstract: true,
-    adichain: true,
     aleo: true,
     apechain: true,
     arbitrum: true,
     arc: true,
     avalanche: true,
     base: true,
-    berachain: true,
-    blast: true,
+    blast: false, // temporarily disabled 2026-10-29 — Blast chain halted
     bob: true,
     bsc: true,
-    carrchain: true,
     celestia: true,
     celo: true,
     citrea: true,
@@ -191,7 +192,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lukso: true,
     mantle: true,
     mantra: true,
-    megaeth: true,
     metal: true,
     metis: true,
     mitosis: true,
@@ -200,15 +200,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monad: true,
     nesa: false, // disabled — superseded by nesachain after the Nesa incident
     nesachain: true,
-    nexus: true,
+    nexus: false, // disabled — Nexus chain shut down by the Nexus team
     optimism: true,
     paradex: true,
     plasma: true,
     polygon: true,
     pulsechain: true,
-    radix: false, // disabled — removed from agent operations per request
+    radix: true,
     robinhood: true,
-    sei: true,
     solanamainnet: true,
     solaxy: true,
     somnia: true,
@@ -219,31 +218,26 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     starknet: true,
     subtensor: true,
 
-    tac: true, // re-enabled 2026-09-07 — block production resumed
-    taiko: false, // temporarily disabled out of caution (Taiko network incident)
     tea: true,
+    tempo: true,
     tron: true,
     unichain: true,
     viction: true,
     worldchain: true,
     xlayer: true,
     zerogravity: true,
-    zksync: true,
   },
   [Role.Scraper]: {
     abstract: true,
-    adichain: true,
     aleo: true,
     apechain: true,
     arbitrum: true,
     arc: true,
     avalanche: true,
     base: true,
-    berachain: true,
-    blast: true,
+    blast: false, // temporarily disabled 2026-10-29 — Blast chain halted
     bob: true,
     bsc: true,
-    carrchain: true,
     celestia: true,
     celo: true,
     citrea: true,
@@ -271,7 +265,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lukso: true,
     mantle: true,
     mantra: true,
-    megaeth: true,
     metal: true,
     metis: true,
     mitosis: true,
@@ -280,15 +273,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monad: true,
     nesa: false, // disabled — superseded by nesachain after the Nesa incident
     nesachain: true,
-    nexus: true,
+    nexus: false, // disabled — Nexus chain shut down by the Nexus team
     optimism: true,
     paradex: true,
     plasma: true,
     polygon: true,
     pulsechain: true,
-    radix: false, // disabled — removed from agent operations per request
+    radix: true,
     robinhood: true,
-    sei: true,
     solanamainnet: true,
     solaxy: true,
     somnia: true,
@@ -299,9 +291,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     starknet: true,
     subtensor: true,
 
-    tac: true, // re-enabled 2026-09-07 — block production resumed
-    taiko: true,
     tea: true,
+    tempo: true,
     tron: true,
     unichain: true,
     // Note: default rpc.viction.xyz endpoint can't be used for scraping (returns 429s).
@@ -309,7 +300,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     worldchain: true,
     xlayer: true,
     zerogravity: true,
-    zksync: true,
   },
 };
 
@@ -443,6 +433,100 @@ const icaV2RevealMatchingList = icaMatchingList(
   })),
 );
 
+const mevProtectedChains = ['arbitrum', 'arc', 'base', 'ethereum', 'robinhood'];
+const mevSubmission = Object.fromEntries(
+  mevProtectedChains.map((chain) => {
+    const [router, ...additionalRouters] = getIcaRouterAddresses(chain);
+    assert(router, `Missing ICA router for ${chain}`);
+    return [
+      chain,
+      {
+        icaRouter: addressToBytes32(router),
+        ...(additionalRouters.length > 0 && {
+          additionalIcaRouters: additionalRouters.map((router) =>
+            addressToBytes32(router),
+          ),
+        }),
+      },
+    ];
+  }),
+);
+
+// Aero MetaSwap staging MetaRouter, the same address on every chain.
+const metaswapStagingMetaRouters: ChainMap<Address> = {
+  arbitrum: '0xCde7a7B710c2DFB059af838f755fE25037Ba30D3',
+  base: '0xCde7a7B710c2DFB059af838f755fE25037Ba30D3',
+  optimism: '0xCde7a7B710c2DFB059af838f755fE25037Ba30D3',
+};
+
+// MetaSwaps with a destination swap send an ICA calls or commitment message owned
+// by the MetaRouter. Their token transfers use shared warp routers and their
+// reveals have no owner, so neither is matched here.
+const metaswapStagingMatchingList = [
+  IcaMessageType.CALLS,
+  IcaMessageType.COMMITMENT,
+].flatMap((messageType) =>
+  icaMatchingList(
+    objMap(metaswapStagingMetaRouters, (_, owner) => ({ messageType, owner })),
+  ),
+);
+
+// Aero v3 production adapters. Root: Base. Source: https://app.aero.xyz/docs/security/
+const aeroV3Adapters: ChainMap<{ rootAdapter: Address; leafAdapter: Address }> =
+  {
+    arbitrum: {
+      rootAdapter: '0xa365AdDAa935FD97C0815D41a6375dbB483D5C67',
+      leafAdapter: '0xe7eB27bf93a7a3cAa8B483Ec5f5EE6588bfD3886',
+    },
+    arc: {
+      rootAdapter: '0x247c86a3bBd88059aeF2E9D3AF0e90D2F3F5C8bf',
+      leafAdapter: '0x56632394f866761Fd86873E96A567720cE865682',
+    },
+    ethereum: {
+      rootAdapter: '0x0C54028e2aEFDF6E740513655dCe88Ae63Df96c9',
+      leafAdapter: '0x4AaFf8CFB43e2cefBbBF4c133c934DB6BA7E4C14',
+    },
+    ink: {
+      rootAdapter: '0x5aD9a3920a25CAA5ABD36CD35F1C57B48793FD03',
+      leafAdapter: '0x4AaFf8CFB43e2cefBbBF4c133c934DB6BA7E4C14',
+    },
+    optimism: {
+      rootAdapter: '0xE82457ff1049F1f63E51d634d2C96993b841B1Cb',
+      leafAdapter: '0x314BdC685aD3426d586860cf909e4D4f0279bF77',
+    },
+    robinhood: {
+      rootAdapter: '0xD9DC65A40e70517dA5F4F5cB1F9E5D4b59AA2910',
+      leafAdapter: '0x4AaFf8CFB43e2cefBbBF4c133c934DB6BA7E4C14',
+    },
+  };
+
+const aeroV3AdapterMatchingList = Object.entries(aeroV3Adapters).flatMap(
+  ([chain, { rootAdapter, leafAdapter }]) =>
+    chainMapMatchingList({ base: rootAdapter, [chain]: leafAdapter }),
+);
+
+const metaswapMetaRouters: ChainMap<Address> = Object.fromEntries(
+  ['base', ...Object.keys(aeroV3Adapters)].map((chain) => [
+    chain,
+    '0x0fEf9e88A7b76BCDBF451780C6774FE32965Ee98',
+  ]),
+);
+
+// Match the ICA owner, not the shared ICA or warp routers alone.
+const metaswapMatchingList = [
+  IcaMessageType.CALLS,
+  IcaMessageType.COMMITMENT,
+].flatMap((messageType) =>
+  icaMatchingList(
+    objMap(metaswapMetaRouters, (_, owner) => ({ messageType, owner })),
+  ),
+);
+
+// Reveals have no owner; this also covers other ICA reveals between these chains.
+const aeroV3RevealMatchingList = icaMatchingList(
+  objMap(metaswapMetaRouters, () => ({ messageType: IcaMessageType.REVEAL })),
+);
+
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
@@ -472,6 +556,10 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       ...superswapIcaV2CommitmentMatchingList,
       // ICA reveal messages (does not filter on ICA owner)
       ...icaV2RevealMatchingList,
+      // Temporary Aero v3 underpayment workaround; retain a 1-wei IGP payment.
+      ...aeroV3AdapterMatchingList,
+      ...metaswapMatchingList,
+      ...aeroV3RevealMatchingList,
     ],
   },
   {
@@ -508,6 +596,22 @@ const stagingStHyperMatchingList = chainMapMatchingList({
   bsc: '0xf0c8c5fc69fCC3fA49C319Fdf422D8279756afE2',
   ethereum: '0x0C919509663cb273E156B706f065b9F7e6331891',
 });
+
+// Aero MetaDEX staging voter adapters. Root: base. Leaves: optimism, arbitrum.
+const metadexStagingTopology: MetadexVoterAdapterTopology = {
+  prefix: 'metadex_staging',
+  rootChain: 'base',
+  leaves: {
+    optimism: {
+      rootAdapter: '0x504E81562daFe4eFE87a4b3025F805eb0e9c5c15',
+      leafAdapters: ['0x1733cD126a227066963E9B636Ad49898d1224741'],
+    },
+    arbitrum: {
+      rootAdapter: '0xAfB6d2686b85c795E1b9324d4cBBED269D7f01A8',
+      leafAdapters: ['0xAAA49BD49A9bE1EAe5534EB35FC2c346afD7CA49'],
+    },
+  },
+};
 
 // Gets metric app contexts, including:
 // - all warp routes defined in WarpRouteIds, using addresses from the registry
@@ -599,6 +703,11 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
         '0x36f586A30502AE3afb555b8aA4dCc05d233c2ecE',
       ),
     },
+    ...metadexVoterMetricAppContexts(metadexStagingTopology),
+    {
+      name: 'metaswap_ica_v3_staging',
+      matchingList: metaswapStagingMatchingList,
+    },
   ];
 };
 
@@ -681,9 +790,7 @@ const mediumValidatorChains = [
   'tron',
   'mode',
   'avalanche',
-  'blast',
   'soneium',
-  'taiko',
   'paradex',
   'gnosis',
   'mitosis',
@@ -793,6 +900,7 @@ const hyperlane: RootAgentConfig = {
   contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
+    mevSubmission,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     websocketUrl: scraperWebsocketUrl,
@@ -830,10 +938,7 @@ const hyperlane: RootAgentConfig = {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.validator,
     },
-    // Quorum verification via additionalQuorumRpcUrls (ValidatorMultiRpcQuorumMerkleTreeHook)
-    // is opt-in per chain (quorumVerificationEnabled) and no chain has enabled it
-    // yet, so rpcUrls itself must stay on Quorum consensus for now.
-    rpcConsensusType: RpcConsensusType.Quorum,
+    rpcConsensusType: RpcConsensusType.Majority,
     websocketUrl: scraperWebsocketUrl,
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -870,6 +975,7 @@ const releaseCandidate: RootAgentConfig = {
   contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
+    mevSubmission,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     index: { from: RELEASE_CANDIDATE_INDEX_FROM },
@@ -907,10 +1013,7 @@ const releaseCandidate: RootAgentConfig = {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.validatorRC,
     },
-    // Quorum verification via additionalQuorumRpcUrls (ValidatorMultiRpcQuorumMerkleTreeHook)
-    // is opt-in per chain (quorumVerificationEnabled) and no chain has enabled it
-    // yet, so rpcUrls itself must stay on Quorum consensus for now.
-    rpcConsensusType: RpcConsensusType.Quorum,
+    rpcConsensusType: RpcConsensusType.Majority,
     websocketUrl: scraperWebsocketUrl,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,
@@ -925,6 +1028,26 @@ const fastPathUsdcMatchingList = chainMapMatchingList({
   ethereum: '0xd4463cB3c90b3F49c673310BEC9bC18311134B47',
   citrea: '0x38E8720EBE02e7c5254F9De9F81440C7a770a9c6',
 });
+
+const fastPathEclipseUsdcMatchingList = warpRouteMatchingList(
+  WarpRouteIds.EclipseUSDC,
+).filter(
+  ({ originDomain, destinationDomain }) =>
+    ['arbitrum', 'base', 'ethereum'].some(
+      (chain) => originDomain === getDomainId(chain),
+    ) &&
+    destinationDomain !== getDomainId('eclipsemainnet') &&
+    destinationDomain !== getDomainId('solanamainnet'),
+);
+
+const fastPathVictionEthMatchingList = warpRouteMatchingList(
+  WarpRouteIds.VictionETH,
+).filter(
+  ({ originDomain, destinationDomain }) =>
+    ['arbitrum', 'base', 'ethereum'].some(
+      (chain) => originDomain === getDomainId(chain),
+    ) && destinationDomain !== getDomainId('viction'),
+);
 
 // Cross Collateral USDT - https://github.com/hyperlane-xyz/hyperlane-registry/blob/codex/nambrot-cross-collateral-deploy/deployments/warp_routes/USDT/ctusd-config.yaml
 const fastPathUsdtMatchingList = chainMapMatchingList({
@@ -1005,12 +1128,22 @@ const fastPath: RootAgentConfig = {
     ],
     relayer: [
       'arbitrum',
+      'arc',
+      'avalanche',
       'base',
       'bsc',
       'citrea',
       'ethereum',
+      'hyperevm',
+      'ink',
       'katana',
+      'linea',
+      'monad',
+      'optimism',
       'polygon',
+      'robinhood',
+      'unichain',
+      'worldchain',
     ],
     scraper: [],
   },
@@ -1025,6 +1158,8 @@ const fastPath: RootAgentConfig = {
     },
     whitelist: [
       ...fastPathUsdcMatchingList,
+      ...fastPathEclipseUsdcMatchingList,
+      ...fastPathVictionEthMatchingList,
       ...fastPathUsdtMatchingList,
       ...fastPathCrossMoonpayMatchingList,
       ...fastPathTestRecipientMatchingList,
@@ -1042,8 +1177,8 @@ const fastPath: RootAgentConfig = {
     resources: fastPathRelayerResources,
   },
   validators: {
-    rpcConsensusType: RpcConsensusType.Fallback,
-    // Use RPC indexing until the scraper proxy supports fastpath streaming.
+    rpcConsensusType: RpcConsensusType.Majority,
+    websocketUrl: scraperWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.validatorFastPath,

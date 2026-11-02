@@ -137,10 +137,12 @@ interface SurfpoolVersion {
 function parseVersion(version: string): SurfpoolVersion | null {
   const match = version.match(/(\d+)\.(\d+)\.(\d+)/);
   if (!match) return null;
+  const [, major, minor, patch] = match;
+  assert(major && minor && patch, `Invalid surfpool version: ${version}`);
   return {
-    major: parseInt(match[1], 10),
-    minor: parseInt(match[2], 10),
-    patch: parseInt(match[3], 10),
+    major: parseInt(major, 10),
+    minor: parseInt(minor, 10),
+    patch: parseInt(patch, 10),
   };
 }
 
@@ -159,7 +161,7 @@ function getSurfpoolVersion(binaryPath: string): string | null {
       encoding: 'utf-8',
     });
     const match = output.match(/surfpool\s+(\d+\.\d+\.\d+)/);
-    return match ? match[1] : null;
+    return match?.[1] ?? null;
   } catch (error) {
     logger.debug(
       { err: error },

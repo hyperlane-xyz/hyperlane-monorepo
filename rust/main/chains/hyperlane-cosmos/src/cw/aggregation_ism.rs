@@ -53,7 +53,7 @@ impl HyperlaneChain for CwAggregationIsm {
 #[async_trait]
 impl AggregationIsm for CwAggregationIsm {
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    #[instrument(err)]
+    #[instrument(skip(self), err)]
     async fn modules_and_threshold(
         &self,
         message: &HyperlaneMessage,

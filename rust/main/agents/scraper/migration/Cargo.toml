@@ -65,6 +65,10 @@ default = []
 name = "create-event-scope-indexes"
 path = "bin/create_event_scope_indexes.rs"
 
+[[bin]]
+name = "create-gas-payment-scope-index"
+path = "bin/create_gas_payment_scope_index.rs"
+
 [dev-dependencies]
 testcontainers.workspace = true
 testcontainers-modules.workspace = true

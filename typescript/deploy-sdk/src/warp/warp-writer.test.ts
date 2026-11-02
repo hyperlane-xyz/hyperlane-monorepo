@@ -247,7 +247,9 @@ describe('WarpTokenWriter', () => {
         },
         expectedTxCount: 1,
         assertion: (txs) => {
-          expect(txs[0].annotation).to.include('router');
+          const [tx] = txs;
+          assert(tx, 'expected router update transaction');
+          expect(tx.annotation).to.include('router');
         },
       },
       {
@@ -377,7 +379,9 @@ describe('WarpTokenWriter', () => {
       const updateTxs = await writer.update(artifact);
 
       expect(updateTxs).to.have.lengthOf(1);
-      expect(updateTxs[0].annotation).to.match(/ownership/i);
+      const [updateTx] = updateTxs;
+      assert(updateTx, 'expected ownership update transaction');
+      expect(updateTx.annotation).to.match(/ownership/i);
     });
   });
 
@@ -634,7 +638,9 @@ describe('WarpTokenWriter', () => {
         config.root.type === CompositeIsmNodeType.AGGREGATION,
         'expected aggregation root',
       );
-      return config.root.subIsms[1];
+      const rateLimitedIsm = config.root.subIsms[1];
+      assert(rateLimitedIsm, 'expected rate limited ISM');
+      return rateLimitedIsm;
     };
 
     const deployedCompositeIsm = (

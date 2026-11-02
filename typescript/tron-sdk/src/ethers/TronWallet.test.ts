@@ -2,7 +2,7 @@ import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { BigNumber, constants, utils } from 'ethers';
 
-import { strip0x } from '@hyperlane-xyz/utils';
+import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import { TronTransaction, TronTransactionBuilder } from './TronWallet.js';
 
@@ -125,10 +125,12 @@ describe('TronTransactionBuilder', () => {
     expect(receipt.transactionHash).to.equal(`0x${TXID}`);
     expect(receipt.blockHash).to.equal(`0x${BLOCK_HASH}`);
     expect(receipt.status).to.equal(1);
-    expect(receipt.logs[0].address).to.equal(
+    const [firstLog, secondLog] = receipt.logs;
+    assert(firstLog && secondLog, 'Expected two receipt logs');
+    expect(firstLog.address).to.equal(
       '0x496bA8BA0871A037eC1617f002F0A4AfE5C2bae1',
     );
-    expect(receipt.logs[1].data).to.equal('0x');
+    expect(secondLog.data).to.equal('0x');
   });
 
   it('returns once the requested confirmation depth is reached', async () => {

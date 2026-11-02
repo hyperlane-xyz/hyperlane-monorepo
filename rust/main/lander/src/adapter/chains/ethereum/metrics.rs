@@ -22,6 +22,8 @@ pub struct EthereumAdapterMetrics {
     /// Counts how many times we've noticed the nonce in tx is different from nonce
     /// stored in db
     mismatch_nonce: IntGauge,
+    /// Protected broadcast attempts, labeled by destination and outcome.
+    mev_submissions: IntCounterVec,
 }
 
 impl EthereumAdapterMetrics {
@@ -31,6 +33,7 @@ impl EthereumAdapterMetrics {
         finalized_nonce: IntGauge,
         upper_nonce: IntGauge,
         mismatch_nonce: IntGauge,
+        mev_submissions: IntCounterVec,
     ) -> Self {
         Self {
             domain,
@@ -38,6 +41,7 @@ impl EthereumAdapterMetrics {
             finalized_nonce,
             upper_nonce,
             mismatch_nonce,
+            mev_submissions,
         }
     }
 
@@ -63,6 +67,12 @@ impl EthereumAdapterMetrics {
         self.get_mismatched_nonce().inc();
     }
 
+    pub fn increment_mev_submissions(&self, status: &str) {
+        self.mev_submissions
+            .with_label_values(&[self.domain.name(), status])
+            .inc();
+    }
+
     pub fn get_mismatched_nonce(&self) -> &IntGauge {
         &self.mismatch_nonce
     }
@@ -83,6 +93,7 @@ impl EthereumAdapterMetrics {
             dispatcher_metrics.get_finalized_nonce(domain, signer),
             dispatcher_metrics.get_upper_nonce(domain, signer),
             dispatcher_metrics.get_mismatched_nonce(domain, signer),
+            dispatcher_metrics.mev_submissions.clone(),
         )
     }
 

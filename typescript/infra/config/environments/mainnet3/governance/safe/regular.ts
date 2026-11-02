@@ -9,13 +9,11 @@ export const regularSafes: ChainMap<Address> = {
   ethereum: '0x562Dfaac27A84be6C96273F5c9594DA1681C0DA7',
   optimism: '0x890ac177Fe3052B8676A65f32C1589Bc329f3d50',
 
-  // ZKSync Governance Safes
+  // ZKSync Governance Safe
   abstract: '0xcd81ccFe7D9306849136Fa96397113345a32ECf3',
-  zksync: '0xcd81ccFe7D9306849136Fa96397113345a32ECf3',
 
-  // Jan 29, 2026 - Migrating Viction to Safes
-  // ----------------------------------------------------------
-  viction: '0x6a4aA5e0E732Fd4EA096FaFcB80F1a993aD01B91',
+  // Viction targets the Ethereum-controlled ICA in governance/ica/regular.ts.
+  // The deployed Viction Safe is not the core governance owner.
 
   // Not in use after ICA 2.0 migration
   // berachain: '0x7379D7bB2ccA68982E467632B6554fD4e72e9431',

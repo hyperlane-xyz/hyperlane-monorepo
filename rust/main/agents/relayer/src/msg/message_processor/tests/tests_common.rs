@@ -13,8 +13,9 @@ use tokio::sync::broadcast;
 // Re-export for use in other test modules
 pub use hyperlane_base::tests::mock_hyperlane_db::MockHyperlaneDb;
 use hyperlane_core::{
-    ChainResult, HyperlaneDomain, HyperlaneMessage, PendingOperation, PendingOperationResult,
-    PendingOperationStatus, ReprepareReason, TryBatchAs, TxOutcome, H256, U256,
+    ChainResult, HyperlaneDomain, HyperlaneMessage, Mailbox, PendingOperation,
+    PendingOperationResult, PendingOperationStatus, ReprepareReason, TryBatchAs, TxOutcome, H256,
+    U256,
 };
 use lander::{Entrypoint, FullPayload, LanderError, PayloadStatus, PayloadUuid};
 
@@ -34,6 +35,10 @@ pub struct MockQueueOperation {
     pub delivered: Option<bool>,
     #[serde(skip)]
     pub confirmations: Arc<AtomicUsize>,
+    pub gas_limit: Option<U256>,
+    pub payload_data: Vec<u8>,
+    #[serde(skip)]
+    pub mailbox: Option<Arc<dyn Mailbox>>,
 }
 
 impl MockQueueOperation {
@@ -46,6 +51,9 @@ impl MockQueueOperation {
             retries: 0,
             delivered: None,
             confirmations: Arc::new(AtomicUsize::new(0)),
+            gas_limit: None,
+            payload_data: Vec::new(),
+            mailbox: None,
         }
     }
 
@@ -118,7 +126,10 @@ impl PendingOperation for MockQueueOperation {
     }
     fn set_submission_outcome(&mut self, _outcome: TxOutcome) {}
     fn get_tx_cost_estimate(&self) -> Option<U256> {
-        None
+        self.gas_limit
+    }
+    fn try_get_mailbox(&self) -> Option<Arc<dyn Mailbox>> {
+        self.mailbox.clone()
     }
     async fn confirm(&mut self) -> PendingOperationResult {
         if !self.is_ready() {
@@ -154,10 +165,10 @@ impl PendingOperation for MockQueueOperation {
         self.retries
     }
     async fn payload(&self) -> ChainResult<Vec<u8>> {
-        unimplemented!()
+        Ok(self.payload_data.clone())
     }
     fn success_criteria(&self) -> ChainResult<Option<Vec<u8>>> {
-        unimplemented!()
+        Ok(None)
     }
     fn on_reprepare(
         &mut self,

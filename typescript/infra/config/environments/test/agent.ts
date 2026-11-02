@@ -35,6 +35,7 @@ const hyperlane: RootAgentConfig = {
   },
   validators: {
     ...roleBase,
+    rpcConsensusType: RpcConsensusType.Majority,
     chains: validators,
   },
 };

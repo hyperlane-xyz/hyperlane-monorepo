@@ -88,11 +88,11 @@ impl PriorityFeeOracle for HeliusPriorityFeeOracle {
 
         let response = self
             .client
-            .post(self.config.url.clone())
+            .post(self.config.url.expose_secret().clone())
             .json(&request_body)
             .send()
             .await
-            .map_err(ChainCommunicationError::from_other)?;
+            .map_err(|error| ChainCommunicationError::from_other(error.without_url()))?;
 
         let response: JsonRpcResult<GetPriorityFeeEstimateResult> = response
             .json()
@@ -138,6 +138,59 @@ mod test {
     use super::{GetPriorityFeeEstimateResult, JsonRpcResult};
 
     #[tokio::test]
+    async fn helius_transport_errors_omit_url_credentials() {
+        use tokio::{
+            io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
+            net::TcpListener,
+        };
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let oracle = HeliusPriorityFeeOracle::new(HeliusPriorityFeeOracleConfig {
+            url: format!("http://{address}/private-path?api-key=private-query")
+                .parse::<url::Url>()
+                .unwrap()
+                .into(),
+            fee_level: HeliusPriorityFeeLevel::Medium,
+        });
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut socket = BufReader::new(socket);
+            let mut content_length = 0;
+            loop {
+                let mut line = String::new();
+                assert!(socket.read_line(&mut line).await.unwrap() > 0);
+                if line == "\r\n" {
+                    break;
+                }
+                if let Some((name, value)) = line.split_once(':') {
+                    if name.eq_ignore_ascii_case("content-length") {
+                        content_length = value.trim().parse::<usize>().unwrap();
+                    }
+                }
+            }
+            let mut body = vec![0; content_length];
+            socket.read_exact(&mut body).await.unwrap();
+            socket
+                .get_mut()
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nConnection: close\r\n\r\nnot-json",
+                )
+                .await
+                .unwrap();
+        });
+        let transaction = SealevelTxType::Legacy(Transaction::default());
+        let decode_error = oracle.get_priority_fee(&transaction).await.unwrap_err();
+        server.await.unwrap();
+        let connect_error = oracle.get_priority_fee(&transaction).await.unwrap_err();
+        // Reqwest decode errors already omit the URL; preserve their diagnostics.
+        assert!(decode_error.to_string().contains("decoding"));
+        for error in [decode_error, connect_error] {
+            assert!(!format!("{error:?} {error}").contains("private-"));
+        }
+    }
+
+    #[tokio::test]
     async fn test_helius_get_priority_fee() {
         let helius_url = if let Ok(url) = std::env::var("HELIUS_URL") {
             url
@@ -147,7 +200,7 @@ mod test {
         };
 
         let oracle = super::HeliusPriorityFeeOracle::new(super::HeliusPriorityFeeOracleConfig {
-            url: url::Url::parse(&helius_url).unwrap(),
+            url: url::Url::parse(&helius_url).unwrap().into(),
             fee_level: super::HeliusPriorityFeeLevel::Medium,
         });
 
@@ -165,7 +218,7 @@ mod test {
     fn test_helius_get_priority_fee_estimate_options_ser() {
         let get_oracle = |fee_level| {
             HeliusPriorityFeeOracle::new(HeliusPriorityFeeOracleConfig {
-                url: url::Url::parse("http://localhost:8080").unwrap(),
+                url: url::Url::parse("http://localhost:8080").unwrap().into(),
                 fee_level,
             })
         };

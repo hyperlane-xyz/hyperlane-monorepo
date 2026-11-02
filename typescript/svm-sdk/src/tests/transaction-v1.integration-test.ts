@@ -52,7 +52,7 @@ for (const enabled of [true, false]) {
 
     before(async () => {
       const binary =
-        process.env.AGAVE_TEST_VALIDATOR ?? 'solana-test-validator';
+        process.env['AGAVE_TEST_VALIDATOR'] ?? 'solana-test-validator';
       expect(
         execFileSync(binary, ['--version'], { encoding: 'utf8' }),
       ).to.match(/\b4\.2\.0\b/);

@@ -244,20 +244,18 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
 
       // Read and verify update
       const readHook = await reader.read(igpHookAddress);
+      const domain1Oracle = readHook.config.oracleConfig[DOMAIN_1];
+      const domain2Oracle = readHook.config.oracleConfig[DOMAIN_2];
+      assert(domain1Oracle, `Missing oracle config for ${DOMAIN_1}`);
+      assert(domain2Oracle, `Missing oracle config for ${DOMAIN_2}`);
 
       expect(readHook.config.overhead[DOMAIN_1]).to.equal(60000);
-      expect(readHook.config.oracleConfig[DOMAIN_1].tokenExchangeRate).to.equal(
-        '1500000000000000000',
-      );
-      expect(readHook.config.oracleConfig[DOMAIN_1].gasPrice).to.equal(
-        '1500000000',
-      );
+      expect(domain1Oracle.tokenExchangeRate).to.equal('1500000000000000000');
+      expect(domain1Oracle.gasPrice).to.equal('1500000000');
 
       // Verify DOMAIN_2 config unchanged
       expect(readHook.config.overhead[DOMAIN_2]).to.equal(75000);
-      expect(readHook.config.oracleConfig[DOMAIN_2].tokenExchangeRate).to.equal(
-        '2000000000000000000',
-      );
+      expect(domain2Oracle.tokenExchangeRate).to.equal('2000000000000000000');
     });
 
     step('should verify IGP Hook gas config removal', async () => {
@@ -272,6 +270,10 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
         AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
       );
       const currentHook = await reader.read(igpHookAddress);
+      const domain1Overhead = currentHook.config.overhead[DOMAIN_1];
+      const domain1Oracle = currentHook.config.oracleConfig[DOMAIN_1];
+      assert(domain1Overhead !== undefined, `Missing overhead for ${DOMAIN_1}`);
+      assert(domain1Oracle, `Missing oracle config for ${DOMAIN_1}`);
 
       // Create updated artifact without DOMAIN_2
       const updatedArtifact: ArtifactDeployed<
@@ -282,11 +284,11 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
         config: {
           ...currentHook.config,
           overhead: {
-            [DOMAIN_1]: currentHook.config.overhead[DOMAIN_1],
+            [DOMAIN_1]: domain1Overhead,
             // DOMAIN_2 omitted to remove it
           },
           oracleConfig: {
-            [DOMAIN_1]: currentHook.config.oracleConfig[DOMAIN_1],
+            [DOMAIN_1]: domain1Oracle,
             // DOMAIN_2 omitted to remove it
           },
         },
@@ -429,10 +431,10 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
       expect(igpConfig.beneficiary).to.equal(aleoSigner.getSignerAddress());
       expect(igpConfig.oracleKey).to.equal(aleoSigner.getSignerAddress());
       expect(igpConfig.overhead[DOMAIN_1]).to.equal(50000);
-      expect(igpConfig.oracleConfig[DOMAIN_1].gasPrice).to.equal('1000000000');
-      expect(igpConfig.oracleConfig[DOMAIN_1].tokenExchangeRate).to.equal(
-        '1000000000000000000',
-      );
+      const oracleConfig = igpConfig.oracleConfig[DOMAIN_1];
+      assert(oracleConfig, `Missing oracle config for ${DOMAIN_1}`);
+      expect(oracleConfig.gasPrice).to.equal('1000000000');
+      expect(oracleConfig.tokenExchangeRate).to.equal('1000000000000000000');
     });
   });
 });

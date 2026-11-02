@@ -152,6 +152,8 @@ export class KeyFunderHelmManager extends HelmManager {
       if (this.config.chainsToSkip?.includes(chain)) continue;
 
       const chainConfig: ChainYamlConfig = {};
+      const erc20GasToken = this.config.erc20GasTokens?.[chain];
+      if (erc20GasToken) chainConfig.erc20GasToken = erc20GasToken;
 
       const balances = this.getBalancesForChain(chain, roleAddressMap);
       if (Object.keys(balances).length > 0) {
@@ -354,6 +356,7 @@ interface RoleYamlConfig {
 }
 
 interface ChainYamlConfig {
+  erc20GasToken?: { address: string; decimals: number };
   balances?: Record<string, string>;
   igp?: {
     address: string;

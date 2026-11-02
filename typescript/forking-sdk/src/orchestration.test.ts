@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { buildForkedChainMetadata } from './orchestration.js';
 import { ForkManagerRegistry } from './registry.js';
@@ -123,9 +124,15 @@ describe('buildForkedChainMetadata', () => {
       basePort: 9000,
     });
 
-    expect(created[0].appliedConfigs).to.deep.equal([{ tag: 'alpha-config' }]);
-    expect(created[1].appliedConfigs).to.deep.equal([]);
-    expect(created[2].appliedConfigs).to.deep.equal([{ tag: 'gamma-config' }]);
+    const [alphaManager, betaManager, gammaManager] = created;
+    assert(alphaManager && betaManager && gammaManager, 'Missing fork manager');
+    expect(alphaManager.appliedConfigs).to.deep.equal([
+      { tag: 'alpha-config' },
+    ]);
+    expect(betaManager.appliedConfigs).to.deep.equal([]);
+    expect(gammaManager.appliedConfigs).to.deep.equal([
+      { tag: 'gamma-config' },
+    ]);
   });
 
   it('collects each manager forked-chain metadata keyed by chain name', async () => {
@@ -138,14 +145,29 @@ describe('buildForkedChainMetadata', () => {
     });
 
     expect(Object.keys(metadata)).to.deep.equal(['alpha', 'beta', 'gamma']);
-    expect(metadata.alpha).to.deep.equal(created[0].getForkedChainMetadata());
-    expect(metadata.alpha.rpcUrls).to.deep.equal([
+    const alphaMetadata = metadata['alpha'];
+    const gammaMetadata = metadata['gamma'];
+    const betaManager = managers['beta'];
+    const createdAlphaManager = created[0];
+    const createdBetaManager = created[1];
+    assert(
+      alphaMetadata &&
+        gammaMetadata &&
+        betaManager &&
+        createdAlphaManager &&
+        createdBetaManager,
+      'Missing expected fork result',
+    );
+    expect(alphaMetadata).to.deep.equal(
+      createdAlphaManager.getForkedChainMetadata(),
+    );
+    expect(alphaMetadata.rpcUrls).to.deep.equal([
       { http: 'http://127.0.0.1:9000' },
     ]);
-    expect(metadata.gamma.rpcUrls).to.deep.equal([
+    expect(gammaMetadata.rpcUrls).to.deep.equal([
       { http: 'http://127.0.0.1:9002' },
     ]);
-    expect(managers.beta).to.equal(created[1]);
+    expect(betaManager).to.equal(createdBetaManager);
   });
 
   it('rejects duplicate chain names before starting any node', async () => {
@@ -213,6 +235,8 @@ describe('buildForkedChainMetadata', () => {
     // gamma is never created: the loop throws while starting beta.
     expect(created.length).to.equal(2);
     // alpha (already started) is torn down during cleanup.
-    expect(created[0].killed).to.equal(true);
+    const alphaManager = created[0];
+    assert(alphaManager, 'Missing alpha fork manager');
+    expect(alphaManager.killed).to.equal(true);
   });
 });

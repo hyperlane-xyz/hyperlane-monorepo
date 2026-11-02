@@ -4,7 +4,10 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ChainNameOrId } from '../types.js';
 
-import { ChainMetadataManager } from './ChainMetadataManager.js';
+import {
+  ChainMetadataManager,
+  altVmChainLookup,
+} from './ChainMetadataManager.js';
 import {
   BlockExplorer,
   ChainMetadata,
@@ -262,4 +265,23 @@ describe(ChainMetadataManager.name, () => {
       });
     },
   );
+
+  describe(altVmChainLookup.name, () => {
+    it('lists the domain id of every known chain', () => {
+      const lookup = altVmChainLookup(
+        new ChainMetadataManager({
+          ethereum: ethereumMetadata,
+          solana: solanaMetadata,
+        }),
+      );
+
+      expect(lookup.getKnownChainNames()).to.have.members([
+        'ethereum',
+        'solana',
+      ]);
+      expect(lookup.getKnownDomainIds()).to.deep.equal(
+        new Set([1, 1399811149]),
+      );
+    });
+  });
 });

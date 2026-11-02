@@ -250,6 +250,14 @@ fn launch_cosmos_validator(
     agent_config_path: PathBuf,
     debug: bool,
 ) -> AgentHandles {
+    cosmos_validator_program(agent_config, agent_config_path, debug).spawn("VAL", None)
+}
+
+fn cosmos_validator_program(
+    agent_config: AgentConfig,
+    agent_config_path: PathBuf,
+    debug: bool,
+) -> Program {
     let validator_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "validator");
     let validator_base = tempdir().expect("Failed to create a temp dir").into_path();
     let validator_base_db = concat_path(&validator_base, "db");
@@ -260,7 +268,7 @@ fn launch_cosmos_validator(
     let checkpoint_path = concat_path(&validator_base, "checkpoint");
     let signature_path = concat_path(&validator_base, "signature");
 
-    let validator = Program::default()
+    Program::default()
         .bin(validator_bin)
         .working_dir("../../")
         .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
@@ -271,6 +279,14 @@ fn launch_cosmos_validator(
         .env("RUST_BACKTRACE", "1")
         .hyp_env("CHECKPOINTSYNCER_PATH", checkpoint_path.to_str().unwrap())
         .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage")
+        // Dead endpoints in this fixture intentionally exercise fallback, not voting.
+        .hyp_env(
+            format!(
+                "CHAINS_{}_RPCCONSENSUSTYPE",
+                agent_config.name.to_uppercase()
+            ),
+            "fallback",
+        )
         .hyp_env("ORIGINCHAINNAME", agent_config.name)
         .hyp_env("DB", validator_base_db.to_str().unwrap())
         .hyp_env("METRICSPORT", agent_config.metrics_port.to_string())
@@ -280,9 +296,6 @@ fn launch_cosmos_validator(
         .hyp_env("SIGNER_SIGNER_TYPE", "hexKey")
         .hyp_env("SIGNER_KEY", agent_config.signer.key)
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
-        .spawn("VAL", None);
-
-    validator
 }
 
 #[apply(as_task)]
@@ -633,5 +646,27 @@ mod test {
         use crate::cosmos::run_locally;
 
         run_locally()
+    }
+}
+
+#[cfg(test)]
+mod validator_config_tests {
+    use super::*;
+
+    #[test]
+    fn validator_harness_explicitly_uses_fallback() {
+        let config: AgentConfig = serde_json::from_value(serde_json::json!({
+            "name": "fallback-test", "domainId": 1234, "metricsPort": 9999,
+            "mailbox": "test", "interchainGasPaymaster": "test", "validatorAnnounce": "test", "merkleTreeHook": "test",
+            "protocol": "cosmos", "rpcUrls": [], "index": {"from": 0, "chunk": 10}, "contractAddressBytes": 32,
+            "chainId": "test-1", "grpcUrls": [], "bech32Prefix": "osmo",
+            "signer": {"type": "cosmosKey", "key": "test", "prefix": "osmo"},
+            "gasPrice": {"denom": "uosmo", "amount": "0.01"},
+            "nativeToken": {"denom": "uosmo", "symbol": "OSMO", "decimals": 6}
+        })).unwrap();
+        let program = cosmos_validator_program(config, PathBuf::from("test-config.json"), false);
+        let command = format!("{program:#}");
+        assert!(command.contains("HYP_CHAINS_FALLBACK-TEST_RPCCONSENSUSTYPE=fallback"));
+        assert!(command.contains("HYP_ORIGINCHAINNAME=fallback-test"));
     }
 }

@@ -81,20 +81,22 @@ export async function convertLegacySolanaTransaction(
   const instructions: Instruction[] = [];
 
   for (const ix of legacyTx.instructions) {
+    const discriminator = ix.data[0];
     const isComputeBudget =
       ix.programId.toBase58() === COMPUTE_BUDGET_PROGRAM_ID;
 
     if (
       isComputeBudget &&
-      MIGRATED_COMPUTE_BUDGET_DISCRIMINATORS.includes(ix.data[0])
+      discriminator !== undefined &&
+      MIGRATED_COMPUTE_BUDGET_DISCRIMINATORS.includes(discriminator)
     ) {
       assert(ix.data.length === 5, 'Invalid compute-budget instruction');
       const dataArr = Uint8Array.from(ix.data);
       const value = new DataView(dataArr.buffer).getUint32(1, true);
-      if (ix.data[0] === 1) {
+      if (discriminator === 1) {
         assert(heapSize === undefined, 'Duplicate heap configuration');
         heapSize = value;
-      } else if (ix.data[0] === 2) {
+      } else if (discriminator === 2) {
         assert(
           computeUnits === undefined,
           'Duplicate compute unit configuration',

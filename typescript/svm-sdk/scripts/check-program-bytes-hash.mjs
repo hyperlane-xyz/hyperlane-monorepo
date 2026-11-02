@@ -9,6 +9,9 @@ import { computeSealevelSourceHash } from './sealevel-source-hash.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROGRAM_BYTES_FILE = join(__dirname, '../src/hyperlane/program-bytes.ts');
+// CI passes --warn after comparing rebuilt ELFs: inputs such as the rust/main
+// workspace manifest can change the hash without changing program bytes.
+const warnOnly = process.argv.includes('--warn');
 
 let content;
 try {
@@ -38,6 +41,14 @@ const currentHash = computeSealevelSourceHash();
 
 if (embeddedHash === currentHash) {
   console.log('program-bytes.ts is up to date with Rust sealevel sources.');
+  process.exit(0);
+}
+
+if (warnOnly) {
+  console.log(
+    `::warning::Sealevel sources changed without changing program bytes. ` +
+      `Set SEALEVEL_SOURCE_HASH to ${currentHash} (was ${embeddedHash}).`,
+  );
   process.exit(0);
 }
 

@@ -13,7 +13,7 @@ import {
   type RawWarpArtifactConfigs,
   type WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { LazyAsync } from '@hyperlane-xyz/utils';
+import { LazyAsync, assert } from '@hyperlane-xyz/utils';
 
 import { type CosmosNativeSigner } from '../clients/signer.js';
 import { setupWarpExtension } from '../hyperlane/warp/query.js';
@@ -31,15 +31,20 @@ import { type CosmosWarpQueryClient, getWarpTokenType } from './warp-query.js';
 // Uses lazy initialization to keep constructor synchronous while deferring async query client creation
 export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
   private readonly query = new LazyAsync(() => this.createQuery());
+  private readonly rpcUrl: string;
 
-  constructor(private readonly rpcUrls: string[]) {}
+  constructor(rpcUrls: string[]) {
+    const [rpcUrl] = rpcUrls;
+    assert(rpcUrl, `${CosmosWarpArtifactManager.name} got no rpcUrls`);
+    this.rpcUrl = rpcUrl;
+  }
 
   private async getQuery(): Promise<CosmosWarpQueryClient> {
     return this.query.get();
   }
 
   private async createQuery(): Promise<CosmosWarpQueryClient> {
-    const cometClient = await connectComet(this.rpcUrls[0]);
+    const cometClient = await connectComet(this.rpcUrl);
     return QueryClient.withExtensions(cometClient, setupWarpExtension);
   }
 
