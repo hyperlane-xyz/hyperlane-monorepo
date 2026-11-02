@@ -37,7 +37,7 @@ use super::op_batch::OperationBatch;
 use super::{op_queue::OpQueue, runtime_denylist::RuntimeDenylist, QueueOperationBatch};
 
 use stage::prepare;
-use stage::submit::filter_operations_for_submit;
+use stage::submit::{self, filter_operations_for_submit};
 
 mod disposition;
 mod stage;
@@ -118,6 +118,8 @@ pub struct MessageProcessor {
     confirm_queue: OpQueue,
     payload_dispatcher_entrypoint: Option<DispatcherEntrypoint>,
     db: Arc<dyn HyperlaneDb>,
+    /// Checked before lander payloads are created; see `with_runtime_denylist`.
+    lander_denylist: Arc<RuntimeDenylist>,
 }
 
 impl MessageProcessor {
@@ -162,6 +164,7 @@ impl MessageProcessor {
             confirm_queue,
             payload_dispatcher_entrypoint,
             db: Arc::new(db),
+            lander_denylist: Default::default(),
         }
     }
 
@@ -169,8 +172,15 @@ impl MessageProcessor {
     /// queues. Confirm-queue operations, and lander payloads already handed to
     /// the dispatcher, have been submitted and are not recalled.
     pub fn with_runtime_denylist(mut self, denylist: Arc<RuntimeDenylist>) -> Self {
-        self.prepare_queue = self.prepare_queue.with_runtime_denylist(denylist.clone());
-        self.submit_queue = self.submit_queue.with_runtime_denylist(denylist);
+        if self.payload_dispatcher_entrypoint.is_some() {
+            // Lander requeues ops whose payload is already with the
+            // dispatcher, and evicting those would lose their confirmation.
+            // Enforce the denylist only before a new payload is created.
+            self.lander_denylist = denylist;
+        } else {
+            self.prepare_queue = self.prepare_queue.with_runtime_denylist(denylist.clone());
+            self.submit_queue = self.submit_queue.with_runtime_denylist(denylist);
+        }
         self
     }
 
@@ -343,6 +353,7 @@ impl MessageProcessor {
                     self.max_batch_size,
                     self.metrics.clone(),
                     self.db.clone(),
+                    self.lander_denylist.clone(),
                 ),
             ))
             .expect("spawning tokio task from Builder is infallible")
@@ -650,6 +661,7 @@ async fn submit_lander_task(
     max_batch_size: u32,
     metrics: MessageProcessorMetrics,
     db: Arc<dyn HyperlaneDb>,
+    denylist: Arc<RuntimeDenylist>,
 ) {
     let recv_limit = max_batch_size as usize;
     loop {
@@ -666,6 +678,11 @@ async fn submit_lander_task(
             batch,
         )
         .await;
+
+        // Only ops about to get a new payload: those already with the
+        // dispatcher went back to a queue above and keep being tracked.
+        let operations_to_process =
+            submit::drop_denied_before_submission(&denylist, operations_to_process);
 
         if operations_to_process.is_empty() {
             // There are no operations to submit, so give some time before checking again

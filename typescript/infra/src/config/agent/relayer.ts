@@ -145,6 +145,18 @@ export interface BaseRelayerConfig {
   relayApi?: RelayApiConfig;
 }
 
+function isValidRuntimeDenylistUrl(url: string): boolean {
+  try {
+    const { protocol, hostname } = new URL(url);
+    if (protocol === 'file:') return true;
+    return (
+      (protocol === 'https:' || protocol === 'http:') && hostname.length > 0
+    );
+  } catch {
+    return false;
+  }
+}
+
 export interface RuntimeDenylistConfig {
   url: string;
   pollIntervalSecs?: number;
@@ -242,17 +254,22 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     );
 
     if (baseConfig.runtimeDenylist) {
-      const { url } = baseConfig.runtimeDenylist;
-      // The relayer refuses to start on any other scheme. Don't echo the URL,
+      const { url, pollIntervalSecs } = baseConfig.runtimeDenylist;
+      // Same checks as the agent schema and the relayer, so a bad value fails
+      // the deploy rather than the relayer's startup. Don't echo the URL,
       // which can carry a token.
       assert(
-        /^(https?|file):\/\//.test(url),
-        `runtimeDenylist.url must use https://, http:// or file://`,
+        isValidRuntimeDenylistUrl(url),
+        'runtimeDenylist.url must be a valid https://, http:// or file:// URL',
+      );
+      assert(
+        pollIntervalSecs === undefined ||
+          (Number.isInteger(pollIntervalSecs) && pollIntervalSecs > 0),
+        'runtimeDenylist.pollIntervalSecs must be a positive integer',
       );
       relayerConfig.runtimeDenylistUrl = url;
-      if (baseConfig.runtimeDenylist.pollIntervalSecs !== undefined) {
-        relayerConfig.runtimeDenylistPollIntervalSecs =
-          baseConfig.runtimeDenylist.pollIntervalSecs;
+      if (pollIntervalSecs !== undefined) {
+        relayerConfig.runtimeDenylistPollIntervalSecs = pollIntervalSecs;
       }
     }
 

@@ -1012,3 +1012,48 @@ async fn test_filter_operations_for_submit_included_status() {
     assert_eq!(submit_queue.len().await, 0);
     assert_eq!(confirm_queue.len().await, 1);
 }
+
+#[tokio::test]
+async fn denylist_drops_only_ops_without_a_payload_in_flight() {
+    use crate::msg::runtime_denylist::RuntimeDenylist;
+
+    // A rule lands for both ops. The one already handed to lander must stay
+    // tracked; the one that hasn't been submitted is dropped before submission.
+    let in_flight = H256::from_low_u64_be(1);
+    let not_submitted = H256::from_low_u64_be(2);
+    let denylist = RuntimeDenylist::from_rules_for_test(serde_json::json!([
+        { "reason": "test", "addedBy": "test", "match": { "messageId": [format!("{in_flight:?}"), format!("{not_submitted:?}")] } }
+    ]));
+
+    let mut mock_db = MockHyperlaneDb::new();
+    let payload_uuid = UniqueIdentifier::new(Uuid::new_v4());
+    mock_db
+        .expect_retrieve_payload_uuids_by_message_id()
+        .returning(move |id| Ok((*id == in_flight).then(|| vec![payload_uuid.clone()])));
+    let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    mock_entrypoint.expect_payload_status().returning(|_| {
+        Ok(PayloadStatus::InTransaction(
+            TransactionStatus::PendingInclusion,
+        ))
+    });
+    let submit_queue = create_test_queue();
+    let confirm_queue = create_test_queue();
+
+    let to_submit = filter_operations_for_submit(
+        Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &submit_queue,
+        &confirm_queue,
+        &create_test_metrics(),
+        Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
+        vec![
+            Box::new(MockQueueOperation::with_first_prepare(in_flight)) as QueueOperation,
+            Box::new(MockQueueOperation::with_first_prepare(not_submitted)) as QueueOperation,
+        ],
+    )
+    .await;
+    let to_submit = super::drop_denied_before_submission(&denylist, to_submit);
+
+    assert!(to_submit.is_empty());
+    // The in-flight op is still queued for its payload to be tracked.
+    assert_eq!(submit_queue.len().await + confirm_queue.len().await, 1);
+}

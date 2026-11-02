@@ -994,3 +994,26 @@ async fn queue_without_denylist_keeps_everything() {
     }
     assert_eq!(queue.pop_many(10).await.len(), 3);
 }
+
+#[tokio::test]
+async fn pop_many_ready_bounds_work_on_a_denied_backlog() {
+    let broadcaster = sync::broadcast::Sender::new(10);
+    let destination: HyperlaneDomain = KnownHyperlaneDomain::Base.into();
+    let ops: Vec<_> = (0..super::EVICTION_ROUNDS_PER_POP + 1)
+        .map(|_| MockPendingOperation::new(0, destination.clone()).with_fixed_deadline())
+        .collect();
+    let ids: Vec<_> = ops.iter().map(|op| format!("{:?}", op.id())).collect();
+    let denylist = Arc::new(RuntimeDenylist::from_rules_for_test(serde_json::json!([
+        { "reason": "test", "addedBy": "test", "match": { "messageId": ids } }
+    ])));
+    let mut queue = initialize_queue(&broadcaster).with_runtime_denylist(denylist);
+    for op in ops {
+        queue.push(Box::new(op), None).await;
+    }
+
+    let (popped, deadline) = queue.pop_many_ready(1).await;
+
+    assert!(popped.is_empty());
+    assert!(deadline.is_some(), "caller must poll again, not sleep");
+    assert_eq!(queue.len().await, 1);
+}

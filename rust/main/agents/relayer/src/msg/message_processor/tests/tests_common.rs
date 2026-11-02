@@ -23,6 +23,8 @@ use crate::msg::message_processor::MessageProcessorMetrics;
 use crate::msg::op_queue::OpQueue;
 use crate::server::operations::message_retry::MessageRetryRequest;
 
+static ZERO_ADDRESS: H256 = H256::zero();
+
 // Mock QueueOperation for testing
 #[derive(Debug, Serialize, Clone)]
 pub struct MockQueueOperation {
@@ -97,10 +99,10 @@ impl PendingOperation for MockQueueOperation {
         &self.destination
     }
     fn sender_address(&self) -> &H256 {
-        unimplemented!()
+        &ZERO_ADDRESS
     }
     fn recipient_address(&self) -> &H256 {
-        unimplemented!()
+        &ZERO_ADDRESS
     }
     fn body(&self) -> &[u8] {
         &[]

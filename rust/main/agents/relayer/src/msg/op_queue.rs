@@ -16,6 +16,10 @@ use super::runtime_denylist::RuntimeDenylist;
 use crate::server::operations::message_retry::{MessageRetryQueueResponse, MessageRetryRequest};
 use crate::settings::matching_list::MatchingListExt;
 
+/// Fully-denied batches examined per `pop_many_ready` before returning, so
+/// a long denied backlog can't defer retry requests.
+const EVICTION_ROUNDS_PER_POP: usize = 16;
+
 pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>;
 
 /// Queue of generic operations that can be submitted to a destination chain.
@@ -121,7 +125,7 @@ impl OpQueue {
 
     pub async fn pop_many_ready(&mut self, limit: usize) -> (Vec<QueueOperation>, Option<Instant>) {
         self.process_retry_requests().await;
-        loop {
+        for _ in 0..EVICTION_ROUNDS_PER_POP {
             let (popped, next_deadline) = self.pop_ready(limit).await;
             if popped.is_empty() {
                 return (popped, next_deadline);
@@ -133,6 +137,9 @@ impl OpQueue {
                 return (kept, next_deadline);
             }
         }
+        // A long run of denied ops: hand back an immediate deadline so the
+        // caller polls again (servicing retry requests) instead of sleeping.
+        (vec![], Some(Instant::now()))
     }
 
     async fn pop_ready(&self, limit: usize) -> (Vec<QueueOperation>, Option<Instant>) {
