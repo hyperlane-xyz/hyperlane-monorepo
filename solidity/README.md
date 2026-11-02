@@ -74,6 +74,8 @@ Any test failure, missing test, changed result, ABI difference or storage-layout
 difference returns a nonzero exit code. Matching failures are still failures.
 The `Solidity Solar` workflow uploads the same evidence on contract PRs.
 
+[Local benchmark results and method](benchmarks/solar-2026-11-02.md).
+
 ### Fixtures
 
 Some forge tests may generate fixtures. This allows the [SDK](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/main/typescript/sdk) tests to leverage forge fuzzing. These are git ignored and should not be committed.

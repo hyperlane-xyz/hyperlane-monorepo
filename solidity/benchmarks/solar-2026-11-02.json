@@ -1,0 +1,257 @@
+{
+  "sourceCommit": "2cc950aa96387ec5eaf528eafb637bfa31c90edd",
+  "sourceDirty": true,
+  "measuredAt": "2026-11-02T19:35:49.204Z",
+  "host": {
+    "platform": "darwin",
+    "release": "27.0.0",
+    "cpu": "Apple M3 Pro",
+    "threads": 11,
+    "memoryBytes": 38654705664
+  },
+  "node": "v26.12.1",
+  "forge": "forge Version: 1.8.8-nightly\nCommit SHA: a577a1142515f5a96935a525935936a2281b4c75\nBuild Timestamp: 2026-11-02T06:10:31.014375000Z (1793599831)\nBuild Profile: dist",
+  "solar": "solar 0.3.0+commit.unknown\nSolidity Version: 0.8.38\nSolc-Compatible Version: 0.8.38+commit.unknown.solar.0.3.0\nCommit SHA: unknown\nBuild Timestamp: 2026-11-02T19:24:08.327809000Z\nBuild Features: mimalloc,tracing\nBuild Profile: release",
+  "runs": 5,
+  "method": "Alternating clean contracts-only builds (--force --skip test --skip script), then cached builds. Full offline test suite compiled separately; fixed fuzz seed 0, 50 runs. Wall times include Forge and artifact I/O. OS file caches are warm; dependency installation excluded. Test gas includes the harness, not isolated transaction gas.",
+  "speedup": 9.947717481383402,
+  "artifactCount": 312,
+  "compatibility": [],
+  "statusDifferences": [],
+  "implementationCommit": "e548eb7be8fdb3f28cb89c65d3f5ccc09c79e80a",
+  "solarSourceRevision": "e7a91fc70f29dc8d0c236d56a2aa7706dc2555cf",
+  "note": "Measurement started on the working diff committed as implementationCommit. Solar was built in release mode from the v0.3.0 source archive; no PGO. Other work was running on this development machine; use the raw sample ranges.",
+  "compilerSettings": {
+    "solc": "0.8.33",
+    "evm_version": "cancun",
+    "optimizer": true,
+    "optimizer_runs": 10000,
+    "via_ir": false,
+    "isolate": false,
+    "compilation_restrictions": [
+      {
+        "paths": "contracts/token/CrossCollateralRouter.sol",
+        "version": null,
+        "via_ir": null,
+        "bytecode_hash": null,
+        "min_optimizer_runs": null,
+        "optimizer_runs": 3599,
+        "max_optimizer_runs": null,
+        "min_evm_version": null,
+        "evm_version": null,
+        "max_evm_version": null
+      }
+    ]
+  },
+  "results": {
+    "solc": {
+      "coldMs": [
+        22133.948750000003, 28061.573708999997, 17888.101083,
+        18235.328374999997, 16123.611292000001
+      ],
+      "cachedMs": [
+        1254.5899579999968, 955.2725419999915, 893.3872499999998,
+        871.6814169999998, 836.296875
+      ],
+      "coldMedianMs": 18235.328374999997,
+      "cachedMedianMs": 893.3872499999998,
+      "testBuildMs": 31974.726375,
+      "testMs": 7687.320999999996,
+      "testExitCode": 0,
+      "counts": {
+        "Success": 1480,
+        "Skipped": 1
+      },
+      "failures": []
+    },
+    "solar": {
+      "coldMs": [
+        1833.1168340000004, 1702.984166000002, 2070.8550419999956,
+        2325.9755000000005, 1467.5983330000017
+      ],
+      "cachedMs": [
+        927.2428750000036, 1796.3576250000042, 1021.9467499999882,
+        1260.0358330000017, 981.6592079999973
+      ],
+      "coldMedianMs": 1833.1168340000004,
+      "cachedMedianMs": 1021.9467499999882,
+      "testBuildMs": 2879.3573329999927,
+      "testMs": 6018.564542000007,
+      "testExitCode": 0,
+      "counts": {
+        "Success": 1480,
+        "Skipped": 1
+      },
+      "failures": []
+    }
+  },
+  "sizes": [
+    {
+      "id": "contracts/Mailbox.sol:Mailbox",
+      "solc": {
+        "creationBytes": 8517,
+        "runtimeBytes": 8364
+      },
+      "solar": {
+        "creationBytes": 4559,
+        "runtimeBytes": 4385
+      }
+    },
+    {
+      "id": "contracts/hooks/MerkleTreeHook.sol:MerkleTreeHook",
+      "solc": {
+        "creationBytes": 6921,
+        "runtimeBytes": 6434
+      },
+      "solar": {
+        "creationBytes": 3721,
+        "runtimeBytes": 3385
+      }
+    },
+    {
+      "id": "contracts/hooks/igp/InterchainGasPaymaster.sol:InterchainGasPaymaster",
+      "solc": {
+        "creationBytes": 16900,
+        "runtimeBytes": 16835
+      },
+      "solar": {
+        "creationBytes": 9211,
+        "runtimeBytes": 9130
+      }
+    },
+    {
+      "id": "contracts/isms/multisig/StaticMultisigIsm.sol:StaticMessageIdMultisigIsm",
+      "solc": {
+        "creationBytes": 3832,
+        "runtimeBytes": 3804
+      },
+      "solar": {
+        "creationBytes": 2086,
+        "runtimeBytes": 2068
+      }
+    },
+    {
+      "id": "contracts/token/CrossCollateralRouter.sol:CrossCollateralRouter",
+      "solc": {
+        "creationBytes": 25501,
+        "runtimeBytes": 24509
+      },
+      "solar": {
+        "creationBytes": 15387,
+        "runtimeBytes": 14406
+      }
+    },
+    {
+      "id": "contracts/token/HypERC20.sol:HypERC20",
+      "solc": {
+        "creationBytes": 16710,
+        "runtimeBytes": 15997
+      },
+      "solar": {
+        "creationBytes": 10304,
+        "runtimeBytes": 9793
+      }
+    },
+    {
+      "id": "contracts/token/HypERC20Collateral.sol:HypERC20Collateral",
+      "solc": {
+        "creationBytes": 22148,
+        "runtimeBytes": 21235
+      },
+      "solar": {
+        "creationBytes": 13582,
+        "runtimeBytes": 12748
+      }
+    }
+  ],
+  "igpGasReport": {
+    "solc": {
+      "contract": "contracts/hooks/igp/InterchainGasPaymaster.sol:InterchainGasPaymaster",
+      "deployment": {
+        "gas": 3677745,
+        "size": 16900
+      },
+      "functions": {
+        "initialize(address,address)": {
+          "calls": 1,
+          "min": 95143,
+          "mean": 95143,
+          "median": 95143,
+          "max": 95143
+        },
+        "payForGas(bytes32,uint32,uint256,address)": {
+          "calls": 1,
+          "min": 76650,
+          "mean": 76650,
+          "median": 76650,
+          "max": 76650
+        },
+        "quoteGasPayment(uint32,uint256)": {
+          "calls": 1,
+          "min": 17620,
+          "mean": 17620,
+          "median": 17620,
+          "max": 17620
+        },
+        "setDestinationGasOverhead(uint32,uint256)": {
+          "calls": 1,
+          "min": 47560,
+          "mean": 47560,
+          "median": 47560,
+          "max": 47560
+        },
+        "setTokenGasOracles((address,uint32,address)[])": {
+          "calls": 2,
+          "min": 51941,
+          "mean": 84133,
+          "median": 84133,
+          "max": 116325
+        }
+      }
+    },
+    "solar": {
+      "contract": "contracts/hooks/igp/InterchainGasPaymaster.sol:InterchainGasPaymaster",
+      "deployment": {
+        "gas": 2026816,
+        "size": 9211
+      },
+      "functions": {
+        "initialize(address,address)": {
+          "calls": 1,
+          "min": 93994,
+          "mean": 93994,
+          "median": 93994,
+          "max": 93994
+        },
+        "payForGas(bytes32,uint32,uint256,address)": {
+          "calls": 1,
+          "min": 74507,
+          "mean": 74507,
+          "median": 74507,
+          "max": 74507
+        },
+        "quoteGasPayment(uint32,uint256)": {
+          "calls": 1,
+          "min": 15908,
+          "mean": 15908,
+          "median": 15908,
+          "max": 15908
+        },
+        "setDestinationGasOverhead(uint32,uint256)": {
+          "calls": 1,
+          "min": 47235,
+          "mean": 47235,
+          "median": 47235,
+          "max": 47235
+        },
+        "setTokenGasOracles((address,uint32,address)[])": {
+          "calls": 2,
+          "min": 50857,
+          "mean": 82967,
+          "median": 82967,
+          "max": 115077
+        }
+      }
+    }
+  }
+}
