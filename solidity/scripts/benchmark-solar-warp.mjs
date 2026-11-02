@@ -17,6 +17,8 @@ const { values } = parseArgs({
   options: {
     'build-results': { type: 'string' },
     output: { type: 'string' },
+    'execution-fixtures': { type: 'boolean', default: false },
+    'block-transfers': { type: 'string', default: '0' },
   },
 });
 assert(
@@ -26,6 +28,8 @@ assert(
 const report = JSON.parse(
   readFileSync(resolve(values['build-results']), 'utf8'),
 );
+const blockTransfers = Number(values['block-transfers']);
+assert(Number.isSafeInteger(blockTransfers) && blockTransfers >= 0);
 const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
   encoding: 'utf8',
 }).trim();
@@ -161,6 +165,33 @@ try {
             (step) => step.op === 'JUMPDEST',
           ).length,
         };
+        if (values['execution-fixtures']) {
+          const prestate = await provider.send('debug_traceTransaction', [
+            tx.hash,
+            { tracer: 'prestateTracer' },
+          ]);
+          const block = await provider.send('eth_getBlockByHash', [
+            r.blockHash,
+            false,
+          ]);
+          const transaction = await provider.send('eth_getTransactionByHash', [
+            tx.hash,
+          ]);
+          const filename = `${scenario}-${label}.json`;
+          writeFileSync(
+            join(dir, filename),
+            JSON.stringify({
+              scenario,
+              label,
+              prestate,
+              block,
+              transaction,
+              expectedGas: row.gas,
+              expectedOutput: t.output ?? '0x',
+            }),
+          );
+          row.executionFixture = filename;
+        }
       }
       rows.push(row);
       return r;
@@ -346,6 +377,102 @@ try {
         ).toString(),
       });
     }
+    let blockCapacity;
+    if (blockTransfers > 0) {
+      // Measure actual source-transaction packing on this private node. The
+      // snapshot keeps this workload out of the original receipt comparisons.
+      const snapshot = await provider.send('evm_snapshot', []);
+      const priorBlock = await provider.send('eth_getBlockByNumber', [
+        'latest',
+        false,
+      ]);
+      const gasBudget = 5_000_000;
+      const transactionGasLimit = 300_000;
+      const blocks = [];
+      try {
+        await provider.send('evm_setBlockGasLimit', [
+          utils.hexValue(gasBudget),
+        ]);
+        await provider.send('evm_setAutomine', [false]);
+        const nonce = await provider.getTransactionCount(owner, 'pending');
+        const data = collateral.interface.encodeFunctionData('transferRemote', [
+          2000,
+          addressToBytes32(recipient),
+          utils.parseEther('1'),
+        ]);
+        for (let start = 0; start < blockTransfers; start += 64) {
+          const batch = Array.from(
+            { length: Math.min(64, blockTransfers - start) },
+            (_, i) => ({
+              jsonrpc: '2.0',
+              id: i,
+              method: 'eth_sendTransaction',
+              params: [
+                {
+                  from: owner,
+                  to: collateral.address,
+                  data,
+                  value: utils.hexValue(value),
+                  nonce: utils.hexValue(nonce + start + i),
+                  gas: utils.hexValue(transactionGasLimit),
+                  gasPrice: utils.hexValue(1_000_000_000),
+                },
+              ],
+            }),
+          );
+          const response = await fetch(`http://127.0.0.1:${port}`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(batch),
+          });
+          assert(response.ok, 'Transaction batch request failed');
+          const replies = await response.json();
+          assert.equal(replies.length, batch.length);
+          for (const reply of replies)
+            assert(!reply.error, JSON.stringify(reply.error));
+        }
+        let mined = 0;
+        while (mined < blockTransfers) {
+          await provider.send('evm_mine', []);
+          const block = await provider.send('eth_getBlockByNumber', [
+            'latest',
+            false,
+          ]);
+          const receipts = await provider.send('eth_getBlockReceipts', [
+            block.hash,
+          ]);
+          assert(
+            receipts.length > 0,
+            'Block builder stopped before draining the fixture',
+          );
+          for (const receipt of receipts) assert.equal(receipt.status, '0x1');
+          mined += receipts.length;
+          blocks.push({
+            transactions: receipts.length,
+            gasUsed: Number(block.gasUsed),
+            gasLimit: Number(block.gasLimit),
+          });
+        }
+        assert.equal(mined, blockTransfers);
+        assert(
+          (await token.balanceOf(collateral.address)).eq(
+            utils.parseEther(String(blockTransfers + 2)),
+          ),
+        );
+        blockCapacity = {
+          gasBudget,
+          transactionGasLimit,
+          requested: blockTransfers,
+          blocks,
+          method:
+            'Actual source transfer transactions in mined local Anvil blocks; last block is conservatively excluded from full-block averages because it may be a partial drain. No consensus/block interval/TPS claim.',
+        };
+      } finally {
+        await provider.send('evm_revert', [snapshot]);
+        await provider.send('evm_setBlockGasLimit', [priorBlock.gasLimit]);
+        await provider.send('evm_setAutomine', [true]);
+      }
+    }
     if (scenario === 'solc') {
       // An existing route has already paid its original deployment cost. Price
       // the replacement implementations and two real ProxyAdmin upgrades.
@@ -396,6 +523,7 @@ try {
       addresses,
       rows: publicRows,
       runtime,
+      blockCapacity,
     };
     writeFileSync(
       `${dir}/${scenario}.json`,
@@ -426,6 +554,23 @@ try {
       assert.equal(row.value, base.value);
       assert.equal(row.to, base.to);
     }
+  }
+  if (values['execution-fixtures']) {
+    writeFileSync(
+      join(dir, 'execution-manifest.json'),
+      JSON.stringify(
+        {
+          sourceCommit,
+          fixtures: cases.flatMap((c) =>
+            c.rows
+              .filter((row) => row.label.endsWith('.1') && row.executionFixture)
+              .map((row) => row.executionFixture),
+          ),
+        },
+        null,
+        2,
+      ),
+    );
   }
   writeFileSync(
     `${dir}/results.json`,
