@@ -778,14 +778,9 @@ impl OriginSenderCheck {
             .find_map(|signer| self.denylist.deny_reason_for_address(signer)))
     }
 
-    /// Stop retrying a lookup that keeps failing: treat the signers as
-    /// unknown, so the message relays without this check.
-    pub async fn give_up(&self, message_id: H256) {
-        self.denylist
-            .origin_signers
-            .0
-            .insert(message_id, Arc::new(vec![]))
-            .await;
+    /// Record that a lookup kept failing and the message relays without
+    /// this check. Not cached, so the next prepare looks up again.
+    pub fn record_give_up(&self) {
         self.denylist.record_origin_lookup("gave_up");
     }
 

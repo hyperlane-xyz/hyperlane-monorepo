@@ -711,12 +711,10 @@ pub(crate) mod origin_sender {
         assert!(s.check.deny_reason(&s.db, &message).await.is_err());
         assert_eq!(s.provider.calls.load(Ordering::SeqCst), 2);
 
-        s.check.give_up(message.id()).await;
-        assert_eq!(
-            s.check.deny_reason(&s.db, &message).await.expect("ok"),
-            None
-        );
-        assert_eq!(s.provider.calls.load(Ordering::SeqCst), 2);
+        // Giving up isn't cached: the next attempt still looks up.
+        s.check.record_give_up();
+        assert!(s.check.deny_reason(&s.db, &message).await.is_err());
+        assert_eq!(s.provider.calls.load(Ordering::SeqCst), 3);
 
         let s = setup_with(
             json!([address_rule(EVM_ADDRESS)]),
