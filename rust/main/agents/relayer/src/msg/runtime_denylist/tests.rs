@@ -444,3 +444,345 @@ async fn fetch_rejects_oversized_http_bodies() {
 async fn refresh_without_url_fails() {
     assert!(RuntimeDenylist::default().refresh().await.is_err());
 }
+
+pub(crate) mod origin_sender {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use hyperlane_base::db::{HyperlaneRocksDB, DB};
+    use hyperlane_core::{
+        BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain,
+        HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, Indexer, KnownHyperlaneDomain,
+        TxnInfo, H512, U256,
+    };
+
+    use super::*;
+
+    /// Fake provider: `sender` of `None` is a transport error.
+    #[derive(Debug)]
+    pub(crate) struct SenderProvider {
+        pub(crate) sender: Option<H256>,
+        pub(crate) not_found: bool,
+        pub(crate) calls: AtomicUsize,
+    }
+
+    impl SenderProvider {
+        pub(crate) fn new(sender: Option<H256>) -> Self {
+            Self {
+                sender,
+                not_found: false,
+                calls: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    impl HyperlaneChain for SenderProvider {
+        fn domain(&self) -> &HyperlaneDomain {
+            unimplemented!()
+        }
+        fn provider(&self) -> Box<dyn HyperlaneProvider> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl HyperlaneProvider for SenderProvider {
+        async fn get_block_by_height(&self, _: u64) -> ChainResult<BlockInfo> {
+            unimplemented!()
+        }
+        async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            if self.not_found {
+                return Err(HyperlaneProviderError::CouldNotFindTransactionByHash(*hash).into());
+            }
+            let sender = self
+                .sender
+                .ok_or_else(|| ChainCommunicationError::from_other_str("rpc down"))?;
+            Ok(TxnInfo {
+                hash: *hash,
+                gas_limit: U256::zero(),
+                max_priority_fee_per_gas: None,
+                max_fee_per_gas: None,
+                gas_price: None,
+                nonce: 0,
+                sender,
+                recipient: None,
+                receipt: None,
+                raw_input_data: None,
+            })
+        }
+        async fn is_contract(&self, _: &H256) -> ChainResult<bool> {
+            unimplemented!()
+        }
+        async fn get_balance(&self, _: String) -> ChainResult<U256> {
+            unimplemented!()
+        }
+        async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
+            unimplemented!()
+        }
+    }
+
+    /// Fake message indexer: `signers` is what `fetch_tx_signers_by_sequence` returns.
+    #[derive(Debug)]
+    pub(crate) struct SignerIndexer {
+        pub(crate) signers: Option<Vec<H256>>,
+        pub(crate) fail: bool,
+        pub(crate) calls: AtomicUsize,
+    }
+
+    impl SignerIndexer {
+        pub(crate) fn unsupported() -> Self {
+            Self {
+                signers: None,
+                fail: false,
+                calls: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl Indexer<HyperlaneMessage> for SignerIndexer {
+        async fn fetch_logs_in_range(
+            &self,
+            _: std::ops::RangeInclusive<u32>,
+        ) -> ChainResult<
+            Vec<(
+                hyperlane_core::Indexed<HyperlaneMessage>,
+                hyperlane_core::LogMeta,
+            )>,
+        > {
+            unimplemented!()
+        }
+        async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+            unimplemented!()
+        }
+        async fn fetch_tx_signers_by_sequence(
+            &self,
+            _: u32,
+            _: Option<H512>,
+        ) -> ChainResult<Option<Vec<H256>>> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            if self.fail {
+                return Err(ChainCommunicationError::from_other_str("rpc down"));
+            }
+            Ok(self.signers.clone())
+        }
+    }
+
+    struct Setup {
+        _dir: tempfile::TempDir,
+        db: HyperlaneRocksDB,
+        provider: Arc<SenderProvider>,
+        indexer: Arc<SignerIndexer>,
+        check: OriginSenderCheck,
+    }
+
+    fn setup_with(
+        rules: serde_json::Value,
+        provider: SenderProvider,
+        indexer: SignerIndexer,
+    ) -> Setup {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+        let db = HyperlaneRocksDB::new(&domain, DB::from_path(dir.path()).expect("db"));
+        let provider = Arc::new(provider);
+        let indexer = Arc::new(indexer);
+        let check = OriginSenderCheck::new(
+            Arc::new(RuntimeDenylist::from_rules_for_test(rules)),
+            provider.clone(),
+            indexer.clone(),
+        );
+        Setup {
+            _dir: dir,
+            db,
+            provider,
+            indexer,
+            check,
+        }
+    }
+
+    fn setup(rules: serde_json::Value, sender: Option<H256>) -> Setup {
+        setup_with(
+            rules,
+            SenderProvider::new(sender),
+            SignerIndexer::unsupported(),
+        )
+    }
+
+    fn stored_message(db: &HyperlaneRocksDB) -> HyperlaneMessage {
+        let message = HyperlaneMessage {
+            nonce: rand::random(),
+            sender: H256::random(),
+            ..Default::default()
+        };
+        db.store_dispatched_tx_hash_by_message_id(&message.id(), &H512::random())
+            .expect("store tx hash");
+        message
+    }
+
+    #[tokio::test]
+    async fn denies_listed_origin_sender_and_shares_the_lookup() {
+        let s = setup(
+            json!([address_rule(TRON_ADDRESS)]),
+            Some(evm(TRON_ADDRESS_HEX)),
+        );
+        let message = stored_message(&s.db);
+        for _ in 0..2 {
+            let reason = s.check.deny_reason(&s.db, &message).await.expect("ok");
+            assert!(reason.is_some());
+        }
+        assert_eq!(s.provider.calls.load(Ordering::SeqCst), 1);
+        // Queue eviction sees the cached signers without another RPC call.
+        assert!(s
+            .check
+            .denylist
+            .deny_reason_for_cached_signers(&message.id())
+            .await
+            .is_some());
+    }
+
+    #[tokio::test]
+    async fn allows_unlisted_origin_sender() {
+        let s = setup(json!([address_rule(EVM_ADDRESS)]), Some(H256::random()));
+        let message = stored_message(&s.db);
+        let reason = s.check.deny_reason(&s.db, &message).await.expect("ok");
+        assert_eq!(reason, None);
+    }
+
+    #[tokio::test]
+    async fn skips_lookup_without_address_rules() {
+        let s = setup(json!([message_rule(H256::random())]), None);
+        let message = stored_message(&s.db);
+        assert_eq!(
+            s.check.deny_reason(&s.db, &message).await.expect("ok"),
+            None
+        );
+        assert_eq!(s.indexer.calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn hash_not_stored_yet_is_retried_until_it_is() {
+        // The hash is written after the message, so a missing (or zero) hash
+        // must not be cached as unknown: that would bypass the check.
+        let s = setup(json!([address_rule(EVM_ADDRESS)]), Some(evm(EVM_ADDRESS)));
+        let message = HyperlaneMessage::default();
+        let err = s
+            .check
+            .deny_reason(&s.db, &message)
+            .await
+            .expect_err("no hash");
+        assert!(is_hash_not_stored(&err), "{err}");
+        s.db.store_dispatched_tx_hash_by_message_id(&message.id(), &H512::zero())
+            .expect("store");
+        let err = s
+            .check
+            .deny_reason(&s.db, &message)
+            .await
+            .expect_err("zero hash");
+        assert!(is_hash_not_stored(&err), "{err}");
+        assert_eq!(s.provider.calls.load(Ordering::SeqCst), 0);
+
+        s.db.store_dispatched_tx_hash_by_message_id(&message.id(), &H512::random())
+            .expect("store");
+        let reason = s.check.deny_reason(&s.db, &message).await.expect("ok");
+        assert!(reason.is_some());
+    }
+
+    #[tokio::test]
+    async fn zero_sender_is_unknown() {
+        let s = setup(json!([address_rule(EVM_ADDRESS)]), Some(H256::zero()));
+        let message = stored_message(&s.db);
+        let reason = s.check.deny_reason(&s.db, &message).await.expect("ok");
+        assert_eq!(reason, None);
+    }
+
+    #[tokio::test]
+    async fn missing_tx_is_unknown_not_an_error() {
+        let s = setup_with(
+            json!([address_rule(EVM_ADDRESS)]),
+            SenderProvider {
+                not_found: true,
+                ..SenderProvider::new(None)
+            },
+            SignerIndexer::unsupported(),
+        );
+        let message = stored_message(&s.db);
+        for _ in 0..2 {
+            let reason = s.check.deny_reason(&s.db, &message).await.expect("ok");
+            assert_eq!(reason, None);
+        }
+        assert_eq!(s.provider.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn transport_errors_are_retried_until_given_up() {
+        let s = setup(json!([address_rule(EVM_ADDRESS)]), None);
+        let message = stored_message(&s.db);
+        assert!(s.check.deny_reason(&s.db, &message).await.is_err());
+        // Errors aren't cached, so the next attempt looks up again.
+        assert!(s.check.deny_reason(&s.db, &message).await.is_err());
+        assert_eq!(s.provider.calls.load(Ordering::SeqCst), 2);
+
+        // Giving up isn't cached: the next attempt still looks up.
+        s.check.record_give_up();
+        assert!(s.check.deny_reason(&s.db, &message).await.is_err());
+        assert_eq!(s.provider.calls.load(Ordering::SeqCst), 3);
+
+        let s = setup_with(
+            json!([address_rule(EVM_ADDRESS)]),
+            SenderProvider::new(None),
+            SignerIndexer {
+                fail: true,
+                ..SignerIndexer::unsupported()
+            },
+        );
+        assert!(s
+            .check
+            .deny_reason(&s.db, &HyperlaneMessage::default())
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn indexer_reporting_no_tx_is_unknown() {
+        // Sealevel returns no signers when the dispatch block has no matching
+        // tx: a definite unknown, so no retry or provider fallback.
+        let s = setup_with(
+            json!([address_rule(EVM_ADDRESS)]),
+            SenderProvider::new(None),
+            SignerIndexer {
+                signers: Some(vec![]),
+                ..SignerIndexer::unsupported()
+            },
+        );
+        let message = HyperlaneMessage::default();
+        for _ in 0..2 {
+            assert_eq!(
+                s.check.deny_reason(&s.db, &message).await.expect("ok"),
+                None
+            );
+        }
+        assert_eq!(s.indexer.calls.load(Ordering::SeqCst), 1);
+        assert_eq!(s.provider.calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn indexer_signers_cover_sponsored_deposits() {
+        // Sealevel: no stored hash, the indexer resolves every signer, and a
+        // sponsor paying fees doesn't hide the listed depositor.
+        let sponsor = H256::random();
+        let depositor = hyperlane_core::utils::hex_or_base58_or_bech32_to_h256(SOLANA_ADDRESS)
+            .expect("valid address");
+        let s = setup_with(
+            json!([address_rule(SOLANA_ADDRESS)]),
+            SenderProvider::new(None),
+            SignerIndexer {
+                signers: Some(vec![sponsor, depositor]),
+                ..SignerIndexer::unsupported()
+            },
+        );
+        let message = HyperlaneMessage::default();
+        let reason = s.check.deny_reason(&s.db, &message).await.expect("ok");
+        assert!(reason.is_some());
+        assert_eq!(s.provider.calls.load(Ordering::SeqCst), 0);
+    }
+}

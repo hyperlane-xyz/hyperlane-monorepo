@@ -31,10 +31,11 @@ use std::{
 use chrono::{DateTime, Utc};
 use ethers::utils::hex;
 use eyre::{bail, ensure, eyre, Context, Result};
+use hyperlane_base::db::HyperlaneDb;
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
-    matching_list::ListElement, utils::hex_or_base58_or_bech32_to_h256, HyperlaneMessage,
-    PendingOperation, H256,
+    matching_list::ListElement, utils::hex_or_base58_or_bech32_to_h256, ChainCommunicationError,
+    HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError, Indexer, PendingOperation, H256,
 };
 use parking_lot::RwLock;
 use prometheus::{IntCounter, IntCounterVec, IntGauge, IntGaugeVec};
@@ -48,6 +49,7 @@ use crate::settings::matching_list::{MatchInfo, MatchingList};
 
 const MAX_FILE_BYTES: usize = 4 * 1024 * 1024;
 const TRON_ADDRESS_PREFIX: u8 = 0x41;
+const ORIGIN_SIGNER_CACHE_CAPACITY: u64 = 100_000;
 const FETCH_TIMEOUT: Duration = Duration::from_secs(10);
 const INITIAL_FETCH_ATTEMPTS: u32 = 3;
 const INITIAL_FETCH_BACKOFF: Duration = Duration::from_secs(2);
@@ -348,7 +350,21 @@ pub struct RuntimeDenylist {
     source: Option<DenylistSource>,
     /// Serialises fetch-and-replace so an older fetch can't overwrite a newer one.
     refresh_lock: tokio::sync::Mutex<()>,
+    /// Origin tx signers already looked up, by message id.
+    origin_signers: OriginSignerCache,
     metrics: Option<RuntimeDenylistMetrics>,
+}
+
+/// Bounded cache of origin tx signers. Shared, so reloads, rescans and queue
+/// eviction reuse a lookup instead of repeating RPCs; a dispatch tx's signers
+/// never change. An empty entry means the signers couldn't be determined.
+#[derive(Debug)]
+struct OriginSignerCache(moka::future::Cache<H256, Arc<Vec<H256>>>);
+
+impl Default for OriginSignerCache {
+    fn default() -> Self {
+        Self(moka::future::Cache::new(ORIGIN_SIGNER_CACHE_CAPACITY))
+    }
 }
 
 #[derive(Debug)]
@@ -403,6 +419,15 @@ impl RuntimeDenylist {
         self.replace(parse_rules(&bytes, Utc::now()).expect("valid rules"), true);
     }
 
+    /// Record looked-up origin tx signers for a message.
+    #[cfg(test)]
+    pub(crate) async fn cache_origin_signers_for_test(&self, message_id: H256, signers: Vec<H256>) {
+        self.origin_signers
+            .0
+            .insert(message_id, Arc::new(signers))
+            .await;
+    }
+
     /// Whether a source URL is configured.
     pub fn is_enabled(&self) -> bool {
         self.source.is_some()
@@ -421,6 +446,53 @@ impl RuntimeDenylist {
             message_rules: rules.messages.len(),
             address_rules: rules.addresses.len(),
         }
+    }
+
+    /// Whether any `address` rules are active.
+    pub fn has_address_rules(&self) -> bool {
+        !self.rules.read().addresses.is_empty()
+    }
+
+    /// Returns the reason if a queued operation is denied: by its message
+    /// fields, or by origin tx signers already looked up at prepare (so an
+    /// address rule added after prepare still applies). Never makes an RPC
+    /// call.
+    pub async fn deny_reason_for_queued_op(&self, op: &dyn PendingOperation) -> Option<String> {
+        match self.deny_reason_for_op(op) {
+            Some(reason) => Some(reason),
+            None => self.deny_reason_for_cached_signers(&op.id()).await,
+        }
+    }
+
+    /// Returns the reason if an already looked-up origin tx signer of the
+    /// message is denied. Never makes an RPC call.
+    pub async fn deny_reason_for_cached_signers(&self, message_id: &H256) -> Option<String> {
+        if !self.has_address_rules() {
+            return None;
+        }
+        let signers = self.origin_signers.0.get(message_id).await?;
+        signers
+            .iter()
+            .find_map(|signer| self.deny_reason_for_address(signer))
+    }
+
+    fn record_origin_lookup(&self, outcome: &str) {
+        if let Some(metrics) = &self.metrics {
+            metrics
+                .origin_signer_lookups
+                .with_label_values(&[outcome])
+                .inc();
+        }
+    }
+
+    /// Returns the reason if an `address` rule names `address`.
+    pub fn deny_reason_for_address(&self, address: &H256) -> Option<String> {
+        self.rules
+            .read()
+            .addresses
+            .iter()
+            .find(|rule| rule.address == *address)
+            .map(|rule| rule.reason.clone())
     }
 
     /// Returns the reason if the message is denied.
@@ -657,6 +729,180 @@ async fn fetch(client: &reqwest::Client, url: &Url) -> Result<Vec<u8>> {
     }
 }
 
+/// Checks the wallet that sent a message's origin transaction against the
+/// runtime `address` rules. A warp transfer's depositor appears only there:
+/// the message sender is the origin router.
+pub struct OriginSenderCheck {
+    denylist: Arc<RuntimeDenylist>,
+    provider: Arc<dyn HyperlaneProvider>,
+    /// Resolves dispatch tx signers where the tx id isn't stored (Sealevel).
+    indexer: Arc<dyn Indexer<HyperlaneMessage>>,
+}
+
+impl std::fmt::Debug for OriginSenderCheck {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OriginSenderCheck").finish_non_exhaustive()
+    }
+}
+
+impl OriginSenderCheck {
+    pub fn new(
+        denylist: Arc<RuntimeDenylist>,
+        provider: Arc<dyn HyperlaneProvider>,
+        indexer: Arc<dyn Indexer<HyperlaneMessage>>,
+    ) -> Self {
+        Self {
+            denylist,
+            provider,
+            indexer,
+        }
+    }
+
+    /// Record a message dropped at prepare because of its origin tx sender.
+    pub fn record_drop(&self, destination: &str) {
+        self.denylist.record_eviction(destination, "origin_sender");
+    }
+
+    /// Returns the reason if a signer of the origin tx is denied. Lookups are
+    /// cached and shared, including an empty result when the signers can't
+    /// be determined (no matching dispatch, tx not found, zero sender). Other errors
+    /// aren't cached, so the caller can retry.
+    pub async fn deny_reason(
+        &self,
+        db: &dyn HyperlaneDb,
+        message: &HyperlaneMessage,
+    ) -> Result<Option<String>> {
+        if !self.denylist.has_address_rules() {
+            return Ok(None);
+        }
+        let signers = self
+            .denylist
+            .origin_signers
+            .0
+            .try_get_with(message.id(), async {
+                self.lookup_signers(db, message).await.map(Arc::new)
+            })
+            .await
+            .map_err(|err| {
+                if is_hash_not_stored(&err) {
+                    DispatchHashNotStored.into()
+                } else {
+                    eyre!("{err:#}")
+                }
+            })?;
+        Ok(signers
+            .iter()
+            .find_map(|signer| self.denylist.deny_reason_for_address(signer)))
+    }
+
+    /// Returns the reason if a signer already looked up for the message is
+    /// denied. Never makes an RPC call.
+    pub async fn cached_deny_reason(&self, message: &HyperlaneMessage) -> Option<String> {
+        self.denylist
+            .deny_reason_for_cached_signers(&message.id())
+            .await
+    }
+
+    /// Record that a lookup kept failing and the message relays without
+    /// this check. Not cached, so the next prepare looks up again.
+    pub fn record_give_up(&self) {
+        self.denylist.record_origin_lookup("gave_up");
+    }
+
+    async fn lookup_signers(
+        &self,
+        db: &dyn HyperlaneDb,
+        message: &HyperlaneMessage,
+    ) -> Result<Vec<H256>> {
+        let result = self.lookup_signers_inner(db, message).await;
+        let outcome = match &result {
+            Ok(signers) if signers.is_empty() => "unknown",
+            Ok(_) => "found",
+            Err(err) if is_hash_not_stored(err) => "no_hash",
+            Err(_) => "error",
+        };
+        self.denylist.record_origin_lookup(outcome);
+        result
+    }
+
+    async fn lookup_signers_inner(
+        &self,
+        db: &dyn HyperlaneDb,
+        message: &HyperlaneMessage,
+    ) -> Result<Vec<H256>> {
+        let message_id = message.id();
+        // Some writers (e.g. the relay API) can store a zero hash.
+        let tx_hash = db
+            .retrieve_dispatched_tx_hash_by_message_id(&message_id)?
+            .filter(|tx_hash| !tx_hash.is_zero());
+        if let Some(signers) = self
+            .indexer
+            .fetch_tx_signers_by_sequence(message.nonce, tx_hash)
+            .await?
+        {
+            return Ok(non_zero(signers, &message_id));
+        }
+        // The hash is written after the message (and by scraper backfill
+        // later still), so a missing one may just not be stored yet. Don't
+        // cache unknown; the caller waits briefly and reads the DB again.
+        let Some(tx_hash) = tx_hash else {
+            return Err(DispatchHashNotStored.into());
+        };
+        match self.provider.get_txn_by_hash(&tx_hash).await {
+            Ok(txn) => Ok(non_zero(vec![txn.sender], &message_id)),
+            // A pruned or reorged-out tx won't reappear; retrying only delays
+            // the message.
+            Err(err) if is_tx_not_found(&err) => {
+                warn!(
+                    ?message_id,
+                    ?tx_hash,
+                    "Dispatch tx not found; skipping origin sender check"
+                );
+                Ok(vec![])
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+}
+
+/// No dispatch tx hash is stored for the message: either not written yet, or
+/// never (e.g. Cosmos block-level events, old DB backlog).
+#[derive(Debug, thiserror::Error)]
+#[error("Dispatch tx hash isn't stored")]
+pub struct DispatchHashNotStored;
+
+/// Whether a lookup failed only because no dispatch tx hash is stored.
+pub fn is_hash_not_stored(err: &eyre::Report) -> bool {
+    err.downcast_ref::<DispatchHashNotStored>().is_some()
+}
+
+/// Drop zero signers, which some providers (e.g. Radix, Aleo) return when
+/// they can't determine the sender.
+fn non_zero(signers: Vec<H256>, message_id: &H256) -> Vec<H256> {
+    let signers: Vec<_> = signers
+        .into_iter()
+        .filter(|signer| !signer.is_zero())
+        .collect();
+    if signers.is_empty() {
+        warn!(
+            ?message_id,
+            "Origin tx sender unknown; skipping origin sender check"
+        );
+    }
+    signers
+}
+
+fn is_tx_not_found(err: &ChainCommunicationError) -> bool {
+    let ChainCommunicationError::Other(wrapper) = err else {
+        return false;
+    };
+    let err: &dyn std::error::Error = wrapper.as_ref();
+    matches!(
+        err.downcast_ref::<HyperlaneProviderError>(),
+        Some(HyperlaneProviderError::CouldNotFindTransactionByHash(_))
+    )
+}
+
 /// Metrics for the runtime denylist.
 #[derive(Debug, Clone)]
 pub struct RuntimeDenylistMetrics {
@@ -664,6 +910,7 @@ pub struct RuntimeDenylistMetrics {
     last_refresh_success_timestamp: IntGauge,
     refresh_failures: IntCounter,
     evicted_operations: IntCounterVec,
+    origin_signer_lookups: IntCounterVec,
 }
 
 impl RuntimeDenylistMetrics {
@@ -694,9 +941,14 @@ impl RuntimeDenylistMetrics {
                 "Queued operations dropped because they matched the runtime denylist",
                 &["destination", "queue"],
             )?,
+            origin_signer_lookups: metrics.new_int_counter(
+                "runtime_denylist_origin_signer_lookups_total",
+                "Origin tx signer lookups for address rules, by outcome (found, unknown, error, gave_up)",
+                &["outcome"],
+            )?,
         })
     }
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

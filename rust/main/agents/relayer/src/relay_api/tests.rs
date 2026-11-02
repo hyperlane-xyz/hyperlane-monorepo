@@ -230,6 +230,7 @@ async fn make_state_multi_with_capacity(
         transaction_gas_limit: None,
         metrics: dummy_submission_metrics(),
         application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
+        origin_sender_check: None,
     };
     let msg_ctx = Arc::new(msg_ctx);
 
@@ -298,6 +299,7 @@ async fn make_state_with_distinct_channels(
         transaction_gas_limit: None,
         metrics: dummy_submission_metrics(),
         application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
+        origin_sender_check: None,
     });
     let mut indexers = HashMap::new();
     indexers.insert("ethereum".to_string(), indexer);
@@ -747,6 +749,7 @@ async fn test_partial_send_failure_releases_dedup_for_retry() {
         transaction_gas_limit: None,
         metrics: dummy_submission_metrics(),
         application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
+        origin_sender_check: None,
     });
 
     let (tx_a, _rx_a2) = mpsc::channel::<QueueOperationBatch>(10);
@@ -867,6 +870,7 @@ async fn test_igp_payments_stored_before_enqueue() {
         transaction_gas_limit: None,
         metrics: dummy_submission_metrics(),
         application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
+        origin_sender_check: None,
     });
 
     let mut indexers = HashMap::new();

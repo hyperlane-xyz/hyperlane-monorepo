@@ -50,25 +50,25 @@ impl OpQueue {
     /// Remove denied operations from a popped batch. Dropping an operation
     /// releases its loaded-message guard; the DB loader skips it while the
     /// rule stays active and reloads it after the rule is removed.
-    fn evict_denied(&self, popped: Vec<QueueOperation>) -> Vec<QueueOperation> {
-        popped
-            .into_iter()
-            .filter(|op| {
-                let Some(reason) = self.denylist.deny_reason_for_op(op.as_ref()) else {
-                    return true;
-                };
-                tracing::warn!(
-                    id = ?op.id(),
-                    queue = %self.queue_metrics_label,
-                    %reason,
-                    "Dropping operation matching runtime denylist"
-                );
-                op.decrement_metric_if_exists();
-                self.denylist
-                    .record_eviction(op.destination_domain().name(), &self.queue_metrics_label);
-                false
-            })
-            .collect()
+    async fn evict_denied(&self, popped: Vec<QueueOperation>) -> Vec<QueueOperation> {
+        let mut kept = Vec::with_capacity(popped.len());
+        for mut op in popped {
+            let Some(reason) = self.denylist.deny_reason_for_queued_op(op.as_ref()).await else {
+                kept.push(op);
+                continue;
+            };
+            tracing::warn!(
+                id = ?op.id(),
+                queue = %self.queue_metrics_label,
+                %reason,
+                "Dropping operation matching runtime denylist"
+            );
+            op.on_runtime_denylist_drop();
+            op.decrement_metric_if_exists();
+            self.denylist
+                .record_eviction(op.destination_domain().name(), &self.queue_metrics_label);
+        }
+        kept
     }
 
     /// Push an element onto the queue and update metrics
@@ -109,7 +109,7 @@ impl OpQueue {
         if !popped.is_empty() {
             self.space_available.notify_one();
         }
-        let popped = self.evict_denied(popped);
+        let popped = self.evict_denied(popped).await;
 
         // This function is called very often by the message processor tasks, so only log when there are operations to pop
         // to avoid spamming the logs
@@ -130,7 +130,7 @@ impl OpQueue {
             if popped.is_empty() {
                 return (popped, next_deadline);
             }
-            let kept = self.evict_denied(popped);
+            let kept = self.evict_denied(popped).await;
             // If every popped operation was denied, look again rather than
             // making the caller wait for a push while ready work remains.
             if !kept.is_empty() {
