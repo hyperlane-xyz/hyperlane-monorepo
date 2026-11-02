@@ -38,6 +38,7 @@ use crate::{
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
     metadata::{BuildsBaseMetadata, MessageMetadataBuilder, MetadataBuilder},
+    runtime_denylist::OriginSenderCheck,
 };
 
 /// a default of 66 is picked, so messages are retried for 2 weeks (period confirmed by @nambrot) before being skipped.
@@ -104,6 +105,8 @@ pub struct MessageContext {
     pub metrics: MessageSubmissionMetrics,
     /// Application operation verifier
     pub application_operation_verifier: Arc<dyn ApplicationOperationVerifier>,
+    /// Checks the origin tx sender against runtime denylist `address` rules.
+    pub origin_sender_check: Option<Arc<OriginSenderCheck>>,
 }
 
 /// Keeps an indexed message from being loaded again while its operation is alive.
@@ -190,6 +193,9 @@ pub struct PendingMessage {
     ica_reveal_attempts: u32,
     #[serde(skip_serializing)]
     loaded_message_guard: Option<LoadedMessageGuard>,
+    /// Origin tx sender, once looked up for the runtime denylist.
+    #[serde(skip_serializing)]
+    origin_tx_sender: Option<H256>,
 }
 
 impl PendingMessage {
@@ -225,6 +231,7 @@ impl PendingMessage {
             fail_fast: false,
             ica_reveal_attempts: 0,
             loaded_message_guard: None,
+            origin_tx_sender: None,
         }
     }
 
@@ -409,6 +416,35 @@ impl PendingOperation for PendingMessage {
             self.submitted = true;
             self.set_next_attempt_after(CONFIRM_DELAY);
             return PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted);
+        }
+
+        if let Some(check) = self.ctx.origin_sender_check.clone() {
+            let denial = check
+                .deny_reason(
+                    self.ctx.origin_db.as_ref(),
+                    self.message.id(),
+                    &mut self.origin_tx_sender,
+                )
+                .await;
+            match denial {
+                Ok(Some(reason)) => {
+                    warn!(
+                        origin_tx_sender = ?self.origin_tx_sender,
+                        %reason,
+                        "Dropping message: origin tx sender matches runtime denylist"
+                    );
+                    check.record_drop(self.ctx.destination_mailbox.domain().name());
+                    // Not terminal: the loader reloads it if the rule is removed.
+                    return PendingOperationResult::Drop;
+                }
+                Ok(None) => {}
+                // Fail closed: an address rule is active and we can't tell
+                // who sent this, so retry rather than relay.
+                Err(err) => {
+                    return self
+                        .on_reprepare(Some(err), ReprepareReason::ErrorFetchingOriginTxSender)
+                }
+            }
         }
 
         // We cannot deliver to an address that is not a contract so check and drop if it isn't.
@@ -2083,6 +2119,14 @@ mod test {
         mailbox: hyperlane_test::mocks::MockMailboxContract,
         max_gas: Option<U256>,
     ) -> (tempfile::TempDir, PendingMessage) {
+        pending_with_sender_check(mailbox, max_gas, None)
+    }
+
+    fn pending_with_sender_check(
+        mailbox: hyperlane_test::mocks::MockMailboxContract,
+        max_gas: Option<U256>,
+        origin_sender_check: Option<Arc<crate::msg::runtime_denylist::OriginSenderCheck>>,
+    ) -> (tempfile::TempDir, PendingMessage) {
         use crate::{
             msg::gas_payment::GasPaymentEnforcer,
             settings::{GasPaymentEnforcementConf, GasPaymentEnforcementPolicy},
@@ -2106,6 +2150,7 @@ mod test {
         let mut context = dummy_message_context(Arc::new(base), &db, cache);
         context.destination_mailbox = Arc::new(mailbox);
         context.transaction_gas_limit = max_gas;
+        context.origin_sender_check = origin_sender_check;
         context.origin_gas_payment_enforcer =
             Arc::new(tokio::sync::RwLock::new(GasPaymentEnforcer::new(
                 [GasPaymentEnforcementConf {
@@ -2176,6 +2221,51 @@ mod test {
                 assert_eq!(pending.is_recipient_contract().await.unwrap(), expected);
             }
             assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        }
+    }
+
+    #[tokio::test]
+    async fn prepare_checks_origin_tx_sender_against_runtime_denylist() {
+        use crate::msg::runtime_denylist::{
+            tests::origin_sender::SenderProvider, OriginSenderCheck, RuntimeDenylist,
+        };
+
+        let blocked = H256::random();
+        let rules = serde_json::json!([
+            { "reason": "exploit", "addedBy": "test", "address": format!("{blocked:?}") }
+        ]);
+        // (provider sender, expected result): listed → Drop, lookup error → Reprepare.
+        for (sender, expect_drop) in [(Some(blocked), true), (None, false)] {
+            let mut mailbox = contract_test_mailbox();
+            mailbox.expect__provider().times(0);
+            mailbox
+                .expect__delivered()
+                .times(1)
+                .returning(|_| Ok(false));
+            let check = Arc::new(OriginSenderCheck::new(
+                Arc::new(RuntimeDenylist::from_rules_for_test(rules.clone())),
+                Arc::new(SenderProvider {
+                    sender,
+                    calls: Default::default(),
+                }),
+            ));
+            let (_dir, mut pending) = pending_with_sender_check(mailbox, None, Some(check));
+            pending
+                .ctx
+                .origin_db
+                .store_dispatched_tx_hash_by_message_id(&pending.message.id(), &H512::random())
+                .expect("store tx hash");
+
+            let result = pending.prepare().await;
+
+            if expect_drop {
+                assert!(matches!(result, PendingOperationResult::Drop));
+            } else {
+                assert!(matches!(
+                    result,
+                    PendingOperationResult::Reprepare(ReprepareReason::ErrorFetchingOriginTxSender)
+                ));
+            }
         }
     }
 

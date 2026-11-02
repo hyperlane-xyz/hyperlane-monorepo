@@ -30,16 +30,17 @@ use std::{
 use chrono::{DateTime, Utc};
 use ethers::utils::hex;
 use eyre::{bail, ensure, eyre, Context, Result};
+use hyperlane_base::db::HyperlaneDb;
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
     matching_list::ListElement, utils::hex_or_base58_or_bech32_to_h256, HyperlaneMessage,
-    PendingOperation, H256,
+    HyperlaneProvider, PendingOperation, H256,
 };
 use parking_lot::RwLock;
 use prometheus::{IntCounter, IntCounterVec, IntGauge, IntGaugeVec};
 use serde::Deserialize;
 use serde_json::{Map, Value};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use url::Url;
 
 use crate::settings::matching_list::{MatchInfo, MatchingList};
@@ -324,6 +325,21 @@ impl RuntimeDenylist {
         }
     }
 
+    /// Whether any `address` rules are active.
+    pub fn has_address_rules(&self) -> bool {
+        !self.rules.read().addresses.is_empty()
+    }
+
+    /// Returns the reason if an `address` rule names `address`.
+    pub fn deny_reason_for_address(&self, address: &H256) -> Option<String> {
+        self.rules
+            .read()
+            .addresses
+            .iter()
+            .find(|rule| rule.address == *address)
+            .map(|rule| rule.reason.clone())
+    }
+
     /// Returns the reason if the message is denied.
     pub fn deny_reason_for_message(&self, message: &HyperlaneMessage) -> Option<String> {
         let rules = self.rules.read().clone();
@@ -501,6 +517,62 @@ async fn fetch(client: &reqwest::Client, url: &Url) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
+/// Checks the wallet that sent a message's origin transaction against the
+/// runtime `address` rules. A warp transfer's depositor appears only there:
+/// the message sender is the origin router.
+pub struct OriginSenderCheck {
+    denylist: Arc<RuntimeDenylist>,
+    provider: Arc<dyn HyperlaneProvider>,
+}
+
+impl std::fmt::Debug for OriginSenderCheck {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OriginSenderCheck").finish_non_exhaustive()
+    }
+}
+
+impl OriginSenderCheck {
+    pub fn new(denylist: Arc<RuntimeDenylist>, provider: Arc<dyn HyperlaneProvider>) -> Self {
+        Self { denylist, provider }
+    }
+
+    /// Record a message dropped at prepare because of its origin tx sender.
+    pub fn record_drop(&self, destination: &str) {
+        self.denylist.record_eviction(destination, "origin_sender");
+    }
+
+    /// Returns the reason if the origin tx sender is denied. `sender` caches
+    /// the looked-up sender across calls. Messages without a stored dispatch
+    /// tx hash (e.g. Sealevel origins) aren't checked.
+    pub async fn deny_reason(
+        &self,
+        db: &dyn HyperlaneDb,
+        message_id: H256,
+        sender: &mut Option<H256>,
+    ) -> Result<Option<String>> {
+        if !self.denylist.has_address_rules() {
+            return Ok(None);
+        }
+        let origin_sender = match sender {
+            Some(origin_sender) => *origin_sender,
+            None => {
+                let Some(tx_hash) = db.retrieve_dispatched_tx_hash_by_message_id(&message_id)?
+                else {
+                    debug!(
+                        ?message_id,
+                        "No dispatch tx hash stored; skipping origin sender check"
+                    );
+                    return Ok(None);
+                };
+                let origin_sender = self.provider.get_txn_by_hash(&tx_hash).await?.sender;
+                *sender = Some(origin_sender);
+                origin_sender
+            }
+        };
+        Ok(self.denylist.deny_reason_for_address(&origin_sender))
+    }
+}
+
 /// Metrics for the runtime denylist.
 #[derive(Debug, Clone)]
 pub struct RuntimeDenylistMetrics {
@@ -543,4 +615,4 @@ impl RuntimeDenylistMetrics {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

@@ -64,7 +64,7 @@ use crate::{
         },
         op_queue::OpQueue,
         pending_message::MessageContext,
-        runtime_denylist::{RuntimeDenylist, RuntimeDenylistMetrics},
+        runtime_denylist::{OriginSenderCheck, RuntimeDenylist, RuntimeDenylistMetrics},
         QueueOperationBatch,
     },
     server::{self as relayer_server},
@@ -368,6 +368,19 @@ impl BaseAgent for Relayer {
         // Load before message processing starts so queued messages are
         // checked against the current rules.
         runtime_denylist.initial_load().await;
+        // Looks up origin tx senders while runtime `address` rules exist,
+        // reusing the origin's existing provider.
+        let origin_sender_checks: HashMap<_, _> = origins
+            .iter()
+            .filter(|_| runtime_denylist.is_enabled())
+            .map(|(origin_domain, origin)| {
+                let provider = Arc::from(origin.validator_announce.provider());
+                (
+                    origin_domain.clone(),
+                    Arc::new(OriginSenderCheck::new(runtime_denylist.clone(), provider)),
+                )
+            })
+            .collect();
         let skip_transaction_gas_limit_for = settings.skip_transaction_gas_limit_for;
         let transaction_gas_limit = settings.transaction_gas_limit;
 
@@ -447,6 +460,7 @@ impl BaseAgent for Relayer {
                             destination_domain,
                         ),
                         application_operation_verifier: application_operation_verifier.clone(),
+                        origin_sender_check: origin_sender_checks.get(origin_domain).cloned(),
                     }),
                 );
             }
