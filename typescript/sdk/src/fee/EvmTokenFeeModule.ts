@@ -303,7 +303,13 @@ export class EvmTokenFeeModule extends HyperlaneModule<
           bps,
           maxFee,
           halfAmount,
-          quoteSigners: config.quoteSigners,
+          quoteSigners: config.quoteSigners
+            ? [
+                ...new Set(
+                  config.quoteSigners.map((signer) => signer.toLowerCase()),
+                ),
+              ].sort()
+            : undefined,
         };
       } else {
         intermediaryConfig = {
@@ -620,17 +626,21 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     // Routing fee: update sub-fee contracts
     if (
       normalizedTargetConfig.type === TokenFeeType.RoutingFee &&
-      normalizedActualConfig.type === TokenFeeType.RoutingFee
+      normalizedActualConfig.type === TokenFeeType.RoutingFee &&
+      actualConfig.type === TokenFeeType.RoutingFee
     ) {
+      const merged = objMerge<DerivedRoutingFeeConfig>(
+        actualConfig,
+        normalizedTargetConfig,
+      );
+      // Keep actual addresses, but do not update destinations omitted from target.
+      for (const chainName of Object.keys(merged.feeContracts)) {
+        if (!(chainName in normalizedTargetConfig.feeContracts)) {
+          delete merged.feeContracts[chainName];
+        }
+      }
       return [
-        ...(await this.updateRoutingFee(
-          objMerge(
-            actualConfig,
-            normalizedTargetConfig,
-            10,
-            true,
-          ) as DerivedRoutingFeeConfig,
-        )),
+        ...(await this.updateRoutingFee(merged)),
         ...this.createOwnershipUpdateTxs(
           normalizedActualConfig,
           normalizedTargetConfig,
@@ -808,31 +818,93 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
     if (!targetConfig.feeContracts) return [];
     const currentRoutingAddress = this.args.addresses.deployedFee;
+
+    // Cache each (original address, target config), including split deployments.
+    const updatedByAddress = new Map<
+      string,
+      { config: ResolvedTokenFeeConfigInput; deployedAddr: string }[]
+    >();
+    const deployedByChain = new Map<string, string>();
+
     for (const [chainName, config] of Object.entries(
       targetConfig.feeContracts,
     )) {
       const address = config.address;
-
-      let subFeeModule: EvmTokenFeeModule;
-      let deployedSubFee: string;
 
       if (!address) {
         // Sub-fee contract doesn't exist yet, deploy a new one
         this.logger.info(
           `No existing sub-fee contract for ${chainName}, deploying new one`,
         );
-        subFeeModule = await EvmTokenFeeModule.create({
+        const subFeeModule = await EvmTokenFeeModule.create({
           multiProvider: this.multiProvider,
           chain: this.chainName,
           config,
           contractVerifier: this.contractVerifier,
         });
-        deployedSubFee = subFeeModule.serialize().deployedFee;
+        deployedByChain.set(chainName, subFeeModule.serialize().deployedFee);
+      } else {
+        const addressKey = address.toLowerCase();
+        const updates = updatedByAddress.get(addressKey) ?? [];
+        const cached = updates.find((entry) =>
+          deepEquals(entry.config, config),
+        );
 
-        const annotation = `New sub fee contract deployed. Setting contract for ${chainName} to ${deployedSubFee}`;
+        if (cached) {
+          deployedByChain.set(chainName, cached.deployedAddr);
+        } else {
+          let subFeeModule: EvmTokenFeeModule;
+          if (updates.length > 0) {
+            // A shared contract cannot satisfy divergent target configs. Split
+            // this destination onto a newly deployed fee contract.
+            this.logger.info(
+              `Routing sub-fee config diverged for ${chainName} at ${address}, deploying new contract`,
+            );
+            subFeeModule = await EvmTokenFeeModule.create({
+              multiProvider: this.multiProvider,
+              chain: this.chainName,
+              config,
+              contractVerifier: this.contractVerifier,
+            });
+          } else {
+            subFeeModule = new EvmTokenFeeModule(
+              this.multiProvider,
+              {
+                addresses: { deployedFee: address },
+                chain: this.chainName,
+                config,
+              },
+              this.contractVerifier,
+            );
+            updateTransactions.push(
+              ...(await subFeeModule.update(config, { address })),
+            );
+          }
+          const deployedAddr = subFeeModule.serialize().deployedFee;
+          updates.push({
+            config,
+            deployedAddr,
+          });
+          updatedByAddress.set(addressKey, updates);
+          deployedByChain.set(chainName, deployedAddr);
+        }
+      }
+    }
+
+    for (const [chainName, config] of Object.entries(
+      targetConfig.feeContracts,
+    )) {
+      const deployedSubFee = deployedByChain.get(chainName);
+      assert(
+        deployedSubFee !== undefined,
+        `Missing deployed fee for ${chainName}`,
+      );
+
+      if (!config.address || !eqAddress(deployedSubFee, config.address)) {
+        const annotation = `Setting fee contract for ${chainName} to ${deployedSubFee}`;
         this.logger.debug(annotation);
         updateTransactions.push({
-          annotation: annotation,
+          annotation,
           chainId: this.chainId,
           to: currentRoutingAddress,
           data: RoutingFee__factory.createInterface().encodeFunctionData(
@@ -840,39 +912,6 @@ export class EvmTokenFeeModule extends HyperlaneModule<
             [this.multiProvider.getDomainId(chainName), deployedSubFee],
           ),
         });
-      } else {
-        // Update existing sub-fee contract
-        subFeeModule = new EvmTokenFeeModule(
-          this.multiProvider,
-          {
-            addresses: {
-              deployedFee: address,
-            },
-            chain: this.chainName,
-            config,
-          },
-          this.contractVerifier,
-        );
-        const subFeeUpdateTransactions = await subFeeModule.update(config, {
-          address,
-        });
-        deployedSubFee = subFeeModule.serialize().deployedFee;
-
-        updateTransactions.push(...subFeeUpdateTransactions);
-
-        if (!eqAddress(deployedSubFee, address)) {
-          const annotation = `Sub fee contract redeployed on chain ${this.chainName}. Updating fee contract for destination ${chainName} to ${deployedSubFee}`;
-          this.logger.debug(annotation);
-          updateTransactions.push({
-            annotation: annotation,
-            chainId: this.chainId,
-            to: currentRoutingAddress,
-            data: RoutingFee__factory.createInterface().encodeFunctionData(
-              'setFeeContract(uint32,address)',
-              [this.multiProvider.getDomainId(chainName), deployedSubFee],
-            ),
-          });
-        }
       }
     }
 

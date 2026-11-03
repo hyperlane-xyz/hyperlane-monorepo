@@ -1,7 +1,9 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
+import { rejects } from 'node:assert';
 import { constants } from 'ethers';
 import hre from 'hardhat';
+import sinon from 'sinon';
 
 import {
   Mailbox__factory,
@@ -11,7 +13,7 @@ import {
   TimelockController__factory,
   ValidatorAnnounce__factory,
 } from '@hyperlane-xyz/core';
-import { eqAddress, objMap } from '@hyperlane-xyz/utils';
+import { assert, eqAddress, objMap } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { HookConfig, HookType } from '../hook/types.js';
@@ -106,6 +108,67 @@ describe('EvmCoreModule', async () => {
       timelockController!,
       multiProvider.getProvider(CHAIN),
     );
+  });
+
+  describe('ProxyAdmin reads', () => {
+    afterEach(() => sinon.restore());
+
+    it('should fail the update when a real ProxyAdmin owner read fails', async () => {
+      const provider = multiProvider.getProvider(CHAIN);
+      const { proxyAdmin } = evmCoreModule.serialize();
+      assert(proxyAdmin, 'Expected a deployed ProxyAdmin');
+      const call = provider.call.bind(provider);
+      sinon.stub(provider, 'call').callsFake(async (transaction, blockTag) => {
+        const to = await transaction.to;
+        if (to && eqAddress(to, proxyAdmin))
+          throw new Error('ProxyAdmin RPC failure');
+        return call(transaction, blockTag);
+      });
+      await rejects(
+        evmCoreModule.update({ ...config, owner: randomAddress() }),
+        /ProxyAdmin RPC failure/,
+      );
+    });
+
+    it('should fail the read when the admin storage slot cannot be read', async () => {
+      sinon
+        .stub(multiProvider.getProvider(CHAIN), 'getStorageAt')
+        .rejects(new Error('Storage RPC failure'));
+      await rejects(evmCoreModule.read(), /Storage RPC failure/);
+    });
+
+    it('should update a direct Mailbox after verifying its admin slot is zero', async () => {
+      const mailbox = await new Mailbox__factory(signer).deploy(
+        multiProvider.getDomainId(CHAIN),
+      );
+      const existingMailbox = Mailbox__factory.connect(
+        evmCoreModule.serialize().mailbox,
+        signer,
+      );
+      await mailbox.initialize(
+        signer.address,
+        await existingMailbox.defaultIsm(),
+        await existingMailbox.defaultHook(),
+        await existingMailbox.requiredHook(),
+      );
+      const directModule = new EvmCoreModule(multiProvider, {
+        chain: CHAIN,
+        config,
+        addresses: {
+          ...evmCoreModule.serialize(),
+          mailbox: mailbox.address,
+          proxyAdmin: constants.AddressZero,
+        },
+      });
+      const actual = await directModule.read();
+      expect(actual.proxyAdmin).to.equal(undefined);
+      const newOwner = randomAddress();
+      const txs = await directModule.update({ ...actual, owner: newOwner });
+      expect(txs).to.have.lengthOf(1);
+      expect(txs[0].to).to.equal(mailbox.address);
+      await sendTxs(txs);
+      expect((await mailbox.owner()).toLowerCase()).to.equal(newOwner);
+    });
   });
 
   describe('Create', async () => {

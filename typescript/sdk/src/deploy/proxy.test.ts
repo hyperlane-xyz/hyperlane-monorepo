@@ -1,5 +1,8 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
+import sinon from 'sinon';
+
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { Ownable__factory } from '@hyperlane-xyz/core';
 
@@ -155,6 +158,39 @@ describe('proxy utilities', () => {
     const OWNER_A = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
     const OWNER_B = '0xcccccccccccccccccccccccccccccccccccccccc';
     const OWNER_C = '0xdddddddddddddddddddddddddddddddddddddddd';
+
+    it('should return empty when the deployment has no ProxyAdmin', () => {
+      const txs = proxyAdminUpdateTxs(
+        CHAIN_ID,
+        PROXY_ADDRESS,
+        { owner: OWNER_A },
+        { owner: OWNER_B },
+      );
+      expect(txs).to.deep.equal([]);
+    });
+
+    for (const explicitConfig of [
+      { proxyAdmin: { owner: OWNER_B } },
+      { ownerOverrides: { proxyAdmin: OWNER_B } },
+    ]) {
+      it(`should warn when a direct deployment has explicit ${Object.keys(explicitConfig)[0]} config`, () => {
+        const warn = sinon.stub(rootLogger, 'warn');
+        try {
+          expect(
+            proxyAdminUpdateTxs(
+              CHAIN_ID,
+              PROXY_ADDRESS,
+              { owner: OWNER_A },
+              { owner: OWNER_A, ...explicitConfig },
+            ),
+          ).to.deep.equal([]);
+          expect(warn.calledOnce).to.equal(true);
+          expect(warn.firstCall.args[1]).to.include('without a ProxyAdmin');
+        } finally {
+          warn.restore();
+        }
+      });
+    }
 
     it('should use ownerOverrides.proxyAdmin over top-level owner when proxyAdmin config is not set', () => {
       const txs = proxyAdminUpdateTxs(

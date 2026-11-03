@@ -10,6 +10,7 @@ import {
   eqAddress,
   isValidAddressEvm,
   retryAsync,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
@@ -205,6 +206,21 @@ export function proxyAdminUpdateTxs(
       ),
     });
   } else {
+    // Direct deployments do not have a ProxyAdmin to update. In particular,
+    // a top-level owner change must not produce a transaction with no target.
+    if (!actualConfig.proxyAdmin?.address) {
+      if (
+        expectedConfig.proxyAdmin ||
+        expectedConfig.ownerOverrides?.proxyAdmin
+      ) {
+        rootLogger.warn(
+          { chainId, proxyAddress },
+          'Ignoring explicit ProxyAdmin configuration for a deployment without a ProxyAdmin',
+        );
+      }
+      return transactions;
+    }
+
     const actualOwnershipConfig = {
       ...actualConfig.proxyAdmin,
       owner:
@@ -225,7 +241,7 @@ export function proxyAdminUpdateTxs(
       // two owner values are the same and produces an empty tx batch if they are
       ...transferOwnershipTransactions(
         parsedChainId,
-        actualOwnershipConfig.address!,
+        actualConfig.proxyAdmin.address,
         actualOwnershipConfig,
         expectedOwnershipConfig,
       ),
