@@ -366,7 +366,91 @@ mod tests {
             Err(LanderError::TxSubmissionDeferred)
         ));
         assert!(tx.precursor().tx.nonce().is_none());
+        assert_ne!(
+            tx.precursor().extract_gas_price(),
+            crate::adapter::chains::ethereum::gas_price::GasPrice::None
+        );
+        assert_eq!(tx.tx_hashes.len(), 1);
         assert!(adapter.submit(&mut tx).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn signing_failure_restores_fees_before_retrying_under_a_lower_cap() {
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        for initial_fee in [None, Some(1_000_000_000_u64)] {
+            for initial_nonce in [None, Some(1_u64)] {
+                let mut adapter = adapter(0, 1, false);
+                let base_fee = Arc::new(AtomicU64::new(2_000_000_000));
+                let mut estimator = MockEvmProvider::new();
+                let observed_base_fee = base_fee.clone();
+                estimator.expect_get_block().returning(move |_| {
+                    Ok(Some(ethers::types::Block {
+                        base_fee_per_gas: Some(observed_base_fee.load(Ordering::Relaxed).into()),
+                        ..Default::default()
+                    }))
+                });
+                estimator.expect_fee_history().returning(|_, _, _| {
+                    Ok(ethers::types::FeeHistory {
+                        reward: vec![vec![8_000_000_000_u64.into()]],
+                        oldest_block: 0.into(),
+                        base_fee_per_gas: vec![],
+                        gas_used_ratio: vec![],
+                    })
+                });
+                estimator.expect_send().never();
+                adapter.provider = Arc::new(estimator);
+
+                let mut signer = MockEvmProvider::new();
+                signer.expect_sign_transaction().times(1).returning(|tx| {
+                    let TypedTransaction::Eip1559(request) = tx else {
+                        panic!("expected EIP-1559 request");
+                    };
+                    assert_eq!(
+                        request.max_priority_fee_per_gas,
+                        Some(8_000_000_000_u64.into())
+                    );
+                    Err(ChainCommunicationError::CustomError(
+                        "KMS unavailable".into(),
+                    ))
+                });
+                signer.expect_send_raw_transaction().never();
+                let protected = std::mem::replace(
+                    &mut adapter.mev_submission.as_mut().unwrap().provider,
+                    Arc::new(signer),
+                );
+                let mut tx = transaction(&adapter, vec![payload(2, ROUTER, MAILBOX)]).await;
+                let TypedTransaction::Eip1559(request) = &mut tx.precursor_mut().tx else {
+                    panic!("expected EIP-1559 request");
+                };
+                request.max_fee_per_gas = initial_fee.map(Into::into);
+                request.max_priority_fee_per_gas = initial_fee.map(Into::into);
+                request.nonce = initial_nonce.map(Into::into);
+                let before = tx.precursor().tx.clone();
+
+                assert!(matches!(
+                    adapter.submit(&mut tx).await,
+                    Err(LanderError::TxSubmissionDeferred)
+                ));
+                assert_eq!(tx.precursor().tx, before);
+                assert!(tx.tx_hashes.is_empty());
+
+                // Cap falls from 8 to 5 gwei. Unsigned fees from the first attempt
+                // must not force a replacement bump or prevent the first send.
+                base_fee.store(1_000_000_000, Ordering::Relaxed);
+                adapter.mev_submission.as_mut().unwrap().provider = protected;
+                adapter.submit(&mut tx).await.unwrap();
+                let TypedTransaction::Eip1559(request) = &tx.precursor().tx else {
+                    panic!("expected EIP-1559 request");
+                };
+                assert_eq!(
+                    request.max_priority_fee_per_gas,
+                    Some(5_000_000_000_u64.into())
+                );
+                assert_eq!(request.nonce, Some(1_u64.into()));
+                assert_eq!(tx.tx_hashes.len(), 1);
+            }
+        }
     }
 
     #[tokio::test]
@@ -496,6 +580,103 @@ mod tests {
             Some(300_000.into())
         );
     }
+    #[tokio::test]
+    async fn queued_protected_batch_reestimates_after_execution_cost_increases() {
+        use std::{
+            collections::HashMap,
+            sync::atomic::{AtomicU64, Ordering},
+        };
+
+        use crate::{
+            dispatcher::{DispatcherState, InclusionStage},
+            DispatcherMetrics,
+        };
+
+        let mut adapter = adapter(0, 0, false);
+        let required_gas = Arc::new(AtomicU64::new(200_000));
+        let mut protected = MockEvmProvider::new();
+        mock_get_block(&mut protected);
+        protected
+            .expect_estimate_gas_limit()
+            .returning(|_, _| Ok(100_000.into()));
+        let simulation_gas = required_gas.clone();
+        protected
+            .expect_simulate_batch()
+            .times(3)
+            .returning(move |(tx, _)| {
+                if tx
+                    .gas()
+                    .is_some_and(|gas| *gas < simulation_gas.load(Ordering::SeqCst).into())
+                {
+                    return Err(ChainCommunicationError::CustomError("out of gas".into()));
+                }
+                Ok((vec![0, 1], vec![]))
+            });
+        let estimate_gas = required_gas.clone();
+        protected
+            .expect_estimate_batch()
+            .times(2)
+            .returning(move |_, _| Ok(estimate_gas.load(Ordering::SeqCst).into()));
+        protected
+            .expect_sign_transaction()
+            .once()
+            .withf(|tx| tx.gas().copied() == Some(400_000.into()))
+            .returning(|tx| Ok(serde_json::to_vec(tx).unwrap().into()));
+        protected
+            .expect_send_raw_transaction()
+            .once()
+            .returning(|bytes| Ok(ethers::utils::keccak256(bytes).into()));
+        adapter.mev_submission.as_mut().unwrap().provider = Arc::new(protected);
+
+        let mut payloads = vec![payload(2, ROUTER, MAILBOX), payload(2, ROUTER, MAILBOX)];
+        for payload in &mut payloads {
+            payload.gas_limit = 0.into();
+            adapter
+                .payload_db
+                .store_payload_by_uuid(payload)
+                .await
+                .unwrap();
+        }
+        let mut built = adapter.build_transactions(&payloads).await;
+        assert_eq!(built.len(), 1);
+        let mut tx = built[0].maybe_tx.take().unwrap();
+        assert_eq!(tx.payload_details.len(), 2);
+        assert_eq!(tx.precursor().tx.gas().copied(), Some(200_000.into()));
+
+        // Recipient state changed while queued. Simulate without the stale limit,
+        // but retain the queued budget until inclusion replaces it with an estimate.
+        required_gas.store(400_000, Ordering::SeqCst);
+        let queued = tx.clone();
+        assert!(adapter.simulate_tx(&mut tx).await.unwrap().is_empty());
+        assert_eq!(tx, queued);
+
+        tx.status = TransactionStatus::PendingInclusion;
+        let uuid = tx.uuid.clone();
+        let (_, tx_db, _) = tmp_dbs();
+        tx_db.store_transaction_by_uuid(&tx).await.unwrap();
+        let state = DispatcherState::new(
+            adapter.payload_db.clone(),
+            tx_db,
+            Arc::new(adapter),
+            DispatcherMetrics::dummy_instance(),
+            "test".to_owned(),
+        );
+        let pool = Arc::new(tokio::sync::Mutex::new(HashMap::from([(uuid.clone(), tx)])));
+        let (sender, _receiver) = tokio::sync::mpsc::channel(1);
+        InclusionStage::process_txs_step(&pool, &sender, &state, "test")
+            .await
+            .unwrap();
+        let pool = pool.lock().await;
+        let submitted = pool.get(&uuid).unwrap();
+        assert_eq!(submitted.status, TransactionStatus::Mempool);
+        assert_eq!(submitted.submission_attempts, 1);
+        assert_eq!(
+            submitted.precursor().tx.gas().copied(),
+            Some(400_000.into())
+        );
+        assert_eq!(submitted.tx_hashes.len(), 1);
+    }
+
     #[tokio::test]
     async fn gas_limit_caps_are_terminal_for_protected_singles_and_batches() {
         use crate::error::IsRetryable;

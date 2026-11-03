@@ -935,3 +935,113 @@ async fn test_process_retry_requests_multiple_retries() {
     assert_eq!(retry_response.evaluated, 7);
     assert_eq!(retry_response.matched, 2);
 }
+
+fn deny_message_id(id: H256) -> Arc<RuntimeDenylist> {
+    Arc::new(RuntimeDenylist::from_rules_for_test(serde_json::json!([
+        { "reason": "test", "addedBy": "test", "match": { "messageId": format!("{id:?}") } }
+    ])))
+}
+
+#[tokio::test]
+async fn pop_many_drops_denied_operations() {
+    let broadcaster = sync::broadcast::Sender::new(10);
+    let destination: HyperlaneDomain = KnownHyperlaneDomain::Base.into();
+    let denied = MockPendingOperation::new(1, destination.clone());
+    let allowed = MockPendingOperation::new(2, destination);
+    let allowed_id = allowed.id();
+    let mut queue =
+        initialize_queue(&broadcaster).with_runtime_denylist(deny_message_id(denied.id()));
+    queue.push(Box::new(denied), None).await;
+    queue.push(Box::new(allowed), None).await;
+
+    let popped = queue.pop_many(10).await;
+
+    assert_eq!(
+        popped.iter().map(|op| op.id()).collect::<Vec<_>>(),
+        vec![allowed_id]
+    );
+    assert_eq!(queue.len().await, 0);
+}
+
+#[tokio::test]
+async fn pop_many_ready_looks_past_a_fully_denied_batch() {
+    let broadcaster = sync::broadcast::Sender::new(10);
+    let destination: HyperlaneDomain = KnownHyperlaneDomain::Base.into();
+    let denied = MockPendingOperation::new(0, destination.clone()).with_fixed_deadline();
+    std::thread::sleep(Duration::from_millis(2));
+    let allowed = MockPendingOperation::new(0, destination).with_fixed_deadline();
+    let allowed_id = allowed.id();
+    let mut queue =
+        initialize_queue(&broadcaster).with_runtime_denylist(deny_message_id(denied.id()));
+    queue.push(Box::new(denied), None).await;
+    queue.push(Box::new(allowed), None).await;
+
+    let (popped, _) = queue.pop_many_ready(1).await;
+
+    assert_eq!(
+        popped.iter().map(|op| op.id()).collect::<Vec<_>>(),
+        vec![allowed_id]
+    );
+}
+
+#[tokio::test]
+async fn queue_without_denylist_keeps_everything() {
+    let broadcaster = sync::broadcast::Sender::new(10);
+    let destination: HyperlaneDomain = KnownHyperlaneDomain::Base.into();
+    let mut queue = initialize_queue(&broadcaster);
+    for op in generate_test_messages(destination, 3) {
+        queue.push(op, None).await;
+    }
+    assert_eq!(queue.pop_many(10).await.len(), 3);
+}
+
+#[tokio::test]
+async fn pop_many_ready_bounds_work_on_a_denied_backlog() {
+    let broadcaster = sync::broadcast::Sender::new(10);
+    let destination: HyperlaneDomain = KnownHyperlaneDomain::Base.into();
+    let ops: Vec<_> = (0..super::EVICTION_ROUNDS_PER_POP + 1)
+        .map(|_| MockPendingOperation::new(0, destination.clone()).with_fixed_deadline())
+        .collect();
+    let ids: Vec<_> = ops.iter().map(|op| format!("{:?}", op.id())).collect();
+    let denylist = Arc::new(RuntimeDenylist::from_rules_for_test(serde_json::json!([
+        { "reason": "test", "addedBy": "test", "match": { "messageId": ids } }
+    ])));
+    let mut queue = initialize_queue(&broadcaster).with_runtime_denylist(denylist);
+    for op in ops {
+        queue.push(Box::new(op), None).await;
+    }
+
+    let (popped, deadline) = queue.pop_many_ready(1).await;
+
+    assert!(popped.is_empty());
+    assert!(deadline.is_some(), "caller must poll again, not sleep");
+    assert_eq!(queue.len().await, 1);
+}
+
+#[tokio::test]
+async fn pop_many_drops_ops_whose_cached_origin_signer_is_denied() {
+    // An address rule added after an op was prepared: its signers were
+    // already looked up, so the queue can drop it without an RPC call.
+    let signer = H256::random();
+    let denylist = Arc::new(RuntimeDenylist::from_rules_for_test(serde_json::json!([
+        { "reason": "test", "addedBy": "test", "address": format!("{signer:?}") }
+    ])));
+    let broadcaster = sync::broadcast::Sender::new(10);
+    let destination: HyperlaneDomain = KnownHyperlaneDomain::Base.into();
+    let denied = MockPendingOperation::new(1, destination.clone());
+    let allowed = MockPendingOperation::new(2, destination);
+    let allowed_id = allowed.id();
+    denylist
+        .cache_origin_signers_for_test(denied.id(), vec![signer])
+        .await;
+    let mut queue = initialize_queue(&broadcaster).with_runtime_denylist(denylist);
+    queue.push(Box::new(denied), None).await;
+    queue.push(Box::new(allowed), None).await;
+
+    let popped = queue.pop_many(10).await;
+
+    assert_eq!(
+        popped.iter().map(|op| op.id()).collect::<Vec<_>>(),
+        vec![allowed_id]
+    );
+}

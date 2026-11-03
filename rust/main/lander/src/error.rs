@@ -18,7 +18,7 @@ pub enum LanderError {
     TxHashNotFound(String),
     #[error("Transaction reached the current gas price cap")]
     TxGasCapReached,
-    #[error("Protected submission unavailable; retry later")]
+    #[error("Transaction submission deferred; retry later")]
     TxSubmissionDeferred,
     #[error("Failed to send over a channel {0}")]
     ChannelSendFailure(#[from] Box<tokio::sync::mpsc::error::SendError<Transaction>>),

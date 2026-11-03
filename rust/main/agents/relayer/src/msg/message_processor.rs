@@ -34,13 +34,13 @@ use crate::msg::pending_message::CONFIRM_DELAY;
 use crate::server::operations::message_retry::MessageRetryRequest;
 
 use super::op_batch::OperationBatch;
-use super::{op_queue::OpQueue, QueueOperationBatch};
+use super::{op_queue::OpQueue, runtime_denylist::RuntimeDenylist, QueueOperationBatch};
 
 use stage::prepare;
-use stage::submit::filter_operations_for_submit;
+use stage::submit::{self, filter_operations_for_submit};
 
 mod disposition;
-mod stage;
+pub(crate) mod stage;
 
 /// This is needed for logic where we need to allocate
 /// based on how many queues exist in each MessageProcessor.
@@ -118,6 +118,8 @@ pub struct MessageProcessor {
     confirm_queue: OpQueue,
     payload_dispatcher_entrypoint: Option<DispatcherEntrypoint>,
     db: Arc<dyn HyperlaneDb>,
+    /// Checked before lander payloads are created; see `with_runtime_denylist`.
+    lander_denylist: Arc<RuntimeDenylist>,
 }
 
 impl MessageProcessor {
@@ -162,7 +164,24 @@ impl MessageProcessor {
             confirm_queue,
             payload_dispatcher_entrypoint,
             db: Arc::new(db),
+            lander_denylist: Default::default(),
         }
+    }
+
+    /// Drop operations matching `denylist` from the prepare and submit
+    /// queues. Confirm-queue operations, and lander payloads already handed to
+    /// the dispatcher, have been submitted and are not recalled.
+    pub fn with_runtime_denylist(mut self, denylist: Arc<RuntimeDenylist>) -> Self {
+        if self.payload_dispatcher_entrypoint.is_some() {
+            // Lander requeues ops whose payload is already with the
+            // dispatcher, and evicting those would lose their confirmation.
+            // Enforce the denylist only before a new payload is created.
+            self.lander_denylist = denylist;
+        } else {
+            self.prepare_queue = self.prepare_queue.with_runtime_denylist(denylist.clone());
+            self.submit_queue = self.submit_queue.with_runtime_denylist(denylist);
+        }
+        self
     }
 
     pub async fn prepare_queue(&self) -> OpQueue {
@@ -334,6 +353,7 @@ impl MessageProcessor {
                     self.max_batch_size,
                     self.metrics.clone(),
                     self.db.clone(),
+                    self.lander_denylist.clone(),
                 ),
             ))
             .expect("spawning tokio task from Builder is infallible")
@@ -443,6 +463,7 @@ async fn prepare_lander_task(
 
         let batch_to_process = prepare::filter_operations_for_preparation(
             entrypoint.clone() as Arc<dyn Entrypoint + Send + Sync>,
+            &prepare_queue,
             &submit_queue,
             &confirm_queue,
             db.clone(),
@@ -632,8 +653,8 @@ async fn submit_classic_task(
 
 #[allow(clippy::too_many_arguments)]
 #[instrument(skip_all, fields(domain=%_domain))]
-async fn submit_lander_task(
-    entrypoint: Arc<DispatcherEntrypoint>,
+async fn submit_lander_task<E: Entrypoint + Send + Sync + 'static>(
+    entrypoint: Arc<E>,
     _domain: HyperlaneDomain, // used for instrumentation only
     prepare_queue: OpQueue,
     mut submit_queue: OpQueue,
@@ -641,6 +662,7 @@ async fn submit_lander_task(
     max_batch_size: u32,
     metrics: MessageProcessorMetrics,
     db: Arc<dyn HyperlaneDb>,
+    denylist: Arc<RuntimeDenylist>,
 ) {
     let recv_limit = max_batch_size as usize;
     loop {
@@ -667,7 +689,15 @@ async fn submit_lander_task(
         // Process remaining operations in submit queue
         for op in operations_to_process {
             // Operation needs a new payload created and sent
-            submit_via_lander(op, &entrypoint, &prepare_queue, &submit_queue, db.clone()).await;
+            submit_via_lander(
+                op,
+                &entrypoint,
+                &prepare_queue,
+                &submit_queue,
+                db.clone(),
+                &denylist,
+            )
+            .await;
         }
     }
 }
@@ -678,7 +708,12 @@ async fn submit_via_lander<E: Entrypoint + Send + Sync>(
     prepare_queue: &OpQueue,
     submit_queue: &OpQueue,
     db: Arc<dyn HyperlaneDb>,
+    denylist: &RuntimeDenylist,
 ) {
+    // Avoid payload RPCs for a rule that landed while an earlier op awaited.
+    let Some(op) = submit::drop_denied_before_submission(denylist, op).await else {
+        return;
+    };
     let operation_payload = match op.payload().await {
         Ok(p) => p,
         Err(e) => {
@@ -721,6 +756,12 @@ async fn submit_via_lander<E: Entrypoint + Send + Sync>(
         operation_success_criteria,
         mailbox,
     );
+
+    // Payload construction can await RPCs, as can earlier operations in the
+    // same batch. Apply the latest rules at the handoff to lander.
+    let Some(op) = submit::drop_denied_before_submission(denylist, op).await else {
+        return;
+    };
 
     if let Err(e) = entrypoint.send_payload(&payload).await {
         let reason = ReprepareReason::ErrorSubmitting;

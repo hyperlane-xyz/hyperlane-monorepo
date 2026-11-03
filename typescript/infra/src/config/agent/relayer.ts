@@ -125,6 +125,7 @@ export interface BaseRelayerConfig {
   whitelist?: MatchingList;
   blacklist?: MatchingList;
   addressBlacklist?: string;
+  runtimeDenylist?: RuntimeDenylistConfig;
   transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: string[];
   metricAppContextsGetter?: () => MetricAppContext[];
@@ -144,6 +145,23 @@ export interface BaseRelayerConfig {
   relayApi?: RelayApiConfig;
 }
 
+function isValidRuntimeDenylistUrl(url: string): boolean {
+  try {
+    const { protocol, hostname } = new URL(url);
+    if (protocol === 'file:') return hostname.length === 0;
+    return (
+      (protocol === 'https:' || protocol === 'http:') && hostname.length > 0
+    );
+  } catch {
+    return false;
+  }
+}
+
+export interface RuntimeDenylistConfig {
+  url: string;
+  pollIntervalSecs?: number;
+}
+
 export interface RelayApiConfig {
   enabled: boolean;
   port?: number;
@@ -155,10 +173,11 @@ export interface RelayApiConfig {
 // Full relayer-specific agent config for a single chain
 export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig>;
 // Config intended to be set as configMap values, these are usually really long
-// and are intended to derisk hitting max env var length limits.
+// and are intended to derisk hitting max env var length limits. The message
+// blacklist alone is ~43 KB and grows with every denylist PR.
 export type RelayerConfigMapConfig = Pick<
   RelayerConfig,
-  'addressBlacklist' | 'gasPaymentEnforcement' | 'ismCacheConfigs'
+  'addressBlacklist' | 'blacklist' | 'gasPaymentEnforcement' | 'ismCacheConfigs'
 >;
 // Config that will be embedded into relayer docker image because
 // of its large size.
@@ -203,6 +222,10 @@ export interface HelmRelayerChainValues {
   ccsSigner?: KeyConfig;
 }
 
+// Pinned so the same monorepo commit always builds the same list and an
+// upstream push can't change or break a deploy. Bump it to pick up new entries.
+const OFAC_LISTS_COMMIT = 'abad1e7bc0956b89211f8eaa28a4fc795188738d';
+
 export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
   readonly relayerConfig: BaseRelayerConfig;
   readonly logger: Logger<never>;
@@ -234,6 +257,26 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     relayerConfig.addressBlacklist = (await this.getSanctionedAddresses()).join(
       ',',
     );
+
+    if (baseConfig.runtimeDenylist) {
+      const { url, pollIntervalSecs } = baseConfig.runtimeDenylist;
+      // Same checks as the agent schema and the relayer, so a bad value fails
+      // the deploy rather than the relayer's startup. Don't echo the URL,
+      // which can carry a token.
+      assert(
+        isValidRuntimeDenylistUrl(url),
+        'runtimeDenylist.url must be a valid https://, http:// or file:// URL',
+      );
+      assert(
+        pollIntervalSecs === undefined ||
+          (Number.isInteger(pollIntervalSecs) && pollIntervalSecs > 0),
+        'runtimeDenylist.pollIntervalSecs must be a positive integer',
+      );
+      relayerConfig.runtimeDenylistUrl = url;
+      if (pollIntervalSecs !== undefined) {
+        relayerConfig.runtimeDenylistPollIntervalSecs = pollIntervalSecs;
+      }
+    }
 
     if (baseConfig.transactionGasLimit) {
       relayerConfig.transactionGasLimit =
@@ -314,45 +357,10 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
   }
 
   async getSanctionedAddresses() {
-    // All Ethereum-style addresses from https://github.com/0xB10C/ofac-sanctioned-digital-currency-addresses/tree/lists
-    const currencies = ['ARB', 'BSC', 'ETC', 'ETH', 'USDC', 'USDT'];
-
-    const schema = z.array(z.string());
-
-    const allSanctionedAddresses = await Promise.all(
-      currencies.map(async (currency) => {
-        const rawUrl = `https://raw.githubusercontent.com/0xB10C/ofac-sanctioned-digital-currency-addresses/lists/sanctioned_addresses_${currency}.json`;
-        this.logger.debug(
-          {
-            currency,
-            rawUrl,
-          },
-          'Fetching sanctioned addresses',
-        );
-        const sanctionedAddresses = await retryAsync(
-          async () => {
-            const json = await fetch(rawUrl);
-            return schema.parse(await json.json());
-          },
-          3, // attempts
-          1000, // 1s base delay
-        );
-        return sanctionedAddresses;
-      }),
-    );
-
-    const sanctionedEthereumAddresses = allSanctionedAddresses
-      .flat()
-      .filter((address) => {
-        if (!isValidAddressEvm(address)) {
-          this.logger.debug(
-            { address },
-            'Invalid sanctioned address, throwing out',
-          );
-          return false;
-        }
-        return true;
-      });
+    // Only mainnet relays real value; testnets keep the exploit lists below
+    // but skip the network fetch.
+    const sanctionedEthereumAddresses =
+      this.runEnv === 'mainnet3' ? await this.fetchOfacEvmAddresses() : [];
 
     const radiantExploiter = [
       '0xA0e768A68ba1BFffb9F4366dfC8D9195EE7217d1',
@@ -379,6 +387,47 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     );
 
     return Array.from(uniqueAddresses);
+  }
+
+  // All Ethereum-style addresses from
+  // https://github.com/0xB10C/ofac-sanctioned-digital-currency-addresses/tree/lists
+  private async fetchOfacEvmAddresses(): Promise<string[]> {
+    const currencies = ['ARB', 'BSC', 'ETC', 'ETH', 'USDC', 'USDT'];
+
+    const schema = z.array(z.string());
+
+    const allSanctionedAddresses = await Promise.all(
+      currencies.map(async (currency) => {
+        const rawUrl = `https://raw.githubusercontent.com/0xB10C/ofac-sanctioned-digital-currency-addresses/${OFAC_LISTS_COMMIT}/sanctioned_addresses_${currency}.json`;
+        this.logger.debug(
+          {
+            currency,
+            rawUrl,
+          },
+          'Fetching sanctioned addresses',
+        );
+        const sanctionedAddresses = await retryAsync(
+          async () => {
+            const json = await fetch(rawUrl);
+            return schema.parse(await json.json());
+          },
+          3, // attempts
+          1000, // 1s base delay
+        );
+        return sanctionedAddresses;
+      }),
+    );
+
+    return allSanctionedAddresses.flat().filter((address) => {
+      if (!isValidAddressEvm(address)) {
+        this.logger.debug(
+          { address },
+          'Invalid sanctioned address, throwing out',
+        );
+        return false;
+      }
+      return true;
+    });
   }
 
   // Returns whether the relayer requires AWS credentials

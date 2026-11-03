@@ -4,7 +4,7 @@ use tracing::warn;
 
 use hyperlane_base::db::HyperlaneDb;
 use hyperlane_core::QueueOperation;
-use lander::{Entrypoint, PayloadStatus, TransactionStatus};
+use lander::{Entrypoint, LanderError, PayloadStatus, TransactionStatus};
 
 /// Disposition for routing operations through the message processor pipeline.
 ///
@@ -15,12 +15,14 @@ use lander::{Entrypoint, PayloadStatus, TransactionStatus};
 ///
 /// ## Prepare Stage
 /// When `filter_operations_for_preparation` evaluates an operation:
+/// - `Unknown`: Retained in the prepare queue for another status read
 /// - `PreSubmit`: Returned to caller for preparation (metadata fetch, gas estimation, payload creation)
 /// - `Submit`: Pushed to submit queue with `ReadyToSubmit` status (payload already exists)
 /// - `PostSubmit`: Pushed to confirm queue with `Confirm(AlreadySubmitted)` status (already on-chain)
 ///
 /// ## Submit Stage
 /// When `filter_operations_for_submit` evaluates an operation:
+/// - `Unknown`: Retained in the submit queue for another status read
 /// - `PreSubmit`: Returned to caller for immediate payload creation and submission (failed/dropped payload)
 /// - `Submit`: Re-queued to submit queue with `ReadyToSubmit` status (waiting for blockchain inclusion)
 /// - `PostSubmit`: Moved to confirm queue via `confirm_op` (transaction included in block)
@@ -35,11 +37,14 @@ pub enum OperationDisposition {
     /// - No payload exists for this operation (new message)
     /// - Payload was dropped or reverted (needs retry)
     /// - Payload requires retry due to reorg
-    /// - Cannot determine payload status (DB/RPC error - assume needs preparation)
     ///
     /// **Prepare stage**: Returns operation to caller for preparation (metadata, gas, payload)
     /// **Submit stage**: Returns operation to caller for immediate payload creation and submission
     PreSubmit,
+
+    /// Payload linkage or status could not be read. Keep the operation in its
+    /// current stage and retry the read; it may already have an in-flight payload.
+    Unknown,
 
     /// Operation is actively in the submission pipeline.
     ///
@@ -81,7 +86,8 @@ pub enum OperationDisposition {
 /// payload status via the lander entrypoint to determine the appropriate routing.
 ///
 /// # Returns
-/// - `PreSubmit`: No payload exists, cannot retrieve status, or database error (assume needs preparation)
+/// - `PreSubmit`: No payload exists
+/// - `Unknown`: Payload linkage or status could not be read; retain tracking and retry
 /// - `Submit`: Payload exists and is in submission pipeline (ReadyToSubmit, PendingInclusion, Mempool)
 /// - `PostSubmitSuccess`: Payload transaction has been included in a block (Included, Finalized)
 /// - `PostSubmitFailure`: Payload transaction was dropped or failed (Dropped, InTransaction(Dropped), Retry)
@@ -97,8 +103,10 @@ pub(crate) async fn operation_disposition_by_payload_status(
 ) -> OperationDisposition {
     use OperationDisposition::{PostSubmitFailure, PostSubmitSuccess, PreSubmit, Submit};
 
-    let Some(status) = operation_payload_status(entrypoint, db, op).await else {
-        return PreSubmit;
+    let status = match operation_payload_status(entrypoint, db, op).await {
+        Ok(Some(status)) => status,
+        Ok(None) => return PreSubmit,
+        Err(_) => return OperationDisposition::Unknown,
     };
 
     match status {
@@ -125,12 +133,12 @@ pub(crate) async fn awaiting_transaction_finality(
 ) -> bool {
     matches!(
         operation_payload_status(entrypoint, db, op).await,
-        Some(PayloadStatus::ReadyToSubmit)
-            | Some(PayloadStatus::InTransaction(
+        Ok(Some(PayloadStatus::ReadyToSubmit))
+            | Ok(Some(PayloadStatus::InTransaction(
                 TransactionStatus::PendingInclusion
                     | TransactionStatus::Mempool
                     | TransactionStatus::Included
-            ))
+            )))
     )
 }
 
@@ -138,20 +146,20 @@ async fn operation_payload_status(
     entrypoint: Arc<dyn Entrypoint + Send + Sync>,
     db: Arc<dyn HyperlaneDb>,
     op: &QueueOperation,
-) -> Option<PayloadStatus> {
+) -> Result<Option<PayloadStatus>, LanderError> {
     let id = op.id();
 
     let payload_uuids = match db.retrieve_payload_uuids_by_message_id(&id) {
         Ok(uuids) => uuids,
         Err(e) => {
             warn!("Failed to retrieve payload uuids by message id: message_id={id:?}, error={e:?}");
-            return None;
+            return Err(e.into());
         }
     };
 
     let payload_uuids = match payload_uuids {
-        None => return None,
-        Some(uuids) if uuids.is_empty() => return None,
+        None => return Ok(None),
+        Some(uuids) if uuids.is_empty() => return Ok(None),
         Some(uuids) => uuids,
     };
 
@@ -159,13 +167,14 @@ async fn operation_payload_status(
     let payload_uuid = payload_uuids[0].clone();
     let status = match entrypoint.payload_status(payload_uuid.clone()).await {
         Ok(status) => status,
+        Err(LanderError::PayloadNotFound) => return Ok(None),
         Err(e) => {
             warn!("Failed to retrieve payload status by its uuid: message_id={id:?}, payload_uuid={payload_uuid:?}, error={e:?}");
-            return None;
+            return Err(e);
         }
     };
 
-    Some(status)
+    Ok(Some(status))
 }
 
 #[cfg(test)]

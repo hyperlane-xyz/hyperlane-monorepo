@@ -46,7 +46,7 @@ use crate::utils::{decode_h256, decode_h512, decode_pubkey};
 use crate::{ConnectionConf, SealevelKeypair, SealevelTransactionFormat, TransactionSubmitter};
 
 mod recipient;
-mod transaction;
+pub(crate) mod transaction;
 
 type AltAccountCell =
     Arc<OnceCell<Result<Arc<AddressLookupTableAccount>, Arc<ChainCommunicationError>>>>;

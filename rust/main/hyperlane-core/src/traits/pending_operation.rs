@@ -182,6 +182,10 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Default no-op; override for latency-sensitive follow-up work (e.g. UR reveal).
     fn on_submitted_success(&self) {}
 
+    /// Called before a runtime denylist drop, so the operation can arrange
+    /// to be reconsidered once it is released if its rule was removed meanwhile.
+    fn on_runtime_denylist_drop(&mut self) {}
+
     /// Creates payload for the operation
     async fn payload(&self) -> ChainResult<Vec<u8>>;
 
@@ -319,6 +323,9 @@ pub enum ReprepareReason {
     #[strum(to_string = "Awaiting ICA reveal commit confirmation")]
     /// ICA reveal commit not yet confirmed on-chain; polling until visible
     AwaitingIcaReveal,
+    #[strum(to_string = "Error fetching origin transaction sender")]
+    /// Could not look up the origin transaction sender for the runtime denylist
+    ErrorFetchingOriginTxSender,
 }
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]
