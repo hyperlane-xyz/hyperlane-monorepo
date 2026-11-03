@@ -73,6 +73,71 @@ fn parses_message_and_address_rules() {
 }
 
 #[test]
+fn scoped_body_rule_preserves_nested_ica_payout_coverage_and_removal() {
+    use ethers::abi::{encode, Token};
+
+    use crate::msg::blacklist::AddressBlacklist;
+
+    let listed = evm(EVM_ADDRESS);
+    let alice = evm("0x1111111111111111111111111111111111111111");
+    let mut transfer = hex::decode("a9059cbb").expect("selector");
+    transfer.extend_from_slice(listed.as_bytes());
+    transfer.extend_from_slice(H256::from_low_u64_be(1_000_000).as_bytes());
+    let calls = Token::Array(vec![Token::Tuple(vec![
+        Token::FixedBytes(
+            evm("0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1")
+                .as_bytes()
+                .to_vec(),
+        ),
+        Token::Uint(0u64.into()),
+        Token::Bytes(transfer),
+    ])]);
+    // ICA CALLS | owner | ISM | salt | ABI calls.
+    let mut body = vec![0];
+    body.extend_from_slice(alice.as_bytes());
+    body.extend_from_slice(H256::zero().as_bytes());
+    body.extend_from_slice(H256::zero().as_bytes());
+    body.extend_from_slice(&encode(&[calls]));
+    let mut msg = HyperlaneMessage {
+        origin: 1,
+        destination: 42161,
+        sender: evm("0xD61F078592CeD81449a7405d837Ff1B963b830EA"),
+        recipient: evm("0xa0F62E4a4597471AA6FaC829aCA3c468EA751C3C"),
+        body,
+        ..Default::default()
+    };
+    assert_eq!(msg.body.len(), 417);
+    assert_eq!(
+        msg.body
+            .windows(20)
+            .position(|bytes| bytes == &listed.as_bytes()[12..]),
+        Some(337)
+    );
+    let old = AddressBlacklist::new(vec![listed.as_bytes()[12..].to_vec()]);
+    assert!(old.find_blacklisted_address(&msg).is_some());
+
+    let address_only = json!([address_rule(EVM_ADDRESS)]);
+    let denylist = denylist_with(address_only.clone());
+    assert!(denylist.deny_reason_for_message(&msg).is_none());
+    let pattern = format!(
+        "^(?:[0-9a-f]{{2}})*(?:{})",
+        hex::encode(&listed.as_bytes()[12..])
+    );
+    denylist.set_rules_for_test(json!([
+        address_rule(EVM_ADDRESS),
+        { "reason": "legacy body coverage", "addedBy": "paul", "match": {
+            "originDomain": [1], "bodyRegex": pattern
+        } }
+    ]));
+    assert!(denylist.deny_reason_for_message(&msg).is_some());
+    msg.origin = 2;
+    assert!(denylist.deny_reason_for_message(&msg).is_none());
+    msg.origin = 1;
+    denylist.set_rules_for_test(address_only);
+    assert!(denylist.deny_reason_for_message(&msg).is_none());
+}
+
+#[test]
 fn match_accepts_case_insensitive_keys() {
     let msg = message(H256::random(), H256::random(), vec![]);
     for key in ["messageId", "messageid", "MESSAGEID", "MeSsAgEiD"] {

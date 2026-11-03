@@ -68,6 +68,9 @@ For other rule types, follow the registry README: exactly one of `match` or
 `address`; a `match` needs at least one non-wildcard exact-match field.
 `bodyRegex` alone does not qualify. Never add a broad rule just to avoid listing
 specific message IDs.
+The seven migrated exploit addresses also have a scoped body-regex rule in
+each feed. Remove an address from both representations together; an `address`
+rule alone does not scan nested calldata.
 
 ### 4. Validate and open a registry PR
 
@@ -104,6 +107,10 @@ alone; verify the rule was loaded and the target messages are denied.
 A failed refresh logs an error and retains the last good rules. On startup, a
 failed fetch uses the disk cache; without a valid cache the relayer starts with
 no runtime rules and logs an error. Surface a load failure and investigate it.
+This startup behavior is an accepted launch tradeoff from #9945. Recover by
+restoring the feed and triggering a refresh; if GitHub is unavailable, point
+the configured URL at another copy of the list. The refresh API only re-reads
+that URL; it does not accept rule uploads.
 
 If runtime denylisting has not yet been deployed, report that prerequisite and
 prepare the three-context relayer rollout separately. Adding a registry rule
