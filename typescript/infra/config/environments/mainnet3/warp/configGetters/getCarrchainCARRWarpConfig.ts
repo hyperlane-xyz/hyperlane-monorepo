@@ -1,6 +1,5 @@
 import {
   ChainMap,
-  HookType,
   HypTokenRouterConfig,
   OwnableConfig,
   TokenType,
@@ -19,10 +18,10 @@ const tokens = {
 };
 
 const owners = {
-  arbitrum: '0xAfD0Ac442c6d7E0f34476a10d4ba0bD7cffb4c72',
-  bsc: '0xAfD0Ac442c6d7E0f34476a10d4ba0bD7cffb4c72',
+  arbitrum: '0x483AB386966D4B1691c4222029852E42e0B23B84',
+  bsc: '0x483AB386966D4B1691c4222029852E42e0B23B84',
   carrchain: '0xAfD0Ac442c6d7E0f34476a10d4ba0bD7cffb4c72',
-  polygon: '0xAfD0Ac442c6d7E0f34476a10d4ba0bD7cffb4c72',
+  polygon: '0x483AB386966D4B1691c4222029852E42e0B23B84',
   solanamainnet: '5HDsXasp9a3bTdT2YyXookfBQtLKtshQXyWyMv1mZKx7',
 };
 
@@ -34,6 +33,17 @@ export const getCarrChainCARRWarpConfig = async (
     ...routerConfig.arbitrum,
     owner: owners.arbitrum,
     type: TokenType.synthetic,
+    // Customer self-host wind-down changed on-chain owner, hook, ISM, and enrollments.
+    hook: '0x58deBd08378c7fb4398c1Fec48127f5619E3945F',
+    interchainSecurityModule: '0x5D7D14067AED8Aac851ee5FFc18a94fd2a68B7bB',
+    remoteRouters: {
+      137: { address: '0x810db1ea27946aCDdc40ca98B6A6380Af6c7b89A' },
+      7667: { address: '0x810db1ea27946aCDdc40ca98B6A6380Af6c7b89A' },
+    },
+    destinationGas: {
+      137: '68000',
+      7667: '44000',
+    },
   };
 
   const bsc: HypTokenRouterConfig = {
@@ -41,24 +51,25 @@ export const getCarrChainCARRWarpConfig = async (
     owner: owners.bsc,
     type: TokenType.collateral,
     token: tokens.bsc,
+    // Customer self-host wind-down changed on-chain owner, hook, ISM, and enrollments.
+    hook: '0x45682B2a8E73C512b5e17E7da6990c0dAbeeBe98',
+    interchainSecurityModule: '0x87B2ff15BCCC886d1b1eeAe4FFeD62d5D6Fc2ee1',
+    remoteRouters: {},
+    destinationGas: {},
   };
 
   const carrchain: HypTokenRouterConfig = {
     ...routerConfig.carrchain,
     owner: owners.carrchain,
     type: TokenType.native,
-    hook: {
-      type: HookType.AGGREGATION,
-      hooks: [
-        {
-          type: HookType.MAILBOX_DEFAULT,
-        },
-        {
-          type: HookType.PAUSABLE,
-          paused: false,
-          owner: owners.carrchain,
-        },
-      ],
+    // Customer self-host wind-down left the on-chain hook unset and narrowed enrollments.
+    remoteRouters: {
+      137: { address: '0x810db1ea27946aCDdc40ca98B6A6380Af6c7b89A' },
+      42161: { address: '0xc7B42d83255ac2874F39370101a9DBD4Ed219D84' },
+    },
+    destinationGas: {
+      137: '68000',
+      42161: '64000',
     },
   };
 
@@ -67,6 +78,17 @@ export const getCarrChainCARRWarpConfig = async (
     owner: owners.polygon,
     type: TokenType.collateral,
     token: tokens.polygon,
+    // Customer self-host wind-down changed on-chain owner, hook, ISM, and enrollments.
+    hook: '0xeEA5DAdBc9e1Dc0E496e81D48CE29CF4e9963706',
+    interchainSecurityModule: '0xf8F95eEbf69Bd34DDB9Fa87DaB33651c0C46789D',
+    remoteRouters: {
+      42161: { address: '0xc7B42d83255ac2874F39370101a9DBD4Ed219D84' },
+      7667: { address: '0x810db1ea27946aCDdc40ca98B6A6380Af6c7b89A' },
+    },
+    destinationGas: {
+      42161: '64000',
+      7667: '44000',
+    },
   };
 
   const solanamainnet: HypTokenRouterConfig = {

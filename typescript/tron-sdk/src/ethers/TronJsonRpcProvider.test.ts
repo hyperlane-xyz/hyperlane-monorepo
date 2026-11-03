@@ -327,8 +327,10 @@ describe('TronJsonRpcProvider', () => {
       expect(result).to.equal('0x00ff');
       expect(captured.value?.url).to.equal('wallet/triggerconstantcontract');
       expect(captured.value?.method).to.equal('post');
-      expect(captured.value?.payload.contract_address).to.equal(CONTRACT_HEX);
-      expect(captured.value?.payload.data).to.equal('7f5a7c7b');
+      expect(captured.value?.payload['contract_address']).to.equal(
+        CONTRACT_HEX,
+      );
+      expect(captured.value?.payload['data']).to.equal('7f5a7c7b');
     });
 
     it('throws a CALL_EXCEPTION with 0x data for a reasonless revert (empty constant_result)', async () => {
@@ -434,7 +436,7 @@ describe('TronJsonRpcProvider', () => {
 
       await provider.call({ to: CONTRACT, data: SELECTOR });
 
-      expect(captured.value?.payload.owner_address).to.equal(
+      expect(captured.value?.payload['owner_address']).to.equal(
         toTronHex(realTronWeb, TRON_EMPTY_ADDRESS),
       );
     });
@@ -451,7 +453,7 @@ describe('TronJsonRpcProvider', () => {
 
       await provider.call({ to: CONTRACT, data: SELECTOR, from });
 
-      expect(captured.value?.payload.owner_address).to.equal(
+      expect(captured.value?.payload['owner_address']).to.equal(
         toTronHex(realTronWeb, from),
       );
     });
@@ -467,8 +469,8 @@ describe('TronJsonRpcProvider', () => {
 
       expect(captured.value?.url).to.equal('wallet/getaccount');
       expect(captured.value?.method).to.equal('post');
-      expect(captured.value?.payload.address).to.equal(EOA_BASE58);
-      expect(captured.value?.payload.visible).to.equal(true);
+      expect(captured.value?.payload['address']).to.equal(EOA_BASE58);
+      expect(captured.value?.payload['visible']).to.equal(true);
     });
 
     it('returns true for an activated account', async () => {

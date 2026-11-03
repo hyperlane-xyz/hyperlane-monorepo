@@ -1,7 +1,6 @@
-import { assert, objMap } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { ValidatorBaseChainConfigMap } from '../../../src/config/agent/validator.js';
-import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
 import { Contexts } from '../../contexts.js';
 import { getReorgPeriod } from '../../registry.js';
 import { validatorBaseConfigsFn } from '../utils.js';
@@ -60,6 +59,14 @@ export const validatorChainConfig = (
 ): ValidatorBaseChainConfigMap => {
   const validatorsConfig = validatorBaseConfigsFn(environment, context);
   const configs: ValidatorBaseChainConfigMap = {
+    tempo: {
+      interval: DEFAULT_VALIDATOR_INTERVAL,
+      reorgPeriod: getReorgPeriod('tempo'),
+      validators: validatorsConfig(
+        { [Contexts.Hyperlane]: [AW_VALIDATOR] },
+        'tempo',
+      ),
+    },
     celo: {
       interval: 5,
       reorgPeriod: getReorgPeriod('celo'),
@@ -230,17 +237,6 @@ export const validatorChainConfig = (
         'mantle',
       ),
     },
-    sei: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('sei'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-        },
-        'sei',
-      ),
-    },
     solanamainnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('solanamainnet'),
@@ -263,17 +259,6 @@ export const validatorChainConfig = (
         'eclipsemainnet',
       ),
     },
-    taiko: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('taiko'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [],
-        },
-        'taiko',
-      ),
-    },
     paradex: {
       interval: 5,
       reorgPeriod: getReorgPeriod('paradex'),
@@ -293,17 +278,6 @@ export const validatorChainConfig = (
           [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
         },
         'viction',
-      ),
-    },
-    blast: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('blast'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-        },
-        'blast',
       ),
     },
     mode: {
@@ -348,16 +322,6 @@ export const validatorChainConfig = (
           [Contexts.ReleaseCandidate]: [''],
         },
         'metis',
-      ),
-    },
-    zksync: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('zksync'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'zksync',
       ),
     },
     apechain: {
@@ -440,16 +404,6 @@ export const validatorChainConfig = (
         'sonicsvm',
       ),
     },
-    berachain: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('berachain'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'berachain',
-      ),
-    },
     starknet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('starknet'),
@@ -520,16 +474,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'solaxy',
-      ),
-    },
-    tac: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('tac'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'tac',
       ),
     },
     galactica: {
@@ -622,16 +566,6 @@ export const validatorChainConfig = (
         'mantra',
       ),
     },
-    carrchain: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('carrchain'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'carrchain',
-      ),
-    },
     monad: {
       interval: 5,
       reorgPeriod: getReorgPeriod('monad'),
@@ -660,26 +594,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'lazai',
-      ),
-    },
-    megaeth: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('megaeth'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'megaeth',
-      ),
-    },
-    adichain: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('adichain'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'adichain',
       ),
     },
     stable: {
@@ -855,15 +769,5 @@ export const validatorChainConfig = (
     },
   };
 
-  // Opt-in quorum RPC verification (ValidatorMultiRpcQuorumMerkleTreeHook) for
-  // every EVM chain's Hyperlane and FastPath validators. The ReleaseCandidate
-  // validator set is unaffected.
-  if (context !== Contexts.Hyperlane && context !== Contexts.FastPath) {
-    return configs;
-  }
-  return objMap(configs, (chain, config) =>
-    isEthereumProtocolChain(chain)
-      ? { ...config, quorumVerificationEnabled: true }
-      : config,
-  );
+  return configs;
 };

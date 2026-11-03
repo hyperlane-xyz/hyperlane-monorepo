@@ -202,17 +202,37 @@ abstract contract AbstractInterchainAccountRouter is Router {
         CallLib.Call[] calldata _calls,
         bytes memory _hookMetadata
     ) public payable virtual returns (bytes32) {
+        return
+            callRemoteWithOverrides(
+                _destination,
+                _router,
+                _ism,
+                _calls,
+                _hookMetadata,
+                InterchainAccountMessage.EMPTY_SALT
+            );
+    }
+
+    function callRemoteWithOverrides(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _ism,
+        CallLib.Call[] calldata _calls,
+        bytes memory _hookMetadata,
+        bytes32 _userSalt
+    ) public payable virtual returns (bytes32) {
         emit RemoteCallDispatched(
             _destination,
             msg.sender,
             _router,
             _ism,
-            InterchainAccountMessage.EMPTY_SALT
+            _userSalt
         );
         bytes memory _body = InterchainAccountMessage.encode(
             msg.sender,
             _ism,
-            _calls
+            _calls,
+            _userSalt
         );
         return
             _dispatchMessageWithValue(
@@ -235,31 +255,52 @@ abstract contract AbstractInterchainAccountRouter is Router {
     ) internal returns (bytes32) {
         require(_router != bytes32(0), "no router specified for destination");
 
+        // Mailbox resolves a zero hook only after this function performs the
+        // fee-token approval. Resolve it here so quote, approval, and dispatch
+        // all target the same hook.
+        IPostDispatchHook _effectiveHook = address(_hook) == address(0)
+            ? mailbox.defaultHook()
+            : _hook;
+
         address _feeToken = _hookMetadata.feeToken();
+        uint256 _tokenBalanceBefore;
         if (_feeToken != address(0)) {
+            _tokenBalanceBefore = IERC20(_feeToken).balanceOf(address(this));
             uint256 _fee = _Router_quoteDispatch(
-                _destination,
-                bytes(""),
-                _hookMetadata,
-                address(_hook)
-            );
-
-            IERC20(_feeToken).safeTransferFrom(msg.sender, address(this), _fee);
-            // Standing approval is acceptable here: postDispatch replay with a
-            // crafted message could spend this approval, but tokens are never held
-            // in this contract so there is nothing to drain. Funds collected by the
-            // hook are recoverable by the hook beneficiary, not the attacker.
-            IERC20(_feeToken).forceApprove(address(_hook), type(uint256).max);
-        }
-
-        return
-            mailbox.dispatch{value: _value}(
                 _destination,
                 _router,
                 _body,
                 _hookMetadata,
-                _hook
+                address(_effectiveHook)
             );
+
+            IERC20(_feeToken).safeTransferFrom(msg.sender, address(this), _fee);
+            // This approves only the selected top-level hook. Required hooks and
+            // child hooks that pull tokens must be pre-approved separately through
+            // approveFeeTokenForHook.
+            IERC20(_feeToken).forceApprove(
+                address(_effectiveHook),
+                type(uint256).max
+            );
+        }
+
+        bytes32 _messageId = mailbox.dispatch{value: _value}(
+            _destination,
+            _router,
+            _body,
+            _hookMetadata,
+            _effectiveHook
+        );
+
+        // A successful fee-token dispatch must consume exactly the amount
+        // transferred in for this call, preserving any pre-existing balance.
+        if (_feeToken != address(0)) {
+            assert(
+                IERC20(_feeToken).balanceOf(address(this)) ==
+                    _tokenBalanceBefore
+            );
+        }
+        return _messageId;
     }
 
     function _implementationBytecode(

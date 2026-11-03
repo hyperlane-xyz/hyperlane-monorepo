@@ -1,14 +1,18 @@
 import { expect } from 'chai';
-import express from 'express';
+import Fastify from 'fastify';
 import { pino } from 'pino';
-import pinoHttp from 'pino-http';
 import { Registry } from 'prom-client';
 import sinon from 'sinon';
 
 import { CctpService__factory } from '@hyperlane-xyz/core';
 
+import { type CcipApp, MAX_CCIP_PARAMETER_LENGTH } from '../../src/http.js';
 import { CCTPAttestationService } from '../../src/services/CCTPAttestationService.js';
-import { createAbiHandler } from '../../src/utils/abiHandler.js';
+import {
+  ABI_ROUTE_OPTIONS,
+  type AbiRoute,
+  createAbiHandler,
+} from '../../src/utils/abiHandler.js';
 import { AttestationPendingError } from '../../src/utils/errors.js';
 import { initializeMetrics } from '../../src/utils/prometheus.js';
 
@@ -133,40 +137,72 @@ describe('CCTP pending attestation logging', () => {
     expect(lines[0]).to.include('"level":50');
   });
 
+  it("accepts CCIP-read GET calldata above Fastify's default parameter limit", async () => {
+    const { logger } = captureLogger();
+    const app: CcipApp = Fastify({
+      loggerInstance: logger,
+      routerOptions: { maxParamLength: MAX_CCIP_PARAMETER_LENGTH },
+    });
+    app.get<AbiRoute>(
+      '/getCctpAttestation/:sender/:callData.json',
+      ABI_ROUTE_OPTIONS,
+      createAbiHandler(CctpService__factory, 'getCCTPAttestation', async () => [
+        '0xabcd',
+        '0x1234',
+      ]),
+    );
+    await app.ready();
+    try {
+      const iface = CctpService__factory.createInterface();
+      const data = iface.encodeFunctionData('getCCTPAttestation', ['0x1234']);
+      expect(data.length).to.be.greaterThan(100);
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/getCctpAttestation/${'0x' + '11'.repeat(20)}/${data}.json`,
+      });
+      expect(response.statusCode, response.body).to.equal(200);
+      expect(response.json()).to.deep.equal({
+        data: iface.encodeFunctionResult('getCCTPAttestation', [
+          '0xabcd',
+          '0x1234',
+        ]),
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
   for (const expected of [true, false]) {
     it(`preserves HTTP status and body for ${expected ? 'typed pending' : 'ordinary'} errors`, async () => {
       const { logger, lines } = captureLogger();
       const error = expected
         ? new AttestationPendingError()
         : new Error('CCTP attestation is pending');
-      const app = express();
-      app.use(express.json());
-      app.use(pinoHttp({ logger }));
-      app.post(
+      const app: CcipApp = Fastify({
+        loggerInstance: logger,
+        routerOptions: { maxParamLength: MAX_CCIP_PARAMETER_LENGTH },
+      });
+      app.post<AbiRoute>(
         '/',
+        ABI_ROUTE_OPTIONS,
         createAbiHandler(CctpService__factory, 'getCCTPAttestation', () =>
           Promise.reject(error),
         ),
       );
-      const server = app.listen(0);
-      await new Promise<void>((resolve) => {
-        server.once('listening', resolve);
-      });
+      await app.ready();
       try {
-        const address = server.address();
-        if (!address || typeof address === 'string')
-          throw new Error('Expected TCP server');
         const data = CctpService__factory.createInterface().encodeFunctionData(
           'getCCTPAttestation',
           ['0x1234'],
         );
-        const response = await fetch(`http://127.0.0.1:${address.port}`, {
+        const response = await app.inject({
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ data }),
+          url: '/',
+          payload: { data },
         });
-        expect(response.status).to.equal(500);
-        expect(await response.json()).to.deep.equal({
+        expect(response.statusCode).to.equal(500);
+        expect(response.json()).to.deep.equal({
           error: 'CCTP attestation is pending',
         });
         const handlerErrors = lines.filter((line) =>
@@ -177,12 +213,7 @@ describe('CCTP pending attestation logging', () => {
           lines.some((line) => line.includes('Processing ABI handler request')),
         ).to.equal(true);
       } finally {
-        await new Promise<void>((resolve, reject) => {
-          server.close((error) => {
-            if (error) reject(error);
-            else resolve();
-          });
-        });
+        await app.close();
       }
     });
   }

@@ -1,5 +1,7 @@
 import { Logger } from 'pino';
 
+import { chunk } from '@hyperlane-xyz/utils';
+
 import { ChainName } from '../types.js';
 
 const DEFAULT_MAX_BATCH_SIZE = 64;
@@ -29,11 +31,7 @@ export async function submitBatched<T>(
   logger: Logger,
   label: string,
 ): Promise<void> {
-  const batchSize = getTxConfigBatchSize(chain);
-  const batches: T[][] = [];
-  for (let i = 0; i < items.length; i += batchSize) {
-    batches.push(items.slice(i, i + batchSize));
-  }
+  const batches = chunk(items, getTxConfigBatchSize(chain));
 
   logger.info(
     `Splitting ${items.length} ${label} into ${batches.length} transaction(s)`,

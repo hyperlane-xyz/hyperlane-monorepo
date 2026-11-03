@@ -412,6 +412,10 @@ hyperlane warp fork --warpRouteId <id>
 # Point read-only consumers at http://localhost:8535.
 ```
 
+For routes containing Arc, install Circle's [Arc Foundry](https://github.com/circlefin/arc-foundry)
+and put its `arc-anvil` binary on your `PATH` before running `hyperlane warp fork`.
+Other EVM chains use standard Anvil.
+
 Do not point `core apply`, `warp apply`, or another command that persists registry
 metadata at the fork registry. Prepare the required registry metadata before
 starting the fork, or use a separately configured development registry with

@@ -1,4 +1,4 @@
-import { BigNumber, providers, utils } from 'ethers';
+import { BigNumber, errors as EthersError, providers, utils } from 'ethers';
 
 import {
   chunk,
@@ -11,6 +11,7 @@ import {
   AllProviderMethods,
   IProviderMethods,
   ProviderMethod,
+  ReadRpcMethods,
 } from './ProviderMethods.js';
 import {
   getMultiAddressLogs,
@@ -18,8 +19,10 @@ import {
   normalizeMultiAddress,
 } from './logFilters.js';
 import { HyperlaneLogFilter, RpcConfigWithConnectionInfo } from './types.js';
+import { getReadRpcRevert } from './jsonRpcError.js';
 
 const NUM_PARALLEL_LOG_QUERIES = 5;
+const ethersLogger = new utils.Logger('HyperlaneJsonRpcProvider');
 
 /**
  * The most chunks of `pagination.maxBlockRange` a single eth_getLogs request is
@@ -115,6 +118,12 @@ export class HyperlaneJsonRpcProvider
   }
 
   prepareRequest(method: string, params: any): [string, any[]] {
+    if (method === ProviderMethod.ReadRpc) {
+      if (!ReadRpcMethods.has(params.method)) {
+        throw new Error(`Unsupported read RPC method: ${params.method}`);
+      }
+      return [params.method, params.params];
+    }
     if (method === ProviderMethod.MaxPriorityFeePerGas) {
       return ['eth_maxPriorityFeePerGas', []];
     }
@@ -159,6 +168,25 @@ export class HyperlaneJsonRpcProvider
       );
     if (method === ProviderMethod.GetLogs) {
       return this.performGetLogs(params);
+    }
+
+    if (method === ProviderMethod.ReadRpc) {
+      const [rpcMethod, rpcParams] = this.prepareRequest(method, params);
+      try {
+        return await this.send(rpcMethod, rpcParams);
+      } catch (error) {
+        const rpcError = getReadRpcRevert(error, rpcMethod);
+        // Preserve revert data and stop SmartProvider fallback/retries on a
+        // definitive execution revert, including encrypted Seismic reverts.
+        if (rpcError) {
+          throw ethersLogger.makeError(
+            'execution reverted',
+            EthersError.CALL_EXCEPTION,
+            { data: rpcError.data ?? '0x', reason: rpcError.message, error },
+          );
+        }
+        throw error;
+      }
     }
 
     const result = await super.perform(method, params);

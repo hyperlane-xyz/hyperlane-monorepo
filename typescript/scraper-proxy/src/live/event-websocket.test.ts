@@ -3,11 +3,78 @@ import { describe, it } from 'node:test';
 
 import {
   parseClientMessage,
+  parseDatabaseDomain,
   parseEventNotification,
   parseExplorerNotification,
+  parseExplorerBlocks,
+  parseHeadNotification,
 } from './protocol.js';
 
 void describe('event websocket protocol', () => {
+  void it('accepts optional live block subscriptions alongside events', () => {
+    const message = parseClientMessage(
+      JSON.stringify({
+        type: 'subscribe',
+        streams: [
+          { eventType: 'blocks', domains: [1, 42161] },
+          { eventType: 'dispatch' },
+        ],
+      }),
+    );
+    assert.equal(message.type, 'subscribe');
+    if (message.type !== 'subscribe') return;
+    assert.deepEqual(message.streams[0], {
+      eventType: 'blocks',
+      domains: new Set([1, 42161]),
+    });
+    for (const extra of [
+      { cursors: [] },
+      { confirmations: 0 },
+      { domains: [] },
+      { domains: [-1] },
+      { streamCursorVersion: 3 },
+    ]) {
+      assert.throws(() =>
+        parseClientMessage(
+          JSON.stringify({
+            type: 'subscribe',
+            streams: [{ eventType: 'blocks', ...extra }],
+          }),
+        ),
+      );
+    }
+    assert.equal(parseExplorerBlocks('/messages'), false);
+    assert.equal(parseExplorerBlocks('/messages?blocks=true'), true);
+    assert.equal(parseExplorerBlocks('/messages?blocks=false'), false);
+    assert.throws(() => parseExplorerBlocks('/messages?blocks=oops'));
+  });
+
+  void it('parses indexed block hashes without losing large heights', () => {
+    const hash = '01ab'.repeat(16);
+    const head = {
+      domain: 1,
+      confirmedHeight: '10',
+      headHeight: '9007199254740993',
+      indexedHeight: '11',
+      indexedHash: hash,
+    };
+    assert.equal(
+      parseHeadNotification(JSON.stringify(head)).indexedHash,
+      `0x${hash}`,
+    );
+    assert.equal(
+      parseHeadNotification(JSON.stringify(head)).headHeight,
+      9007199254740993n,
+    );
+    for (const indexedHash of ['bad', null, 123, undefined]) {
+      const parsed = parseHeadNotification(
+        JSON.stringify({ ...head, indexedHash }),
+      );
+      assert.equal(parsed.indexedHash, undefined);
+      assert.equal(parsed.confirmedHeight, 10n);
+      assert.equal(parsed.indexedHeight, 11n);
+    }
+  });
   void it('parses native sequence catch-up cursors', () => {
     const message = parseClientMessage(
       JSON.stringify({
@@ -346,11 +413,69 @@ void describe('event websocket protocol', () => {
       ),
       { domain: 42161, eventType: 'merkle_tree_insertion', id: 123n },
     );
+    assert.deepEqual(
+      parseEventNotification(
+        '{"eventType":"dispatch","id":"124","domain":-846819108}',
+      ),
+      { domain: 3448148188, eventType: 'dispatch', id: 124n },
+    );
     assert.throws(() =>
       parseEventNotification(
         '{"eventType":"unknown","id":"123","domain":42161}',
       ),
     );
+    assert.throws(() =>
+      parseEventNotification(
+        '{"eventType":"dispatch","id":"123","domain":-2147483649}',
+      ),
+    );
+  });
+
+  void it('parses confirmation frontier notifications', () => {
+    assert.deepEqual(
+      parseHeadNotification(
+        '{"domain":42161,"confirmedHeight":"102","previousConfirmedHeight":"99","headHeight":"110","indexedHeight":"108","previousIndexedHeight":"107"}',
+      ),
+      {
+        confirmedHeight: 102n,
+        domain: 42161,
+        previousConfirmedHeight: 99n,
+        headHeight: 110n,
+        indexedHeight: 108n,
+        indexedHash: undefined,
+        previousIndexedHeight: 107n,
+      },
+    );
+  });
+
+  void it('normalizes only valid signed database domain encodings', () => {
+    for (const [stored, domain] of [
+      [-0x8000_0000, 0x8000_0000],
+      [-1, 0xffff_ffff],
+      [0, 0],
+      [0x7fff_ffff, 0x7fff_ffff],
+      [0x8000_0000, 0x8000_0000],
+      [0xffff_ffff, 0xffff_ffff],
+      ['-2147483648', 0x8000_0000],
+      ['4294967295', 0xffff_ffff],
+    ] as const) {
+      assert.equal(parseDatabaseDomain(stored, 'invalid domain'), domain);
+    }
+    for (const stored of [
+      -0x8000_0001,
+      0x1_0000_0000,
+      1.5,
+      '',
+      ' 1',
+      '0x1',
+      '1e3',
+      '1.5',
+    ]) {
+      assert.throws(
+        () => parseDatabaseDomain(stored, 'invalid domain'),
+        /invalid domain/,
+      );
+    }
   });
 
   void it('parses Explorer message notifications', () => {

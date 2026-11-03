@@ -11,16 +11,16 @@ use crate::provider::{AleoClient, BaseHttpClient, HttpClient, HttpClientBuilder,
 
 #[derive(Clone, Copy)]
 pub enum ExecutionPhase {
-    DelegatedProverPreflight,
     Authorization,
+    FeeAuthorization,
     DelegatedProverProof,
 }
 
 impl ExecutionPhase {
     const fn method(self) -> &'static str {
         match self {
-            Self::DelegatedProverPreflight => "delegated_prover_preflight",
             Self::Authorization => "aleo_authorization",
+            Self::FeeAuthorization => "aleo_fee_authorization",
             Self::DelegatedProverProof => "delegated_prover_proof",
         }
     }
@@ -203,11 +203,6 @@ mod tests {
 
         for (phase, method, status) in [
             (
-                ExecutionPhase::DelegatedProverPreflight,
-                "delegated_prover_preflight",
-                "failure",
-            ),
-            (
                 ExecutionPhase::Authorization,
                 "aleo_authorization",
                 "success",
@@ -215,6 +210,11 @@ mod tests {
             (
                 ExecutionPhase::DelegatedProverProof,
                 "delegated_prover_proof",
+                "success",
+            ),
+            (
+                ExecutionPhase::FeeAuthorization,
+                "aleo_fee_authorization",
                 "success",
             ),
         ] {

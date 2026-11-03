@@ -107,6 +107,7 @@ const FAILED_MESSAGE_COUNT: u32 = 1;
 
 const RELAYER_METRICS_PORT: &str = "9092";
 const SCRAPER_METRICS_PORT: &str = "9093";
+const ETHEREUM_SCRAPER_METRICS_PORTS: [&str; 3] = [SCRAPER_METRICS_PORT, "9097", "9098"];
 
 pub const SUBMITTER_TYPE: SubmitterType = SubmitterType::Lander;
 
@@ -241,13 +242,7 @@ fn main() -> ExitCode {
         .hyp_env("CHAINS_TEST2_RPCCONSENSUSTYPE", "quorum")
         .hyp_env("CHAINS_TEST2_CUSTOMRPCURLS", "http://127.0.0.1:8545")
         .hyp_env("CHAINS_TEST3_RPCCONSENSUSTYPE", "quorum")
-        .hyp_env("CHAINS_TEST3_CUSTOMRPCURLS", "http://127.0.0.1:8545")
-        .hyp_env("METRICSPORT", SCRAPER_METRICS_PORT)
-        .hyp_env(
-            "DB",
-            "postgresql://postgres:47221c18c610@localhost:5432/postgres",
-        )
-        .hyp_env("CHAINSTOSCRAPE", "test1,test2,test3");
+        .hyp_env("CHAINS_TEST3_CUSTOMRPCURLS", "http://127.0.0.1:8545");
 
     let mut state = State::default();
 
@@ -295,11 +290,36 @@ fn main() -> ExitCode {
 
     crate::utils::wait_for_postgres();
 
-    log!("Init postgres db...");
-    Program::new(concat_path(AGENT_BIN_PATH, "init-db"))
-        .run()
-        .join();
-    state.push_agent(scraper_env.spawn("SCR", None));
+    // These logical domains share Anvil block hashes. The scraper schema identifies
+    // blocks globally by hash, so each logical chain needs its own database.
+    for ((chain, metrics_port), agent_name) in validator_origin_chains
+        .iter()
+        .zip(ETHEREUM_SCRAPER_METRICS_PORTS)
+        .zip(["SCR1", "SCR2", "SCR3"])
+    {
+        let database_url = format!("postgresql://postgres:47221c18c610@localhost:5432/{chain}");
+        log!("Init postgres db for {}...", chain);
+        Program::new("docker")
+            .cmd("exec")
+            .cmd("scraper-testnet-postgres")
+            .cmd("createdb")
+            .arg("username", "postgres")
+            .cmd(*chain)
+            .run()
+            .join();
+        Program::new(concat_path(AGENT_BIN_PATH, "init-db"))
+            .env("DATABASE_URL", &database_url)
+            .run()
+            .join();
+        state.push_agent(
+            scraper_env
+                .clone()
+                .hyp_env("DB", database_url)
+                .hyp_env("METRICSPORT", metrics_port)
+                .hyp_env("CHAINSTOSCRAPE", *chain)
+                .spawn(agent_name, None),
+        );
+    }
 
     // Send a message that's guaranteed to fail
     // "failMessageBody" hex value is 0x6661696c4d657373616765426f6479

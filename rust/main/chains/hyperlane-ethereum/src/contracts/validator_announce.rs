@@ -66,6 +66,27 @@ impl BuildableWithProvider for ValidatorAnnounceBuilder {
     }
 }
 
+/// Reads announcement state and estimates funding without transaction middleware.
+pub struct ValidatorAnnounceReaderBuilder {}
+
+#[async_trait]
+impl BuildableWithProvider for ValidatorAnnounceReaderBuilder {
+    type Output = Box<dyn ValidatorAnnounce>;
+    const NEEDS_SIGNER: bool = true;
+    const SIGNER_REQUIREMENT: crate::SignerRequirement = crate::SignerRequirement::Sender;
+
+    async fn build_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        conn: &ConnectionConf,
+        locator: &ContractLocator,
+    ) -> Self::Output {
+        ValidatorAnnounceBuilder {}
+            .build_with_provider(provider, conn, locator)
+            .await
+    }
+}
+
 /// A reference to a ValidatorAnnounce contract on some Ethereum chain
 #[derive(Debug)]
 pub struct EthereumValidatorAnnounce<M>

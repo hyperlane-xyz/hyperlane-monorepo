@@ -2,6 +2,7 @@ import {
   BigNumber,
   PopulatedTransaction,
   constants as ethersConstants,
+  utils,
 } from 'ethers';
 
 import {
@@ -96,6 +97,7 @@ const toEvmAddress = (address: Address): Address =>
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
 export const EVM_TRANSFER_REMOTE_GAS_ESTIMATE = 450_000n;
 const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
+const TOKEN_IGP_CONTRACT_VERSION = '11.0.0';
 type RawTupleQuote = { 0: string; 1: BigNumber };
 type RawTokenBridgeQuote = { token: string; amount: BigNumber };
 
@@ -183,8 +185,45 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
   }
 
   override async getBalance(address: Address): Promise<bigint> {
-    const balance = await this.contract.balanceOf(toEvmAddress(address));
+    const balance = await this.readAs(
+      address,
+      () => this.contract.populateTransaction.balanceOf(toEvmAddress(address)),
+      () => this.contract.balanceOf(toEvmAddress(address)),
+    );
     return BigInt(balance.toString());
+  }
+
+  /**
+   * Reads a view function, as the account itself when that is possible and
+   * necessary. Seismic executes unsigned `eth_call`s with `msg.sender = 0x0`,
+   * and shielded tokens only reveal `balanceOf`/`allowance` to the account in
+   * question, so on a Seismic chain where the adapter was given that
+   * account's signer the read is sent as a signed read. Everywhere else this
+   * is the plain contract call.
+   *
+   * @param account  the account whose state is read
+   * @param populate the typed call (`contract.populateTransaction.fn(...)`),
+   *                 only invoked for the signed read
+   * @param read     the plain typed call, used everywhere else
+   */
+  protected async readAs(
+    account: Address,
+    populate: () => Promise<PopulatedTransaction>,
+    read: () => Promise<BigNumber>,
+  ): Promise<BigNumber> {
+    const signer = this.multiProvider.tryGetSeismicSigner(this.chainName);
+    if (!signer || !eqAddress(await signer.getAddress(), account)) {
+      return BigNumber.from(await read());
+    }
+    const { data } = await populate();
+    assert(data, 'Expected calldata for signed read');
+    const result = await signer.signedCall({ to: this.contract.address, data });
+    // Typechain's typed Interface only accepts literal names; decode through
+    // the generic ethers Interface using the call's own selector.
+    const iface: utils.Interface = this.contract.interface;
+    const fn = iface.getFunction(utils.hexDataSlice(data, 0, 4));
+    const [value] = iface.decodeFunctionResult(fn, result);
+    return BigNumber.from(value);
   }
 
   override async getMetadata(isNft?: boolean): Promise<TokenMetadata> {
@@ -201,26 +240,32 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
     spender: Address,
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
-    const allowance = await this.contract.allowance(
-      toEvmAddress(owner),
-      toEvmAddress(spender),
-    );
-    // BigNumber.from() normalizes foreign BigNumberish values (e.g. a native
-    // bigint from a provider that isn't a true ethers v5 BigNumber) so the
-    // comparison methods below are always safe to call.
-    return BigNumber.from(allowance).lt(weiAmountOrId);
+    // readAs normalizes foreign BigNumberish values (e.g. a native bigint from
+    // a provider that isn't a true ethers v5 BigNumber) so the comparison
+    // methods below are always safe to call.
+    const allowance = await this.allowanceAs(owner, spender);
+    return allowance.lt(weiAmountOrId);
   }
 
   async isRevokeApprovalRequired(
     owner: Address,
     spender: Address,
   ): Promise<boolean> {
-    const allowance = await this.contract.allowance(
-      toEvmAddress(owner),
-      toEvmAddress(spender),
-    );
+    const allowance = await this.allowanceAs(owner, spender);
+    return !allowance.isZero();
+  }
 
-    return !BigNumber.from(allowance).isZero();
+  /** `allowance(owner, spender)` read as `owner` where that matters (see readAs). */
+  protected allowanceAs(owner: Address, spender: Address): Promise<BigNumber> {
+    return this.readAs(
+      owner,
+      () =>
+        this.contract.populateTransaction.allowance(
+          toEvmAddress(owner),
+          toEvmAddress(spender),
+        ),
+      () => this.contract.allowance(toEvmAddress(owner), toEvmAddress(spender)),
+    );
   }
 
   override populateApproveTx({
@@ -276,17 +321,18 @@ export class EvmHypSyntheticAdapter
   ): Promise<boolean> {
     if (eqAddress(spender, this.addresses.token)) {
       // Synthetics with PredicateWrapper need approval to the wrapper instead.
-      // Without a wrapper, transferRemote burns directly from msg.sender — no approval needed.
+      // Without a wrapper, only a token-paid fee hook needs a router allowance.
       const predicateWrapper = await this.getPredicateWrapperAddress();
-      if (!predicateWrapper) return false;
-      const allowance = await this.contract.allowance(
-        toEvmAddress(owner),
-        predicateWrapper,
-      );
-      return BigNumber.from(allowance).lt(weiAmountOrId);
+      if (predicateWrapper) {
+        return super.isApproveRequired(owner, predicateWrapper, weiAmountOrId);
+      }
+
+      if (!(await this.hasTokenFeeHook())) {
+        return false;
+      }
     }
 
-    // External spenders (e.g. QuotedCalls) get the standard ERC20 allowance check.
+    // Token-paid gas and external spenders use the standard ERC20 allowance check.
     return super.isApproveRequired(owner, spender, weiAmountOrId);
   }
 
@@ -299,8 +345,12 @@ export class EvmHypSyntheticAdapter
       // Check whether the wrapper has a non-zero allowance that must be revoked first
       // (relevant for USDT-like tokens that require zeroing before re-approval).
       const predicateWrapper = await this.getPredicateWrapperAddress();
-      if (!predicateWrapper) return false;
-      return super.isRevokeApprovalRequired(owner, predicateWrapper);
+      if (predicateWrapper) {
+        return super.isRevokeApprovalRequired(owner, predicateWrapper);
+      }
+
+      // Synthetic ERC20s allow replacing a nonzero router allowance directly.
+      return false;
     }
     return super.isRevokeApprovalRequired(owner, spender);
   }
@@ -525,6 +575,18 @@ export class EvmHypSyntheticAdapter
     };
   }
 
+  protected async hasTokenFeeHook(): Promise<boolean> {
+    if (
+      !isValidContractVersion(
+        await this.getContractPackageVersion(),
+        TOKEN_IGP_CONTRACT_VERSION,
+      )
+    ) {
+      return false;
+    }
+    return !isZeroishAddress(await this.contract.feeHook());
+  }
+
   /**
    * Check if this warp route supports Predicate attestations
    * @returns True if a PredicateRouterWrapper is configured on the hook
@@ -662,6 +724,11 @@ class BaseEvmHypCollateralAdapter
     });
   }
 
+  // TODO(seismic): WarpCore.validateDestinationCollateral reads the router's
+  // own collateral balance (`balanceOf(router)`) unsigned. A shielded
+  // collateral token on a Seismic destination rejects that for anyone but the
+  // router, so such routes need either a public collateral getter on the token
+  // or a router-side view; the sender's signer cannot help here.
   override async getBalance(address: Address): Promise<bigint> {
     const wrappedTokenAdapter = await this.getWrappedTokenAdapter();
     return wrappedTokenAdapter.getBalance(address);

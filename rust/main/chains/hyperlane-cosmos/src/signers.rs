@@ -1,5 +1,6 @@
 use cosmrs::crypto::{secp256k1::SigningKey, PublicKey};
 use hyperlane_core::{AccountAddressType, ChainResult, H256};
+use redact::Secret;
 
 use crate::{CosmosAddress, HyperlaneCosmosError};
 
@@ -16,7 +17,7 @@ pub struct Signer {
     /// address prefix
     pub prefix: String,
     /// private key
-    private_key: Vec<u8>,
+    private_key: Secret<Vec<u8>>,
 }
 
 impl Signer {
@@ -37,7 +38,7 @@ impl Signer {
         let public_key = signing_key.public_key();
         Ok(Self {
             public_key,
-            private_key,
+            private_key: Secret::new(private_key),
             address,
             address_string,
             prefix,
@@ -47,7 +48,7 @@ impl Signer {
     /// Build a SigningKey from a private key. This cannot be
     /// precompiled and stored in `Signer`, because `SigningKey` is not `Sync`.
     pub fn signing_key(&self) -> ChainResult<SigningKey> {
-        Self::build_signing_key(&self.private_key)
+        Self::build_signing_key(self.private_key.expose_secret())
     }
 
     fn build_signing_key(private_key: &Vec<u8>) -> ChainResult<SigningKey> {
@@ -59,5 +60,26 @@ impl Signer {
     /// gets digest of the cosmos account
     pub fn address_h256(&self) -> H256 {
         self.address.digest()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hyperlane_core::AccountAddressType;
+
+    use super::Signer;
+
+    #[test]
+    fn debug_redacts_private_key() {
+        let private_key = vec![0xde, 0xad, 0xbe, 0xef].repeat(8);
+        let signer = Signer::new(
+            private_key,
+            "neutron".to_owned(),
+            &AccountAddressType::Bitcoin,
+        )
+        .unwrap();
+        let debug = format!("{signer:?}");
+        assert!(!debug.contains("222, 173, 190, 239"), "key leaked: {debug}");
+        assert!(debug.contains("[REDACTED"));
     }
 }

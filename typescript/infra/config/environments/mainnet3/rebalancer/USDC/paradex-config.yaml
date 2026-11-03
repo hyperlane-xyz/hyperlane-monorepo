@@ -8,7 +8,7 @@ strategy:
         weight: 15
         tolerance: 5
       bridgeLockTime: 1800 # 30 mins in seconds
-      bridgeMinAcceptedAmount: 50000
+      bridgeMinAcceptedAmount: 5000
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
 
     ethereum:
@@ -16,7 +16,7 @@ strategy:
         weight: 35
         tolerance: 5
       bridgeLockTime: 1800 # 30 mins in seconds
-      bridgeMinAcceptedAmount: 50000
+      bridgeMinAcceptedAmount: 5000
       bridge: '0x8c8D831E1e879604b4B304a2c951B8AEe3aB3a23'
 
     arbitrum:
@@ -24,7 +24,7 @@ strategy:
         weight: 40
         tolerance: 5
       bridgeLockTime: 1800 # 30 mins in seconds
-      bridgeMinAcceptedAmount: 50000
+      bridgeMinAcceptedAmount: 5000
       bridge: '0x4c19c653a8419A475d9B6735511cB81C15b8d9b2'
 
     hyperevm:
@@ -32,5 +32,5 @@ strategy:
         weight: 10
         tolerance: 5
       bridgeLockTime: 1800 # 30 mins in seconds
-      bridgeMinAcceptedAmount: 50000
+      bridgeMinAcceptedAmount: 5000
       bridge: '0xDdf252a063f8c5C399B9ccDBbaDBA55225F53Da1'

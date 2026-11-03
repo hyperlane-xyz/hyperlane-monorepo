@@ -114,11 +114,9 @@ export function createWarpAltManager(
   chainMetadata: ChainMetadataForAltVM,
   signer: SvmSigner,
 ): SvmWarpAltManager {
-  assert(
-    chainMetadata.rpcUrls && chainMetadata.rpcUrls.length > 0,
-    'At least one RPC URL is required',
-  );
-  const rpc = createRpc(chainMetadata.rpcUrls[0].http);
+  const [rpcUrl] = chainMetadata.rpcUrls ?? [];
+  assert(rpcUrl, 'At least one RPC URL is required');
+  const rpc = createRpc(rpcUrl.http);
   const altWriter = new SvmAddressLookupTableWriter(rpc, signer);
   return new SvmWarpAltManager(chainMetadata.name, rpc, altWriter);
 }
@@ -188,11 +186,9 @@ export class SvmWarpAltReader {
 export function createWarpAltReader(
   chainMetadata: ChainMetadataForAltVM,
 ): SvmWarpAltReader {
-  assert(
-    chainMetadata.rpcUrls && chainMetadata.rpcUrls.length > 0,
-    'At least one RPC URL is required',
-  );
-  const rpc = createRpc(chainMetadata.rpcUrls[0].http);
+  const [rpcUrl] = chainMetadata.rpcUrls ?? [];
+  assert(rpcUrl, 'At least one RPC URL is required');
+  const rpc = createRpc(rpcUrl.http);
   return new SvmWarpAltReader(
     chainMetadata.name,
     rpc,

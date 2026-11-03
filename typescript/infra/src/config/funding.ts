@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { ChainConfig } from '@hyperlane-xyz/keyfunder';
+
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts.js';
@@ -43,6 +45,7 @@ export interface KeyFunderConfig<
   desiredQuoteSubmitterBalancePerChain?: ChainMap<string>;
   igpClaimThresholdPerChain: ChainMap<string>;
   chainsToSkip: ChainName[];
+  erc20GasTokens?: ChainMap<NonNullable<ChainConfig['erc20GasToken']>>;
   // Emergency kill switch for automatic sweeps. Defaults to enabled.
   sweepEnabled?: boolean;
   // Per-chain overrides for automatic sweep of excess funds

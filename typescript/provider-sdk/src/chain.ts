@@ -71,6 +71,13 @@ export type DomainIdLookup = (chain: ChainNameOrId) => Domain | null;
 export type GetKnownChainNames = () => string[];
 
 /**
+ * Unique domain ids of every chain the lookup knows about. Protocols whose
+ * ISMs hold per-domain state that can't be enumerated from chain (e.g.
+ * routingMessageIdMultisigIsm) probe these as candidate domains.
+ */
+export type GetKnownDomainIds = () => Set<Domain>;
+
+/**
  * Combined interface for all chain lookup operations.
  * Pass this instead of individual function adapters for cleaner signatures.
  */
@@ -79,4 +86,5 @@ export interface ChainLookup {
   getChainName: ChainNameLookup;
   getDomainId: DomainIdLookup;
   getKnownChainNames: GetKnownChainNames;
+  getKnownDomainIds: GetKnownDomainIds;
 }

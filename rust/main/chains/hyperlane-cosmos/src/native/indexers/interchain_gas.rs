@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-use cometbft::abci::EventAttribute;
+use cometbft::abci::{Event, EventAttribute};
 use hyperlane_cosmos_rs::{hyperlane::core::post_dispatch::v1::EventGasPayment, prost::Name};
 use tonic::async_trait;
 use tracing::instrument;
@@ -17,6 +17,16 @@ use crate::{
 };
 
 use crate::indexer::{CosmosEventIndexer, ParsedEvent};
+
+fn belongs_to_igp(event: &Event, address: &H256) -> ChainResult<bool> {
+    for attribute in &event.attributes {
+        if attribute.key_str().map_err(HyperlaneCosmosError::from)? == "igp_id" {
+            let value = attribute.value_str().map_err(HyperlaneCosmosError::from)?;
+            return Ok(value.trim_matches('"').parse::<H256>()? == *address);
+        }
+    }
+    Ok(true)
+}
 
 /// Interchain Gas Payment Indexer
 #[derive(Debug, Clone)]
@@ -126,6 +136,10 @@ impl CosmosEventIndexer<InterchainGasPayment> for CosmosNativeInterchainGas {
     fn address(&self) -> &H256 {
         &self.address
     }
+
+    fn event_belongs_to_indexer(&self, event: &Event) -> ChainResult<bool> {
+        belongs_to_igp(event, &self.address)
+    }
 }
 
 impl HyperlaneChain for CosmosNativeInterchainGas {
@@ -173,5 +187,27 @@ impl SequenceAwareIndexer<InterchainGasPayment> for CosmosNativeInterchainGas {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = CosmosEventIndexer::get_finalized_block_number(self).await?;
         Ok((None, tip))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn filters_foreign_igp_before_parsing() -> ChainResult<()> {
+        let configured = H256::repeat_byte(1);
+        let foreign = H256::repeat_byte(2);
+        let event = Event::new(
+            EventGasPayment::full_name(),
+            [
+                ("igp_id", format!("\"{foreign:#x}\"")),
+                ("payment", "\"7othergas\"".to_owned()),
+            ],
+        );
+
+        assert!(!belongs_to_igp(&event, &configured)?);
+        assert!(belongs_to_igp(&event, &foreign)?);
+        Ok(())
     }
 }

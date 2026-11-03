@@ -18,6 +18,7 @@ export class KeyFunderMetrics {
   readonly igpBalanceGauge: Gauge<string>;
   readonly sweepAmountGauge: Gauge<string>;
   readonly operationDurationGauge: Gauge<string>;
+  readonly chainFundingSuccessGauge: Gauge<string>;
 
   constructor(
     config: MetricsConfig | undefined,
@@ -75,6 +76,13 @@ export class KeyFunderMetrics {
       name: 'hyperlane_keyfunder_operation_duration_seconds',
       help: 'Duration of funding operations',
       labelNames: ['chain', 'operation', ...Object.keys(baseLabels)],
+      registers: [this.registry],
+    });
+
+    this.chainFundingSuccessGauge = new Gauge({
+      name: 'hyperlane_keyfunder_chain_funding_success',
+      help: 'Whether the last funding run succeeded for a chain (1) or failed (0)',
+      labelNames: ['chain', ...Object.keys(baseLabels)],
       registers: [this.registry],
     });
   }
@@ -139,6 +147,13 @@ export class KeyFunderMetrics {
     this.operationDurationGauge.set(
       { chain, operation, ...this.baseLabels },
       durationSeconds,
+    );
+  }
+
+  recordChainFundingSuccess(chain: string, success: boolean): void {
+    this.chainFundingSuccessGauge.set(
+      { chain, ...this.baseLabels },
+      success ? 1 : 0,
     );
   }
 

@@ -28,6 +28,7 @@ export class HyperlaneEtherscanProvider
     ProviderMethod.GetTransactionCount,
     ProviderMethod.SendTransaction,
     ProviderMethod.MaxPriorityFeePerGas,
+    ProviderMethod.ReadRpc,
   ]);
 
   constructor(

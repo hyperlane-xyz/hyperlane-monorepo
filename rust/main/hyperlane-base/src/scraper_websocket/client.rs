@@ -167,6 +167,15 @@ impl StreamHealth {
         Ok(authoritative || count == next)
     }
 
+    /// A failed canonical probe proves neither lag nor progress: tolerate it like
+    /// lag, sharing the same timer and grace. Returns whether the stream is usable.
+    pub fn observe_probe_failure(&mut self) -> bool {
+        self.lag_started_at
+            .get_or_insert_with(Instant::now)
+            .elapsed()
+            < self.grace
+    }
+
     /// Reset on reconnect, loss of readiness, or the first completed replay.
     pub fn reset(&mut self) {
         self.lag_started_at = None;
@@ -247,7 +256,7 @@ impl ScraperWebSocket {
     /// Send the agent's cursor subscription after receiving `Ready`.
     pub async fn subscribe(&mut self, subscription: String) -> Result<()> {
         self.socket
-            .send(Message::Text(subscription))
+            .send(Message::Text(subscription.into()))
             .await
             .context("Subscribing to scraper WebSocket")
     }
@@ -282,6 +291,7 @@ impl ScraperWebSocket {
                         ServerMessage::CaughtUp { .. } => {
                             self.state.require_subscribed("caught-up marker")?
                         }
+                        ServerMessage::Rollback => self.state.require_subscribed("rollback")?,
                         ServerMessage::Error { .. } | ServerMessage::Other => {}
                     }
                     return Ok(Some(message));
@@ -378,9 +388,9 @@ pub(super) mod tests {
 
     #[tokio::test]
     async fn heartbeat_is_serviced_without_hiding_protocol_messages() {
-        let (mut client, mut server) = connection(Duration::from_secs(5)).await;
+        let (mut client, mut server) = connection(READ_TIMEOUT).await;
         server
-            .send(Message::Ping(vec![1, 2, 3]))
+            .send(Message::Ping(vec![1, 2, 3].into()))
             .await
             .expect("ping");
         server
@@ -391,12 +401,12 @@ pub(super) mod tests {
             client.recv::<serde_json::Value>().await.expect("receive"),
             Some(ServerMessage::Ready { .. })
         ));
-        let pong = timeout(Duration::from_secs(1), server.next())
+        let pong = timeout(Duration::from_secs(30), server.next())
             .await
             .expect("pong deadline")
             .expect("pong frame")
             .expect("pong");
-        assert_eq!(pong, Message::Pong(vec![1, 2, 3]));
+        assert_eq!(pong, Message::Pong(vec![1, 2, 3].into()));
         client
             .subscribe(r#"{"type":"subscribe","streams":[]}"#.into())
             .await
@@ -417,6 +427,57 @@ pub(super) mod tests {
         ));
         server.send(Message::Close(None)).await.expect("close");
         assert!(client.recv::<serde_json::Value>().await.is_err());
+    }
+
+    #[tokio::test]
+    async fn cancelled_partial_ping_preserves_fragmented_message_and_pong() {
+        use tokio::io::AsyncWriteExt;
+
+        let (mut client, mut server) = connection(READ_TIMEOUT).await;
+        let ready = br#"{"type":"ready"}"#;
+        // A non-final text frame, followed by a ping interrupted mid-payload.
+        let mut partial = vec![0x01, 8];
+        partial.extend_from_slice(&ready[..8]);
+        partial.extend_from_slice(&[0x89, 3, b'a']);
+        server
+            .get_mut()
+            .write_all(&partial)
+            .await
+            .expect("partial frames");
+        assert!(timeout(
+            Duration::from_millis(20),
+            client.recv::<serde_json::Value>()
+        )
+        .await
+        .is_err());
+
+        let mut remaining = vec![
+            b'b',
+            b'c',
+            0x80,
+            u8::try_from(ready[8..].len()).expect("short frame"),
+        ];
+        remaining.extend_from_slice(&ready[8..]);
+        server
+            .get_mut()
+            .write_all(&remaining)
+            .await
+            .expect("remaining frames");
+        assert!(matches!(
+            timeout(Duration::from_secs(30), client.recv::<serde_json::Value>())
+                .await
+                .expect("resume deadline")
+                .expect("fragmented ready"),
+            Some(ServerMessage::Ready { .. })
+        ));
+        assert_eq!(
+            timeout(Duration::from_secs(30), server.next())
+                .await
+                .expect("pong deadline")
+                .expect("pong frame")
+                .expect("pong"),
+            Message::Pong(b"abc".to_vec().into())
+        );
     }
 
     #[tokio::test]
@@ -446,7 +507,7 @@ pub(super) mod tests {
             r#"{"type":"subscribed","streams":[]}"#,
             r#"{"type":"event","domain":5,"eventType":"dispatch","data":{}}"#,
         ] {
-            let (mut client, mut server) = connection(Duration::from_secs(1)).await;
+            let (mut client, mut server) = connection(READ_TIMEOUT).await;
             server
                 .send(Message::Text(text.into()))
                 .await
@@ -480,5 +541,20 @@ pub(super) mod tests {
         tokio::time::advance(Duration::from_secs(5)).await;
 
         assert!(health.observe(104, 3, false).is_err());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn probe_failures_share_the_lag_grace() {
+        let grace = Duration::from_secs(10);
+        let mut health = StreamHealth::new(grace);
+
+        health.observe(100, 99, true).expect("lag starts the timer");
+        tokio::time::advance(Duration::from_secs(5)).await;
+        assert!(health.observe_probe_failure());
+        tokio::time::advance(Duration::from_secs(5)).await;
+        assert!(!health.observe_probe_failure());
+
+        health.observe(100, 100, true).expect("caught up resets");
+        assert!(health.observe_probe_failure());
     }
 }

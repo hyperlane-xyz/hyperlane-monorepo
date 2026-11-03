@@ -1,10 +1,11 @@
-import { Router } from 'express';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
 import { DEFAULT_GITHUB_REGISTRY, IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { MultiProvider } from '@hyperlane-xyz/sdk/providers/MultiProvider';
+
+import type { CcipApp } from '../http.js';
 
 export const REGISTRY_URI_SCHEMA = z
   .string()
@@ -28,13 +29,13 @@ export interface ServiceFactory {
 }
 
 export abstract class BaseService {
-  public readonly router: Router;
   protected config: ServiceConfig;
 
   protected constructor(config: ServiceConfig) {
-    this.router = Router();
     this.config = config;
   }
+
+  abstract registerRoutes(app: CcipApp, prefix: string): void;
 
   /**
    * Factory method that subclasses must implement

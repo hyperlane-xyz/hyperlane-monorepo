@@ -11,9 +11,7 @@ use ethers_core::abi::Function;
 use ethers_core::types::Eip1559TransactionRequest;
 use eyre::eyre;
 use futures_util::future;
-use hyperlane_core::ChainResult;
 use tokio::sync::Mutex;
-use tokio::try_join;
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
@@ -53,7 +51,13 @@ use super::{
 
 mod gas_limit_estimator;
 mod gas_price;
+mod mev_submission;
 mod tx_status_checker;
+
+use mev_submission::MevSubmission;
+
+/// Geth's reply when the exact signed transaction is already in its pool.
+const ALREADY_KNOWN_ERROR: &str = "already known";
 
 /// Error strings that indicate a nonce conflict or duplicate transaction.
 /// Matched case-insensitively against the lowercased error message.
@@ -72,6 +76,7 @@ pub struct EthereumAdapter {
     pub transaction_overrides: hyperlane_ethereum::TransactionOverrides,
     pub submission_config: OpSubmissionConfig,
     pub provider: Arc<dyn EvmProviderForLander>,
+    pub mev_submission: Option<MevSubmission>,
     pub reorg_period: EthereumReorgPeriod,
     pub nonce_manager: NonceManager,
     pub batch_cache: Arc<Mutex<BatchCache>>,
@@ -102,7 +107,7 @@ impl EthereumAdapter {
                 &connection_conf,
                 &locator,
                 metrics,
-                LanderProviderBuilder {},
+                LanderProviderBuilder::default(),
             )
             .await?;
 
@@ -110,12 +115,40 @@ impl EthereumAdapter {
             .get_signer()
             .ok_or_else(|| eyre!("No signer found in provider for domain {}", domain))?;
 
+        let mev_submission = match &connection_conf.mev_submission {
+            Some(config) => {
+                let mut protected_conf = connection_conf.clone();
+                protected_conf.rpc_connection =
+                    hyperlane_ethereum::RpcConnectionConf::HttpFallback {
+                        urls: config.rpc_urls.clone(),
+                    };
+                protected_conf.mev_submission = None;
+                let protected_provider = conf
+                    .build_ethereum(
+                        &protected_conf,
+                        &locator,
+                        metrics,
+                        LanderProviderBuilder {
+                            chain_id: Some(provider.get_chain_id().await?),
+                        },
+                    )
+                    .await?;
+                Some(MevSubmission {
+                    mailbox: conf.addresses.mailbox.into(),
+                    policy: config.clone(),
+                    provider: protected_provider,
+                })
+            }
+            None => None,
+        };
+
         let metrics = EthereumAdapterMetrics::new(
             conf.domain.clone(),
             dispatcher_metrics.get_batched_transactions(),
             dispatcher_metrics.get_finalized_nonce(domain, &signer.to_string()),
             dispatcher_metrics.get_upper_nonce(domain, &signer.to_string()),
             dispatcher_metrics.get_mismatched_nonce(domain, &signer.to_string()),
+            dispatcher_metrics.mev_submissions.clone(),
         );
 
         let payload_db = db.clone() as Arc<dyn PayloadDb>;
@@ -129,6 +162,7 @@ impl EthereumAdapter {
             transaction_overrides: connection_conf.transaction_overrides.clone(),
             submission_config: connection_conf.op_submission_config.clone(),
             provider,
+            mev_submission,
             reorg_period,
             nonce_manager,
             batch_cache: Default::default(),
@@ -146,38 +180,6 @@ impl EthereumAdapter {
         self.nonce_manager.calculate_next_nonce(tx).await
     }
 
-    async fn estimate_gas_price(&self, tx: &Transaction) -> Result<GasPrice, LanderError> {
-        // even if the gas price is already set, we still want to (re-)estimate it
-        // to be resilient to gas spikes
-        let old_tx_precursor = tx.precursor();
-
-        let old_gas_price = old_tx_precursor.extract_gas_price();
-
-        // first, estimate the gas price
-        let estimated_gas_price = gas_price::estimate_gas_price(
-            &self.provider,
-            old_tx_precursor,
-            &self.transaction_overrides,
-            &self.domain,
-        )
-        .await;
-
-        // then, compare the estimated gas price with `current * escalation_multiplier`
-        let escalated_gas_price = gas_price::escalate_gas_price_if_needed(
-            &old_gas_price,
-            &estimated_gas_price,
-            &self.transaction_overrides,
-        );
-
-        let new_gas_price = match escalated_gas_price {
-            GasPrice::None => estimated_gas_price,
-            _ => escalated_gas_price,
-        };
-
-        info!(old=?old_tx_precursor, new=?new_gas_price, "estimated and escalated gas price for transaction");
-        Ok(new_gas_price)
-    }
-
     fn check_if_resubmission_makes_sense(
         tx: &Transaction,
         gas_price: &GasPrice,
@@ -192,18 +194,17 @@ impl EthereumAdapter {
             return Ok(());
         }
 
-        // Transaction has been submitted before, check if the new gas price has not
-        // reached limit yet
-
         if gas_price == &tx_gas_price {
-            // If new gas price is the same as the old one, no point in resubmitting
+            // Missing receipts put the transaction back in PendingInclusion, even if it
+            // was previously accepted by the node. Rebroadcast at the same price so a
+            // transaction evicted from the mempool cannot leave a permanent nonce gap.
             info!(
                 ?tx,
-                "not resubmitting transaction since new gas price is the same as the old one"
+                "transaction gas price is unchanged; rebroadcasting if still pending"
             );
 
             return match &tx.status {
-                PendingInclusion => Err(LanderError::TxGasCapReached),
+                PendingInclusion => Ok(()),
                 Dropped(reason) => Err(LanderError::TxDropped(reason.clone())),
                 Mempool | Included | Finalized => Err(LanderError::TxAlreadyExists),
             };
@@ -320,6 +321,18 @@ impl EthereumAdapter {
             .collect::<Vec<_>>()
     }
 
+    fn batch_gas_floor(payloads: &[FullPayload]) -> U256 {
+        let gas_floor = payloads.iter().fold(U256::zero(), |sum, payload| {
+            sum.saturating_add(payload.gas_limit)
+        });
+        if gas_floor.is_zero() {
+            return gas_floor;
+        }
+        let overhead = U256::from(multicall::MULTICALL_OVERHEAD_PER_CALL)
+            .saturating_mul(payloads.len().into());
+        gas_floor.saturating_add(overhead)
+    }
+
     fn extract_vm_specific_metrics(tx: &Transaction) -> PostInclusionMetricsSource {
         let mut metrics_source = PostInclusionMetricsSource::default();
         let precursor = tx.precursor().clone();
@@ -360,9 +373,22 @@ impl EthereumAdapter {
         &self,
         precursors: Vec<(TypedTransaction, Function)>,
         payload_details: Vec<PayloadDetails>,
-    ) -> ChainResult<Vec<TxBuildingResult>> {
+        gas_floor: U256,
+    ) -> Result<Vec<TxBuildingResult>, LanderError> {
         use super::transaction::TransactionFactory;
 
+        // Reject oversized batches here so build_transactions falls back to singles.
+        if !gas_floor.is_zero() {
+            let gas_floor =
+                gas_limit_estimator::apply_gas_estimate_buffer(gas_floor, &self.domain)?;
+            gas_limit_estimator::apply_gas_limit_caps(
+                self.provider.as_ref(),
+                &self.transaction_overrides,
+                gas_floor,
+                gas_floor,
+            )
+            .await?;
+        }
         let multi_precursor = self
             .provider
             .batch(
@@ -464,8 +490,9 @@ impl AdaptsChain for EthereumAdapter {
             return results;
         }
 
+        let gas_floor = Self::batch_gas_floor(payloads);
         match self
-            .build_batched_transaction(precursors.clone(), payload_details.clone())
+            .build_batched_transaction(precursors.clone(), payload_details.clone(), gas_floor)
             .await
         {
             Ok(results) => {
@@ -529,10 +556,12 @@ impl AdaptsChain for EthereumAdapter {
 
         let precursor = tx.precursor().clone();
 
-        let (successful, failed) = self
-            .provider
-            .simulate_batch((precursor.tx, precursor.function))
-            .await?;
+        let provider = self.provider_for_payloads(&payloads)?;
+        let (successful, failed) = mev_submission::preflight(
+            self.is_protected_provider(provider),
+            provider.simulate_batch((precursor.tx, precursor.function)),
+        )
+        .await?;
 
         let payloads_successful = Self::filter(&payloads, successful);
         let payloads_details_failed = Self::filter(
@@ -560,15 +589,16 @@ impl AdaptsChain for EthereumAdapter {
             return Err(LanderError::SimulationFailed(reasons));
         }
 
+        // Batch construction only fetches the Multicall code; calldata is encoded locally.
         let tx_building_results = self.build_transactions(&payloads_successful).await;
-        let Some(tx_building_result) = tx_building_results.first() else {
+        let [tx_building_result] = tx_building_results.as_slice() else {
             error!(
                 ?payloads_successful,
                 ?payloads_details_failed,
-                "Failed to build transaction for payloads, no transaction building result"
+                "Batch rebuild did not produce a single transaction"
             );
             return Err(LanderError::SimulationFailed(vec![
-                "no transaction building result".to_string(),
+                "Batch rebuild did not produce a single transaction".into(),
             ]));
         };
 
@@ -597,23 +627,25 @@ impl AdaptsChain for EthereumAdapter {
     }
 
     async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
-        if tx.precursor().tx.gas().is_some() {
-            debug!(
-                ?tx,
-                "skipping gas limit estimation for transaction, as it was already estimated"
-            );
+        // First submission still needs current estimates, buffers, and caps even
+        // when the payload carries a prepared gas floor. Reuse the final limit on retries.
+        if tx.submission_attempts > 1 && tx.precursor().tx.gas().is_some() {
             return Ok(());
         }
-
+        let provider = self.submission_provider(tx).await?;
+        let protected = self.is_protected_provider(provider);
         if tx.payload_details.len() == 1 {
             // No batching, estimate gas limit for the single payload
             let precursor = tx.precursor_mut();
-            return gas_limit_estimator::estimate_gas_limit(
-                self.provider.clone(),
-                precursor,
-                &self.transaction_overrides,
-                &self.domain,
-                true,
+            return mev_submission::preflight(
+                protected,
+                gas_limit_estimator::estimate_gas_limit(
+                    provider.clone(),
+                    precursor,
+                    &self.transaction_overrides,
+                    &self.domain,
+                    true,
+                ),
             )
             .await;
         }
@@ -624,30 +656,53 @@ impl AdaptsChain for EthereumAdapter {
 
         let payload_estimate_futures = precursors
             .iter_mut()
-            .map(|p| {
-                gas_limit_estimator::estimate_gas_limit(
-                    self.provider.clone(),
-                    p,
-                    &self.transaction_overrides,
-                    &self.domain,
-                    false,
+            .map(|p| async move {
+                mev_submission::preflight(
+                    protected,
+                    gas_limit_estimator::estimate_gas_limit(
+                        provider.clone(),
+                        p,
+                        &self.transaction_overrides,
+                        &self.domain,
+                        false,
+                    ),
                 )
+                .await
             })
             .collect::<Vec<_>>();
         future::try_join_all(payload_estimate_futures).await?;
 
-        let multi_precursor = tx.precursor().clone();
+        let mut multi_precursor = tx.precursor().clone();
+        let gas_floor = Self::batch_gas_floor(&payloads);
+        *multi_precursor.tx.gas_mut() = None;
         let multi_precursor = (multi_precursor.tx, multi_precursor.function);
         let precursors = precursors
             .into_iter()
             .map(|p| (p.tx, p.function))
             .collect::<Vec<_>>();
 
-        let gas_limit = self
-            .provider
-            .estimate_batch(multi_precursor, precursors)
-            .await?;
+        let gas_limit = mev_submission::preflight(
+            protected,
+            provider.estimate_batch(multi_precursor, precursors),
+        )
+        .await?;
 
+        // Buffer the total once, rather than adding a flat buffer for every member.
+        let gas_limit = if gas_floor.is_zero() {
+            gas_limit
+        } else {
+            gas_limit_estimator::apply_gas_estimate_buffer(gas_limit.max(gas_floor), &self.domain)?
+        };
+        let gas_limit = mev_submission::preflight(
+            protected,
+            gas_limit_estimator::apply_gas_limit_caps(
+                provider.as_ref(),
+                &self.transaction_overrides,
+                gas_limit.max(gas_floor),
+                gas_floor,
+            ),
+        )
+        .await?;
         tx.precursor_mut().tx.set_gas(gas_limit);
 
         Ok(())
@@ -657,35 +712,134 @@ impl AdaptsChain for EthereumAdapter {
         use super::transaction::Precursor;
         use LanderError::TxAlreadyExists;
 
-        let (nonce, gas_price) = try_join!(self.calculate_nonce(tx), self.estimate_gas_price(tx))?;
+        let provider = self.submission_provider(tx).await?;
+
+        // Fee estimation can defer indefinitely. Do not reserve a fresh nonce
+        // until it succeeds, or later transactions could queue behind a gap.
+        let gas_price = gas_price::estimate_gas_price(
+            &self.provider,
+            tx.precursor(),
+            &self.transaction_overrides,
+            &self.domain,
+        )
+        .await?;
+        let nonce = self.calculate_nonce(tx).await?;
+        let gas_price_unchanged =
+            gas_price != GasPrice::None && tx.precursor().extract_gas_price() == gas_price;
+
+        let protected = self.is_protected_provider(provider);
+        let previous_request = protected.then(|| tx.precursor().tx.clone());
+        let previous_nonce: Option<U256> = tx.precursor().tx.nonce().map(|n| (*n).into());
+        let nonce_changed = previous_nonce != Some(nonce);
 
         // Update the transaction with nonce before checking if resubmission makes sense
         // This ensures the nonce is stored even if we decide not to resubmit due to gas price limits
         Self::update_tx_nonce(tx, nonce);
 
-        Self::check_if_resubmission_makes_sense(tx, &gas_price)?;
+        // Existing hashes were signed for the previous nonce, so an unchanged gas price
+        // does not mean this nonce has been broadcast. The nonce manager has already
+        // persisted the reassigned nonce: skipping this send would leave it unused and
+        // stall later transactions, while a duplicate delivery only reverts.
+        if nonce_changed {
+            info!(
+                ?tx,
+                ?previous_nonce,
+                ?nonce,
+                "nonce changed, broadcasting regardless of gas price"
+            );
+        } else {
+            Self::check_if_resubmission_makes_sense(tx, &gas_price)?;
+        }
 
         Self::update_tx_gas_price(tx, gas_price);
 
         info!(?tx, "submitting transaction");
 
-        let precursor = tx.precursor();
-
-        let send_result = self.provider.send(&precursor.tx, &precursor.function).await;
+        let send_result = if let Some(previous_request) = previous_request {
+            let signed = match mev_submission::preflight(
+                true,
+                provider.sign_transaction(&tx.precursor().tx),
+            )
+            .await
+            {
+                Ok(signed) => signed,
+                Err(err) => {
+                    // Signing cannot broadcast. Restore nonce and fees so a failed
+                    // attempt cannot pin an unsent transaction above a later cap.
+                    tx.precursor_mut().tx = previous_request;
+                    return Err(err);
+                }
+            };
+            // A relay can accept the bytes but lose its response. Keep the exact
+            // signed hash so receipt polling can discover inclusion after a timeout.
+            let hash = H256::from(ethers::utils::keccak256(&signed)).into();
+            if !tx.tx_hashes.contains(&hash) {
+                tx.tx_hashes.push(hash);
+            }
+            let result =
+                mev_submission::with_rpc_timeout(true, provider.send_raw_transaction(signed)).await;
+            self.metrics
+                .increment_mev_submissions(if matches!(result, Ok(Ok(_))) {
+                    "success"
+                } else {
+                    "error"
+                });
+            match result {
+                Ok(result) => result,
+                Err(err) => return Err(err),
+            }
+        } else {
+            let precursor = tx.precursor();
+            provider.send(&precursor.tx, &precursor.function).await
+        };
         let hash = match send_result {
             Ok(hash) => hash,
             Err(e) => {
                 warn!(?e, "submitting transaction error");
+                if nonce_changed {
+                    // Nothing was broadcast for the new nonce. Keep the previous nonce so the
+                    // next attempt still treats the nonce as changed and broadcasts it.
+                    match previous_nonce {
+                        Some(previous_nonce) => {
+                            tx.precursor_mut().tx.set_nonce(previous_nonce);
+                        }
+                        None => clear_nonce(&mut tx.precursor_mut().tx),
+                    }
+                }
+                // Resending identical signed bytes whose hash is already recorded. A
+                // failed resend is never a reason to drop the transaction or free its
+                // nonce: it was broadcast before and may still land.
+                let rebroadcast = !nonce_changed && gas_price_unchanged;
                 let err_str = e.to_string().to_lowercase();
-                return if NONCE_TOO_LOW_ERRORS.iter().any(|s| err_str.contains(s)) {
+                // "already known" only proves an existing hash for a rebroadcast. On a
+                // first send it can follow a lost response, with no hash recorded yet.
+                let already_exists = NONCE_TOO_LOW_ERRORS.iter().any(|s| err_str.contains(s))
+                    || (rebroadcast && err_str.contains(ALREADY_KNOWN_ERROR));
+                return if already_exists {
                     Err(TxAlreadyExists)
                 } else {
-                    Err(e.into())
+                    let error = LanderError::from(e);
+                    if rebroadcast {
+                        // Poll recorded hashes after a failed same-nonce rebroadcast.
+                        // A changed-nonce failure must keep retrying its reservation
+                        // before an older hash can finalize the transaction.
+                        Err(LanderError::TxGasCapReached)
+                    } else if protected {
+                        Err(LanderError::TxSubmissionDeferred)
+                    } else {
+                        Err(error)
+                    }
                 };
             }
         };
 
-        tx.tx_hashes.push(hash.into());
+        // A rebroadcast from a deterministic signer returns an existing hash. Avoid
+        // reading its receipt more than once per status scan, while retaining
+        // distinct replacement hashes.
+        let hash = hash.into();
+        if !tx.tx_hashes.contains(&hash) {
+            tx.tx_hashes.push(hash);
+        }
 
         info!(?tx, "submitted transaction");
 
@@ -697,6 +851,17 @@ impl AdaptsChain for EthereumAdapter {
         hash: hyperlane_core::H512,
     ) -> Result<TransactionStatus, LanderError> {
         tx_status_checker::get_tx_hash_status(&self.provider, hash, &self.reorg_period).await
+    }
+
+    async fn tx_statuses(
+        &self,
+        txs: &[Transaction],
+    ) -> Vec<Result<TransactionStatus, LanderError>> {
+        tx_status_checker::get_tx_statuses(&self.provider, txs, &self.reorg_period).await
+    }
+
+    fn tx_status_batch_size(&self) -> usize {
+        tx_status_checker::STATUS_READ_BATCH_SIZE
     }
 
     async fn reverted_payloads(
@@ -724,6 +889,17 @@ impl AdaptsChain for EthereumAdapter {
         }
 
         Ok(reverted)
+    }
+
+    async fn payload_delivered(&self, payload: &PayloadDetails) -> Result<bool, LanderError> {
+        let Some(precursor) = EthereumTxPrecursor::from_success_criteria(payload, self.signer)
+        else {
+            return Ok(false);
+        };
+        Ok(self
+            .provider
+            .check(&precursor.tx, &precursor.function)
+            .await?)
     }
 
     fn reprocess_txs_poll_rate(&self) -> Option<Duration> {
@@ -802,6 +978,14 @@ impl AdaptsChain for EthereumAdapter {
             }
         }
         Ok(())
+    }
+}
+
+fn clear_nonce(tx: &mut TypedTransaction) {
+    match tx {
+        TypedTransaction::Legacy(request) => request.nonce = None,
+        TypedTransaction::Eip2930(request) => request.tx.nonce = None,
+        TypedTransaction::Eip1559(request) => request.nonce = None,
     }
 }
 

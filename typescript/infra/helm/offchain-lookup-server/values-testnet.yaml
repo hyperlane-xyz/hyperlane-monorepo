@@ -6,7 +6,7 @@ image:
   # Modify this tag to deploy a new revision.
   # Images can be found here:
   # https://github.com/orgs/hyperlane-xyz/packages/container/package/hyperlane-node-services
-  tag: d1b6f0a-20260603-124857
+  tag: a27ce72-20261021-124146
 
 # In Google Cloud Secret Manager, all secrets need to have a certain prefix in order to be accessible by
 # the Cluster Secret Store. For testnet this prefix is "hyperlane-testnet4"
@@ -19,6 +19,9 @@ ingress:
   staticIpName: offchain-lookup-server-testnet
 
 env:
+  # Primary, RC, and fastpath EVM identities; shared by both CCS read APIs.
+  - name: CCS_AUTHORIZED_SIGNERS
+    value: '["0x16626cd24fd1f228a031e48b77602ae25f8930db", "0x7fe8c60ead4ab10be736f4de2b3090db5a851f16", "0xde216ffd0f7319860f966191d995c250d6070ba2"]'
   - name: ENABLED_MODULES
     value: 'cctp,callCommitments'
   - name: HYPERLANE_EXPLORER_URL

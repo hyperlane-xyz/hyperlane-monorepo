@@ -1,13 +1,17 @@
 import { BedrockCrossChainMessageProof } from '@eth-optimism/core-utils';
 import { CoreCrossChainMessage, CrossChainMessenger } from '@eth-optimism/sdk';
 import { BytesLike, ethers, providers } from 'ethers';
-import { Router } from 'express';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
 import { OpL2toL1Service__factory } from '@hyperlane-xyz/core';
 
-import { createAbiHandler } from '../utils/abiHandler.js';
+import type { CcipApp } from '../http.js';
+import {
+  ABI_ROUTE_OPTIONS,
+  type AbiRoute,
+  createAbiHandler,
+} from '../utils/abiHandler.js';
 
 import { BaseService, ServiceConfig } from './BaseService.js';
 import { HyperlaneService } from './HyperlaneService.js';
@@ -32,7 +36,6 @@ const EnvSchema = z.object({
 // Service that requests proofs from Succinct and RPC Provider
 export class OPStackService extends BaseService {
   // External Services
-  public readonly router: Router;
   private crossChainMessenger: CrossChainMessenger;
   private l2RpcService: RPCService;
   private hyperlaneService: HyperlaneService;
@@ -82,10 +85,13 @@ export class OPStackService extends BaseService {
       hyperlaneConfig.url,
     );
     this.l2RpcService = new RPCService(l2RpcConfig.url);
-    this.router = Router();
+  }
+
+  registerRoutes(app: CcipApp, prefix: string): void {
     // CCIP-read spec: GET /getWithdrawalProof/:sender/:callData.json
-    this.router.get(
-      '/getWithdrawalProof/:sender/:callData.json',
+    app.get<AbiRoute>(
+      `${prefix}/getWithdrawalProof/:sender/:callData.json`,
+      ABI_ROUTE_OPTIONS,
       createAbiHandler(
         OpL2toL1Service__factory,
         'getWithdrawalProof',
@@ -94,8 +100,9 @@ export class OPStackService extends BaseService {
     );
 
     // CCIP-read spec: POST /getWithdrawalProof
-    this.router.post(
-      '/getWithdrawalProof',
+    app.post<AbiRoute>(
+      `${prefix}/getWithdrawalProof`,
+      ABI_ROUTE_OPTIONS,
       createAbiHandler(
         OpL2toL1Service__factory,
         'getWithdrawalProof',
@@ -104,8 +111,9 @@ export class OPStackService extends BaseService {
     );
 
     // CCIP-read spec: GET /getFinalizeWithdrawalTx/:sender/:callData.json
-    this.router.get(
-      '/getFinalizeWithdrawalTx/:sender/:callData.json',
+    app.get<AbiRoute>(
+      `${prefix}/getFinalizeWithdrawalTx/:sender/:callData.json`,
+      ABI_ROUTE_OPTIONS,
       createAbiHandler(
         OpL2toL1Service__factory,
         'getFinalizeWithdrawalTx',
@@ -114,8 +122,9 @@ export class OPStackService extends BaseService {
     );
 
     // CCIP-read spec: POST /getFinalizeWithdrawalTx
-    this.router.post(
-      '/getFinalizeWithdrawalTx',
+    app.post<AbiRoute>(
+      `${prefix}/getFinalizeWithdrawalTx`,
+      ABI_ROUTE_OPTIONS,
       createAbiHandler(
         OpL2toL1Service__factory,
         'getFinalizeWithdrawalTx',

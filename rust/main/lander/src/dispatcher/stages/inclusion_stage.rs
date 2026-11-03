@@ -45,6 +45,12 @@ const REPROCESS_TXS_LIVENESS_RATE: Duration = Duration::from_secs(5);
 const MAX_REPROCESS_TXS_POLL_RATE: Duration = Duration::from_secs(5 * 60);
 const STATUS_READ_CONCURRENCY: usize = 16;
 
+#[derive(Debug)]
+enum SubmitOutcome {
+    Submitted(Transaction),
+    RetryLater(Transaction, LanderError),
+}
+
 pub struct InclusionStage {
     pub(crate) pool: InclusionStagePool,
     tx_receiver: mpsc::Receiver<Transaction>,
@@ -268,6 +274,7 @@ impl InclusionStage {
                     finality_stage_sender,
                     state,
                     pool,
+                    domain,
                 )
                 .await
                 {
@@ -453,6 +460,7 @@ impl InclusionStage {
         finality_stage_sender: &mpsc::Sender<Transaction>,
         state: &DispatcherState,
         pool: &InclusionStagePool,
+        domain: &str,
     ) -> Result<(), LanderError> {
         match tx_status {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
@@ -468,7 +476,7 @@ impl InclusionStage {
                     info!(?tx, "Transaction is not ready for resubmission");
                     return Ok(());
                 }
-                Self::process_pending_tx(tx, state, pool).await
+                Self::process_pending_tx(tx, state, pool, domain).await
             }
             TransactionStatus::Included | TransactionStatus::Finalized => {
                 update_tx_status(state, &mut tx, tx_status.clone()).await?;
@@ -498,6 +506,7 @@ impl InclusionStage {
         mut tx: Transaction,
         state: &DispatcherState,
         pool: &InclusionStagePool,
+        domain: &str,
     ) -> Result<(), LanderError> {
         info!(?tx, "Processing pending transaction");
 
@@ -505,14 +514,30 @@ impl InclusionStage {
         tx.submission_attempts = tx.submission_attempts.saturating_add(1);
         tx.last_submission_attempt = Some(chrono::Utc::now());
 
-        // Simulating transaction if it has never been submitted before
-        tx = Self::simulate_tx(tx, state).await?;
-
-        // Estimating transaction just before we submit it
-        tx = Self::estimate_tx(&tx, state).await?;
+        let preflight = async {
+            tx = Self::simulate_tx(tx.clone(), state).await?;
+            tx = Self::estimate_tx(&tx, state).await?;
+            Ok::<_, LanderError>(())
+        }
+        .await;
+        match preflight {
+            Ok(()) => {}
+            Err(reason @ LanderError::TxSubmissionDeferred) => {
+                // No broadcast attempt occurred. In particular, a timed-out
+                // simulation must run again on the next pass.
+                tx.submission_attempts = tx.submission_attempts.saturating_sub(1);
+                return Self::retain_for_retry(tx, reason, state, pool, domain).await;
+            }
+            Err(err) => return Err(err),
+        }
 
         // Submitting transaction to the node
-        tx = Self::submit_tx(tx, state).await?;
+        tx = match Self::submit_tx(tx, state).await? {
+            SubmitOutcome::Submitted(tx) => tx,
+            SubmitOutcome::RetryLater(tx, reason) => {
+                return Self::retain_for_retry(tx, reason, state, pool, domain).await;
+            }
+        };
         info!(?tx, "Transaction submitted to node");
 
         state
@@ -531,10 +556,25 @@ impl InclusionStage {
         Ok(())
     }
 
+    async fn retain_for_retry(
+        mut tx: Transaction,
+        reason: LanderError,
+        state: &DispatcherState,
+        pool: &InclusionStagePool,
+        domain: &str,
+    ) -> Result<(), LanderError> {
+        warn!(?tx, ?reason, "Retaining transaction for a later retry");
+        Self::update_inclusion_stage_metric(state, domain, &reason);
+        let status = tx.status.clone();
+        update_tx_status(state, &mut tx, status).await?;
+        pool.lock().await.insert(tx.uuid.clone(), tx);
+        Ok(())
+    }
+
     async fn submit_tx(
         tx: Transaction,
         state: &DispatcherState,
-    ) -> Result<Transaction, LanderError> {
+    ) -> Result<SubmitOutcome, LanderError> {
         // Submission retries retain tx fields (e.g. gas price) set by previous
         // attempts. The retry future borrows this local mutex until it completes.
         let tx_shared = Mutex::new(tx);
@@ -542,17 +582,18 @@ impl InclusionStage {
         // by the node.
         // at this point, not all VMs return information about whether the tx was reverted.
         // so dropping reverted payloads has to happen in the finality step
-        call_until_success_or_nonretryable_error(
+        let deferred_reason = call_until_success_or_nonretryable_error(
             || async {
                 let mut tx_guard = tx_shared.lock().await;
                 let submit_result = with_rpc_operation(RpcOperation::TransactionLifecycle, state.adapter.submit(&mut tx_guard)).await;
 
                 match submit_result {
-                    Ok(()) => Ok(()),
+                    Ok(()) => Ok(None),
                     Err(err) if matches!(err, LanderError::TxAlreadyExists) => {
                         warn!(tx=?tx_guard, ?err, "Transaction resubmission failed, will check the status of transaction before dropping it");
-                        Ok(())
+                        Ok(None)
                     }
+                    Err(err @ (LanderError::TxGasCapReached | LanderError::TxSubmissionDeferred)) => Ok(Some(err)),
                     Err(err) => Err(err),
                 }
             },
@@ -561,8 +602,12 @@ impl InclusionStage {
         )
         .await?;
         let submitted_tx = tx_shared.into_inner();
-        state.notify_reprocess_txs_activity();
-        Ok(submitted_tx)
+        if let Some(reason) = deferred_reason {
+            Ok(SubmitOutcome::RetryLater(submitted_tx, reason))
+        } else {
+            state.notify_reprocess_txs_activity();
+            Ok(SubmitOutcome::Submitted(submitted_tx))
+        }
     }
 
     async fn estimate_tx(
@@ -588,7 +633,10 @@ impl InclusionStage {
         .await
     }
 
-    async fn simulate_tx(tx: Transaction, state: &DispatcherState) -> Result<Transaction> {
+    async fn simulate_tx(
+        tx: Transaction,
+        state: &DispatcherState,
+    ) -> Result<Transaction, LanderError> {
         if tx.submission_attempts > 1 {
             info!(
                 ?tx,

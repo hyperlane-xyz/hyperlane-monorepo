@@ -15,12 +15,7 @@ import {
   getGovernanceIcas,
   getGovernanceSafes,
 } from '../../config/environments/mainnet3/governance/utils.js';
-import {
-  chainsToSkip,
-  legacyEthIcaRouter,
-  legacyIcaChains,
-  minimalIcaChains,
-} from '../../src/config/chain.js';
+import { chainsToSkip, minimalIcaChains } from '../../src/config/chain.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs as getEnvArgs, withChains } from '../agent-utils.js';
@@ -89,10 +84,6 @@ async function main() {
         return { chain, error: 'No expected address found' as const };
       }
 
-      const icaRouter = legacyIcaChains.includes(chain)
-        ? legacyEthIcaRouter
-        : ownerChainInterchainAccountRouter;
-
       try {
         const destinationRouter =
           interchainAccountApp.contractsMap[chain].interchainAccountRouter;
@@ -103,10 +94,15 @@ async function main() {
         const actualAccount = minimalIcaChains.includes(chain)
           ? await destinationRouter[
               'getLocalInterchainAccount(uint32,address,address,address)'
-            ](originDomain, ownerConfig.owner, icaRouter, destinationIsm)
+            ](
+              originDomain,
+              ownerConfig.owner,
+              ownerChainInterchainAccountRouter,
+              destinationIsm,
+            )
           : await interchainAccountApp.getAccount(chain, {
               ...ownerConfig,
-              localRouter: icaRouter,
+              localRouter: ownerChainInterchainAccountRouter,
             });
 
         if (!eqAddress(expectedAddress, actualAccount)) {

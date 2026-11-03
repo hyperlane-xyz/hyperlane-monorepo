@@ -1,6 +1,11 @@
-use std::future::Future;
-use std::ops::Mul;
-use std::time::Instant;
+use hyperlane_metric::utils::url_to_host_info;
+use std::{
+    collections::HashMap,
+    future::Future,
+    ops::Mul,
+    sync::{Arc, Mutex as StdMutex, Weak},
+    time::{Duration, Instant},
+};
 
 use cometbft::{hash::Algorithm, Hash};
 use cometbft_rpc::{
@@ -24,6 +29,7 @@ use cosmrs::{
     Any, Coin,
 };
 use protobuf::Message as _;
+use tokio::sync::Mutex;
 use tonic::async_trait;
 use url::Url;
 
@@ -39,6 +45,45 @@ use hyperlane_metric::prometheus_metric::{
 use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
 
 const TX_TIMEOUT_BLOCKS: u32 = 100;
+const BLOCK_CACHE_TTL: Duration = Duration::from_secs(5);
+const BLOCK_CACHE_CAPACITY: usize = 32;
+
+#[derive(Debug)]
+struct CachedBlockData {
+    fetched_at: Instant,
+    data: Arc<BlockData>,
+}
+
+#[derive(Debug)]
+pub(crate) struct BlockData {
+    pub block: BlockResponse,
+    pub results: BlockResultsResponse,
+}
+
+#[derive(Debug, Default)]
+struct SharedBlockCache {
+    entries: Mutex<HashMap<u32, Arc<Mutex<Option<CachedBlockData>>>>>,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct BlockCacheKey {
+    chain_id: String,
+    rpc_urls: Vec<String>,
+}
+
+static BLOCK_CACHES: once_cell::sync::Lazy<
+    StdMutex<HashMap<BlockCacheKey, Weak<SharedBlockCache>>>,
+> = once_cell::sync::Lazy::new(|| StdMutex::new(HashMap::new()));
+
+fn shared_block_cache(key: BlockCacheKey) -> Arc<SharedBlockCache> {
+    let mut caches = BLOCK_CACHES.lock().expect("block cache mutex poisoned");
+    if let Some(cache) = caches.get(&key).and_then(Weak::upgrade) {
+        return cache;
+    }
+    let cache = Arc::new(SharedBlockCache::default());
+    caches.insert(key, Arc::downgrade(&cache));
+    cache
+}
 
 #[derive(Debug)]
 pub(crate) struct CosmosHttpClient {
@@ -56,6 +101,7 @@ pub struct RpcProvider {
     conf: ConnectionConf,
     signer: Option<Signer>,
     gas_price: CosmosAmount,
+    block_cache: Arc<SharedBlockCache>,
 }
 
 #[async_trait]
@@ -97,16 +143,16 @@ impl CosmosHttpClient {
         compat_mode: CompatMode,
     ) -> ChainResult<Self> {
         let tendermint_url = cometbft_rpc::Url::try_from(url.to_owned())
-            .map_err(Box::new)
+            .map_err(HyperlaneCosmosError::from)
             .map_err(ChainCommunicationError::from_other)?;
         let url = cometbft_rpc::HttpClientUrl::try_from(tendermint_url)
-            .map_err(Box::new)
+            .map_err(HyperlaneCosmosError::from)
             .map_err(ChainCommunicationError::from_other)?;
 
         let client = HttpClient::builder(url)
             .compat_mode(compat_mode)
             .build()
-            .map_err(Box::new)
+            .map_err(HyperlaneCosmosError::from)
             .map_err(ChainCommunicationError::from_other)?;
 
         Ok(Self::new(client, metrics, metrics_config))
@@ -143,8 +189,8 @@ impl RpcProvider {
         metrics: PrometheusClientMetrics,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
-        let clients = conf
-            .get_rpc_urls()
+        let rpc_urls = conf.get_rpc_urls();
+        let clients = rpc_urls
             .iter()
             .map(|url| {
                 let metrics_config =
@@ -153,14 +199,23 @@ impl RpcProvider {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let provider = FallbackProvider::new(clients);
+        let provider = FallbackProvider::new(clients).with_rpc_context(
+            PrometheusConfig::chain_name(&chain).to_owned(),
+            "rpcUrls",
+            rpc_urls.iter().map(url_to_host_info).collect(),
+        );
         let gas_price = CosmosAmount::try_from(conf.get_minimum_gas_price().clone())?;
 
+        let block_cache = shared_block_cache(BlockCacheKey {
+            chain_id: conf.get_chain_id(),
+            rpc_urls: rpc_urls.iter().map(ToString::to_string).collect(),
+        });
         Ok(RpcProvider {
             provider,
             conf,
             signer,
             gas_price,
+            block_cache,
         })
     }
 
@@ -177,6 +232,7 @@ impl RpcProvider {
             conf,
             signer,
             gas_price,
+            block_cache: Arc::new(SharedBlockCache::default()),
         }
     }
 
@@ -255,6 +311,56 @@ impl RpcProvider {
                 Box::pin(future)
             })
             .await
+    }
+
+    /// Fetch block data once when multiple event indexers scan the same height.
+    pub(crate) async fn get_block_data(&self, height: u32) -> ChainResult<Arc<BlockData>> {
+        let entry = {
+            let mut entries = self.block_cache.entries.lock().await;
+            if entries.len() >= BLOCK_CACHE_CAPACITY {
+                entries.retain(|cached_height, _| height.abs_diff(*cached_height) < 16);
+            }
+            entries
+                .entry(height)
+                .or_insert_with(|| Arc::new(Mutex::new(None)))
+                .clone()
+        };
+        let mut cached = entry.lock().await;
+        if let Some(data) = cached
+            .as_ref()
+            .filter(|data| data.fetched_at.elapsed() < BLOCK_CACHE_TTL)
+        {
+            return Ok(data.data.clone());
+        }
+        let data = self
+            .provider
+            .call(|client| {
+                let future = async move {
+                    let (block, results) = tokio::try_join!(
+                        Self::track_metric_call(&client, "get_block", || {
+                            client.client.block(height)
+                        }),
+                        Self::track_metric_call(&client, "block_results", || {
+                            client.client.block_results(height)
+                        }),
+                    )?;
+                    if results.height.value() != u64::from(height)
+                        || block.block.header.height.value() != u64::from(height)
+                    {
+                        return Err(ChainCommunicationError::from_other_str(
+                            "Block data height does not match the requested block",
+                        ));
+                    }
+                    Ok(Arc::new(BlockData { block, results }))
+                };
+                Box::pin(future)
+            })
+            .await?;
+        *cached = Some(CachedBlockData {
+            fetched_at: Instant::now(),
+            data: data.clone(),
+        });
+        Ok(data)
     }
 
     /// abci query is low level function that only gets called by higher level ones like 'get_balance'
@@ -499,6 +605,70 @@ impl RpcProvider {
                 Box::pin(future)
             })
             .await
+    }
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn rpc_transport_errors_omit_endpoint_credentials() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind test listener");
+        let address = listener.local_addr().expect("test address");
+        drop(listener);
+        let url = Url::parse(&format!("http://{address}/private-path?key=private-query"))
+            .expect("test URL");
+        let client = CosmosHttpClient::from_url(
+            &url,
+            Default::default(),
+            Default::default(),
+            CompatMode::V0_38,
+        )
+        .expect("test client");
+        let raw_error = client
+            .client
+            .latest_block()
+            .await
+            .expect_err("connection failure");
+        assert!(format!("{raw_error:?}").contains("private-"));
+        let error = HyperlaneCosmosError::from(Box::new(raw_error));
+        assert!(matches!(error, HyperlaneCosmosError::RpcTransportError(_)));
+        assert!(error.to_string().contains("Connection refused"));
+        assert!(!format!("{error:?} {error}").contains("private-"));
+        let error = client
+            .get_block_number()
+            .await
+            .expect_err("connection failure");
+        assert!(error.to_string().contains("Connection refused"));
+        assert!(!format!("{error:?} {error}").contains("private-"));
+
+        let url = Url::parse("ws://localhost/private-path?key=private-query").expect("test URL");
+        let error = CosmosHttpClient::from_url(
+            &url,
+            Default::default(),
+            Default::default(),
+            CompatMode::V0_38,
+        )
+        .expect_err("HTTP client rejects WebSocket URL");
+        assert!(!format!("{error:?} {error}").contains("private-"));
+    }
+
+    #[test]
+    fn block_caches_are_scoped_to_rpc_endpoints() {
+        let key = BlockCacheKey {
+            chain_id: "shared-chain-id".to_owned(),
+            rpc_urls: vec!["http://chain-a".to_owned()],
+        };
+        let first = shared_block_cache(key.clone());
+        let same = shared_block_cache(key);
+        let other = shared_block_cache(BlockCacheKey {
+            chain_id: "shared-chain-id".to_owned(),
+            rpc_urls: vec!["http://chain-b".to_owned()],
+        });
+
+        assert!(Arc::ptr_eq(&first, &same));
+        assert!(!Arc::ptr_eq(&first, &other));
     }
 }
 

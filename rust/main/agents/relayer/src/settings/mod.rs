@@ -18,6 +18,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, H160, U256};
 use itertools::Itertools;
+use redact::Secret;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -74,7 +75,7 @@ pub struct RelayerSettings {
     /// Whether to enable IGP indexing.
     pub igp_indexing_enabled: bool,
     /// Optional scraper-proxy WebSocket used for shared indexing.
-    pub websocket_url: Option<url::Url>,
+    pub websocket_url: Option<Secret<url::Url>>,
     /// Whether a healthy scraper-proxy stream may replace direct RPC indexing.
     pub websocket_authority_enabled: bool,
     /// Whether to enable the relay API endpoint (default: false)
@@ -136,7 +137,7 @@ pub enum GasPaymentEnforcementPolicy {
 
 #[derive(Debug, Deserialize)]
 #[serde(transparent)]
-struct RawRelayerSettings(Value);
+struct RawRelayerSettings(Secret<Value>);
 
 impl_loadable_from_settings!(Relayer, RawRelayerSettings -> RelayerSettings);
 
@@ -149,7 +150,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
     ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
-        let p = ValueParser::new(cwp.clone(), &raw.0);
+        let p = ValueParser::new(cwp.clone(), raw.0.expose_secret());
 
         let relay_chain_names: Option<HashSet<&str>> = p
             .chain(&mut err)
@@ -209,7 +210,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
 
         if is_gas_payment_enforcement_set
             && gas_payment_enforcement_parser
-                .val
+                .value()
                 .as_array()
                 .map(|v| v.is_empty())
                 .unwrap_or(true)
@@ -509,7 +510,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             max_retries: max_message_retries,
             tx_id_indexing_enabled,
             igp_indexing_enabled,
-            websocket_url,
+            websocket_url: websocket_url.map(Secret::new),
             websocket_authority_enabled,
             relay_api_enabled,
             relay_api_port,
@@ -574,7 +575,7 @@ mod test {
 
     fn parse_settings(raw: Value) -> ConfigResult<RelayerSettings> {
         RelayerSettings::from_config_filtered(
-            RawRelayerSettings(raw),
+            RawRelayerSettings(raw.into()),
             &ConfigPath::default(),
             (),
             "relayer",
@@ -705,7 +706,11 @@ mod test {
         .expect("valid WebSocket URL should parse");
 
         assert_eq!(
-            settings.websocket_url.expect("configured URL").as_str(),
+            settings
+                .websocket_url
+                .expect("configured URL")
+                .expose_secret()
+                .as_str(),
             "wss://scraper.example/ws/events"
         );
     }

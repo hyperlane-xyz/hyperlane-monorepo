@@ -60,7 +60,6 @@ describe('Cosmos Warp Artifacts (e2e)', function () {
     newOwnerAddress = otherProviderSdkSigner.getSignerAddress();
 
     const rpcUrls = cosmosSigner.getRpcUrls();
-    assert(rpcUrls.length > 0, 'Expected at least 1 rpc url for the tests');
 
     artifactManager = new CosmosWarpArtifactManager(rpcUrls);
 
@@ -81,10 +80,8 @@ describe('Cosmos Warp Artifacts (e2e)', function () {
     secondIsmAddress = ism2.deployed.address;
 
     // Set up mailbox for tests using artifact manager
-    const [firstRpc, ...restRpcs] = rpcUrls;
-    assert(firstRpc, 'Expected at least 1 rpc url');
     const mailboxArtifactManager = new CosmosMailboxArtifactManager({
-      rpcUrls: [firstRpc, ...restRpcs],
+      rpcUrls,
       domainId: 1234,
     });
     const mailboxWriter = mailboxArtifactManager.createWriter(
@@ -231,11 +228,15 @@ describe('Cosmos Warp Artifacts (e2e)', function () {
         // Verify
         const reader = artifactManager.createReader(type);
         const readToken = await reader.read(deployedToken.deployed.address);
+        const router1 = readToken.config.remoteRouters[DOMAIN_1];
+        const router2 = readToken.config.remoteRouters[DOMAIN_2];
+        assert(router1, `Expected router for domain ${DOMAIN_1}`);
+        assert(router2, `Expected router for domain ${DOMAIN_2}`);
 
-        expect(readToken.config.remoteRouters[DOMAIN_1].address).to.equal(
+        expect(router1.address).to.equal(
           '0xc2c6885c3c9e16064d86ce46b7a1ac57888a1e60b2ce88d2504347d3418399c4',
         );
-        expect(readToken.config.remoteRouters[DOMAIN_2].address).to.equal(
+        expect(router2.address).to.equal(
           '0x1aac830e4d71000c25149af643b5a18c7a907e2d36147d8b57c5847b03ea5528',
         );
         expect(readToken.config.destinationGas[DOMAIN_1]).to.equal('100000');
@@ -344,12 +345,9 @@ describe('Cosmos Warp Artifacts (e2e)', function () {
         // Verify gas changed
         const readToken2 = await reader.read(deployedToken.deployed.address);
         expect(readToken2.config.destinationGas[DOMAIN_1]).to.equal('200000');
-        expect(
-          eqAddressCosmos(
-            readToken2.config.remoteRouters[DOMAIN_1].address,
-            routerAddress,
-          ),
-        ).to.be.true;
+        const router = readToken2.config.remoteRouters[DOMAIN_1];
+        assert(router, `Expected router for domain ${DOMAIN_1}`);
+        expect(eqAddressCosmos(router.address, routerAddress)).to.be.true;
       });
 
       it('should transfer ownership via update (ownership last)', async () => {
@@ -394,6 +392,7 @@ describe('Cosmos Warp Artifacts (e2e)', function () {
 
         // Verify ownership transfer is the LAST transaction
         const lastTx = txs[txs.length - 1];
+        assert(lastTx, 'Expected at least one update transaction');
         expect(lastTx.annotation).to.include('owner');
 
         // Execute all transactions
@@ -404,8 +403,10 @@ describe('Cosmos Warp Artifacts (e2e)', function () {
         // Verify router enrollment, ISM, AND ownership transfer succeeded
         const reader = artifactManager.createReader(type);
         const readToken = await reader.read(deployedToken.deployed.address);
+        const router = readToken.config.remoteRouters[DOMAIN_1];
+        assert(router, `Expected router for domain ${DOMAIN_1}`);
 
-        expect(readToken.config.remoteRouters[DOMAIN_1].address).to.equal(
+        expect(router.address).to.equal(
           '0xc2c6885c3c9e16064d86ce46b7a1ac57888a1e60b2ce88d2504347d3418399c4',
         );
         assert(

@@ -20,6 +20,15 @@ export const timelocks: ChainMap<Address> = {
 export const icaOwnerChain = 'ethereum';
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
+// Dedicated Haggis deployer key (GCP secret `mainnet3-haggis-deployer-key`).
+// Staging routes are owned by this address so Haggis can iterate on them without
+// governance, using the same key it deploys and runs `warp apply` with.
+export const HAGGIS_DEPLOYER = '0x22EA0e66c9aFe2879135f4d16B5627454C53877e';
+
+// Dedicated Turnkey pauser: pause() can be signed solo by services, unpause()
+// requires rootUser approval. Any pausable module owned by this address is covered.
+export const PAUSER = '0x60Cc386C85717CB51C2827A75e14826883dF5da4';
+
 // Celestia multisig that owns the eden core deployment.
 // IGP/oracle ownership stays with the deployer.
 export const EDEN_CORE_OWNER = '0x260eDfa1d9f7Ec832E079f90c043360d394d2ce4';

@@ -2,13 +2,14 @@ use radix_transactions::signing::PrivateKey;
 use scrypto::{crypto::Ed25519PrivateKey, types::ComponentAddress};
 
 use hyperlane_core::{ChainResult, H256};
+use redact::Secret;
 
 use crate::{address_to_h256, encode_module_address, HyperlaneRadixError};
 
 #[derive(Clone, Debug)]
 /// Signer for radix chain
 pub struct RadixSigner {
-    private_key: Vec<u8>,
+    private_key: Secret<Vec<u8>>,
     /// encoded address as bech32 and network prefix
     pub encoded_address: String,
     /// H256 address encoding
@@ -29,7 +30,7 @@ impl RadixSigner {
         let encoded_address = encode_module_address("account", &suffix, address_256)?; // TODO: there has to be a constant in radix that defines this
 
         Ok(Self {
-            private_key: private_key_bytes,
+            private_key: Secret::new(private_key_bytes),
             address,
             encoded_address,
             address_256,
@@ -38,9 +39,23 @@ impl RadixSigner {
 
     /// Returns a radix private key primitive type that can be used to sign tx
     pub fn get_signer(&self) -> ChainResult<PrivateKey> {
-        let private_key = Ed25519PrivateKey::from_bytes(&self.private_key)
+        let private_key = Ed25519PrivateKey::from_bytes(self.private_key.expose_secret())
             .map_err(|()| HyperlaneRadixError::Other("failed to build private key".to_owned()))?;
         let signer = PrivateKey::Ed25519(private_key);
         Ok(signer)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RadixSigner;
+
+    #[test]
+    fn debug_redacts_private_key() {
+        let private_key = vec![0xde, 0xad, 0xbe, 0xef].repeat(8);
+        let signer = RadixSigner::new(private_key, "rdx".to_owned()).unwrap();
+        let debug = format!("{signer:?}");
+        assert!(!debug.contains("222, 173, 190, 239"), "key leaked: {debug}");
+        assert!(debug.contains("[REDACTED"));
     }
 }

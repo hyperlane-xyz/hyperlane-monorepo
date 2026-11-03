@@ -2,7 +2,7 @@ import { expect } from 'chai';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { MailboxOnChain } from '@hyperlane-xyz/provider-sdk/mailbox';
-import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
+import { assert, ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
 import { RadixSigner } from '../clients/signer.js';
 import { RadixMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
@@ -202,7 +202,9 @@ describe('Radix Mailbox (e2e)', function () {
 
       // Should have 1 transaction to update the ISM
       expect(updateTxs).to.be.an('array').with.length(1);
-      expect(updateTxs[0].annotation).to.include('default ISM');
+      const [updateTx] = updateTxs;
+      assert(updateTx, 'Expected one update transaction');
+      expect(updateTx.annotation).to.include('default ISM');
     });
 
     it('should update mailbox when owner changes', async () => {
@@ -252,7 +254,9 @@ describe('Radix Mailbox (e2e)', function () {
 
       // Should have 1 transaction to transfer ownership
       expect(updateTxs).to.be.an('array').with.length(1);
-      expect(updateTxs[0].annotation).to.include('ownership');
+      const [updateTx] = updateTxs;
+      assert(updateTx, 'Expected one update transaction');
+      expect(updateTx.annotation).to.include('ownership');
     });
 
     it('should return no transactions when mailbox state matches desired state', async () => {

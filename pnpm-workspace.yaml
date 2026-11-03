@@ -1,6 +1,8 @@
 # Reject packages published less than 7 days ago (supply chain protection)
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
+  # Seismic signed-read support from the newly published SDK release.
+  - seismic-viem@4.0.0
   # Transaction v1 decoding ahead of Solana mainnet activation.
   - '@solana/web3.js@1.99.0'
   - '@hyperlane-xyz/*'
@@ -47,17 +49,11 @@ catalog:
   zod: ^4.5.4
 
   # HTTP
-  express-rate-limit: ^8.3.1
-  '@as-integrations/express5': ^1.1.2
-  '@apollo/server': ^5.5.0
-  '@nestjs/apollo': 13.2.3
-  '@nestjs/common': 11.1.28
-  '@nestjs/core': 11.1.28
-  '@nestjs/graphql': 13.2.3
-  '@nestjs/platform-express': 11.1.28
+  '@fastify/cors': ^11.3.0
+  '@fastify/rate-limit': ^11.2.0
+  fastify: ^5.12.3
+  mercurius: ^16.10.0
   graphql: ^16.14.2
-  reflect-metadata: ^0.2.2
-  rxjs: ^7.8.2
 
   # Utilities
   bignumber.js: ^9.1.1
@@ -205,8 +201,10 @@ catalog:
   '@prisma/client': 7.8.0
   prisma: 7.8.0
 overrides:
-  # 0.11.6 requires 18 consensus heights; current Aleo E2E networks provide 17.
-  '@provablehq/wasm': 0.11.3
+  # Keep WASM aligned with the SDK's Aleo consensus fee model. The v1.1.0
+  # wasm 0.12 requires 22 test consensus heights. The aleo-tools devnode still
+  # uses 17; keep its TEST_ALEO_ENV schedule unchanged until the image is rebuilt.
+  '@provablehq/wasm': 0.12.0
   '@types/react': 18.3.27
   '@types/react-dom': 18.3.7
   async: ^2.6.4

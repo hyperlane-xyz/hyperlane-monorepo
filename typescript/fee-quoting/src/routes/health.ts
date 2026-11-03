@@ -1,12 +1,13 @@
-import { Router } from 'express';
+import type { FeeQuotingApp } from '../http.js';
 
-export function createHealthRouter(isReady: () => boolean): Router {
-  const router = Router();
-
-  router.get('/health', (_req, res) => {
+export function registerHealthRoute(
+  app: FeeQuotingApp,
+  isReady: () => boolean,
+): void {
+  app.get('/health', async (_request, reply) => {
     const ready = isReady();
-    res.status(ready ? 200 : 503).json({ status: ready ? 'ok' : 'starting' });
+    return reply
+      .code(ready ? 200 : 503)
+      .send({ status: ready ? 'ok' : 'starting' });
   });
-
-  return router;
 }

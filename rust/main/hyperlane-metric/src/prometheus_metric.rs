@@ -268,16 +268,14 @@ impl ClientConnectionType {
 }
 
 /// Which pool an RPC connection belongs to. Lets metrics (and downstream alerting)
-/// distinguish a chain's normal RPC pool from a verification-only pool like the
-/// validator's `additionalQuorumRpcUrls`, where failures are expected/tolerated and shouldn't be
-/// treated the same as a primary-pool failure.
+/// distinguish a chain's normal RPC pool from verification-only connections.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RpcRole {
     /// A chain's normal RPC pool (e.g. `rpcUrls`).
     #[default]
     Primary,
-    /// A verification-only pool (e.g. the validator's `additionalQuorumRpcUrls`).
+    /// A verification-only pool.
     Quorum,
 }
 
@@ -304,8 +302,7 @@ pub struct PrometheusConfig {
     /// Information about the chain this client is for.
     pub chain: Option<ChainInfo>,
 
-    /// Which pool this connection belongs to (primary vs. a verification-only pool like
-    /// the validator's `additionalQuorumRpcUrls`). Defaults to `Primary`.
+    /// Which pool this connection belongs to (primary vs. a verification-only pool). Defaults to `Primary`.
     pub rpc_role: RpcRole,
 }
 

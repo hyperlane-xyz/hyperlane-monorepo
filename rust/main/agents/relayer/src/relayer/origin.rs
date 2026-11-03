@@ -44,6 +44,8 @@ pub struct Origin {
     pub igp_indexer: Option<Arc<dyn Indexer<InterchainGasPayment>>>,
     pub merkle_tree_hook_sync: MerkleTreeHookSync,
     pub merkle_sequence_indexer: SequenceIndexer<MerkleTreeInsertion>,
+    /// Shared contract sync metrics, so scraper-indexed progress updates the same cursor gauges.
+    pub sync_metrics: Arc<ContractSyncMetrics>,
 }
 
 impl std::fmt::Debug for Origin {
@@ -112,13 +114,6 @@ impl Factory for OriginFactory {
     ) -> Result<Origin, FactoryError> {
         let db = HyperlaneRocksDB::new(&domain, self.db.clone());
 
-        let validator_announce = {
-            let start_entity_init = Instant::now();
-            let res = self.init_validator_announce(chain_conf, &domain).await?;
-            self.measure(&domain, "validator_announce", start_entity_init.elapsed());
-            res
-        };
-
         // need one of these per origin chain due to the database scoping even though
         // the config itself is the same
         // TODO: maybe use a global one moving forward?
@@ -179,6 +174,15 @@ impl Factory for OriginFactory {
             res
         };
 
+        // Signed Ethereum providers start a background gas escalator. Build this last
+        // so a later indexer failure or timeout cannot discard its owning origin.
+        let validator_announce = {
+            let start_entity_init = Instant::now();
+            let res = self.init_validator_announce(chain_conf, &domain).await?;
+            self.measure(&domain, "validator_announce", start_entity_init.elapsed());
+            res
+        };
+
         let origin = Origin {
             database: db,
             domain,
@@ -193,6 +197,7 @@ impl Factory for OriginFactory {
             igp_indexer,
             merkle_tree_hook_sync,
             merkle_sequence_indexer,
+            sync_metrics: self.sync_metrics.clone(),
         };
         Ok(origin)
     }
@@ -212,8 +217,10 @@ impl OriginFactory {
         chain_conf: &ChainConf,
         domain: &HyperlaneDomain,
     ) -> Result<Arc<dyn ValidatorAnnounce>, FactoryError> {
+        // The relayer only reads announcements. The reader has no transaction
+        // middleware, so it does not start an idle gas escalator per EVM origin.
         let validator_announce = chain_conf
-            .build_validator_announce(&self.core_metrics)
+            .build_validator_announce_reader(&self.core_metrics)
             .await
             .map_err(|err| FactoryError::ValidatorAnnounce(domain.to_string(), err.to_string()))?;
         Ok(validator_announce.into())

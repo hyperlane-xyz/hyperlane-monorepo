@@ -1,7 +1,6 @@
-import cors from 'cors';
-import express, { Express } from 'express';
+import cors from '@fastify/cors';
+import Fastify, { LogController, type FastifyRequest } from 'fastify';
 import type { Logger } from 'pino';
-import { pinoHttp } from 'pino-http';
 import { Registry } from 'prom-client';
 import { type Address, hexToBytes, isAddress, isHex } from 'viem';
 
@@ -20,12 +19,13 @@ import { assert, createServiceLogger, pick } from '@hyperlane-xyz/utils';
 import packageJson from './package.json' with { type: 'json' };
 import type { ServerConfig } from './src/config.js';
 import { DEFAULT_METRICS_PORT, DEFAULT_PORT } from './src/constants.js';
+import type { FeeQuotingApp } from './src/http.js';
 import { createApiKeyAuth } from './src/middleware/apiKeyAuth.js';
 import { createErrorHandler } from './src/middleware/errorHandler.js';
 import { createMetrics } from './src/middleware/metrics.js';
-import { createHealthRouter } from './src/routes/health.js';
-import { createQuoteRouter } from './src/routes/quote.js';
-import { createQuoteV2Router } from './src/routes/quote.v2.js';
+import { registerHealthRoute } from './src/routes/health.js';
+import { registerQuoteRoutes } from './src/routes/quote.js';
+import { registerQuoteV2Routes } from './src/routes/quote.v2.js';
 import {
   EvmQuoteService,
   type EvmRouteSpec,
@@ -38,7 +38,7 @@ import {
 } from './src/services/svmQuoteService.js';
 
 export class FeeQuotingServer {
-  app: Express;
+  readonly app: FeeQuotingApp;
   private readonly logger: Logger;
   private readonly config: ServerConfig;
   private ready = false;
@@ -46,8 +46,7 @@ export class FeeQuotingServer {
   private constructor(config: ServerConfig, logger: Logger) {
     this.config = config;
     this.logger = logger;
-    this.app = express();
-    this.app.set('trust proxy', true);
+    this.app = createApp(logger);
   }
 
   static async create(config: ServerConfig): Promise<FeeQuotingServer> {
@@ -62,28 +61,18 @@ export class FeeQuotingServer {
     const register = new Registry();
     const metrics = createMetrics(register);
 
-    this.app.use(cors());
-    this.app.use(express.json());
-    this.app.use(pinoHttp({ logger: this.logger }));
-    this.app.use(metrics.middleware);
+    this.app.addHook('onRequest', metrics.onRequest);
+    this.app.addHook('onResponse', metrics.onResponse);
+    await this.app.register(cors);
+    this.app.setErrorHandler(createErrorHandler(this.logger));
 
     // Serve metrics on a separate port (cluster-internal only)
-    const metricsApp = express();
-    metricsApp.get('/metrics', async (_req, res) => {
-      res.set('Content-Type', register.contentType);
-      res.end(await register.metrics());
+    const metricsApp = Fastify({ logger: false });
+    metricsApp.get('/metrics', async (_request, reply) => {
+      reply.type(register.contentType);
+      return register.metrics();
     });
-    const metricsServer = metricsApp.listen(DEFAULT_METRICS_PORT, () => {
-      this.logger.info(
-        { port: DEFAULT_METRICS_PORT },
-        'Metrics server running',
-      );
-    });
-    metricsServer.on('error', (error) =>
-      this.logger.error({ error }, 'Metrics server error'),
-    );
-
-    this.app.use(createHealthRouter(() => this.ready));
+    registerHealthRoute(this.app, () => this.ready);
 
     const { multiProvider, core, evmRoutes, svmRoutes, protocolByChain } =
       await this.partitionWarpRoutes(registry);
@@ -157,33 +146,48 @@ export class FeeQuotingServer {
       new Set(this.config.apiKeys),
       this.logger,
     );
-    this.app.use('/quote', apiKeyAuth, createQuoteRouter(quoteService));
-    this.app.use('/v2/quote', apiKeyAuth, createQuoteV2Router(quoteService));
-    this.app.use(createErrorHandler(this.logger));
+    registerQuoteRoutes(this.app, quoteService, apiKeyAuth);
+    registerQuoteV2Routes(this.app, quoteService, apiKeyAuth);
 
     const port = this.config.port ?? DEFAULT_PORT;
-    const server = this.app.listen(port, () => {
+    try {
+      await metricsApp.listen({
+        host: '0.0.0.0',
+        port: DEFAULT_METRICS_PORT,
+      });
+      this.logger.info(
+        { port: DEFAULT_METRICS_PORT },
+        'Metrics server running',
+      );
+      await this.app.listen({ host: '0.0.0.0', port });
       this.ready = true;
       this.logger.info({ port }, 'Server running');
-    });
+    } catch (error) {
+      await Promise.allSettled([metricsApp.close(), this.app.close()]);
+      throw error;
+    }
 
-    server.on('error', (error) => this.logger.error({ error }, 'Server error'));
-
-    const shutdown = () => {
+    let shuttingDown = false;
+    const shutdown = async () => {
+      if (shuttingDown) return;
+      shuttingDown = true;
       this.logger.info('Shutting down...');
       this.ready = false;
-      metricsServer.close();
-      server.close(() => {
-        this.logger.info('Server closed');
-        process.exit(0);
-      });
       setTimeout(() => {
         this.logger.warn('Forcing shutdown after timeout');
         process.exit(1);
       }, 10_000).unref();
+      try {
+        await Promise.all([metricsApp.close(), this.app.close()]);
+        this.logger.info('Server closed');
+        process.exit(0);
+      } catch (error) {
+        this.logger.error({ error }, 'Failed to close server');
+        process.exit(1);
+      }
     };
-    process.on('SIGTERM', shutdown);
-    process.on('SIGINT', shutdown);
+    process.once('SIGTERM', shutdown);
+    process.once('SIGINT', shutdown);
   }
 
   /**
@@ -346,4 +350,31 @@ export class FeeQuotingServer {
       chainMetadata: metadata satisfies ChainMetadataForAltVM,
     };
   }
+}
+
+export function createApp(logger: Logger): FeeQuotingApp {
+  const app = Fastify({
+    bodyLimit: 100 * 1_024,
+    logController: new LogController({ disableRequestLogging: true }),
+    loggerInstance: logger,
+    requestTimeout: 300_000,
+    routerOptions: { caseSensitive: false, ignoreTrailingSlash: true },
+  });
+  const requestErrors = new WeakMap<FastifyRequest, Error>();
+  app.addHook('onError', async (request, _reply, error) => {
+    requestErrors.set(request, error);
+  });
+  app.addHook('onResponse', async (request, reply) => {
+    const err = requestErrors.get(request);
+    requestErrors.delete(request);
+    const fields = {
+      err,
+      req: request,
+      res: reply,
+      responseTime: reply.elapsedTime,
+    };
+    if (err) request.log.error(fields, 'request errored');
+    else request.log.info(fields, 'request completed');
+  });
+  return app;
 }

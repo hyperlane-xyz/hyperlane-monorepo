@@ -1,9 +1,15 @@
 use std::fs;
 use std::path::PathBuf;
 
-use hyperlane_core::{LogMeta, U256};
+use hyperlane_core::{ChainCommunicationError, ChainResult, LogMeta, U256};
+use solana_client::{
+    client_error::{ClientError, ClientErrorKind},
+    rpc_custom_error::JSON_RPC_SERVER_ERROR_SLOT_SKIPPED,
+    rpc_request::{RpcError, RpcResponseErrorData},
+};
 use solana_transaction_status::{EncodedTransactionWithStatusMeta, UiConfirmedBlock};
 
+use crate::error::HyperlaneSealevelError;
 use crate::log_meta_composer::{
     is_interchain_payment_instruction, is_message_delivery_instruction,
     is_message_dispatch_instruction, search_transactions,
@@ -227,6 +233,175 @@ fn test_log_meta_block_with_txn_interchain_payment_search_solaxy() {
         transaction_index: 0,
         log_index,
     });
+}
+
+/// Solaxy can record a PDA slot one ahead of the block containing the transaction.
+fn solaxy_payment_composer() -> (
+    LogMetaComposer,
+    solana_sdk::pubkey::Pubkey,
+    UiConfirmedBlock,
+) {
+    let composer = LogMetaComposer::new(
+        decode_pubkey("VG7YDF5Am2hrgyydE2ufdusdtw5DjgzXJLFxn9p8ehU").unwrap(),
+        "interchain gas payment".to_owned(),
+        is_interchain_payment_instruction,
+    );
+    let payment_pda_account =
+        decode_pubkey("4hWzwVjSd2Mi9kKxJuYGEL9j4dPnTtLSSBp3txR1egPM").unwrap();
+    let block = serde_json::from_str::<UiConfirmedBlock>(&read_json(
+        "dispatch_message_block_interchain_payment_search_solaxy.json",
+    ))
+    .unwrap();
+    (composer, payment_pda_account, block)
+}
+
+fn empty_block(block: &UiConfirmedBlock) -> UiConfirmedBlock {
+    UiConfirmedBlock {
+        transactions: Some(vec![]),
+        ..block.clone()
+    }
+}
+
+fn slot_skipped() -> ChainCommunicationError {
+    HyperlaneSealevelError::ClientError(Box::new(ClientError::from(ClientErrorKind::RpcError(
+        RpcError::RpcResponseError {
+            code: JSON_RPC_SERVER_ERROR_SLOT_SKIPPED,
+            message: "test".to_owned(),
+            data: RpcResponseErrorData::Empty,
+        },
+    ))))
+    .into()
+}
+
+#[tokio::test]
+async fn test_log_meta_found_in_previous_slot() {
+    // given
+    let (composer, payment_pda_account, block) = solaxy_payment_composer();
+    let tx_slot = block.block_height.unwrap();
+    let pda_slot = tx_slot + 1;
+    let expected = composer
+        .log_meta(block.clone(), U256::zero(), &payment_pda_account, &tx_slot)
+        .unwrap();
+    let pda_block = empty_block(&block);
+
+    // when
+    let log_meta = composer
+        .log_meta_at_or_before(
+            pda_block,
+            U256::zero(),
+            &payment_pda_account,
+            &pda_slot,
+            |slot| {
+                assert_eq!(slot, tx_slot);
+                async { Ok(block) }
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+    // then: the canonical location is the previous block, not the recorded PDA slot
+    assert_eq!(log_meta, expected);
+    assert_eq!(log_meta.block_number, tx_slot);
+}
+
+#[tokio::test]
+async fn test_log_meta_not_in_previous_slot_keeps_fallback() {
+    // given
+    let (composer, payment_pda_account, block) = solaxy_payment_composer();
+    let pda_slot = block.block_height.unwrap() + 1;
+    let previous = empty_block(&block);
+
+    // when
+    let result = composer
+        .log_meta_at_or_before(
+            empty_block(&block),
+            U256::zero(),
+            &payment_pda_account,
+            &pda_slot,
+            |_| async { Ok(previous) },
+        )
+        .await
+        .unwrap();
+
+    // then
+    assert!(matches!(
+        result,
+        Err(HyperlaneSealevelError::NoTransactions(_))
+    ));
+}
+
+#[tokio::test]
+async fn test_log_meta_previous_slot_unavailable_keeps_fallback() {
+    // given
+    let (composer, payment_pda_account, block) = solaxy_payment_composer();
+    let pda_slot = block.block_height.unwrap() + 1;
+
+    // when
+    let result = composer
+        .log_meta_at_or_before(
+            empty_block(&block),
+            U256::zero(),
+            &payment_pda_account,
+            &pda_slot,
+            |_| async { ChainResult::<UiConfirmedBlock>::Err(slot_skipped()) },
+        )
+        .await
+        .unwrap();
+
+    // then
+    assert!(matches!(
+        result,
+        Err(HyperlaneSealevelError::NoTransactions(_))
+    ));
+}
+
+#[tokio::test]
+async fn test_log_meta_previous_slot_transient_error_is_retried() {
+    // given
+    let (composer, payment_pda_account, block) = solaxy_payment_composer();
+    let pda_slot = block.block_height.unwrap() + 1;
+
+    // when
+    let result = composer
+        .log_meta_at_or_before(
+            empty_block(&block),
+            U256::zero(),
+            &payment_pda_account,
+            &pda_slot,
+            |_| async {
+                ChainResult::<UiConfirmedBlock>::Err(ChainCommunicationError::from_other_str(
+                    "connection reset",
+                ))
+            },
+        )
+        .await;
+
+    // then
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_log_meta_found_at_pda_slot_skips_previous_slot() {
+    // given
+    let (composer, payment_pda_account, block) = solaxy_payment_composer();
+    let pda_slot = block.block_height.unwrap();
+
+    // when
+    let log_meta = composer
+        .log_meta_at_or_before(
+            block,
+            U256::zero(),
+            &payment_pda_account,
+            &pda_slot,
+            |_| async { unreachable!("previous block must not be fetched") },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+
+    // then
+    assert_eq!(log_meta.block_number, pda_slot);
 }
 
 fn read_json(path: &str) -> String {

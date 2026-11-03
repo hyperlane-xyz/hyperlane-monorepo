@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 import { AgentConfig } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, addressToBytes32, assert } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts, RELEASE_CANDIDATE_INDEX_FROM } from '../config/contexts.js';
@@ -16,7 +16,7 @@ import {
   hyperlaneContextAgentChainConfig as testnet4AgentChainConfig,
 } from '../config/environments/testnet4/agent.js';
 import { testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
-import { getChain } from '../config/registry.js';
+import { getChain, getIcaRouterAddresses } from '../config/registry.js';
 import { getAgentConfigJsonPath } from '../scripts/agent-utils.js';
 import {
   AgentConfigHelper,
@@ -97,6 +97,52 @@ function agentConfigHelper(
 }
 
 describe('Agent configs', () => {
+  for (const context of [Contexts.Hyperlane, Contexts.ReleaseCandidate]) {
+    it(`protects ICA reveals from every origin to the five destinations in ${context}`, async () => {
+      const config = mainnet3Agents[context];
+      const manager = new TestAgentHelmManager(
+        new RelayerConfigHelper(config),
+        Role.Relayer,
+      );
+      const values = await manager.helmValues();
+      const protectedChains = values.hyperlane.chains.filter(
+        (chain) => chain.mevSubmission !== undefined,
+      );
+      expect(protectedChains.map((chain) => chain.name)).to.have.members([
+        'arbitrum',
+        'arc',
+        'base',
+        'ethereum',
+        'robinhood',
+      ]);
+      for (const chain of protectedChains) {
+        expect(chain.mevSubmission?.icaRouter).to.equal(
+          config.relayer?.mevSubmission?.[chain.name]?.icaRouter,
+        );
+        expect(chain.mevSubmission?.icaRouter).to.be.a('string');
+        const configured = chain.mevSubmission;
+        assert(configured, 'Missing protected submission config');
+        expect([
+          configured.icaRouter,
+          ...(configured.additionalIcaRouters ?? []),
+        ]).to.deep.equal(
+          getIcaRouterAddresses(chain.name).map((router) =>
+            addressToBytes32(router),
+          ),
+        );
+      }
+      const validator = new TestAgentHelmManager(
+        agentConfigHelper(config, Role.Validator),
+        Role.Validator,
+      );
+      expect(
+        (await validator.helmValues()).hyperlane.chains.every(
+          (chain) => chain.mevSubmission === undefined,
+        ),
+      ).to.be.true;
+    });
+  }
+
   it('renders v1 reads for Solana clusters and preserves other SVM defaults', async () => {
     const solanaChains = new Set([
       'solanamainnet',
@@ -251,17 +297,11 @@ describe('Agent configs', () => {
     Object.entries(agents).forEach(([context, config]) => {
       const { relayer, validators } = config;
       if (validators) {
-        if (context === Contexts.FastPath) {
-          it(`configures ${environment}/${context} validators for RPC-only indexing`, () => {
-            expect(validators.websocketUrl).to.be.undefined;
-          });
-        } else {
-          it(`configures ${environment}/${context} validators for the shared scraper`, () => {
-            expect(validators.websocketUrl).to.equal(
-              `ws://scraper-proxy.${environment}.svc.cluster.local:8383/agents`,
-            );
-          });
-        }
+        it(`configures ${environment}/${context} validators for the shared scraper`, () => {
+          expect(validators.websocketUrl).to.equal(
+            `ws://scraper-proxy.${environment}.svc.cluster.local:8383/agents`,
+          );
+        });
       }
 
       if (relayer) {
@@ -278,10 +318,7 @@ describe('Agent configs', () => {
             expect(
               relayer.websocketAuthorityEnabled,
               `${environment}/${context} shared scraper authority`,
-            ).to.equal(
-              // Keep RPC authority until seismictestnet scraper coverage and freshness are fixed.
-              !(environment === 'testnet4' && context === Contexts.Hyperlane),
-            );
+            ).to.equal(environment !== 'testnet4');
           });
         }
       }

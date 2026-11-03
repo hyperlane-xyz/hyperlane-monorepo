@@ -8,25 +8,30 @@ import type { QueryResultRow } from 'pg';
 import {
   metricsRegistry,
   websocketCatchUps,
+  websocketNotificationQueueOverflows,
   websocketSendFailures,
 } from '../metrics.js';
 import type { EventDatabase, EventWebSocketServer } from './event-websocket.js';
+import { EVENT_TYPES, type EventType } from './protocol.js';
 import { rawData } from './websocket-data.js';
 
 const hookA = '\\xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const hookB = '\\xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const emptyHook = '\\xcccccccccccccccccccccccccccccccccccccccc';
-const budgetHook = '\\xdddddddddddddddddddddddddddddddddddddddd';
+const replayHook = '\\xdddddddddddddddddddddddddddddddddddddddd';
 const historyHook = '\\xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
 const pacedHook = '\\xffffffffffffffffffffffffffffffffffffffff';
 const gasPaymaster = '\\x1111111111111111111111111111111111111111';
 const msgId = `\\x${'01'.repeat(32)}`;
-const msgBody = 'x'.repeat(300);
+const msgBody = 'é🚀'.repeat(50);
 const rows = new Map([
   ['1', row(hookB)],
   ['2', row(hookA)],
 ]);
+const deliveryRows = new Map<string, Record<string, unknown>>();
+const dispatchRows = new Map<string, Record<string, unknown>>();
 const gasPaymentRows = new Map<string, Record<string, unknown>>();
+const databaseDomainFilters: unknown[] = [];
 let notify: (channel: string, payload?: string) => void;
 const explorerBatchSizes: number[] = [];
 let explorerQuery = '';
@@ -34,8 +39,13 @@ let explorerQueryCount = 0;
 let explorerQueryError: Error | undefined;
 let explorerQueryGate: Promise<void> | undefined;
 let notificationQueryError: Error | undefined;
+let headQueryError: Error | undefined;
+let headQueryErrorDomain: number | undefined;
+let headQueryErrorEventType: EventType | undefined;
 let omitMappedGasPaymentRows = false;
+let omitExplorerRows = false;
 const notifiedIds = new Set<string>();
+const gasReplayQueries: string[] = [];
 
 const db: EventDatabase = {
   async listen(_channels, handler) {
@@ -44,6 +54,7 @@ const db: EventDatabase = {
   },
   async queryLive<T>(sql, values = []) {
     if (sql.includes('"gas_payment_stream_head"')) {
+      databaseDomainFilters.push(values[0]);
       const durable = [...gasPaymentRows.entries()].filter(
         ([, payment]) =>
           payment.domain === values[0] &&
@@ -64,11 +75,12 @@ const db: EventDatabase = {
         },
       ]);
     }
-    if (sql.includes('MIN('))
+    if (sql.includes('MIN(')) {
+      databaseDomainFilters.push(values[0]);
       return queryRows<T>([
         values[1] === emptyHook
           ? { first: '0', last: '-1' }
-          : values[1] === budgetHook
+          : values[1] === replayHook
             ? { first: '0', last: '2' }
             : values[1] === historyHook
               ? { first: '5', last: '5' }
@@ -76,6 +88,7 @@ const db: EventDatabase = {
                 ? { first: '0', last: '1' }
                 : { first: '0', last: '0' },
       ]);
+    }
     if (sql.includes('"message_view"')) {
       explorerQuery = sql;
       explorerQueryCount++;
@@ -83,6 +96,7 @@ const db: EventDatabase = {
       if (explorerQueryError) throw explorerQueryError;
       const messageIds = stringArray(values[0]);
       explorerBatchSizes.push(messageIds.length);
+      if (omitExplorerRows) return [];
       return queryRows<T>(
         messageIds.map((messageId) => ({
           id: '42',
@@ -94,22 +108,26 @@ const db: EventDatabase = {
       );
     }
     if (sql.includes('ORDER BY "leaf_index"')) {
-      if (values[1] === budgetHook)
-        return queryRows<T>([
-          row(budgetHook, 0),
-          row(budgetHook, 1),
-          row(budgetHook, 2),
-        ]);
+      databaseDomainFilters.push(values[0]);
+      if (values[1] === replayHook)
+        return queryRows<T>(
+          [0, 1, 2]
+            .filter((index) => BigInt(index) > BigInt(String(values[2])))
+            .slice(0, 2)
+            .map((index) => row(replayHook, index)),
+        );
       if (values[1] === historyHook) return queryRows<T>([row(historyHook, 5)]);
       if (values[1] === pacedHook)
         return queryRows<T>([row(pacedHook, 0), row(pacedHook, 1)]);
-      return queryRows<T>([row(hookA, 0)]);
+      return queryRows<T>([{ ...row(hookA, 0), domain: values[0] }]);
     }
     if (
       !sql.includes('notification_id') &&
       sql.includes('ORDER BY "event_row"."id"') &&
-      sql.includes('"gas_payment"')
+      sql.includes('"confirmed_gas_payment"')
     ) {
+      databaseDomainFilters.push(values[0]);
+      gasReplayQueries.push(sql);
       const after = BigInt(String(values[2]));
       const through = BigInt(String(values[3]));
       return queryRows<T>(
@@ -132,8 +150,93 @@ const db: EventDatabase = {
     }
     if (
       !sql.includes('notification_id') &&
+      (sql.includes('"frontier_row"."block_number">') ||
+        sql.includes('"frontier_row"."origin_block_height">'))
+    ) {
+      const eventType: EventType = sql.includes(
+        '"confirmed_merkle_tree_insertion"',
+      )
+        ? 'merkle_tree_insertion'
+        : sql.includes('"confirmed_delivered_message"')
+          ? 'delivery'
+          : sql.includes('"confirmed_gas_payment"')
+            ? 'gas_payment'
+            : 'dispatch';
+      if (
+        headQueryError &&
+        (headQueryErrorDomain === undefined ||
+          headQueryErrorDomain === values[0]) &&
+        (headQueryErrorEventType === undefined ||
+          headQueryErrorEventType === eventType)
+      )
+        throw headQueryError;
+      const source =
+        eventType === 'merkle_tree_insertion'
+          ? rows
+          : eventType === 'delivery'
+            ? deliveryRows
+            : eventType === 'gas_payment'
+              ? gasPaymentRows
+              : dispatchRows;
+      const after = BigInt(String(values[1]));
+      const through = BigInt(String(values[2]));
+      const cursorHeight = BigInt(String(values[3]));
+      const cursorId = BigInt(String(values[4]));
+      return queryRows<T>(
+        [...source.entries()]
+          .filter(([id, event]) => {
+            const height = event.block_number ?? event.origin_block_height;
+            if (
+              typeof height !== 'bigint' &&
+              typeof height !== 'number' &&
+              typeof height !== 'string'
+            )
+              return false;
+            const parsedHeight = BigInt(height);
+            return (
+              (event.domain ?? event.origin_domain) === values[0] &&
+              parsedHeight > after &&
+              parsedHeight <= through &&
+              (parsedHeight > cursorHeight ||
+                (parsedHeight === cursorHeight && BigInt(id) > cursorId))
+            );
+          })
+          .sort(([leftId, left], [rightId, right]) => {
+            const leftHeight = BigInt(
+              String(left.block_number ?? left.origin_block_height),
+            );
+            const rightHeight = BigInt(
+              String(right.block_number ?? right.origin_block_height),
+            );
+            if (leftHeight !== rightHeight)
+              return leftHeight < rightHeight ? -1 : 1;
+            return BigInt(leftId) < BigInt(rightId) ? -1 : 1;
+          })
+          .slice(0, Number(values[5]))
+          .map(([id, event]) => {
+            const projected = {
+              ...event,
+              frontier_height: event.block_number ?? event.origin_block_height,
+              frontier_id: id,
+            };
+            if (source === deliveryRows) {
+              delete projected.block_number;
+              delete projected.id;
+            } else if (source === rows) {
+              delete projected.id;
+            } else if (source === gasPaymentRows) {
+              delete projected.block_number;
+            }
+            return projected;
+          }),
+      );
+    }
+    if (
+      !sql.includes('notification_id') &&
       sql.includes('FROM "gas_payment_stream_cursor"')
     ) {
+      databaseDomainFilters.push(values[0]);
+      gasReplayQueries.push(sql);
       if (omitMappedGasPaymentRows) return [];
       const after = BigInt(String(values[2]));
       const through = BigInt(String(values[3]));
@@ -161,9 +264,13 @@ const db: EventDatabase = {
     ids.forEach((id) => notifiedIds.add(id));
     return queryRows<T>(
       ids.flatMap((id) => {
-        const event = sql.includes('"gas_payment"')
-          ? gasPaymentRows.get(id)
-          : rows.get(id);
+        const event = sql.includes('"confirmed_raw_message_dispatch"')
+          ? dispatchRows.get(id)
+          : sql.includes('"confirmed_delivered_message"')
+            ? deliveryRows.get(id)
+            : sql.includes('"confirmed_gas_payment"')
+              ? gasPaymentRows.get(id)
+              : rows.get(id);
         return event
           ? [
               {
@@ -188,7 +295,6 @@ before(async () => {
   const { EventWebSocketServer } = await import('./event-websocket.js');
   events = new EventWebSocketServer(db, {
     maxAgentClients: 2,
-    maxCatchUpRows: 2,
     maxConcurrentCatchUps: 1,
     maxExplorerClients: 8,
     maxTotalBufferedBytes: 1_024,
@@ -206,6 +312,170 @@ after(async () => {
   await new Promise<void>((resolve, reject) =>
     http.close((error) => (error ? reject(error) : resolve())),
   );
+});
+
+for (const route of ['agents', 'messages']) {
+  void it(`${route} streams opt-in block snapshots, progress and replacement heads`, async (context) => {
+    const original = db.queryLive.bind(db);
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let snapshotStarted = false;
+    context.mock.method(
+      db,
+      'queryLive',
+      async <T extends QueryResultRow>(
+        sql: string,
+        values: unknown[] = [],
+      ): Promise<T[]> => {
+        if (!sql.includes("encode(indexed_hash, 'hex')"))
+          return original<T>(sql, values);
+        snapshotStarted = true;
+        if (route === 'agents') assert.deepEqual(values, [[1]]);
+        await held;
+        return queryRows<T>([
+          {
+            domain: 1,
+            indexed_height: '100',
+            head_height: '101',
+            hash: 'ab'.repeat(32),
+          },
+          { domain: 3, indexed_height: '100', head_height: '101', hash: 'ab' },
+        ]);
+      },
+    );
+    const socket = new WebSocket(
+      route === 'agents' ? url : `${messagesUrl}?blocks=true`,
+    );
+    const messages = captureMessages(socket);
+    const publish = (
+      domain: number,
+      height: string,
+      hash = 'cd'.repeat(32),
+      headHeight = height,
+    ): void =>
+      notify(
+        'scraper_head',
+        JSON.stringify({
+          domain,
+          indexedHeight: height,
+          indexedHash: hash,
+          headHeight,
+          confirmedHeight: '90',
+        }),
+      );
+    try {
+      if (route === 'agents') {
+        await waitFor(messages, 'ready');
+        socket.send(
+          JSON.stringify({
+            type: 'subscribe',
+            streams: [
+              { eventType: 'blocks', domains: [1] },
+              { eventType: 'delivery' },
+            ],
+          }),
+        );
+      }
+      await waitUntil(() => snapshotStarted);
+      // A rollback arriving during snapshot loading must win over that snapshot.
+      publish(1, '99');
+      assert.equal(
+        messages.some(({ type }) => type === 'block'),
+        false,
+      );
+      release();
+      const block = await waitFor(messages, 'block');
+      assert.deepEqual(block, {
+        type: 'block',
+        domain: 1,
+        height: '99',
+        hash: `0x${'cd'.repeat(32)}`,
+        headHeight: '99',
+      });
+      assert(
+        messages.findIndex(
+          ({ type }) => type === (route === 'agents' ? 'subscribed' : 'ready'),
+        ) < messages.indexOf(block),
+      );
+      publish(1, '99'); // Duplicate status notification, not a new head.
+      publish(1, '99', 'ef'.repeat(32)); // Same-height replacement.
+      await waitUntil(
+        () => messages.filter(({ type }) => type === 'block').length === 2,
+      );
+      publish(1, '100', 'ab'.repeat(32), '103');
+      await waitUntil(
+        () => messages.filter(({ type }) => type === 'block').length === 3,
+      );
+      publish(1, '98');
+      await waitUntil(
+        () => messages.filter(({ type }) => type === 'block').length === 4,
+      );
+      assert.equal(messages.at(-1)?.height, '98');
+      publish(2, '100');
+      if (route === 'agents') {
+        socket.send(JSON.stringify({ type: 'ping' }));
+        await waitFor(messages, 'pong');
+        assert.equal(
+          messages.some(
+            (message) => message.type === 'block' && message.domain === 2,
+          ),
+          false,
+        );
+        socket.send(
+          JSON.stringify({
+            type: 'subscribe',
+            streams: [{ eventType: 'blocks' }],
+          }),
+        );
+        assert.match(
+          String((await waitFor(messages, 'error')).error),
+          /Already subscribed/,
+        );
+      } else {
+        await waitUntil(() =>
+          messages.some(
+            (message) => message.type === 'block' && message.domain === 2,
+          ),
+        );
+      }
+    } finally {
+      release();
+      socket.close();
+      await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    }
+  });
+}
+
+void it('does not send block heads or query snapshots without opting in', async (context) => {
+  context.mock.method(db, 'queryLive', async () => {
+    throw new Error('Unexpected snapshot query');
+  });
+  const socket = new WebSocket(messagesUrl);
+  const messages = captureMessages(socket);
+  try {
+    const ready = await waitFor(messages, 'ready');
+    assert.deepEqual(ready.eventTypes, ['message_upsert']);
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        domain: 1,
+        confirmedHeight: '90',
+        indexedHeight: '100',
+        indexedHash: 'ab'.repeat(32),
+        headHeight: '101',
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(
+      messages.some(({ type }) => type === 'block'),
+      false,
+    );
+  } finally {
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
 });
 
 void it('keeps agent capacity independent from Explorer capacity', async () => {
@@ -241,6 +511,650 @@ void it('keeps agent capacity independent from Explorer capacity', async () => {
   );
 });
 
+for (const kind of ['query', 'unavailable', 'delivery']) {
+  void it(`reports ${kind} confirmation negotiation errors before closing with 1008`, async (context) => {
+    if (kind === 'unavailable')
+      context.mock.method(db, 'queryLive', async () => []);
+    const socket = new WebSocket(
+      kind === 'query' ? `${messagesUrl}?confirmations=-1&domains=1` : url,
+    );
+    const messages = captureMessages(socket);
+    const closed = new Promise<number>((resolve) =>
+      socket.once('close', resolve),
+    );
+    try {
+      if (kind !== 'query') {
+        await waitFor(messages, 'ready');
+        socket.send(
+          JSON.stringify({
+            type: 'subscribe',
+            streams: [
+              {
+                eventType: kind === 'delivery' ? 'delivery' : 'dispatch',
+                confirmations: 0,
+                domains: [1],
+              },
+            ],
+          }),
+        );
+      }
+      const error = await waitFor(messages, 'error');
+      assert.match(
+        String(error.error),
+        kind === 'query'
+          ? /Expected confirmations/
+          : /Custom confirmations unavailable/,
+      );
+      assert.equal(await closed, 1008);
+      assert.equal(
+        messages.some((message) => message.type === 'subscribed'),
+        false,
+      );
+    } finally {
+      socket.close();
+    }
+  });
+}
+
+void it('acknowledges all subscriptions before canonical events or custom rollbacks', async (context) => {
+  const original = db.queryLive.bind(db);
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let snapshots = 0;
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      if (sql.includes('SELECT domain, head_height')) {
+        snapshots++;
+        if (snapshots === 2) await held;
+        return queryRows<T>([
+          {
+            domain: 1,
+            head_height: '10',
+            indexed_height: '10',
+            confirmed_height: '5',
+          },
+        ]);
+      }
+      if (sql.includes('confirmation_events')) return [];
+      return original<T>(sql, values);
+    },
+  );
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        type: 'subscribe',
+        streams: [
+          { eventType: 'merkle_tree_insertion' },
+          { eventType: 'dispatch', confirmations: 0, domains: [1] },
+          { eventType: 'gas_payment', confirmations: 0, domains: [1] },
+        ],
+      }),
+    );
+    await waitUntil(() => snapshots === 2);
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        domain: 1,
+        confirmedHeight: '5',
+        previousConfirmedHeight: '5',
+        headHeight: '9',
+        indexedHeight: '9',
+        previousIndexedHeight: '10',
+      }),
+    );
+    notify('scraper_event', notification('1'));
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.deepEqual(
+      messages.map(({ type }) => type),
+      ['ready'],
+    );
+    release();
+    await waitFor(messages, 'subscribed');
+    notify('scraper_event', notification('1'));
+    await waitFor(messages, 'event');
+    assert.deepEqual(
+      messages.slice(0, 3).map(({ type }) => type),
+      ['ready', 'subscribed', 'event'],
+    );
+  } finally {
+    release();
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('shares equivalent Explorer enrichment and invalidates it after rollback', async (context) => {
+  let queries = 0;
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(sql: string): Promise<T[]> => {
+      if (sql.includes('SELECT domain, head_height'))
+        return queryRows<T>([
+          {
+            domain: 1,
+            head_height: '9',
+            indexed_height: '9',
+            confirmed_height: '5',
+          },
+        ]);
+      if (sql.includes('confirmation_messages')) return [];
+      if (sql.includes('provisional_message_view')) {
+        queries++;
+        return queryRows<T>([
+          {
+            msg_id: msgId,
+            origin_domain_id: 1,
+            destination_domain_id: 2,
+            payment_domain_ids: [3],
+          },
+        ]);
+      }
+      throw new Error(`Unexpected shared enrichment query: ${sql}`);
+    },
+  );
+  const sockets = [
+    new WebSocket(`${messagesUrl}?confirmations=0&domains=1,2`),
+    new WebSocket(`${messagesUrl}?confirmations=0&domains=2,1`),
+  ];
+  const messages: Record<string, unknown>[][] = sockets.map(() => []);
+  sockets.forEach((socket, i) =>
+    socket.on('message', (data) =>
+      messages[i].push(parseRecord(rawData(data))),
+    ),
+  );
+  try {
+    await Promise.all(messages.map((frames) => waitFor(frames, 'ready')));
+    notify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: msgId.slice(2) }),
+    );
+    await Promise.all(
+      messages.map((frames) => waitFor(frames, 'message_upsert')),
+    );
+    assert.equal(queries, 1);
+    assert(
+      messages.every(
+        (frames) => !('payment_domain_ids' in record(frames.at(-1)?.data)),
+      ),
+    );
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        domain: 1,
+        confirmedHeight: '5',
+        previousConfirmedHeight: '5',
+        headHeight: '8',
+        indexedHeight: '8',
+        previousIndexedHeight: '9',
+      }),
+    );
+    await waitUntil(() =>
+      messages.every(
+        (frames) =>
+          frames.filter(({ type }) => type === 'message_upsert').length === 2,
+      ),
+    );
+    assert.equal(queries, 2);
+    messages.forEach((frames) =>
+      assert.deepEqual(
+        frames.map(({ type }) => type),
+        ['ready', 'message_upsert', 'rollback', 'message_upsert'],
+      ),
+    );
+  } finally {
+    sockets.forEach((socket) => socket.close());
+    await waitUntil(() =>
+      sockets.every((socket) => socket.readyState === WebSocket.CLOSED),
+    );
+  }
+});
+
+for (const eventType of [
+  ...EVENT_TYPES.filter((type) => type !== 'delivery'),
+  'messages',
+]) {
+  void it(`streams custom ${eventType} with confirmations, rollback, and replacements`, async (context) => {
+    const completions = delayServerSendCompletions(context);
+    let replacement = false;
+    context.mock.method(
+      db,
+      'queryLive',
+      async <T extends QueryResultRow>(
+        sql: string,
+        values: unknown[] = [],
+      ): Promise<T[]> => {
+        if (sql.includes('SELECT domain, head_height'))
+          return queryRows<T>([
+            {
+              domain: 1,
+              head_height: '11',
+              indexed_height: '9',
+              confirmed_height: '5',
+            },
+          ]);
+        const messageId = `\\x${(replacement ? '02' : '01').repeat(32)}`;
+        const data = {
+          ...gasPaymentRow('1', null),
+          ...row(hookA, 0),
+          destination_domain: 2,
+          origin_domain: 1,
+          origin_block_height: '10',
+          origin_mailbox: hookA,
+          nonce: 0,
+          msg_id: messageId,
+          destination_mailbox: hookB,
+          destination_tx_id: null,
+          sequence: '0',
+        };
+        if (
+          sql.includes('confirmation_events') ||
+          sql.includes('confirmation_messages')
+        ) {
+          const explorer = sql.includes('confirmation_messages');
+          const after = BigInt(String(values[1]));
+          const id = BigInt(String(values[explorer ? 3 : 2]));
+          const through = BigInt(String(values[explorer ? 4 : 3]));
+          if (through < 10n || after > 10n || (after === 10n && id >= 1n))
+            return [];
+          if (explorer)
+            return queryRows<T>([
+              { height: '10', source: 0, id: '1', msg_id: messageId },
+            ]);
+          const projected: Record<string, unknown> = {
+            ...data,
+            frontier_id: '1',
+            frontier_height: '10',
+          };
+          if (eventType === 'delivery' || eventType === 'gas_payment')
+            delete projected.block_number;
+          return queryRows<T>([projected]);
+        }
+        if (sql.includes('provisional_message_view'))
+          return queryRows<T>([
+            {
+              msg_id: messageId,
+              origin_domain_id: 1,
+              destination_domain_id: 2,
+            },
+          ]);
+        throw new Error(`Unexpected custom stream query: ${sql}`);
+      },
+    );
+    const socket = new WebSocket(
+      eventType === 'messages'
+        ? `${messagesUrl}?confirmations=2&domains=1,2`
+        : url,
+    );
+    const messages = captureMessages(socket);
+    const advance = (
+      headHeight: string,
+      indexedHeight: string,
+      previousIndexedHeight: string,
+    ) =>
+      notify(
+        'scraper_head',
+        JSON.stringify({
+          domain: 1,
+          confirmedHeight: '5',
+          previousConfirmedHeight: '5',
+          headHeight,
+          indexedHeight,
+          previousIndexedHeight,
+        }),
+      );
+    try {
+      const ready = await waitFor(messages, 'ready');
+      if (eventType === 'messages') {
+        assert.deepEqual(ready.customDomains, [1]);
+        assert.deepEqual(ready.canonicalDomains, [2]);
+      }
+      if (eventType !== 'messages') {
+        socket.send(
+          JSON.stringify({
+            type: 'subscribe',
+            streams: [{ eventType, confirmations: 2, domains: [1] }],
+          }),
+        );
+        await waitFor(messages, 'subscribed');
+      }
+      advance('11', '10', '9');
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      assert.equal(completions.length, 0, 'height 10 needs head 12');
+      advance('12', '10', '10');
+      const frame = await waitFor(
+        messages,
+        eventType === 'messages' ? 'message_upsert' : 'event',
+      );
+      assert.equal(frame.height, '10');
+      assert.equal(frame.confirmations, 2);
+      assert.equal(record(frame.data).frontier_height, undefined);
+      await waitUntil(() => completions.length === 1);
+      advance('11', '9', '10');
+      const rollback = await waitFor(messages, 'rollback');
+      assert.equal(rollback.fromHeight, '10');
+      assert.equal(rollback.toHeight, '9');
+      replacement = true;
+      advance('12', '10', '9');
+      completions.shift()?.();
+      await waitUntil(() =>
+        messages.some(
+          (m) => m.data && record(m.data).msg_id === `\\x${'02'.repeat(32)}`,
+        ),
+      );
+      assert.equal(socket.readyState, WebSocket.OPEN);
+    } finally {
+      socket.close();
+      for (const complete of completions.splice(0)) complete();
+      await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+      for (const complete of completions.splice(0)) complete();
+    }
+  });
+}
+
+for (const supported of [true, false]) {
+  void it(`keeps canonical Explorer updates in a ${supported ? 'mixed' : 'canonical-only'} confirmation subscription`, async (context) => {
+    const queries: unknown[][] = [];
+    context.mock.method(
+      db,
+      'queryLive',
+      async <T extends QueryResultRow>(
+        sql: string,
+        values: unknown[] = [],
+      ): Promise<T[]> => {
+        if (sql.includes('SELECT domain, head_height'))
+          return queryRows<T>(
+            supported
+              ? [
+                  {
+                    domain: 1,
+                    head_height: '11',
+                    indexed_height: '9',
+                    confirmed_height: '5',
+                  },
+                ]
+              : [],
+          );
+        if (sql.includes('provisional_message_view')) {
+          queries.push(values);
+          return queryRows<T>([
+            {
+              msg_id: msgId,
+              origin_domain_id: 2,
+              destination_domain_id: 3,
+              is_delivered: true,
+            },
+            {
+              msg_id: 'unrelated',
+              origin_domain_id: 3,
+              destination_domain_id: 4,
+            },
+          ]);
+        }
+        throw new Error(`Unexpected mixed subscription query: ${sql}`);
+      },
+    );
+    const socket = new WebSocket(`${messagesUrl}?confirmations=2&domains=1,2`);
+    const messages = captureMessages(socket);
+    try {
+      const ready = await waitFor(messages, 'ready');
+      assert.deepEqual(ready.customDomains, supported ? [1] : []);
+      assert.deepEqual(ready.canonicalDomains, supported ? [2] : [1, 2]);
+      notify(
+        'scraper_explorer_event',
+        JSON.stringify({ messageId: msgId.slice(2) }),
+      );
+      const upsert = await waitFor(messages, 'message_upsert');
+      assert.equal(record(upsert.data).msg_id, msgId);
+      assert.equal(record(upsert.data).is_delivered, true);
+      assert.deepEqual(
+        queries[0].slice(1),
+        supported ? [[1], ['9']] : [[], []],
+      );
+      assert.equal(
+        messages.filter((m) => m.type === 'message_upsert').length,
+        1,
+      );
+      assert.equal(socket.readyState, WebSocket.OPEN);
+    } finally {
+      socket.close();
+      await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    }
+  });
+}
+
+void it('normalizes legacy signed domains on the agent wire', async () => {
+  const signedDomain = -846_819_108;
+  const unsignedDomain = 3_448_148_188;
+  const ids = {
+    delivery: '9002',
+    dispatch: '9001',
+    gas_payment: '9003',
+    merkle_tree_insertion: '9004',
+  } as const;
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: Object.keys(ids).map((eventType) => ({
+          domains: [unsignedDomain],
+          eventType,
+        })),
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'subscribed');
+
+    dispatchRows.set(ids.dispatch, {
+      destination_domain: signedDomain,
+      id: ids.dispatch,
+      msg_body: '\\x',
+      msg_id: msgId,
+      nonce: 1,
+      origin_block_hash: `\\x${'02'.repeat(32)}`,
+      origin_block_height: '1',
+      origin_domain: signedDomain,
+      origin_mailbox: hookA,
+      origin_tx_hash: `\\x${'03'.repeat(64)}`,
+      recipient: hookB,
+      sender: hookA,
+      time_created: new Date(0).toISOString(),
+    });
+    deliveryRows.set(ids.delivery, {
+      destination_mailbox: hookB,
+      destination_tx_id: `\\x${'04'.repeat(32)}`,
+      domain: signedDomain,
+      msg_id: msgId,
+      sequence: '1',
+      time_created: new Date(0).toISOString(),
+    });
+    gasPaymentRows.set(ids.gas_payment, {
+      ...gasPaymentRow(ids.gas_payment, '1'),
+      destination: signedDomain,
+      domain: signedDomain,
+      origin: signedDomain,
+    });
+    rows.set(ids.merkle_tree_insertion, {
+      ...row(hookA),
+      domain: signedDomain,
+    });
+
+    for (const [index, [eventType, id]] of Object.entries(ids).entries()) {
+      notify(
+        'scraper_event',
+        JSON.stringify({ domain: signedDomain, eventType, id }),
+      );
+      await waitUntil(
+        () =>
+          messages.filter(({ type }) => type === 'event').length === index + 1,
+      );
+    }
+
+    const event = (eventType: string) => {
+      const message = messages.find(
+        (item) => item.type === 'event' && item.eventType === eventType,
+      );
+      assert(message);
+      assert.equal(message.domain, unsignedDomain);
+      return record(message.data);
+    };
+    assert.deepEqual(
+      {
+        destination_domain: event('dispatch').destination_domain,
+        origin_domain: event('dispatch').origin_domain,
+      },
+      { destination_domain: unsignedDomain, origin_domain: unsignedDomain },
+    );
+    assert.equal(event('delivery').domain, unsignedDomain);
+    assert.deepEqual(
+      {
+        destination: event('gas_payment').destination,
+        domain: event('gas_payment').domain,
+        origin: event('gas_payment').origin,
+      },
+      {
+        destination: unsignedDomain,
+        domain: unsignedDomain,
+        origin: unsignedDomain,
+      },
+    );
+    assert.equal(event('merkle_tree_insertion').domain, unsignedDomain);
+  } finally {
+    deliveryRows.delete(ids.delivery);
+    dispatchRows.delete(ids.dispatch);
+    gasPaymentRows.delete(ids.gas_payment);
+    rows.delete(ids.merkle_tree_insertion);
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('queries high domains using the legacy signed representation', async () => {
+  const signedDomain = -846_819_108;
+  const unsignedDomain = 3_448_148_188;
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  databaseDomainFilters.length = 0;
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [
+          {
+            cursors: [
+              {
+                address: hookA,
+                afterSequence: '-1',
+                domain: unsignedDomain,
+              },
+            ],
+            eventType: 'merkle_tree_insertion',
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'caught_up');
+
+    assert.deepEqual(databaseDomainFilters, [signedDomain, signedDomain]);
+    const event = messages.find(({ type }) => type === 'event');
+    assert(event);
+    assert.equal(event.domain, unsignedDomain);
+    assert.equal(record(event.data).domain, unsignedDomain);
+  } finally {
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    databaseDomainFilters.length = 0;
+  }
+});
+
+void it('queries high gas payment domains using the legacy signed representation', async () => {
+  const signedDomain = -846_819_108;
+  const unsignedDomain = 3_448_148_188;
+  gasPaymentRows.clear();
+  databaseDomainFilters.length = 0;
+  gasPaymentRows.set('10', {
+    ...gasPaymentRow('10', null),
+    destination: signedDomain,
+    domain: signedDomain,
+    origin: signedDomain,
+  });
+  gasPaymentRows.set('30', {
+    ...gasPaymentRow('30', null, '11'),
+    destination: signedDomain,
+    domain: signedDomain,
+    origin: signedDomain,
+  });
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [
+          {
+            cursors: [
+              {
+                address: gasPaymaster,
+                afterStreamCursor: '0',
+                domain: unsignedDomain,
+              },
+            ],
+            eventType: 'gas_payment',
+            streamCursorVersion: 3,
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'caught_up');
+
+    assert.deepEqual(databaseDomainFilters, [
+      signedDomain,
+      signedDomain,
+      signedDomain,
+    ]);
+    const events = messages.filter(({ type }) => type === 'event');
+    assert.equal(events.length, 2);
+    for (const event of events) {
+      assert.equal(event.domain, unsignedDomain);
+      assert.deepEqual(
+        {
+          destination: record(event.data).destination,
+          domain: record(event.data).domain,
+          origin: record(event.data).origin,
+        },
+        {
+          destination: unsignedDomain,
+          domain: unsignedDomain,
+          origin: unsignedDomain,
+        },
+      );
+    }
+  } finally {
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    gasPaymentRows.clear();
+    databaseDomainFilters.length = 0;
+  }
+});
+
 void it('accepts fleet-sized agent subscriptions without raising the Explorer payload limit', async () => {
   const { EventWebSocketServer } = await import('./event-websocket.js');
   const payloadHttp = createServer();
@@ -267,8 +1181,7 @@ void it('accepts fleet-sized agent subscriptions without raising the Explorer pa
 
   const payloadUrl = `ws://127.0.0.1:${address.port}`;
   const agent = new WebSocket(`${payloadUrl}/agents`);
-  const agentMessages: Record<string, unknown>[] = [];
-  agent.on('message', (data) => agentMessages.push(parseRecord(rawData(data))));
+  const agentMessages = captureMessages(agent);
   const explorer = new WebSocket(`${payloadUrl}/messages`, {
     headers: { 'cf-connecting-ip': '203.0.113.100' },
   });
@@ -338,7 +1251,24 @@ void it('requires the Cloudflare client IP in production', async () => {
   }
 });
 
-void it('limits Explorer connections to five per IP and releases capacity', async () => {
+void it('limits Explorer connections to five per IP and safely handles errors while rejecting', async (t) => {
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- Called below with the original socket as this.
+  const close = WebSocket.prototype.close;
+  let injected = false;
+  t.mock.method(
+    WebSocket.prototype,
+    'close',
+    function (this: WebSocket, code?: number, reason?: string | Buffer) {
+      if (code === 1008 && !injected) {
+        injected = true;
+        this.emit(
+          'error',
+          new Error('Malformed frame during rejected connection close'),
+        );
+      }
+      return close.call(this, code, reason);
+    },
+  );
   const ip = '203.0.113.1';
   const sockets = Array.from({ length: 5 }, () => explorerSocket(ip));
   const messages: Record<string, unknown>[][] = sockets.map(() => []);
@@ -356,6 +1286,7 @@ void it('limits Explorer connections to five per IP and releases capacity', asyn
     ),
   );
   assert.equal(code, 1008);
+  assert.equal(injected, true);
   assert.match(reason, /Maximum connections per client reached/);
 
   const closed = new Promise<void>((resolve) =>
@@ -388,7 +1319,7 @@ void it('limits Explorer connections to five per IP and releases capacity', asyn
   );
 });
 
-void it('enforces the historical replay row budget', async () => {
+void it('completes historical replay across pages without a total row budget', async () => {
   const socket = new WebSocket(url);
   const messages: Record<string, unknown>[] = [];
   socket.on('message', (data) => {
@@ -400,7 +1331,11 @@ void it('enforces the historical replay row budget', async () => {
           streams: [
             {
               cursors: [
-                { address: budgetHook, afterSequence: '-1', domain: 1 },
+                {
+                  address: replayHook,
+                  afterSequence: '-1',
+                  domain: 1,
+                },
               ],
               eventType: 'merkle_tree_insertion',
             },
@@ -410,8 +1345,13 @@ void it('enforces the historical replay row budget', async () => {
       );
     }
   });
-  const message = await waitFor(messages, 'error');
-  assert.equal(message.error, 'Failed to catch up merkle_tree_insertion');
+  const message = await waitFor(messages, 'caught_up');
+  assert.equal(message.sequence, '2');
+  assert.deepEqual(eventSequences(messages), ['0', '1', '2']);
+  assert.equal(
+    messages.some(({ type }) => type === 'error'),
+    false,
+  );
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
 });
@@ -426,7 +1366,11 @@ void it('treats a missing sequence zero as a gap for -1 cursors', async () => {
           streams: [
             {
               cursors: [
-                { address: historyHook, afterSequence: '-1', domain: 1 },
+                {
+                  address: historyHook,
+                  afterSequence: '-1',
+                  domain: 1,
+                },
               ],
               eventType: 'merkle_tree_insertion',
             },
@@ -454,7 +1398,13 @@ void it('paces historical sends by send completion', async (context) => {
         JSON.stringify({
           streams: [
             {
-              cursors: [{ address: pacedHook, afterSequence: '-1', domain: 1 }],
+              cursors: [
+                {
+                  address: pacedHook,
+                  afterSequence: '-1',
+                  domain: 1,
+                },
+              ],
               eventType: 'merkle_tree_insertion',
             },
           ],
@@ -505,7 +1455,13 @@ void it('queues catch-ups at the concurrency limit', async (context) => {
           JSON.stringify({
             streams: [
               {
-                cursors: [{ address: hookA, afterSequence: '-1', domain: 1 }],
+                cursors: [
+                  {
+                    address: hookA,
+                    afterSequence: '-1',
+                    domain: 1,
+                  },
+                ],
                 eventType: 'merkle_tree_insertion',
               },
             ],
@@ -551,7 +1507,13 @@ void it('records a disconnected historical replay as aborted', async (context) =
         JSON.stringify({
           streams: [
             {
-              cursors: [{ address: pacedHook, afterSequence: '-1', domain: 1 }],
+              cursors: [
+                {
+                  address: pacedHook,
+                  afterSequence: '-1',
+                  domain: 1,
+                },
+              ],
               eventType: 'merkle_tree_insertion',
             },
           ],
@@ -587,7 +1549,13 @@ void it('drains live events arriving while the pending buffer is sent', async (c
         JSON.stringify({
           streams: [
             {
-              cursors: [{ address: pacedHook, afterSequence: '-1', domain: 1 }],
+              cursors: [
+                {
+                  address: pacedHook,
+                  afterSequence: '-1',
+                  domain: 1,
+                },
+              ],
               eventType: 'merkle_tree_insertion',
             },
           ],
@@ -628,6 +1596,513 @@ void it('drains live events arriving while the pending buffer is sent', async (c
   await new Promise<void>((resolve) => socket.once('close', resolve));
 });
 
+void it('publishes every frontier projection without exposing pagination columns', async () => {
+  const fixtures = [
+    {
+      event: {
+        destination_domain: 2,
+        id: '50',
+        msg_body: '\\x',
+        msg_id: msgId,
+        nonce: 0,
+        origin_block_hash: `\\x${'02'.repeat(32)}`,
+        origin_block_height: '10',
+        origin_domain: 1,
+        origin_mailbox: hookA,
+        origin_tx_hash: `\\x${'03'.repeat(32)}`,
+        recipient: hookB,
+        sender: hookA,
+        time_created: new Date(0).toISOString(),
+      },
+      eventType: 'dispatch',
+      id: '50',
+      source: dispatchRows,
+    },
+    {
+      event: {
+        block_number: '10',
+        destination_mailbox: hookB,
+        destination_tx_id: null,
+        domain: 1,
+        msg_id: msgId,
+        sequence: '0',
+        time_created: new Date(0).toISOString(),
+      },
+      eventType: 'delivery',
+      id: '51',
+      source: deliveryRows,
+    },
+    {
+      event: {
+        ...gasPaymentRow('52', null, '1'),
+        block_number: '10',
+      },
+      eventType: 'gas_payment',
+      id: '52',
+      source: gasPaymentRows,
+    },
+    {
+      event: { ...row(hookA, 0), block_number: '10' },
+      eventType: 'merkle_tree_insertion',
+      id: '53',
+      source: rows,
+    },
+  ] as const;
+  for (const fixture of fixtures) {
+    const socket = new WebSocket(url);
+    const messages = captureMessages(socket);
+    try {
+      await waitFor(messages, 'ready');
+      socket.send(
+        JSON.stringify({
+          streams: [{ domains: [1], eventType: fixture.eventType }],
+          type: 'subscribe',
+        }),
+      );
+      await waitFor(messages, 'subscribed');
+      fixture.source.set(fixture.id, fixture.event);
+      notify(
+        'scraper_head',
+        JSON.stringify({
+          confirmedHeight: '10',
+          domain: 1,
+          previousConfirmedHeight: '9',
+        }),
+      );
+      const message = await waitFor(messages, 'event');
+      assert.equal(message.eventType, fixture.eventType);
+      assert(!('frontier_id' in record(message.data)));
+      assert(!('frontier_height' in record(message.data)));
+      assert.equal(socket.readyState, WebSocket.OPEN);
+    } finally {
+      fixture.source.delete(fixture.id);
+      socket.close();
+      await new Promise<void>((resolve) => socket.once('close', resolve));
+    }
+  }
+});
+
+void it('fails a frontier instead of inventing a missing gas cursor', async () => {
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [{ domains: [1], eventType: 'gas_payment' }],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'subscribed');
+    gasPaymentRows.set('54', {
+      ...gasPaymentRow('54', null),
+      block_number: '10',
+    });
+    const closed = new Promise<number>((resolve) =>
+      socket.once('close', resolve),
+    );
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '10',
+        domain: 1,
+        previousConfirmedHeight: '9',
+      }),
+    );
+    assert.equal(await closed, 1013);
+  } finally {
+    gasPaymentRows.delete('54');
+    socket.terminate();
+  }
+});
+
+void it('retries a frontier until its rows can be loaded', async () => {
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [{ domains: [1], eventType: 'merkle_tree_insertion' }],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'subscribed');
+    rows.set('51', { ...row(hookA, 51), block_number: '11' });
+    headQueryError = new Error('temporary frontier read failure');
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '11',
+        domain: 1,
+        previousConfirmedHeight: '10',
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert(!eventSequences(messages).includes('51'));
+    headQueryError = undefined;
+    // The retry fires LISTENER_RETRY_MS after the failure; leave slack for slow runners.
+    await waitUntil(() => eventSequences(messages).includes('51'), 500);
+  } finally {
+    headQueryError = undefined;
+    rows.delete('51');
+    socket.close();
+    await new Promise<void>((resolve) => socket.once('close', resolve));
+  }
+});
+
+void it('keeps one failing frontier from blocking another domain', async () => {
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: [
+          {
+            domains: [1, 2],
+            eventType: 'merkle_tree_insertion',
+          },
+        ],
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'subscribed');
+    rows.set('52', {
+      ...row(hookA, 52),
+      block_number: '12',
+      domain: 2,
+    });
+    headQueryError = new Error('domain 1 unavailable');
+    headQueryErrorDomain = 1;
+    for (const domain of [1, 2]) {
+      notify(
+        'scraper_head',
+        JSON.stringify({
+          confirmedHeight: '12',
+          domain,
+          previousConfirmedHeight: '11',
+        }),
+      );
+    }
+    await waitUntil(() => eventSequences(messages).includes('52'));
+  } finally {
+    headQueryError = undefined;
+    headQueryErrorDomain = undefined;
+    rows.delete('52');
+    socket.close();
+    await new Promise<void>((resolve) => socket.once('close', resolve));
+  }
+});
+
+void it('disconnects only subscribers of a persistently failing domain', async () => {
+  const sockets = [new WebSocket(url), new WebSocket(url)];
+  const received = sockets.map((socket, index) => {
+    const messages: Record<string, unknown>[] = [];
+    socket.on('message', (data) => {
+      const message = parseRecord(rawData(data));
+      messages.push(message);
+      if (message.type === 'ready') {
+        socket.send(
+          JSON.stringify({
+            streams: [
+              {
+                domains: [index + 1],
+                eventType: 'merkle_tree_insertion',
+              },
+            ],
+            type: 'subscribe',
+          }),
+        );
+      }
+    });
+    return messages;
+  });
+  try {
+    await Promise.all(
+      received.map((messages) => waitFor(messages, 'subscribed')),
+    );
+    headQueryError = new Error('domain 1 unavailable');
+    headQueryErrorDomain = 1;
+    const closed = new Promise<number>((resolve) =>
+      sockets[0].once('close', resolve),
+    );
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '12',
+        domain: 1,
+        previousConfirmedHeight: '11',
+      }),
+    );
+    assert.equal(
+      await Promise.race([
+        closed,
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(
+            () => reject(new Error('Timed out waiting for close')),
+            5_000,
+          ),
+        ),
+      ]),
+      1013,
+    );
+    assert.equal(sockets[1].readyState, WebSocket.OPEN);
+  } finally {
+    headQueryError = undefined;
+    headQueryErrorDomain = undefined;
+    for (const socket of sockets) socket.terminate();
+    await waitUntil(() => events.metricsSnapshot().connections.agent === 0);
+  }
+});
+
+void it('drains Explorer ids from a frontier range larger than the queue cap', async () => {
+  const explorer = new WebSocket(messagesUrl);
+  const explorerMessages: Record<string, unknown>[] = [];
+  explorer.on('message', (data) =>
+    explorerMessages.push(parseRecord(rawData(data))),
+  );
+  const count = 12_000;
+  const ids = Array.from({ length: count }, (_, index) =>
+    String(100_000 + index),
+  );
+  const batchesBefore = explorerBatchSizes.length;
+  const overflows = async () =>
+    (await websocketNotificationQueueOverflows.get()).values
+      .filter(({ labels }) => labels.route === 'messages')
+      .reduce((total, { value }) => total + value, 0);
+  const overflowsBefore = await overflows();
+  // Isolate the notification queue from per-socket outbound limits.
+  omitExplorerRows = true;
+  try {
+    await waitFor(explorerMessages, 'ready');
+    ids.forEach((id, index) =>
+      deliveryRows.set(id, {
+        block_number: '31',
+        destination_mailbox: hookB,
+        destination_tx_id: null,
+        domain: 1,
+        msg_id: `\\x${index.toString(16).padStart(64, '0')}`,
+        sequence: null,
+        time_created: new Date(0).toISOString(),
+      }),
+    );
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '31',
+        domain: 1,
+        previousConfirmedHeight: '30',
+      }),
+    );
+    await waitUntil(
+      () =>
+        explorerBatchSizes
+          .slice(batchesBefore)
+          .reduce((total, size) => total + size, 0) >= count ||
+        explorer.readyState !== WebSocket.OPEN,
+      3_000,
+    );
+    assert.equal(explorer.readyState, WebSocket.OPEN);
+    assert.equal(
+      explorerBatchSizes
+        .slice(batchesBefore)
+        .reduce((total, size) => total + size, 0),
+      count,
+    );
+    assert.equal(await overflows(), overflowsBefore);
+  } finally {
+    omitExplorerRows = false;
+    ids.forEach((id) => deliveryRows.delete(id));
+    explorer.close();
+    await waitUntil(() => explorer.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('keeps Explorer connected after an agent-only frontier fails', async () => {
+  const explorer = new WebSocket(messagesUrl);
+  const explorerMessages: Record<string, unknown>[] = [];
+  const agentMessages: Record<string, unknown>[] = [];
+  explorer.on('message', (data) =>
+    explorerMessages.push(parseRecord(rawData(data))),
+  );
+  const agent = liveAgent(agentMessages);
+  try {
+    await Promise.all([
+      waitFor(explorerMessages, 'ready'),
+      waitFor(agentMessages, 'subscribed'),
+    ]);
+    headQueryError = new Error('Merkle frontier unavailable');
+    headQueryErrorDomain = 1;
+    headQueryErrorEventType = 'merkle_tree_insertion';
+    const agentClosed = new Promise<number>((resolve) =>
+      agent.once('close', resolve),
+    );
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '12',
+        domain: 1,
+        previousConfirmedHeight: '11',
+      }),
+    );
+    assert.equal(await agentClosed, 1013);
+    assert.equal(explorer.readyState, WebSocket.OPEN);
+
+    headQueryError = undefined;
+    headQueryErrorDomain = undefined;
+    headQueryErrorEventType = undefined;
+    notify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: msgId.slice(2) }),
+    );
+    await waitFor(explorerMessages, 'message_upsert');
+  } finally {
+    headQueryError = undefined;
+    headQueryErrorDomain = undefined;
+    headQueryErrorEventType = undefined;
+    agent.terminate();
+    explorer.close();
+    await waitUntil(() =>
+      [agent, explorer].every(
+        ({ readyState }) => readyState === WebSocket.CLOSED,
+      ),
+    );
+  }
+});
+
+void it('checks each cursor before sharing a live agent frame', async () => {
+  const sockets = [new WebSocket(url), new WebSocket(url)];
+  const received = sockets.map((socket) => {
+    const messages: Record<string, unknown>[] = [];
+    socket.on('message', (data, isBinary) => {
+      assert.equal(isBinary, false);
+      messages.push(parseRecord(rawData(data)));
+    });
+    return messages;
+  });
+  try {
+    await Promise.all(received.map((messages) => waitFor(messages, 'ready')));
+    for (const [index, socket] of sockets.entries()) {
+      socket.send(
+        JSON.stringify({
+          type: 'subscribe',
+          streams: [
+            {
+              eventType: 'merkle_tree_insertion',
+              ...(index === 0
+                ? {}
+                : {
+                    cursors: [
+                      {
+                        address: hookA,
+                        afterSequence: '0',
+                        domain: 1,
+                      },
+                    ],
+                  }),
+            },
+          ],
+        }),
+      );
+    }
+    await Promise.all(
+      received.map((messages) => waitFor(messages, 'subscribed')),
+    );
+    await waitFor(received[1], 'caught_up');
+    rows.set('8100', row(hookA, 1));
+    notify('scraper_event', notification('8100'));
+    await Promise.all(
+      received.map((messages) =>
+        waitUntil(() => eventSequences(messages).length === 1),
+      ),
+    );
+    assert.deepEqual(eventSequences(received[0]), ['1']);
+    assert.deepEqual(eventSequences(received[1]), ['1']);
+    notify('scraper_event', notification('8100'));
+    await waitUntil(() => eventSequences(received[0]).length === 2);
+    assert.deepEqual(eventSequences(received[1]), ['1']);
+    rows.set('8101', row(hookA, 3));
+    const closed = new Promise<number>((resolve) =>
+      sockets[1].once('close', resolve),
+    );
+    notify('scraper_event', notification('8101'));
+    assert.equal(await closed, 1013);
+    await waitUntil(() => eventSequences(received[0]).length === 3);
+    assert.deepEqual(eventSequences(received[0]), ['1', '1', '3']);
+  } finally {
+    rows.delete('8100');
+    rows.delete('8101');
+    for (const socket of sockets) socket.terminate();
+    await waitUntil(() => events.metricsSnapshot().connections.agent === 0);
+  }
+});
+
+void it('keeps gas cursor boundaries specific to each subscriber', async () => {
+  gasPaymentRows.clear();
+  const payment = {
+    destination: 2,
+    id: '14',
+    domain: 1,
+    interchain_gas_paymaster: gasPaymaster,
+    origin: 1,
+  };
+  gasPaymentRows.set('14', payment);
+  const sockets = [new WebSocket(url), new WebSocket(url)];
+  const received = sockets.map((socket) => {
+    const messages = captureMessages(socket);
+    return messages;
+  });
+  try {
+    await Promise.all(received.map((messages) => waitFor(messages, 'ready')));
+    for (const [index, socket] of sockets.entries()) {
+      socket.send(
+        JSON.stringify({
+          type: 'subscribe',
+          streams: [
+            {
+              eventType: 'gas_payment',
+              ...(index === 0
+                ? {}
+                : {
+                    streamCursorVersion: 3,
+                    cursors: [
+                      {
+                        address: gasPaymaster,
+                        afterStreamCursor: '14',
+                        domain: 1,
+                      },
+                    ],
+                  }),
+            },
+          ],
+        }),
+      );
+    }
+    await Promise.all(
+      received.map((messages) => waitFor(messages, 'subscribed')),
+    );
+    await waitFor(received[1], 'caught_up');
+    gasPaymentRows.set('30', {
+      ...payment,
+      id: '30',
+      scraper_stream_cursor: '15',
+    });
+    notify('scraper_event', gasPaymentNotification('30'));
+    const [legacy, cursored] = await Promise.all(
+      received.map((messages) => waitFor(messages, 'event')),
+    );
+    assert.equal(legacy.streamCursor, '15');
+    assert.equal(cursored.streamCursor, '15');
+    assert.equal(legacy.legacyMaxStreamCursor, undefined);
+    assert.equal(cursored.legacyMaxStreamCursor, '14');
+  } finally {
+    gasPaymentRows.clear();
+    for (const socket of sockets) socket.terminate();
+    await waitUntil(() => events.metricsSnapshot().connections.agent === 0);
+  }
+});
+
 void it('accepts a legacy non-cursored live gas payment subscription', async () => {
   const socket = new WebSocket(url);
   const messages: Record<string, unknown>[] = [];
@@ -652,7 +2127,7 @@ void it('accepts a legacy non-cursored live gas payment subscription', async () 
   await new Promise<void>((resolve) => socket.once('close', resolve));
 });
 
-void it('bounds gas payment stream cursor replay', async () => {
+void it('completes gas payment stream cursor replay without a total row budget', async () => {
   gasPaymentRows.clear();
   gasPaymentRows.set('10', gasPaymentRow('10', '100'));
   gasPaymentRows.set('20', gasPaymentRow('20', '200'));
@@ -684,9 +2159,65 @@ void it('bounds gas payment stream cursor replay', async () => {
     }
   });
 
-  const error = await waitFor(messages, 'error');
-  assert.equal(error.error, 'Failed to catch up gas_payment');
-  assert.deepEqual(eventStreamCursors(messages), []);
+  const caughtUp = await waitFor(messages, 'caught_up');
+  assert.equal(caughtUp.streamCursor, '30');
+  assert.deepEqual(eventStreamCursors(messages), ['10', '20', '30']);
+  assert.equal(
+    messages.some(({ type }) => type === 'error'),
+    false,
+  );
+  socket.close();
+  await new Promise<void>((resolve) => socket.once('close', resolve));
+  gasPaymentRows.clear();
+});
+
+void it('limits gas payment replay batches before joining metadata', async () => {
+  gasPaymentRows.clear();
+  gasReplayQueries.length = 0;
+  gasPaymentRows.set('10', gasPaymentRow('10', '100'));
+  gasPaymentRows.set('30', gasPaymentRow('30', '300', '11'));
+  const socket = new WebSocket(url);
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => {
+    const message = parseRecord(rawData(data));
+    messages.push(message);
+    if (message.type === 'ready') {
+      socket.send(
+        JSON.stringify({
+          streams: [
+            {
+              cursors: [
+                {
+                  address: gasPaymaster,
+                  afterStreamCursor: '0',
+                  domain: 1,
+                },
+              ],
+              eventType: 'gas_payment',
+              streamCursorVersion: 3,
+            },
+          ],
+          type: 'subscribe',
+        }),
+      );
+    }
+  });
+
+  const caughtUp = await waitFor(messages, 'caught_up');
+  assert.equal(caughtUp.streamCursor, '11');
+  assert.deepEqual(eventStreamCursors(messages), ['10', '11']);
+  const legacy = gasReplayQueries.find((sql) =>
+    sql.includes('ORDER BY "event_row"."id"'),
+  );
+  const mapped = gasReplayQueries.find((sql) =>
+    sql.includes('FROM "gas_payment_stream_cursor"'),
+  );
+  for (const sql of [legacy, mapped]) {
+    assert.ok(sql);
+    const limit = sql.indexOf('LIMIT $5)');
+    assert.ok(limit > 0, sql);
+    assert.ok(limit < sql.indexOf('LEFT JOIN "transaction"'), sql);
+  }
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
   gasPaymentRows.clear();
@@ -1103,7 +2634,6 @@ void it('enforces the catch-up deadline while pending rows replenish', async (co
   const { EventWebSocketServer } = await import('./event-websocket.js');
   const deadlineEvents = new EventWebSocketServer(deadlineDb, {
     maxCatchUpMs: 10,
-    maxCatchUpRows: 10,
   });
   await new Promise<void>((resolve) =>
     deadlineHttp.listen(0, '127.0.0.1', resolve),
@@ -1122,7 +2652,13 @@ void it('enforces the catch-up deadline while pending rows replenish', async (co
         JSON.stringify({
           streams: [
             {
-              cursors: [{ address: pacedHook, afterSequence: '-1', domain: 1 }],
+              cursors: [
+                {
+                  address: pacedHook,
+                  afterSequence: '-1',
+                  domain: 1,
+                },
+              ],
               eventType: 'merkle_tree_insertion',
             },
           ],
@@ -1212,7 +2748,13 @@ void it('rejects a durable cursor when its history is empty', async () => {
         JSON.stringify({
           streams: [
             {
-              cursors: [{ address: emptyHook, afterSequence: '0', domain: 1 }],
+              cursors: [
+                {
+                  address: emptyHook,
+                  afterSequence: '0',
+                  domain: 1,
+                },
+              ],
               eventType: 'merkle_tree_insertion',
             },
           ],
@@ -1243,7 +2785,11 @@ void it('catches up populated and fresh empty origins together', async () => {
           streams: [
             {
               cursors: [
-                { address: hookA, afterSequence: '-1', domain: 1 },
+                {
+                  address: hookA,
+                  afterSequence: '-1',
+                  domain: 1,
+                },
                 { address: emptyHook, domain: 2 },
               ],
               eventType: 'merkle_tree_insertion',
@@ -1285,7 +2831,13 @@ void it('requires replay opt-in for a cursor ahead of scraper history', async ()
         JSON.stringify({
           streams: [
             {
-              cursors: [{ address: hookA, afterSequence: '10', domain: 1 }],
+              cursors: [
+                {
+                  address: hookA,
+                  afterSequence: '10',
+                  domain: 1,
+                },
+              ],
               eventType: 'merkle_tree_insertion',
             },
           ],
@@ -1364,8 +2916,7 @@ void it('only emits addresses named by sequence cursors', async () => {
 
 void it('emits normalized message upserts to Explorer', async () => {
   const socket = new WebSocket(messagesUrl);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  const messages = captureMessages(socket);
   await waitFor(messages, 'ready');
   notify(
     'scraper_explorer_event',
@@ -1373,6 +2924,7 @@ void it('emits normalized message upserts to Explorer', async () => {
   );
   const event = await waitFor(messages, 'message_upsert');
   assert.match(explorerQuery, /"send_occurred_at" IS NOT NULL/);
+  assert.equal(explorerQuery.includes('is_provisional'), false);
   assert.deepEqual(event.data, {
     id: '42',
     is_delivered: false,
@@ -1420,8 +2972,24 @@ void it('keeps agent delivery independent from a blocked Explorer query', async 
     );
     await waitUntil(() => explorerQueryCount > queriesBefore);
 
-    rows.set('5', row(hookA, 5));
-    notify('scraper_event', notification('5'));
+    deliveryRows.set('9005', {
+      block_number: '5',
+      destination_mailbox: hookB,
+      destination_tx_id: null,
+      domain: 1,
+      msg_id: msgId,
+      sequence: '0',
+      time_created: new Date(0).toISOString(),
+    });
+    rows.set('5', { ...row(hookA, 5), block_number: '5' });
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        confirmedHeight: '5',
+        domain: 1,
+        previousConfirmedHeight: '4',
+      }),
+    );
     const event = await waitFor(agentMessages, 'event');
     assert.equal(record(event.data).leaf_index, 5);
     assert.equal(
@@ -1434,6 +3002,8 @@ void it('keeps agent delivery independent from a blocked Explorer query', async 
   } finally {
     releaseExplorerQuery?.();
     explorerQueryGate = undefined;
+    deliveryRows.delete('9005');
+    rows.delete('5');
     explorer.close();
     agent.close();
     await waitUntil(() =>
@@ -1537,7 +3107,9 @@ void it('bounds Explorer notifications without closing agents', async () => {
     for (let index = 0; index <= 10_000; index++) {
       notify(
         'scraper_explorer_event',
-        JSON.stringify({ messageId: index.toString(16).padStart(64, '0') }),
+        JSON.stringify({
+          messageId: index.toString(16).padStart(64, '0'),
+        }),
       );
     }
     await waitUntil(() => explorer.readyState === WebSocket.CLOSED);
@@ -1654,8 +3226,7 @@ void it('keeps fast Explorer clients independent from a stalled client', async (
 void it('paces a full Explorer notification batch one send at a time', async (context) => {
   const completions = delayServerSendCompletions(context);
   const socket = new WebSocket(messagesUrl);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  const messages = captureMessages(socket);
   try {
     await waitFor(messages, 'ready');
     const batchesBefore = explorerBatchSizes.length;
@@ -1670,6 +3241,14 @@ void it('paces a full Explorer notification batch one send at a time', async (co
       );
     }
     await waitUntil(() => completions.length === 1);
+    await waitUntil(() =>
+      messages.some(({ type }) => type === 'message_upsert'),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    assert.equal(
+      messages.filter(({ type }) => type === 'message_upsert').length,
+      1,
+    );
     for (let sent = 1; sent <= messageIds.length; sent++) {
       assert.equal(completions.length, 1);
       completions.shift()?.();
@@ -1685,8 +3264,8 @@ void it('paces a full Explorer notification batch one send at a time', async (co
     );
     const upserts = messages.filter(({ type }) => type === 'message_upsert');
     assert.deepEqual(
-      new Set(upserts.map(({ data }) => record(data).msg_id)),
-      new Set(messageIds),
+      upserts.map(({ data }) => record(data).msg_id),
+      messageIds,
     );
     assert.equal(events.metricsSnapshot().explorerPendingBytes, 0);
     assert.equal(events.metricsSnapshot().outboundPendingBytes, 0);
@@ -1706,12 +3285,10 @@ void it('paces a full Explorer notification batch one send at a time', async (co
 
 void it('sheds only an Explorer client that exceeds its queue limit', async (context) => {
   const slow = new WebSocket(messagesUrl);
-  const slowMessages: Record<string, unknown>[] = [];
-  slow.on('message', (data) => slowMessages.push(parseRecord(rawData(data))));
+  const slowMessages = captureMessages(slow);
   await waitFor(slowMessages, 'ready');
   const fast = new WebSocket(messagesUrl);
-  const fastMessages: Record<string, unknown>[] = [];
-  fast.on('message', (data) => fastMessages.push(parseRecord(rawData(data))));
+  const fastMessages = captureMessages(fast);
   await waitFor(fastMessages, 'ready');
   const completions = delayFirstExplorerSocket(context);
 
@@ -1750,53 +3327,9 @@ void it('sheds only an Explorer client that exceeds its queue limit', async (con
   }
 });
 
-void it('paces Explorer batches by send completion', async (context) => {
-  const socket = new WebSocket(messagesUrl);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
-  await waitFor(messages, 'ready');
-  const completions = delayServerSendCompletions(context);
-  const messageIds = [`\\x${'02'.repeat(32)}`, `\\x${'03'.repeat(32)}`];
-
-  try {
-    for (const messageId of messageIds) {
-      notify(
-        'scraper_explorer_event',
-        JSON.stringify({ messageId: messageId.slice(2) }),
-      );
-    }
-    const upserts = (): Record<string, unknown>[] =>
-      messages.filter(({ type }) => type === 'message_upsert');
-
-    await waitUntil(() => upserts().length === 1 && completions.length === 1);
-    await new Promise((resolve) => setTimeout(resolve, 25));
-    assert.equal(upserts().length, 1);
-    assert.equal(socket.readyState, WebSocket.OPEN);
-
-    completions.shift()?.();
-    await waitUntil(() => upserts().length === 2 && completions.length === 1);
-    assert.deepEqual(
-      upserts().map(({ data }) => record(data).msg_id),
-      messageIds,
-    );
-    assert.equal(socket.readyState, WebSocket.OPEN);
-    completions.shift()?.();
-  } finally {
-    for (const complete of completions.splice(0)) complete();
-    if (socket.readyState !== WebSocket.CLOSED) {
-      const closed = new Promise<void>((resolve) =>
-        socket.once('close', () => resolve()),
-      );
-      socket.close();
-      await closed;
-    }
-  }
-});
-
 void it('releases a peer-closed Explorer queue immediately', async (context) => {
   const socket = new WebSocket(messagesUrl);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  const messages = captureMessages(socket);
   await waitFor(messages, 'ready');
   const completions = delayServerSendCompletions(context);
   for (const byte of ['04', '05']) {
@@ -1821,10 +3354,72 @@ void it('releases a peer-closed Explorer queue immediately', async (context) => 
   for (const complete of completions.splice(0)) complete();
 });
 
+void it('broadcasts UTF-8 text with byte-accurate queue accounting', async (context) => {
+  const sockets = [new WebSocket(messagesUrl), new WebSocket(messagesUrl)];
+  const received = sockets.map((socket) => {
+    const messages: Record<string, unknown>[] = [];
+    socket.on('message', (data, isBinary) => {
+      assert.equal(isBinary, false);
+      messages.push(parseRecord(rawData(data)));
+    });
+    return messages;
+  });
+  await Promise.all(received.map((messages) => waitFor(messages, 'ready')));
+  const completions = delayServerSendCompletions(context);
+  const messageIds = ['06', '07'].map((byte) => `\\x${byte.repeat(32)}`);
+  const expected = messageIds.map((messageId) => ({
+    data: {
+      id: '42',
+      is_delivered: false,
+      msg_body: msgBody,
+      msg_id: messageId,
+      origin_domain_id: 1,
+    },
+    type: 'message_upsert',
+  }));
+  const firstText = JSON.stringify(expected[0]);
+  const firstBytes = Buffer.byteLength(firstText);
+  assert(firstBytes > firstText.length);
+
+  try {
+    for (const messageId of messageIds) {
+      notify(
+        'scraper_explorer_event',
+        JSON.stringify({ messageId: messageId.slice(2) }),
+      );
+    }
+    await waitUntil(() => completions.length === 2);
+    assert.equal(events.metricsSnapshot().outboundPendingBytes, 2 * firstBytes);
+    assert.equal(events.metricsSnapshot().explorerPendingMessages, 2);
+    assert.equal(
+      events.metricsSnapshot().explorerPendingBytes,
+      2 * Buffer.byteLength(JSON.stringify(expected[1])),
+    );
+    for (const complete of completions.splice(0)) complete();
+    await waitUntil(() => completions.length === 2);
+    for (const messages of received) {
+      await waitUntil(
+        () =>
+          messages.filter(({ type }) => type === 'message_upsert').length === 2,
+      );
+      assert.deepEqual(
+        messages.filter(({ type }) => type === 'message_upsert'),
+        expected,
+      );
+    }
+    for (const complete of completions.splice(0)) complete();
+    assert.equal(events.metricsSnapshot().outboundPendingBytes, 0);
+    assert.equal(events.metricsSnapshot().explorerPendingBytes, 0);
+  } finally {
+    for (const complete of completions.splice(0)) complete();
+    for (const socket of sockets) socket.terminate();
+    await waitUntil(() => events.metricsSnapshot().connections.messages === 0);
+  }
+});
+
 void it('reports an active send failure once', async (context) => {
   const socket = new WebSocket(messagesUrl);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  const messages = captureMessages(socket);
   await waitFor(messages, 'ready');
   const completions = delayServerSendCompletions(context);
   const failuresBefore = await sendFailureCount();
@@ -1842,6 +3437,79 @@ void it('reports an active send failure once', async (context) => {
   } finally {
     for (const complete of completions.splice(0)) complete();
     if (socket.readyState !== WebSocket.CLOSED) socket.terminate();
+  }
+});
+
+void it('abandons an in-flight head range while listener shutdown is pending', async () => {
+  let releaseRead = () => {};
+  const read = new Promise<void>((resolve) => {
+    releaseRead = resolve;
+  });
+  let releaseListener = () => {};
+  const listener = new Promise<void>((resolve) => {
+    releaseListener = resolve;
+  });
+  let headNotify: (channel: string, payload?: string) => void = () =>
+    assert.fail('listener not connected');
+  let reads = 0;
+  const stoppingDb: EventDatabase = {
+    async listen(_channels, handler) {
+      headNotify = handler;
+      return () => listener;
+    },
+    async queryLive<T extends QueryResultRow>() {
+      if (++reads > 1) return [];
+      await read;
+      return queryRows<T>([
+        { frontier_id: '1', frontier_height: '10', msg_id: msgId },
+      ]);
+    },
+  };
+  const stoppingHttp = createServer();
+  const { EventWebSocketServer } = await import('./event-websocket.js');
+  const stoppingEvents = new EventWebSocketServer(stoppingDb);
+  await new Promise<void>((resolve) =>
+    stoppingHttp.listen(0, '127.0.0.1', resolve),
+  );
+  await stoppingEvents.start(stoppingHttp);
+  const address = stoppingHttp.address();
+  assert(address && typeof address !== 'string');
+  const socket = new WebSocket(`ws://127.0.0.1:${address.port}/messages`);
+  const messages = captureMessages(socket);
+  let stopped: Promise<void> | undefined;
+  try {
+    await waitFor(messages, 'ready');
+    headNotify(
+      'scraper_head',
+      JSON.stringify({
+        domain: 1,
+        previousConfirmedHeight: '9',
+        confirmedHeight: '10',
+      }),
+    );
+    await waitUntil(() => reads === 1);
+    stopped = stoppingEvents.stop();
+    releaseRead();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(
+      stoppingEvents.metricsSnapshot().notificationQueue.messages,
+      0,
+    );
+    assert.equal(reads, 1, 'shutdown must not read the rest of the range');
+    releaseListener();
+    await stopped;
+    assert.equal(
+      messages.filter(({ type }) => type === 'message_upsert').length,
+      0,
+    );
+  } finally {
+    releaseRead();
+    releaseListener();
+    socket.terminate();
+    await (stopped ?? stoppingEvents.stop());
+    await new Promise<void>((resolve, reject) =>
+      stoppingHttp.close((error) => (error ? reject(error) : resolve())),
+    );
   }
 });
 
@@ -1870,8 +3538,7 @@ void it('does not report heartbeat cleanup as a send failure', async (context) =
   const socket = new WebSocket(`ws://127.0.0.1:${address.port}/messages`, {
     autoPong: false,
   });
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  const messages = captureMessages(socket);
   const failuresBefore = await sendFailureCount();
 
   try {
@@ -2034,7 +3701,7 @@ function delayServerSendCompletions(
   context: TestContext,
 ): Array<(error?: Error) => void> {
   const completions: Array<(error?: Error) => void> = [];
-  // oxlint-disable-next-line typescript/unbound-method -- called with the socket receiver below.
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- invoked with the socket receiver via .call below.
   const originalSend = WebSocket.prototype.send;
   context.mock.method(
     WebSocket.prototype,
@@ -2049,7 +3716,10 @@ function delayServerSendCompletions(
     ): void {
       const completion =
         typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
-      const message = typeof data === 'string' ? parseRecord(data) : undefined;
+      const message =
+        typeof data === 'string' || Buffer.isBuffer(data)
+          ? parseRecord(data.toString())
+          : undefined;
       const delay =
         completion &&
         (message?.type === 'event' ||
@@ -2073,7 +3743,7 @@ function delayFirstExplorerSocket(context: TestContext): Array<() => void> {
   const completions: Array<() => void> = [];
   const delayedSockets = new WeakSet<WebSocket>();
   let selectedDelayedSocket = false;
-  // oxlint-disable-next-line typescript/unbound-method -- called with the socket receiver below.
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- invoked with the socket receiver via .call below.
   const originalSend = WebSocket.prototype.send;
   context.mock.method(
     WebSocket.prototype,
@@ -2088,7 +3758,10 @@ function delayFirstExplorerSocket(context: TestContext): Array<() => void> {
     ): void {
       const completion =
         typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
-      const message = typeof data === 'string' ? parseRecord(data) : undefined;
+      const message =
+        typeof data === 'string' || Buffer.isBuffer(data)
+          ? parseRecord(data.toString())
+          : undefined;
       if (
         !selectedDelayedSocket &&
         completion &&
@@ -2147,8 +3820,9 @@ async function waitFor(
 
 async function waitUntil(
   predicate: () => boolean | Promise<boolean>,
+  maxAttempts = 100,
 ): Promise<void> {
-  for (let attempts = 0; attempts < 100; attempts++) {
+  for (let attempts = 0; attempts < maxAttempts; attempts++) {
     if (await predicate()) return;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
@@ -2199,4 +3873,10 @@ function stringArray(value: unknown): string[] {
 function queryRows<T extends QueryResultRow>(rows: QueryResultRow[]): T[] {
   // CAST: This SQL-aware fake returns the row shape requested by each known query.
   return rows as T[];
+}
+
+function captureMessages(socket: WebSocket): Record<string, unknown>[] {
+  const messages: Record<string, unknown>[] = [];
+  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
+  return messages;
 }

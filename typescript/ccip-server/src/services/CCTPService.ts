@@ -1,5 +1,4 @@
 import { ethers } from 'ethers';
-import { Router } from 'express';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
@@ -10,7 +9,12 @@ import {
 import type { MultiProvider } from '@hyperlane-xyz/sdk/providers/MultiProvider';
 import { parseMessage } from '@hyperlane-xyz/utils';
 
-import { createAbiHandler } from '../utils/abiHandler.js';
+import type { CcipApp } from '../http.js';
+import {
+  ABI_ROUTE_OPTIONS,
+  type AbiRoute,
+  createAbiHandler,
+} from '../utils/abiHandler.js';
 import {
   PrometheusMetrics,
   UnhandledErrorReason,
@@ -40,7 +44,6 @@ const EnvSchema = z.object({
 
 class CCTPService extends BaseService {
   // External Services
-  public router: Router;
   private hyperlaneService: HyperlaneService;
   private cctpAttestationService: CCTPAttestationService;
   private multiProvider: MultiProvider;
@@ -68,12 +71,13 @@ class CCTPService extends BaseService {
       this.config.serviceName,
       env.CCTP_ATTESTATION_URL,
     );
+  }
 
-    this.router = Router();
-
+  registerRoutes(app: CcipApp, prefix: string): void {
     // CCIP-read spec: GET /getCCTPAttestation/:sender/:callData.json
-    this.router.get(
-      '/getCctpAttestation/:sender/:callData.json',
+    app.get<AbiRoute>(
+      `${prefix}/getCctpAttestation/:sender/:callData.json`,
+      ABI_ROUTE_OPTIONS,
       createAbiHandler(
         CctpService__factory,
         'getCCTPAttestation',
@@ -83,19 +87,24 @@ class CCTPService extends BaseService {
     );
 
     // CCIP-read spec: POST /getCctpAttestation
-    this.router.post('/getCctpAttestation', async (req, res) => {
-      const rawTxHash = req.body?.origin_tx_hash;
-      const originTxHash =
-        typeof rawTxHash === 'string' && ethers.utils.isHexString(rawTxHash, 32)
-          ? rawTxHash
-          : undefined;
-      return createAbiHandler(
-        CctpService__factory,
-        'getCCTPAttestation',
-        (message: string, logger: Logger) =>
-          this.getCCTPAttestation(message, originTxHash, logger),
-      )(req, res);
-    });
+    app.post<AbiRoute>(
+      `${prefix}/getCctpAttestation`,
+      ABI_ROUTE_OPTIONS,
+      async (request, reply) => {
+        const rawTxHash = request.body?.origin_tx_hash;
+        const originTxHash =
+          typeof rawTxHash === 'string' &&
+          ethers.utils.isHexString(rawTxHash, 32)
+            ? rawTxHash
+            : undefined;
+        return createAbiHandler(
+          CctpService__factory,
+          'getCCTPAttestation',
+          (message: string, logger: Logger) =>
+            this.getCCTPAttestation(message, originTxHash, logger),
+        )(request, reply);
+      },
+    );
   }
 
   async getCCTPMessageFromReceipt(

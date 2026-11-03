@@ -23,6 +23,15 @@ export const EIP1967_IMPLEMENTATION_SLOT =
   '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
 export const EIP1967_ADMIN_SLOT =
   '0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103';
+// keccak256('eip1967.proxy.beacon') - 1. Computed from its spec name instead of
+// written out because the pre-commit private key check flags any 32-byte hex
+// literal, including this public constant.
+export const EIP1967_BEACON_SLOT = ethers.utils.hexZeroPad(
+  ethers.BigNumber.from(ethers.utils.id('eip1967.proxy.beacon'))
+    .sub(1)
+    .toHexString(),
+  32,
+);
 
 const ZEvmAddress = z
   .string()

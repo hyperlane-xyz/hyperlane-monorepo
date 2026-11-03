@@ -88,8 +88,8 @@ export class HookWriter
   implements ArtifactWriter<HookArtifactConfig, DeployedHookAddress>
 {
   constructor(
-    protected readonly artifactManager: IRawHookArtifactManager,
-    protected readonly chainLookup: ChainLookup,
+    protected override readonly artifactManager: IRawHookArtifactManager,
+    protected override readonly chainLookup: ChainLookup,
     protected readonly signer: ISigner<AnnotatedTx, TxReceipt>,
   ) {
     super(artifactManager, chainLookup);

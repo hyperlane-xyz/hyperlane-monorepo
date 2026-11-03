@@ -24,6 +24,7 @@ chai.use(chaiAsPromised);
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { SvmSigner } from '../clients/signer.js';
 import { COMPUTE_BUDGET_PROGRAM_ID } from '../constants.js';
@@ -956,7 +957,9 @@ describe('SvmSigner', () => {
   function feePayerFromMessageBase58(messageBase58: string): string {
     const bytes = base58Encoder.encode(messageBase58);
     const decoded = messageDecoder.decode(bytes);
-    return decoded.staticAccounts[0];
+    const [feePayer] = decoded.staticAccounts;
+    assert(feePayer, 'compiled message is missing fee payer');
+    return feePayer;
   }
 
   describe('transactionToPrintableJson — supported transaction settings', () => {

@@ -139,6 +139,7 @@ async fn mock_tron_tx(
         to: H256::zero(),
         status: PayloadStatus::InTransaction(status.clone()),
         value: None,
+        gas_limit: Default::default(),
         inclusion_soft_deadline: None,
     };
 
@@ -474,6 +475,7 @@ async fn test_tron_tx_finalized_multiple_payloads_mixed_results() {
         to: H256::zero(),
         status: PayloadStatus::InTransaction(TransactionStatus::Finalized),
         value: None,
+        gas_limit: Default::default(),
         inclusion_soft_deadline: None,
     };
 
@@ -487,6 +489,7 @@ async fn test_tron_tx_finalized_multiple_payloads_mixed_results() {
         to: H256::zero(),
         status: PayloadStatus::InTransaction(TransactionStatus::Finalized),
         value: None,
+        gas_limit: Default::default(),
         inclusion_soft_deadline: None,
     };
 

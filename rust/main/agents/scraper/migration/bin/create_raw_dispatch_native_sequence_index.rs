@@ -1,20 +1,9 @@
-//! Build the WebSocket catch-up index without blocking scraper inserts.
-
-use common::init;
-use migration::sea_orm::ConnectionTrait;
+//! Build and verify a scraper index outside migration transactions.
+use migration::indexes::{create_index, RAW_DISPATCH_NATIVE_SEQUENCE};
 
 mod common;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> eyre::Result<()> {
-    init()
-        .await?
-        .execute_unprepared(
-            r#"
-            CREATE INDEX CONCURRENTLY IF NOT EXISTS raw_message_dispatch_native_sequence_idx
-            ON raw_message_dispatch (origin_domain, origin_mailbox, nonce)
-            "#,
-        )
-        .await?;
-    Ok(())
+    create_index(&common::init().await?, RAW_DISPATCH_NATIVE_SEQUENCE).await
 }

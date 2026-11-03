@@ -125,9 +125,29 @@ impl SealevelRpcClient {
         &self,
         pubkey: &Pubkey,
     ) -> ChainResult<Account> {
-        self.get_account_option_with_finalized_commitment(pubkey)
+        Ok(self
+            .get_account_with_finalized_commitment_and_context(pubkey)
             .await?
-            .ok_or_else(|| ChainCommunicationError::from_other_str("Could not find account data"))
+            .value)
+    }
+
+    /// Get an account and the slot at which it was read.
+    pub async fn get_account_with_finalized_commitment_and_context(
+        &self,
+        pubkey: &Pubkey,
+    ) -> ChainResult<Response<Account>> {
+        let response = self
+            .client
+            .get_account_with_commitment(pubkey, CommitmentConfig::finalized())
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        let account = response.value.ok_or_else(|| {
+            ChainCommunicationError::from_other_str("Could not find account data")
+        })?;
+        Ok(Response {
+            context: response.context,
+            value: account,
+        })
     }
 
     /// get account option with finalized commitment
@@ -450,7 +470,19 @@ impl SealevelRpcClient {
 
 impl std::fmt::Debug for SealevelRpcClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "RpcClient {{ url: {} }}", self.client.url())
+        f.debug_struct("SealevelRpcClient")
+            .field(
+                "rpc_host",
+                &url::Url::parse(&self.client.url())
+                    .ok()
+                    .and_then(|url| hyperlane_metric::utils::url_to_host_info(&url)),
+            )
+            .field("commitment", &self.client.commitment())
+            .field(
+                "max_supported_transaction_version",
+                &self.max_supported_transaction_version,
+            )
+            .finish_non_exhaustive()
     }
 }
 

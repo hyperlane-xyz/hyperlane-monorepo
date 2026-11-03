@@ -2,11 +2,11 @@
 
 # CCIP-Server (OffchainLookup)
 
-A lightweight Express server for CCIP Read/Write commitments, using Zod validation and Prisma for persistence.
+A lightweight Fastify server for CCIP Read/Write commitments, using Zod validation and Prisma for persistence.
 
 ## Prerequisites
 
-- Node.js >=16
+- Node.js >=20
 - pnpm or npm
 - SQLite (for local development)
 - A GCP (or other) SQL database URL for production
@@ -74,11 +74,33 @@ A lightweight Express server for CCIP Read/Write commitments, using Zod validati
 
 ## API Routes
 
+Commitment calldata reads require signed requests from a configured service address.
+See [CCS authentication and rollout](./CCS_AUTH.md) for EVM signing on both EVM/SVM reads, whitelist
+configuration, and compatibility with the existing EVM reveal endpoint.
+
 - `POST /calls`  
   Submit a new commitment payload. Validated via Zod; persists to the database.
 
-- `POST /getCallsFromCommitment`  
-  CCIP-Read endpoint (uses ABI handler) to fetch & re-encode calls for a given commitment ID.
+  Config-based registration defaults to `interchainAccountRouter`. When using
+  another deployment, supply `localRouter` (origin) and `routerOverride`
+  (destination), for example the registry's `interchainAccountRouterV3` pair.
+  Alternatively, supply `commitmentDispatchTx` using the legacy receipt-based
+  registration shape. Compare the response's `ica` with the intended account.
+
+- `POST /getCallsFromRevealMessage`
+  CCIP-Read endpoint (uses ABI handler) to fetch & re-encode calls for a reveal message.
+
+  Relayers may include `origin_tx_hash` in the authenticated request. The server
+  verifies the exact reveal and its matching commitment dispatch in that
+  transaction's mailbox events, then derives the ICA from the actual router pair.
+  Reads do not modify stored commitments. If the verified ICA differs from the
+  stored address, the server logs the mismatch and serves the verified address.
+  Existing records with incorrect addresses require a one-time database repair
+  for reads without a hash and `GET /calls/:commitment`.
+  Re-registration must identify the same router pair: stale config that derives a
+  different ICA still returns 409. Missing or null hashes use the stored ICA;
+  malformed hash strings return 400. Lookup or recovery failures return HTTP 500
+  so the relayer can retry.
 
 ## Notes
 

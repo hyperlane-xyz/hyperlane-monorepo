@@ -6,6 +6,9 @@ import { SvmMultiProtocolSignerAdapter } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { chainsToSkip } from '../../src/config/chain.js';
+import { getSquadsKeys } from '../../src/config/squads.js';
+import { withGovernanceType } from '../../src/governance.js';
+import { GovernanceType } from '../../src/governanceTypes.js';
 import {
   SquadsProposalStatus,
   buildSquadsProposalCancellation,
@@ -22,9 +25,26 @@ const environment = 'mainnet3';
 
 // CLI argument parsing
 async function main() {
-  const { chain, transactionIndex } = await withTransactionIndex(
-    withChain(yargs(process.argv.slice(2))),
-  ).demandOption('chain').argv;
+  const { chain, transactionIndex, governanceType, yes } =
+    await withGovernanceType(
+      withTransactionIndex(
+        withChain(yargs(process.argv.slice(2))).option('yes', {
+          type: 'boolean',
+          default: false,
+          description: 'Skip the interactive confirmation prompt',
+        }),
+      ),
+    ).demandOption('chain').argv;
+
+  if (
+    governanceType !== GovernanceType.Regular &&
+    governanceType !== GovernanceType.AbacusWorks
+  ) {
+    throw new Error(
+      `Squads proposals only support governance types ${GovernanceType.Regular} and ${GovernanceType.AbacusWorks}`,
+    );
+  }
+  const squadsKeys = getSquadsKeys(chain, governanceType);
 
   // Validate chain is Sealevel
   if (!chainIsProtocol(chain, ProtocolType.Sealevel)) {
@@ -50,7 +70,12 @@ async function main() {
   );
 
   // Fetch the proposal to verify it exists
-  const proposalData = await getSquadProposal(chain, mpp, transactionIndex);
+  const proposalData = await getSquadProposal(
+    chain,
+    mpp,
+    transactionIndex,
+    squadsKeys,
+  );
   if (!proposalData) {
     throw new Error(
       `Proposal ${transactionIndex} not found on ${chain}. Please check the transaction index.`,
@@ -127,19 +152,23 @@ async function main() {
         mpp,
         BigInt(transactionIndex),
         signerAdapter.publicKey(),
+        squadsKeys,
       )
     : await buildSquadsProposalCancellation(
         chain,
         mpp,
         BigInt(transactionIndex),
         signerAdapter.publicKey(),
+        squadsKeys,
       );
 
   // Confirm with user
-  const shouldProceed = await confirm({
-    message: `Are you sure you want to ${action} proposal ${transactionIndex} on ${chain}?`,
-    default: false,
-  });
+  const shouldProceed =
+    yes ||
+    (await confirm({
+      message: `Are you sure you want to ${action} proposal ${transactionIndex} on ${chain}?`,
+      default: false,
+    }));
 
   if (!shouldProceed) {
     rootLogger.info(chalk.yellow(`\n${action} operation aborted by user.`));

@@ -1,0 +1,21 @@
+name: Install Arc Anvil
+description: Install the pinned Arc Foundry Anvil binary for CLI fork tests
+runs:
+  using: composite
+  steps:
+    - name: Download and verify Arc Anvil
+      shell: bash
+      env:
+        ARC_FOUNDRY_VERSION: v0.8.0-1
+        ARC_FOUNDRY_SHA256: e12feade22e9c276c4e10b3a9e2573e75ef9dcd652f237f9eb6408b7eb52c5f0
+      run: |
+        set -euo pipefail
+        archive="arc-foundry-${ARC_FOUNDRY_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+        url="https://github.com/circlefin/arc-foundry/releases/download/${ARC_FOUNDRY_VERSION}/${archive}"
+        curl -sSfL "$url" -o "$RUNNER_TEMP/$archive"
+        echo "${ARC_FOUNDRY_SHA256}  $RUNNER_TEMP/$archive" | sha256sum -c -
+        mkdir -p "$HOME/.local/bin"
+        tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" anvil
+        mv "$RUNNER_TEMP/anvil" "$HOME/.local/bin/arc-anvil"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        "$HOME/.local/bin/arc-anvil" --version

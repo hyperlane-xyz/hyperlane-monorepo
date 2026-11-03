@@ -27,6 +27,7 @@ impl SubscribeMessage<'_> {
         self.streams
             .iter()
             .map(|stream| SubscribedStream {
+                confirmations: stream.confirmations,
                 cursors: stream.cursors.as_ref().map(|cursors| {
                     cursors
                         .iter()
@@ -69,6 +70,9 @@ pub fn validate_subscription(
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubscribeStream<'a> {
+    /// Custom live confirmation delay; omitted for canonical replay streams.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confirmations: Option<u32>,
     /// Durable cursors from which replay should resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cursors: Option<Vec<StreamCursor>>,
@@ -155,6 +159,8 @@ pub enum ServerMessage<T> {
         /// Last available sequence, encoded as a decimal string.
         sequence: Option<String>,
     },
+    /// Provisional history was rolled back; consumers must recover before resuming.
+    Rollback,
     /// One event from a requested stream.
     Event(EventMessage<T>),
     /// The server rejected the request or stream.
@@ -171,6 +177,8 @@ pub enum ServerMessage<T> {
 #[derive(Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SubscribedStream {
+    /// Custom confirmation delay accepted by the server.
+    pub confirmations: Option<u32>,
     /// Durable cursors accepted for this stream.
     pub cursors: Option<Vec<SubscribedCursor>>,
     /// Domains accepted for this stream.
@@ -346,9 +354,36 @@ mod tests {
     }
 
     #[test]
+    fn custom_confirmation_acknowledgement_must_match_requested_delay() {
+        let request = SubscribeMessage {
+            streams: vec![SubscribeStream {
+                confirmations: Some(3),
+                cursors: None,
+                domains: Some(vec![1]),
+                event_type: "merkle_tree_insertion",
+                stream_cursor_version: None,
+            }],
+            message_type: "subscribe",
+        };
+        let mut actual = request.confirmation();
+        validate_subscription(&request.confirmation(), &actual).expect("test protocol");
+        actual[0].confirmations = Some(1);
+        assert!(validate_subscription(&request.confirmation(), &actual).is_err());
+        actual[0].confirmations = None;
+        assert!(validate_subscription(&request.confirmation(), &actual).is_err());
+        assert!(matches!(
+            serde_json::from_str::<ServerMessage<serde_json::Value>>(
+                r#"{"type":"rollback","domain":1,"eventType":"merkle_tree_insertion","toHeight":"12"}"#
+            ).expect("test protocol"),
+            ServerMessage::Rollback
+        ));
+    }
+
+    #[test]
     fn serializes_subscription_protocol() {
         let message = SubscribeMessage {
             streams: vec![SubscribeStream {
+                confirmations: None,
                 cursors: Some(vec![StreamCursor::Sequence(SequenceCursor {
                     address: "0x1234".to_owned(),
                     allow_replay: Some(true),
@@ -384,6 +419,7 @@ mod tests {
     fn omits_optional_cursor_fields_for_live_streams() {
         let message = SubscribeMessage {
             streams: vec![SubscribeStream {
+                confirmations: None,
                 cursors: None,
                 domains: Some(vec![5]),
                 event_type: "gas_payment",
@@ -408,6 +444,7 @@ mod tests {
     fn serializes_gas_payment_stream_cursor() {
         let message = SubscribeMessage {
             streams: vec![SubscribeStream {
+                confirmations: None,
                 cursors: Some(vec![StreamCursor::GasPayment(GasPaymentCursor {
                     address: "0x1234".to_owned(),
                     after_stream_cursor: Some("41".to_owned()),
@@ -544,6 +581,7 @@ mod tests {
             ServerMessage::Subscribed { streams } => assert_eq!(
                 streams,
                 vec![SubscribedStream {
+                    confirmations: None,
                     cursors: None,
                     domains: Some(vec![5, 9]),
                     event_type: "dispatch".to_owned(),

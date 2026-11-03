@@ -6,8 +6,8 @@ use std::{ops::RangeInclusive, sync::Arc};
 use async_trait::async_trait;
 use hyperlane_sealevel_mailbox::{
     accounts::{
-        DispatchedMessageAccount, ProcessedMessageAccount, DISPATCHED_MESSAGE_DISCRIMINATOR,
-        PROCESSED_MESSAGE_DISCRIMINATOR,
+        DispatchedMessageAccount, InboxAccount, OutboxAccount, ProcessedMessageAccount,
+        DISPATCHED_MESSAGE_DISCRIMINATOR, PROCESSED_MESSAGE_DISCRIMINATOR,
     },
     mailbox_dispatched_message_pda_seeds, mailbox_processed_message_pda_seeds,
 };
@@ -16,8 +16,7 @@ use tracing::{debug, info, warn};
 
 use hyperlane_core::{
     config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator, Decode as _,
-    HyperlaneMessage, Indexed, Indexer, LogMeta, Mailbox, ReorgPeriod, SequenceAwareIndexer, H256,
-    H512, U256,
+    HyperlaneMessage, Indexed, Indexer, LogMeta, SequenceAwareIndexer, H256, H512, U256,
 };
 
 use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
@@ -27,6 +26,7 @@ use crate::log_meta_composer::{
     is_message_delivery_instruction, is_message_dispatch_instruction, LogMetaComposer,
 };
 use crate::tx_submitter::TransactionSubmitter;
+use crate::utils::decode_h256_bytes;
 use crate::{ConnectionConf, SealevelMailbox, SealevelProvider};
 
 /// Struct that retrieves event data for a Sealevel Mailbox contract
@@ -183,12 +183,18 @@ impl SealevelMailboxIndexer {
             Err(err) => return Err(err),
         };
 
-        match self.dispatch_message_log_meta_composer.log_meta(
-            block,
-            log_index,
-            message_storage_pda_pubkey,
-            message_account_slot,
-        ) {
+        let rpc_client = self.mailbox.provider.rpc_client();
+        match self
+            .dispatch_message_log_meta_composer
+            .log_meta_at_or_before(
+                block,
+                log_index,
+                message_storage_pda_pubkey,
+                message_account_slot,
+                |previous_slot| rpc_client.get_block(previous_slot),
+            )
+            .await?
+        {
             Ok(log_meta) => Ok(Some(log_meta)),
             Err(err) if err.is_log_meta_unresolvable() => {
                 warn!(
@@ -223,7 +229,7 @@ impl SealevelMailboxIndexer {
         debug!(account_len = ?accounts.len(), "Found accounts with processed message discriminator");
 
         let valid_message_storage_pda_pubkey = search_and_validate_account(accounts, |account| {
-            self.delivered_message_account(account)
+            Self::delivered_message_account(account, &self.mailbox.program_id)
         })?;
 
         // Now that we have the valid delivered message storage PDA pubkey,
@@ -267,11 +273,13 @@ impl SealevelMailboxIndexer {
         Ok((indexed, log_meta))
     }
 
-    fn delivered_message_account(&self, account: &Account) -> ChainResult<Pubkey> {
-        let message_id = H256::from_slice(&account.data);
+    /// Derives the processed-message PDA from the account's 32-byte message ID slice.
+    /// Returns an error if the slice has the wrong length or no PDA can be derived.
+    fn delivered_message_account(account: &Account, program_id: &Pubkey) -> ChainResult<Pubkey> {
+        let message_id = decode_h256_bytes(&account.data)?;
         let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
             mailbox_processed_message_pda_seeds!(message_id),
-            &self.mailbox.program_id,
+            program_id,
         )
         .ok_or_else(|| {
             ChainCommunicationError::from_other_str("Could not find program address for message id")
@@ -308,12 +316,18 @@ impl SealevelMailboxIndexer {
             Err(err) => return Err(err),
         };
 
-        match self.delivery_message_log_meta_composer.log_meta(
-            block,
-            log_index,
-            message_storage_pda_pubkey,
-            message_account_slot,
-        ) {
+        let rpc_client = self.mailbox.provider.rpc_client();
+        match self
+            .delivery_message_log_meta_composer
+            .log_meta_at_or_before(
+                block,
+                log_index,
+                message_storage_pda_pubkey,
+                message_account_slot,
+                |previous_slot| rpc_client.get_block(previous_slot),
+            )
+            .await?
+        {
             Ok(log_meta) => Ok(Some(log_meta)),
             Err(err) if err.is_log_meta_unresolvable() => {
                 warn!(
@@ -359,10 +373,19 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = self.mailbox.get_provider().rpc_client().get_slot().await?;
-        // TODO: need to make sure the call and tip are at the same height?
-        let count = Mailbox::count(&self.mailbox, &ReorgPeriod::None).await?;
-        Ok((Some(count), tip))
+        let response = self
+            .mailbox
+            .get_provider()
+            .rpc_client()
+            .get_account_with_finalized_commitment_and_context(self.mailbox.outbox().0)
+            .await?;
+        let outbox = OutboxAccount::fetch(&mut response.value.data.as_ref())
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
+        Ok((
+            Some(outbox.tree.count().try_into()?),
+            response.context.slot.try_into()?,
+        ))
     }
 }
 
@@ -396,14 +419,60 @@ impl Indexer<H256> for SealevelMailboxIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<H256> for SealevelMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let inbox = self.mailbox.get_inbox().await?;
+        let response = self
+            .mailbox
+            .get_provider()
+            .rpc_client()
+            .get_account_with_finalized_commitment_and_context(self.mailbox.inbox().0)
+            .await?;
+        let inbox = InboxAccount::fetch(&mut response.value.data.as_ref())
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
         let sequence = inbox
             .processed_count
             .try_into()
             .map_err(StrOrIntParseError::from)?;
 
-        let tip = self.mailbox.get_provider().rpc_client().get_slot().await?;
+        Ok((Some(sequence), response.context.slot.try_into()?))
+    }
+}
 
-        Ok((Some(sequence), tip))
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Invalid message ID lengths must return an error rather than panic.
+    #[test]
+    fn delivered_message_account_rejects_wrong_lengths() {
+        let program_id = Pubkey::new_unique();
+        for len in [0, 1, 31, 33, 64] {
+            let account = Account {
+                data: vec![0; len],
+                ..Account::default()
+            };
+            assert!(
+                SealevelMailboxIndexer::delivered_message_account(&account, &program_id).is_err()
+            );
+        }
+    }
+
+    /// A valid message ID still resolves to its processed-message PDA.
+    #[test]
+    fn delivered_message_account_preserves_valid_pda() {
+        let program_id = Pubkey::new_unique();
+        let message_id = H256::from([42; 32]);
+        let account = Account {
+            data: message_id.as_bytes().to_vec(),
+            ..Account::default()
+        };
+        let (expected, _) = Pubkey::find_program_address(
+            mailbox_processed_message_pda_seeds!(message_id),
+            &program_id,
+        );
+        assert_eq!(
+            SealevelMailboxIndexer::delivered_message_account(&account, &program_id)
+                .expect("valid message ID"),
+            expected
+        );
     }
 }

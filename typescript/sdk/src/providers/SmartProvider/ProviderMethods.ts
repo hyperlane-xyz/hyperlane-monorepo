@@ -17,7 +17,18 @@ export enum ProviderMethod {
   GetLogs = 'getLogs',
   SendTransaction = 'sendTransaction',
   MaxPriorityFeePerGas = 'maxPriorityFeePerGas',
+  ReadRpc = 'readRpc',
 }
+
+// Raw RPC access is deliberately read-only: retrying a submission can duplicate it.
+export const ReadRpcMethods: ReadonlySet<string> = new Set([
+  'eth_chainId',
+  'eth_getBlockByNumber',
+  'eth_getTransactionCount',
+  'eth_call',
+  'eth_estimateGas',
+  'seismic_getTeePublicKey',
+]);
 
 export const AllProviderMethods = Object.values(ProviderMethod);
 

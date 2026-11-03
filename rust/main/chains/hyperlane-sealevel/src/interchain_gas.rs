@@ -328,12 +328,18 @@ impl SealevelInterchainGasPaymasterIndexer {
             Err(err) => return Err(err),
         };
 
-        match self.log_meta_composer.log_meta(
-            block,
-            log_index,
-            payment_pda_pubkey,
-            payment_pda_slot,
-        ) {
+        let rpc_client = self.provider.rpc_client();
+        match self
+            .log_meta_composer
+            .log_meta_at_or_before(
+                block,
+                log_index,
+                payment_pda_pubkey,
+                payment_pda_slot,
+                |previous_slot| rpc_client.get_block(previous_slot),
+            )
+            .await?
+        {
             Ok(log_meta) => Ok(Some(log_meta)),
             // The block will never contain the expected transaction after filtering, so falling
             // back to basic log meta lets the sequence-aware cursor advance instead of rewinding
@@ -419,20 +425,19 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
 impl SequenceAwareIndexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let program_data_account = self
+        let response = self
             .provider
             .rpc_client()
-            .get_account_with_finalized_commitment(self.igp.data_pda_pubkey)
+            .get_account_with_finalized_commitment_and_context(self.igp.data_pda_pubkey)
             .await?;
-        let program_data = ProgramDataAccount::fetch(&mut program_data_account.data.as_ref())
+        let program_data = ProgramDataAccount::fetch(&mut response.value.data.as_ref())
             .map_err(ChainCommunicationError::from_other)?
             .into_inner();
         let payment_count = program_data
             .payment_count
             .try_into()
             .map_err(StrOrIntParseError::from)?;
-        let tip = self.igp.provider.rpc_client().get_slot().await?;
-        Ok((Some(payment_count), tip))
+        Ok((Some(payment_count), response.context.slot.try_into()?))
     }
 }
 

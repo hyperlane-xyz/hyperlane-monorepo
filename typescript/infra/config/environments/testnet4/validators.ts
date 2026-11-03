@@ -1,3 +1,5 @@
+import { assert } from '@hyperlane-xyz/utils';
+
 import { ValidatorBaseChainConfigMap } from '../../../src/config/agent/validator.js';
 import { Contexts } from '../../contexts.js';
 import { getReorgPeriod } from '../../registry.js';
@@ -16,6 +18,22 @@ export const fastPathReorgPeriodOverrides: Record<string, number> = {
   sepolia: FASTPATH_VALIDATOR_REORG_PERIOD,
 };
 
+const validatorReorgPeriod = (
+  context: Contexts,
+  chain: Parameters<typeof getReorgPeriod>[0],
+) => {
+  if (context !== Contexts.FastPath) {
+    return getReorgPeriod(chain);
+  }
+
+  const reorgPeriod = fastPathReorgPeriodOverrides[chain];
+  assert(
+    reorgPeriod !== undefined,
+    `Missing fastpath reorgPeriod override for chain ${chain}`,
+  );
+  return reorgPeriod;
+};
+
 export const validatorChainConfig = (
   context: Contexts,
 ): ValidatorBaseChainConfigMap => {
@@ -23,7 +41,7 @@ export const validatorChainConfig = (
   return {
     arbitrumsepolia: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('arbitrumsepolia'),
+      reorgPeriod: validatorReorgPeriod(context, 'arbitrumsepolia'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
@@ -35,7 +53,7 @@ export const validatorChainConfig = (
     },
     basesepolia: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('basesepolia'),
+      reorgPeriod: validatorReorgPeriod(context, 'basesepolia'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
@@ -58,7 +76,7 @@ export const validatorChainConfig = (
     },
     sepolia: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('sepolia'),
+      reorgPeriod: validatorReorgPeriod(context, 'sepolia'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],

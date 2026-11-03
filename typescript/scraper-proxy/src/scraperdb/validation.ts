@@ -14,6 +14,7 @@ type Stat = keyof typeof LIMITS;
 type Stats = Record<Stat, number>;
 const STAT_NAMES: Stat[] = ['rootFields', 'fields', 'aliases', 'depth'];
 const MAX_WORK = 1_000;
+export const MAX_GRAPHQL_TOKENS = 10_000;
 type WalkState = { introspection: boolean; work: number };
 
 export const scraperProxyValidationRule: ValidationRule = (context) => ({

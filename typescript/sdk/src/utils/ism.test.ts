@@ -128,6 +128,20 @@ describe('typed ISM tree traversal', () => {
     expect(ismTreeContainsCompositeRateLimited(tree)).to.be.true;
   });
 
+  it('traverses past routingMessageIdMultisigIsm leaves without matching', () => {
+    const tree = aggregationOf({
+      type: IsmType.ROUTING_MESSAGE_ID_MULTISIG,
+      owner: OWNER,
+      domains: {
+        test2: { validators: [RELAYER], threshold: 1 },
+      },
+    });
+
+    expect(ismTreeContainsRateLimited(tree)).to.be.false;
+    expect(ismTreeContainsCompositeRateLimited(tree)).to.be.false;
+    expect(ismTreeContainsMailboxDefaultOrHybrid(tree)).to.be.false;
+  });
+
   it('finds mailbox-incompatible ISMs through SDK containers', () => {
     const tree: IsmConfig = {
       type: IsmType.ROUTING,

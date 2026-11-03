@@ -1,12 +1,13 @@
 pub use block::*;
-pub use block_cursor::BlockCursor;
-use eyre::Result;
-pub use merkle_tree_insertion::*;
+use std::time::Duration;
+
+use eyre::{ensure, Context, Result};
 pub use message::*;
-pub use payment::*;
 pub use raw_message_dispatch::*;
+use redact::Secret;
 pub use same_chain_ccr_swap::*;
-use sea_orm::{Database, DatabaseConnection, DbConn};
+use sea_orm::sea_query::{Expr, SimpleExpr};
+use sea_orm::{ConnectOptions, Database, DatabaseConnection, DbConn};
 use tracing::instrument;
 pub use txn::*;
 
@@ -16,12 +17,33 @@ mod generated;
 // These modules implement additional functionality for the ScraperDb
 mod block;
 mod block_cursor;
-mod merkle_tree_insertion;
+mod event_receipts;
+pub(crate) use event_receipts::{ReceiptStream, RECEIPT_PAGE_SIZE};
 mod message;
-mod payment;
 mod raw_message_dispatch;
 mod same_chain_ccr_swap;
 mod txn;
+
+#[cfg(test)]
+mod credential_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn malformed_database_urls_do_not_leak_credentials() {
+        for value in [
+            "postgres://user:DUMMY_DB_SECRET@localhost:invalid/database",
+            "https://user:DUMMY_DB_SECRET@localhost/database",
+        ] {
+            let url = Secret::new(value.to_owned());
+            let error = ScraperDb::connect_with_options(&url, 1, Duration::from_secs(1))
+                .await
+                .unwrap_err();
+            let output = format!("{url:?} {error:#} {error:?}");
+            assert!(!output.contains("DUMMY_DB_SECRET"));
+            assert!(output.contains("database URL"));
+        }
+    }
+}
 
 /// Database interface to the message explorer database for the scraper. This is
 /// focused on writing data to the database.
@@ -32,9 +54,38 @@ impl ScraperDb {
     // Hash lookups bind one parameter per hash; stay below PostgreSQL's 65,535 limit.
     const HASH_LOOKUP_CHUNK_SIZE: usize = 65_000;
 
-    #[instrument]
+    #[cfg(test)]
+    #[instrument(skip(url))]
     pub async fn connect(url: &str) -> Result<Self> {
-        let db = Database::connect(url).await?;
+        Self::connect_with_options(&Secret::new(url.to_owned()), 10, Duration::from_secs(15)).await
+    }
+
+    #[instrument]
+    pub async fn connect_with_options(
+        url: &Secret<String>,
+        max_connections: u32,
+        acquire_timeout: Duration,
+    ) -> Result<Self> {
+        ensure!(max_connections > 0, "Database pool must allow a connection");
+        ensure!(
+            !acquire_timeout.is_zero(),
+            "Database acquire timeout must be positive"
+        );
+        // SeaORM includes the complete connection string in URL/driver errors.
+        let parsed =
+            url::Url::parse(url.expose_secret()).context("Invalid scraper database URL")?;
+        ensure!(
+            matches!(parsed.scheme(), "postgres" | "postgresql"),
+            "Scraper database URL must use postgres:// or postgresql://"
+        );
+        // One shared pool is the global backpressure boundary for indexing,
+        // confirmation and enrichment across every configured chain.
+        let mut options = ConnectOptions::new(url.expose_secret().clone());
+        options
+            .max_connections(max_connections)
+            .min_connections(1)
+            .acquire_timeout(acquire_timeout);
+        let db = Database::connect(options).await?;
         Ok(Self(db))
     }
 
@@ -54,6 +105,17 @@ impl ScraperDb {
             }
         }
     }
+
+    pub async fn verify_frontier_indexes(&self) -> Result<()> {
+        migration::indexes::verify_frontier_indexes(&self.0).await
+    }
+}
+
+/// Grouped explicitly so the `OR` can never bind across filters combined with `AND`.
+pub(super) fn confirmed_event(table: &str, domain: &str, height: &str) -> SimpleExpr {
+    Expr::cust(format!(
+        "({table}.{height} IS NULL OR {table}.{height}<=COALESCE((SELECT h.confirmed_height FROM scraper_head h WHERE h.domain={table}.{domain}),9223372036854775807))"
+    ))
 }
 
 /// Not sure why Seaorm's DatabaseConnection does not #[derive(Clone)]
@@ -73,7 +135,32 @@ mod write_batches;
 mod lookup_batches;
 
 #[cfg(test)]
-mod sequence_reads;
+mod dispatch_transactions;
 
 #[cfg(test)]
-mod dispatch_transactions;
+mod confirmed_event_tests {
+    use sea_orm::{ColumnTrait, DbBackend, EntityTrait, QueryFilter, QueryTrait};
+
+    use super::{confirmed_event, generated::delivered_message};
+
+    #[test]
+    fn confirmed_event_stays_grouped_with_other_filters() {
+        let sql = delivered_message::Entity::find()
+            .filter(confirmed_event(
+                "delivered_message",
+                "domain",
+                "block_number",
+            ))
+            .filter(delivered_message::Column::Domain.eq(1))
+            .build(DbBackend::Postgres)
+            .to_string();
+        assert!(
+            sql.contains("(delivered_message.block_number IS NULL OR "),
+            "confirmation predicate must be grouped: {sql}"
+        );
+        assert!(
+            !sql.contains("WHERE delivered_message.block_number IS NULL OR"),
+            "confirmation predicate must not leak outside its group: {sql}"
+        );
+    }
+}

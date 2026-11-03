@@ -7,6 +7,7 @@ import {
   ArtifactState,
   type ArtifactDeployed,
 } from '@hyperlane-xyz/provider-sdk/artifact';
+import { assert } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../clients/signer.js';
 import type { SvmRpc } from '../types.js';
@@ -92,7 +93,9 @@ class StubWriter extends SvmAddressLookupTableWriter {
   ) {
     super(stubRpc(), stubSigner());
   }
-  async read(): Promise<ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>> {
+  override async read(): Promise<
+    ArtifactDeployed<SvmAltConfig, SvmDeployedAlt>
+  > {
     return this.current;
   }
 }
@@ -127,7 +130,11 @@ describe('SvmAddressLookupTableWriter — 256-address cap', () => {
       // assertion did not fire.
       const unique = makeAddresses(50);
       const writer = new SvmAddressLookupTableWriter(stubRpc(), stubSigner());
-      const raw = Array.from({ length: 300 }, (_, i) => unique[i % 50]);
+      const raw = Array.from({ length: 300 }, (_, i) => {
+        const address = unique[i % 50];
+        assert(address, 'Expected generated address');
+        return address;
+      });
       await expect(
         writer.create({
           artifactState: ArtifactState.NEW,

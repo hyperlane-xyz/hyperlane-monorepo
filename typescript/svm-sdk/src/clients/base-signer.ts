@@ -363,7 +363,7 @@ async function signAndSend(params: {
  */
 function checkSignatureResult(
   signature: Signature,
-  result: SignatureStatusResponse,
+  result: SignatureStatusResponse | undefined,
 ): HistoryCheckResult {
   if (!result) return null;
 
@@ -681,7 +681,7 @@ export abstract class BaseSvmSigner
 
   protected constructor(
     rpc: SvmRpc,
-    rpcUrls: string[],
+    rpcUrls: [string, ...string[]],
     chainMetadata: ChainMetadataForAltVM,
     signer: TransactionSigner,
   ) {
@@ -699,7 +699,7 @@ export abstract class BaseSvmSigner
     privateKey: string,
   ): Promise<{
     rpc: SvmRpc;
-    rpcUrls: string[];
+    rpcUrls: [string, ...string[]];
     keypair: KeyPairSigner;
   }> {
     const { rpc, rpcUrls } = BaseSvmSigner.resolveRpcConnection(metadata);
@@ -710,11 +710,12 @@ export abstract class BaseSvmSigner
 
   protected static resolveRpcConnection(metadata: ChainMetadataForAltVM): {
     rpc: SvmRpc;
-    rpcUrls: string[];
+    rpcUrls: [string, ...string[]];
   } {
     const rpcUrls = (metadata.rpcUrls ?? []).map((rpc) => rpc.http);
-    assert(rpcUrls.length > 0, 'At least one RPC URL is required');
-    return { rpc: createRpc(rpcUrls[0]), rpcUrls };
+    const [rpcUrl, ...otherRpcUrls] = rpcUrls;
+    assert(rpcUrl, 'At least one RPC URL is required');
+    return { rpc: createRpc(rpcUrl), rpcUrls: [rpcUrl, ...otherRpcUrls] };
   }
 
   getSignerAddress(): string {

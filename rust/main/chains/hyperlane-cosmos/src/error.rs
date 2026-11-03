@@ -46,7 +46,10 @@ pub enum HyperlaneCosmosError {
     CometbftError(#[from] Box<cometbft::error::Error>),
     /// Cometbft RPC Error
     #[error(transparent)]
-    CometbftRpcError(#[from] Box<cometbft_rpc::Error>),
+    CometbftRpcError(Box<cometbft_rpc::Error>),
+    /// RPC transport errors whose dependency traces can contain credentials.
+    #[error("{0}")]
+    RpcTransportError(String),
     /// Prost error
     #[error("{0}")]
     Prost(#[from] prost::DecodeError),
@@ -117,8 +120,40 @@ impl From<PublicKeyError> for HyperlaneCosmosError {
 
 impl From<cometbft_rpc::Error> for HyperlaneCosmosError {
     fn from(value: cometbft_rpc::Error) -> Self {
-        HyperlaneCosmosError::CometbftRpcError(Box::new(value))
+        Self::from(Box::new(value))
     }
+}
+
+impl From<Box<cometbft_rpc::Error>> for HyperlaneCosmosError {
+    fn from(value: Box<cometbft_rpc::Error>) -> Self {
+        use cometbft_rpc::error::ErrorDetail;
+
+        // CometBFT erases reqwest errors into string traces, so without_url()
+        // is no longer available here. Redact URLs while retaining the causes.
+        match value.detail() {
+            ErrorDetail::Http(_) | ErrorDetail::InvalidProxy(_) => {
+                Self::RpcTransportError(redact_transport_urls(&value.to_string()))
+            }
+            ErrorDetail::InvalidUrl(_) => Self::RpcTransportError("Invalid HTTP RPC URL".into()),
+            _ => Self::CometbftRpcError(value),
+        }
+    }
+}
+
+fn redact_transport_urls(message: &str) -> String {
+    let mut redacted = String::with_capacity(message.len());
+    // reqwest formats URLs using Url::Display, which percent-encodes whitespace.
+    // Remove the entire URL-containing token: parsing punctuation delimiters
+    // would leak suffixes of credentials containing parentheses or quotes.
+    for token in message.split_inclusive(char::is_whitespace) {
+        if token.contains("://") {
+            redacted.push_str("<redacted-url>");
+            redacted.push_str(&token[token.trim_end().len()..]);
+        } else {
+            redacted.push_str(token);
+        }
+    }
+    redacted
 }
 
 impl From<cometbft::Error> for HyperlaneCosmosError {
@@ -130,5 +165,45 @@ impl From<cometbft::Error> for HyperlaneCosmosError {
 impl From<cosmrs::tendermint::Error> for HyperlaneCosmosError {
     fn from(value: cosmrs::tendermint::Error) -> Self {
         HyperlaneCosmosError::CosmrsTendermintError(Box::new(value))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rpc_error_conversion_preserves_server_errors() {
+        let error =
+            HyperlaneCosmosError::from(cometbft_rpc::Error::server("server failure".into()));
+        assert!(matches!(error, HyperlaneCosmosError::CometbftRpcError(_)));
+        assert!(error.to_string().contains("server failure"));
+        let error = HyperlaneCosmosError::from(cometbft_rpc::Error::http_request_failed(
+            429u16.try_into().expect("HTTP status"),
+        ));
+        assert!(matches!(error, HyperlaneCosmosError::CometbftRpcError(_)));
+        assert!(error.to_string().contains("429"));
+    }
+
+    #[test]
+    fn transport_trace_preserves_causes_without_url_credentials() {
+        for url in [
+            "http://private-user:private-password@localhost/private-path?key=private-query",
+            "https://localhost/private-)(query)?key=private-query%20with%20spaces",
+            "http://[::1]/private-path?key=private-query",
+        ] {
+            let trace = format!("HTTP error\nCaused by:\n    error sending request for url ({url}): error trying to connect: tcp connect error: Connection refused (os error 61)");
+            let redacted = redact_transport_urls(&trace);
+            assert!(!redacted.contains("private-"));
+            assert!(redacted.contains("HTTP error"));
+            assert!(redacted.contains("<redacted-url>"));
+            assert!(redacted.contains("tcp connect error: Connection refused (os error 61)"));
+        }
+        let trace = "request timed out: redirect from https://localhost/private-old to http://localhost/private-new\n";
+        let redacted = redact_transport_urls(trace);
+        assert_eq!(
+            redacted,
+            "request timed out: redirect from <redacted-url> to <redacted-url>\n"
+        );
     }
 }

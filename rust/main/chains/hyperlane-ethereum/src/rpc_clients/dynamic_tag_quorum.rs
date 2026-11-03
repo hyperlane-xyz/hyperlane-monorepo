@@ -626,6 +626,28 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn checkpoint_quorum_outvotes_one_forged_root() {
+        for tag in ["finalized", "0x65"] {
+            let clients = ["0xforged", "0xcanonical", "0xcanonical"].map(|root| {
+                MockClient::new(
+                    Ok(block(101, "0xcommon")),
+                    Duration::ZERO,
+                    HashMap::from([("0x65".to_owned(), Ok(serde_json::json!(root)))]),
+                )
+            });
+            let provider = DynamicTagQuorumProvider::new(Quorum::Majority, clients.to_vec());
+            let response: Value = provider
+                .request(
+                    "eth_call",
+                    serde_json::json!([{"to": "0x1234", "data": "0xabcd"}, tag]),
+                )
+                .await
+                .expect("two honest endpoints agree on the checkpoint");
+            assert_eq!(response, "0xcanonical");
+        }
+    }
+
+    #[tokio::test]
     async fn fails_retryably_when_dynamic_tag_lacks_quorum_responses() {
         let clients = [
             MockClient::new(Ok(block(100, "0xaaa")), Duration::ZERO, HashMap::new()),

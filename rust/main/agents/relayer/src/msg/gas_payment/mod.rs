@@ -337,13 +337,13 @@ mod test {
             };
             hyperlane_db.process_gas_payment(correct_destination_payment, &LogMeta::random());
             // Ensure if the gas payment was made to the correct destination, it meets the
-            // requirement
+            // requirement and preserves the paid-gas budget.
             assert_eq!(
                 enforcer
                     .message_meets_gas_payment_requirement(&msg, &TxCostEstimate::default(),)
                     .await
                     .unwrap(),
-                GasPolicyStatus::PolicyMet(U256::zero())
+                GasPolicyStatus::PolicyMet(U256::one())
             );
         })
         .await;
@@ -397,12 +397,13 @@ mod test {
             };
             hyperlane_db.process_gas_payment(deficit_payment, &LogMeta::random());
             // Ensure if the full gas payment was made, it meets the requirement
+            // and preserves the accumulated paid-gas budget.
             assert_eq!(
                 enforcer
                     .message_meets_gas_payment_requirement(&msg, &TxCostEstimate::default(),)
                     .await
                     .unwrap(),
-                GasPolicyStatus::PolicyMet(U256::zero())
+                GasPolicyStatus::PolicyMet(U256::from(2))
             );
         })
         .await;

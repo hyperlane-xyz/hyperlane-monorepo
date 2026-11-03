@@ -92,21 +92,38 @@ impl SingletonSigner {
     }
 
     /// Run this signer's event loop.
-    pub async fn run(mut self) {
-        while let Some((hash, tx)) = self.rx.recv().await {
-            let mut retries = self.retries;
+    pub async fn run(self) {
+        Self::run_with_signer(self.inner, self.retries, self.rx).await;
+    }
+
+    async fn run_with_signer(
+        inner: impl HyperlaneSigner,
+        retry_limit: usize,
+        mut rx: mpsc::UnboundedReceiver<SignTask>,
+    ) {
+        while let Some((hash, mut tx)) = rx.recv().await {
+            let mut retries = retry_limit;
             let res = loop {
-                match self.inner.sign_hash(&hash).await {
-                    Ok(res) => break Ok(res),
+                // A validator reorg drops the waiting receiver. Check before
+                // each attempt and cancel pending requests instead of continuing
+                // to sign queued hashes or retrying after their caller halts.
+                let result = tokio::select! {
+                    biased;
+                    _ = tx.closed() => break None,
+                    result = inner.sign_hash(&hash) => result,
+                };
+                match result {
+                    Ok(res) => break Some(Ok(res)),
                     Err(err) => {
                         warn!("Error signing hash: {}", err);
                         if retries == 0 {
-                            break Err(err);
+                            break Some(Err(err));
                         }
                         retries = retries.saturating_sub(1);
                     }
                 }
             };
+            let Some(res) = res else { continue };
             if tx.send(res.map(Into::into)).is_err() {
                 warn!(
                     "Failed to send signature back to the signer handle because the channel was closed"
@@ -128,5 +145,133 @@ enum SingletonSignerError {
 impl From<SingletonSignerError> for HyperlaneSignerError {
     fn from(e: SingletonSignerError) -> Self {
         Self::from(Box::new(e) as Box<_>)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{
+        sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc, Mutex,
+        },
+        time::Duration,
+    };
+    use tokio::sync::Notify;
+
+    #[derive(Debug, Default)]
+    struct SignState {
+        calls: AtomicUsize,
+        started: Notify,
+        cancelled: Notify,
+        close_receiver: Mutex<Option<oneshot::Receiver<Result<Signature, HyperlaneSignerError>>>>,
+    }
+
+    #[derive(Debug)]
+    struct TestSigner {
+        state: Arc<SignState>,
+        pending: bool,
+    }
+
+    struct PendingSign(Arc<SignState>);
+    impl Drop for PendingSign {
+        fn drop(&mut self) {
+            self.0.cancelled.notify_one();
+        }
+    }
+
+    #[async_trait]
+    impl HyperlaneSigner for TestSigner {
+        fn eth_address(&self) -> H160 {
+            H160::zero()
+        }
+        async fn sign_hash(&self, _: &H256) -> Result<HyperlaneSignature, HyperlaneSignerError> {
+            self.state.calls.fetch_add(1, Ordering::SeqCst);
+            self.state.started.notify_one();
+            if self.pending {
+                let _cancel = PendingSign(self.state.clone());
+                std::future::pending().await
+            } else {
+                drop(
+                    self.state
+                        .close_receiver
+                        .lock()
+                        .expect("receiver lock")
+                        .take(),
+                );
+                Err(HyperlaneSignerError::from(
+                    Box::new(std::io::Error::other("signer unavailable"))
+                        as Box<dyn std::error::Error + Send + Sync>,
+                ))
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn singleton_skips_cancelled_queue_and_cancels_pending_signing() {
+        let state = Arc::new(SignState::default());
+        let (tx, rx) = mpsc::unbounded_channel();
+        for _ in 0..3 {
+            let (callback, response) = oneshot::channel();
+            tx.send((H256::zero(), callback))
+                .expect("queue cancelled signing request");
+            drop(response);
+        }
+        let (callback, response) = oneshot::channel();
+        tx.send((H256::zero(), callback))
+            .expect("queue pending signing request");
+        drop(tx);
+        let runner = tokio::spawn(SingletonSigner::run_with_signer(
+            TestSigner {
+                state: state.clone(),
+                pending: true,
+            },
+            5,
+            rx,
+        ));
+        state.started.notified().await;
+        assert_eq!(state.calls.load(Ordering::SeqCst), 1);
+        drop(response);
+        tokio::time::timeout(Duration::from_secs(1), state.cancelled.notified())
+            .await
+            .expect("pending signer future must be dropped");
+        tokio::time::timeout(Duration::from_secs(1), runner)
+            .await
+            .expect("cancelled queue must drain")
+            .expect("signer runner");
+        assert_eq!(state.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn singleton_stops_retries_when_waiter_closes() {
+        for cancel in [false, true] {
+            let state = Arc::new(SignState::default());
+            let (tx, rx) = mpsc::unbounded_channel();
+            let (callback, response) = oneshot::channel();
+            tx.send((H256::zero(), callback))
+                .expect("queue signing request");
+            drop(tx);
+            let mut response = Some(response);
+            if cancel {
+                *state.close_receiver.lock().expect("receiver lock") = response.take();
+            }
+            SingletonSigner::run_with_signer(
+                TestSigner {
+                    state: state.clone(),
+                    pending: false,
+                },
+                5,
+                rx,
+            )
+            .await;
+            assert_eq!(
+                state.calls.load(Ordering::SeqCst),
+                if cancel { 1 } else { 6 }
+            );
+            if let Some(response) = response {
+                assert!(response.await.expect("exhausted retry response").is_err());
+            }
+        }
     }
 }

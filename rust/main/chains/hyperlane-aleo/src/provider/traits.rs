@@ -18,11 +18,10 @@ use url::Url;
 use aleo_serialize::AleoSerialize;
 use hyperlane_core::{ChainResult, H512};
 
-use crate::utils::{encrypt_message, get_tx_id};
-use crate::{
-    CurrentNetwork, EncryptedProvingRequest, HyperlaneAleoError, ProvingRequest, ProvingResponse,
-    X25519PublicKey,
-};
+use crate::utils::get_tx_id;
+use crate::{CurrentNetwork, HyperlaneAleoError, ProvingRequest};
+
+use super::{FallbackHttpClient, JWTBaseHttpClient};
 
 /// Aleo Http Client trait alias
 pub trait AleoClient: HttpClient + Clone + std::fmt::Debug + Send + Sync + 'static {}
@@ -292,12 +291,7 @@ impl<Client: HttpClient> RpcClient<Client> {
 #[derive(Debug, Clone, new)]
 pub struct ProvingClient<Client: HttpClient>(Client);
 
-impl<Client: HttpClient> ProvingClient<Client> {
-    /// Requests a public key used to encrypt the proving request.
-    pub async fn get_public_key(&self) -> ChainResult<X25519PublicKey> {
-        self.0.request("pubkey", None).await
-    }
-
+impl ProvingClient<FallbackHttpClient<JWTBaseHttpClient>> {
     /// Makes a POST request to the API
     pub async fn proving_request<N: Network>(
         &self,
@@ -314,22 +308,7 @@ impl<Client: HttpClient> ProvingClient<Client> {
             .to_bytes_le()
             .map_err(HyperlaneAleoError::from)?;
 
-        // Fetch a fresh public key after authorization, then encrypt and submit the request.
-        // The caller performs an earlier preflight request to fail cheaply during outages.
-        let public_key = self.get_public_key().await?;
-        let ciphertext = encrypt_message(&public_key.public_key, &bytes)?;
-
-        let request = serde_json::to_value(EncryptedProvingRequest {
-            key_id: public_key.key_id,
-            ciphertext,
-        })?;
-
-        let response: ProvingResponse = self.0.request_post("prove/encrypted", &request).await?;
-
-        Ok(
-            serde_json::from_value::<Transaction<N>>(response.transaction)
-                .map_err(HyperlaneAleoError::from)?,
-        )
+        self.0.prove(bytes).await
     }
 }
 

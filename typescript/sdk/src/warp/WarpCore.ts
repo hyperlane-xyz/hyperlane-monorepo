@@ -290,6 +290,7 @@ export class WarpCore {
     originToken,
     destination,
     sender,
+    recipient: recipientOverride,
     senderPubKey,
     interchainFee,
     tokenFeeQuote,
@@ -301,6 +302,13 @@ export class WarpCore {
     originToken: IToken;
     destination: ChainNameOrId;
     sender: Address;
+    /**
+     * The actual transfer recipient. Origin-side policies (allowlist hooks,
+     * fee programs) may inspect the recipient during simulation, so the
+     * estimate should use the real one. Falls back to the sender's address on
+     * the destination when omitted.
+     */
+    recipient?: Address;
     senderPubKey?: HexString;
     interchainFee?: TokenAmount<IToken>;
     tokenFeeQuote?: TokenAmount<IToken>;
@@ -326,12 +334,16 @@ export class WarpCore {
       return { gasUnits: 0, gasPrice: 0, fee: Number(defaultQuote.amount) };
     }
 
-    // Form transactions to estimate local gas with
-    const recipient = convertToProtocolAddress(
-      sender,
-      destinationMetadata.protocol,
-      destinationMetadata.bech32Prefix,
-    );
+    // Form transactions to estimate local gas with. Prefer the real recipient:
+    // a recipient-gated origin (allowlist hook / fee program) rejects a
+    // placeholder and the estimate would fail for an otherwise valid transfer.
+    const recipient =
+      recipientOverride ??
+      convertToProtocolAddress(
+        sender,
+        destinationMetadata.protocol,
+        destinationMetadata.bech32Prefix,
+      );
 
     // Use a small but viable amount for gas estimation when none is provided.
     // Must survive on-chain decimal truncation (e.g. 18→6 decimals) to avoid
@@ -369,9 +381,10 @@ export class WarpCore {
     // Seismic's shielded execution zeroes msg.sender for unsigned eth_call/
     // eth_estimateGas, so any handler logic keyed on msg.sender (e.g. HypERC20's
     // _burn(msg.sender, ...)) reverts during this probe. Recovering msg.sender
-    // requires a signed read (see SeismicSigner), which needs real key material
-    // that this read-only MultiProviderAdapter never holds. The actual
-    // transferRemote signer is Seismic-aware, so the real send still works.
+    // requires a signed estimate (see SeismicSigner). The adapter may hold that
+    // signer for token reads, but fee estimation is not routed through it: a
+    // signed estimate costs a signature per quote. The actual transferRemote
+    // signer is Seismic-aware, so the real send still works.
     // Use the same hard-coded gas-unit estimate as the multi-tx branch below
     // (with real on-chain fee data) instead of eth_estimateGas, so callers like
     // getMaxTransferAmount/validateTransfer still get a conservative non-zero
@@ -430,6 +443,7 @@ export class WarpCore {
     originToken,
     destination,
     sender,
+    recipient,
     senderPubKey,
     interchainFee,
     tokenFeeQuote,
@@ -441,6 +455,7 @@ export class WarpCore {
     originToken: IToken;
     destination: ChainNameOrId;
     sender: Address;
+    recipient?: Address;
     senderPubKey?: HexString;
     interchainFee?: TokenAmount<IToken>;
     tokenFeeQuote?: TokenAmount<IToken>;
@@ -464,6 +479,7 @@ export class WarpCore {
       originToken,
       destination,
       sender,
+      recipient,
       senderPubKey,
       interchainFee,
       tokenFeeQuote,
@@ -976,6 +992,7 @@ export class WarpCore {
       originToken: originTokenAmount.token,
       destination,
       sender,
+      recipient,
       senderPubKey,
       interchainFee: igpQuote,
       tokenFeeQuote,
@@ -1034,6 +1051,7 @@ export class WarpCore {
       originToken,
       destination,
       sender,
+      recipient,
       senderPubKey,
       interchainFee: interchainQuote,
       tokenFeeQuote,
@@ -1090,6 +1108,7 @@ export class WarpCore {
         originToken,
         destination,
         sender,
+        recipient,
         senderPubKey,
         interchainFee: interchainQuote,
         tokenFeeQuote,
@@ -1535,6 +1554,7 @@ export class WarpCore {
       originToken,
       destination,
       sender,
+      recipient,
       senderPubKey,
       interchainFee: interchainQuote,
       tokenFeeQuote,

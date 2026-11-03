@@ -49,6 +49,7 @@ pub struct DispatcherMetrics {
     pub dropped_transactions: IntCounterVec,
 
     pub transaction_submissions: IntCounterVec,
+    pub mev_submissions: IntCounterVec,
 
     pub finalized_transactions: IntCounterVec,
 
@@ -187,6 +188,14 @@ impl DispatcherMetrics {
             &["destination",],
             registry.clone()
         )?;
+        let mev_submissions = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced("mev_submissions"),
+                "Protected broadcast attempts"
+            ),
+            &["destination", "status"],
+            registry.clone()
+        )?;
         let finalized_transactions = register_int_counter_vec_with_registry!(
             opts!(
                 namespaced("finalized_transactions"),
@@ -274,6 +283,7 @@ impl DispatcherMetrics {
             dropped_payloads,
             dropped_transactions,
             transaction_submissions,
+            mev_submissions,
             finalized_transactions,
             call_retries,
             in_flight_transaction_time,

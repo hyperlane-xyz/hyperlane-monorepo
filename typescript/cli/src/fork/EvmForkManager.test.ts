@@ -1,11 +1,94 @@
-import { expect } from 'chai';
+import { JsonRpcProvider } from '@ethersproject/providers';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import { createServer } from 'node:net';
+import sinon from 'sinon';
 
 import {
   type AnvilProcessHandle,
   EvmForkManager,
+  type EvmForkManagerConfig,
   type WaitForEvmRpcReady,
+  getAnvilCommand,
+  waitForEvmRpcReady,
 } from './EvmForkManager.js';
+
+chai.use(chaiAsPromised);
+
+describe('EvmForkManager executable selection', () => {
+  const baseConfig: EvmForkManagerConfig = {
+    chainName: 'arc',
+    chainId: 5042,
+    upstreamRpcUrl: 'https://rpc.example.org',
+    port: 8545,
+  };
+
+  for (const [description, chainName, chainId, binary, gasLimitFlag] of [
+    ['Arc mainnet', 'arc', 5042, 'arc-anvil', false],
+    ['Arc testnet', 'arctestnet', 5042002, 'arc-anvil', false],
+    ['Ethereum', 'ethereum', 1, 'anvil', true],
+    ['renamed Arc metadata', 'customarc', 5042, 'arc-anvil', false],
+    ['local Arc chain', 'arc', 31337, 'arc-anvil', false],
+  ] as const) {
+    it(`selects the correct Anvil command for ${description}`, () => {
+      const command = getAnvilCommand({
+        ...baseConfig,
+        chainName,
+        chainId,
+      });
+      expect(command.binary).to.equal(binary);
+      expect(command.args).to.deep.equal([
+        '--port',
+        '8545',
+        '--chain-id',
+        String(chainId),
+        '--fork-url',
+        baseConfig.upstreamRpcUrl,
+        ...(gasLimitFlag ? ['--disable-block-gas-limit'] : []),
+      ]);
+    });
+  }
+});
+
+describe('EvmForkManager Arc mode verification', () => {
+  afterEach(() => sinon.restore());
+
+  it('rejects an Arc fork running Ethereum rules', async () => {
+    const provider = new JsonRpcProvider();
+    sinon.stub(provider, 'getNetwork').resolves({ name: 'arc', chainId: 5042 });
+    const send = sinon.stub(provider, 'send').resolves({ network: null });
+
+    const rejected: Error = await expect(
+      waitForEvmRpcReady(provider, new AbortController().signal, 'arc', 5042),
+    ).to.be.rejectedWith(Error, 'Arc Anvil did not start in Arc mode');
+
+    expect(send.calledOnceWithExactly('anvil_nodeInfo', [])).to.equal(true);
+    expect(rejected.message).to.equal('Arc Anvil did not start in Arc mode');
+  });
+
+  it('accepts Arc mode and skips the mode probe for ordinary EVM forks', async () => {
+    const provider = new JsonRpcProvider();
+    sinon.stub(provider, 'getNetwork').resolves({ name: 'arc', chainId: 5042 });
+    const send = sinon.stub(provider, 'send').resolves({ network: 'arc' });
+
+    await waitForEvmRpcReady(
+      provider,
+      new AbortController().signal,
+      'arc',
+      5042,
+    );
+    expect(send.calledOnceWithExactly('anvil_nodeInfo', [])).to.equal(true);
+
+    send.resetHistory();
+    await waitForEvmRpcReady(
+      provider,
+      new AbortController().signal,
+      'ethereum',
+      1,
+    );
+    expect(send.called).to.equal(false);
+  });
+});
 
 async function freePort(): Promise<number> {
   const server = createServer();
@@ -45,18 +128,13 @@ describe('EvmForkManager port preflight', () => {
       port,
     });
 
-    let rejected: unknown;
     try {
-      await manager.start();
-    } catch (error: unknown) {
-      rejected = error;
+      await expect(manager.start()).to.be.rejectedWith(
+        Error,
+        `port ${port} is already in use`,
+      );
     } finally {
       await new Promise<void>((resolve) => blocker.close(() => resolve()));
-    }
-
-    expect(rejected).to.be.instanceOf(Error);
-    if (rejected instanceof Error) {
-      expect(rejected.message).to.include(`port ${port} is already in use`);
     }
   });
 });
@@ -93,24 +171,47 @@ describe('EvmForkManager error redaction', () => {
       { spawnAnvil, waitForReady: neverReady },
     );
 
-    let rejected: unknown;
-    try {
-      await manager.start();
-    } catch (error: unknown) {
-      rejected = error;
+    const rejected: Error = await expect(manager.start()).to.be.rejectedWith(
+      Error,
+    );
+    // Both the message and every enumerable string field must be free of the
+    // URL, the secret token, and any execa-rendered command fragment.
+    const enumerable = JSON.stringify(rejected);
+    for (const surfaced of [rejected.message, enumerable]) {
+      expect(surfaced).to.not.include(upstreamRpcUrl);
+      expect(surfaced).to.not.include('SUPER_SECRET_KEY');
+      expect(surfaced).to.not.include('--fork-url');
     }
+  });
 
-    expect(rejected).to.be.instanceOf(Error);
-    if (rejected instanceof Error) {
-      // Both the message and every enumerable string field must be free of the
-      // URL, the secret token, and any execa-rendered command fragment.
-      const enumerable = JSON.stringify(rejected);
-      for (const surfaced of [rejected.message, enumerable]) {
-        expect(surfaced).to.not.include(upstreamRpcUrl);
-        expect(surfaced).to.not.include('SUPER_SECRET_KEY');
-        expect(surfaced).to.not.include('--fork-url');
-      }
-    }
+  it('names the missing Arc binary without exposing the upstream RPC URL', async () => {
+    const upstreamRpcUrl = 'https://user:SUPER_SECRET_KEY@host/mainnet';
+    const spawnAnvil = (): AnvilProcessHandle =>
+      Object.assign(
+        Promise.reject(
+          Object.assign(new Error(`spawn arc-anvil ${upstreamRpcUrl}`), {
+            code: 'ENOENT',
+          }),
+        ),
+        { kill: () => {} },
+      );
+    const neverReady: WaitForEvmRpcReady = () => new Promise<void>(() => {});
+    const manager = new EvmForkManager(
+      {
+        chainName: 'arc',
+        chainId: 5042,
+        upstreamRpcUrl,
+        port: await freePort(),
+      },
+      { spawnAnvil, waitForReady: neverReady },
+    );
+
+    const rejected: Error = await expect(manager.start()).to.be.rejectedWith(
+      Error,
+      'arc-anvil not found on PATH',
+    );
+    expect(JSON.stringify(rejected)).to.not.include('SUPER_SECRET_KEY');
+    expect(rejected.message).to.not.include(upstreamRpcUrl);
   });
 });
 
@@ -133,19 +234,13 @@ describe('EvmForkManager readiness error surfacing', () => {
       { spawnAnvil, waitForReady: timingOutReady },
     );
 
-    let rejected: unknown;
-    try {
-      await manager.start();
-    } catch (error: unknown) {
-      rejected = error;
-    }
-
-    expect(rejected).to.be.instanceOf(Error);
-    if (rejected instanceof Error) {
-      // The real readiness diagnostic survives rather than being flattened to
-      // the generic 'anvil failed to start'.
-      expect(rejected.message).to.equal('anvil readiness probe timed out');
-    }
+    // The real readiness diagnostic survives rather than being flattened to
+    // the generic 'anvil failed to start'.
+    const rejected: Error = await expect(manager.start()).to.be.rejectedWith(
+      Error,
+      'anvil readiness probe timed out',
+    );
+    expect(rejected.message).to.equal('anvil readiness probe timed out');
   });
 });
 
@@ -173,14 +268,7 @@ describe('EvmForkManager readiness abort', () => {
       { spawnAnvil, waitForReady: capturingNeverReady },
     );
 
-    let rejected = false;
-    try {
-      await manager.start();
-    } catch {
-      rejected = true;
-    }
-
-    expect(rejected).to.equal(true);
+    await expect(manager.start()).to.be.rejectedWith(Error);
     // Without the abort the never-settling probe's retry timers would keep
     // polling a dead port after anvil already exited.
     expect(capturedSignal?.aborted).to.equal(true);
@@ -210,20 +298,13 @@ describe('EvmForkManager synchronous spawn error redaction', () => {
       { spawnAnvil, waitForReady: neverReady },
     );
 
-    let rejected: unknown;
-    try {
-      await manager.start();
-    } catch (error: unknown) {
-      rejected = error;
-    }
-
-    expect(rejected).to.be.instanceOf(Error);
-    if (rejected instanceof Error) {
-      const enumerable = JSON.stringify(rejected);
-      for (const surfaced of [rejected.message, enumerable]) {
-        expect(surfaced).to.not.include(upstreamRpcUrl);
-        expect(surfaced).to.not.include('SUPER_SECRET_KEY');
-      }
+    const rejected: Error = await expect(manager.start()).to.be.rejectedWith(
+      Error,
+    );
+    const enumerable = JSON.stringify(rejected);
+    for (const surfaced of [rejected.message, enumerable]) {
+      expect(surfaced).to.not.include(upstreamRpcUrl);
+      expect(surfaced).to.not.include('SUPER_SECRET_KEY');
     }
   });
 });

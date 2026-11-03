@@ -9,6 +9,7 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
+redact.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 chrono.workspace = true

@@ -802,12 +802,19 @@ export function computeRemoteRoutersUpdates(
     expectedRoutersConfig.remoteRouters,
   )) {
     const domainId = parseInt(domainIdStr);
-    const currentRouterAddress = Object.prototype.hasOwnProperty.call(
+    const hasCurrentRemoteRouter = Object.prototype.hasOwnProperty.call(
       currentRoutersConfig.remoteRouters,
       domainId,
-    )
-      ? currentRoutersConfig.remoteRouters[domainId].address
-      : undefined;
+    );
+    const currentRemoteRouter = currentRoutersConfig.remoteRouters[domainId];
+    let currentRouterAddress: string | undefined;
+    if (hasCurrentRemoteRouter) {
+      assert(
+        currentRemoteRouter,
+        `Missing remote router config for domain ${domainId}`,
+      );
+      currentRouterAddress = currentRemoteRouter.address;
+    }
     const currentDestinationGas =
       currentRoutersConfig.destinationGas[domainId] ?? '0';
     // When the expected config omits gas for an existing router, keep the

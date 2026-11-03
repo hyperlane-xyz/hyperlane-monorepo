@@ -12,7 +12,7 @@ import {
   MerkleTreeHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { eqAddressRadix } from '@hyperlane-xyz/utils';
+import { assert, eqAddressRadix } from '@hyperlane-xyz/utils';
 
 import { RadixSigner } from '../clients/signer.js';
 import { RadixHookArtifactManager } from '../hook/hook-artifact-manager.js';
@@ -187,11 +187,16 @@ describe('Radix Hooks (e2e)', function () {
       expect(readHook.config.overhead).to.deep.equal(config.overhead);
 
       // Verify oracle config (note: tokenDecimals is not stored on-chain for Radix)
-      expect(readHook.config.oracleConfig[DOMAIN_1].gasPrice).to.equal(
-        config.oracleConfig[DOMAIN_1].gasPrice,
+      const readOracleConfig = readHook.config.oracleConfig[DOMAIN_1];
+      const expectedOracleConfig = config.oracleConfig[DOMAIN_1];
+      assert(readOracleConfig, `Missing oracle config for domain ${DOMAIN_1}`);
+      assert(
+        expectedOracleConfig,
+        `Missing expected oracle config for domain ${DOMAIN_1}`,
       );
-      expect(readHook.config.oracleConfig[DOMAIN_1].tokenExchangeRate).to.equal(
-        config.oracleConfig[DOMAIN_1].tokenExchangeRate,
+      expect(readOracleConfig.gasPrice).to.equal(expectedOracleConfig.gasPrice);
+      expect(readOracleConfig.tokenExchangeRate).to.equal(
+        expectedOracleConfig.tokenExchangeRate,
       );
     });
 
@@ -292,12 +297,18 @@ describe('Radix Hooks (e2e)', function () {
 
       expect(readHook.config.overhead[DOMAIN_1]).to.equal(60000);
       expect(readHook.config.overhead[DOMAIN_2]).to.equal(100000);
-      expect(readHook.config.oracleConfig[DOMAIN_1].gasPrice).to.equal(
-        '2000000000',
+      const domain1OracleConfig = readHook.config.oracleConfig[DOMAIN_1];
+      const domain2OracleConfig = readHook.config.oracleConfig[DOMAIN_2];
+      assert(
+        domain1OracleConfig,
+        `Missing oracle config for domain ${DOMAIN_1}`,
       );
-      expect(readHook.config.oracleConfig[DOMAIN_2].gasPrice).to.equal(
-        '3000000000',
+      assert(
+        domain2OracleConfig,
+        `Missing oracle config for domain ${DOMAIN_2}`,
       );
+      expect(domain1OracleConfig.gasPrice).to.equal('2000000000');
+      expect(domain2OracleConfig.gasPrice).to.equal('3000000000');
     });
 
     it('should transfer ownership of IGP hook via update', async () => {
@@ -438,6 +449,7 @@ describe('Radix Hooks (e2e)', function () {
 
       // Verify ownership transfer is the LAST transaction
       const lastTx = txs[txs.length - 1];
+      assert(lastTx, 'Expected at least one update transaction');
       expect(lastTx.annotation).to.include('owner');
 
       // Execute all transactions - this will fail if ownership transfer is not last
@@ -454,12 +466,18 @@ describe('Radix Hooks (e2e)', function () {
       // Verify gas configs were updated
       expect(readHook.config.overhead[DOMAIN_1]).to.equal(60000);
       expect(readHook.config.overhead[DOMAIN_2]).to.equal(100000);
-      expect(readHook.config.oracleConfig[DOMAIN_1].gasPrice).to.equal(
-        '2000000000',
+      const domain1OracleConfig = readHook.config.oracleConfig[DOMAIN_1];
+      const domain2OracleConfig = readHook.config.oracleConfig[DOMAIN_2];
+      assert(
+        domain1OracleConfig,
+        `Missing oracle config for domain ${DOMAIN_1}`,
       );
-      expect(readHook.config.oracleConfig[DOMAIN_2].gasPrice).to.equal(
-        '3000000000',
+      assert(
+        domain2OracleConfig,
+        `Missing oracle config for domain ${DOMAIN_2}`,
       );
+      expect(domain1OracleConfig.gasPrice).to.equal('2000000000');
+      expect(domain2OracleConfig.gasPrice).to.equal('3000000000');
 
       // Verify ownership was transferred
       expect(eqAddressRadix(readHook.config.owner, TEST_RADIX_BURN_ADDRESS)).to

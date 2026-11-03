@@ -204,8 +204,7 @@ pub struct PrometheusMiddlewareConf {
     /// Information about the chain this provider is for.
     pub chain: Option<ChainInfo>,
 
-    /// Which pool this connection belongs to (primary vs. a verification-only pool like
-    /// the validator's `additionalQuorumRpcUrls`). Defaults to `Primary`.
+    /// Which pool this connection belongs to (primary vs. verification-only). Defaults to `Primary`.
     #[cfg_attr(feature = "serde", serde(default))]
     pub rpc_role: RpcRole,
 }

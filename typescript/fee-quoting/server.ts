@@ -1,4 +1,4 @@
-// Server exports (pulls in express, pino, prom-client, etc.)
+// Server exports (pulls in Fastify, pino, prom-client, etc.)
 export { FeeQuotingServer } from './FeeQuotingServer.js';
 export { QuoteService } from './src/services/quoteService.js';
 export type { QuoteServiceOptions } from './src/services/quoteService.js';

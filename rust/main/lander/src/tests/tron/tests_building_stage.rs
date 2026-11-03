@@ -37,6 +37,7 @@ fn create_tron_payload() -> FullPayload {
         to: H256::zero(),
         status: PayloadStatus::ReadyToSubmit,
         value: None,
+        gas_limit: Default::default(),
         inclusion_soft_deadline: None,
     }
 }

@@ -852,7 +852,7 @@ const fork: CommandModuleWithContext<
 > = {
   command: 'fork',
   describe:
-    'Fork the chains of a warp route on a per-protocol local node (Anvil for EVM, surfpool for Sealevel) and replay governance transactions',
+    'Fork warp route chains (Anvil for EVM, arc-anvil for Arc, surfpool for Sealevel) and replay governance transactions',
   builder: {
     ...forkCommandOptions,
     ...WARP_ROUTE_OPTIONS,

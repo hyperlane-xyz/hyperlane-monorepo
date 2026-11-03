@@ -109,7 +109,8 @@ impl AgentConfig {
             metrics_port: network.metrics_port,
             mailbox: network.deployments.mailbox.clone(),
             max_batch_size: 10,
-            interchain_gas_paymaster: "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84".to_string(),
+            // Starknet IGP event indexing is not implemented.
+            interchain_gas_paymaster: format!("0x{}", "00".repeat(32)),
             validator_announce: network.deployments.va.clone(),
             merkle_tree_hook: network.deployments.hook_merkle.clone(),
             native_token: NativeTokenConfig {

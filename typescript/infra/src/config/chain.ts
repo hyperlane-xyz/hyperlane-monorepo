@@ -31,22 +31,11 @@ import { getSafeApiKey } from '../utils/safeApiKey.js';
 
 import { DeployEnvironment } from './deploy-environment.js';
 
-// V2 ICAs are not supported on these chains, due to the block gas limit being
-// lower than the amount required to deploy the new InterchainAccountRouter
-// implementation.
-export const legacyIcaChainRouters: Record<
-  ChainName,
-  {
-    interchainAccountIsm: Address;
-    interchainAccountRouter: Address;
-  }
-> = {
-  viction: {
-    interchainAccountIsm: '0x551BbEc45FD665a8C95ca8731CbC32b7653Bc59B',
-    interchainAccountRouter: '0xc11f8Cf2343d3788405582F65B8af6A4F7a6FfC8',
-  },
+// Historical routers retained for contracts still owned by legacy ICAs.
+// Viction's current router is deployed; migration calls use this old pair.
+export const legacyIcaChainRouters: Record<ChainName, Address> = {
+  viction: '0xc11f8Cf2343d3788405582F65B8af6A4F7a6FfC8',
 };
-export const legacyIcaChains = Object.keys(legacyIcaChainRouters);
 export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
 
 // Chains that require MinimalInterchainAccountRouter due to deployment size limits
@@ -69,14 +58,12 @@ export const legacyIgpChains: ChainName[] = Array.from(
     'coti',
     'electroneum',
     'metis',
-    'taiko',
     'torus',
 
     // Keep chains with repeatedly unreliable deployment/proposal execution on
     // legacy IGP for now.
     'krown',
     'pulsechain',
-    'sei',
     'viction',
     ...getDisabledChains(),
   ]),
@@ -90,14 +77,11 @@ export const chainsToSkip: ChainName[] = [
   'forma',
   'eden',
 
-  // TODO: remove once zksync PR is merged into main
-  // mainnets
-  'zksync',
+  // ZKSync stack chains
   'abstract',
 
   // temp during downtime
   'nesa',
-  'tac',
 
   ...getDisabledChains(),
 ];

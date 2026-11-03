@@ -16,7 +16,7 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { eqAddressAleo } from '@hyperlane-xyz/utils';
+import { assert, eqAddressAleo } from '@hyperlane-xyz/utils';
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { AleoSigner } from '../clients/signer.js';
@@ -147,7 +147,7 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
       expect(updateTxs).to.be.an('array').with.length(2); // 2 hooks to set
       for (const tx of updateTxs) {
         const receipt = await signer.sendAndConfirmTransaction(tx);
-        expect(receipt.transactionHash).to.not.be.empty;
+        expect(receipt['transactionHash']).to.not.be.empty;
       }
 
       // Step 5: Verify final configuration
@@ -210,7 +210,7 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
       // For Aleo, we expect: create + set_dispatch_proxy + set_default_ism = 3 receipts minimum
       expect(receipts).to.be.an('array').with.length.greaterThan(2);
       receipts.forEach((receipt) => {
-        expect(receipt.transactionHash).to.not.be.empty;
+        expect(receipt['transactionHash']).to.not.be.empty;
       });
     });
 
@@ -564,8 +564,10 @@ describe('8. aleo sdk Mailbox artifacts e2e tests', async function () {
           expect(txs[0]).to.have.property('annotation');
           expect(txs[0]).to.have.property('programName');
 
-          const receipt = await signer.sendAndConfirmTransaction(txs[0]);
-          expect(receipt.transactionHash).to.not.be.empty;
+          const [tx] = txs;
+          assert(tx, `Expected update transaction for ${name}`);
+          const receipt = await signer.sendAndConfirmTransaction(tx);
+          expect(receipt['transactionHash']).to.not.be.empty;
 
           const reader = mailboxArtifactManager.createReader('mailbox');
           const readMailbox = await reader.read(

@@ -48,6 +48,9 @@ export interface ProviderSuccessResult extends ProviderPerformResultBase {
 export interface ProviderErrorResult extends ProviderPerformResultBase {
   status: ProviderStatus.Error;
   error: unknown;
+  // Further errors from providers that failed after `error`, so callers can
+  // classify the failure without depending on which reply arrived first.
+  otherErrors?: unknown[];
 }
 
 export interface ProviderTimeoutResult extends ProviderPerformResultBase {

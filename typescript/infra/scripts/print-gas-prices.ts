@@ -128,6 +128,10 @@ async function getGasPrice(
     case ProtocolType.Ethereum: {
       const provider = mpp.getProvider(chain);
       const gasPrice = await (provider.provider as Provider).getGasPrice();
+      // Tempo RPC prices are attodollars/gas; TIP-20 balances use microdollars.
+      if (chain === 'tempo') {
+        return { amount: ethers.utils.formatUnits(gasPrice, 18), decimals: 6 };
+      }
       return {
         amount: ethers.utils.formatUnits(gasPrice, 'gwei'),
         decimals: 9,

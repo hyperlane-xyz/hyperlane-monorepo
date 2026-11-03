@@ -212,7 +212,6 @@ pub enum KnownHyperlaneDomain {
     Test2 = 9913372,
     Test3 = 9913373,
     Test4 = 31337,
-    FuelTest1 = 13374,
     SealevelTest1 = 13375,
     SealevelTest2 = 13376,
     RadixTest0 = 9913374,
@@ -283,8 +282,6 @@ pub enum HyperlaneDomainType {
 pub enum HyperlaneDomainProtocol {
     /// An EVM-based chain type which uses hyperlane-ethereum.
     Ethereum,
-    /// A Fuel-based chain type which uses hyperlane-fuel.
-    Fuel,
     /// A Sealevel-based chain type which uses hyperlane-sealevel.
     Sealevel,
     /// A Cosmos-based chain type which uses hyperlane-cosmos.
@@ -362,8 +359,8 @@ impl KnownHyperlaneDomain {
             | SolanaTestnet
             | SonicSvmTestnet
             | StarknetSepolia => HyperlaneDomainType::Testnet,
-            Test1 | Test2 | Test3 | Test4 | FuelTest1 | SealevelTest1 | SealevelTest2
-            | RadixTest0 | RadixTest1 | CosmosTest99990 | CosmosTest99991 | CosmosTestNative1
+            Test1 | Test2 | Test3 | Test4 | SealevelTest1 | SealevelTest2 | RadixTest0
+            | RadixTest1 | CosmosTest99990 | CosmosTest99991 | CosmosTestNative1
             | CosmosTestNative2 | StarknetTest23448593 | StarknetTest23448594 => {
                 HyperlaneDomainType::LocalTestChain
             }
@@ -391,7 +388,6 @@ impl KnownHyperlaneDomain {
             // Local chains
             | SealevelTest1
             | SealevelTest2 => HyperlaneDomainProtocol::Sealevel,
-            FuelTest1 => HyperlaneDomainProtocol::Fuel,
             Starknet
             | StarknetMainnet
             | StarknetSepolia
@@ -608,7 +604,7 @@ impl HyperlaneDomain {
         let protocol = self.domain_protocol();
         match protocol {
             Ethereum | Cosmos | CosmosNative | Starknet | Tron => IndexMode::Block,
-            Fuel | Sealevel | Radix | Aleo => IndexMode::Sequence,
+            Sealevel | Radix | Aleo => IndexMode::Sequence,
         }
     }
 }

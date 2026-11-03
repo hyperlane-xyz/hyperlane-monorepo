@@ -24,7 +24,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        e2e-type: [cosmwasm, cosmosnative, evm, sealevel, starknet, radix, tron]
+        e2e-type:
+          [
+            cosmwasm,
+            cosmosnative,
+            evm,
+            sealevel,
+            sealevel-composite,
+            starknet,
+            radix,
+            tron,
+          ]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -116,12 +126,13 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: 'v3-rust-e2e'
-          shared-key: ${{ matrix.e2e-type }}
+          # Both sealevel legs build the same targets; only the main leg saves.
+          shared-key: ${{ startsWith(matrix.e2e-type, 'sealevel') && 'sealevel' || matrix.e2e-type }}
           cache-provider: 'github'
-          save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
+          save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') && matrix.e2e-type != 'sealevel-composite' }}
           workspaces: |
             ./rust/main
-            ${{ matrix.e2e-type == 'sealevel' && './rust/sealevel' || '' }}
+            ${{ startsWith(matrix.e2e-type, 'sealevel') && './rust/sealevel' || '' }}
 
       - name: Free disk space
         if: steps.check-conditions.outputs.skip-e2e != 'true'
@@ -150,14 +161,42 @@ jobs:
 
       # cargo-build-sbf keeps its pinned toolchain outside Cargo's target cache.
       - name: Cache SBF platform tools
-        if: matrix.e2e-type == 'sealevel' && steps.check-conditions.outputs.skip-e2e != 'true'
+        if: startsWith(matrix.e2e-type, 'sealevel') && steps.check-conditions.outputs.skip-e2e != 'true'
         uses: actions/cache@v6
         with:
           path: ~/.cache/solana
           key: sbf-platform-tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust/main/utils/run-locally/src/sealevel/solana.rs') }}
 
+      # The harness reuses these dirs when populated and fills them on a miss.
+      - name: Resolve Solana download versions
+        id: solana-downloads
+        if: startsWith(matrix.e2e-type, 'sealevel') && steps.check-conditions.outputs.skip-e2e != 'true'
+        run: |
+          SOLANA_RS=rust/main/utils/run-locally/src/sealevel/solana.rs
+          SOLANA_VERSION=$(grep -oP 'SOLANA_CONTRACTS_CLI_VERSION: &str = "\K[^"]+' "$SOLANA_RS")
+          SPL_TAG=$(grep -oP 'solana-program-library/releases/download/\K[^/]+(?=/spl\.tar\.gz)' "$SOLANA_RS")
+          test -n "$SOLANA_VERSION" && test -n "$SPL_TAG"
+          echo "solana-version=$SOLANA_VERSION" >> "$GITHUB_OUTPUT"
+          echo "spl-tag=$SPL_TAG" >> "$GITHUB_OUTPUT"
+          echo "E2E_SOLANA_RELEASE_DIR=$HOME/.cache/hyperlane-e2e/solana-release-$SOLANA_VERSION" >> "$GITHUB_ENV"
+          echo "E2E_SPL_PROGRAMS_DIR=$HOME/.cache/hyperlane-e2e/spl-$SPL_TAG" >> "$GITHUB_ENV"
+
+      - name: Cache Solana release
+        if: startsWith(matrix.e2e-type, 'sealevel') && steps.check-conditions.outputs.skip-e2e != 'true'
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/hyperlane-e2e/solana-release-${{ steps.solana-downloads.outputs.solana-version }}
+          key: solana-release-${{ steps.solana-downloads.outputs.solana-version }}-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Cache SPL programs
+        if: startsWith(matrix.e2e-type, 'sealevel') && steps.check-conditions.outputs.skip-e2e != 'true'
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/hyperlane-e2e/spl-${{ steps.solana-downloads.outputs.spl-tag }}
+          key: spl-${{ steps.solana-downloads.outputs.spl-tag }}
+
       - name: Install OpenSSL 1.1 for Solana toolchain
-        if: matrix.e2e-type == 'sealevel' && steps.check-conditions.outputs.skip-e2e != 'true'
+        if: startsWith(matrix.e2e-type, 'sealevel') && steps.check-conditions.outputs.skip-e2e != 'true'
         run: |
           wget --tries=3 --retry-connrefused -O libssl1.1.deb https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb
           sudo dpkg -i libssl1.1.deb
@@ -223,8 +262,8 @@ jobs:
           RUST_BACKTRACE: 'full'
 
       - name: agent tests (Sealevel custom composite ISM)
-        if: ${{ matrix.e2e-type == 'sealevel' && steps.check-conditions.outputs.skip-e2e != 'true' }}
-        run: cargo test --release --package run-locally --bin run-locally --features sealevel -- sealevel::warp_route_composite_ism::test::test_warp_route_custom_composite_ism_process --exact --nocapture
+        if: ${{ matrix.e2e-type == 'sealevel-composite' && steps.check-conditions.outputs.skip-e2e != 'true' }}
+        run: cargo test --locked --timings --package run-locally --bin run-locally --features 'sealevel test-utils' -- sealevel::warp_route_composite_ism::test::test_warp_route_custom_composite_ism_process --exact --nocapture
         working-directory: ./rust/main
         env:
           E2E_CI_MODE: 'true'

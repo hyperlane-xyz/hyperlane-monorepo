@@ -64,7 +64,9 @@ function parseVersion(
 ): { major: number; minor: number } | null {
   const match = version.match(/(\d+)\.(\d+)/);
   if (!match) return null;
-  return { major: parseInt(match[1], 10), minor: parseInt(match[2], 10) };
+  const [, major, minor] = match;
+  assert(major && minor, `Invalid Solana version: ${version}`);
+  return { major: parseInt(major, 10), minor: parseInt(minor, 10) };
 }
 
 function meetsMinVersion(
@@ -82,7 +84,7 @@ function getValidatorVersion(binaryPath: string): string | null {
       encoding: 'utf-8',
     });
     const match = output.match(/solana-test-validator\s+(\d+\.\d+\.\d+)/);
-    return match ? match[1] : null;
+    return match?.[1] ?? null;
   } catch (error) {
     // eslint-disable-next-line no-console
     console.warn(`Failed to get validator version from ${binaryPath}:`, error);
@@ -133,6 +135,8 @@ export function findSolanaTestValidator(): string | null {
   }
 
   if (candidates.length === 0) return null;
+  const [fallback] = candidates;
+  assert(fallback, 'Expected at least one Solana validator candidate');
 
   for (const candidate of candidates) {
     const parsed = parseVersion(candidate.version);
@@ -144,9 +148,9 @@ export function findSolanaTestValidator(): string | null {
   // eslint-disable-next-line no-console
   console.warn(
     `Warning: No Solana v${MIN_SOLANA_VERSION.major}.x found. ` +
-      `Using ${candidates[0].version} which may have compatibility issues.`,
+      `Using ${fallback.version} which may have compatibility issues.`,
   );
-  return candidates[0].path;
+  return fallback.path;
 }
 
 export interface PreloadedProgram {
@@ -376,7 +380,12 @@ async function waitForRpcReady(
 
       if (response.ok) {
         const data = await response.json();
-        if (data.result === 'ok') {
+        if (
+          typeof data === 'object' &&
+          data !== null &&
+          'result' in data &&
+          data.result === 'ok'
+        ) {
           return;
         }
       }

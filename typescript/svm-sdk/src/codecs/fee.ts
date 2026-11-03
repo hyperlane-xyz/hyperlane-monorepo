@@ -68,7 +68,10 @@ export function encodeBTreeSetH160(signers: string[]): ReadonlyUint8Array {
   const bytes = unique.map(signerToH160);
   const sorted = bytes.sort((a, b) => {
     for (let i = 0; i < 20; i++) {
-      const diff = a[i] - b[i];
+      const aByte = a[i];
+      const bByte = b[i];
+      assert(aByte !== undefined && bByte !== undefined, 'Invalid H160');
+      const diff = aByte - bByte;
       if (diff !== 0) return diff;
     }
     return 0;

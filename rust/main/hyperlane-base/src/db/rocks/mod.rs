@@ -8,7 +8,7 @@ use std::{
     },
 };
 
-use super::error::DbError;
+use super::error::{DbError, GasPaymentSequenceConflict};
 use rocksdb::{Direction, IteratorMode, Options, WriteBatch, WriteBatchIterator, DB as Rocks};
 use tracing::info;
 

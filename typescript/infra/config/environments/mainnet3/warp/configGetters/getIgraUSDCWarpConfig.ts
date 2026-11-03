@@ -3,13 +3,15 @@ import {
   ChainSubmissionStrategy,
   HypTokenRouterConfig,
   SubmissionStrategy,
+  SubmitterMetadata,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { getChainAddresses } from '../../../../registry.js';
-import { getWarpFeeOwner } from '../../governance/utils.js';
+import { warpFeesSafes } from '../../governance/safe/warpFees.js';
+import { WARP_FEES_TURNKEY_OWNER } from '../../governance/utils.js';
 import { WarpRouteIds } from '../warpIds.js';
 
 import {
@@ -51,7 +53,10 @@ const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
 export const getIgraUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const feeOwner = getWarpFeeOwner('igra');
+  // igra warp-fee ownership rotated to the Turnkey treasury key so agent-driven
+  // sweeps can claim fees directly (see eni/moonpay rotation). Previously the
+  // WarpFees ICA on igra, controlled by the ethereum WarpFees Safe.
+  const feeOwner = WARP_FEES_TURNKEY_OWNER;
 
   return {
     ...Object.fromEntries(
@@ -75,9 +80,10 @@ export const getIgraUSDCWarpConfig = async (
 export const getIgraUSDCStrategyConfig = (): ChainSubmissionStrategy => {
   const safeAddress = ownersByChain[ORIGIN_CHAIN];
   const originSafeSubmitter = {
-    type: TxSubmitterType.GNOSIS_SAFE as const,
+    type: TxSubmitterType.GNOSIS_TX_BUILDER as const,
     chain: ORIGIN_CHAIN,
     safeAddress,
+    version: '1',
   };
 
   const chainAddress = getChainAddresses();
@@ -92,21 +98,46 @@ export const getIgraUSDCStrategyConfig = (): ChainSubmissionStrategy => {
     (c) => c !== ORIGIN_CHAIN,
   );
 
-  const icaStrategies: [string, SubmissionStrategy][] = icaChains.map(
-    (chain) => [
-      chain,
-      {
-        submitter: {
-          type: TxSubmitterType.INTERCHAIN_ACCOUNT as const,
-          chain: ORIGIN_CHAIN,
-          destinationChain: chain,
-          owner: safeAddress,
-          originInterchainAccountRouter,
-          internalSubmitter: originSafeSubmitter,
-        },
+  // The igra fee (RoutingFee) contract is owned by the WarpFees ICA on igra,
+  // controlled by the ethereum WarpFees Safe — a different hierarchy from the
+  // router owner (Igra Safe). Route fee-owner txs (transferOwnership to the
+  // Turnkey key) through the WarpFees Safe so they are submitted by the actual
+  // owner; without this the CLI merges fee txs into the router submitter and the
+  // transferOwnership reverts (not owner).
+  const warpFeeSafeAddress = warpFeesSafes[ORIGIN_CHAIN];
+  assert(warpFeeSafeAddress, `Missing WarpFees safe for ${ORIGIN_CHAIN}`);
+  const originWarpFeeSafeSubmitter = {
+    type: TxSubmitterType.GNOSIS_TX_BUILDER as const,
+    chain: ORIGIN_CHAIN,
+    safeAddress: warpFeeSafeAddress,
+    version: '1',
+  };
+  const igraWarpFeeSubmitter: SubmitterMetadata = {
+    type: TxSubmitterType.INTERCHAIN_ACCOUNT as const,
+    chain: ORIGIN_CHAIN,
+    destinationChain: 'igra',
+    owner: warpFeeSafeAddress,
+    originInterchainAccountRouter,
+    internalSubmitter: originWarpFeeSafeSubmitter,
+  };
+
+  const icaStrategies: [
+    string,
+    SubmissionStrategy & { feeSubmitter?: SubmitterMetadata },
+  ][] = icaChains.map((chain) => [
+    chain,
+    {
+      submitter: {
+        type: TxSubmitterType.INTERCHAIN_ACCOUNT as const,
+        chain: ORIGIN_CHAIN,
+        destinationChain: chain,
+        owner: safeAddress,
+        originInterchainAccountRouter,
+        internalSubmitter: originSafeSubmitter,
       },
-    ],
-  );
+      ...(chain === 'igra' ? { feeSubmitter: igraWarpFeeSubmitter } : {}),
+    },
+  ]);
 
   return Object.fromEntries([
     [ORIGIN_CHAIN, { submitter: originSafeSubmitter }],

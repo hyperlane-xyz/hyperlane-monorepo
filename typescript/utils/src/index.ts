@@ -86,7 +86,15 @@ export {
   toWei,
   tryParseAmount,
 } from './amount.js';
-export { chunk, exclude, randomElement, arrayEqual } from './arrays.js';
+export {
+  chunk,
+  exclude,
+  randomElement,
+  arrayEqual,
+  isNonEmptyArray,
+  nonEmptyArray,
+  type NonEmptyArray,
+} from './arrays.js';
 export {
   AllSettledResult,
   concurrentMap,

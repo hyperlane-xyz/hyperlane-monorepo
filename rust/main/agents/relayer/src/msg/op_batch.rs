@@ -325,6 +325,7 @@ mod tests {
             domain: HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum),
             // TODO
             signer: None,
+            ccs_signer: None,
             identity: None,
             submitter: SubmitterType::Classic,
             estimated_block_time: Duration::from_secs(1),
@@ -345,7 +346,8 @@ mod tests {
                         "https://endpoints.omniatech.io/v1/arbitrum/one/public"
                             .parse()
                             .unwrap(),
-                    ],
+                    ]
+                    .into(),
                 },
                 transaction_overrides: Default::default(),
                 op_submission_config: OpSubmissionConfig {
@@ -356,6 +358,7 @@ mod tests {
                 },
                 consider_null_transaction_receipt: false,
                 fallback_hedge: None,
+                mev_submission: None,
             }),
             metrics_conf: Default::default(),
             index: Default::default(),

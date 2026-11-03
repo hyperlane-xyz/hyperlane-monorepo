@@ -1,13 +1,13 @@
 import type { Log } from '@ethersproject/providers';
 import { utils } from 'ethers';
-import { Request, Response, Router } from 'express';
-import rateLimit from 'express-rate-limit';
+import type { FastifyReply } from 'fastify';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
 import {
   CommitmentReadIsmService__factory,
   InterchainAccountRouter__factory,
+  Mailbox__factory,
 } from '@hyperlane-xyz/core';
 import { InterchainAccount } from '@hyperlane-xyz/sdk/middleware/account/InterchainAccount';
 import type { AccountConfig } from '@hyperlane-xyz/sdk/middleware/account/types';
@@ -32,13 +32,20 @@ import {
 
 import { prisma } from '../db.js';
 import type { Prisma } from '../generated/prisma/client.js';
-import { createAbiHandler } from '../utils/abiHandler.js';
+import type { CcipApp, CcipRequest, CommitmentParams } from '../http.js';
+import {
+  ABI_ROUTE_OPTIONS,
+  type AbiRoute,
+  createAbiHandler,
+} from '../utils/abiHandler.js';
 import {
   PrometheusMetrics,
-  RateLimitedMethod,
   RateLimitedRoute,
   UnhandledErrorReason,
 } from '../utils/prometheus.js';
+import { createRateLimitHook } from '../utils/rateLimit.js';
+import { CommitmentAccessDeniedError } from '../utils/errors.js';
+import { CcsAuth, CcsSignerSchema } from '../utils/ccsAuth.js';
 
 import {
   BaseService,
@@ -49,6 +56,11 @@ import {
 const EnvSchema = z.object({
   REGISTRY_URI: REGISTRY_URI_SCHEMA,
   SERVER_BASE_URL: z.string(),
+  CCS_AUTHORIZED_SIGNERS: z
+    .string()
+    .transform((value) =>
+      z.array(CcsSignerSchema).min(1).parse(JSON.parse(value)),
+    ),
 });
 
 const CommitmentMetadataSchema = z.object({
@@ -143,7 +155,9 @@ function normalizedRelayerSet(relayers: string[]): string[] {
   ].sort();
 }
 
-function includesRelayer(relayers: string[], relayer: string): boolean {
+/** Empty record lists permit any globally authenticated signer. */
+function isAuthorizedRelayer(relayers: string[], relayer: string): boolean {
+  if (relayers.length === 0) return true;
   const normalizedRelayer = normalizedRelayerSet([relayer])[0];
   return (
     normalizedRelayer !== undefined &&
@@ -256,16 +270,17 @@ function hasMatchingLegacyCommitment(
 
 export class CallCommitmentsService extends BaseService {
   private multiProvider: MultiProvider;
-  private baseUrl: string;
+  private readonly auth: CcsAuth;
+  private readonly originMailboxes = new Map<string, string>();
 
   constructor(
     config: ServiceConfigWithBaseUrl,
     private icaApp: InterchainAccount,
+    authorizedSigners: string[] = [],
   ) {
     super(config);
     this.multiProvider = config.multiProvider;
-    this.baseUrl = config.baseUrl;
-    this.registerRoutes(this.router, this.baseUrl);
+    this.auth = new CcsAuth(config.baseUrl, authorizedSigners);
   }
 
   static async create(serviceName: string): Promise<CallCommitmentsService> {
@@ -289,10 +304,11 @@ export class CallCommitmentsService extends BaseService {
         baseUrl,
       },
       icaApp,
+      env.CCS_AUTHORIZED_SIGNERS,
     );
   }
 
-  public async handleCommitment(req: Request, res: Response) {
+  public async handleCommitment(req: CcipRequest, res: FastifyReply) {
     const logger = this.addLoggerServiceContext(req.log);
 
     logger.info('Received commitment creation request');
@@ -314,7 +330,7 @@ export class CallCommitmentsService extends BaseService {
         },
         'Invalid call data',
       );
-      return res.status(400).json({ error: 'Invalid call data' });
+      return res.code(400).send({ error: 'Invalid call data' });
     }
     logger.setBindings({ commitment });
 
@@ -344,7 +360,7 @@ export class CallCommitmentsService extends BaseService {
         },
         'Failed to derive ICA address',
       );
-      return res.status(400).json({
+      return res.code(400).send({
         error: `Failed to derive ICA address: ${errorMessage}`,
       });
     }
@@ -374,7 +390,7 @@ export class CallCommitmentsService extends BaseService {
         this.config.serviceName,
         UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
       );
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.code(500).send({ error: 'Internal server error' });
     }
 
     const requestedMetadata = {
@@ -394,8 +410,8 @@ export class CallCommitmentsService extends BaseService {
         'Commitment already exists with different metadata',
       );
       return res
-        .status(409)
-        .json({ error: 'Commitment already exists with different metadata' });
+        .code(409)
+        .send({ error: 'Commitment already exists with different metadata' });
     }
 
     logger.info(
@@ -406,7 +422,7 @@ export class CallCommitmentsService extends BaseService {
       },
       'Commitment processing completed successfully',
     );
-    return res.status(200).json({
+    return res.code(200).send({
       commitment,
       ica: storedMetadata.ica,
       originDomain: storedMetadata.originDomain,
@@ -417,12 +433,13 @@ export class CallCommitmentsService extends BaseService {
     message: string,
     relayer: string,
     logger: Logger,
+    originTxHash?: string,
   ) {
     const log = this.addLoggerServiceContext(logger);
     log.info({ message, relayer }, 'Handling fetch commitment request');
 
     try {
-      const { body } = parseMessage(message);
+      const { body, origin } = parseMessage(message);
       const commitment = commitmentFromRevealMessage(body);
       log.info(
         { commitment, message, relayer },
@@ -431,10 +448,7 @@ export class CallCommitmentsService extends BaseService {
 
       const record = await this.fetchCommitmentRecord(commitment, log);
 
-      if (
-        record.relayers.length > 0 &&
-        !includesRelayer(record.relayers, relayer)
-      ) {
+      if (!isAuthorizedRelayer(record.relayers, relayer)) {
         log.warn(
           {
             commitment: record.commitment,
@@ -443,13 +457,31 @@ export class CallCommitmentsService extends BaseService {
           },
           'Relayer not authorized for this commitment',
         );
-        throw new Error(
-          `Relayer ${relayer} not authorized for this commitment`,
-        );
+        throw new CommitmentAccessDeniedError();
       }
 
+      assert(
+        origin === record.originDomain,
+        'Reveal origin does not match stored commitment',
+      );
+      // The dispatch receipt identifies the actual router pair, including for
+      // older records derived using the registry's default router version.
+      const ica = originTxHash
+        ? await this.deriveIcaFromRevealMessage(message, originTxHash)
+        : record.ica;
+      if (ica.toLowerCase() !== record.ica.toLowerCase()) {
+        log.warn(
+          {
+            commitment,
+            originTxHash,
+            previousIca: record.ica,
+            ica,
+          },
+          'Verified dispatch ICA differs from stored commitment ICA',
+        );
+      }
       const encoded =
-        record.ica +
+        ica +
         encodeIcaCalls(normalizeCalls(record.calls), record.salt).slice(2);
 
       log.info(
@@ -461,31 +493,130 @@ export class CallCommitmentsService extends BaseService {
       );
 
       return encoded;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      if (error instanceof CommitmentAccessDeniedError) throw error;
       log.error(
         {
           message,
           relayer,
-          error: error.message,
-          stack: error.stack,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
         },
         'Error fetching commitment from message',
       );
-      // TODO we might not want to show the error
-      return JSON.stringify({ error: error.message });
+      throw error;
     }
+  }
+
+  private async deriveIcaFromRevealMessage(
+    message: string,
+    originTxHash: string,
+  ): Promise<string> {
+    const reveal = parseMessage(message);
+    assert(
+      utils.hexDataLength(reveal.body) === 65 &&
+        utils.hexDataSlice(reveal.body, 0, 1) === '0x02',
+      'Invalid ICA reveal message',
+    );
+    const commitment = commitmentFromRevealMessage(reveal.body);
+    const originChain = this.multiProvider.getChainName(reveal.origin);
+    const provider = this.multiProvider.getProvider(originChain);
+    const receipt = await provider.getTransactionReceipt(originTxHash);
+    assert(receipt, `Transaction not found: ${originTxHash}`);
+
+    let mailbox = this.originMailboxes.get(originChain);
+    if (mailbox === undefined) {
+      mailbox = await this.icaApp
+        .getContracts(originChain)
+        .interchainAccountRouter.mailbox();
+      this.originMailboxes.set(originChain, mailbox);
+    }
+    const iface = Mailbox__factory.createInterface();
+    const dispatchTopic = iface.getEventTopic('Dispatch');
+    const dispatches = receipt.logs
+      .filter(
+        (log) =>
+          log.address.toLowerCase() === mailbox.toLowerCase() &&
+          log.topics[0] === dispatchTopic,
+      )
+      .map((log) => {
+        const dispatchedMessage = z
+          .string()
+          .parse(iface.parseLog(log).args.message);
+        return { log, message: dispatchedMessage };
+      });
+    const revealDispatch = dispatches.find(
+      (dispatch) => dispatch.message.toLowerCase() === message.toLowerCase(),
+    );
+    assert(revealDispatch, 'Reveal message not found in origin transaction');
+
+    // A dispatch hook can nest another commit/reveal using the same hash.
+    // Consume earlier reveals so the outer reveal retains its own commitment.
+    const pendingCommitments: ReturnType<typeof parseMessage>[] = [];
+    let committed: ReturnType<typeof parseMessage> | undefined;
+    for (const dispatch of dispatches.sort(
+      (left, right) => left.log.logIndex - right.log.logIndex,
+    )) {
+      if (dispatch.log.logIndex > revealDispatch.log.logIndex) break;
+      const candidate = parseMessage(dispatch.message);
+      if (
+        candidate.origin !== reveal.origin ||
+        candidate.destination !== reveal.destination ||
+        candidate.sender.toLowerCase() !== reveal.sender.toLowerCase() ||
+        candidate.recipient.toLowerCase() !== reveal.recipient.toLowerCase()
+      ) {
+        continue;
+      }
+      if (
+        utils.hexDataLength(candidate.body) === 129 &&
+        utils.hexDataSlice(candidate.body, 0, 1) === '0x01' &&
+        utils.hexDataSlice(candidate.body, 97, 129).toLowerCase() ===
+          commitment.toLowerCase()
+      ) {
+        pendingCommitments.push(candidate);
+      } else if (
+        utils.hexDataLength(candidate.body) === 65 &&
+        utils.hexDataSlice(candidate.body, 0, 1) === '0x02' &&
+        utils.hexDataSlice(candidate.body, 33, 65).toLowerCase() ===
+          commitment.toLowerCase()
+      ) {
+        const paired = pendingCommitments.pop();
+        if (dispatch.log.logIndex === revealDispatch.log.logIndex) {
+          committed = paired;
+          break;
+        }
+      }
+    }
+    assert(committed, 'Matching commitment dispatch not found');
+    const destinationRouter = InterchainAccountRouter__factory.connect(
+      bytes32ToAddress(reveal.recipient),
+      this.multiProvider.getProvider(reveal.destination),
+    );
+    return destinationRouter[
+      'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+    ](
+      reveal.origin,
+      utils.hexDataSlice(committed.body, 1, 33),
+      reveal.sender,
+      bytes32ToAddress(utils.hexDataSlice(committed.body, 33, 65)),
+      utils.hexDataSlice(committed.body, 65, 97),
+    );
   }
 
   /**
    * Validate and parse the request body against the Zod schema.
    * Returns parsed data or sends a 400 response and returns null.
    */
-  private parseCommitmentBody(body: any, res: Response, logger: Logger) {
+  private parseCommitmentBody(
+    body: unknown,
+    res: FastifyReply,
+    logger: Logger,
+  ) {
     const result = PostCallsSchema.safeParse(body);
     if (!result.success) {
       const errors = z.treeifyError(result.error);
       logger.warn({ errors }, 'Invalid request body received');
-      res.status(400).json({ errors });
+      res.code(400).send({ errors });
       return null;
     }
     return result.data;
@@ -587,6 +718,8 @@ export class CallCommitmentsService extends BaseService {
     const accountConfig: AccountConfig = {
       origin: originChain,
       owner: data.owner,
+      localRouter: data.localRouter,
+      routerOverride: data.routerOverride,
       ismOverride: data.ismOverride,
       userSalt: data.userSalt,
     };
@@ -596,6 +729,8 @@ export class CallCommitmentsService extends BaseService {
         originChain,
         destinationChain,
         owner: data.owner,
+        localRouter: data.localRouter,
+        routerOverride: data.routerOverride,
         userSalt: data.userSalt,
       },
       'Deriving ICA from config',
@@ -658,20 +793,23 @@ export class CallCommitmentsService extends BaseService {
    * GET /calls/:commitment — returns existence and stored routing metadata.
    * Used by the router status service to detect call_lost without a time threshold.
    */
-  public async handleCheckCommitment(req: Request, res: Response) {
+  public async handleCheckCommitment(
+    req: CcipRequest<{ Params: CommitmentParams }>,
+    res: FastifyReply,
+  ) {
     const logger = this.addLoggerServiceContext(req.log);
     const { commitment } = req.params;
     assert(commitment, 'Route parameter :commitment must be present');
-    res.set('Cache-Control', 'no-store');
+    res.header('Cache-Control', 'no-store');
     try {
       const record = await prisma.commitment.findUnique({
         where: { commitment },
         select: commitmentMetadataSelect,
       });
-      if (record === null) return res.json({ exists: false });
+      if (record === null) return res.send({ exists: false });
 
       const metadata = CommitmentMetadataSchema.parse(record);
-      return res.json({
+      return res.send({
         exists: true,
         ica: metadata.ica,
         originDomain: metadata.originDomain,
@@ -690,7 +828,7 @@ export class CallCommitmentsService extends BaseService {
         this.config.serviceName,
         UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
       );
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.code(500).send({ error: 'Internal server error' });
     }
   }
 
@@ -725,16 +863,7 @@ export class CallCommitmentsService extends BaseService {
       salt: z
         .string()
         .regex(/^0x[0-9a-fA-F]{64}$/, 'salt must be a 32-byte 0x hex string'),
-      relayers: z
-        .array(
-          z
-            .string()
-            .regex(
-              /^0x[0-9a-fA-F]{40}$/,
-              'relayer must be a 20-byte EVM address',
-            ),
-        )
-        .default([]),
+      relayers: z.array(CcsSignerSchema).default([]),
       destinationAccount: z
         .string()
         .regex(
@@ -747,13 +876,13 @@ export class CallCommitmentsService extends BaseService {
     }),
   );
 
-  public async handleCalldataPost(req: Request, res: Response) {
+  public async handleCalldataPost(req: CcipRequest, res: FastifyReply) {
     const logger = this.addLoggerServiceContext(req.log);
     const result = CallCommitmentsService.CalldataPostSchema.safeParse(
       req.body,
     );
     if (!result.success) {
-      return res.status(400).json({ errors: z.treeifyError(result.error) });
+      return res.code(400).send({ errors: z.treeifyError(result.error) });
     }
     const {
       commitment: requestedCommitment,
@@ -772,8 +901,8 @@ export class CallCommitmentsService extends BaseService {
       expectedCommitment.toLowerCase() !== requestedCommitment.toLowerCase()
     ) {
       return res
-        .status(400)
-        .json({ error: 'commitment does not match keccak256(salt || data)' });
+        .code(400)
+        .send({ error: 'commitment does not match keccak256(salt || data)' });
     }
     const commitment = expectedCommitment;
 
@@ -817,8 +946,8 @@ export class CallCommitmentsService extends BaseService {
           'Commitment already exists with different metadata',
         );
         return res
-          .status(409)
-          .json({ error: 'Commitment already exists with different metadata' });
+          .code(409)
+          .send({ error: 'Commitment already exists with different metadata' });
       }
 
       logger.error(
@@ -834,10 +963,10 @@ export class CallCommitmentsService extends BaseService {
         this.config.serviceName,
         UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
       );
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.code(500).send({ error: 'Internal server error' });
     }
 
-    return res.status(200).json({ commitment });
+    return res.code(200).send({ commitment });
   }
 
   private async storeCalldata(
@@ -911,7 +1040,10 @@ export class CallCommitmentsService extends BaseService {
     );
   }
 
-  public async handleCalldataGet(req: Request, res: Response) {
+  public async handleCalldataGet(
+    req: CcipRequest<{ Params: CommitmentParams }>,
+    res: FastifyReply,
+  ) {
     const logger = this.addLoggerServiceContext(req.log);
     const { commitment } = req.params;
 
@@ -933,11 +1065,17 @@ export class CallCommitmentsService extends BaseService {
         },
         'Database error fetching calldata',
       );
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.code(500).send({ error: 'Internal server error' });
     }
-    if (!record) return res.status(404).json({ error: 'Not found' });
+    if (!record) return res.code(404).send({ error: 'Not found' });
+    const relayers = z.array(z.string()).parse(record.relayers);
+    if (!isAuthorizedRelayer(relayers, this.auth.signer(req))) {
+      return res
+        .code(403)
+        .send({ error: 'Signer not authorized for this commitment' });
+    }
 
-    return res.status(200).json({
+    return res.code(200).send({
       originDomain: record.originDomain,
       data: record.data,
       salt: record.salt,
@@ -950,70 +1088,60 @@ export class CallCommitmentsService extends BaseService {
     });
   }
 
-  /**
-   * Register routes onto an Express Router or app.
-   */
-  private registerRoutes(router: Router, baseUrl: string): void {
-    const toRateLimitedMethod = (method: string): RateLimitedMethod => {
-      if (method === RateLimitedMethod.GET) return RateLimitedMethod.GET;
-      if (method === RateLimitedMethod.POST) return RateLimitedMethod.POST;
-      return RateLimitedMethod.OTHER;
-    };
-    const toRateLimitedRoute = (route: string): RateLimitedRoute => {
-      return (
-        Object.values(RateLimitedRoute).find(
-          (knownRoute) => knownRoute === route,
-        ) ?? RateLimitedRoute.Unknown
-      );
-    };
-    const createRateLimit = () =>
-      rateLimit({
-        windowMs: 60 * 1000,
-        max: 20,
-        standardHeaders: true,
-        legacyHeaders: false,
-        handler: (req, res) => {
-          PrometheusMetrics.logRateLimited(
-            toRateLimitedMethod(req.method),
-            toRateLimitedRoute(req.route.path),
-          );
-          res.status(429).json({ error: 'Too many requests' });
-        },
-      });
-    const writeRateLimit = createRateLimit();
-    const readRateLimit = createRateLimit();
+  registerRoutes(app: CcipApp, prefix: string): void {
+    app.addHook('onClose', async () => {
+      await prisma.$disconnect();
+    });
 
-    router.post(
-      RateLimitedRoute.Calls,
+    const writeRateLimit = { preHandler: createRateLimitHook(app, 'write') };
+    const readRateLimit = { preHandler: createRateLimitHook(app, 'read') };
+
+    app.post(
+      `${prefix}${RateLimitedRoute.Calls}`,
       writeRateLimit,
       this.handleCommitment.bind(this),
     );
-    router.get(
-      RateLimitedRoute.CallsByCommitment,
+    app.get<{ Params: CommitmentParams }>(
+      `${prefix}${RateLimitedRoute.CallsByCommitment}`,
       readRateLimit,
       this.handleCheckCommitment.bind(this),
     );
-    router.post(
-      RateLimitedRoute.Calldata,
+    app.post(
+      `${prefix}${RateLimitedRoute.Calldata}`,
       writeRateLimit,
       this.handleCalldataPost.bind(this),
     );
-    router.get(
-      RateLimitedRoute.CalldataByCommitment,
-      readRateLimit,
+    app.get<{ Params: CommitmentParams }>(
+      `${prefix}${RateLimitedRoute.CalldataByCommitment}`,
+      { preHandler: [readRateLimit.preHandler, this.auth.authenticate] },
       this.handleCalldataGet.bind(this),
     );
-    router.post(
-      '/getCallsFromRevealMessage',
-      createAbiHandler(
-        CommitmentReadIsmService__factory,
-        'getCallsFromRevealMessage',
-        this.handleFetchCommitment.bind(this),
-        {
-          skipResultEncoding: true,
-          verifyRelayerSignatureUrl: `${baseUrl}/getCallsFromRevealMessage`,
-        },
-      ),
+    app.post<AbiRoute>(
+      `${prefix}/getCallsFromRevealMessage`,
+      { ...ABI_ROUTE_OPTIONS, preHandler: this.auth.authenticate },
+      async (request, reply) => {
+        const rawTxHash = request.body?.origin_tx_hash;
+        if (
+          typeof rawTxHash === 'string' &&
+          !utils.isHexString(rawTxHash, 32)
+        ) {
+          return reply.code(400).send({ error: 'Invalid origin_tx_hash' });
+        }
+        const originTxHash =
+          typeof rawTxHash === 'string' && utils.isHexString(rawTxHash, 32)
+            ? rawTxHash
+            : undefined;
+        return createAbiHandler(
+          CommitmentReadIsmService__factory,
+          'getCallsFromRevealMessage',
+          (message: string, relayer: string, logger: Logger) =>
+            this.handleFetchCommitment(message, relayer, logger, originTxHash),
+          {
+            skipResultEncoding: true,
+            authenticatedRelayer: (request) => this.auth.signer(request),
+          },
+        )(request, reply);
+      },
     );
   }
 }

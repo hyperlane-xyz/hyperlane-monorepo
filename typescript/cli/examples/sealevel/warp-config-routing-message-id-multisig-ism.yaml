@@ -1,0 +1,21 @@
+# Sealevel warp route whose ISM verifies each origin chain with its own
+# message-id multisig (validators + threshold), held in a single deployment.
+# Domain keys are chain names known to the registry. Adding a domain or
+# changing a domain's validators/threshold updates the ISM in place; removing
+# a domain deploys a new ISM and repoints the router to it.
+svmlocal1:
+  type: native
+  owner: 6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt
+  interchainSecurityModule:
+    type: routingMessageIdMultisigIsm
+    owner: 6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt
+    domains:
+      anvil1:
+        validators:
+          - '0x1111111111111111111111111111111111111111'
+          - '0x2222222222222222222222222222222222222222'
+        threshold: 2
+      anvil2:
+        validators:
+          - '0x3333333333333333333333333333333333333333'
+        threshold: 1

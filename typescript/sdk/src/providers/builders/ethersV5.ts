@@ -57,13 +57,6 @@ export const defaultGnosisTxBuilderProviderBuilder: ProviderBuilderFn<
   provider: defaultEthersV5ProviderBuilder(metadata, retryOverride).provider,
 });
 
-export function defaultFuelProviderBuilder(
-  metadata: ChainMetadata,
-): EthersV5Provider {
-  if (!metadata.rpcUrls.length) throw new Error('No RPC URLs provided');
-  throw new Error('TODO fuel support');
-}
-
 // Kept for backwards compatibility
 export function defaultProviderBuilder(
   metadata: ChainMetadata,
