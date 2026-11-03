@@ -102,6 +102,7 @@ def main():
             "profile": "release opt-level=3 including dependencies",
             "cargo_lock_sha256_base64": base64.b64encode(hashlib.sha256((build / "Cargo.lock").read_bytes()).digest()).decode(),
             "binary_sha256_base64": base64.b64encode(hashlib.sha256((build / "target/release/hotpath-broadcast-bench").read_bytes()).digest()).decode(),
+            "measured_harness_sha256_base64": base64.b64encode(hashlib.sha256((source_dir / "main.rs").read_bytes()).digest()).decode(),
             "tokio": "1.53.1",
             "payload": "u64 fast-path control; production IndexingNotification(H512, Vec<Option<u32>>) for notifications_3; component microbenchmark, not end-to-end throughput",
             "sources": hashes,

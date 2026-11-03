@@ -177,7 +177,7 @@ def build(out):
         "command": command, "target_dir": env["CARGO_TARGET_DIR"],
         "profile": "Lander test leaf opt-level=3; dependencies retain cached test/debug profile",
         "leaf_profile": leaf_profile,
-        "rustc": subprocess.check_output(["rustc", "--version"], text=True).strip(),
+        "rustc": subprocess.check_output(["rustc", "--version"], cwd=ROOT / "rust/main", text=True).strip(),
         "parent_path": str(library.relative_to(ROOT)),
         "parent_before_sha256": sha(original), "parent_after_sha256": sha(library.read_bytes()),
         "binary_sha256": sha(binary.read_bytes()),
