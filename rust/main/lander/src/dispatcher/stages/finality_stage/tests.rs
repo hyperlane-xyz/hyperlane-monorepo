@@ -192,6 +192,69 @@ async fn test_processing_reorged_txs() {
 }
 
 #[tokio::test]
+async fn failed_payload_checks_keep_finalized_transactions_for_the_next_scan() {
+    let (payload_db, tx_db, _) = tmp_dbs();
+    let tx = create_random_txs_and_store_them(1, &payload_db, &tx_db, TransactionStatus::Finalized)
+        .await
+        .pop()
+        .expect("stored transaction");
+    let reverted = tx.payload_details.clone();
+    let mut adapter = MockAdapter::new();
+    adapter.expect_tx_status().times(0);
+    let mut sequence = mockall::Sequence::new();
+    adapter
+        .expect_reverted_payloads()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .returning(|_| {
+            Err(LanderError::ChainCommunicationError(
+                hyperlane_core::ChainCommunicationError::from_other_str("payload RPC unavailable"),
+            ))
+        });
+    adapter
+        .expect_reverted_payloads()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .returning(move |_| Ok(reverted.clone()));
+    adapter
+        .expect_post_finalized()
+        .times(1)
+        .returning(|| Ok(()));
+    let state = DispatcherState::new(
+        payload_db.clone(),
+        tx_db,
+        Arc::new(adapter),
+        DispatcherMetrics::dummy_instance(),
+        "test".to_owned(),
+    );
+    let pool = FinalityStagePool::new();
+    pool.insert(tx.clone()).await;
+    let queue = BuildingStageQueue::new();
+
+    FinalityStage::process_txs_step(&pool, &queue, &state, "test")
+        .await
+        .expect("failed check defers this transaction");
+    assert!(pool.snapshot().await.contains_key(&tx.uuid));
+    assert_payloads_status(
+        tx.payload_details.clone(),
+        &payload_db,
+        PayloadStatus::InTransaction(TransactionStatus::Finalized),
+    )
+    .await;
+
+    FinalityStage::process_txs_step(&pool, &queue, &state, "test")
+        .await
+        .expect("next scan retries the check");
+    assert!(pool.snapshot().await.is_empty());
+    assert_payloads_status(
+        tx.payload_details,
+        &payload_db,
+        PayloadStatus::Dropped(PayloadDropReason::Reverted),
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn test_processing_already_finalized_txs_does_not_call_tx_status() {
     const TXS_TO_PROCESS: usize = 3;
 
