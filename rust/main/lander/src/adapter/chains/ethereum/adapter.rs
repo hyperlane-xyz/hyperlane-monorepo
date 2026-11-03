@@ -12,7 +12,6 @@ use ethers_core::types::Eip1559TransactionRequest;
 use eyre::eyre;
 use futures_util::future;
 use tokio::sync::Mutex;
-use tokio::try_join;
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
@@ -179,38 +178,6 @@ impl EthereumAdapter {
 
     async fn calculate_nonce(&self, tx: &Transaction) -> Result<U256, LanderError> {
         self.nonce_manager.calculate_next_nonce(tx).await
-    }
-
-    async fn estimate_gas_price(&self, tx: &Transaction) -> Result<GasPrice, LanderError> {
-        // even if the gas price is already set, we still want to (re-)estimate it
-        // to be resilient to gas spikes
-        let old_tx_precursor = tx.precursor();
-
-        let old_gas_price = old_tx_precursor.extract_gas_price();
-
-        // first, estimate the gas price
-        let estimated_gas_price = gas_price::estimate_gas_price(
-            &self.provider,
-            old_tx_precursor,
-            &self.transaction_overrides,
-            &self.domain,
-        )
-        .await;
-
-        // then, compare the estimated gas price with `current * escalation_multiplier`
-        let escalated_gas_price = gas_price::escalate_gas_price_if_needed(
-            &old_gas_price,
-            &estimated_gas_price,
-            &self.transaction_overrides,
-        );
-
-        let new_gas_price = match escalated_gas_price {
-            GasPrice::None => estimated_gas_price,
-            _ => escalated_gas_price,
-        };
-
-        info!(old=?old_tx_precursor, new=?new_gas_price, "estimated and escalated gas price for transaction");
-        Ok(new_gas_price)
     }
 
     fn check_if_resubmission_makes_sense(
@@ -747,10 +714,21 @@ impl AdaptsChain for EthereumAdapter {
 
         let provider = self.submission_provider(tx).await?;
 
-        let (nonce, gas_price) = try_join!(self.calculate_nonce(tx), self.estimate_gas_price(tx))?;
+        // Fee estimation can defer indefinitely. Do not reserve a fresh nonce
+        // until it succeeds, or later transactions could queue behind a gap.
+        let gas_price = gas_price::estimate_gas_price(
+            &self.provider,
+            tx.precursor(),
+            &self.transaction_overrides,
+            &self.domain,
+        )
+        .await?;
+        let nonce = self.calculate_nonce(tx).await?;
         let gas_price_unchanged =
             gas_price != GasPrice::None && tx.precursor().extract_gas_price() == gas_price;
 
+        let protected = self.is_protected_provider(provider);
+        let previous_request = protected.then(|| tx.precursor().tx.clone());
         let previous_nonce: Option<U256> = tx.precursor().tx.nonce().map(|n| (*n).into());
         let nonce_changed = previous_nonce != Some(nonce);
 
@@ -777,8 +755,7 @@ impl AdaptsChain for EthereumAdapter {
 
         info!(?tx, "submitting transaction");
 
-        let protected = self.is_protected_provider(provider);
-        let send_result = if protected {
+        let send_result = if let Some(previous_request) = previous_request {
             let signed = match mev_submission::preflight(
                 true,
                 provider.sign_transaction(&tx.precursor().tx),
@@ -787,16 +764,9 @@ impl AdaptsChain for EthereumAdapter {
             {
                 Ok(signed) => signed,
                 Err(err) => {
-                    // Signing cannot broadcast. Keep a newly reserved nonce
-                    // distinguishable from a previous broadcast on the next pass.
-                    if nonce_changed {
-                        match previous_nonce {
-                            Some(nonce) => {
-                                tx.precursor_mut().tx.set_nonce(nonce);
-                            }
-                            None => clear_nonce(&mut tx.precursor_mut().tx),
-                        }
-                    }
+                    // Signing cannot broadcast. Restore nonce and fees so a failed
+                    // attempt cannot pin an unsent transaction above a later cap.
+                    tx.precursor_mut().tx = previous_request;
                     return Err(err);
                 }
             };

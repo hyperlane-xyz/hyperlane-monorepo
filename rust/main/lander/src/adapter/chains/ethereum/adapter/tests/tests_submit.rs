@@ -1214,3 +1214,144 @@ async fn reassigned_nonce_is_broadcast_even_when_fees_are_unchanged() {
     assert_eq!(tx.precursor().extract_gas_price(), gas_price);
     assert_eq!(tx.tx_hashes.last(), Some(&new_hash.into()));
 }
+
+/// Initial submissions and retries must respect both default and custom ceilings.
+#[tokio::test]
+async fn test_submit_obeys_priority_fee_cap() {
+    for custom_cap in [None, Some(25_000_000_000u64)] {
+        let cap = custom_cap.unwrap_or(5_000_000_000);
+        for old_tip in [0, cap, cap + 1] {
+            let (payload_db, tx_db, nonce_db) = tmp_dbs();
+            let mut provider = MockEvmProvider::new();
+            provider
+                .expect_get_finalized_block_number()
+                .returning(|_| Ok(43));
+            provider
+                .expect_get_next_nonce_on_finalized_block()
+                .returning(|_, _| Ok(51.into()));
+            provider.expect_get_block().returning(|_| {
+                Ok(Some(ethers::types::Block {
+                    number: Some(42.into()),
+                    base_fee_per_gas: Some(1_000_000_000u64.into()),
+                    ..Default::default()
+                }))
+            });
+            provider.expect_fee_history().returning(|_, _, _| {
+                Ok(ethers::types::FeeHistory {
+                    oldest_block: 0.into(),
+                    reward: vec![vec![100_000_000_000u64.into()]],
+                    base_fee_per_gas: vec![1_000_000_000u64.into()],
+                    gas_used_ratio: vec![0.5],
+                })
+            });
+            provider.expect_send().times(usize::from(old_tip <= cap))
+                .withf(move |tx, _| matches!(tx, TypedTransaction::Eip1559(tx) if tx.max_priority_fee_per_gas == Some(cap.into())))
+                .returning(|_, _| Ok(H256::random()));
+            provider.expect_sign_transaction().never();
+            let mut adapter = mock_ethereum_adapter(
+                provider,
+                payload_db.clone(),
+                tx_db,
+                nonce_db,
+                Address::random(),
+                Duration::from_millis(100),
+                Duration::from_millis(100),
+            );
+            adapter.transaction_overrides.priority_fee_cap = custom_cap.map(Into::into);
+            let mut data = build_mock_typed_tx_and_function();
+            data.0.set_gas_price(old_tip);
+            let mut payload = FullPayload::random();
+            payload.data = serde_json::to_vec(&data).unwrap();
+            payload_db.store_payload_by_uuid(&payload).await.unwrap();
+            let results = adapter.build_transactions(&[payload]).await;
+            let mut tx = results[0].maybe_tx.clone().unwrap();
+            let original_price = tx.precursor().extract_gas_price();
+            let result = adapter.submit(&mut tx).await;
+            if old_tip > cap {
+                assert!(matches!(result, Err(LanderError::TxGasCapReached)));
+                assert_eq!(tx.precursor().extract_gas_price(), original_price);
+                assert!(tx.tx_hashes.is_empty());
+            } else {
+                result.unwrap();
+                assert_eq!(tx.tx_hashes.len(), 1);
+                if old_tip == cap {
+                    assert_eq!(tx.precursor().extract_gas_price(), original_price);
+                }
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn fee_estimation_deferral_does_not_reserve_a_nonce() {
+    use crate::adapter::chains::ethereum::tests::{dummy_evm_tx, ExpectedTxType};
+    use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack};
+
+    for zksync in [false, true] {
+        let (payload_db, tx_db, nonce_db) = tmp_dbs();
+        let signer = Address::random();
+        let mut provider = MockEvmProvider::new();
+        provider.expect_get_block().returning(|_| {
+            Ok(Some(ethers::types::Block {
+                base_fee_per_gas: Some(1_000_000_000u64.into()),
+                ..Default::default()
+            }))
+        });
+        provider.expect_get_finalized_block_number().never();
+        provider.expect_get_next_nonce_on_finalized_block().never();
+        provider.expect_send().never();
+        if zksync {
+            provider.expect_get_signer().returning(|| None);
+            provider.expect_zk_estimate_fee().returning(|_| {
+                Err(ChainCommunicationError::CustomError(
+                    "execution reverted".into(),
+                ))
+            });
+        } else {
+            provider.expect_fee_history().returning(|_, _, _| {
+                Err(ChainCommunicationError::CustomError(
+                    "RPC unavailable".into(),
+                ))
+            });
+        }
+        let mut adapter = mock_ethereum_adapter(
+            provider,
+            payload_db,
+            tx_db,
+            nonce_db.clone(),
+            signer,
+            Duration::from_millis(100),
+            Duration::from_millis(100),
+        );
+        if zksync {
+            adapter.domain = HyperlaneDomain::from_config(
+                999_999,
+                "testzksync",
+                HyperlaneDomainProtocol::Ethereum,
+                HyperlaneDomainTechnicalStack::ZkSync,
+            )
+            .unwrap();
+        }
+        let mut tx = dummy_evm_tx(
+            ExpectedTxType::Eip1559,
+            vec![],
+            crate::TransactionStatus::PendingInclusion,
+            signer,
+        );
+        for _ in 0..2 {
+            assert!(matches!(
+                adapter.submit(&mut tx).await,
+                Err(LanderError::TxSubmissionDeferred)
+            ));
+            assert_eq!(tx.precursor().tx.nonce(), None);
+            assert_eq!(
+                nonce_db
+                    .retrieve_nonce_by_transaction_uuid(&signer, &tx.uuid)
+                    .await
+                    .unwrap(),
+                None
+            );
+            assert!(tx.tx_hashes.is_empty());
+        }
+    }
+}

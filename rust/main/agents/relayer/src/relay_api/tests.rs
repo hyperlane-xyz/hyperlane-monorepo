@@ -230,6 +230,7 @@ async fn make_state_multi_with_capacity(
         transaction_gas_limit: None,
         metrics: dummy_submission_metrics(),
         application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
+        origin_sender_check: None,
     };
     let msg_ctx = Arc::new(msg_ctx);
 
@@ -298,6 +299,7 @@ async fn make_state_with_distinct_channels(
         transaction_gas_limit: None,
         metrics: dummy_submission_metrics(),
         application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
+        origin_sender_check: None,
     });
     let mut indexers = HashMap::new();
     indexers.insert("ethereum".to_string(), indexer);
@@ -646,6 +648,26 @@ async fn test_blacklisted_message_rejected() {
 }
 
 #[tokio::test]
+async fn test_runtime_denylisted_message_rejected() {
+    let msg = test_msg(ORIGIN_ID, DEST_ID, 1);
+    let denylist = Arc::new(
+        crate::msg::runtime_denylist::RuntimeDenylist::from_rules_for_test(serde_json::json!([
+            { "reason": "test", "addedBy": "test", "match": { "messageId": format!("{:?}", msg.id()) } }
+        ])),
+    );
+    let TestHarness {
+        state,
+        rx,
+        _tempdir,
+    } = make_state(Arc::new(MockIndexer::cctp(msg)), ORIGIN_ID, DEST_ID).await;
+
+    let status = send_relay(state.with_runtime_denylist(denylist).router(), TX_HASH).await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(rx.len(), 0, "nothing should be enqueued");
+}
+
+#[tokio::test]
 async fn test_non_whitelisted_message_rejected() {
     let msg = test_msg(ORIGIN_ID, DEST_ID, 1);
     let TestHarness {
@@ -727,6 +749,7 @@ async fn test_partial_send_failure_releases_dedup_for_retry() {
         transaction_gas_limit: None,
         metrics: dummy_submission_metrics(),
         application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
+        origin_sender_check: None,
     });
 
     let (tx_a, _rx_a2) = mpsc::channel::<QueueOperationBatch>(10);
@@ -847,6 +870,7 @@ async fn test_igp_payments_stored_before_enqueue() {
         transaction_gas_limit: None,
         metrics: dummy_submission_metrics(),
         application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
+        origin_sender_check: None,
     });
 
     let mut indexers = HashMap::new();

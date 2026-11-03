@@ -80,6 +80,11 @@ pub fn build_ethereum_connection_conf(
                 .get_opt_key("maxPriorityFeePerGas")
                 .parse_u256()
                 .end(),
+            priority_fee_cap: value_parser
+                .chain(err)
+                .get_opt_key("priorityFeeCap")
+                .parse_u256()
+                .end(),
 
             min_gas_price: value_parser
                 .chain(err)
@@ -1136,6 +1141,23 @@ mod tests {
         )
         .unwrap();
         (connection, errors)
+    }
+
+    #[test]
+    fn ethereum_priority_fee_cap_is_optional() {
+        for cap in [None, Some(0u64), Some(250_000_000_000)] {
+            let overrides = cap.map_or(json!({}), |cap| json!({"priorityfeecap": cap.to_string()}));
+            let (connection, errors) =
+                parse_ethereum_hedge(json!({"transactionoverrides": overrides}));
+            assert!(errors.is_ok());
+            let ChainConnectionConf::Ethereum(connection) = connection else {
+                panic!("expected ethereum connection");
+            };
+            assert_eq!(
+                connection.transaction_overrides.priority_fee_cap,
+                cap.map(Into::into)
+            );
+        }
     }
 
     #[test]

@@ -3,15 +3,16 @@ import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 
 import {
-  isArc20ProgramId,
-  isV2WarpToken,
+  isArcTokenProgramId,
+  isArcWarpToken,
   stringToU128,
 } from '../utils/helper.js';
 
 import {
   TokenRegistryEntryNotFoundError,
-  getArc20ProgramId,
-  getArc20TokenMetadata,
+  callViewFunction,
+  getArcTokenProgramId,
+  getArcTokenMetadata,
   localRemoteDecimalsToScale,
   nativeScaleExponentToMultiplier,
   parseAleoUint,
@@ -91,22 +92,29 @@ describe('parseViewFunctionOutputs', () => {
   });
 });
 
-describe('isV2WarpToken / isArc20ProgramId', () => {
-  it('detects v2 warp token program ids by suffix', () => {
-    expect(isV2WarpToken('hyp_warp_token_usdc_v2.aleo')).to.equal(true);
-    expect(isV2WarpToken('hyp_warp_token_usdc.aleo')).to.equal(false);
+describe('ARC token program detection', () => {
+  it('recognizes v2 and v3 ARC warp routes without treating v1 routes as ARC tokens', () => {
+    expect(isArcWarpToken('hyp_warp_token_usdc_v2.aleo')).to.equal(true);
+    expect(isArcWarpToken('hyp_warp_token_usdt_v3.aleo')).to.equal(true);
+    expect(isArcWarpToken('hyp_warp_token_usdt.aleo')).to.equal(false);
+    expect(isArcWarpToken('hyp_warp_token_credits.aleo')).to.equal(false);
   });
 
-  it('detects arc20 program ids', () => {
-    expect(isArc20ProgramId('test_arc20_usdc.aleo')).to.equal(true);
-    expect(isArc20ProgramId('not-a-program-id')).to.equal(false);
+  it('detects ARC token program ids', () => {
+    expect(isArcTokenProgramId('test_arc20_usdc.aleo')).to.equal(true);
+    expect(isArcTokenProgramId('shield_arc22_usdt.aleo')).to.equal(true);
+    expect(isArcTokenProgramId('not-a-program-id')).to.equal(false);
   });
 });
 
-describe('getArc20ProgramId', () => {
-  function clientWithImports(imports: string[]): AleoNetworkClient {
+describe('getArcTokenProgramId', () => {
+  function clientWithImports(
+    imports: string[],
+    source = '',
+  ): AleoNetworkClient {
     const client = new AleoNetworkClient('http://localhost:3030');
     client.getProgramImportNames = async () => imports;
+    client.getProgram = async () => source;
     return client;
   }
 
@@ -118,7 +126,7 @@ describe('getArc20ProgramId', () => {
     ]);
 
     expect(
-      await getArc20ProgramId(aleoClient, 'hyp_warp_token_usdc_v2.aleo'),
+      await getArcTokenProgramId(aleoClient, 'hyp_warp_token_usdc_v2.aleo'),
     ).to.equal('test_arc20_usdc.aleo');
   });
 
@@ -131,7 +139,7 @@ describe('getArc20ProgramId', () => {
     ]);
 
     expect(
-      await getArc20ProgramId(aleoClient, 'hyp_warp_token_usdg_v2.aleo'),
+      await getArcTokenProgramId(aleoClient, 'hyp_warp_token_usdg_v2.aleo'),
     ).to.equal('shield_arc22_usdg.aleo');
   });
 
@@ -144,35 +152,102 @@ describe('getArc20ProgramId', () => {
     ]);
 
     expect(
-      await getArc20ProgramId(aleoClient, 'hyp_warp_token_bat_v2.aleo'),
+      await getArcTokenProgramId(aleoClient, 'hyp_warp_token_bat_v2.aleo'),
     ).to.equal('shield_arc22_bat.aleo');
+  });
+
+  it('resolves the v3 USDT token without confusing its v2 route or freeze list for a token', async () => {
+    const aleoClient = clientWithImports([
+      'hyp_dispatch_proxy.aleo',
+      'hyp_mailbox.aleo',
+      'hyp_multisig_core.aleo',
+      'shield_arc22_usdt.aleo',
+      'shield_arc22_freezelist.aleo',
+      'hyp_warp_token_usdt_v2.aleo',
+    ]);
+
+    expect(
+      await getArcTokenProgramId(aleoClient, 'hyp_warp_token_usdt_v3.aleo'),
+    ).to.equal('shield_arc22_usdt.aleo');
+  });
+
+  it('selects the called ARC-22 token from the compiled v3 route with transitive ARC-20 imports', async () => {
+    const aleoClient = clientWithImports(
+      [
+        'arc20_multisig_core.aleo',
+        'arc20_usdt.aleo',
+        'hyp_warp_token_usdt_v2.aleo',
+        'shield_arc22_freezelist.aleo',
+        'shield_arc22_multisig_core.aleo',
+        'shield_arc22_usdt.aleo',
+      ],
+      `program hyp_warp_token_usdt_v3.aleo;
+function transfer_remote:
+    call shield_arc22_usdt.aleo/burn_public self.caller r5 into r12;
+function process:
+    call shield_arc22_usdt.aleo/mint_public r10 r235 into r236;`,
+    );
+    expect(
+      await getArcTokenProgramId(aleoClient, 'hyp_warp_token_usdt_v3.aleo'),
+    ).to.equal('shield_arc22_usdt.aleo');
   });
 
   it('rejects v2 programs without an ARC token import', async () => {
     const aleoClient = clientWithImports(['credits.aleo', 'hyp_mailbox.aleo']);
 
     await expect(
-      getArc20ProgramId(aleoClient, 'hyp_warp_token_invalid_v2.aleo'),
+      getArcTokenProgramId(aleoClient, 'hyp_warp_token_invalid_v2.aleo'),
     ).to.be.rejectedWith(
       'Expected exactly one ARC-20 or ARC-22 token import in program hyp_warp_token_invalid_v2.aleo, found 0: none',
     );
   });
 
   it('rejects ambiguous ARC token imports and lists the candidates', async () => {
-    const aleoClient = clientWithImports([
-      'shield_arc22_bat.aleo',
-      'shield_arc22_usdg.aleo',
-    ]);
+    const aleoClient = clientWithImports(
+      ['shield_arc22_bat.aleo', 'shield_arc22_usdg.aleo'],
+      `    call shield_arc22_bat.aleo/burn_public self.caller r0 into r1;
+    call shield_arc22_usdg.aleo/burn_public self.caller r0 into r2;`,
+    );
 
     await expect(
-      getArc20ProgramId(aleoClient, 'hyp_warp_token_invalid_v2.aleo'),
+      getArcTokenProgramId(aleoClient, 'hyp_warp_token_invalid_v2.aleo'),
     ).to.be.rejectedWith(
       'found 2: shield_arc22_bat.aleo, shield_arc22_usdg.aleo',
     );
   });
 });
 
-describe('getArc20TokenMetadata', () => {
+describe('callViewFunction request inputs', () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  for (const { inputs, expectedBody } of [
+    { inputs: [], expectedBody: '[]' },
+    { inputs: ['1u8'], expectedBody: '["1u8"]' },
+  ]) {
+    it(`sends view inputs as a JSON sequence: ${expectedBody}`, async () => {
+      let requestBody;
+      globalThis.fetch = async (_input, options) => {
+        requestBody = options?.body;
+        return Response.json(['6u8']);
+      };
+      const client = new AleoNetworkClient('http://localhost:3030');
+      expect(
+        await callViewFunction(
+          client,
+          'shield_arc22_usdt.aleo',
+          'decimals',
+          inputs,
+        ),
+      ).to.equal('6u8');
+      expect(requestBody).to.equal(expectedBody);
+    });
+  }
+});
+
+describe('getArcTokenMetadata', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach(() => {
@@ -199,7 +274,7 @@ describe('getArc20TokenMetadata', () => {
     });
 
     const aleoClient = new AleoNetworkClient('http://localhost:3030');
-    const metadata = await getArc20TokenMetadata(
+    const metadata = await getArcTokenMetadata(
       aleoClient,
       'test_arc20_usdc.aleo',
     );
@@ -219,8 +294,8 @@ describe('getArc20TokenMetadata', () => {
     });
 
     const aleoClient = new AleoNetworkClient('http://localhost:3030');
-    await expect(getArc20TokenMetadata(aleoClient, 'test_arc20_usdc.aleo')).to
-      .be.rejected;
+    await expect(getArcTokenMetadata(aleoClient, 'test_arc20_usdc.aleo')).to.be
+      .rejected;
   });
 });
 
@@ -413,9 +488,67 @@ describe('resolveTokenMetadata', () => {
     }
   });
 
+  it('reads v3 USDT metadata from ARC-22 without querying the token registry', async () => {
+    const originalFetch = globalThis.fetch;
+    const aleoClient = new AleoNetworkClient('http://localhost:3030');
+    aleoClient.getProgramImportNames = async () => [
+      'hyp_mailbox.aleo',
+      'shield_arc22_freezelist.aleo',
+      'shield_arc22_usdt.aleo',
+      'hyp_warp_token_usdt_v2.aleo',
+    ];
+    aleoClient.getProgramMappingValue = async () => {
+      throw new Error('v3 must not read token_registry');
+    };
+    globalThis.fetch = async (input) => {
+      const url = String(input);
+      expect(url).to.contain('/program/shield_arc22_usdt.aleo/view/');
+      const outputs: Record<string, string> = {
+        name: "'Tether_USD'",
+        symbol: "'USDT'",
+        decimals: '6u8',
+      };
+      return Response.json([outputs[url.split('/').pop() ?? '']]);
+    };
+
+    try {
+      expect(
+        await resolveTokenMetadata(
+          aleoClient,
+          'hyp_warp_token_usdt_v3.aleo',
+          TOKEN_ID,
+          18,
+          RETRY_ATTEMPTS,
+          RETRY_DELAY_MS,
+        ),
+      ).to.deep.equal({ name: 'Tether_USD', symbol: 'USDT', decimals: 6 });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('rejects a v3 route missing its ARC token instead of using legacy metadata', async () => {
+    const aleoClient = new AleoNetworkClient('http://localhost:3030');
+    aleoClient.getProgramImportNames = async () => [
+      'hyp_mailbox.aleo',
+      'shield_arc22_freezelist.aleo',
+      'hyp_warp_token_usdt_v2.aleo',
+    ];
+    await expect(
+      resolveTokenMetadata(
+        aleoClient,
+        'hyp_warp_token_usdt_v3.aleo',
+        TOKEN_ID,
+        6,
+        RETRY_ATTEMPTS,
+        RETRY_DELAY_MS,
+      ),
+    ).to.be.rejectedWith('Expected exactly one ARC-20 or ARC-22 token import');
+  });
+
   it('propagates v2 ARC-20 read failures instead of falling back', async () => {
     const aleoClient = new AleoNetworkClient('http://localhost:3030');
-    // No arc20 import present, so getArc20ProgramId cannot resolve the token
+    // No ARC token import present, so getArcTokenProgramId cannot resolve the token
     // program and throws — v2 has no fallback path.
     aleoClient.getProgramImportNames = async () => [
       'credits.aleo',

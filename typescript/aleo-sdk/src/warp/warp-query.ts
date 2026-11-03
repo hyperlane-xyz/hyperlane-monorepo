@@ -14,7 +14,7 @@ import {
   RETRY_DELAY_MS,
   U128ToString,
   fromAleoAddress,
-  isV2WarpToken,
+  isArcWarpToken,
 } from '../utils/helper.js';
 import { toAleoAddress } from '../utils/helper.crypto.js';
 import {
@@ -29,14 +29,14 @@ const logger = rootLogger.child({ module: 'aleo-warp-query' });
 
 export {
   callViewFunction,
-  getArc20ProgramId,
-  getArc20TokenMetadata,
+  getArcTokenProgramId,
+  getArcTokenMetadata,
   parseAleoUint,
   parseViewFunctionOutputs,
 } from './provider-query.js';
 
 /**
- * Converts the v2 ARC-20 warp token standard's on-chain local_decimals/
+ * Converts ARC warp routes' on-chain local_decimals/
  * remote_decimals fields into the scale multiplier convention used elsewhere
  * in the SDK (mirrors svm-sdk's remoteDecimalsToScale). Returns undefined for
  * identity scale (remote === local) or when either side is unavailable.
@@ -407,9 +407,11 @@ export async function getNativeWarpTokenConfig(
 }
 
 /**
- * Resolve token name/symbol/decimals for a warp token — ARC-20 for v2, token_registry for v1.
+ * Resolve token name/symbol/decimals from an ARC token program (v2/v3) or
+ * token_registry.aleo (v1).
  *
- * name/symbol/decimals live in the ARC-20 token program (v2) or token_registry.aleo (v1).
+ * name/symbol/decimals live in the ARC-20/ARC-22 token program (v2/v3) or
+ * token_registry.aleo (v1).
  * v1 tokens that were never registered in token_registry.aleo (e.g. legacy synthetics) make
  * that lookup throw after its bounded retries are exhausted, but decimals are also carried
  * authoritatively in app_metadata.local_decimals and name/symbol are not compared by
@@ -424,14 +426,14 @@ export async function resolveTokenMetadata(
   retryAttempts: number = RETRY_ATTEMPTS,
   retryDelayMs: number = RETRY_DELAY_MS,
 ): Promise<{ name: string; symbol: string; decimals: number }> {
-  // v2 ARC-20 tokens carry authoritative name/symbol/decimals in their token
+  // ARC-20/ARC-22 routes carry authoritative name/symbol/decimals in their token
   // program; any failure reading it is a real error and must propagate.
-  if (isV2WarpToken(programId)) {
-    const arc20ProgramId = await providerQuery.getArc20ProgramId(
+  if (isArcWarpToken(programId)) {
+    const arcTokenProgramId = await providerQuery.getArcTokenProgramId(
       aleoClient,
       programId,
     );
-    return providerQuery.getArc20TokenMetadata(aleoClient, arc20ProgramId);
+    return providerQuery.getArcTokenMetadata(aleoClient, arcTokenProgramId);
   }
 
   // v1 tokens read name/symbol/decimals from token_registry.aleo. Legacy
@@ -514,7 +516,7 @@ export async function getCollateralWarpTokenConfig(
   // Get remote routers
   const remoteRouters = await getRemoteRouters(aleoClient, tokenAddress);
 
-  // Get token ID and metadata — ARC-20 for v2, token_registry for v1
+  // Get token ID and metadata — ARC-20/ARC-22 for v2/v3, token_registry for v1
   const tokenId = metadata.token_id;
   assert(
     tokenId,
@@ -589,7 +591,7 @@ export async function getSyntheticWarpTokenConfig(
   // Get remote routers
   const remoteRouters = await getRemoteRouters(aleoClient, tokenAddress);
 
-  // Get token metadata — ARC-20 for v2, token_registry for v1
+  // Get token metadata — ARC-20/ARC-22 for v2/v3, token_registry for v1
   const tokenId = metadata.token_id;
   assert(
     tokenId,

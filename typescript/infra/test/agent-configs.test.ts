@@ -1,3 +1,5 @@
+import { rejects } from 'node:assert/strict';
+
 import { expect } from 'chai';
 
 import { AgentConfig } from '@hyperlane-xyz/sdk';
@@ -97,6 +99,36 @@ function agentConfigHelper(
 }
 
 describe('Agent configs', () => {
+  it('validates local runtime denylist files before rendering relayer config', async () => {
+    class TestRelayerConfigHelper extends RelayerConfigHelper {
+      async getSanctionedAddresses(): Promise<string[]> {
+        return [];
+      }
+    }
+
+    const base = mainnet3Agents[Contexts.Hyperlane];
+    assert(base.relayer, 'Missing relayer config');
+    for (const [url, valid] of [
+      ['file:///tmp/denylist.json', true],
+      ['file://localhost/tmp/denylist.json', true],
+      ['file://denylist.json', false],
+      ['file://remote/denylist.json', false],
+    ] as const) {
+      const helper = new TestRelayerConfigHelper({
+        ...base,
+        relayer: { ...base.relayer, runtimeDenylist: { url } },
+      });
+      if (valid) {
+        expect((await helper.buildConfig()).runtimeDenylistUrl).to.equal(url);
+      } else {
+        await rejects(
+          helper.buildConfig(),
+          /runtimeDenylist.url must be a valid/,
+        );
+      }
+    }
+  });
+
   for (const context of [Contexts.Hyperlane, Contexts.ReleaseCandidate]) {
     it(`protects ICA reveals from every origin to the five destinations in ${context}`, async () => {
       const config = mainnet3Agents[context];

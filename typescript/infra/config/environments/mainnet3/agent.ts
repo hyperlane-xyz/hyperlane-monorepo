@@ -146,6 +146,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     subtensor: true,
 
     tea: true,
+    tempo: true,
     tron: true,
     unichain: true,
     viction: true,
@@ -161,7 +162,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arc: true,
     avalanche: true,
     base: true,
-    blast: true, // temporarily re-enabled for withdrawals until Blast shutdown on 2026-10-26
+    blast: false, // temporarily disabled 2026-10-29 — Blast chain halted
     bob: true,
     bsc: true,
     celestia: true,
@@ -218,6 +219,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     subtensor: true,
 
     tea: true,
+    tempo: true,
     tron: true,
     unichain: true,
     viction: true,
@@ -233,7 +235,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arc: true,
     avalanche: true,
     base: true,
-    blast: true, // temporarily re-enabled for withdrawals until Blast shutdown on 2026-10-26
+    blast: false, // temporarily disabled 2026-10-29 — Blast chain halted
     bob: true,
     bsc: true,
     celestia: true,
@@ -290,6 +292,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     subtensor: true,
 
     tea: true,
+    tempo: true,
     tron: true,
     unichain: true,
     // Note: default rpc.viction.xyz endpoint can't be used for scraping (returns 429s).
@@ -1030,9 +1033,20 @@ const fastPathEclipseUsdcMatchingList = warpRouteMatchingList(
   WarpRouteIds.EclipseUSDC,
 ).filter(
   ({ originDomain, destinationDomain }) =>
-    originDomain === getDomainId('ethereum') &&
+    ['arbitrum', 'base', 'ethereum'].some(
+      (chain) => originDomain === getDomainId(chain),
+    ) &&
     destinationDomain !== getDomainId('eclipsemainnet') &&
     destinationDomain !== getDomainId('solanamainnet'),
+);
+
+const fastPathVictionEthMatchingList = warpRouteMatchingList(
+  WarpRouteIds.VictionETH,
+).filter(
+  ({ originDomain, destinationDomain }) =>
+    ['arbitrum', 'base', 'ethereum'].some(
+      (chain) => originDomain === getDomainId(chain),
+    ) && destinationDomain !== getDomainId('viction'),
 );
 
 // Cross Collateral USDT - https://github.com/hyperlane-xyz/hyperlane-registry/blob/codex/nambrot-cross-collateral-deploy/deployments/warp_routes/USDT/ctusd-config.yaml
@@ -1127,6 +1141,7 @@ const fastPath: RootAgentConfig = {
       'monad',
       'optimism',
       'polygon',
+      'robinhood',
       'unichain',
       'worldchain',
     ],
@@ -1145,6 +1160,7 @@ const fastPath: RootAgentConfig = {
     whitelist: [
       ...fastPathUsdcMatchingList,
       ...fastPathEclipseUsdcMatchingList,
+      ...fastPathVictionEthMatchingList,
       ...fastPathUsdtMatchingList,
       ...fastPathCrossMoonpayMatchingList,
       ...fastPathTestRecipientMatchingList,

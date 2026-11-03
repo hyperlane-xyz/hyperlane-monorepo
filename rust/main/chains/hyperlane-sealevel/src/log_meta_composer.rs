@@ -10,7 +10,7 @@ use tracing::warn;
 
 use hyperlane_core::{ChainResult, LogMeta, H512, U256};
 
-use crate::error::{is_get_block_unresolvable_after_retries, HyperlaneSealevelError};
+use crate::error::HyperlaneSealevelError;
 use crate::utils::{decode_h256, decode_h512, from_base58};
 
 #[derive(Debug)]
@@ -93,8 +93,9 @@ impl LogMetaComposer {
     /// transaction invoking this program on the unique PDA with the specified
     /// instruction, so a match in the previous block is the same event.
     ///
-    /// The outer result carries RPC errors from fetching the previous block. If
-    /// that block is unavailable or skipped, the original error is returned.
+    /// The outer result carries all RPC errors from fetching the previous block,
+    /// including unavailable or skipped blocks. Callers decide whether to retry
+    /// or fall back without treating an unavailable block as a searched block.
     pub async fn log_meta_at_or_before<F, Fut>(
         &self,
         block: UiConfirmedBlock,
@@ -114,13 +115,7 @@ impl LogMetaComposer {
         let Some(previous_slot) = pda_slot.checked_sub(1) else {
             return Ok(Err(err));
         };
-        let previous_block = match get_block(previous_slot).await {
-            Ok(block) => block,
-            Err(get_block_err) if is_get_block_unresolvable_after_retries(&get_block_err) => {
-                return Ok(Err(err));
-            }
-            Err(get_block_err) => return Err(get_block_err),
-        };
+        let previous_block = get_block(previous_slot).await?;
         match self.log_meta(previous_block, log_index, pda_pubkey, &previous_slot) {
             Err(HyperlaneSealevelError::NoTransactions(_)) => Ok(Err(err)),
             result => Ok(result),

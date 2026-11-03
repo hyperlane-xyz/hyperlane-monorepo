@@ -23,6 +23,7 @@ pub(crate) mod message_processor;
 pub(crate) mod metadata;
 pub(crate) mod op_batch;
 pub(crate) mod op_queue;
+pub(crate) mod runtime_denylist;
 mod utils;
 
 pub mod pending_message;

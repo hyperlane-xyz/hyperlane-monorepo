@@ -38,12 +38,24 @@ use crate::{
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
     metadata::{BuildsBaseMetadata, MessageMetadataBuilder, MetadataBuilder},
+    runtime_denylist::{is_hash_not_stored, OriginSenderCheck},
 };
 
 /// a default of 66 is picked, so messages are retried for 2 weeks (period confirmed by @nambrot) before being skipped.
 /// See this PR for why 66 retries means 2 weeks:
 /// https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/5468
 pub const DEFAULT_MAX_MESSAGE_RETRIES: u32 = 66;
+/// Failed origin tx signer lookups before relaying without that check.
+/// Backoff doubles from `ORIGIN_LOOKUP_BACKOFF` (30+60+120+240s): about 8
+/// minutes of failed lookups before giving up.
+const ORIGIN_LOOKUP_MAX_FAILURES: u32 = 5;
+const ORIGIN_LOOKUP_BACKOFF: Duration = Duration::from_secs(30);
+/// How long a given-up message relays without lookups before trying again.
+const ORIGIN_LOOKUP_GIVE_UP_COOLDOWN: Duration = Duration::from_secs(300);
+/// One wait for a dispatch tx hash that isn't stored yet. It's normally
+/// written right after the message; when it never is (Cosmos block-level
+/// events, old DB backlog) there's nothing to check, so don't wait longer.
+const ORIGIN_HASH_WAIT: Duration = Duration::from_secs(30);
 pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
     // Wait 5 seconds after submitting the message before confirming in test mode
     Duration::from_secs(5)
@@ -104,6 +116,8 @@ pub struct MessageContext {
     pub metrics: MessageSubmissionMetrics,
     /// Application operation verifier
     pub application_operation_verifier: Arc<dyn ApplicationOperationVerifier>,
+    /// Checks the origin tx sender against runtime denylist `address` rules.
+    pub origin_sender_check: Option<Arc<OriginSenderCheck>>,
 }
 
 /// Keeps an indexed message from being loaded again while its operation is alive.
@@ -111,6 +125,9 @@ pub(super) struct LoadedMessageGuard {
     message_id: H256,
     loaded_messages: Arc<Mutex<HashSet<H256>>>,
     db: HyperlaneRocksDB,
+    /// Hands the nonce back to the loader on release, when set.
+    reconsider: Option<(u32, Arc<Mutex<Vec<u32>>>)>,
+    reconsider_on_release: bool,
 }
 
 impl LoadedMessageGuard {
@@ -126,7 +143,24 @@ impl LoadedMessageGuard {
             message_id,
             loaded_messages,
             db,
+            reconsider: None,
+            reconsider_on_release: false,
         })
+    }
+
+    /// Where to hand back `nonce` if the message is released for the loader
+    /// to look at again.
+    pub(super) fn with_reconsideration(
+        mut self,
+        nonce: u32,
+        released: Arc<Mutex<Vec<u32>>>,
+    ) -> Self {
+        self.reconsider = Some((nonce, released));
+        self
+    }
+
+    pub(super) fn reconsider_on_release(&mut self) {
+        self.reconsider_on_release = true;
     }
 
     fn mark_terminal(&self) -> hyperlane_base::db::DbResult<()> {
@@ -137,6 +171,11 @@ impl LoadedMessageGuard {
 impl Drop for LoadedMessageGuard {
     fn drop(&mut self) {
         self.loaded_messages.lock().remove(&self.message_id);
+        if self.reconsider_on_release {
+            if let Some((nonce, released)) = &self.reconsider {
+                released.lock().push(*nonce);
+            }
+        }
     }
 }
 
@@ -190,6 +229,17 @@ pub struct PendingMessage {
     ica_reveal_attempts: u32,
     #[serde(skip_serializing)]
     loaded_message_guard: Option<LoadedMessageGuard>,
+    /// Consecutive failed origin tx signer lookups. Tracked apart from
+    /// `num_retries` so an RPC outage can't use up the retry budget.
+    #[serde(skip_serializing)]
+    origin_lookup_failures: u32,
+    /// Whether this message has already waited for its dispatch tx hash.
+    #[serde(skip_serializing)]
+    origin_hash_waited: bool,
+    /// After a give-up, skip lookups until then rather than query a failing
+    /// RPC on every prepare.
+    #[serde(skip_serializing)]
+    origin_lookup_skip_until: Option<Instant>,
 }
 
 impl PendingMessage {
@@ -225,6 +275,9 @@ impl PendingMessage {
             fail_fast: false,
             ica_reveal_attempts: 0,
             loaded_message_guard: None,
+            origin_lookup_failures: 0,
+            origin_hash_waited: false,
+            origin_lookup_skip_until: None,
         }
     }
 
@@ -319,6 +372,12 @@ impl TryBatchAs<HyperlaneMessage> for PendingMessage {
 #[async_trait]
 #[typetag::serialize]
 impl PendingOperation for PendingMessage {
+    fn on_runtime_denylist_drop(&mut self) {
+        if let Some(guard) = self.loaded_message_guard.as_mut() {
+            guard.reconsider_on_release();
+        }
+    }
+
     fn id(&self) -> H256 {
         self.message.id()
     }
@@ -435,6 +494,89 @@ impl PendingOperation for PendingMessage {
         {
             info!("Message does not meet the gas payment requirement preflight check");
             return op_result;
+        }
+
+        // After the gas preflight, so unpaid messages don't cost origin RPC
+        // lookups that could push real deposits into giving up.
+        if let Some(check) = self.ctx.origin_sender_check.clone() {
+            let message_id = self.message.id();
+            let lookup_paused = self
+                .origin_lookup_skip_until
+                .is_some_and(|until| Instant::now() < until);
+            // While paused after a give-up, skip only the RPC: a signer that
+            // is already cached still applies.
+            let denial = if lookup_paused {
+                Ok(check.cached_deny_reason(&self.message).await)
+            } else {
+                check
+                    .deny_reason(self.ctx.origin_db.as_ref(), &self.message)
+                    .await
+            };
+            match denial {
+                Ok(Some(reason)) => {
+                    warn!(?message_id, %reason, "Dropping message: origin tx signer matches runtime denylist");
+                    check.record_drop(self.ctx.destination_mailbox.domain().name());
+                    // Not terminal: the loader reloads it if the rule is removed.
+                    self.on_runtime_denylist_drop();
+                    return PendingOperationResult::Drop;
+                }
+                Ok(None) if lookup_paused => {}
+                Ok(None) => {
+                    self.origin_lookup_failures = 0;
+                    self.origin_lookup_skip_until = None;
+                }
+                // Relay API ops keep their drop-after-budget behaviour.
+                Err(err) if self.fail_fast => {
+                    return self
+                        .on_reprepare(Some(err), ReprepareReason::ErrorFetchingOriginTxSender);
+                }
+                Err(err) if is_hash_not_stored(&err) => {
+                    if !self.origin_hash_waited {
+                        self.origin_hash_waited = true;
+                        debug!(?message_id, "Dispatch tx hash not stored yet; waiting before the origin sender check");
+                        return self.delay_reprepare(
+                            ORIGIN_HASH_WAIT,
+                            ReprepareReason::ErrorFetchingOriginTxSender,
+                        );
+                    }
+                    // Nothing to check against. Not cached: a later prepare
+                    // reads the DB again, so a late hash still gets checked.
+                    debug!(
+                        ?message_id,
+                        "No dispatch tx hash stored; relaying without the origin sender check"
+                    );
+                }
+                Err(err) => {
+                    self.origin_lookup_failures = self.origin_lookup_failures.saturating_add(1);
+                    if self.origin_lookup_failures < ORIGIN_LOOKUP_MAX_FAILURES {
+                        // Fail closed while an address rule exists: wait for
+                        // the RPC rather than relay a possibly denied message.
+                        warn!(
+                            ?message_id,
+                            error = ?err,
+                            attempt = self.origin_lookup_failures,
+                            "Origin tx signer lookup failed; retrying"
+                        );
+                        let delay = ORIGIN_LOOKUP_BACKOFF
+                            .saturating_mul(1 << self.origin_lookup_failures.saturating_sub(1));
+                        return self
+                            .delay_reprepare(delay, ReprepareReason::ErrorFetchingOriginTxSender);
+                    }
+                    // Persistent failures are usually permanent (pruned or
+                    // unparsable tx), so stop blocking the message. Nothing
+                    // is cached; after a cooldown the next prepare looks up
+                    // again, so a recovered RPC or a new rule still applies.
+                    warn!(
+                        ?message_id,
+                        error = ?err,
+                        attempts = self.origin_lookup_failures,
+                        "Origin tx signer lookup keeps failing; relaying without the origin sender check"
+                    );
+                    self.origin_lookup_skip_until =
+                        Instant::now().checked_add(ORIGIN_LOOKUP_GIVE_UP_COOLDOWN);
+                    check.record_give_up();
+                }
+            }
         }
 
         // If metadata is already built, check gas estimation works.
@@ -2083,6 +2225,14 @@ mod test {
         mailbox: hyperlane_test::mocks::MockMailboxContract,
         max_gas: Option<U256>,
     ) -> (tempfile::TempDir, PendingMessage) {
+        pending_with_sender_check(mailbox, max_gas, None)
+    }
+
+    fn pending_with_sender_check(
+        mailbox: hyperlane_test::mocks::MockMailboxContract,
+        max_gas: Option<U256>,
+        origin_sender_check: Option<Arc<crate::msg::runtime_denylist::OriginSenderCheck>>,
+    ) -> (tempfile::TempDir, PendingMessage) {
         use crate::{
             msg::gas_payment::GasPaymentEnforcer,
             settings::{GasPaymentEnforcementConf, GasPaymentEnforcementPolicy},
@@ -2106,6 +2256,7 @@ mod test {
         let mut context = dummy_message_context(Arc::new(base), &db, cache);
         context.destination_mailbox = Arc::new(mailbox);
         context.transaction_gas_limit = max_gas;
+        context.origin_sender_check = origin_sender_check;
         context.origin_gas_payment_enforcer =
             Arc::new(tokio::sync::RwLock::new(GasPaymentEnforcer::new(
                 [GasPaymentEnforcementConf {
@@ -2177,6 +2328,214 @@ mod test {
             }
             assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
         }
+    }
+
+    struct OriginCheckSetup {
+        _dir: tempfile::TempDir,
+        pending: PendingMessage,
+        provider: Arc<crate::msg::runtime_denylist::tests::origin_sender::SenderProvider>,
+        denylist: Arc<crate::msg::runtime_denylist::RuntimeDenylist>,
+    }
+
+    impl OriginCheckSetup {
+        fn lookups(&self) -> usize {
+            self.provider
+                .calls
+                .load(std::sync::atomic::Ordering::SeqCst)
+        }
+    }
+
+    /// A recipient that is a contract (cached) and a `None` gas policy, so
+    /// prepare reaches the origin sender check. `estimate_calls` covers
+    /// prepares that get past the check.
+    async fn pending_with_origin_check(
+        sender: Option<H256>,
+        blocked: H256,
+        delivered_calls: usize,
+        estimate_calls: usize,
+        store_hash: bool,
+    ) -> OriginCheckSetup {
+        use crate::msg::runtime_denylist::{
+            tests::origin_sender::{SenderProvider, SignerIndexer},
+            OriginSenderCheck, RuntimeDenylist,
+        };
+
+        let mut mailbox = contract_test_mailbox();
+        mailbox.expect__provider().times(0);
+        mailbox
+            .expect__delivered()
+            .times(delivered_calls)
+            .returning(|_| Ok(false));
+        mailbox
+            .expect_process_estimate_costs()
+            .times(estimate_calls)
+            .returning(|_, _| {
+                Ok(TxCostEstimate {
+                    gas_limit: U256::from(100),
+                    gas_price: FixedPointNumber::zero(),
+                    l2_gas_limit: None,
+                })
+            });
+        let provider = Arc::new(SenderProvider::new(sender));
+        let denylist = Arc::new(RuntimeDenylist::from_rules_for_test(serde_json::json!([
+            { "reason": "exploit", "addedBy": "test", "address": format!("{blocked:?}") }
+        ])));
+        let check = Arc::new(OriginSenderCheck::new(
+            denylist.clone(),
+            provider.clone(),
+            Arc::new(SignerIndexer::unsupported()),
+        ));
+        let (dir, mut pending) = pending_with_sender_check(mailbox, None, Some(check));
+        if store_hash {
+            pending
+                .ctx
+                .origin_db
+                .store_dispatched_tx_hash_by_message_id(&pending.message.id(), &H512::random())
+                .expect("store tx hash");
+        }
+        pending
+            .store_to_cache("arbitrum", "is_contract", &pending.message.recipient, &true)
+            .await;
+        pending.metadata = Some(Metadata::new(vec![7; 8]));
+        OriginCheckSetup {
+            _dir: dir,
+            pending,
+            provider,
+            denylist,
+        }
+    }
+
+    #[tokio::test]
+    async fn prepare_drops_message_with_denied_origin_tx_signer() {
+        let blocked = H256::random();
+        let mut s = pending_with_origin_check(Some(blocked), blocked, 1, 0, true).await;
+        assert!(matches!(
+            s.pending.prepare().await,
+            PendingOperationResult::Drop
+        ));
+    }
+
+    #[tokio::test]
+    async fn prepare_skips_origin_lookup_for_messages_dropped_by_preflight() {
+        // Pins the order: the lookup runs after the contract and gas checks,
+        // so messages they reject cost no origin RPCs.
+        let blocked = H256::random();
+        let mut s = pending_with_origin_check(Some(blocked), blocked, 1, 0, true).await;
+        s.pending
+            .store_to_cache(
+                "arbitrum",
+                "is_contract",
+                &s.pending.message.recipient,
+                &false,
+            )
+            .await;
+        assert!(matches!(
+            s.pending.prepare().await,
+            PendingOperationResult::Drop
+        ));
+        assert_eq!(s.lookups(), 0);
+    }
+
+    #[tokio::test]
+    async fn prepare_waits_once_for_a_missing_dispatch_hash() {
+        let mut s = pending_with_origin_check(None, H256::random(), 2, 1, false).await;
+        assert!(matches!(
+            s.pending.prepare().await,
+            PendingOperationResult::Reprepare(ReprepareReason::ErrorFetchingOriginTxSender)
+        ));
+        assert!(s.pending.next_attempt_after.is_some());
+        s.pending.next_attempt_after = None;
+        // Still no hash: nothing to check, so relay rather than wait again.
+        assert!(matches!(
+            s.pending.prepare().await,
+            PendingOperationResult::Success
+        ));
+        assert_eq!(s.pending.num_retries, 0);
+        assert_eq!(s.lookups(), 0);
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn prepare_retries_failed_origin_lookups_then_gives_up_with_cooldown() {
+        let max = super::ORIGIN_LOOKUP_MAX_FAILURES;
+        // `None` makes every lookup a transport error.
+        let mut s =
+            pending_with_origin_check(None, H256::random(), max as usize + 2, 3, true).await;
+
+        for attempt in 1..max {
+            assert!(matches!(
+                s.pending.prepare().await,
+                PendingOperationResult::Reprepare(ReprepareReason::ErrorFetchingOriginTxSender)
+            ));
+            // Fail closed with backoff, without spending the retry budget.
+            assert_eq!(s.pending.num_retries, 0);
+            assert!(s.pending.next_attempt_after.is_some(), "attempt {attempt}");
+            s.pending.next_attempt_after = None;
+        }
+
+        // The last failure gives up and prepare carries on past the check.
+        assert!(matches!(
+            s.pending.prepare().await,
+            PendingOperationResult::Success
+        ));
+        assert!(logs_contain("relaying without the origin sender check"));
+        assert_eq!(s.lookups(), max as usize);
+
+        // During the cooldown, prepares don't hit the failing RPC.
+        s.pending.submitted = false;
+        assert!(matches!(
+            s.pending.prepare().await,
+            PendingOperationResult::Success
+        ));
+        assert_eq!(s.lookups(), max as usize);
+
+        // After it, nothing was cached: the lookup runs again (and, still
+        // failing, gives up again straight away).
+        s.pending.origin_lookup_skip_until = Some(Instant::now());
+        s.pending.submitted = false;
+        assert!(matches!(
+            s.pending.prepare().await,
+            PendingOperationResult::Success
+        ));
+        assert_eq!(s.lookups(), max as usize + 1);
+    }
+
+    #[tokio::test]
+    async fn prepare_still_checks_cached_signers_during_the_give_up_pause() {
+        let blocked = H256::random();
+        let mut s = pending_with_origin_check(None, blocked, 1, 0, true).await;
+        s.pending.origin_lookup_skip_until = Instant::now().checked_add(Duration::from_secs(60));
+        s.denylist
+            .cache_origin_signers_for_test(s.pending.message.id(), vec![blocked])
+            .await;
+        assert!(matches!(
+            s.pending.prepare().await,
+            PendingOperationResult::Drop
+        ));
+        assert_eq!(s.lookups(), 0, "no RPC during the pause");
+    }
+
+    #[tokio::test]
+    async fn prepare_drops_fail_fast_ops_without_a_hash_after_their_budget() {
+        let mut s = pending_with_origin_check(None, H256::random(), 1, 0, false).await;
+        s.pending.fail_fast = true;
+        s.pending.max_retries = 1;
+        assert!(matches!(
+            s.pending.prepare().await,
+            PendingOperationResult::Drop
+        ));
+    }
+
+    #[tokio::test]
+    async fn prepare_origin_lookup_error_drops_fail_fast_ops_after_their_budget() {
+        let mut s = pending_with_origin_check(None, H256::random(), 1, 0, true).await;
+        s.pending.fail_fast = true;
+        s.pending.max_retries = 1;
+        assert!(matches!(
+            s.pending.prepare().await,
+            PendingOperationResult::Drop
+        ));
+        assert_eq!(s.pending.num_retries, 1);
     }
 
     #[tokio::test]

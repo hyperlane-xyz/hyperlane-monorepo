@@ -8,18 +8,32 @@ import {
 } from '../utils/helper.js';
 import type { AleoPlaintextRuntime } from '../utils/provable.js';
 
-/** Returns the ARC-20 or ARC-22 token program imported by a v2 warp token. */
-export async function getArc20ProgramId(
+/** Returns the ARC-20 or ARC-22 token program imported by a warp route. */
+export async function getArcTokenProgramId(
   aleoClient: AnyAleoNetworkClient,
   warpProgramId: string,
 ): Promise<string> {
   const imports = await aleoClient.getProgramImportNames(warpProgramId);
-  const arcTokenProgramIds = imports.filter(
+  let arcTokenProgramIds = imports.filter(
     (i) =>
       (i.includes('arc20') || i.includes('arc22')) &&
       !i.includes('freezelist') &&
       !i.includes('multisig'),
   );
+  if (arcTokenProgramIds.length > 1) {
+    // Leo includes transitive imports, so a v3 route can import both its ARC-22
+    // token and the old ARC-20 token through v2. Select the token this route calls.
+    const source = await aleoClient.getProgram(warpProgramId);
+    const calledPrograms = new Set(
+      Array.from(
+        source.matchAll(/^\s*call\s+([a-z0-9_]+\.aleo)\//gm),
+        (match) => match[1],
+      ),
+    );
+    arcTokenProgramIds = arcTokenProgramIds.filter((id) =>
+      calledPrograms.has(id),
+    );
+  }
   const [arcTokenProgramId] = arcTokenProgramIds;
   assert(
     arcTokenProgramIds.length === 1 && arcTokenProgramId,
@@ -51,7 +65,7 @@ export async function callViewFunction(
   inputs: string[] = [],
 ): Promise<string> {
   const url = `${aleoClient.host}/program/${programId}/view/${viewName}`;
-  const body = inputs.length === 0 ? '{}' : JSON.stringify(inputs);
+  const body = JSON.stringify(inputs);
   return retryAsync(
     async () => {
       const res = await fetch(url, {
@@ -82,19 +96,19 @@ function parseAleoIdentifier(raw: string): string {
 }
 
 /** Queries token metadata from an ARC-20 or ARC-22 program's view functions. */
-export async function getArc20TokenMetadata(
+export async function getArcTokenMetadata(
   aleoClient: AnyAleoNetworkClient,
-  arc20ProgramId: string,
+  arcTokenProgramId: string,
 ): Promise<{ name: string; symbol: string; decimals: number }> {
   const [nameRaw, symbolRaw, decimalsRaw] = await Promise.all([
-    callViewFunction(aleoClient, arc20ProgramId, 'name'),
-    callViewFunction(aleoClient, arc20ProgramId, 'symbol'),
-    callViewFunction(aleoClient, arc20ProgramId, 'decimals'),
+    callViewFunction(aleoClient, arcTokenProgramId, 'name'),
+    callViewFunction(aleoClient, arcTokenProgramId, 'symbol'),
+    callViewFunction(aleoClient, arcTokenProgramId, 'decimals'),
   ]);
   const decimals = parseInt(decimalsRaw, 10);
   assert(
     !Number.isNaN(decimals),
-    `Expected numeric decimals from ${arc20ProgramId}, got: ${decimalsRaw}`,
+    `Expected numeric decimals from ${arcTokenProgramId}, got: ${decimalsRaw}`,
   );
 
   return {

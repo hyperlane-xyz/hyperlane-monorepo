@@ -407,10 +407,11 @@ export function formatHookAddress(
   return `${hookManagerProgramId}/${hookAddress}`;
 }
 
-export function isV2WarpToken(programId: string): boolean {
-  return programId.endsWith('_v2.aleo');
+/** V2 and v3 warp routes use standalone ARC-20 or ARC-22 token programs. */
+export function isArcWarpToken(programId: string): boolean {
+  return /_v[23]\.aleo$/.test(programId);
 }
 
-export function isArc20ProgramId(denom: string): boolean {
+export function isArcTokenProgramId(denom: string): boolean {
   return denom.endsWith('.aleo');
 }

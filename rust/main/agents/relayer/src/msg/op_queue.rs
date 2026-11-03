@@ -12,8 +12,13 @@ use tokio::{
 };
 use tracing::{instrument, trace};
 
+use super::runtime_denylist::RuntimeDenylist;
 use crate::server::operations::message_retry::{MessageRetryQueueResponse, MessageRetryRequest};
 use crate::settings::matching_list::MatchingListExt;
+
+/// Fully-denied batches examined per `pop_many_ready` before returning, so
+/// a long denied backlog can't defer retry requests.
+const EVICTION_ROUNDS_PER_POP: usize = 16;
 
 pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>;
 
@@ -30,9 +35,42 @@ pub struct OpQueue {
     space_available: Arc<Notify>,
     #[new(default)]
     pub queue: OperationPriorityQueue,
+    /// Operations matching this are dropped when popped.
+    #[new(default)]
+    denylist: Arc<RuntimeDenylist>,
 }
 
 impl OpQueue {
+    /// Drop popped operations that match `denylist`.
+    pub fn with_runtime_denylist(mut self, denylist: Arc<RuntimeDenylist>) -> Self {
+        self.denylist = denylist;
+        self
+    }
+
+    /// Remove denied operations from a popped batch. Dropping an operation
+    /// releases its loaded-message guard; the DB loader skips it while the
+    /// rule stays active and reloads it after the rule is removed.
+    async fn evict_denied(&self, popped: Vec<QueueOperation>) -> Vec<QueueOperation> {
+        let mut kept = Vec::with_capacity(popped.len());
+        for mut op in popped {
+            let Some(reason) = self.denylist.deny_reason_for_queued_op(op.as_ref()).await else {
+                kept.push(op);
+                continue;
+            };
+            tracing::warn!(
+                id = ?op.id(),
+                queue = %self.queue_metrics_label,
+                %reason,
+                "Dropping operation matching runtime denylist"
+            );
+            op.on_runtime_denylist_drop();
+            op.decrement_metric_if_exists();
+            self.denylist
+                .record_eviction(op.destination_domain().name(), &self.queue_metrics_label);
+        }
+        kept
+    }
+
     /// Push an element onto the queue and update metrics
     /// Arguments:
     /// - `op`: the operation to push onto the queue
@@ -71,6 +109,7 @@ impl OpQueue {
         if !popped.is_empty() {
             self.space_available.notify_one();
         }
+        let popped = self.evict_denied(popped).await;
 
         // This function is called very often by the message processor tasks, so only log when there are operations to pop
         // to avoid spamming the logs
@@ -86,6 +125,24 @@ impl OpQueue {
 
     pub async fn pop_many_ready(&mut self, limit: usize) -> (Vec<QueueOperation>, Option<Instant>) {
         self.process_retry_requests().await;
+        for _ in 0..EVICTION_ROUNDS_PER_POP {
+            let (popped, next_deadline) = self.pop_ready(limit).await;
+            if popped.is_empty() {
+                return (popped, next_deadline);
+            }
+            let kept = self.evict_denied(popped).await;
+            // If every popped operation was denied, look again rather than
+            // making the caller wait for a push while ready work remains.
+            if !kept.is_empty() {
+                return (kept, next_deadline);
+            }
+        }
+        // A long run of denied ops: hand back an immediate deadline so the
+        // caller polls again (servicing retry requests) instead of sleeping.
+        (vec![], Some(Instant::now()))
+    }
+
+    async fn pop_ready(&self, limit: usize) -> (Vec<QueueOperation>, Option<Instant>) {
         let now = Instant::now();
         let mut queue = self.queue.lock().await;
         let mut popped = Vec::with_capacity(limit.min(queue.len()));

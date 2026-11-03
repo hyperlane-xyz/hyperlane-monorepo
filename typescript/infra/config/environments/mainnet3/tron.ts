@@ -43,6 +43,7 @@ export const TRON_CONNECTED_CHAINS = [
   'hyperevm',
   'mantle',
   'eni',
+  'tempo',
 ];
 
 export function getTronIgpConfig(

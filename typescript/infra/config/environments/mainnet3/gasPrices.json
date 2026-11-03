@@ -72,7 +72,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "2.0",
+    "amount": "0.5",
     "decimals": 9
   },
   "fluent": {
@@ -250,6 +250,10 @@
   "tea": {
     "amount": "0.0011",
     "decimals": 9
+  },
+  "tempo": {
+    "amount": "0.0000000006",
+    "decimals": 6
   },
   "tron": {
     "amount": "0.0000001",

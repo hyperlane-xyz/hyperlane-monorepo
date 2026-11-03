@@ -17,5 +17,6 @@
   "starknet": 200,
   "subtensor": 0.2,
   "solaxy": 0.05,
-  "tea": 0.2
+  "tea": 0.2,
+  "tempo": 25
 }

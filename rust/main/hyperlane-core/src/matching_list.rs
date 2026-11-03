@@ -265,23 +265,50 @@ impl PartialEq for RegexWrapper {
 
 /// A single element in a matching list
 #[derive(Debug, Deserialize, Clone, PartialEq, new)]
-#[serde(tag = "type")]
+#[serde(tag = "type", deny_unknown_fields)]
 pub struct ListElement {
-    #[serde(default, rename = "messageid")]
+    #[serde(default, rename = "messageid", alias = "messageId")]
     message_id: Filter<H256>,
-    #[serde(default, rename = "origindomain")]
+    #[serde(default, rename = "origindomain", alias = "originDomain")]
     origin_domain: Filter<u32>,
-    #[serde(default, rename = "senderaddress")]
+    #[serde(default, rename = "senderaddress", alias = "senderAddress")]
     sender_address: Filter<H256>,
-    #[serde(default, rename = "destinationdomain")]
+    #[serde(default, rename = "destinationdomain", alias = "destinationDomain")]
     destination_domain: Filter<u32>,
-    #[serde(default, rename = "recipientaddress")]
+    #[serde(default, rename = "recipientaddress", alias = "recipientAddress")]
     recipient_address: Filter<H256>,
-    #[serde(default, rename = "bodyregex")]
+    #[serde(default, rename = "bodyregex", alias = "bodyRegex")]
     body_regex: Option<RegexWrapper>,
 }
 
 impl ListElement {
+    /// Whether any field other than `bodyregex` is set to specific values.
+    /// Missing fields are wildcards, so an element without one can match far
+    /// more than intended (e.g. a `bodyregex` of `.*` matches every message).
+    pub fn constrains_exact_field(&self) -> bool {
+        [
+            matches!(self.message_id, Filter::Enumerated(_)),
+            matches!(self.origin_domain, Filter::Enumerated(_)),
+            matches!(self.sender_address, Filter::Enumerated(_)),
+            matches!(self.destination_domain, Filter::Enumerated(_)),
+            matches!(self.recipient_address, Filter::Enumerated(_)),
+        ]
+        .contains(&true)
+    }
+
+    /// Whether any field is an empty list. Every field must match, so such
+    /// an element matches nothing.
+    pub fn has_empty_filter(&self) -> bool {
+        fn empty<T>(filter: &Filter<T>) -> bool {
+            matches!(filter, Filter::Enumerated(values) if values.is_empty())
+        }
+        empty(&self.message_id)
+            || empty(&self.origin_domain)
+            || empty(&self.sender_address)
+            || empty(&self.destination_domain)
+            || empty(&self.recipient_address)
+    }
+
     fn matches_route(
         &self,
         src_domain: u32,
@@ -650,6 +677,36 @@ mod test {
         assert!(MatchingList(None).matches(info.clone(), true));
         // blacklist use
         assert!(!MatchingList(None).matches(info, false));
+    }
+
+    #[test]
+    fn rejects_unknown_fields() {
+        // A typo must not silently become a wildcard.
+        for config in [
+            r#"[{"messageID": "0x01"}]"#,
+            r#"[{"destinationdomain": 1, "recipient": "0x01"}]"#,
+        ] {
+            assert!(
+                serde_json::from_str::<MatchingList>(config).is_err(),
+                "{config}"
+            );
+        }
+        serde_json::from_str::<MatchingList>(r#"[{"destinationdomain": 1}]"#).unwrap();
+        serde_json::from_str::<MatchingList>(r#"[{}]"#).unwrap();
+    }
+
+    #[test]
+    fn accepts_camel_case_keys() {
+        // The relayer's HTTP endpoints take raw JSON; camelCase matches the TS SDK.
+        let camel: MatchingList = serde_json::from_str(
+            r#"[{"messageId": "*", "originDomain": 1, "senderAddress": "*", "destinationDomain": 2, "recipientAddress": "*", "bodyRegex": "ab"}]"#,
+        )
+        .unwrap();
+        let lower: MatchingList = serde_json::from_str(
+            r#"[{"messageid": "*", "origindomain": 1, "senderaddress": "*", "destinationdomain": 2, "recipientaddress": "*", "bodyregex": "ab"}]"#,
+        )
+        .unwrap();
+        assert_eq!(camel.0, lower.0);
     }
 
     #[test]

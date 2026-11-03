@@ -508,4 +508,21 @@ export const blacklistedMessageIds = [
   '0x058b4e615c0d85cbca4ae295b5aa1d324e1838f2b929bcd3d8ab706e3c521e99',
   '0x2a67551e7f0c847f2183974ba9482828009ca116b360fa100cd054c824844289',
   '0x6eb6ac5edd8fed10dc954f48009ae39c443bc5a851109b7a8137a6c843553916',
+
+  // Aero AllocateGauge from base, duplicate votes during LeafVoter allocation cooldown [2026-10-27]
+  // recipient reverts AllocationExpired() (0x70bef374) or CooldownActive() (0xaa9a98df); permanently undeliverable.
+  // dest: arbitrum
+  '0xa491cc61f366df718a3a95c55d77c008d1f0dd1031315d96118afb6317b1dcb8',
+  '0x25b1cf9b3b7bd941042965badb8f81a7e76f4b34114ed24c8ff1e7874f396d48',
+  // dest: ethereum
+  '0x7a15c4bc3fe2b0bd6118daae96e98fc22cecedd80a85b874ad0a87d4d2e23651',
+  '0x95df61e1a54d5b427c6440e25d650e7698dab99b66178373e039badc5cbf9739',
+  '0x83f2091b2d901978fede9809c4756fe598aedd48e67a1d2d0e8cdf7d39347393',
+  '0xb125ccb513d0527567e27890db38371e93c1a93e17992c61c32eddb9a19fee0d',
+  '0x2ae8f04747fbf6276b3892ccbb6f6bb94d791100c31a5c8cb53ecf0ff07dab4e',
+  // dest: robinhood
+  '0xd44f728ac691ac2b801c994843d1110c894577503e8c70984a75341646ed6b63',
+  '0xbbe9be10effe40d844227a8f1f0d2adf77849a9d0aafb367c14beaf33c693ec0',
+  '0xffd93fc39175e5f5cfcab4dcfccd68a6dc388e15954f461a66d8700f102c1269',
+  '0xf65763e2af5c4efbbf930de09ac4d0100b60d719b8bd4cc50f9d06e1f219fb2a',
 ];

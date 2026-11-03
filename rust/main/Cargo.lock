@@ -1737,6 +1737,7 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf88ba1141d185c399bee5288d850d63b8369520c1eafc32a0430b5b6c287bf4"
 dependencies = [
+ "sha2 0.10.8",
  "tinyvec",
 ]
 
@@ -9178,6 +9179,7 @@ version = "3.0.0"
 dependencies = [
  "async-trait",
  "axum 0.8.4",
+ "bs58 0.5.1",
  "chrono",
  "config",
  "console-subscriber",

@@ -123,6 +123,7 @@ function getChainConnections(
       ['solanamainnet', 'eni'],
       ['solanamainnet', 'citrea'],
       ['solanamainnet', 'tron'],
+      ['solanamainnet', 'tempo'],
       ['solanamainnet', 'igra'],
       ['solanamainnet', 'fluent'],
       ['solanamainnet', 'nesa'],
@@ -139,6 +140,7 @@ function getChainConnections(
       ['eclipsemainnet', 'tron'],
       ['eclipsemainnet', 'bsc'],
       ['eclipsemainnet', 'plasma'],
+      ['eclipsemainnet', 'tempo'],
       // for solaxy routes
       ['solaxy', 'solanamainnet'],
       ['solaxy', 'ethereum'],

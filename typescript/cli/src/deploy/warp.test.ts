@@ -13,6 +13,7 @@ import {
   IsmType,
   MultiProvider,
   TokenStandard,
+  TokenMetadataMap,
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfigMailboxRequired,
@@ -20,12 +21,63 @@ import {
 
 import {
   fullyConnectTokens,
+  generateTokenConfigs,
   runWarpRouteApply,
   runWarpRouteCombine,
   runWarpUpdatePlanning,
   transformDeployConfigForDisplay,
   withIntermediateWarpOwner,
 } from './warp.js';
+
+describe('generateTokenConfigs', () => {
+  for (const scale of [1e12, undefined]) {
+    it(`preserves the new Aleo leg's scale (${scale}) in deployment artifacts`, () => {
+      const multiProvider = new MultiProvider({
+        aleo: {
+          name: 'aleo',
+          protocol: ProtocolType.Aleo,
+          chainId: 1,
+          domainId: 1634493807,
+          nativeToken: { name: 'Aleo', symbol: 'ALEO', decimals: 6 },
+          rpcUrls: [{ http: 'http://127.0.0.1:13030' }],
+        },
+      });
+      const config: WarpRouteDeployConfigMailboxRequired = {
+        aleo: {
+          type: TokenType.synthetic,
+          owner: 'aleo1owner',
+          mailbox: 'aleo1mailbox',
+          name: 'Tether USD',
+          symbol: 'USDT',
+          decimals: 6,
+          scale,
+        },
+      };
+      const metadata = new TokenMetadataMap();
+      metadata.set('aleo', {
+        name: 'Tether USD',
+        symbol: 'USDT',
+        decimals: 6,
+        scale,
+      });
+      const core: WarpCoreConfig = { tokens: [] };
+      generateTokenConfigs(
+        multiProvider,
+        core,
+        config,
+        { aleo: 'hyp_warp_token_usdt_v3.aleo' },
+        metadata,
+      );
+      expect(core.tokens[0]).to.include({
+        chainName: 'aleo',
+        standard: TokenStandard.AleoHypSynthetic,
+        decimals: 6,
+        scale,
+        addressOrDenom: 'hyp_warp_token_usdt_v3.aleo',
+      });
+    });
+  }
+});
 
 describe('fullyConnectTokens', () => {
   it('does not connect operational ALRB entries', () => {

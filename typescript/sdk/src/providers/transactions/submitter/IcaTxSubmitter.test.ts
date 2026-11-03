@@ -11,7 +11,10 @@ import { TestChainName } from '../../../consts/testChains.js';
 import { MultiProvider } from '../../MultiProvider.js';
 import { randomAddress } from '../../../test/testUtils.js';
 
-import { EvmIcaTxSubmitter } from './IcaTxSubmitter.js';
+import {
+  EvmIcaTxSubmitter,
+  ICA_QUOTE_BUFFER_MULTIPLIER,
+} from './IcaTxSubmitter.js';
 
 describe('EvmIcaTxSubmitter.submit', () => {
   const origin = TestChainName.test1;
@@ -134,7 +137,7 @@ describe('EvmIcaTxSubmitter.submit', () => {
     expect(forwarded.from).to.not.equal(deployer);
   });
 
-  it('preserves the IGP quote `value` on the forwarded callRemote tx', async () => {
+  it('buffers the IGP quote `value` on the forwarded callRemote tx', async () => {
     mockApp.estimateIcaHandleGas.resolves(BigNumber.from(150_000));
     // Realistic path: getCallRemote attaches the IGP quote as the tx value.
     const quote = BigNumber.from('123456789');
@@ -155,7 +158,11 @@ describe('EvmIcaTxSubmitter.submit', () => {
     await makeSubmitter().submit(tx);
 
     const forwarded = mockSubmitter.submit.firstCall.args[0];
-    expect(forwarded.value).to.equal(quote);
+    expect(
+      BigNumber.from(forwarded.value).eq(
+        quote.mul(ICA_QUOTE_BUFFER_MULTIPLIER),
+      ),
+    ).to.be.true;
     // The `from` override must not clobber other populated fields.
     expect(forwarded.from).to.equal(bytes32ToAddress(owner));
   });

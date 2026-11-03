@@ -117,4 +117,8 @@ export const regularIcas: ChainMap<Address> = {
   // ----------------------------------------------------------
   arc: '0xb99A2F00E5F30931a8908ae3a27BD25D9a62d237',
   viction: '0x057fd9cae3a84Be7222bE32E5d5e35f2730DE5b8',
+
+  // Oct 27, 2026 - Tempo
+  // ----------------------------------------------------------
+  tempo: '0x889524709d5c1D58254d62e6dc031069EEd67A80',
 } as const;

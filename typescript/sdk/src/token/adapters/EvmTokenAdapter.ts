@@ -97,6 +97,7 @@ const toEvmAddress = (address: Address): Address =>
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
 export const EVM_TRANSFER_REMOTE_GAS_ESTIMATE = 450_000n;
 const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
+const TOKEN_IGP_CONTRACT_VERSION = '11.0.0';
 type RawTupleQuote = { 0: string; 1: BigNumber };
 type RawTokenBridgeQuote = { token: string; amount: BigNumber };
 
@@ -320,14 +321,18 @@ export class EvmHypSyntheticAdapter
   ): Promise<boolean> {
     if (eqAddress(spender, this.addresses.token)) {
       // Synthetics with PredicateWrapper need approval to the wrapper instead.
-      // Without a wrapper, transferRemote burns directly from msg.sender — no approval needed.
+      // Without a wrapper, only a token-paid fee hook needs a router allowance.
       const predicateWrapper = await this.getPredicateWrapperAddress();
-      if (!predicateWrapper) return false;
-      const allowance = await this.allowanceAs(owner, predicateWrapper);
-      return allowance.lt(weiAmountOrId);
+      if (predicateWrapper) {
+        return super.isApproveRequired(owner, predicateWrapper, weiAmountOrId);
+      }
+
+      if (!(await this.hasTokenFeeHook())) {
+        return false;
+      }
     }
 
-    // External spenders (e.g. QuotedCalls) get the standard ERC20 allowance check.
+    // Token-paid gas and external spenders use the standard ERC20 allowance check.
     return super.isApproveRequired(owner, spender, weiAmountOrId);
   }
 
@@ -340,8 +345,12 @@ export class EvmHypSyntheticAdapter
       // Check whether the wrapper has a non-zero allowance that must be revoked first
       // (relevant for USDT-like tokens that require zeroing before re-approval).
       const predicateWrapper = await this.getPredicateWrapperAddress();
-      if (!predicateWrapper) return false;
-      return super.isRevokeApprovalRequired(owner, predicateWrapper);
+      if (predicateWrapper) {
+        return super.isRevokeApprovalRequired(owner, predicateWrapper);
+      }
+
+      // Synthetic ERC20s allow replacing a nonzero router allowance directly.
+      return false;
     }
     return super.isRevokeApprovalRequired(owner, spender);
   }
@@ -564,6 +573,18 @@ export class EvmHypSyntheticAdapter
       igpQuote: { amount: nativeAmount },
       tokenFeeQuote,
     };
+  }
+
+  protected async hasTokenFeeHook(): Promise<boolean> {
+    if (
+      !isValidContractVersion(
+        await this.getContractPackageVersion(),
+        TOKEN_IGP_CONTRACT_VERSION,
+      )
+    ) {
+      return false;
+    }
+    return !isZeroishAddress(await this.contract.feeHook());
   }
 
   /**
