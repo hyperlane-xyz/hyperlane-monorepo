@@ -671,22 +671,29 @@ export function assertTokenFeeDeploySupported(
   );
 }
 
-export function assertTokenFeeUpgradeSupported(
+export function assertTokenFeeUpdateSupported(
   config: TokenFeeSupportConfig & { contractVersion?: string },
-  actualContractVersion?: string,
+  actualConfig: Pick<DerivedTokenRouterConfig, 'contractVersion' | 'tokenFee'>,
   chain?: string,
 ) {
-  if (
-    !config.contractVersion ||
-    !actualContractVersion ||
-    compareVersions(config.contractVersion, actualContractVersion) <= 0
-  )
+  // Omitting tokenFee requests its removal, which is always allowed.
+  if (!config.tokenFee || !tokenFeeLegacyOnlyTokenTypes.has(config.type))
     return;
 
-  // Omitting tokenFee requests its removal, so the upgrade may proceed.
+  const chainSuffix = chain ? ` on ${chain}` : '';
+
+  // Current implementations revert when reading a non-zero fee recipient, so
+  // only routes with a readable on-chain fee may keep or update one.
   assert(
-    !config.tokenFee || !tokenFeeLegacyOnlyTokenTypes.has(config.type),
-    `${WarpRouteDeployConfigSchemaErrors.TOKEN_FEE_UPGRADE_UNSUPPORTED} ${config.type}${chain ? ` on ${chain}` : ''}`,
+    actualConfig.tokenFee,
+    `${WarpRouteDeployConfigSchemaErrors.TOKEN_FEE_UNSUPPORTED} ${config.type}${chainSuffix}`,
+  );
+
+  if (!config.contractVersion || !actualConfig.contractVersion) return;
+
+  assert(
+    compareVersions(config.contractVersion, actualConfig.contractVersion) <= 0,
+    `${WarpRouteDeployConfigSchemaErrors.TOKEN_FEE_UPGRADE_UNSUPPORTED} ${config.type}${chainSuffix}`,
   );
 }
 

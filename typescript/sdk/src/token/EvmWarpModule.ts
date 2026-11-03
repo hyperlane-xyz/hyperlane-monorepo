@@ -138,7 +138,7 @@ import {
   PredicateWrapperConfigSchema,
   VERSION_ERROR_MESSAGE,
   assertFeeHookSupported,
-  assertTokenFeeUpgradeSupported,
+  assertTokenFeeUpdateSupported,
   contractVersionMatchesDependency,
   derivedHookAddress,
   derivedIsmAddress,
@@ -504,11 +504,7 @@ export class EvmWarpModule extends HyperlaneModule<
       this.chainName,
       actualConfig.feeHook,
     );
-    assertTokenFeeUpgradeSupported(
-      expectedConfig,
-      actualConfig.contractVersion,
-      this.chainName,
-    );
+    assertTokenFeeUpdateSupported(expectedConfig, actualConfig, this.chainName);
     const hybridPlan = this.planHybridUpdate(actualConfig, expectedConfig);
     const actualHasDelayedFlowRouter =
       (typeof actualConfig.hook === 'object' &&
@@ -2733,6 +2729,9 @@ export class EvmWarpModule extends HyperlaneModule<
       return [];
     }
 
+    // Keep the public helper safe when called outside updatePhases.
+    assertTokenFeeUpdateSupported(expectedConfig, actualConfig, this.chainName);
+
     const routerAddress = this.args.addresses.deployedTokenRoute;
     const resolvedTokenFee = await resolveTokenFeeAddress(
       expectedConfig.tokenFee,
@@ -2994,11 +2993,7 @@ export class EvmWarpModule extends HyperlaneModule<
     );
 
     // Keep the public upgrade helper safe when called outside updatePhases.
-    assertTokenFeeUpgradeSupported(
-      expectedConfig,
-      actualConfig.contractVersion,
-      this.chainName,
-    );
+    assertTokenFeeUpdateSupported(expectedConfig, actualConfig, this.chainName);
 
     // Only upgrade if the user specifies a version
     if (!expectedConfig.contractVersion) {
