@@ -66,6 +66,8 @@ import {
   validatorBytesToHex,
 } from './ism-query.js';
 
+const DOMAIN_ID_REGEX = /^(0|[1-9]\d*)$/;
+
 const INIT_RETRY_ATTEMPTS = 8;
 const INIT_RETRY_BASE_MS = 1000;
 const MAX_DOMAIN_ID = 0xffffffffn;
@@ -108,7 +110,7 @@ function assertValidDomainStructure(
 ): void {
   const { validators } = domainConfig;
   assert(
-    /^(0|[1-9]\d*)$/.test(domain) && BigInt(domain) <= MAX_DOMAIN_ID,
+    DOMAIN_ID_REGEX.test(domain) && BigInt(domain) <= MAX_DOMAIN_ID,
     `Invalid multisig ISM domain: '${domain}'`,
   );
   assertValidSharedDomainRoutingMultisig(

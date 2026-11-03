@@ -1,9 +1,11 @@
 import { ensure0x, strip0x } from './addresses.js';
 
+const TITLE_WORD_REGEX = /\w\S*/g;
+
 export { formatError } from './errors.js';
 
 export function toTitleCase(str: string) {
-  return str.replace(/\w\S*/g, (txt) => {
+  return str.replace(TITLE_WORD_REGEX, (txt) => {
     return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
   });
 }

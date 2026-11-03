@@ -397,6 +397,8 @@ async fn test_indexer_multi_fetch_logs() {
         "{\n  version: 3u8,\n  nonce: 3u32,\n  origin_domain: 1617853565u32,\n  sender: [\n    252u8,\n    80u8,\n    5u8,\n    58u8,\n    116u8,\n    217u8,\n    53u8,\n    34u8,\n    241u8,\n    170u8,\n    247u8,\n    201u8,\n    188u8,\n    11u8,\n    171u8,\n    50u8,\n    243u8,\n    244u8,\n    41u8,\n    110u8,\n    7u8,\n    22u8,\n    8u8,\n    25u8,\n    216u8,\n    103u8,\n    58u8,\n    89u8,\n    25u8,\n    199u8,\n    61u8,\n    12u8\n  ],\n  destination_domain: 11155111u32,\n  recipient: [\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    181u8,\n    169u8,\n    25u8,\n    159u8,\n    187u8,\n    73u8,\n    207u8,\n    247u8,\n    192u8,\n    213u8,\n    67u8,\n    37u8,\n    145u8,\n    36u8,\n    130u8,\n    151u8,\n    151u8,\n    20u8,\n    53u8,\n    244u8\n  ],\n  body: [\n    268787773892274112404478985243277131776u128,\n    101401562821467212002249661463377258879u128,\n    0u128,\n    85413587559041969264383023824439869440u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128\n  ]\n}",
     );
 
+    mock.record_concurrency();
+    let stats = mock.clone();
     let indexer = AleoDispatchIndexer::new(mock, &locator, &connection_conf());
 
     let result =
@@ -404,6 +406,10 @@ async fn test_indexer_multi_fetch_logs() {
     assert!(result.is_ok());
     let logs = result.unwrap();
     assert_eq!(logs.len(), 2);
+    let (calls, peak, active) = stats.concurrency_stats();
+    assert_eq!(calls, 4, "index, block, and two distinct event reads");
+    assert_eq!(peak, 2, "both independent event reads must overlap");
+    assert_eq!(active, 0);
     for log in logs {
         let (indexed, _) = &log;
         assert_eq!(indexed.inner().nonce, indexed.sequence.unwrap());

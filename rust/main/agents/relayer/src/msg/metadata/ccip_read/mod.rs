@@ -3,7 +3,7 @@
 use std::{
     error::Error,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
-    sync::{Arc, OnceLock},
+    sync::{Arc, LazyLock, OnceLock},
     time::Duration,
 };
 
@@ -45,6 +45,10 @@ use super::{
 mod cache_types;
 
 pub const DEFAULT_TIMEOUT: u64 = 30;
+
+// Cache compilation without changing the metadata builder's error propagation.
+static OFFCHAIN_LOOKUP_REGEX: LazyLock<Result<Regex, regex::Error>> =
+    LazyLock::new(|| Regex::new(r"0x[[:xdigit:]]+"));
 
 /// Authentication signatures are timeless and fully determined by the signer and signing hash.
 /// Keep a bounded process-local cache so CCIP pending retries and concurrent messages do not send
@@ -318,7 +322,7 @@ impl CcipReadIsmMetadataBuilder {
                         return Err(MetadataBuildError::CouldNotFetch);
                     }
                     Err(raw_error) => {
-                        let matching_regex = Regex::new(r"0x[[:xdigit:]]+").map_err(|err| {
+                        let matching_regex = OFFCHAIN_LOOKUP_REGEX.as_ref().map_err(|err| {
                             let msg = format!("Failed to parse regex: {err}");
                             MetadataBuildError::FailedToBuild(msg)
                         })?;
@@ -701,6 +705,20 @@ mod test {
     };
 
     use super::*;
+
+    #[test]
+    fn offchain_lookup_regex_matches_repeated_reverts() {
+        let regex = OFFCHAIN_LOOKUP_REGEX.as_ref().expect("valid static regex");
+        for _ in 0..3 {
+            assert_eq!(
+                regex
+                    .find("execution reverted: 0xAbCd0123")
+                    .map(|m| m.as_str()),
+                Some("0xAbCd0123")
+            );
+            assert!(regex.find("execution reverted without data").is_none());
+        }
+    }
 
     #[derive(Debug)]
     struct CountingSigner {

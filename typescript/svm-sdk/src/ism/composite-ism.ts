@@ -60,6 +60,10 @@ import type {
 
 import { validatorBytesToHex } from './ism-query.js';
 
+const DECIMAL_INTEGER_REGEX = /^\d+$/;
+const DOMAIN_ID_REGEX = /^(0|[1-9]\d*)$/;
+const ZERO_HEX_REGEX = /^0x0+$/i;
+
 const logger = rootLogger.child({ module: 'composite-ism' });
 
 /**
@@ -279,7 +283,7 @@ const ARTIFACT_U64_MAX = 2n ** 64n - 1n;
 const ARTIFACT_U256_MAX = 2n ** 256n - 1n;
 
 function isValidDecimalStringBoundedBy(value: string, max: bigint): boolean {
-  return /^\d+$/.test(value) && BigInt(value) <= max;
+  return DECIMAL_INTEGER_REGEX.test(value) && BigInt(value) <= max;
 }
 
 /**
@@ -312,7 +316,7 @@ export function assertValidCompositeIsmArtifact(
 
 /** A domain map key must be a canonical (no leading zeros, no sign) base-10 u32. */
 function isValidDomainKey(key: string): boolean {
-  return /^(0|[1-9]\d*)$/.test(key) && BigInt(key) <= 0xffffffffn;
+  return DOMAIN_ID_REGEX.test(key) && BigInt(key) <= 0xffffffffn;
 }
 
 function assertValidCompositeIsmArtifactNode(
@@ -416,7 +420,7 @@ function assertValidCompositeIsmArtifactNode(
           assert(false, `Invalid H256 recipient: ${node.recipient}`);
         }
         assert(
-          !/^0x0+$/i.test(node.recipient),
+          !ZERO_HEX_REGEX.test(node.recipient),
           'rateLimited.recipient must be a non-zero address',
         );
       }

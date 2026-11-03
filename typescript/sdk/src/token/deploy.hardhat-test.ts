@@ -71,6 +71,7 @@ import { HypERC20Deployer } from './deploy.js';
 import {
   SyntheticTokenConfig,
   WarpRouteDeployConfigMailboxRequired,
+  HypTokenRouterConfigSchema,
   XERC20TokenExtraBridgesLimits,
   XERC20Type,
   isAtomicLocalRebalancingBridgeTokenConfig,
@@ -490,10 +491,9 @@ describe('TokenDeployer', async () => {
         '115792089237316195423570985008687907853269984665640564039457584007913129639935';
 
       beforeEach(async () => {
-        config[chain] = {
+        config[chain] = HypTokenRouterConfigSchema.parse({
           ...config[chain],
           type,
-          // @ts-expect-error - Synthetic test configurations omit the token address.
           token: token(),
           xERC20:
             type === TokenType.XERC20
@@ -505,7 +505,7 @@ describe('TokenDeployer', async () => {
                   },
                 }
               : undefined,
-        };
+        });
 
         contractsMap = await deployer.deploy(config);
       });
@@ -868,12 +868,11 @@ describe('TokenDeployer', async () => {
       });
 
       beforeEach(async () => {
-        config[chain] = {
+        config[chain] = HypTokenRouterConfigSchema.parse({
           ...config[chain],
           type,
-          // @ts-expect-error - Synthetic test configurations omit the token address.
           token: token(),
-        };
+        });
         const warpRoute = await deployer.deploy(config);
         routerAddress = warpRoute[chain][type].address;
       });

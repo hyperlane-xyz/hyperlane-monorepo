@@ -2,6 +2,10 @@ import path from 'path';
 
 import { readFile, writeFile } from 'fs/promises';
 
+const SHEBANG_REGEX = /^#!.*\n/;
+const WASM_INITIALIZER_REGEX =
+  /await __wbg_init\(\{ module_or_path: (module\$\d+) \}\)/g;
+
 /**
  * Resolve the output directory path.
  * Uses CLI arg if provided, otherwise defaults to 'bundle' in cwd.
@@ -46,11 +50,11 @@ async function patchBundledExecutable() {
     }
 
     // Remove any existing shebang *and* leading whitespace
-    content = content.replace(/^#!.*\n/, '');
+    content = content.replace(SHEBANG_REGEX, '');
 
     // Patch WASM init to use file:// URLs
     content = content.replace(
-      /await __wbg_init\(\{ module_or_path: (module\$\d+) \}\)/g,
+      WASM_INITIALIZER_REGEX,
       'await __wbg_init({ module_or_path: pathToFileURL($1).href })',
     );
 

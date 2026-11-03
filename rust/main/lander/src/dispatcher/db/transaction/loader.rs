@@ -87,9 +87,9 @@ impl TransactionDbLoader {
             let stored = self
                 .state
                 .payload_db
-                .retrieve_payload_by_uuid(&payload.uuid)
+                .retrieve_payload_status_by_uuid(&payload.uuid)
                 .await?;
-            if stored.is_some_and(|p| payload_status_is_terminal(&p.status)) {
+            if stored.is_some_and(|status| payload_status_is_terminal(&status)) {
                 continue;
             }
             match with_rpc_operation(

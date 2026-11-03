@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::{
     collections::HashMap,
     fmt::Debug,
@@ -20,6 +21,18 @@ pub struct MockHttpClient {
     base_path: PathBuf,
     // Map from endpoint path (e.g. "block/1") to a serde_json::Value response body
     responses: Arc<RwLock<HashMap<String, Value>>>,
+    recording: Arc<AtomicBool>,
+    active: Arc<AtomicUsize>,
+    peak: Arc<AtomicUsize>,
+    calls: Arc<AtomicUsize>,
+}
+
+struct ActiveRequest(Arc<AtomicUsize>);
+
+impl Drop for ActiveRequest {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
+    }
 }
 
 impl MockHttpClient {
@@ -27,7 +40,35 @@ impl MockHttpClient {
         Self {
             base_path,
             responses: Arc::new(RwLock::new(HashMap::new())),
+            recording: Arc::default(),
+            active: Arc::default(),
+            peak: Arc::default(),
+            calls: Arc::default(),
         }
+    }
+
+    pub fn record_concurrency(&self) {
+        self.recording.store(true, Ordering::SeqCst);
+    }
+
+    pub fn concurrency_stats(&self) -> (usize, usize, usize) {
+        (
+            self.calls.load(Ordering::SeqCst),
+            self.peak.load(Ordering::SeqCst),
+            self.active.load(Ordering::SeqCst),
+        )
+    }
+
+    async fn track_request(&self) -> Option<ActiveRequest> {
+        if !self.recording.load(Ordering::SeqCst) {
+            return None;
+        }
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        let active = self.active.fetch_add(1, Ordering::SeqCst).saturating_add(1);
+        self.peak.fetch_max(active, Ordering::SeqCst);
+        let guard = ActiveRequest(self.active.clone());
+        tokio::task::yield_now().await;
+        Some(guard)
     }
 
     /// Register a JSON value directly for an endpoint path.
@@ -79,6 +120,7 @@ impl HttpClient for MockHttpClient {
         path: &str,
         _query: impl Into<Option<Value>> + Send,
     ) -> ChainResult<T> {
+        let _active = self.track_request().await;
         let path = path
             .trim()
             .chars()
@@ -94,6 +136,7 @@ impl HttpClient for MockHttpClient {
         path: &str,
         _query: impl Into<Option<Value>> + Send,
     ) -> ChainResult<Option<T>> {
+        let _active = self.track_request().await;
         let path = path
             .trim()
             .chars()

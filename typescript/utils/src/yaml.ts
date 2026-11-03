@@ -10,6 +10,8 @@ import { sortArrayByKey } from './arrays.js';
 import { rootLogger } from './logging.js';
 import { Result, failure, success } from './result.js';
 
+const INDENTATION_REGEX = /^(\s+)/;
+
 export function tryParseJsonOrYaml<T = any>(input: string): Result<T> {
   try {
     if (input.startsWith('{')) {
@@ -184,10 +186,9 @@ function collectCommentBlocks(lines: string[]): Map<LineIndex, CommentBlock> {
  */
 function detectIndentation(lines: string[]): Map<LineIndex, string> {
   const indentationMap = new Map<LineIndex, string>();
-  const indentationPattern = /^(\s+)/;
 
   lines.forEach((line, index) => {
-    const match = line.match(indentationPattern);
+    const match = line.match(INDENTATION_REGEX);
     if (match) {
       indentationMap.set(index + 1, match[1]);
     }

@@ -30,6 +30,7 @@ use crate::provider::transaction::{parsed_message, txn};
 use crate::tx_submitter::TransactionSubmitter;
 use crate::utils::{decode_h256_bytes, decode_pubkey};
 use crate::{ConnectionConf, SealevelMailbox, SealevelProvider};
+use hyperlane_core::utils::read_concurrently;
 
 /// Struct that retrieves event data for a Sealevel Mailbox contract
 #[derive(Debug)]
@@ -404,12 +405,7 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
             "Fetching SealevelMailboxIndexer HyperlaneMessage logs"
         );
 
-        let message_capacity = range.end().saturating_sub(*range.start());
-        let mut messages = Vec::with_capacity(message_capacity as usize);
-        for nonce in range {
-            messages.push(self.get_dispatched_message_with_nonce(nonce).await?);
-        }
-        Ok(messages)
+        read_concurrently(range, |nonce| self.get_dispatched_message_with_nonce(nonce)).await
     }
 
     /// Every signer of the dispatch transaction: the fee payer, the token
@@ -526,12 +522,10 @@ impl Indexer<H256> for SealevelMailboxIndexer {
             "Fetching SealevelMailboxIndexer HyperlaneMessage Delivery logs"
         );
 
-        let message_capacity = range.end().saturating_sub(*range.start());
-        let mut message_ids = Vec::with_capacity(message_capacity as usize);
-        for nonce in range {
-            message_ids.push(self.get_delivered_message_with_sequence(nonce).await?);
-        }
-        Ok(message_ids)
+        read_concurrently(range, |nonce| {
+            self.get_delivered_message_with_sequence(nonce)
+        })
+        .await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {

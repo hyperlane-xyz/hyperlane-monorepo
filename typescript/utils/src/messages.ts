@@ -11,6 +11,8 @@ import {
   ParsedWarpRouteMessage,
 } from './types.js';
 
+const HEX_METADATA_REGEX = /^0x[0-9a-fA-F]*$/;
+
 /**
  * JS Implementation of solidity/contracts/libs/Message.sol#formatMessage
  * @returns Hex string of the packed message
@@ -137,7 +139,7 @@ export function parseStandardHookMetadata(
   metadata?: HexString,
 ): Required<StandardHookMetadataParams> | null {
   if (!metadata || metadata === '0x') return null;
-  if (!/^0x[0-9a-fA-F]*$/.test(metadata)) return null;
+  if (!HEX_METADATA_REGEX.test(metadata)) return null;
   if (!metadata.startsWith('0x0001')) return null;
   if (metadata.length < REFUND_END) return null;
 

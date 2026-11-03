@@ -23,6 +23,8 @@ import { getDomainId, getWarpCoreConfig } from '../../config/registry.js';
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { fetchGCPSecret } from '../../src/utils/gcloud.js';
 
+const EVM_ADDRESS_REGEX = /^0x[0-9a-f]{40}$/i;
+
 const logger = rootLogger.child({ module: 'moonpay-quotes' });
 
 // Provider/RPC errors can embed the full request (including RPC URLs, which
@@ -212,7 +214,7 @@ export async function discoverOqlfSlots(
         if (
           !t.addressOrDenom ||
           !t.chainName ||
-          !/^0x[0-9a-f]{40}$/i.test(t.addressOrDenom)
+          !EVM_ADDRESS_REGEX.test(t.addressOrDenom)
         )
           return false;
         const key = `${t.chainName}:${t.addressOrDenom.toLowerCase()}`;

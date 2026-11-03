@@ -16,6 +16,7 @@ export type {
 export { buildEmbedUrl } from './url.js';
 
 const WIDGET_MESSAGE_TYPE = 'hyperlane-warp-widget';
+const EXPECTED_ORIGIN = new URL(EMBED_BASE_URL).origin;
 
 /**
  * Create a Hyperlane Warp bridge widget iframe.
@@ -38,7 +39,6 @@ export function createWarpWidget(
 ): WarpWidgetInstance {
   const { container, config, width = '100%', height = '600px' } = options;
   const src = buildEmbedUrl(config);
-  const expectedOrigin = new URL(EMBED_BASE_URL).origin;
 
   // Create iframe
   const iframe = document.createElement('iframe');
@@ -63,7 +63,7 @@ export function createWarpWidget(
 
   const onMessage = (event: MessageEvent) => {
     // 3-layer validation
-    if (event.origin !== expectedOrigin) return;
+    if (event.origin !== EXPECTED_ORIGIN) return;
     if (event.source !== iframe.contentWindow) return;
     if (!event.data || event.data.type !== WIDGET_MESSAGE_TYPE) return;
 

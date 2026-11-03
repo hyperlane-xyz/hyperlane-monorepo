@@ -1,5 +1,8 @@
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
+const HEX_NUMBER_REGEX = /^0x[0-9a-fA-F]*$/;
+const DECIMAL_NUMBER_REGEX = /^[0-9]+$/;
+
 /**
  * Converts a numeric value coming from an RPC or a block explorer to a number.
  *
@@ -31,7 +34,7 @@ export function toNumber(value: unknown, field: string): number {
 
   if (typeof value === 'string') {
     assert(
-      /^0x[0-9a-fA-F]*$/.test(value) || /^[0-9]+$/.test(value),
+      HEX_NUMBER_REGEX.test(value) || DECIMAL_NUMBER_REGEX.test(value),
       `${field} string "${value}" is not a valid hex or decimal number`,
     );
     // A zero valued field arrives as a bare "0x", which strips to nothing and

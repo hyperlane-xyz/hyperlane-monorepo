@@ -4,6 +4,9 @@ import { assert } from '@hyperlane-xyz/utils';
 import { getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+const DECIMAL_INTEGER_REGEX = /^\d+$/;
+const URL_AUTHORITY_REGEX = /^(?:https?:\/\/)?([^/?#]+)/;
+
 /**
  * Extracts the base domain from a URL (e.g., alchemy.com instead of eth-mainnet.g.alchemy.com)
  */
@@ -16,7 +19,7 @@ function extractDomain(url: string): string {
     const parts = hostname.split('.');
 
     // Handle IP addresses
-    if (parts.every((part) => /^\d+$/.test(part))) {
+    if (parts.every((part) => DECIMAL_INTEGER_REGEX.test(part))) {
       return hostname;
     }
 
@@ -28,7 +31,7 @@ function extractDomain(url: string): string {
 
     return hostname;
   } catch {
-    const match = url.match(/^(?:https?:\/\/)?([^/?#]+)/);
+    const match = url.match(URL_AUTHORITY_REGEX);
     if (!match) return url;
 
     const hostname = match[1];

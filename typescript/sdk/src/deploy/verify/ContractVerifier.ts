@@ -27,6 +27,8 @@ import {
   SolidityStandardJsonInput,
 } from './types.js';
 
+const COMPILER_VERSION_REGEX = /v(\d.\d.\d+)\+commit.\w+/;
+
 export class ContractVerifier extends BaseContractVerifier {
   protected logger = rootLogger.child({ module: 'ContractVerifier' });
   protected readonly compilerOptions: CompilerOptions;
@@ -39,8 +41,7 @@ export class ContractVerifier extends BaseContractVerifier {
   ) {
     super(multiProvider, buildArtifact);
     const compilerversion = `v${buildArtifact.solcLongVersion}`;
-    const versionRegex = /v(\d.\d.\d+)\+commit.\w+/;
-    const matches = versionRegex.exec(compilerversion);
+    const matches = COMPILER_VERSION_REGEX.exec(compilerversion);
     if (!matches) {
       throw new Error(`Invalid compiler version ${compilerversion}`);
     }

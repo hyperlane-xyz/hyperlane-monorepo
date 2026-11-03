@@ -15,6 +15,9 @@ import {
 
 import { DEFAULT_EXPLORER_QUERY_LIMIT } from './constants.js';
 
+const MESSAGE_ID_REGEX = /^0x[0-9a-f]{64}$/;
+const HEX_PREFIX_REGEX = /^0x/i;
+
 type ExplorerMessageRow = {
   msg_id: string;
   origin_domain_id: number;
@@ -65,7 +68,7 @@ export function normalizeExplorerAddress(address: string): string {
 
 function isValidEvmWarpRecipient(recipientBytes32: string): boolean {
   const normalized = normalizeExplorerHex(recipientBytes32).toLowerCase();
-  if (!/^0x[0-9a-f]{64}$/.test(normalized)) return false;
+  if (!MESSAGE_ID_REGEX.test(normalized)) return false;
   // EVM warp recipients should be left-padded 20-byte addresses.
   if (!normalized.startsWith('0x000000000000000000000000')) return false;
 
@@ -186,7 +189,7 @@ export class ExplorerPendingTransfersClient {
   }
 
   private toBytea(address: string): string {
-    return address.replace(/^0x/i, '\\x').toLowerCase();
+    return address.replace(HEX_PREFIX_REGEX, '\\x').toLowerCase();
   }
 
   private async queryInflightTransfers(

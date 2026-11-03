@@ -117,6 +117,29 @@ describe('getContractDeploymentTransaction', () => {
     });
   }
 
+  it('does not require response URL metadata for a successful request', async () => {
+    sandbox.stub(globalThis, 'fetch').resolves(
+      new Response(
+        JSON.stringify({
+          status: '1',
+          message: 'OK',
+          result: [
+            {
+              contractAddress: CONTRACT_ADDRESS,
+              contractCreator: CONTRACT_CREATOR,
+              txHash: DEPLOYMENT_TX_HASH,
+            },
+          ],
+        }),
+      ),
+    );
+    const result = await getContractDeploymentTransaction(
+      { apiUrl: EXPLORER_API_URL },
+      { contractAddress: CONTRACT_ADDRESS },
+    );
+    expect(result.txHash).to.equal(DEPLOYMENT_TX_HASH);
+  });
+
   it('rejects a block number that is not a hex or decimal number', async () => {
     sandbox.stub(globalThis, 'fetch').callsFake(async () =>
       explorerResultResponse({
