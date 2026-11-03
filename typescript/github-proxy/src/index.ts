@@ -1,18 +1,20 @@
 import { DISALLOWED_URL_MSG } from './errors.js';
 
 const GITHUB_API_ALLOWLIST = [
-  '/repos/hyperlane-xyz/hyperlane-registry/git/trees/main',
+  /^\/repos\/hyperlane-xyz\/hyperlane-registry\/git\/trees\/.*/,
 ];
-const GITPUB_API_HOST = 'https://api.github.com';
+const GITHUB_API_HOST = 'https://api.github.com';
 export default {
   async fetch(request, env, _ctx): Promise<Response> {
     const apiUrlPath = new URL(request.url).pathname;
-    const isAllowed = GITHUB_API_ALLOWLIST.includes(apiUrlPath);
+    const isAllowed = GITHUB_API_ALLOWLIST.some((pattern) =>
+      pattern.test(apiUrlPath),
+    );
     if (!isAllowed) {
       return new Response(DISALLOWED_URL_MSG, { status: 401 });
     }
 
-    const apiUrl = new URL(`${GITPUB_API_HOST}${apiUrlPath}?recursive=true`);
+    const apiUrl = new URL(`${GITHUB_API_HOST}${apiUrlPath}?recursive=true`);
     return fetch(apiUrl, {
       method: 'GET',
       headers: {
