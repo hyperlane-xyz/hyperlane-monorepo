@@ -23,7 +23,7 @@ use futures_util::{stream, stream::BoxStream, StreamExt};
 use hyperlane_base::{
     broadcast::{BroadcastMpscSender, IndexingNotification},
     cursors::Indexable,
-    db::{HyperlaneDb, HyperlaneRocksDB},
+    db::{ConflictingEvent, HyperlaneDb, HyperlaneRocksDB},
     scraper_websocket::{
         format_address, parse_address, reconnect_after, EventMessage, GasPaymentCursor,
         MerkleEventData, RejectedStream, ScraperSession, SequenceCursor, ServerMessage,
@@ -61,14 +61,10 @@ const LIVE_BLOCK_HASH: &[u8] = b"scraper_websocket_live_block_hash";
 const ROLLBACK_RECOVERY: &[u8] = b"scraper_websocket_rollback_recovery";
 
 #[derive(Debug, thiserror::Error)]
-#[error("Conflicting scraper {0}")]
-struct ConflictingEvent(&'static str);
-
-#[derive(Debug, thiserror::Error)]
 #[error(
     "Scraper rollback on {chain} requires DB recovery through block {to_height} before restarting"
 )]
-struct RollbackRecoveryRequired {
+pub(crate) struct RollbackRecoveryRequired {
     chain: String,
     to_height: u64,
 }
@@ -393,49 +389,22 @@ impl ScraperSource {
                 let block = data.origin_block_height.as_u64("dispatch block")?;
                 let tx = parse_tx(&data.origin_tx_hash)?;
                 if write {
-                    let existing_message = self.database.retrieve_message_by_nonce(nonce)?;
-                    ensure!(
-                        existing_message
-                            .as_ref()
-                            .is_none_or(|existing| existing == &message),
-                        ConflictingEvent("dispatch")
-                    );
-                    let existing_block = self
-                        .database
-                        .retrieve_dispatched_block_number_by_nonce(&nonce)?;
-                    ensure!(
-                        existing_block.is_none_or(|existing| existing == block),
-                        ConflictingEvent("dispatch block")
-                    );
-                    let existing_tx = self
-                        .database
-                        .retrieve_dispatched_tx_hash_by_message_id(&message.id())?;
-                    ensure!(
-                        tx == H512::zero()
-                            || existing_tx
-                                .is_none_or(|existing| existing == H512::zero() || existing == tx),
-                        ConflictingEvent("dispatch transaction")
-                    );
-                    if existing_message.is_none()
-                        || existing_block.is_none()
-                        || (tx != H512::zero()
-                            && existing_tx.is_none_or(|existing| existing == H512::zero()))
-                    {
-                        self.record_live_write(
-                            kind,
-                            block,
-                            data.origin_block_hash
-                                .as_deref()
-                                .map(parse_address)
-                                .transpose()?,
-                        )?;
-                    }
-                    let inserted = self.database.store_message(&message, block)?;
+                    let inserted = self.database.store_dispatched_message_if_consistent(
+                        &message,
+                        block,
+                        tx,
+                        || {
+                            self.record_live_write(
+                                kind,
+                                block,
+                                data.origin_block_hash
+                                    .as_deref()
+                                    .map(parse_address)
+                                    .transpose()?,
+                            )
+                        },
+                    )?;
                     if tx != H512::zero() {
-                        if existing_tx.is_none_or(|existing| existing == H512::zero()) {
-                            self.database
-                                .store_dispatched_tx_hash_by_message_id(&message.id(), &tx)?;
-                        }
                         // Live-only streams already supply leaves and retain gas RPC
                         // polling. Canonical replays notify only for new dispatches.
                         if inserted && self.confirmations.is_none() {
@@ -456,36 +425,10 @@ impl ScraperSource {
                 let (insertion, block) =
                     data.decode(self.domain, self.merkle_tree_hook, sequence)?;
                 if write {
-                    let existing = self
-                        .database
-                        .retrieve_merkle_tree_insertion_by_leaf_index(&sequence)?;
-                    ensure!(
-                        existing.is_none_or(|existing| existing == insertion),
-                        ConflictingEvent("Merkle leaf")
-                    );
-                    let reverse = self
-                        .database
-                        .retrieve_merkle_leaf_index_by_message_id(&insertion.message_id())?;
-                    let stored_block = self
-                        .database
-                        .retrieve_merkle_tree_insertion_block_number_by_leaf_index(&sequence)?;
-                    ensure!(
-                        reverse.is_none_or(|index| index == sequence),
-                        ConflictingEvent("Merkle reverse index")
-                    );
-                    ensure!(
-                        stored_block.is_none_or(|stored| stored == block),
-                        ConflictingEvent("Merkle block")
-                    );
-                    if existing.is_none() || reverse.is_none() || stored_block.is_none() {
-                        self.record_live_write(kind, block, block_hash)?;
-                    }
-                    if let Some(existing) = self
-                        .database
-                        .store_tree_insertion_if_absent(&insertion, block)?
-                    {
-                        ensure!(existing == insertion, ConflictingEvent("Merkle leaf"));
-                    }
+                    self.database
+                        .store_tree_insertion_if_absent(&insertion, block, || {
+                            self.record_live_write(kind, block, block_hash)
+                        })?;
                 }
             }
             Kind::Gas => {

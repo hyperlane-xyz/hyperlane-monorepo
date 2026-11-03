@@ -36,8 +36,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneMessage, Indexer, InterchainGasPayment, MerkleTreeInsertion,
-    ReorgPeriod, U256,
+    HyperlaneDomain, HyperlaneMessage, Indexer, InterchainGasPayment, MerkleTreeInsertion, U256,
 };
 use lander::{CommandEntrypoint, DispatcherMetrics};
 
@@ -45,7 +44,9 @@ use crate::relay_api::{
     handlers::{RateLimiter, ServerState as RelayApiState, TxHashCache},
     RelayApiMetrics,
 };
-use crate::scraper_websocket::{ScraperAuthorityReceiver, ScraperSource, ScraperWebSocketMonitor};
+use crate::scraper_websocket::{
+    RollbackRecoveryRequired, ScraperAuthorityReceiver, ScraperWebSocketMonitor,
+};
 use crate::{db_loader::DbLoader, relayer::origin::Origin, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 use crate::{
     db_loader::DbLoaderExt,
@@ -343,7 +344,7 @@ impl BaseAgent for Relayer {
             core_metrics.clone(),
             &critical_errors,
         )
-        .await;
+        .await?;
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized origin chains", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
@@ -469,32 +470,9 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized message contexts", "Relayer startup duration measurement");
 
         let scraper_sources = origins
-            .iter()
-            .map(|(domain, origin)| {
-                Ok(ScraperSource::new(
-                    domain.name().to_owned(),
-                    domain.id(),
-                    origin.chain_conf.addresses.mailbox,
-                    origin.chain_conf.addresses.interchain_gas_paymaster,
-                    origin.chain_conf.addresses.merkle_tree_hook,
-                    origin.database.clone(),
-                    match &origin.chain_conf.reorg_period {
-                        ReorgPeriod::Blocks(blocks) => Some(blocks.get()),
-                        _ => None,
-                    },
-                )?
-                .with_block_provider(Arc::from(origin.validator_announce.provider()))
-                .with_broadcaster(origin.message_sync.get_broadcaster())
-                .with_freshness_indexer(origin.message_sequence_indexer.clone())
-                .with_sync_metrics(origin.sync_metrics.clone())
-                .with_merkle_freshness_indexer(origin.merkle_sequence_indexer.clone()))
-            })
+            .values()
+            .map(Origin::scraper_source)
             .collect::<Result<Vec<_>>>()?;
-        // Validate durable live writes before starting any origin consumers,
-        // even when the WebSocket configuration has subsequently been disabled.
-        for source in &scraper_sources {
-            source.verify_live_blocks().await?;
-        }
         let scraper_websocket_monitor = settings
             .websocket_url
             .map(|url| {
@@ -1606,6 +1584,7 @@ impl Relayer {
         domain: &HyperlaneDomain,
         role: &str,
         retry: ChainBuildRetry,
+        should_retry: impl Fn(&E) -> bool,
         mut build: F,
     ) -> Result<T, E>
     where
@@ -1617,6 +1596,9 @@ impl Relayer {
             Ok(value) => return Ok(value),
             Err(err) => err,
         };
+        if !should_retry(&last_error) {
+            return Err(last_error);
+        }
         let Some(deadline) = tokio::time::Instant::now().checked_add(retry.budget) else {
             return Err(last_error);
         };
@@ -1635,7 +1617,12 @@ impl Relayer {
             };
             match tokio::time::timeout_at(deadline, retry).await {
                 Ok(Ok(value)) => return Ok(value),
-                Ok(Err(err)) => last_error = err,
+                Ok(Err(err)) => {
+                    if !should_retry(&err) {
+                        return Err(err);
+                    }
+                    last_error = err;
+                }
                 Err(_) => {
                     warn!(
                         domain = domain.name(),
@@ -1656,7 +1643,7 @@ impl Relayer {
         db: DB,
         core_metrics: Arc<CoreMetrics>,
         critical_errors: &CriticalErrorTracker,
-    ) -> HashMap<HyperlaneDomain, Origin> {
+    ) -> Result<HashMap<HyperlaneDomain, Origin>> {
         use origin::Factory;
         use origin::OriginFactory;
 
@@ -1674,34 +1661,55 @@ impl Relayer {
             .chains
             .iter()
             .map(|(domain, chain)| async {
-                let result =
-                    Self::build_chain_with_retries(domain, "origin", CHAIN_BUILD_RETRY, || {
-                        factory.create(
-                            domain.clone(),
-                            chain,
-                            settings.gas_payment_enforcement.clone(),
-                        )
-                    })
-                    .await;
+                let result = async {
+                    let origin = Self::build_chain_with_retries(
+                        domain,
+                        "origin",
+                        CHAIN_BUILD_RETRY,
+                        |_| true,
+                        || {
+                            factory.create(
+                                domain.clone(),
+                                chain,
+                                settings.gas_payment_enforcement.clone(),
+                            )
+                        },
+                    )
+                    .await?;
+                    // Do not construct consumers for an origin until its durable live
+                    // writes have been verified, including when WebSockets are disabled.
+                    let source = origin.scraper_source()?;
+                    Self::build_chain_with_retries(
+                        domain,
+                        "origin live-block verification",
+                        CHAIN_BUILD_RETRY,
+                        |error: &eyre::Report| !error.is::<RollbackRecoveryRequired>(),
+                        || source.verify_live_blocks(),
+                    )
+                    .await?;
+                    Ok::<_, eyre::Report>(origin)
+                }
+                .await;
                 (domain.clone(), result)
             })
             .collect();
         let results = futures::future::join_all(origin_futures).await;
-        let origins = results
-            .into_iter()
-            .filter_map(|(domain, result)| match result {
-                Ok(origin) => Some((domain, origin)),
-                Err(err) => {
-                    critical_errors.record(
-                        &domain,
-                        CriticalErrorSource::Origin,
-                        &err,
-                        "Critical error when building chain as origin",
-                    );
-                    None
+        let mut origins = HashMap::new();
+        for (domain, result) in results {
+            match result {
+                Ok(origin) => {
+                    origins.insert(domain, origin);
                 }
-            })
-            .collect::<HashMap<_, _>>();
+                // A confirmed reorg still halts the entire relayer before consumers start.
+                Err(error) if error.is::<RollbackRecoveryRequired>() => return Err(error),
+                Err(error) => critical_errors.record(
+                    &domain,
+                    CriticalErrorSource::Origin,
+                    &error,
+                    "Critical error when building or verifying origin",
+                ),
+            }
+        }
         settings
             .origin_chains
             .iter()
@@ -1715,7 +1723,7 @@ impl Relayer {
                 );
             });
 
-        origins
+        Ok(origins)
     }
 
     async fn build_destinations(
@@ -1740,6 +1748,7 @@ impl Relayer {
                             domain,
                             "destination",
                             CHAIN_BUILD_RETRY,
+                            |_| true,
                             || {
                                 factory.create(
                                     domain.clone(),

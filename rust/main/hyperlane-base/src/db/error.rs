@@ -49,6 +49,11 @@ pub struct GasPaymentSequenceConflict {
     pub incoming_block: u64,
 }
 
+/// A replay disagrees with an event or its metadata already stored by another writer.
+#[derive(thiserror::Error, Debug)]
+#[error("Conflicting indexed {0}")]
+pub struct ConflictingEvent(pub &'static str);
+
 impl From<DbError> for ChainCommunicationError {
     fn from(value: DbError) -> Self {
         ChainCommunicationError::from_other(value)

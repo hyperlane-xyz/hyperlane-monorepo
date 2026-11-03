@@ -7,7 +7,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use eyre::{bail, Result};
+use eyre::{bail, ensure, Result};
 use parking_lot::Mutex;
 use tracing::{debug, instrument, trace};
 
@@ -23,7 +23,7 @@ use crate::db::{
     storage_types::{
         InterchainGasExpenditureData, InterchainGasPaymentData, PendingMessageRetryState,
     },
-    HyperlaneDb,
+    ConflictingEvent, HyperlaneDb,
 };
 
 use super::{DbError, GasPaymentSequenceConflict, TypedDB, DB};
@@ -66,7 +66,13 @@ pub type DbResult<T> = std::result::Result<T, DbError>;
 
 /// DB handle for storing data tied to a specific Mailbox.
 #[derive(Debug, Clone)]
-pub struct HyperlaneRocksDB(HyperlaneDomain, TypedDB, Arc<Mutex<()>>, Arc<Mutex<()>>);
+pub struct HyperlaneRocksDB(
+    HyperlaneDomain,
+    TypedDB,
+    Arc<Mutex<()>>,
+    Arc<Mutex<()>>,
+    Arc<Mutex<()>>,
+);
 
 impl std::ops::Deref for HyperlaneRocksDB {
     type Target = TypedDB;
@@ -94,6 +100,7 @@ impl HyperlaneRocksDB {
         Self(
             domain.clone(),
             TypedDB::new(domain, db),
+            Arc::new(Mutex::new(())),
             Arc::new(Mutex::new(())),
             Arc::new(Mutex::new(())),
         )
@@ -136,6 +143,15 @@ impl HyperlaneRocksDB {
         message: &HyperlaneMessage,
         dispatched_block_number: u64,
     ) -> DbResult<bool> {
+        let _guard = self.4.lock();
+        self.store_message_inner(message, dispatched_block_number)
+    }
+
+    fn store_message_inner(
+        &self,
+        message: &HyperlaneMessage,
+        dispatched_block_number: u64,
+    ) -> DbResult<bool> {
         if let Some(stored_message) = self.retrieve_message_by_nonce(message.nonce)? {
             trace!(hyp_message=?message, "Message already stored in db");
             self.try_update_max_seen_message_nonce(message.nonce)?;
@@ -144,15 +160,54 @@ impl HyperlaneRocksDB {
                 .retrieve_dispatched_block_number_by_nonce(&message.nonce)?
                 .is_none()
             {
-                self.store_dispatched_block_number_by_nonce(
+                self.store_value_by_key(
+                    MESSAGE_DISPATCHED_BLOCK_NUMBER,
                     &message.nonce,
                     &dispatched_block_number,
                 )?;
             }
             return Ok(false);
         }
-        self.upsert_message(message, dispatched_block_number)?;
+        self.upsert_message_inner(message, dispatched_block_number)?;
         Ok(true)
+    }
+
+    /// Validate replay parity and fill absent dispatch data under the RPC writer's lock.
+    /// The callback records live-block identity before any event data is changed.
+    pub fn store_dispatched_message_if_consistent(
+        &self,
+        message: &HyperlaneMessage,
+        block: u64,
+        tx: H512,
+        before_write: impl FnOnce() -> Result<()>,
+    ) -> Result<bool> {
+        let _guard = self.4.lock();
+        let existing_message = self.retrieve_message_by_nonce(message.nonce)?;
+        let existing_block = self.retrieve_dispatched_block_number_by_nonce(&message.nonce)?;
+        let existing_tx = self.retrieve_dispatched_tx_hash_by_message_id(&message.id())?;
+        ensure!(
+            existing_message
+                .as_ref()
+                .is_none_or(|stored| stored == message),
+            ConflictingEvent("dispatch")
+        );
+        ensure!(
+            existing_block.is_none_or(|stored| stored == block),
+            ConflictingEvent("dispatch block")
+        );
+        ensure!(
+            tx.is_zero() || existing_tx.is_none_or(|stored| stored.is_zero() || stored == tx),
+            ConflictingEvent("dispatch transaction")
+        );
+        let fill_tx = !tx.is_zero() && existing_tx.is_none_or(|stored| stored.is_zero());
+        if existing_message.is_none() || existing_block.is_none() || fill_tx {
+            before_write()?;
+        }
+        let inserted = self.store_message_inner(message, block)?;
+        if fill_tx {
+            self.store_value_by_key(MESSAGE_DISPATCHED_TX_HASH_BY_MESSAGE_ID, &message.id(), &tx)?;
+        }
+        Ok(inserted)
     }
 
     /// Store a raw committed message.
@@ -162,6 +217,15 @@ impl HyperlaneRocksDB {
     /// - `id` --> `message`
     /// - `nonce` --> `dispatched block number`
     pub fn upsert_message(
+        &self,
+        message: &HyperlaneMessage,
+        dispatched_block_number: u64,
+    ) -> DbResult<()> {
+        let _guard = self.4.lock();
+        self.upsert_message_inner(message, dispatched_block_number)
+    }
+
+    fn upsert_message_inner(
         &self,
         message: &HyperlaneMessage,
         dispatched_block_number: u64,
@@ -607,39 +671,30 @@ impl HyperlaneRocksDB {
         &self,
         insertion: &MerkleTreeInsertion,
         insertion_block_number: u64,
-    ) -> DbResult<Option<MerkleTreeInsertion>> {
+        before_write: impl FnOnce() -> Result<()>,
+    ) -> Result<Option<MerkleTreeInsertion>> {
         let _guard = self.3.lock();
-        if let Some(existing) =
-            self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index())?
-        {
-            if existing == *insertion {
-                let mut batch = self.batch();
-                if self
-                    .retrieve_merkle_leaf_index_by_message_id(&insertion.message_id())?
-                    .is_none()
-                {
-                    batch.store_keyed_encodable(
-                        MERKLE_LEAF_INDEX_BY_MESSAGE_ID,
-                        &insertion.message_id(),
-                        &insertion.index(),
-                    );
-                }
-                if self
-                    .retrieve_merkle_tree_insertion_block_number_by_leaf_index(&insertion.index())?
-                    .is_none()
-                {
-                    batch.store_keyed_encodable(
-                        MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX,
-                        &insertion.index(),
-                        &insertion_block_number,
-                    );
-                }
-                batch.commit()?
-            }
-            return Ok(Some(existing));
+        let existing = self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index())?;
+        let reverse = self.retrieve_merkle_leaf_index_by_message_id(&insertion.message_id())?;
+        let block =
+            self.retrieve_merkle_tree_insertion_block_number_by_leaf_index(&insertion.index())?;
+        ensure!(
+            existing.is_none_or(|stored| stored == *insertion),
+            ConflictingEvent("Merkle leaf")
+        );
+        ensure!(
+            reverse.is_none_or(|stored| stored == insertion.index()),
+            ConflictingEvent("Merkle reverse index")
+        );
+        ensure!(
+            block.is_none_or(|stored| stored == insertion_block_number),
+            ConflictingEvent("Merkle block")
+        );
+        if existing.is_none() || reverse.is_none() || block.is_none() {
+            before_write()?;
+            self.store_tree_insertion_inner(insertion, insertion_block_number)?;
         }
-        self.store_tree_insertion_inner(insertion, insertion_block_number)?;
-        Ok(None)
+        Ok(existing)
     }
 
     fn store_tree_insertion_inner(
@@ -824,6 +879,104 @@ mod pending_index_tests {
             recipient: H256::zero(),
             ..Default::default()
         }
+    }
+
+    #[tokio::test]
+    async fn dispatch_replay_checks_parity_after_waiting_for_rpc_writer() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            for mismatch in 0..3 {
+                let replay = message(mismatch, 10);
+                let mut canonical = replay.clone();
+                let block = if mismatch == 1 { 101 } else { 100 };
+                let tx = H512::from_low_u64_be(if mismatch == 2 { 2 } else { 1 });
+                if mismatch == 0 {
+                    canonical.destination = 11;
+                }
+                let rpc_guard = db.4.lock();
+                let writer = db.clone();
+                let (started, ready) = std::sync::mpsc::channel();
+                let task = std::thread::spawn(move || {
+                    // A stale precheck must not let the subsequent insert accept a conflict.
+                    assert!(writer
+                        .retrieve_message_by_nonce(replay.nonce)
+                        .unwrap()
+                        .is_none());
+                    started.send(()).unwrap();
+                    writer.store_dispatched_message_if_consistent(
+                        &replay,
+                        100,
+                        H512::from_low_u64_be(1),
+                        || panic!("conflict must be detected before recording live metadata"),
+                    )
+                });
+                ready.recv().unwrap();
+                // Complete an RPC writer's critical section while the replay waits.
+                db.store_message_inner(&canonical, block).unwrap();
+                db.store_value_by_key(
+                    MESSAGE_DISPATCHED_TX_HASH_BY_MESSAGE_ID,
+                    &canonical.id(),
+                    &tx,
+                )
+                .unwrap();
+                drop(rpc_guard);
+                let error = task
+                    .join()
+                    .unwrap()
+                    .expect_err("reject RPC/replay disagreement");
+                assert!(error.is::<ConflictingEvent>());
+                assert_eq!(
+                    db.retrieve_message_by_nonce(canonical.nonce).unwrap(),
+                    Some(canonical.clone())
+                );
+                assert_eq!(
+                    db.retrieve_dispatched_block_number_by_nonce(&canonical.nonce)
+                        .unwrap(),
+                    Some(block)
+                );
+                assert_eq!(
+                    db.retrieve_dispatched_tx_hash_by_message_id(&canonical.id())
+                        .unwrap(),
+                    Some(tx)
+                );
+            }
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn merkle_replay_checks_block_after_waiting_for_rpc_writer() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            let insertion = MerkleTreeInsertion::new(0, H256::from_low_u64_be(1));
+            let rpc_guard = db.3.lock();
+            let writer = db.clone();
+            let (started, ready) = std::sync::mpsc::channel();
+            let task = std::thread::spawn(move || {
+                assert!(writer
+                    .retrieve_merkle_tree_insertion_block_number_by_leaf_index(&0)
+                    .unwrap()
+                    .is_none());
+                started.send(()).unwrap();
+                writer.store_tree_insertion_if_absent(&insertion, 100, || {
+                    panic!("conflict must be detected before recording live metadata")
+                })
+            });
+            ready.recv().unwrap();
+            db.store_tree_insertion_inner(&insertion, 101).unwrap();
+            drop(rpc_guard);
+            let error = task
+                .join()
+                .unwrap()
+                .expect_err("same leaf at a different block conflicts");
+            assert!(error.is::<ConflictingEvent>());
+            assert_eq!(
+                db.retrieve_merkle_tree_insertion_block_number_by_leaf_index(&0)
+                    .unwrap(),
+                Some(101)
+            );
+        })
+        .await;
     }
 
     #[tokio::test]
@@ -1091,7 +1244,8 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
     async fn store_logs(&self, messages: &[(Indexed<HyperlaneMessage>, LogMeta)]) -> Result<u32> {
         let mut stored: u32 = 0;
         for (message, meta) in messages {
-            let stored_message = self.store_message(message.inner(), meta.block_number)?;
+            let _guard = self.4.lock();
+            let stored_message = self.store_message_inner(message.inner(), meta.block_number)?;
             if stored_message {
                 stored = stored.saturating_add(1);
             }
@@ -1101,7 +1255,8 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
             // still replaces it. Sealevel relayer indexing is finalized, so a kept
             // ID is never orphaned by a reorg re-index.
             if meta.transaction_id != H512::zero() {
-                self.store_dispatched_tx_hash_by_message_id(
+                self.store_value_by_key(
+                    MESSAGE_DISPATCHED_TX_HASH_BY_MESSAGE_ID,
                     &message.inner().id(),
                     &meta.transaction_id,
                 )?;
@@ -1297,6 +1452,7 @@ impl HyperlaneDb for HyperlaneRocksDB {
     }
 
     fn store_message_id_by_nonce(&self, nonce: &u32, id: &H256) -> DbResult<()> {
+        let _guard = self.4.lock();
         self.store_value_by_key(MESSAGE_ID, nonce, id)
     }
 
@@ -1305,6 +1461,7 @@ impl HyperlaneDb for HyperlaneRocksDB {
     }
 
     fn store_message_by_id(&self, id: &H256, message: &HyperlaneMessage) -> DbResult<()> {
+        let _guard = self.4.lock();
         self.store_value_by_key(MESSAGE, id, message)
     }
 
@@ -1317,6 +1474,7 @@ impl HyperlaneDb for HyperlaneRocksDB {
         nonce: &u32,
         block_number: &u64,
     ) -> DbResult<()> {
+        let _guard = self.4.lock();
         self.store_value_by_key(MESSAGE_DISPATCHED_BLOCK_NUMBER, nonce, block_number)
     }
 
@@ -1601,6 +1759,7 @@ impl HyperlaneDb for HyperlaneRocksDB {
         message_id: &H256,
         tx_hash: &H512,
     ) -> DbResult<()> {
+        let _guard = self.4.lock();
         self.store_value_by_key(
             MESSAGE_DISPATCHED_TX_HASH_BY_MESSAGE_ID,
             message_id,
