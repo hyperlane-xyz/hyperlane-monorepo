@@ -3,14 +3,19 @@ import { ethers } from 'ethers';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import { TokenFeeType } from '../fee/types.js';
+import { TokenFeeConfigInput, TokenFeeType } from '../fee/types.js';
 import { IsmType } from '../ism/types.js';
 
 import { TokenType } from './config.js';
 import {
+  DerivedTokenRouterConfig,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
+  HypTokenRouterConfigMailboxOptionalSchema,
+  assertFeeHookSupported,
+  assertTokenFeeDeploySupported,
+  assertTokenFeeUpdateSupported,
   isCollateralTokenConfig,
 } from './types.js';
 
@@ -22,6 +27,13 @@ const COLLATERAL_TYPES = [
 ];
 
 const NON_COLLATERAL_TYPES = [TokenType.synthetic, TokenType.syntheticUri];
+const FEE_HOOK_UNSUPPORTED_TYPES = [
+  TokenType.collateralFiat,
+  TokenType.collateralVault,
+  TokenType.collateralVaultRebase,
+  TokenType.XERC20,
+  TokenType.XERC20Lockbox,
+];
 
 describe('WarpRouteDeployConfigSchema refine', () => {
   let config: WarpRouteDeployConfig;
@@ -417,6 +429,195 @@ describe('WarpRouteDeployConfigSchema refine', () => {
   });
 
   describe('tokenFee input schema', () => {
+    const tokenFeeUnsupportedConfigs = [
+      {
+        type: TokenType.collateralFiat,
+        token: SOME_ADDRESS,
+      },
+      {
+        type: TokenType.collateralVault,
+        token: SOME_ADDRESS,
+      },
+      {
+        type: TokenType.collateralVaultRebase,
+        token: SOME_ADDRESS,
+      },
+      {
+        type: TokenType.syntheticRebase,
+        name: 'Test Token',
+        symbol: 'TEST',
+        collateralChainName: 'ethereum',
+      },
+    ];
+
+    for (const config of tokenFeeUnsupportedConfigs) {
+      it(`should reject tokenFee for ${config.type} tokens`, () => {
+        const unsupportedConfig = {
+          ...config,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            bps: 100,
+          },
+        };
+        const parseResults =
+          HypTokenRouterConfigMailboxOptionalSchema.safeParse(
+            unsupportedConfig,
+          );
+
+        expect(parseResults.success).to.be.false;
+        expect(() =>
+          assertTokenFeeDeploySupported(unsupportedConfig, 'test'),
+        ).to.throw(
+          `${WarpRouteDeployConfigSchemaErrors.TOKEN_FEE_UNSUPPORTED} ${config.type} on test`,
+        );
+      });
+    }
+
+    for (const type of [TokenType.XERC20, TokenType.XERC20Lockbox]) {
+      it(`should accept existing tokenFee config but reject new ${type} deployments`, () => {
+        const config = {
+          type,
+          token: SOME_ADDRESS,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+          contractVersion: '2.0.0',
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            bps: 100,
+          },
+        };
+
+        expect(
+          HypTokenRouterConfigMailboxOptionalSchema.safeParse(config).success,
+        ).to.be.true;
+        expect(() => assertTokenFeeDeploySupported(config, 'test')).to.throw(
+          `${WarpRouteDeployConfigSchemaErrors.TOKEN_FEE_UNSUPPORTED} ${type} on test`,
+        );
+      });
+    }
+
+    describe('assertTokenFeeUpdateSupported', () => {
+      const FEE: TokenFeeConfigInput = {
+        type: TokenFeeType.LinearFee,
+        bps: 100,
+      };
+      const DEPLOYED_FEE: DerivedTokenRouterConfig['tokenFee'] = {
+        type: TokenFeeType.LinearFee,
+        address: SOME_ADDRESS,
+        token: SOME_ADDRESS,
+        owner: SOME_ADDRESS,
+        bps: 100,
+        maxFee: 1n,
+        halfAmount: 50n,
+      };
+      const CURRENT_VERSION = '12.2.0';
+      const NEWER_VERSION = '13.0.0';
+
+      interface Case {
+        name: string;
+        expectedTokenFee?: TokenFeeConfigInput;
+        expectedVersion?: string;
+        actualTokenFee?: DerivedTokenRouterConfig['tokenFee'];
+        actualVersion?: string;
+        error?: string;
+      }
+
+      const cases: Case[] = [
+        {
+          name: 'rejects adding a fee without a contract version',
+          expectedTokenFee: FEE,
+          actualVersion: CURRENT_VERSION,
+          error: WarpRouteDeployConfigSchemaErrors.TOKEN_FEE_UNSUPPORTED,
+        },
+        {
+          name: 'rejects adding a fee at the current contract version',
+          expectedTokenFee: FEE,
+          expectedVersion: CURRENT_VERSION,
+          actualVersion: CURRENT_VERSION,
+          error: WarpRouteDeployConfigSchemaErrors.TOKEN_FEE_UNSUPPORTED,
+        },
+        {
+          name: 'rejects adding a fee while upgrading',
+          expectedTokenFee: FEE,
+          expectedVersion: NEWER_VERSION,
+          actualVersion: CURRENT_VERSION,
+          error: WarpRouteDeployConfigSchemaErrors.TOKEN_FEE_UNSUPPORTED,
+        },
+        {
+          name: 'accepts updating an existing fee without a contract version',
+          expectedTokenFee: FEE,
+          actualTokenFee: DEPLOYED_FEE,
+          actualVersion: CURRENT_VERSION,
+        },
+        {
+          name: 'accepts updating an existing fee at the current contract version',
+          expectedTokenFee: FEE,
+          expectedVersion: CURRENT_VERSION,
+          actualTokenFee: DEPLOYED_FEE,
+          actualVersion: CURRENT_VERSION,
+        },
+        {
+          name: 'rejects keeping an existing fee while upgrading',
+          expectedTokenFee: FEE,
+          expectedVersion: NEWER_VERSION,
+          actualTokenFee: DEPLOYED_FEE,
+          actualVersion: CURRENT_VERSION,
+          error:
+            WarpRouteDeployConfigSchemaErrors.TOKEN_FEE_UPGRADE_UNSUPPORTED,
+        },
+        {
+          name: 'accepts removing an existing fee while upgrading',
+          expectedVersion: NEWER_VERSION,
+          actualTokenFee: DEPLOYED_FEE,
+          actualVersion: CURRENT_VERSION,
+        },
+        {
+          name: 'accepts routes without fees',
+          actualVersion: CURRENT_VERSION,
+        },
+      ];
+
+      for (const type of [TokenType.XERC20, TokenType.XERC20Lockbox]) {
+        for (const c of cases) {
+          it(`${c.name} for ${type}`, () => {
+            const config = {
+              type,
+              contractVersion: c.expectedVersion,
+              tokenFee: c.expectedTokenFee,
+            };
+            const actualConfig = {
+              contractVersion: c.actualVersion,
+              tokenFee: c.actualTokenFee,
+            };
+
+            const assertSupported = () =>
+              assertTokenFeeUpdateSupported(config, actualConfig, 'test');
+
+            if (c.error) {
+              expect(assertSupported).to.throw(`${c.error} ${type} on test`);
+            } else {
+              expect(assertSupported).not.to.throw();
+            }
+          });
+        }
+      }
+
+      it('accepts adding a fee to a synthetic route', () => {
+        const config = {
+          type: TokenType.synthetic,
+          tokenFee: FEE,
+        };
+        const actualConfig = { contractVersion: CURRENT_VERSION };
+
+        const assertSupported = () =>
+          assertTokenFeeUpdateSupported(config, actualConfig, 'test');
+
+        expect(assertSupported).not.to.throw();
+      });
+    });
+
     it('should accept LinearFee without token field', () => {
       const parseResults = WarpRouteDeployConfigSchema.safeParse({
         arbitrum: {
@@ -520,6 +721,63 @@ describe('WarpRouteDeployConfigSchema refine', () => {
 
       assert(parseResults.success, 'must be true');
       expect(parseResults.data.arbitrum.tokenFee?.owner).to.equal(SOME_ADDRESS);
+    });
+  });
+
+  describe('feeHook input schema', () => {
+    for (const type of FEE_HOOK_UNSUPPORTED_TYPES) {
+      it(`should reject feeHook for ${type} tokens and allow its removal`, () => {
+        const config = {
+          type,
+          token: SOME_ADDRESS,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+        };
+        const configuredFeeHook = {
+          ...config,
+          feeHook: SOME_ADDRESS,
+        };
+
+        expect(
+          HypTokenRouterConfigMailboxOptionalSchema.safeParse(configuredFeeHook)
+            .success,
+        ).to.be.false;
+        expect(() =>
+          assertFeeHookSupported(config, 'test', SOME_ADDRESS),
+        ).to.throw(
+          `${WarpRouteDeployConfigSchemaErrors.FEE_HOOK_UNSUPPORTED} ${config.type} on test`,
+        );
+        expect(
+          HypTokenRouterConfigMailboxOptionalSchema.safeParse({
+            ...config,
+            feeHook: ethers.constants.AddressZero,
+          }).success,
+        ).to.be.true;
+        expect(() =>
+          assertFeeHookSupported(
+            { ...config, feeHook: ethers.constants.AddressZero },
+            'test',
+            SOME_ADDRESS,
+          ),
+        ).not.to.throw();
+      });
+    }
+
+    it('should accept feeHook for syntheticRebase tokens', () => {
+      const config = {
+        type: TokenType.syntheticRebase,
+        name: 'Test Token',
+        symbol: 'TEST',
+        collateralChainName: 'ethereum',
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        feeHook: SOME_ADDRESS,
+      };
+
+      expect(
+        HypTokenRouterConfigMailboxOptionalSchema.safeParse(config).success,
+      ).to.be.true;
+      expect(() => assertFeeHookSupported(config, 'test')).not.to.throw();
     });
   });
 

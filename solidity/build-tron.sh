@@ -9,9 +9,11 @@ if [ ! -d dependencies/@openzeppelin-contracts-4.9.3 ]; then
 fi
 pnpm version:update
 
-# Apply Tron patches in memory. Retain Solidity artifacts/cache so Hardhat only
-# recompiles affected compilation units and removes obsolete artifacts.
-pnpm hardhat-tron compile --no-typechain
+# Apply Tron patches in memory. Compile core and Warp entrypoints separately
+# because the complete repository exceeds tron-solc's WASM input limit. Both
+# passes retain their outputs in the same artifact tree.
+TRON_BUILD_TARGET=core pnpm hardhat-tron compile --force --no-typechain
+TRON_BUILD_TARGET=warp pnpm hardhat-tron compile --force --no-typechain
 
 # Rebuild bindings from surviving artifacts so deleted/renamed contracts cannot
 # leave stale exports behind.

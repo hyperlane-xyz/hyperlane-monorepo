@@ -56,3 +56,9 @@ flowchart LR
       M_O -. "postDispatch(metadata, ...)\n{value - fee}" ..-> D_H
     end
 ```
+
+## Combined Hook/ISM implementations
+
+- [Wormhole Hook/ISM](./wormhole/README.md) publishes Hyperlane message
+  commitments through Wormhole and verifies Guardian-attested VAAs on the
+  destination chain.

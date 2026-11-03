@@ -7,3 +7,4 @@
 forge-std/=dependencies/forge-std-1.9.2/src/
 ds-test/=dependencies/forge-std-1.9.2/lib/ds-test/src/
 permit2/=dependencies/permit2-1.0.0/src/
+wormhole-sdk/=dependencies/wormhole-solidity-sdk-1.1.0/src/
