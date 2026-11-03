@@ -14,10 +14,11 @@
 //! `match` takes the same fields as a `MatchingList` element. `address` takes
 //! EVM hex (20 or 32 bytes), Solana base58, Tron base58 or bech32. It matches
 //! the message sender, the message recipient, or the warp transfer recipient
-//! (the first 32 bytes of the body). Expired rules are ignored.
+//! (the first 32 bytes of the body). A 20-byte EVM `address` rule can opt into
+//! scanning the entire body with `matchBody: true`. Expired rules are ignored.
 //!
 //! A file that fails to fetch or parse leaves the previous rules in place. If
-//! the first fetch at startup fails, the relayer starts with no runtime rules.
+//! startup cannot fetch a valid policy or load its disk cache, startup fails.
 
 use std::{
     path::{Path, PathBuf},
@@ -76,6 +77,8 @@ struct MessageRule {
 #[derive(Debug, Clone)]
 struct AddressRule {
     address: H256,
+    /// Original 20-byte EVM address, only for explicit whole-body matching.
+    body_address: Option<Vec<u8>>,
     reason: String,
     expires_at: Option<DateTime<Utc>>,
     /// The rule's JSON, for change detection.
@@ -170,6 +173,10 @@ impl ActiveRules {
                 rule.address == *sender
                     || rule.address == *recipient
                     || warp_recipient == Some(rule.address)
+                    || rule.body_address.as_ref().is_some_and(|address| {
+                        body.windows(address.len())
+                            .any(|bytes| bytes == address.as_slice())
+                    })
             })
             .map(|rule| rule.reason.clone())
     }
@@ -190,6 +197,7 @@ struct RawRule {
     #[serde(rename = "match")]
     match_: Option<Map<String, Value>>,
     address: Option<String>,
+    match_body: Option<bool>,
 }
 
 /// Parse a denylist file, keeping only rules that have not expired at `now`.
@@ -234,6 +242,22 @@ fn parse_rule(rule: RawRule, canonical: String) -> Result<ParsedRule> {
         })
         .transpose()?;
     let reason = format!("{} (added by {})", rule.reason.trim(), rule.added_by.trim());
+    ensure!(
+        rule.match_body.is_none() || rule.address.is_some(),
+        "`matchBody` is only valid on an `address` rule"
+    );
+    let body_address = if rule.match_body == Some(true) {
+        let address = rule
+            .address
+            .as_deref()
+            .map(str::trim)
+            .and_then(|address| address.strip_prefix("0x"))
+            .filter(|address| address.len() == 40)
+            .ok_or_else(|| eyre!("`matchBody` requires a 20-byte EVM hex address"))?;
+        Some(hex::decode(address).context("Invalid `matchBody` EVM address")?)
+    } else {
+        None
+    };
     Ok(match (rule.match_, rule.address) {
         (Some(match_), None) => ParsedRule::Message(MessageRule {
             list: parse_match(match_)?,
@@ -243,6 +267,7 @@ fn parse_rule(rule: RawRule, canonical: String) -> Result<ParsedRule> {
         }),
         (None, Some(address)) => ParsedRule::Address(AddressRule {
             address: parse_address(&address)?,
+            body_address,
             reason,
             expires_at,
             canonical,
@@ -599,18 +624,16 @@ impl RuntimeDenylist {
         }
     }
 
-    /// Load the denylist before message processing starts. On repeated
-    /// failure, log and continue with no runtime rules; the poller keeps
-    /// retrying.
-    pub async fn initial_load(&self) {
+    /// Require a valid fetched or cached policy before message processing.
+    pub async fn initial_load(&self) -> Result<()> {
         let Some(source) = &self.source else {
-            return;
+            return Ok(());
         };
         for attempt in 1..=INITIAL_FETCH_ATTEMPTS {
             match self.refresh().await {
                 Ok(summary) => {
                     info!(?summary, url = %source.conf.url, "Loaded runtime denylist");
-                    return;
+                    return Ok(());
                 }
                 Err(err) => warn!(
                     attempt,
@@ -635,11 +658,10 @@ impl RuntimeDenylist {
                     summary = ?self.summary(),
                     "Starting with the cached runtime denylist; it may be stale until a fetch succeeds"
                 );
+                Ok(())
             }
-            Err(err) => error!(
-                url = %source.conf.url,
-                error = ?err,
-                "Starting without runtime denylist rules; messages they would block will be relayed until a fetch succeeds"
+            Err(err) => Err(err).context(
+                "Runtime denylist fetch failed and no valid cache is available; refusing to start without a policy",
             ),
         }
     }

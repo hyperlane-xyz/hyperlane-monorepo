@@ -68,9 +68,10 @@ For other rule types, follow the registry README: exactly one of `match` or
 `address`; a `match` needs at least one non-wildcard exact-match field.
 `bodyRegex` alone does not qualify. Never add a broad rule just to avoid listing
 specific message IDs.
-The seven migrated exploit addresses also have a scoped body-regex rule in
-each feed. Remove an address from both representations together; an `address`
-rule alone does not scan nested calldata.
+The seven migrated exploit addresses set `matchBody: true` on their existing
+address rules to scan nested calldata. This option accepts only 20-byte EVM
+hex addresses; removal and expiry apply to that single rule. Other address
+rules retain exact field and origin-signer matching.
 
 ### 4. Validate and open a registry PR
 
@@ -104,13 +105,14 @@ logs in all three contexts. For an urgent refresh, the configured relayer's
 cached GitHub response. Do not claim activation from merge or endpoint success
 alone; verify the rule was loaded and the target messages are denied.
 
-A failed refresh logs an error and retains the last good rules. On startup, a
-failed fetch uses the disk cache; without a valid cache the relayer starts with
-no runtime rules and logs an error. Surface a load failure and investigate it.
-This startup behavior is an accepted launch tradeoff from #9945. Recover by
-restoring the feed and triggering a refresh; if GitHub is unavailable, point
-the configured URL at another copy of the list. The refresh API only re-reads
-that URL; it does not accept rule uploads.
+A failed refresh logs an error and retains the last good rules. Startup must
+load a valid feed or disk cache before processing; if both fail, startup fails.
+The first cutover therefore requires a successful fetch. Later rollouts can
+use the persisted cache during a feed outage; a fresh disk requires a fetch
+again. No static seed or cutover flag is needed. If GitHub is unavailable and
+there is no usable cache, point the configured URL at another copy of the
+list and restart. Once running, the refresh API only re-reads that URL; it
+does not accept rule uploads.
 
 If runtime denylisting has not yet been deployed, report that prerequisite and
 prepare the three-context relayer rollout separately. Adding a registry rule
