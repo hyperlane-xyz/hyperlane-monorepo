@@ -2,7 +2,10 @@ use std::{
     cmp::max,
     collections::{BTreeSet, HashMap, HashSet},
     fmt::{Debug, Formatter},
-    sync::{atomic::AtomicBool, Arc},
+    sync::{
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc,
+    },
     time::Duration,
 };
 
@@ -66,6 +69,7 @@ pub struct MessageDbLoader {
     destination_scan_pending: bool,
     max_retries: u32,
     index_notifications: Option<Receiver<IndexingNotification>>,
+    notification_overflow: Option<(Arc<AtomicU64>, u64)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -555,6 +559,7 @@ impl MessageDbLoader {
             destination_scan_pending: true,
             max_retries,
             index_notifications: None,
+            notification_overflow: None,
         })
     }
 
@@ -565,9 +570,20 @@ impl MessageDbLoader {
         self.index_notifications = index_notifications;
     }
 
+    pub fn set_notification_overflow(&mut self, counter: Option<Arc<AtomicU64>>) {
+        self.notification_overflow = counter.map(|counter| (counter, 0));
+    }
+
     /// Discard already-observed index notifications so this receiver cannot
     /// backpressure the message indexer while the loader is processing a backlog.
     fn drain_index_notifications(&mut self) -> Result<()> {
+        if let Some((counter, seen)) = &mut self.notification_overflow {
+            let current = counter.load(Ordering::Acquire);
+            if current != *seen {
+                *seen = current;
+                self.request_low_range_reopens();
+            }
+        }
         let mut disconnected = false;
         let mut notifications = Vec::new();
         if let Some(receiver) = self.index_notifications.as_mut() {

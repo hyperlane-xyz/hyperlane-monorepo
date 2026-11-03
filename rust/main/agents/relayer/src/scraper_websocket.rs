@@ -2,8 +2,9 @@
 //! and RPC takeover/fallback. Filtering, replay and backpressure live on the server
 //! (`live/agent-subscription.ts`).
 //!
-//! A rollback below a potentially stored live event durably marks that contract
-//! for recovery and halts the relayer, including subsequent starts. Recovery must
+//! Stored live block hashes are checked against origin RPC at startup, after
+//! subscribing, and on rollback. Only a verified mismatch durably marks the
+//! contract for recovery and halts the relayer. Recovery must
 //! reconcile the origin DB, pending work and in-memory Merkle tree together before
 //! clearing `scraper_websocket_rollback_recovery`; this client never deletes rows
 //! behind those consumers. Unaffected rollback notifications do not interrupt streams.
@@ -33,8 +34,8 @@ use hyperlane_base::{
     ContractSyncMetrics, CoreMetrics,
 };
 use hyperlane_core::{
-    bytes_to_h512, Decode, Encode, HyperlaneMessage, HyperlaneProtocolError, Indexed,
-    InterchainGasPayment, LogMeta, MerkleTreeInsertion, H256, H512, U256,
+    bytes_to_h512, Decode, Encode, HyperlaneMessage, HyperlaneProtocolError, HyperlaneProvider,
+    Indexed, InterchainGasPayment, LogMeta, MerkleTreeInsertion, H256, H512, U256,
 };
 use prometheus::{IntCounterVec, IntGaugeVec};
 use serde::{Deserialize, Serialize};
@@ -56,6 +57,7 @@ const MERKLE_CURSOR: &[u8] = b"scraper_websocket_merkle_cursor";
 const GAS_CURSOR: &[u8] = b"scraper_websocket_gas_payment_cursor";
 const PARITY_UNHEALTHY: &[u8] = b"scraper_websocket_parity_unhealthy_v2";
 const LIVE_BLOCK: &[u8] = b"scraper_websocket_live_block";
+const LIVE_BLOCK_HASH: &[u8] = b"scraper_websocket_live_block_hash";
 const ROLLBACK_RECOVERY: &[u8] = b"scraper_websocket_rollback_recovery";
 
 #[derive(Debug, thiserror::Error)]
@@ -114,6 +116,7 @@ pub(crate) struct ScraperSource {
     interchain_gas_paymaster: H256,
     merkle_tree_hook: H256,
     database: HyperlaneRocksDB,
+    block_provider: Option<Arc<dyn HyperlaneProvider>>,
     confirmations: Option<u32>,
     broadcaster: Option<BroadcastMpscSender<IndexingNotification>>,
     freshness_indexer: Option<SequenceIndexer<HyperlaneMessage>>,
@@ -138,6 +141,7 @@ impl ScraperSource {
             interchain_gas_paymaster,
             merkle_tree_hook,
             database,
+            block_provider: None,
             confirmations,
             broadcaster: None,
             freshness_indexer: None,
@@ -145,9 +149,61 @@ impl ScraperSource {
             sync_metrics: None,
             control: Arc::new(Authority::new(domain)),
         };
-        source.ensure_no_rollback_recovery()?;
         Ok(source)
     }
+    pub(crate) fn with_block_provider(mut self, provider: Arc<dyn HyperlaneProvider>) -> Self {
+        self.block_provider = Some(provider);
+        self
+    }
+
+    pub(crate) async fn verify_live_blocks(&self) -> Result<()> {
+        for kind in [Kind::Dispatch, Kind::Merkle] {
+            self.verify_live_block(kind, None).await?;
+        }
+        self.ensure_no_rollback_recovery()
+    }
+
+    async fn verify_live_block(&self, kind: Kind, rollback_to: Option<u64>) -> Result<()> {
+        let address = self.address(kind);
+        let Some(height) = self
+            .database
+            .retrieve_value_by_key::<_, u64>(LIVE_BLOCK, &address)?
+        else {
+            return Ok(());
+        };
+        let hash = self
+            .database
+            .retrieve_value_by_key::<_, H256>(LIVE_BLOCK_HASH, &address)?
+            .context("Stored live block has no hash; origin DB recovery required")?;
+        let provider = self
+            .block_provider
+            .as_ref()
+            .context("Missing origin block provider")?;
+        let block = timeout(RPC_PROBE_TIMEOUT, provider.get_block_by_height(height))
+            .await
+            .context("Live block verification timed out")??;
+        ensure!(
+            block.number == height,
+            "RPC returned the wrong live block height"
+        );
+        if block.hash != hash {
+            let to_height = rollback_to.unwrap_or_else(|| height.saturating_sub(1));
+            self.database
+                .store_value_by_key(ROLLBACK_RECOVERY, &address, &to_height)?;
+            return Err(RollbackRecoveryRequired {
+                chain: self.chain.clone(),
+                to_height,
+            }
+            .into());
+        }
+        // A routine scraper rewind invalidated no stored data. Also recover false
+        // markers from an earlier run, but retain the checkpoint for future reorgs.
+        let mut batch = self.database.batch();
+        batch.delete_keyed(ROLLBACK_RECOVERY, &address);
+        batch.commit()?;
+        Ok(())
+    }
+
     pub(crate) fn with_broadcaster(
         mut self,
         broadcaster: Option<BroadcastMpscSender<IndexingNotification>>,
@@ -280,15 +336,27 @@ impl ScraperSource {
             }
         }
     }
-    fn record_live_write(&self, kind: Kind, block: u64) -> Result<()> {
+    fn record_live_write(&self, kind: Kind, block: u64, hash: Option<H256>) -> Result<()> {
         if self.confirmations.is_some() {
+            let hash = hash.context("Live event needs a block hash")?;
+            ensure!(hash != H256::zero(), "Live event has a zero block hash");
             let previous: Option<u64> = self
                 .database
                 .retrieve_value_by_key(LIVE_BLOCK, &self.address(kind))?;
+            if previous == Some(block) {
+                ensure!(
+                    self.database
+                        .retrieve_value_by_key::<_, H256>(LIVE_BLOCK_HASH, &self.address(kind))?
+                        == Some(hash),
+                    ConflictingEvent("live block hash")
+                );
+            }
             if previous.is_none_or(|previous| block > previous) {
                 // Persist the intent only after validation and before changing the DB.
-                self.database
-                    .store_value_by_key(LIVE_BLOCK, &self.address(kind), &block)?;
+                let mut batch = self.database.batch();
+                batch.store_keyed_encodable(LIVE_BLOCK, &self.address(kind), &block);
+                batch.store_keyed_encodable(LIVE_BLOCK_HASH, &self.address(kind), &hash);
+                batch.commit()?;
             }
         }
         Ok(())
@@ -353,7 +421,14 @@ impl ScraperSource {
                         || (tx != H512::zero()
                             && existing_tx.is_none_or(|existing| existing == H512::zero()))
                     {
-                        self.record_live_write(kind, block)?;
+                        self.record_live_write(
+                            kind,
+                            block,
+                            data.origin_block_hash
+                                .as_deref()
+                                .map(parse_address)
+                                .transpose()?,
+                        )?;
                     }
                     let inserted = self.database.store_message(&message, block)?;
                     if tx != H512::zero() {
@@ -377,17 +452,34 @@ impl ScraperSource {
             Kind::Merkle => {
                 let data: MerkleEventData = serde_json::from_value(data)?;
                 let sequence = data.leaf_index.as_u32("Merkle leaf index")?;
+                let block_hash = data.block_hash.as_deref().map(parse_address).transpose()?;
                 let (insertion, block) =
                     data.decode(self.domain, self.merkle_tree_hook, sequence)?;
                 if write {
-                    if let Some(existing) = self
+                    let existing = self
                         .database
-                        .retrieve_merkle_tree_insertion_by_leaf_index(&sequence)?
-                    {
-                        ensure!(existing == insertion, ConflictingEvent("Merkle leaf"));
-                        return Ok(());
+                        .retrieve_merkle_tree_insertion_by_leaf_index(&sequence)?;
+                    ensure!(
+                        existing.is_none_or(|existing| existing == insertion),
+                        ConflictingEvent("Merkle leaf")
+                    );
+                    let reverse = self
+                        .database
+                        .retrieve_merkle_leaf_index_by_message_id(&insertion.message_id())?;
+                    let stored_block = self
+                        .database
+                        .retrieve_merkle_tree_insertion_block_number_by_leaf_index(&sequence)?;
+                    ensure!(
+                        reverse.is_none_or(|index| index == sequence),
+                        ConflictingEvent("Merkle reverse index")
+                    );
+                    ensure!(
+                        stored_block.is_none_or(|stored| stored == block),
+                        ConflictingEvent("Merkle block")
+                    );
+                    if existing.is_none() || reverse.is_none() || stored_block.is_none() {
+                        self.record_live_write(kind, block, block_hash)?;
                     }
-                    self.record_live_write(kind, block)?;
                     if let Some(existing) = self
                         .database
                         .store_tree_insertion_if_absent(&insertion, block)?
@@ -533,6 +625,13 @@ struct Progress {
     usable: bool,
     legacy_max: Option<u64>,
     fingerprint: Option<H256>,
+    retry: Option<RowRetry>,
+}
+struct RowRetry {
+    event: EventMessage<serde_json::Value>,
+    at: Instant,
+    delay: Duration,
+    replay_required: bool,
 }
 impl Default for Progress {
     fn default() -> Self {
@@ -542,6 +641,7 @@ impl Default for Progress {
             usable: true,
             legacy_max: None,
             fingerprint: None,
+            retry: None,
         }
     }
 }
@@ -576,7 +676,6 @@ struct SourceState {
     fresh: bool,
     last_fresh: Option<Instant>,
     ahead: bool,
-    retry_at: Option<Instant>,
 }
 impl SourceState {
     fn ready(&self) -> bool {
@@ -822,6 +921,9 @@ impl ScraperWebSocketMonitor {
         // Custom confirmations are live-only. RPC keeps indexing history and gas.
         let canonical = confirmations.is_none();
         let authority = self.authority_enabled && canonical;
+        for source in self.sources.values() {
+            source.verify_live_blocks().await?;
+        }
         let mut state = self
             .sources
             .iter()
@@ -863,7 +965,11 @@ impl ScraperWebSocketMonitor {
                     );
                 }
             }
-            let retry_at = state.values().filter_map(|current| current.retry_at).min();
+            let retry_at = state
+                .values()
+                .flat_map(|current| &current.streams)
+                .filter_map(|progress| progress.retry.as_ref().map(|retry| retry.at))
+                .min();
             let received = tokio::select! {
                 event = socket.next::<serde_json::Value>(authority, || self.probes(&state)) => event,
                 _ = async {
@@ -872,7 +978,10 @@ impl ScraperWebSocketMonitor {
                     } else {
                         std::future::pending::<()>().await;
                     }
-                } => bail!("Retrying unresolved scraper rows after RPC backfill"),
+                } => {
+                    self.retry_rows(&mut state, canonical)?;
+                    continue;
+                },
             };
             let Some(event) = received? else {
                 return Ok(());
@@ -931,7 +1040,10 @@ impl ScraperWebSocketMonitor {
                             .await?;
                     }
                     ServerMessage::Subscribed { .. } => {
+                        // The subscription is now receiving rollbacks. Verify again
+                        // to cover reorgs during the connect/negotiation gap.
                         for source in self.sources.values() {
+                            source.verify_live_blocks().await?;
                             self.metrics
                                 .active
                                 .with_label_values(&[source.chain.as_str()])
@@ -967,11 +1079,14 @@ impl ScraperWebSocketMonitor {
                             }
                         }
                         if !current.streams[kind.index()].usable {
+                            if let Some(retry) = &mut current.streams[kind.index()].retry {
+                                retry.replay_required = true;
+                            }
                             continue;
                         }
                         // Payload/storage errors affect this origin stream only. Later
                         // rows must not advance its cursor past an unprocessed event.
-                        match self.consume(source, current, kind, event) {
+                        match self.consume(source, current, kind, &event) {
                             Ok(()) => {
                                 self.metrics
                                     .degraded
@@ -1016,11 +1131,14 @@ impl ScraperWebSocketMonitor {
                                 } else {
                                     // Retry legacy/enrichment gaps after RPC backfill.
                                     // Never advance the cursor past the failed event.
-                                    current.retry_at.get_or_insert(
-                                        Instant::now()
+                                    current.streams[kind.index()].retry = Some(RowRetry {
+                                        event,
+                                        at: Instant::now()
                                             .checked_add(ROW_RETRY_DELAY)
                                             .context("Scraper row retry deadline overflow")?,
-                                    );
+                                        delay: ROW_RETRY_DELAY,
+                                        replay_required: false,
+                                    });
                                 }
                             }
                         }
@@ -1050,6 +1168,12 @@ impl ScraperWebSocketMonitor {
                         );
                         let current = state.get_mut(&domain).context("Missing source state")?;
                         let progress = &mut current.streams[kind.index()];
+                        if !progress.usable {
+                            if let Some(retry) = &mut progress.retry {
+                                retry.replay_required = true;
+                            }
+                            continue;
+                        }
                         progress.caught_up = true;
                         if matches!(kind, Kind::Gas) {
                             ensure!(sequence.is_none(), "Gas marker includes a sequence");
@@ -1100,14 +1224,81 @@ impl ScraperWebSocketMonitor {
                         to_height,
                     } => {
                         ensure!(!canonical, "Unexpected rollback on canonical stream");
-                        self.rollback(domain, &event_type, to_height.as_u64("rollback height")?)?;
+                        self.rollback(domain, &event_type, to_height.as_u64("rollback height")?)
+                            .await?;
                     }
                     ServerMessage::Other => {}
                 },
             }
         }
     }
-    fn rollback(&self, domain: u32, event_type: &str, to_height: u64) -> Result<()> {
+    fn retry_rows(&self, state: &mut HashMap<u32, SourceState>, canonical: bool) -> Result<()> {
+        let mut replay = false;
+        for (domain, current) in state {
+            let source = &self.sources[domain];
+            for kind in Kind::ALL {
+                let progress = &mut current.streams[kind.index()];
+                if progress
+                    .retry
+                    .as_ref()
+                    .is_none_or(|retry| retry.at > Instant::now())
+                {
+                    continue;
+                }
+                let mut retry = progress.retry.take().expect("due retry");
+                match self.consume(source, current, kind, &retry.event) {
+                    Ok(()) => {
+                        let progress = &mut current.streams[kind.index()];
+                        progress.usable = true;
+                        if retry.replay_required {
+                            // Replay skipped canonical rows only after the blocking row
+                            // has actually recovered; permanent gaps leave peers connected.
+                            replay |= canonical;
+                            if !canonical {
+                                progress.last = None;
+                            }
+                        }
+                        self.metrics
+                            .degraded
+                            .with_label_values(&[source.chain.as_str(), kind.label()])
+                            .set(0);
+                    }
+                    Err(error) if error.is::<ConflictingEvent>() => {
+                        warn!(
+                            chain = source.chain,
+                            event_type = kind.label(),
+                            ?error,
+                            "Scraper retry found a durable conflict"
+                        );
+                        source.database.store_value_by_key(
+                            PARITY_UNHEALTHY,
+                            &source.address(kind),
+                            &true,
+                        )?;
+                    }
+                    Err(error) => {
+                        warn!(
+                            chain = source.chain,
+                            event_type = kind.label(),
+                            ?error,
+                            "Scraper row still needs RPC fallback"
+                        );
+                        retry.delay = retry.delay.saturating_mul(2).min(Duration::from_secs(120));
+                        retry.at = Instant::now()
+                            .checked_add(retry.delay)
+                            .context("Scraper row retry deadline overflow")?;
+                        current.streams[kind.index()].retry = Some(retry);
+                    }
+                }
+            }
+        }
+        ensure!(
+            !replay,
+            "Replaying skipped rows after successful RPC backfill"
+        );
+        Ok(())
+    }
+    async fn rollback(&self, domain: u32, event_type: &str, to_height: u64) -> Result<()> {
         let source = self
             .sources
             .get(&domain)
@@ -1119,42 +1310,43 @@ impl ScraperWebSocketMonitor {
         if written.is_none_or(|height| height <= to_height) {
             return Ok(());
         }
-        source
-            .database
-            .store_value_by_key(ROLLBACK_RECOVERY, &source.address(kind), &to_height)?;
-        source.control.resume();
-        self.metrics
-            .degraded
-            .with_label_values(&[source.chain.as_str(), kind.label()])
-            .set(1);
-        error!(
-            chain = source.chain,
-            event_type,
-            to_height,
-            ?written,
-            "Scraper rollback may invalidate stored provisional rows; DB recovery required before restart"
-        );
-        Err(RollbackRecoveryRequired {
-            chain: source.chain.clone(),
-            to_height,
+        match source.verify_live_block(kind, Some(to_height)).await {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                self.metrics
+                    .degraded
+                    .with_label_values(&[source.chain.as_str(), kind.label()])
+                    .set(1);
+                error!(
+                    chain = source.chain,
+                    event_type,
+                    to_height,
+                    ?error,
+                    "Live block verification failed after scraper rollback"
+                );
+                Err(error)
+            }
         }
-        .into())
     }
+
     fn consume(
         &self,
         source: &ScraperSource,
         state: &mut SourceState,
         kind: Kind,
-        event: EventMessage<serde_json::Value>,
+        event: &EventMessage<serde_json::Value>,
     ) -> Result<()> {
         let progress = &mut state.streams[kind.index()];
         let mut fingerprint = None;
         let (last, legacy_max) = if matches!(kind, Kind::Gas) {
             ensure!(event.sequence.is_none(), "Gas event includes a sequence");
-            let last = parse_u64(event.stream_cursor, "gas stream cursor")?;
-            let legacy = parse_u64(event.legacy_max_stream_cursor, "gas legacy boundary")?;
+            let last = parse_u64(event.stream_cursor.clone(), "gas stream cursor")?;
+            let legacy = parse_u64(
+                event.legacy_max_stream_cursor.clone(),
+                "gas legacy boundary",
+            )?;
             progress.check_gas_cursor(last, legacy, false)?;
-            let row_id = parse_u64(event.row_id, "gas row ID")?;
+            let row_id = parse_u64(event.row_id.clone(), "gas row ID")?;
             let data: GasData = serde_json::from_value(event.data.clone())?;
             ensure!(
                 data.id.parse::<u64>()? == row_id,
@@ -1185,6 +1377,7 @@ impl ScraperWebSocketMonitor {
                 u64::from(
                     event
                         .sequence
+                        .as_ref()
                         .context("Missing event sequence")?
                         .parse::<u32>()?,
                 ),
@@ -1210,7 +1403,18 @@ impl ScraperWebSocketMonitor {
                 "Payload sequence does not match envelope"
             );
         }
-        source.store(kind, event.data, self.authority_enabled)?;
+        let mut data = event.data.clone();
+        if matches!(kind, Kind::Merkle) {
+            // Normalize envelope metadata for storage without changing the wire
+            // payload accepted by older live validators.
+            data.as_object_mut()
+                .context("Merkle payload must be an object")?
+                .insert(
+                    "block_hash".into(),
+                    serde_json::to_value(&event.block_hash)?,
+                );
+        }
+        source.store(kind, data, self.authority_enabled)?;
         progress.last = Some(progress.last.map_or(last, |previous| previous.max(last)));
         progress.legacy_max = legacy_max;
         progress.fingerprint = fingerprint;
@@ -1350,10 +1554,10 @@ struct DispatchData {
     msg_body: Option<String>,
     msg_id: String,
     origin_block_height: StringOrNumber,
+    origin_block_hash: Option<String>,
     origin_tx_hash: String,
 }
 #[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 struct GasData {
     destination: u32,
     domain: u32,
@@ -1485,16 +1689,55 @@ mod tests {
             ))
         }
     }
+    #[derive(Debug)]
+    struct Blocks(AtomicU64, AtomicBool);
+    impl hyperlane_core::HyperlaneChain for Blocks {
+        fn domain(&self) -> &HyperlaneDomain {
+            unreachable!("block checks only")
+        }
+        fn provider(&self) -> Box<dyn HyperlaneProvider> {
+            unreachable!("block checks only")
+        }
+    }
+    #[async_trait]
+    impl HyperlaneProvider for Blocks {
+        async fn get_block_by_height(&self, height: u64) -> ChainResult<hyperlane_core::BlockInfo> {
+            if self.1.load(Ordering::Acquire) {
+                return Err(hyperlane_core::ChainCommunicationError::from_other_str(
+                    "RPC unavailable",
+                ));
+            }
+            Ok(hyperlane_core::BlockInfo {
+                number: height,
+                hash: H256::from_low_u64_be(self.0.load(Ordering::Acquire)),
+                timestamp: 0,
+            })
+        }
+        async fn get_txn_by_hash(&self, _: &H512) -> ChainResult<hyperlane_core::TxnInfo> {
+            unreachable!()
+        }
+        async fn is_contract(&self, _: &H256) -> ChainResult<bool> {
+            unreachable!()
+        }
+        async fn get_balance(&self, _: String) -> ChainResult<U256> {
+            unreachable!()
+        }
+        async fn get_chain_metrics(&self) -> ChainResult<Option<hyperlane_core::ChainInfo>> {
+            unreachable!()
+        }
+    }
     struct Fixture {
         _dir: tempfile::TempDir,
         monitor: Arc<ScraperWebSocketMonitor>,
         counts: Arc<Counts>,
+        blocks: Arc<Blocks>,
     }
     impl Fixture {
         fn new(url: Url, write: bool) -> Self {
             let dir = tempfile::tempdir().expect("temp DB");
             let db = test_utils::setup_db(dir.path().to_string_lossy().into_owned());
             let counts = Arc::new(Counts(AtomicU32::new(0), AtomicBool::new(true)));
+            let blocks = Arc::new(Blocks(AtomicU64::new(8), AtomicBool::new(false)));
             let sources = [5, 6].map(|domain| {
                 let chain = format!("test{domain}");
                 ScraperSource::new(
@@ -1507,6 +1750,7 @@ mod tests {
                     None,
                 )
                 .expect("source without pending recovery")
+                .with_block_provider(blocks.clone())
                 .with_freshness_indexer(counts.clone())
                 .with_merkle_freshness_indexer(counts.clone())
             });
@@ -1520,6 +1764,7 @@ mod tests {
                 _dir: dir,
                 monitor,
                 counts,
+                blocks,
             }
         }
         fn source(&self) -> &ScraperSource {
@@ -1540,10 +1785,10 @@ mod tests {
     fn dispatch(nonce: u32) -> Value {
         let message = message(nonce);
         json!({"nonce": nonce, "origin_mailbox": format!("{:#x}", H256::from_low_u64_be(1)), "sender": format!("{:#x}", message.sender), "recipient": format!("{:#x}", message.recipient), "destination_domain": 6,
-            "msg_id": format!("{:#x}", message.id()), "msg_body": "\\x010203", "origin_block_height": "100", "origin_tx_hash": format!("{:#x}", H256::from_low_u64_be(9))})
+            "msg_id": format!("{:#x}", message.id()), "msg_body": "\\x010203", "origin_block_height": "100", "origin_block_hash": format!("{:#x}", H256::from_low_u64_be(8)), "origin_tx_hash": format!("{:#x}", H256::from_low_u64_be(9))})
     }
     fn merkle(nonce: u32) -> Value {
-        json!({"domain":5, "merkle_tree_hook":format!("{:#x}", H256::from_low_u64_be(2)), "leaf_index":nonce, "message_id":format!("{:#x}", message(nonce).id()), "block_number":"100"})
+        json!({"domain":5, "merkle_tree_hook":format!("{:#x}", H256::from_low_u64_be(2)), "leaf_index":nonce, "message_id":format!("{:#x}", message(nonce).id()), "block_number":"100", "block_hash": format!("{:#x}", H256::from_low_u64_be(8))})
     }
     fn gas(cursor: u64) -> Value {
         json!({"destination":6, "domain":5, "origin":5, "id":cursor.to_string(),
@@ -1552,11 +1797,16 @@ mod tests {
             "gas_amount":"50000", "payment":"1000", "msg_id":format!("{:#x}", H256::from_low_u64_be(7)), "log_index":cursor.to_string(), "sequence":null,
             "origin_block_hash":format!("{:#x}", H256::from_low_u64_be(8)), "origin_block_height":"100", "origin_tx_hash":format!("{:#x}", H256::from_low_u64_be(9))})
     }
-    fn event(kind: Kind, sequence: u64, data: Value) -> Value {
+    fn event(kind: Kind, sequence: u64, mut data: Value) -> Value {
+        let block_hash = if matches!(kind, Kind::Merkle) {
+            data.as_object_mut().unwrap().remove("block_hash")
+        } else {
+            None
+        };
         if matches!(kind, Kind::Gas) {
             json!({"type":"event", "domain":5, "eventType":kind.label(), "streamCursor":sequence.to_string(), "legacyMaxStreamCursor":"3", "rowId":sequence.to_string(), "data":data})
         } else {
-            json!({"type":"event", "domain":5, "eventType":kind.label(), "sequence":sequence.to_string(), "data":data})
+            json!({"type":"event", "domain":5, "eventType":kind.label(), "sequence":sequence.to_string(), "blockHash": block_hash, "data":data})
         }
     }
     fn caught_up(kind: Kind, sequence: i64) -> Value {
@@ -1756,7 +2006,7 @@ mod tests {
                         source,
                         &mut state,
                         kind,
-                        serde_json::from_value(event(
+                        &serde_json::from_value(event(
                             kind,
                             sequence,
                             payload(u32::try_from(sequence).expect("sequence")),
@@ -1776,7 +2026,7 @@ mod tests {
                     source,
                     &mut state,
                     kind,
-                    serde_json::from_value(row).expect("event"),
+                    &serde_json::from_value(row).expect("event"),
                 );
                 assert!(result
                     .expect_err("reject event")
@@ -1805,7 +2055,7 @@ mod tests {
                     source,
                     &mut state,
                     Kind::Gas,
-                    serde_json::from_value(event(Kind::Gas, cursor, gas(cursor))).expect("event"),
+                    &serde_json::from_value(event(Kind::Gas, cursor, gas(cursor))).expect("event"),
                 )
                 .expect("legacy gaps, contiguous events and duplicates");
         }
@@ -1823,7 +2073,7 @@ mod tests {
                     source,
                     &mut state,
                     Kind::Gas,
-                    serde_json::from_value(row).expect("event"),
+                    &serde_json::from_value(row).expect("event"),
                 )
                 .is_err());
             assert_eq!(state.streams[Kind::Gas.index()].last, Some(4));
@@ -1962,7 +2212,7 @@ mod tests {
                 source,
                 &mut state,
                 Kind::Gas,
-                serde_json::from_value(event(Kind::Gas, 1, gas(1))).unwrap(),
+                &serde_json::from_value(event(Kind::Gas, 1, gas(1))).unwrap(),
             )
             .unwrap();
         let mut restarted = source.load().unwrap();
@@ -1975,7 +2225,7 @@ mod tests {
                 source,
                 &mut restarted,
                 Kind::Gas,
-                serde_json::from_value(event(Kind::Gas, 1, changed)).unwrap()
+                &serde_json::from_value(event(Kind::Gas, 1, changed)).unwrap()
             )
             .is_err());
         fixture
@@ -1984,7 +2234,7 @@ mod tests {
                 source,
                 &mut restarted,
                 Kind::Gas,
-                serde_json::from_value(event(Kind::Gas, 3, gas(3))).unwrap(),
+                &serde_json::from_value(event(Kind::Gas, 3, gas(3))).unwrap(),
             )
             .unwrap();
         assert!(fixture
@@ -1993,7 +2243,7 @@ mod tests {
                 source,
                 &mut restarted,
                 Kind::Gas,
-                serde_json::from_value(event(Kind::Gas, 1, gas(1))).unwrap()
+                &serde_json::from_value(event(Kind::Gas, 1, gas(1))).unwrap()
             )
             .is_err());
         assert_eq!(payment_total(source), U256::from(2000));
@@ -2032,7 +2282,7 @@ mod tests {
                 source,
                 &mut state,
                 Kind::Gas,
-                serde_json::from_value(event(Kind::Gas, 1, gas(1))).unwrap(),
+                &serde_json::from_value(event(Kind::Gas, 1, gas(1))).unwrap(),
             )
             .unwrap();
         assert_eq!(payment_total(source), U256::from(1000));
@@ -2059,17 +2309,26 @@ mod tests {
                 &source,
                 &mut state,
                 Kind::Dispatch,
-                serde_json::from_value(event(Kind::Dispatch, 0, dispatch(0))).unwrap(),
+                &serde_json::from_value(event(Kind::Dispatch, 0, dispatch(0))).unwrap(),
             )
             .unwrap();
-        fixture.monitor.rollback(5, "dispatch", 100).unwrap();
-        fixture.monitor.rollback(6, "dispatch", 99).unwrap();
+        fixture.monitor.rollback(5, "dispatch", 100).await.unwrap();
+        fixture.monitor.rollback(6, "dispatch", 99).await.unwrap();
         fixture
             .monitor
             .rollback(5, "merkle_tree_insertion", 99)
+            .await
             .unwrap();
         assert!(source.load().is_ok());
-        let error = fixture.monitor.rollback(5, "dispatch", 99).unwrap_err();
+        // Routine scraper rewinds leave the same canonical block in RPC.
+        fixture.monitor.rollback(5, "dispatch", 99).await.unwrap();
+        assert!(source.load().is_ok());
+        fixture.blocks.0.store(9, Ordering::Release);
+        let error = fixture
+            .monitor
+            .rollback(5, "dispatch", 99)
+            .await
+            .unwrap_err();
         assert!(error.is::<RollbackRecoveryRequired>());
         assert!(source
             .load()
@@ -2087,8 +2346,11 @@ mod tests {
             source.database.clone(),
             None,
         )
-        .err()
-        .expect("reject startup before other relayer tasks run");
+        .unwrap()
+        .with_block_provider(fixture.blocks.clone())
+        .verify_live_blocks()
+        .await
+        .expect_err("reject startup before other relayer tasks run");
         assert!(startup_error.is::<RollbackRecoveryRequired>());
         // No uncoordinated deletion while RPC, queues and the Merkle prover are live.
         assert_eq!(
@@ -2101,6 +2363,186 @@ mod tests {
             client.await.unwrap_err().is_panic(),
             "recovery marker must halt the relayer"
         );
+    }
+
+    #[tokio::test]
+    async fn disconnected_reorg_is_detected_before_reconnect_without_a_rollback_frame() {
+        let mut fixture = Fixture::new(Url::parse("ws://localhost:1").unwrap(), true);
+        Arc::get_mut(&mut fixture.monitor)
+            .unwrap()
+            .sources
+            .get_mut(&5)
+            .unwrap()
+            .confirmations = Some(1);
+        let source = fixture.source();
+        source.store(Kind::Dispatch, dispatch(0), true).unwrap();
+        source.store(Kind::Merkle, merkle(0), true).unwrap();
+        source.verify_live_blocks().await.unwrap();
+        fixture.blocks.0.store(9, Ordering::Release);
+        let error = fixture
+            .monitor
+            .stream(timeouts(), Some(1))
+            .await
+            .unwrap_err();
+        assert!(error.is::<RollbackRecoveryRequired>());
+        assert!(source.ensure_no_rollback_recovery().is_err());
+    }
+
+    #[tokio::test]
+    async fn reorg_during_subscription_negotiation_is_checked_before_live_events() {
+        let (listener, url) = listener().await;
+        let mut fixture = Fixture::new(url, true);
+        Arc::get_mut(&mut fixture.monitor)
+            .unwrap()
+            .sources
+            .get_mut(&5)
+            .unwrap()
+            .confirmations = Some(1);
+        fixture
+            .source()
+            .store(Kind::Dispatch, dispatch(0), true)
+            .unwrap();
+        let monitor = fixture.monitor.clone();
+        let client = tokio::spawn(async move { monitor.stream(timeouts(), Some(1)).await });
+        let (tcp, _) = listener.accept().await.unwrap();
+        let mut socket = accept_async(tcp).await.unwrap();
+        send(
+            &mut socket,
+            json!({"type":"ready", "streamCursorVersions":{}}),
+        )
+        .await;
+        let frame = socket.next().await.unwrap().unwrap();
+        let request: Value = serde_json::from_str(frame.to_text().unwrap()).unwrap();
+        fixture.blocks.0.store(9, Ordering::Release);
+        send(
+            &mut socket,
+            json!({"type":"subscribed", "streams":request["streams"]}),
+        )
+        .await;
+        let error = timeout(Duration::from_secs(2), client)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap_err();
+        assert!(error.is::<RollbackRecoveryRequired>());
+    }
+
+    #[tokio::test]
+    async fn live_writes_reject_inconsistent_hashes_at_the_same_height() {
+        let mut fixture = Fixture::new(Url::parse("ws://localhost:1").unwrap(), true);
+        Arc::get_mut(&mut fixture.monitor)
+            .unwrap()
+            .sources
+            .get_mut(&5)
+            .unwrap()
+            .confirmations = Some(1);
+        let source = fixture.source();
+        source.store(Kind::Dispatch, dispatch(0), true).unwrap();
+        let mut other = dispatch(1);
+        other["origin_block_hash"] = json!(format!("{:#x}", H256::from_low_u64_be(9)));
+        assert!(source
+            .store(Kind::Dispatch, other, true)
+            .unwrap_err()
+            .is::<ConflictingEvent>());
+        assert!(!source.has_sequence(Kind::Dispatch, 1).unwrap());
+    }
+
+    #[tokio::test]
+    async fn rpc_failures_do_not_poison_recovery_and_verified_false_markers_clear() {
+        let mut fixture = Fixture::new(Url::parse("ws://localhost:1").unwrap(), true);
+        Arc::get_mut(&mut fixture.monitor)
+            .unwrap()
+            .sources
+            .get_mut(&5)
+            .unwrap()
+            .confirmations = Some(1);
+        let source = fixture.source();
+        source.store(Kind::Dispatch, dispatch(0), true).unwrap();
+        fixture.blocks.1.store(true, Ordering::Release);
+        let error = fixture
+            .monitor
+            .rollback(5, "dispatch", 99)
+            .await
+            .unwrap_err();
+        assert!(!error.is::<RollbackRecoveryRequired>());
+        assert!(source.ensure_no_rollback_recovery().is_ok());
+        source
+            .database
+            .store_value_by_key(ROLLBACK_RECOVERY, &source.mailbox, &99u64)
+            .unwrap();
+        fixture.blocks.1.store(false, Ordering::Release);
+        source.verify_live_blocks().await.unwrap();
+        assert!(source.load().is_ok());
+        assert_eq!(
+            source
+                .database
+                .retrieve_value_by_key::<_, H256>(LIVE_BLOCK_HASH, &source.mailbox)
+                .unwrap(),
+            Some(H256::from_low_u64_be(8))
+        );
+    }
+
+    #[tokio::test]
+    async fn merkle_replays_repair_missing_metadata_without_overwriting_conflicts() {
+        let fixture = Fixture::new(Url::parse("ws://localhost:1").unwrap(), true);
+        let source = fixture.source();
+        let insertion = MerkleTreeInsertion::new(0, message(0).id());
+        source
+            .database
+            .store_merkle_tree_insertion_by_leaf_index(&0, &insertion)
+            .unwrap();
+        source.store(Kind::Merkle, merkle(0), true).unwrap();
+        assert_eq!(
+            source
+                .database
+                .retrieve_merkle_leaf_index_by_message_id(&message(0).id())
+                .unwrap(),
+            Some(0)
+        );
+        assert_eq!(
+            source
+                .database
+                .retrieve_merkle_tree_insertion_block_number_by_leaf_index(&0)
+                .unwrap(),
+            Some(100)
+        );
+        let mut other_block = merkle(0);
+        other_block["block_number"] = json!("101");
+        assert!(source
+            .store(Kind::Merkle, other_block, true)
+            .unwrap_err()
+            .is::<ConflictingEvent>());
+        assert_eq!(
+            source
+                .database
+                .retrieve_merkle_tree_insertion_block_number_by_leaf_index(&0)
+                .unwrap(),
+            Some(100)
+        );
+    }
+
+    #[tokio::test]
+    async fn gas_accepts_extra_proxy_fields_without_changing_fingerprints() {
+        let fixture = Fixture::new(Url::parse("ws://localhost:1").unwrap(), true);
+        let source = fixture.source();
+        let mut state = source.load().unwrap();
+        let original = serde_json::from_value(event(Kind::Gas, 1, gas(1))).unwrap();
+        fixture
+            .monitor
+            .consume(source, &mut state, Kind::Gas, &original)
+            .unwrap();
+        let mut extended = gas(1);
+        extended["new_proxy_field"] = json!("ignored");
+        fixture
+            .monitor
+            .consume(
+                source,
+                &mut state,
+                Kind::Gas,
+                &serde_json::from_value(event(Kind::Gas, 1, extended)).unwrap(),
+            )
+            .unwrap();
+        assert_eq!(payment_total(source), U256::from(1000));
     }
 
     #[tokio::test]
@@ -2169,7 +2611,7 @@ mod tests {
                 .retrieve_value_by_key::<_, u64>(LIVE_BLOCK, &source.address(kind))
                 .unwrap()
                 .is_none());
-            fixture.monitor.rollback(5, kind.label(), 99).unwrap();
+            fixture.monitor.rollback(5, kind.label(), 99).await.unwrap();
         }
         assert!(
             source.load().is_ok(),
@@ -2178,52 +2620,46 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn missing_legacy_body_reconnects_then_recovers_after_rpc_backfill() {
+    async fn missing_legacy_body_retries_without_disconnecting_healthy_streams() {
         let (listener, url) = listener().await;
         let fixture = Fixture::new(url, true);
         let monitor = fixture.monitor.clone();
-        let first = tokio::spawn(async move { monitor.stream(timeouts(), None).await });
+        let client = tokio::spawn(async move { monitor.stream(timeouts(), None).await });
         let (mut socket, _) = handshake(&listener).await;
         let mut legacy = dispatch(0);
         legacy["msg_body"] = Value::Null;
-        send(&mut socket, event(Kind::Dispatch, 0, legacy.clone())).await;
-        let failure = timeout(Duration::from_secs(3), first)
-            .await
-            .unwrap()
-            .unwrap()
-            .unwrap_err();
-        assert!(failure.to_string().contains("Retrying unresolved"));
+        send(&mut socket, event(Kind::Dispatch, 0, legacy)).await;
         let degraded = fixture
             .monitor
             .metrics
             .degraded
             .with_label_values(&["test5", "dispatch"]);
-        assert_eq!(degraded.get(), 1, "disconnect must not clear the alert");
+        eventually(|| degraded.get() == 1).await;
+        // Caught-up markers for blocked rows must not tear down the socket either.
+        send(&mut socket, caught_up(Kind::Dispatch, 0)).await;
+        tokio::time::sleep(Duration::from_millis(1200)).await;
+        assert!(
+            !client.is_finished(),
+            "unrecoverable row must not reconnect the group"
+        );
+        send(&mut socket, event(Kind::Merkle, 0, merkle(0))).await;
+        eventually(|| fixture.source().has_sequence(Kind::Merkle, 0).unwrap()).await;
         fixture
             .source()
             .store(Kind::Dispatch, dispatch(0), true)
             .unwrap();
-        let monitor = fixture.monitor.clone();
-        let second = tokio::spawn(async move { monitor.stream(timeouts(), None).await });
-        let (mut socket, _) = handshake(&listener).await;
-        assert_eq!(
-            degraded.get(),
-            1,
-            "connection alone does not prove recovery"
-        );
-        send(&mut socket, event(Kind::Dispatch, 0, legacy)).await;
-        eventually(|| {
-            fixture
-                .source()
-                .database
-                .retrieve_value_by_key::<_, u32>(DISPATCH_CURSOR, &fixture.source().mailbox)
-                .unwrap()
-                == Some(0)
-        })
-        .await;
+        // Only a successful repair triggers replay of skipped canonical rows.
+        let error = timeout(Duration::from_secs(5), client)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap_err();
+        assert!(error.to_string().contains("successful RPC backfill"));
         assert_eq!(degraded.get(), 0);
-        second.abort();
-        let _ = second.await;
+        assert_eq!(
+            fixture.source().load().unwrap().streams[Kind::Dispatch.index()].last,
+            Some(0)
+        );
     }
 
     #[tokio::test]
@@ -2538,7 +2974,7 @@ mod tests {
             .expect("data");
             fixture
                 .monitor
-                .consume(fixture.source(), &mut state, kind, event)
+                .consume(fixture.source(), &mut state, kind, &event)
                 .expect("shadow");
         }
         assert!(fixture

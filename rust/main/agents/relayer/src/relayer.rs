@@ -460,12 +460,18 @@ impl BaseAgent for Relayer {
                         _ => None,
                     },
                 )?
+                .with_block_provider(Arc::from(origin.validator_announce.provider()))
                 .with_broadcaster(origin.message_sync.get_broadcaster())
                 .with_freshness_indexer(origin.message_sequence_indexer.clone())
                 .with_sync_metrics(origin.sync_metrics.clone())
                 .with_merkle_freshness_indexer(origin.merkle_sequence_indexer.clone()))
             })
             .collect::<Result<Vec<_>>>()?;
+        // Validate durable live writes before starting any origin consumers,
+        // even when the WebSocket configuration has subsequently been disabled.
+        for source in &scraper_sources {
+            source.verify_live_blocks().await?;
+        }
         let scraper_websocket_monitor = settings
             .websocket_url
             .map(|url| {
@@ -1477,6 +1483,11 @@ impl Relayer {
                 };
                 message_db_loader.set_index_notifications(
                     BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
+                );
+                message_db_loader.set_notification_overflow(
+                    maybe_broadcaster
+                        .as_ref()
+                        .map(BroadcastMpscSender::missed_notifications),
                 );
                 if init_failed {
                     critical_errors.clear(&origin_domain, CriticalErrorSource::MessageDbLoader);

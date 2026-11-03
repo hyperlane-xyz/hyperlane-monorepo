@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 
 use derive_new::new;
 use eyre::Result;
@@ -20,6 +23,8 @@ pub struct BroadcastMpscSender<T> {
     /// channel. So all instances of `BroadcastMpscSender` have to point to the entire set of senders.
     #[new(default)]
     sender: Arc<Mutex<Vec<MpscSender<T>>>>,
+    #[new(default)]
+    missed: Arc<AtomicU64>,
 }
 
 /// Cursor-indexed transaction and the stored event sequences it contained.
@@ -42,10 +47,17 @@ impl IndexingNotification {
 }
 
 impl<T: Clone> BroadcastMpscSender<T> {
+    /// Shared generation incremented when a nonblocking notification is missed.
+    /// Consumers can poll this to rescan stored work; restarts already scan the DB.
+    pub fn missed_notifications(&self) -> Arc<AtomicU64> {
+        self.missed.clone()
+    }
+
     /// Best-effort notification without waiting for a busy or full subscriber.
     /// Callers must retain an independent polling path for skipped notifications.
     pub fn try_send(&self, message: T) -> bool {
         let Ok(mut senders) = self.sender.try_lock() else {
+            self.missed.fetch_add(1, Ordering::Release);
             return false;
         };
         let mut sent = true;
@@ -57,6 +69,9 @@ impl<T: Clone> BroadcastMpscSender<T> {
             }
             Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => false,
         });
+        if !sent {
+            self.missed.fetch_add(1, Ordering::Release);
+        }
         sent
     }
 
@@ -106,6 +121,10 @@ mod tests {
         broadcaster.send(1).await.unwrap();
         let mut live = broadcaster.get_receiver().await;
         assert!(!broadcaster.try_send(2));
+        assert_eq!(
+            broadcaster.missed_notifications().load(Ordering::Acquire),
+            1
+        );
         assert_eq!(live.recv().await, Some(2));
         assert_eq!(full.recv().await, Some(1));
         assert!(broadcaster.try_send(3));
@@ -114,6 +133,18 @@ mod tests {
         drop(full);
         assert!(broadcaster.try_send(4));
         assert_eq!(live.recv().await, Some(4));
+    }
+
+    #[tokio::test]
+    async fn contended_sender_records_a_missed_notification() {
+        let broadcaster = BroadcastMpscSender::new(1);
+        let _receiver = broadcaster.get_receiver().await;
+        let _guard = broadcaster.sender.lock().await;
+        assert!(!broadcaster.try_send(1));
+        assert_eq!(
+            broadcaster.missed_notifications().load(Ordering::Acquire),
+            1
+        );
     }
 
     #[tokio::test]

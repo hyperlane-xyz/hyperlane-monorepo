@@ -600,8 +600,9 @@ impl HyperlaneRocksDB {
     }
 
     /// Store an unverified insertion only if its leaf index is absent. Returns the
-    /// existing insertion otherwise. Shares the RPC writer's lock so a concurrent
-    /// stream replay cannot overwrite a canonical insertion or its block metadata.
+    /// existing insertion otherwise, filling absent metadata for matching leaves.
+    /// Shares the RPC writer's lock so a concurrent stream replay cannot overwrite
+    /// a canonical insertion or its existing metadata.
     pub fn store_tree_insertion_if_absent(
         &self,
         insertion: &MerkleTreeInsertion,
@@ -611,6 +612,30 @@ impl HyperlaneRocksDB {
         if let Some(existing) =
             self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index())?
         {
+            if existing == *insertion {
+                let mut batch = self.batch();
+                if self
+                    .retrieve_merkle_leaf_index_by_message_id(&insertion.message_id())?
+                    .is_none()
+                {
+                    batch.store_keyed_encodable(
+                        MERKLE_LEAF_INDEX_BY_MESSAGE_ID,
+                        &insertion.message_id(),
+                        &insertion.index(),
+                    );
+                }
+                if self
+                    .retrieve_merkle_tree_insertion_block_number_by_leaf_index(&insertion.index())?
+                    .is_none()
+                {
+                    batch.store_keyed_encodable(
+                        MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX,
+                        &insertion.index(),
+                        &insertion_block_number,
+                    );
+                }
+                batch.commit()?
+            }
             return Ok(Some(existing));
         }
         self.store_tree_insertion_inner(insertion, insertion_block_number)?;

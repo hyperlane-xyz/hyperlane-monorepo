@@ -215,6 +215,8 @@ pub struct SubscribedCursor {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventMessage<T> {
+    /// Provisional block identity, carried outside the stable event payload.
+    pub block_hash: Option<String>,
     /// Event-specific payload.
     pub data: T,
     /// Hyperlane domain identifier.
@@ -268,6 +270,8 @@ impl StringOrNumber {
 pub struct MerkleEventData {
     /// Origin block containing the insertion.
     pub block_number: StringOrNumber,
+    /// Block identity for validating provisional insertions after reconnects.
+    pub block_hash: Option<String>,
     /// Hyperlane origin domain.
     pub domain: u32,
     /// Merkle leaf index, also the stream sequence.
