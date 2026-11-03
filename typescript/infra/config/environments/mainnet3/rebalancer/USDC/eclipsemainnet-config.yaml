@@ -188,6 +188,21 @@ strategy:
           executionType: inventory
           externalBridge: lifi
 
+    monad:
+      weighted:
+        weight: 4
+        tolerance: 3
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 2500
+      bridge: '0xD73673Aa8d8f68ac90B4Df03393c77492f8Cb4Ec'
+      override:
+        bsc:
+          executionType: inventory
+          externalBridge: lifi
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
+
     bsc:
       weighted:
         weight: 25
