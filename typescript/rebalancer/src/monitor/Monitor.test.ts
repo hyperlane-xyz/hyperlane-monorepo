@@ -76,6 +76,36 @@ function setup(count: number, withInventory = false) {
   return { monitor, tokens, blocks, adapters };
 }
 
+function setupTron(reorgPeriod: number | string) {
+  const token = new Token({
+    chainName: 'tron',
+    standard: TokenStandard.TronHypSynthetic,
+    addressOrDenom: 'TJRabPrwbZy45sbavfcjinPJC18kjpRTv8',
+    decimals: 6,
+    name: 'Token',
+    symbol: 'TOK',
+  });
+  const metadata: ChainMap<ChainMetadata> = {
+    tron: {
+      name: 'tron',
+      protocol: ProtocolType.Tron,
+      chainId: 728126428,
+      domainId: 728126428,
+      rpcUrls: [{ http: 'http://unused' }],
+      blocks: { reorgPeriod, confirmations: 1 },
+    },
+  };
+  const multiProvider = new MultiProtocolProvider(metadata);
+  const block = sinon.createStubInstance(providers.JsonRpcProvider);
+  block.send.resolves('0x64');
+  sinon.stub(multiProvider, 'getEthersV5Provider').returns(block);
+  const adapter = sinon.createStubInstance(EvmHypSyntheticAdapter);
+  adapter.getBridgedSupply.resolves(5n);
+  sinon.stub(token, 'getHypAdapter').returns(adapter);
+  const monitor = new Monitor(0, new WarpCore(multiProvider, [token]), logger);
+  return { monitor, adapter, block, token };
+}
+
 describe('Monitor concurrency', () => {
   afterEach(() => sinon.restore());
 
@@ -255,33 +285,7 @@ describe('Monitor concurrency', () => {
   });
 
   it('preserves optional block tags for Tron named reorg periods', async () => {
-    const token = new Token({
-      chainName: 'tron',
-      standard: TokenStandard.TronHypSynthetic,
-      addressOrDenom: 'TJRabPrwbZy45sbavfcjinPJC18kjpRTv8',
-      decimals: 6,
-      name: 'Token',
-      symbol: 'TOK',
-    });
-    const metadata: ChainMap<ChainMetadata> = {
-      tron: {
-        name: 'tron',
-        protocol: ProtocolType.Tron,
-        chainId: 728126428,
-        domainId: 728126428,
-        rpcUrls: [{ http: 'http://unused' }],
-        blocks: { reorgPeriod: 'finalized', confirmations: 1 },
-      },
-    };
-    const multiProvider = new MultiProtocolProvider(metadata);
-    const adapter = sinon.createStubInstance(EvmHypSyntheticAdapter);
-    adapter.getBridgedSupply.resolves(5n);
-    sinon.stub(token, 'getHypAdapter').returns(adapter);
-    const monitor = new Monitor(
-      0,
-      new WarpCore(multiProvider, [token]),
-      logger,
-    );
+    const { monitor, adapter, block, token } = setupTron('finalized');
     const errors = sinon.stub();
     let event: MonitorEvent | undefined;
     monitor.on(MonitorEventType.Error, (error) => {
@@ -295,6 +299,7 @@ describe('Monitor concurrency', () => {
 
     await monitor.start();
     expect(errors.notCalled).to.equal(true);
+    expect(block.send.notCalled).to.equal(true);
     expect(adapter.getBridgedSupply.calledOnce).to.equal(true);
     expect(adapter.getBridgedSupply.firstCall.args).to.deep.equal([
       { blockTag: undefined },
@@ -302,6 +307,44 @@ describe('Monitor concurrency', () => {
     expect(event?.confirmedBlockTags.tron).to.equal(undefined);
     expect(event?.tokensInfo).to.deep.equal([{ token, bridgedSupply: 5n }]);
   });
+
+  for (const failWithRpcError of [true, false]) {
+    it(`retries a numeric Tron block ${failWithRpcError ? 'RPC failure' : 'invalid response'} before emitting supply`, async () => {
+      const { monitor, adapter, block } = setupTron(20);
+      if (failWithRpcError) {
+        block.send.onFirstCall().rejects(new Error('block unavailable'));
+      } else {
+        block.send.onFirstCall().resolves(undefined);
+      }
+      const errors = sinon.stub();
+      let supplyReadOnError = false;
+      let event: MonitorEvent | undefined;
+      monitor.on(MonitorEventType.Error, (error) => {
+        errors(error);
+        supplyReadOnError = adapter.getBridgedSupply.called;
+      });
+      monitor.on(MonitorEventType.TokenInfo, (received) => {
+        event = received;
+        void monitor.stop();
+      });
+
+      await monitor.start();
+      expect(errors.calledOnce).to.equal(true);
+      expect(errors.firstCall.args[0].message).to.contain(
+        failWithRpcError
+          ? 'block unavailable'
+          : 'Invalid eth_blockNumber response',
+      );
+      expect(supplyReadOnError).to.equal(false);
+      expect(block.send.calledTwice).to.equal(true);
+      expect(adapter.getBridgedSupply.calledOnce).to.equal(true);
+      expect(adapter.getBridgedSupply.firstCall.args).to.deep.equal([
+        { blockTag: 80 },
+      ]);
+      expect(event?.confirmedBlockTags.tron).to.equal(80);
+      expect(event?.tokensInfo[0].bridgedSupply).to.equal(5n);
+    });
+  }
 
   it('emits inventory balances from a later cycle after an inventory failure', async () => {
     const { monitor, adapters } = setup(1, true);

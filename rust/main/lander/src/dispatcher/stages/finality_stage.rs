@@ -352,9 +352,8 @@ impl FinalityStage {
             };
             state
                 .payload_db
-                .store_new_payload_status(&payload.uuid, status.clone())
+                .store_new_payload_status(&payload.uuid, status)
                 .await?;
-            state.update_payload_metric_if_dropped(&status);
         }
         with_rpc_operation(
             RpcOperation::TransactionLifecycle,
@@ -364,6 +363,15 @@ impl FinalityStage {
         // Commit last and propagate write failures. store_tx/update_tx_status
         // persist the transaction first and overwrite reverted payload statuses.
         state.tx_db.store_transaction_by_uuid(tx).await?;
+        // A failed write or post-finalization hook leaves this transaction for
+        // retry. Count reverted payloads only after the terminal commit succeeds.
+        for payload in &tx.payload_details {
+            if reverted_ids.contains(&payload.uuid) {
+                state.update_payload_metric_if_dropped(&PayloadStatus::Dropped(
+                    PayloadDropReason::Reverted,
+                ));
+            }
+        }
         state
             .metrics
             .update_finalized_transactions_metric(&state.domain);

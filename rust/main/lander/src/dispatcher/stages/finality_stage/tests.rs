@@ -1,3 +1,5 @@
+mod write_failure;
+
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -277,6 +279,7 @@ async fn assert_finalization_recovers_after_failure(
     use hyperlane_base::db::{HyperlaneRocksDB, DB};
     use hyperlane_core::KnownHyperlaneDomain;
 
+    let metrics = DispatcherMetrics::dummy_instance();
     let directory = tempfile::tempdir().unwrap();
     let domain = KnownHyperlaneDomain::Arbitrum.into();
     let payloads: Vec<_> = (0..2)
@@ -337,7 +340,7 @@ async fn assert_finalization_recovers_after_failure(
             db.clone(),
             db.clone(),
             Arc::new(adapter),
-            DispatcherMetrics::dummy_instance(),
+            metrics.clone(),
             "arbitrum".to_owned(),
         );
         let to_verify = if directly_finalized {
@@ -372,6 +375,21 @@ async fn assert_finalization_recovers_after_failure(
         .await
         .is_err());
         assert!(pool.snapshot().await.contains_key(&tx.uuid));
+        assert_eq!(
+            metrics
+                .dropped_payloads
+                .with_label_values(&["arbitrum", "Reverted"])
+                .get(),
+            0,
+            "failed finalization must not count reverted payloads",
+        );
+        assert_eq!(
+            metrics
+                .finalized_transactions
+                .with_label_values(&["arbitrum"])
+                .get(),
+            0
+        );
         assert_eq!(
             db.retrieve_transaction_by_uuid(&tx.uuid)
                 .await
@@ -417,7 +435,7 @@ async fn assert_finalization_recovers_after_failure(
         db.clone(),
         db.clone(),
         Arc::new(adapter),
-        DispatcherMetrics::dummy_instance(),
+        metrics.clone(),
         "arbitrum".to_owned(),
     );
     let (inclusion_tx, mut inclusion_rx) = mpsc::channel(1);
@@ -447,6 +465,20 @@ async fn assert_finalization_recovers_after_failure(
         .await
         .unwrap();
     assert!(pool.snapshot().await.is_empty());
+    assert_eq!(
+        metrics
+            .dropped_payloads
+            .with_label_values(&["arbitrum", "Reverted"])
+            .get(),
+        1
+    );
+    assert_eq!(
+        metrics
+            .finalized_transactions
+            .with_label_values(&["arbitrum"])
+            .get(),
+        1
+    );
     assert_eq!(
         db.retrieve_payload_by_uuid(&tx.payload_details[0].uuid)
             .await
