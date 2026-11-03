@@ -33,7 +33,8 @@ pub(super) async fn preflight<T, E: Into<LanderError>>(
 ) -> Result<T, LanderError> {
     with_rpc_timeout(protected, request).await?.map_err(|err| {
         let err = err.into();
-        if protected {
+        // Local gas-cap rejections cannot be fixed by retrying the protected RPC.
+        if protected && !matches!(err, LanderError::NonRetryableError(_)) {
             warn!(?err, "Protected preflight failed; retrying later");
             LanderError::TxSubmissionDeferred
         } else {
@@ -443,18 +444,13 @@ mod tests {
         mock_get_block(&mut protected);
         protected
             .expect_estimate_gas_limit()
-            .times(7)
+            .times(5)
             .returning(|_, _| Ok(100_000.into()));
         protected
             .expect_simulate_batch()
             .times(1)
-            .returning(|_| Ok((vec![0, 1], vec![])));
+            .returning(|_| Ok((vec![0, 2], vec![(1, "already delivered".into())])));
         let mut estimates = mockall::Sequence::new();
-        protected
-            .expect_estimate_batch()
-            .times(1)
-            .in_sequence(&mut estimates)
-            .returning(|_, _| Ok(300_000.into()));
         protected
             .expect_estimate_batch()
             .times(1)
@@ -477,28 +473,69 @@ mod tests {
         assert!(single.precursor().tx.gas().is_some());
 
         // Old database entries may contain mixed batches; every preflight stays private.
-        let mut recovered = transaction(&adapter, vec![payload(1, ROUTER, MAILBOX), reveal]).await;
-        assert!(adapter
-            .simulate_tx(&mut recovered)
-            .await
-            .unwrap()
-            .is_empty());
+        let failed = payload(1, ROUTER, MAILBOX);
+        let mut recovered = transaction(
+            &adapter,
+            vec![payload(1, ROUTER, MAILBOX), failed.clone(), reveal],
+        )
+        .await;
+        assert_eq!(
+            adapter.simulate_tx(&mut recovered).await.unwrap(),
+            vec![failed.details]
+        );
         assert_eq!(recovered.payload_details.len(), 2);
         assert!(matches!(
             adapter.estimate_tx(&mut recovered).await,
             Err(LanderError::TxSubmissionDeferred)
         ));
         assert_eq!(recovered.payload_details.len(), 2);
-        assert_eq!(
-            recovered.precursor().tx.gas().copied(),
-            Some(300_000.into())
-        );
+        assert!(recovered.precursor().tx.gas().is_none());
         adapter.estimate_tx(&mut recovered).await.unwrap();
         assert_eq!(
             recovered.precursor().tx.gas().copied(),
             Some(300_000.into())
         );
     }
+    #[tokio::test]
+    async fn gas_limit_caps_are_terminal_for_protected_singles_and_batches() {
+        use crate::error::IsRetryable;
+
+        for (configured_cap, block_cap) in [(Some(1_000_000u64), 30_000_000u64), (None, 1_000_000)]
+        {
+            for batched in [false, true] {
+                let mut adapter = adapter(0, 0, false);
+                let mut protected = MockEvmProvider::new();
+                protected.expect_get_block().returning(move |_| {
+                    Ok(Some(ethers::types::Block {
+                        gas_limit: block_cap.into(),
+                        ..Default::default()
+                    }))
+                });
+                protected
+                    .expect_estimate_gas_limit()
+                    .times(if batched { 2 } else { 1 })
+                    .returning(move |_, _| Ok(if batched { 600_000 } else { 1_200_000 }.into()));
+                protected
+                    .expect_estimate_batch()
+                    .times(usize::from(batched))
+                    .returning(|_, _| Ok(1_200_000.into()));
+                adapter.mev_submission.as_mut().unwrap().provider = Arc::new(protected);
+                adapter.transaction_overrides.gas_limit_cap = configured_cap.map(Into::into);
+                let payloads = if batched {
+                    vec![payload(2, ROUTER, MAILBOX), payload(2, ROUTER, MAILBOX)]
+                } else {
+                    vec![payload(2, ROUTER, MAILBOX)]
+                };
+                let mut tx = transaction(&adapter, payloads).await;
+                let error = adapter.estimate_tx(&mut tx).await.unwrap_err();
+                assert!(matches!(error, LanderError::NonRetryableError(_)));
+                assert!(!error.is_retryable());
+                assert!(!error.is_infra_error());
+                assert!(tx.precursor().tx.gas().is_none());
+            }
+        }
+    }
+
     #[derive(Debug)]
     struct StalledRpc(Arc<std::sync::Mutex<Option<ethers::types::Bytes>>>);
 

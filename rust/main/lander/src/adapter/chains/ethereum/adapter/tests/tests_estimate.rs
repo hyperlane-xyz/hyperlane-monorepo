@@ -141,6 +141,9 @@ async fn batched_delivery_preserves_paid_floors_or_falls_back_to_singles() {
         let (payload_db, tx_db, nonce_db) = tmp_dbs();
         let mut provider = MockEvmProvider::new();
         provider
+            .expect_simulate_batch()
+            .returning(|_| Ok((vec![0, 1], vec![])));
+        provider
             .expect_batch()
             .times(usize::from(!split))
             .returning(|_, _, _, _| Ok(empty_batch()));
@@ -224,6 +227,9 @@ async fn failed_batch_estimation_falls_back_to_singles() {
         let (payload_db, tx_db, nonce_db) = tmp_dbs();
         let mut provider = MockEvmProvider::new();
         provider
+            .expect_simulate_batch()
+            .returning(|_| Ok((vec![0, 1], vec![])));
+        provider
             .expect_batch()
             .once()
             .returning(|_, _, _, _| Ok(empty_batch()));
@@ -287,9 +293,16 @@ async fn batch_rebuilt_as_single_delivery_keeps_the_paid_budget() {
         .expect_batch()
         .once()
         .returning(|_, _, _, _| Ok(empty_batch()));
+    let mut simulations = mockall::Sequence::new();
     provider
         .expect_simulate_batch()
         .once()
+        .in_sequence(&mut simulations)
+        .returning(|_| Ok((vec![0, 1], vec![])));
+    provider
+        .expect_simulate_batch()
+        .once()
+        .in_sequence(&mut simulations)
         .returning(|_| Ok((vec![1], vec![(0, "reverted".into())])));
     provider
         .expect_estimate_gas_limit()
@@ -338,6 +351,9 @@ async fn batch_buffers_larger_estimates_once_and_preserves_zero_floor_behavior()
         let (payload_db, tx_db, nonce_db) = tmp_dbs();
         let mut provider = MockEvmProvider::new();
         provider
+            .expect_simulate_batch()
+            .returning(|_| Ok((vec![0, 1], vec![])));
+        provider
             .expect_batch()
             .once()
             .returning(|_, _, _, _| Ok(empty_batch()));
@@ -382,4 +398,104 @@ async fn batch_buffers_larger_estimates_once_and_preserves_zero_floor_behavior()
         adapter.estimate_tx(&mut tx).await.unwrap();
         assert_eq!(tx.precursor().tx.gas(), Some(&EthersU256::from(expected)));
     }
+}
+
+#[tokio::test]
+async fn build_filters_reverting_members_before_estimating_the_remaining_batch() {
+    let (payload_db, tx_db, nonce_db) = tmp_dbs();
+    let mut provider = MockEvmProvider::new();
+    provider
+        .expect_batch()
+        .times(2)
+        .returning(|_, _, _, _| Ok(empty_batch()));
+    provider
+        .expect_simulate_batch()
+        .once()
+        .returning(|_| Ok((vec![0, 2], vec![(1, "already delivered".into())])));
+    provider
+        .expect_estimate_gas_limit()
+        .times(2)
+        .withf(|tx, _| tx.value().copied().unwrap_or_default() != 1.into())
+        .returning(|_, _| Ok(100_000.into()));
+    provider
+        .expect_estimate_batch()
+        .once()
+        .withf(|_, precursors| precursors.len() == 2)
+        .returning(|_, _| Ok(220_000.into()));
+    mock_get_block(&mut provider);
+    let mut payloads = vec![];
+    for index in 0..3u64 {
+        let mut payload = paid_payload(100_000, KnownHyperlaneDomain::Base.into()).await;
+        let (mut tx, function): (TypedTransaction, Function) =
+            serde_json::from_slice(&payload.data).unwrap();
+        tx.set_value(index);
+        payload.data = serde_json::to_vec(&(tx, function)).unwrap();
+        payload_db.store_payload_by_uuid(&payload).await.unwrap();
+        payloads.push(payload);
+    }
+    let adapter = mock_ethereum_adapter(
+        provider,
+        payload_db,
+        tx_db,
+        nonce_db,
+        H160::zero(),
+        Duration::ZERO,
+        Duration::ZERO,
+    );
+    let built = adapter.build_transactions(&payloads).await;
+    assert_eq!(built.len(), 2);
+    assert_eq!(
+        built[0].payloads,
+        vec![payloads[0].details.clone(), payloads[2].details.clone()]
+    );
+    let tx = built[0].maybe_tx.as_ref().unwrap();
+    assert_eq!(tx.payload_details, built[0].payloads);
+    assert!(tx.precursor().tx.gas().is_some());
+    assert_eq!(built[1].payloads, vec![payloads[1].details.clone()]);
+    assert!(built[1].maybe_tx.is_none());
+}
+
+#[tokio::test]
+async fn build_filtered_to_single_applies_the_buffer_only_at_inclusion() {
+    let (payload_db, tx_db, nonce_db) = tmp_dbs();
+    let mut provider = MockEvmProvider::new();
+    provider
+        .expect_batch()
+        .once()
+        .returning(|_, _, _, _| Ok(empty_batch()));
+    provider
+        .expect_simulate_batch()
+        .once()
+        .returning(|_| Ok((vec![1], vec![(0, "already delivered".into())])));
+    provider
+        .expect_estimate_gas_limit()
+        .once()
+        .returning(|_, _| Ok(100_000.into()));
+    mock_get_block(&mut provider);
+    let payloads = vec![
+        paid_payload(100_000, KnownHyperlaneDomain::Base.into()).await,
+        paid_payload(100_000, KnownHyperlaneDomain::Base.into()).await,
+    ];
+    for payload in &payloads {
+        payload_db.store_payload_by_uuid(payload).await.unwrap();
+    }
+    let mut adapter = mock_ethereum_adapter(
+        provider,
+        payload_db,
+        tx_db,
+        nonce_db,
+        H160::zero(),
+        Duration::ZERO,
+        Duration::ZERO,
+    );
+    adapter.domain = KnownHyperlaneDomain::Base.into();
+    let mut built = adapter.build_transactions(&payloads).await;
+    assert_eq!(built.len(), 2);
+    let mut tx = built[0].maybe_tx.take().unwrap();
+    assert_eq!(tx.payload_details, vec![payloads[1].details.clone()]);
+    assert_eq!(tx.precursor().tx.gas().copied(), Some(100_000.into()));
+    assert_eq!(built[1].payloads, vec![payloads[0].details.clone()]);
+    assert!(built[1].maybe_tx.is_none());
+    adapter.estimate_tx(&mut tx).await.unwrap();
+    assert_eq!(tx.precursor().tx.gas().copied(), Some(175_000.into()));
 }

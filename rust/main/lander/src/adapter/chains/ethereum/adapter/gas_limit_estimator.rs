@@ -88,7 +88,9 @@ pub async fn apply_gas_limit_caps(
             ?gas_limit,
             "Gas cap cannot accommodate the required gas budget"
         );
-        return Err(LanderError::EstimationFailed);
+        return Err(LanderError::NonRetryableError(format!(
+            "Required gas {gas_floor} exceeds gas limit cap {gas_limit}"
+        )));
     }
     Ok(gas_limit)
 }
@@ -177,7 +179,7 @@ pub mod tests {
                 true,
             )
             .await;
-            assert!(matches!(result, Err(LanderError::EstimationFailed)));
+            assert!(matches!(result, Err(LanderError::NonRetryableError(_))));
             assert_eq!(precursor.tx.gas(), Some(&EthersU256::from(1_011_344)));
         }
     }
@@ -222,7 +224,7 @@ pub mod tests {
             with_gas_limit_overrides,
         )
         .await;
-        assert!(matches!(result, Err(LanderError::EstimationFailed)));
+        assert!(matches!(result, Err(LanderError::NonRetryableError(_))));
         assert!(tx_precursor.tx.gas().is_none());
     }
 

@@ -71,6 +71,10 @@ async fn test_build_transactions_contract_batch_happy_path() {
     mock_estimate_gas_limit(&mut provider);
     mock_get_block(&mut provider);
     provider
+        .expect_simulate_batch()
+        .once()
+        .returning(|_| Ok((vec![0, 1], vec![])));
+    provider
         .expect_estimate_batch()
         .once()
         .returning(|_, _| Ok(50_000.into()));
