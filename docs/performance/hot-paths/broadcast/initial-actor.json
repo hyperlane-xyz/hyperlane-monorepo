@@ -1,0 +1,4857 @@
+{
+  "metadata": {
+    "timestamp_utc": "2026-11-03T01:42:27.659224+00:00",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "cpu": "Apple M3 Pro",
+    "logical_cpus": 11,
+    "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)",
+    "profile": "release opt-level=3 including dependencies",
+    "cargo_lock_sha256_base64": "CWCk2KeQc9g3LmBGBzMnZx3J+Ey4H+N070Fu/4HEk2A=",
+    "binary_sha256_base64": "o88SiLr0ei2RVVtBNWRE4+OCqmAunOlVaLF9cagupGw=",
+    "tokio": "1.53.1",
+    "payload": "u64; component microbenchmark, not production message throughput",
+    "sources": {
+      "baseline": {
+        "commit": "7e80c603f0278c9b1f0555fe0106279e2df5f070",
+        "path": "rust/main/hyperlane-base/src/contract_sync/broadcast.rs",
+        "file_sha256_base64": "YvLs5fN37HkRft6xCxpSjbpMGOa+R8Uk9dJ0rTvf28o=",
+        "production_sha256_base64": "E9YfhdpoUHPNhd3yi5kRvNpQh9lhdn6sx0zWCxcJX40="
+      },
+      "proposed": {
+        "commit": "d555ffbfd7d82438851e6f848ea7dfc28b2e336d",
+        "path": "rust/main/hyperlane-base/src/contract_sync/broadcast.rs",
+        "file_sha256_base64": "pk/yfbfvUabQxQlEtg4JOBZ5vu6qlsyZSeerXYZj0TQ=",
+        "production_sha256_base64": "UE1WRppb4l+I7F9tfBKmxAFDKrMwg/jc9PjtrUZovOg="
+      }
+    },
+    "repetitions": 30,
+    "warmups": 5,
+    "method": "Two AB/BA process passes per scenario; per-process warmup; timed process CPU/RSS includes warmup. Single process at a time.",
+    "measured_at_utc": "2026-11-03T01:46:49.246811+00:00",
+    "percentiles": "p50 sample median; p95 nearest rank"
+  },
+  "summary": [
+    {
+      "threads": 1,
+      "scenario": "uniform_1",
+      "version": "baseline",
+      "n": 60,
+      "metrics": {
+        "elapsed_ms": {
+          "p50": 0.9123335,
+          "p95": 2.193666
+        }
+      },
+      "deliveries_per_second": 16483762.15497168,
+      "process_cpu_s": [0.05, 0.03],
+      "peak_rss_bytes": 2457600
+    },
+    {
+      "threads": 1,
+      "scenario": "uniform_1",
+      "version": "proposed",
+      "n": 60,
+      "metrics": {
+        "elapsed_ms": {
+          "p50": 9.026396000000002,
+          "p95": 9.417417
+        }
+      },
+      "deliveries_per_second": 2202670.6121979533,
+      "process_cpu_s": [0.33, 0.31],
+      "peak_rss_bytes": 2670592
+    },
+    {
+      "threads": 1,
+      "scenario": "uniform_3",
+      "version": "baseline",
+      "n": 60,
+      "metrics": {
+        "elapsed_ms": {
+          "p50": 2.0570835,
+          "p95": 2.073334
+        }
+      },
+      "deliveries_per_second": 29147801.595481027,
+      "process_cpu_s": [0.07, 0.07],
+      "peak_rss_bytes": 2424832
+    },
+    {
+      "threads": 1,
+      "scenario": "uniform_3",
+      "version": "proposed",
+      "n": 60,
+      "metrics": {
+        "elapsed_ms": {
+          "p50": 13.036937,
+          "p95": 13.405000000000001
+        }
+      },
+      "deliveries_per_second": 4587965.890109981,
+      "process_cpu_s": [0.46, 0.45],
+      "peak_rss_bytes": 2637824
+    },
+    {
+      "threads": 1,
+      "scenario": "slow_consumer",
+      "version": "baseline",
+      "n": 60,
+      "metrics": {
+        "elapsed_ms": {
+          "p50": 32.401895999999994,
+          "p95": 36.277667
+        },
+        "ready_delivery_ms": {
+          "p50": 32.387167000000005,
+          "p95": 36.269083
+        },
+        "registration_ms": {
+          "p50": 28.2979375,
+          "p95": 32.050708
+        }
+      },
+      "deliveries_per_second": 62.73701193545512,
+      "process_cpu_s": [0.0, 0.0],
+      "peak_rss_bytes": 2457600
+    },
+    {
+      "threads": 1,
+      "scenario": "slow_consumer",
+      "version": "proposed",
+      "n": 60,
+      "metrics": {
+        "elapsed_ms": {
+          "p50": 32.5467915,
+          "p95": 36.605166000000004
+        },
+        "ready_delivery_ms": {
+          "p50": 0.0139585,
+          "p95": 0.027542
+        },
+        "registration_ms": {
+          "p50": 0.012125,
+          "p95": 0.020084
+        }
+      },
+      "deliveries_per_second": 62.693888327204185,
+      "process_cpu_s": [0.0, 0.0],
+      "peak_rss_bytes": 2555904
+    },
+    {
+      "threads": 2,
+      "scenario": "uniform_1",
+      "version": "baseline",
+      "n": 60,
+      "metrics": {
+        "elapsed_ms": {
+          "p50": 1.7475,
+          "p95": 3.184834
+        }
+      },
+      "deliveries_per_second": 9863621.540929643,
+      "process_cpu_s": [0.18000000000000002, 0.12000000000000001],
+      "peak_rss_bytes": 2539520
+    },
+    {
+      "threads": 2,
+      "scenario": "uniform_1",
+      "version": "proposed",
+      "n": 60,
+      "metrics": {
+        "elapsed_ms": {
+          "p50": 150.0807495,
+          "p95": 159.52195899999998
+        }
+      },
+      "deliveries_per_second": 132036.24225447385,
+      "process_cpu_s": [6.43, 6.38],
+      "peak_rss_bytes": 2801664
+    },
+    {
+      "threads": 2,
+      "scenario": "uniform_3",
+      "version": "baseline",
+      "n": 60,
+      "metrics": {
+        "elapsed_ms": {
+          "p50": 3.7424995,
+          "p95": 3.8148750000000002
+        }
+      },
+      "deliveries_per_second": 16460460.081930295,
+      "process_cpu_s": [0.27, 0.28],
+      "peak_rss_bytes": 2523136
+    },
+    {
+      "threads": 2,
+      "scenario": "uniform_3",
+      "version": "proposed",
+      "n": 60,
+      "metrics": {
+        "elapsed_ms": {
+          "p50": 158.1339795,
+          "p95": 161.37216700000002
+        }
+      },
+      "deliveries_per_second": 377994.02102665324,
+      "process_cpu_s": [7.2, 7.050000000000001],
+      "peak_rss_bytes": 2801664
+    },
+    {
+      "threads": 2,
+      "scenario": "slow_consumer",
+      "version": "baseline",
+      "n": 60,
+      "metrics": {
+        "elapsed_ms": {
+          "p50": 32.643542,
+          "p95": 36.616707999999996
+        },
+        "ready_delivery_ms": {
+          "p50": 32.6183125,
+          "p95": 36.595208
+        },
+        "registration_ms": {
+          "p50": 28.7127495,
+          "p95": 32.099458
+        }
+      },
+      "deliveries_per_second": 62.53460440273913,
+      "process_cpu_s": [0.0, 0.0],
+      "peak_rss_bytes": 2539520
+    },
+    {
+      "threads": 2,
+      "scenario": "slow_consumer",
+      "version": "proposed",
+      "n": 60,
+      "metrics": {
+        "elapsed_ms": {
+          "p50": 30.2725835,
+          "p95": 36.43445800000001
+        },
+        "ready_delivery_ms": {
+          "p50": 0.020895499999999997,
+          "p95": 0.042166
+        },
+        "registration_ms": {
+          "p50": 0.035708000000000004,
+          "p95": 0.059583000000000004
+        }
+      },
+      "deliveries_per_second": 64.54791846566422,
+      "process_cpu_s": [0.01, 0.01],
+      "peak_rss_bytes": 2686976
+    }
+  ],
+  "raw": [
+    {
+      "scenario": "uniform_1",
+      "version": "baseline",
+      "threads": 1,
+      "pass": 0,
+      "samples": [
+        {
+          "elapsed_ms": 2.1767079999999996,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 2.23825,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 2.2222079999999997,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 2.174042,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 2.193666,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 2.183042,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 2.079875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 2.096791,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 2.566334,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 2.129416,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.88,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.88,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.166,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.888042,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.973333,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.932125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.39875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.3227499999999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.835541,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.8094999999999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.678833,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.2385840000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.333208,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.953416,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.552125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.0486659999999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.963291,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.9560420000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.9602080000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.961292,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        }
+      ],
+      "user_s": 0.05,
+      "system_s": 0.0,
+      "peak_rss_bytes": 2457600,
+      "time_report": "        0.27 real         0.05 user         0.00 sys\n             2457600  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 333  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                  28  involuntary context switches\n           740764197  instructions retired\n           165294447  cycles elapsed\n             1425744  peak memory footprint\n"
+    },
+    {
+      "scenario": "uniform_1",
+      "version": "proposed",
+      "threads": 1,
+      "pass": 0,
+      "samples": [
+        {
+          "elapsed_ms": 9.464333,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.510834,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.329333,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.350999999999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.256917,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.397542,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.193666,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.551541,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.199709,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.304708999999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.083792,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.2675,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.115833,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.417417,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.036166999999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.1645,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.053042000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.20825,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.104833,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.323042000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.014542,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.155541,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.113707999999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.190834,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.155709,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.381084,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.073584,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.151625,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.147708,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.263792,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        }
+      ],
+      "user_s": 0.33,
+      "system_s": 0.0,
+      "peak_rss_bytes": 2670592,
+      "time_report": "        0.33 real         0.33 user         0.00 sys\n             2670592  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 345  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                  42  involuntary context switches\n          5722252165  instructions retired\n          1234408503  cycles elapsed\n             1622352  peak memory footprint\n"
+    },
+    {
+      "scenario": "uniform_1",
+      "version": "proposed",
+      "threads": 1,
+      "pass": 1,
+      "samples": [
+        {
+          "elapsed_ms": 8.891625,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.887417,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.935083,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.947875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.895792,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.96125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.842542,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.013874999999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.923542,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.937292,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.945459,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.947166,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.911499999999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.022708000000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.909375,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.992042,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.7905,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.924916,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.831541999999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.012625,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.8985,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.819125000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.888583,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.877667,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.953790999999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 9.030084,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.888959,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.956957999999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.974917000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 8.998416,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        }
+      ],
+      "user_s": 0.31,
+      "system_s": 0.0,
+      "peak_rss_bytes": 2588672,
+      "time_report": "        0.32 real         0.31 user         0.00 sys\n             2588672  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 340  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                   7  involuntary context switches\n          5719585231  instructions retired\n          1191394562  cycles elapsed\n             1540432  peak memory footprint\n"
+    },
+    {
+      "scenario": "uniform_1",
+      "version": "baseline",
+      "threads": 1,
+      "pass": 1,
+      "samples": [
+        {
+          "elapsed_ms": 0.907458,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.8835419999999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.880334,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.875167,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.9029590000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.8981250000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.898041,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.897459,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.897958,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.89725,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.897792,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.898,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.897667,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.907333,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.897458,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.911875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.897625,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.897958,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.918708,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.904208,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.916625,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.8982089999999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.900458,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.896875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.912792,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.9047499999999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.899875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.899959,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.899458,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 0.9109590000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        }
+      ],
+      "user_s": 0.03,
+      "system_s": 0.0,
+      "peak_rss_bytes": 2424832,
+      "time_report": "        0.04 real         0.03 user         0.00 sys\n             2424832  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 330  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                   6  involuntary context switches\n           738378761  instructions retired\n           125665713  cycles elapsed\n             1392976  peak memory footprint\n"
+    },
+    {
+      "scenario": "uniform_3",
+      "version": "baseline",
+      "threads": 1,
+      "pass": 0,
+      "samples": [
+        {
+          "elapsed_ms": 2.0573330000000003,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.0508330000000004,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.0543340000000003,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.048375,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.06775,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.055875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.065958,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.051916,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.055875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.045875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.0517920000000003,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.05025,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.055291,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.0557499999999997,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.088875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.04775,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.0495,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.050208,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.0580410000000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.0477920000000003,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.060792,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.060791,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.064791,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.070333,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.049125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.049334,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.055791,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.054792,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.0539159999999996,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.073334,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        }
+      ],
+      "user_s": 0.07,
+      "system_s": 0.0,
+      "peak_rss_bytes": 2424832,
+      "time_report": "        0.08 real         0.07 user         0.00 sys\n             2424832  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 330  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                   7  involuntary context switches\n          1589562609  instructions retired\n           278466486  cycles elapsed\n             1392976  peak memory footprint\n"
+    },
+    {
+      "scenario": "uniform_3",
+      "version": "proposed",
+      "threads": 1,
+      "pass": 0,
+      "samples": [
+        {
+          "elapsed_ms": 13.282125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.167250000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.05475,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.373417,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.10625,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.352875000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.022208000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.060749999999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.212958,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.188709,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.405000000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.120042,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.012167,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.6155,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.001417,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.30275,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.999375,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.168208,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.148541999999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.134708,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.300958999999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.081875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.114042,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.387208,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.936041000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.880334,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.090459000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.2475,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.589167,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.221292,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        }
+      ],
+      "user_s": 0.46,
+      "system_s": 0.0,
+      "peak_rss_bytes": 2637824,
+      "time_report": "        0.47 real         0.46 user         0.00 sys\n             2637824  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 343  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                   6  involuntary context switches\n          8446796511  instructions retired\n          1757803116  cycles elapsed\n             1589584  peak memory footprint\n"
+    },
+    {
+      "scenario": "uniform_3",
+      "version": "proposed",
+      "threads": 1,
+      "pass": 1,
+      "samples": [
+        {
+          "elapsed_ms": 13.156125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.89775,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.835708,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.990958000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.844541,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.0145,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.880125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.890708,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.980291,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.051665999999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.852041,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.860084,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.000166,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.778834,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.966833000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.255332999999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.000167,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.789583,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.811792,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.913,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.766417,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.8255,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.009833,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.807832999999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.963541000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.127875000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.845958,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.856417,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 12.996250000000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 13.11375,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        }
+      ],
+      "user_s": 0.45,
+      "system_s": 0.0,
+      "peak_rss_bytes": 2621440,
+      "time_report": "        0.46 real         0.45 user         0.00 sys\n             2621440  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 342  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                   6  involuntary context switches\n          8446204237  instructions retired\n          1722858474  cycles elapsed\n             1573200  peak memory footprint\n"
+    },
+    {
+      "scenario": "uniform_3",
+      "version": "baseline",
+      "threads": 1,
+      "pass": 1,
+      "samples": [
+        {
+          "elapsed_ms": 2.059542,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.062,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.061,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.069334,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.0570419999999996,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.06425,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.064458,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.057416,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.059,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.0640419999999997,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.077,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.0509999999999997,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.052042,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.067375,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.050292,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.050792,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.057125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.0555,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.059084,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.051458,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.051583,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.05025,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.06675,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.060959,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.058625,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.0565409999999997,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.0585,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.088875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.063,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 2.0612500000000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        }
+      ],
+      "user_s": 0.07,
+      "system_s": 0.0,
+      "peak_rss_bytes": 2424832,
+      "time_report": "        0.08 real         0.07 user         0.00 sys\n             2424832  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 330  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                   7  involuntary context switches\n          1589448449  instructions retired\n           279213452  cycles elapsed\n             1392976  peak memory footprint\n"
+    },
+    {
+      "scenario": "slow_consumer",
+      "version": "baseline",
+      "threads": 1,
+      "pass": 0,
+      "samples": [
+        {
+          "elapsed_ms": 28.352791,
+          "ready_delivery_ms": 28.337166,
+          "registration_ms": 24.648333,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.652708,
+          "ready_delivery_ms": 35.635958,
+          "registration_ms": 31.093916999999998,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 30.964417,
+          "ready_delivery_ms": 30.951125,
+          "registration_ms": 27.000459,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.635416,
+          "ready_delivery_ms": 36.620083,
+          "registration_ms": 32.089209000000004,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 29.997209,
+          "ready_delivery_ms": 29.980916999999998,
+          "registration_ms": 25.437291000000002,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.719833,
+          "ready_delivery_ms": 35.708333,
+          "registration_ms": 31.176875,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 27.487958,
+          "ready_delivery_ms": 27.475083,
+          "registration_ms": 22.934124999999998,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 29.519042,
+          "ready_delivery_ms": 29.504917,
+          "registration_ms": 26.050291,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.196208,
+          "ready_delivery_ms": 32.182125,
+          "registration_ms": 28.465833,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.344875,
+          "ready_delivery_ms": 33.331708,
+          "registration_ms": 28.791625,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 27.560208,
+          "ready_delivery_ms": 27.545625,
+          "registration_ms": 22.982499999999998,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.339583999999995,
+          "ready_delivery_ms": 33.32425,
+          "registration_ms": 29.231165999999998,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.599167,
+          "ready_delivery_ms": 35.588209,
+          "registration_ms": 31.059375,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 27.545582999999997,
+          "ready_delivery_ms": 27.534208,
+          "registration_ms": 22.99725,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.625583,
+          "ready_delivery_ms": 35.612790999999994,
+          "registration_ms": 31.080666,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 34.299084,
+          "ready_delivery_ms": 34.287417,
+          "registration_ms": 30.793791000000002,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.178542,
+          "ready_delivery_ms": 28.166708,
+          "registration_ms": 23.63375,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 25.763375,
+          "ready_delivery_ms": 25.748458,
+          "registration_ms": 21.41875,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.269458,
+          "ready_delivery_ms": 26.256958,
+          "registration_ms": 21.727083,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.880834,
+          "ready_delivery_ms": 32.868167,
+          "registration_ms": 28.337083,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.801917,
+          "ready_delivery_ms": 32.790458,
+          "registration_ms": 28.258792,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.600208,
+          "ready_delivery_ms": 28.583042,
+          "registration_ms": 25.555083999999997,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.134334,
+          "ready_delivery_ms": 32.122709,
+          "registration_ms": 27.581667,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.146875,
+          "ready_delivery_ms": 36.13525,
+          "registration_ms": 31.58225,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.601208,
+          "ready_delivery_ms": 36.593666,
+          "registration_ms": 32.057207999999996,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.582291000000005,
+          "ready_delivery_ms": 36.573833,
+          "registration_ms": 32.050708,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.120541,
+          "ready_delivery_ms": 33.108625,
+          "registration_ms": 28.574875,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.630791,
+          "ready_delivery_ms": 35.619499999999995,
+          "registration_ms": 31.088250000000002,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.630917,
+          "ready_delivery_ms": 28.615417,
+          "registration_ms": 24.069083000000003,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.887,
+          "ready_delivery_ms": 35.876834,
+          "registration_ms": 31.315334,
+          "deliveries": 2
+        }
+      ],
+      "user_s": 0.0,
+      "system_s": 0.0,
+      "peak_rss_bytes": 2457600,
+      "time_report": "        1.14 real         0.00 user         0.00 sys\n             2457600  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 332  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                  89  involuntary context switches\n            20038714  instructions retired\n            13453735  cycles elapsed\n             1425744  peak memory footprint\n"
+    },
+    {
+      "scenario": "slow_consumer",
+      "version": "proposed",
+      "threads": 1,
+      "pass": 0,
+      "samples": [
+        {
+          "elapsed_ms": 27.937709,
+          "ready_delivery_ms": 0.014,
+          "registration_ms": 0.011375,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.0325,
+          "ready_delivery_ms": 0.021959,
+          "registration_ms": 0.012125,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.128042,
+          "ready_delivery_ms": 0.014167,
+          "registration_ms": 0.018417,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.160083,
+          "ready_delivery_ms": 0.067583,
+          "registration_ms": 0.013791999999999999,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.079375000000006,
+          "ready_delivery_ms": 0.015833,
+          "registration_ms": 0.011458,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.217084,
+          "ready_delivery_ms": 0.01675,
+          "registration_ms": 0.014916,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.458957999999996,
+          "ready_delivery_ms": 0.0205,
+          "registration_ms": 0.012041,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 31.585250000000002,
+          "ready_delivery_ms": 0.012292,
+          "registration_ms": 0.014457999999999999,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.335375,
+          "ready_delivery_ms": 0.021625000000000002,
+          "registration_ms": 0.0135,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.268083,
+          "ready_delivery_ms": 0.0145,
+          "registration_ms": 0.008666,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.232584,
+          "ready_delivery_ms": 0.02375,
+          "registration_ms": 0.008708,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.76775,
+          "ready_delivery_ms": 0.022292,
+          "registration_ms": 0.013,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 27.986458,
+          "ready_delivery_ms": 0.019375,
+          "registration_ms": 0.012707999999999999,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 30.645417000000002,
+          "ready_delivery_ms": 0.011583000000000001,
+          "registration_ms": 0.018083,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 34.506167,
+          "ready_delivery_ms": 0.013125000000000001,
+          "registration_ms": 0.015290999999999999,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 34.665542,
+          "ready_delivery_ms": 0.014459,
+          "registration_ms": 0.014,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.551917,
+          "ready_delivery_ms": 0.033417,
+          "registration_ms": 0.012125,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.154208,
+          "ready_delivery_ms": 0.014124999999999999,
+          "registration_ms": 0.012166,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.725583,
+          "ready_delivery_ms": 0.016625,
+          "registration_ms": 0.013583,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.612833,
+          "ready_delivery_ms": 0.014041,
+          "registration_ms": 0.009375,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 30.984875,
+          "ready_delivery_ms": 0.012541,
+          "registration_ms": 0.0025,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 31.858042000000005,
+          "ready_delivery_ms": 0.008375,
+          "registration_ms": 0.006,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.11725,
+          "ready_delivery_ms": 0.012707999999999999,
+          "registration_ms": 0.002333,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.56475,
+          "ready_delivery_ms": 0.012167,
+          "registration_ms": 0.018000000000000002,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.627584,
+          "ready_delivery_ms": 0.014584,
+          "registration_ms": 0.009375,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.314375,
+          "ready_delivery_ms": 0.012916,
+          "registration_ms": 0.00925,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.3945,
+          "ready_delivery_ms": 0.014166,
+          "registration_ms": 0.023292,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 30.914917,
+          "ready_delivery_ms": 0.014084,
+          "registration_ms": 0.007458,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.519000000000005,
+          "ready_delivery_ms": 0.013666,
+          "registration_ms": 0.029209000000000002,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.489292,
+          "ready_delivery_ms": 0.012374999999999999,
+          "registration_ms": 0.011292,
+          "deliveries": 2
+        }
+      ],
+      "user_s": 0.0,
+      "system_s": 0.0,
+      "peak_rss_bytes": 2539520,
+      "time_report": "        1.14 real         0.00 user         0.00 sys\n             2539520  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 338  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                  87  involuntary context switches\n            21389890  instructions retired\n            27746838  cycles elapsed\n             1491280  peak memory footprint\n"
+    },
+    {
+      "scenario": "slow_consumer",
+      "version": "proposed",
+      "threads": 1,
+      "pass": 1,
+      "samples": [
+        {
+          "elapsed_ms": 36.695291999999995,
+          "ready_delivery_ms": 0.012917,
+          "registration_ms": 0.008124999999999999,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.219708000000004,
+          "ready_delivery_ms": 0.029708000000000002,
+          "registration_ms": 0.023083,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 25.629125,
+          "ready_delivery_ms": 0.012625,
+          "registration_ms": 0.012041999999999999,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.211,
+          "ready_delivery_ms": 0.012167,
+          "registration_ms": 0.012125,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.179875,
+          "ready_delivery_ms": 0.012875,
+          "registration_ms": 0.001792,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 30.194709,
+          "ready_delivery_ms": 0.013667,
+          "registration_ms": 0.012875,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.074707999999998,
+          "ready_delivery_ms": 0.012792000000000001,
+          "registration_ms": 0.012083,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.368,
+          "ready_delivery_ms": 0.010208,
+          "registration_ms": 0.019833,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.032667000000004,
+          "ready_delivery_ms": 0.014375,
+          "registration_ms": 0.01225,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.795583,
+          "ready_delivery_ms": 0.012458,
+          "registration_ms": 0.013667,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.605166000000004,
+          "ready_delivery_ms": 0.012791,
+          "registration_ms": 0.003125,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.598667,
+          "ready_delivery_ms": 0.012958,
+          "registration_ms": 0.007875,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 31.642207999999997,
+          "ready_delivery_ms": 0.022292,
+          "registration_ms": 0.012167,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.635792,
+          "ready_delivery_ms": 0.013084,
+          "registration_ms": 0.008375,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 27.252499999999998,
+          "ready_delivery_ms": 0.014292,
+          "registration_ms": 0.010625,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 30.101667,
+          "ready_delivery_ms": 0.014584,
+          "registration_ms": 0.014124999999999999,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 27.678292,
+          "ready_delivery_ms": 0.01275,
+          "registration_ms": 0.003375,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.646709,
+          "ready_delivery_ms": 0.014167,
+          "registration_ms": 0.020084,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 34.403459,
+          "ready_delivery_ms": 0.013375,
+          "registration_ms": 0.019666,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.302708,
+          "ready_delivery_ms": 0.014957999999999999,
+          "registration_ms": 0.012707999999999999,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 31.6595,
+          "ready_delivery_ms": 0.023667,
+          "registration_ms": 0.017042,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.592625,
+          "ready_delivery_ms": 0.012416,
+          "registration_ms": 0.003125,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 25.991125,
+          "ready_delivery_ms": 0.012917,
+          "registration_ms": 0.003,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.545874999999995,
+          "ready_delivery_ms": 0.011125,
+          "registration_ms": 0.0115,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.036749999999998,
+          "ready_delivery_ms": 0.013917,
+          "registration_ms": 0.017542,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.630874999999996,
+          "ready_delivery_ms": 0.012584,
+          "registration_ms": 0.007958999999999999,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 25.643417000000003,
+          "ready_delivery_ms": 0.027542,
+          "registration_ms": 0.007,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 25.726208,
+          "ready_delivery_ms": 0.014542000000000001,
+          "registration_ms": 0.015333000000000001,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.9,
+          "ready_delivery_ms": 0.010041,
+          "registration_ms": 0.006083,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 27.232458,
+          "ready_delivery_ms": 0.013625000000000002,
+          "registration_ms": 0.002333,
+          "deliveries": 2
+        }
+      ],
+      "user_s": 0.0,
+      "system_s": 0.0,
+      "peak_rss_bytes": 2555904,
+      "time_report": "        1.13 real         0.00 user         0.00 sys\n             2555904  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 338  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                  87  involuntary context switches\n            21418350  instructions retired\n            30987333  cycles elapsed\n             1507664  peak memory footprint\n"
+    },
+    {
+      "scenario": "slow_consumer",
+      "version": "baseline",
+      "threads": 1,
+      "pass": 1,
+      "samples": [
+        {
+          "elapsed_ms": 33.343375,
+          "ready_delivery_ms": 33.332333,
+          "registration_ms": 29.707833,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.222916999999995,
+          "ready_delivery_ms": 32.205042000000006,
+          "registration_ms": 28.099542000000003,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.807415999999996,
+          "ready_delivery_ms": 33.797625,
+          "registration_ms": 29.252375,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.604167,
+          "ready_delivery_ms": 35.593875,
+          "registration_ms": 31.070708,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 34.81275,
+          "ready_delivery_ms": 34.801417,
+          "registration_ms": 31.071792000000002,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 34.835834000000006,
+          "ready_delivery_ms": 34.825375,
+          "registration_ms": 30.288083,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.040625,
+          "ready_delivery_ms": 28.031875000000003,
+          "registration_ms": 24.434125,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 29.842291,
+          "ready_delivery_ms": 29.831458,
+          "registration_ms": 25.281583,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.960625,
+          "ready_delivery_ms": 33.948708,
+          "registration_ms": 29.420875,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.277667,
+          "ready_delivery_ms": 36.269083,
+          "registration_ms": 33.064709,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.570625,
+          "ready_delivery_ms": 26.562083,
+          "registration_ms": 22.569291,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.873167,
+          "ready_delivery_ms": 33.863167,
+          "registration_ms": 29.332333,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 31.574084000000003,
+          "ready_delivery_ms": 31.566792000000003,
+          "registration_ms": 27.047833,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.017791,
+          "ready_delivery_ms": 26.009,
+          "registration_ms": 21.495375,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 27.918208,
+          "ready_delivery_ms": 27.907625,
+          "registration_ms": 23.379458999999997,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.580875,
+          "ready_delivery_ms": 32.569292,
+          "registration_ms": 29.513417,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.49725,
+          "ready_delivery_ms": 26.485666000000002,
+          "registration_ms": 21.95775,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 30.624624999999998,
+          "ready_delivery_ms": 30.613791000000003,
+          "registration_ms": 26.082125,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.570208,
+          "ready_delivery_ms": 35.559666,
+          "registration_ms": 31.02225,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 34.49575,
+          "ready_delivery_ms": 34.487708999999995,
+          "registration_ms": 29.953917,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.162583000000005,
+          "ready_delivery_ms": 32.150416,
+          "registration_ms": 27.575958,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.3205,
+          "ready_delivery_ms": 33.309459,
+          "registration_ms": 30.253249999999998,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 31.725834000000003,
+          "ready_delivery_ms": 31.71475,
+          "registration_ms": 27.173834,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 34.035875,
+          "ready_delivery_ms": 34.024625,
+          "registration_ms": 31.00475,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 29.443166,
+          "ready_delivery_ms": 29.433332999999998,
+          "registration_ms": 24.91225,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 27.39375,
+          "ready_delivery_ms": 27.382666999999998,
+          "registration_ms": 23.0515,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 31.518791999999998,
+          "ready_delivery_ms": 31.509750000000004,
+          "registration_ms": 26.989541999999997,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.178667,
+          "ready_delivery_ms": 26.169999999999998,
+          "registration_ms": 21.638082999999998,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.589209,
+          "ready_delivery_ms": 35.5775,
+          "registration_ms": 31.062124999999998,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 29.839917,
+          "ready_delivery_ms": 29.831583,
+          "registration_ms": 25.304875000000003,
+          "deliveries": 2
+        }
+      ],
+      "user_s": 0.0,
+      "system_s": 0.0,
+      "peak_rss_bytes": 2441216,
+      "time_report": "        1.12 real         0.00 user         0.00 sys\n             2441216  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 331  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                  88  involuntary context switches\n            20022366  instructions retired\n            27376837  cycles elapsed\n             1409360  peak memory footprint\n"
+    },
+    {
+      "scenario": "uniform_1",
+      "version": "baseline",
+      "threads": 2,
+      "pass": 0,
+      "samples": [
+        {
+          "elapsed_ms": 2.932042,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 2.972709,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 3.04425,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 2.928375,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 3.1145,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 3.796166,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 3.210834,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 3.2411250000000003,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 3.184834,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 2.8689169999999997,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 2.411333,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 2.397125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 2.427875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 2.4212919999999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 2.1775840000000004,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 2.1171670000000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.968125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.9884999999999997,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.976084,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 2.01675,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.9363329999999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.86025,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.811666,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.7242920000000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.722875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.704917,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.681666,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.6655000000000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.58125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.5295,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        }
+      ],
+      "user_s": 0.14,
+      "system_s": 0.04,
+      "peak_rss_bytes": 2539520,
+      "time_report": "        0.10 real         0.14 user         0.04 sys\n             2539520  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 338  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n               11751  involuntary context switches\n           936111594  instructions retired\n           453861196  cycles elapsed\n             1491280  peak memory footprint\n"
+    },
+    {
+      "scenario": "uniform_1",
+      "version": "proposed",
+      "threads": 2,
+      "pass": 0,
+      "samples": [
+        {
+          "elapsed_ms": 150.922041,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.701167,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 150.125709,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 150.139625,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.75904200000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 162.752541,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.757583,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 150.341209,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.47175,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 150.0075,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.97225,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 147.670334,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 150.066416,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.29245799999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 150.74437500000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 150.23083300000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 150.280709,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 150.095083,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.98329199999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.911834,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.119709,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.723625,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 148.998958,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.17749999999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.28725,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 150.333416,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.88754200000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 150.109666,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 151.647042,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 150.364459,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        }
+      ],
+      "user_s": 2.02,
+      "system_s": 4.41,
+      "peak_rss_bytes": 2801664,
+      "time_report": "        5.26 real         2.02 user         4.41 sys\n             2801664  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 353  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n             2091635  involuntary context switches\n         39270045670  instructions retired\n         19007372523  cycles elapsed\n             1737040  peak memory footprint\n"
+    },
+    {
+      "scenario": "uniform_1",
+      "version": "proposed",
+      "threads": 2,
+      "pass": 1,
+      "samples": [
+        {
+          "elapsed_ms": 152.13987500000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 150.68975,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.957125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.690417,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.649375,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.94370800000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.25625,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.947125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 150.845375,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 156.09741699999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 159.52195899999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 155.024625,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 142.69554200000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 152.790458,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 158.3855,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 152.181667,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 152.716042,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.09170899999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 144.922875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 159.687709,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 156.89675,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 153.003167,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 154.846375,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 168.851958,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 154.314291,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 156.64987499999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.453958,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.672959,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.795708,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 149.819291,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        }
+      ],
+      "user_s": 2.01,
+      "system_s": 4.37,
+      "peak_rss_bytes": 2785280,
+      "time_report": "        5.34 real         2.01 user         4.37 sys\n             2785280  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 352  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n             2093357  involuntary context switches\n         39432377871  instructions retired\n         19075655672  cycles elapsed\n             1720656  peak memory footprint\n"
+    },
+    {
+      "scenario": "uniform_1",
+      "version": "baseline",
+      "threads": 2,
+      "pass": 1,
+      "samples": [
+        {
+          "elapsed_ms": 1.724542,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.7005,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.755083,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.7294999999999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.70575,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.69925,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.71325,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.684875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.740125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.76075,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.77625,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.722416,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.75825,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.754875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.7166670000000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.6869999999999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.7392919999999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.670042,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.669292,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.6689999999999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.670833,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.6575419999999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.65975,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.630708,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.6483750000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.693583,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.6995,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.7550000000000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.67825,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        },
+        {
+          "elapsed_ms": 1.775083,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 20000
+        }
+      ],
+      "user_s": 0.1,
+      "system_s": 0.02,
+      "peak_rss_bytes": 2506752,
+      "time_report": "        0.07 real         0.10 user         0.02 sys\n             2506752  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 336  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n               10041  involuntary context switches\n           900614975  instructions retired\n           393454773  cycles elapsed\n             1458512  peak memory footprint\n"
+    },
+    {
+      "scenario": "uniform_3",
+      "version": "baseline",
+      "threads": 2,
+      "pass": 0,
+      "samples": [
+        {
+          "elapsed_ms": 3.473083,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.4475000000000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.403583,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.5067079999999997,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.4034999999999997,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.4768339999999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.473208,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.4904580000000003,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.540708,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.742833,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.52125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.486667,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.417584,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.4295,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.416875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.410875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.3635420000000003,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.360084,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.38425,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.450041,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.3645419999999997,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.399833,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.401791,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.461459,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.4736670000000003,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.728416,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.71375,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.809834,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.8020419999999997,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.740125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        }
+      ],
+      "user_s": 0.2,
+      "system_s": 0.07,
+      "peak_rss_bytes": 2523136,
+      "time_report": "        0.13 real         0.20 user         0.07 sys\n             2523136  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 338  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n               26467  involuntary context switches\n          2104566179  instructions retired\n           918756393  cycles elapsed\n             1474896  peak memory footprint\n"
+    },
+    {
+      "scenario": "uniform_3",
+      "version": "proposed",
+      "threads": 2,
+      "pass": 0,
+      "samples": [
+        {
+          "elapsed_ms": 159.212583,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 159.521125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 159.48558400000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 160.063375,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 160.741916,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 158.147917,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 161.005125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 159.876875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 160.048708,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 159.248084,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 158.236875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 159.255459,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 158.466292,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 158.546166,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 158.819583,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 161.37216700000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 160.278333,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 158.894417,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 158.320416,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 158.654125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 158.12004199999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 158.861292,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 158.450583,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 158.19816600000001,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 158.009708,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 158.462209,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 159.239542,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 158.894667,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 166.421792,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 167.637125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        }
+      ],
+      "user_s": 2.45,
+      "system_s": 4.75,
+      "peak_rss_bytes": 2785280,
+      "time_report": "        5.61 real         2.45 user         4.75 sys\n             2785280  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 352  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n             2103331  involuntary context switches\n         42792407736  instructions retired\n         21330121696  cycles elapsed\n             1720656  peak memory footprint\n"
+    },
+    {
+      "scenario": "uniform_3",
+      "version": "proposed",
+      "threads": 2,
+      "pass": 1,
+      "samples": [
+        {
+          "elapsed_ms": 157.24525,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 186.06916700000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 157.103708,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 155.915,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 157.13079199999999,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 156.449375,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 156.491042,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 157.24591700000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 156.190875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 156.280833,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 157.190292,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 156.032375,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 156.682125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 156.987791,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 155.85875,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 156.93216700000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 156.2485,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 157.00775,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 157.031416,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 156.972958,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 157.717584,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 156.921625,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 158.514084,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 156.701375,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 156.304833,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 157.182625,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 156.64979200000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 157.07850000000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 156.75633299999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 156.57708300000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        }
+      ],
+      "user_s": 2.39,
+      "system_s": 4.66,
+      "peak_rss_bytes": 2801664,
+      "time_report": "        5.55 real         2.39 user         4.66 sys\n             2801664  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 353  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n             2101002  involuntary context switches\n         42643324636  instructions retired\n         20824871155  cycles elapsed\n             1737040  peak memory footprint\n"
+    },
+    {
+      "scenario": "uniform_3",
+      "version": "baseline",
+      "threads": 2,
+      "pass": 1,
+      "samples": [
+        {
+          "elapsed_ms": 3.747,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.762292,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.7934579999999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.801292,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.7799579999999997,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.784958,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.8679159999999997,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.758584,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.808667,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.7995419999999998,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.78675,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.742,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.799125,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.8404580000000004,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.789209,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.797584,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.8046249999999997,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.771083,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.76325,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.742166,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.807042,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.857791,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.8041250000000004,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.7612919999999996,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.809708,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.763916,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.751375,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.787458,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.8148750000000002,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        },
+        {
+          "elapsed_ms": 3.7138750000000003,
+          "ready_delivery_ms": null,
+          "registration_ms": null,
+          "deliveries": 60000
+        }
+      ],
+      "user_s": 0.21,
+      "system_s": 0.07,
+      "peak_rss_bytes": 2506752,
+      "time_report": "        0.14 real         0.21 user         0.07 sys\n             2506752  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 338  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n               28239  involuntary context switches\n          2134725452  instructions retired\n           914294284  cycles elapsed\n             1458512  peak memory footprint\n"
+    },
+    {
+      "scenario": "slow_consumer",
+      "version": "baseline",
+      "threads": 2,
+      "pass": 0,
+      "samples": [
+        {
+          "elapsed_ms": 36.312,
+          "ready_delivery_ms": 36.292542,
+          "registration_ms": 31.747833000000004,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.719916999999995,
+          "ready_delivery_ms": 35.700333,
+          "registration_ms": 32.064,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 27.117041,
+          "ready_delivery_ms": 27.100291,
+          "registration_ms": 22.548833000000002,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 31.928167000000002,
+          "ready_delivery_ms": 31.907333,
+          "registration_ms": 27.369,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 34.664541,
+          "ready_delivery_ms": 34.636874999999996,
+          "registration_ms": 30.064667,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.670042,
+          "ready_delivery_ms": 36.651125,
+          "registration_ms": 32.096334,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.070709,
+          "ready_delivery_ms": 28.053209,
+          "registration_ms": 23.508584,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.657416999999995,
+          "ready_delivery_ms": 35.641292,
+          "registration_ms": 31.102125,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 29.593666000000002,
+          "ready_delivery_ms": 29.574583,
+          "registration_ms": 25.01375,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.384958,
+          "ready_delivery_ms": 33.313125,
+          "registration_ms": 30.063791,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 27.143041999999998,
+          "ready_delivery_ms": 27.128584,
+          "registration_ms": 22.576249999999998,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 34.766042,
+          "ready_delivery_ms": 34.751417,
+          "registration_ms": 30.169166,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.776125,
+          "ready_delivery_ms": 28.7435,
+          "registration_ms": 24.604666,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 34.19175,
+          "ready_delivery_ms": 34.173750000000005,
+          "registration_ms": 30.87775,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 30.119708,
+          "ready_delivery_ms": 30.10425,
+          "registration_ms": 25.557790999999998,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 31.603417,
+          "ready_delivery_ms": 31.578125,
+          "registration_ms": 27.045125,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.127416,
+          "ready_delivery_ms": 33.109166,
+          "registration_ms": 28.556666,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.902165999999994,
+          "ready_delivery_ms": 33.8835,
+          "registration_ms": 29.307291,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.323834,
+          "ready_delivery_ms": 26.313,
+          "registration_ms": 22.048834,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.103125,
+          "ready_delivery_ms": 28.086291,
+          "registration_ms": 24.035875,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.288124999999997,
+          "ready_delivery_ms": 26.271833,
+          "registration_ms": 21.709875,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.448417,
+          "ready_delivery_ms": 36.418167000000004,
+          "registration_ms": 32.087958,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 29.780708,
+          "ready_delivery_ms": 29.756916,
+          "registration_ms": 25.126915999999998,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 34.316874999999996,
+          "ready_delivery_ms": 34.297083,
+          "registration_ms": 29.734083000000002,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.173917,
+          "ready_delivery_ms": 28.146209,
+          "registration_ms": 23.605833,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.614833,
+          "ready_delivery_ms": 26.598625000000002,
+          "registration_ms": 22.043958999999997,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.52375,
+          "ready_delivery_ms": 32.504208,
+          "registration_ms": 27.957333000000002,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 31.122667,
+          "ready_delivery_ms": 31.108916999999998,
+          "registration_ms": 26.776457999999998,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 30.245291,
+          "ready_delivery_ms": 30.230541,
+          "registration_ms": 26.106625,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.763334,
+          "ready_delivery_ms": 32.732417,
+          "registration_ms": 28.868833,
+          "deliveries": 2
+        }
+      ],
+      "user_s": 0.0,
+      "system_s": 0.0,
+      "peak_rss_bytes": 2539520,
+      "time_report": "        1.12 real         0.00 user         0.00 sys\n             2539520  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 338  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 270  involuntary context switches\n            23339930  instructions retired\n            19956639  cycles elapsed\n             1491280  peak memory footprint\n"
+    },
+    {
+      "scenario": "slow_consumer",
+      "version": "proposed",
+      "threads": 2,
+      "pass": 0,
+      "samples": [
+        {
+          "elapsed_ms": 28.676916,
+          "ready_delivery_ms": 0.034125,
+          "registration_ms": 0.054542,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 25.764458,
+          "ready_delivery_ms": 0.037542,
+          "registration_ms": 0.041625,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.559125,
+          "ready_delivery_ms": 0.012542,
+          "registration_ms": 0.042083999999999996,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.826207999999998,
+          "ready_delivery_ms": 0.017958,
+          "registration_ms": 0.032791,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.768209,
+          "ready_delivery_ms": 0.035417000000000004,
+          "registration_ms": 0.0445,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.722916,
+          "ready_delivery_ms": 0.01425,
+          "registration_ms": 0.044958,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.067791000000003,
+          "ready_delivery_ms": 0.0195,
+          "registration_ms": 0.029084000000000002,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.439584,
+          "ready_delivery_ms": 0.032042,
+          "registration_ms": 0.056749999999999995,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.440834,
+          "ready_delivery_ms": 0.035250000000000004,
+          "registration_ms": 0.053042,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.54325,
+          "ready_delivery_ms": 0.0305,
+          "registration_ms": 0.015166,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.418959,
+          "ready_delivery_ms": 0.035584,
+          "registration_ms": 0.037958,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 29.793083000000003,
+          "ready_delivery_ms": 0.043125,
+          "registration_ms": 0.057374999999999995,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.714957999999996,
+          "ready_delivery_ms": 0.037708,
+          "registration_ms": 0.045417,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 29.576,
+          "ready_delivery_ms": 0.017792,
+          "registration_ms": 0.042249999999999996,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.238833,
+          "ready_delivery_ms": 0.0265,
+          "registration_ms": 0.013125000000000001,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 30.266083,
+          "ready_delivery_ms": 0.020916,
+          "registration_ms": 0.050624999999999996,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.733792,
+          "ready_delivery_ms": 0.074458,
+          "registration_ms": 0.029249999999999998,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 30.059375,
+          "ready_delivery_ms": 0.041291999999999995,
+          "registration_ms": 0.023542,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 30.615707999999998,
+          "ready_delivery_ms": 0.017792,
+          "registration_ms": 0.018667,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 31.300792,
+          "ready_delivery_ms": 0.020458999999999998,
+          "registration_ms": 0.029667,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 31.691709,
+          "ready_delivery_ms": 0.037917000000000006,
+          "registration_ms": 0.025625,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.293750000000003,
+          "ready_delivery_ms": 0.012542,
+          "registration_ms": 0.031124999999999996,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 30.163959000000002,
+          "ready_delivery_ms": 0.019625,
+          "registration_ms": 0.064875,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.264042,
+          "ready_delivery_ms": 0.018459,
+          "registration_ms": 0.053,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.642624999999995,
+          "ready_delivery_ms": 0.018334,
+          "registration_ms": 0.017459,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.354292,
+          "ready_delivery_ms": 0.036209,
+          "registration_ms": 0.033791999999999996,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.166209000000002,
+          "ready_delivery_ms": 0.023791999999999997,
+          "registration_ms": 0.034999999999999996,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.763667,
+          "ready_delivery_ms": 0.015583999999999999,
+          "registration_ms": 0.028249999999999997,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.351958,
+          "ready_delivery_ms": 0.024333,
+          "registration_ms": 0.077875,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.790208,
+          "ready_delivery_ms": 0.036667,
+          "registration_ms": 0.041832999999999995,
+          "deliveries": 2
+        }
+      ],
+      "user_s": 0.0,
+      "system_s": 0.01,
+      "peak_rss_bytes": 2686976,
+      "time_report": "        1.09 real         0.00 user         0.01 sys\n             2686976  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 346  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 689  involuntary context switches\n            31851370  instructions retired\n            33919895  cycles elapsed\n             1605968  peak memory footprint\n"
+    },
+    {
+      "scenario": "slow_consumer",
+      "version": "proposed",
+      "threads": 2,
+      "pass": 1,
+      "samples": [
+        {
+          "elapsed_ms": 36.785666,
+          "ready_delivery_ms": 0.017333,
+          "registration_ms": 0.0285,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.388541,
+          "ready_delivery_ms": 0.019625,
+          "registration_ms": 0.030375,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.43445800000001,
+          "ready_delivery_ms": 0.02175,
+          "registration_ms": 0.06125,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.768292,
+          "ready_delivery_ms": 0.037959,
+          "registration_ms": 0.03925,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 27.237833,
+          "ready_delivery_ms": 0.022583,
+          "registration_ms": 0.057624999999999996,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.332834,
+          "ready_delivery_ms": 0.015125,
+          "registration_ms": 0.021625000000000002,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.915792,
+          "ready_delivery_ms": 0.035625,
+          "registration_ms": 0.043332999999999997,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.017708999999996,
+          "ready_delivery_ms": 0.020874999999999998,
+          "registration_ms": 0.020417,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 29.264833,
+          "ready_delivery_ms": 0.015290999999999999,
+          "registration_ms": 0.02,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.820791,
+          "ready_delivery_ms": 0.018958,
+          "registration_ms": 0.039667,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 34.691667,
+          "ready_delivery_ms": 0.022292,
+          "registration_ms": 0.035583000000000004,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 29.735625000000002,
+          "ready_delivery_ms": 0.018416000000000002,
+          "registration_ms": 0.029833000000000002,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.034459,
+          "ready_delivery_ms": 0.039959,
+          "registration_ms": 0.035833000000000004,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 27.726292,
+          "ready_delivery_ms": 0.019875,
+          "registration_ms": 0.044042000000000005,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.713541,
+          "ready_delivery_ms": 0.018875000000000003,
+          "registration_ms": 0.021375,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 30.244791,
+          "ready_delivery_ms": 0.015666,
+          "registration_ms": 0.0275,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.266792,
+          "ready_delivery_ms": 0.048667,
+          "registration_ms": 0.039959,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 31.943959,
+          "ready_delivery_ms": 0.01325,
+          "registration_ms": 0.025208,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 34.63525,
+          "ready_delivery_ms": 0.016041,
+          "registration_ms": 0.059583000000000004,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.490458999999998,
+          "ready_delivery_ms": 0.016875,
+          "registration_ms": 0.027833,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 30.279084,
+          "ready_delivery_ms": 0.017542,
+          "registration_ms": 0.039041,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.744625,
+          "ready_delivery_ms": 0.016917,
+          "registration_ms": 0.029584,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 27.133916,
+          "ready_delivery_ms": 0.042166,
+          "registration_ms": 0.027708,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 29.210917,
+          "ready_delivery_ms": 0.034292,
+          "registration_ms": 0.026541,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.323459,
+          "ready_delivery_ms": 0.017959,
+          "registration_ms": 0.038083,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.848125,
+          "ready_delivery_ms": 0.02325,
+          "registration_ms": 0.031791,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 27.31175,
+          "ready_delivery_ms": 0.018541000000000002,
+          "registration_ms": 0.053166,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 27.843,
+          "ready_delivery_ms": 0.028,
+          "registration_ms": 0.052875,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 31.578374999999998,
+          "ready_delivery_ms": 0.032792,
+          "registration_ms": 0.014875000000000001,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 27.351834,
+          "ready_delivery_ms": 0.018459,
+          "registration_ms": 0.042291,
+          "deliveries": 2
+        }
+      ],
+      "user_s": 0.0,
+      "system_s": 0.01,
+      "peak_rss_bytes": 2654208,
+      "time_report": "        1.13 real         0.00 user         0.01 sys\n             2654208  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 344  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 692  involuntary context switches\n            31790995  instructions retired\n            42634426  cycles elapsed\n             1573200  peak memory footprint\n"
+    },
+    {
+      "scenario": "slow_consumer",
+      "version": "baseline",
+      "threads": 2,
+      "pass": 1,
+      "samples": [
+        {
+          "elapsed_ms": 34.310334,
+          "ready_delivery_ms": 34.293334,
+          "registration_ms": 30.757708,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.165333,
+          "ready_delivery_ms": 32.134707999999996,
+          "registration_ms": 29.1025,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.501708,
+          "ready_delivery_ms": 36.469666999999994,
+          "registration_ms": 33.086333,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 34.997417000000006,
+          "ready_delivery_ms": 34.975542,
+          "registration_ms": 30.421,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.18625,
+          "ready_delivery_ms": 35.153334,
+          "registration_ms": 31.079333000000002,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.644791000000005,
+          "ready_delivery_ms": 36.627250000000004,
+          "registration_ms": 32.036207999999995,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 27.150541,
+          "ready_delivery_ms": 27.122916,
+          "registration_ms": 24.067417,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 27.75625,
+          "ready_delivery_ms": 27.735583000000002,
+          "registration_ms": 24.638459,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 29.82725,
+          "ready_delivery_ms": 29.806625,
+          "registration_ms": 25.226417,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 32.830417,
+          "ready_delivery_ms": 32.814333,
+          "registration_ms": 29.571,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.139875,
+          "ready_delivery_ms": 36.124708999999996,
+          "registration_ms": 32.048583,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.618834,
+          "ready_delivery_ms": 35.601917,
+          "registration_ms": 31.048833000000002,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 30.672333,
+          "ready_delivery_ms": 30.654457999999998,
+          "registration_ms": 27.061833,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.868834,
+          "ready_delivery_ms": 26.8505,
+          "registration_ms": 22.310375,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 31.239208,
+          "ready_delivery_ms": 31.226457999999997,
+          "registration_ms": 26.671875,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.578125,
+          "ready_delivery_ms": 36.554667,
+          "registration_ms": 32.079583,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 28.731333000000003,
+          "ready_delivery_ms": 28.718041,
+          "registration_ms": 24.146792,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.700666000000002,
+          "ready_delivery_ms": 26.682416,
+          "registration_ms": 22.355834,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.036417,
+          "ready_delivery_ms": 35.999207999999996,
+          "registration_ms": 32.099458,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 35.316792,
+          "ready_delivery_ms": 35.298916999999996,
+          "registration_ms": 31.384041,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 25.870667,
+          "ready_delivery_ms": 25.835041999999998,
+          "registration_ms": 21.304125,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.698415999999998,
+          "ready_delivery_ms": 26.68125,
+          "registration_ms": 22.879917,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.854083,
+          "ready_delivery_ms": 33.832208,
+          "registration_ms": 29.292667,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 33.511083,
+          "ready_delivery_ms": 33.48975,
+          "registration_ms": 30.720041,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 34.755834,
+          "ready_delivery_ms": 34.737084,
+          "registration_ms": 30.456,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.616707999999996,
+          "ready_delivery_ms": 36.595208,
+          "registration_ms": 32.062124999999995,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 26.782917,
+          "ready_delivery_ms": 26.767542,
+          "registration_ms": 23.040459,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.19225,
+          "ready_delivery_ms": 36.160417,
+          "registration_ms": 33.088542,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 31.222125,
+          "ready_delivery_ms": 31.094917,
+          "registration_ms": 27.928667,
+          "deliveries": 2
+        },
+        {
+          "elapsed_ms": 36.70775,
+          "ready_delivery_ms": 36.672791000000004,
+          "registration_ms": 32.103916000000005,
+          "deliveries": 2
+        }
+      ],
+      "user_s": 0.0,
+      "system_s": 0.0,
+      "peak_rss_bytes": 2523136,
+      "time_report": "        1.15 real         0.00 user         0.00 sys\n             2523136  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                 337  page reclaims\n                   0  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                 277  involuntary context switches\n            23362233  instructions retired\n            31799252  cycles elapsed\n             1474896  peak memory footprint\n"
+    }
+  ]
+}

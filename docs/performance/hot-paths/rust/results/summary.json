@@ -1,0 +1,362 @@
+[
+  {
+    "case": "blocks",
+    "scenario": "straggler",
+    "version": "after",
+    "samples": 30,
+    "p50_ms": 61.21875,
+    "p95_ms": 64.958375,
+    "items_per_batch": 32,
+    "throughput_unit": "records/s",
+    "batch_normalized_items_per_second": 559.1006389589052,
+    "requests": {
+      "min": 32,
+      "median": 32.0,
+      "max": 32
+    },
+    "peak_concurrency": {
+      "min": 8,
+      "max": 8
+    }
+  },
+  {
+    "case": "blocks",
+    "scenario": "straggler",
+    "version": "before",
+    "samples": 30,
+    "p50_ms": 334.91191649999996,
+    "p95_ms": 340.009417,
+    "items_per_batch": 32,
+    "throughput_unit": "records/s",
+    "batch_normalized_items_per_second": 95.37684663598463,
+    "requests": {
+      "min": 32,
+      "median": 32.0,
+      "max": 32
+    },
+    "peak_concurrency": {
+      "min": 1,
+      "max": 1
+    }
+  },
+  {
+    "case": "blocks",
+    "scenario": "uniform",
+    "version": "after",
+    "samples": 30,
+    "p50_ms": 30.2974795,
+    "p95_ms": 31.598584,
+    "items_per_batch": 32,
+    "throughput_unit": "records/s",
+    "batch_normalized_items_per_second": 1057.3215571046371,
+    "requests": {
+      "min": 32,
+      "median": 32.0,
+      "max": 32
+    },
+    "peak_concurrency": {
+      "min": 8,
+      "max": 8
+    }
+  },
+  {
+    "case": "blocks",
+    "scenario": "uniform",
+    "version": "before",
+    "samples": 30,
+    "p50_ms": 234.246229,
+    "p95_ms": 237.846833,
+    "items_per_batch": 32,
+    "throughput_unit": "records/s",
+    "batch_normalized_items_per_second": 136.69878062818037,
+    "requests": {
+      "min": 32,
+      "median": 32.0,
+      "max": 32
+    },
+    "peak_concurrency": {
+      "min": 1,
+      "max": 1
+    }
+  },
+  {
+    "case": "blocks",
+    "scenario": "zero",
+    "version": "after",
+    "samples": 30,
+    "p50_ms": 0.09418750000000001,
+    "p95_ms": 0.115458,
+    "items_per_batch": 32,
+    "throughput_unit": "records/s",
+    "batch_normalized_items_per_second": 336660.0725712869,
+    "requests": {
+      "min": 32,
+      "median": 32.0,
+      "max": 32
+    },
+    "peak_concurrency": {
+      "min": 1,
+      "max": 1
+    }
+  },
+  {
+    "case": "blocks",
+    "scenario": "zero",
+    "version": "before",
+    "samples": 30,
+    "p50_ms": 0.0904165,
+    "p95_ms": 0.112708,
+    "items_per_batch": 32,
+    "throughput_unit": "records/s",
+    "batch_normalized_items_per_second": 345945.82128078514,
+    "requests": {
+      "min": 32,
+      "median": 32.0,
+      "max": 32
+    },
+    "peak_concurrency": {
+      "min": 1,
+      "max": 1
+    }
+  },
+  {
+    "case": "multisig_quorum",
+    "scenario": "straggler",
+    "version": "after",
+    "samples": 30,
+    "p50_ms": 23.8204375,
+    "p95_ms": 30.423167,
+    "items_per_batch": 1,
+    "throughput_unit": "quorums/s",
+    "batch_normalized_items_per_second": 41.3848829192072,
+    "requests": {
+      "min": 7,
+      "median": 7.0,
+      "max": 7
+    },
+    "peak_concurrency": {
+      "min": 4,
+      "max": 4
+    }
+  },
+  {
+    "case": "multisig_quorum",
+    "scenario": "straggler",
+    "version": "before",
+    "samples": 30,
+    "p50_ms": 61.3902085,
+    "p95_ms": 65.09075,
+    "items_per_batch": 1,
+    "throughput_unit": "quorums/s",
+    "batch_normalized_items_per_second": 16.262188024091188,
+    "requests": {
+      "min": 7,
+      "median": 7.0,
+      "max": 7
+    },
+    "peak_concurrency": {
+      "min": 4,
+      "max": 4
+    }
+  },
+  {
+    "case": "multisig_quorum",
+    "scenario": "uniform",
+    "version": "after",
+    "samples": 30,
+    "p50_ms": 14.3075415,
+    "p95_ms": 15.621209,
+    "items_per_batch": 1,
+    "throughput_unit": "quorums/s",
+    "batch_normalized_items_per_second": 70.85462065938216,
+    "requests": {
+      "min": 4,
+      "median": 4.0,
+      "max": 4
+    },
+    "peak_concurrency": {
+      "min": 4,
+      "max": 4
+    }
+  },
+  {
+    "case": "multisig_quorum",
+    "scenario": "uniform",
+    "version": "before",
+    "samples": 30,
+    "p50_ms": 14.469583,
+    "p95_ms": 15.906833,
+    "items_per_batch": 1,
+    "throughput_unit": "quorums/s",
+    "batch_normalized_items_per_second": 70.16765630583372,
+    "requests": {
+      "min": 4,
+      "median": 4.0,
+      "max": 4
+    },
+    "peak_concurrency": {
+      "min": 4,
+      "max": 4
+    }
+  },
+  {
+    "case": "multisig_quorum",
+    "scenario": "zero",
+    "version": "after",
+    "samples": 30,
+    "p50_ms": 3.397292,
+    "p95_ms": 3.616458,
+    "items_per_batch": 1,
+    "throughput_unit": "quorums/s",
+    "batch_normalized_items_per_second": 290.8128582905293,
+    "requests": {
+      "min": 3,
+      "median": 3.0,
+      "max": 3
+    },
+    "peak_concurrency": {
+      "min": 1,
+      "max": 1
+    }
+  },
+  {
+    "case": "multisig_quorum",
+    "scenario": "zero",
+    "version": "before",
+    "samples": 30,
+    "p50_ms": 3.3842499999999998,
+    "p95_ms": 3.520333,
+    "items_per_batch": 1,
+    "throughput_unit": "quorums/s",
+    "batch_normalized_items_per_second": 296.13226972887963,
+    "requests": {
+      "min": 3,
+      "median": 3.0,
+      "max": 3
+    },
+    "peak_concurrency": {
+      "min": 1,
+      "max": 1
+    }
+  },
+  {
+    "case": "transactions",
+    "scenario": "straggler",
+    "version": "after",
+    "samples": 30,
+    "p50_ms": 59.327687499999996,
+    "p95_ms": 65.714625,
+    "items_per_batch": 32,
+    "throughput_unit": "records/s",
+    "batch_normalized_items_per_second": 544.0162764592432,
+    "requests": {
+      "min": 32,
+      "median": 32.0,
+      "max": 32
+    },
+    "peak_concurrency": {
+      "min": 8,
+      "max": 8
+    }
+  },
+  {
+    "case": "transactions",
+    "scenario": "straggler",
+    "version": "before",
+    "samples": 30,
+    "p50_ms": 335.78645800000004,
+    "p95_ms": 342.727875,
+    "items_per_batch": 32,
+    "throughput_unit": "records/s",
+    "batch_normalized_items_per_second": 95.19544618605303,
+    "requests": {
+      "min": 32,
+      "median": 32.0,
+      "max": 32
+    },
+    "peak_concurrency": {
+      "min": 1,
+      "max": 1
+    }
+  },
+  {
+    "case": "transactions",
+    "scenario": "uniform",
+    "version": "after",
+    "samples": 30,
+    "p50_ms": 30.919771,
+    "p95_ms": 31.968292,
+    "items_per_batch": 32,
+    "throughput_unit": "records/s",
+    "batch_normalized_items_per_second": 1047.2446923419052,
+    "requests": {
+      "min": 32,
+      "median": 32.0,
+      "max": 32
+    },
+    "peak_concurrency": {
+      "min": 8,
+      "max": 8
+    }
+  },
+  {
+    "case": "transactions",
+    "scenario": "uniform",
+    "version": "before",
+    "samples": 30,
+    "p50_ms": 235.8548545,
+    "p95_ms": 239.583167,
+    "items_per_batch": 32,
+    "throughput_unit": "records/s",
+    "batch_normalized_items_per_second": 135.73736617486577,
+    "requests": {
+      "min": 32,
+      "median": 32.0,
+      "max": 32
+    },
+    "peak_concurrency": {
+      "min": 1,
+      "max": 1
+    }
+  },
+  {
+    "case": "transactions",
+    "scenario": "zero",
+    "version": "after",
+    "samples": 30,
+    "p50_ms": 0.3956455,
+    "p95_ms": 0.667417,
+    "items_per_batch": 32,
+    "throughput_unit": "records/s",
+    "batch_normalized_items_per_second": 76959.31193244513,
+    "requests": {
+      "min": 32,
+      "median": 32.0,
+      "max": 32
+    },
+    "peak_concurrency": {
+      "min": 1,
+      "max": 1
+    }
+  },
+  {
+    "case": "transactions",
+    "scenario": "zero",
+    "version": "before",
+    "samples": 30,
+    "p50_ms": 0.3491455,
+    "p95_ms": 0.626833,
+    "items_per_batch": 32,
+    "throughput_unit": "records/s",
+    "batch_normalized_items_per_second": 80101.52200401326,
+    "requests": {
+      "min": 32,
+      "median": 32.0,
+      "max": 32
+    },
+    "peak_concurrency": {
+      "min": 1,
+      "max": 1
+    }
+  }
+]

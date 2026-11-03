@@ -1,0 +1,49 @@
+{
+  "baseline": "7e80c603f0278c9b1f0555fe0106279e2df5f070",
+  "measured_proposed": "d555ffbfd7d82438851e6f848ea7dfc28b2e336d",
+  "revised_production_commit": "64c9c07b5d77c83f1f2b5230eb13ab5939f9af6c",
+  "identical_files": [
+    {
+      "path": "rust/main/agents/scraper/src/store/storage.rs",
+      "measured_git_blob": "0a548b3cd207964df27b94c4f50a45586ef5270f",
+      "revised_git_blob": "0a548b3cd207964df27b94c4f50a45586ef5270f"
+    },
+    {
+      "path": "rust/main/hyperlane-base/src/types/multisig.rs",
+      "measured_git_blob": "6f3fae12327d015bd61a85d7a3d495fe747eca3c",
+      "revised_git_blob": "6f3fae12327d015bd61a85d7a3d495fe747eca3c"
+    },
+    {
+      "path": "rust/main/lander/src/adapter/chains/ethereum/adapter.rs",
+      "measured_git_blob": "0db3ba09af578f9068c9730ae05b981c83261c74",
+      "revised_git_blob": "0db3ba09af578f9068c9730ae05b981c83261c74"
+    },
+    {
+      "path": "rust/main/lander/src/adapter/chains/ethereum/adapter/gas_limit_estimator.rs",
+      "measured_git_blob": "7d8dcb0e92edbde86bf4c78e50ade1d9be366b59",
+      "revised_git_blob": "7d8dcb0e92edbde86bf4c78e50ade1d9be366b59"
+    },
+    {
+      "path": "rust/main/lander/src/adapter/chains/sealevel/adapter.rs",
+      "measured_git_blob": "0f14f1e1e7416f4309f869d57ff52e3fe2ebeb3c",
+      "revised_git_blob": "0f14f1e1e7416f4309f869d57ff52e3fe2ebeb3c"
+    },
+    {
+      "path": "typescript/rebalancer/src/monitor/Monitor.ts",
+      "measured_git_blob": "761f94cb0d193a4d4b724a2390c0f50b8e31213e",
+      "revised_git_blob": "761f94cb0d193a4d4b724a2390c0f50b8e31213e"
+    },
+    {
+      "path": "typescript/sdk/src/providers/transactionFeeEstimators.ts",
+      "measured_git_blob": "f8eec98d165ff187c003b2808a56c3ebf3fee58b",
+      "revised_git_blob": "f8eec98d165ff187c003b2808a56c3ebf3fee58b"
+    },
+    {
+      "path": "typescript/utils/src/async.ts",
+      "measured_git_blob": "908e82ed3b69e8cff527709d1af18ca7a0c71899",
+      "revised_git_blob": "908e82ed3b69e8cff527709d1af18ca7a0c71899"
+    }
+  ],
+  "changed_production_file": "rust/main/hyperlane-base/src/contract_sync/broadcast.rs",
+  "broadcast_results": "broadcast/results.json"
+}

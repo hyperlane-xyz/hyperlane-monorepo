@@ -1,0 +1,1300 @@
+{
+  "generated_at": "2026-11-03T02:07:33.815Z",
+  "source_equivalence": {
+    "workspace_head": "64c9c07b5d77c83f1f2b5230eb13ab5939f9af6c",
+    "files": {
+      "typescript/utils/src/async.ts": {
+        "proposed_git_blob": "908e82ed3b69e8cff527709d1af18ca7a0c71899",
+        "workspace_git_blob": "908e82ed3b69e8cff527709d1af18ca7a0c71899",
+        "identical": true
+      },
+      "typescript/sdk/src/providers/transactionFeeEstimators.ts": {
+        "proposed_git_blob": "f8eec98d165ff187c003b2808a56c3ebf3fee58b",
+        "workspace_git_blob": "f8eec98d165ff187c003b2808a56c3ebf3fee58b",
+        "identical": true
+      },
+      "typescript/rebalancer/src/monitor/Monitor.ts": {
+        "proposed_git_blob": "761f94cb0d193a4d4b724a2390c0f50b8e31213e",
+        "workspace_git_blob": "761f94cb0d193a4d4b724a2390c0f50b8e31213e",
+        "identical": true
+      }
+    }
+  },
+  "environment": {
+    "node": "v26.12.1",
+    "platform": "darwin",
+    "os_release": "27.0.0",
+    "cpu_model": "Apple M3 Pro"
+  },
+  "endpoint": "https://ethereum-rpc.publicnode.com",
+  "sender": "0x000000000000000000000000000000000000dEaD",
+  "transaction": {
+    "from": "0x000000000000000000000000000000000000dEaD",
+    "to": "0x000000000000000000000000000000000000dEaD",
+    "value": "0x0",
+    "signed": false,
+    "broadcast": false
+  },
+  "method": {
+    "warmups": 2,
+    "pairs": 15,
+    "order": "Sequential alternating baseline/proposed then proposed/baseline (AB/BA)",
+    "timeout_ms": 8000,
+    "throttle_limit": 1,
+    "json_rpc_hard_budget": 120,
+    "expected_json_rpc_requests": 102,
+    "counts": "Actual provider.send invocations over HTTP, with transport throttle retries disabled; connection failures may occur before a request reaches the server",
+    "limitations": "One public endpoint, changing network/server load and latest-block state; timings do not establish production-wide gains. Both versions share process/library/transport caches and have separate provider instances."
+  },
+  "sources": {
+    "baseline": {
+      "commit": "7e80c603f0278c9b1f0555fe0106279e2df5f070",
+      "files": {
+        "typescript/utils/src/async.ts": {
+          "git_blob": "fc63cdd64ecd39dd1912c707c11cb154699ad48f",
+          "sha256_base64": "jkj8z5QKYTM8OoDnVJ+T5v9t/OP+QCEYFMp6GvdxtLY=",
+          "compiled_sha256_base64": "8a4GFp1uxi+lKp1xHPojFLso9Ug0f4wEFkSyw+n8k14="
+        },
+        "typescript/sdk/src/providers/transactionFeeEstimators.ts": {
+          "git_blob": "0fbe06a768ec09cdb3f13517d96d74d4fcba7295",
+          "sha256_base64": "wo25imuLZJ5K3GDMh4E3r2bsiHj6RJHlrzh2S67pSyk=",
+          "compiled_sha256_base64": "gdl5HCa5exz3qFizwSVljoihrn5LB/0owTnEbhYrl2Q="
+        },
+        "typescript/rebalancer/src/monitor/Monitor.ts": {
+          "git_blob": "14e0c5b63ef89246bfc370c2db3de15eca261782",
+          "sha256_base64": "zQqTHOspXtCt4wk94pr9iFhkWJjuCGu6bGzHz+741y4=",
+          "compiled_sha256_base64": "Yhy74gSJEiToO1f+ne3t6bAK916J301B+yU0HA5t3E8="
+        }
+      }
+    },
+    "proposed": {
+      "commit": "d555ffbfd7d82438851e6f848ea7dfc28b2e336d",
+      "files": {
+        "typescript/utils/src/async.ts": {
+          "git_blob": "908e82ed3b69e8cff527709d1af18ca7a0c71899",
+          "sha256_base64": "E14w4xpMh4Jvxyd6CpBB5PjBBqt8ePd9TWpFNSsPgyI=",
+          "compiled_sha256_base64": "IA/NqdthOfXyeL5fQNkLpE1IG5cCfuB5iFB4y4wY1VM="
+        },
+        "typescript/sdk/src/providers/transactionFeeEstimators.ts": {
+          "git_blob": "f8eec98d165ff187c003b2808a56c3ebf3fee58b",
+          "sha256_base64": "YGeZ3s68We16EuK9W8C//n1A5pToa/a9/HY0Y6EVcb0=",
+          "compiled_sha256_base64": "ufNBRHleTOLSJtavHtf5tgqPzouYignkfjoS1QNgbdM="
+        },
+        "typescript/rebalancer/src/monitor/Monitor.ts": {
+          "git_blob": "761f94cb0d193a4d4b724a2390c0f50b8e31213e",
+          "sha256_base64": "8NP8Z0MJwieVDTqO+hdIoMx6xZyDWhYYkAoPHrkGujY=",
+          "compiled_sha256_base64": "iS0greG8J0IctBRcZizcziWwbaRVqC+tPURS2Ld9Na0="
+        }
+      }
+    }
+  },
+  "samples": [
+    {
+      "version": "baseline",
+      "pair": 0,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1574471400",
+        "fee": "33063899400000"
+      },
+      "api_elapsed_ms": 86.49795799999993,
+      "quiescent_elapsed_ms": 86.499417,
+      "cpu_user_ms": 10.274,
+      "cpu_system_ms": 0.933,
+      "json_rpc_requests": [
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 30.288042000000132,
+          "succeeded": true
+        },
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 42.35583300000053,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 54.09116600000016,
+          "succeeded": true,
+          "block_number": "0x191c828"
+        }
+      ],
+      "peak_inflight": 2,
+      "rss_bytes": 234389504
+    },
+    {
+      "version": "proposed",
+      "pair": 0,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1574471400",
+        "fee": "33063899400000"
+      },
+      "api_elapsed_ms": 53.65449999999964,
+      "quiescent_elapsed_ms": 53.65612499999952,
+      "cpu_user_ms": 7.749,
+      "cpu_system_ms": 0.792,
+      "json_rpc_requests": [
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 31.12275000000045,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 51.45379099999991,
+          "succeeded": true,
+          "block_number": "0x191c828"
+        },
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 52.1971250000006,
+          "succeeded": true
+        }
+      ],
+      "peak_inflight": 3,
+      "rss_bytes": 234635264
+    },
+    {
+      "version": "proposed",
+      "pair": 1,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1574471400",
+        "fee": "33063899400000"
+      },
+      "api_elapsed_ms": 35.81816700000036,
+      "quiescent_elapsed_ms": 35.81929200000013,
+      "cpu_user_ms": 5.986,
+      "cpu_system_ms": 0.578,
+      "json_rpc_requests": [
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 33.105749999999716,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 33.81166699999994,
+          "succeeded": true,
+          "block_number": "0x191c828"
+        },
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 34.20179200000075,
+          "succeeded": true
+        }
+      ],
+      "peak_inflight": 3,
+      "rss_bytes": 234700800
+    },
+    {
+      "version": "baseline",
+      "pair": 1,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1574471400",
+        "fee": "33063899400000"
+      },
+      "api_elapsed_ms": 154.0185419999998,
+      "quiescent_elapsed_ms": 154.01995799999986,
+      "cpu_user_ms": 6.99,
+      "cpu_system_ms": 0.667,
+      "json_rpc_requests": [
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 114.72495900000013,
+          "succeeded": true
+        },
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 31.077000000000226,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 37.40549999999985,
+          "succeeded": true,
+          "block_number": "0x191c828"
+        }
+      ],
+      "peak_inflight": 2,
+      "rss_bytes": 234799104
+    },
+    {
+      "version": "baseline",
+      "pair": 2,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1574471400",
+        "fee": "33063899400000"
+      },
+      "api_elapsed_ms": 66.60337499999969,
+      "quiescent_elapsed_ms": 66.60483300000033,
+      "cpu_user_ms": 6.942,
+      "cpu_system_ms": 0.741,
+      "json_rpc_requests": [
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 32.78083400000014,
+          "succeeded": true
+        },
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 32.686541000000034,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 31.509917000000314,
+          "succeeded": true,
+          "block_number": "0x191c828"
+        }
+      ],
+      "peak_inflight": 2,
+      "rss_bytes": 234881024
+    },
+    {
+      "version": "proposed",
+      "pair": 2,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1574471400",
+        "fee": "33063899400000"
+      },
+      "api_elapsed_ms": 71.7203329999993,
+      "quiescent_elapsed_ms": 71.72129200000018,
+      "cpu_user_ms": 6.97,
+      "cpu_system_ms": 0.575,
+      "json_rpc_requests": [
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 69.85624999999982,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 70.32416699999976,
+          "succeeded": true,
+          "block_number": "0x191c828"
+        },
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 39.91612500000065,
+          "succeeded": true
+        }
+      ],
+      "peak_inflight": 3,
+      "rss_bytes": 234979328
+    },
+    {
+      "version": "proposed",
+      "pair": 3,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1574471400",
+        "fee": "33063899400000"
+      },
+      "api_elapsed_ms": 43.52229199999965,
+      "quiescent_elapsed_ms": 43.52320800000052,
+      "cpu_user_ms": 5.118,
+      "cpu_system_ms": 0.446,
+      "json_rpc_requests": [
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 33.72670900000048,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 42.2817500000001,
+          "succeeded": true,
+          "block_number": "0x191c828"
+        },
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 31.62749999999869,
+          "succeeded": true
+        }
+      ],
+      "peak_inflight": 3,
+      "rss_bytes": 235110400
+    },
+    {
+      "version": "baseline",
+      "pair": 3,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 90.78445800000009,
+      "quiescent_elapsed_ms": 90.78508300000067,
+      "cpu_user_ms": 7.864,
+      "cpu_system_ms": 0.746,
+      "json_rpc_requests": [
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 29.85383399999955,
+          "succeeded": true
+        },
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 28.017499999999927,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 59.34354099999837,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        }
+      ],
+      "peak_inflight": 2,
+      "rss_bytes": 235274240
+    },
+    {
+      "version": "baseline",
+      "pair": 4,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 92.33579199999986,
+      "quiescent_elapsed_ms": 92.33654200000092,
+      "cpu_user_ms": 6.473,
+      "cpu_system_ms": 0.808,
+      "json_rpc_requests": [
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 34.05854200000067,
+          "succeeded": true
+        },
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 29.48083300000144,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 56.737208000000464,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        }
+      ],
+      "peak_inflight": 2,
+      "rss_bytes": 235880448
+    },
+    {
+      "version": "proposed",
+      "pair": 4,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 39.739708000000974,
+      "quiescent_elapsed_ms": 39.74041700000089,
+      "cpu_user_ms": 8.377,
+      "cpu_system_ms": 0.726,
+      "json_rpc_requests": [
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 32.49120800000128,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 38.28708299999926,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        },
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 31.28191700000025,
+          "succeeded": true
+        }
+      ],
+      "peak_inflight": 3,
+      "rss_bytes": 236142592
+    },
+    {
+      "version": "proposed",
+      "pair": 5,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 46.706333999998606,
+      "quiescent_elapsed_ms": 46.707374999999956,
+      "cpu_user_ms": 6.113,
+      "cpu_system_ms": 0.613,
+      "json_rpc_requests": [
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 37.628749999999854,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 45.31908300000032,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        },
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 42.261334000000716,
+          "succeeded": true
+        }
+      ],
+      "peak_inflight": 3,
+      "rss_bytes": 236421120
+    },
+    {
+      "version": "baseline",
+      "pair": 5,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 73.14524999999958,
+      "quiescent_elapsed_ms": 73.14591699999983,
+      "cpu_user_ms": 8.91,
+      "cpu_system_ms": 0.878,
+      "json_rpc_requests": [
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 30.228499999999258,
+          "succeeded": true
+        },
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 28.754417000000103,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 41.2542910000011,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        }
+      ],
+      "peak_inflight": 2,
+      "rss_bytes": 236879872
+    },
+    {
+      "version": "baseline",
+      "pair": 6,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 74.23470799999996,
+      "quiescent_elapsed_ms": 74.23549999999886,
+      "cpu_user_ms": 6.438,
+      "cpu_system_ms": 0.62,
+      "json_rpc_requests": [
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 33.30712499999936,
+          "succeeded": true
+        },
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 33.21004199999879,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 39.288957999999184,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        }
+      ],
+      "peak_inflight": 2,
+      "rss_bytes": 237109248
+    },
+    {
+      "version": "proposed",
+      "pair": 6,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 49.84258299999965,
+      "quiescent_elapsed_ms": 49.84320799999841,
+      "cpu_user_ms": 6.236,
+      "cpu_system_ms": 0.749,
+      "json_rpc_requests": [
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 40.08300000000054,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 48.376625000000786,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        },
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 39.4981659999994,
+          "succeeded": true
+        }
+      ],
+      "peak_inflight": 3,
+      "rss_bytes": 237715456
+    },
+    {
+      "version": "proposed",
+      "pair": 7,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 46.3221250000006,
+      "quiescent_elapsed_ms": 46.32304199999999,
+      "cpu_user_ms": 6.683,
+      "cpu_system_ms": 0.747,
+      "json_rpc_requests": [
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 34.320042000001195,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 44.93566699999974,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        },
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 32.09491700000035,
+          "succeeded": true
+        }
+      ],
+      "peak_inflight": 3,
+      "rss_bytes": 238452736
+    },
+    {
+      "version": "baseline",
+      "pair": 7,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 87.05412499999875,
+      "quiescent_elapsed_ms": 87.05495899999914,
+      "cpu_user_ms": 9.601,
+      "cpu_system_ms": 1.058,
+      "json_rpc_requests": [
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 38.633458000000246,
+          "succeeded": true
+        },
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 47.39324999999917,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 46.14979099999982,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        }
+      ],
+      "peak_inflight": 2,
+      "rss_bytes": 239140864
+    },
+    {
+      "version": "baseline",
+      "pair": 8,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 101.32737500000076,
+      "quiescent_elapsed_ms": 101.32808400000067,
+      "cpu_user_ms": 6.083,
+      "cpu_system_ms": 0.829,
+      "json_rpc_requests": [
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 31.656290999999328,
+          "succeeded": true
+        },
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 68.92000000000007,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 67.84150000000045,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        }
+      ],
+      "peak_inflight": 2,
+      "rss_bytes": 239796224
+    },
+    {
+      "version": "proposed",
+      "pair": 8,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 68.9877919999999,
+      "quiescent_elapsed_ms": 68.98870800000077,
+      "cpu_user_ms": 5.598,
+      "cpu_system_ms": 0.735,
+      "json_rpc_requests": [
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 68.34070900000006,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 67.0600830000003,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        },
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 67.61474999999882,
+          "succeeded": true
+        }
+      ],
+      "peak_inflight": 3,
+      "rss_bytes": 240500736
+    },
+    {
+      "version": "proposed",
+      "pair": 9,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 34.10020900000018,
+      "quiescent_elapsed_ms": 34.10112500000105,
+      "cpu_user_ms": 4.578,
+      "cpu_system_ms": 0.58,
+      "json_rpc_requests": [
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 33.70137500000055,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 32.53149999999914,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        },
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 29.42687500000102,
+          "succeeded": true
+        }
+      ],
+      "peak_inflight": 3,
+      "rss_bytes": 241041408
+    },
+    {
+      "version": "baseline",
+      "pair": 9,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 78.38508400000137,
+      "quiescent_elapsed_ms": 78.38575000000128,
+      "cpu_user_ms": 5.736,
+      "cpu_system_ms": 0.676,
+      "json_rpc_requests": [
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 28.35925000000134,
+          "succeeded": true
+        },
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 29.154959000001327,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 48.614417000000685,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        }
+      ],
+      "peak_inflight": 2,
+      "rss_bytes": 241598464
+    },
+    {
+      "version": "baseline",
+      "pair": 10,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 98.13316699999996,
+      "quiescent_elapsed_ms": 98.13387499999953,
+      "cpu_user_ms": 6.607,
+      "cpu_system_ms": 0.791,
+      "json_rpc_requests": [
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 29.85370900000089,
+          "succeeded": true
+        },
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 67.52541599999859,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 66.36520799999926,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        }
+      ],
+      "peak_inflight": 2,
+      "rss_bytes": 242155520
+    },
+    {
+      "version": "proposed",
+      "pair": 10,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 58.38695899999948,
+      "quiescent_elapsed_ms": 58.387791999999536,
+      "cpu_user_ms": 6.205,
+      "cpu_system_ms": 0.753,
+      "json_rpc_requests": [
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 57.96441599999889,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 56.617333000000144,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        },
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 30.28108400000019,
+          "succeeded": true
+        }
+      ],
+      "peak_inflight": 3,
+      "rss_bytes": 242696192
+    },
+    {
+      "version": "proposed",
+      "pair": 11,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 38.298415999999634,
+      "quiescent_elapsed_ms": 38.29908299999988,
+      "cpu_user_ms": 5.584,
+      "cpu_system_ms": 0.576,
+      "json_rpc_requests": [
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 28.324666999998954,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 37.23479199999929,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        },
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 27.498999999999796,
+          "succeeded": true
+        }
+      ],
+      "peak_inflight": 3,
+      "rss_bytes": 230064128
+    },
+    {
+      "version": "baseline",
+      "pair": 11,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 73.06083299999955,
+      "quiescent_elapsed_ms": 73.06170799999927,
+      "cpu_user_ms": 6.254,
+      "cpu_system_ms": 0.754,
+      "json_rpc_requests": [
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 32.01391599999988,
+          "succeeded": true
+        },
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 28.490916999999172,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 39.43149999999878,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        }
+      ],
+      "peak_inflight": 2,
+      "rss_bytes": 230490112
+    },
+    {
+      "version": "baseline",
+      "pair": 12,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 73.88616600000023,
+      "quiescent_elapsed_ms": 73.88716600000043,
+      "cpu_user_ms": 6.474,
+      "cpu_system_ms": 0.733,
+      "json_rpc_requests": [
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 33.8665830000009,
+          "succeeded": true
+        },
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 39.257292000000234,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 38.095124999999825,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        }
+      ],
+      "peak_inflight": 2,
+      "rss_bytes": 230866944
+    },
+    {
+      "version": "proposed",
+      "pair": 12,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 237.92587500000081,
+      "quiescent_elapsed_ms": 237.92645900000025,
+      "cpu_user_ms": 5.636,
+      "cpu_system_ms": 0.713,
+      "json_rpc_requests": [
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 237.3325420000001,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 236.08087499999965,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        },
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 236.7468340000014,
+          "succeeded": true
+        }
+      ],
+      "peak_inflight": 3,
+      "rss_bytes": 231292928
+    },
+    {
+      "version": "proposed",
+      "pair": 13,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 35.78349999999955,
+      "quiescent_elapsed_ms": 35.78437499999927,
+      "cpu_user_ms": 5.11,
+      "cpu_system_ms": 0.679,
+      "json_rpc_requests": [
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 35.46295800000007,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 34.31470799999988,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        },
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 30.18529099999978,
+          "succeeded": true
+        }
+      ],
+      "peak_inflight": 3,
+      "rss_bytes": 231702528
+    },
+    {
+      "version": "baseline",
+      "pair": 13,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 88.07562500000131,
+      "quiescent_elapsed_ms": 88.07637500000055,
+      "cpu_user_ms": 6.752,
+      "cpu_system_ms": 0.776,
+      "json_rpc_requests": [
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 32.056915999999546,
+          "succeeded": true
+        },
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 30.754249999999956,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 54.438874999999825,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        }
+      ],
+      "peak_inflight": 2,
+      "rss_bytes": 232095744
+    },
+    {
+      "version": "baseline",
+      "pair": 14,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 74.78029100000094,
+      "quiescent_elapsed_ms": 74.78104100000019,
+      "cpu_user_ms": 8.362,
+      "cpu_system_ms": 1.015,
+      "json_rpc_requests": [
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 30.713792000000467,
+          "succeeded": true
+        },
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 43.10283399999935,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 41.8698749999985,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        }
+      ],
+      "peak_inflight": 2,
+      "rss_bytes": 232488960
+    },
+    {
+      "version": "proposed",
+      "pair": 14,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1568835880",
+        "fee": "32945553480000"
+      },
+      "api_elapsed_ms": 45.244291000000885,
+      "quiescent_elapsed_ms": 45.24537500000042,
+      "cpu_user_ms": 5.675,
+      "cpu_system_ms": 0.711,
+      "json_rpc_requests": [
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 44.77179199999955,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 42.42937499999971,
+          "succeeded": true,
+          "block_number": "0x191c829"
+        },
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 43.36133299999892,
+          "succeeded": true
+        }
+      ],
+      "peak_inflight": 3,
+      "rss_bytes": 232898560
+    }
+  ],
+  "warmup_samples": [
+    {
+      "version": "baseline",
+      "pair": -2,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1574471400",
+        "fee": "33063899400000"
+      },
+      "api_elapsed_ms": 122.51141699999971,
+      "quiescent_elapsed_ms": 122.51237500000025,
+      "cpu_user_ms": 25.263,
+      "cpu_system_ms": 2.106,
+      "json_rpc_requests": [
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 62.378999999999905,
+          "succeeded": true
+        },
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 40.1566670000002,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 55.34533300000021,
+          "succeeded": true,
+          "block_number": "0x191c828"
+        }
+      ],
+      "peak_inflight": 2,
+      "rss_bytes": 232996864
+    },
+    {
+      "version": "proposed",
+      "pair": -2,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1574471400",
+        "fee": "33063899400000"
+      },
+      "api_elapsed_ms": 135.62695900000017,
+      "quiescent_elapsed_ms": 135.6277089999994,
+      "cpu_user_ms": 15.302,
+      "cpu_system_ms": 3.827,
+      "json_rpc_requests": [
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 38.941125000000284,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 131.92854199999965,
+          "succeeded": true,
+          "block_number": "0x191c828"
+        },
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 132.41570800000045,
+          "succeeded": true
+        }
+      ],
+      "peak_inflight": 3,
+      "rss_bytes": 233340928
+    },
+    {
+      "version": "proposed",
+      "pair": -1,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1574471400",
+        "fee": "33063899400000"
+      },
+      "api_elapsed_ms": 96.44204199999967,
+      "quiescent_elapsed_ms": 96.44250000000011,
+      "cpu_user_ms": 11.796,
+      "cpu_system_ms": 0.938,
+      "json_rpc_requests": [
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 30.697165999999925,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 94.3310419999998,
+          "succeeded": true,
+          "block_number": "0x191c828"
+        },
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 38.22283400000015,
+          "succeeded": true
+        }
+      ],
+      "peak_inflight": 3,
+      "rss_bytes": 233701376
+    },
+    {
+      "version": "baseline",
+      "pair": -1,
+      "succeeded": true,
+      "estimate": {
+        "gasUnits": "21000",
+        "gasPrice": "1574471400",
+        "fee": "33063899400000"
+      },
+      "api_elapsed_ms": 77.76404199999979,
+      "quiescent_elapsed_ms": 77.76541699999962,
+      "cpu_user_ms": 14.07,
+      "cpu_system_ms": 1.05,
+      "json_rpc_requests": [
+        {
+          "method": "eth_estimateGas",
+          "elapsed_ms": 30.27366600000005,
+          "succeeded": true
+        },
+        {
+          "method": "eth_gasPrice",
+          "elapsed_ms": 27.816249999999854,
+          "succeeded": true
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "elapsed_ms": 45.19466700000066,
+          "succeeded": true,
+          "block_number": "0x191c828"
+        }
+      ],
+      "peak_inflight": 2,
+      "rss_bytes": 234110976
+    }
+  ],
+  "verification": [
+    {
+      "method": "eth_chainId",
+      "elapsed_ms": 70.28220800000054,
+      "verified": true
+    },
+    {
+      "method": "eth_getCode",
+      "elapsed_ms": 32.64499999999953,
+      "verified": true
+    },
+    {
+      "method": "eth_getBalance",
+      "elapsed_ms": 39.158292000000074,
+      "verified": true
+    }
+  ],
+  "summaries": {
+    "baseline": {
+      "attempted": 15,
+      "successful": 15,
+      "failed": 0,
+      "p50_ms": 86.49795799999993,
+      "p95_ms": 154.0185419999998,
+      "workloads_per_second": 11.430115047102625,
+      "p50_cpu_ms": 7.528,
+      "json_rpc_requests_measured": 45,
+      "json_rpc_failures_measured": 0,
+      "json_rpc_requests_including_warmup": 51,
+      "peak_inflight": 2
+    },
+    "proposed": {
+      "attempted": 15,
+      "successful": 15,
+      "failed": 0,
+      "p50_ms": 46.3221250000006,
+      "p95_ms": 237.92587500000081,
+      "workloads_per_second": 16.55532138776983,
+      "p50_cpu_ms": 6.564,
+      "json_rpc_requests_measured": 45,
+      "json_rpc_failures_measured": 0,
+      "json_rpc_requests_including_warmup": 51,
+      "peak_inflight": 3
+    }
+  },
+  "successful_pairs": 15,
+  "median_paired_speedup": 1.6807377654315039,
+  "total_json_rpc_invocations": 105,
+  "process_peak_rss_kib": 237008
+}

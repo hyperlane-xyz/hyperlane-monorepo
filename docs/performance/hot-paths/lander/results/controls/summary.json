@@ -1,0 +1,301 @@
+{
+  "manifest": {
+    "baseline": "7e80c603f0278c9b1f0555fe0106279e2df5f070",
+    "proposed": "d555ffbfd7d82438851e6f848ea7dfc28b2e336d",
+    "sources": [
+      {
+        "version": "baseline",
+        "commit": "7e80c603f0278c9b1f0555fe0106279e2df5f070",
+        "path": "rust/main/lander/src/adapter/chains/sealevel/adapter.rs",
+        "source_sha256_base64": "ktXMK4UVQZywp4UDgbPYe0RRgWPpX5MSghQhokz0P+M=",
+        "generated_sha256_base64": "2ktTc3d81DwFObDQVZgjvzf524zfheqd4Ly6BM45Tec=",
+        "adaptation": "Removed test module declaration; appended constructor access and freshness-entry count only"
+      },
+      {
+        "version": "baseline",
+        "commit": "7e80c603f0278c9b1f0555fe0106279e2df5f070",
+        "path": "rust/main/lander/src/adapter/chains/ethereum/adapter/gas_limit_estimator.rs",
+        "source_sha256_base64": "2WvJ3HvTlQYdJJsC0hSDN5VEHqjP+4zS0NmFh7oEVrI=",
+        "generated_sha256_base64": "L5gazZkEp0o7GJIGleB6fryj70Lx1HANJ6GIFnZscAg=",
+        "adaptation": "Removed unit-test module only"
+      },
+      {
+        "version": "baseline",
+        "commit": "7e80c603f0278c9b1f0555fe0106279e2df5f070",
+        "path": "rust/main/lander/src/adapter/chains/ethereum/adapter.rs",
+        "source_sha256_base64": "haHOobuX4DC23GY6Fc4oUqNhA+MCpBUKcgfJN166mq8=",
+        "generated_sha256_base64": "6vDm6+LBIgOfXb9vMn3B+bJUW7HurgLsOGaaNH7SheI=",
+        "adaptation": "Exact reverted_payloads method in provider/signer field wrapper; call-access shim only"
+      },
+      {
+        "version": "proposed",
+        "commit": "d555ffbfd7d82438851e6f848ea7dfc28b2e336d",
+        "path": "rust/main/lander/src/adapter/chains/sealevel/adapter.rs",
+        "source_sha256_base64": "zReDFfPwM4UZ6Kt5qEYlxCjsKve0lsH2q0/c6dR+hdA=",
+        "generated_sha256_base64": "jGhngg8glYw72SawtZnK6Y6RRu6I6DhcBNfP5egjLEY=",
+        "adaptation": "Removed test module declaration; appended constructor access and freshness-entry count only"
+      },
+      {
+        "version": "proposed",
+        "commit": "d555ffbfd7d82438851e6f848ea7dfc28b2e336d",
+        "path": "rust/main/lander/src/adapter/chains/ethereum/adapter/gas_limit_estimator.rs",
+        "source_sha256_base64": "6KnyI+dy3NdtHrHE0qRLaSY4f1sqJGDZgynPsF6Zsug=",
+        "generated_sha256_base64": "N5IfrruE2/DqYqn51Kb/5mnSNfv/NT7cl8cwE8Kt+as=",
+        "adaptation": "Removed unit-test module only"
+      },
+      {
+        "version": "proposed",
+        "commit": "d555ffbfd7d82438851e6f848ea7dfc28b2e336d",
+        "path": "rust/main/lander/src/adapter/chains/ethereum/adapter.rs",
+        "source_sha256_base64": "WmR0lxOotSwgR2qDxexN+q3T++KfnUAIPtj6f/cST8o=",
+        "generated_sha256_base64": "Z7L5nC0WHUX1Vb0Zs0mzcLxskEWRSFvwS6L7yvnAhaE=",
+        "adaptation": "Exact reverted_payloads method in provider/signer field wrapper; call-access shim only"
+      }
+    ],
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "lander",
+      "--lib",
+      "--no-run",
+      "--locked",
+      "--offline",
+      "-j",
+      "4",
+      "--config",
+      "profile.test.package.lander.opt-level=3",
+      "--message-format=json"
+    ],
+    "target_dir": "/Users/pbio/work/hm1/rust/main/target",
+    "profile": "Lander test leaf opt-level=3; dependencies retain cached test/debug profile",
+    "rustc": "rustc 1.72.1 (d5c2e9c34 2023-09-13)",
+    "parent_path": "rust/main/lander/src/adapter/chains/sealevel.rs",
+    "parent_before_sha256_base64": "UgENRUfSxEDPrjHvJEKqM4gWOiy+J4sjenqf/1SbdNo=",
+    "parent_after_sha256_base64": "UgENRUfSxEDPrjHvJEKqM4gWOiy+J4sjenqf/1SbdNo=",
+    "binary_sha256_base64": "JnFSVIKufVFyauFWLmAjaTfUF6Xulxa5cYr2HLJL7wI=",
+    "harness_sha256_base64": "pg0p0fltZICClElHffZwtvDOaXSMdGLXtVlfMNEnVk4=",
+    "host": {
+      "system": "Darwin",
+      "release": "27.0.0",
+      "machine": "arm64",
+      "machdep.cpu.brand_string": "Apple M3 Pro",
+      "hw.memsize": "38654705664",
+      "hw.logicalcpu": "11",
+      "macos": "27.0.1"
+    },
+    "built_at_utc": "2026-11-03T01:43:02.795712+00:00",
+    "leaf_profile": {
+      "opt_level": "3",
+      "debuginfo": 2,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    },
+    "measured_at_utc": "2026-11-03T01:55:40.517385+00:00",
+    "measurement_host": {
+      "system": "Darwin",
+      "release": "27.0.0",
+      "machine": "arm64",
+      "machdep.cpu.brand_string": "Apple M3 Pro",
+      "hw.memsize": "38654705664",
+      "hw.logicalcpu": "11",
+      "macos": "27.0.1"
+    },
+    "benchmark_scope": "Controlled adapter-boundary stress, not end-to-end per-chain pipeline throughput; InclusionStage intentionally awaits transaction mutations serially."
+  },
+  "results": [
+    {
+      "case": "svm_prepare_submit",
+      "scenario": "uniform",
+      "version": "baseline",
+      "width": 1,
+      "batches": 100,
+      "operations": 100,
+      "batch_p50_ms": 4.564625,
+      "batch_p95_ms": 4.637375,
+      "operation_p50_ms": 4.564375,
+      "operation_p95_ms": 4.6365,
+      "operations_per_second": 220.1733448522743,
+      "peak_inflight": 1,
+      "provider_requests": 300,
+      "measured_wall_s": 0.45418758600000003,
+      "process_cpu_s_mean": 0.05,
+      "process_peak_rss_bytes_max": 19120128,
+      "freshness_entries_max": 53,
+      "freshness_entries_final_per_pass": [53, 53],
+      "process_passes": [
+        {
+          "case": "svm_prepare_submit",
+          "scenario": "uniform",
+          "version": "baseline",
+          "width": 1,
+          "pass": 0,
+          "runner_elapsed_s": 0.31031508301384747,
+          "process_real_s": 0.29,
+          "process_user_s": 0.04,
+          "process_sys_s": 0.0,
+          "process_peak_rss_bytes": 19120128,
+          "freshness_entries_final": 53
+        },
+        {
+          "case": "svm_prepare_submit",
+          "scenario": "uniform",
+          "version": "baseline",
+          "width": 1,
+          "pass": 1,
+          "runner_elapsed_s": 0.3329683330375701,
+          "process_real_s": 0.31,
+          "process_user_s": 0.06,
+          "process_sys_s": 0.0,
+          "process_peak_rss_bytes": 19054592,
+          "freshness_entries_final": 53
+        }
+      ]
+    },
+    {
+      "case": "svm_prepare_submit",
+      "scenario": "uniform",
+      "version": "proposed",
+      "width": 1,
+      "batches": 100,
+      "operations": 100,
+      "batch_p50_ms": 4.5605,
+      "batch_p95_ms": 4.653667,
+      "operation_p50_ms": 4.559833,
+      "operation_p95_ms": 4.652292,
+      "operations_per_second": 226.99944573545335,
+      "peak_inflight": 1,
+      "provider_requests": 300,
+      "measured_wall_s": 0.44052971,
+      "process_cpu_s_mean": 0.065,
+      "process_peak_rss_bytes_max": 19120128,
+      "freshness_entries_max": 0,
+      "freshness_entries_final_per_pass": [0, 0],
+      "process_passes": [
+        {
+          "case": "svm_prepare_submit",
+          "scenario": "uniform",
+          "version": "proposed",
+          "width": 1,
+          "pass": 0,
+          "runner_elapsed_s": 0.33662812504917383,
+          "process_real_s": 0.31,
+          "process_user_s": 0.06,
+          "process_sys_s": 0.0,
+          "process_peak_rss_bytes": 19120128,
+          "freshness_entries_final": 0
+        },
+        {
+          "case": "svm_prepare_submit",
+          "scenario": "uniform",
+          "version": "proposed",
+          "width": 1,
+          "pass": 1,
+          "runner_elapsed_s": 0.34317274997010827,
+          "process_real_s": 0.32,
+          "process_user_s": 0.07,
+          "process_sys_s": 0.0,
+          "process_peak_rss_bytes": 19087360,
+          "freshness_entries_final": 0
+        }
+      ]
+    },
+    {
+      "case": "svm_prepare_submit",
+      "scenario": "uniform",
+      "version": "baseline",
+      "width": 8,
+      "batches": 100,
+      "operations": 800,
+      "batch_p50_ms": 4.654042,
+      "batch_p95_ms": 4.9048750000000005,
+      "operation_p50_ms": 4.621250000000001,
+      "operation_p95_ms": 4.8292079999999995,
+      "operations_per_second": 1753.5957008567223,
+      "peak_inflight": 8,
+      "provider_requests": 2400,
+      "measured_wall_s": 0.456205498,
+      "process_cpu_s_mean": 0.06,
+      "process_peak_rss_bytes_max": 19169280,
+      "freshness_entries_max": 424,
+      "freshness_entries_final_per_pass": [424, 424],
+      "process_passes": [
+        {
+          "case": "svm_prepare_submit",
+          "scenario": "uniform",
+          "version": "baseline",
+          "width": 8,
+          "pass": 0,
+          "runner_elapsed_s": 0.30700212507508695,
+          "process_real_s": 0.29,
+          "process_user_s": 0.04,
+          "process_sys_s": 0.0,
+          "process_peak_rss_bytes": 19169280,
+          "freshness_entries_final": 424
+        },
+        {
+          "case": "svm_prepare_submit",
+          "scenario": "uniform",
+          "version": "baseline",
+          "width": 8,
+          "pass": 1,
+          "runner_elapsed_s": 0.3584662498906255,
+          "process_real_s": 0.33,
+          "process_user_s": 0.08,
+          "process_sys_s": 0.0,
+          "process_peak_rss_bytes": 19103744,
+          "freshness_entries_final": 424
+        }
+      ]
+    },
+    {
+      "case": "svm_prepare_submit",
+      "scenario": "uniform",
+      "version": "proposed",
+      "width": 8,
+      "batches": 100,
+      "operations": 800,
+      "batch_p50_ms": 4.64775,
+      "batch_p95_ms": 4.836084,
+      "operation_p50_ms": 4.626208,
+      "operation_p95_ms": 4.788209,
+      "operations_per_second": 1791.4202671655664,
+      "peak_inflight": 8,
+      "provider_requests": 2400,
+      "measured_wall_s": 0.446573043,
+      "process_cpu_s_mean": 0.07500000000000001,
+      "process_peak_rss_bytes_max": 19152896,
+      "freshness_entries_max": 0,
+      "freshness_entries_final_per_pass": [0, 0],
+      "process_passes": [
+        {
+          "case": "svm_prepare_submit",
+          "scenario": "uniform",
+          "version": "proposed",
+          "width": 8,
+          "pass": 0,
+          "runner_elapsed_s": 0.3486889579799026,
+          "process_real_s": 0.32,
+          "process_user_s": 0.08,
+          "process_sys_s": 0.0,
+          "process_peak_rss_bytes": 19152896,
+          "freshness_entries_final": 0
+        },
+        {
+          "case": "svm_prepare_submit",
+          "scenario": "uniform",
+          "version": "proposed",
+          "width": 8,
+          "pass": 1,
+          "runner_elapsed_s": 0.34504662500694394,
+          "process_real_s": 0.32,
+          "process_user_s": 0.07,
+          "process_sys_s": 0.0,
+          "process_peak_rss_bytes": 19152896,
+          "freshness_entries_final": 0
+        }
+      ]
+    }
+  ]
+}
