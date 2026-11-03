@@ -207,10 +207,20 @@ mod tests {
         let mut live_receiver = broadcaster.get_receiver().await;
         drop(disconnected_receiver);
 
-        for txid in [H512::from_low_u64_be(1), H512::from_low_u64_be(2)] {
-            broadcaster.send(txid).await.unwrap();
-            assert_eq!(live_receiver.recv().await, Some(txid));
-        }
+        let mut snapshot = broadcaster.actor().snapshot.clone();
+        snapshot.borrow_and_update();
+        assert_eq!(snapshot.borrow().len(), 2);
+        let txid = H512::from_low_u64_be(1);
+        broadcaster.send(txid).await.unwrap();
+        assert_eq!(live_receiver.recv().await, Some(txid));
+        timeout(Duration::from_secs(1), snapshot.changed())
+            .await
+            .expect("actor must publish the pruned snapshot")
+            .expect("actor remains live");
+        assert_eq!(snapshot.borrow().len(), 1);
+        let txid = H512::from_low_u64_be(2);
+        broadcaster.send(txid).await.unwrap();
+        assert_eq!(live_receiver.recv().await, Some(txid));
     }
 
     #[tokio::test]

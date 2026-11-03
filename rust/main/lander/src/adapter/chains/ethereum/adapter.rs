@@ -10,7 +10,7 @@ use ethers::{
 use ethers_core::abi::Function;
 use ethers_core::types::Eip1559TransactionRequest;
 use eyre::eyre;
-use futures_util::{future, stream, StreamExt};
+use futures_util::{future, stream, StreamExt, TryStreamExt};
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
@@ -882,16 +882,13 @@ impl AdaptsChain for EthereumAdapter {
 
         let mut reverted: Vec<_> = stream::iter(payload_details_and_precursors)
             .map(|(index, precursor)| async move {
-                let success = provider
-                    .check(&precursor.tx, &precursor.function)
-                    .await
-                    .unwrap_or(true);
-                (!success).then_some(index)
+                let success = provider.check(&precursor.tx, &precursor.function).await?;
+                Ok::<_, ChainCommunicationError>((!success).then_some(index))
             })
             .buffer_unordered(PAYLOAD_STATUS_READ_CONCURRENCY)
-            .filter_map(future::ready)
-            .collect()
-            .await;
+            .try_filter_map(|index| future::ready(Ok(index)))
+            .try_collect()
+            .await?;
 
         reverted.sort_unstable();
         Ok(reverted

@@ -120,7 +120,26 @@ async fn complete_bounded<F: Future>(
         "enrichment completed before RPCs were released"
     );
     assert!(started.try_recv().is_err(), "RPC window must stay bounded");
-    release.add_permits(REQUESTS);
+    // Complete one RPC at a time. Each completion may admit exactly one
+    // replacement, including after the initial window has been filled.
+    for _ in ENRICHMENT_RPC_CONCURRENCY..REQUESTS {
+        release.add_permits(1);
+        tokio::time::timeout(Duration::from_secs(1), async {
+            tokio::select! {
+                _ = &mut work => panic!("enrichment finished with unreleased RPCs"),
+                event = started.recv() => assert_eq!(event, Some(())),
+            }
+        })
+        .await
+        .expect("one completed RPC must refill its slot");
+        assert!(futures::poll!(&mut work).is_pending());
+        assert!(
+            started.try_recv().is_err(),
+            "refill must not exceed eight in-flight RPCs"
+        );
+    }
+    // Every request has now started; only the final window remains blocked.
+    release.add_permits(ENRICHMENT_RPC_CONCURRENCY);
     tokio::time::timeout(Duration::from_secs(1), work)
         .await
         .expect("enrichment should finish after release")
@@ -187,10 +206,7 @@ async fn block_enrichment_overlaps_reads_with_a_bounded_window_and_keeps_success
             i64::try_from(id).expect("valid test data")
         );
     }
-    assert_eq!(
-        started.len(),
-        REQUESTS.saturating_sub(ENRICHMENT_RPC_CONCURRENCY)
-    );
+    assert_eq!(started.len(), 0);
     let log = store.db.clone_connection().into_transaction_log();
     assert_eq!(log.len(), 2, "one lookup and one batched insert");
     let values = &log[1].statements()[0]
@@ -230,10 +246,7 @@ async fn transaction_enrichment_overlaps_reads_with_a_bounded_window_and_keeps_s
             i64::try_from(id).expect("valid test data")
         );
     }
-    assert_eq!(
-        started.len(),
-        REQUESTS.saturating_sub(ENRICHMENT_RPC_CONCURRENCY)
-    );
+    assert_eq!(started.len(), 0);
     let log = store.db.clone_connection().into_transaction_log();
     assert_eq!(log.len(), 2, "one lookup and one batched insert");
     let values = &log[1].statements()[0]

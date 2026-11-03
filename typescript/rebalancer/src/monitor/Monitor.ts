@@ -244,25 +244,11 @@ export class Monitor implements IMonitor {
     }
 
     const adapter = token.getHypAdapter(this.warpCore.multiProvider);
-    let bridgedSupply: bigint | undefined;
-
-    try {
-      bridgedSupply = await adapter.getBridgedSupply({ blockTag });
-      this.logger.debug(
-        { chain: token.chainName, blockTag },
-        'Queried confirmed balance',
-      );
-    } catch (error) {
-      this.logger.warn(
-        {
-          chain: token.chainName,
-          blockTag,
-          error: (error as Error).message,
-        },
-        'Historical block query failed, falling back to latest',
-      );
-      bridgedSupply = await adapter.getBridgedSupply();
-    }
+    const bridgedSupply = await adapter.getBridgedSupply({ blockTag });
+    this.logger.debug(
+      { chain: token.chainName, blockTag },
+      'Queried confirmed balance',
+    );
 
     if (bridgedSupply === undefined) {
       this.logger.warn(
@@ -327,7 +313,7 @@ export class Monitor implements IMonitor {
             },
             'Failed to read inventory balance',
           );
-          return { chainName, balance: 0n };
+          throw error;
         }
       },
     );

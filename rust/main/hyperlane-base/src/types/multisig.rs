@@ -238,7 +238,18 @@ impl MultisigCheckpointSyncer {
             }
 
             // Ensure that the signature is actually by the validator
-            let signer = signed_checkpoint.recover()?;
+            let signer = match signed_checkpoint.recover() {
+                Ok(signer) => signer,
+                Err(error) => {
+                    warn!(
+                        ?validator,
+                        index,
+                        ?error,
+                        "Unable to recover checkpoint signer"
+                    );
+                    continue;
+                }
+            };
 
             if H256::from(signer) != validator {
                 debug!(
@@ -807,6 +818,71 @@ mod test {
 
         let expected = generate_multisig_signed_checkpoint(&validators[1..], checkpoint).await;
         assert_eq!(result, expected);
+    }
+
+    #[tokio::test]
+    async fn malformed_signatures_do_not_abort_a_pending_quorum() {
+        let checkpoint = CheckpointWithMessageId {
+            checkpoint: Checkpoint {
+                mailbox_domain: 100,
+                merkle_tree_hook_address: H256::zero(),
+                root: H256::zero(),
+                index: 1000,
+            },
+            message_id: H256::zero(),
+        };
+        let mut validators: Vec<_> = dummy_validators().into_iter().take(3).collect();
+        let mut syncers: HashMap<H160, Arc<dyn CheckpointSyncer>> = HashMap::new();
+        let mut addresses = Vec::new();
+        let activity = Arc::new(FetchActivity::default());
+        for (index, validator) in validators.iter_mut().enumerate() {
+            validator.fetch_checkpoint = Some(checkpoint);
+            let signer: Signers = validator
+                .private_key
+                .parse::<ethers::signers::LocalWallet>()
+                .expect("valid test signer")
+                .into();
+            let mut signed = signer.sign(checkpoint).await.expect("sign checkpoint");
+            if index == 0 {
+                signed.signature = Signature {
+                    r: U256::zero(),
+                    s: U256::zero(),
+                    v: 27,
+                };
+                assert!(signed.recover().is_err());
+            }
+            let address = H160::from_str(&validator.public_key).expect("valid validator");
+            syncers.insert(
+                address,
+                Arc::new(DelayedCheckpointSyncer {
+                    delay: if index == 0 {
+                        Duration::ZERO
+                    } else {
+                        Duration::from_millis(20)
+                    },
+                    latest_index: None,
+                    checkpoint: Some(signed),
+                    activity: activity.clone(),
+                }),
+            );
+            addresses.push(H256::from(address));
+        }
+        let syncer = MultisigCheckpointSyncer::new(syncers, None);
+        let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let expected = generate_multisig_signed_checkpoint(&validators[1..], checkpoint).await;
+        assert_eq!(
+            syncer
+                .fetch_checkpoint(&addresses, 2, 1000, &destination)
+                .await
+                .expect("invalid signature must not abort quorum"),
+            Some(expected)
+        );
+        assert!(syncer
+            .fetch_checkpoint(&addresses, 3, 1000, &destination)
+            .await
+            .expect("invalid signature is skipped even without quorum")
+            .is_none());
+        assert_eq!(activity.active.load(Ordering::Relaxed), 0);
     }
 
     #[tokio::test]

@@ -105,6 +105,8 @@ describe('Monitor concurrency', () => {
     expect(blocks[8].send.calledOnce).to.equal(true);
     expect(adapters[8].getBalance.calledOnce).to.equal(true);
     expect(blocks[0].send.calledOnce).to.equal(true);
+    expect(blocks[9].send.called).to.equal(false);
+    expect(adapters[9].getBalance.called).to.equal(false);
     expect(
       adapters.every((adapter) => adapter.getBridgedSupply.notCalled),
     ).to.equal(true);
@@ -185,7 +187,52 @@ describe('Monitor concurrency', () => {
     await running;
     expect(errors.calledOnce).to.equal(true);
     expect(handler.notCalled).to.equal(true);
-    expect(adapters[0].getBridgedSupply.calledTwice).to.equal(true);
+    expect(adapters[0].getBridgedSupply.calledOnce).to.equal(true);
+    expect(adapters[0].getBridgedSupply.firstCall.args).to.deep.equal([
+      { blockTag: 98 },
+    ]);
+  });
+
+  it('drains supply and inventory reads after an inventory failure without emitting balances', async () => {
+    const { monitor, adapters } = setup(2, true);
+    const supply = sinon.promise<bigint>();
+    const inventory = sinon.promise<bigint>();
+    adapters[0].getBalance.rejects(new Error('inventory unavailable'));
+    adapters[1].getBalance.returns(inventory);
+    adapters[0].getBridgedSupply.returns(supply);
+    const handler = sinon.stub();
+    const errors = sinon.stub();
+    monitor.on(MonitorEventType.TokenInfo, handler);
+    monitor.on(MonitorEventType.Error, (error) => {
+      errors(error);
+      void monitor.stop();
+    });
+
+    const running = monitor.start();
+    await nextTurn();
+    expect(errors.notCalled).to.equal(true);
+    void inventory.resolve(11n);
+    await nextTurn();
+    expect(errors.notCalled).to.equal(true);
+    void supply.resolve(0n);
+    await running;
+    expect(errors.calledOnce).to.equal(true);
+    expect(errors.firstCall.args[0].message).to.contain(
+      'inventory unavailable',
+    );
+    expect(handler.notCalled).to.equal(true);
+  });
+
+  it('emits successfully read zero inventory balances', async () => {
+    const { monitor, adapters } = setup(1, true);
+    adapters[0].getBalance.resolves(0n);
+    let event: MonitorEvent | undefined;
+    monitor.on(MonitorEventType.TokenInfo, (received) => {
+      event = received;
+      void monitor.stop();
+    });
+    await monitor.start();
+    expect(event?.inventoryBalances).to.deep.equal({ chain0: 0n });
   });
 
   it('awaits its consumer before another polling cycle and before stop completes', async () => {

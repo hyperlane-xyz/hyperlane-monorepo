@@ -186,6 +186,70 @@ async fn failed_estimate_releases_capacity_and_is_retried() {
 }
 
 #[tokio::test]
+async fn failed_reestimate_invalidates_an_earlier_fresh_estimate() {
+    let activity = Arc::new(EstimateActivity::default());
+    let mut adapter = adapter();
+    adapter.provider = Arc::new(YieldingEstimateProvider(activity.clone()));
+    let mut tx = TransactionFactory::build(precursor(), &payload());
+
+    adapter
+        .estimate_tx(&mut tx)
+        .await
+        .expect("initial estimate");
+    assert!(adapter.fresh_estimates.contains_key(&tx.uuid));
+
+    activity.fail.store(true, Ordering::Relaxed);
+    assert!(adapter.estimate_tx(&mut tx).await.is_err());
+    assert!(adapter.fresh_estimates.is_empty());
+    assert_eq!(activity.active.load(Ordering::Relaxed), 0);
+    assert_eq!(
+        adapter.estimate_permits.available_permits(),
+        MAX_CONCURRENT_ESTIMATES
+    );
+
+    // A stale marker would skip estimation and incorrectly submit successfully.
+    assert!(adapter.submit(&mut tx).await.is_err());
+    assert!(tx.tx_hashes.is_empty());
+    assert_eq!(activity.total.load(Ordering::Relaxed), 3);
+
+    activity.fail.store(false, Ordering::Relaxed);
+    adapter
+        .submit(&mut tx)
+        .await
+        .expect("retry with a new estimate");
+    assert_eq!(activity.total.load(Ordering::Relaxed), 4);
+}
+
+#[tokio::test]
+async fn cancelled_reestimate_invalidates_an_earlier_fresh_estimate() {
+    let activity = Arc::new(EstimateActivity::default());
+    let mut adapter = adapter();
+    adapter.provider = Arc::new(YieldingEstimateProvider(activity.clone()));
+    let mut tx = TransactionFactory::build(precursor(), &payload());
+    adapter
+        .estimate_tx(&mut tx)
+        .await
+        .expect("initial estimate");
+    assert!(adapter.fresh_estimates.contains_key(&tx.uuid));
+
+    let mut estimation = Box::pin(adapter.estimate_tx(&mut tx));
+    assert!(futures_util::poll!(&mut estimation).is_pending());
+    drop(estimation);
+    assert!(adapter.fresh_estimates.is_empty());
+    assert_eq!(activity.active.load(Ordering::Relaxed), 0);
+    assert_eq!(
+        adapter.estimate_permits.available_permits(),
+        MAX_CONCURRENT_ESTIMATES
+    );
+
+    adapter
+        .submit(&mut tx)
+        .await
+        .expect("retry cancelled refresh");
+    assert_eq!(activity.total.load(Ordering::Relaxed), 3);
+}
+
+#[tokio::test]
 async fn cancelled_estimate_releases_capacity_without_marking_fresh() {
     let activity = Arc::new(EstimateActivity::default());
     let mut adapter = adapter();

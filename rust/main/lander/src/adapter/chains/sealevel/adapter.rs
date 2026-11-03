@@ -414,6 +414,8 @@ impl AdaptsChain for SealevelAdapter {
 
     async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError> {
         info!(?tx, "estimating transaction");
+        // A failed or cancelled refresh must not reuse an earlier estimate.
+        self.fresh_estimates.remove(&tx.uuid);
         let not_estimated = tx.precursor();
         let estimated = self.estimate(not_estimated).await?;
         tx.vm_specific_data = VmSpecificTxData::Svm(Box::new(estimated));
