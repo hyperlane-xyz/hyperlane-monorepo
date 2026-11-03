@@ -7,18 +7,18 @@ use hyperlane_core::H512;
 use tokio::{
     sync::{
         mpsc::{self, Receiver as MpscReceiver, Sender as MpscSender},
-        oneshot,
+        oneshot, watch, Semaphore,
     },
     task::AbortHandle,
 };
 
-// One queued broadcast in addition to the one being delivered. Producers wait
-// for both admission and delivery; slow consumers cannot create an unbounded queue.
+// Bound registry commands independently of subscriber backpressure.
 const COMMAND_CAPACITY: usize = 1;
 
 #[derive(Debug, Clone, new)]
-/// Lossless fanout to bounded subscriber channels. An actor owns the subscriber
-/// list and preserves broadcast order while delivering to subscribers concurrently.
+/// Lossless fanout to bounded subscriber channels. An actor owns the registry
+/// and publishes immutable snapshots. Producers preserve broadcast order without
+/// a scheduler round trip when subscribers have capacity.
 pub struct BroadcastMpscSender<T> {
     capacity: usize,
     // Lazy initialization keeps construction usable outside a Tokio runtime.
@@ -28,8 +28,11 @@ pub struct BroadcastMpscSender<T> {
 
 #[derive(Debug)]
 struct BroadcastActor<T> {
-    broadcasts: MpscSender<BroadcastRequest<T>>,
-    subscriptions: MpscSender<Subscription<T>>,
+    commands: MpscSender<RegistryCommand<T>>,
+    snapshot: watch::Receiver<Arc<[MpscSender<T>]>>,
+    // One broadcast at a time preserves per-subscriber order. This is admission
+    // backpressure, not ownership of mutable application state.
+    order: Semaphore,
     task: AbortHandle,
 }
 
@@ -42,16 +45,9 @@ impl<T> Drop for BroadcastActor<T> {
 }
 
 #[derive(Debug)]
-struct BroadcastRequest<T> {
-    ready: oneshot::Sender<BroadcastTurn<T>>,
-}
-
-#[derive(Debug)]
-struct BroadcastTurn<T> {
-    senders: Vec<MpscSender<T>>,
-    // Releasing the turn lets the actor admit the next broadcast. Delivery
-    // futures stay in the caller so cancellation drops them synchronously.
-    _finished: oneshot::Sender<()>,
+enum RegistryCommand<T> {
+    Subscribe(Subscription<T>),
+    Prune,
 }
 
 #[derive(Debug)]
@@ -82,56 +78,38 @@ impl IndexingNotification {
 impl<T: Clone + Send + 'static> BroadcastMpscSender<T> {
     fn actor(&self) -> &BroadcastActor<T> {
         self.actor.get_or_init(|| {
-            let (broadcasts, broadcast_receiver) = mpsc::channel(COMMAND_CAPACITY);
-            let (subscriptions, subscription_receiver) = mpsc::channel(COMMAND_CAPACITY);
-            let task = tokio::spawn(Self::run(broadcast_receiver, subscription_receiver));
+            let (commands, receiver) = mpsc::channel(COMMAND_CAPACITY);
+            let (publisher, snapshot) = watch::channel(Arc::<[MpscSender<T>]>::from(Vec::new()));
+            let task = tokio::spawn(Self::run(receiver, publisher));
             BroadcastActor {
-                broadcasts,
-                subscriptions,
+                commands,
+                snapshot,
+                order: Semaphore::new(1),
                 task: task.abort_handle(),
             }
         })
     }
 
-    fn register(senders: &mut Vec<MpscSender<T>>, subscription: Subscription<T>) {
-        if !subscription.registered.is_closed() {
-            senders.retain(|sender| !sender.is_closed());
-            senders.push(subscription.sender);
-            let _ = subscription.registered.send(());
-        }
+    fn publish(senders: &mut Vec<MpscSender<T>>, publisher: &watch::Sender<Arc<[MpscSender<T>]>>) {
+        senders.retain(|sender| !sender.is_closed());
+        publisher.send_replace(Arc::from(senders.as_slice()));
     }
 
     async fn run(
-        mut broadcasts: MpscReceiver<BroadcastRequest<T>>,
-        mut subscriptions: MpscReceiver<Subscription<T>>,
+        mut commands: MpscReceiver<RegistryCommand<T>>,
+        publisher: watch::Sender<Arc<[MpscSender<T>]>>,
     ) {
         let mut senders = Vec::<MpscSender<T>>::new();
-        loop {
-            let request = tokio::select! {
-                Some(subscription) = subscriptions.recv() => {
-                    Self::register(&mut senders, subscription);
-                    continue;
-                }
-                Some(request) = broadcasts.recv() => request,
-                else => break,
-            };
-            senders.retain(|sender| !sender.is_closed());
-            let (finished, mut completion) = oneshot::channel();
-            let turn = BroadcastTurn {
-                senders: senders.clone(),
-                _finished: finished,
-            };
-            if request.ready.send(turn).is_err() {
-                continue;
-            }
-            loop {
-                tokio::select! {
-                    _ = &mut completion => break,
-                    Some(subscription) = subscriptions.recv() => {
-                        // New subscribers start with the next broadcast.
-                        Self::register(&mut senders, subscription);
+        while let Some(command) = commands.recv().await {
+            match command {
+                RegistryCommand::Subscribe(subscription) => {
+                    if !subscription.registered.is_closed() {
+                        senders.push(subscription.sender);
+                        Self::publish(&mut senders, &publisher);
+                        let _ = subscription.registered.send(());
                     }
                 }
+                RegistryCommand::Prune => Self::publish(&mut senders, &publisher),
             }
         }
     }
@@ -140,21 +118,39 @@ impl<T: Clone + Send + 'static> BroadcastMpscSender<T> {
     /// delaying delivery to ready ones. Dropping this future cancels pending
     /// deliveries; messages already enqueued in subscriber channels remain there.
     pub async fn send(&self, message: T) -> Result<()> {
-        let (ready, receiver) = oneshot::channel();
-        self.actor()
-            .broadcasts
-            .send(BroadcastRequest { ready })
+        let actor = self.actor();
+        let _turn = actor
+            .order
+            .acquire()
             .await
             .map_err(|_| eyre!("Indexing notification broadcaster stopped"))?;
-        let turn = receiver
-            .await
-            .map_err(|_| eyre!("Indexing notification broadcaster stopped"))?;
-        let mut deliveries: FuturesUnordered<_> = turn
-            .senders
-            .iter()
-            .map(|sender| sender.send(message.clone()))
-            .collect();
-        while deliveries.next().await.is_some() {}
+        if actor.commands.is_closed() {
+            return Err(eyre!("Indexing notification broadcaster stopped"));
+        }
+        // Clone the immutable snapshot, releasing watch's short read guard
+        // before any delivery can await subscriber capacity.
+        let senders = actor.snapshot.borrow().clone();
+        let mut pending = None;
+        let mut closed = false;
+        for sender in senders.iter() {
+            match sender.try_send(message.clone()) {
+                Ok(()) => {}
+                Err(mpsc::error::TrySendError::Closed(_)) => closed = true,
+                Err(mpsc::error::TrySendError::Full(value)) => {
+                    pending
+                        .get_or_insert_with(FuturesUnordered::new)
+                        .push(sender.send(value));
+                }
+            }
+        }
+        if closed {
+            // Best-effort maintenance. Later sends or registrations retry if
+            // the bounded control queue is full; delivery never waits for it.
+            let _ = actor.commands.try_send(RegistryCommand::Prune);
+        }
+        if let Some(mut deliveries) = pending {
+            while deliveries.next().await.is_some() {}
+        }
         Ok(())
     }
 
@@ -163,8 +159,11 @@ impl<T: Clone + Send + 'static> BroadcastMpscSender<T> {
         let (sender, receiver) = mpsc::channel(self.capacity);
         let (registered, registration) = oneshot::channel();
         self.actor()
-            .subscriptions
-            .send(Subscription { sender, registered })
+            .commands
+            .send(RegistryCommand::Subscribe(Subscription {
+                sender,
+                registered,
+            }))
             .await
             .expect("Indexing notification broadcaster stopped");
         registration
@@ -191,6 +190,15 @@ mod tests {
     use tokio::time::timeout;
 
     use super::*;
+
+    #[tokio::test]
+    async fn ready_subscribers_complete_without_an_actor_round_trip() {
+        let broadcaster = BroadcastMpscSender::new(1);
+        let mut receiver = broadcaster.get_receiver().await;
+        let mut send = Box::pin(broadcaster.send(1));
+        assert!(matches!(poll!(&mut send), std::task::Poll::Ready(Ok(()))));
+        assert_eq!(receiver.try_recv().expect("ready message"), 1);
+    }
 
     #[tokio::test]
     async fn disconnected_subscriber_does_not_block_later_subscribers() {
@@ -311,11 +319,11 @@ mod tests {
             let third = broadcaster.send(3);
             tokio::pin!(third);
             assert!(poll!(&mut third).is_pending());
-            assert_eq!(broadcaster.actor().broadcasts.capacity(), 0);
+            assert_eq!(broadcaster.actor().order.available_permits(), 0);
             let fourth = broadcaster.send(4);
             tokio::pin!(fourth);
             assert!(poll!(&mut fourth).is_pending());
-            assert_eq!(broadcaster.actor().broadcasts.capacity(), 0);
+            assert_eq!(broadcaster.actor().order.available_permits(), 0);
 
             drop(slow);
             let drain = async {
@@ -348,7 +356,7 @@ mod tests {
             }
             let mut cancelled = Box::pin(broadcaster.send(3));
             assert!(poll!(&mut cancelled).is_pending());
-            assert_eq!(broadcaster.actor().broadcasts.capacity(), 0);
+            assert_eq!(broadcaster.actor().order.available_permits(), 0);
             drop(cancelled);
 
             drop(slow);
