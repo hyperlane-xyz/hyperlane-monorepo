@@ -28,6 +28,8 @@ import {
   StaticAggregationIsm__factory,
   TokenBridgeCctpV2__factory,
   TokenRouter__factory,
+  XERC20LockboxTest__factory,
+  XERC20Test__factory,
 } from '@hyperlane-xyz/core';
 import {
   HookConfig,
@@ -2866,6 +2868,112 @@ describe('EvmWarpModule', async () => {
         );
         expect(await signer.getTransactionCount()).to.equal(nonceBefore);
         readStub.restore();
+      }
+    });
+
+    describe('xERC20 token fee attachment', () => {
+      // The default test4 metadata configures an Etherscan explorer, which the
+      // xERC20 reader would call to derive extra-lockbox configs on every read.
+      // The metadata object is shared across test MultiProviders, so clone it.
+      let xerc20MultiProvider: MultiProvider;
+      before(() => {
+        xerc20MultiProvider = MultiProvider.createTestMultiProvider({ signer });
+        const metadata = structuredClone(
+          xerc20MultiProvider.getChainMetadata(chain),
+        );
+        metadata.blockExplorers = [];
+        xerc20MultiProvider.metadata[chain] = metadata;
+      });
+
+      interface Case {
+        type: typeof TokenType.XERC20 | typeof TokenType.XERC20Lockbox;
+        deployToken: () => Promise<Address>;
+      }
+
+      const cases: Case[] = [
+        {
+          type: TokenType.XERC20,
+          deployToken: async () =>
+            (
+              await new XERC20Test__factory(signer).deploy(
+                TOKEN_NAME,
+                TOKEN_NAME,
+                TOKEN_SUPPLY,
+                TOKEN_DECIMALS,
+              )
+            ).address,
+        },
+        {
+          type: TokenType.XERC20Lockbox,
+          deployToken: async () =>
+            (
+              await new XERC20LockboxTest__factory(signer).deploy(
+                TOKEN_NAME,
+                TOKEN_NAME,
+                TOKEN_SUPPLY,
+                TOKEN_DECIMALS,
+              )
+            ).address,
+        },
+      ];
+
+      for (const c of cases) {
+        it(`rejects adding a token fee to a ${c.type} route without an existing fee`, async () => {
+          const tokenAddress = await c.deployToken();
+          const module = await EvmWarpModule.create({
+            chain,
+            config: {
+              type: c.type,
+              token: tokenAddress,
+              mailbox: baseConfig.mailbox,
+              owner: baseConfig.owner,
+            },
+            multiProvider: xerc20MultiProvider,
+            proxyFactoryFactories: ismFactoryAddresses,
+          });
+          const actualConfig = await module.read();
+          const tokenFee: HypTokenRouterConfig['tokenFee'] = {
+            type: TokenFeeType.LinearFee,
+            maxFee: 1_000_000_000n,
+            halfAmount: 500_000_000n,
+          };
+          const expectedConfigs: HypTokenRouterConfig[] = [
+            {
+              type: c.type,
+              token: tokenAddress,
+              mailbox: baseConfig.mailbox,
+              owner: baseConfig.owner,
+              tokenFee,
+            },
+            {
+              type: c.type,
+              token: tokenAddress,
+              mailbox: baseConfig.mailbox,
+              owner: baseConfig.owner,
+              contractVersion: CONTRACTS_PACKAGE_VERSION,
+              tokenFee,
+            },
+          ];
+          const expectedError = `Token fees are not supported for token type ${c.type} on ${chain}`;
+          const nonceBefore = await signer.getTransactionCount();
+
+          for (const expectedConfig of expectedConfigs) {
+            await expect(module.update(expectedConfig)).to.be.rejectedWith(
+              expectedError,
+            );
+            await expect(
+              module.createTokenFeeUpdateTxs(actualConfig, expectedConfig),
+            ).to.be.rejectedWith(expectedError);
+          }
+
+          expect(await signer.getTransactionCount()).to.equal(nonceBefore);
+          const router = TokenRouter__factory.connect(
+            module.serialize().deployedTokenRoute,
+            signer,
+          );
+          expect(isZeroishAddress(await router.feeRecipient())).to.be.true;
+          expect((await module.read()).tokenFee).to.be.undefined;
+        });
       }
     });
 
