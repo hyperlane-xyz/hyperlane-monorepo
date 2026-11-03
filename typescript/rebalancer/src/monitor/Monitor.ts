@@ -9,6 +9,7 @@ import {
 import {
   Address,
   ProtocolType,
+  assert,
   concurrentMap,
   fromWei,
   sleep,
@@ -243,6 +244,10 @@ export class Monitor implements IMonitor {
       return;
     }
 
+    assert(
+      token.protocol !== ProtocolType.Ethereum || blockTag !== undefined,
+      `Confirmed block unavailable for ${token.chainName}`,
+    );
     const adapter = token.getHypAdapter(this.warpCore.multiProvider);
     const bridgedSupply = await adapter.getBridgedSupply({ blockTag });
     this.logger.debug(

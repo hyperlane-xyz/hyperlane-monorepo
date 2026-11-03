@@ -223,6 +223,112 @@ describe('Monitor concurrency', () => {
     expect(handler.notCalled).to.equal(true);
   });
 
+  it('retries a failed confirmed block lookup without emitting latest-state supply', async () => {
+    const { monitor, blocks, adapters } = setup(1, true);
+    blocks[0].send.onFirstCall().rejects(new Error('block unavailable'));
+    const errors = sinon.stub();
+    let event: MonitorEvent | undefined;
+    let supplyReadOnError = false;
+    monitor.on(MonitorEventType.Error, (error) => {
+      errors(error);
+      supplyReadOnError = adapters[0].getBridgedSupply.called;
+    });
+    monitor.on(MonitorEventType.TokenInfo, (received) => {
+      event = received;
+      void monitor.stop();
+    });
+
+    await monitor.start();
+    expect(errors.calledOnce).to.equal(true);
+    expect(errors.firstCall.args[0].message).to.contain(
+      'Confirmed block unavailable for chain0',
+    );
+    expect(supplyReadOnError).to.equal(false);
+    expect(blocks[0].send.calledTwice).to.equal(true);
+    expect(adapters[0].getBridgedSupply.calledOnce).to.equal(true);
+    expect(adapters[0].getBridgedSupply.firstCall.args).to.deep.equal([
+      { blockTag: 98 },
+    ]);
+    expect(event?.confirmedBlockTags.chain0).to.equal(98);
+    expect(event?.tokensInfo[0].bridgedSupply).to.equal(0n);
+    expect(event?.inventoryBalances).to.deep.equal({ chain0: 10n });
+  });
+
+  it('preserves optional block tags for Tron named reorg periods', async () => {
+    const token = new Token({
+      chainName: 'tron',
+      standard: TokenStandard.TronHypSynthetic,
+      addressOrDenom: 'TJRabPrwbZy45sbavfcjinPJC18kjpRTv8',
+      decimals: 6,
+      name: 'Token',
+      symbol: 'TOK',
+    });
+    const metadata: ChainMap<ChainMetadata> = {
+      tron: {
+        name: 'tron',
+        protocol: ProtocolType.Tron,
+        chainId: 728126428,
+        domainId: 728126428,
+        rpcUrls: [{ http: 'http://unused' }],
+        blocks: { reorgPeriod: 'finalized', confirmations: 1 },
+      },
+    };
+    const multiProvider = new MultiProtocolProvider(metadata);
+    const adapter = sinon.createStubInstance(EvmHypSyntheticAdapter);
+    adapter.getBridgedSupply.resolves(5n);
+    sinon.stub(token, 'getHypAdapter').returns(adapter);
+    const monitor = new Monitor(
+      0,
+      new WarpCore(multiProvider, [token]),
+      logger,
+    );
+    const errors = sinon.stub();
+    let event: MonitorEvent | undefined;
+    monitor.on(MonitorEventType.Error, (error) => {
+      errors(error);
+      void monitor.stop();
+    });
+    monitor.on(MonitorEventType.TokenInfo, (received) => {
+      event = received;
+      void monitor.stop();
+    });
+
+    await monitor.start();
+    expect(errors.notCalled).to.equal(true);
+    expect(adapter.getBridgedSupply.calledOnce).to.equal(true);
+    expect(adapter.getBridgedSupply.firstCall.args).to.deep.equal([
+      { blockTag: undefined },
+    ]);
+    expect(event?.confirmedBlockTags.tron).to.equal(undefined);
+    expect(event?.tokensInfo).to.deep.equal([{ token, bridgedSupply: 5n }]);
+  });
+
+  it('emits inventory balances from a later cycle after an inventory failure', async () => {
+    const { monitor, adapters } = setup(1, true);
+    adapters[0].getBalance
+      .onFirstCall()
+      .rejects(new Error('inventory unavailable'));
+    const errors = sinon.stub();
+    const handler = sinon.stub();
+    let event: MonitorEvent | undefined;
+    monitor.on(MonitorEventType.Error, errors);
+    monitor.on(MonitorEventType.TokenInfo, (received) => {
+      handler(received);
+      event = received;
+      void monitor.stop();
+    });
+
+    await monitor.start();
+    expect(errors.calledOnce).to.equal(true);
+    expect(errors.firstCall.args[0].message).to.contain(
+      'inventory unavailable',
+    );
+    expect(handler.calledOnce).to.equal(true);
+    sinon.assert.callOrder(errors, handler);
+    expect(adapters[0].getBalance.calledTwice).to.equal(true);
+    expect(event?.inventoryBalances).to.deep.equal({ chain0: 10n });
+  });
+
   it('emits successfully read zero inventory balances', async () => {
     const { monitor, adapters } = setup(1, true);
     adapters[0].getBalance.resolves(0n);

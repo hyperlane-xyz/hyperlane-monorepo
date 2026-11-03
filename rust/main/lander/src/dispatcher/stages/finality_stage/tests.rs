@@ -255,6 +255,227 @@ async fn failed_payload_checks_keep_finalized_transactions_for_the_next_scan() {
 }
 
 #[tokio::test]
+async fn failed_finalized_payload_check_recovers_after_database_reopen() {
+    assert_finalization_recovers_after_failure(true, false).await;
+}
+
+#[tokio::test]
+async fn partially_recorded_finalization_recovers_without_overwriting_reverted_payloads() {
+    assert_finalization_recovers_after_failure(false, false).await;
+}
+
+#[tokio::test]
+async fn directly_finalized_inclusion_recovers_unfinished_checks_after_database_reopen() {
+    assert_finalization_recovers_after_failure(true, true).await;
+}
+
+async fn assert_finalization_recovers_after_failure(
+    fail_payload_check: bool,
+    directly_finalized: bool,
+) {
+    use crate::dispatcher::{LoadableFromDb, LoadingOutcome, TransactionDbLoader};
+    use hyperlane_base::db::{HyperlaneRocksDB, DB};
+    use hyperlane_core::KnownHyperlaneDomain;
+
+    let directory = tempfile::tempdir().unwrap();
+    let domain = KnownHyperlaneDomain::Arbitrum.into();
+    let payloads: Vec<_> = (0..2)
+        .map(|_| {
+            let mut payload = FullPayload::random();
+            payload.status = PayloadStatus::InTransaction(TransactionStatus::Included);
+            payload
+        })
+        .collect();
+    let initial_status = if directly_finalized {
+        TransactionStatus::PendingInclusion
+    } else {
+        TransactionStatus::Included
+    };
+    let tx = dummy_tx(payloads.clone(), initial_status);
+    {
+        let db = Arc::new(HyperlaneRocksDB::new(
+            &domain,
+            DB::from_path(directory.path()).unwrap(),
+        ));
+        for payload in &payloads {
+            db.store_payload_by_uuid(payload).await.unwrap();
+        }
+        db.store_transaction_by_uuid(&tx).await.unwrap();
+        let reverted = vec![tx.payload_details[0].clone()];
+        let mut adapter = MockAdapter::new();
+        adapter
+            .expect_estimated_block_time()
+            .return_const(Duration::from_secs(1));
+        adapter
+            .expect_tx_status()
+            .times(1)
+            .returning(|_| Ok(TransactionStatus::Finalized));
+        adapter
+            .expect_reverted_payloads()
+            .times(1)
+            .withf(|tx| tx.status == TransactionStatus::Finalized)
+            .returning(move |_| {
+                if fail_payload_check {
+                    Err(LanderError::ChainCommunicationError(
+                        hyperlane_core::ChainCommunicationError::from_other_str(
+                            "payload RPC unavailable",
+                        ),
+                    ))
+                } else {
+                    Ok(reverted.clone())
+                }
+            });
+        adapter
+            .expect_post_finalized()
+            .times(usize::from(!fail_payload_check))
+            .returning(|| {
+                Err(LanderError::NetworkError(
+                    "post-finalization unavailable".into(),
+                ))
+            });
+        let state = DispatcherState::new(
+            db.clone(),
+            db.clone(),
+            Arc::new(adapter),
+            DispatcherMetrics::dummy_instance(),
+            "arbitrum".to_owned(),
+        );
+        let to_verify = if directly_finalized {
+            let inclusion_pool = super::super::inclusion_stage::InclusionStagePool::default();
+            inclusion_pool
+                .lock()
+                .await
+                .insert(tx.uuid.clone(), tx.clone());
+            let (finality_sender, mut finality_receiver) = mpsc::channel(1);
+            super::super::inclusion_stage::InclusionStage::process_txs_step(
+                &inclusion_pool,
+                &finality_sender,
+                &state,
+                "arbitrum",
+            )
+            .await
+            .unwrap();
+            let forwarded = finality_receiver.try_recv().unwrap();
+            assert_eq!(forwarded.status, TransactionStatus::Finalized);
+            forwarded
+        } else {
+            tx.clone()
+        };
+        let pool = FinalityStagePool::new();
+        pool.insert(to_verify.clone()).await;
+        assert!(FinalityStage::try_process_tx(
+            to_verify,
+            pool.clone(),
+            BuildingStageQueue::new(),
+            &state,
+        )
+        .await
+        .is_err());
+        assert!(pool.snapshot().await.contains_key(&tx.uuid));
+        assert_eq!(
+            db.retrieve_transaction_by_uuid(&tx.uuid)
+                .await
+                .unwrap()
+                .unwrap()
+                .status,
+            TransactionStatus::Included,
+            "unfinished verification must remain recoverable on disk",
+        );
+        if !fail_payload_check {
+            assert_eq!(
+                db.retrieve_payload_by_uuid(&tx.payload_details[0].uuid)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .status,
+                PayloadStatus::Dropped(PayloadDropReason::Reverted),
+            );
+        }
+    }
+
+    // Discard every in-memory retry and reopen the actual database, as on restart.
+    let db = Arc::new(HyperlaneRocksDB::new(
+        &domain,
+        DB::from_path(directory.path()).unwrap(),
+    ));
+    let reverted = vec![tx.payload_details[0].clone()];
+    let mut adapter = MockAdapter::new();
+    adapter
+        .expect_tx_status()
+        .times(1)
+        .returning(|_| Ok(TransactionStatus::Finalized));
+    adapter
+        .expect_reverted_payloads()
+        .times(1)
+        .withf(|tx| tx.status == TransactionStatus::Finalized)
+        .returning(move |_| Ok(reverted.clone()));
+    adapter
+        .expect_post_finalized()
+        .times(1)
+        .returning(|| Ok(()));
+    let state = DispatcherState::new(
+        db.clone(),
+        db.clone(),
+        Arc::new(adapter),
+        DispatcherMetrics::dummy_instance(),
+        "arbitrum".to_owned(),
+    );
+    let (inclusion_tx, mut inclusion_rx) = mpsc::channel(1);
+    let (finality_tx, mut finality_rx) = mpsc::channel(1);
+    let loader = TransactionDbLoader::new(
+        state.clone(),
+        inclusion_tx,
+        finality_tx,
+        "arbitrum".to_owned(),
+    );
+    let persisted = db
+        .retrieve_transaction_by_uuid(&tx.uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(
+        loader.load(persisted).await.unwrap(),
+        LoadingOutcome::Loaded
+    ));
+    assert!(inclusion_rx.try_recv().is_err());
+    let recovered = finality_rx
+        .try_recv()
+        .expect("pending finalization was recovered");
+    let pool = FinalityStagePool::new();
+    pool.insert(recovered.clone()).await;
+    FinalityStage::try_process_tx(recovered, pool.clone(), BuildingStageQueue::new(), &state)
+        .await
+        .unwrap();
+    assert!(pool.snapshot().await.is_empty());
+    assert_eq!(
+        db.retrieve_payload_by_uuid(&tx.payload_details[0].uuid)
+            .await
+            .unwrap()
+            .unwrap()
+            .status,
+        PayloadStatus::Dropped(PayloadDropReason::Reverted),
+    );
+    assert_eq!(
+        db.retrieve_payload_by_uuid(&tx.payload_details[1].uuid)
+            .await
+            .unwrap()
+            .unwrap()
+            .status,
+        PayloadStatus::InTransaction(TransactionStatus::Finalized),
+    );
+    let finalized = db
+        .retrieve_transaction_by_uuid(&tx.uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(finalized.status, TransactionStatus::Finalized);
+    assert!(matches!(
+        loader.load(finalized).await.unwrap(),
+        LoadingOutcome::Skipped
+    ));
+}
+
+#[tokio::test]
 async fn test_processing_already_finalized_txs_does_not_call_tx_status() {
     const TXS_TO_PROCESS: usize = 3;
 

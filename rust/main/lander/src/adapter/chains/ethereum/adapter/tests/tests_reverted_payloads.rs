@@ -147,6 +147,63 @@ async fn payload_status_reads_filter_mixed_results_in_original_order() {
 }
 
 #[tokio::test]
+async fn payload_status_reads_reject_mixed_success_and_error_results() {
+    let (payload_db, tx_db, nonce_db) = tmp_dbs();
+    let mut provider = MockEvmProvider::new();
+    let mut sequence = mockall::Sequence::new();
+    provider
+        .expect_check()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .returning(|_, _| Ok(false));
+    provider
+        .expect_check()
+        .times(1)
+        .in_sequence(&mut sequence)
+        .returning(|_, _| {
+            Err(ChainCommunicationError::from_other_str(
+                "payload RPC unavailable",
+            ))
+        });
+    let adapter = mock_ethereum_adapter(
+        provider,
+        payload_db,
+        tx_db,
+        nonce_db,
+        H160::zero(),
+        Duration::ZERO,
+        Duration::ZERO,
+    );
+    let function = AbiParser::default()
+        .parse_function("function delivered(bytes32) view returns (bool)")
+        .expect("parse delivery check ABI");
+    let success_criteria = serde_json::to_vec(&(
+        ethers::types::transaction::eip2718::TypedTransaction::Legacy(TransactionRequest::new()),
+        function,
+    ))
+    .expect("serialize success criteria");
+    let payloads = (0..2)
+        .map(|_| {
+            let mut payload = FullPayload::random();
+            payload.details.success_criteria = Some(success_criteria.clone());
+            payload
+        })
+        .collect();
+    let tx = dummy_evm_tx(
+        ExpectedTxType::Legacy,
+        payloads,
+        TransactionStatus::Finalized,
+        H160::zero(),
+    );
+
+    let error = adapter
+        .reverted_payloads(&tx)
+        .await
+        .expect_err("one successful check must not hide another check's failure");
+    assert!(error.to_string().contains("payload RPC unavailable"));
+}
+
+#[tokio::test]
 async fn payload_status_read_errors_propagate_and_can_be_retried() {
     let (payload_db, tx_db, nonce_db) = tmp_dbs();
     let mut provider = MockEvmProvider::new();
