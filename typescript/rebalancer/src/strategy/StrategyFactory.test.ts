@@ -15,6 +15,7 @@ import {
 import { MinAmountStrategy } from './MinAmountStrategy.js';
 import { StrategyFactory } from './StrategyFactory.js';
 import { WeightedStrategy } from './WeightedStrategy.js';
+import { EMAFlowStrategy } from './flow-reactive/EMAFlowStrategy.js';
 
 const testLogger = pino({ level: 'silent' });
 
@@ -103,6 +104,43 @@ describe('StrategyFactory', () => {
         testLogger,
       );
       expect(strategy).to.be.instanceOf(MinAmountStrategy);
+    });
+
+    it('creates an EMAFlowStrategy when given emaFlow configuration', () => {
+      const strategyConfig: StrategyConfig = {
+        rebalanceStrategy: RebalancerStrategyOptions.EMAFlow,
+        chains: {
+          [chain1]: {
+            bridge: ethers.constants.AddressZero,
+            emaFlow: {
+              alpha: 0.5,
+              windowSizeMs: 60_000,
+              minSamplesForSignal: 3,
+              coldStartCycles: 2,
+            },
+          },
+          [chain2]: {
+            bridge: ethers.constants.AddressZero,
+            emaFlow: {
+              alpha: 0.5,
+              windowSizeMs: 60_000,
+              minSamplesForSignal: 3,
+              coldStartCycles: 2,
+            },
+          },
+        },
+      };
+      const actionTracker = {} as any;
+      const strategy = StrategyFactory.createStrategy(
+        [strategyConfig],
+        tokensByChainName,
+        totalCollateral,
+        testLogger,
+        undefined,
+        undefined,
+        actionTracker,
+      );
+      expect(strategy).to.be.instanceOf(EMAFlowStrategy);
     });
   });
 });

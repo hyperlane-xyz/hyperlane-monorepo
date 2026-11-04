@@ -1,6 +1,7 @@
 import { type Logger } from 'pino';
 
 import { type ChainMap, type Token } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import {
   ExecutionType,
@@ -14,11 +15,13 @@ import type {
   InventoryBridgeConfig,
   MovableCollateralBridgeConfig,
 } from '../utils/bridgeUtils.js';
+import type { IActionTracker } from '../tracking/IActionTracker.js';
 
 import { CollateralDeficitStrategy } from './CollateralDeficitStrategy.js';
 import { CompositeStrategy } from './CompositeStrategy.js';
 import { MinAmountStrategy } from './MinAmountStrategy.js';
 import { WeightedStrategy } from './WeightedStrategy.js';
+import { EMAFlowStrategy } from './flow-reactive/EMAFlowStrategy.js';
 
 export class StrategyFactory {
   /**
@@ -41,6 +44,7 @@ export class StrategyFactory {
     logger: Logger,
     metrics?: Metrics,
     minAmountsByChain?: ChainMap<bigint>,
+    actionTracker?: IActionTracker,
   ): IStrategy {
     if (strategyConfigs.length === 0) {
       throw new Error('At least one strategy must be configured');
@@ -55,6 +59,7 @@ export class StrategyFactory {
         logger,
         metrics,
         minAmountsByChain,
+        actionTracker,
       );
     }
 
@@ -67,6 +72,7 @@ export class StrategyFactory {
         logger,
         metrics,
         minAmountsByChain,
+        actionTracker,
       ),
     );
     return new CompositeStrategy(subStrategies, logger);
@@ -82,6 +88,7 @@ export class StrategyFactory {
     logger: Logger,
     metrics?: Metrics,
     _minAmountsByChain?: ChainMap<bigint>,
+    actionTracker?: IActionTracker,
   ): IStrategy {
     const bridgeConfigs = this.extractBridgeConfigs(strategyConfig);
 
@@ -112,6 +119,17 @@ export class StrategyFactory {
           logger,
           bridgeConfigs,
           metrics,
+        );
+      }
+      case RebalancerStrategyOptions.EMAFlow: {
+        assert(actionTracker, 'actionTracker required for EMAFlow strategy');
+        return new EMAFlowStrategy(
+          strategyConfig.chains,
+          logger,
+          bridgeConfigs,
+          actionTracker,
+          metrics,
+          tokensByChainName,
         );
       }
       default: {
