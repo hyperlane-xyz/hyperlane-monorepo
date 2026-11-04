@@ -5028,7 +5028,10 @@
           "name": "Elysium Explorer",
           "url": "https://elysium.kinetiq.xyz/explorer"
         }
-      ]
+      ],
+      "transactionOverrides": {
+        "gasPrice": 100000000
+      }
     }
   },
   "ccrRouters": {
