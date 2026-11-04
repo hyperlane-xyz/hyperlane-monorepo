@@ -72,6 +72,15 @@ contract MockDepositFee is ITokenFee, ICrossCollateralFee {
         quotes = new Quote[](1);
         quotes[0] = Quote(token, (_amount * feeBps) / 10000);
     }
+
+    function quoteTransferRemoteFromTo(
+        uint32,
+        bytes32,
+        uint256 _maxSpend,
+        bytes32 /*_targetRouter*/
+    ) external view override returns (uint256) {
+        return (_maxSpend * 10000) / (10000 + feeBps);
+    }
 }
 
 /// @notice Mock fee contract that implements only ICrossCollateralFee.
@@ -92,6 +101,15 @@ contract MockRouterOnlyFee is ICrossCollateralFee {
     ) external view override returns (Quote[] memory quotes) {
         quotes = new Quote[](1);
         quotes[0] = Quote(token, (_amount * feeBps) / 10000);
+    }
+
+    function quoteTransferRemoteFromTo(
+        uint32,
+        bytes32,
+        uint256 _maxSpend,
+        bytes32 /*_targetRouter*/
+    ) external view override returns (uint256) {
+        return (_maxSpend * 10000) / (10000 + feeBps);
     }
 }
 

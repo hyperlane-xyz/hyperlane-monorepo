@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
 
-import {ITokenFee, Quote} from "../../interfaces/ITokenBridge.sol";
+import {ITokenFee, IExactInFee, Quote} from "../../interfaces/ITokenBridge.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -18,9 +18,12 @@ enum FeeType {
     OFFCHAIN_QUOTED_LINEAR
 }
 
-abstract contract BaseFee is Ownable, ITokenFee, PackageVersioned {
+abstract contract BaseFee is Ownable, ITokenFee, IExactInFee, PackageVersioned {
     using Address for address payable;
     using SafeERC20 for IERC20;
+
+    /// @notice Thrown when a fee curve does not support exact-in inversion.
+    error ExactInNotSupported();
 
     /**
      * @notice The ERC20 token for which this fee contract applies.
@@ -77,6 +80,27 @@ abstract contract BaseFee is Ownable, ITokenFee, PackageVersioned {
         uint256 /*_amount*/
     ) internal view virtual returns (uint256 fee) {
         return 0;
+    }
+
+    /// @inheritdoc IExactInFee
+    function quoteTransferRemoteFrom(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _maxSpend
+    ) external view virtual returns (uint256 _amount) {
+        return _maxAmountForSpend(_destination, _recipient, _maxSpend);
+    }
+
+    /**
+     * @dev Inverse of `_quoteTransfer`: largest amount fitting `_maxSpend`.
+     *      Defaults to reverting; overridden by invertible fee curves.
+     */
+    function _maxAmountForSpend(
+        uint32 /*_destination*/,
+        bytes32 /*_recipient*/,
+        uint256 /*_maxSpend*/
+    ) internal view virtual returns (uint256) {
+        revert ExactInNotSupported();
     }
 
     function feeType() external view virtual returns (FeeType);
