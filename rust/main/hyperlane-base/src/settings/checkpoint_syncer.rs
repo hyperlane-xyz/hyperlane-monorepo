@@ -6,11 +6,11 @@ use eyre::{eyre, Context, Report, Result};
 use prometheus::IntGauge;
 use ya_gcp::{AuthFlow, ServiceAccountAuth};
 
-use hyperlane_core::{ChainCommunicationError, ReorgEventResponse};
+use hyperlane_core::{ChainCommunicationError, ReorgEventResponse, H256};
 
 use crate::{
-    CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, S3Storage, GCS_SERVICE_ACCOUNT_KEY,
-    GCS_USER_SECRET,
+    CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, OnchainStorage, S3Storage,
+    GCS_SERVICE_ACCOUNT_KEY, GCS_USER_SECRET,
 };
 
 /// Checkpoint Syncer types
@@ -29,6 +29,13 @@ pub enum CheckpointSyncerConf {
         folder: Option<String>,
         /// S3 Region
         region: Region,
+    },
+    /// A checkpoint syncer on-chain using a smart contract
+    Onchain {
+        /// The name of the chain
+        chain_name: String,
+        /// The contract address of the checkpoint storage contract
+        contract_address: H256,
     },
     /// A checkpoint syncer on Google Cloud Storage
     Gcs {
@@ -115,6 +122,16 @@ impl FromStr for CheckpointSyncerConf {
                     }),
                 }
             }
+            "onchain" => {
+                let parts: Vec<&str> = suffix.split('/').collect::<Vec<&str>>();
+                if parts.len() != 2 {
+                    return Err(eyre!("Invalid onchain checkpoint syncer format"));
+                }
+                Ok(CheckpointSyncerConf::Onchain {
+                    chain_name: parts[0].to_string(),
+                    contract_address: parts[1].parse()?,
+                })
+            }
             _ => Err(eyre!("Unknown storage location prefix `{prefix}`")),
         }
     }
@@ -181,6 +198,10 @@ impl CheckpointSyncerConf {
                         .await?,
                 )
             }
+            CheckpointSyncerConf::Onchain {
+                chain_name,
+                contract_address,
+            } => Box::new(OnchainStorage::new(chain_name.clone(), *contract_address)),
         })
     }
 }
