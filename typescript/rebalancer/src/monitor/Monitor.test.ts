@@ -109,6 +109,63 @@ function setupTron(reorgPeriod: number | string) {
 describe('Monitor concurrency', () => {
   afterEach(() => sinon.restore());
 
+  it('rejects restart while stopping and makes every stop caller await the cycle', async () => {
+    const { monitor, adapters } = setup(1);
+    const supply = sinon.promise<bigint>();
+    adapters[0].getBridgedSupply.returns(supply);
+    const errors = sinon.stub();
+    monitor.on(MonitorEventType.Error, errors);
+
+    const running = monitor.start();
+    await nextTurn();
+    const stopping = monitor.stop();
+    const repeatedStop = monitor.stop();
+    expect(repeatedStop).to.equal(stopping);
+    let stopped = false;
+    void repeatedStop.then(() => {
+      stopped = true;
+    });
+
+    await monitor.start();
+    await nextTurn();
+    expect(errors.calledOnce).to.equal(true);
+    expect(errors.firstCall.args[0].message).to.equal(
+      'Monitor already running',
+    );
+    expect(adapters[0].getBridgedSupply.calledOnce).to.equal(true);
+    expect(stopped).to.equal(false);
+
+    void supply.resolve(1n);
+    await Promise.all([running, stopping, repeatedStop]);
+    expect(stopped).to.equal(true);
+
+    monitor.on(MonitorEventType.TokenInfo, () => {
+      void monitor.stop();
+    });
+    await monitor.start();
+    expect(adapters[0].getBridgedSupply.calledTwice).to.equal(true);
+  });
+
+  it('returns to stopped after a startup handler fails', async () => {
+    const { monitor, adapters } = setup(1);
+    const errors = sinon.stub();
+    monitor.on(MonitorEventType.Error, errors);
+    monitor.on(MonitorEventType.Start, () => {
+      throw new Error('startup failed');
+    });
+    await monitor.start();
+    expect(errors.calledOnce).to.equal(true);
+    expect(errors.firstCall.args[0].message).to.contain('startup failed');
+    expect(adapters[0].getBridgedSupply.notCalled).to.equal(true);
+    await monitor.stop();
+
+    monitor.on(MonitorEventType.TokenInfo, () => {
+      void monitor.stop();
+    });
+    await monitor.start();
+    expect(adapters[0].getBridgedSupply.calledOnce).to.equal(true);
+  });
+
   it('bounds block and inventory reads, filling slots while another chain is slow', async () => {
     const { monitor, tokens, blocks, adapters } = setup(10, true);
     const blockGates = blocks.map(() => sinon.promise<string>());

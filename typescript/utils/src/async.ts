@@ -42,22 +42,25 @@ export class LazyAsync<T> {
     return this.hasValue ? (this.value as T) : undefined;
   }
 
-  private async initialize(gen: number): Promise<T> {
-    try {
-      const result = await this.initializer();
-      // Only store if generation hasn't changed (no reset during init)
-      if (gen === this.generation) {
-        this.value = result;
-        this.hasValue = true;
-      }
-      return result;
-    } catch (error) {
-      // Only clear promise if generation hasn't changed
-      if (gen === this.generation) {
-        this.promise = undefined;
-      }
-      throw error;
-    }
+  private initialize(gen: number): Promise<T> {
+    // Capture synchronous throws as rejections so cleanup runs after get()
+    // has assigned the shared promise, just as for asynchronous failures.
+    return new Promise<T>((resolve) => resolve(this.initializer())).then(
+      (result) => {
+        // Only store if generation hasn't changed (no reset during init).
+        if (gen === this.generation) {
+          this.value = result;
+          this.hasValue = true;
+        }
+        return result;
+      },
+      (error: unknown) => {
+        if (gen === this.generation) {
+          this.promise = undefined;
+        }
+        throw error;
+      },
+    );
   }
 }
 

@@ -47,6 +47,7 @@ export class HyperlaneRelayer {
   public cache: RelayerCache | undefined;
 
   protected stopRelayingHandler: ((chains?: ChainName[]) => void) | undefined;
+  protected relayGeneration = 0;
 
   public readonly logger: Logger;
 
@@ -319,27 +320,31 @@ export class HyperlaneRelayer {
   }
 
   protected async flushBacklog(): Promise<void> {
-    while (this.stopRelayingHandler) {
+    const generation = this.relayGeneration;
+    while (this.stopRelayingHandler && generation === this.relayGeneration) {
       this.observer.onEvent?.({
         type: 'backlog',
         size: this.backlog.length,
       });
 
-      const backlogMsg = this.backlog.shift();
+      const now = Date.now();
+      let nextAttempt = now + 1000;
+      const readyIndex = this.backlog.findIndex((message) => {
+        // Linear backoff (attempts * retryTimeout).
+        const retryAt =
+          message.lastAttempt + message.attempts * this.retryTimeout;
+        nextAttempt = Math.min(nextAttempt, retryAt);
+        return retryAt <= now;
+      });
 
-      if (!backlogMsg) {
-        this.logger.trace('Backlog empty, waiting 1s');
-        await sleep(1000);
+      if (readyIndex < 0) {
+        // Yield when every message is waiting; rotating the queue here would
+        // block the event loop until a retry becomes eligible.
+        await sleep(nextAttempt - now);
         continue;
       }
 
-      // linear backoff (attempts * retryTimeout)
-      const backoffTime =
-        backlogMsg.lastAttempt + backlogMsg.attempts * this.retryTimeout;
-      if (Date.now() < backoffTime) {
-        this.backlog.push(backlogMsg);
-        continue;
-      }
+      const [backlogMsg] = this.backlog.splice(readyIndex, 1);
 
       const { message, dispatchTx, attempts } = backlogMsg;
       const id = messageId(message);
@@ -357,6 +362,11 @@ export class HyperlaneRelayer {
         const dispatchReceipt = await this.multiProvider
           .getProvider(parsed.origin)
           .getTransactionReceipt(dispatchTx);
+
+        if (generation !== this.relayGeneration) {
+          this.backlog.push(backlogMsg);
+          continue;
+        }
 
         await this.relayMessage(dispatchReceipt, undefined, dispatchMsg);
       } catch (error) {
@@ -389,7 +399,7 @@ export class HyperlaneRelayer {
   start(): void {
     assert(!this.stopRelayingHandler, 'Relayer already started');
 
-    this.backlog = this.cache?.backlog ?? [];
+    this.backlog = this.cache?.backlog ?? this.backlog;
 
     const { removeHandler } = this.core.onDispatch(async (message, event) => {
       if (
@@ -412,6 +422,7 @@ export class HyperlaneRelayer {
     }, this.whitelistChains());
 
     this.stopRelayingHandler = removeHandler;
+    this.relayGeneration++;
 
     void this.flushBacklog();
   }
@@ -420,6 +431,7 @@ export class HyperlaneRelayer {
     assert(this.stopRelayingHandler, 'Relayer not started');
     this.stopRelayingHandler(this.whitelistChains());
     this.stopRelayingHandler = undefined;
+    this.relayGeneration++;
 
     if (this.cache) {
       this.cache.backlog = this.backlog;

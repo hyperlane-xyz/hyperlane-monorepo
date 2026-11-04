@@ -155,3 +155,46 @@ describe('LazyAsync', () => {
     expect(lazy.isInitialized()).to.equal(true);
   });
 });
+
+describe('LazyAsync synchronous failure recovery', () => {
+  it('shares a synchronous failure and retries initialization on the next get', async () => {
+    let calls = 0;
+    const failure = new Error(
+      'Initialization failed before returning a promise',
+    );
+    const lazy = new LazyAsync(() => {
+      if (++calls === 1) throw failure;
+      return Promise.resolve(42);
+    });
+
+    const first = lazy.get();
+    const second = lazy.get();
+    expect(first).to.equal(second);
+    const outcomes = await Promise.allSettled([first, second]);
+    for (const outcome of outcomes) {
+      expect(outcome.status).to.equal('rejected');
+      if (outcome.status === 'rejected')
+        expect(outcome.reason).to.equal(failure);
+    }
+    expect(lazy.isInitialized()).to.equal(false);
+    expect(lazy.peek()).to.equal(undefined);
+    expect(await lazy.get()).to.equal(42);
+    expect(calls).to.equal(2);
+    expect(lazy.peek()).to.equal(42);
+  });
+
+  it('does not clear a newer initialization when a stale synchronous failure settles', async () => {
+    let calls = 0;
+    const lazy = new LazyAsync(() => {
+      if (++calls === 1) throw new Error('Stale failure');
+      return Promise.resolve(42);
+    });
+    const stale = lazy.get();
+    lazy.reset();
+    const current = lazy.get();
+    await Promise.allSettled([stale]);
+    expect(await current).to.equal(42);
+    expect(lazy.peek()).to.equal(42);
+    expect(calls).to.equal(2);
+  });
+});

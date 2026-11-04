@@ -29,6 +29,12 @@ import { getConfirmedBlockTag } from '../utils/blockTag.js';
 // Bound each read group so route size cannot create unlimited RPC work.
 const MONITOR_READ_CONCURRENCY = 8;
 
+enum MonitorState {
+  Stopped,
+  Running,
+  Stopping,
+}
+
 /**
  * Configuration for the Monitor's inventory tracking.
  */
@@ -45,7 +51,7 @@ export class Monitor implements IMonitor {
   private tokenInfoHandler?: (event: MonitorEvent) => void | Promise<void>;
   private errorHandler?: (event: Error) => void;
   private startHandler?: () => void;
-  private isMonitorRunning = false;
+  private state = MonitorState.Stopped;
   private resolveStop: (() => void) | null = null;
   private stopPromise: Promise<void> | null = null;
 
@@ -125,21 +131,21 @@ export class Monitor implements IMonitor {
   }
 
   async start() {
-    if (this.isMonitorRunning) {
+    if (this.state !== MonitorState.Stopped) {
       // Cannot start the same monitor multiple times
       this.errorHandler?.(new MonitorStartError('Monitor already running'));
       return;
     }
 
     try {
-      this.isMonitorRunning = true;
+      this.state = MonitorState.Running;
       this.logger.debug(
         { checkFrequency: this.checkFrequency },
         'Monitor started',
       );
       this.startHandler?.();
 
-      while (this.isMonitorRunning) {
+      while (this.state === MonitorState.Running) {
         const cycleStart = Date.now();
 
         try {
@@ -212,19 +218,20 @@ export class Monitor implements IMonitor {
           error as Error,
         ),
       );
-    }
+    } finally {
+      this.state = MonitorState.Stopped;
+      // After the loop has been gracefully terminated, we can clean up.
+      this.tokenInfoHandler = undefined;
+      this.errorHandler = undefined;
+      this.startHandler = undefined;
+      this.logger.info('Monitor stopped');
 
-    // After the loop has been gracefully terminated, we can clean up.
-    this.tokenInfoHandler = undefined;
-    this.errorHandler = undefined;
-    this.startHandler = undefined;
-    this.logger.info('Monitor stopped');
-
-    // If stop() was called, resolve the promise to signal that we're done.
-    if (this.resolveStop) {
-      this.resolveStop();
-      this.resolveStop = null;
-      this.stopPromise = null;
+      // If stop() was called, resolve the promise to signal that we're done.
+      if (this.resolveStop) {
+        this.resolveStop();
+        this.resolveStop = null;
+        this.stopPromise = null;
+      }
     }
   }
 
@@ -331,14 +338,13 @@ export class Monitor implements IMonitor {
   }
 
   stop(): Promise<void> {
-    if (!this.isMonitorRunning) return Promise.resolve();
-
-    // If stop is already in progress, return the existing promise
+    // Every caller waits for the active cycle and cleanup to finish.
     if (this.stopPromise) return this.stopPromise;
+    if (this.state === MonitorState.Stopped) return Promise.resolve();
 
     this.logger.info('Stopping monitor...');
     // Signal the while loop to terminate after its current iteration
-    this.isMonitorRunning = false;
+    this.state = MonitorState.Stopping;
 
     // Create a promise that will be resolved by the start() method
     // once the loop and cleanup are complete.

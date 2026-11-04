@@ -203,6 +203,7 @@ export class EventWebSocketServer {
   }
 
   async start(server: Server): Promise<void> {
+    if (this.stopped) return;
     const { heartbeatMs } = this.limits;
     if (
       typeof heartbeatMs !== 'number' ||
@@ -215,6 +216,7 @@ export class EventWebSocketServer {
       );
     }
     await this.connectListener();
+    if (this.stopped) return;
     this.agentServer = new WebSocketServer({
       // Agent subscriptions carry one cursor per chain and stream, so the
       // fleet-wide relayer payload is substantially larger than an Explorer
@@ -244,6 +246,7 @@ export class EventWebSocketServer {
 
   async stop(): Promise<void> {
     this.stopped = true;
+    this.listenerReady = false;
     [this.heartbeatTimer, this.listenerRetryTimer].forEach(
       (timer) => timer && clearTimeout(timer),
     );
@@ -821,12 +824,19 @@ export class EventWebSocketServer {
   }
 
   private async connectListener(): Promise<void> {
+    if (this.stopped) return;
     try {
-      this.stopListening = await this.db.listen(
+      const stopListening = await this.db.listen(
         [EVENT_CHANNEL, EXPLORER_CHANNEL, HEAD_CHANNEL],
         (channel, payload) => this.queueNotification(channel, payload),
         (error) => this.listenerDisconnected(error),
       );
+      // Startup and reconnect can finish after shutdown has already run.
+      if (this.stopped) {
+        await stopListening();
+        return;
+      }
+      this.stopListening = stopListening;
       this.listenerReady = true;
     } catch (error) {
       this.logger.error(`database listener failed: ${formatError(error)}`);
