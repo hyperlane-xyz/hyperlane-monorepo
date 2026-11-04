@@ -137,6 +137,8 @@ import {
   PredicateWrapperConfig,
   PredicateWrapperConfigSchema,
   VERSION_ERROR_MESSAGE,
+  assertFeeHookSupported,
+  assertTokenFeeUpdateSupported,
   contractVersionMatchesDependency,
   derivedHookAddress,
   derivedIsmAddress,
@@ -496,6 +498,13 @@ export class EvmWarpModule extends HyperlaneModule<
   ): Promise<WarpUpdatePhases> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
+    // Validate before planning can deploy fee or implementation contracts.
+    assertFeeHookSupported(
+      expectedConfig,
+      this.chainName,
+      actualConfig.feeHook,
+    );
+    assertTokenFeeUpdateSupported(expectedConfig, actualConfig, this.chainName);
     const hybridPlan = this.planHybridUpdate(actualConfig, expectedConfig);
     const actualHasDelayedFlowRouter =
       (typeof actualConfig.hook === 'object' &&
@@ -2720,6 +2729,9 @@ export class EvmWarpModule extends HyperlaneModule<
       return [];
     }
 
+    // Keep the public helper safe when called outside updatePhases.
+    assertTokenFeeUpdateSupported(expectedConfig, actualConfig, this.chainName);
+
     const routerAddress = this.args.addresses.deployedTokenRoute;
     const resolvedTokenFee = await resolveTokenFeeAddress(
       expectedConfig.tokenFee,
@@ -2979,6 +2991,9 @@ export class EvmWarpModule extends HyperlaneModule<
       actualConfig.contractVersion,
       'Actual contract version is undefined',
     );
+
+    // Keep the public upgrade helper safe when called outside updatePhases.
+    assertTokenFeeUpdateSupported(expectedConfig, actualConfig, this.chainName);
 
     // Only upgrade if the user specifies a version
     if (!expectedConfig.contractVersion) {

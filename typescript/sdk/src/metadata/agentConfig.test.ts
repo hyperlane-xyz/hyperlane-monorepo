@@ -14,6 +14,33 @@ import {
   buildAgentConfig,
 } from './agentConfig.js';
 
+describe('RelayerAgentConfigSchema runtimeDenylistUrl', () => {
+  const schema = RelayerAgentConfigSchema.shape.runtimeDenylistUrl;
+
+  it('accepts HTTP endpoints and local file URLs', () => {
+    for (const url of [
+      'https://example.com/denylist.json',
+      'http://localhost:8080/denylist.json',
+      'file:///tmp/denylist.json',
+      'file://localhost/tmp/denylist.json',
+    ]) {
+      expect(schema.safeParse(url).success, url).to.equal(true);
+    }
+  });
+
+  it('rejects remote file hosts and unsupported or malformed URLs', () => {
+    for (const url of [
+      'file://denylist.json',
+      'file://remote/denylist.json',
+      'gs://bucket/denylist.json',
+      'file://[',
+      'invalid',
+    ]) {
+      expect(schema.safeParse(url).success, url).to.equal(false);
+    }
+  });
+});
+
 describe('ValidatorAgentConfigSchema maxSignConcurrency', () => {
   const schema = ValidatorAgentConfigSchema.shape.maxSignConcurrency;
 

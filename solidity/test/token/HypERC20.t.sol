@@ -480,6 +480,63 @@ abstract contract HypTokenMetadataTest is HypTokenTest {
     }
 }
 
+abstract contract TokenFeeUnsupportedTest is HypTokenTest {
+    using TypeCasts for address;
+
+    function testRemoteTransfer_withFee() public virtual override {
+        _assertTokenFeeUnsupported(localToken, DESTINATION);
+    }
+
+    function _assertTokenFeeUnsupported(
+        TokenRouter _tokenRouter,
+        uint32 _destination
+    ) internal {
+        LinearFee configuredFee = new LinearFee(
+            _tokenRouter.token(),
+            1e18,
+            100e18,
+            address(this)
+        );
+        _tokenRouter.setFeeRecipient(address(configuredFee));
+
+        vm.expectRevert("TokenRouter: token fees unsupported");
+        _tokenRouter.feeRecipient();
+        vm.expectRevert("TokenRouter: token fees unsupported");
+        _tokenRouter.quoteTransferRemote(
+            _destination,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
+        vm.expectRevert("TokenRouter: token fees unsupported");
+        _tokenRouter.transferRemote(
+            _destination,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
+
+        _tokenRouter.setFeeRecipient(address(0));
+        assertEq(_tokenRouter.feeRecipient(), address(0));
+        Quote[] memory quotes = _tokenRouter.quoteTransferRemote(
+            _destination,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
+        assertEq(quotes[1].amount, TRANSFER_AMT);
+    }
+}
+
+abstract contract HypTokenMetadataFeeUnsupportedTest is
+    HypTokenMetadataTest,
+    TokenFeeUnsupportedTest
+{
+    function testRemoteTransfer_withFee()
+        public
+        override(HypTokenTest, TokenFeeUnsupportedTest)
+    {
+        super.testRemoteTransfer_withFee();
+    }
+}
+
 contract HypERC20Test is HypTokenMetadataTest {
     using TypeCasts for address;
 
@@ -666,7 +723,7 @@ contract HypERC20CollateralTest is HypTokenMetadataTest {
     }
 }
 
-contract HypXERC20Test is HypTokenMetadataTest {
+contract HypXERC20Test is HypTokenMetadataFeeUnsupportedTest {
     using TypeCasts for address;
 
     HypXERC20 internal xerc20Collateral;
@@ -723,7 +780,7 @@ contract HypXERC20Test is HypTokenMetadataTest {
     }
 }
 
-contract HypXERC20LockboxTest is HypTokenMetadataTest {
+contract HypXERC20LockboxTest is HypTokenMetadataFeeUnsupportedTest {
     using TypeCasts for address;
 
     HypXERC20Lockbox internal xerc20Lockbox;
@@ -806,7 +863,7 @@ contract HypXERC20LockboxTest is HypTokenMetadataTest {
     }
 }
 
-contract HypFiatTokenTest is HypTokenMetadataTest {
+contract HypFiatTokenTest is HypTokenMetadataFeeUnsupportedTest {
     using TypeCasts for address;
 
     HypFiatToken internal fiatToken;

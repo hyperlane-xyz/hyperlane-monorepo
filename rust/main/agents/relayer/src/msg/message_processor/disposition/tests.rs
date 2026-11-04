@@ -118,8 +118,8 @@ async fn test_operation_disposition_by_payload_status_db_error() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::PreSubmit),
-        "Should return PreSubmit when db returns error"
+        matches!(result, OperationDisposition::Unknown),
+        "Should retain an unknown payload status when the DB read fails"
     );
 }
 

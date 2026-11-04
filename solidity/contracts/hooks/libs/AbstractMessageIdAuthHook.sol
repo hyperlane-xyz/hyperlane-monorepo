@@ -22,6 +22,7 @@ import {MailboxClient} from "../../client/MailboxClient.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 /**
  * @title AbstractMessageIdAuthHook
@@ -42,6 +43,23 @@ abstract contract AbstractMessageIdAuthHook is
     bytes32 public immutable ism;
     // Domain of chain on which the ISM is deployed
     uint32 public immutable destinationDomain;
+
+    // ============ Storage ============
+
+    // `_isLatestDispatched` limits the replay window to the Mailbox's current
+    // latest message ID. Once the Mailbox dispatches another message, the
+    // previous ID can no longer pass that check. The checked Mailbox nonce also
+    // makes every successive latest ID unique, so storing only the latest
+    // successfully consumed ID prevents replay without an unbounded mapping.
+    // Unstructured storage preserves external inheritor layouts.
+    bytes32 private constant LAST_PROCESSED_MESSAGE_ID_SLOT =
+        bytes32(
+            uint256(
+                keccak256(
+                    "hyperlane.storage.AbstractMessageIdAuthHook.lastProcessedMessageId"
+                )
+            ) - 1
+        );
 
     // ============ Constructor ============
 
@@ -90,6 +108,15 @@ abstract contract AbstractMessageIdAuthHook is
             _isLatestDispatched(id),
             "AbstractMessageIdAuthHook: message not latest dispatched"
         );
+        bytes32 lastProcessedMessageId = StorageSlot
+            .getBytes32Slot(LAST_PROCESSED_MESSAGE_ID_SLOT)
+            .value;
+        require(
+            id != lastProcessedMessageId,
+            "AbstractMessageIdAuthHook: message already processed"
+        );
+        StorageSlot.getBytes32Slot(LAST_PROCESSED_MESSAGE_ID_SLOT).value = id;
+
         require(
             message.destination() == destinationDomain,
             "AbstractMessageIdAuthHook: invalid destination domain"
