@@ -31,6 +31,9 @@ export interface KeyFunderOptions {
 
 export class KeyFunder {
   private readonly validatedGasTokens = new Set<string>();
+  private readonly activeChains = new Map<string, Promise<void>>();
+  private stopped = false;
+  private stopPromise?: Promise<void>;
 
   constructor(
     private readonly multiProvider: MultiProvider,
@@ -99,6 +102,30 @@ export class KeyFunder {
   }
 
   async fundChain(chain: string): Promise<void> {
+    if (this.stopped) return Promise.reject(new Error('KeyFunder is stopping'));
+    const active = this.activeChains.get(chain);
+    if (active) return active;
+    // Keep ownership until the actual mutation work settles, even when a
+    // caller's timeout has already fired. Retrying joins that work.
+    const work = Promise.resolve()
+      .then(async () => this.fundChainOnce(chain))
+      .finally(() => {
+        this.activeChains.delete(chain);
+      });
+    this.activeChains.set(chain, work);
+    return work;
+  }
+
+  /** Stop new chain admission and drain every admitted mutation without cancelling broadcasts. */
+  async stop(): Promise<void> {
+    this.stopped = true;
+    this.stopPromise ??= Promise.allSettled(this.activeChains.values()).then(
+      () => undefined,
+    );
+    return this.stopPromise;
+  }
+
+  private async fundChainOnce(chain: string): Promise<void> {
     if (!Object.prototype.hasOwnProperty.call(this.config.chains, chain)) {
       this.options.logger.warn({ chain }, 'No config for chain, skipping');
       return;

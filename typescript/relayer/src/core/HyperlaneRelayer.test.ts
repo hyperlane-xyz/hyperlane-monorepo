@@ -4,6 +4,9 @@ import sinon from 'sinon';
 
 import {
   HyperlaneCore,
+  EvmHookReader,
+  HookType,
+  type DerivedHookConfig,
   MultiProvider,
   TestChainName,
 } from '@hyperlane-xyz/sdk';
@@ -233,5 +236,139 @@ describe('HyperlaneRelayer backlog scheduling', () => {
     await clock.tickAsync(1000);
     expect(removeHandler.calledTwice).to.be.true;
     expect(clock.countTimers()).to.equal(0);
+  });
+  it('serializes a restarted worker behind the previous in-flight delivery', async () => {
+    const core = new HyperlaneCore({}, multiProvider);
+    sandbox.stub(core, 'onDispatch').returns({ removeHandler: () => {} });
+    const active = new HyperlaneRelayer({ core, caching: false });
+    active.backlog = [message(0, 0), message(1, 0)];
+    let finishFirst: (
+      receipt: ReturnType<typeof testTransactionReceipt>,
+    ) => void = () => {
+      throw new Error('First delivery not started');
+    };
+    const relay = sandbox.stub(active, 'relayMessage');
+    relay.onFirstCall().returns(
+      new Promise((resolve) => {
+        finishFirst = resolve;
+      }),
+    );
+    relay.onSecondCall().resolves(testTransactionReceipt());
+    active.start();
+    await clock.tickAsync(0);
+    active.stop();
+    active.start();
+    await clock.tickAsync(1000);
+    expect(relay.callCount).to.equal(1);
+    finishFirst(testTransactionReceipt());
+    await clock.tickAsync(0);
+    expect(relay.callCount).to.equal(2);
+    const stopped = active.stopAndDrain();
+    await clock.tickAsync(1000);
+    await stopped;
+    expect(active.backlog).to.have.length(0);
+    expect(clock.countTimers()).to.equal(0);
+  });
+
+  it('isolates message-scoped hook derivations from other destinations and the generic cache', async () => {
+    const address = '0x3333333333333333333333333333333333333333';
+    const destinations: number[][] = [];
+    const derive = sandbox
+      .stub(EvmHookReader.prototype, 'deriveHookConfig')
+      .callsFake(
+        async function (this: EvmHookReader): Promise<DerivedHookConfig> {
+          destinations.push(this.possibleDomainIds());
+          return { address, type: HookType.MERKLE_TREE };
+        },
+      );
+    const first = HyperlaneCore.parseDispatchedMessage(message(0).message);
+    const secondRaw = formatMessage(
+      0,
+      1,
+      first.parsed.origin,
+      first.parsed.sender,
+      multiProvider.getDomainId(TestChainName.test3),
+      first.parsed.recipient,
+      '0x',
+    );
+    const second = HyperlaneCore.parseDispatchedMessage(secondRaw);
+    await relayer.getHookConfig(TestChainName.test1, address, first);
+    await relayer.getHookConfig(TestChainName.test1, address, second);
+    await relayer.getHookConfig(TestChainName.test1, address);
+    await relayer.getHookConfig(TestChainName.test1, address, first);
+    expect(derive.callCount).to.equal(3);
+    expect(destinations[0]).to.deep.equal([first.parsed.destination]);
+    expect(destinations[1]).to.deep.equal([second.parsed.destination]);
+    expect(destinations[2])
+      .to.include(first.parsed.destination)
+      .and.include(second.parsed.destination);
+  });
+
+  it('keeps a rejected delivery retry queued when its observer throws', async () => {
+    const core = new HyperlaneCore({}, multiProvider);
+    sandbox.stub(core, 'onDispatch').returns({ removeHandler: () => {} });
+    const active = new HyperlaneRelayer({
+      core,
+      caching: false,
+      observer: {
+        onEvent: () => {
+          throw new Error('Metrics failed');
+        },
+      },
+    });
+    const queued = message(0, 0);
+    active.backlog = [queued];
+    sandbox.stub(active, 'relayMessage').rejects(new Error('RPC failed'));
+    sandbox.stub(active.logger, 'error');
+    active.start();
+    await clock.tickAsync(0);
+    const stopped = active.stopAndDrain();
+    await clock.tickAsync(1000);
+    await stopped;
+    expect(active.backlog).to.deep.equal([{ ...queued, attempts: 1 }]);
+  });
+
+  it('does not turn an already-delivered result into a failure when its observer throws', async () => {
+    const core = new HyperlaneCore({}, multiProvider);
+    sandbox.stub(core, 'isDelivered').resolves(true);
+    sandbox
+      .stub(core, 'getProcessedReceipt')
+      .resolves(testTransactionReceipt());
+    const active = new HyperlaneRelayer({
+      core,
+      observer: {
+        onEvent: () => {
+          throw new Error('Metrics failed');
+        },
+      },
+    });
+    sandbox.stub(active.logger, 'error');
+    const dispatched = HyperlaneCore.parseDispatchedMessage(message(0).message);
+    expect(
+      await active.relayMessage(testTransactionReceipt(), 0, dispatched),
+    ).to.deep.equal(testTransactionReceipt());
+  });
+  it('retains malformed persisted input when the worker fails and permits a repaired restart', async () => {
+    const core = new HyperlaneCore({}, multiProvider);
+    sandbox.stub(core, 'onDispatch').returns({ removeHandler: () => {} });
+    const active = new HyperlaneRelayer({ core, caching: false });
+    const malformed = { ...message(0, 0), message: 'invalid hex' };
+    active.backlog = [malformed];
+    sandbox.stub(active.logger, 'error');
+    active.start();
+    await clock.tickAsync(0);
+    const [outcome] = await Promise.allSettled([active.stopAndDrain()]);
+    expect(outcome.status).to.equal('rejected');
+    expect(active.backlog).to.deep.equal([malformed]);
+    active.backlog = [message(1, 0)];
+    const relay = sandbox
+      .stub(active, 'relayMessage')
+      .resolves(testTransactionReceipt());
+    active.start();
+    await clock.tickAsync(0);
+    expect(relay.calledOnce).to.be.true;
+    const stopped = active.stopAndDrain();
+    await clock.tickAsync(1000);
+    await stopped;
   });
 });

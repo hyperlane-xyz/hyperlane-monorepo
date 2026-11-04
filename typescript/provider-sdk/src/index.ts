@@ -18,6 +18,7 @@ export {
 export {
   AltVMImpersonatedSubmitter,
   AltVMJsonRpcSubmitter,
+  AltVMJsonRpcSubmissionError,
   SubmitterType,
   ITransactionSubmitter,
   TransactionSubmitterConfig,

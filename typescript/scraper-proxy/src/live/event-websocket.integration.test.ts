@@ -3447,6 +3447,10 @@ for (const phase of ['startup', 'reconnect']) {
     const connecting = new Promise<void>((resolve) => {
       release = resolve;
     });
+    let releaseUnlisten = () => {};
+    const disconnecting = new Promise<void>((resolve) => {
+      releaseUnlisten = resolve;
+    });
     let disconnect: (error?: Error) => void = () =>
       assert.fail('listener not connected');
     let attempts = 0;
@@ -3458,6 +3462,7 @@ for (const phase of ['startup', 'reconnect']) {
         if (phase === 'startup' || attempts > 1) await connecting;
         return async () => {
           released++;
+          await disconnecting;
         };
       },
       async queryLive() {
@@ -3468,6 +3473,7 @@ for (const phase of ['startup', 'reconnect']) {
     const { EventWebSocketServer } = await import('./event-websocket.js');
     const delayedEvents = new EventWebSocketServer(delayedDb);
     const starting = delayedEvents.start(delayedHttp);
+    assert.equal(delayedEvents.start(delayedHttp), starting);
     if (phase === 'reconnect') {
       await starting;
       disconnect(new Error('connection lost'));
@@ -3475,11 +3481,24 @@ for (const phase of ['startup', 'reconnect']) {
     }
     await new Promise<void>((resolve) => setImmediate(resolve));
     assert.equal(attempts, phase === 'startup' ? 1 : 2);
-    await delayedEvents.stop();
+    const stopping = delayedEvents.stop();
+    assert.equal(delayedEvents.stop(), stopping);
+    let stopped = false;
+    void stopping.then(() => {
+      stopped = true;
+    });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(stopped, false);
     release();
-    await starting;
     await new Promise<void>((resolve) => setImmediate(resolve));
     assert.equal(released, 1);
+    assert.equal(
+      stopped,
+      false,
+      'shutdown waits for the acquired listener to close',
+    );
+    releaseUnlisten();
+    await Promise.all([starting, stopping]);
     assert.equal(delayedEvents.metricsSnapshot().listenerReady, false);
     assert.equal(delayedHttp.listenerCount('upgrade'), 0);
     context.mock.timers.tick(10_000);

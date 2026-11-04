@@ -79,6 +79,97 @@ describe('KeyFunder', () => {
     });
   });
 
+  it('retains chain ownership after timeout, joins retries, and drains admitted writes on stop', async () => {
+    const clock = sinon.useFakeTimers();
+    const balance = sinon.promise<BigNumber>();
+    const signer = sinon.createStubInstance(ethers.Wallet);
+    signer.getAddress.resolves('0x2222222222222222222222222222222222222222');
+    signer.getBalance.returns(balance);
+    const multiProvider = sinon.createStubInstance(MultiProvider);
+    multiProvider.getSigner.returns(signer);
+    multiProvider.getChainMetadata.returns({
+      nativeToken: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    });
+    const keyFunder = new KeyFunder(
+      multiProvider,
+      {
+        version: '1',
+        roles: {},
+        chains: { ethereum: {} },
+      },
+      { logger: pino({ level: 'silent' }) },
+    );
+
+    const first = keyFunder.fundAllChains();
+    const firstOutcome = Promise.allSettled([first]);
+    await clock.tickAsync(60_000);
+    expect((await firstOutcome)[0].status).to.equal('rejected');
+    expect(signer.getBalance.callCount).to.equal(1);
+    const retry = keyFunder.fundAllChains();
+    await clock.tickAsync(0);
+    expect(signer.getBalance.callCount).to.equal(1);
+    const stopping = keyFunder.stop();
+    const repeatedStop = keyFunder.stop();
+    let stopped = false;
+    void repeatedStop.then(() => {
+      stopped = true;
+    });
+    await clock.tickAsync(0);
+    expect(stopped).to.equal(false);
+    const rejected = await Promise.allSettled([
+      keyFunder.fundChain('ethereum'),
+    ]);
+    expect(rejected[0].status).to.equal('rejected');
+    void balance.resolve(BigNumber.from(10));
+    await Promise.all([retry, stopping, repeatedStop]);
+    expect(stopped).to.equal(true);
+    expect(signer.getBalance.callCount).to.equal(1);
+    expect(clock.countTimers()).to.equal(0);
+  });
+
+  it('releases ownership after a failed chain so the next attempt can retry', async () => {
+    const multiProvider = sinon.createStubInstance(MultiProvider);
+    const signer = sinon.createStubInstance(ethers.Wallet);
+    signer.getAddress.resolves('0x2222222222222222222222222222222222222222');
+    const provider = new ethers.providers.JsonRpcProvider('http://unused', 1);
+    const call = sinon.stub(provider, 'call');
+    call.resolves(ethers.utils.defaultAbiCoder.encode(['uint256'], [10]));
+    call
+      .onFirstCall()
+      .resolves(ethers.utils.defaultAbiCoder.encode(['uint8'], [6]));
+    call
+      .onSecondCall()
+      .resolves(ethers.utils.defaultAbiCoder.encode(['uint8'], [18]));
+    multiProvider.getSigner.returns(signer);
+    multiProvider.getProvider.returns(provider);
+    const keyFunder = new KeyFunder(
+      multiProvider,
+      {
+        version: '1',
+        roles: {},
+        chains: {
+          ethereum: {
+            erc20GasToken: {
+              address: '0x1111111111111111111111111111111111111111',
+              decimals: 18,
+            },
+          },
+        },
+      },
+      { logger: pino({ level: 'silent' }) },
+    );
+    const first = keyFunder.fundChain('ethereum');
+    const sibling = keyFunder.fundChain('ethereum');
+    const outcomes = await Promise.allSettled([first, sibling]);
+    expect(outcomes.map((outcome) => outcome.status)).to.deep.equal([
+      'rejected',
+      'rejected',
+    ]);
+    await keyFunder.fundChain('ethereum');
+    expect(call.callCount).to.equal(3);
+    await keyFunder.stop();
+  });
+
   it('scales the funder balance metric by the chain native token decimals', async () => {
     const logger = {
       child: () => logger,

@@ -65,7 +65,25 @@ export async function runSubmit({
       `⛔️ Failed to submit ${transactions.length} transactions:`,
       errorToString(error),
     );
-    throw new Error('Failed to submit transactions.');
+    if (
+      error instanceof EV5JsonRpcSubmissionError &&
+      error.submittedTransactions.length > 0
+    ) {
+      try {
+        writeSubmissionResults(
+          receiptsFilepath,
+          chain,
+          `${submitter.txSubmitterType}-partial`,
+          error.submittedTransactions,
+        );
+      } catch (persistenceError: unknown) {
+        throw new AggregateError(
+          [error, persistenceError],
+          'Submission failed and its progress could not be persisted',
+        );
+      }
+    }
+    throw error;
   }
 }
 

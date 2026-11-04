@@ -172,6 +172,54 @@ describe('hyperlane submit', function () {
     ]);
   });
 
+  it('retains the confirmed prefix when a later default-submit transaction fails', async function () {
+    const mintAmount = 17;
+    const first = await getMintOnlyOwnerTransaction(
+      xerc20Chain2,
+      ALICE,
+      mintAmount,
+      ANVIL2_CHAIN_ID,
+    );
+    const suffix = randomInt(0, 1_000_000);
+    const transactionsPath = `${TEMP_PATH}/partial-submit-${suffix}.json`;
+    const receiptsPath = `${TEMP_PATH}/partial-submit-receipts-${suffix}`;
+    writeYamlOrJson(
+      transactionsPath,
+      [first, { ...first, data: '0xdeadbeef' }],
+      'json',
+    );
+    const initialBalance = await xerc20Chain2.balanceOf(ALICE);
+    try {
+      const [outcome] = await Promise.allSettled([
+        hyperlaneSubmit({ transactionsPath, receiptsPath }),
+      ]);
+      expect(outcome.status).to.equal('rejected');
+      expect(await xerc20Chain2.balanceOf(ALICE)).to.eql(
+        initialBalance.add(mintAmount),
+      );
+      const partialFile = readdirSync(receiptsPath).find((file) =>
+        file.includes('partial'),
+      );
+      if (!partialFile) throw new Error('Missing partial submission evidence');
+      const progress = readYamlOrJson<unknown[]>(
+        `${receiptsPath}/${partialFile}`,
+      );
+      expect(progress).to.have.length(1);
+      const [confirmed] = progress;
+      if (
+        typeof confirmed !== 'object' ||
+        confirmed === null ||
+        !('receipt' in confirmed)
+      ) {
+        throw new Error('Missing confirmed receipt');
+      }
+      expect(confirmed.receipt).to.have.property('status', 1);
+    } finally {
+      rmSync(transactionsPath, { force: true });
+      rmSync(receiptsPath, { recursive: true, force: true });
+    }
+  });
+
   it('submits a transaction file with a Turnkey external signer', async function () {
     const provider = xerc20Chain2.provider;
     const feeWallet = Wallet.createRandom().connect(provider);

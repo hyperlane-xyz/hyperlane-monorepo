@@ -494,3 +494,91 @@ describe('mapAllSettled', () => {
     expect(duration).to.be.lessThan(150);
   });
 });
+
+describe('fetchWithTimeout resource ownership', () => {
+  let sandbox: sinon.SinonSandbox;
+  let clock: sinon.SinonFakeTimers;
+
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
+    clock = sandbox.useFakeTimers();
+  });
+
+  afterEach(() => sandbox.restore());
+
+  it('clears the owned timeout when fetch rejects', async () => {
+    const failure = new Error('Network unavailable');
+    sandbox.stub(global, 'fetch').rejects(failure);
+    const [result] = await Promise.allSettled([
+      fetchWithTimeout('https://example.com', {}, 60_000),
+    ]);
+    expect(result.status).to.equal('rejected');
+    if (result.status === 'rejected') expect(result.reason).to.equal(failure);
+    expect(clock.countTimers()).to.equal(0);
+  });
+
+  it('honors caller cancellation and clears its timeout', async () => {
+    const caller = new AbortController();
+    sandbox.stub(global, 'fetch').callsFake(async (_resource, options) => {
+      const signal = options?.signal;
+      if (!signal) throw new Error('Missing signal');
+      await new Promise<void>((_resolve, reject) => {
+        signal.addEventListener(
+          'abort',
+          () => {
+            const reason: unknown = signal.reason;
+            reject(
+              reason instanceof Error ? reason : new Error(String(reason)),
+            );
+          },
+          {
+            once: true,
+          },
+        );
+      });
+      return new Response('unreachable');
+    });
+    const result = Promise.allSettled([
+      fetchWithTimeout(
+        'https://example.com',
+        { signal: caller.signal },
+        60_000,
+      ),
+    ]);
+    const reason = new Error('Caller cancelled');
+    caller.abort(reason);
+    const [outcome] = await result;
+    expect(outcome.status).to.equal('rejected');
+    if (outcome.status === 'rejected') expect(outcome.reason).to.equal(reason);
+    expect(clock.countTimers()).to.equal(0);
+  });
+
+  it('aborts at its own deadline and clears the timer', async () => {
+    sandbox.stub(global, 'fetch').callsFake(async (_resource, options) => {
+      const signal = options?.signal;
+      if (!signal) throw new Error('Missing signal');
+      await new Promise<void>((_resolve, reject) => {
+        signal.addEventListener(
+          'abort',
+          () => {
+            const reason: unknown = signal.reason;
+            reject(
+              reason instanceof Error ? reason : new Error(String(reason)),
+            );
+          },
+          {
+            once: true,
+          },
+        );
+      });
+      return new Response('unreachable');
+    });
+    const result = Promise.allSettled([
+      fetchWithTimeout('https://example.com', {}, 100),
+    ]);
+    await clock.tickAsync(100);
+    const [outcome] = await result;
+    expect(outcome.status).to.equal('rejected');
+    expect(clock.countTimers()).to.equal(0);
+  });
+});

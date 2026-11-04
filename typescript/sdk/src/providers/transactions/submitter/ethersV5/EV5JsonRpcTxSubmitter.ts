@@ -19,6 +19,7 @@ export interface EV5SubmittedTransaction {
 /** Retains irreversible progress when a sequential batch fails. */
 export class EV5JsonRpcSubmissionError extends Error {
   readonly name = 'EV5JsonRpcSubmissionError';
+  readonly isRecoverable = false;
 
   constructor(
     message: string,

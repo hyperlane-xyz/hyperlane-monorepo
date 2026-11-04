@@ -1,3 +1,5 @@
+import type { Server } from 'node:http';
+
 import { type Logger } from 'pino';
 
 import {
@@ -41,6 +43,8 @@ import {
 export class Metrics implements IMetrics {
   private readonly logger: Logger;
   private readonly priceGetter: TokenPriceGetter;
+  private readonly server: Server;
+  private stopPromise?: Promise<void>;
 
   constructor(
     private readonly tokenPriceGetter: PriceGetter,
@@ -50,7 +54,7 @@ export class Metrics implements IMetrics {
     logger: Logger,
   ) {
     this.logger = logger.child({ class: Metrics.name });
-    startMetricsServer(metricsRegister);
+    this.server = startMetricsServer(metricsRegister);
 
     // Wrap PriceGetter to match TokenPriceGetter interface
     this.priceGetter = {
@@ -58,6 +62,20 @@ export class Metrics implements IMetrics {
         return this.tokenPriceGetter.tryGetTokenPrice(token);
       },
     };
+  }
+
+  stop(): Promise<void> {
+    this.stopPromise ??= new Promise<void>((resolve, reject) => {
+      this.server.close((error) => {
+        if (
+          error &&
+          (!('code' in error) || error.code !== 'ERR_SERVER_NOT_RUNNING')
+        )
+          reject(error);
+        else resolve();
+      });
+    });
+    return this.stopPromise;
   }
 
   recordRebalancerSuccess() {

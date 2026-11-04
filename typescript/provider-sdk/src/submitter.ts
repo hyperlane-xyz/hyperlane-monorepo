@@ -1,4 +1,4 @@
-import { Logger, rootLogger } from '@hyperlane-xyz/utils';
+import { Logger, formatError, rootLogger } from '@hyperlane-xyz/utils';
 
 import { IImpersonatingSigner, ISigner } from './altvm.js';
 import { AnnotatedTx, TxReceipt } from './module.js';
@@ -54,6 +54,21 @@ export interface ITransactionSubmitter {
   submit(...transactions: AnnotatedTx[]): Promise<TxReceipt[]>;
 }
 
+/** Confirmed progress before a failure; the failed send may also have broadcast. */
+export class AltVMJsonRpcSubmissionError extends Error {
+  override readonly name = 'AltVMJsonRpcSubmissionError';
+  readonly isRecoverable = false;
+
+  constructor(
+    message: string,
+    public readonly confirmedReceipts: TxReceipt[],
+    public readonly attemptedTransactions: AnnotatedTx[],
+    public override readonly cause: unknown,
+  ) {
+    super(message);
+  }
+}
+
 abstract class BaseAltVMJsonRpcSubmitter implements ITransactionSubmitter {
   // Each concrete leaf pins its own literal. The union includes the released
   // JsonRpc value `'jsonRPC'` (not a TransactionSubmitterType member, preserved
@@ -84,19 +99,39 @@ abstract class BaseAltVMJsonRpcSubmitter implements ITransactionSubmitter {
           this.logger.info(tx.annotation);
         }
       }
-      const receipt = await this.signer.sendAndConfirmBatchTransactions(txs);
-      return [receipt];
+      try {
+        const receipt = await this.signer.sendAndConfirmBatchTransactions(txs);
+        return [receipt];
+      } catch (error) {
+        throw new AltVMJsonRpcSubmissionError(
+          `Failed to submit transaction batch on ${this.config.chain}: ${formatError(error)}`,
+          [],
+          txs,
+          error,
+        );
+      }
     }
 
     const receipts: TxReceipt[] = [];
 
+    const attemptedTransactions: AnnotatedTx[] = [];
     for (const tx of txs) {
       if (tx.annotation) {
         this.logger.info(tx.annotation);
       }
 
-      const receipt = await this.signer.sendAndConfirmTransaction(tx);
-      receipts.push(receipt);
+      attemptedTransactions.push(tx);
+      try {
+        const receipt = await this.signer.sendAndConfirmTransaction(tx);
+        receipts.push(receipt);
+      } catch (error) {
+        throw new AltVMJsonRpcSubmissionError(
+          `Failed to submit transaction batch on ${this.config.chain}: ${formatError(error)}`,
+          receipts,
+          attemptedTransactions,
+          error,
+        );
+      }
     }
 
     return receipts;

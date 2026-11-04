@@ -114,12 +114,22 @@ export const relayerCommand: CommandModuleWithContext<
     log('Starting relayer ...');
     relayer.start();
 
-    process.once('SIGINT', () => {
+    const shutdown = () => {
+      process.removeListener('SIGINT', shutdown);
+      process.removeListener('SIGTERM', shutdown);
       log('Stopping relayer ...');
-      relayer.stop();
-
-      writeJson(cache, relayer.cache);
-      process.exit(0);
-    });
+      void relayer
+        .stopAndDrain()
+        .then(() => {
+          writeJson(cache, relayer.cache);
+          process.exit(0);
+        })
+        .catch((error: unknown) => {
+          log(`Failed to stop relayer: ${error}`);
+          process.exitCode = 1;
+        });
+    };
+    process.once('SIGINT', shutdown);
+    process.once('SIGTERM', shutdown);
   },
 };

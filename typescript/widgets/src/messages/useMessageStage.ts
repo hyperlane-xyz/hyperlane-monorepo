@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import type { ChainMetadataManager } from '@hyperlane-xyz/sdk/metadata/ChainMetadataManager';
 import { fetchWithTimeout } from '@hyperlane-xyz/utils';
@@ -6,7 +6,7 @@ import { fetchWithTimeout } from '@hyperlane-xyz/utils';
 import { HYPERLANE_EXPLORER_API_URL } from '../consts.js';
 import { widgetLogger } from '../logger.js';
 import { queryExplorerForBlock } from '../utils/explorers.js';
-import { useInterval } from '../utils/timeout.js';
+import { useAsyncPolling } from '../utils/useAsyncPolling.js';
 
 import {
   MessageStatus,
@@ -40,47 +40,36 @@ export function useMessageStage({
   explorerApiUrl = HYPERLANE_EXPLORER_API_URL,
   retryInterval = 2000,
 }: Params) {
-  // Tempting to use react-query here as we did in Explorer but
-  // avoiding for now to keep dependencies for this lib minimal
-
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<{
-    stage: Stage;
-    timings: StageTimings;
-  } | null>(null);
-
-  const fetcher = useCallback(() => {
-    // Skip invalid or placeholder messages
-    if (!isValidMessage(message)) return;
-    // Don't re-run for failing messages
-    if (message.status === MessageStatus.Failing && data) return;
-    // Don't re-run for pending, validated messages
-    if (
-      message.status === MessageStatus.Pending &&
-      data?.stage === Stage.Validated
-    )
-      return;
-
-    setIsLoading(true);
-    fetchMessageState(message, multiProvider, explorerApiUrl)
-      .then((result) => {
-        setData(result);
-        setError(null);
-      })
-      .catch((e) => setError(e.toString()))
-      .finally(() => setIsLoading(false));
-  }, [explorerApiUrl, multiProvider, message, data]);
-
-  useInterval(fetcher, retryInterval);
-
+  // PartialMessage has no message ID; its complete value identifies the query.
+  const messageKey = JSON.stringify(message);
+  const key = useMemo(
+    () => ({ messageKey, multiProvider, explorerApiUrl }),
+    [messageKey, multiProvider, explorerApiUrl],
+  );
+  const request = useCallback(
+    async () =>
+      isValidMessage(message)
+        ? fetchMessageState(message, multiProvider, explorerApiUrl)
+        : null,
+    [message, multiProvider, explorerApiUrl],
+  );
+  const { data, isLoading, error } = useAsyncPolling(
+    request,
+    key,
+    retryInterval,
+    (current) => {
+      if (!isValidMessage(message)) return current === undefined;
+      if (message.status === MessageStatus.Failing && current) return false;
+      return (
+        message.status !== MessageStatus.Pending ||
+        current?.stage !== Stage.Validated
+      );
+    },
+  );
   return {
-    stage: data?.stage
-      ? data.stage
-      : isValidMessage(message)
-        ? Stage.Sent
-        : Stage.Preparing,
-    timings: data?.timings ? data.timings : defaultTiming,
+    stage:
+      data?.stage ?? (isValidMessage(message) ? Stage.Sent : Stage.Preparing),
+    timings: data?.timings ?? defaultTiming,
     isLoading,
     error,
   };

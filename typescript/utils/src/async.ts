@@ -74,6 +74,7 @@ export function sleep(ms: number): Promise<void> {
 
 /**
  * Wait up to a given amount of time, and throw an error if the promise does not resolve in time.
+ * Bounds waiting only; callers retain ownership of cancellation or draining.
  * @param promise The promise to timeout on.
  * @param timeoutMs How long to wait for the promise in milliseconds.
  * @param message The error message if a timeout occurs.
@@ -103,6 +104,7 @@ export function timeout<T>(
 
 /**
  * Run a callback with a timeout.
+ * Does not cancel the callback; callers must stop or drain stateful work.
  * @param timeoutMs How long to wait for the promise in milliseconds.
  * @param callback The callback to run.
  * @returns callback return value
@@ -142,12 +144,16 @@ export async function fetchWithTimeout(
 ) {
   const controller = new AbortController();
   const id = setTimeout(controller.abort.bind(controller), timeout);
-  const response = await fetch(resource, {
-    ...options,
-    signal: controller.signal,
-  });
-  clearTimeout(id);
-  return response;
+  try {
+    return await fetch(resource, {
+      ...options,
+      signal: options?.signal
+        ? AbortSignal.any([controller.signal, options.signal])
+        : controller.signal,
+    });
+  } finally {
+    clearTimeout(id);
+  }
 }
 
 /**

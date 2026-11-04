@@ -128,11 +128,22 @@ async function main(): Promise<void> {
       igp,
     });
 
+    // Signals stop admission but keep the process alive until admitted writes
+    // settle. A timeout cannot cancel a transaction that may have broadcast.
+    const shutdown = () => {
+      void funder.stop();
+    };
+    process.once('SIGINT', shutdown);
+    process.once('SIGTERM', shutdown);
     let fundingError: Error | undefined;
     try {
       await funder.fundAllChains();
     } catch (error) {
-      fundingError = error as Error;
+      fundingError = error instanceof Error ? error : new Error(String(error));
+    } finally {
+      await funder.stop();
+      process.off('SIGINT', shutdown);
+      process.off('SIGTERM', shutdown);
     }
 
     // Always push metrics, even on failure (matches original fund-keys-from-deployer.ts behavior)
