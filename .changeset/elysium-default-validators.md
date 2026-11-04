@@ -2,4 +2,4 @@
 '@hyperlane-xyz/sdk': minor
 ---
 
-Added the default Elysium validator set for configuring interchain message verification.
+Added the initial 1-of-1 Abacus Works Elysium validator set for deployment testing.
