@@ -11,7 +11,7 @@ Relayers in `hyperlane`, `rc`, and `fastpath` poll their environment's registry
 feed every minute: `deployments/relayer/mainnet-denylist.json` for `mainnet3`,
 or `deployments/relayer/testnet-denylist.json` for `testnet4`. Confirm the
 environment from the investigation or user instruction before editing. Change
-the appropriate file in `/Users/pbio/work/hyperlane-registry`; do not add a
+the appropriate file in the registry checkout; do not add a
 static monorepo blacklist or bump `.registryrc` for a runtime rule change.
 
 ## Input
@@ -38,8 +38,8 @@ instruction to denylist the supplied IDs already authorizes the edit.
 
 ### 2. Prepare the registry checkout
 
-Use `/Users/pbio/work/hyperlane-registry`, or the registry checkout explicitly
-specified by the user. Inspect status and preserve existing work. Start a fresh
+Use the registry checkout explicitly specified by the user, or
+`${HYPERLANE_REGISTRY:-$HOME/hyperlane-registry}`. Inspect status and preserve existing work. Start a fresh
 branch from current `main`, such as `<handle>/denylist-<app-context-slug>`.
 
 Read `deployments/relayer/README.md` and the selected environment's JSON file. Check whether each
@@ -78,7 +78,7 @@ rules retain exact field and origin-signer matching.
 Use the registry's pinned Node version, format the JSON, and run its unit tests:
 
 ```bash
-cd /Users/pbio/work/hyperlane-registry
+cd "${HYPERLANE_REGISTRY:-$HOME/hyperlane-registry}"
 nvm use
 pnpm exec oxfmt --check deployments/relayer/*-denylist.json
 pnpm run test:unit
@@ -108,9 +108,11 @@ alone; verify the rule was loaded and the target messages are denied.
 A failed refresh logs an error and retains the last good rules. Startup must
 load a valid feed or disk cache before processing; if both fail, startup fails.
 The first cutover therefore requires a successful fetch. Later rollouts can
-use the persisted cache during a feed outage; a fresh disk requires a fetch
-again. No static seed or cutover flag is needed. If GitHub is unavailable and
-there is no usable cache, point the configured URL at another copy of the
+use the persisted cache for the same configured URL during a feed outage. Cache
+filenames include a hash of that URL; changing the URL, using a fresh disk, or
+upgrading from an older unbound cache requires a successful fetch again. No
+static seed or cutover flag is needed. If GitHub is unavailable and there is no
+usable cache, point the configured URL at another copy of the
 list and restart. Once running, the refresh API only re-reads that URL; it
 does not accept rule uploads.
 

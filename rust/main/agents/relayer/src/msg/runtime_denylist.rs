@@ -30,7 +30,7 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
-use ethers::utils::hex;
+use ethers::utils::{hex, keccak256};
 use eyre::{bail, ensure, eyre, Context, Result};
 use hyperlane_base::db::HyperlaneDb;
 use hyperlane_base::CoreMetrics;
@@ -61,7 +61,7 @@ pub struct RuntimeDenylistConf {
     pub url: Url,
     /// Time between fetches.
     pub poll_interval: Duration,
-    /// Last successfully fetched file, used if the startup fetch fails.
+    /// Base cache path; a hash of the source URL is appended to isolate feeds.
     pub cache_path: PathBuf,
 }
 
@@ -207,6 +207,10 @@ fn parse_rules(bytes: &[u8], now: DateTime<Utc>) -> Result<ActiveRules> {
     let mut messages = vec![];
     let mut addresses = vec![];
     for (index, raw) in file.rules.into_iter().enumerate() {
+        ensure!(
+            raw.get("matchBody").is_none_or(Value::is_boolean),
+            "Invalid denylist rule at index {index}: `matchBody` must be a boolean"
+        );
         let canonical = raw.to_string();
         let rule: RawRule = serde_json::from_value(raw)
             .with_context(|| format!("Invalid denylist rule at index {index}"))?;
@@ -393,6 +397,8 @@ impl Default for OriginSignerCache {
 struct DenylistSource {
     client: reqwest::Client,
     conf: RuntimeDenylistConf,
+    /// Only a policy fetched from this exact URL can be used during an outage.
+    cache_path: PathBuf,
 }
 
 /// Counts of active rules after a refresh.
@@ -416,7 +422,15 @@ impl RuntimeDenylist {
                     .timeout(FETCH_TIMEOUT)
                     .build()
                     .context("Failed to build runtime denylist HTTP client")?;
-                Ok(DenylistSource { client, conf })
+                let cache_path = conf.cache_path.with_extension(format!(
+                    "{}.json",
+                    hex::encode(keccak256(conf.url.as_str().as_bytes()))
+                ));
+                Ok(DenylistSource {
+                    client,
+                    conf,
+                    cache_path,
+                })
             })
             .transpose()?;
         Ok(Self {
@@ -610,7 +624,7 @@ impl RuntimeDenylist {
         match result {
             Ok((rules, bytes)) => {
                 self.replace(rules, true);
-                if let Err(err) = write_cache(&source.conf.cache_path, &bytes).await {
+                if let Err(err) = write_cache(&source.cache_path, &bytes).await {
                     warn!(error = ?err, "Failed to cache runtime denylist");
                 }
                 Ok(self.summary())
@@ -646,7 +660,7 @@ impl RuntimeDenylist {
                 tokio::time::sleep(INITIAL_FETCH_BACKOFF).await;
             }
         }
-        let cached = tokio::fs::read(&source.conf.cache_path)
+        let cached = tokio::fs::read(&source.cache_path)
             .await
             .map_err(eyre::Report::from)
             .and_then(|bytes| parse_rules(&bytes, Utc::now()));

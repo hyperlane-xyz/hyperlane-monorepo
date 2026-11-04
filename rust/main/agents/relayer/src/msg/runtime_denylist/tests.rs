@@ -280,6 +280,7 @@ fn rejects_invalid_rules() {
         json!({ "reason": "r", "addedBy": "a", "address": TRON_ADDRESS, "matchBody": true }),
         json!({ "reason": "r", "addedBy": "a", "address": format!("{:?}", evm(EVM_ADDRESS)), "matchBody": true }),
         json!({ "reason": "r", "addedBy": "a", "address": EVM_ADDRESS, "matchBody": "true" }),
+        json!({ "reason": "r", "addedBy": "a", "address": EVM_ADDRESS, "matchBody": null }),
         json!({ "reason": "r", "addedBy": "a", "address": EVM_ADDRESS, "expiresAt": "tomorrow" }),
     ];
     for case in cases {
@@ -409,8 +410,12 @@ async fn refresh_from_file_keeps_previous_rules_on_bad_file() {
     let blocked = message(H256::random(), evm(EVM_ADDRESS), vec![]);
     assert!(denylist.deny_reason_for_message(&blocked).is_some());
 
-    let cache_path = tmp.path().with_extension("cache.json");
-    let cached = tokio::fs::read(&cache_path).await.expect("cached rules");
+    let cache_path = &denylist
+        .source
+        .as_ref()
+        .expect("configured source")
+        .cache_path;
+    let cached = tokio::fs::read(cache_path).await.expect("cached rules");
     write(
         &mut tmp,
         &file(json!([
@@ -421,7 +426,7 @@ async fn refresh_from_file_keeps_previous_rules_on_bad_file() {
     assert_eq!(denylist.version(), 1);
     assert!(denylist.deny_reason_for_message(&blocked).is_some());
     assert_eq!(
-        tokio::fs::read(&cache_path).await.expect("cached rules"),
+        tokio::fs::read(cache_path).await.expect("cached rules"),
         cached
     );
 
@@ -449,7 +454,12 @@ async fn startup_falls_back_to_cached_file_when_fetch_fails() {
 
     let first = denylist_at(Url::from_file_path(&source).expect("url"), cache.clone());
     first.initial_load().await.expect("initial policy");
-    assert!(cache.exists());
+    assert!(first
+        .source
+        .as_ref()
+        .expect("configured source")
+        .cache_path
+        .exists());
 
     std::fs::remove_file(&source).expect("remove");
     let restarted = denylist_at(Url::from_file_path(&source).expect("url"), cache);
@@ -500,10 +510,18 @@ async fn startup_without_fetch_or_valid_cache_fails() {
     let missing = Url::from_file_path(dir.path().join("missing.json")).expect("url");
     let cache = dir.path().join("cache.json");
     for invalid_cache in [false, true] {
-        if invalid_cache {
-            std::fs::write(&cache, b"not json").expect("write invalid cache");
-        }
         let denylist = denylist_at(missing.clone(), cache.clone());
+        if invalid_cache {
+            std::fs::write(
+                &denylist
+                    .source
+                    .as_ref()
+                    .expect("configured source")
+                    .cache_path,
+                b"not json",
+            )
+            .expect("write invalid cache");
+        }
         let error = denylist
             .initial_load()
             .await
@@ -511,6 +529,49 @@ async fn startup_without_fetch_or_valid_cache_fails() {
         assert!(format!("{error:#}").contains("refusing to start without a policy"));
         assert_eq!(denylist.version(), 0);
     }
+}
+
+#[tokio::test]
+async fn startup_rejects_cache_from_a_different_feed() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let first_source = dir.path().join("mainnet.json");
+    let other_source = dir.path().join("testnet.json");
+    let cache = dir.path().join("cache.json");
+    std::fs::write(&first_source, file(json!([address_rule(EVM_ADDRESS)]))).expect("write feed");
+    let first = denylist_at(
+        Url::from_file_path(&first_source).expect("url"),
+        cache.clone(),
+    );
+    first.initial_load().await.expect("initial policy");
+
+    let other = denylist_at(Url::from_file_path(&other_source).expect("url"), cache);
+    assert_ne!(
+        first.source.as_ref().expect("first source").cache_path,
+        other.source.as_ref().expect("other source").cache_path,
+    );
+    let error = other
+        .initial_load()
+        .await
+        .expect_err("another feed's cache must not authorize startup");
+    assert!(format!("{error:#}").contains("refusing to start without a policy"));
+    assert_eq!(other.summary().address_rules, 0);
+    assert_eq!(other.version(), 0);
+}
+
+#[tokio::test]
+async fn startup_rejects_legacy_unbound_cache() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let missing = Url::from_file_path(dir.path().join("missing.json")).expect("url");
+    let cache = dir.path().join("cache.json");
+    // Older files carry no evidence of which URL wrote the rules.
+    std::fs::write(&cache, file(json!([address_rule(EVM_ADDRESS)]))).expect("write legacy cache");
+    let denylist = denylist_at(missing, cache);
+    let error = denylist
+        .initial_load()
+        .await
+        .expect_err("unbound cache must not authorize startup");
+    assert!(format!("{error:#}").contains("refusing to start without a policy"));
+    assert_eq!(denylist.version(), 0);
 }
 
 #[tokio::test]
