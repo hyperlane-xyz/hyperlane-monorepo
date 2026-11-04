@@ -25,6 +25,15 @@ export class RelayerService {
   private relayer?: HyperlaneRelayer;
   private relayerLazy?: LazyAsync<HyperlaneRelayer>;
   private metricsServer?: http.Server;
+  private lifecycle = Promise.resolve();
+  private running = false;
+  private needsFinalization = false;
+  private readonly signalHandler = () => {
+    void this.stop().catch((error: unknown) => {
+      this.logger.error({ error }, 'Failed to stop relayer service');
+      process.exitCode = 1;
+    });
+  };
   private readonly logger: Logger;
   readonly metrics: RelayerMetrics;
 
@@ -180,45 +189,82 @@ export class RelayerService {
 
     try {
       const cache = JSON.stringify(this.relayer.cache);
-      fs.writeFileSync(cacheFile, cache, 'utf-8');
+      const temporaryFile = `${cacheFile}.${process.pid}.tmp`;
+      fs.writeFileSync(temporaryFile, cache, 'utf-8');
+      fs.renameSync(temporaryFile, cacheFile);
       this.logger.info(`Relayer cache saved to ${cacheFile}`);
     } catch (e) {
       this.logger.error(`Failed to save cache to ${cacheFile}: ${e}`);
+      throw e;
     }
   }
 
-  async start(whitelist?: ChainMap<Address[]>): Promise<void> {
-    const relayer = await this.initialize(whitelist);
-
-    if (this.config.enableMetrics) {
-      this.metricsServer = startMetricsServer(
-        relayerMetricsRegistry,
-        this.logger,
-      );
-    }
-
-    this.logger.info('Starting relayer...');
-    relayer.start();
-
-    process.once('SIGINT', () => this.stop());
-    process.once('SIGTERM', () => this.stop());
+  private transition(operation: () => Promise<void>): Promise<void> {
+    const next = this.lifecycle.then(operation);
+    // Keep later lifecycle requests usable after a failed transition. The
+    // original promise is returned so its caller still observes the failure.
+    this.lifecycle = next.catch((error: unknown) => {
+      this.logger.error({ error }, 'Relayer service transition failed');
+    });
+    return next;
   }
 
-  stop(): void {
-    if (!this.relayer) return;
+  start(whitelist?: ChainMap<Address[]>): Promise<void> {
+    return this.transition(async () => {
+      if (this.running) return;
+      const relayer = await this.initialize(whitelist);
+      this.logger.info('Starting relayer...');
+      relayer.start();
+      this.running = true;
+      this.needsFinalization = true;
+      try {
+        if (this.config.enableMetrics) {
+          this.metricsServer = startMetricsServer(
+            relayerMetricsRegistry,
+            this.logger,
+          );
+        }
+        process.once('SIGINT', this.signalHandler);
+        process.once('SIGTERM', this.signalHandler);
+      } catch (error) {
+        this.running = false;
+        await relayer.stopAndDrain();
+        throw error;
+      }
+    });
+  }
 
-    this.logger.info('Stopping relayer...');
-    this.relayer.stop();
+  /** Wait for in-flight work before writing the final cache snapshot. */
+  stop(): Promise<void> {
+    return this.transition(async () => {
+      if (!this.running && !this.needsFinalization) return;
+      this.running = false;
+      process.removeListener('SIGINT', this.signalHandler);
+      process.removeListener('SIGTERM', this.signalHandler);
+      this.logger.info('Stopping relayer...');
 
-    if (this.metricsServer) {
-      this.metricsServer.close();
-      this.logger.info('Metrics server stopped');
-    }
-
-    const cacheFile = this.config.relayerConfig?.cacheFile;
-    if (cacheFile) {
-      this.saveCache(cacheFile);
-    }
+      const metricsServer = this.metricsServer;
+      this.metricsServer = undefined;
+      const metricsClosed = metricsServer
+        ? new Promise<void>((resolve, reject) => {
+            metricsServer.close((error) => {
+              if (error) reject(error);
+              else resolve();
+            });
+          })
+        : Promise.resolve();
+      // Both owned resources must settle even if one fails.
+      const outcomes = await Promise.allSettled([
+        this.relayer?.stopAndDrain(),
+        metricsClosed,
+      ]);
+      const cacheFile = this.config.relayerConfig?.cacheFile;
+      if (cacheFile) this.saveCache(cacheFile);
+      for (const outcome of outcomes) {
+        if (outcome.status === 'rejected') throw outcome.reason;
+      }
+      this.needsFinalization = false;
+    });
   }
 
   async getRelayer(whitelist?: ChainMap<Address[]>): Promise<HyperlaneRelayer> {

@@ -28,7 +28,7 @@ import { BaseMetadataBuilder } from '../metadata/builder.js';
 import { isMetadataBuildable } from '../metadata/types.js';
 
 import { RelayerCache } from './cache.js';
-import { RelayerObserver } from './events.js';
+import { RelayerEvent, RelayerObserver } from './events.js';
 import { messageMatchesWhitelist } from './whitelist.js';
 
 type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
@@ -47,6 +47,8 @@ export class HyperlaneRelayer {
   public cache: RelayerCache | undefined;
 
   protected stopRelayingHandler: ((chains?: ChainName[]) => void) | undefined;
+  protected relayGeneration = 0;
+  private backlogWorker?: Promise<void>;
 
   public readonly logger: Logger;
 
@@ -86,14 +88,27 @@ export class HyperlaneRelayer {
     }
   }
 
+  private emit(event: RelayerEvent): void {
+    try {
+      this.observer.onEvent?.(event);
+    } catch (error) {
+      this.logger.error(
+        { error, event: event.type },
+        'Relayer observer failed',
+      );
+    }
+  }
+
   async getHookConfig(
     chain: ChainName,
     hook: Address,
     messageContext?: DispatchedMessage,
   ): Promise<DerivedHookConfig> {
+    const cacheKey = messageContext ? `${hook}:${messageContext.id}` : hook;
     let config: DerivedHookConfig | undefined;
-    if (this.cache?.hook[chain]?.[hook]) {
-      config = this.cache.hook[chain][hook] as DerivedHookConfig | undefined;
+    const cached = this.cache?.hook[chain]?.[cacheKey];
+    if (cached && typeof cached === 'object') {
+      config = cached;
     } else {
       const evmHookReader = new EvmHookReader(
         this.multiProvider,
@@ -109,7 +124,7 @@ export class HyperlaneRelayer {
     }
     if (this.cache) {
       this.cache.hook[chain] ??= {};
-      this.cache.hook[chain][hook] = config;
+      this.cache.hook[chain][cacheKey] = config;
     }
 
     return config;
@@ -214,7 +229,7 @@ export class HyperlaneRelayer {
         ...message.parsed,
       };
       if (!messageMatchesWhitelist(this.whitelist, message.parsed)) {
-        this.observer.onEvent?.({
+        this.emit({
           type: 'messageSkipped',
           message,
           originChain,
@@ -232,7 +247,7 @@ export class HyperlaneRelayer {
     const isDelivered = await this.core.isDelivered(message);
     if (isDelivered) {
       this.logger.info(`Message ${message.id} already delivered`);
-      this.observer.onEvent?.({
+      this.emit({
         type: 'messageSkipped',
         message,
         originChain,
@@ -273,7 +288,7 @@ export class HyperlaneRelayer {
 
       const receipt = await this.core.deliver(message, metadataResult.metadata);
       const durationMs = Date.now() - startTime;
-      this.observer.onEvent?.({
+      this.emit({
         type: 'messageRelayed',
         message,
         originChain,
@@ -284,7 +299,7 @@ export class HyperlaneRelayer {
       });
       return receipt;
     } catch (error) {
-      this.observer.onEvent?.({
+      this.emit({
         type: 'messageFailed',
         message,
         originChain,
@@ -319,32 +334,38 @@ export class HyperlaneRelayer {
   }
 
   protected async flushBacklog(): Promise<void> {
-    while (this.stopRelayingHandler) {
-      this.observer.onEvent?.({
+    const generation = this.relayGeneration;
+    while (this.stopRelayingHandler && generation === this.relayGeneration) {
+      this.emit({
         type: 'backlog',
         size: this.backlog.length,
       });
 
-      const backlogMsg = this.backlog.shift();
+      const now = Date.now();
+      let nextAttempt = now + 1000;
+      const readyIndex = this.backlog.findIndex((message) => {
+        // Linear backoff (attempts * retryTimeout).
+        const retryAt =
+          message.lastAttempt + message.attempts * this.retryTimeout;
+        nextAttempt = Math.min(nextAttempt, retryAt);
+        return retryAt <= now;
+      });
 
-      if (!backlogMsg) {
-        this.logger.trace('Backlog empty, waiting 1s');
-        await sleep(1000);
+      if (readyIndex < 0) {
+        // Yield when every message is waiting; rotating the queue here would
+        // block the event loop until a retry becomes eligible.
+        await sleep(nextAttempt - now);
         continue;
       }
 
-      // linear backoff (attempts * retryTimeout)
-      const backoffTime =
-        backlogMsg.lastAttempt + backlogMsg.attempts * this.retryTimeout;
-      if (Date.now() < backoffTime) {
-        this.backlog.push(backlogMsg);
-        continue;
-      }
+      const backlogMsg = this.backlog[readyIndex];
 
       const { message, dispatchTx, attempts } = backlogMsg;
       const id = messageId(message);
       const parsed = parseMessage(message);
       const dispatchMsg = { id, message, parsed };
+      // Keep malformed persisted input recoverable if parsing above fails.
+      this.backlog.splice(readyIndex, 1);
       const originChain =
         this.multiProvider.tryGetChainName(parsed.origin) ??
         String(parsed.origin);
@@ -358,6 +379,11 @@ export class HyperlaneRelayer {
           .getProvider(parsed.origin)
           .getTransactionReceipt(dispatchTx);
 
+        if (generation !== this.relayGeneration) {
+          this.backlog.push(backlogMsg);
+          continue;
+        }
+
         await this.relayMessage(dispatchReceipt, undefined, dispatchMsg);
       } catch (error) {
         const newAttempts = attempts + 1;
@@ -365,7 +391,7 @@ export class HyperlaneRelayer {
           { error },
           `Failed to relay message ${id} (attempt #${newAttempts})`,
         );
-        this.observer.onEvent?.({
+        this.emit({
           type: 'retry',
           message: dispatchMsg,
           originChain,
@@ -389,7 +415,7 @@ export class HyperlaneRelayer {
   start(): void {
     assert(!this.stopRelayingHandler, 'Relayer already started');
 
-    this.backlog = this.cache?.backlog ?? [];
+    this.backlog = this.cache?.backlog ?? this.backlog;
 
     const { removeHandler } = this.core.onDispatch(async (message, event) => {
       if (
@@ -412,17 +438,35 @@ export class HyperlaneRelayer {
     }, this.whitelistChains());
 
     this.stopRelayingHandler = removeHandler;
+    this.relayGeneration++;
 
-    void this.flushBacklog();
+    const previousWorker = this.backlogWorker;
+    const generation = this.relayGeneration;
+    this.backlogWorker = (async () => {
+      // A synchronous stop/start must not overlap a previous delivery.
+      await Promise.allSettled([previousWorker]);
+      if (generation === this.relayGeneration) await this.flushBacklog();
+    })();
+    void this.backlogWorker.catch((error: unknown) => {
+      this.logger.error({ error }, 'Relayer backlog worker failed');
+    });
   }
 
   stop(): void {
     assert(this.stopRelayingHandler, 'Relayer not started');
     this.stopRelayingHandler(this.whitelistChains());
     this.stopRelayingHandler = undefined;
+    this.relayGeneration++;
 
     if (this.cache) {
       this.cache.backlog = this.backlog;
     }
+  }
+
+  /** Stop admission immediately, then wait for in-flight work before persisting. */
+  async stopAndDrain(): Promise<void> {
+    if (this.stopRelayingHandler) this.stop();
+    await this.backlogWorker;
+    if (this.cache) this.cache.backlog = this.backlog;
   }
 }

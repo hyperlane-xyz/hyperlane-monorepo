@@ -129,6 +129,7 @@ describe('EV5JsonRpcTxSubmitter', () => {
       ),
     );
 
+    expect(error.isRecoverable).to.equal(false);
     expect(error.submittedTransactions).to.deep.equal([
       { transactionHash: firstResponse.hash, receipt: firstReceipt },
       { transactionHash: secondResponse.hash },

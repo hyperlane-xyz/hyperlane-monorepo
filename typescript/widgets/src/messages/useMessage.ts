@@ -1,9 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 
 import { HYPERLANE_EXPLORER_API_URL } from '../consts.js';
 import { widgetLogger } from '../logger.js';
 import { executeExplorerQuery } from '../utils/explorers.js';
-import { useInterval } from '../utils/timeout.js';
+import { useAsyncPolling } from '../utils/useAsyncPolling.js';
 
 import { ApiMessage, MessageStatus } from './types.js';
 
@@ -24,34 +24,18 @@ export function useMessage({
   explorerApiUrl = HYPERLANE_EXPLORER_API_URL,
   retryInterval = 2000,
 }: Params) {
-  // Tempting to use react-query here as we did in Explorer but
-  // avoiding for now to keep dependencies for this lib minimal
-
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<ApiMessage | null>(null);
-
-  const fetcher = useCallback(() => {
-    // Skip if message is already fetched and delivered
-    if (data?.status === MessageStatus.Delivered) return;
-
-    setIsLoading(true);
-    fetchMessage(explorerApiUrl, messageId, originTxHash)
-      .then((result) => {
-        setData(result);
-        setError(null);
-      })
-      .catch((e) => setError(e.toString()))
-      .finally(() => setIsLoading(false));
-  }, [explorerApiUrl, messageId, originTxHash, data]);
-
-  useInterval(fetcher, retryInterval);
-
-  return {
-    data,
-    isLoading,
-    error,
-  };
+  const key = JSON.stringify([explorerApiUrl, messageId, originTxHash]);
+  const request = useCallback(
+    () => fetchMessage(explorerApiUrl, messageId, originTxHash),
+    [explorerApiUrl, messageId, originTxHash],
+  );
+  const { data, isLoading, error } = useAsyncPolling(
+    request,
+    key,
+    retryInterval,
+    (current) => current?.status !== MessageStatus.Delivered,
+  );
+  return { data: data ?? null, isLoading, error };
 }
 
 async function fetchMessage(

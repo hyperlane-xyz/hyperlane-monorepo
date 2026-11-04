@@ -1,8 +1,11 @@
+import { createServer } from 'node:http';
+
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
+import { PartialRegistry } from '@hyperlane-xyz/registry';
 import type { MultiProvider, Token, WarpCore } from '@hyperlane-xyz/sdk';
 
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
@@ -16,6 +19,7 @@ import { MonitorEventType } from '../interfaces/IMonitor.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
+import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
 import { TEST_ADDRESSES, getTestAddress } from '../test/helpers.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
@@ -1056,6 +1060,178 @@ describe('RebalancerService', () => {
       await triggerCycle();
 
       expect(rebalancer.rebalance.called).to.be.false;
+    });
+  });
+
+  describe('lifecycle ownership', () => {
+    function createService(mode: 'manual' | 'daemon', withMetrics = true) {
+      return new RebalancerService(
+        createMockMultiProvider(),
+        undefined,
+        new PartialRegistry({}),
+        createMockRebalancerConfig(),
+        { mode, withMetrics, logger: testLogger },
+      );
+    }
+    const request = {
+      origin: 'ethereum',
+      destination: 'arbitrum',
+      amount: '100',
+    };
+
+    it('shares initialization between concurrent callers and publishes only a complete component set', async () => {
+      const gate = Sinon.promise<RebalancerContextFactory>();
+      const metrics = sandbox.createStubInstance(Metrics);
+      metrics.stop.resolves();
+      const rebalancer = createMockRebalancer();
+      const factory = createMockContextFactory({ rebalancer, metrics });
+      const create = sandbox
+        .stub(RebalancerContextFactory, 'create')
+        .returns(gate);
+      const strategy = sandbox.spy(factory, 'createStrategy');
+      const service = createService('manual');
+      const first = service.executeManual(request);
+      const sibling = service.executeManual(request);
+      expect(create.callCount).to.equal(1);
+      expect(rebalancer.rebalance.called).to.equal(false);
+      void gate.resolve(factory);
+      await Promise.all([first, sibling]);
+      expect(strategy.callCount).to.equal(1);
+      expect(rebalancer.rebalance.callCount).to.equal(2);
+      await service.stop();
+      expect(metrics.stop.callCount).to.equal(1);
+    });
+
+    it('closes its real metrics HTTP server and permits binding the port again', async () => {
+      const probe = createServer();
+      await new Promise<void>((resolve) =>
+        probe.listen(0, '127.0.0.1', resolve),
+      );
+      const address = probe.address();
+      if (!address || typeof address === 'string')
+        throw new Error('Missing HTTP address');
+      const port = address.port;
+      await new Promise<void>((resolve, reject) =>
+        probe.close((error) => (error ? reject(error) : resolve())),
+      );
+      const configuredPort = process.env.PROMETHEUS_PORT;
+      let metrics: Metrics;
+      try {
+        process.env.PROMETHEUS_PORT = String(port);
+        metrics = new Metrics(
+          sandbox.createStubInstance(PriceGetter),
+          null,
+          createMockWarpCore(),
+          'TEST/route',
+          testLogger,
+        );
+      } finally {
+        if (configuredPort === undefined) delete process.env.PROMETHEUS_PORT;
+        else process.env.PROMETHEUS_PORT = configuredPort;
+      }
+      const stopping = metrics.stop();
+      expect(metrics.stop()).to.equal(stopping);
+      await stopping;
+      const rebound = createServer();
+      try {
+        await new Promise<void>((resolve, reject) => {
+          rebound.once('error', reject);
+          rebound.listen(port, '127.0.0.1', resolve);
+        });
+      } finally {
+        await new Promise<void>((resolve, reject) =>
+          rebound.close((error) => (error ? reject(error) : resolve())),
+        );
+      }
+    });
+
+    it('closes metrics after failed initialization and retries all components', async () => {
+      const metrics = sandbox.createStubInstance(Metrics);
+      metrics.stop.resolves();
+      const replacement = sandbox.createStubInstance(Metrics);
+      replacement.stop.resolves();
+      const strategy = createMockStrategy();
+      const factory = createMockContextFactory();
+      sandbox
+        .stub(factory, 'createMetrics')
+        .onFirstCall()
+        .resolves(metrics)
+        .onSecondCall()
+        .resolves(replacement);
+      sandbox
+        .stub(factory, 'createStrategy')
+        .onFirstCall()
+        .rejects(new Error('strategy failed'))
+        .onSecondCall()
+        .resolves(strategy);
+      const create = sandbox
+        .stub(RebalancerContextFactory, 'create')
+        .resolves(factory);
+      const service = createService('manual');
+      await expect(service.executeManual(request)).to.be.rejectedWith(
+        'strategy failed',
+      );
+      expect(metrics.stop.callCount).to.equal(1);
+      await service.executeManual(request);
+      expect(create.callCount).to.equal(2);
+      expect(replacement.stop.called).to.equal(false);
+      await service.stop();
+      expect(replacement.stop.callCount).to.equal(1);
+    });
+
+    it('shares concurrent starts and drains initialization on stop without starting a daemon', async () => {
+      const gate = Sinon.promise<RebalancerContextFactory>();
+      const metrics = sandbox.createStubInstance(Metrics);
+      metrics.stop.resolves();
+      const monitor = sandbox.createStubInstance(Monitor);
+      monitor.on.returns(monitor);
+      monitor.start.resolves();
+      monitor.stop.resolves();
+      const factory = createMockContextFactory({ metrics, monitor });
+      sandbox.stub(RebalancerContextFactory, 'create').returns(gate);
+      const unrelatedSignal = () => {};
+      process.on('SIGTERM', unrelatedSignal);
+      const service = createService('daemon');
+      const first = service.start();
+      expect(service.start()).to.equal(first);
+      const stopping = service.stop();
+      expect(service.stop()).to.equal(stopping);
+      let stopped = false;
+      void stopping.then(() => {
+        stopped = true;
+      });
+      await Promise.resolve();
+      expect(stopped).to.equal(false);
+      await expect(service.start()).to.be.rejectedWith('stopping');
+      void gate.resolve(factory);
+      await Promise.all([first, stopping]);
+      expect(monitor.start.called).to.equal(false);
+      expect(metrics.stop.callCount).to.equal(1);
+      expect(process.listeners('SIGTERM')).to.include(unrelatedSignal);
+      process.off('SIGTERM', unrelatedSignal);
+    });
+
+    it('drains admitted manual mutations before resource cleanup and blocks new admission', async () => {
+      const gate =
+        Sinon.promise<Awaited<ReturnType<IRebalancer['rebalance']>>>();
+      const metrics = sandbox.createStubInstance(Metrics);
+      metrics.stop.resolves();
+      const rebalancer = createMockRebalancer();
+      rebalancer.rebalance.returns(gate);
+      const factory = createMockContextFactory({ rebalancer, metrics });
+      sandbox.stub(RebalancerContextFactory, 'create').resolves(factory);
+      const service = createService('manual');
+      const running = service.executeManual(request);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      const stopping = service.stop();
+      expect(metrics.stop.called).to.equal(false);
+      await expect(service.executeManual(request)).to.be.rejectedWith(
+        'stopping',
+      );
+      void gate.resolve([]);
+      await Promise.all([running, stopping]);
+      expect(metrics.stop.callCount).to.equal(1);
+      expect(rebalancer.rebalance.callCount).to.equal(1);
     });
   });
 

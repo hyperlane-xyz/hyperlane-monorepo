@@ -36,6 +36,7 @@ pub struct TransactionDbLoader {
     /// Set once the backward scan passes the first terminal or missing entry. The loader
     /// used to stop there, so non-terminal transactions below it may be long abandoned.
     past_old_boundary: AtomicBool,
+    index_reconciled: AtomicBool,
 }
 
 impl TransactionDbLoader {
@@ -52,12 +53,21 @@ impl TransactionDbLoader {
             finality_stage_sender,
             domain,
             past_old_boundary: AtomicBool::new(false),
+            index_reconciled: AtomicBool::new(false),
         }
     }
 
     pub async fn into_iterator(self) -> DbIterator<Self> {
         let domain = self.domain.clone();
         DbIterator::new(Arc::new(self), "Transaction".to_string(), true, domain).await
+    }
+
+    async fn reconcile_index_once(&self) -> Result<(), LanderError> {
+        if !self.index_reconciled.load(Ordering::Relaxed) {
+            self.db.reconcile_transaction_index().await?;
+            self.index_reconciled.store(true, Ordering::Relaxed);
+        }
+        Ok(())
     }
 
     /// Returns true if the recovered transaction was dropped because it has nothing left to
@@ -141,13 +151,21 @@ impl LoadableFromDb for TransactionDbLoader {
     type Item = Transaction;
 
     async fn highest_index(&self) -> Result<u32, LanderError> {
+        // Legacy split writes can leave a canonical body above a stale high
+        // watermark or without its reverse index. Repair before fixing the
+        // iterator's scan bound, not only after encountering a hole.
+        self.reconcile_index_once().await?;
         let index = self.db.retrieve_highest_transaction_index().await?;
         debug!(?index, "Highest transaction index");
         Ok(index)
     }
 
     async fn retrieve_by_index(&self, index: u32) -> Result<Option<Self::Item>, LanderError> {
-        let transaction = self.db.retrieve_transaction_by_index(index).await?;
+        let mut transaction = self.db.retrieve_transaction_by_index(index).await?;
+        if transaction.is_none() {
+            self.reconcile_index_once().await?;
+            transaction = self.db.retrieve_transaction_by_index(index).await?;
+        }
         debug!(?transaction, ?index, "Retrieved transaction by index");
         if transaction.is_none() {
             self.past_old_boundary.store(true, Ordering::Relaxed);
@@ -168,6 +186,7 @@ impl LoadableFromDb for TransactionDbLoader {
         }
         match item.status {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
+                self.state.store_tx(&item).await?;
                 debug!(?item, "Send transaction to inclusion stage");
                 self.inclusion_stage_sender
                     .send(item)
@@ -176,6 +195,7 @@ impl LoadableFromDb for TransactionDbLoader {
                 Ok(LoadingOutcome::Loaded)
             }
             TransactionStatus::Included => {
+                self.state.store_tx(&item).await?;
                 debug!(?item, "Send transaction to finality stage");
                 self.finality_stage_sender
                     .send(item)
@@ -310,6 +330,132 @@ mod tests {
             println!(
                 "{terminal_count} terminal transactions plus one oldest pending: recovered 1/1 in {} ms (database population/reopen excluded)",
                 elapsed.as_millis(),
+            );
+        }
+    }
+    #[tokio::test]
+    async fn reopened_partial_build_repairs_ownership_before_pending_payload_recovery() {
+        use crate::dispatcher::{PayloadDb, PayloadDbLoader};
+        use crate::tests::test_utils::persistence::{FailWrites, WriteKind};
+        use crate::FullPayload;
+        for kind in [WriteKind::PayloadStatus, WriteKind::Association] {
+            let directory = tempfile::tempdir().unwrap();
+            let domain = KnownHyperlaneDomain::Arbitrum.into();
+            let db = Arc::new(HyperlaneRocksDB::new(
+                &domain,
+                DB::from_path(directory.path()).unwrap(),
+            ));
+            let payload = FullPayload::random();
+            db.store_payload_by_uuid(&payload).await.unwrap();
+            let tx = dummy_tx(vec![payload.clone()], TransactionStatus::PendingInclusion);
+            let failing = Arc::new(FailWrites::new(db.clone(), kind));
+            let state = DispatcherState::new(
+                failing.clone(),
+                failing.clone(),
+                Arc::new(MockAdapter::new()),
+                DispatcherMetrics::dummy_instance(),
+                "arbitrum".into(),
+            );
+            assert!(state.store_tx(&tx).await.is_err());
+            drop(state);
+            drop(failing);
+            drop(db);
+
+            let reopened = Arc::new(HyperlaneRocksDB::new(
+                &domain,
+                DB::from_path(directory.path()).unwrap(),
+            ));
+            let state = DispatcherState::new(
+                reopened.clone(),
+                reopened.clone(),
+                Arc::new(MockAdapter::new()),
+                DispatcherMetrics::dummy_instance(),
+                "arbitrum".into(),
+            );
+            let (inclusion_sender, mut inclusion_receiver) = mpsc::channel(1);
+            let (finality_sender, _) = mpsc::channel(1);
+            let mut loader = TransactionDbLoader::new(
+                state.clone(),
+                inclusion_sender,
+                finality_sender,
+                "arbitrum".into(),
+            )
+            .into_iterator()
+            .await;
+            loader.load_from_db(state.metrics.clone()).await.unwrap();
+            assert_eq!(inclusion_receiver.recv().await.unwrap().uuid, tx.uuid);
+            let queue = state.building_stage_queue.clone();
+            PayloadDbLoader::new(state.payload_db.clone(), queue.clone(), "arbitrum".into())
+                .load_from_db(state.metrics.clone())
+                .await
+                .unwrap();
+            assert_eq!(queue.len().await, 0);
+            assert_eq!(
+                reopened
+                    .retrieve_tx_uuid_by_payload_uuid(&payload.details.uuid)
+                    .await
+                    .unwrap(),
+                Some(tx.uuid.clone())
+            );
+            assert_eq!(
+                reopened
+                    .retrieve_payload_status_by_uuid(&payload.details.uuid)
+                    .await
+                    .unwrap(),
+                Some(PayloadStatus::InTransaction(
+                    TransactionStatus::PendingInclusion
+                ))
+            );
+        }
+    }
+    #[tokio::test]
+    async fn startup_recovers_canonical_records_hidden_by_legacy_split_indexes() {
+        for highest in [0, 3, 13] {
+            let directory = tempfile::tempdir().unwrap();
+            let domain = KnownHyperlaneDomain::Arbitrum.into();
+            let db = Arc::new(HyperlaneRocksDB::new(
+                &domain,
+                DB::from_path(directory.path()).unwrap(),
+            ));
+            let tx = dummy_tx(vec![], TransactionStatus::PendingInclusion);
+            // Recreate historical independent writes, with no reverse index.
+            db.store_value_by_key("transaction_by_uuid_", &tx.uuid, &tx)
+                .unwrap();
+            db.store_transaction_index_by_uuid(12, &tx.uuid)
+                .await
+                .unwrap();
+            db.store_highest_transaction_index(highest).await.unwrap();
+            drop(db);
+            let reopened = Arc::new(HyperlaneRocksDB::new(
+                &domain,
+                DB::from_path(directory.path()).unwrap(),
+            ));
+            let state = DispatcherState::new(
+                reopened.clone(),
+                reopened.clone(),
+                Arc::new(MockAdapter::new()),
+                DispatcherMetrics::dummy_instance(),
+                "arbitrum".into(),
+            );
+            let (inclusion_sender, mut inclusion_receiver) = mpsc::channel(1);
+            let (finality_sender, _) = mpsc::channel(1);
+            let mut loader = TransactionDbLoader::new(
+                state.clone(),
+                inclusion_sender,
+                finality_sender,
+                "arbitrum".into(),
+            )
+            .into_iterator()
+            .await;
+            loader.load_from_db(state.metrics.clone()).await.unwrap();
+            assert_eq!(inclusion_receiver.recv().await.unwrap(), tx);
+            assert_eq!(
+                reopened.retrieve_transaction_by_index(12).await.unwrap(),
+                Some(tx)
+            );
+            assert_eq!(
+                reopened.retrieve_highest_transaction_index().await.unwrap(),
+                highest.max(12)
             );
         }
     }

@@ -9,6 +9,7 @@ import {
 import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter';
 import {
   type AltVM,
+  AltVMJsonRpcSubmissionError,
   type FileSubmitterConfig,
   GasAction,
   type ITransactionSubmitter,
@@ -39,6 +40,7 @@ import {
   CompositeIsmNodeType,
   ContractVerifier,
   EvmWarpModule,
+  EV5JsonRpcSubmissionError,
   ExplorerLicenseType,
   HypERC20Deployer,
   IsmType,
@@ -1528,8 +1530,8 @@ function extractSafeAddressFromSubmitter(meta: unknown): string {
  * (or wraps one) instead of broadcasting transactions live. For these submitters
  * re-running submit() just rebuilds the artifact, so merging fee txs into the
  * main submission is safe and collapses to a single bundle / callRemote. Live
- * broadcasters (e.g. JSON_RPC, Gnosis Safe propose) are excluded so fee failures
- * cannot trigger a retried rebroadcast of already-submitted main txs.
+ * broadcasters (e.g. JSON_RPC, Gnosis Safe propose) keep fee progress and
+ * failure reporting separate from the main submission.
  */
 function submitterProducesPayload(
   submitter: ExtendedSubmissionStrategy['submitter'] | undefined,
@@ -1572,7 +1574,7 @@ function submitChainBatch(
  * Returns Safe TX Builder payloads for main and fee when dedicated submitters produced them,
  * so callers can merge payloads across chains into combined files per chain ID.
  */
-async function submitChainTransactions(
+export async function submitChainTransactions(
   params: WarpApplyParams,
   chain: ChainName,
   transactions: TypedAnnotatedTransaction[],
@@ -1600,10 +1602,8 @@ async function submitChainTransactions(
   // no dedicated feeSubmitter AND the main submitter materializes a payload/file
   // artifact (e.g. Safe TX Builder, or an ICA wrapping one). For those, merging
   // collapses everything into a single bundle / callRemote and re-running submit()
-  // just rebuilds the artifact. When the main submitter broadcasts live (e.g.
-  // JSON_RPC), merging would fold fee txs into the retried main submit() so a fee
-  // failure could rebroadcast already-mined router txs — instead those fee txs are
-  // submitted separately through the isolated try/catch below.
+  // just rebuilds the artifact. Live broadcasters keep fee progress and
+  // failure reporting separate through the isolated try/catch below.
   const hasDedicatedFeeSubmitter = !isNullish(chainStrategyEntry?.feeSubmitter);
   const mergeFeeIntoMain =
     !hasDedicatedFeeSubmitter &&
@@ -1613,142 +1613,177 @@ async function submitChainTransactions(
     ? [...transactions, ...feeTxs]
     : transactions;
 
-  await retryAsync(
-    async () => {
-      const { submitter, config } = await getSubmitterByStrategy({
+  const { submitter, config } = await retryAsync(
+    () =>
+      getSubmitterByStrategy({
         chain,
         context: params.context,
         strategyUrl: params.strategyUrl,
         isExtendedChain,
+      }),
+    5,
+    100,
+  );
+
+  const submitAndRecordProgress = async (
+    phaseSubmitter: TxSubmitterBuilder<ProtocolType>,
+    txs: TypedAnnotatedTransaction[],
+    phase: string,
+  ) => {
+    try {
+      return await submitChainBatch(phaseSubmitter, txs);
+    } catch (error: unknown) {
+      const progress =
+        error instanceof AltVMJsonRpcSubmissionError
+          ? {
+              confirmedReceipts: error.confirmedReceipts,
+              attemptedTransactions: error.attemptedTransactions,
+            }
+          : error instanceof EV5JsonRpcSubmissionError
+            ? error.submittedTransactions
+            : undefined;
+      if (progress) {
+        try {
+          writeYamlOrJson(
+            `${params.receiptsDir}/${chain}-${phase}-partial-${Date.now()}-receipts.json`,
+            progress,
+          );
+        } catch (persistenceError: unknown) {
+          throw new AggregateError(
+            [error, persistenceError],
+            'Submission failed and its progress could not be persisted',
+          );
+        }
+      }
+      throw error;
+    }
+  };
+
+  // Retry setup only. Once a send is attempted, later submission or file-write
+  // failures cannot safely replay earlier irreversible phases.
+  const transactionReceipts =
+    mainTransactions.length > 0
+      ? await submitAndRecordProgress(submitter, mainTransactions, 'main')
+      : undefined;
+
+  if (isSafeTxBuilderPayload(transactionReceipts)) {
+    safePayloads.push({
+      ...transactionReceipts,
+      meta: { ...transactionReceipts.meta, _safeAddress: mainSafeAddress },
+    });
+  }
+
+  if (!isSafeTxBuilderPayload(transactionReceipts)) {
+    // AltVM writers currently include fee/ownership updates in the main batch;
+    // only the EVM planner emits the separate phases below.
+    if (!isEVMLike(protocol)) {
+      return { safePayloads, feeError: returnedFeeError };
+    }
+
+    if (transactionReceipts) {
+      const receiptPath = `${params.receiptsDir}/${chain}-${
+        submitter.txSubmitterType
+      }-${Date.now()}-receipts.json`;
+      writeYamlOrJson(receiptPath, transactionReceipts);
+      logGreen(
+        `Transaction receipts for ${protocol} chain ${chain} successfully written to ${receiptPath}`,
+      );
+    }
+
+    const canRelay = canSelfRelay(
+      params.selfRelay ?? false,
+      config,
+      transactionReceipts,
+    );
+
+    if (canRelay.relay) {
+      try {
+        await retryAsync(() =>
+          runSelfRelay({
+            txReceipt: canRelay.txReceipt,
+            multiProvider: params.context.multiProvider,
+            registry: params.context.registry,
+            successMessage: WarpSendLogs.SUCCESS,
+          }),
+        );
+      } catch (error) {
+        warnYellow(`Error when self-relaying Warp transaction`, error);
+      }
+    }
+  }
+
+  // Runs whenever fee txs were NOT merged into the main submission: either a
+  // dedicated feeSubmitter is configured, or the main submitter broadcasts
+  // live. A fee failure is reported independently through returnedFeeError,
+  // after recording any known partial progress.
+  if (!mergeFeeIntoMain && feeTxs.length > 0) {
+    try {
+      const dedicatedFeeSubmitter = await getFeeSubmitterByStrategy({
+        chain,
+        context: params.context,
+        strategyUrl: params.strategyUrl,
       });
-
-      const transactionReceipts =
-        mainTransactions.length > 0
-          ? await submitChainBatch(submitter, mainTransactions)
-          : undefined;
-
-      if (isSafeTxBuilderPayload(transactionReceipts)) {
+      // Fall back to the main submitter when no dedicated feeSubmitter is
+      // configured (live-broadcast strategies that opted out of merging).
+      const feeSubmitter = dedicatedFeeSubmitter ?? submitter;
+      const feeSafeAddressForBundle = dedicatedFeeSubmitter
+        ? feeSafeAddress
+        : mainSafeAddress;
+      const feeReceipts = await submitAndRecordProgress(
+        feeSubmitter,
+        feeTxs,
+        'fee',
+      );
+      if (isSafeTxBuilderPayload(feeReceipts)) {
         safePayloads.push({
-          ...transactionReceipts,
-          meta: { ...transactionReceipts.meta, _safeAddress: mainSafeAddress },
+          ...feeReceipts,
+          meta: {
+            ...feeReceipts.meta,
+            _safeAddress: feeSafeAddressForBundle,
+          },
         });
       }
-
-      if (!isSafeTxBuilderPayload(transactionReceipts)) {
-        if (!isEVMLike(protocol)) {
-          return;
-        }
-
-        if (transactionReceipts) {
-          const receiptPath = `${params.receiptsDir}/${chain}-${
-            submitter.txSubmitterType
-          }-${Date.now()}-receipts.json`;
-          writeYamlOrJson(receiptPath, transactionReceipts);
-          logGreen(
-            `Transaction receipts for ${protocol} chain ${chain} successfully written to ${receiptPath}`,
-          );
-        }
-
-        const canRelay = canSelfRelay(
-          params.selfRelay ?? false,
-          config,
-          transactionReceipts,
+      if (
+        feeReceipts &&
+        !isSafeTxBuilderPayload(feeReceipts) &&
+        isEVMLike(protocol)
+      ) {
+        const feeReceiptPath = `${params.receiptsDir}/${chain}-fee-${Date.now()}-receipts.json`;
+        writeYamlOrJson(feeReceiptPath, feeReceipts);
+        logGreen(
+          `Fee transaction receipts for ${protocol} chain ${chain} successfully written to ${feeReceiptPath}`,
         );
-
-        if (canRelay.relay) {
-          try {
-            await retryAsync(() =>
-              runSelfRelay({
-                txReceipt: canRelay.txReceipt,
-                multiProvider: params.context.multiProvider,
-                registry: params.context.registry,
-                successMessage: WarpSendLogs.SUCCESS,
-              }),
-            );
-          } catch (error) {
-            warnYellow(`Error when self-relaying Warp transaction`, error);
-          }
-        }
       }
+    } catch (error) {
+      returnedFeeError = error instanceof Error ? error.message : String(error);
+      warnYellow(`Error when submitting fee transactions for ${chain}`, error);
+    }
+  }
 
-      // Runs whenever fee txs were NOT merged into the main submission: either a
-      // dedicated feeSubmitter is configured, or the main submitter broadcasts
-      // live (so fee txs are kept out of the retried main submit() and isolated
-      // here). Intentionally wrapped in try/catch so a fee failure does NOT bubble
-      // up to retryAsync and re-run the main submit block (which would rebroadcast
-      // already-submitted main txs); the failure is surfaced as a soft warning via
-      // returnedFeeError instead.
-      if (!mergeFeeIntoMain && feeTxs.length > 0) {
-        try {
-          const dedicatedFeeSubmitter = await getFeeSubmitterByStrategy({
-            chain,
-            context: params.context,
-            strategyUrl: params.strategyUrl,
-          });
-          // Fall back to the main submitter when no dedicated feeSubmitter is
-          // configured (live-broadcast strategies that opted out of merging).
-          const feeSubmitter = dedicatedFeeSubmitter ?? submitter;
-          const feeSafeAddressForBundle = dedicatedFeeSubmitter
-            ? feeSafeAddress
-            : mainSafeAddress;
-          const feeReceipts = await submitChainBatch(feeSubmitter, feeTxs);
-          if (isSafeTxBuilderPayload(feeReceipts)) {
-            safePayloads.push({
-              ...feeReceipts,
-              meta: {
-                ...feeReceipts.meta,
-                _safeAddress: feeSafeAddressForBundle,
-              },
-            });
-          }
-          if (
-            feeReceipts &&
-            !isSafeTxBuilderPayload(feeReceipts) &&
-            isEVMLike(protocol)
-          ) {
-            const feeReceiptPath = `${params.receiptsDir}/${chain}-fee-${Date.now()}-receipts.json`;
-            writeYamlOrJson(feeReceiptPath, feeReceipts);
-            logGreen(
-              `Fee transaction receipts for ${protocol} chain ${chain} successfully written to ${feeReceiptPath}`,
-            );
-          }
-        } catch (error) {
-          returnedFeeError =
-            error instanceof Error ? error.message : String(error);
-          warnYellow(
-            `Error when submitting fee transactions for ${chain}`,
-            error,
-          );
-        }
-      }
-
-      // Submit ownership txs last — after fee txs — so onlyOwner calls (e.g.
-      // setFeeRecipient) execute before ownership is transferred to a new address.
-      if (ownershipTxs.length > 0) {
-        const ownershipReceipts = await submitChainBatch(
-          submitter,
-          ownershipTxs,
-        );
-        if (isSafeTxBuilderPayload(ownershipReceipts)) {
-          safePayloads.push({
-            ...ownershipReceipts,
-            meta: {
-              ...ownershipReceipts.meta,
-              _safeAddress: mainSafeAddress,
-            },
-          });
-        } else if (ownershipReceipts && isEVMLike(protocol)) {
-          const ownershipReceiptPath = `${params.receiptsDir}/${chain}-ownership-${Date.now()}-receipts.json`;
-          writeYamlOrJson(ownershipReceiptPath, ownershipReceipts);
-          logGreen(
-            `Ownership transaction receipts for ${protocol} chain ${chain} successfully written to ${ownershipReceiptPath}`,
-          );
-        }
-      }
-    },
-    5, // attempts
-    100, // baseRetryMs
-  );
+  // Submit ownership txs last — after fee txs — so onlyOwner calls (e.g.
+  // setFeeRecipient) execute before ownership is transferred to a new address.
+  if (ownershipTxs.length > 0) {
+    const ownershipReceipts = await submitAndRecordProgress(
+      submitter,
+      ownershipTxs,
+      'ownership',
+    );
+    if (isSafeTxBuilderPayload(ownershipReceipts)) {
+      safePayloads.push({
+        ...ownershipReceipts,
+        meta: {
+          ...ownershipReceipts.meta,
+          _safeAddress: mainSafeAddress,
+        },
+      });
+    } else if (ownershipReceipts && isEVMLike(protocol)) {
+      const ownershipReceiptPath = `${params.receiptsDir}/${chain}-ownership-${Date.now()}-receipts.json`;
+      writeYamlOrJson(ownershipReceiptPath, ownershipReceipts);
+      logGreen(
+        `Ownership transaction receipts for ${protocol} chain ${chain} successfully written to ${ownershipReceiptPath}`,
+      );
+    }
+  }
 
   return { safePayloads, feeError: returnedFeeError };
 }

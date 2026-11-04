@@ -11,7 +11,7 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use tokio::time::sleep;
-use tracing::{debug, info, instrument};
+use tracing::{debug, info, instrument, warn};
 
 use hyperlane_base::db::DbResult;
 use hyperlane_base::db::HyperlaneDb;
@@ -49,7 +49,18 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
         domain: String,
     ) -> Self {
         // the db returns 0 if uninitialized
-        let high_index = max(loader.highest_index().await.unwrap_or_default(), 1);
+        let high_index = loop {
+            match loader.highest_index().await {
+                Ok(index) => break max(index, 1),
+                Err(error) => {
+                    warn!(
+                        ?error,
+                        "Recovery index unavailable; waiting before scanning"
+                    );
+                    sleep(Duration::from_secs(1)).await;
+                }
+            }
+        };
         let mut low_index_iter = DirectionalIndexIterator::new(
             high_index,
             IndexDirection::Low,
@@ -224,6 +235,7 @@ mod tests {
     struct MockDbState {
         data: HashMap<u32, String>,
         highest_index: u32,
+        highest_index_failures: u32,
     }
 
     #[derive(Debug, Clone)]
@@ -237,6 +249,7 @@ mod tests {
                 state: Arc::new(Mutex::new(MockDbState {
                     data: HashMap::new(),
                     highest_index: 0,
+                    highest_index_failures: 0,
                 })),
             }
         }
@@ -247,7 +260,13 @@ mod tests {
         type Item = String;
 
         async fn highest_index(&self) -> Result<u32, LanderError> {
-            let state = self.state.lock().await;
+            let mut state = self.state.lock().await;
+            if state.highest_index_failures > 0 {
+                state.highest_index_failures = state.highest_index_failures.saturating_sub(1);
+                return Err(LanderError::DbError(hyperlane_base::db::DbError::Other(
+                    "injected recovery watermark read failure".into(),
+                )));
+            }
             Ok(state.highest_index)
         }
 
@@ -301,6 +320,21 @@ mod tests {
         iterator.try_load_next_item().await.unwrap();
         assert_eq!(iterator.low_index_iter.index, 1);
         assert_eq!(iterator.high_index_iter.unwrap().index, 3);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn unavailable_recovery_watermark_never_becomes_an_empty_database() {
+        let db = Arc::new(MockDb::new());
+        {
+            let mut state = db.state.lock().await;
+            state.highest_index = 12;
+            state.highest_index_failures = 1;
+        }
+        let initializing = DbIterator::new(db, "Transaction".into(), true, "test".into());
+        tokio::pin!(initializing);
+        assert!(futures_util::poll!(initializing.as_mut()).is_pending());
+        tokio::time::advance(Duration::from_secs(1)).await;
+        assert_eq!(initializing.await.low_index_iter.index, 12);
     }
 
     #[tokio::test]

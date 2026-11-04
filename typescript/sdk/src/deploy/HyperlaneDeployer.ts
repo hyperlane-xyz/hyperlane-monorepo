@@ -169,24 +169,31 @@ export abstract class HyperlaneDeployer<
 
     const failedChains: ChainName[] = [];
     const deployChain = async (chain: ChainName) => {
-      const signerUrl =
-        await this.multiProvider.tryGetExplorerAddressUrl(chain);
-      const signerAddress = await this.multiProvider.getSignerAddress(chain);
-      const fromString = signerUrl || signerAddress;
-      this.logger.info(`Deploying to ${chain} from ${fromString}`);
+      try {
+        const signerUrl =
+          await this.multiProvider.tryGetExplorerAddressUrl(chain);
+        const signerAddress = await this.multiProvider.getSignerAddress(chain);
+        const fromString = signerUrl || signerAddress;
+        this.logger.info(`Deploying to ${chain} from ${fromString}`);
 
-      return runWithTimeout(this.chainTimeoutMs, async () => {
-        const contracts = await this.deployContracts(chain, configMap[chain]);
-        this.addDeployedContracts(chain, contracts);
-      })
-        .then(() => {
-          this.logger.info(`Successfully deployed contracts on ${chain}`);
-        })
-        .catch((error) => {
-          failedChains.push(chain);
-          this.logger.error(`Deployment failed on ${chain}. Error: ${error}`);
+        const deployment = (async () => {
+          const contracts = await this.deployContracts(chain, configMap[chain]);
+          this.addDeployedContracts(chain, contracts);
+        })();
+        try {
+          await runWithTimeout(this.chainTimeoutMs, () => deployment);
+        } catch (error) {
+          // A timeout cannot undo submitted transactions. Retain ownership of
+          // the deployment until it settles before returning partial artifacts.
+          await Promise.allSettled([deployment]);
           throw error;
-        });
+        }
+        this.logger.info(`Successfully deployed contracts on ${chain}`);
+      } catch (error) {
+        failedChains.push(chain);
+        this.logger.error(`Deployment failed on ${chain}. Error: ${error}`);
+        throw error;
+      }
     };
 
     if (this.options.concurrentDeploy) {

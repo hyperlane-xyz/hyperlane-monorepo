@@ -161,7 +161,10 @@ pub async fn update_tx_status(
     info!(?tx, ?new_status, "Updating tx status");
     let old_tx_status = tx.status.clone();
     tx.status = new_status.clone();
-    state.store_tx(tx).await;
+    if let Err(error) = state.store_tx(tx).await {
+        tx.status = old_tx_status;
+        return Err(error);
+    }
 
     // return early to avoid double counting metrics
     if new_status == old_tx_status {

@@ -55,13 +55,6 @@ impl PrioritizedProviderInner {
             last_block_height: (block_height, Instant::now()),
         }
     }
-
-    fn reset_failed_count(&self) -> Self {
-        Self {
-            last_failed_count: 0,
-            ..*self
-        }
-    }
 }
 /// Sub-providers and priority information
 pub struct PrioritizedProviders<T> {
@@ -325,29 +318,34 @@ where
 
     /// De-prioritize a provider that has returned a bad response
     pub async fn handle_failed_provider(&self, priority: &PrioritizedProviderInner) {
-        self.increment_failed_count(priority.index).await;
-
-        if priority.last_failed_count.saturating_add(1) >= FAILED_REQUEST_THRESHOLD {
-            let new_priority = priority.reset_failed_count();
-            self.deprioritize_provider(new_priority).await;
-            let rpc_span = self.rpc_span(priority.index);
-            let _rpc = rpc_span.enter();
-            info!(
-                provider_index=%new_priority.index,
-                failed_request_count=priority.last_failed_count.saturating_add(1),
-                failure_threshold=FAILED_REQUEST_THRESHOLD,
-                reason="Too many errors",
-                "Deprioritizing an inner provider in FallbackProvider",
-            );
-        }
-    }
-
-    async fn increment_failed_count(&self, index: usize) {
-        let mut priorities = self.inner.priorities.write().await;
-
-        if let Some(priority) = priorities.iter_mut().find(|p| p.index == index) {
-            priority.last_failed_count = priority.last_failed_count.saturating_add(1);
-        }
+        // Requests retain a priorities snapshot while their RPC is in flight.
+        // Count and demote against the live entry under one lock, preserving
+        // newer block-height observations and failures from sibling requests.
+        let failed_request_count = {
+            let mut priorities = self.inner.priorities.write().await;
+            let Some(position) = priorities.iter().position(|p| p.index == priority.index) else {
+                return;
+            };
+            let current = &mut priorities[position];
+            current.last_failed_count = current.last_failed_count.saturating_add(1);
+            if current.last_failed_count < FAILED_REQUEST_THRESHOLD {
+                return;
+            }
+            let failed_request_count = current.last_failed_count;
+            let mut demoted = priorities.remove(position);
+            demoted.last_failed_count = 0;
+            priorities.push(demoted);
+            failed_request_count
+        };
+        let rpc_span = self.rpc_span(priority.index);
+        let _rpc = rpc_span.enter();
+        info!(
+            provider_index=%priority.index,
+            failed_request_count,
+            failure_threshold=FAILED_REQUEST_THRESHOLD,
+            reason="Too many errors",
+            "Deprioritizing an inner provider in FallbackProvider",
+        );
     }
 
     /// Call the first provider, then the second, and so on (in order of priority) until a response is received.
@@ -632,9 +630,10 @@ pub mod test {
             .await;
         assert!(result.is_err());
 
-        let mut priority = provider.take_priorities_snapshot().await[0];
-        priority.last_failed_count = FAILED_REQUEST_THRESHOLD;
-        provider.handle_failed_provider(&priority).await;
+        let priority = provider.take_priorities_snapshot().await[0];
+        for _ in 0..FAILED_REQUEST_THRESHOLD {
+            provider.handle_failed_provider(&priority).await;
+        }
         provider
             .handle_stalled_provider(&priority, &provider.inner.providers[priority.index])
             .await
@@ -793,6 +792,55 @@ pub mod test {
             .map(|p| p.index)
             .collect();
         assert_eq!(expected, actual);
+    }
+
+    #[cfg(test)]
+    #[tokio::test]
+    async fn shared_failure_snapshots_demote_at_the_live_threshold() {
+        let provider: FallbackProvider<ProviderMock, ProviderMock> =
+            FallbackProvider::new([ProviderMock::default(), ProviderMock::default()]);
+        let snapshot = provider.take_priorities_snapshot().await[0];
+        // Model sibling requests admitted against the same priority snapshot.
+        futures::future::join_all(
+            (0..FAILED_REQUEST_THRESHOLD).map(|_| provider.handle_failed_provider(&snapshot)),
+        )
+        .await;
+
+        let priorities = provider.take_priorities_snapshot().await;
+        assert_eq!(priorities[0].index, 1);
+        assert_eq!(priorities[1].index, snapshot.index);
+        assert_eq!(priorities[1].last_failed_count, 0);
+        provider.handle_failed_provider(&snapshot).await;
+        let priorities = provider.take_priorities_snapshot().await;
+        assert_eq!(priorities[1].last_failed_count, 1);
+    }
+
+    #[cfg(test)]
+    #[tokio::test]
+    async fn stale_failure_snapshots_preserve_newer_health_observations() {
+        let provider: FallbackProvider<ProviderMock, ProviderMock> =
+            FallbackProvider::new([ProviderMock::default(), ProviderMock::default()]);
+        for _ in 0..FAILED_REQUEST_THRESHOLD - 1 {
+            let snapshot = provider.take_priorities_snapshot().await[0];
+            provider.handle_failed_provider(&snapshot).await;
+        }
+        let stale = provider.take_priorities_snapshot().await[0];
+        // A successful height probe resets failures while the older RPC runs.
+        provider.update_last_seen_block(stale.index, 1_000).await;
+        let refreshed = provider.take_priorities_snapshot().await[0];
+        provider.handle_failed_provider(&stale).await;
+        let priorities = provider.take_priorities_snapshot().await;
+        assert_eq!(priorities[0].index, stale.index);
+        assert_eq!(priorities[0].last_failed_count, 1);
+        assert_eq!(priorities[0].last_block_height, refreshed.last_block_height);
+
+        for _ in 1..FAILED_REQUEST_THRESHOLD {
+            provider.handle_failed_provider(&stale).await;
+        }
+        let priorities = provider.take_priorities_snapshot().await;
+        assert_eq!(priorities[1].index, stale.index);
+        assert_eq!(priorities[1].last_failed_count, 0);
+        assert_eq!(priorities[1].last_block_height, refreshed.last_block_height);
     }
 
     #[tokio::test]

@@ -123,7 +123,7 @@ async fn store_stale_tx(
         .set_tracked_tx_uuid_test(&U256::from(nonce), &tx.uuid)
         .await
         .unwrap();
-    state.store_tx(&tx).await;
+    state.store_tx(&tx).await.unwrap();
     tx
 }
 
@@ -176,14 +176,14 @@ async fn restart_drops_stale_recovered_txs_and_refills_freed_nonces() {
     // The old loader stopped at the first terminal entry.
     let mut boundary = build_tx(&adapter, &state).await;
     boundary.status = TransactionStatus::Finalized;
-    state.store_tx(&boundary).await;
+    state.store_tx(&boundary).await.unwrap();
 
     // A live tx submitted after the stale ones got parked above them.
     let mut parked = build_tx(&adapter, &state).await;
     adapter.submit(&mut parked).await.unwrap();
     assert_eq!(nonce_of(&parked), FINALIZED + 4);
     parked.status = TransactionStatus::Mempool;
-    state.store_tx(&parked).await;
+    state.store_tx(&parked).await.unwrap();
 
     nonce_state
         .set_upper_nonce_test(&U256::from(FINALIZED + 6))
@@ -262,14 +262,14 @@ async fn restart_drops_stale_recovered_txs_and_refills_freed_nonces() {
         let mut fresh = build_tx(&adapter, &state).await;
         adapter.submit(&mut fresh).await.unwrap();
         assert_eq!(nonce_of(&fresh), expected);
-        state.store_tx(&fresh).await;
+        state.store_tx(&fresh).await.unwrap();
     }
 
     // With the gap filled, the next new tx goes above the parked tx, reusing the trimmed nonce.
     let mut next = build_tx(&adapter, &state).await;
     adapter.submit(&mut next).await.unwrap();
     assert_eq!(nonce_of(&next), FINALIZED + 5);
-    state.store_tx(&next).await;
+    state.store_tx(&next).await.unwrap();
 
     // The parked tx still holds its original nonce and was broadcast exactly once.
     let err = adapter.submit(&mut parked).await.unwrap_err();

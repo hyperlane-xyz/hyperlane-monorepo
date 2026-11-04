@@ -3440,6 +3440,75 @@ void it('reports an active send failure once', async (context) => {
   }
 });
 
+for (const phase of ['startup', 'reconnect']) {
+  void it(`releases a listener acquired after shutdown during ${phase}`, async (context) => {
+    context.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+    let release = () => {};
+    const connecting = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let releaseUnlisten = () => {};
+    const disconnecting = new Promise<void>((resolve) => {
+      releaseUnlisten = resolve;
+    });
+    let disconnect: (error?: Error) => void = () =>
+      assert.fail('listener not connected');
+    let attempts = 0;
+    let released = 0;
+    const delayedDb: EventDatabase = {
+      async listen(_channels, _handler, onDisconnect) {
+        disconnect = onDisconnect;
+        attempts++;
+        if (phase === 'startup' || attempts > 1) await connecting;
+        return async () => {
+          released++;
+          await disconnecting;
+        };
+      },
+      async queryLive() {
+        return [];
+      },
+    };
+    const delayedHttp = createServer();
+    const { EventWebSocketServer } = await import('./event-websocket.js');
+    const delayedEvents = new EventWebSocketServer(delayedDb);
+    const starting = delayedEvents.start(delayedHttp);
+    assert.equal(delayedEvents.start(delayedHttp), starting);
+    if (phase === 'reconnect') {
+      await starting;
+      disconnect(new Error('connection lost'));
+      context.mock.timers.tick(1_000);
+    }
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(attempts, phase === 'startup' ? 1 : 2);
+    const stopping = delayedEvents.stop();
+    assert.equal(delayedEvents.stop(), stopping);
+    let stopped = false;
+    void stopping.then(() => {
+      stopped = true;
+    });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(stopped, false);
+    release();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(released, 1);
+    assert.equal(
+      stopped,
+      false,
+      'shutdown waits for the acquired listener to close',
+    );
+    releaseUnlisten();
+    await Promise.all([starting, stopping]);
+    assert.equal(delayedEvents.metricsSnapshot().listenerReady, false);
+    assert.equal(delayedHttp.listenerCount('upgrade'), 0);
+    context.mock.timers.tick(10_000);
+    assert.equal(attempts, phase === 'startup' ? 1 : 2);
+    // A stopped server is terminal; it must not acquire another listener.
+    await delayedEvents.start(delayedHttp);
+    assert.equal(attempts, phase === 'startup' ? 1 : 2);
+  });
+}
+
 void it('abandons an in-flight head range while listener shutdown is pending', async () => {
   let releaseRead = () => {};
   const read = new Promise<void>((resolve) => {

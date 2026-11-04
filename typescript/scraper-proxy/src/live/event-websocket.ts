@@ -179,6 +179,9 @@ export class EventWebSocketServer {
   private listenerReady = false;
   private stopped = false;
   private stopListening?: () => Promise<void>;
+  private listenerConnection?: Promise<void>;
+  private stopPromise?: Promise<void>;
+  private startPromise?: Promise<void>;
   private httpServer?: Server;
   private agentServer?: WebSocketServer;
   private explorerServer?: WebSocketServer;
@@ -202,7 +205,18 @@ export class EventWebSocketServer {
     };
   }
 
-  async start(server: Server): Promise<void> {
+  start(server: Server): Promise<void> {
+    if (this.stopped) return Promise.resolve();
+    this.startPromise ??= this.startResources(server).catch(
+      (error: unknown) => {
+        this.startPromise = undefined;
+        throw error;
+      },
+    );
+    return this.startPromise;
+  }
+
+  private async startResources(server: Server): Promise<void> {
     const { heartbeatMs } = this.limits;
     if (
       typeof heartbeatMs !== 'number' ||
@@ -215,6 +229,7 @@ export class EventWebSocketServer {
       );
     }
     await this.connectListener();
+    if (this.stopped) return;
     this.agentServer = new WebSocketServer({
       // Agent subscriptions carry one cursor per chain and stream, so the
       // fleet-wide relayer payload is substantially larger than an Explorer
@@ -242,8 +257,15 @@ export class EventWebSocketServer {
     );
   }
 
-  async stop(): Promise<void> {
+  stop(): Promise<void> {
+    if (this.stopPromise) return this.stopPromise;
     this.stopped = true;
+    this.listenerReady = false;
+    this.stopPromise = this.stopResources();
+    return this.stopPromise;
+  }
+
+  private async stopResources(): Promise<void> {
     [this.heartbeatTimer, this.listenerRetryTimer].forEach(
       (timer) => timer && clearTimeout(timer),
     );
@@ -256,11 +278,16 @@ export class EventWebSocketServer {
     this.explorerNotifications.clear();
     this.notifications.clear();
     this.headRanges.clear();
-    await this.stopListening?.();
+    const closeListener = async () => {
+      await this.listenerConnection;
+      await this.stopListening?.();
+      this.stopListening = undefined;
+    };
     this.httpServer?.off('upgrade', this.handleUpgrade);
     this.closeClients('Server stopping', 1001);
-    await Promise.all(
-      [this.agentServer, this.explorerServer].map((websocketServer) =>
+    const results = await Promise.allSettled([
+      closeListener(),
+      ...[this.agentServer, this.explorerServer].map((websocketServer) =>
         websocketServer
           ? new Promise<void>((resolve, reject) =>
               websocketServer.close((error) =>
@@ -269,7 +296,9 @@ export class EventWebSocketServer {
             )
           : Promise.resolve(),
       ),
-    );
+    ]);
+    const failure = results.find((result) => result.status === 'rejected');
+    if (failure?.status === 'rejected') throw failure.reason;
   }
 
   metricsSnapshot(): WebSocketMetricsSnapshot {
@@ -820,18 +849,34 @@ export class EventWebSocketServer {
     }
   }
 
-  private async connectListener(): Promise<void> {
+  private connectListener(): Promise<void> {
+    if (this.stopped) return Promise.resolve();
+    this.listenerConnection ??= this.acquireListener().finally(() => {
+      this.listenerConnection = undefined;
+    });
+    return this.listenerConnection;
+  }
+
+  private async acquireListener(): Promise<void> {
+    let stopListening: () => Promise<void>;
     try {
-      this.stopListening = await this.db.listen(
+      stopListening = await this.db.listen(
         [EVENT_CHANNEL, EXPLORER_CHANNEL, HEAD_CHANNEL],
         (channel, payload) => this.queueNotification(channel, payload),
         (error) => this.listenerDisconnected(error),
       );
-      this.listenerReady = true;
     } catch (error) {
       this.logger.error(`database listener failed: ${formatError(error)}`);
       this.reconnectListener();
+      return;
     }
+    // Shutdown owns this pending acquisition and waits for its release.
+    if (this.stopped) {
+      await stopListening();
+      return;
+    }
+    this.stopListening = stopListening;
+    this.listenerReady = true;
   }
 
   private queueNotification(

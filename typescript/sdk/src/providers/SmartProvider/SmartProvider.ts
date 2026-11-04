@@ -368,11 +368,12 @@ export class HyperlaneSmartProvider
    * @returns true if the provider is healthy, false otherwise
    */
   async isHealthy(numBlocks = 1, timeoutMs = 3_000): Promise<boolean> {
+    let checking = true;
     try {
       await runWithTimeout(timeoutMs, async () => {
         let previousBlockNumber = 0;
         let i = 1;
-        while (i <= numBlocks) {
+        while (checking && i <= numBlocks) {
           const block = await this.getBlock('latest');
           if (block.number > previousBlockNumber) {
             i += 1;
@@ -387,6 +388,10 @@ export class HyperlaneSmartProvider
     } catch (error) {
       this.logger.error('Provider is unhealthy', error);
       return false;
+    } finally {
+      // runWithTimeout bounds waiting, so retire this caller's polling loop
+      // when its deadline expires even if an admitted read completes later.
+      checking = false;
     }
   }
 

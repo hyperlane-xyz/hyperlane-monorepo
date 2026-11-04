@@ -14,9 +14,12 @@ const FILE_URI_PREFIX_REGEX = /^file:\/\//;
 export class RegistryService {
   private registry: IRegistry | null = null;
   private lastRefresh: number = Date.now();
-  private isDirty = false;
+  private generation = 0;
+  private refreshedGeneration = -1;
   private isWatcherActive = false;
-  private readonly registryRefresh = new LazyAsync(() => this.getRegistry());
+  private readonly registryRefresh = new LazyAsync(() =>
+    this.refreshRegistry(),
+  );
 
   constructor(
     private readonly getRegistry: () => Promise<IRegistry>,
@@ -27,13 +30,16 @@ export class RegistryService {
 
   async initialize() {
     try {
-      this.registry = await this.registryRefresh.get();
-      this.lastRefresh = Date.now();
+      await this.getCurrentRegistry();
+      this.startWatching();
+      // Watch registration follows the initial read. Refresh under the active
+      // watcher so a change in that gap cannot become a permanently clean cache.
+      await this.getCurrentRegistry();
     } catch (err: unknown) {
+      this.stop();
       this.logger.error({ err }, 'Registry initialization failed');
       throw err;
     }
-    this.startWatching();
   }
 
   private getFileSystemRegistryUri(): string | null {
@@ -58,6 +64,7 @@ export class RegistryService {
   }
 
   private startWatching() {
+    if (this.isWatcherActive) return;
     if (!this.fileRegistryWatcher) {
       this.logger.debug('No watcher found. Skipping');
       return;
@@ -80,6 +87,7 @@ export class RegistryService {
           );
         },
       );
+      this.markDirty();
       this.logger.info({ path: watchPath }, 'Watching registry for changes');
     } catch (err) {
       this.isWatcherActive = false;
@@ -91,24 +99,41 @@ export class RegistryService {
   }
 
   private markDirty() {
-    this.isDirty = true;
+    this.generation++;
+  }
+
+  private async refreshRegistry(): Promise<IRegistry> {
+    // Events arriving during a read invalidate that snapshot. One shared
+    // initializer retries until it can publish a snapshot for the current epoch.
+    for (;;) {
+      const generation = this.generation;
+      const registry = await this.getRegistry();
+      if (generation !== this.generation) continue;
+      this.registry = registry;
+      this.refreshedGeneration = generation;
+      this.lastRefresh = Date.now();
+      return registry;
+    }
   }
 
   async getCurrentRegistry(): Promise<IRegistry> {
     const now = Date.now();
     const shouldRefresh =
-      this.isDirty ||
+      this.refreshedGeneration !== this.generation ||
       (!this.isWatcherActive &&
         now - this.lastRefresh > this.refreshInterval) ||
       !this.registry;
 
     if (shouldRefresh) {
       this.logger.info('Refreshing registry cache...');
-      this.registryRefresh.reset();
+      // Reset only the settled cache, never another caller's pending refresh.
+      if (this.registryRefresh.isInitialized()) this.registryRefresh.reset();
       try {
-        this.registry = await this.registryRefresh.get();
-        this.isDirty = false;
-        this.lastRefresh = now;
+        await this.registryRefresh.get();
+        // A watcher can run between publication and LazyAsync settling. Recheck
+        // after the shared promise so those callers cannot receive its stale epoch.
+        if (this.refreshedGeneration !== this.generation)
+          return this.getCurrentRegistry();
       } catch (err: unknown) {
         this.logger.error({ err }, 'Registry refresh failed');
         throw err;
@@ -127,6 +152,7 @@ export class RegistryService {
   }
 
   stop() {
+    this.isWatcherActive = false;
     if (this.fileRegistryWatcher) this.fileRegistryWatcher.stop();
   }
 }
