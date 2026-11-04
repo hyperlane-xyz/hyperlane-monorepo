@@ -20,8 +20,8 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
   elysium: {
     transactionOverrides: {
       // Temporary testing override: Alchemy does not expose eth_feeHistory
-      // on Elysium yet. eth_gasPrice and the live base fee are both 0.1 gwei.
-      gasPrice: 1 * 10 ** 8,
+      // on Elysium yet. Allow headroom above the observed ~0.1-gwei base fee.
+      gasPrice: 2 * 10 ** 8,
     },
   },
   coti: {
