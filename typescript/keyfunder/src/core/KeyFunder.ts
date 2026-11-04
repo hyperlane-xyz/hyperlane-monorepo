@@ -2,8 +2,12 @@ import { BigNumber, ethers } from 'ethers';
 import type { Logger } from 'pino';
 
 import { ERC20__factory } from '@hyperlane-xyz/core';
-import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import {
+  ChainTechnicalStack,
+  HyperlaneIgp,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
+import { addBufferToGasLimit, assert } from '@hyperlane-xyz/utils';
 
 import type {
   ChainConfig,
@@ -182,6 +186,20 @@ export class KeyFunder {
           this.multiProvider.getProvider(chain),
         ).populateTransaction.transfer(to, amount)
       : { to, value: amount };
+    if (
+      this.multiProvider.getChainMetadata(chain).technicalStack ===
+      ChainTechnicalStack.ArbitrumNitro
+    ) {
+      // Nitro's parent-chain data fee can change after estimation.
+      const estimatedGas = await this.multiProvider.estimateGas(
+        chain,
+        transaction,
+      );
+      return this.multiProvider.sendTransaction(chain, {
+        ...transaction,
+        gasLimit: addBufferToGasLimit(estimatedGas),
+      });
+    }
     return this.multiProvider.sendTransaction(chain, transaction);
   }
 

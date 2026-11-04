@@ -5020,7 +5020,15 @@
       "testRecipient": "0xc4Da6b5451B2FFa70a4FDE761B72f7AbB1EDb770",
       "validatorAnnounce": "0xC9c5A345b45Cf634CE71401Ec194b6688EA12c1e",
       "interchainAccountRouterV3": "0x632b4F32d65F7b25B37a27C57dD510f8e4a58Bf9",
-      "quotedCallsV3": "0x721a6221493a9247c84Cb8b2Af8d5E078Cd4E364"
+      "quotedCallsV3": "0x721a6221493a9247c84Cb8b2Af8d5E078Cd4E364",
+      "blockExplorers": [
+        {
+          "apiUrl": "https://elysium.kinetiq.xyz/api",
+          "family": "other",
+          "name": "Elysium Explorer",
+          "url": "https://elysium.kinetiq.xyz/explorer"
+        }
+      ]
     }
   },
   "ccrRouters": {
