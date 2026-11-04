@@ -33,7 +33,8 @@ pub(super) async fn preflight<T, E: Into<LanderError>>(
 ) -> Result<T, LanderError> {
     with_rpc_timeout(protected, request).await?.map_err(|err| {
         let err = err.into();
-        if protected {
+        // Local gas-cap rejections cannot be fixed by retrying the protected RPC.
+        if protected && !matches!(err, LanderError::NonRetryableError(_)) {
             warn!(?err, "Protected preflight failed; retrying later");
             LanderError::TxSubmissionDeferred
         } else {
@@ -532,7 +533,7 @@ mod tests {
         protected
             .expect_simulate_batch()
             .times(1)
-            .returning(|_| Ok((vec![0, 1], vec![])));
+            .returning(|_| Ok((vec![0, 2], vec![(1, "already delivered".into())])));
         let mut estimates = mockall::Sequence::new();
         protected
             .expect_estimate_batch()
@@ -556,12 +557,16 @@ mod tests {
         assert!(single.precursor().tx.gas().is_some());
 
         // Old database entries may contain mixed batches; every preflight stays private.
-        let mut recovered = transaction(&adapter, vec![payload(1, ROUTER, MAILBOX), reveal]).await;
-        assert!(adapter
-            .simulate_tx(&mut recovered)
-            .await
-            .unwrap()
-            .is_empty());
+        let failed = payload(1, ROUTER, MAILBOX);
+        let mut recovered = transaction(
+            &adapter,
+            vec![payload(1, ROUTER, MAILBOX), failed.clone(), reveal],
+        )
+        .await;
+        assert_eq!(
+            adapter.simulate_tx(&mut recovered).await.unwrap(),
+            vec![failed.details]
+        );
         assert_eq!(recovered.payload_details.len(), 2);
         assert!(matches!(
             adapter.estimate_tx(&mut recovered).await,
@@ -575,6 +580,143 @@ mod tests {
             Some(300_000.into())
         );
     }
+    #[tokio::test]
+    async fn queued_protected_batch_reestimates_after_execution_cost_increases() {
+        use std::{
+            collections::HashMap,
+            sync::atomic::{AtomicU64, Ordering},
+        };
+
+        use crate::{
+            dispatcher::{DispatcherState, InclusionStage},
+            DispatcherMetrics,
+        };
+
+        let mut adapter = adapter(0, 0, false);
+        let required_gas = Arc::new(AtomicU64::new(200_000));
+        let mut protected = MockEvmProvider::new();
+        mock_get_block(&mut protected);
+        protected
+            .expect_estimate_gas_limit()
+            .returning(|_, _| Ok(100_000.into()));
+        let simulation_gas = required_gas.clone();
+        protected
+            .expect_simulate_batch()
+            .times(3)
+            .returning(move |(tx, _)| {
+                if tx
+                    .gas()
+                    .is_some_and(|gas| *gas < simulation_gas.load(Ordering::SeqCst).into())
+                {
+                    return Err(ChainCommunicationError::CustomError("out of gas".into()));
+                }
+                Ok((vec![0, 1], vec![]))
+            });
+        let estimate_gas = required_gas.clone();
+        protected
+            .expect_estimate_batch()
+            .times(2)
+            .returning(move |_, _| Ok(estimate_gas.load(Ordering::SeqCst).into()));
+        protected
+            .expect_sign_transaction()
+            .once()
+            .withf(|tx| tx.gas().copied() == Some(400_000.into()))
+            .returning(|tx| Ok(serde_json::to_vec(tx).unwrap().into()));
+        protected
+            .expect_send_raw_transaction()
+            .once()
+            .returning(|bytes| Ok(ethers::utils::keccak256(bytes).into()));
+        adapter.mev_submission.as_mut().unwrap().provider = Arc::new(protected);
+
+        let mut payloads = vec![payload(2, ROUTER, MAILBOX), payload(2, ROUTER, MAILBOX)];
+        for payload in &mut payloads {
+            payload.gas_limit = 0.into();
+            adapter
+                .payload_db
+                .store_payload_by_uuid(payload)
+                .await
+                .unwrap();
+        }
+        let mut built = adapter.build_transactions(&payloads).await;
+        assert_eq!(built.len(), 1);
+        let mut tx = built[0].maybe_tx.take().unwrap();
+        assert_eq!(tx.payload_details.len(), 2);
+        assert_eq!(tx.precursor().tx.gas().copied(), Some(200_000.into()));
+
+        // Recipient state changed while queued. Simulate without the stale limit,
+        // but retain the queued budget until inclusion replaces it with an estimate.
+        required_gas.store(400_000, Ordering::SeqCst);
+        let queued = tx.clone();
+        assert!(adapter.simulate_tx(&mut tx).await.unwrap().is_empty());
+        assert_eq!(tx, queued);
+
+        tx.status = TransactionStatus::PendingInclusion;
+        let uuid = tx.uuid.clone();
+        let (_, tx_db, _) = tmp_dbs();
+        tx_db.store_transaction_by_uuid(&tx).await.unwrap();
+        let state = DispatcherState::new(
+            adapter.payload_db.clone(),
+            tx_db,
+            Arc::new(adapter),
+            DispatcherMetrics::dummy_instance(),
+            "test".to_owned(),
+        );
+        let pool = Arc::new(tokio::sync::Mutex::new(HashMap::from([(uuid.clone(), tx)])));
+        let (sender, _receiver) = tokio::sync::mpsc::channel(1);
+        InclusionStage::process_txs_step(&pool, &sender, &state, "test")
+            .await
+            .unwrap();
+        let pool = pool.lock().await;
+        let submitted = pool.get(&uuid).unwrap();
+        assert_eq!(submitted.status, TransactionStatus::Mempool);
+        assert_eq!(submitted.submission_attempts, 1);
+        assert_eq!(
+            submitted.precursor().tx.gas().copied(),
+            Some(400_000.into())
+        );
+        assert_eq!(submitted.tx_hashes.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn gas_limit_caps_are_terminal_for_protected_singles_and_batches() {
+        use crate::error::IsRetryable;
+
+        for (configured_cap, block_cap) in [(Some(1_000_000u64), 30_000_000u64), (None, 1_000_000)]
+        {
+            for batched in [false, true] {
+                let mut adapter = adapter(0, 0, false);
+                let mut protected = MockEvmProvider::new();
+                protected.expect_get_block().returning(move |_| {
+                    Ok(Some(ethers::types::Block {
+                        gas_limit: block_cap.into(),
+                        ..Default::default()
+                    }))
+                });
+                protected
+                    .expect_estimate_gas_limit()
+                    .times(if batched { 2 } else { 1 })
+                    .returning(move |_, _| Ok(if batched { 600_000 } else { 1_200_000 }.into()));
+                protected
+                    .expect_estimate_batch()
+                    .times(usize::from(batched))
+                    .returning(|_, _| Ok(1_200_000.into()));
+                adapter.mev_submission.as_mut().unwrap().provider = Arc::new(protected);
+                adapter.transaction_overrides.gas_limit_cap = configured_cap.map(Into::into);
+                let payloads = if batched {
+                    vec![payload(2, ROUTER, MAILBOX), payload(2, ROUTER, MAILBOX)]
+                } else {
+                    vec![payload(2, ROUTER, MAILBOX)]
+                };
+                let mut tx = transaction(&adapter, payloads).await;
+                let error = adapter.estimate_tx(&mut tx).await.unwrap_err();
+                assert!(matches!(error, LanderError::NonRetryableError(_)));
+                assert!(!error.is_retryable());
+                assert!(!error.is_infra_error());
+                assert!(tx.precursor().tx.gas().is_none());
+            }
+        }
+    }
+
     #[derive(Debug)]
     struct StalledRpc(Arc<std::sync::Mutex<Option<ethers::types::Bytes>>>);
 
