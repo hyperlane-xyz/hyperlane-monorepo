@@ -78,7 +78,7 @@ rules retain exact field and origin-signer matching.
 Use the registry's pinned Node version, format the JSON, and run its unit tests:
 
 ```bash
-cd "${HYPERLANE_REGISTRY:-$HOME/hyperlane-registry}"
+cd "<registry checkout selected in step 2>"
 nvm use
 pnpm exec oxfmt --check deployments/relayer/*-denylist.json
 pnpm run test:unit
