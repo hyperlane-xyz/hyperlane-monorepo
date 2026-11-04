@@ -5,6 +5,7 @@ import {
   MultiProtocolProvider,
   Token,
   TokenStandard,
+  TokenBalanceReader,
   WarpCore,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -48,16 +49,18 @@ function fixture() {
         coinGeckoId: `price-${index}`,
       }),
   );
-  const supplyReads = tokens.map((token) => {
-    const adapter = token.getHypAdapter(provider);
-    sinon.stub(token, 'getHypAdapter').returns(adapter);
-    return sinon.stub(adapter, 'getBridgedSupply').resolves(3n);
-  });
-  const inventoryReads = tokens.map((token) => {
-    const adapter = token.getAdapter(provider);
-    sinon.stub(token, 'getAdapter').returns(adapter);
-    return sinon.stub(adapter, 'getBalance').resolves(7n);
-  });
+  const supplyReads = tokens.map(() =>
+    sinon.stub<[], Promise<bigint>>().resolves(3n),
+  );
+  const inventoryReads = tokens.map(() =>
+    sinon.stub<[], Promise<bigint>>().resolves(7n),
+  );
+  sinon
+    .stub(TokenBalanceReader.prototype, 'getBridgedSupply')
+    .callsFake(async (token) => supplyReads[tokens.indexOf(token)]());
+  sinon
+    .stub(TokenBalanceReader.prototype, 'getBalance')
+    .callsFake(async (token) => inventoryReads[tokens.indexOf(token)]());
   const routerNodes = tokens.map((token) => ({
     nodeId: `${token.symbol}|${token.chainName}|${token.addressOrDenom}`,
     chainName: token.chainName,
