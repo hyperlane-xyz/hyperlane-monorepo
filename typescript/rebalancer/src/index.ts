@@ -123,3 +123,7 @@ export type {
 
 // Factory
 export { RebalancerContextFactory } from './factories/RebalancerContextFactory.js';
+
+// State API
+export { createStateApi, startStateApi } from './api/stateApi.js';
+export type { StateApiConfig, StateApiDeps } from './api/stateApi.js';
