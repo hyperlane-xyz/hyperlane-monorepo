@@ -9,6 +9,7 @@ use std::{
 use async_trait::async_trait;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
+use tokio::sync::Semaphore;
 
 use hyperlane_core::ChainResult;
 
@@ -22,6 +23,8 @@ pub struct MockHttpClient {
     // Map from endpoint path (e.g. "block/1") to a serde_json::Value response body
     responses: Arc<RwLock<HashMap<String, Value>>>,
     recording: Arc<AtomicBool>,
+    recording_prefix: Arc<RwLock<Option<String>>>,
+    response_gate: Arc<RwLock<Option<Arc<Semaphore>>>>,
     active: Arc<AtomicUsize>,
     peak: Arc<AtomicUsize>,
     calls: Arc<AtomicUsize>,
@@ -41,6 +44,8 @@ impl MockHttpClient {
             base_path,
             responses: Arc::new(RwLock::new(HashMap::new())),
             recording: Arc::default(),
+            recording_prefix: Arc::default(),
+            response_gate: Arc::default(),
             active: Arc::default(),
             peak: Arc::default(),
             calls: Arc::default(),
@@ -51,6 +56,16 @@ impl MockHttpClient {
         self.recording.store(true, Ordering::SeqCst);
     }
 
+    /// Record the selected RPC group and hold responses until permits are added.
+    /// Metadata/header traffic is excluded from both the gate and the counters.
+    pub fn record_gated_concurrency_for_prefix(&self, prefix: &str) -> Arc<Semaphore> {
+        let gate = Arc::new(Semaphore::new(0));
+        *self.recording_prefix.write().unwrap() = Some(prefix.to_owned());
+        *self.response_gate.write().unwrap() = Some(gate.clone());
+        self.record_concurrency();
+        gate
+    }
+
     pub fn concurrency_stats(&self) -> (usize, usize, usize) {
         (
             self.calls.load(Ordering::SeqCst),
@@ -59,15 +74,29 @@ impl MockHttpClient {
         )
     }
 
-    async fn track_request(&self) -> Option<ActiveRequest> {
+    async fn track_request(&self, path: &str) -> Option<ActiveRequest> {
         if !self.recording.load(Ordering::SeqCst) {
+            return None;
+        }
+        if self
+            .recording_prefix
+            .read()
+            .unwrap()
+            .as_ref()
+            .is_some_and(|prefix| !path.starts_with(prefix.as_str()))
+        {
             return None;
         }
         self.calls.fetch_add(1, Ordering::SeqCst);
         let active = self.active.fetch_add(1, Ordering::SeqCst).saturating_add(1);
         self.peak.fetch_max(active, Ordering::SeqCst);
         let guard = ActiveRequest(self.active.clone());
-        tokio::task::yield_now().await;
+        let response_gate = self.response_gate.read().unwrap().clone();
+        if let Some(gate) = response_gate {
+            gate.acquire().await.unwrap().forget();
+        } else {
+            tokio::task::yield_now().await;
+        }
         Some(guard)
     }
 
@@ -120,7 +149,7 @@ impl HttpClient for MockHttpClient {
         path: &str,
         _query: impl Into<Option<Value>> + Send,
     ) -> ChainResult<T> {
-        let _active = self.track_request().await;
+        let _active = self.track_request(path).await;
         let path = path
             .trim()
             .chars()
@@ -136,7 +165,7 @@ impl HttpClient for MockHttpClient {
         path: &str,
         _query: impl Into<Option<Value>> + Send,
     ) -> ChainResult<Option<T>> {
-        let _active = self.track_request().await;
+        let _active = self.track_request(path).await;
         let path = path
             .trim()
             .chars()

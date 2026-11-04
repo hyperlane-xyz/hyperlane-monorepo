@@ -1,4 +1,6 @@
-use std::{path::PathBuf, str::FromStr};
+use std::{path::PathBuf, str::FromStr, sync::Arc, time::Duration};
+
+use tokio::sync::Semaphore;
 
 use hyperlane_core::InterchainGasPayment;
 use hyperlane_core::{
@@ -375,6 +377,17 @@ async fn test_merkle_tree_latest_sequence() {
     assert_eq!(tip, 1337);
 }
 
+fn register_multi_dispatch_events(mock: &AleoProvider<MockHttpClient>) {
+    mock.register_value(
+        "program/test_mailbox.aleo/mapping/dispatch_events/2u32",
+        "{\n  version: 3u8,\n  nonce: 2u32,\n  origin_domain: 1617853565u32,\n  sender: [\n    252u8,\n    80u8,\n    5u8,\n    58u8,\n    116u8,\n    217u8,\n    53u8,\n    34u8,\n    241u8,\n    170u8,\n    247u8,\n    201u8,\n    188u8,\n    11u8,\n    171u8,\n    50u8,\n    243u8,\n    244u8,\n    41u8,\n    110u8,\n    7u8,\n    22u8,\n    8u8,\n    25u8,\n    216u8,\n    103u8,\n    58u8,\n    89u8,\n    25u8,\n    199u8,\n    61u8,\n    12u8\n  ],\n  destination_domain: 11155111u32,\n  recipient: [\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    181u8,\n    169u8,\n    25u8,\n    159u8,\n    187u8,\n    73u8,\n    207u8,\n    247u8,\n    192u8,\n    213u8,\n    67u8,\n    37u8,\n    145u8,\n    36u8,\n    130u8,\n    151u8,\n    151u8,\n    20u8,\n    53u8,\n    244u8\n  ],\n  body: [\n    268787773892274112404478985243277131776u128,\n    101401562821467212002249661463377258879u128,\n    0u128,\n    85413587559041969264383023824439869440u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128\n  ]\n}",
+    );
+    mock.register_value(
+        "program/test_mailbox.aleo/mapping/dispatch_events/3u32",
+        "{\n  version: 3u8,\n  nonce: 3u32,\n  origin_domain: 1617853565u32,\n  sender: [\n    252u8,\n    80u8,\n    5u8,\n    58u8,\n    116u8,\n    217u8,\n    53u8,\n    34u8,\n    241u8,\n    170u8,\n    247u8,\n    201u8,\n    188u8,\n    11u8,\n    171u8,\n    50u8,\n    243u8,\n    244u8,\n    41u8,\n    110u8,\n    7u8,\n    22u8,\n    8u8,\n    25u8,\n    216u8,\n    103u8,\n    58u8,\n    89u8,\n    25u8,\n    199u8,\n    61u8,\n    12u8\n  ],\n  destination_domain: 11155111u32,\n  recipient: [\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    181u8,\n    169u8,\n    25u8,\n    159u8,\n    187u8,\n    73u8,\n    207u8,\n    247u8,\n    192u8,\n    213u8,\n    67u8,\n    37u8,\n    145u8,\n    36u8,\n    130u8,\n    151u8,\n    151u8,\n    20u8,\n    53u8,\n    244u8\n  ],\n  body: [\n    268787773892274112404478985243277131776u128,\n    101401562821467212002249661463377258879u128,\n    0u128,\n    85413587559041969264383023824439869440u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128\n  ]\n}",
+    );
+}
+
 #[tokio::test]
 async fn test_indexer_multi_fetch_logs() {
     let program_id = ProgramID::<TestnetV0>::from_str("test_mailbox.aleo").unwrap();
@@ -388,14 +401,7 @@ async fn test_indexer_multi_fetch_logs() {
         "program/test_mailbox.aleo/mapping/dispatch_event_index/12625985u32",
         "3u32",
     );
-    mock.register_value(
-        "program/test_mailbox.aleo/mapping/dispatch_events/2u32",
-        "{\n  version: 3u8,\n  nonce: 2u32,\n  origin_domain: 1617853565u32,\n  sender: [\n    252u8,\n    80u8,\n    5u8,\n    58u8,\n    116u8,\n    217u8,\n    53u8,\n    34u8,\n    241u8,\n    170u8,\n    247u8,\n    201u8,\n    188u8,\n    11u8,\n    171u8,\n    50u8,\n    243u8,\n    244u8,\n    41u8,\n    110u8,\n    7u8,\n    22u8,\n    8u8,\n    25u8,\n    216u8,\n    103u8,\n    58u8,\n    89u8,\n    25u8,\n    199u8,\n    61u8,\n    12u8\n  ],\n  destination_domain: 11155111u32,\n  recipient: [\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    181u8,\n    169u8,\n    25u8,\n    159u8,\n    187u8,\n    73u8,\n    207u8,\n    247u8,\n    192u8,\n    213u8,\n    67u8,\n    37u8,\n    145u8,\n    36u8,\n    130u8,\n    151u8,\n    151u8,\n    20u8,\n    53u8,\n    244u8\n  ],\n  body: [\n    268787773892274112404478985243277131776u128,\n    101401562821467212002249661463377258879u128,\n    0u128,\n    85413587559041969264383023824439869440u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128\n  ]\n}",
-    );
-    mock.register_value(
-        "program/test_mailbox.aleo/mapping/dispatch_events/3u32",
-        "{\n  version: 3u8,\n  nonce: 3u32,\n  origin_domain: 1617853565u32,\n  sender: [\n    252u8,\n    80u8,\n    5u8,\n    58u8,\n    116u8,\n    217u8,\n    53u8,\n    34u8,\n    241u8,\n    170u8,\n    247u8,\n    201u8,\n    188u8,\n    11u8,\n    171u8,\n    50u8,\n    243u8,\n    244u8,\n    41u8,\n    110u8,\n    7u8,\n    22u8,\n    8u8,\n    25u8,\n    216u8,\n    103u8,\n    58u8,\n    89u8,\n    25u8,\n    199u8,\n    61u8,\n    12u8\n  ],\n  destination_domain: 11155111u32,\n  recipient: [\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    181u8,\n    169u8,\n    25u8,\n    159u8,\n    187u8,\n    73u8,\n    207u8,\n    247u8,\n    192u8,\n    213u8,\n    67u8,\n    37u8,\n    145u8,\n    36u8,\n    130u8,\n    151u8,\n    151u8,\n    20u8,\n    53u8,\n    244u8\n  ],\n  body: [\n    268787773892274112404478985243277131776u128,\n    101401562821467212002249661463377258879u128,\n    0u128,\n    85413587559041969264383023824439869440u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128\n  ]\n}",
-    );
+    register_multi_dispatch_events(&mock);
 
     mock.record_concurrency();
     let stats = mock.clone();
@@ -414,6 +420,105 @@ async fn test_indexer_multi_fetch_logs() {
         let (indexed, _) = &log;
         assert_eq!(indexed.inner().nonce, indexed.sequence.unwrap());
     }
+}
+
+fn multi_block_event_indexer() -> (
+    AleoDispatchIndexer<MockHttpClient>,
+    AleoProvider<MockHttpClient>,
+    Arc<Semaphore>,
+) {
+    let program_id = ProgramID::<TestnetV0>::from_str("test_mailbox.aleo").unwrap();
+    let locator = ContractLocator::new(&DOMAIN, to_h256(program_id.to_address().unwrap()).unwrap());
+    let mock = mock_provider();
+    register_multi_dispatch_events(&mock);
+    // Six independent block endpoints reuse the same signed fixture (two
+    // distinct events). Keep its original header/metadata cryptographically valid.
+    for height in 1..=6 {
+        mock.register_file(format!("block/{height}"), "multi_dispatch.json")
+            .unwrap();
+        mock.register_value(
+            format!("program/test_mailbox.aleo/mapping/dispatch_event_index/{height}u32"),
+            "3u32",
+        );
+    }
+    let responses_ready = mock
+        .record_gated_concurrency_for_prefix("program/test_mailbox.aleo/mapping/dispatch_events/");
+    let stats = mock.clone();
+    (
+        AleoDispatchIndexer::new(mock, &locator, &connection_conf()),
+        stats,
+        responses_ready,
+    )
+}
+
+#[tokio::test]
+async fn event_reads_share_one_budget_across_multiple_blocks() {
+    let (indexer, stats, responses_ready) = multi_block_event_indexer();
+    let mut reads = Box::pin(Indexer::<HyperlaneMessage>::fetch_logs_in_range(
+        &indexer,
+        1..=6,
+    ));
+    assert!(futures::poll!(reads.as_mut()).is_pending());
+    assert_eq!(stats.concurrency_stats(), (8, 8, 8));
+    for started in 9..=12 {
+        responses_ready.add_permits(1);
+        assert!(futures::poll!(reads.as_mut()).is_pending());
+        assert_eq!(stats.concurrency_stats(), (started, 8, 8));
+    }
+    responses_ready.add_permits(8);
+    let logs = tokio::time::timeout(Duration::from_secs(5), reads)
+        .await
+        .expect("admitted event reads must finish after releasing their responses")
+        .unwrap();
+    assert_eq!(logs.len(), 12);
+    assert_eq!(stats.concurrency_stats(), (12, 8, 0));
+    for block_logs in logs.chunks_exact(2) {
+        let mut sequences = block_logs
+            .iter()
+            .map(|(event, meta)| {
+                assert_eq!(event.inner().nonce, event.sequence.unwrap());
+                assert_eq!(meta.block_number, 12625985);
+                assert_eq!(meta.log_index, event.sequence.unwrap().into());
+                event.sequence.unwrap()
+            })
+            .collect::<Vec<_>>();
+        sequences.sort_unstable();
+        assert_eq!(sequences, vec![2, 3]);
+    }
+}
+
+#[tokio::test]
+async fn multi_block_event_failure_drains_the_shared_budget() {
+    let (indexer, stats, responses_ready) = multi_block_event_indexer();
+    stats.register_value(
+        "program/test_mailbox.aleo/mapping/dispatch_events/2u32",
+        "invalid event",
+    );
+    let mut reads = Box::pin(Indexer::<HyperlaneMessage>::fetch_logs_in_range(
+        &indexer,
+        1..=6,
+    ));
+    assert!(futures::poll!(reads.as_mut()).is_pending());
+    assert_eq!(stats.concurrency_stats(), (8, 8, 8));
+    responses_ready.add_permits(12);
+    let result = tokio::time::timeout(Duration::from_secs(5), reads)
+        .await
+        .expect("event failures must drain the range after releasing responses");
+    assert!(result.is_err());
+    assert_eq!(stats.concurrency_stats(), (12, 8, 0));
+}
+
+#[tokio::test]
+async fn cancelled_multi_block_events_release_active_reads() {
+    let (indexer, stats, _responses_ready) = multi_block_event_indexer();
+    let mut reads = Box::pin(Indexer::<HyperlaneMessage>::fetch_logs_in_range(
+        &indexer,
+        1..=6,
+    ));
+    assert!(futures::poll!(reads.as_mut()).is_pending());
+    assert_eq!(stats.concurrency_stats(), (8, 8, 8));
+    drop(reads);
+    assert_eq!(stats.concurrency_stats(), (8, 8, 0));
 }
 
 #[tokio::test]
