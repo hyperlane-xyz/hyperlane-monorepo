@@ -48,12 +48,14 @@ jobs:
         uses: ./.github/actions/pnpm-build-with-cache
 
       - name: Run tests with coverage
-        run: pnpm run coverage
+        run: pnpm exec turbo run coverage --filter=@hyperlane-xyz/core
 
       - name: Upload coverage reports to Codecov with GitHub Action
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./solidity/lcov.info
+          disable_search: true
           flags: solidity
           fail_ci_if_error: true
 
