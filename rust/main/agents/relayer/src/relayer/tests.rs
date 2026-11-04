@@ -267,6 +267,7 @@ fn generate_test_relayer_settings(
         .collect();
 
     RelayerSettings {
+        message_activity_database_url: None,
         base: Settings {
             domains,
             chains,

@@ -3,6 +3,7 @@
 
 use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
+use crate::message_activity::{Activity, Outcome, Stage, ValidatorStorageState};
 use derive_new::new;
 use futures::{stream, StreamExt};
 use hyperlane_ethereum::Signers;
@@ -60,6 +61,18 @@ pub struct BaseMetadataBuilder {
     ism_cache_policy_classifier: IsmCachePolicyClassifier,
     signer: Option<Signers>,
     ignore_reorg_reports: bool,
+    #[new(default)]
+    activity_reporter: Option<crate::message_activity::MessageActivityReporter>,
+}
+
+impl BaseMetadataBuilder {
+    pub fn with_activity_reporter(
+        mut self,
+        reporter: Option<crate::message_activity::MessageActivityReporter>,
+    ) -> Self {
+        self.activity_reporter = reporter;
+        self
+    }
 }
 
 impl Debug for BaseMetadataBuilder {
@@ -74,6 +87,19 @@ impl Debug for BaseMetadataBuilder {
 
 #[async_trait::async_trait]
 pub trait BuildsBaseMetadata: Send + Sync + Debug {
+    fn activity_reporter(&self) -> Option<&crate::message_activity::MessageActivityReporter> {
+        None
+    }
+    fn report_activity(
+        &self,
+        message: &HyperlaneMessage,
+        activity: crate::message_activity::Activity,
+    ) {
+        if let Some(reporter) = self.activity_reporter() {
+            reporter.report(message, activity);
+        }
+    }
+
     fn origin_domain(&self) -> &HyperlaneDomain;
     fn destination_domain(&self) -> &HyperlaneDomain;
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier;
@@ -114,6 +140,10 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
 
 #[async_trait::async_trait]
 impl BuildsBaseMetadata for BaseMetadataBuilder {
+    fn activity_reporter(&self) -> Option<&crate::message_activity::MessageActivityReporter> {
+        self.activity_reporter.as_ref()
+    }
+
     fn origin_domain(&self) -> &HyperlaneDomain {
         &self.origin_domain
     }
@@ -243,7 +273,21 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         validators: &[H256],
         app_context: Option<String>,
     ) -> Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError> {
-        let storage_locations = self.fetch_storage_locations(validators).await?;
+        let report = |outcome| {
+            self.report_activity(
+                message,
+                Activity::Progress {
+                    stage: Stage::ValidatorAnnouncements,
+                    outcome,
+                },
+            );
+        };
+        report(Outcome::Started);
+        let storage_locations = self
+            .fetch_storage_locations(validators)
+            .await
+            .inspect_err(|_| report(Outcome::Failed))?;
+        report(Outcome::Succeeded);
 
         debug!(
             hyp_message=?message,
@@ -262,6 +306,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             .filter_map(|(validator, validator_storage_locations)| {
                 debug!(hyp_message=?message, ?validator, ?validator_storage_locations, "Validator and its storage locations for message");
                 if validator_storage_locations.is_empty() {
+                    self.report_activity(message, Activity::ValidatorStorage { validator: *validator, state: ValidatorStorageState::NotAnnounced });
                     // If the validator has not announced any storage locations, we skip it
                     // and log a warning.
                     warn!(?validator, "Validator has not announced any storage locations; see https://docs.hyperlane.xyz/docs/operators/validators/announcing-your-validator");
@@ -272,6 +317,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                     // Reverse the order of storage locations to prefer the most recently announced
                     for storage_location in validator_storage_locations.iter().rev() {
                         let Ok(config) = CheckpointSyncerConf::from_str(storage_location) else {
+                            self.report_activity(message, Activity::ValidatorStorage { validator: *validator, state: ValidatorStorageState::InvalidLocation });
                             debug!(
                                 ?validator,
                                 ?storage_location,
@@ -285,6 +331,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                         if !self.allow_local_checkpoint_syncers
                             && matches!(config, CheckpointSyncerConf::LocalStorage { .. })
                         {
+                            self.report_activity(message, Activity::ValidatorStorage { validator: *validator, state: ValidatorStorageState::LocalStorageDisabled });
                             debug!(
                                 ?config,
                                 "Ignoring disallowed LocalStorage based checkpoint syncer"
@@ -293,7 +340,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                         }
 
                         if let Some(syncer) = self
-                            .build_and_validate(&config, validator, storage_location)
+                            .build_and_validate(message, &config, validator, storage_location)
                             .await?
                         {
                             // found the syncer for this validator
@@ -348,10 +395,21 @@ impl BaseMetadataBuilder {
 
     async fn build_and_validate(
         &self,
+        message: &HyperlaneMessage,
         config: &CheckpointSyncerConf,
         validator: &H256,
         storage_location: &str,
     ) -> Result<Option<Arc<dyn CheckpointSyncer>>, CheckpointSyncerBuildError> {
+        let report = |state| {
+            self.report_activity(
+                message,
+                Activity::ValidatorStorage {
+                    validator: *validator,
+                    state,
+                },
+            )
+        };
+        report(ValidatorStorageState::Loading);
         let checkpoint_syncer = match self
             .checkpoint_syncer_pool
             .get_or_build(
@@ -365,7 +423,9 @@ impl BaseMetadataBuilder {
         {
             Ok(checkpoint_syncer) => checkpoint_syncer,
             Err(CheckpointSyncerBuildError::ReorgFlag(reorg_event)) => {
+                report(ValidatorStorageState::ReorgReported);
                 if self.ignore_reorg_reports {
+                    report(ValidatorStorageState::ReorgIgnored);
                     warn!(
                         ?reorg_event,
                         ?config,
@@ -380,6 +440,7 @@ impl BaseMetadataBuilder {
                 return Err(CheckpointSyncerBuildError::ReorgFlag(reorg_event));
             }
             Err(err) => {
+                report(ValidatorStorageState::LoadFailed);
                 debug!(
                     error=%err,
                     ?config,
@@ -394,7 +455,9 @@ impl BaseMetadataBuilder {
         // checked on every checkout rather than only when the client is built.
         match checkpoint_syncer.reorg_status().await {
             Ok(reorg_event) if reorg_event.exists => {
+                report(ValidatorStorageState::ReorgReported);
                 if self.ignore_reorg_reports {
+                    report(ValidatorStorageState::ReorgIgnored);
                     warn!(
                         ?reorg_event,
                         ?config,
@@ -406,8 +469,12 @@ impl BaseMetadataBuilder {
                     Err(CheckpointSyncerBuildError::ReorgFlag(reorg_event))
                 }
             }
-            Ok(_) => Ok(Some(checkpoint_syncer)),
+            Ok(_) => {
+                report(ValidatorStorageState::Ready);
+                Ok(Some(checkpoint_syncer))
+            }
             Err(err) => {
+                report(ValidatorStorageState::ReorgCheckFailed);
                 error!(
                     ?err,
                     ?config,
@@ -442,7 +509,12 @@ mod tests {
         let validator = H256::from_low_u64_be(1);
 
         let syncer = builder
-            .build_and_validate(&config, &validator, &storage_location)
+            .build_and_validate(
+                &HyperlaneMessage::default(),
+                &config,
+                &validator,
+                &storage_location,
+            )
             .await
             .unwrap()
             .unwrap();
@@ -456,7 +528,12 @@ mod tests {
         syncer.write_reorg_status(&reorg_event).await.unwrap();
 
         let result = builder
-            .build_and_validate(&config, &validator, &storage_location)
+            .build_and_validate(
+                &HyperlaneMessage::default(),
+                &config,
+                &validator,
+                &storage_location,
+            )
             .await;
         assert!(matches!(
             result,

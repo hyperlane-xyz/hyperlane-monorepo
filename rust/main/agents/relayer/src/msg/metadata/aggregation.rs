@@ -1,3 +1,4 @@
+use crate::message_activity::{Activity, Outcome};
 use async_trait::async_trait;
 use derive_more::Deref;
 use futures_util::stream::{FuturesOrdered, FuturesUnordered, StreamExt};
@@ -7,11 +8,12 @@ use tracing::{debug, info, instrument};
 use {hyperlane_base::cache::FunctionCallCache, tracing::warn};
 
 use hyperlane_core::{
-    AggregationIsm, HyperlaneMessage, InterchainSecurityModule, Metadata, ModuleType, H256, U256,
+    AggregationIsm, ChainResult, HyperlaneMessage, InterchainSecurityModule, Metadata, ModuleType,
+    H256, U256,
 };
 
 use crate::msg::metadata::{
-    base::{MetadataBuildError, MetadataBuildRefused},
+    base::{IsmWithMetadataAndType, MetadataBuildError, MetadataBuildRefused},
     message_builder,
 };
 
@@ -213,6 +215,31 @@ impl AggregationIsmMetadataBuilder {
         None
     }
 
+    async fn verify_submodule(
+        &self,
+        message: &HyperlaneMessage,
+        ism_address: H256,
+        sub: &IsmWithMetadataAndType,
+    ) -> ChainResult<Option<U256>> {
+        let report = |outcome| {
+            self.base_builder().report_activity(
+                message,
+                Activity::IsmVerification {
+                    ism: ism_address,
+                    outcome,
+                },
+            );
+        };
+        report(Outcome::Started);
+        let result = sub.ism.dry_run_verify(message, &sub.metadata).await;
+        report(match &result {
+            Ok(Some(_)) => Outcome::Succeeded,
+            Ok(None) => Outcome::NoEstimate,
+            Err(_) => Outcome::Failed,
+        });
+        result
+    }
+
     async fn build_message_id_aggregation_metadata(
         &self,
         message: &HyperlaneMessage,
@@ -231,12 +258,9 @@ impl AggregationIsmMetadataBuilder {
         )
         .await?;
 
-        let metadata = sub_module_and_meta.metadata;
-
-        // return an error if delivering with this metadata fails
-        if sub_module_and_meta
-            .ism
-            .dry_run_verify(message, &metadata)
+        // Return an error if delivering with this metadata fails.
+        if self
+            .verify_submodule(message, ism_address, &sub_module_and_meta)
             .await
             .map_err(|err| MetadataBuildError::FastPathError(err.to_string()))?
             .is_none()
@@ -245,7 +269,7 @@ impl AggregationIsmMetadataBuilder {
                 "Fast path metadata failed dry run (returned None)".to_string(),
             ));
         }
-        let sub_module_metadata = SubModuleMetadata::new(ism_index, metadata);
+        let sub_module_metadata = SubModuleMetadata::new(ism_index, sub_module_and_meta.metadata);
         let metadata = Metadata::new(Self::format_metadata(&mut [sub_module_metadata], ism_count));
         Ok(metadata)
     }
@@ -269,6 +293,14 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
 
         let (ism_addresses, threshold) = self.call_modules_and_threshold(ism, message).await?;
 
+        self.base_builder().report_activity(
+            message,
+            Activity::Aggregation {
+                ism: ism_address,
+                modules: ism_addresses.clone(),
+                threshold,
+            },
+        );
         let threshold = threshold as usize;
 
         match self
@@ -276,6 +308,14 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             .await
         {
             Ok(Some(metadata)) => {
+                self.base_builder().report_activity(
+                    message,
+                    Activity::AggregationProgress {
+                        ism: ism_address,
+                        verified: 1,
+                        threshold,
+                    },
+                );
                 info!("Built metadata using fast path");
                 return Ok(metadata);
             }
@@ -323,7 +363,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                         }
                         Err(_) => ModuleBuildOutcome::Failed,
                         Ok(sub) => {
-                            match sub.ism.dry_run_verify(message, &sub.metadata).await {
+                            match self.verify_submodule(message, addr, &sub).await {
                                 Ok(Some(gas)) => ModuleBuildOutcome::Verified(
                                     SubModuleMetadata::new(index, sub.metadata),
                                     gas,
@@ -363,6 +403,14 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                 }
                 ModuleBuildOutcome::Verified(meta, gas) => {
                     metas_and_gas.push((meta, gas));
+                    self.base_builder().report_activity(
+                        message,
+                        Activity::AggregationProgress {
+                            ism: ism_address,
+                            verified: metas_and_gas.len(),
+                            threshold,
+                        },
+                    );
                     if metas_and_gas.len() >= threshold {
                         // Early exit: cancellation is safe (atomic cache writes,
                         // stateless RPCs, per-attempt ism_count). Dropped Refused(Reorg)

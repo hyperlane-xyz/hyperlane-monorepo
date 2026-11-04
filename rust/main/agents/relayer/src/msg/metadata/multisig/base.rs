@@ -229,6 +229,16 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
     threshold: u8,
     message: &HyperlaneMessage,
 ) -> Result<Metadata, MetadataBuildError> {
+    if validators.len() <= MAX_VALIDATOR_SET_SIZE {
+        ism_builder.as_ref().base_builder().report_activity(
+            message,
+            crate::message_activity::Activity::ValidatorSet {
+                ism: (!ism_address.is_zero()).then_some(ism_address),
+                validators: validators.clone(),
+                threshold,
+            },
+        );
+    }
     if validators.is_empty() {
         info!("Could not fetch metadata: No validator set found for ISM");
         return Err(MetadataBuildError::CouldNotFetch);
@@ -270,6 +280,16 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
         }
     };
 
+    let checkpoint_syncer =
+        if let Some(reporter) = ism_builder.as_ref().base_builder().activity_reporter() {
+            checkpoint_syncer.with_observer(reporter.checkpoint_observer(
+                message,
+                (!ism_address.is_zero()).then_some(ism_address),
+                threshold,
+            ))
+        } else {
+            checkpoint_syncer
+        };
     let metadata = ism_builder
         .fetch_metadata(&validators, threshold, message, &checkpoint_syncer)
         .await

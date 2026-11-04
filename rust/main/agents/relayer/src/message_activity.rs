@@ -1,0 +1,400 @@
+//! Best-effort sanitized message activity. No network I/O on the delivery path.
+use std::{sync::Arc, time::Duration};
+
+use chrono::Utc;
+use redact::Secret;
+use sea_orm::{
+    ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement,
+};
+use serde::Serialize;
+use tokio::sync::mpsc;
+use tracing::warn;
+use uuid::Uuid;
+
+use hyperlane_base::{CheckpointObservation, CheckpointObserver};
+use hyperlane_core::{
+    ChainCommunicationError, ConfirmReason, HyperlaneMessage, ModuleType, PendingOperationStatus,
+    ReprepareReason, H160, H256, H512,
+};
+
+use crate::msg::metadata::MetadataBuildError;
+
+const QUEUE_CAPACITY: usize = 1024;
+const BATCH_SIZE: usize = 100;
+const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
+
+// Intentionally structured data only: no provider errors, URLs, message bodies,
+// metadata bytes or validator signatures. Keep additions safe for public display.
+#[derive(Debug, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Activity {
+    Status {
+        status: PendingOperationStatus,
+    },
+    Retry {
+        reason: Option<ReprepareReason>,
+        retry_count: u32,
+        next_attempt_at_millis: Option<u64>,
+    },
+    Metadata {
+        ism: H256,
+        error: Option<String>,
+    },
+    Checkpoint {
+        collection_id: String,
+        ism: Option<H256>,
+        threshold: u8,
+        observation: CheckpointObservation,
+    },
+    TransactionOutcome {
+        transaction_id: H512,
+        executed: bool,
+    },
+    ConfirmationError {
+        reason: ConfirmReason,
+    },
+    Progress {
+        stage: Stage,
+        outcome: Outcome,
+    },
+    ChainFailure {
+        stage: Stage,
+        reason: &'static str,
+    },
+    MerkleLeaf {
+        index: u32,
+        highest_known: Option<u32>,
+    },
+    MetadataStarted {
+        ism: H256,
+    },
+    MetadataModule {
+        ism: H256,
+        module_type: ModuleType,
+    },
+    IsmVerification {
+        ism: H256,
+        outcome: Outcome,
+    },
+    Routing {
+        ism: H256,
+        module: H256,
+    },
+    Aggregation {
+        ism: H256,
+        modules: Vec<H256>,
+        threshold: u8,
+    },
+    AggregationProgress {
+        ism: H256,
+        verified: usize,
+        threshold: usize,
+    },
+    ValidatorSet {
+        ism: Option<H256>,
+        validators: Vec<H256>,
+        threshold: u8,
+    },
+    ValidatorStorage {
+        validator: H256,
+        state: ValidatorStorageState,
+    },
+    OffchainRead {
+        ism: H256,
+        endpoint: Option<usize>,
+        attempt: u32,
+        state: OffchainReadState,
+        http_status: Option<u16>,
+    },
+    Filtered {
+        reason: FilterReason,
+    },
+    RetryLimitReached {
+        retries: u32,
+        limit: u32,
+    },
+    RecipientNotContract,
+    OriginSenderDenied,
+    Delivered,
+    Dropped,
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Outcome {
+    Started,
+    Succeeded,
+    Failed,
+    NoEstimate,
+    Unavailable,
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Stage {
+    Prepare,
+    Simulate,
+    Submit,
+    BuildPayload,
+    Confirm,
+    ValidatorAnnouncements,
+    MerkleLeaf,
+    MerkleProof,
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ValidatorStorageState {
+    NotAnnounced,
+    InvalidLocation,
+    LocalStorageDisabled,
+    Loading,
+    LoadFailed,
+    ReorgReported,
+    ReorgIgnored,
+    ReorgCheckFailed,
+    Ready,
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OffchainReadState {
+    LookupStarted,
+    LookupFailed,
+    OriginTransactionMissing,
+    OriginTransactionLookupFailed,
+    RequestStarted,
+    UrlRejected,
+    ClientFailed,
+    SigningFailed,
+    RequestTimeout,
+    RequestFailed,
+    HttpResponse,
+    BodyReadFailed,
+    Pending,
+    InvalidResponse,
+    Succeeded,
+    PendingRetriesExhausted,
+    NoEndpoints,
+    EndpointsExhausted,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FilterReason {
+    NotWhitelisted,
+    MessageBlacklisted,
+    AddressBlacklisted,
+    RuntimeDenylisted,
+}
+
+/// Fixed codes only: chain errors often wrap URLs, credentials or arbitrary revert text.
+pub fn chain_error(error: &ChainCommunicationError) -> &'static str {
+    use ChainCommunicationError::*;
+    match error {
+        HyperlaneProtocolError(_) => "protocol_error",
+        ContractError(_) => "contract_call_failed",
+        ContractNotFound(_) => "contract_not_found",
+        TransactionDropped(_) => "transaction_dropped",
+        TransactionTimeout => "transaction_timeout",
+        SignerUnavailable => "signer_unavailable",
+        HyperlaneSignerError(_) => "signer_error",
+        BatchingFailed => "batching_failed",
+        BatchIsEmpty => "empty_batch",
+        InsufficientFunds { .. } => "insufficient_funds",
+        RpcClientError(_) => "rpc_error",
+        InvalidRequest { .. } => "invalid_request",
+        InvalidReorgPeriod(_) => "invalid_reorg_period",
+        SimulationFailed(_) => "simulation_failed",
+        TokioJoinError(_) => "task_failed",
+        StrOrIntParseError(_)
+        | Utf8(_)
+        | JsonParseError(_)
+        | HexParseError(_)
+        | UintParseError(_)
+        | FromDecStrError(_)
+        | ParseIntError(_)
+        | HashParsingError(_)
+        | ParseError { .. }
+        | PrimitiveTypeError(_)
+        | ParseBigDecimalError(_)
+        | TryFromIntError(_) => "invalid_response_or_data",
+        Other(_) | CustomError(_) | EyreError(_) => "chain_error",
+    }
+}
+
+/// Explicitly strip every error variant that can contain external text.
+/// Exhaustive matching makes new error variants require a privacy decision.
+pub fn metadata_error(error: &MetadataBuildError) -> String {
+    match error {
+        MetadataBuildError::FailedToBuild(_) => "Metadata build failed".to_owned(),
+        MetadataBuildError::FastPathError(_) => "Fast path metadata failed".to_owned(),
+        MetadataBuildError::Refused(_) => "Validator reported a reorg".to_owned(),
+        MetadataBuildError::CouldNotFetch
+        | MetadataBuildError::AwaitingValidatorSignatures
+        | MetadataBuildError::UnsupportedModuleType(_)
+        | MetadataBuildError::MaxIsmDepthExceeded(_)
+        | MetadataBuildError::MaxIsmCountReached(_)
+        | MetadataBuildError::MaxValidatorCountReached(_)
+        | MetadataBuildError::AggregationThresholdNotMet(_) => error.to_string(),
+        MetadataBuildError::MerkleRootMismatch {
+            root,
+            canonical_root,
+        } => format!("Merkle root mismatch ({root:#x}, {canonical_root:#x})"),
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct Event {
+    relayer: H160,
+    observed_at: i64,
+    message_id: H256,
+    origin: u32,
+    destination: u32,
+    activity: Activity,
+}
+
+#[derive(Clone, Debug)]
+pub struct MessageActivityReporter {
+    sender: mpsc::Sender<Event>,
+    relayer: H160,
+}
+
+impl MessageActivityReporter {
+    pub fn start(url: Secret<String>, relayer: H160) -> Self {
+        let (sender, receiver) = mpsc::channel(QUEUE_CAPACITY);
+        tokio::spawn(write_events(url, receiver));
+        Self { sender, relayer }
+    }
+
+    pub fn report(&self, message: &HyperlaneMessage, activity: Activity) {
+        self.report_id(message.id(), message.origin, message.destination, activity);
+    }
+
+    fn report_id(&self, message_id: H256, origin: u32, destination: u32, activity: Activity) {
+        let event = Event {
+            relayer: self.relayer,
+            observed_at: Utc::now().timestamp_millis(),
+            message_id,
+            origin,
+            destination,
+            activity,
+        };
+        if self.sender.try_send(event).is_err() {
+            warn!(
+                ?message_id,
+                "Could not store message activity: queue full or closed"
+            );
+        }
+    }
+
+    pub fn checkpoint_observer(
+        &self,
+        message: &HyperlaneMessage,
+        ism: Option<H256>,
+        threshold: u8,
+    ) -> Arc<dyn CheckpointObserver> {
+        Arc::new(ActivityCheckpointObserver {
+            reporter: self.clone(),
+            message_id: message.id(),
+            origin: message.origin,
+            destination: message.destination,
+            collection_id: Uuid::new_v4().to_string(),
+            ism,
+            threshold,
+        })
+    }
+}
+
+#[derive(Debug)]
+struct ActivityCheckpointObserver {
+    reporter: MessageActivityReporter,
+    message_id: H256,
+    origin: u32,
+    destination: u32,
+    collection_id: String,
+    ism: Option<H256>,
+    threshold: u8,
+}
+
+impl CheckpointObserver for ActivityCheckpointObserver {
+    fn observe(&self, observation: CheckpointObservation) {
+        self.reporter.report_id(
+            self.message_id,
+            self.origin,
+            self.destination,
+            Activity::Checkpoint {
+                collection_id: self.collection_id.clone(),
+                ism: self.ism,
+                threshold: self.threshold,
+                observation,
+            },
+        );
+    }
+}
+
+async fn connect(url: &Secret<String>) -> Result<DatabaseConnection, sea_orm::DbErr> {
+    let mut options = ConnectOptions::new(url.expose_secret().clone());
+    options
+        .max_connections(1)
+        .min_connections(0)
+        .connect_timeout(WRITE_TIMEOUT)
+        .acquire_timeout(WRITE_TIMEOUT)
+        .sqlx_logging(false);
+    Database::connect(options).await
+}
+
+async fn write_events(url: Secret<String>, mut receiver: mpsc::Receiver<Event>) {
+    let mut database = None;
+    let mut batch = Vec::with_capacity(BATCH_SIZE);
+    while receiver.recv_many(&mut batch, BATCH_SIZE).await != 0 {
+        let result = tokio::time::timeout(WRITE_TIMEOUT, async {
+            let db = match &database {
+                Some(db) => db,
+                None => database.insert(connect(&url).await?),
+            };
+            insert_events(db, &batch).await
+        })
+        .await;
+        if !matches!(result, Ok(Ok(()))) {
+            // Raw database errors can include connection credentials or SQL values.
+            let failure = if result.is_err() {
+                "timeout"
+            } else {
+                "database error"
+            };
+            warn!(
+                failure,
+                events = batch.len(),
+                "Could not store message activity; dropping batch"
+            );
+            // The pool reconnects automatically; failed initial connections retry
+            // on the next batch. Backoff occurs only in this background task.
+            tokio::time::sleep(WRITE_TIMEOUT).await;
+        }
+        batch.clear();
+    }
+}
+
+async fn insert_events(db: &DatabaseConnection, events: &[Event]) -> Result<(), sea_orm::DbErr> {
+    let json = serde_json::to_string(events)
+        .map_err(|_| sea_orm::DbErr::Custom("Activity serialization failed".to_owned()))?;
+    db.execute(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        r#"
+        INSERT INTO public.message_activity
+            (relayer, observed_at, message_id, origin, destination, activity)
+        SELECT decode(substr(relayer, 3), 'hex'), to_timestamp(observed_at / 1000.0),
+               decode(substr(message_id, 3), 'hex'), origin, destination, activity
+        FROM jsonb_to_recordset($1::jsonb) AS event(
+            relayer text, observed_at bigint, message_id text,
+            origin bigint, destination bigint, activity jsonb)
+    "#,
+        [json.into()],
+    ))
+    .await?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests;

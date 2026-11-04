@@ -7210,6 +7210,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "message-activity-migration"
+version = "3.0.0"
+dependencies = [
+ "sea-orm-migration",
+ "tokio",
+]
+
+[[package]]
 name = "migration"
 version = "3.0.0"
 dependencies = [
@@ -9208,6 +9216,7 @@ dependencies = [
  "itertools 0.10.5",
  "lander",
  "maplit",
+ "message-activity-migration",
  "mockall",
  "moka",
  "num-derive",
@@ -9219,6 +9228,7 @@ dependencies = [
  "redact",
  "regex",
  "reqwest 0.11.27",
+ "sea-orm",
  "serde",
  "serde_json",
  "sha3",
