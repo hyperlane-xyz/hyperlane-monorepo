@@ -18,6 +18,7 @@ export const mainnet3SupportedChainNames = [
   'eclipsemainnet',
   'eden',
   'electroneum',
+  'elysium',
   'eni',
   'ethereum',
   'fluent',
