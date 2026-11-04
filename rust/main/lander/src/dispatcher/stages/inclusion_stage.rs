@@ -253,7 +253,9 @@ impl InclusionStage {
                             "Error reading transaction status. Retrying later"
                         );
                         Self::update_inclusion_stage_metric(state, domain, &err);
-                        state.store_tx(&checked_tx).await;
+                        if let Err(write_error) = state.store_tx(&checked_tx).await {
+                            error!(?write_error, tx_uuid = ?checked_tx.uuid, "Failed to persist status check; retaining transaction");
+                        }
                         continue;
                     }
                     Err(err) => {
@@ -262,7 +264,9 @@ impl InclusionStage {
                             LanderError::TxDropped(reason) => reason.clone(),
                             _ => TxDropReason::Other(err.to_string()),
                         };
-                        Self::drop_tx(state, &mut checked_tx, drop_reason, pool).await?;
+                        if let Err(write_error) = Self::drop_tx(state, &mut checked_tx, drop_reason, pool).await {
+                            error!(?write_error, tx_uuid = ?checked_tx.uuid, "Failed to persist drop; retaining transaction");
+                        }
                         Self::update_inclusion_stage_metric(state, domain, &err);
                         continue;
                     }
@@ -278,7 +282,7 @@ impl InclusionStage {
                 )
                 .await
                 {
-                    if matches!(err, LanderError::ChannelSendFailure(_)) {
+                    if err.is_infra_error() {
                         error!(
                             ?err,
                             tx = ?checked_tx,
@@ -293,7 +297,9 @@ impl InclusionStage {
                         LanderError::TxDropped(reason) => reason.clone(),
                         _ => TxDropReason::Other(err.to_string()),
                     };
-                    Self::drop_tx(state, &mut checked_tx, drop_reason, pool).await?;
+                    if let Err(write_error) = Self::drop_tx(state, &mut checked_tx, drop_reason, pool).await {
+                        error!(?write_error, tx_uuid = ?checked_tx.uuid, "Failed to persist drop; retaining transaction");
+                    }
                     Self::update_inclusion_stage_metric(state, domain, &err);
                 }
             }
@@ -552,7 +558,10 @@ impl InclusionStage {
             .adapter
             .update_vm_specific_metrics(&tx, &state.metrics);
         // update tx status in db
-        update_tx_status(state, &mut tx, TransactionStatus::Mempool).await?;
+        tx.status = TransactionStatus::Mempool;
+        // Preserve hashes/nonce updates from the broadcast even when the DB
+        // temporarily fails. Do not return to resubmission until it is durable.
+        state.store_tx_until_success(&tx).await;
 
         // update the pool entry of this tx, to reflect any changes such as
         // the gas price, hash, etc
@@ -562,7 +571,7 @@ impl InclusionStage {
     }
 
     async fn retain_for_retry(
-        mut tx: Transaction,
+        tx: Transaction,
         reason: LanderError,
         state: &DispatcherState,
         pool: &InclusionStagePool,
@@ -570,8 +579,7 @@ impl InclusionStage {
     ) -> Result<(), LanderError> {
         warn!(?tx, ?reason, "Retaining transaction for a later retry");
         Self::update_inclusion_stage_metric(state, domain, &reason);
-        let status = tx.status.clone();
-        update_tx_status(state, &mut tx, status).await?;
+        state.store_tx_until_success(&tx).await;
         pool.lock().await.insert(tx.uuid.clone(), tx);
         Ok(())
     }
@@ -675,7 +683,7 @@ impl InclusionStage {
                 &failed_payloads,
                 PayloadStatus::Dropped(PayloadDropReason::FailedSimulation),
             )
-            .await;
+            .await?;
 
         Ok(transaction)
     }

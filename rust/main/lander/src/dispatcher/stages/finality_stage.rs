@@ -16,7 +16,6 @@ use tokio::{
 use tracing::{error, info, info_span, instrument, warn, Instrument};
 
 use crate::{
-    dispatcher::stages::utils::update_tx_status,
     error::LanderError,
     payload::{DropReason as PayloadDropReason, FullPayload, PayloadDetails, PayloadStatus},
     transaction::{DropReason as TxDropReason, Transaction, TransactionStatus, TransactionUuid},
@@ -335,14 +334,15 @@ impl FinalityStage {
     }
 
     async fn finalize_transaction(
-        tx: &mut Transaction,
+        transaction: &mut Transaction,
         state: &DispatcherState,
     ) -> Result<(), LanderError> {
         // Aleo and SVM only verify finalized transactions. Keep this transition
         // local until every payload result is durable: Included is the loader's
         // existing recovery marker if any RPC/write fails or the process stops.
+        let mut tx = transaction.clone();
         tx.status = TransactionStatus::Finalized;
-        let reverted = Self::read_reverted_payloads(tx, state).await?;
+        let reverted = Self::read_reverted_payloads(&tx, state).await?;
         let reverted_ids: HashSet<_> = reverted.iter().map(|payload| &payload.uuid).collect();
         for payload in &tx.payload_details {
             let status = if reverted_ids.contains(&payload.uuid) {
@@ -360,9 +360,9 @@ impl FinalityStage {
             state.adapter.post_finalized(),
         )
         .await?;
-        // Commit last and propagate write failures. store_tx/update_tx_status
-        // persist the transaction first and overwrite reverted payload statuses.
-        state.tx_db.store_transaction_by_uuid(tx).await?;
+        // Commit last. Preserve each payload's verdict rather than applying
+        // the generic InTransaction(Finalized) status to reverted payloads.
+        state.tx_db.store_transaction_by_uuid(&tx).await?;
         // A failed write or post-finalization hook leaves this transaction for
         // retry. Count reverted payloads only after the terminal commit succeeds.
         for payload in &tx.payload_details {
@@ -375,6 +375,7 @@ impl FinalityStage {
         state
             .metrics
             .update_finalized_transactions_metric(&state.domain);
+        *transaction = tx;
         Ok(())
     }
 
@@ -388,7 +389,7 @@ impl FinalityStage {
                 &reverted_payloads,
                 PayloadStatus::Dropped(PayloadDropReason::Reverted),
             )
-            .await;
+            .await?;
         Ok(())
     }
 
@@ -417,40 +418,42 @@ impl FinalityStage {
         pool: FinalityStagePool,
     ) -> Result<(), LanderError> {
         warn!(?tx, ?drop_reason, "Transaction was dropped");
-        // push payloads in tx back to the building stage queue
-        update_tx_status(
-            state,
-            &mut tx,
-            TransactionStatus::Dropped(TxDropReason::DroppedByChain),
-        )
-        .await?;
+        // The Included transaction remains the recovery marker until every
+        // payload is ready and detached. A restart repairs a partial transition
+        // before loading the pending payload queue.
+        let mut payloads = Vec::with_capacity(tx.payload_details.len());
         for payload in &tx.payload_details {
-            if let Some(full_payload) = state
+            let mut full_payload = state
                 .payload_db
                 .retrieve_payload_by_uuid(&payload.uuid)
-                .await
-                .ok()
-                .flatten()
-            {
-                // update payload status in db
-                state
-                    .update_status_for_payloads(
-                        std::slice::from_ref(payload),
-                        PayloadStatus::ReadyToSubmit,
-                    )
-                    .await;
-                // cannot remove a record from the db, so
-                // just link the payload to the null tx id
-                state
-                    .payload_db
-                    .store_tx_uuid_by_payload_uuid(&payload.uuid, &TransactionUuid::default())
-                    .await?;
-                info!(
-                    ?payload,
-                    "Pushing payload to the front of the building stage queue"
-                );
-                building_stage_queue.push_front(full_payload).await;
-            }
+                .await?
+                .ok_or(LanderError::PayloadNotFound)?;
+            // update payload status in db
+            state
+                .update_status_for_payloads(
+                    std::slice::from_ref(payload),
+                    PayloadStatus::ReadyToSubmit,
+                )
+                .await?;
+            // cannot remove a record from the db, so
+            // just link the payload to the null tx id
+            state
+                .payload_db
+                .store_tx_uuid_by_payload_uuid(&payload.uuid, &TransactionUuid::default())
+                .await?;
+            full_payload.status = PayloadStatus::ReadyToSubmit;
+            payloads.push(full_payload);
+        }
+        let drop_label = drop_reason.to_metrics_label();
+        tx.status = TransactionStatus::Dropped(drop_reason);
+        state.tx_db.store_transaction_by_uuid(&tx).await?;
+        state
+            .metrics
+            .update_dropped_transactions_metric(&drop_label, &state.domain);
+        // No work is exposed to rebuilding before the complete transition is
+        // durable. The pending index recovers it if cancellation follows commit.
+        for payload in payloads {
+            building_stage_queue.push_front(payload).await;
         }
         let _ = pool.remove(&tx.uuid).await;
         Ok(())

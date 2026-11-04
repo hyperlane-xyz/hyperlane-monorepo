@@ -161,23 +161,26 @@ impl DispatcherState {
         &self,
         details: &[PayloadDetails],
         status: PayloadStatus,
-    ) {
-        for d in details {
-            if let Err(err) = self
-                .payload_db
-                .store_new_payload_status(&d.uuid, status.clone())
-                .await
-            {
-                error!(
-                    ?err,
-                    payload_details = ?details,
-                    new_status = ?status,
-                    "Error updating payload status in the database"
-                );
-            }
+    ) -> Result<(), crate::LanderError> {
+        self.persist_status_for_payloads(details, &status).await?;
+        for _ in details {
             self.update_payload_metric_if_dropped(&status);
+        }
+        Ok(())
+    }
+
+    async fn persist_status_for_payloads(
+        &self,
+        details: &[PayloadDetails],
+        status: &PayloadStatus,
+    ) -> Result<(), crate::LanderError> {
+        for d in details {
+            self.payload_db
+                .store_new_payload_status(&d.uuid, status.clone())
+                .await?;
             info!(?details, new_status=?status, "Updated payload status");
         }
+        Ok(())
     }
 
     pub(super) fn update_payload_metric_if_dropped(&self, status: &PayloadStatus) {
@@ -201,30 +204,50 @@ impl DispatcherState {
         name = "DispatcherState::store_tx",
         fields(tx_uuid = ?tx.uuid, tx_status = ?tx.status, payloads = ?tx.payload_details)
     )]
-    pub(crate) async fn store_tx(&self, tx: &Transaction) {
-        if let Err(err) = self.tx_db.store_transaction_by_uuid(tx).await {
-            error!(
-                ?err,
-                payload_details = ?tx.payload_details,
-                "Error storing transaction in the database"
-            );
+    pub(crate) async fn store_tx(&self, tx: &Transaction) -> Result<(), crate::LanderError> {
+        let terminal = matches!(
+            tx.status,
+            TransactionStatus::Finalized | TransactionStatus::Dropped(_)
+        );
+        // Nonterminal records are recovery markers. Recovery repairs their
+        // payload writes before the pending payload queue is loaded.
+        if !terminal {
+            self.tx_db.store_transaction_by_uuid(tx).await?;
         }
-        self.update_status_for_payloads(
-            &tx.payload_details,
-            PayloadStatus::InTransaction(tx.status.clone()),
-        )
-        .await;
+        let payload_status = PayloadStatus::InTransaction(tx.status.clone());
+        self.persist_status_for_payloads(&tx.payload_details, &payload_status)
+            .await?;
         for payload_detail in &tx.payload_details {
-            if let Err(err) = self
-                .payload_db
+            self.payload_db
                 .store_tx_uuid_by_payload_uuid(&payload_detail.uuid, &tx.uuid)
-                .await
-            {
-                error!(
-                    ?err,
-                    payload_details = ?tx.payload_details,
-                    "Error storing to the payload_uuid to tx_uuid mapping in the database"
-                );
+                .await?;
+        }
+        // A terminal marker must never hide unfinished payload/association work.
+        if terminal {
+            self.tx_db.store_transaction_by_uuid(tx).await?;
+        }
+        for _ in &tx.payload_details {
+            self.update_payload_metric_if_dropped(&payload_status);
+        }
+        Ok(())
+    }
+
+    /// Retain the exact built/submitted transaction across storage outages.
+    /// Rebuilding or rebroadcasting before repairing its recovery record could
+    /// lose nonce/hash ownership or create a second transaction for a payload.
+    pub(crate) async fn store_tx_until_success(&self, tx: &Transaction) {
+        loop {
+            match self.store_tx(tx).await {
+                Ok(()) => return,
+                Err(error) => {
+                    error!(?error, tx_uuid = ?tx.uuid, "Transaction persistence failed; retaining transaction");
+                    self.metrics.update_call_retries_metric(
+                        "DbError",
+                        "Persisting transaction",
+                        &self.domain,
+                    );
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                }
             }
         }
     }

@@ -76,7 +76,9 @@ impl TypedDB {
         )
     }
 
-    pub(crate) fn retrieve_by_prefix_at_or_after<V: Decode>(
+    /// Seek one domain-scoped value at or after a key without collecting the
+    /// entire prefix. The returned key excludes the domain and storage prefix.
+    pub fn retrieve_by_prefix_at_or_after<V: Decode>(
         &self,
         prefix: impl AsRef<[u8]>,
         key: impl AsRef<[u8]>,

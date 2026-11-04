@@ -414,8 +414,7 @@ async fn borrowed_build_result_preserves_storage_channel_and_error_ownership() {
             std::time::Duration::from_secs(1),
             stage.handle_tx_building_result(&result),
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(result, original);
         assert_eq!(
             tx.payload_details[0]
@@ -434,16 +433,16 @@ async fn borrowed_build_result_preserves_storage_channel_and_error_ownership() {
             .unwrap();
         assert_eq!(stored, *tx);
         if closed {
-            assert!(matches!(
-                outcome.unwrap_err(),
-                LanderError::NonRetryableError(_)
-            ));
+            assert!(
+                outcome.is_err(),
+                "closed handoff must retain the persisted transaction"
+            );
             match stage.send_tx_to_inclusion_stage(tx).await.unwrap_err() {
                 LanderError::ChannelSendFailure(error) => assert_eq!(error.0, *tx),
                 error => panic!("unexpected error: {error}"),
             }
         } else {
-            outcome.unwrap();
+            outcome.unwrap().unwrap();
             let received = receiver.try_recv().unwrap();
             assert_eq!(received, *tx);
             assert_ne!(
@@ -460,21 +459,36 @@ async fn borrowed_build_result_preserves_storage_channel_and_error_ownership() {
 }
 
 #[tokio::test]
-async fn failed_build_handoff_requeues_exact_payloads_in_order() {
+async fn failed_build_handoff_keeps_durable_ownership_without_rebuilding() {
     let (stage, receiver, queue) = test_setup(1, true);
     drop(receiver);
-    let mut first = FullPayload::random();
-    first.data = vec![3; 4096];
-    let mut second = FullPayload::random();
-    second.data = vec![4; 4096];
-    let payloads = vec![first, second];
+    let payloads = vec![FullPayload::random(), FullPayload::random()];
     for payload in &payloads {
         initialize_payload_db(&stage.state.payload_db, payload).await;
     }
-    stage.build_transactions(&payloads).await;
-    let requeued = tokio::time::timeout(std::time::Duration::from_secs(1), queue.pop_n_or_wait(2))
-        .await
-        .unwrap();
-    assert_eq!(requeued, payloads);
+    assert!(tokio::time::timeout(
+        std::time::Duration::from_millis(100),
+        stage.build_transactions(&payloads)
+    )
+    .await
+    .is_err());
     assert_eq!(queue.len().await, 0);
+    for payload in payloads {
+        let tx_uuid = stage
+            .state
+            .payload_db
+            .retrieve_tx_uuid_by_payload_uuid(&payload.details.uuid)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(stage
+            .state
+            .tx_db
+            .retrieve_transaction_by_uuid(&tx_uuid)
+            .await
+            .unwrap()
+            .is_some());
+    }
 }
+
+mod persistence;

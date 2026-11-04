@@ -159,10 +159,15 @@ impl Dispatcher {
                 .instrument(tracing::info_span!("transaction_db_loader")),
             )
             .expect("spawning tokio task from Builder is infallible");
-        tasks.push(transaction_loader_task);
+        // Repair recovered transaction ownership before pending payloads are
+        // loaded. Otherwise an interrupted build write can queue a payload
+        // which already belongs to a recovered transaction.
+        transaction_loader_task
+            .await
+            .expect("Transaction loader panicked");
 
-        // Transaction recovery and its consumers remain live while the derived
-        // payload index is rebuilt. New ingress and the building consumer stay
+        // Inclusion/finality consumers remain live while the derived payload
+        // index is rebuilt. New ingress and the building consumer stay
         // gated so reconciliation cannot race a payload into a second transaction.
         PayloadDbLoader::new(
             self.inner.payload_db.clone(),

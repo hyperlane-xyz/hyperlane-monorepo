@@ -12,7 +12,6 @@ use crate::{
     transaction::Transaction,
 };
 
-use super::super::utils::call_until_success_or_nonretryable_error;
 use super::super::DispatcherState;
 use super::queue::BuildingStageQueue;
 
@@ -89,19 +88,19 @@ impl BuildingStage {
                     payloads,
                     PayloadStatus::Dropped(DropReason::FailedToBuildAsTransaction),
                 )
-                .await;
+                .await?;
             return Ok(());
         };
         info!(?tx, "Transaction built successfully");
-        self.state.store_tx(tx).await;
+        // Keep the built transaction (including its nonce) while a partial
+        // write is repaired; rebuilding these payloads could create a second tx.
+        self.state.store_tx_until_success(tx).await;
         // Only send tx to inclusion stage after we stored it
         // This prevents TX from dropping in case the send operation fails
-        call_until_success_or_nonretryable_error(
-            || self.send_tx_to_inclusion_stage(tx),
-            "Sending transaction to inclusion stage",
-            &self.state,
-        )
-        .await?;
+        while let Err(error) = self.send_tx_to_inclusion_stage(tx).await {
+            error!(?error, tx_uuid = ?tx.uuid, "Handoff failed; retaining persisted transaction");
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        }
         Ok(())
     }
 

@@ -1,11 +1,16 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
-use std::io::Write;
+use std::{
+    collections::HashMap,
+    io::Write,
+    sync::{Arc, LazyLock, Mutex},
+};
 
 use async_trait::async_trait;
-use hyperlane_base::db::{DbResult, HyperlaneRocksDB};
+use hyperlane_base::db::{DbError, DbResult, HyperlaneRocksDB};
 use hyperlane_core::{Decode, Encode, HyperlaneProtocolError};
+use tracing::info;
 
 use crate::transaction::{Transaction, TransactionUuid};
 
@@ -14,9 +19,16 @@ const TRANSACTION_BY_UUID_STORAGE_PREFIX: &str = "transaction_by_uuid_";
 const TRANSACTION_INDEX_BY_UUID_STORAGE_PREFIX: &str = "tx_index_by_uuid_";
 const TRANSACTION_UUID_BY_INDEX_STORAGE_PREFIX: &str = "tx_uuid_by_index_";
 const HIGHEST_TRANSACTION_INDEX_STORAGE_PREFIX: &str = "highest_tx_index_";
+static TRANSACTION_WRITE_LOCKS: LazyLock<Mutex<HashMap<u32, Arc<Mutex<()>>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 #[async_trait]
 pub trait TransactionDb: Send + Sync {
+    /// Repair legacy split index writes from canonical records. Implementations
+    /// whose index updates are already atomic need no reconciliation.
+    async fn reconcile_transaction_index(&self) -> DbResult<()> {
+        Ok(())
+    }
     /// Retrieve a transaction by its unique ID
     async fn retrieve_transaction_by_uuid(
         &self,
@@ -69,8 +81,107 @@ pub trait TransactionDb: Send + Sync {
     async fn retrieve_highest_transaction_index(&self) -> DbResult<u32>;
 }
 
+// Serialize allocation and index repair with the canonical record commit.
+// Reconciliation passes false so healthy historical records are only read.
+fn persist_transaction(
+    db: &HyperlaneRocksDB,
+    tx: &Transaction,
+    write_record: bool,
+) -> DbResult<()> {
+    let lock = TRANSACTION_WRITE_LOCKS
+        .lock()
+        .map_err(|_| DbError::Other("Transaction write-lock registry was poisoned".into()))?
+        .entry(db.domain().id())
+        .or_insert_with(|| Arc::new(Mutex::new(())))
+        .clone();
+    let _guard = lock
+        .lock()
+        .map_err(|_| DbError::Other("Transaction database write lock was poisoned".into()))?;
+    let mut batch = db.batch();
+    let existing_index: Option<u32> =
+        db.retrieve_value_by_key(TRANSACTION_INDEX_BY_UUID_STORAGE_PREFIX, &tx.uuid)?;
+    let highest_index: u32 = db
+        .retrieve_value_by_key(HIGHEST_TRANSACTION_INDEX_STORAGE_PREFIX, &bool::default())?
+        .unwrap_or_default();
+    let index = match existing_index {
+        Some(0) => return Err(DbError::Other("Transaction index zero is invalid".into())),
+        Some(index) => index,
+        None => highest_index.checked_add(1).ok_or_else(|| {
+            DbError::Other("Highest transaction index exhausted (u32::MAX)".into())
+        })?,
+    };
+    let reverse: Option<TransactionUuid> =
+        db.retrieve_value_by_key(TRANSACTION_UUID_BY_INDEX_STORAGE_PREFIX, &index)?;
+    if reverse.as_ref().is_some_and(|owner| owner != &tx.uuid) {
+        return Err(DbError::Other(format!(
+            "Transaction index {index} belongs to another UUID"
+        )));
+    }
+    let mut changed = false;
+    if index > highest_index {
+        batch.store_keyed_encodable(
+            HIGHEST_TRANSACTION_INDEX_STORAGE_PREFIX,
+            &bool::default(),
+            &index,
+        );
+        changed = true;
+    }
+    if existing_index.is_none() {
+        batch.store_keyed_encodable(TRANSACTION_INDEX_BY_UUID_STORAGE_PREFIX, &tx.uuid, &index);
+        changed = true;
+    }
+    if reverse.is_none() {
+        batch.store_keyed_encodable(TRANSACTION_UUID_BY_INDEX_STORAGE_PREFIX, &index, &tx.uuid);
+        changed = true;
+    }
+    if write_record {
+        batch.store_keyed_encodable(TRANSACTION_BY_UUID_STORAGE_PREFIX, &tx.uuid, tx);
+        changed = true;
+    }
+    if changed {
+        batch.commit()
+    } else {
+        Ok(())
+    }
+}
+
 #[async_trait]
 impl TransactionDb for HyperlaneRocksDB {
+    async fn reconcile_transaction_index(&self) -> DbResult<()> {
+        let mut after = Vec::new();
+        let mut page_size = 0_u32;
+        let mut scanned = 0_u64;
+        while let Some((mut key, tx)) = self.retrieve_by_prefix_at_or_after::<Transaction>(
+            TRANSACTION_BY_UUID_STORAGE_PREFIX,
+            &after,
+        )? {
+            if key.as_slice() != tx.uuid.as_bytes() {
+                return Err(DbError::Other(
+                    "Canonical transaction key does not match its UUID".into(),
+                ));
+            }
+            persist_transaction(self, &tx, false)?;
+            // UUID keys have fixed length. Appending zero seeks strictly past
+            // this record without skipping its lexicographic successor.
+            key.push(0);
+            after = key;
+            page_size = page_size.saturating_add(1);
+            scanned = scanned.saturating_add(1);
+            if page_size >= 1_000 {
+                info!(
+                    domain = self.domain().name(),
+                    scanned, "Reconciling transaction recovery indexes"
+                );
+                tokio::task::yield_now().await;
+                page_size = 0;
+            }
+        }
+        info!(
+            domain = self.domain().name(),
+            scanned, "Transaction recovery indexes reconciled"
+        );
+        Ok(())
+    }
     async fn retrieve_transaction_by_uuid(
         &self,
         tx_uuid: &TransactionUuid,
@@ -79,20 +190,7 @@ impl TransactionDb for HyperlaneRocksDB {
     }
 
     async fn store_transaction_by_uuid(&self, tx: &Transaction) -> DbResult<()> {
-        if self
-            .retrieve_transaction_index_by_uuid(&tx.uuid)
-            .await?
-            .is_none()
-        {
-            let highest_index = self.retrieve_highest_transaction_index().await?;
-            let tx_index = highest_index.saturating_add(1);
-            self.store_highest_transaction_index(tx_index).await?;
-            self.store_transaction_index_by_uuid(tx_index, &tx.uuid)
-                .await?;
-            self.store_transaction_uuid_by_index(tx_index, &tx.uuid)
-                .await?;
-        }
-        self.store_value_by_key(TRANSACTION_BY_UUID_STORAGE_PREFIX, &tx.uuid, tx)
+        persist_transaction(self, tx, true)
     }
 
     async fn retrieve_transaction_index_by_uuid(
@@ -101,7 +199,6 @@ impl TransactionDb for HyperlaneRocksDB {
     ) -> DbResult<Option<u32>> {
         self.retrieve_decodable(TRANSACTION_INDEX_BY_UUID_STORAGE_PREFIX, tx_uuid.as_bytes())
     }
-
     async fn store_transaction_index_by_uuid(
         &self,
         index: u32,
@@ -270,5 +367,107 @@ mod tests {
             let highest_index = db.retrieve_highest_transaction_index().await.unwrap();
             assert_eq!(highest_index, expected_index as u32);
         }
+    }
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_transaction_creations_preserve_unique_recovery_indexes() {
+        use hyperlane_base::db::{HyperlaneRocksDB, DB};
+        use hyperlane_core::KnownHyperlaneDomain;
+        let directory = tempfile::tempdir().unwrap();
+        let db = Arc::new(HyperlaneRocksDB::new(
+            &KnownHyperlaneDomain::Arbitrum.into(),
+            DB::from_path(directory.path()).unwrap(),
+        ));
+        let barrier = Arc::new(tokio::sync::Barrier::new(32));
+        let tasks: Vec<_> = (0..32)
+            .map(|_| {
+                let db = db.clone();
+                let barrier = barrier.clone();
+                tokio::spawn(async move {
+                    let tx = dummy_tx(vec![], TransactionStatus::PendingInclusion);
+                    barrier.wait().await;
+                    db.store_transaction_by_uuid(&tx).await.unwrap();
+                    tx
+                })
+            })
+            .collect();
+        let mut indexes = std::collections::HashSet::new();
+        for task in tasks {
+            let mut tx = task.await.unwrap();
+            let index = db
+                .retrieve_transaction_index_by_uuid(&tx.uuid)
+                .await
+                .unwrap()
+                .unwrap();
+            assert!(indexes.insert(index));
+            assert_eq!(
+                db.retrieve_transaction_by_index(index).await.unwrap(),
+                Some(tx.clone())
+            );
+            tx.status = TransactionStatus::Mempool;
+            db.store_transaction_by_uuid(&tx).await.unwrap();
+            assert_eq!(
+                db.retrieve_transaction_index_by_uuid(&tx.uuid)
+                    .await
+                    .unwrap(),
+                Some(index)
+            );
+        }
+        assert_eq!(db.retrieve_highest_transaction_index().await.unwrap(), 32);
+    }
+    #[tokio::test]
+    async fn legacy_forward_index_repairs_reverse_and_high_watermark_without_reallocation() {
+        let directory = tempfile::tempdir().unwrap();
+        let db = HyperlaneRocksDB::new(
+            &KnownHyperlaneDomain::Arbitrum.into(),
+            DB::from_path(directory.path()).unwrap(),
+        );
+        let tx = dummy_tx(vec![], TransactionStatus::PendingInclusion);
+        db.store_transaction_index_by_uuid(12, &tx.uuid)
+            .await
+            .unwrap();
+        db.store_highest_transaction_index(3).await.unwrap();
+        db.store_transaction_by_uuid(&tx).await.unwrap();
+        assert_eq!(db.retrieve_highest_transaction_index().await.unwrap(), 12);
+        assert_eq!(
+            db.retrieve_transaction_by_index(12).await.unwrap(),
+            Some(tx.clone())
+        );
+        let mut newer = tx.clone();
+        newer.status = TransactionStatus::Mempool;
+        db.store_transaction_by_uuid(&newer).await.unwrap();
+        // A reconciliation read can race a live status update. Repairing the
+        // older snapshot's index must never write its stale canonical body.
+        super::persist_transaction(&db, &tx, false).unwrap();
+        assert_eq!(
+            db.retrieve_transaction_by_uuid(&tx.uuid).await.unwrap(),
+            Some(newer)
+        );
+    }
+
+    #[tokio::test]
+    async fn conflicting_legacy_reverse_index_is_never_overwritten() {
+        let directory = tempfile::tempdir().unwrap();
+        let db = HyperlaneRocksDB::new(
+            &KnownHyperlaneDomain::Arbitrum.into(),
+            DB::from_path(directory.path()).unwrap(),
+        );
+        let tx = dummy_tx(vec![], TransactionStatus::PendingInclusion);
+        let owner = TransactionUuid::random();
+        db.store_transaction_index_by_uuid(12, &tx.uuid)
+            .await
+            .unwrap();
+        db.store_transaction_uuid_by_index(12, &owner)
+            .await
+            .unwrap();
+        assert!(db.store_transaction_by_uuid(&tx).await.is_err());
+        assert_eq!(
+            db.retrieve_transaction_uuid_by_index(12).await.unwrap(),
+            Some(owner)
+        );
+        assert!(db
+            .retrieve_transaction_by_uuid(&tx.uuid)
+            .await
+            .unwrap()
+            .is_none());
     }
 }

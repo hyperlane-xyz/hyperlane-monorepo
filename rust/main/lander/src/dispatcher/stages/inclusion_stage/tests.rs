@@ -375,7 +375,7 @@ async fn test_status_provider_error_keeps_tx_for_later_retry() {
 
     let (state, pool) = reprocess_test_state(mock_adapter);
     let tx = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
-    state.store_tx(&tx).await;
+    state.store_tx(&tx).await.unwrap();
     pool.lock().await.insert(tx.uuid.clone(), tx.clone());
     let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(1);
 
@@ -423,7 +423,7 @@ async fn finalized_reprocessed_tx_is_rechecked_and_resubmitted() {
 
     let (state, pool) = reprocess_test_state(mock_adapter);
     let tx = dummy_tx(Vec::new(), TransactionStatus::Finalized);
-    state.store_tx(&tx).await;
+    state.store_tx(&tx).await.unwrap();
     pool.lock().await.insert(tx.uuid.clone(), tx.clone());
     let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(1);
 
@@ -468,7 +468,7 @@ async fn test_status_provider_error_preserves_latest_persisted_status() {
 
     let (state, pool) = reprocess_test_state(mock_adapter);
     let tx = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
-    state.store_tx(&tx).await;
+    state.store_tx(&tx).await.unwrap();
     pool.lock().await.insert(tx.uuid.clone(), tx.clone());
     let (finality_stage_sender, _finality_stage_receiver) = mpsc::channel(1);
 
@@ -507,7 +507,7 @@ async fn test_finality_channel_error_preserves_latest_persisted_status() {
     let payload = FullPayload::random();
     initialize_payload_db(&state.payload_db, &payload).await;
     let tx = dummy_tx(vec![payload], TransactionStatus::PendingInclusion);
-    state.store_tx(&tx).await;
+    state.store_tx(&tx).await.unwrap();
     pool.lock().await.insert(tx.uuid.clone(), tx.clone());
     let (finality_stage_sender, finality_stage_receiver) = mpsc::channel(1);
     drop(finality_stage_receiver);
@@ -1568,3 +1568,5 @@ async fn mev_deferrals_keep_state_and_retry_unfinished_simulation() {
         );
     }
 }
+
+mod persistence;
