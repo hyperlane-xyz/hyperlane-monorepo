@@ -30,6 +30,8 @@ jobs:
           base_sha: ${{ steps.determine-sha.outputs.base_sha }}
           head_sha: ${{ steps.determine-sha.outputs.current_sha }}
           path_pattern: 'solidity/'
+          # Docs don't affect coverage.
+          exclude_pattern: '\.md$'
 
   coverage-run:
     runs-on: depot-ubuntu-24.04-8
