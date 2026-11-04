@@ -221,6 +221,26 @@ describe('Rebalancer Helm deployment', () => {
     expect(runtime).not.to.have.property('deployment');
   });
 
+  it('renders an image repository override', () => {
+    const digest = `sha256:${'c'.repeat(64)}`;
+    const repository =
+      'us-east1-docker.pkg.dev/abacus-labs-dev/hyperlane/hyperlane-node-services';
+    const values = buildRebalancerHelmValues(
+      config({
+        deployment: {
+          imageRepository: repository,
+          imageTag: 'candidate',
+          imageDigest: digest,
+        },
+      }),
+      options,
+    );
+    const container = renderRebalancerValues(values).find(
+      (d) => d.kind === 'StatefulSet',
+    ).spec.template.spec.containers[0];
+    expect(container.image).to.equal(`${repository}@${digest}`);
+  });
+
   it('rejects invalid deployment metadata and a mismatched route', () => {
     expect(() => config({ deployment: { imageDigest: 'latest' } })).to.throw();
     expect(() => config({ deployment: { imageDgiest: 'typo' } })).to.throw();
