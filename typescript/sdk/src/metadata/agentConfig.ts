@@ -360,9 +360,14 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
           .describe(
             'The indexing method to use for this chain; will attempt to choose a suitable default if not specified.',
           ),
-        interval: ZNzUint.optional().describe(
-          'How long to wait between polls when idle/caught up, in seconds. Defaults to 5s.',
-        ),
+        interval: z
+          .number()
+          .finite()
+          .positive()
+          .optional()
+          .describe(
+            'How long to wait between polls when idle/caught up, in fractional seconds (e.g. 0.1 for 100 ms). Defaults to 5s.',
+          ),
       })
       .optional(),
   })
@@ -883,9 +888,14 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
       })
       .describe('A checkpoint syncer that uses Google Cloud Storage'),
   ]),
-  interval: ZNzUint.optional().describe(
-    'How long to wait between checking for new checkpoints in seconds. Defaults to 2s, falling back to the origin chain’s index.interval if set and this is unset.',
-  ),
+  interval: z
+    .number()
+    .finite()
+    .positive()
+    .optional()
+    .describe(
+      'How long to wait between checking for new checkpoints in fractional seconds (e.g. 0.1 for 100 ms). Defaults to 2s, falling back to the origin chain’s index.interval if set and this is unset.',
+    ),
   maxSignConcurrency: ZNzUint.max(MAX_SIGN_CONCURRENCY)
     .optional()
     .describe(

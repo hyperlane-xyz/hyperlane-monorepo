@@ -1,4 +1,4 @@
-use std::{fmt::Debug, ops::Add, str::FromStr};
+use std::{fmt::Debug, ops::Add, str::FromStr, time::Duration};
 
 use convert_case::{Case, Casing};
 use eyre::{eyre, Context};
@@ -146,6 +146,24 @@ impl<'v> ValueParser<'v> {
             )),
         }
         .into_config_result(|| self.cwp.clone())
+    }
+
+    /// Parse a positive duration in seconds, allowing fractional numbers and numeric strings.
+    pub fn parse_duration_seconds(&self) -> ConfigResult<Duration> {
+        // Keep whole-second settings exact even beyond the integer precision of f64.
+        let duration = if let Ok(seconds) = self.parse_u64() {
+            Duration::from_secs(seconds)
+        } else {
+            Duration::try_from_secs_f64(self.parse_f64()?)
+                .context("Expected a duration representable in seconds")
+                .into_config_result(|| self.cwp.clone())?
+        };
+        // A positive fraction can round to zero at Duration's nanosecond precision.
+        if duration.is_zero() {
+            return Err(eyre!("Expected a duration greater than zero"))
+                .into_config_result(|| self.cwp.clone());
+        }
+        Ok(duration)
     }
 
     /// Parse an i64 value allowing for it to be represented as string or number.
@@ -345,6 +363,7 @@ macro_rules! define_basic_parse {
 
 define_basic_parse!(
     parse_u64: u64,
+    parse_duration_seconds: Duration,
     parse_i64: i64,
     parse_f64: f64,
     parse_f64_unchecked: f64,
