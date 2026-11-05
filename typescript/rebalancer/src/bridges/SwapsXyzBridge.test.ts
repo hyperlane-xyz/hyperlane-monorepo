@@ -1,5 +1,9 @@
 import type { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  TransactionSubmissionError,
+  assert,
+} from '@hyperlane-xyz/utils';
 import { expect } from 'chai';
 import { BigNumber, Wallet, providers, utils } from 'ethers';
 import { pino } from 'pino';
@@ -165,7 +169,15 @@ function createBridge(
       defaultSlippage: overrides.defaultSlippage,
       maxQuoteLossBps: overrides.maxQuoteLossBps,
       maxEvmNativeFeeWei: overrides.maxEvmNativeFeeWei,
-      evmProviderFactory: overrides.evmProviderFactory,
+      evmProviderFactory:
+        overrides.evmProviderFactory ??
+        (() => {
+          const provider = new providers.StaticJsonRpcProvider();
+          sinon
+            .stub(provider, 'call')
+            .resolves(utils.defaultAbiCoder.encode(['uint8'], [6]));
+          return provider;
+        }),
       registerTxRetryDelayMs: overrides.registerTxRetryDelayMs,
       erc20ContractFactory: overrides.erc20ContractFactory,
     },
@@ -284,7 +296,9 @@ describe('SwapsXyzBridge.quote', () => {
         amountInMax: { amount: '1005000' },
       }),
     );
-    const quote = await createBridge(client).quote(quoteParams());
+    const quote = await createBridge(client).quote(
+      quoteParams({ fromAmount: undefined, toAmount: 990025n }),
+    );
 
     expect(quote.id).to.equal('fresh-id');
     expect(quote.tool).to.equal('across+cctp');
@@ -377,6 +391,48 @@ describe('SwapsXyzBridge.quote', () => {
     );
   });
 
+  it('uses chain decimals even when the API supplies consistent spoofed decimals', async () => {
+    const client = createClient();
+    sinon.stub(client, 'getAction').resolves(
+      actionResponse({
+        amountIn: { amount: '1000000', decimals: 7 },
+      }),
+    );
+    const error = await captureError(
+      createBridge(client, { maxQuoteLossBps: 50 }).quote(quoteParams()),
+    );
+    expect(error.message).to.include('decimals do not match chain data');
+  });
+
+  it('enforces slippage separately from expected quote loss', async () => {
+    const client = createClient();
+    const getAction = sinon.stub(client, 'getAction').resolves(
+      actionResponse({
+        amountOutMin: { amount: '990024' },
+      }),
+    );
+    const bridge = createBridge(client, { maxQuoteLossBps: 50 });
+    expect(
+      (await captureError(bridge.quote(quoteParams()))).message,
+    ).to.include('requested slippage');
+    getAction.resolves(actionResponse());
+    expect((await bridge.quote(quoteParams())).toAmountMin).to.equal(990025n);
+    getAction.resolves(actionResponse({ amountOutMin: { amount: '995001' } }));
+    expect(
+      (await captureError(bridge.quote(quoteParams()))).message,
+    ).to.include('requested slippage');
+  });
+
+  it('rejects exact-input responses that change the requested spend', async () => {
+    const client = createClient();
+    sinon
+      .stub(client, 'getAction')
+      .resolves(actionResponse({ amountIn: { amount: '999999' } }));
+    expect(
+      (await captureError(createBridge(client).quote(quoteParams()))).message,
+    ).to.include('exact input');
+  });
+
   it('accepts quote loss at the configured bps boundary', async () => {
     const client = createClient();
     sinon.stub(client, 'getAction').resolves(actionResponse());
@@ -406,15 +462,27 @@ describe('SwapsXyzBridge.quote', () => {
       actionResponse({
         amountIn: { amount: '1000000', decimals: 6 },
         amountOut: { amount: '995000000000000000', decimals: 18 },
-        amountOutMin: { amount: '990000000000000000', decimals: 18 },
+        amountOutMin: { amount: '990025000000000000', decimals: 18 },
       }),
     );
 
     const quote = await createBridge(client, {
       maxQuoteLossBps: 50,
+      evmProviderFactory: (rpcUrl) => {
+        const provider = new providers.StaticJsonRpcProvider();
+        sinon
+          .stub(provider, 'call')
+          .resolves(
+            utils.defaultAbiCoder.encode(
+              ['uint8'],
+              [rpcUrl.includes('ethereum') ? 6 : 18],
+            ),
+          );
+        return provider;
+      },
     }).quote(quoteParams());
 
-    expect(quote.toAmountMin).to.equal(990_000_000_000_000_000n);
+    expect(quote.toAmountMin).to.equal(990_025_000_000_000_000n);
   });
 });
 
@@ -594,6 +662,61 @@ describe('SwapsXyzBridge reverse quote fallback', () => {
 });
 
 describe('SwapsXyzBridge.execute', () => {
+  it('classifies preparation failures as not submitted', async () => {
+    const harness = createExecuteHarness();
+    harness.getActionStub.rejects(new Error('quote unavailable'));
+    const error = await captureError(
+      harness.bridge.execute(bridgeQuote(), {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      }),
+    );
+    assert(
+      error instanceof TransactionSubmissionError,
+      'Expected submission error',
+    );
+    expect(error.submissionState).to.equal('not_submitted');
+    expect(error.txHash).to.equal(undefined);
+    expect(harness.sendTransactionStub.called).to.equal(false);
+  });
+
+  for (const value of [undefined, '999999']) {
+    it(`rejects missing or insufficient native principal: ${value}`, async () => {
+      const harness = createExecuteHarness(
+        actionResponse({
+          amountIn: { amount: '1000000', address: ZERO_ADDRESS },
+          tx: { to: SPENDER, data: '0xdeadbeef', value, chainId: 1 },
+        }),
+      );
+      const error = await captureError(
+        harness.bridge.prepare(
+          bridgeQuote(quoteParams({ fromToken: ZERO_ADDRESS })),
+        ),
+      );
+      expect(error.message).to.include('below the native token input');
+      expect(harness.sendTransactionStub.called).to.equal(false);
+    });
+  }
+
+  it('allows exact-output native funding below the reserved maximum', async () => {
+    const harness = createExecuteHarness(
+      actionResponse({
+        amountIn: { amount: '900000', address: ZERO_ADDRESS },
+        amountInMax: { amount: '1000000' },
+        tx: { to: SPENDER, data: '0xdeadbeef', value: '900000', chainId: 1 },
+      }),
+    );
+    await harness.bridge.prepare(
+      bridgeQuote(
+        quoteParams({
+          fromToken: ZERO_ADDRESS,
+          fromAmount: undefined,
+          toAmount: 990025n,
+        }),
+      ),
+    );
+    expect(harness.sendTransactionStub.called).to.equal(false);
+  });
+
   it('prepares unsigned payloads without approvals or a private key', async () => {
     const harness = createExecuteHarness(
       actionResponse({ requiresTokenApproval: true }),
@@ -813,9 +936,12 @@ describe('SwapsXyzBridge.execute', () => {
       .onThirdCall()
       .resolves(transactionResponse('0xbridge'));
 
-    await harness.bridge.execute(bridgeQuote(), {
-      [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
-    });
+    await harness.bridge.execute(
+      bridgeQuote(quoteParams({ fromAmount: undefined, toAmount: 990025n })),
+      {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      },
+    );
 
     expect(providerCallStub.callCount).to.equal(1);
     expect(harness.sendTransactionStub.callCount).to.equal(3);
@@ -1064,7 +1190,7 @@ describe('SwapsXyzBridge.execute', () => {
     expect(harness.sendTransactionStub.callCount).to.equal(0);
   });
 
-  it('accepts exact-out input growth within the configured cap', async () => {
+  it('rejects exact-out input growth beyond the reserved quote amount', async () => {
     const harness = createExecuteHarness(
       actionResponse({
         amountInMax: {
@@ -1078,12 +1204,13 @@ describe('SwapsXyzBridge.execute', () => {
       quoteParams({ fromAmount: undefined, toAmount: 995_000n }),
     );
 
-    const result = await harness.bridge.execute(exactOutQuote, {
-      [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
-    });
-
-    expect(result.transferId).to.equal('tx-1');
-    expect(harness.sendTransactionStub.callCount).to.equal(1);
+    const error = await captureError(
+      harness.bridge.execute(exactOutQuote, {
+        [ProtocolType.Ethereum]: TEST_PRIVATE_KEY,
+      }),
+    );
+    expect(error.message).to.include('accepted input cap 1000000');
+    expect(harness.sendTransactionStub.called).to.equal(false);
   });
 
   it('rejects exact-out input growth above the configured cap', async () => {
@@ -1114,14 +1241,13 @@ describe('SwapsXyzBridge.execute', () => {
   it('rejects refreshed quote loss above the configured maximum', async () => {
     const harness = createExecuteHarness(
       actionResponse({
-        amountInMax: {
-          chainId: 1,
-          address: FROM_TOKEN,
-          amount: '1000001',
-        },
+        amountOut: { amount: '994999', decimals: 6 },
       }),
       { maxQuoteLossBps: 50 },
     );
+    sinon
+      .stub(harness.provider, 'call')
+      .resolves(utils.defaultAbiCoder.encode(['uint8'], [6]));
     const exactOutQuote = bridgeQuote(
       quoteParams({ fromAmount: undefined, toAmount: 995_000n }),
     );
@@ -1166,12 +1292,50 @@ describe('SwapsXyzBridge.execute', () => {
 describe('SwapsXyzBridge.getStatus', () => {
   afterEach(() => sinon.restore());
 
-  it('maps success and completed with required defaults', async () => {
+  for (const response of [
+    statusResponse('success', { txId: 'different-transfer' }),
+    statusResponse('success', { srcTxHash: '0xdifferent-source' }),
+  ]) {
+    it(`rejects status identity mismatch ${response.txId}/${response.srcTxHash}`, async () => {
+      const client = createClient();
+      sinon.stub(client, 'getStatus').resolves(response);
+      expect(
+        await createBridge(client).getStatus('0xsource', 1, 8453, 'tx-1'),
+      ).to.deep.equal({ status: 'not_found' });
+    });
+  }
+
+  it('requires a known transfer ID or source hash to complete', async () => {
+    const client = createClient();
+    sinon
+      .stub(client, 'getStatus')
+      .resolves(statusResponse('success', { srcTxHash: undefined }));
+    const bridge = createBridge(client);
+    expect((await bridge.getStatus('0xsource', 1, 8453)).status).to.equal(
+      'pending',
+    );
+    expect(
+      (await bridge.getStatus('0xsource', 1, 8453, 'tx-1')).status,
+    ).to.equal('complete');
+  });
+
+  it('normalizes hexadecimal source identities', async () => {
+    const client = createClient();
+    sinon
+      .stub(client, 'getStatus')
+      .resolves(statusResponse('success', { srcTxHash: 'ABCDEF' }));
+    expect(
+      (await createBridge(client).getStatus('0xabcdef', 1, 8453)).status,
+    ).to.equal('complete');
+  });
+
+  it('requires a destination transaction for completed statuses', async () => {
     const client = createClient();
     const getStatusStub = sinon.stub(client, 'getStatus');
     getStatusStub.onFirstCall().resolves(statusResponse('success'));
     getStatusStub.onSecondCall().resolves(
       statusResponse('completed', {
+        srcTxHash: '0xsource2',
         dstTxHash: undefined,
         actionResponse: undefined,
       }),
@@ -1187,9 +1351,8 @@ describe('SwapsXyzBridge.getStatus', () => {
       receivedAmount: 995_000n,
     });
     expect(completed).to.deep.equal({
-      status: 'complete',
-      receivingTxHash: '',
-      receivedAmount: 0n,
+      status: 'pending',
+      substatus: 'completed',
     });
     expect(getStatusStub.firstCall.args[0]).to.deep.equal({
       txHash: '0xsource',
@@ -1212,7 +1375,9 @@ describe('SwapsXyzBridge.getStatus', () => {
     const client = createClient();
     const getStatusStub = sinon.stub(client, 'getStatus');
     getStatusStub.onFirstCall().rejects(new Error('not registered'));
-    getStatusStub.onSecondCall().resolves(statusResponse('success'));
+    getStatusStub
+      .onSecondCall()
+      .resolves(statusResponse('success', { txId: 'persisted-transfer-id' }));
     const registerTxsStub = sinon
       .stub(client, 'registerTxs')
       .resolves([{ success: true, error: null }]);
