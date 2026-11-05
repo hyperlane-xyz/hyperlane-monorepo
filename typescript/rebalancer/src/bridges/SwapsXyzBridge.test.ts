@@ -3,6 +3,7 @@ import {
   ProtocolType,
   TransactionSubmissionError,
   assert,
+  bufferToBase58,
 } from '@hyperlane-xyz/utils';
 import { AccountLayout, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import {
@@ -530,6 +531,10 @@ function createSolanaExecuteHarness(
   const response = options.response ?? solanaActionResponse();
   const client = createClient();
   const connection = new Connection('https://solana.example.invalid');
+  sinon.stub(connection, 'getTokenSupply').resolves({
+    context: { slot: 1 },
+    value: { amount: '1000000', decimals: 6, uiAmount: 1 },
+  });
   const getActionStub = sinon.stub(client, 'getAction').resolves(response);
   const preAccounts = [
     accountInfo(SystemProgram.programId, Buffer.alloc(0), 1_000_000_000),
@@ -597,7 +602,14 @@ function createSolanaExecuteHarness(
   });
   const sendRawTransactionStub = sinon
     .stub(connection, 'sendRawTransaction')
-    .resolves('solana-signature');
+    .callsFake(async (bytes) =>
+      bufferToBase58(
+        Buffer.from(
+          VersionedTransaction.deserialize(Uint8Array.from(bytes))
+            .signatures[0],
+        ),
+      ),
+    );
   const registerTxsStub = sinon
     .stub(client, 'registerTxs')
     .resolves([{ success: true, error: null }]);
@@ -1670,6 +1682,60 @@ describe('SwapsXyzBridge.execute', () => {
 describe('SwapsXyzBridge.execute Solana', () => {
   afterEach(() => sinon.restore());
 
+  it('rejects native SOL before requesting or simulating a payload', async () => {
+    const harness = createSolanaExecuteHarness();
+    const quote = solanaQuote(solanaActionResponse(), {
+      fromToken: ZERO_ADDRESS,
+    });
+    const error = await captureError(harness.bridge.quote(quote.requestParams));
+    expect(error.message).to.include('native SOL is not supported');
+    expect(harness.getActionStub.called).to.equal(false);
+    expect(harness.simulateTransactionStub.called).to.equal(false);
+  });
+
+  it('rejects API and simulation amounts that agree with each other but differ from the request', async () => {
+    const response = solanaActionResponse({ amountIn: { amount: '999999' } });
+    const harness = createSolanaExecuteHarness({
+      response,
+      postSourceData: tokenAccountData(1n),
+    });
+    const error = await captureError(
+      harness.bridge.execute(solanaQuote(), {
+        [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+      }),
+    );
+    expect(error.message).to.include(
+      'exact input does not match the requested amount',
+    );
+    expect(harness.sendRawTransactionStub.called).to.equal(false);
+  });
+
+  it('retains the locally signed identity when the RPC returns another signature', async () => {
+    const harness = createSolanaExecuteHarness();
+    harness.sendRawTransactionStub.resolves('wrong-signature');
+    const onSubmitted = sinon.spy();
+    const error = await captureError(
+      harness.bridge.execute(
+        solanaQuote(),
+        { [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY },
+        { onSubmitted },
+      ),
+    );
+    assert(
+      error instanceof TransactionSubmissionError,
+      'Expected submission error',
+    );
+    const signed = VersionedTransaction.deserialize(
+      Uint8Array.from(harness.sendRawTransactionStub.firstCall.args[0]),
+    );
+    expect(error.submissionState).to.equal('unknown');
+    expect(error.txHash).to.equal(
+      bufferToBase58(Buffer.from(signed.signatures[0])),
+    );
+    expect(onSubmitted.called).to.equal(false);
+    expect(harness.registerTxsStub.called).to.equal(false);
+  });
+
   it('prepares and simulates a Solana payload without signing or broadcasting', async () => {
     const harness = createSolanaExecuteHarness();
     const sign = sinon.spy(VersionedTransaction.prototype, 'sign');
@@ -1712,7 +1778,7 @@ describe('SwapsXyzBridge.execute Solana', () => {
     await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(result).to.deep.equal({
-      txHash: 'solana-signature',
+      txHash: await harness.sendRawTransactionStub.firstCall.returnValue,
       fromChain: SOLANA_DOMAIN,
       toChain: 1,
       transferId: 'solana-tx-1',
@@ -1724,7 +1790,10 @@ describe('SwapsXyzBridge.execute Solana', () => {
     });
     expect(harness.sendRawTransactionStub.callCount).to.equal(1);
     expect(harness.registerTxsStub.firstCall.args[0]).to.deep.equal([
-      { txId: 'solana-tx-1', txHash: 'solana-signature' },
+      {
+        txId: 'solana-tx-1',
+        txHash: await harness.sendRawTransactionStub.firstCall.returnValue,
+      },
     ]);
   });
 
@@ -1930,6 +1999,26 @@ describe('SwapsXyzBridge.getStatus', () => {
       ).to.deep.equal({ status: 'not_found' });
     });
   }
+
+  it('compares Solana source signatures case-sensitively', async () => {
+    const client = createClient();
+    sinon.stub(client, 'getStatus').resolves(
+      statusResponse('success', {
+        srcChainId: SOLANA_DOMAIN,
+        dstChainId: 1,
+        srcTxHash: 'AbcDef',
+      }),
+    );
+    const bridge = createBridge(client, {
+      chainMetadata: { solana: SOLANA_METADATA, ethereum: ETHEREUM_METADATA },
+    });
+    expect(
+      (await bridge.getStatus('abcdef', SOLANA_DOMAIN, 1)).status,
+    ).to.equal('not_found');
+    expect(
+      (await bridge.getStatus('AbcDef', SOLANA_DOMAIN, 1)).status,
+    ).to.equal('complete');
+  });
 
   it('requires a known transfer ID or source hash to complete', async () => {
     const client = createClient();
