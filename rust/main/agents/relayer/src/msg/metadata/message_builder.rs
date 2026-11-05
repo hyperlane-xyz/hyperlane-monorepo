@@ -157,6 +157,7 @@ pub async fn build_message_metadata(
     params: MessageMetadataBuildParams,
     maybe_ism_and_module_type: Option<(Box<dyn InterchainSecurityModule>, ModuleType)>,
 ) -> Result<IsmWithMetadataAndType, MetadataBuildError> {
+    let reporter = message_builder.base_builder().activity_reporter().cloned();
     let result = build_message_metadata_inner(
         message_builder,
         ism_address,
@@ -165,6 +166,18 @@ pub async fn build_message_metadata(
         maybe_ism_and_module_type,
     )
     .await;
+    if let Some(reporter) = reporter {
+        reporter.report(
+            message,
+            crate::message_activity::Activity::Metadata {
+                ism: ism_address,
+                error: result
+                    .as_ref()
+                    .err()
+                    .map(crate::message_activity::metadata_error),
+            },
+        );
+    }
     match &result {
         Err(err @ MetadataBuildError::AwaitingValidatorSignatures) => {
             tracing::debug!(
@@ -198,6 +211,13 @@ async fn build_message_metadata_inner(
         Some((ism, module_type)) => (ism, module_type),
         None => ism_and_module_type(message_builder.clone(), ism_address).await?,
     };
+    message_builder.base_builder().report_activity(
+        message,
+        crate::message_activity::Activity::MetadataModule {
+            ism: ism_address,
+            module_type,
+        },
+    );
     // check if max depth is reached
     if params.ism_depth >= message_builder.max_ism_depth {
         tracing::error!(

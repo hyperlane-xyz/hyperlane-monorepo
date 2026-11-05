@@ -116,6 +116,8 @@ export function buildWarpRouteProcessAltOverrides(
 
 // Incomplete basic relayer agent config
 export interface BaseRelayerConfig {
+  // Secret Manager name only; the database URL is injected by External Secrets.
+  messageActivityDatabaseUrlSecret?: string;
   // URLs are injected from per-chain Secret Manager secrets by Helm.
   mevSubmission?: ChainMap<
     Pick<
@@ -193,6 +195,7 @@ export type RelayerEnvConfig = Omit<
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
 // This is at `.hyperlane.relayer` in the values file.
 export interface HelmRelayerValues extends HelmStatefulSetValues {
+  messageActivityDatabaseUrlSecret?: string;
   aws: boolean;
   // Config intended to be set as env vars
   envConfig?: RelayerEnvConfig;

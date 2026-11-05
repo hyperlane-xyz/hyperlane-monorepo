@@ -34,6 +34,7 @@ use hyperlane_core::{
 };
 use hyperlane_ethereum::OffchainLookup;
 
+use crate::message_activity::{Activity, OffchainReadState};
 use crate::msg::metadata::base_builder::IsmBuildMetricsParams;
 
 use super::{
@@ -388,32 +389,75 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
     }
 }
 
+// Context contains only public identifiers. Never include endpoint URLs, request
+// bodies, authentication signatures, response text or provider errors in events.
+#[derive(Clone, Copy)]
+struct ReadActivity<'a> {
+    builder: &'a CcipReadIsmMetadataBuilder,
+    message: &'a HyperlaneMessage,
+    ism: H256,
+    endpoint: Option<usize>,
+    attempt: u32,
+}
+
+impl ReadActivity<'_> {
+    fn report(&self, state: OffchainReadState, http_status: Option<u16>) {
+        self.builder.base_builder().report_activity(
+            self.message,
+            Activity::OffchainRead {
+                ism: self.ism,
+                endpoint: self.endpoint,
+                attempt: self.attempt,
+                state,
+                http_status,
+            },
+        );
+    }
+}
+
 async fn metadata_build(
     ism_builder: &CcipReadIsmMetadataBuilder,
     ism_address: H256,
     message: &HyperlaneMessage,
     _params: MessageMetadataBuildParams,
 ) -> Result<Metadata, MetadataBuildError> {
+    let activity = ReadActivity {
+        builder: ism_builder,
+        message,
+        ism: ism_address,
+        endpoint: None,
+        attempt: 0,
+    };
     let ism = ism_builder
         .base
         .base_builder()
         .build_ccip_read_ism(ism_address)
         .await
         .map_err(|err| {
+            activity.report(OffchainReadState::LookupFailed, None);
             let msg = format!("Failed to build CCIP read ISM: {err}");
             MetadataBuildError::FailedToBuild(msg)
         })?;
 
     let info = ism_builder
         .call_get_offchain_verify_info(ism, message)
-        .await?;
+        .await
+        .inspect_err(|_| {
+            activity.report(OffchainReadState::LookupFailed, None);
+        })?;
 
     let origin_tx_hash = ism_builder
         .base
         .base_builder()
         .retrieve_origin_tx_hash_by_message_id(message.id())
         .await
+        .inspect(|hash| {
+            if hash.is_none() {
+                activity.report(OffchainReadState::OriginTransactionMissing, None);
+            }
+        })
         .map_err(|err| {
+            activity.report(OffchainReadState::OriginTransactionLookupFailed, None);
             warn!(error = %err, "Error retrieving origin tx hash for message {:?}", message.id());
         })
         .ok()
@@ -426,22 +470,22 @@ async fn metadata_build(
         "Origin tx hash lookup result",
     );
 
-    for url in info.urls.iter() {
+    if info.urls.is_empty() {
+        activity.report(OffchainReadState::NoEndpoints, None);
+    }
+    for (endpoint, url) in info.urls.iter().enumerate() {
         // Retry this URL while attestation is pending (transient), up to 10 attempts at 1s intervals.
         // Move to the next URL only on hard failures.
         const MAX_PENDING_RETRIES: u32 = 10;
         let mut pending_attempts = 0u32;
         tracing::info!(?ism_address, url, message_id = ?message.id(), "Fetching CCIP read offchain data");
         loop {
-            match fetch_offchain_data(
-                ism_builder,
-                &info,
-                url,
-                origin_tx_hash.clone(),
-                message.id(),
-            )
-            .await
-            {
+            let request_activity = ReadActivity {
+                endpoint: Some(endpoint),
+                attempt: pending_attempts.saturating_add(1),
+                ..activity
+            };
+            match fetch_offchain_data(&request_activity, &info, url, origin_tx_hash.clone()).await {
                 Ok(data) => {
                     tracing::info!(
                         ?ism_address,
@@ -467,6 +511,7 @@ async fn metadata_build(
                     tokio::time::sleep(Duration::from_secs(1)).await;
                 }
                 Err(FetchOutcome::Pending) => {
+                    request_activity.report(OffchainReadState::PendingRetriesExhausted, None);
                     tracing::warn!(
                         ?ism_address,
                         url,
@@ -581,12 +626,13 @@ fn decode_response_data(data: &str) -> Result<Metadata, Box<MetadataBuildError>>
 
 /// Fetch data from offchain lookup server
 async fn fetch_offchain_data(
-    ism_builder: &CcipReadIsmMetadataBuilder,
+    activity: &ReadActivity<'_>,
     info: &OffchainLookup,
     url: &str,
     origin_tx_hash: Option<String>,
-    message_id: H256,
 ) -> Result<Metadata, FetchOutcome> {
+    let ism_builder = activity.builder;
+    let message_id = activity.message.id();
     // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
     // for `H160` truncates the output. (e.g. `0xc66a…7b6f` instead of returning
     // the full address)
@@ -595,9 +641,14 @@ async fn fetch_offchain_data(
     let interpolated_url = url
         .replace("{sender}", &sender_as_bytes)
         .replace("{data}", &data_as_bytes);
-    let interpolated_url =
-        validate_ccip_url(&interpolated_url).map_err(|e| FetchOutcome::from(*e))?;
-    let client = ccip_http_client().map_err(|e| FetchOutcome::from(*e))?;
+    let interpolated_url = validate_ccip_url(&interpolated_url).map_err(|e| {
+        activity.report(OffchainReadState::UrlRejected, None);
+        FetchOutcome::from(*e)
+    })?;
+    let client = ccip_http_client().map_err(|e| {
+        activity.report(OffchainReadState::ClientFailed, None);
+        FetchOutcome::from(*e)
+    })?;
 
     // Validate the destination before invoking a remote signer.
     let maybe_signature_hex = CcipReadIsmMetadataBuilder::generate_signature_for_post_request(
@@ -605,9 +656,12 @@ async fn fetch_offchain_data(
         info,
         url,
     )
-    .await?;
+    .await
+    .inspect_err(|_| {
+        activity.report(OffchainReadState::SigningFailed, None);
+    })?;
 
-    let res = if !url.contains("{data}") {
+    let request = if !url.contains("{data}") {
         let body = OffchainLookupRequestBody {
             sender: sender_as_bytes,
             data: data_as_bytes,
@@ -622,31 +676,31 @@ async fn fetch_offchain_data(
         client
             .request(Method::POST, interpolated_url)
             .header(CONTENT_TYPE, "application/json")
-            .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
             .json(&body)
-            .send()
-            .await
-            .map_err(|err| {
-                let msg =
-                    format!("Failed to request offchain lookup server with post method: {err}");
-                MetadataBuildError::FailedToBuild(msg)
-            })?
     } else {
-        client
-            .request(Method::GET, interpolated_url)
-            .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
-            .send()
-            .await
-            .map_err(|err| {
-                let msg =
-                    format!("Failed to request offchain lookup server with get method: {err}");
-                MetadataBuildError::FailedToBuild(msg)
-            })?
+        client.request(Method::GET, interpolated_url)
     };
+    let res = request
+        .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
+        .send()
+        .await
+        .map_err(|err| {
+            activity.report(
+                if err.is_timeout() {
+                    OffchainReadState::RequestTimeout
+                } else {
+                    OffchainReadState::RequestFailed
+                },
+                None,
+            );
+            MetadataBuildError::FailedToBuild(format!("Offchain lookup request failed: {err}"))
+        })?;
 
     let status = res.status();
 
-    let response_body = read_response_body(res).await?;
+    let response_body = read_response_body(res).await.inspect_err(|_| {
+        activity.report(OffchainReadState::BodyReadFailed, Some(status.as_u16()));
+    })?;
     tracing::debug!(
         response = response_body,
         status = status.as_u16(),
@@ -654,31 +708,48 @@ async fn fetch_offchain_data(
         "Received response from offchain lookup server"
     );
 
+    decode_offchain_response(activity, status, &response_body).map_err(|outcome| *outcome)
+}
+
+fn decode_offchain_response(
+    activity: &ReadActivity<'_>,
+    status: reqwest::StatusCode,
+    response_body: &str,
+) -> Result<Metadata, Box<FetchOutcome>> {
+    if body_signals_pending(response_body) {
+        // Keep the transition to pending, not every one-second internal retry.
+        if activity.attempt == 1 {
+            activity.report(OffchainReadState::Pending, Some(status.as_u16()));
+        }
+        return Err(Box::new(FetchOutcome::Pending));
+    }
+
+    // A 404 without an explicit pending response is a hard failure.
     if status == reqwest::StatusCode::NOT_FOUND {
-        // A bare 404 without a pending body is an infrastructure error (misconfigured
-        // route, wrong URL) — don't burn 30s of retries on it.
-        return if body_signals_pending(&response_body) {
-            Err(FetchOutcome::Pending)
-        } else {
-            Err(FetchOutcome::Failed(MetadataBuildError::FailedToBuild(
-                format!("Offchain lookup server returned 404: {response_body}"),
-            )))
-        };
+        activity.report(OffchainReadState::InvalidResponse, Some(status.as_u16()));
+        return Err(Box::new(FetchOutcome::Failed(
+            MetadataBuildError::FailedToBuild(format!(
+                "Offchain lookup server returned 404: {response_body}"
+            )),
+        )));
     }
 
-    // For non-404 responses, check the body for an explicit "pending" signal.
-    if body_signals_pending(&response_body) {
-        return Err(FetchOutcome::Pending);
-    }
-
-    let json: OffchainResponse = serde_json::from_str(&response_body).map_err(|err| {
+    let json: OffchainResponse = serde_json::from_str(response_body).map_err(|err| {
+        activity.report(OffchainReadState::InvalidResponse, Some(status.as_u16()));
         let error_msg = format!(
             "Failed to parse offchain lookup server json response: ({err}) ({response_body})"
         );
-        MetadataBuildError::FailedToBuild(error_msg)
+        Box::new(FetchOutcome::Failed(MetadataBuildError::FailedToBuild(
+            error_msg,
+        )))
     })?;
 
-    decode_response_data(&json.data).map_err(|e| FetchOutcome::from(*e))
+    decode_response_data(&json.data)
+        .inspect(|_| activity.report(OffchainReadState::Succeeded, Some(status.as_u16())))
+        .map_err(|e| {
+            activity.report(OffchainReadState::InvalidResponse, Some(status.as_u16()));
+            Box::new(FetchOutcome::from(*e))
+        })
 }
 
 #[cfg(test)]
@@ -1096,6 +1167,112 @@ mod test {
 
         assert_eq!(signature, None);
         assert_eq!(signer.calls(), 0);
+    }
+
+    #[test]
+    fn activity_distinguishes_pending_and_bad_responses_without_exposing_bodies() {
+        use crate::test_utils::mock_base_builder::MockBaseMetadataBuilder;
+        let base = Arc::new(MockBaseMetadataBuilder::default());
+        let builder = CcipReadIsmMetadataBuilder::new(MessageMetadataBuilder {
+            base: base.clone(),
+            app_context: None,
+            root_ism: H256::repeat_byte(1),
+            max_ism_depth: 5,
+            max_ism_count: 10,
+        });
+        let message = HyperlaneMessage::default();
+        let activity = ReadActivity {
+            builder: &builder,
+            message: &message,
+            ism: H256::repeat_byte(1),
+            endpoint: Some(0),
+            attempt: 1,
+        };
+        for (status, body, expected) in [
+            (200, r#"{"status":"pending"}"#, "pending"),
+            (404, r#"{"error":"CCTP attestation not found"}"#, "pending"),
+            (
+                404,
+                r#"{"error":"private-password in upstream response"}"#,
+                "invalid_response",
+            ),
+            (
+                401,
+                "private-password in malformed JSON",
+                "invalid_response",
+            ),
+            (200, r#"{"data":"private-password"}"#, "invalid_response"),
+        ] {
+            base.requests
+                .activities
+                .lock()
+                .expect("activity lock")
+                .clear();
+            let result = decode_offchain_response(
+                &activity,
+                reqwest::StatusCode::from_u16(status).expect("status"),
+                body,
+            );
+            if expected == "pending" {
+                assert!(
+                    matches!(result, Err(outcome) if matches!(*outcome, FetchOutcome::Pending))
+                );
+            } else {
+                assert!(
+                    matches!(result, Err(outcome) if matches!(*outcome, FetchOutcome::Failed(_)))
+                );
+            }
+            let events = base.requests.activities.lock().expect("activity lock");
+            assert_eq!(events.len(), 1);
+            let (id, event) = events.first().expect("event");
+            assert_eq!(*id, message.id());
+            let event = serde_json::to_value(event).expect("serialize");
+            assert_eq!(event["state"], expected);
+            assert_eq!(event["http_status"], status);
+            assert_eq!(event["attempt"], 1);
+            assert!(!event.to_string().contains("private-password"));
+        }
+        base.requests
+            .activities
+            .lock()
+            .expect("activity lock")
+            .clear();
+        for attempt in 1..=11 {
+            let retry = ReadActivity {
+                attempt,
+                ..activity
+            };
+            assert!(decode_offchain_response(
+                &retry,
+                reqwest::StatusCode::OK,
+                r#"{"status":"pending"}"#
+            )
+            .is_err());
+        }
+        assert_eq!(
+            base.requests
+                .activities
+                .lock()
+                .expect("activity lock")
+                .len(),
+            1
+        );
+        let final_attempt = ReadActivity {
+            attempt: 11,
+            ..activity
+        };
+        assert!(decode_offchain_response(
+            &final_attempt,
+            reqwest::StatusCode::OK,
+            r#"{"data":"0x1234"}"#
+        )
+        .is_ok());
+        let events = base.requests.activities.lock().expect("activity lock");
+        assert_eq!(events.len(), 2);
+        let outcome = serde_json::to_value(&events[1].1).expect("serialize outcome");
+        assert_eq!(outcome["state"], "succeeded");
+        assert_eq!(outcome["attempt"], 11);
+        assert_eq!(outcome["http_status"], 200);
     }
 
     #[test]

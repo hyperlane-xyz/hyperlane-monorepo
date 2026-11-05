@@ -397,6 +397,9 @@ const contextBase = {
   },
 } as const;
 
+const messageActivityDatabaseUrlSecret =
+  'hyperlane-mainnet-relayer-postgres-writer-url';
+
 const scraperWebsocketUrl =
   'ws://scraper-proxy.mainnet3.svc.cluster.local:8383/agents';
 
@@ -861,6 +864,7 @@ const hyperlane: RootAgentConfig = {
   contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
+    messageActivityDatabaseUrlSecret,
     mevSubmission,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
@@ -937,6 +941,7 @@ const releaseCandidate: RootAgentConfig = {
   contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
+    messageActivityDatabaseUrlSecret,
     mevSubmission,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
@@ -1111,6 +1116,7 @@ const fastPath: RootAgentConfig = {
   },
   rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
+    messageActivityDatabaseUrlSecret,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     // Use RPC indexing until the scraper proxy supports fastpath streaming.

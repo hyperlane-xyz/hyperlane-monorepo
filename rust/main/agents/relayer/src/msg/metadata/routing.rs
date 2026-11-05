@@ -45,6 +45,13 @@ impl MetadataBuilder for RoutingIsmMetadataBuilder {
 
         let module = self.route(ism.as_ref(), message, cache_policy).await?;
 
+        self.base_builder().report_activity(
+            message,
+            crate::message_activity::Activity::Routing {
+                ism: ism_address,
+                module,
+            },
+        );
         self.base.build(module, message, params).await
     }
 }

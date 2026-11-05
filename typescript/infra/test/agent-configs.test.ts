@@ -134,6 +134,17 @@ describe('Agent configs', () => {
           expect(relayer.configMapConfig.addressBlacklist).to.equal(
             environment === 'mainnet' ? ofacAddress.toLowerCase() : '',
           );
+          expect(relayer.messageActivityDatabaseUrlSecret).to.equal(
+            environment === 'mainnet'
+              ? 'hyperlane-mainnet-relayer-postgres-writer-url'
+              : undefined,
+          );
+          expect(relayer.envConfig).not.to.have.property(
+            'messageActivityDatabaseUrl',
+          );
+          expect(relayer.configMapConfig).not.to.have.property(
+            'messageActivityDatabaseUrl',
+          );
           expect(relayer.configMapConfig).not.to.have.property('blacklist');
           expect(relayer.envConfig).not.to.have.property('blacklist');
         }

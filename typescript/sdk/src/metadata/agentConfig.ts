@@ -717,6 +717,12 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .boolean()
     .optional()
     .describe('Whether to enable IGP indexing'),
+  messageActivityDatabaseUrl: z
+    .url({ protocol: /^postgres(ql)?$/, hostname: /.+/ })
+    .optional()
+    .describe(
+      'Separate diagnostics PostgreSQL URL. Activity writes are best effort; credentials must not be logged.',
+    ),
   websocketUrl: z
     .url()
     .refine(

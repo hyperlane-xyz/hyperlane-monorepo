@@ -310,6 +310,8 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
 
     values.hyperlane.relayer = {
       enabled: true,
+      messageActivityDatabaseUrlSecret:
+        this.config.relayerConfig.messageActivityDatabaseUrlSecret,
       aws: this.config.requiresAwsCredentials,
       envConfig,
       configMapConfig,

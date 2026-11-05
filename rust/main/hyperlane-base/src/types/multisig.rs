@@ -4,6 +4,7 @@ use std::sync::Arc;
 use derive_new::new;
 use eyre::Result;
 use futures::{stream, StreamExt};
+use serde::Serialize;
 use tracing::{debug, instrument, warn};
 
 use hyperlane_core::{
@@ -13,6 +14,68 @@ use hyperlane_core::{
 
 use crate::{CheckpointSyncer, CoreMetrics};
 
+/// Sanitized observations from existing checkpoint reads; no additional I/O.
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum CheckpointObservation {
+    /// Latest advertised index; not a count of verified signatures.
+    LatestIndex {
+        /// Validator whose storage was queried.
+        validator: H160,
+        /// Advertised checkpoint index, if available.
+        index: Option<u32>,
+    },
+    /// A checkpoint collection attempt is starting.
+    Fetching {
+        /// Requested checkpoint index.
+        index: u32,
+    },
+    /// A verified signature, counted separately for each index and root.
+    Signature {
+        /// Recovered validator address.
+        validator: H256,
+        /// Checkpoint index.
+        index: u32,
+        /// Signed root.
+        root: H256,
+        /// Matching signatures collected so far, stopping at quorum.
+        collected: usize,
+    },
+    /// A failed read does not imply that a validator is down.
+    Unavailable {
+        /// Validator whose checkpoint was unavailable.
+        validator: H256,
+        /// Requested index, absent during latest-index discovery.
+        index: Option<u32>,
+        /// Safe classification; never contains storage URLs or raw errors.
+        reason: CheckpointUnavailableReason,
+    },
+}
+
+/// Public failure classifications without external error text.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CheckpointUnavailableReason {
+    /// No usable storage was discovered.
+    NoStorage,
+    /// Checkpoint or latest index was absent.
+    Missing,
+    /// Reading storage failed.
+    FetchError,
+    /// Checkpoint had a different index.
+    IndexMismatch,
+    /// Signature recovery failed.
+    InvalidSignature,
+    /// Recovered signer did not match the expected validator.
+    SignerMismatch,
+}
+
+/// Observers must return immediately without blocking checkpoint collection.
+pub trait CheckpointObserver: std::fmt::Debug + Send + Sync {
+    /// Record an observation from the existing collection attempt.
+    fn observe(&self, observation: CheckpointObservation);
+}
+
 /// For a particular validator set, fetches signed checkpoints from multiple
 /// validators to create MultisigSignedCheckpoints.
 #[derive(Clone, Debug, new)]
@@ -20,9 +83,36 @@ pub struct MultisigCheckpointSyncer {
     /// The checkpoint syncer for each valid validator signer address
     checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>>,
     metrics: Option<(Arc<CoreMetrics>, String)>, // first arg is the metrics, second is the app context
+    #[new(default)]
+    observer: Option<Arc<dyn CheckpointObserver>>,
 }
 
 impl MultisigCheckpointSyncer {
+    /// Attach an observer scoped to this metadata build, not the pooled syncers.
+    pub fn with_observer(mut self, observer: Arc<dyn CheckpointObserver>) -> Self {
+        self.observer = Some(observer);
+        self
+    }
+
+    fn observe(&self, observation: CheckpointObservation) {
+        if let Some(observer) = &self.observer {
+            observer.observe(observation);
+        }
+    }
+
+    fn unavailable(
+        &self,
+        validator: H256,
+        index: Option<u32>,
+        reason: CheckpointUnavailableReason,
+    ) {
+        self.observe(CheckpointObservation::Unavailable {
+            validator,
+            index,
+            reason,
+        });
+    }
+
     /// Gets the latest checkpoint index from each validator's checkpoint syncer.
     /// Returns a vector of the latest indices, in an unspecified order, and does
     /// not contain indices for validators that did not provide a latest index.
@@ -46,6 +136,7 @@ impl MultisigCheckpointSyncer {
                 if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&v) {
                     Some((v, checkpoint_syncer))
                 } else {
+                    self.unavailable(v.into(), None, CheckpointUnavailableReason::NoStorage);
                     warn!(validator=%v, "Checkpoint syncer is not provided for validator");
                     None
                 }
@@ -64,12 +155,25 @@ impl MultisigCheckpointSyncer {
             .await;
 
         for (validator, latest_index) in validator_index_results {
+            self.observe(CheckpointObservation::LatestIndex {
+                validator: *validator,
+                index: latest_index.as_ref().ok().copied().flatten(),
+            });
             match latest_index {
                 Ok(Some(index)) => {
                     debug!(?validator, ?index, "Validator returned latest index");
                     latest_indices.insert(*validator, Some(index));
                 }
                 result => {
+                    self.unavailable(
+                        (*validator).into(),
+                        None,
+                        if result.is_err() {
+                            CheckpointUnavailableReason::FetchError
+                        } else {
+                            CheckpointUnavailableReason::Missing
+                        },
+                    );
                     debug!(
                         ?validator,
                         ?result,
@@ -173,6 +277,7 @@ impl MultisigCheckpointSyncer {
         index: u32,
         destination: &HyperlaneDomain,
     ) -> Result<Option<MultisigSignedCheckpoint>> {
+        self.observe(CheckpointObservation::Fetching { index });
         // Keeps track of signed validator checkpoints for a particular root.
         // In practice, it's likely that validators will all sign the same root for a
         // particular index, but we'd like to be robust to this not being the case
@@ -196,6 +301,7 @@ impl MultisigCheckpointSyncer {
                 if let Some(syncer) = self.checkpoint_syncers.get(&H160::from(address)) {
                     Some((validator_index, address, Arc::clone(syncer)))
                 } else {
+                    self.unavailable(address, Some(index), CheckpointUnavailableReason::NoStorage);
                     debug!(validator=%address, "Checkpoint syncer not found");
                     None
                 }
@@ -216,7 +322,16 @@ impl MultisigCheckpointSyncer {
             // signed the checkpoint at `index`.
             let signed_checkpoint = match checkpoint {
                 Ok(Some(c)) => c,
-                _ => {
+                result => {
+                    self.unavailable(
+                        validator,
+                        Some(index),
+                        if result.is_err() {
+                            CheckpointUnavailableReason::FetchError
+                        } else {
+                            CheckpointUnavailableReason::Missing
+                        },
+                    );
                     debug!(
                         validator = format!("{:#x}", validator),
                         index = index,
@@ -228,6 +343,11 @@ impl MultisigCheckpointSyncer {
 
             // If the signed checkpoint is for a different index, ignore it
             if signed_checkpoint.value.index != index {
+                self.unavailable(
+                    validator,
+                    Some(index),
+                    CheckpointUnavailableReason::IndexMismatch,
+                );
                 debug!(
                     validator = format!("{:#x}", validator),
                     index = index,
@@ -241,6 +361,11 @@ impl MultisigCheckpointSyncer {
             let signer = match signed_checkpoint.recover() {
                 Ok(signer) => signer,
                 Err(error) => {
+                    self.unavailable(
+                        validator,
+                        Some(index),
+                        CheckpointUnavailableReason::InvalidSignature,
+                    );
                     warn!(
                         ?validator,
                         index,
@@ -252,6 +377,11 @@ impl MultisigCheckpointSyncer {
             };
 
             if H256::from(signer) != validator {
+                self.unavailable(
+                    validator,
+                    Some(index),
+                    CheckpointUnavailableReason::SignerMismatch,
+                );
                 debug!(
                     validator = format!("{:#x}", validator),
                     index = index,
@@ -267,6 +397,12 @@ impl MultisigCheckpointSyncer {
 
             // Count the number of signatures for this signed checkpoint
             let signature_count = signed_checkpoints.len();
+            self.observe(CheckpointObservation::Signature {
+                validator,
+                index,
+                root,
+                collected: signature_count,
+            });
             debug!(
                 validator = format!("{:#x}", validator),
                 index = index,
@@ -360,6 +496,15 @@ mod test {
         },
         S3Storage,
     };
+
+    #[derive(Debug, Default)]
+    struct Observations(std::sync::Mutex<Vec<CheckpointObservation>>);
+
+    impl CheckpointObserver for Observations {
+        fn observe(&self, observation: CheckpointObservation) {
+            self.0.lock().expect("observation lock").push(observation);
+        }
+    }
 
     async fn build_mock_checkpoint_syncs(
         validators: &[TestValidator],
@@ -797,7 +942,9 @@ mod test {
                 address
             })
             .collect::<Vec<_>>();
-        let multisig_syncer = MultisigCheckpointSyncer::new(syncers, None);
+        let observations = Arc::new(Observations::default());
+        let multisig_syncer =
+            MultisigCheckpointSyncer::new(syncers, None).with_observer(observations.clone());
 
         let start = tokio::time::Instant::now();
         let result = multisig_syncer
@@ -816,6 +963,25 @@ mod test {
             "fetch_checkpoint should return after fast quorum"
         );
 
+        let counts = observations
+            .0
+            .lock()
+            .expect("observation lock")
+            .iter()
+            .filter_map(|event| match event {
+                CheckpointObservation::Signature {
+                    index,
+                    root,
+                    collected,
+                    ..
+                } => Some((*index, *root, *collected)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            counts,
+            vec![(1000, checkpoint.root, 1), (1000, checkpoint.root, 2)]
+        );
         let expected = generate_multisig_signed_checkpoint(&validators[1..], checkpoint).await;
         assert_eq!(result, expected);
     }

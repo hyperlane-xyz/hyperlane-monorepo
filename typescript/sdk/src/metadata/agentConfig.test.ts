@@ -177,6 +177,31 @@ describe('RelayerAgentConfigSchema feeToken gate', () => {
     ...overrides,
   });
 
+  it('enables message activity with only a PostgreSQL URL', () => {
+    for (const messageActivityDatabaseUrl of [
+      undefined,
+      'postgres://user:password@localhost/diagnostics',
+      'postgresql://localhost/diagnostics?sslmode=verify-full',
+    ]) {
+      expect(
+        RelayerAgentConfigSchema.safeParse(
+          config({ gasPaymentEnforcement: [], messageActivityDatabaseUrl }),
+        ).success,
+      ).to.be.true;
+    }
+    for (const messageActivityDatabaseUrl of [
+      'https://localhost/diagnostics',
+      'postgresql:///diagnostics',
+      'not-a-url',
+    ]) {
+      expect(
+        RelayerAgentConfigSchema.safeParse(
+          config({ gasPaymentEnforcement: [], messageActivityDatabaseUrl }),
+        ).success,
+      ).to.be.false;
+    }
+  });
+
   it('rejects non-zero feeToken policy', () => {
     const result = RelayerAgentConfigSchema.safeParse(config({}));
     expect(result.success).to.be.false;

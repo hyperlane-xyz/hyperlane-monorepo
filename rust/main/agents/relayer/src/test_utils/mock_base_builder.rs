@@ -100,6 +100,7 @@ impl MockBaseMetadataBuilderResponses {
 
 #[derive(Debug, Default)]
 pub struct MockBaseMetadataBuilderRequests {
+    pub activities: RequestList<(H256, crate::message_activity::Activity)>,
     pub update_ism_metrics: RequestList<IsmBuildMetricsParams>,
 }
 
@@ -120,6 +121,17 @@ impl MockBaseMetadataBuilder {
 
 #[async_trait::async_trait]
 impl BuildsBaseMetadata for MockBaseMetadataBuilder {
+    fn report_activity(
+        &self,
+        message: &HyperlaneMessage,
+        activity: crate::message_activity::Activity,
+    ) {
+        self.requests
+            .activities
+            .lock()
+            .expect("activity lock")
+            .push((message.id(), activity));
+    }
     fn get_signer(&self) -> Option<&Signers> {
         None // Mock implementation returning None
     }
