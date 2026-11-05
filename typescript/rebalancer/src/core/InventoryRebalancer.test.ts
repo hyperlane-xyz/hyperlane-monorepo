@@ -543,6 +543,116 @@ describe('InventoryRebalancer E2E', () => {
     });
   });
 
+  describe('xERC20 physical execution limits', () => {
+    beforeEach(() => {
+      for (const token of warpCore.tokens) {
+        token.standard = TokenStandard.EvmHypXERC20Lockbox;
+        token.isFungibleWith = Sinon.stub().returns(false);
+      }
+      adapterStub.getBurnLimit = Sinon.stub().resolves(4_000_000_000n);
+      adapterStub.getMintLimit = Sinon.stub().resolves(3_000_000_000n);
+      adapterStub.getMintMaxLimit = Sinon.stub().resolves(10_000_000_000n);
+      adapterStub.getBurnMaxLimit = Sinon.stub().resolves(10_000_000_000n);
+      warpCore.getInterchainTransferFee = Sinon.stub().resolves({});
+      actionTracker.getActionsByType.resolves([]);
+      createTestIntent();
+    });
+
+    it('caps a deposit by physical receiver mint capacity despite ample inventory', async () => {
+      const results = await inventoryRebalancer.rebalance([createTestRoute()]);
+      expect(results[0].success).to.equal(true);
+      expect(
+        warpCore.getTransferRemoteTxs.firstCall.args[0].originTokenAmount
+          .amount,
+      ).to.equal(3_000_000_000n);
+      expect(
+        actionTracker.createRebalanceAction.firstCall.args[0].amount,
+      ).to.equal(3_000_000_000n);
+      expect(actionTracker.completeRebalanceIntent.called).to.equal(false);
+      expect(bridge.execute.called).to.equal(false);
+    });
+
+    it('reserves capacity for pending deposits in physical execution direction', async () => {
+      actionTracker.getActionsByType.resolves([
+        {
+          id: 'pending',
+          intentId: 'older-intent',
+          type: 'inventory_deposit',
+          status: 'in_progress',
+          origin: SOLANA_DOMAIN,
+          destination: ARBITRUM_DOMAIN,
+          amount: 1_000_000_000n,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ]);
+      await inventoryRebalancer.rebalance([createTestRoute()]);
+      expect(
+        warpCore.getTransferRemoteTxs.firstCall.args[0].originTokenAmount
+          .amount,
+      ).to.equal(2_000_000_000n);
+    });
+
+    it('waits for zero capacity without submitting or sourcing more inventory', async () => {
+      adapterStub.getBurnLimit.resolves(0n);
+      const results = await inventoryRebalancer.rebalance([createTestRoute()]);
+      expect(results[0].success).to.equal(false);
+      expect(warpCore.getTransferRemoteTxs.called).to.equal(false);
+      expect(bridge.execute.called).to.equal(false);
+      expect(actionTracker.completeRebalanceIntent.called).to.equal(false);
+    });
+
+    it('includes same-token gas and transfer fees in the burn budget', async () => {
+      const source = warpCore.tokens[1];
+      source.isFungibleWith.returns(true);
+      adapterStub.getMintLimit.resolves(10_000_000_000n);
+      warpCore.getInterchainTransferFee.resolves({
+        igpQuote: { token: source, amount: 1_000_000_000n },
+        tokenFeeQuote: { token: source, amount: 500_000_000n },
+      });
+      const results = await inventoryRebalancer.rebalance([createTestRoute()]);
+      expect(results[0].success).to.equal(true);
+      expect(
+        warpCore.getTransferRemoteTxs.firstCall.args[0].originTokenAmount
+          .amount,
+      ).to.equal(2_500_000_000n);
+    });
+
+    it('quotes proportional fees at the limited amount so partial transfers remain viable', async () => {
+      const source = warpCore.tokens[1];
+      source.isFungibleWith.returns(true);
+      adapterStub.getBurnLimit.resolves(100n);
+      adapterStub.getMintLimit.resolves(1000n);
+      warpCore.getInterchainTransferFee.callsFake(
+        async ({
+          originTokenAmount,
+        }: {
+          originTokenAmount: { amount: bigint };
+        }) => ({
+          tokenFeeQuote: {
+            token: source,
+            amount: originTokenAmount.amount / 100n,
+          },
+        }),
+      );
+      const results = await inventoryRebalancer.rebalance([createTestRoute()]);
+      expect(results[0].success).to.equal(true);
+      expect(
+        warpCore.getTransferRemoteTxs.firstCall.args[0].originTokenAmount
+          .amount,
+      ).to.equal(99n);
+    });
+
+    it('checks capacity again before constructing the primary transaction', async () => {
+      adapterStub.getMintLimit.onFirstCall().resolves(3_000_000_000n);
+      adapterStub.getMintLimit.onSecondCall().resolves(1n);
+      const results = await inventoryRebalancer.rebalance([createTestRoute()]);
+      expect(results[0].success).to.equal(false);
+      expect(warpCore.getTransferRemoteTxs.called).to.equal(false);
+      expect(actionTracker.createRebalanceAction.called).to.equal(false);
+    });
+  });
+
   describe('Basic Inventory Rebalance (Sufficient Inventory)', () => {
     // NOTE: Strategy route is arbitrum (surplus) → solana (deficit)
     // But execution calls transferRemote FROM solana TO arbitrum (swapped direction)
