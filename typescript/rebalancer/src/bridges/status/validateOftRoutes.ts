@@ -5,7 +5,11 @@ import {
   MailboxClient__factory,
   TokenBridgeOft__factory,
 } from '@hyperlane-xyz/core';
-import { type ChainMap, type Token } from '@hyperlane-xyz/sdk';
+import {
+  EvmMovableCollateralAdapter,
+  type ChainMap,
+  type Token,
+} from '@hyperlane-xyz/sdk';
 import type { MultiProviderAdapter } from '@hyperlane-xyz/sdk/providers/MultiProviderAdapter';
 import { addressToBytes32, assert, eqAddress } from '@hyperlane-xyz/utils';
 
@@ -129,6 +133,24 @@ export async function validateSettlementRoute(
     `Missing OFT route tokens for ${pair}`,
   );
   assert(effective.bridge, `Missing OFT bridge for ${pair}`);
+  const monitoredRecipient = tokens[destination].addressOrDenom;
+  const expectedRecipient = status.destinationRecipient ?? monitoredRecipient;
+  assert(
+    eqAddress(expectedRecipient, monitoredRecipient),
+    `OFT recipient does not match monitored collateral for ${pair}`,
+  );
+  const originAdapter = tokens[origin].getHypAdapter(multiProvider);
+  assert(
+    originAdapter instanceof EvmMovableCollateralAdapter,
+    `OFT origin is not movable collateral for ${pair}`,
+  );
+  const allowedDestination = await originAdapter.getAllowedDestination(
+    multiProvider.getDomainId(destination),
+  );
+  assert(
+    eqAddress(expectedRecipient, allowedDestination),
+    `OFT recipient does not match allowed destination for ${pair}`,
+  );
   const provider = multiProvider.getEthersV5Provider(origin);
   const destinationProvider = multiProvider.getEthersV5Provider(destination);
   const bridge = TokenBridgeOft__factory.connect(effective.bridge, provider);
