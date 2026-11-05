@@ -13,6 +13,7 @@ pragma solidity ^0.8.22;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
+import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -20,6 +21,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {MockEverclearAdapter} from "../../contracts/mock/MockEverclearAdapter.sol";
+import {MockWETH} from "../../contracts/mock/MockWETH.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnvironment.sol";
@@ -35,6 +37,8 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 contract EverclearTokenBridgeTest is Test {
     using TypeCasts for *;
+    using Message for bytes;
+    using TokenMessage for bytes;
 
     // Constants
     uint32 internal constant ORIGIN = 11;
@@ -73,6 +77,21 @@ contract EverclearTokenBridgeTest is Test {
     // Events to test
     event FeeParamsUpdated(uint32 destination, uint256 fee, uint256 deadline);
     event OutputAssetSet(uint32 destination, bytes32 outputAsset);
+
+    function test_quoteTransferRemote_rejectsCustomMetadata() public {
+        vm.expectRevert(TokenRouter.MetadataNotSupported.selector);
+        bridge.quoteTransferRemote(
+            DESTINATION,
+            bytes32(uint256(1)),
+            1,
+            hex"1234"
+        );
+    }
+
+    function test_transferRemote_rejectsCustomMetadata() public {
+        vm.expectRevert(TokenRouter.MetadataNotSupported.selector);
+        bridge.transferRemote(DESTINATION, bytes32(uint256(1)), 1, hex"1234");
+    }
 
     function setUp() public {
         // Setup basic infrastructure
@@ -310,6 +329,120 @@ contract EverclearTokenBridgeTest is Test {
         assertEq(fee, FEE_AMOUNT);
         assertEq(deadline, feeDeadline);
         assertEq(sig, feeSignature);
+    }
+
+    function testTransferRemoteEmptyMetadataPreservesIntent() public {
+        uint256 snapshot = vm.snapshot();
+        vm.prank(ALICE);
+        bytes32 legacyId = bridge.transferRemote(
+            DESTINATION,
+            RECIPIENT,
+            TRANSFER_AMT
+        );
+        assertTrue(vm.revertTo(snapshot));
+
+        vm.prank(ALICE);
+        bytes32 metadataId = bridge.transferRemote(
+            DESTINATION,
+            RECIPIENT,
+            TRANSFER_AMT,
+            ""
+        );
+        assertEq(metadataId, legacyId);
+
+        bytes memory message = environment
+            .mailboxes(DESTINATION)
+            .inboundMessages(0);
+        (bytes memory body, IEverclear.Intent memory intent) = this
+            .assertIntentMessage(message);
+        bytes32 intentId = keccak256(abi.encode(intent));
+        vm.mockCall(
+            address(bridge.everclearSpoke()),
+            abi.encodeCall(IEverclearSpoke.status, (intentId)),
+            abi.encode(IEverclear.IntentStatus.ADDED)
+        );
+        vm.prank(address(mailbox));
+        vm.expectRevert("ETB: Intent Status != SETTLED");
+        bridge.handle(ORIGIN, address(bridge).addressToBytes32(), body);
+        assertFalse(bridge.intentSettled(intentId));
+
+        vm.mockCall(
+            address(bridge.everclearSpoke()),
+            abi.encodeCall(IEverclearSpoke.status, (intentId)),
+            abi.encode(IEverclear.IntentStatus.SETTLED)
+        );
+        vm.prank(address(mailbox));
+        bridge.handle(ORIGIN, address(bridge).addressToBytes32(), body);
+        assertTrue(bridge.intentSettled(intentId));
+
+        vm.prank(address(mailbox));
+        vm.expectRevert("ETB: Intent already processed");
+        bridge.handle(ORIGIN, address(bridge).addressToBytes32(), body);
+    }
+
+    function testNativeTransferEmptyMetadataPreservesIntent() public {
+        MockWETH weth = new MockWETH();
+        EverclearEthBridge nativeBridge = new EverclearEthBridge(
+            weth,
+            address(mailbox),
+            everclearAdapter
+        );
+        nativeBridge.initialize(address(0), address(this));
+        nativeBridge.setFeeParams(
+            DESTINATION,
+            FEE_AMOUNT,
+            feeDeadline,
+            feeSignature
+        );
+        nativeBridge.setOutputAsset(
+            OutputAssetInfo({
+                destination: DESTINATION,
+                outputAsset: OUTPUT_ASSET
+            })
+        );
+        nativeBridge.enrollRemoteRouter(DESTINATION, RECIPIENT);
+
+        Quote[] memory legacyQuote = nativeBridge.quoteTransferRemote(
+            DESTINATION,
+            RECIPIENT,
+            TRANSFER_AMT
+        );
+        Quote[] memory metadataQuote = nativeBridge.quoteTransferRemote(
+            DESTINATION,
+            RECIPIENT,
+            TRANSFER_AMT,
+            ""
+        );
+        assertEq(abi.encode(metadataQuote), abi.encode(legacyQuote));
+
+        uint256 value = TRANSFER_AMT + FEE_AMOUNT;
+        vm.deal(ALICE, value);
+        vm.prank(ALICE);
+        nativeBridge.transferRemote{value: value}(
+            DESTINATION,
+            RECIPIENT,
+            TRANSFER_AMT,
+            ""
+        );
+        bytes memory message = environment
+            .mailboxes(DESTINATION)
+            .inboundMessages(0);
+        (, IEverclear.Intent memory intent) = this.assertIntentMessage(message);
+        assertEq(intent.data, abi.encode(RECIPIENT, TRANSFER_AMT));
+        assertEq(address(weth).balance, value);
+        assertEq(ALICE.balance, 0);
+    }
+
+    function assertIntentMessage(
+        bytes calldata message
+    ) external pure returns (bytes memory, IEverclear.Intent memory intent) {
+        bytes calldata body = message.body();
+        intent = abi.decode(body.metadata(), (IEverclear.Intent));
+        assertEq(intent.receiver, RECIPIENT);
+        assertEq(intent.amount, TRANSFER_AMT);
+        assertEq(TokenMessage.recipient(body), RECIPIENT);
+        assertEq(body.amount(), TRANSFER_AMT);
+        return (body, intent);
     }
 
     function testTransferRemoteWithFeeRecipient() public {

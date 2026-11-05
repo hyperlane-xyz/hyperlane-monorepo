@@ -209,12 +209,11 @@ export class SimulationEngine {
 
         // Transfer remote
         const recipientBytes32 = ethers.utils.hexZeroPad(transfer.user, 32);
-        const transferTx = await warpToken.transferRemote(
-          destDomain.domainId,
-          recipientBytes32,
-          transfer.amount,
-          { value: gasPayment },
-        );
+        const transferTx = await warpToken[
+          'transferRemote(uint32,bytes32,uint256)'
+        ](destDomain.domainId, recipientBytes32, transfer.amount, {
+          value: gasPayment,
+        });
         await transferTx.wait();
 
         const totalTxTime = Date.now() - txStartTime;

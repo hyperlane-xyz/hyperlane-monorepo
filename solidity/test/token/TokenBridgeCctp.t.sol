@@ -82,6 +82,21 @@ contract TokenBridgeCctpV1Test is Test {
         return urls;
     }
 
+    function test_quoteTransferRemote_rejectsCustomMetadata() public {
+        vm.expectRevert(TokenRouter.MetadataNotSupported.selector);
+        tbOrigin.quoteTransferRemote(
+            destination,
+            bytes32(uint256(1)),
+            1,
+            hex"1234"
+        );
+    }
+
+    function test_transferRemote_rejectsCustomMetadata() public {
+        vm.expectRevert(TokenRouter.MetadataNotSupported.selector);
+        tbOrigin.transferRemote(destination, bytes32(uint256(1)), 1, hex"1234");
+    }
+
     function setUp() public virtual {
         proxyAdmin = makeAddr("proxyAdmin");
 

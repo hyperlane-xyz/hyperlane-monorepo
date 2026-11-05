@@ -374,6 +374,26 @@ contract HypERC721CollateralURIStorageTest is HypTokenTest {
 
     HypERC721URICollateral internal hyp721URICollateral;
 
+    function test_quoteTransferRemote_rejectsCustomMetadata() public {
+        vm.expectRevert(TokenRouter.MetadataNotSupported.selector);
+        localToken.quoteTransferRemote(
+            DESTINATION,
+            bytes32(uint256(1)),
+            1,
+            hex"1234"
+        );
+    }
+
+    function test_transferRemote_rejectsCustomMetadata() public {
+        vm.expectRevert(TokenRouter.MetadataNotSupported.selector);
+        localToken.transferRemote(
+            DESTINATION,
+            bytes32(uint256(1)),
+            1,
+            hex"1234"
+        );
+    }
+
     function setUp() public override {
         super.setUp();
 

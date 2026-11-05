@@ -414,6 +414,11 @@ contract CrossCollateralRouter is
 
     // ============ Cross-chain Transfer to Specific Router ============
 
+    /// @dev Cross-collateral transfers do not support caller metadata.
+    function _validateMetadata(bytes memory _metadata) internal pure override {
+        if (_metadata.length != 0) revert MetadataNotSupported();
+    }
+
     /**
      * @notice Transfers tokens to the primary enrolled router for `_destination`.
      * @dev Uses the enrolled primary remote router for `_destination` and routes through
@@ -422,11 +427,12 @@ contract CrossCollateralRouter is
      * is non-virtual and hardcodes `ITokenFee`. Delegating through
      * `transferRemoteTo` keeps both transfer paths on `ICrossCollateralFee`.
      */
-    function transferRemote(
+    function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount
-    ) public payable override returns (bytes32 messageId) {
+        uint256 _amount,
+        bytes memory
+    ) internal override returns (bytes32 messageId) {
         bytes32 targetRouter = _mustHaveRemoteRouter(_destination);
         return
             transferRemoteTo(_destination, _recipient, _amount, targetRouter);
@@ -494,11 +500,12 @@ contract CrossCollateralRouter is
     // Differences: (1) router-aware fee lookup, (2) same-domain returns 0 gas
     // since handle() is called directly without mailbox dispatch.
 
-    function quoteTransferRemote(
+    function _quoteTransferRemote(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount
-    ) public view override returns (Quote[] memory quotes) {
+        uint256 _amount,
+        bytes memory
+    ) internal view override returns (Quote[] memory quotes) {
         bytes32 targetRouter = _mustHaveRemoteRouter(_destination);
         return
             quoteTransferRemoteTo(
