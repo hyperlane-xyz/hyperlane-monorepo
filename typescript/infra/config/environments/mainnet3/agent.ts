@@ -907,6 +907,7 @@ const hyperlane: RootAgentConfig = {
   },
   scraper: {
     scraperOnlyChains,
+    websocketConfigSecret: 'hyperlane-mainnet3-scraper3-websocket-config',
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     docker: {

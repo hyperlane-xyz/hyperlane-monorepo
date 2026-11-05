@@ -233,6 +233,7 @@ const hyperlane: RootAgentConfig = {
     resources: validatorResources,
   },
   scraper: {
+    websocketConfigSecret: 'hyperlane-testnet4-scraper3-websocket-config',
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     docker: {
