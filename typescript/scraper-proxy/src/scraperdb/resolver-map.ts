@@ -1,10 +1,12 @@
 import {
   Kind,
+  GraphQLError,
   type GraphQLResolveInfo,
   type SelectionNode,
   type FieldNode,
 } from 'graphql';
 
+import type { DiagnosticsService } from '../diagnostics/service.js';
 import { scalarResolvers } from './scalars.js';
 import {
   type MessageSelectArgs,
@@ -13,7 +15,17 @@ import {
 import type { CountArgs, SelectArgs } from './sql.js';
 import type { TableName } from './tables.js';
 
-export function buildResolvers(db: ScraperDbService) {
+export function buildResolvers(
+  db: ScraperDbService,
+  diagnostics?: DiagnosticsService,
+) {
+  const getDiagnostics = () => {
+    if (!diagnostics)
+      throw new GraphQLError('Diagnostics are not configured', {
+        extensions: { code: 'DIAGNOSTICS_UNAVAILABLE' },
+      });
+    return diagnostics;
+  };
   const select =
     (table: TableName) =>
     (
@@ -48,6 +60,15 @@ export function buildResolvers(db: ScraperDbService) {
       ) => db.count(table, args, count),
     },
     query_root: {
+      message_activity: (
+        _parent: unknown,
+        args: { message_id: string; before_id?: string; limit?: number },
+      ) =>
+        getDiagnostics().history(args.message_id, args.before_id, args.limit),
+      message_diagnostics: async (
+        _parent: unknown,
+        args: { message_id: string },
+      ) => (await getDiagnostics().snapshots([args.message_id]))[0],
       domain: select('domain'),
       domain_by_pk: byPk('domain'),
       message_view: (

@@ -316,6 +316,36 @@ export function parseExplorerConfirmations(
   return { confirmations, domains };
 }
 
+export function parseMessageId(value: string): string {
+  if (!/^(?:0x|\\x)?[\da-fA-F]{64}$/.test(value))
+    throw new Error('Expected a 32-byte message ID');
+  return normalizeAddress(value);
+}
+
+/** Absent = global feed; empty = block/rollback updates only. */
+export function parseExplorerMessageIds(
+  params: URLSearchParams,
+): Set<string> | undefined {
+  const value = params.get('messageIds');
+  if (value === null) return undefined;
+  if (value === '') return new Set();
+  const ids = value.split(',');
+  if (ids.length > 50)
+    throw new Error('messageIds must contain at most 50 valid message IDs');
+  return new Set(ids.map(parseMessageId));
+}
+
+export function parseExplorerDiagnostics(
+  params: URLSearchParams,
+  ids?: Set<string>,
+): boolean {
+  const flag = params.get('diagnostics');
+  if (flag === null || flag === 'false') return false;
+  if (flag !== 'true' || !ids?.size)
+    throw new Error('Expected diagnostics=true with explicit messageIds');
+  return true;
+}
+
 export function parseExplorerBlocks(params: URLSearchParams): boolean {
   const value = params.get('blocks');
   if (value === null || value === 'false') return false;

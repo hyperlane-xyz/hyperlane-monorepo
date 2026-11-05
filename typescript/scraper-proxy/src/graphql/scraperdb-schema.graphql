@@ -197,3 +197,118 @@ enum cursor_ordering {
   "descending ordering of the cursor"
   DESC
 }
+
+# Optional relayer observations, separate from authoritative scraper delivery state.
+scalar DiagnosticsJSON
+
+extend type query_root {
+  message_activity(message_id: String!, before_id: String, limit: Int! = 100): MessageActivityPage!
+  message_diagnostics(message_id: String!): MessageDiagnostics!
+}
+
+type MessageActivity {
+  id: String!
+  message_id: String!
+  relayer: String!
+  origin: bigint!
+  destination: bigint!
+  observed_at: String!
+  received_at: String!
+  version: Int!
+  activity: DiagnosticsJSON!
+}
+
+type MessageActivityPage {
+  message_id: String!
+  activities: [MessageActivity!]!
+  has_more: Boolean!
+  next_before_id: String
+}
+
+type MessageDiagnostics {
+  version: Int!
+  message_id: String!
+  partial: Boolean!
+  activities: [MessageActivity!]!
+  relayers: [RelayerProgress!]!
+}
+
+"Last observed relayer phase; delivered is not authoritative scraper delivery."
+enum RelayerPhase {
+  unknown
+  preparing
+  ready_to_submit
+  awaiting_signatures
+  retrying
+  submitting
+  confirming
+  delivered
+  dropped
+}
+
+enum VerificationOutcome {
+  unknown
+  started
+  succeeded
+  failed
+  no_estimate
+  unavailable
+}
+
+type RelayerProgress {
+  relayer: String!
+  phase: RelayerPhase!
+  observed_at: String!
+  failure: RelayFailure
+  retry: RelayRetry
+  modules: [IsmProgress!]!
+}
+
+type RelayFailure {
+  stage: String!
+  reason: String!
+}
+
+type RelayRetry {
+  "Stable reason code, e.g. AwaitingValidatorSignatures or ApplicationReport.ZeroAmount."
+  reason: String!
+  count: bigint!
+  next_attempt_at_millis: Float
+}
+
+type IsmProgress {
+  ism: String!
+  observed_at: String!
+  module_type: String
+  validators: [String!]
+  threshold: Int
+  modules: [String!]
+  routed_module: String
+  verified: Int
+  verification: VerificationOutcome
+  metadata_error: String
+  signatures: SignatureProgress
+  offchain_read: OffchainReadProgress
+}
+
+type SignatureProgress {
+  collection_id: String!
+  index: bigint
+  root: String
+  collected: Int
+  "Signatures required for this ISM, not the total number of validators."
+  threshold: Int!
+  unavailable: [UnavailableSignature!]!
+}
+
+type UnavailableSignature {
+  validator: String!
+  reason: String!
+}
+
+type OffchainReadProgress {
+  state: String!
+  attempt: bigint!
+  endpoint: Int
+  http_status: Int
+}

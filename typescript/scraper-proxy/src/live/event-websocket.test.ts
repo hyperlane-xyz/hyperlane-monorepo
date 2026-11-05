@@ -7,6 +7,7 @@ import {
   parseEventNotification,
   parseExplorerNotification,
   parseExplorerBlocks,
+  parseExplorerMessageIds,
   parseHeadNotification,
 } from './protocol.js';
 
@@ -490,4 +491,27 @@ void describe('event websocket protocol', () => {
     );
     assert.throws(() => parseExplorerNotification('{"messageId":"ab"}'));
   });
+});
+
+void it('validates optional shared message-ID filters', () => {
+  const id = 'ab'.repeat(32);
+  assert.equal(parseExplorerMessageIds(new URLSearchParams()), undefined);
+  assert.deepEqual(
+    parseExplorerMessageIds(new URLSearchParams('messageIds=')),
+    new Set(),
+  );
+  assert.deepEqual(
+    parseExplorerMessageIds(
+      new URLSearchParams(`messageIds=0x${id},${id.toUpperCase()}`),
+    ),
+    new Set([`\\x${id}`]),
+  );
+  assert.throws(() =>
+    parseExplorerMessageIds(new URLSearchParams('messageIds=bad')),
+  );
+  assert.throws(() =>
+    parseExplorerMessageIds(
+      new URLSearchParams(`messageIds=${Array(51).fill(id).join(',')}`),
+    ),
+  );
 });

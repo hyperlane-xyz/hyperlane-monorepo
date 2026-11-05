@@ -920,6 +920,7 @@ const hyperlane: RootAgentConfig = {
     resources: scraperResources,
   },
   scraperProxy: {
+    diagnosticsDatabaseSecret: 'hyperlane-mainnet-relayer-postgres-reader-url',
     docker: {
       repo: DockerImageRepos.NODE_SERVICES,
       tag: mainnetDockerTags.scraperProxy,
