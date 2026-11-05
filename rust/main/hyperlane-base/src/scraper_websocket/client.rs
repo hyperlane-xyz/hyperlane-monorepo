@@ -291,7 +291,9 @@ impl ScraperWebSocket {
                         ServerMessage::CaughtUp { .. } => {
                             self.state.require_subscribed("caught-up marker")?
                         }
-                        ServerMessage::Rollback => self.state.require_subscribed("rollback")?,
+                        ServerMessage::Rollback { .. } => {
+                            self.state.require_subscribed("rollback")?
+                        }
                         ServerMessage::Error { .. } | ServerMessage::Other => {}
                     }
                     return Ok(Some(message));

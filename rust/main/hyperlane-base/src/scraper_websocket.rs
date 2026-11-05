@@ -160,7 +160,15 @@ pub enum ServerMessage<T> {
         sequence: Option<String>,
     },
     /// Provisional history was rolled back; consumers must recover before resuming.
-    Rollback,
+    #[serde(rename_all = "camelCase")]
+    Rollback {
+        /// Origin whose provisional history changed.
+        domain: u32,
+        /// Stream affected by the rollback.
+        event_type: String,
+        /// Last retained block; rows above it require recovery.
+        to_height: StringOrNumber,
+    },
     /// One event from a requested stream.
     Event(EventMessage<T>),
     /// The server rejected the request or stream.
@@ -207,6 +215,8 @@ pub struct SubscribedCursor {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventMessage<T> {
+    /// Provisional block identity, carried outside the stable event payload.
+    pub block_hash: Option<String>,
     /// Event-specific payload.
     pub data: T,
     /// Hyperlane domain identifier.
@@ -260,6 +270,8 @@ impl StringOrNumber {
 pub struct MerkleEventData {
     /// Origin block containing the insertion.
     pub block_number: StringOrNumber,
+    /// Block identity for validating provisional insertions after reconnects.
+    pub block_hash: Option<String>,
     /// Hyperlane origin domain.
     pub domain: u32,
     /// Merkle leaf index, also the stream sequence.
@@ -375,7 +387,7 @@ mod tests {
             serde_json::from_str::<ServerMessage<serde_json::Value>>(
                 r#"{"type":"rollback","domain":1,"eventType":"merkle_tree_insertion","toHeight":"12"}"#
             ).expect("test protocol"),
-            ServerMessage::Rollback
+            ServerMessage::Rollback { domain: 1, .. }
         ));
     }
 

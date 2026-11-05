@@ -2093,6 +2093,58 @@ async fn standalone_cleanup_forces_restart_recovery_of_replacement() {
 }
 
 #[tokio::test]
+async fn missed_broadcast_reopens_consumed_ranges_without_restarting() {
+    use hyperlane_base::broadcast::BroadcastMpscSender;
+
+    test_utils::run_test_db(|db| async move {
+        let origin = dummy_domain(0, "dummy_origin_domain");
+        let destination = dummy_domain(1, "dummy_destination_domain");
+        let db = HyperlaneRocksDB::new(&origin, db);
+        let broadcaster = BroadcastMpscSender::new(1);
+        let (mut loader, mut receiver) = dummy_message_loader_with_notifications(
+            &origin,
+            &destination,
+            &db,
+            OptionalCache::new(None),
+            Some(broadcaster.get_receiver().await),
+        );
+        loader.set_notification_overflow(Some(broadcaster.missed_notifications()));
+        finish_legacy_migration(&mut loader).await;
+        let high = dummy_hyperlane_message(&destination, 5);
+        add_db_entry(&db, &high, 0);
+        loader.tick().await.unwrap();
+        let high_operation = only_operation(receiver.try_recv().unwrap());
+        loader.destination_iterators[0].low_nonce = None;
+        // Queue a notification which cannot reopen the consumed low range.
+        let high_notification = IndexingNotification {
+            tx_id: H512::from_low_u64_be(1),
+            sequences: vec![Some(5)],
+        };
+        assert!(broadcaster.try_send(high_notification));
+        let late = dummy_hyperlane_message(&destination, 1);
+        add_db_entry(&db, &late, 0);
+        assert!(!broadcaster.try_send(IndexingNotification {
+            tx_id: H512::from_low_u64_be(2),
+            sequences: vec![Some(1)]
+        }));
+        let late_operation = timeout(Duration::from_secs(2), async {
+            loop {
+                loader.tick().await.unwrap();
+                if let Ok(batch) = receiver.try_recv() {
+                    break only_operation(batch);
+                }
+            }
+        })
+        .await
+        .expect("overflow must reopen the historical range");
+        assert_eq!(late_operation.id(), late.id());
+        assert!(receiver.try_recv().is_err());
+        drop(high_operation);
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn runtime_denylist_skips_message_and_reloads_it_after_rule_removed() {
     test_utils::run_test_db(|raw_db| async move {
         let origin = dummy_domain(0, "origin");

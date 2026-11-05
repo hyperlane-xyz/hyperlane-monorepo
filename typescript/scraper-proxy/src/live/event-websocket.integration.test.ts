@@ -771,6 +771,19 @@ for (const eventType of [
             return queryRows<T>([
               { height: '10', source: 0, id: '1', msg_id: messageId },
             ]);
+          if (eventType === 'merkle_tree_insertion')
+            return queryRows<T>([
+              {
+                domain: 1,
+                merkle_tree_hook: hookA,
+                leaf_index: 0,
+                message_id: messageId,
+                block_number: '10',
+                block_hash: `\\x${'08'.repeat(32)}`,
+                frontier_id: '1',
+                frontier_height: '10',
+              },
+            ]);
           const projected: Record<string, unknown> = {
             ...data,
             frontier_id: '1',
@@ -839,6 +852,10 @@ for (const eventType of [
       assert.equal(frame.height, '10');
       assert.equal(frame.confirmations, 2);
       assert.equal(record(frame.data).frontier_height, undefined);
+      if (eventType === 'merkle_tree_insertion') {
+        assert.equal(frame.blockHash, `\\x${'08'.repeat(32)}`);
+        assert.equal(record(frame.data).block_hash, undefined);
+      }
       await waitUntil(() => completions.length === 1);
       advance('11', '9', '10');
       const rollback = await waitFor(messages, 'rollback');
@@ -849,7 +866,10 @@ for (const eventType of [
       completions.shift()?.();
       await waitUntil(() =>
         messages.some(
-          (m) => m.data && record(m.data).msg_id === `\\x${'02'.repeat(32)}`,
+          (m) =>
+            m.data &&
+            (record(m.data).msg_id ?? record(m.data).message_id) ===
+              `\\x${'02'.repeat(32)}`,
         ),
       );
       assert.equal(socket.readyState, WebSocket.OPEN);

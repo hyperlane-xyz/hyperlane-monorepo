@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 process.env.DATABASE_URL ??= 'postgres://localhost/scraper_sql_test';
-const { gasPaymentColumns, gasPaymentMetadataJoins } =
+const { EventStore, STREAMS, gasPaymentColumns, gasPaymentMetadataJoins } =
   await import('./event-store.js');
 
 void describe('gas payment SQL helpers', () => {
@@ -28,4 +28,26 @@ void describe('gas payment SQL helpers', () => {
         ' LEFT JOIN "block" AS "event_block" ON "event_block"."id" = "event_transaction"."block_id"',
     );
   });
+});
+
+void it('includes block identity only in the provisional Merkle projection', async () => {
+  const queries: string[] = [];
+  const store = new EventStore({
+    async queryLive(query) {
+      queries.push(query);
+      return [];
+    },
+  });
+  for await (const row of store.confirmationEventRows(
+    'merkle_tree_insertion',
+    1,
+    [0n, 0, 0n],
+    100n,
+    1,
+  )) {
+    assert.fail(`Unexpected row: ${JSON.stringify(row)}`);
+  }
+  assert.equal(queries.length, 1);
+  assert.match(queries[0], /SELECT .*event_row\.block_hash, event_row\.id/);
+  assert.ok(!STREAMS.merkle_tree_insertion.columns.includes('block_hash'));
 });
