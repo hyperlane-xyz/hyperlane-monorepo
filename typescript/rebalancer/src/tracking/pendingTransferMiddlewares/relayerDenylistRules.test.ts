@@ -692,7 +692,7 @@ describe('relayerDenylistRules', () => {
         denied: false,
       },
       {
-        name: 'bodyRegex is ANDed with the other fields',
+        name: 'bodyRegex must match together with the other fields',
         rule: { match: { originDomain: 1, bodyRegex: 'ab' } },
         message: buildMessage({ msg_id: MESSAGE_ID, message_body: '0xab' }),
         denied: false,
