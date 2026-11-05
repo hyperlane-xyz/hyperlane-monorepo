@@ -14,7 +14,7 @@ use hyperlane_base::{ChainMetrics, ContractSyncMetrics};
 use hyperlane_core::{HyperlaneDomain, ReorgPeriod};
 use tokio::{
     sync::{mpsc, watch, Mutex, Notify},
-    time::{interval, sleep, sleep_until, Instant, Interval, MissedTickBehavior},
+    time::{interval, sleep, sleep_until, Instant, MissedTickBehavior},
 };
 use tracing::{debug, warn};
 
@@ -69,11 +69,9 @@ impl FailureStreak {
     }
 }
 
-/// Header hints refresh confirmation eligibility without fetching event ranges.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum Wakeup {
+enum Wakeup {
     Index,
-    Head(Vec<Header>),
+    Head,
 }
 
 /// A completed cycle: whether to run again at once, and whether ingestion failed
@@ -90,36 +88,30 @@ const RECENT_HEADERS: usize = 256;
 // At 250ms/block this allows 16s of HTTP/WS skew without trusting an unbounded lead.
 const MAX_HEADER_LEAD: u64 = 64;
 
-fn remember_headers(recent: &mut VecDeque<Header>, headers: &[Header]) {
-    for header in headers {
-        if recent.back() == Some(header) {
-            continue;
-        }
-        if recent.back().is_some_and(|tip| {
-            tip.height.checked_add(1) != Some(header.height) || header.parent != tip.hash
-        }) {
-            recent.clear();
-        }
-        recent.push_back(header.clone());
-        if recent.len() > RECENT_HEADERS {
-            recent.pop_front();
-        }
+fn remember_header(recent: &mut VecDeque<Header>, header: Header) {
+    if recent.back() == Some(&header) {
+        return;
+    }
+    if recent.back().is_some_and(|tip| {
+        tip.height.checked_add(1) != Some(header.height) || header.parent != tip.hash
+    }) {
+        recent.clear();
+    }
+    recent.push_back(header);
+    if recent.len() > RECENT_HEADERS {
+        recent.pop_front();
     }
 }
 
-fn linked_tip(recent: &VecDeque<Header>, state: &State) -> Option<Header> {
+fn linked_tip<'a>(recent: &'a VecDeque<Header>, state: &State) -> Option<&'a Header> {
     let anchored = recent.iter().any(|header| {
         (header.height == state.indexed && header.hash == state.hash)
             || (state.indexed.checked_add(1) == Some(header.height) && header.parent == state.hash)
     });
-    anchored
-        .then(|| {
-            recent
-                .back()
-                .filter(|tip| tip.height > state.indexed)
-                .cloned()
-        })
-        .flatten()
+    if !anchored {
+        return None;
+    }
+    recent.back().filter(|tip| tip.height > state.indexed)
 }
 
 impl Worker {
@@ -139,46 +131,26 @@ impl Worker {
         let mut count_cache = CountCache::default();
         let mut failures = FailureStreak::default();
         let mut polling = interval(self.poll_interval);
-        // The first cycle below already runs immediately.
-        polling.reset();
-        // Event wake-ups and fetch duration must not reset the polling cadence.
-        // A slow cycle needs one catch-up poll, not a burst of missed ticks.
+        polling.reset(); // The first cycle runs immediately.
         polling.set_missed_tick_behavior(MissedTickBehavior::Skip);
         let mut heads = self.heads.lock().await;
-        let mut tip = None;
         let mut recent = VecDeque::with_capacity(RECENT_HEADERS);
         let mut wakeup = Wakeup::Index;
         let mut next_index = Instant::now();
         let mut next_head = Instant::now();
         loop {
-            let result = match &wakeup {
+            let result = match wakeup {
                 Wakeup::Index => {
                     next_index = Instant::now()
                         .checked_add(MIN_WAKE_INTERVAL)
-                        .expect("One-second wake deadline fits monotonic clock");
-                    let result = async {
-                        let outcome = self.cycle(&mut count_cache).await?;
-                        let state =
-                            self.store.state().await?.ok_or_else(|| {
-                                eyre::eyre!("Missing initialized near-head state")
-                            })?;
-                        Ok::<_, eyre::Report>((outcome, state))
-                    }
-                    .await;
-                    // Re-anchor retained WS ancestry to the actual HTTP-indexed hash,
-                    // including after a rewind. Never retain a tip solely by height.
-                    tip = None;
-                    result.map(|(outcome, state)| {
-                        tip = linked_tip(&recent, &state);
-                        outcome
-                    })
+                        .expect("Wake deadline");
+                    self.cycle(&mut count_cache).await
                 }
-                Wakeup::Head(headers) => {
-                    remember_headers(&mut recent, headers);
-                    let result = self.header_cycle(headers, &mut tip, &count_cache).await;
+                Wakeup::Head => {
+                    let result = self.header_cycle(&recent, &count_cache).await;
                     next_head = Instant::now()
                         .checked_add(MIN_HEAD_INTERVAL)
-                        .expect("Header deadline fits monotonic clock");
+                        .expect("Head deadline");
                     result
                 }
             };
@@ -189,34 +161,37 @@ impl Worker {
             self.chain_metrics
                 .set_critical_error(self.domain.name(), critical);
             match result {
-                Ok(CycleOutcome { more: true, .. }) => {
-                    if let Wakeup::Head(batch) = &mut wakeup {
-                        // Ancestry was checked once; drain publication pages at its tip.
-                        batch.drain(..batch.len().saturating_sub(1));
-                    }
-                    continue;
-                }
-                Ok(CycleOutcome { more: false, .. }) => {}
+                Ok(CycleOutcome { more: true, .. }) => continue,
+                Ok(_) => {}
                 Err(error) => warn!(
                     domain = self.store.domain,
                     ?error,
                     "Near-head indexing paused; retrying"
                 ),
             }
-            let retry_delay = failed
-                .then(|| failures.retry_delay(self.poll_interval, self.critical_failure_grace));
-            // A WS log may arrive before the HTTP provider exposes its block.
-            let catching_up = self.wanted.load(Ordering::Relaxed) != 0;
-            wakeup = wait_for_work(
-                &self.wakeup,
-                &mut heads,
-                &mut polling,
-                retry_delay,
-                next_index,
-                next_head,
-                catching_up,
-            )
-            .await;
+            if failed {
+                // Neither subscription may bypass RPC-error backoff.
+                sleep(failures.retry_delay(self.poll_interval, self.critical_failure_grace)).await;
+                wakeup = Wakeup::Index;
+                continue;
+            }
+            wakeup = tokio::select! {
+                biased;
+                _ = polling.tick() => Wakeup::Index,
+                _ = async {
+                    sleep_until(next_index).await;
+                    if self.wanted.load(Ordering::Relaxed) == 0 {
+                        self.wakeup.notified().await;
+                    } else {
+                        let _ = self.wakeup.notified().now_or_never();
+                    }
+                } => Wakeup::Index,
+                Some(header) = async { sleep_until(next_head).await; heads.recv().await } => {
+                    remember_header(&mut recent, header);
+                    while let Ok(header) = heads.try_recv() { remember_header(&mut recent, header); }
+                    Wakeup::Head
+                }
+            };
         }
     }
 
@@ -395,12 +370,13 @@ impl Worker {
             publishable,
         )
         .await?;
-        self.record_progress(confirmation.counts).await?;
         let state = self
             .store
             .state()
             .await?
             .ok_or_else(|| eyre::eyre!("Missing head state"))?;
+
+        self.record_progress(&state, confirmation.counts)?;
 
         // Keep draining confirmed pages while logs fail; the failure was logged
         // above and stays visible through the critical-error metric.
@@ -442,11 +418,10 @@ impl Worker {
             ingestion_failed: false,
         })
     }
-    /// Advance only along streamed ancestry rooted at the indexed hash. No RPCs.
+    /// Recent headers must descend from the current indexed hash, including after polls/rewinds.
     async fn header_cycle(
         &self,
-        headers: &[Header],
-        tip: &mut Option<Header>,
+        recent: &VecDeque<Header>,
         cache: &CountCache,
     ) -> eyre::Result<CycleOutcome> {
         let idle = CycleOutcome {
@@ -458,56 +433,18 @@ impl Worker {
             .state()
             .await?
             .ok_or_else(|| eyre::eyre!("Missing head state"))?;
-        if state.halted {
-            return Ok(idle);
-        }
-        let http_limit = self.polled_head.borrow().saturating_add(MAX_HEADER_LEAD);
-        if headers
-            .last()
-            .is_some_and(|header| header.height > http_limit)
-        {
-            debug!(
-                domain = self.store.domain,
-                http_limit, "Streamed head exceeds HTTP lead limit; waiting for polling"
-            );
-            return Ok(idle);
-        }
-        let mut latest = tip.clone();
-        for header in headers
-            .iter()
-            .filter(|header| header.height > state.indexed)
-        {
-            let (height, hash) = latest
-                .as_ref()
-                .map_or((state.indexed, state.hash), |tip| (tip.height, tip.hash));
-            if latest.as_ref() != Some(header)
-                && (height.checked_add(1) != Some(header.height) || header.parent != hash)
-            {
-                // Validate every parent before coalescing; never bridge gaps/forks.
-                *tip = None;
-                debug!(
-                    domain = self.store.domain,
-                    height = header.height,
-                    "Header ancestry unavailable; waiting for polling"
-                );
-                return Ok(idle);
-            }
-            latest = Some(header.clone());
-        }
-        let Some(header) = latest else {
+        let Some(header) = linked_tip(recent, &state) else {
             return Ok(idle);
         };
-        if header.height <= state.indexed {
+        if state.halted || header.height > self.polled_head.borrow().saturating_add(MAX_HEADER_LEAD)
+        {
             return Ok(idle);
         }
         let lease = confirmation_lease(self.poll_interval);
-        if tip.as_ref() != Some(&header) || state.head < header.height {
-            self.store
-                .advance_head(&state, header.height, lease)
-                .await?;
-        }
+        self.store
+            .advance_head(&state, header.height, lease)
+            .await?;
         state.head = state.head.max(header.height);
-        *tip = Some(header.clone());
         let through = match &self.period {
             ReorgPeriod::Blocks(depth) => header.height.saturating_sub(u64::from(depth.get())),
             ReorgPeriod::Tag(tag) if tag == "latest" => header.height,
@@ -533,14 +470,15 @@ impl Worker {
             return Ok(idle);
         };
         let counts = self.store.confirm(&state, &boundary, lease).await?;
-        self.record_progress(counts).await?;
+        state.confirmed = boundary.height;
+        self.record_progress(&state, counts)?;
         Ok(CycleOutcome {
             more: bounded < through,
             ingestion_failed: false,
         })
     }
 
-    async fn record_progress(&self, counts: [u64; 4]) -> eyre::Result<()> {
+    fn record_progress(&self, state: &State, counts: [u64; 4]) -> eyre::Result<()> {
         for (label, count) in [
             "raw_message_dispatch",
             "message_delivery",
@@ -556,11 +494,6 @@ impl Worker {
                 .inc_by(count);
         }
 
-        let state = self
-            .store
-            .state()
-            .await?
-            .ok_or_else(|| eyre::eyre!("Missing head state"))?;
         // Clear only hints whose blocks are durably indexed; preserve newer logs.
         let _ = self
             .wanted
@@ -584,46 +517,6 @@ impl Worker {
         }
 
         Ok(())
-    }
-}
-
-// Only interrupt healthy idle waits: incoming logs must not bypass RPC-error backoff.
-async fn wait_for_work(
-    wakeup: &Notify,
-    heads: &mut mpsc::Receiver<Header>,
-    polling: &mut Interval,
-    retry_delay: Option<Duration>,
-    next_index: Instant,
-    next_head: Instant,
-    catching_up: bool,
-) -> Wakeup {
-    if let Some(delay) = retry_delay {
-        sleep(delay).await;
-        Wakeup::Index
-    } else {
-        tokio::select! {
-            // Header traffic must not starve scheduled or event-triggered indexing.
-            biased;
-            _ = polling.tick() => Wakeup::Index,
-            _ = async {
-                sleep_until(next_index).await;
-                if catching_up {
-                    let _ = wakeup.notified().now_or_never();
-                } else {
-                    wakeup.notified().await;
-                }
-            } => Wakeup::Index,
-            Some(header) = async {
-                sleep_until(next_head).await;
-                heads.recv().await
-            } => {
-                let mut batch = vec![header];
-                while let Ok(header) = heads.try_recv() {
-                    batch.push(header);
-                }
-                Wakeup::Head(batch)
-            },
-        }
     }
 }
 

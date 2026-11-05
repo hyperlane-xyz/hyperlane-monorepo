@@ -727,6 +727,7 @@ for (const eventType of [
   void it(`streams custom ${eventType} with confirmations, rollback, and replacements`, async (context) => {
     const completions = delayServerSendCompletions(context);
     let replacement = false;
+    const targets: bigint[] = [];
     context.mock.method(
       db,
       'queryLive',
@@ -765,6 +766,7 @@ for (const eventType of [
           const after = BigInt(String(values[1]));
           const id = BigInt(String(values[explorer ? 3 : 2]));
           const through = BigInt(String(values[explorer ? 4 : 3]));
+          targets.push(through);
           if (through < 10n || after > 10n || (after === 10n && id >= 1n))
             return [];
           if (explorer)
@@ -832,10 +834,13 @@ for (const eventType of [
       await new Promise<void>((resolve) => setImmediate(resolve));
       assert.equal(completions.length, 0, 'height 10 needs head 12');
       advance('12', '10', '10');
+      advance('13', '10', '10');
+      assert.deepEqual(targets, []); // Forward heads wait for the shared batch.
       const frame = await waitFor(
         messages,
         eventType === 'messages' ? 'message_upsert' : 'event',
       );
+      assert.deepEqual(targets, [10n]);
       assert.equal(frame.height, '10');
       assert.equal(frame.confirmations, 2);
       assert.equal(record(frame.data).frontier_height, undefined);
@@ -3880,67 +3885,3 @@ function captureMessages(socket: WebSocket): Record<string, unknown>[] {
   socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
   return messages;
 }
-
-void it('coalesces forward heads for custom streams and never delays rollbacks', async (context) => {
-  const targets: string[] = [];
-  context.mock.method(
-    db,
-    'queryLive',
-    async <T extends QueryResultRow>(
-      sql: string,
-      values: unknown[] = [],
-    ): Promise<T[]> => {
-      if (sql.includes('SELECT domain, head_height'))
-        return queryRows<T>([
-          {
-            domain: 1,
-            head_height: '9',
-            indexed_height: '9',
-            confirmed_height: '5',
-          },
-        ]);
-      if (sql.includes('confirmation_events')) {
-        targets.push(String(values[3]));
-        return [];
-      }
-      throw new Error(`Unexpected head batching query: ${sql}`);
-    },
-  );
-  const socket = new WebSocket(url);
-  const messages = captureMessages(socket);
-  const advance = (height: number, previous: number) =>
-    notify(
-      'scraper_head',
-      JSON.stringify({
-        domain: 1,
-        headHeight: String(height),
-        indexedHeight: String(height),
-        previousIndexedHeight: String(previous),
-        confirmedHeight: '5',
-        previousConfirmedHeight: '5',
-      }),
-    );
-  try {
-    await waitFor(messages, 'ready');
-    socket.send(
-      JSON.stringify({
-        type: 'subscribe',
-        streams: [{ eventType: 'dispatch', confirmations: 0, domains: [1] }],
-      }),
-    );
-    await waitFor(messages, 'subscribed');
-    for (let height = 10; height <= 20; height++) advance(height, height - 1);
-    assert.deepEqual(targets, []);
-    await waitUntil(() => targets.length > 0);
-    assert.deepEqual(targets, ['20']);
-    advance(21, 20); // Queued forward head must not survive a rollback.
-    advance(8, 21);
-    await waitFor(messages, 'rollback');
-    advance(10, 8);
-    await waitUntil(() => targets.length === 2);
-    assert.deepEqual(targets, ['20', '10']);
-  } finally {
-    socket.close();
-    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
-  }
-});

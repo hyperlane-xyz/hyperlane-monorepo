@@ -125,7 +125,6 @@ pub async fn spawn(
     ensure!(conf.index.chunk_size > 0, "index.chunk must be positive");
     let chunk_size = u64::from(conf.index.chunk_size);
     let poll_interval = conf.index.idle_sleep_duration;
-    let receipt_poll_interval = conf.index.idle_sleep_duration;
     prepare(
         source.as_ref(),
         &store,
@@ -163,7 +162,7 @@ pub async fn spawn(
                 polled_head_rx,
                 worker.domain.id(),
             ),
-            enrichment::run(&enrichment_store, receipt_poll_interval, &receipt_age)
+            enrichment::run(&enrichment_store, poll_interval, &receipt_age)
         );
     }))
 }

@@ -42,69 +42,24 @@ boundary from stored maxima. Contract changes are rejected.
 
 ## Optional EVM WebSocket wake-ups
 
-Production uses one GCP Secret Manager secret per scraper deployment. Mainnet3:
+Configure `websocketUrls` as a JSON map of EVM chain names to `ws://` or `wss://`
+endpoints; keys must be in `chainsToScrape`. Set `websocketConfigSecret` to load
+that JSON from GCP Secret Manager through External Secrets and `CONFIG_FILES`.
+Create the secret before deployment, use a scraper image supporting this setting,
+and restart the scraper after secret updates sync. URLs stay out of Helm values.
 
-- Project: `abacus-labs-dev`
-- Secret: `hyperlane-mainnet3-scraper3-websocket-config`
-- Value: the complete JSON below (only include EVM chains in `chainsToScrape`).
+Each connection subscribes to filtered contract logs and block headers. Logs wake
+HTTP indexing at most once per second; lagging HTTP providers retry until the log
+height is indexed. Linked headers confirm proven, indexed events without RPCs.
+A single 256-header buffer checks ancestry against the current indexed hash;
+headers are limited to 64 blocks above the last HTTP observation. Head writes
+coalesce at 200ms; proxy forward updates coalesce at 100ms, with immediate rollbacks.
+Safe/finalized tags still require polling. Both subscriptions reconnect together
+on disconnect, setup timeout, or 30s without header progress while HTTP advances.
 
-```json
-{
-  "websocketUrls": {
-    "base": "wss://base-mainnet.g.alchemy.com/v2/YOUR_KEY",
-    "arbitrum": "wss://arb-mainnet.g.alchemy.com/v2/YOUR_KEY"
-  }
-}
-```
-
-`websocketConfigSecret` in the infrastructure scraper config references that secret.
-External Secrets copies it into a Kubernetes Secret; the scraper mounts it read-only
-at `/scraper-websocket/websocket-config.json` and loads it through `CONFIG_FILES`.
-The scraper never queries Secret Manager. The map keys select the subscriptions;
-there is no separate enabled-chain list. URLs never enter Helm values or ConfigMaps.
-
-Create the secret before deploying this configuration: a missing configured secret
-prevents the pod from starting. Use `{"websocketUrls": {}}` for polling only, or omit
-`websocketConfigSecret` to deploy without a WebSocket secret. External Secrets refreshes
-hourly; restart the scraper after a secret update has synced because configuration
-is read only at startup. Existing chain confirmation settings still apply.
-
-For local use, load the same JSON via `CONFIG_FILES`, or set an individual URL with
-`HYP_WEBSOCKETURLS_BASE=wss://base-mainnet.g.alchemy.com/v2/YOUR_KEY`.
-
-Each configured EVM chain uses one `logs` subscription for `Dispatch`, `ProcessId`,
-`InsertedIntoTree`, and `GasPayment` at its configured Mailbox, MerkleTreeHook, and
-InterchainGasPaymaster addresses. Notifications (including removed logs) wake the
-existing HTTP indexing worker; payloads never bypass range validation or advance
-progress. Bursts coalesce into one pending wake-up. RPC-error waits remain intact.
-
-The scraper polls on a fixed 10-second schedule by default, including when the
-socket is down or the HTTP provider has not yet caught up to a notification.
-Log wake-ups trigger additional indexing without resetting that schedule.
-Each chain runs one fetch cycle at a time; slow cycles skip missed timer ticks
-instead of queuing a burst of polls. RPC failures retain their retry delay.
-`index.interval` overrides the default polling period. Connections retry every
-10 seconds; a successful subscription also wakes catch-up. No URL means polling only. Subscription tasks stop with their
-chain worker. Other agents' default polling intervals are unchanged.
-
-The same WebSocket connection also subscribes to `newHeads` (headers only).
-Connected headers advance the observed head and publish eligible already-indexed
-history using stored checkpoints and existing completeness proofs. This path makes
-no RPC requests. Parent hashes must link back to the indexed hash; gaps, forks, or
-a full 256-header buffer wait for ordinary polling/log wake-ups to reconcile.
-The fixed polling schedule and RPC-error backoff remain unchanged. Both
-subscriptions reconnect together. If HTTP polling observes a newer head and the
-subscription makes no header progress for 30 seconds, the connection is restarted.
-This uses existing poll results without probe RPCs; a chain with no new blocks does
-not trigger reconnects. Safe/finalized tags still require polling; latest headers
-accelerate numeric confirmation periods only.
-
-PostgreSQL head notifications already wake the proxy's custom confirmation streams.
-Each subscriber's frontier is `min(indexed height, head height - confirmations)`;
-head-only progress can therefore release an indexed event at its requested delay.
-Canonical streams still follow the scraper's confirmed frontier and the proxy's
-100 ms notification batching. No proxy protocol or database schema change is needed.
-Dispatch reconciliation and receipt enrichment retain their five-second defaults.
+Polling keeps its independent 5s default (`index.interval` overrides it), including
+when WebSockets are unavailable. No URL means polling only. HTTP error backoff,
+confirmation proofs, database ownership guards, and enrichment remain unchanged.
 
 ## Behavior
 
@@ -148,7 +103,7 @@ Dispatch reconciliation and receipt enrichment retain their five-second defaults
   Generic adapters preserve provider transaction and log positions. The
   provisional database key includes both positions and the event identity so
   protocols without a globally unique log index remain collision-safe.
-- Polling uses `index.interval`, defaulting to 10 seconds on every protocol for the scraper.
+- Polling uses `index.interval`, defaulting to 5 seconds on every protocol.
   An unchanged EVM head costs one RPC call and no log query. Generic adapters
   read chain metrics and then the latest block header, so an unchanged non-EVM
   head normally costs two provider calls. Catch-up ranges run

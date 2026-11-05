@@ -611,22 +611,16 @@ describe('ValidatorAgentConfigSchema lightweight mode', () => {
 });
 
 describe('ScraperAgentConfigSchema websocketUrls', () => {
-  const schema = ScraperAgentConfigSchema.shape.websocketUrls;
-
-  it('accepts optional per-chain WebSocket endpoints', () => {
-    for (const config of [
+  it('accepts optional WS endpoints and rejects non-WS URLs', () => {
+    const schema = ScraperAgentConfigSchema.shape.websocketUrls;
+    for (const value of [
       undefined,
       {},
-      { base: 'wss://base.example/v2/key' },
+      { base: 'wss://base.example' },
       { base: 'ws://localhost:8546' },
-    ]) {
-      expect(schema.safeParse(config).success).to.equal(true);
-    }
-  });
-
-  it('rejects HTTP and malformed endpoints', () => {
-    for (const base of ['https://base.example', 'invalid']) {
+    ])
+      expect(schema.safeParse(value).success).to.equal(true);
+    for (const base of ['https://base.example', 'invalid'])
       expect(schema.safeParse({ base }).success).to.equal(false);
-    }
   });
 });
