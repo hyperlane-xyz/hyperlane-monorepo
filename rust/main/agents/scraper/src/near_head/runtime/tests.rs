@@ -21,12 +21,16 @@ use crate::near_head::{
 };
 
 struct Chain {
+    forbid_calls: AtomicBool,
     head: AtomicU64,
     tag: AtomicU64,
     fail_tag: AtomicBool,
     fail_events: AtomicBool,
     wrong_tag: AtomicBool,
     observations: AtomicUsize,
+    event_reads: AtomicUsize,
+    count_reads: AtomicUsize,
+    fork_from: AtomicU64,
     fresh_headers: AtomicUsize,
     sequence: AtomicBool,
     counts: AtomicBool,
@@ -41,12 +45,16 @@ struct Chain {
 impl Chain {
     fn new(head: u64, fail_tag: bool) -> Self {
         Self {
+            forbid_calls: AtomicBool::new(false),
             head: AtomicU64::new(head),
             tag: AtomicU64::new(0),
             fail_tag: AtomicBool::new(fail_tag),
             fail_events: AtomicBool::new(false),
             wrong_tag: AtomicBool::new(false),
             observations: AtomicUsize::new(0),
+            event_reads: AtomicUsize::new(0),
+            count_reads: AtomicUsize::new(0),
+            fork_from: AtomicU64::new(u64::MAX),
             fresh_headers: AtomicUsize::new(0),
             sequence: AtomicBool::new(false),
             counts: AtomicBool::new(true),
@@ -63,6 +71,10 @@ impl Chain {
 #[async_trait]
 impl Source for Arc<Chain> {
     async fn header(&self, block: BlockSelector) -> Result<Header> {
+        assert!(
+            !self.forbid_calls.load(Ordering::SeqCst),
+            "Header wake-up made a source call"
+        );
         let tagged = matches!(&block, BlockSelector::Safe | BlockSelector::Finalized);
         let height = match block {
             BlockSelector::Height(height) => height,
@@ -79,7 +91,9 @@ impl Source for Arc<Chain> {
         Ok(Header {
             height,
             timestamp: 1,
-            hash: if tagged && self.wrong_tag.load(Ordering::SeqCst) {
+            hash: if (tagged && self.wrong_tag.load(Ordering::SeqCst))
+                || height >= self.fork_from.load(Ordering::SeqCst)
+            {
                 H256::repeat_byte(99)
             } else {
                 H256::from_low_u64_be(height.saturating_add(1))
@@ -89,6 +103,11 @@ impl Source for Arc<Chain> {
     }
 
     async fn events(&self, start: u64, end: u64) -> Result<Vec<Event>> {
+        assert!(
+            !self.forbid_calls.load(Ordering::SeqCst),
+            "Header wake-up made a source call"
+        );
+        self.event_reads.fetch_add(1, Ordering::SeqCst);
         ensure!(!self.fail_events.load(Ordering::SeqCst), "Logs unavailable");
         Ok(self
             .events
@@ -101,11 +120,19 @@ impl Source for Arc<Chain> {
     }
 
     async fn fresh_header(&self, block: BlockSelector) -> Result<Header> {
+        assert!(
+            !self.forbid_calls.load(Ordering::SeqCst),
+            "Header wake-up made a source call"
+        );
         self.fresh_headers.fetch_add(1, Ordering::SeqCst);
         self.header(block).await
     }
 
     async fn events_after(&self, start: u64, end: u64, _sequences: [u32; 4]) -> Result<EventBatch> {
+        assert!(
+            !self.forbid_calls.load(Ordering::SeqCst),
+            "Header wake-up made a source call"
+        );
         let sequence = self.sequence.load(Ordering::SeqCst);
         let events = self.events(if sequence { 0 } else { start }, end).await?;
         if !sequence {
@@ -121,6 +148,11 @@ impl Source for Arc<Chain> {
     }
 
     async fn counts(&self, hash: H256) -> Result<Option<[u32; 2]>> {
+        assert!(
+            !self.forbid_calls.load(Ordering::SeqCst),
+            "Header wake-up made a source call"
+        );
+        self.count_reads.fetch_add(1, Ordering::SeqCst);
         // Header hashes encode height + 1.
         let height = hash.to_low_u64_be().saturating_sub(1);
         ensure!(
@@ -142,11 +174,19 @@ impl Source for Arc<Chain> {
     }
 
     async fn indexing_tip(&self) -> Result<Option<u64>> {
+        assert!(
+            !self.forbid_calls.load(Ordering::SeqCst),
+            "Header wake-up made a source call"
+        );
         let tip = self.indexing_tip.load(Ordering::SeqCst);
         Ok((tip != u64::MAX).then_some(tip))
     }
 
     async fn tip_sequence_counts(&self) -> Result<Option<[(Option<u32>, u32); 4]>> {
+        assert!(
+            !self.forbid_calls.load(Ordering::SeqCst),
+            "Header wake-up made a source call"
+        );
         ensure!(
             !self.fail_tip_counts.load(Ordering::SeqCst),
             "Tip counts unavailable"
@@ -213,6 +253,7 @@ async fn worker(db: DatabaseConnection, source: Arc<Chain>) -> Result<Arc<Worker
         chunk_size: 20_000,
         poll_interval: Duration::from_millis(20),
         wakeup: Notify::new(),
+        heads: tokio::sync::Mutex::new(mpsc::channel(256).1),
         critical_failure_grace: Duration::from_millis(60),
         chain_metrics: ChainMetrics::new(&metrics)?,
         sync_metrics: Arc::new(ContractSyncMetrics::new(&metrics)),
@@ -979,53 +1020,242 @@ async fn reproof_replays_an_incomplete_suffix_without_a_new_block() -> Result<()
 #[tokio::test(start_paused = true)]
 async fn wakeup_adds_fetches_without_postponing_scheduled_polls() {
     let wakeup = Notify::new();
+    let (head_tx, mut heads) = mpsc::channel(256);
     let period = Duration::from_secs(10);
     let start = Instant::now();
     let mut polling = interval_at(start + period, period);
     polling.set_missed_tick_behavior(MissedTickBehavior::Skip);
     for seconds in [3, 8] {
-        tokio::join!(wait_for_work(&wakeup, &mut polling, None), async {
-            tokio::time::sleep_until(start + Duration::from_secs(seconds)).await;
-            wakeup.notify_one();
-        });
+        let (reason, ()) = tokio::join!(
+            wait_for_work(&wakeup, &mut heads, &mut polling, None),
+            async {
+                tokio::time::sleep_until(start + Duration::from_secs(seconds)).await;
+                if seconds == 3 {
+                    head_tx.try_send(streamed_header(1)).unwrap();
+                } else {
+                    wakeup.notify_one();
+                }
+            }
+        );
+        assert_eq!(
+            reason,
+            if seconds == 3 {
+                Wakeup::Head(streamed_header(1))
+            } else {
+                Wakeup::Index
+            }
+        );
         assert_eq!(start.elapsed(), Duration::from_secs(seconds));
     }
-    wait_for_work(&wakeup, &mut polling, None).await;
+    wait_for_work(&wakeup, &mut heads, &mut polling, None).await;
     assert_eq!(start.elapsed(), period); // Poll at t=10, not t=18.
 
     // Several events during a cycle leave exactly one pending wake-up.
     for _ in 0..10 {
         wakeup.notify_one();
     }
-    wait_for_work(&wakeup, &mut polling, None).await;
+    wait_for_work(&wakeup, &mut heads, &mut polling, None).await;
     assert_eq!(start.elapsed(), period);
     // Fetch duration also does not postpone the next scheduled poll.
     sleep(Duration::from_secs(2)).await;
-    wait_for_work(&wakeup, &mut polling, None).await;
+    wait_for_work(&wakeup, &mut heads, &mut polling, None).await;
     assert_eq!(start.elapsed(), Duration::from_secs(20));
 }
 
 #[tokio::test(start_paused = true)]
 async fn wakeup_preserves_rpc_failure_backoff() {
     let wakeup = Notify::new();
+    let (head_tx, mut heads) = mpsc::channel(256);
     wakeup.notify_one();
+    head_tx.try_send(streamed_header(1)).unwrap();
     let delay = Duration::from_secs(10);
     let start = Instant::now();
     let mut polling = interval_at(start, delay); // A due poll cannot bypass backoff either.
-    wait_for_work(&wakeup, &mut polling, Some(delay)).await;
+    assert_eq!(
+        wait_for_work(&wakeup, &mut heads, &mut polling, Some(delay)).await,
+        Wakeup::Index
+    );
     assert_eq!(start.elapsed(), delay);
 }
 
 #[tokio::test(start_paused = true)]
 async fn slow_fetch_skips_missed_polls_without_resetting_cadence() {
     let wakeup = Notify::new();
+    let (_head_tx, mut heads) = mpsc::channel(256);
     let period = Duration::from_secs(10);
     let start = Instant::now();
     let mut polling = interval_at(start + period, period);
     polling.set_missed_tick_behavior(MissedTickBehavior::Skip);
     sleep(Duration::from_secs(35)).await;
-    wait_for_work(&wakeup, &mut polling, None).await;
+    wait_for_work(&wakeup, &mut heads, &mut polling, None).await;
     assert_eq!(start.elapsed(), Duration::from_secs(35));
-    wait_for_work(&wakeup, &mut polling, None).await;
+    wait_for_work(&wakeup, &mut heads, &mut polling, None).await;
     assert_eq!(start.elapsed(), Duration::from_secs(40));
+}
+
+fn streamed_header(height: u64) -> Header {
+    Header {
+        height,
+        timestamp: 1,
+        hash: H256::from_low_u64_be(height + 1),
+        parent: H256::from_low_u64_be(height),
+    }
+}
+
+#[tokio::test]
+async fn headers_mature_events_without_any_source_calls() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(1, false));
+    chain.events.lock().unwrap().push(gas_event(1, 0));
+    let worker = Worker {
+        period: ReorgPeriod::from_blocks(2),
+        ..Arc::into_inner(worker(db, chain.clone()).await?).expect("sole worker")
+    };
+    let mut cache = CountCache::default();
+    worker.cycle(&mut cache).await?;
+    chain.forbid_calls.store(true, Ordering::SeqCst);
+    let mut tip = None;
+    for height in [2, 3] {
+        assert!(
+            !worker
+                .header_cycle(&streamed_header(height), &mut tip, &cache)
+                .await?
+                .more
+        );
+        let state = worker.store.state().await?.unwrap();
+        assert_eq!(
+            (state.head, state.indexed, state.confirmed),
+            (height, 1, height - 2)
+        );
+    }
+    // A duplicate doesn't republish or query RPCs.
+    worker
+        .header_cycle(&streamed_header(3), &mut tip, &cache)
+        .await?;
+    assert_eq!(chain.event_reads.load(Ordering::SeqCst), 1);
+    Ok(())
+}
+
+#[tokio::test]
+async fn headers_do_not_reprove_an_unproven_suffix() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(1, false));
+    chain.counts.store(false, Ordering::SeqCst);
+    chain.events.lock().unwrap().push(gas_event(1, 0));
+    let worker = Worker {
+        period: ReorgPeriod::from_blocks(1),
+        ..Arc::into_inner(worker(db, chain.clone()).await?).expect("sole worker")
+    };
+    let mut cache = CountCache::default();
+    assert!(worker.cycle(&mut cache).await?.ingestion_failed);
+    chain.forbid_calls.store(true, Ordering::SeqCst);
+    worker
+        .header_cycle(&streamed_header(2), &mut None, &cache)
+        .await?;
+    assert_eq!(worker.store.state().await?.unwrap().confirmed, 0);
+    chain.forbid_calls.store(false, Ordering::SeqCst);
+    chain.counts.store(true, Ordering::SeqCst);
+    chain.head.store(2, Ordering::SeqCst);
+    worker.cycle(&mut cache).await?;
+    assert_eq!(worker.store.state().await?.unwrap().confirmed, 1);
+    Ok(())
+}
+
+#[tokio::test]
+async fn header_gaps_forks_and_unhealthy_state_wait_for_polling() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(1, false));
+    let worker = worker(db, chain.clone()).await?;
+    let mut cache = CountCache::default();
+    worker.cycle(&mut cache).await?;
+    chain.forbid_calls.store(true, Ordering::SeqCst);
+    let mut fork = streamed_header(2);
+    fork.parent = H256::repeat_byte(99);
+    for header in [streamed_header(3), fork] {
+        worker.header_cycle(&header, &mut None, &cache).await?;
+        assert_eq!(worker.store.state().await?.unwrap().head, 1);
+    }
+    worker
+        .header_cycle(&streamed_header(2), &mut None, &cache)
+        .await?;
+    assert_eq!(worker.store.state().await?.unwrap().head, 2);
+    worker.store.pause(false).await?;
+    assert!(worker
+        .header_cycle(&streamed_header(2), &mut None, &cache)
+        .await
+        .is_err());
+    // The normal poll recovers; the following header re-anchors to indexed.
+    chain.forbid_calls.store(false, Ordering::SeqCst);
+    chain.head.store(3, Ordering::SeqCst);
+    worker.cycle(&mut cache).await?;
+    chain.forbid_calls.store(true, Ordering::SeqCst);
+    worker
+        .header_cycle(&streamed_header(4), &mut None, &cache)
+        .await?;
+    assert_eq!(worker.store.state().await?.unwrap().head, 4);
+    Ok(())
+}
+
+#[tokio::test]
+async fn headers_drain_bounded_confirmation_pages_from_sparse_checkpoints() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(100, false));
+    chain
+        .events
+        .lock()
+        .unwrap()
+        .extend((0..1001).map(|index| gas_event(1, index)));
+    chain.events.lock().unwrap().push(gas_event(2, 1001));
+    let worker = Worker {
+        period: ReorgPeriod::from_blocks(100),
+        ..Arc::into_inner(worker(db, chain.clone()).await?).expect("sole worker")
+    };
+    let mut cache = CountCache::default();
+    worker.cycle(&mut cache).await?;
+    chain.forbid_calls.store(true, Ordering::SeqCst);
+    let mut tip = None;
+    // Establish ancestry while retaining all events as provisional.
+    worker
+        .header_cycle(&streamed_header(101), &mut tip, &CountCache::default())
+        .await?;
+    assert!(
+        worker
+            .header_cycle(&streamed_header(102), &mut tip, &cache)
+            .await?
+            .more
+    );
+    assert_eq!(worker.store.state().await?.unwrap().confirmed, 1);
+    assert!(
+        !worker
+            .header_cycle(&streamed_header(102), &mut tip, &cache)
+            .await?
+            .more
+    );
+    assert_eq!(worker.store.state().await?.unwrap().confirmed, 2);
+    // No checkpoint in the empty gap: all eligible events were already published.
+    worker
+        .header_cycle(&streamed_header(103), &mut tip, &cache)
+        .await?;
+    assert_eq!(worker.store.state().await?.unwrap().confirmed, 2);
+    Ok(())
 }

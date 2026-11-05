@@ -55,10 +55,11 @@ async function fixture(
   ) => Promise<Record<string, unknown>[]>,
   initial = 9n,
   domains = new Set([1, 2]),
+  confirmations = 0,
 ) {
   const messages: Record<string, unknown>[] = [];
   let active = true;
-  const stream = new ConfirmationStream(0, domains, {
+  const stream = new ConfirmationStream(confirmations, domains, {
     active: () => active,
     read,
     enrich: enrich
@@ -430,3 +431,37 @@ void it('re-reads Explorer metadata if its frontier rolls back during enrichment
     held.release();
   }
 });
+
+for (const confirmations of [0, 1, 10, 15]) {
+  void it(`emits at ${confirmations} confirmations on head-only progress`, async () => {
+    const f = await fixture(
+      async function* (_domain, after, through) {
+        if (after[0] < 100n && through >= 100n)
+          yield { position: [100n, 0n, 1n], message: { id: 'event-at-100' } };
+      },
+      undefined,
+      undefined,
+      99n,
+      new Set([1]),
+      confirmations,
+    );
+    try {
+      // Index the event once. Subsequent notifications only advance headHeight.
+      f.stream.notify(head(100n, 99n, 100n));
+      if (confirmations > 0) {
+        f.stream.notify(head(100n, 100n, 100n + BigInt(confirmations) - 1n));
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        assert.equal(f.messages.length, 0);
+        f.stream.notify(head(100n, 100n, 100n + BigInt(confirmations)));
+      }
+      await until(() => f.messages.length === 1);
+      assert.deepEqual(f.messages, [{ id: 'event-at-100' }]);
+      // Repeated heads must not emit the same event again.
+      f.stream.notify(head(100n, 100n, 120n));
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      assert.equal(f.messages.length, 1);
+    } finally {
+      f.stop();
+    }
+  });
+}

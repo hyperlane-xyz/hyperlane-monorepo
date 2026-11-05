@@ -5,14 +5,14 @@ use std::{sync::Arc, time::Duration};
 use hyperlane_base::{ChainMetrics, ContractSyncMetrics};
 use hyperlane_core::{HyperlaneDomain, ReorgPeriod};
 use tokio::{
-    sync::Notify,
+    sync::{mpsc, Mutex, Notify},
     time::{interval, sleep, Instant, Interval, MissedTickBehavior},
 };
 use tracing::{debug, warn};
 
 use super::{
     pipeline::{confirm_leased_through, confirmation_lease, ingest_cached, observe, CountCache},
-    source::Source,
+    source::{Header, Source},
     store::Store,
 };
 
@@ -24,6 +24,7 @@ pub(super) struct Worker {
     pub chunk_size: u64,
     pub poll_interval: Duration,
     pub wakeup: Notify,
+    pub heads: Mutex<mpsc::Receiver<Header>>,
     pub critical_failure_grace: Duration,
     pub chain_metrics: ChainMetrics,
     pub sync_metrics: Arc<ContractSyncMetrics>,
@@ -56,6 +57,13 @@ impl FailureStreak {
             poll_interval.min(remaining)
         }
     }
+}
+
+/// Header hints refresh confirmation eligibility without fetching event ranges.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum Wakeup {
+    Index,
+    Head(Header),
 }
 
 /// A completed cycle: whether to run again at once, and whether ingestion failed
@@ -91,8 +99,18 @@ impl Worker {
         // Event wake-ups and fetch duration must not reset the polling cadence.
         // A slow cycle needs one catch-up poll, not a burst of missed ticks.
         polling.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        let mut heads = self.heads.lock().await;
+        let mut tip = None;
+        let mut wakeup = Wakeup::Index;
         loop {
-            let result = self.cycle(&mut count_cache).await;
+            let result = match &wakeup {
+                Wakeup::Index => {
+                    // Indexing may rewind; re-anchor the next header to its result.
+                    tip = None;
+                    self.cycle(&mut count_cache).await
+                }
+                Wakeup::Head(header) => self.header_cycle(header, &mut tip, &count_cache).await,
+            };
             let failed = result
                 .as_ref()
                 .map_or(true, |outcome| outcome.ingestion_failed);
@@ -110,7 +128,7 @@ impl Worker {
             }
             let retry_delay = failed
                 .then(|| failures.retry_delay(self.poll_interval, self.critical_failure_grace));
-            wait_for_work(&self.wakeup, &mut polling, retry_delay).await;
+            wakeup = wait_for_work(&self.wakeup, &mut heads, &mut polling, retry_delay).await;
         }
     }
 
@@ -287,41 +305,12 @@ impl Worker {
             publishable,
         )
         .await?;
-        for (label, count) in [
-            "raw_message_dispatch",
-            "message_delivery",
-            "gas_payment",
-            "merkle_tree_insertion",
-        ]
-        .into_iter()
-        .zip(confirmation.counts)
-        {
-            self.sync_metrics
-                .stored_events
-                .with_label_values(&[label, self.domain.name()])
-                .inc_by(count);
-        }
-
+        self.record_progress(confirmation.counts).await?;
         let state = self
             .store
             .state()
             .await?
             .ok_or_else(|| eyre::eyre!("Missing head state"))?;
-        self.sync_metrics
-            .indexed_height
-            .with_label_values(&["near_head", self.domain.name()])
-            .set(i64::try_from(state.indexed)?);
-        for label in [
-            "message_dispatch",
-            "message_delivery",
-            "gas_payment",
-            "merkle_tree_insertion",
-        ] {
-            self.sync_metrics
-                .indexed_height
-                .with_label_values(&[label, self.domain.name()])
-                .set(i64::try_from(state.confirmed)?);
-        }
 
         // Keep draining confirmed pages while logs fail; the failure was logged
         // above and stays visible through the critical-error metric.
@@ -363,16 +352,135 @@ impl Worker {
             ingestion_failed: false,
         })
     }
+    /// Advance only along streamed ancestry rooted at the indexed hash. No RPCs.
+    async fn header_cycle(
+        &self,
+        header: &Header,
+        tip: &mut Option<Header>,
+        cache: &CountCache,
+    ) -> eyre::Result<CycleOutcome> {
+        let idle = CycleOutcome {
+            more: false,
+            ingestion_failed: false,
+        };
+        let mut state = self
+            .store
+            .state()
+            .await?
+            .ok_or_else(|| eyre::eyre!("Missing head state"))?;
+        if state.halted || header.height <= state.indexed {
+            return Ok(idle);
+        }
+        let (height, hash) = tip
+            .as_ref()
+            .map_or((state.indexed, state.hash), |tip| (tip.height, tip.hash));
+        let duplicate = tip.as_ref() == Some(header);
+        if !duplicate && (height.checked_add(1) != Some(header.height) || header.parent != hash) {
+            // A gap, overflow or fork needs the next ordinary poll/log wake-up.
+            // Never fetch missing headers just to accelerate confirmations.
+            *tip = None;
+            debug!(
+                domain = self.store.domain,
+                height = header.height,
+                "Header ancestry unavailable; waiting for polling"
+            );
+            return Ok(idle);
+        }
+        let lease = confirmation_lease(self.poll_interval);
+        self.store.claim(lease).await?;
+        self.store.advance_head(&state, header.height).await?;
+        state.head = state.head.max(header.height);
+        *tip = Some(header.clone());
+        let through = match &self.period {
+            ReorgPeriod::Blocks(depth) => header.height.saturating_sub(u64::from(depth.get())),
+            ReorgPeriod::Tag(tag) if tag == "latest" => header.height,
+            // Latest headers cannot prove safe/finalized tags.
+            _ => return Ok(idle),
+        }
+        .min(state.indexed)
+        .min(cache.proven_through.unwrap_or(state.confirmed));
+        if through <= state.confirmed {
+            return Ok(idle);
+        }
+        let bounded = self
+            .store
+            .confirmation_boundary(state.confirmed, through)
+            .await?;
+        // Ingestion retained every event block and the indexed boundary.
+        // Empty gaps need no new header to publish all eligible events.
+        let Some(boundary) = self
+            .store
+            .confirmation_checkpoint(state.confirmed, bounded)
+            .await?
+        else {
+            return Ok(idle);
+        };
+        let counts = self.store.confirm(&state, &boundary, lease).await?;
+        self.record_progress(counts).await?;
+        Ok(CycleOutcome {
+            more: bounded < through,
+            ingestion_failed: false,
+        })
+    }
+
+    async fn record_progress(&self, counts: [u64; 4]) -> eyre::Result<()> {
+        for (label, count) in [
+            "raw_message_dispatch",
+            "message_delivery",
+            "gas_payment",
+            "merkle_tree_insertion",
+        ]
+        .into_iter()
+        .zip(counts)
+        {
+            self.sync_metrics
+                .stored_events
+                .with_label_values(&[label, self.domain.name()])
+                .inc_by(count);
+        }
+
+        let state = self
+            .store
+            .state()
+            .await?
+            .ok_or_else(|| eyre::eyre!("Missing head state"))?;
+        self.sync_metrics
+            .indexed_height
+            .with_label_values(&["near_head", self.domain.name()])
+            .set(i64::try_from(state.indexed)?);
+        for label in [
+            "message_dispatch",
+            "message_delivery",
+            "gas_payment",
+            "merkle_tree_insertion",
+        ] {
+            self.sync_metrics
+                .indexed_height
+                .with_label_values(&[label, self.domain.name()])
+                .set(i64::try_from(state.confirmed)?);
+        }
+
+        Ok(())
+    }
 }
 
 // Only interrupt healthy idle waits: incoming logs must not bypass RPC-error backoff.
-async fn wait_for_work(wakeup: &Notify, polling: &mut Interval, retry_delay: Option<Duration>) {
+async fn wait_for_work(
+    wakeup: &Notify,
+    heads: &mut mpsc::Receiver<Header>,
+    polling: &mut Interval,
+    retry_delay: Option<Duration>,
+) -> Wakeup {
     if let Some(delay) = retry_delay {
         sleep(delay).await;
+        Wakeup::Index
     } else {
         tokio::select! {
-            _ = polling.tick() => {},
-            _ = wakeup.notified() => {},
+            // Header traffic must not starve scheduled or event-triggered indexing.
+            biased;
+            _ = polling.tick() => Wakeup::Index,
+            _ = wakeup.notified() => Wakeup::Index,
+            Some(header) = heads.recv() => Wakeup::Head(header),
         }
     }
 }

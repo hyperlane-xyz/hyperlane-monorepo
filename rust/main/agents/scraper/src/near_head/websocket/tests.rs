@@ -1,4 +1,4 @@
-use ethers::types::{Log, H160};
+use ethers::types::{Block, Log, H160, H256};
 use futures::SinkExt;
 use serde_json::{json, Value};
 use tokio::{net::TcpListener, sync::mpsc};
@@ -18,7 +18,7 @@ async fn subscription_wakes_on_connect_logs_and_removals_then_reports_disconnect
     };
     let filter = contracts.event_filter();
     let expected = serde_json::to_value(&filter)?;
-    let (send, mut receive) = mpsc::channel::<bool>(1);
+    let (send, mut receive) = mpsc::channel::<Option<bool>>(1);
     let server = async {
         let (tcp, _) = listener.accept().await?;
         let mut socket = accept_async(tcp).await?;
@@ -53,16 +53,31 @@ async fn subscription_wakes_on_connect_logs_and_removals_then_reports_disconnect
                 .into(),
             ))
             .await?;
+        acknowledge_heads(&mut socket).await?;
         while let Some(removed) = receive.recv().await {
-            let log = Log {
-                removed: Some(removed),
-                ..Default::default()
+            let (subscription, result) = match removed {
+                Some(removed) => (
+                    "0x1",
+                    serde_json::to_value(Log {
+                        removed: Some(removed),
+                        ..Default::default()
+                    })?,
+                ),
+                None => (
+                    "0x2",
+                    serde_json::to_value(Block::<H256> {
+                        number: Some(42.into()),
+                        hash: Some(H256::repeat_byte(42)),
+                        parent_hash: H256::repeat_byte(41),
+                        ..Default::default()
+                    })?,
+                ),
             };
             socket
                 .send(Message::Text(
                     json!({
                         "jsonrpc": "2.0", "method": "eth_subscription",
-                        "params": { "subscription": "0x1", "result": log }
+                        "params": { "subscription": subscription, "result": result }
                     })
                     .to_string()
                     .into(),
@@ -73,13 +88,24 @@ async fn subscription_wakes_on_connect_logs_and_removals_then_reports_disconnect
         Ok::<_, eyre::Report>(())
     };
     let wakeup = Notify::new();
+    let (head_tx, mut head_rx) = mpsc::channel(256);
     let client = async {
-        assert!(subscribe(&url, &filter, &wakeup, 1).await.is_err());
+        assert!(subscribe(&url, &filter, &wakeup, &head_tx, 1)
+            .await
+            .is_err());
     };
     let consumer = async {
         wakeup.notified().await; // Subscription acknowledgement wakes catch-up.
+        send.send(None).await?;
+        let header = head_rx.recv().await.expect("streamed header");
+        assert_eq!(header.height, 42);
+        assert_eq!(header.hash, H256::repeat_byte(42));
+        assert_eq!(header.parent, H256::repeat_byte(41));
+        assert!(timeout(Duration::from_millis(20), wakeup.notified())
+            .await
+            .is_err());
         for removed in [false, true] {
-            send.send(removed).await?;
+            send.send(Some(removed)).await?;
             wakeup.notified().await;
         }
         drop(send);
@@ -99,6 +125,7 @@ async fn reconnect_wakes_catchup_after_disconnect() -> Result<()> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let url = Url::parse(&format!("ws://{}", listener.local_addr()?))?;
     let wakeup = Notify::new();
+    let (head_tx, _head_rx) = mpsc::channel(256);
     let (close_tx, mut close_rx) = mpsc::channel(1);
     let server = async {
         for _ in 0..2 {
@@ -120,6 +147,7 @@ async fn reconnect_wakes_catchup_after_disconnect() -> Result<()> {
                     .into(),
                 ))
                 .await?;
+            acknowledge_heads(&mut socket).await?;
             close_rx
                 .recv()
                 .await
@@ -136,7 +164,7 @@ async fn reconnect_wakes_catchup_after_disconnect() -> Result<()> {
     };
     timeout(Duration::from_secs(15), async {
         tokio::select! {
-            _ = run(Some(url.into()), Filter::new(), &wakeup, 1) => {
+            _ = run(Some(url.into()), Filter::new(), &wakeup, &head_tx, 1) => {
                 Err(eyre!("WebSocket monitor exited"))
             }
             result = async {
@@ -146,5 +174,29 @@ async fn reconnect_wakes_catchup_after_disconnect() -> Result<()> {
         }
     })
     .await??;
+    Ok(())
+}
+
+async fn acknowledge_heads(
+    socket: &mut tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
+) -> Result<()> {
+    let request: Value = serde_json::from_str(
+        socket
+            .next()
+            .await
+            .ok_or_else(|| eyre!("Missing head subscription"))??
+            .to_text()?,
+    )?;
+    assert_eq!(request["method"], "eth_subscribe");
+    assert_eq!(request["params"], json!(["newHeads"]));
+    socket
+        .send(Message::Text(
+            json!({
+                "jsonrpc": "2.0", "id": request["id"], "result": "0x2"
+            })
+            .to_string()
+            .into(),
+        ))
+        .await?;
     Ok(())
 }

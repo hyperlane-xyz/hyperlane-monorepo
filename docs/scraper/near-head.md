@@ -80,16 +80,28 @@ progress. Bursts coalesce into one pending wake-up. RPC-error waits remain intac
 
 The scraper polls on a fixed 10-second schedule by default, including when the
 socket is down or the HTTP provider has not yet caught up to a notification.
-WebSocket wake-ups trigger additional fetches without resetting that schedule.
+Log wake-ups trigger additional indexing without resetting that schedule.
 Each chain runs one fetch cycle at a time; slow cycles skip missed timer ticks
 instead of queuing a burst of polls. RPC failures retain their retry delay.
 `index.interval` overrides the default polling period. Connections retry every
 10 seconds; a successful subscription also wakes catch-up. No URL means polling only. Subscription tasks stop with their
 chain worker. Other agents' default polling intervals are unchanged.
 
-Log notifications do not accelerate confirmation through subsequent empty blocks;
-confirmation still runs on the polling timer or the next event. Dispatch reconciliation
-and receipt enrichment retain their separate five-second defaults.
+The same WebSocket connection also subscribes to `newHeads` (headers only).
+Connected headers advance the observed head and publish eligible already-indexed
+history using stored checkpoints and existing completeness proofs. This path makes
+no RPC requests. Parent hashes must link back to the indexed hash; gaps, forks, or
+a full 256-header buffer wait for ordinary polling/log wake-ups to reconcile.
+The fixed polling schedule and RPC-error backoff remain unchanged. Both
+subscriptions reconnect together. Safe/finalized tags still require polling;
+latest headers accelerate numeric confirmation periods only.
+
+PostgreSQL head notifications already wake the proxy's custom confirmation streams.
+Each subscriber's frontier is `min(indexed height, head height - confirmations)`;
+head-only progress can therefore release an indexed event at its requested delay.
+Canonical streams still follow the scraper's confirmed frontier and the proxy's
+100 ms notification batching. No proxy protocol or database schema change is needed.
+Dispatch reconciliation and receipt enrichment retain their five-second defaults.
 
 ## Behavior
 
