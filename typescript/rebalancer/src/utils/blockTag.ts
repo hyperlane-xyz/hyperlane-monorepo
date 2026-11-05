@@ -3,7 +3,8 @@ import type { Logger } from 'pino';
 import { providers } from 'ethers';
 
 import { type MultiProtocolProvider } from '@hyperlane-xyz/sdk';
-import { assert, isEVMLike } from '@hyperlane-xyz/utils';
+import { assert, isEVMLike, ProtocolType } from '@hyperlane-xyz/utils';
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 import type { ConfirmedBlockTag } from '../interfaces/IMonitor.js';
 
 const HEX_BLOCK_NUMBER_REGEX = /^0x[0-9a-fA-F]+$/;
@@ -34,7 +35,16 @@ export async function getConfirmedBlockTag(
 
     const reorgPeriod = metadata.blocks?.reorgPeriod ?? 32;
     const provider = multiProvider.getEthersV5Provider(chainName);
+    let solidBlock: number | undefined;
+    if (metadata.protocol === ProtocolType.Tron) {
+      assert(
+        provider instanceof TronJsonRpcProvider,
+        `Missing Tron provider for ${chainName}`,
+      );
+      solidBlock = await provider.getFinalizedBlockNumber();
+    }
     if (typeof reorgPeriod === 'string') {
+      if (solidBlock !== undefined) return solidBlock;
       const block = await provider.getBlock(reorgPeriod);
       assert(
         block && Number.isSafeInteger(block.number) && block.number >= 0,
@@ -44,7 +54,10 @@ export async function getConfirmedBlockTag(
     }
 
     let latestBlock: number;
-    if (provider instanceof providers.JsonRpcProvider) {
+    if (
+      provider instanceof providers.JsonRpcProvider ||
+      provider instanceof TronJsonRpcProvider
+    ) {
       const latestBlockHex = await provider.send('eth_blockNumber', []);
       if (
         typeof latestBlockHex !== 'string' ||
@@ -61,7 +74,10 @@ export async function getConfirmedBlockTag(
     if (!Number.isSafeInteger(latestBlock) || latestBlock < 0) {
       throw new Error(`Invalid block number for ${chainName}: ${latestBlock}`);
     }
-    return Math.max(0, latestBlock - reorgPeriod);
+    const confirmedBlock = Math.max(0, latestBlock - reorgPeriod);
+    return solidBlock === undefined
+      ? confirmedBlock
+      : Math.min(confirmedBlock, solidBlock);
   } catch (error) {
     logger?.warn(
       { chain: chainName, error },

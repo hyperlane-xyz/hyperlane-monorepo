@@ -10,6 +10,7 @@ import {
   MultiProtocolProvider,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 
 import { getConfirmedBlockTag } from './blockTag.js';
 
@@ -45,11 +46,12 @@ const logger = pino({ level: 'silent' });
 
 describe('getConfirmedBlockTag', () => {
   let mpp: Sinon.SinonStubbedInstance<MultiProtocolProvider>;
-  let provider: Sinon.SinonStubbedInstance<providers.JsonRpcProvider>;
+  let provider: Sinon.SinonStubbedInstance<TronJsonRpcProvider>;
 
   beforeEach(() => {
     mpp = Sinon.createStubInstance(MultiProtocolProvider);
-    provider = Sinon.createStubInstance(providers.JsonRpcProvider);
+    provider = Sinon.createStubInstance(TronJsonRpcProvider);
+    provider.getFinalizedBlockNumber.resolves(100);
     mpp.getChainMetadata.returns(tronMetadata);
     mpp.getEthersV5Provider.returns(provider);
     provider.send.resolves('0x64');
@@ -61,6 +63,21 @@ describe('getConfirmedBlockTag', () => {
 
   it('returns a confirmed block number for a numeric Tron reorg period', async () => {
     expect(await getConfirmedBlockTag(mpp, 'tron')).to.equal(80);
+  });
+
+  it('caps a Tron snapshot by the solid head while preserving configured depth', async () => {
+    provider.getFinalizedBlockNumber.resolves(79);
+    expect(await getConfirmedBlockTag(mpp, 'tron')).to.equal(79);
+    provider.getFinalizedBlockNumber.resolves(90);
+    expect(await getConfirmedBlockTag(mpp, 'tron')).to.equal(80);
+  });
+
+  it('rejects a Tron snapshot when the solid head is unavailable', async () => {
+    const failure = new Error('solid head unavailable');
+    provider.getFinalizedBlockNumber.rejects(failure);
+    await expect(getConfirmedBlockTag(mpp, 'tron')).to.be.rejectedWith(failure);
+    expect(provider.send.called).to.equal(false);
+    expect(provider.getBlockNumber.called).to.equal(false);
   });
 
   it('clamps a confirmed block number to zero', async () => {
@@ -94,11 +111,24 @@ describe('getConfirmedBlockTag', () => {
           reorgPeriod: EthJsonRpcBlockParameterTag.Finalized,
         },
       });
-      provider.getBlock.resolves(block(36));
-      expect(await getConfirmedBlockTag(mpp, 'tron')).to.equal(36);
-      expect(
-        provider.getBlock.calledOnceWith(EthJsonRpcBlockParameterTag.Finalized),
-      ).to.equal(true);
+      if (protocol === ProtocolType.Tron) {
+        provider.getFinalizedBlockNumber.resolves(36);
+        expect(await getConfirmedBlockTag(mpp, 'tron')).to.equal(36);
+        expect(provider.getFinalizedBlockNumber.calledOnce).to.equal(true);
+        expect(provider.getBlock.called).to.equal(false);
+      } else {
+        const ethereumProvider = Sinon.createStubInstance(
+          providers.JsonRpcProvider,
+        );
+        mpp.getEthersV5Provider.returns(ethereumProvider);
+        ethereumProvider.getBlock.resolves(block(36));
+        expect(await getConfirmedBlockTag(mpp, 'tron')).to.equal(36);
+        expect(
+          ethereumProvider.getBlock.calledOnceWith(
+            EthJsonRpcBlockParameterTag.Finalized,
+          ),
+        ).to.equal(true);
+      }
     });
   }
 
@@ -142,6 +172,10 @@ describe('getConfirmedBlockTag', () => {
   }
 
   it('rejects an invalid numeric block from a non-JSON-RPC provider', async () => {
+    mpp.getChainMetadata.returns({
+      ...tronMetadata,
+      protocol: ProtocolType.Ethereum,
+    });
     const fallbackProvider = Sinon.createStubInstance(providers.BaseProvider);
     fallbackProvider.getBlockNumber.resolves(Number.NaN);
     mpp.getEthersV5Provider.returns(fallbackProvider);
