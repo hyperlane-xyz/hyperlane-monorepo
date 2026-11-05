@@ -280,19 +280,30 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
         }
     };
 
-    let checkpoint_syncer =
-        if let Some(reporter) = ism_builder.as_ref().base_builder().activity_reporter() {
-            checkpoint_syncer.with_observer(reporter.checkpoint_observer(
+    let observer = ism_builder
+        .as_ref()
+        .base_builder()
+        .activity_reporter()
+        .map(|reporter| {
+            reporter.checkpoint_observer(
                 message,
                 (!ism_address.is_zero()).then_some(ism_address),
                 threshold,
-            ))
-        } else {
-            checkpoint_syncer
-        };
-    let metadata = ism_builder
+            )
+        });
+    let checkpoint_syncer = if let Some(observer) = &observer {
+        checkpoint_syncer.with_observer(observer.clone())
+    } else {
+        checkpoint_syncer
+    };
+    let result = ism_builder
         .fetch_metadata(&validators, threshold, message, &checkpoint_syncer)
-        .await
+        .await;
+    // Report failures too, but not abandoned aggregation children.
+    if let Some(observer) = observer {
+        observer.report();
+    }
+    let metadata = result
         .map_err(|_| MetadataBuildError::CouldNotFetch)?
         .ok_or_else(|| {
             info!(

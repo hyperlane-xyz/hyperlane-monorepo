@@ -963,8 +963,6 @@ impl MessageDbLoader {
         if !self.message_whitelist.msg_matches(&message, true) {
             self.metrics
                 .record_destination_outcome(DESTINATION_OUTCOME_NOT_WHITELISTED);
-            self.log_denial_once(&message, FilterReason::NotWhitelisted, None)
-                .await;
             debug!(?message, "Message not whitelisted, skipping");
             self.destination_iterators[iterator_index].advance(direction, nonce);
             return Ok(true);

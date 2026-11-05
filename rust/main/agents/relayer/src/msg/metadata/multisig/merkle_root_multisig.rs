@@ -45,7 +45,6 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
             self.base_builder()
                 .report_activity(message, Activity::Progress { stage, outcome })
         };
-        report(Stage::MerkleLeaf, Outcome::Started);
         let highest_leaf_index =
             unwrap_or_none_result!(self.base_builder().highest_known_leaf_index().await, {
                 report(Stage::MerkleLeaf, Outcome::Unavailable);
@@ -67,7 +66,6 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
                 );
             }
         );
-        report(Stage::MerkleLeaf, Outcome::Succeeded);
         self.base_builder().report_activity(
             message,
             Activity::MerkleLeaf {
@@ -92,7 +90,6 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
                 highest_leaf_index, "Couldn't get checkpoint in range"
             )
         );
-        report(Stage::MerkleProof, Outcome::Started);
         let proof = self
             .base_builder()
             .get_proof(leaf_index, quorum_checkpoint.checkpoint.checkpoint)
@@ -100,7 +97,6 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
             .inspect_err(|_| {
                 report(Stage::MerkleProof, Outcome::Failed);
             })?;
-        report(Stage::MerkleProof, Outcome::Succeeded);
         Ok(Some(MultisigMetadata::new(
             quorum_checkpoint,
             leaf_index,

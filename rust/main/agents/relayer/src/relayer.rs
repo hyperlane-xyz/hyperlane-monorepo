@@ -395,23 +395,36 @@ impl BaseAgent for Relayer {
         );
 
         start_entity_init = Instant::now();
-        let activity_reporter = settings.message_activity_database_url.clone().and_then(|url| {
+        let activity_reporter = if let Some(url) = settings.message_activity_database_url.clone() {
             // Reuse a signer already initialized for delivery/CCIP. Choose by
             // domain ID so HashMap iteration cannot change the reported identity.
-            let signer = destinations.values()
-                .filter_map(|destination| destination.ccip_signer.as_ref()
-                    .map(|signer| (destination.domain.id(), signer)))
+            let signer = destinations
+                .values()
+                .filter_map(|destination| {
+                    destination
+                        .ccip_signer
+                        .as_ref()
+                        .map(|signer| (destination.domain.id(), signer))
+                })
                 .min_by_key(|(domain, _)| *domain);
             match signer {
-                Some((_, signer)) => Some(crate::message_activity::MessageActivityReporter::start(
-                    url, H160::from(signer.address_h256()),
-                )),
+                Some((domain, signer)) => {
+                    let relayer = H160::from(signer.address_h256());
+                    info!(domain, ?relayer, "Message activity reporting identity");
+                    Some(crate::message_activity::MessageActivityReporter::start(
+                        url,
+                        relayer,
+                        &core_metrics,
+                    )?)
+                }
                 None => {
                     warn!("Message activity reporting disabled: no initialized EVM-compatible relayer signer");
                     None
                 }
             }
-        });
+        } else {
+            None
+        };
         let mut msg_ctxs = HashMap::new();
         for (destination_domain, destination) in destinations.iter() {
             let application_operation_verifier = destination.application_operation_verifier.clone();

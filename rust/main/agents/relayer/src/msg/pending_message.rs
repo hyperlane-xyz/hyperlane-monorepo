@@ -267,12 +267,6 @@ impl PendingMessage {
         app_context: Option<String>,
         max_retries: u32,
     ) -> Self {
-        ctx.metadata_builder.report_activity(
-            &message,
-            Activity::Status {
-                status: status.clone(),
-            },
-        );
         let first_seen = SystemTime::now();
         let pending_tracked = !matches!(status, PendingOperationStatus::Confirm(_));
         if pending_tracked {
@@ -633,7 +627,6 @@ impl PendingOperation for PendingMessage {
         // re-fetched on every 1s poll cycle.
         let tx_cost_estimate = match self.metadata.as_ref() {
             Some(metadata) => {
-                self.report_progress(Stage::Simulate, Outcome::Started);
                 match with_rpc_operation(
                     RpcOperation::RelayerEstimate,
                     self.ctx
@@ -643,7 +636,6 @@ impl PendingOperation for PendingMessage {
                 .await
                 {
                     Ok(s) => {
-                        self.report_progress(Stage::Simulate, Outcome::Succeeded);
                         self.ica_reveal_attempts = 0;
                         tracing::debug!(USE_CACHE_METADATA_LOG);
                         Some(s)
@@ -688,7 +680,6 @@ impl PendingOperation for PendingMessage {
             // reuse old gas cost estimate if it succeeded
             Some(cost) => cost,
             None => {
-                self.report_progress(Stage::Simulate, Outcome::Started);
                 debug!(
                     message_id = ?self.message.id(),
                     "Dry-run simulating process call before submission"
@@ -702,7 +693,6 @@ impl PendingOperation for PendingMessage {
                 .await
                 {
                     Ok(cost) => {
-                        self.report_progress(Stage::Simulate, Outcome::Succeeded);
                         self.ica_reveal_attempts = 0;
                         info!(
                             message_id = ?self.message.id(),
@@ -794,7 +784,6 @@ impl PendingOperation for PendingMessage {
         // Note: fail_fast (relay-API) messages never reach this method — they go through
         // submit_via_lander → payload(), not submit(). This dry-run only guards the classic path.
         if let Some(metadata) = self.metadata.as_ref() {
-            self.report_progress(Stage::Simulate, Outcome::Started);
             debug!(
                 message_id = ?self.message.id(),
                 "Dry-run simulating process call before submission"
@@ -821,7 +810,6 @@ impl PendingOperation for PendingMessage {
                 self.clear_metadata();
                 return self.on_reprepare::<String>(None, reason);
             }
-            self.report_progress(Stage::Simulate, Outcome::Succeeded);
         }
 
         self.report_progress(Stage::Submit, Outcome::Started);
@@ -1000,7 +988,7 @@ impl PendingOperation for PendingMessage {
             .as_ref()
             .expect("Pending message must be prepared before we can create payload for it");
         let metadata = &submission_data.metadata;
-        self.report_progress(Stage::BuildPayload, Outcome::Started);
+
         let payload = mailbox
             .process_calldata(message, metadata)
             .await
@@ -1008,7 +996,7 @@ impl PendingOperation for PendingMessage {
                 self.report_chain_failure(Stage::BuildPayload, error);
                 self.report_progress(Stage::BuildPayload, Outcome::Failed);
             })?;
-        self.report_progress(Stage::BuildPayload, Outcome::Succeeded);
+
         Ok(payload)
     }
 
@@ -1109,16 +1097,6 @@ impl PendingMessage {
         let mut pending_message = Self::new(message, ctx, message_status, app_context, max_retries);
         pending_message.num_retries = num_retries;
         pending_message.next_attempt_after = next_attempt_after;
-        if let Some(state) = retry_state {
-            pending_message.ctx.metadata_builder.report_activity(
-                &pending_message.message,
-                Activity::Retry {
-                    reason: state.reason,
-                    retry_count: num_retries,
-                    next_attempt_at_millis: state.next_attempt_at_millis,
-                },
-            );
-        }
         Some(pending_message)
     }
 

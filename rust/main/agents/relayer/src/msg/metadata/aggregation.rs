@@ -230,7 +230,6 @@ impl AggregationIsmMetadataBuilder {
                 },
             );
         };
-        report(Outcome::Started);
         let result = sub.ism.dry_run_verify(message, &sub.metadata).await;
         report(match &result {
             Ok(Some(_)) => Outcome::Succeeded,
@@ -403,14 +402,6 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                 }
                 ModuleBuildOutcome::Verified(meta, gas) => {
                     metas_and_gas.push((meta, gas));
-                    self.base_builder().report_activity(
-                        message,
-                        Activity::AggregationProgress {
-                            ism: ism_address,
-                            verified: metas_and_gas.len(),
-                            threshold,
-                        },
-                    );
                     if metas_and_gas.len() >= threshold {
                         // Early exit: cancellation is safe (atomic cache writes,
                         // stateless RPCs, per-attempt ism_count). Dropped Refused(Reorg)
@@ -422,6 +413,15 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                 }
             }
         }
+
+        self.base_builder().report_activity(
+            message,
+            Activity::AggregationProgress {
+                ism: ism_address,
+                verified: metas_and_gas.len(),
+                threshold,
+            },
+        );
 
         // When every sub-module failure is purely "signatures not yet collected" and we
         // can't reach threshold without them, propagate AwaitingValidatorSignatures so
@@ -786,6 +786,7 @@ mod test {
         insert_null_submodule(&base, sub0, Ok(Some(U256::from(100u64))));
         insert_null_submodule(&base, sub1, Ok(Some(U256::from(200u64))));
 
+        let activities = base.requests.activities.clone();
         let builder = make_builder(base).await;
         let result = builder
             .build(
@@ -795,6 +796,19 @@ mod test {
             )
             .await;
         assert!(result.is_ok(), "expected Ok, got {:?}", result);
+        let activities = activities.lock().expect("activity lock");
+        let progress: Vec<_> = activities
+            .iter()
+            .filter_map(|(_, activity)| match activity {
+                Activity::AggregationProgress {
+                    ism,
+                    verified,
+                    threshold,
+                } => Some((*ism, *verified, *threshold)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(progress, vec![(agg_addr, 2, 2)]);
     }
 
     /// 2-of-3: one submodule fails to build; the other two verify → Ok.

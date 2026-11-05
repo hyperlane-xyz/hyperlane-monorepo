@@ -1,7 +1,14 @@
 //! Best-effort sanitized message activity. No network I/O on the delivery path.
-use std::{sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use chrono::Utc;
+use parking_lot::Mutex;
+use prometheus::IntCounter;
+use rand::Rng;
 use redact::Secret;
 use sea_orm::{
     ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement,
@@ -11,7 +18,9 @@ use tokio::sync::mpsc;
 use tracing::warn;
 use uuid::Uuid;
 
-use hyperlane_base::{CheckpointObservation, CheckpointObserver};
+use hyperlane_base::{
+    CheckpointObservation, CheckpointObserver, CheckpointUnavailableReason, CoreMetrics,
+};
 use hyperlane_core::{
     ChainCommunicationError, ConfirmReason, HyperlaneMessage, ModuleType, PendingOperationStatus,
     ReprepareReason, H160, H256, H512,
@@ -22,6 +31,7 @@ use crate::msg::metadata::MetadataBuildError;
 const QUEUE_CAPACITY: usize = 1024;
 const BATCH_SIZE: usize = 100;
 const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
+const WARNING_INTERVAL: Duration = Duration::from_secs(30);
 
 // Intentionally structured data only: no provider errors, URLs, message bodies,
 // metadata bytes or validator signatures. Keep additions safe for public display.
@@ -44,7 +54,7 @@ pub enum Activity {
         collection_id: String,
         ism: Option<H256>,
         threshold: u8,
-        observation: CheckpointObservation,
+        summary: CheckpointSummary,
     },
     TransactionOutcome {
         transaction_id: H512,
@@ -64,9 +74,6 @@ pub enum Activity {
     MerkleLeaf {
         index: u32,
         highest_known: Option<u32>,
-    },
-    MetadataStarted {
-        ism: H256,
     },
     MetadataModule {
         ism: H256,
@@ -148,41 +155,34 @@ pub enum ValidatorStorageState {
     NotAnnounced,
     InvalidLocation,
     LocalStorageDisabled,
-    Loading,
     LoadFailed,
     ReorgReported,
     ReorgIgnored,
     ReorgCheckFailed,
-    Ready,
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OffchainReadState {
-    LookupStarted,
     LookupFailed,
     OriginTransactionMissing,
     OriginTransactionLookupFailed,
-    RequestStarted,
     UrlRejected,
     ClientFailed,
     SigningFailed,
     RequestTimeout,
     RequestFailed,
-    HttpResponse,
     BodyReadFailed,
     Pending,
     InvalidResponse,
     Succeeded,
     PendingRetriesExhausted,
     NoEndpoints,
-    EndpointsExhausted,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FilterReason {
-    NotWhitelisted,
     MessageBlacklisted,
     AddressBlacklisted,
     RuntimeDenylisted,
@@ -255,16 +255,48 @@ struct Event {
 }
 
 #[derive(Clone, Debug)]
+struct ActivityMetrics {
+    written: IntCounter,
+    dropped: IntCounter,
+    failed: IntCounter,
+}
+
+impl ActivityMetrics {
+    fn new(metrics: &CoreMetrics) -> eyre::Result<Self> {
+        let events = metrics.new_int_counter(
+            "message_activity_events_total",
+            "Diagnostics events written, dropped before enqueue, or lost in a failed write",
+            &["outcome"],
+        )?;
+        Ok(Self {
+            written: events.with_label_values(&["written"]),
+            dropped: events.with_label_values(&["dropped"]),
+            failed: events.with_label_values(&["failed"]),
+        })
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct MessageActivityReporter {
     sender: mpsc::Sender<Event>,
     relayer: H160,
+    metrics: ActivityMetrics,
 }
 
 impl MessageActivityReporter {
-    pub fn start(url: Secret<String>, relayer: H160) -> Self {
+    pub fn start(
+        url: Secret<String>,
+        relayer: H160,
+        core_metrics: &CoreMetrics,
+    ) -> eyre::Result<Self> {
+        let metrics = ActivityMetrics::new(core_metrics)?;
         let (sender, receiver) = mpsc::channel(QUEUE_CAPACITY);
-        tokio::spawn(write_events(url, receiver));
-        Self { sender, relayer }
+        tokio::spawn(write_events(url, receiver, metrics.clone()));
+        Ok(Self {
+            sender,
+            relayer,
+            metrics,
+        })
     }
 
     pub fn report(&self, message: &HyperlaneMessage, activity: Activity) {
@@ -281,10 +313,8 @@ impl MessageActivityReporter {
             activity,
         };
         if self.sender.try_send(event).is_err() {
-            warn!(
-                ?message_id,
-                "Could not store message activity: queue full or closed"
-            );
+            // Never log synchronously on the delivery path, including during an outage.
+            self.metrics.dropped.inc();
         }
     }
 
@@ -293,7 +323,7 @@ impl MessageActivityReporter {
         message: &HyperlaneMessage,
         ism: Option<H256>,
         threshold: u8,
-    ) -> Arc<dyn CheckpointObserver> {
+    ) -> Arc<ActivityCheckpointObserver> {
         Arc::new(ActivityCheckpointObserver {
             reporter: self.clone(),
             message_id: message.id(),
@@ -302,12 +332,25 @@ impl MessageActivityReporter {
             collection_id: Uuid::new_v4().to_string(),
             ism,
             threshold,
+            summary: Mutex::default(),
         })
     }
 }
 
+// One snapshot per metadata build. Collections are already limited to 50 validators;
+// only the latest attempted index is retained, so range walks cannot grow this state.
+#[derive(Debug, Default, Serialize)]
+pub struct CheckpointSummary {
+    index: Option<u32>,
+    root: Option<H256>,
+    collected: usize,
+    attempts: u64,
+    latest_indices: BTreeMap<H160, Option<u32>>,
+    unavailable: BTreeMap<H256, CheckpointUnavailableReason>,
+}
+
 #[derive(Debug)]
-struct ActivityCheckpointObserver {
+pub struct ActivityCheckpointObserver {
     reporter: MessageActivityReporter,
     message_id: H256,
     origin: u32,
@@ -315,10 +358,56 @@ struct ActivityCheckpointObserver {
     collection_id: String,
     ism: Option<H256>,
     threshold: u8,
+    summary: Mutex<CheckpointSummary>,
 }
 
 impl CheckpointObserver for ActivityCheckpointObserver {
     fn observe(&self, observation: CheckpointObservation) {
+        // This observer is private to one collection. The short synchronous guard
+        // never spans an await or I/O, including the final queue write.
+        let mut summary = self.summary.lock();
+        match observation {
+            CheckpointObservation::LatestIndex { validator, index } => {
+                summary.latest_indices.insert(validator, index);
+            }
+            CheckpointObservation::Fetching { index } => {
+                summary.index = Some(index);
+                summary.root = None;
+                summary.collected = 0;
+                summary.unavailable.clear();
+                summary.attempts = summary.attempts.saturating_add(1);
+            }
+            CheckpointObservation::Signature {
+                validator,
+                root,
+                collected,
+                ..
+            } => {
+                // Counts belong to a single root; never combine conflicting signatures.
+                if collected > summary.collected {
+                    summary.root = Some(root);
+                    summary.collected = collected;
+                }
+                summary.unavailable.remove(&validator);
+            }
+            CheckpointObservation::Unavailable {
+                validator, reason, ..
+            } => {
+                summary.unavailable.insert(validator, reason);
+            }
+        }
+    }
+}
+
+impl ActivityCheckpointObserver {
+    pub fn report(&self) {
+        let summary = std::mem::take(&mut *self.summary.lock());
+        if summary.attempts == 0
+            && summary.latest_indices.is_empty()
+            && summary.unavailable.is_empty()
+        {
+            return;
+        }
         self.reporter.report_id(
             self.message_id,
             self.origin,
@@ -327,7 +416,7 @@ impl CheckpointObserver for ActivityCheckpointObserver {
                 collection_id: self.collection_id.clone(),
                 ism: self.ism,
                 threshold: self.threshold,
-                observation,
+                summary,
             },
         );
     }
@@ -344,8 +433,13 @@ async fn connect(url: &Secret<String>) -> Result<DatabaseConnection, sea_orm::Db
     Database::connect(options).await
 }
 
-async fn write_events(url: Secret<String>, mut receiver: mpsc::Receiver<Event>) {
+async fn write_events(
+    url: Secret<String>,
+    mut receiver: mpsc::Receiver<Event>,
+    metrics: ActivityMetrics,
+) {
     let mut database = None;
+    let mut last_warning: Option<Instant> = None;
     let mut batch = Vec::with_capacity(BATCH_SIZE);
     while receiver.recv_many(&mut batch, BATCH_SIZE).await != 0 {
         let result = tokio::time::timeout(WRITE_TIMEOUT, async {
@@ -363,14 +457,22 @@ async fn write_events(url: Secret<String>, mut receiver: mpsc::Receiver<Event>) 
             } else {
                 "database error"
             };
-            warn!(
-                failure,
-                events = batch.len(),
-                "Could not store message activity; dropping batch"
-            );
-            // The pool reconnects automatically; failed initial connections retry
-            // on the next batch. Backoff occurs only in this background task.
-            tokio::time::sleep(WRITE_TIMEOUT).await;
+            metrics.failed.inc_by(batch.len() as u64);
+            if last_warning.is_none_or(|last| last.elapsed() >= WARNING_INTERVAL) {
+                warn!(
+                    failure,
+                    failed_events = metrics.failed.get(),
+                    dropped_events = metrics.dropped.get(),
+                    "Could not store message activity; dropping batch"
+                );
+                last_warning = Some(Instant::now());
+            }
+            // Backoff and logging stay on the background writer. Jitter prevents
+            // relayers sharing the database from reconnecting in lockstep.
+            let backoff = Duration::from_millis(rand::thread_rng().gen_range(5_000..10_000));
+            tokio::time::sleep(backoff).await;
+        } else {
+            metrics.written.inc_by(batch.len() as u64);
         }
         batch.clear();
     }

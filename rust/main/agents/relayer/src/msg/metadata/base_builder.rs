@@ -282,12 +282,10 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                 },
             );
         };
-        report(Outcome::Started);
         let storage_locations = self
             .fetch_storage_locations(validators)
             .await
             .inspect_err(|_| report(Outcome::Failed))?;
-        report(Outcome::Succeeded);
 
         debug!(
             hyp_message=?message,
@@ -409,7 +407,6 @@ impl BaseMetadataBuilder {
                 },
             )
         };
-        report(ValidatorStorageState::Loading);
         let checkpoint_syncer = match self
             .checkpoint_syncer_pool
             .get_or_build(
@@ -469,10 +466,7 @@ impl BaseMetadataBuilder {
                     Err(CheckpointSyncerBuildError::ReorgFlag(reorg_event))
                 }
             }
-            Ok(_) => {
-                report(ValidatorStorageState::Ready);
-                Ok(Some(checkpoint_syncer))
-            }
+            Ok(_) => Ok(Some(checkpoint_syncer)),
             Err(err) => {
                 report(ValidatorStorageState::ReorgCheckFailed);
                 error!(

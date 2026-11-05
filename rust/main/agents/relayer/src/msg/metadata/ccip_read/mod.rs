@@ -424,7 +424,6 @@ async fn metadata_build(
         endpoint: None,
         attempt: 0,
     };
-    activity.report(OffchainReadState::LookupStarted, None);
     let ism = ism_builder
         .base
         .base_builder()
@@ -482,10 +481,8 @@ async fn metadata_build(
                 attempt: pending_attempts.saturating_add(1),
                 ..activity
             };
-            request_activity.report(OffchainReadState::RequestStarted, None);
             match fetch_offchain_data(&request_activity, &info, url, origin_tx_hash.clone()).await {
                 Ok(data) => {
-                    request_activity.report(OffchainReadState::Succeeded, None);
                     tracing::info!(
                         ?ism_address,
                         url,
@@ -529,7 +526,6 @@ async fn metadata_build(
         }
     }
 
-    activity.report(OffchainReadState::EndpointsExhausted, None);
     // No metadata endpoints or endpoints down
     Err(MetadataBuildError::CouldNotFetch)
 }
@@ -698,7 +694,6 @@ async fn fetch_offchain_data(
 
     let status = res.status();
 
-    activity.report(OffchainReadState::HttpResponse, Some(status.as_u16()));
     let response_body = read_response_body(res).await.inspect_err(|_| {
         activity.report(OffchainReadState::BodyReadFailed, Some(status.as_u16()));
     })?;
@@ -718,7 +713,10 @@ fn decode_offchain_response(
     response_body: &str,
 ) -> Result<Metadata, Box<FetchOutcome>> {
     if body_signals_pending(response_body) {
-        activity.report(OffchainReadState::Pending, Some(status.as_u16()));
+        // Keep the transition to pending, not every one-second internal retry.
+        if activity.attempt == 1 {
+            activity.report(OffchainReadState::Pending, Some(status.as_u16()));
+        }
         return Err(Box::new(FetchOutcome::Pending));
     }
 
@@ -742,10 +740,12 @@ fn decode_offchain_response(
         )))
     })?;
 
-    decode_response_data(&json.data).map_err(|e| {
-        activity.report(OffchainReadState::InvalidResponse, Some(status.as_u16()));
-        Box::new(FetchOutcome::from(*e))
-    })
+    decode_response_data(&json.data)
+        .inspect(|_| activity.report(OffchainReadState::Succeeded, Some(status.as_u16())))
+        .map_err(|e| {
+            activity.report(OffchainReadState::InvalidResponse, Some(status.as_u16()));
+            Box::new(FetchOutcome::from(*e))
+        })
 }
 
 #[cfg(test)]
@@ -1168,7 +1168,7 @@ mod test {
             message: &message,
             ism: H256::repeat_byte(1),
             endpoint: Some(0),
-            attempt: 3,
+            attempt: 1,
         };
         for (status, body, expected) in [
             (200, r#"{"status":"pending"}"#, "pending"),
@@ -1211,15 +1211,50 @@ mod test {
             let event = serde_json::to_value(event).expect("serialize");
             assert_eq!(event["state"], expected);
             assert_eq!(event["http_status"], status);
-            assert_eq!(event["attempt"], 3);
+            assert_eq!(event["attempt"], 1);
             assert!(!event.to_string().contains("private-password"));
         }
+        base.requests
+            .activities
+            .lock()
+            .expect("activity lock")
+            .clear();
+        for attempt in 1..=11 {
+            let retry = ReadActivity {
+                attempt,
+                ..activity
+            };
+            assert!(decode_offchain_response(
+                &retry,
+                reqwest::StatusCode::OK,
+                r#"{"status":"pending"}"#
+            )
+            .is_err());
+        }
+        assert_eq!(
+            base.requests
+                .activities
+                .lock()
+                .expect("activity lock")
+                .len(),
+            1
+        );
+        let final_attempt = ReadActivity {
+            attempt: 11,
+            ..activity
+        };
         assert!(decode_offchain_response(
-            &activity,
+            &final_attempt,
             reqwest::StatusCode::OK,
             r#"{"data":"0x1234"}"#
         )
         .is_ok());
+        let events = base.requests.activities.lock().expect("activity lock");
+        assert_eq!(events.len(), 2);
+        let outcome = serde_json::to_value(&events[1].1).expect("serialize outcome");
+        assert_eq!(outcome["state"], "succeeded");
+        assert_eq!(outcome["attempt"], 11);
+        assert_eq!(outcome["http_status"], 200);
     }
 
     #[test]

@@ -999,6 +999,10 @@ async fn destination_outcomes_attribute_loader_decisions_once() {
         ));
         point_destination_scan_at(&mut loader, nonce);
         assert!(loader.try_load_destination(0).await.unwrap());
+        assert!(
+            loader.logged_denials.is_none(),
+            "whitelist exclusions must not allocate the denial cache"
+        );
         loader.message_whitelist = Arc::new(MatchingList::default());
         db.delete_pending_message_index(&not_whitelisted).unwrap();
 

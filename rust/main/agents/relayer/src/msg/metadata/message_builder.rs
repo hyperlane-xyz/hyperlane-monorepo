@@ -158,12 +158,6 @@ pub async fn build_message_metadata(
     maybe_ism_and_module_type: Option<(Box<dyn InterchainSecurityModule>, ModuleType)>,
 ) -> Result<IsmWithMetadataAndType, MetadataBuildError> {
     let reporter = message_builder.base_builder().activity_reporter().cloned();
-    if let Some(reporter) = &reporter {
-        reporter.report(
-            message,
-            crate::message_activity::Activity::MetadataStarted { ism: ism_address },
-        );
-    }
     let result = build_message_metadata_inner(
         message_builder,
         ism_address,
