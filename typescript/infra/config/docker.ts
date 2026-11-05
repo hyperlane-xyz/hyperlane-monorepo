@@ -49,7 +49,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   validator: 'fe5dfda-20261104-144738',
   validatorRC: '211801c-20261022-150937',
   validatorFastPath: 'c3cf9cb-20261027-064332',
-  scraper: 'fe5dfda-20261104-144738',
+  scraper: '9ef15ff-20261105-153807',
   // monorepo services
   checkWarpDeploy: 'main',
   validatorMonitor: '957cb09-20261021-152517',
@@ -57,7 +57,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   keyFunder: '0f248ed-20261104-132645',
   warpMonitor: '957cb09-20261021-152528',
   rebalancer: '957cb09-20261021-152528',
-  scraperProxy: '8160041-20261022-172207',
+  scraperProxy: '9ef15ff-20261105-153819',
   feeQuoting: '12d899d-20260325-184337',
 };
 
@@ -69,8 +69,8 @@ export const testnetDockerTags: BaseDockerTags = {
   validator: '211801c-20261022-150937',
   validatorRC: '211801c-20261022-150937',
   validatorFastPath: 'c3cf9cb-20261027-064332',
-  scraper: 'a717804-20261023-074850',
+  scraper: '9ef15ff-20261105-153807',
   // standalone services
   keyFunder: '957cb09-20261021-152528',
-  scraperProxy: '8160041-20261022-172207',
+  scraperProxy: '9ef15ff-20261105-153819',
 };
