@@ -14,6 +14,8 @@ import {
 } from '../metrics.js';
 import { quoteIdentifier } from '../scraperdb/tables.js';
 
+const WHITESPACE_REGEX = /\s+/g;
+
 const MIN_POOL_CLIENTS = 5;
 const MAX_POOL_CLIENTS = 10;
 const STATS_INTERVAL_MS = 60_000;
@@ -333,7 +335,7 @@ function json(value: unknown): string {
 }
 
 function queryDetails(text: string, values: unknown[]): string {
-  return `sql=${text.replaceAll(/\s+/g, ' ').trim()} values=${json(values)}`;
+  return `sql=${text.replaceAll(WHITESPACE_REGEX, ' ').trim()} values=${json(values)}`;
 }
 
 function logValue(value: unknown): unknown {

@@ -11,6 +11,8 @@ import {
 import { type CommandModuleWithContext } from '../context/types.js';
 import { log, logGreen } from '../logger.js';
 
+const BYTES32_REGEX = /^0x[a-fA-F0-9]{64}$/;
+
 /**
  * Parent command for address conversion utilities
  */
@@ -144,7 +146,7 @@ const bytes32ToAddressCommand: CommandModuleWithContext<Bytes32ToAddressArgs> =
       try {
         // Validate bytes32 format
         const normalizedBytes32 = ensure0x(bytes32);
-        if (!/^0x[a-fA-F0-9]{64}$/.test(normalizedBytes32)) {
+        if (!BYTES32_REGEX.test(normalizedBytes32)) {
           throw new Error(
             'Invalid bytes32 format. Expected 32-byte hex string.',
           );

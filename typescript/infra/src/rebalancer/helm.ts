@@ -27,6 +27,8 @@ import {
 } from '../utils/helm.js';
 import { execCmdAndParseJson, getInfraPath } from '../utils/utils.js';
 
+const WARP_ROUTE_ID_REGEX = /^warpRouteId:\s*(.+)$/m;
+
 export class RebalancerHelmManager extends HelmManager {
   static helmReleasePrefix: string = 'hyperlane-rebalancer';
 
@@ -271,7 +273,7 @@ export async function getDeployedRebalancerWarpRouteIds(
         );
         const configYaml = cm.data?.['rebalancer-config.yaml'];
         if (configYaml) {
-          const match = configYaml.match(/^warpRouteId:\s*(.+)$/m);
+          const match = configYaml.match(WARP_ROUTE_ID_REGEX);
           warpRouteId = match?.[1]?.trim();
         }
       } catch (e) {

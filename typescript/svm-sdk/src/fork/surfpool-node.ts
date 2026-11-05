@@ -19,6 +19,9 @@ import { assert, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { createRpc } from '../rpc.js';
 
+const SEMVER_REGEX = /(\d+)\.(\d+)\.(\d+)/;
+const SURFPOOL_VERSION_REGEX = /surfpool\s+(\d+\.\d+\.\d+)/;
+
 const logger = rootLogger.child({ module: 'surfpool-node' });
 
 // Minimum acceptable local `surfpool` version; aligned with the docker image
@@ -135,7 +138,7 @@ interface SurfpoolVersion {
 }
 
 function parseVersion(version: string): SurfpoolVersion | null {
-  const match = version.match(/(\d+)\.(\d+)\.(\d+)/);
+  const match = version.match(SEMVER_REGEX);
   if (!match) return null;
   const [, major, minor, patch] = match;
   assert(major && minor && patch, `Invalid surfpool version: ${version}`);
@@ -160,7 +163,7 @@ function getSurfpoolVersion(binaryPath: string): string | null {
     const output = execFileSync(binaryPath, ['--version'], {
       encoding: 'utf-8',
     });
-    const match = output.match(/surfpool\s+(\d+\.\d+\.\d+)/);
+    const match = output.match(SURFPOOL_VERSION_REGEX);
     return match?.[1] ?? null;
   } catch (error) {
     logger.debug(

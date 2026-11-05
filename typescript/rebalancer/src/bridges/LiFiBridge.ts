@@ -35,6 +35,10 @@ import type {
 } from '../interfaces/IExternalBridge.js';
 import { parseSolanaPrivateKey } from '../utils/solanaKeyParser.js';
 
+const TRAILING_ZEROES_REGEX = /\.?0+$/;
+const API_KEY_REGEX = /apiKey=[^&]+/;
+const TRANSACTION_LINK_REGEX = /\/tx\/([^/]+)/;
+
 /**
  * LiFi API base URL for REST endpoints.
  * The SDK doesn't support toAmount quotes, so we use REST API directly.
@@ -397,7 +401,7 @@ export class LiFiBridge implements IExternalBridge {
       toAddress: params.toAddress ?? params.fromAddress,
       slippage: (params.slippage ?? this.config.defaultSlippage ?? 0.005)
         .toFixed(4)
-        .replace(/\.?0+$/, ''),
+        .replace(TRAILING_ZEROES_REGEX, ''),
       order: 'RECOMMENDED',
       integrator: this.config.integrator,
     });
@@ -408,7 +412,7 @@ export class LiFiBridge implements IExternalBridge {
 
     const url = `${LIFI_API_BASE}/quote/toAmount?${queryParams.toString()}`;
     this.logger.debug(
-      { url: url.replace(/apiKey=[^&]+/, 'apiKey=***') },
+      { url: url.replace(API_KEY_REGEX, 'apiKey=***') },
       'Fetching LiFi toAmount quote',
     );
 
@@ -601,7 +605,7 @@ export class LiFiBridge implements IExternalBridge {
     if (txInfo && 'lifiExplorerLink' in txInfo) {
       // Extract transfer ID from explorer link if available
       const link = (txInfo as { lifiExplorerLink?: string }).lifiExplorerLink;
-      const match = link?.match(/\/tx\/([^/]+)/);
+      const match = link?.match(TRANSACTION_LINK_REGEX);
       if (match) {
         transferId = match[1];
       }

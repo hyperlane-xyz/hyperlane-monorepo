@@ -19,6 +19,9 @@ import {
   IgpViolationType,
 } from './types.js';
 
+const BLOCK_NUMBER_BYTECODE_REGEX =
+  /(00000000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})81565/g;
+
 export class HyperlaneIgpChecker extends HyperlaneAppChecker<
   HyperlaneIgp,
   IgpConfig
@@ -53,9 +56,8 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       ],
       (bytecode) =>
         bytecode // We persist the block number in the bytecode now too, so we have to strip it
-          .replaceAll(
-            /(00000000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})81565/g,
-            (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
+          .replaceAll(BLOCK_NUMBER_BYTECODE_REGEX, (match, _offset) =>
+            match.length % 2 === 0 ? '' : '0',
           ),
     );
 

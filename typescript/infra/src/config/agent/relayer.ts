@@ -43,6 +43,8 @@ import {
   defaultChainSignerKeyConfig,
 } from './agent.js';
 
+const HEX_PREFIX_REGEX = /^0x/;
+
 export interface MetricAppContext {
   name: string;
   matchingList: MatchingList;
@@ -716,7 +718,7 @@ export function icaMatchingList(
       // Bytes 1-33: ICA ISM (64 hex chars for bytes32)
       if (matcher.ism !== undefined) {
         const ismBytes32 = addressToBytes32(matcher.ism).toLowerCase();
-        const ismHex = ismBytes32.replace(/^0x/, '');
+        const ismHex = ismBytes32.replace(HEX_PREFIX_REGEX, '');
         bodyRegex += ismHex;
       } else {
         bodyRegex += '.{64}'; // Any 64 hex chars
@@ -727,7 +729,7 @@ export function icaMatchingList(
       // Bytes 1-33: ICA owner (64 hex chars for bytes32)
       if (matcher.owner !== undefined) {
         const ownerBytes32 = addressToBytes32(matcher.owner).toLowerCase();
-        const ownerHex = ownerBytes32.replace(/^0x/, '');
+        const ownerHex = ownerBytes32.replace(HEX_PREFIX_REGEX, '');
         bodyRegex += ownerHex;
       } else {
         bodyRegex += '.{64}'; // Any 64 hex chars
@@ -736,7 +738,7 @@ export function icaMatchingList(
       // Bytes 33-65: ICA ISM (64 hex chars for bytes32)
       if (matcher.ism !== undefined) {
         const ismBytes32 = addressToBytes32(matcher.ism).toLowerCase();
-        const ismHex = ismBytes32.replace(/^0x/, '');
+        const ismHex = ismBytes32.replace(HEX_PREFIX_REGEX, '');
         bodyRegex += ismHex;
       } else {
         bodyRegex += '.{64}'; // Any 64 hex chars
@@ -744,7 +746,9 @@ export function icaMatchingList(
 
       // Bytes 65-97: User Salt (64 hex chars for bytes32)
       if (matcher.salt !== undefined) {
-        const saltHex = matcher.salt.toLowerCase().replace(/^0x/, '');
+        const saltHex = matcher.salt
+          .toLowerCase()
+          .replace(HEX_PREFIX_REGEX, '');
         bodyRegex += saltHex;
       }
       // Note: We don't add .{64} if salt is not provided, as we may want to match

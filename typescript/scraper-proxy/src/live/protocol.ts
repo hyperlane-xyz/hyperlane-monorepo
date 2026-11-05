@@ -1,5 +1,13 @@
 import { setEquality } from '@hyperlane-xyz/utils/sets';
 
+const MESSAGE_ID_REGEX = /^[\da-fA-F]{64}$/;
+const SIGNED_INTEGER_REGEX = /^-?\d+$/;
+const ADDRESS_PREFIX_REGEX = /^(?:0x|\\x)/;
+const UNSIGNED_INTEGER_REGEX = /^\d+$/;
+const DOMAIN_LIST_REGEX = /^\d+(,\d+)*$/;
+const HASH_HEX_REGEX = /^[0-9a-fA-F]{64}$/;
+const CURSOR_HEIGHT_REGEX = /^(?:-1|\d+)$/;
+
 export const EVENT_TYPES = [
   'dispatch',
   'delivery',
@@ -117,7 +125,7 @@ export function parseExplorerNotification(
   const value = parseNotification(payload, 'Explorer');
   if (
     typeof value.messageId !== 'string' ||
-    !/^[\da-fA-F]{64}$/.test(value.messageId)
+    !MESSAGE_ID_REGEX.test(value.messageId)
   ) {
     throw new Error('Invalid scraper Explorer notification');
   }
@@ -166,7 +174,9 @@ export function isDomain(value: unknown): value is number {
 
 export function parseDatabaseDomain(value: unknown, error: string): number {
   const stored =
-    typeof value === 'string' && /^-?\d+$/.test(value) ? Number(value) : value;
+    typeof value === 'string' && SIGNED_INTEGER_REGEX.test(value)
+      ? Number(value)
+      : value;
   if (
     typeof stored !== 'number' ||
     !Number.isInteger(stored) ||
@@ -179,7 +189,7 @@ export function parseDatabaseDomain(value: unknown, error: string): number {
 }
 
 export function normalizeAddress(value: string): string {
-  return `\\x${value.replace(/^(?:0x|\\x)/, '').toLowerCase()}`;
+  return `\\x${value.replace(ADDRESS_PREFIX_REGEX, '').toLowerCase()}`;
 }
 
 export function normalizeSequenceAddress(value: string): string {
@@ -287,17 +297,16 @@ export function parseConfirmations(
 }
 
 export function parseExplorerConfirmations(
-  url: string | undefined,
+  params: URLSearchParams,
 ): { confirmations: number; domains: Set<number> } | undefined {
-  const params = new URL(url ?? '/', 'http://localhost').searchParams;
   if (!params.has('confirmations') && !params.has('domains')) return undefined;
   const count = params.get('confirmations');
   const domainList = params.get('domains');
   if (
     !count ||
-    !/^\d+$/.test(count) ||
+    !UNSIGNED_INTEGER_REGEX.test(count) ||
     !domainList ||
-    !/^\d+(,\d+)*$/.test(domainList)
+    !DOMAIN_LIST_REGEX.test(domainList)
   )
     throw new Error('Expected confirmations=N&domains=domain,...');
   const domains = new Set(domainList.split(',').map(Number));
@@ -307,10 +316,8 @@ export function parseExplorerConfirmations(
   return { confirmations, domains };
 }
 
-export function parseExplorerBlocks(url: string | undefined): boolean {
-  const value = new URL(url ?? '/', 'http://localhost').searchParams.get(
-    'blocks',
-  );
+export function parseExplorerBlocks(params: URLSearchParams): boolean {
+  const value = params.get('blocks');
   if (value === null || value === 'false') return false;
   if (value !== 'true') throw new Error('Expected blocks=true');
   return true;
@@ -325,7 +332,7 @@ function parseDomains(value: unknown): Set<number> | undefined {
 }
 
 export function parseOptionalBlockHash(value: unknown): string | undefined {
-  if (typeof value !== 'string' || !/^[0-9a-fA-F]{64}$/.test(value)) {
+  if (typeof value !== 'string' || !HASH_HEX_REGEX.test(value)) {
     return undefined;
   }
   return `0x${value.toLowerCase()}`;
@@ -405,7 +412,7 @@ export function parseInteger(
       Number.isSafeInteger(value) &&
       value >= min) ||
     (typeof value === 'string' &&
-      (min < 0 ? /^(?:-1|\d+)$/ : /^\d+$/).test(value))
+      (min < 0 ? CURSOR_HEIGHT_REGEX : UNSIGNED_INTEGER_REGEX).test(value))
   ) {
     return BigInt(value);
   }

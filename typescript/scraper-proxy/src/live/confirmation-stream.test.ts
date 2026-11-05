@@ -126,7 +126,9 @@ void it('validates live-only confirmations on both endpoints', () => {
     /live streams only/,
   );
   assert.deepEqual(
-    parseExplorerConfirmations('/messages?confirmations=2&domains=1,2'),
+    parseExplorerConfirmations(
+      new URLSearchParams('confirmations=2&domains=1,2'),
+    ),
     { confirmations: 2, domains: new Set([1, 2]) },
   );
   for (const url of [
@@ -135,7 +137,7 @@ void it('validates live-only confirmations on both endpoints', () => {
     '?confirmations=-1&domains=1',
     '?confirmations=0&domains=',
   ])
-    assert.throws(() => parseExplorerConfirmations(url));
+    assert.throws(() => parseExplorerConfirmations(new URLSearchParams(url)));
 });
 
 for (const pause of ['read', 'send']) {

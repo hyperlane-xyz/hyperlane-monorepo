@@ -67,7 +67,12 @@ mod tests {
             .await
             .map_err(|err| DbErr::Custom(err.to_string()))?;
 
-        Migrator::down(&db, Some(2)).await?;
+        let rollback_steps: u32 = Migrator::migrations()
+            .len()
+            .saturating_sub(preceding_migrations)
+            .try_into()
+            .expect("migration count fits u32");
+        Migrator::down(&db, Some(rollback_steps)).await?;
         let legacy = db
             .query_one(Statement::from_string(
                 DbBackend::Postgres,
@@ -105,10 +110,12 @@ mod tests {
             .await?
             .expect("superseded gas payment position index check");
         assert!(superseded_index.try_get::<bool>("", "removed")?);
-        assert!(
-            Migrator::down(&db, Some(2)).await.is_err(),
-            "downgrade must reject rows incompatible with the legacy identity"
-        );
+        let error = Migrator::down(&db, Some(rollback_steps))
+            .await
+            .expect_err("downgrade must reject rows incompatible with the legacy identity");
+        let message = error.to_string();
+        assert!(message.contains("could not create unique index"));
+        assert!(message.contains("gas_payment_block_log"));
         Ok(())
     }
 }

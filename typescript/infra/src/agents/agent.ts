@@ -5,6 +5,9 @@ import type { DeployEnvironment } from '../config/deploy-environment.js';
 import { Role } from '../roles.js';
 import { assertRole } from '../utils/utils.js';
 
+const KEY_IDENTIFIER_REGEX =
+  /(alias\/)?([a-zA-Z0-9]+)-([a-zA-Z0-9]+)-key-([a-zA-Z0-9]+)-?([a-zA-Z0-9]+)?-?([0-9]+)?/;
+
 export function isValidatorKey(role: Role) {
   return role === Role.Validator;
 }
@@ -67,9 +70,7 @@ export function parseKeyIdentifier(identifier: string): {
   chainName?: string;
   index?: number;
 } {
-  const regex =
-    /(alias\/)?([a-zA-Z0-9]+)-([a-zA-Z0-9]+)-key-([a-zA-Z0-9]+)-?([a-zA-Z0-9]+)?-?([0-9]+)?/g;
-  const matches = regex.exec(identifier);
+  const matches = KEY_IDENTIFIER_REGEX.exec(identifier);
   if (!matches) {
     throw Error('Invalid identifier');
   }

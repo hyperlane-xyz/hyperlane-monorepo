@@ -37,6 +37,8 @@ import {
   verifySignerAuthorization,
 } from './oqlf-lib.js';
 
+const DURATION_REGEX = /^(\d+(?:\.\d+)?)(s|h|d)$/;
+
 const DEFAULT_TTL = 86_400; // 24 hours
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
@@ -49,7 +51,7 @@ const DEFAULT_TTL = 86_400; // 24 hours
  */
 function parseTtl(v: string): number | null {
   const t = v.trim().toLowerCase();
-  const m = t.match(/^(\d+(?:\.\d+)?)(s|h|d)$/);
+  const m = t.match(DURATION_REGEX);
   if (!m) return null;
   const n = parseFloat(m[1]);
   if (!Number.isFinite(n) || n <= 0) return null;

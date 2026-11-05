@@ -9,6 +9,8 @@ import { getArgs } from '../agent-utils.js';
 import { warpViolationGroupings } from './check-utils.js';
 import { deleteViolationSeriesOrThrow } from './clear-utils.js';
 
+const CARRIAGE_RETURN_REGEX = /\r$/;
+
 // Batch variant of clear-warp-violation.ts: clears many series in a single
 // process to avoid per-series tsx cold starts. Reads a TSV file whose columns
 // are: warp_route_id, chain, contract_name, type.
@@ -31,7 +33,7 @@ function parseRows(contents: string): ClearRow[] {
   const errors: string[] = [];
   const rows: ClearRow[] = [];
   contents.split('\n').forEach((raw, idx) => {
-    const line = raw.replace(/\r$/, '');
+    const line = raw.replace(CARRIAGE_RETURN_REGEX, '');
     if (line.trim().length === 0) {
       return;
     }

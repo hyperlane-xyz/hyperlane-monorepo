@@ -26,6 +26,8 @@ import { writeAndFormatJsonAtPath } from '../../../src/utils/utils.js';
 import { withChains, withPropose } from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
+const TIMESTAMP_PUNCTUATION_REGEX = /[:.]/g;
+
 // Root directory for Safe Transaction Builder batch files. Each run gets its own
 // subfolder, with one file per chain that could not be proposed automatically.
 const OUTPUT_ROOT = 'safe-tx-output';
@@ -104,7 +106,7 @@ async function main() {
   const runDir = join(
     OUTPUT_ROOT,
     governanceType,
-    new Date().toISOString().replace(/[:.]/g, '-'),
+    new Date().toISOString().replace(TIMESTAMP_PUNCTUATION_REGEX, '-'),
   );
 
   // Process a single chain end-to-end and return its outcome. Chains are

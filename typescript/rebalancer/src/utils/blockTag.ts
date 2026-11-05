@@ -9,6 +9,8 @@ import {
 import { isEVMLike, ProtocolType } from '@hyperlane-xyz/utils';
 import type { ConfirmedBlockTag } from '../interfaces/IMonitor.js';
 
+const HEX_BLOCK_NUMBER_REGEX = /^0x[0-9a-fA-F]+$/;
+
 /**
  * Get the confirmed block tag for a chain, accounting for reorg period.
  * Returns a block number that is safe from reorgs, or a named tag like 'finalized'.
@@ -56,7 +58,7 @@ export async function getConfirmedBlockTag(
       const latestBlockHex = await provider.send('eth_blockNumber', []);
       if (
         typeof latestBlockHex !== 'string' ||
-        !/^0x[0-9a-fA-F]+$/.test(latestBlockHex)
+        !HEX_BLOCK_NUMBER_REGEX.test(latestBlockHex)
       ) {
         throw new Error(
           `Invalid eth_blockNumber response for ${chainName}: ${latestBlockHex}`,

@@ -49,6 +49,7 @@ import {
   assert,
   bytes32ToAddress,
   convertToProtocolAddress,
+  concurrentMap,
   eqAddress,
   isNullish,
   isZeroishAddress,
@@ -1171,8 +1172,14 @@ abstract class BaseEvmHypXERC20LockboxAdapter<X extends IXERC20 | IXERC20VS>
   override async getBridgedSupply(options?: {
     blockTag?: number | EthJsonRpcBlockParameterTag;
   }): Promise<bigint> {
-    const lockboxAddress = await this.hypXERC20Lockbox.lockbox();
-    const wrappedTokenAddress = await this.getWrappedTokenAddress();
+    const [lockboxAddress, wrappedTokenAddress] = await concurrentMap(
+      2,
+      [
+        () => this.hypXERC20Lockbox.lockbox(),
+        () => this.getWrappedTokenAddress(),
+      ],
+      (read) => read(),
+    );
     const wrappedContract = ERC20__factory.connect(
       wrappedTokenAddress,
       this.getProvider(),
@@ -1439,8 +1446,15 @@ export class EvmXERC20Adapter
   }
 
   async getLimits(bridge: Address): Promise<xERC20Limits> {
-    const mint = await this.xERC20.mintingMaxLimitOf(toEvmAddress(bridge));
-    const burn = await this.xERC20.burningMaxLimitOf(toEvmAddress(bridge));
+    const bridgeAddress = toEvmAddress(bridge);
+    const [mint, burn] = await concurrentMap(
+      2,
+      [
+        () => this.xERC20.mintingMaxLimitOf(bridgeAddress),
+        () => this.xERC20.burningMaxLimitOf(bridgeAddress),
+      ],
+      (read) => read(),
+    );
 
     return {
       mint: BigInt(mint.toString()),

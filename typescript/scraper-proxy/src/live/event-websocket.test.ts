@@ -43,10 +43,15 @@ void describe('event websocket protocol', () => {
         ),
       );
     }
-    assert.equal(parseExplorerBlocks('/messages'), false);
-    assert.equal(parseExplorerBlocks('/messages?blocks=true'), true);
-    assert.equal(parseExplorerBlocks('/messages?blocks=false'), false);
-    assert.throws(() => parseExplorerBlocks('/messages?blocks=oops'));
+    assert.equal(parseExplorerBlocks(new URLSearchParams()), false);
+    assert.equal(parseExplorerBlocks(new URLSearchParams('blocks=true')), true);
+    assert.equal(
+      parseExplorerBlocks(new URLSearchParams('blocks=false')),
+      false,
+    );
+    assert.throws(() =>
+      parseExplorerBlocks(new URLSearchParams('blocks=oops')),
+    );
   });
 
   void it('parses indexed block hashes without losing large heights', () => {

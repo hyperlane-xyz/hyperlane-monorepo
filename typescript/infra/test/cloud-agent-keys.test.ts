@@ -10,6 +10,26 @@ import { Role } from '../src/roles.js';
 
 describe('ReadOnlyCloudAgentKey', () => {
   describe('fromSerializedAddress', () => {
+    it('parses successive key identifiers without shared regex state', () => {
+      for (let i = 0; i < 3; i++) {
+        expect(
+          parseKeyIdentifier('hyperlane-mainnet3-key-validator-validator-0'),
+        ).to.deep.equal({
+          environment: 'mainnet3',
+          context: Contexts.Hyperlane,
+          role: Role.Validator,
+          chainName: 'validator',
+          index: 0,
+        });
+        expect(() => parseKeyIdentifier('invalid')).to.throw(
+          'Invalid identifier',
+        );
+        expect(
+          parseKeyIdentifier('alias/hyperlane-mainnet3-key-relayer').role,
+        ).to.equal(Role.Relayer);
+      }
+    });
+
     it('correctly parses identifiers', () => {
       const addressZero = '0x0000000000000000000000000000000000000000';
       const environment = 'test';

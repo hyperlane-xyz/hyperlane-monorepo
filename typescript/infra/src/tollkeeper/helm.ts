@@ -6,6 +6,8 @@ import {
   getTollkeeperReleaseConfigs,
 } from './releases.js';
 
+const WHITESPACE_REGEX = /\s+/;
+
 // Tollkeeper (https://github.com/hyperlane-xyz/tollkeeper) is deployed from a
 // separate repo. This manager only exists so that the set-rpc-urls script can
 // refresh tollkeeper's k8s secret and restart its pods after rotating shared
@@ -42,7 +44,7 @@ export class TollkeeperHelmManager extends HelmManager {
     const [output] = await execCmd(
       `kubectl get deployment ${this.helmReleaseName} -n ${this.namespace} --ignore-not-found -o jsonpath='{.spec.template.spec.containers[*].envFrom[*].secretRef.name}'`,
     );
-    return output.split(/\s+/).filter(Boolean);
+    return output.split(WHITESPACE_REGEX).filter(Boolean);
   }
 
   async includesChain(chain: string): Promise<boolean> {

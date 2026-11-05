@@ -10,6 +10,10 @@ import { readFileAtPath } from '@hyperlane-xyz/utils/fs';
 import { getChain, getRegistry } from '../../config/registry.js';
 import { getArgs, withWarpRouteId } from '../agent-utils.js';
 
+const PATH_SEPARATOR_REGEX = /\//g;
+const MINT_AUTHORITY_REGEX =
+  /Mint \/ Mint Authority: ([1-9A-HJ-NP-Za-km-z]{32,44}), bump=\d+/;
+
 async function main() {
   const { warpRouteId } = await withWarpRouteId(getArgs()).argv;
   const registry = getRegistry();
@@ -19,7 +23,7 @@ async function main() {
 
   const configDir = resolve(
     __dirname,
-    `../../../../rust/sealevel/environments/mainnet3/warp-routes/${warpRouteId?.replace(/\//g, '-')}`,
+    `../../../../rust/sealevel/environments/mainnet3/warp-routes/${warpRouteId?.replace(PATH_SEPARATOR_REGEX, '-')}`,
   );
 
   const tokenConfigPath = resolve(configDir, 'token-config.json');
@@ -133,9 +137,7 @@ export function queryMintAuthority(rpcUrl: string, programId: string): string {
     throw new Error(`Failed to execute cargo command: ${err.message}`);
   }
 
-  const match = output.match(
-    /Mint \/ Mint Authority: ([1-9A-HJ-NP-Za-km-z]{32,44}), bump=\d+/,
-  );
+  const match = output.match(MINT_AUTHORITY_REGEX);
   if (!match) {
     throw new Error(`Mint authority not found in output:\n${output}`);
   }

@@ -11,11 +11,13 @@ import { logBlue, logGreen, logTable, warnYellow } from '../logger.js';
 import { writeYamlOrJson } from '../utils/files.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 
+const TRAILING_ZEROES_REGEX = /0+$/;
+
 function formatBigIntBalance(raw: bigint, decimals: number): string {
   const str = raw.toString().padStart(decimals + 1, '0');
   const intPart = str.slice(0, str.length - decimals);
   const fracFull = str.slice(str.length - decimals);
-  const fracTrimmed = fracFull.replace(/0+$/, '');
+  const fracTrimmed = fracFull.replace(TRAILING_ZEROES_REGEX, '');
   const intFormatted = new Intl.NumberFormat().format(BigInt(intPart));
   return fracTrimmed ? `${intFormatted}.${fracTrimmed}` : intFormatted;
 }

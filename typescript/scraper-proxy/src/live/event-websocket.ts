@@ -418,8 +418,10 @@ export class EventWebSocketServer {
     let custom: ReturnType<typeof parseExplorerConfirmations>;
     let blocks: boolean;
     try {
-      custom = parseExplorerConfirmations(request.url);
-      blocks = parseExplorerBlocks(request.url);
+      const params = new URL(request.url ?? '/', 'http://localhost')
+        .searchParams;
+      custom = parseExplorerConfirmations(params);
+      blocks = parseExplorerBlocks(params);
     } catch (error) {
       this.rejectNegotiation(socket, formatError(error));
       return;

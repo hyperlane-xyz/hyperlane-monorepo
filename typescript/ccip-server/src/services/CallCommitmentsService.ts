@@ -69,6 +69,11 @@ const CommitmentMetadataSchema = z.object({
   originDomain: z.number(),
 });
 
+const CommitmentRoutingSchema = CommitmentMetadataSchema.pick({
+  ica: true,
+  originDomain: true,
+});
+
 // Zod schema for retrieving a commitment record
 const CommitmentRecordSchema = CommitmentMetadataSchema.extend({
   commitment: z.string(),
@@ -682,6 +687,7 @@ export class CallCommitmentsService extends BaseService {
 
     const record = await prisma.commitment.findUnique({
       where: { commitment },
+      select: { commitment: true, ...commitmentReconciliationSelect },
     });
 
     if (!record) {
@@ -804,11 +810,11 @@ export class CallCommitmentsService extends BaseService {
     try {
       const record = await prisma.commitment.findUnique({
         where: { commitment },
-        select: commitmentMetadataSelect,
+        select: { ica: true, originDomain: true },
       });
       if (record === null) return res.send({ exists: false });
 
-      const metadata = CommitmentMetadataSchema.parse(record);
+      const metadata = CommitmentRoutingSchema.parse(record);
       return res.send({
         exists: true,
         ica: metadata.ica,
@@ -1056,7 +1062,10 @@ export class CallCommitmentsService extends BaseService {
       revealAccounts: unknown;
     } | null;
     try {
-      record = await prisma.calldata.findUnique({ where: { commitment } });
+      record = await prisma.calldata.findUnique({
+        where: { commitment },
+        select: calldataMetadataSelect,
+      });
     } catch (error: unknown) {
       logger.error(
         {
