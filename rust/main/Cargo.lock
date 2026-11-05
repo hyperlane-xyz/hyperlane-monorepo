@@ -6871,6 +6871,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "core-api-client",
+ "dashmap",
  "derive-new",
  "ethers",
  "ethers-core",
