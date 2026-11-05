@@ -45,8 +45,8 @@ describe('strict strategy controls', () => {
       chain: { buffer: 1 },
     },
   ]) {
-    it(`rejects misspelled controls in ${rebalanceStrategy} chains and overrides`, () => {
-      for (const typo of ['enable', 'enabeld']) {
+    it(`rejects unknown controls in ${rebalanceStrategy} chains and overrides`, () => {
+      for (const typo of ['enable', 'unknownControl']) {
         for (const invalid of [
           { ...chain, [typo]: false },
           { ...chain, override: { destination: { [typo]: false } } },
