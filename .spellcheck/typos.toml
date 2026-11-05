@@ -46,6 +46,10 @@ extend-ignore-identifiers-re = [
 ]
 
 [default.extend-words]
+# PostgreSQL Block Range Index
+BRIN = "BRIN"
+brin = "brin"
+
 # Chain / token names
 superseed = "superseed"
 Superseed = "Superseed"
