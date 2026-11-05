@@ -96,6 +96,8 @@ The rebalancer uses a YAML configuration file with a `warpRouteId` and `strategy
 
 See [route controls](docs/route-controls.md) for disabled pairs and persistent monitor-only deployments.
 
+See [external bridge trust](docs/external-bridge-trust.md) for the accepted provider boundary and simulation follow-ups.
+
 Source actions are recorded in memory before broadcast. This prevents an
 uncertain send from being retried while the process remains running. A restart
 clears this state; no action or intent state is written to disk.
