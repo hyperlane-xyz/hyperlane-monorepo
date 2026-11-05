@@ -62,7 +62,7 @@ export function buildRebalancerHelmValues(
       registryUri: `${DEFAULT_GITHUB_REGISTRY}/tree/${options.registryCommit}`,
       rebalancerConfig: runtimeConfig,
       withMetrics: options.withMetrics,
-      monitorOnly: options.monitorOnly,
+      monitorOnly: deployment.monitorOnly === true || options.monitorOnly,
       chains: options.chains,
       inventorySignerProtocols: Object.keys(config.inventorySigners ?? {}),
       externalBridgeProviders: Object.keys(config.externalBridges ?? {}),
@@ -99,6 +99,10 @@ export class RebalancerHelmManager extends HelmManager {
   async runPreflightChecks(localConfigPath: string) {
     this.deploymentConfig = readRebalancerConfig(
       path.join(getInfraPath(), localConfigPath),
+    );
+    assert(
+      this.deploymentConfig.config.warpRouteId === this.warpRouteId,
+      'Rebalancer warp route ID mismatch',
     );
     // Resolve RPC-secret chains from the same registry revision as the runtime.
     const registry = new GithubRegistry({

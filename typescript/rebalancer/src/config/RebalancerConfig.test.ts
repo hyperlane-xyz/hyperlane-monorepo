@@ -18,10 +18,64 @@ import {
   TokenBridgeStatusAdapterType,
   TokenBridgeStatusAdapterConfigSchema,
   type StrategyConfig,
+  StrategyConfigSchema,
   getAllBridges,
 } from './types.js';
 
 const TEST_CONFIG_PATH = join(tmpdir(), 'rebalancer-config-test.yaml');
+
+describe('strict strategy controls', () => {
+  for (const { rebalanceStrategy, chain } of [
+    {
+      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+      chain: { weighted: { weight: 1, tolerance: 0 } },
+    },
+    {
+      rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
+      chain: {
+        minAmount: {
+          min: 1,
+          target: 2,
+          type: RebalancerMinAmountType.Absolute,
+        },
+      },
+    },
+    {
+      rebalanceStrategy: RebalancerStrategyOptions.CollateralDeficit,
+      chain: { buffer: 1 },
+    },
+  ]) {
+    it(`rejects misspelled controls in ${rebalanceStrategy} chains and overrides`, () => {
+      for (const typo of ['enable', 'enabeld']) {
+        for (const invalid of [
+          { ...chain, [typo]: false },
+          { ...chain, override: { destination: { [typo]: false } } },
+        ]) {
+          const result = StrategyConfigSchema.safeParse({
+            rebalanceStrategy,
+            chains: { origin: invalid },
+          });
+          expect(result.success).to.equal(false);
+          if (!result.success)
+            expect(result.error.issues[0].path).to.include('origin');
+        }
+      }
+      const result = StrategyConfigSchema.parse({
+        rebalanceStrategy,
+        chains: {
+          origin: {
+            ...chain,
+            enabled: true,
+            override: { destination: { enabled: false } },
+          },
+        },
+      });
+      expect(result.chains.origin.override?.destination.enabled).to.equal(
+        false,
+      );
+    });
+  }
+});
 
 // Helper to get strategy as array (for test type safety)
 // Schema accepts both single object and array, but tests use array format

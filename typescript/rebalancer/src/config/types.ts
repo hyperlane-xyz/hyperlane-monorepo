@@ -103,7 +103,7 @@ export const RebalancerBaseChainConfigSchema =
     override: z
       .record(
         z.string(),
-        z.looseObject(RebalancerBridgeConfigSchema.partial().shape),
+        z.strictObject(RebalancerBridgeConfigSchema.partial().shape),
       )
       .optional(),
   });
@@ -111,16 +111,16 @@ export const RebalancerBaseChainConfigSchema =
 // Schemas for strategy-specific chain configs
 const WeightedChainConfigSchema = RebalancerBaseChainConfigSchema.extend({
   weighted: RebalancerWeightedChainConfigSchema,
-});
+}).strict();
 
 const MinAmountChainConfigSchema = RebalancerBaseChainConfigSchema.extend({
   minAmount: RebalancerMinAmountConfigSchema,
-});
+}).strict();
 
 const CollateralDeficitChainConfigSchema =
   RebalancerBaseChainConfigSchema.extend({
     buffer: z.string().or(z.number()),
-  });
+  }).strict();
 
 const WeightedStrategySchema = z.object({
   rebalanceStrategy: z.literal(RebalancerStrategyOptions.Weighted),
