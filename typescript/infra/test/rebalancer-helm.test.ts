@@ -9,7 +9,7 @@ import Sinon from 'sinon';
 import { parse, parseAllDocuments, stringify } from 'yaml';
 
 import { GithubRegistry } from '@hyperlane-xyz/registry';
-import { TokenStandard } from '@hyperlane-xyz/sdk';
+import { TokenStandard, WarpCoreConfigSchema } from '@hyperlane-xyz/sdk';
 
 import { DockerImageRepos, mainnetDockerTags } from '../config/docker.js';
 import { readRebalancerConfig } from '../src/rebalancer/config.js';
@@ -411,7 +411,8 @@ describe('Rebalancer Helm deployment', () => {
 });
 
 describe('oUSDT production manifest', () => {
-  it('renders the actual route YAML with its credentials and limits', () => {
+  afterEach(() => Sinon.restore());
+  it('renders the actual route YAML with its credentials and limits', async () => {
     const loaded = readRebalancerConfig(
       path.join(
         getInfraPath(),
@@ -420,13 +421,42 @@ describe('oUSDT production manifest', () => {
     );
     const registryCommit = '0b7518b88967309b0ca30827ec418852873bdc7e';
     expect(loaded.deployment.registryCommit).to.equal(registryCommit);
-    const values = buildRebalancerHelmValues(loaded, {
-      ...options,
-      warpRouteId: 'oUSDT/production',
+    expect(loaded.deployment.monitorOnly).to.equal(true);
+    const warpCore = WarpCoreConfigSchema.parse(
+      parse(
+        fs.readFileSync(
+          path.join(
+            getInfraPath(),
+            'test/fixtures/rebalancer/oUSDT-production-warp-core.yaml',
+          ),
+          'utf8',
+        ),
+      ),
+    );
+    const getWarpRoute = Sinon.stub(
+      GithubRegistry.prototype,
+      'getWarpRoute',
+    ).resolves(warpCore);
+    const manager = new RebalancerHelmManager(
+      'oUSDT/production',
+      'mainnet3',
       registryCommit,
-      chains: ['arbitrum', 'celo', 'ethereum', 'tron'],
-      monitorOnly: true,
-    });
+      '',
+      '',
+      true,
+      false,
+    );
+    await manager.runPreflightChecks(
+      'config/environments/mainnet3/rebalancer/oUSDT/production-config.yaml',
+    );
+    const values = await manager.helmValues();
+    expect(getWarpRoute.calledOnceWithExactly('oUSDT/production')).to.equal(
+      true,
+    );
+    expect(getWarpRoute.firstCall.thisValue.branch).to.equal(registryCommit);
+    expect(values.hyperlane.chains).to.deep.equal(
+      warpCore.tokens.map((token) => token.chainName),
+    );
     const documents = renderRebalancerValues(values);
     const secret = documents.find((d) => d.kind === 'ExternalSecret');
     expect(secret.spec.target.template.data).to.have.keys(
@@ -436,10 +466,9 @@ describe('oUSDT production manifest', () => {
       'HYP_INVENTORY_KEY_ETHEREUM',
       'HYP_INVENTORY_KEY_TRON',
       'SWAPSXYZ_API_KEY',
-      'RPC_URL_ARBITRUM',
-      'RPC_URL_CELO',
-      'RPC_URL_ETHEREUM',
-      'RPC_URL_TRON',
+      ...warpCore.tokens.map(
+        (token) => `RPC_URL_${token.chainName.toUpperCase()}`,
+      ),
     );
     expect(
       secret.spec.data.find(
@@ -511,7 +540,6 @@ describe('oUSDT production manifest', () => {
       destinationEid: 30420,
       sourceOft: '0x77652D5aba086137b595875263FC200182919B92',
       destinationOft: '0x3a08f76772e200653bb55c2a92998daca62e0e97',
-      destinationRecipient: '*',
     });
     expect(chains.tron.override.arbitrum.statusAdapter).to.deep.equal({
       kind: 'lz_scan',
@@ -519,8 +547,15 @@ describe('oUSDT production manifest', () => {
       destinationEid: 30110,
       sourceOft: '0x3a08f76772e200653bb55c2a92998daca62e0e97',
       destinationOft: '0x77652D5aba086137b595875263FC200182919B92',
-      destinationRecipient: '*',
     });
+    for (const adapter of [
+      chains.arbitrum.statusAdapter,
+      chains.arbitrum.override.tron.statusAdapter,
+      chains.tron.statusAdapter,
+      chains.tron.override.arbitrum.statusAdapter,
+    ]) {
+      expect(adapter).not.to.have.property('destinationRecipient');
+    }
     expect(chains.ethereum.externalBridge).to.equal('layerzero');
     expect(chains.ethereum.override.celo.externalBridge).to.equal('swapsxyz');
     expect(chains.celo.override.tron.enabled).to.equal(false);
