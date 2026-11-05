@@ -192,6 +192,9 @@ valid and asks it to commit verification. A different stored hash reverts with
 `verify` never clears the stored hash. It is therefore idempotent: it can be
 called repeatedly, outside `Mailbox.process`, and more than once for the same
 message, including when one deployment appears several times in an ISM tree.
+This holds until the packet is cleared from the Endpoint, which is only
+possible after Mailbox delivery. After that, `verify` takes the commit path
+again and reverts, because ULN302 deleted the attestations on the first commit.
 
 The hook sends a one-gas `lzReceive` option because standard LayerZero
 Executors reject missing and zero-gas receive options. Normal Executor callback

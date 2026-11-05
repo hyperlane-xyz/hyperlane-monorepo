@@ -2,6 +2,7 @@ use std::ffi::CStr;
 
 use async_trait::async_trait;
 
+use hyperlane_core::utils::read_concurrently;
 use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
@@ -104,51 +105,46 @@ impl<C: AleoClient> ValidatorAnnounce for AleoValidatorAnnounce<C> {
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
-        let mut storage_locations = Vec::new();
-        for validator in validators {
-            let bytes = H160::from(*validator);
-            let validator = AleoEthAddress {
-                bytes: *bytes.as_fixed_bytes(),
-            };
-            let last_sequence: Option<u8> = self
-                .provider
-                .get_mapping_value(&self.program, "storage_sequences", &validator)
-                .await?;
-
-            let last_sequence = match last_sequence {
-                Some(value) => value,
-                None => {
-                    storage_locations.push(Vec::new());
-                    continue;
-                }
-            };
-
-            let mut validator_locations = Vec::new();
-            for index in 0..last_sequence {
-                let key = StorageLocationKey {
-                    validator: validator.bytes,
-                    index,
+        // Nested validator/location windows share one RPC limit.
+        let permits = tokio::sync::Semaphore::new(8);
+        read_concurrently(validators, |validator| {
+            let permits = &permits;
+            async move {
+                let bytes = H160::from(*validator);
+                let validator = AleoEthAddress {
+                    bytes: *bytes.as_fixed_bytes(),
                 };
-                let location: Option<[u8; 480]> = self
-                    .provider
-                    .get_mapping_value(&self.program, "storage_locations", &key)
-                    .await?;
-                match location {
-                    None => {
-                        debug!("No storage location found for validator {:?} at index {}, this should never happen!", validator, index);
-                        continue;
-                    }
-                    Some(location) => {
-                        let location = CStr::from_bytes_until_nul(&location)
-                            .map_err(HyperlaneAleoError::from)?;
-                        let location = location.to_str().map_err(HyperlaneAleoError::from)?;
-                        validator_locations.push(location.to_owned());
-                    }
+                let last_sequence: Option<u8> = {
+                    let _permit = permits.acquire().await.map_err(hyperlane_core::ChainCommunicationError::from_other)?;
+                    self.provider.get_mapping_value(&self.program, "storage_sequences", &validator).await?
                 };
+                let Some(last_sequence) = last_sequence else {
+                    return Ok(Vec::new());
+                };
+                let locations = read_concurrently(0..last_sequence, |index| {
+                    let validator = &validator;
+                    async move {
+                        let key = StorageLocationKey { validator: validator.bytes, index };
+                        let location: Option<[u8; 480]> = {
+                            let _permit = permits.acquire().await.map_err(hyperlane_core::ChainCommunicationError::from_other)?;
+                            self.provider.get_mapping_value(&self.program, "storage_locations", &key).await?
+                        };
+                        match location {
+                            None => {
+                                debug!("No storage location found for validator {:?} at index {}, this should never happen!", validator, index);
+                                Ok(None)
+                            }
+                            Some(location) => {
+                                let location = CStr::from_bytes_until_nul(&location).map_err(HyperlaneAleoError::from)?;
+                                let location = location.to_str().map_err(HyperlaneAleoError::from)?;
+                                Ok(Some(location.to_owned()))
+                            }
+                        }
+                    }
+                }).await?;
+                Ok(locations.into_iter().flatten().collect())
             }
-            storage_locations.push(validator_locations);
-        }
-        Ok(storage_locations)
+        }).await
     }
 
     /// Announce a storage location for a validator
@@ -188,6 +184,7 @@ impl<C: AleoClient> ValidatorAnnounce for AleoValidatorAnnounce<C> {
 mod tests {
     use super::*;
     use crate::{provider::mock::MockHttpClient, AleoProvider, ConnectionConf};
+    use aleo_serialize::AleoSerialize;
     use std::{path::PathBuf, str::FromStr};
     const DOMAIN: HyperlaneDomain =
         HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Abstract);
@@ -203,6 +200,84 @@ mod tests {
             priority_fee_multiplier: 0f64,
             proving_service: vec![].into(),
         }
+    }
+
+    fn register_mapping<K: AleoSerialize<CurrentNetwork>>(
+        announce: &AleoValidatorAnnounce<MockHttpClient>,
+        mapping: &str,
+        key: &K,
+        value: impl Into<serde_json::Value>,
+    ) {
+        let key = key.to_plaintext().unwrap();
+        let path = format!("program/{}/mapping/{mapping}/{key}", announce.program)
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect::<String>();
+        announce.provider.register_value(path, value);
+    }
+
+    fn many_validator_fixture() -> (
+        AleoValidatorAnnounce<MockHttpClient>,
+        Vec<H256>,
+        Vec<Vec<String>>,
+    ) {
+        let announce = get_mock_validator_announce();
+        let validators = (10..22).map(H256::from_low_u64_be).collect::<Vec<_>>();
+        let mut expected = Vec::new();
+        for (position, address) in validators.iter().enumerate() {
+            let validator = AleoEthAddress {
+                bytes: *H160::from(*address).as_fixed_bytes(),
+            };
+            register_mapping(&announce, "storage_sequences", &validator, "3u8");
+            let mut locations = Vec::new();
+            for index in 0..3 {
+                let key = StorageLocationKey {
+                    validator: validator.bytes,
+                    index,
+                };
+                let location = format!("https://validator-{position}.example/checkpoint/{index}");
+                let mut bytes = [0_u8; 480];
+                bytes[..location.len()].copy_from_slice(location.as_bytes());
+                let plaintext =
+                    <[u8; 480] as AleoSerialize<CurrentNetwork>>::to_plaintext(&bytes).unwrap();
+                register_mapping(&announce, "storage_locations", &key, plaintext.to_string());
+                locations.push(location);
+            }
+            expected.push(locations);
+        }
+        announce.provider.record_concurrency();
+        (announce, validators, expected)
+    }
+
+    #[tokio::test]
+    async fn concurrent_validator_locations_keep_nested_order_and_share_one_rpc_limit() {
+        let (announce, validators, expected) = many_validator_fixture();
+        let locations = announce
+            .get_announced_storage_locations(&validators)
+            .await
+            .unwrap();
+        assert_eq!(locations, expected);
+        let (calls, peak, active) = announce.provider.concurrency_stats();
+        assert_eq!(calls, 48);
+        assert_eq!(peak, 8);
+        assert_eq!(active, 0);
+    }
+
+    #[tokio::test]
+    async fn concurrent_validator_location_failure_drains_started_rpcs() {
+        let (announce, validators, _) = many_validator_fixture();
+        let key = StorageLocationKey {
+            validator: *H160::from(validators[0]).as_fixed_bytes(),
+            index: 0,
+        };
+        register_mapping(&announce, "storage_locations", &key, "invalid-location");
+        assert!(announce
+            .get_announced_storage_locations(&validators)
+            .await
+            .is_err());
+        let (_, peak, active) = announce.provider.concurrency_stats();
+        assert!(peak <= 8);
+        assert_eq!(active, 0);
     }
 
     fn get_mock_validator_announce() -> AleoValidatorAnnounce<MockHttpClient> {

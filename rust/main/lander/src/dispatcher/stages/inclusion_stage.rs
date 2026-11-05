@@ -479,9 +479,14 @@ impl InclusionStage {
                 Self::process_pending_tx(tx, state, pool, domain).await
             }
             TransactionStatus::Included | TransactionStatus::Finalized => {
-                update_tx_status(state, &mut tx, tx_status.clone()).await?;
+                // Finality owns the terminal commit, after payload verification.
+                // Keep failed/cancelled handoffs recoverable in the DB and pool.
+                update_tx_status(state, &mut tx, TransactionStatus::Included).await?;
                 let tx_uuid = tx.uuid.clone();
                 pool.lock().await.insert(tx_uuid.clone(), tx.clone());
+                // Preserve the observed status in the handoff to avoid another
+                // RPC for transactions already known to be finalized.
+                tx.status = tx_status.clone();
                 finality_stage_sender.send(tx).await.map_err(|err| {
                     tracing::error!(?err, "Failed to send tx to finality stage");
                     LanderError::ChannelSendFailure(Box::new(err))

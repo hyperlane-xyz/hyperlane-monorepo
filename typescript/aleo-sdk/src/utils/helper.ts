@@ -14,6 +14,9 @@ import { ALEO_PROGRAMS, type AleoProgram } from '../programs.js';
 import { AleoNetworkId, AleoTokenType } from './types.js';
 import type { AleoSdk } from './provable.js';
 
+const U128_SUFFIX_REGEX = /u128$/;
+const FEE_ENABLED_PROGRAM_REGEX = /_v[23]\.aleo$/;
+
 const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');
 
 export const MAINNET_PREFIX = 'hyp';
@@ -200,7 +203,9 @@ export function u128PairToBytes32(u128PairStr: string): string {
     `u128PairToBytes32: expected "[low,high]" format, got: ${u128PairStr}`,
   );
   const inner = u128PairStr.slice(1, -1);
-  const parts = inner.split(',').map((s) => s.trim().replace(/u128$/, ''));
+  const parts = inner
+    .split(',')
+    .map((s) => s.trim().replace(U128_SUFFIX_REGEX, ''));
   assert(
     parts.length === 2,
     `u128PairToBytes32: expected exactly 2 comma-separated parts, got ${parts.length}: ${inner}`,
@@ -409,7 +414,7 @@ export function formatHookAddress(
 
 /** V2 and v3 warp routes use standalone ARC-20 or ARC-22 token programs. */
 export function isArcWarpToken(programId: string): boolean {
-  return /_v[23]\.aleo$/.test(programId);
+  return FEE_ENABLED_PROGRAM_REGEX.test(programId);
 }
 
 export function isArcTokenProgramId(denom: string): boolean {

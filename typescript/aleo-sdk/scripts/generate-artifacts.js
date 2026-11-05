@@ -4,6 +4,11 @@ import path from 'path';
 import unzipper from 'unzipper';
 import { fileURLToPath } from 'url';
 
+const BACKSLASH_REGEX = /\\/g;
+const SINGLE_QUOTE_REGEX = /'/g;
+const BACKTICK_REGEX = /`/g;
+const NEWLINE_REGEX = /\r?\n/g;
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -48,10 +53,10 @@ const main = async () => {
       const filename = entry.path.replace('.aleo', '');
       const content = (await entry.buffer())
         .toString('utf8')
-        .replace(/\\/g, '\\\\')
-        .replace(/'/g, "\\'")
-        .replace(/`/g, '\\`')
-        .replace(/\r?\n/g, '\\n');
+        .replace(BACKSLASH_REGEX, '\\\\')
+        .replace(SINGLE_QUOTE_REGEX, "\\'")
+        .replace(BACKTICK_REGEX, '\\`')
+        .replace(NEWLINE_REGEX, '\\n');
 
       files.push({ filename, content });
     }

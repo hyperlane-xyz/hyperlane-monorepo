@@ -43,6 +43,8 @@ import {
   defaultChainSignerKeyConfig,
 } from './agent.js';
 
+const HEX_PREFIX_REGEX = /^0x/;
+
 export interface MetricAppContext {
   name: string;
   matchingList: MatchingList;
@@ -114,6 +116,8 @@ export function buildWarpRouteProcessAltOverrides(
 
 // Incomplete basic relayer agent config
 export interface BaseRelayerConfig {
+  // Secret Manager name only; the database URL is injected by External Secrets.
+  messageActivityDatabaseUrlSecret?: string;
   // URLs are injected from per-chain Secret Manager secrets by Helm.
   mevSubmission?: ChainMap<
     Pick<
@@ -191,6 +195,7 @@ export type RelayerEnvConfig = Omit<
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
 // This is at `.hyperlane.relayer` in the values file.
 export interface HelmRelayerValues extends HelmStatefulSetValues {
+  messageActivityDatabaseUrlSecret?: string;
   aws: boolean;
   // Config intended to be set as env vars
   envConfig?: RelayerEnvConfig;
@@ -357,33 +362,12 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
   }
 
   async getSanctionedAddresses() {
-    // Only mainnet relays real value; testnets keep the exploit lists below
-    // but skip the network fetch.
+    // Exploit rules live in the environment's runtime registry feed.
+    // Only mainnet relays real value and needs the static OFAC list.
     const sanctionedEthereumAddresses =
       this.runEnv === 'mainnet3' ? await this.fetchOfacEvmAddresses() : [];
-
-    const radiantExploiter = [
-      '0xA0e768A68ba1BFffb9F4366dfC8D9195EE7217d1',
-      '0x0629b1048298AE9deff0F4100A31967Fb3f98962',
-      '0x97a05beCc2e7891D07F382457Cd5d57FD242e4e8',
-    ];
-
-    const flowAddresses = [
-      '0x9D9247F5C3F3B78F7EE2C480B9CDaB91393Bf4D6',
-      '0x2e7C4b71397f10c93dC0C2ba6f8f179A47F994e1',
-      '0x00000000000000000000000235aE95896583818d',
-    ];
-
-    // Binance hot wallet exploit 2026-10-29
-    const binanceExploiter = ['0xA97bF7836F8A08F9Ed91D41453D371493FAE8d10'];
-
     const uniqueAddresses = new Set(
-      [
-        ...sanctionedEthereumAddresses,
-        ...radiantExploiter,
-        ...flowAddresses,
-        ...binanceExploiter,
-      ].map((address) => address.toLowerCase()),
+      sanctionedEthereumAddresses.map((address) => address.toLowerCase()),
     );
 
     return Array.from(uniqueAddresses);
@@ -716,7 +700,7 @@ export function icaMatchingList(
       // Bytes 1-33: ICA ISM (64 hex chars for bytes32)
       if (matcher.ism !== undefined) {
         const ismBytes32 = addressToBytes32(matcher.ism).toLowerCase();
-        const ismHex = ismBytes32.replace(/^0x/, '');
+        const ismHex = ismBytes32.replace(HEX_PREFIX_REGEX, '');
         bodyRegex += ismHex;
       } else {
         bodyRegex += '.{64}'; // Any 64 hex chars
@@ -727,7 +711,7 @@ export function icaMatchingList(
       // Bytes 1-33: ICA owner (64 hex chars for bytes32)
       if (matcher.owner !== undefined) {
         const ownerBytes32 = addressToBytes32(matcher.owner).toLowerCase();
-        const ownerHex = ownerBytes32.replace(/^0x/, '');
+        const ownerHex = ownerBytes32.replace(HEX_PREFIX_REGEX, '');
         bodyRegex += ownerHex;
       } else {
         bodyRegex += '.{64}'; // Any 64 hex chars
@@ -736,7 +720,7 @@ export function icaMatchingList(
       // Bytes 33-65: ICA ISM (64 hex chars for bytes32)
       if (matcher.ism !== undefined) {
         const ismBytes32 = addressToBytes32(matcher.ism).toLowerCase();
-        const ismHex = ismBytes32.replace(/^0x/, '');
+        const ismHex = ismBytes32.replace(HEX_PREFIX_REGEX, '');
         bodyRegex += ismHex;
       } else {
         bodyRegex += '.{64}'; // Any 64 hex chars
@@ -744,7 +728,9 @@ export function icaMatchingList(
 
       // Bytes 65-97: User Salt (64 hex chars for bytes32)
       if (matcher.salt !== undefined) {
-        const saltHex = matcher.salt.toLowerCase().replace(/^0x/, '');
+        const saltHex = matcher.salt
+          .toLowerCase()
+          .replace(HEX_PREFIX_REGEX, '');
         bodyRegex += saltHex;
       }
       // Note: We don't add .{64} if salt is not provided, as we may want to match

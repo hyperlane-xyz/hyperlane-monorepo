@@ -15,10 +15,12 @@ import type {
   MetadataContext,
 } from './types.js';
 
+const OFFCHAIN_LOOKUP_REVERT_REGEX = /^0x(?:[0-9a-fA-F]{2}){64,}$/;
+
 function isHexString(value: unknown): value is string {
   // Minimum 64 hex bytes (128 chars) to avoid matching addresses (20B) and tx hashes (32B).
   // OffchainLookup is 4 + 5×32 = 164 bytes minimum, so 64B is a conservative floor.
-  return typeof value === 'string' && /^0x(?:[0-9a-fA-F]{2}){64,}$/.test(value);
+  return typeof value === 'string' && OFFCHAIN_LOOKUP_REVERT_REGEX.test(value);
 }
 
 function isRecord(x: unknown): x is Record<string, unknown> {

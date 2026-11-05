@@ -63,6 +63,8 @@ import { indentYamlOrJson } from '../utils/files.js';
 import { logDeliveryTime, runSelfRelay } from '../utils/relay.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
 
+const HEX_PREFIX_REGEX = /^0x/i;
+
 export const WarpSendLogs = {
   SUCCESS: 'Transfer was self-relayed!',
 };
@@ -911,7 +913,7 @@ async function queryExplorerDelivered(
       }
     }`,
     variables: {
-      id: messageId.replace(/^0x/i, '\\x').toLowerCase(),
+      id: messageId.replace(HEX_PREFIX_REGEX, '\\x').toLowerCase(),
     },
   });
 

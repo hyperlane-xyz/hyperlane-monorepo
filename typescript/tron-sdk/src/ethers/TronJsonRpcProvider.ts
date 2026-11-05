@@ -6,6 +6,8 @@ import { ensure0x, isNullish, retryAsync } from '@hyperlane-xyz/utils';
 import { buildTronTriggerRequest, toTronHex } from '../utils/index.js';
 import { stripCustomRpcHeaders, toHttpApiUrl } from './urlUtils.js';
 
+const REVERT_MESSAGE_REGEX = /revert/i;
+
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_BASE_RETRY_MS = 250;
 
@@ -97,7 +99,7 @@ function isRevertError(error: unknown): boolean {
         current['reason'],
         current['body'],
       ].filter((value): value is string => typeof value === 'string');
-      if (messages.some((value) => /revert/i.test(value))) {
+      if (messages.some((value) => REVERT_MESSAGE_REGEX.test(value))) {
         return true;
       }
       if (current['code'] === JSON_RPC_REVERT_CODE) {

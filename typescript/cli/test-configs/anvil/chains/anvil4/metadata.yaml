@@ -6,6 +6,10 @@ chainId: 31348
 domainId: 31348
 name: anvil4
 protocol: ethereum
+blocks:
+  confirmations: 1
+  # Local blocks are immediately final; historical reads can precede deployment.
+  reorgPeriod: 0
 rpcUrls:
   - http: http://127.0.0.1:8601
 blockExplorers: # Array: List of BlockExplorer configs

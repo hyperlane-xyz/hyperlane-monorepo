@@ -368,7 +368,7 @@ impl BaseAgent for Relayer {
         )?);
         // Load before message processing starts so queued messages are
         // checked against the current rules.
-        runtime_denylist.initial_load().await;
+        runtime_denylist.initial_load().await?;
         // Looks up origin tx senders while runtime `address` rules exist,
         // reusing the origin's existing provider.
         let mut origin_sender_checks = HashMap::new();

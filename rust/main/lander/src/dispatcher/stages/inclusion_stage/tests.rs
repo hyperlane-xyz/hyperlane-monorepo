@@ -608,6 +608,46 @@ async fn test_failed_estimation() {
 }
 
 #[tokio::test]
+async fn failed_finalized_handoff_keeps_database_and_pool_recoverable() {
+    let mut adapter = MockAdapter::new();
+    adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_secs(1));
+    adapter
+        .expect_tx_status()
+        .once()
+        .returning(|_| Ok(TransactionStatus::Finalized));
+    let (state, pool) = reprocess_test_state(adapter);
+    let tx = create_random_txs_and_store_them(
+        1,
+        &state.payload_db,
+        &state.tx_db,
+        TransactionStatus::PendingInclusion,
+    )
+    .await
+    .pop()
+    .unwrap();
+    pool.lock().await.insert(tx.uuid.clone(), tx.clone());
+    let (sender, receiver) = mpsc::channel(1);
+    drop(receiver);
+
+    InclusionStage::process_txs_step(&pool, &sender, &state, "test")
+        .await
+        .unwrap();
+    assert_eq!(
+        pool.lock().await.get(&tx.uuid).unwrap().status,
+        TransactionStatus::Included
+    );
+    assert_tx_status(
+        vec![tx],
+        &state.tx_db,
+        &state.payload_db,
+        TransactionStatus::Included,
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn test_channel_closed_before_any_tx() {
     let (payload_db, tx_db, _) = tmp_dbs();
     let (building_stage_sender, building_stage_receiver) = mpsc::channel(1);

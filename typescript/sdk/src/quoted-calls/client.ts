@@ -19,6 +19,8 @@ import {
   QuoteV2Endpoint as QuoteV2EndpointValues,
 } from './types.js';
 
+const TRAILING_SLASH_REGEX = /\/$/;
+
 /** Runtime membership set for the `NoQuoteAvailableReason` discriminant. */
 const NO_QUOTE_AVAILABLE_REASONS = new Set<string>(
   Object.values(NoQuoteAvailableReason),
@@ -47,7 +49,7 @@ export class FeeQuotingClient {
   private readonly apiKey: string;
 
   constructor(options: FeeQuotingClientOptions) {
-    this.baseUrl = options.baseUrl.replace(/\/$/, '');
+    this.baseUrl = options.baseUrl.replace(TRAILING_SLASH_REGEX, '');
     this.apiKey = options.apiKey;
   }
 
@@ -255,7 +257,7 @@ export class FeeQuotingV2Client {
   private readonly apiKey: string;
 
   constructor(options: FeeQuotingClientOptions) {
-    this.baseUrl = options.baseUrl.replace(/\/$/, '');
+    this.baseUrl = options.baseUrl.replace(TRAILING_SLASH_REGEX, '');
     this.apiKey = options.apiKey;
   }
 

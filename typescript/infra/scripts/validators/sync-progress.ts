@@ -10,6 +10,10 @@ import { assert } from '@hyperlane-xyz/utils';
 import { Contexts } from '../../config/contexts.js';
 import { getArgs, withChains, withContext } from '../agent-utils.js';
 
+const METRIC_LABEL_REGEX = /([^=,\s]+)="([^"]*)"/g;
+const METRIC_LINE_REGEX =
+  /^([^{\s]+)(?:\{([^}]*)\})?\s+(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)$/i;
+
 const METRICS_PORT = 9090;
 const PORT_FORWARD_READY_REGEX = /Forwarding from/;
 
@@ -140,7 +144,7 @@ function parseLabels(rawLabels: string | undefined): Record<string, string> {
   if (!rawLabels) return {};
 
   const labels: Record<string, string> = {};
-  const labelRegex = /([^=,\s]+)="([^"]*)"/g;
+  const labelRegex = METRIC_LABEL_REGEX;
   for (const match of rawLabels.matchAll(labelRegex)) {
     labels[match[1]] = match[2];
   }
@@ -152,9 +156,7 @@ function parseMetrics(text: string): Metrics {
   for (const line of text.split('\n')) {
     if (!line || line.startsWith('#')) continue;
 
-    const match = line.match(
-      /^([^{\s]+)(?:\{([^}]*)\})?\s+(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)$/i,
-    );
+    const match = line.match(METRIC_LINE_REGEX);
     if (!match) continue;
 
     const [, name, rawLabels, rawValue] = match;

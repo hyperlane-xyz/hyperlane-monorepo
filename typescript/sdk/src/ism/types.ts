@@ -50,6 +50,8 @@ import {
 } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
 
+const DECIMAL_INTEGER_REGEX = /^\d+$/;
+
 // this enum should match the IInterchainSecurityModule.sol enum
 // (COMPOSITE has no Solidity counterpart; it's Sealevel-only, matching
 // rust/main/hyperlane-core's ModuleType)
@@ -653,14 +655,14 @@ const ZU8Threshold = z.number().int().min(0).max(255);
 function decimalStringBoundedBy(max: bigint, label: string) {
   return z
     .string()
-    .regex(/^\d+$/, `${label} must be a base-10 integer string`)
+    .regex(DECIMAL_INTEGER_REGEX, `${label} must be a base-10 integer string`)
     .refine(
       // Zod runs every check in the chain regardless of earlier failures
       // (no short-circuiting), so BigInt(value) must stay guarded here even
       // though the regex above already rejects non-digit strings —
       // otherwise a value like "abc" throws inside refine and crashes
       // safeParse() instead of returning { success: false }.
-      (value) => /^\d+$/.test(value) && BigInt(value) <= max,
+      (value) => DECIMAL_INTEGER_REGEX.test(value) && BigInt(value) <= max,
       { message: `${label} exceeds the maximum value representable on-chain` },
     );
 }
@@ -890,7 +892,10 @@ function validateCompositeIsmTree(
       // field-level schema (decimalStringBoundedBy) already rejected it —
       // BigInt() on a malformed string would otherwise throw here too and
       // crash safeParse() instead of returning { success: false }.
-      if (/^\d+$/.test(node.maxCapacity) && BigInt(node.maxCapacity) === 0n) {
+      if (
+        DECIMAL_INTEGER_REGEX.test(node.maxCapacity) &&
+        BigInt(node.maxCapacity) === 0n
+      ) {
         addIssue('maxCapacity must be non-zero', [...path, 'maxCapacity']);
       }
       if (isEmptyAddress(node.mailbox)) {

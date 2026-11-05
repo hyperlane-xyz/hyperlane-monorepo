@@ -99,6 +99,8 @@ hyperlane:
       #   type: # "hexKey"
 
   relayer:
+    # Optional Secret Manager name for diagnostics PostgreSQL; never put the URL here.
+    messageActivityDatabaseUrlSecret: ''
     enabled: false
     aws: # true | false
     # relayApi controls only the containerPort declaration so Kubernetes knows

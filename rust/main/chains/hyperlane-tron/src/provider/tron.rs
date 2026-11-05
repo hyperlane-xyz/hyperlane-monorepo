@@ -285,11 +285,14 @@ impl TronProvider {
 
     /// Send transaction
     pub async fn submit_tx(&self, tx: &TypedTransaction) -> ChainResult<H256> {
-        let energy_price = self.jsonrpc.get_gas_price().await?;
-        let energy_estimate = match tx.gas() {
-            Some(gas) => gas,
-            None => &self.estimate_gas(tx, None).await?,
+        let estimate = async {
+            match tx.gas() {
+                Some(gas) => Ok(*gas),
+                None => self.estimate_gas(tx, None).await,
+            }
         };
+        let (energy_price, energy_estimate) =
+            tokio::try_join!(self.jsonrpc.get_gas_price(), estimate)?;
         let fee_limit = energy_estimate.saturating_mul(energy_price).as_u64();
         let fee_limit = (fee_limit as f64 * self.energy_multiplier)
             .to_u64()
@@ -530,3 +533,6 @@ impl HyperlaneProvider for TronProvider {
         Ok(Some(chain_metrics))
     }
 }
+
+#[cfg(test)]
+mod concurrency_tests;

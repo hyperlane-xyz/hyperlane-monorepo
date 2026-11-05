@@ -42,12 +42,12 @@ import {
 import { isMessageDelivered } from '../mailbox/mailbox-query.js';
 import { StarknetAnnotatedTx } from '../types.js';
 
+const RPC_V08_PATH_REGEX = /\/rpc\/v0_8(?:\/|$)/i;
+
 let tokenTypeByClassHash: Map<string, AltVM.TokenType> | undefined;
 
 function getRpcSpecVersion(rpcUrl: string): '0.8.1' | '0.9.0' {
-  return /\/rpc\/v0_8(?:\/|$)/i.test(new URL(rpcUrl).pathname)
-    ? '0.8.1'
-    : '0.9.0';
+  return RPC_V08_PATH_REGEX.test(new URL(rpcUrl).pathname) ? '0.8.1' : '0.9.0';
 }
 
 function getTokenTypeByClassHash(): Map<string, AltVM.TokenType> {

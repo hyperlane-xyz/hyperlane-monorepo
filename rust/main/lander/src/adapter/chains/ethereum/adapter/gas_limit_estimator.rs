@@ -4,6 +4,7 @@ use ethers::{
     providers::ProviderError,
     types::{BlockNumber, U256 as EthersU256},
 };
+use futures_util::TryFutureExt;
 use hyperlane_core::{ChainCommunicationError, ChainResult, HyperlaneDomain, U256};
 use hyperlane_ethereum::{EvmProviderForLander, TransactionOverrides};
 use tracing::{debug, warn};
@@ -28,9 +29,14 @@ pub async fn estimate_gas_limit(
     // The prepared budget is a floor, not an upper bound on the RPC estimate.
     let mut estimate_tx = tx_precursor.tx.clone();
     *estimate_tx.gas_mut() = None;
-    let mut estimated_gas_limit: U256 = provider
-        .estimate_gas_limit(&estimate_tx, &tx_precursor.function)
-        .await?;
+    // Both reads are independent. Fetch the block cap while estimating instead
+    // of adding another RPC round trip to every transaction estimate.
+    let (mut estimated_gas_limit, block_gas_limit) = futures_util::try_join!(
+        provider
+            .estimate_gas_limit(&estimate_tx, &tx_precursor.function)
+            .map_err(LanderError::from),
+        latest_block_gas_limit(provider.as_ref()),
+    )?;
     estimated_gas_limit = estimated_gas_limit.max(gas_floor);
 
     if with_gas_limit_overrides {
@@ -40,13 +46,12 @@ pub async fn estimate_gas_limit(
         }
     }
 
-    let gas_limit = apply_gas_limit_caps(
-        provider.as_ref(),
+    let gas_limit = apply_gas_limit_caps_with_block(
         transaction_overrides,
         estimated_gas_limit,
         gas_floor,
-    )
-    .await?;
+        block_gas_limit,
+    )?;
     debug!(?estimated_gas_limit, gas_override=?transaction_overrides.gas_limit, used_gas_limit=?gas_limit, "Gas limit set for transaction");
 
     tx_precursor.tx.set_gas(gas_limit);
@@ -60,16 +65,26 @@ pub async fn apply_gas_limit_caps(
     gas_limit: U256,
     gas_floor: U256,
 ) -> Result<U256, LanderError> {
-    let gas_limit = apply_gas_limit_cap(transaction_overrides, gas_limit);
+    let block_gas_limit = latest_block_gas_limit(provider).await?;
+    apply_gas_limit_caps_with_block(transaction_overrides, gas_limit, gas_floor, block_gas_limit)
+}
 
-    // Cap the gas limit to the block gas limit
+async fn latest_block_gas_limit(provider: &dyn EvmProviderForLander) -> Result<U256, LanderError> {
     let latest_block = provider
         .get_block(BlockNumber::Latest)
         .await
         .map_err(ChainCommunicationError::from_other)?
         .ok_or_else(|| eyre::eyre!("Latest block not found"))?;
+    Ok(latest_block.gas_limit.into())
+}
 
-    let block_gas_limit: U256 = latest_block.gas_limit.into();
+fn apply_gas_limit_caps_with_block(
+    transaction_overrides: &TransactionOverrides,
+    gas_limit: U256,
+    gas_floor: U256,
+    block_gas_limit: U256,
+) -> Result<U256, LanderError> {
+    let gas_limit = apply_gas_limit_cap(transaction_overrides, gas_limit);
     let gas_limit = if !block_gas_limit.is_zero() && gas_limit > block_gas_limit {
         warn!(
                 ?gas_limit,
@@ -130,7 +145,13 @@ pub mod tests {
         types::{transaction::eip2718::TypedTransaction, Block, Eip1559TransactionRequest},
     };
 
-    use crate::adapter::chains::ethereum::tests::MockEvmProvider;
+    use ethers::providers::Provider;
+    use hyperlane_core::KnownHyperlaneDomain;
+    use hyperlane_ethereum::EthereumProvider;
+
+    use crate::adapter::chains::ethereum::tests::{
+        dummy_tx_precursor, ExpectedTxType, MockEvmProvider, YieldingRpcClient,
+    };
 
     use super::*;
 
@@ -139,6 +160,40 @@ pub mod tests {
         domain: &HyperlaneDomain,
     ) -> ChainResult<EthersU256> {
         apply_gas_estimate_buffer(gas.into(), domain).map(Into::into)
+    }
+
+    #[tokio::test]
+    async fn gas_estimate_and_block_cap_are_read_concurrently() {
+        let client = YieldingRpcClient::new([
+            ("eth_estimateGas", serde_json::json!("0x5208")),
+            (
+                "eth_getBlockByNumber",
+                serde_json::to_value(Block::<ethers::types::H256> {
+                    gas_limit: 1_000_000.into(),
+                    ..Default::default()
+                })
+                .expect("serialize block response"),
+            ),
+        ]);
+        let provider = Arc::new(EthereumProvider::new(
+            Arc::new(Provider::new(client.clone())),
+            KnownHyperlaneDomain::Ethereum.into(),
+        ));
+        let mut precursor = dummy_tx_precursor(ExpectedTxType::Legacy, ethers::types::H160::zero());
+
+        estimate_gas_limit(
+            provider,
+            &mut precursor,
+            &TransactionOverrides::default(),
+            &KnownHyperlaneDomain::Ethereum.into(),
+            true,
+        )
+        .await
+        .expect("estimate gas with concurrent block cap read");
+
+        assert_eq!(precursor.tx.gas(), Some(&EthersU256::from(96_000)));
+        assert_eq!(client.total(), 2);
+        assert_eq!(client.peak(), 2);
     }
 
     #[tokio::test]

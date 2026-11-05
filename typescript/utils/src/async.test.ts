@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import sinon from 'sinon';
 
 import {
   concurrentMap,
@@ -260,6 +261,75 @@ describe('Async Utilities', () => {
       };
       const result = await concurrentMap(2, xs, mapFn);
       expect(result).to.deep.equal([2, 4, 6, 8, 10, 12]);
+    });
+
+    it('fills available slots without waiting for a slower earlier item', async () => {
+      const gates = [0, 1, 2, 3].map(() => sinon.promise<number>());
+      const started: number[] = [];
+      const result = concurrentMap(2, gates, async (gate, index) => {
+        started.push(index);
+        return gate;
+      });
+
+      expect(started).to.deep.equal([0, 1]);
+      void gates[1].resolve(20);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(started).to.deep.equal([0, 1, 2]);
+      void gates[2].resolve(30);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(started).to.deep.equal([0, 1, 2, 3]);
+      void gates[3].resolve(40);
+      void gates[0].resolve(10);
+      expect(await result).to.deep.equal([10, 20, 30, 40]);
+    });
+
+    it('stops admission on failure and drains active work before rejecting', async () => {
+      const gates = [0, 1, 2, 3].map(() => sinon.promise<number>());
+      const started: number[] = [];
+      const error = new Error('failed item');
+      let settled = false;
+      let rejection: unknown;
+      const result = concurrentMap(2, gates, async (gate, index) => {
+        started.push(index);
+        return gate;
+      }).catch((error: unknown) => {
+        settled = true;
+        rejection = error;
+      });
+
+      void gates[0].reject(error);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(settled).to.equal(false);
+      expect(started).to.deep.equal([0, 1]);
+      void gates[1].resolve(2);
+      await result;
+      expect(settled).to.equal(true);
+      expect(rejection).to.equal(error);
+      expect(started).to.deep.equal([0, 1]);
+    });
+
+    it('preserves synchronous mapper failures and does not start later items', async () => {
+      const error = new Error('synchronous failure');
+      const started: number[] = [];
+      try {
+        await concurrentMap(2, [0, 1, 2], (value) => {
+          started.push(value);
+          throw error;
+        });
+        expect.fail('Expected mapper failure');
+      } catch (actual: unknown) {
+        expect(actual).to.equal(error);
+      }
+      expect(started).to.deep.equal([0]);
+    });
+
+    it('handles empty input and a concurrency larger than the input', async () => {
+      const mapper = sinon
+        .stub<[number, number], Promise<number>>()
+        .callsFake(async (value, index) => value + index);
+      expect(await concurrentMap(8, [], mapper)).to.deep.equal([]);
+      expect(mapper.called).to.equal(false);
+      expect(await concurrentMap(8, [10, 20], mapper)).to.deep.equal([10, 21]);
     });
 
     it('should respect concurrency limit', async () => {

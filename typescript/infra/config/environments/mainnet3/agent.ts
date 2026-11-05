@@ -57,7 +57,6 @@ import {
 import { fallbackHedgeConfig } from '../utils.js';
 
 import { environment, ethereumChainNames } from './chains.js';
-import { blacklistedMessageIds } from './customBlacklist.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' with { type: 'json' };
 import fastpathTestRecipients from './fastpath/test-recipients.json' with { type: 'json' };
 import merklyErc20Addresses from './misc-artifacts/merkly-erc20-addresses.json' with { type: 'json' };
@@ -99,6 +98,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eclipsemainnet: true,
     eden: true,
     electroneum: true,
+    elysium: true,
     eni: true,
     ethereum: true,
     fluent: true,
@@ -172,6 +172,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eclipsemainnet: true,
     eden: true,
     electroneum: true,
+    elysium: true,
     eni: true,
     ethereum: true,
     fluent: true,
@@ -245,6 +246,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eclipsemainnet: true,
     eden: true,
     electroneum: true,
+    elysium: true,
     eni: true,
     ethereum: true,
     fluent: true,
@@ -394,6 +396,9 @@ const contextBase = {
     urRevealConfigGetter: sealevelUrRevealConfigGetter,
   },
 } as const;
+
+const messageActivityDatabaseUrlSecret =
+  'hyperlane-mainnet-relayer-postgres-url';
 
 const scraperWebsocketUrl =
   'ws://scraper-proxy.mainnet3.svc.cluster.local:8383/agents';
@@ -813,52 +818,11 @@ const scraperResources = {
   },
 };
 
-// Blacklist matching list intended to be used by all contexts.
-const blacklist: MatchingList = [
-  ...blacklistedMessageIds.map((messageId) => ({
-    messageId,
-  })),
-  // legacy forma routes we are not relaying
-  {
-    destinationDomain: getDomainId('forma'),
-    recipientAddress: [
-      '0x4ca56fbecfe8431996c6b4ec8da140d4201338e8',
-      '0x0a5c7d4ee3d65b2581d5606f8081fc8d8be22319',
-      '0x74a26075fa2eec77936a56b0f9645d32a79b28af',
-      '0xfcee86f472d0c19fccdd3aedb89aa9cc0a1fb0d1',
-    ],
-  },
-  // legacy forma routes we are not relaying
-  {
-    originDomain: getDomainId('forma'),
-    senderAddress: [
-      '0x6052c5c075212f013c856bff015872914ed3492a',
-      '0xd5ebc5e5f38c2d8c91c43122a105327c1f0260b4',
-    ],
-  },
-  // routes on legacy pulsechain mailbox
-  {
-    destinationDomain: getDomainId('pulsechain'),
-    recipientAddress: [
-      '0x688B161745c4eCEc2Ce07DC385cF2B57D9980244',
-      '0x50d03965Ed30de5d246BdDa18E7B10A8904B8CF1',
-      '0xD110Cbf543c3b237aB3EC171D7117932A4807F9B',
-      '0x87353B9AA546F8cf7290DeD2d339C0Ec694d7144',
-      '0x5DD749B87FA2e456482adb231FB9c2b0302A3027',
-      '0xe227B51F5D7079fAa07b7621657e3aa5906d2185',
-      '0x867c1fd9341DEC12e4B779C35D7b7C475316b334',
-    ],
-  },
-  // StarkNet<>StarkNet messages
-  {
-    originDomain: getDomainId('starknet'),
-    destinationDomain: getDomainId('starknet'),
-  },
-  // Legacy nesa (domain 41443) NES route remains paused on-chain; keep it
-  // blacklisted. The live NES route was cut over to nesachain (NES/bsc), which
-  // is unpaused and must NOT be blacklisted.
-  ...warpRouteMatchingList(WarpRouteIds.NesaLegacyNES),
-];
+// Keep mutable runtime rules separate from the registry pin used for chain config.
+const runtimeDenylist = {
+  url: 'https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/relayer/mainnet-denylist.json',
+  pollIntervalSecs: 60,
+};
 
 const ismCacheConfigs: Array<IsmCacheConfig> = [
   {
@@ -900,6 +864,7 @@ const hyperlane: RootAgentConfig = {
   contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
+    messageActivityDatabaseUrlSecret,
     mevSubmission,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
@@ -909,7 +874,7 @@ const hyperlane: RootAgentConfig = {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayer,
     },
-    blacklist,
+    runtimeDenylist,
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
@@ -975,6 +940,7 @@ const releaseCandidate: RootAgentConfig = {
   contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
+    messageActivityDatabaseUrlSecret,
     mevSubmission,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
@@ -985,7 +951,7 @@ const releaseCandidate: RootAgentConfig = {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayerRC,
     },
-    blacklist,
+    runtimeDenylist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
@@ -1149,6 +1115,7 @@ const fastPath: RootAgentConfig = {
   },
   rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
+    messageActivityDatabaseUrlSecret,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     // Use RPC indexing until the scraper proxy supports fastpath streaming.
@@ -1164,7 +1131,7 @@ const fastPath: RootAgentConfig = {
       ...fastPathCrossMoonpayMatchingList,
       ...fastPathTestRecipientMatchingList,
     ],
-    blacklist,
+    runtimeDenylist,
     gasPaymentEnforcement: fastPathGasPaymentEnforcement,
     reorgPeriodOverrides: fastPathReorgPeriodOverrides,
     ismCacheConfigs,

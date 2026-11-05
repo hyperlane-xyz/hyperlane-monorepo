@@ -33,6 +33,15 @@ on completion, including failure, but not for canceled aggregation children.
 The reader accepts both compact summaries and the previous per-observation format;
 deploy the updated reader before the writer to display compact quorum progress.
 
+## Deployment wiring
+
+Mainnet, release-candidate and fast-path relayers reference the existing GCP secret
+`hyperlane-mainnet-relayer-postgres-url` in project `abacus-labs-dev` through Helm's
+optional `hyperlane.relayer.messageActivityDatabaseUrlSecret` value. External Secrets
+injects it as `HYP_MESSAGEACTIVITYDATABASEURL` into the relayer pod. Neither the URL
+nor its credentials belong in Helm values or ConfigMaps. Other environments remain
+opt-in. Run the migrations before deploying a diagnostics-enabled agent image.
+
 ## Storage health and coverage
 
 `hyperlane_message_activity_events_total{outcome="written|dropped|failed"}` counts

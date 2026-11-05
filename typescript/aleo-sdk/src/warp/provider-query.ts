@@ -8,6 +8,10 @@ import {
 } from '../utils/helper.js';
 import type { AleoPlaintextRuntime } from '../utils/provable.js';
 
+const PROGRAM_CALL_REGEX = /^\s*call\s+([a-z0-9_]+\.aleo)\//gm;
+const LEADING_INTEGER_REGEX = /^(\d+)/;
+const SURROUNDING_QUOTES_REGEX = /^'|'$/g;
+
 /** Returns the ARC-20 or ARC-22 token program imported by a warp route. */
 export async function getArcTokenProgramId(
   aleoClient: AnyAleoNetworkClient,
@@ -25,10 +29,7 @@ export async function getArcTokenProgramId(
     // token and the old ARC-20 token through v2. Select the token this route calls.
     const source = await aleoClient.getProgram(warpProgramId);
     const calledPrograms = new Set(
-      Array.from(
-        source.matchAll(/^\s*call\s+([a-z0-9_]+\.aleo)\//gm),
-        (match) => match[1],
-      ),
+      Array.from(source.matchAll(PROGRAM_CALL_REGEX), (match) => match[1]),
     );
     arcTokenProgramIds = arcTokenProgramIds.filter((id) =>
       calledPrograms.has(id),
@@ -84,7 +85,7 @@ export async function callViewFunction(
 
 /** Parses a raw Aleo uint literal such as `1000000u128`. */
 export function parseAleoUint(raw: string): bigint {
-  const match = raw.match(/^(\d+)/);
+  const match = raw.match(LEADING_INTEGER_REGEX);
   assert(match, `Expected numeric Aleo literal, got: ${raw}`);
   const [, digits] = match;
   assert(digits, `Expected numeric Aleo literal, got: ${raw}`);
@@ -92,7 +93,7 @@ export function parseAleoUint(raw: string): bigint {
 }
 
 function parseAleoIdentifier(raw: string): string {
-  return raw.replace(/^'|'$/g, '');
+  return raw.replace(SURROUNDING_QUOTES_REGEX, '');
 }
 
 /** Queries token metadata from an ARC-20 or ARC-22 program's view functions. */
