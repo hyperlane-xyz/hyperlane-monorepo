@@ -8,6 +8,7 @@ import {
   ProviderType,
   SealevelCoreAdapter,
   TOKEN_COLLATERALIZED_STANDARDS,
+  XERC20_STANDARDS,
   type Token,
   type WarpTypedTransaction,
   type WarpCore,
@@ -49,6 +50,7 @@ import {
   isNativeTokenStandard,
 } from '../utils/tokenUtils.js';
 import { parseSolanaPrivateKey } from '../utils/solanaKeyParser.js';
+import { getXerc20TransferCapacity } from '../utils/xerc20Capacity.js';
 import { toProtocolTransaction } from '../utils/transactionUtils.js';
 import {
   alignLocalToCanonical,
@@ -733,6 +735,28 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       }
     }
 
+    const releaseToken = this.getTokenForChain(origin);
+    assert(releaseToken, `No token found for release chain: ${origin}`);
+    const transferCapacity = await this.getTransferCapacity(
+      sourceToken,
+      releaseToken,
+      requestedLocalAmount,
+    );
+    if (
+      transferCapacity === 0n ||
+      (transferCapacity < requestedLocalAmount &&
+        transferCapacity < minViableTransfer)
+    ) {
+      return {
+        route,
+        success: false,
+        error:
+          'Insufficient xERC20 transfer capacity; waiting for limits to refill',
+      };
+    }
+    maxTransferable =
+      maxTransferable < transferCapacity ? maxTransferable : transferCapacity;
+
     // Calculate total inventory across all chains
     // Note: consumedInventory tracking is handled separately within this cycle
     const totalInventory = this.getTotalInventory([]);
@@ -1078,6 +1102,83 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     return { route, success: true };
   }
 
+  private async getTransferCapacity(
+    source: Token,
+    destination: Token,
+    requested: bigint,
+  ): Promise<bigint> {
+    if (
+      !XERC20_STANDARDS.includes(source.standard) &&
+      !XERC20_STANDARDS.includes(destination.standard)
+    )
+      return requested;
+    const pending = (
+      await this.actionTracker.getActionsByType('inventory_deposit')
+    ).filter((action) => action.status === 'in_progress');
+    const sourceDomain = this.multiProvider.getDomainId(source.chainName);
+    const destinationDomain = this.multiProvider.getDomainId(
+      destination.chainName,
+    );
+    // Pending actions may already have consumed a limit; reserving them remains conservative.
+    const reservedBurn = pending
+      .filter((action) => action.origin === sourceDomain)
+      .reduce(
+        (sum, action) => sum + denormalizeToLocal(action.amount, source),
+        0n,
+      );
+    const reservedMint = pending
+      .filter((action) => action.destination === destinationDomain)
+      .reduce(
+        (sum, action) => sum + denormalizeToLocal(action.amount, destination),
+        0n,
+      );
+    const capacity = await getXerc20TransferCapacity({
+      source,
+      destination,
+      multiProvider: this.warpCore.multiProvider,
+      requested,
+      reservedBurn,
+      reservedMint,
+    });
+    if (capacity === 0n) return 0n;
+    let burnFees = 0n;
+    let sourceMintFees = 0n;
+    if (XERC20_STANDARDS.includes(source.standard)) {
+      const quote = await this.warpCore.getInterchainTransferFee({
+        originTokenAmount: source.amount(capacity),
+        destination: destination.chainName,
+        destinationToken: destination,
+        sender: this.getInventorySignerAddress(source.chainName),
+        recipient: this.getInventorySignerAddress(destination.chainName),
+      });
+      if (
+        quote.tokenFeeQuote &&
+        source.isFungibleWith(quote.tokenFeeQuote.token)
+      )
+        sourceMintFees = quote.tokenFeeQuote.amount;
+      for (const fee of [quote.igpQuote, quote.tokenFeeQuote]) {
+        if (fee && source.isFungibleWith(fee.token)) burnFees += fee.amount;
+      }
+    }
+    if (burnFees === 0n) return capacity;
+    return getXerc20TransferCapacity({
+      source,
+      destination,
+      multiProvider: this.warpCore.multiProvider,
+      requested: capacity,
+      burnFees,
+      sourceMintFees,
+      reservedSourceMint: pending
+        .filter((action) => action.destination === sourceDomain)
+        .reduce(
+          (sum, action) => sum + denormalizeToLocal(action.amount, source),
+          0n,
+        ),
+      reservedBurn,
+      reservedMint,
+    });
+  }
+
   /**
    * Execute a transferRemote to deposit collateral.
    *
@@ -1109,6 +1210,17 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     this.logger.debug(
       { origin, destination, amount: amount.toString() },
       'Building transferRemote transactions for exact execution amount',
+    );
+
+    const destinationToken = this.getTokenForChain(destination);
+    assert(
+      destinationToken,
+      `No token found for destination chain: ${destination}`,
+    );
+    assert(
+      (await this.getTransferCapacity(originToken, destinationToken, amount)) >=
+        amount,
+      'xERC20 transfer capacity changed before submission',
     );
 
     const originTokenAmount = originToken.amount(amount);
