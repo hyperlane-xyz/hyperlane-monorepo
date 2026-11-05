@@ -2,7 +2,7 @@
 
 Only deploy `oUSDT/production`. Its optional `deployment` metadata in
 `production-config.yaml` selects the image tag/digest, dedicated swaps.xyz secret,
-and registry commit. A digest takes precedence over the tag. Other routes keep
+registry commit, and persisted monitor-only mode. A digest takes precedence over the tag. Other routes keep
 the shared image and credential defaults. Deployment metadata is stripped from
 the runtime ConfigMap.
 
@@ -13,12 +13,14 @@ From `typescript/infra`, render a manifest without cluster queries or mutations:
 
 ```sh
 pnpm tsx scripts/rebalancer/deploy-rebalancer.ts -e mainnet3 \
-  --warp-route-id oUSDT/production --monitor-only --render > /tmp/ousdt.yaml
+  --warp-route-id oUSDT/production --render > /tmp/ousdt.yaml
 ```
 
 Rendering resolves route membership and RPC-secret chains from the same registry
 commit used by the runtime:
-`0b7518b88967309b0ca30827ec418852873bdc7e`.
+`0b7518b88967309b0ca30827ec418852873bdc7e`. The pin includes 17 route chains;
+the strategy manages only Ethereum, Arbitrum, Celo, and Tron. All pinned route
+chains remain monitored and require their RPC secrets.
 
 Before replacement, archive Helm values/manifests, the live ExternalSecret,
 resolved image digest, ConfigMap and `/state/tracking` files. Revision 5's saved
@@ -33,9 +35,9 @@ retrying an ambiguous or source-started submission after expiry. The new release
 has no `stateStore` or persistence values; never restore stale tracking files.
 
 Refresh strategy collateral immediately before rollout. Count Ethereum's
-collateral once. Ethereum must retain its 640,000 minimum and 650,000 target;
+collateral once. Ethereum must retain its 345,000 minimum and 365,000 target;
 Arbitrum, Celo and Tron each retain 1,000/3,000. Aggregate collateral must be
-strictly above the 659,000 aggregate target. Halt if insufficient.
+strictly above the 374,000 aggregate target. Halt if insufficient.
 
 The route uses USDT/OFT inventory from Ethereum, movable collateral from
 Arbitrum and Tron, and swaps.xyz for Celo. Celo/Tron is disabled. All provider
@@ -47,7 +49,9 @@ Stop the old singleton after a completed cycle and audit shutdown submissions.
 Never overlap execution-enabled instances. After all gates pass, deploy the
 candidate with the command above without `--render`. Check fresh balances,
 credentials, correct digest/configuration, and zero submissions. Then enable
-execution for this release with `--no-monitor-only`. Observe for at least 70
+execution by changing the reviewed YAML to `deployment.monitorOnly: false`,
+then redeploy without `--monitor-only`. The CLI can force monitoring on;
+`--no-monitor-only` cannot override a persisted `true`. Observe for at least 70
 minutes, including the hourly ExternalSecret refresh: require zero restarts,
 continuing polls, stable dedicated credentials and no new execution or settlement
 failures. Track existing velo metrics errors separately.

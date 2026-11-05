@@ -1,7 +1,8 @@
 warpRouteId: oUSDT/production
 
-# Reviewed node-services build from this config branch.
+# Deployment stays monitor-only until rollout validation is complete.
 deployment:
+  monitorOnly: true
   imageTag: d267369-20261020-150802
   swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key-ousdt
   registryCommit: 0b7518b88967309b0ca30827ec418852873bdc7e
@@ -42,7 +43,6 @@ strategy:
         destinationEid: 30101
         sourceOft: '0x14E4A1B13bf7F943c8ff7C51fb60FA964A298D92'
         destinationOft: '0x6C96dE32CEa08842dcc4058c14d3aaAD7Fa41dee'
-        destinationRecipient: '*'
       override:
         celo:
           executionType: inventory
@@ -55,7 +55,6 @@ strategy:
             destinationEid: 30420
             sourceOft: '0x77652D5aba086137b595875263FC200182919B92'
             destinationOft: '0x3a08f76772e200653bb55c2a92998daca62e0e97'
-            destinationRecipient: '*'
     celo:
       executionType: inventory
       externalBridge: swapsxyz
@@ -90,7 +89,6 @@ strategy:
         destinationEid: 30101
         sourceOft: '0x3a08f76772e200653bb55c2a92998daca62e0e97'
         destinationOft: '0x1F748c76dE468e9D11bd340fA9D5CBADf315dFB0'
-        destinationRecipient: '*'
       override:
         arbitrum:
           statusAdapter:
@@ -99,6 +97,5 @@ strategy:
             destinationEid: 30110
             sourceOft: '0x3a08f76772e200653bb55c2a92998daca62e0e97'
             destinationOft: '0x77652D5aba086137b595875263FC200182919B92'
-            destinationRecipient: '*'
         celo:
           enabled: false
