@@ -53,7 +53,7 @@ pub async fn confirmed_height(db: &crate::db::ScraperDb, domain: u32) -> Result<
     Ok(u32::try_from(state.confirmed)?)
 }
 
-/// Start the chain’s indexing and independent receipt-enrichment workers.
+/// Start indexing and receipt enrichment; return a wake-up for committed dispatch confirmations.
 pub async fn spawn(
     conf: &ChainConf,
     websocket_url: Option<Secret<Url>>,
@@ -62,7 +62,7 @@ pub async fn spawn(
     chain_metrics: ChainMetrics,
     sync_metrics: Arc<ContractSyncMetrics>,
     receipt_age: prometheus::GaugeVec,
-) -> Result<JoinHandle<()>> {
+) -> Result<(JoinHandle<()>, Arc<Notify>)> {
     let contracts = Contracts {
         mailbox: conf.addresses.mailbox,
         hook: conf.addresses.merkle_tree_hook,
@@ -135,6 +135,7 @@ pub async fn spawn(
     .await?;
     let (head_tx, head_rx) = mpsc::channel(256);
     let (polled_head_tx, polled_head_rx) = watch::channel(0);
+    let dispatch_wakeup = Arc::new(Notify::new());
     let worker = runtime::Worker {
         source,
         store,
@@ -143,6 +144,8 @@ pub async fn spawn(
         chunk_size,
         poll_interval,
         wakeup: Notify::new(),
+        dispatch_wakeup: dispatch_wakeup.clone(),
+        receipt_wakeups: enrichment::ReceiptWakeups::default(),
         wanted: AtomicU64::new(0),
         heads: Mutex::new(head_rx),
         polled_head: polled_head_tx,
@@ -150,7 +153,7 @@ pub async fn spawn(
         chain_metrics,
         sync_metrics,
     };
-    Ok(tokio::spawn(async move {
+    let task = tokio::spawn(async move {
         tokio::join!(
             worker.run(),
             websocket::run(
@@ -162,9 +165,15 @@ pub async fn spawn(
                 polled_head_rx,
                 worker.domain.id(),
             ),
-            enrichment::run(&enrichment_store, poll_interval, &receipt_age)
+            enrichment::run(
+                &enrichment_store,
+                poll_interval,
+                &receipt_age,
+                &worker.receipt_wakeups
+            )
         );
-    }))
+    });
+    Ok((task, dispatch_wakeup))
 }
 
 async fn prepare<'a>(

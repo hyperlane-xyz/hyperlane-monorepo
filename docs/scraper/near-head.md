@@ -59,7 +59,7 @@ on disconnect, setup timeout, or 30s without header progress while HTTP advances
 
 Polling keeps its independent 5s default (`index.interval` overrides it), including
 when WebSockets are unavailable. No URL means polling only. HTTP error backoff,
-confirmation proofs, database ownership guards, and enrichment remain unchanged.
+confirmation proofs and database ownership guards remain unchanged.
 
 ## Behavior
 
@@ -155,13 +155,17 @@ confirmation proofs, database ownership guards, and enrichment remain unchanged.
   cannot retract anything already consumed by a legacy client.
 - The CCR indexer is capped at the near-head confirmed frontier and stops on a
   persistent halt, preventing auxiliary writes into the provisional suffix.
-- Near-head dispatch reconciliation starts immediately and discovers newly
-  confirmed dispatches every 5 seconds, rather than the legacy five-minute
-  fallback cadence.
+- Near-head dispatch reconciliation starts immediately and wakes when dispatches
+  become confirmed, through either HTTP polling or WebSocket heads. Discovery
+  still polls every 5 seconds as a fallback; wake-ups preserve failure backoff
+  and active-page progress.
 - Confirmation does not wait for receipt enrichment. Gas/delivery transaction
   metadata is filled in by independent gas and delivery loops. Each page contains
   at most 100 event rows; healthy full pages drain immediately with a scheduler
-  yield, while short, exhausted or failed pages wait for the polling interval.
+  yield. Newly confirmed events wake their respective receipt loop from idle
+  waits; polling remains a fallback, and failures retain the polling-interval
+  cooldown. Successful short pages restart the scan so old pending rows are
+  retried even when new events keep arriving.
   Failed/timed-out pages advance their scan cursor so later pages are attempted;
   missing receipts are retried on the next sweep. Cache lookups are batched per
   page, and at most 16 missing receipts are fetched concurrently across all domains.

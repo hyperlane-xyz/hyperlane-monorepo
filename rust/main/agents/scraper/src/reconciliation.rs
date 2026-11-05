@@ -8,7 +8,7 @@ use hyperlane_base::ContractSyncMetrics;
 use hyperlane_core::{rpc_clients::RPC_RETRY_SLEEP_DURATION, HyperlaneDomain};
 use prometheus::IntGaugeVec;
 use std::{panic::AssertUnwindSafe, sync::Arc, time::Duration};
-use tokio::{task::JoinHandle, time::Instant};
+use tokio::{sync::Notify, task::JoinHandle, time::Instant};
 use tracing::{info, info_span, warn, Instrument};
 
 use crate::store::HyperlaneDbStore;
@@ -30,6 +30,7 @@ pub(crate) fn spawn(
     raw_dispatch_unenriched_max_age: IntGaugeVec,
     reconciliation_metrics: ReconciliationMetrics,
     store: HyperlaneDbStore,
+    dispatch_wakeup: Arc<Notify>,
 ) -> JoinHandle<()> {
     let domain_name = domain.name().to_owned();
     let span_domain_name = domain_name.clone();
@@ -232,25 +233,12 @@ pub(crate) fn spawn(
                         .unwrap_or(i64::MAX),
                 );
 
-                let now = Instant::now();
                 let retry_delay = retry_backoff
                     .next_retry_delay(time::OffsetDateTime::now_utc())
                     .unwrap_or(Duration::MAX);
-                let retry_delay = if schedule.retry_not_before > now {
-                    retry_delay.max(schedule.retry_not_before.saturating_duration_since(now))
-                } else {
-                    retry_delay
-                };
-                let discovery_delay = schedule.discovery_delay(now);
-                let sweep_delay = schedule.full_sweep_delay(now);
-                sleep_with_liveness(
-                    retry_delay
-                        .min(discovery_delay)
-                        .min(sweep_delay)
-                        .min(Duration::from_secs(30)),
-                    &liveness_metric,
-                )
-                .await;
+                schedule
+                    .wait(&dispatch_wakeup, retry_delay, &liveness_metric)
+                    .await;
             }
         }
         .instrument(info_span!("RawDispatchReconciliation", chain=%span_domain_name)),

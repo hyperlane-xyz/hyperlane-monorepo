@@ -152,3 +152,56 @@ async fn reconciliation_schedule_preserves_progress_and_yields_failed_lanes() {
     assert_eq!(schedule.discovery_watermark, 100);
     assert!(schedule.scan_slot_available());
 }
+
+#[tokio::test(start_paused = true)]
+async fn dispatch_wakeup_is_immediate_retained_during_scans_and_has_polling_fallback() {
+    let now = Instant::now();
+    let wakeup = Notify::new();
+    let liveness = IntGauge::new("wakeup_test", "test").expect("liveness metric");
+    let mut schedule = Schedule::new(0, now, now);
+    schedule.next_full_sweep_at = now + FULL_SWEEP_INTERVAL;
+    schedule.start_discovery(0, now);
+
+    wakeup.notify_one(); // Arrival before the reconciler starts waiting is retained.
+    schedule.wait(&wakeup, Duration::MAX, &liveness).await;
+    assert_eq!(Instant::now(), now);
+    assert_eq!(schedule.next_discovery_at, now);
+
+    schedule.start_discovery(200, now);
+    let scan = schedule.discovery_scan.expect("active discovery");
+    schedule.complete_discovery_page(
+        scan,
+        &PageResult {
+            candidate_count: 100,
+            next_after_id: 100,
+            ..Default::default()
+        },
+        now,
+    );
+    wakeup.notify_one();
+    schedule.wait(&wakeup, Duration::MAX, &liveness).await;
+    assert_eq!(Instant::now(), now + PAGE_DELAY);
+    let scan = schedule.discovery_scan.expect("active discovery");
+    schedule.complete_discovery_page(scan, &PageResult::default(), Instant::now());
+    schedule.wait(&wakeup, Duration::MAX, &liveness).await;
+    assert_eq!(Instant::now(), now + PAGE_DELAY);
+    assert_eq!(schedule.next_discovery_at, Instant::now());
+
+    schedule.start_discovery(200, Instant::now());
+    schedule.wait(&wakeup, Duration::MAX, &liveness).await;
+    assert_eq!(Instant::now(), now + PAGE_DELAY + DISCOVERY_INTERVAL);
+}
+
+#[tokio::test(start_paused = true)]
+async fn dispatch_wakeup_respects_discovery_failure_backoff() {
+    let now = Instant::now();
+    let wakeup = Notify::new();
+    let liveness = IntGauge::new("wakeup_backoff_test", "test").expect("liveness metric");
+    let mut schedule = Schedule::new(0, now, now);
+    schedule.next_full_sweep_at = now + FULL_SWEEP_INTERVAL;
+    schedule.defer_discovery_frontier(now);
+    wakeup.notify_one();
+    schedule.wait(&wakeup, Duration::MAX, &liveness).await;
+    assert_eq!(Instant::now(), failed_lane_retry_at(now));
+    assert_eq!(schedule.next_discovery_at, failed_lane_retry_at(now));
+}

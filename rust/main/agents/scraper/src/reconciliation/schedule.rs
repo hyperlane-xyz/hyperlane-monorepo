@@ -1,12 +1,16 @@
 //! Discovery takes priority over full sweeps; failures defer only the affected lane.
 use hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION;
+use prometheus::IntGauge;
 use std::time::Duration;
-use tokio::time::Instant;
+use tokio::{
+    sync::Notify,
+    time::{sleep_until, Instant},
+};
 
-use super::dispatches::PageResult;
+use super::{dispatches::PageResult, metrics::sleep_with_liveness};
 
 pub(super) const BATCH_SIZE: u64 = 100;
-// New confirmed dispatches become eligible for enrichment every 5 seconds.
+// Fallback discovery when no confirmation wake-up arrives.
 const DISCOVERY_INTERVAL: Duration = Duration::from_secs(5);
 const PAGE_DELAY: Duration = Duration::from_secs(2);
 
@@ -63,6 +67,7 @@ pub(super) struct Schedule {
     pub(super) discovery_scan: Option<Scan>,
     pub(super) full_sweep: Option<Scan>,
     pub(super) next_discovery_at: Instant,
+    discovery_retry_not_before: Instant,
     pub(super) next_full_sweep_at: Instant,
     pub(super) retry_not_before: Instant,
     pub(super) global_not_before: Instant,
@@ -75,9 +80,35 @@ impl Schedule {
             discovery_scan: None,
             full_sweep: None,
             next_discovery_at: now,
+            discovery_retry_not_before: now,
             next_full_sweep_at: now,
             retry_not_before: now,
             global_not_before,
+        }
+    }
+
+    pub(super) async fn wait(
+        &mut self,
+        dispatch_wakeup: &Notify,
+        retry_delay: Duration,
+        liveness: &IntGauge,
+    ) {
+        let now = Instant::now();
+        let retry_delay = retry_delay.max(self.retry_not_before.saturating_duration_since(now));
+        let delay = retry_delay
+            .min(self.discovery_delay(now))
+            .min(self.full_sweep_delay(now))
+            .min(Duration::from_secs(30));
+        let wake_at = self.global_not_before.max(self.discovery_retry_not_before);
+        tokio::select! {
+            _ = sleep_with_liveness(delay, liveness) => {}
+            _ = async {
+                sleep_until(wake_at).await;
+                dispatch_wakeup.notified().await;
+            }, if self.discovery_slot_available() => {
+                // Leave the coalesced notification pending during scans and backoff.
+                self.next_discovery_at = Instant::now();
+            }
         }
     }
 
@@ -161,7 +192,8 @@ impl Schedule {
 
     pub(super) fn defer_discovery_frontier(&mut self, now: Instant) {
         self.global_not_before = instant_after(now, RPC_RETRY_SLEEP_DURATION);
-        self.next_discovery_at = failed_lane_retry_at(now);
+        self.discovery_retry_not_before = failed_lane_retry_at(now);
+        self.next_discovery_at = self.discovery_retry_not_before;
     }
 
     pub(super) fn defer_discovery_page(&mut self, scan: Scan, now: Instant) {
