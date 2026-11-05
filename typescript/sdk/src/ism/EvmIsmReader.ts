@@ -23,14 +23,12 @@ import {
   RateLimitedIsm__factory,
   StaticAggregationIsm__factory,
   TrustedRelayerIsm__factory,
-  WormholeVaaHookIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
   WithAddress,
   assert,
   concurrentMap,
-  eqAddress,
   getLogLevel,
   objMap,
   promiseObjAll,
@@ -47,7 +45,6 @@ import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { ChainMap, ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 import { EvmWormholeHookIsmReader } from '../wormhole/EvmWormholeHookIsmReader.js';
-import { consistencyLevelConfigFromOnchain } from '../wormhole/consistency.js';
 import {
   contractHasString,
   isMissingSelectorCallException,
@@ -151,53 +148,21 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       return undefined;
     }
 
-    const remoteRouters = (
-      await new EvmWormholeHookIsmReader(
-        this.multiProvider,
-        this.chain,
-      ).deriveWormholeConfig(address)
-    ).remoteRouters;
-
-    const router = WormholeVaaHookIsm__factory.connect(address, this.provider);
-    const [
-      owner,
-      core,
-      wormholeChainId,
-      consistencyLevel,
-      customConsistencyLevel,
-      baseConsistencyLevel,
-      additionalBlocks,
-      urls,
-    ] = await Promise.all([
-      router.owner(),
-      router.wormholeCoreBridge(),
-      router.wormholeChainId(),
-      router.consistencyLevel(),
-      router.customConsistencyLevelContract(),
-      router.customBaseConsistencyLevel(),
-      router.additionalBlocks(),
-      router.urls(),
-    ]);
-    const diagnosticConfig = {
+    const derived = await new EvmWormholeHookIsmReader(
+      this.multiProvider,
+      this.chain,
+    ).deriveWormholeConfig(address);
+    const common = {
       address,
       type: IsmType.WORMHOLE_VAA,
-      owner,
-      core,
-      wormholeChainId,
-      consistencyLevel: consistencyLevelConfigFromOnchain(
-        consistencyLevel,
-        eqAddress(customConsistencyLevel, ethers.constants.AddressZero)
-          ? undefined
-          : {
-              address: customConsistencyLevel,
-              baseConsistencyLevel,
-              additionalBlocks,
-            },
-      ),
-      urls,
-      remoteRouters,
+      owner: derived.owner,
+      core: derived.core,
+      wormholeChainId: derived.wormholeChainId,
+      consistencyLevel: derived.consistencyLevel,
+      urls: derived.urls,
+      remoteRouters: derived.remoteRouters,
     };
-    return diagnosticConfig;
+    return common;
   }
 
   async deriveIsmConfigFromAddress(
