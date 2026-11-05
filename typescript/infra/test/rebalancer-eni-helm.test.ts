@@ -1,14 +1,20 @@
 import { expect } from 'chai';
 import { execFileSync } from 'child_process';
+import fs from 'fs';
 import path from 'path';
+import Sinon from 'sinon';
 import { parse, parseAllDocuments, stringify } from 'yaml';
 
+import { GithubRegistry } from '@hyperlane-xyz/registry';
+import { WarpCoreConfigSchema } from '@hyperlane-xyz/sdk';
+
 import { readRebalancerConfig } from '../src/rebalancer/config.js';
-import { buildRebalancerHelmValues } from '../src/rebalancer/helm.js';
+import { RebalancerHelmManager } from '../src/rebalancer/helm.js';
 import { getInfraPath } from '../src/utils/utils.js';
 
 describe('USDT Eni production manifest', () => {
-  it('renders directional swaps.xyz and deBridge routing', () => {
+  afterEach(() => Sinon.restore());
+  it('renders directional swaps.xyz and deBridge routing', async () => {
     const loaded = readRebalancerConfig(
       path.join(
         getInfraPath(),
@@ -19,23 +25,40 @@ describe('USDT Eni production manifest', () => {
     expect(registryCommit).to.equal('a24bd88a0ce60fb862a5bd5a6ba63fb7a60d79bc');
     if (!registryCommit) throw new Error('Missing USDT/eni registry pin');
 
-    const values = buildRebalancerHelmValues(loaded, {
-      warpRouteId: 'USDT/eni',
-      environment: 'mainnet3',
+    expect(loaded.deployment.monitorOnly).to.equal(true);
+    const warpCore = WarpCoreConfigSchema.parse(
+      parse(
+        fs.readFileSync(
+          path.join(
+            getInfraPath(),
+            'test/fixtures/rebalancer/USDT-eni-warp-core.yaml',
+          ),
+          'utf8',
+        ),
+      ),
+    );
+    const getWarpRoute = Sinon.stub(
+      GithubRegistry.prototype,
+      'getWarpRoute',
+    ).resolves(warpCore);
+    const manager = new RebalancerHelmManager(
+      'USDT/eni',
+      'mainnet3',
       registryCommit,
-      chains: [
-        'arbitrum',
-        'base',
-        'bsc',
-        'eni',
-        'ethereum',
-        'optimism',
-        'polygon',
-        'tron',
-      ],
-      withMetrics: true,
-      monitorOnly: false,
-    });
+      '',
+      '',
+      true,
+      false,
+    );
+    await manager.runPreflightChecks(
+      'config/environments/mainnet3/rebalancer/USDT/eni-config.yaml',
+    );
+    const values = await manager.helmValues();
+    expect(getWarpRoute.calledOnceWithExactly('USDT/eni')).to.equal(true);
+    expect(getWarpRoute.firstCall.thisValue.branch).to.equal(registryCommit);
+    expect(values.hyperlane.chains).to.deep.equal(
+      warpCore.tokens.map((token) => token.chainName),
+    );
     const rendered = execFileSync(
       'helm',
       [
@@ -54,6 +77,11 @@ describe('USDT Eni production manifest', () => {
     const secret = documents.find(
       (document) => document.kind === 'ExternalSecret',
     );
+    for (const token of warpCore.tokens) {
+      expect(secret.spec.target.template.data).to.have.property(
+        `RPC_URL_${token.chainName.toUpperCase()}`,
+      );
+    }
     expect(
       secret.spec.data.find(
         (item: { secretKey: string }) => item.secretKey === 'swapsxyz_api_key',
@@ -68,7 +96,7 @@ describe('USDT Eni production manifest', () => {
     );
     expect(statefulSet.spec.template.spec.containers[0].env).to.deep.include({
       name: 'MONITOR_ONLY',
-      value: 'false',
+      value: 'true',
     });
 
     const runtime = parse(
