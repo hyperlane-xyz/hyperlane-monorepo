@@ -504,6 +504,21 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       return false;
     }
 
+    const expectedRecipient =
+      route.statusAdapter?.kind === TokenBridgeStatusAdapterType.LayerZeroScan
+        ? route.statusAdapter.destinationRecipient
+        : undefined;
+    if (
+      expectedRecipient !== undefined &&
+      !eqAddress(expectedRecipient, destinationToken.addressOrDenom)
+    ) {
+      this.logger.error(
+        { origin, destination, expectedRecipient },
+        'Route validation failed: Settlement recipient does not match monitored collateral.',
+      );
+      return false;
+    }
+
     const { bridge } = route;
 
     if (

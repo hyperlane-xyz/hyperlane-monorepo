@@ -16,6 +16,7 @@ import {
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
   TokenBridgeStatusAdapterType,
+  TokenBridgeStatusAdapterConfigSchema,
   type StrategyConfig,
   getAllBridges,
 } from './types.js';
@@ -116,7 +117,7 @@ describe('RebalancerConfig', () => {
       destinationEid: 30420,
       sourceOft: '0x1111111111111111111111111111111111111111',
       destinationOft: '0x2222222222222222222222222222222222222222',
-      destinationRecipient: '*',
+      destinationRecipient: '0x3333333333333333333333333333333333333333',
     };
     strategy.chains.chain1.override = {
       chain2: {
@@ -140,10 +141,23 @@ describe('RebalancerConfig', () => {
       chainConfig.statusAdapter?.kind ===
         TokenBridgeStatusAdapterType.LayerZeroScan &&
         chainConfig.statusAdapter.destinationRecipient,
-    ).to.equal('*');
+    ).to.equal('0x3333333333333333333333333333333333333333');
     expect(chainConfig.override?.chain2.statusAdapter?.kind).to.equal(
       TokenBridgeStatusAdapterType.LayerZeroScan,
     );
+  });
+
+  it('rejects wildcard settlement recipients', () => {
+    expect(
+      TokenBridgeStatusAdapterConfigSchema.safeParse({
+        kind: TokenBridgeStatusAdapterType.LayerZeroScan,
+        sourceEid: 30101,
+        destinationEid: 30110,
+        sourceOft: '0x1111111111111111111111111111111111111111',
+        destinationOft: '0x2222222222222222222222222222222222222222',
+        destinationRecipient: '*',
+      }).success,
+    ).to.equal(false);
   });
 
   it('should reject unknown settlement adapter kinds', () => {

@@ -2,4 +2,4 @@
 '@hyperlane-xyz/rebalancer': patch
 ---
 
-LayerZero settlement recipient checks were made configurable, including wildcard matching.
+LayerZero settlement recipients were made explicit assertions of the monitored collateral address and the router’s allowed destination, preserving exact receipt binding.
