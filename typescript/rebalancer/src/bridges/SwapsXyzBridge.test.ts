@@ -1,4 +1,5 @@
 import type { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 import {
   ProtocolType,
   TransactionSubmissionError,
@@ -468,6 +469,11 @@ function createTronExecuteHarness(
   waitStub: sinon.SinonStub;
   wallet: Wallet;
 } {
+  if (overrides.maxQuoteLossBps !== undefined) {
+    sinon
+      .stub(TronJsonRpcProvider.prototype, 'call')
+      .resolves(utils.defaultAbiCoder.encode(['uint8'], [6]));
+  }
   const client = createClient();
   const getActionStub = sinon.stub(client, 'getAction').resolves(response);
   const registerTxsStub = sinon
@@ -1573,6 +1579,85 @@ describe('SwapsXyzBridge.execute', () => {
     expect(error.message).to.include('Tron private key');
     expect(getActionStub.callCount).to.equal(0);
   });
+
+  it('reads Tron decimals through the configured RPC with custom headers', async () => {
+    const client = createClient();
+    sinon.stub(client, 'getAction').resolves(tronActionResponse());
+    const call = sinon
+      .stub(TronJsonRpcProvider.prototype, 'call')
+      .callsFake(async function (this: TronJsonRpcProvider, request) {
+        expect(this.connection.url).to.equal(
+          'https://private-tron.example.invalid/jsonrpc',
+        );
+        expect(this.connection.headers).to.deep.equal({
+          'X-Test-Header': 'fixture-value',
+        });
+        expect((await request.to)?.toLowerCase()).to.equal(TRON_TOKEN_HEX);
+        return utils.defaultAbiCoder.encode(['uint8'], [6]);
+      });
+    const bridge = createBridge(client, {
+      maxQuoteLossBps: 50,
+      chainMetadata: {
+        ...CHAIN_METADATA,
+        tron: {
+          ...TRON_METADATA,
+          rpcUrls: [
+            {
+              http: 'https://private-tron.example.invalid/jsonrpc?custom_rpc_header=X-Test-Header:fixture-value',
+            },
+          ],
+        },
+      },
+    });
+    await bridge.quote(tronBridgeQuote().requestParams);
+    expect(call.calledOnce).to.equal(true);
+  });
+
+  it('rejects underfunded native Tron contract calls', async () => {
+    const response = tronActionResponse({
+      amountIn: { amount: '1000000', address: ZERO_ADDRESS },
+      tx: {
+        to: TRON_SPENDER_BASE58,
+        toExtra: sourceOrderData(true),
+        value: '999999',
+        chainId: TRON_CHAIN_ID,
+        chainKey: 'trx',
+      },
+    });
+    const harness = createTronExecuteHarness(response);
+    const quote = tronBridgeQuote();
+    quote.requestParams.fromToken = ZERO_ADDRESS;
+    expect(
+      (await captureError(harness.bridge.prepare(quote))).message,
+    ).to.include('below the native token input');
+    expect(harness.sendTransactionStub.called).to.equal(false);
+  });
+
+  for (const toExtra of [null, sourceOrderData(true)]) {
+    it(`allows exact-output native Tron principal below its maximum: ${toExtra}`, async () => {
+      const response = tronActionResponse({
+        amountIn: { amount: '900000', address: ZERO_ADDRESS },
+        amountInMax: { amount: '1000000' },
+        tx: {
+          to: TRON_SPENDER_BASE58,
+          toExtra,
+          value: '900000',
+          chainId: TRON_CHAIN_ID,
+          chainKey: 'trx',
+        },
+      });
+      const harness = createTronExecuteHarness(response);
+      const quote = tronBridgeQuote();
+      quote.requestParams = {
+        ...quote.requestParams,
+        fromToken: ZERO_ADDRESS,
+        fromAmount: undefined,
+        toAmount: 990025n,
+      };
+      await harness.bridge.prepare(quote);
+      expect(harness.sendTransactionStub.called).to.equal(false);
+    });
+  }
 
   it('prepares a Tron payload without keys or source submission', async () => {
     const harness = createTronExecuteHarness();
