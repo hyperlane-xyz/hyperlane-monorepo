@@ -40,6 +40,27 @@ automatically initialized domain is still empty after RPC preflight. Restarts
 load the saved boundary and resume indexed progress; they do not select a new
 boundary from stored maxima. Contract changes are rejected.
 
+## Optional EVM WebSocket wake-ups
+
+Configure `websocketUrls` as a JSON map of EVM chain names to `ws://` or `wss://`
+endpoints; keys must be in `chainsToScrape`. Set `websocketConfigSecret` to load
+that JSON from GCP Secret Manager through External Secrets and `CONFIG_FILES`.
+Create the secret before deployment, use a scraper image supporting this setting,
+and restart the scraper after secret updates sync. URLs stay out of Helm values.
+
+Each connection subscribes to filtered contract logs and block headers. Logs wake
+HTTP indexing at most once per second; lagging HTTP providers retry until the log
+height is indexed. Linked headers confirm proven, indexed events without RPCs.
+A single 256-header buffer checks ancestry against the current indexed hash;
+headers are limited to 64 blocks above the last HTTP observation. Head writes
+coalesce at 200ms; proxy forward updates coalesce at 100ms, with immediate rollbacks.
+Safe/finalized tags still require polling. Both subscriptions reconnect together
+on disconnect, setup timeout, or 30s without header progress while HTTP advances.
+
+Polling keeps its independent 5s default (`index.interval` overrides it), including
+when WebSockets are unavailable. No URL means polling only. HTTP error backoff,
+confirmation proofs, database ownership guards, and enrichment remain unchanged.
+
 ## Behavior
 
 - EVM uses one combined RPC log query for all four event types. Other protocols

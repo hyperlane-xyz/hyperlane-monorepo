@@ -10,6 +10,7 @@ import {
   AgentSignerKeyType,
   RelayerAgentConfigSchema,
   RpcConsensusType,
+  ScraperAgentConfigSchema,
   ValidatorAgentConfigSchema,
   buildAgentConfig,
 } from './agentConfig.js';
@@ -606,5 +607,20 @@ describe('ValidatorAgentConfigSchema lightweight mode', () => {
         websocketUrl: 'wss://scraper.example/events',
       }).success,
     ).to.be.false;
+  });
+});
+
+describe('ScraperAgentConfigSchema websocketUrls', () => {
+  it('accepts optional WS endpoints and rejects non-WS URLs', () => {
+    const schema = ScraperAgentConfigSchema.shape.websocketUrls;
+    for (const value of [
+      undefined,
+      {},
+      { base: 'wss://base.example' },
+      { base: 'ws://localhost:8546' },
+    ])
+      expect(schema.safeParse(value).success).to.equal(true);
+    for (const base of ['https://base.example', 'invalid'])
+      expect(schema.safeParse({ base }).success).to.equal(false);
   });
 });

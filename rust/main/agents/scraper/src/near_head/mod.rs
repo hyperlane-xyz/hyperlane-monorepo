@@ -4,8 +4,12 @@ mod pipeline;
 mod runtime;
 mod source;
 mod store;
+mod websocket;
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{atomic::AtomicU64, Arc},
+    time::Duration,
+};
 
 use eyre::{ensure, Result};
 use hyperlane_base::{
@@ -13,7 +17,12 @@ use hyperlane_base::{
     ChainMetrics, ContractSyncMetrics, CoreMetrics,
 };
 use hyperlane_core::{ContractLocator, HyperlaneDomainProtocol, ReorgPeriod};
-use tokio::task::JoinHandle;
+use redact::Secret;
+use tokio::{
+    sync::{mpsc, watch, Mutex, Notify},
+    task::JoinHandle,
+};
+use url::Url;
 
 use crate::store::HyperlaneDbStore;
 use pipeline::tag_selector;
@@ -47,6 +56,7 @@ pub async fn confirmed_height(db: &crate::db::ScraperDb, domain: u32) -> Result<
 /// Start the chain’s indexing and independent receipt-enrichment workers.
 pub async fn spawn(
     conf: &ChainConf,
+    websocket_url: Option<Secret<Url>>,
     enrichment_store: HyperlaneDbStore,
     metrics: Arc<CoreMetrics>,
     chain_metrics: ChainMetrics,
@@ -58,6 +68,12 @@ pub async fn spawn(
         hook: conf.addresses.merkle_tree_hook,
         paymaster: conf.addresses.interchain_gas_paymaster,
     };
+    let evm_contracts = EvmContracts {
+        mailbox: conf.addresses.mailbox.into(),
+        hook: conf.addresses.merkle_tree_hook.into(),
+        paymaster: conf.addresses.interchain_gas_paymaster.into(),
+    };
+    let filter = evm_contracts.event_filter();
     let source: Box<dyn Source> =
         if let ChainConnectionConf::Ethereum(connection) = &conf.connection {
             conf.build_ethereum(
@@ -68,11 +84,7 @@ pub async fn spawn(
                 },
                 &metrics,
                 SourceBuilder {
-                    contracts: EvmContracts {
-                        mailbox: conf.addresses.mailbox.into(),
-                        hook: conf.addresses.merkle_tree_hook.into(),
-                        paymaster: conf.addresses.interchain_gas_paymaster.into(),
-                    },
+                    contracts: evm_contracts,
                     domain: conf.domain.id(),
                 },
             )
@@ -121,6 +133,8 @@ pub async fn spawn(
         &period,
     )
     .await?;
+    let (head_tx, head_rx) = mpsc::channel(256);
+    let (polled_head_tx, polled_head_rx) = watch::channel(0);
     let worker = runtime::Worker {
         source,
         store,
@@ -128,6 +142,10 @@ pub async fn spawn(
         period,
         chunk_size,
         poll_interval,
+        wakeup: Notify::new(),
+        wanted: AtomicU64::new(0),
+        heads: Mutex::new(head_rx),
+        polled_head: polled_head_tx,
         critical_failure_grace: CRITICAL_FAILURE_GRACE,
         chain_metrics,
         sync_metrics,
@@ -135,6 +153,15 @@ pub async fn spawn(
     Ok(tokio::spawn(async move {
         tokio::join!(
             worker.run(),
+            websocket::run(
+                websocket_url,
+                filter,
+                &worker.wakeup,
+                &worker.wanted,
+                &head_tx,
+                polled_head_rx,
+                worker.domain.id(),
+            ),
             enrichment::run(&enrichment_store, poll_interval, &receipt_age)
         );
     }))

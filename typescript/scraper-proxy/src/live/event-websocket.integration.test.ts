@@ -727,6 +727,7 @@ for (const eventType of [
   void it(`streams custom ${eventType} with confirmations, rollback, and replacements`, async (context) => {
     const completions = delayServerSendCompletions(context);
     let replacement = false;
+    const targets: bigint[] = [];
     context.mock.method(
       db,
       'queryLive',
@@ -765,6 +766,7 @@ for (const eventType of [
           const after = BigInt(String(values[1]));
           const id = BigInt(String(values[explorer ? 3 : 2]));
           const through = BigInt(String(values[explorer ? 4 : 3]));
+          targets.push(through);
           if (through < 10n || after > 10n || (after === 10n && id >= 1n))
             return [];
           if (explorer)
@@ -832,10 +834,13 @@ for (const eventType of [
       await new Promise<void>((resolve) => setImmediate(resolve));
       assert.equal(completions.length, 0, 'height 10 needs head 12');
       advance('12', '10', '10');
+      advance('13', '10', '10');
+      assert.deepEqual(targets, []); // Forward heads wait for the shared batch.
       const frame = await waitFor(
         messages,
         eventType === 'messages' ? 'message_upsert' : 'event',
       );
+      assert.deepEqual(targets, [10n]);
       assert.equal(frame.height, '10');
       assert.equal(frame.confirmations, 2);
       assert.equal(record(frame.data).frontier_height, undefined);

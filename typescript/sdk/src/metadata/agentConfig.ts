@@ -814,6 +814,12 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
 export type RelayerConfig = z.infer<typeof RelayerAgentConfigSchema>;
 
 export const ScraperAgentConfigSchema = AgentConfigSchema.extend({
+  websocketUrls: z
+    .record(z.string(), z.url({ protocol: /^wss?$/ }))
+    .optional()
+    .describe(
+      'Optional EVM log subscription URLs by chain name. Wake indexing while HTTP polling remains the fallback.',
+    ),
   db: z.string().min(1).describe('Database connection string'),
   chainsToScrape: CommaSeparatedChainList.describe(
     'Comma separated list of chain names to scrape',

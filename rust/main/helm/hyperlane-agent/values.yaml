@@ -143,6 +143,8 @@ hyperlane:
 
   scraper:
     enabled: false
+    # Optional Secret Manager secret containing {"websocketUrls": {"chain": "wss://..."}}.
+    websocketConfigSecret: ''
     podAnnotations:
       prometheus.io/port: '9090'
       prometheus.io/scrape: 'true'

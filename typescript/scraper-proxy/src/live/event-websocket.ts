@@ -23,6 +23,7 @@ import {
   type BlockStreamRequest,
   type EventNotification,
   type EventType,
+  type HeadNotification,
   parseDatabaseDomain,
   parseClientMessage,
   parseEventNotification,
@@ -152,6 +153,7 @@ export class EventWebSocketServer {
   private readonly catchUpWaiters: CatchUpWaiter[] = [];
   private readonly explorerNotifications = new Set<string>();
   private readonly notifications = new Map<string, EventNotification>();
+  private readonly pendingHeads = new Map<number, HeadNotification>();
   private readonly headRanges = new Map<number, HeadRange>();
   private readonly headFailures = new Map<number, number>();
   private heartbeatTimer?: NodeJS.Timeout;
@@ -164,6 +166,17 @@ export class EventWebSocketServer {
   private readonly explorerUpdates = new NotificationWorker(
     NOTIFICATION_BATCH_MS,
     () => this.drainExplorerNotifications(),
+    (error) => this.failExplorerStream(error),
+  );
+  private readonly confirmationUpdates = new NotificationWorker(
+    NOTIFICATION_BATCH_MS,
+    async () => {
+      const heads = [...this.pendingHeads.values()];
+      this.pendingHeads.clear();
+      if (!heads.length) return;
+      this.store.invalidateMessages();
+      for (const head of heads) this.notifyConfirmationStreams(head);
+    },
     (error) => this.failExplorerStream(error),
   );
   private readonly headUpdates = new NotificationWorker(
@@ -251,6 +264,7 @@ export class EventWebSocketServer {
       this.agentNotifications,
       this.explorerUpdates,
       this.headUpdates,
+      this.confirmationUpdates,
     ])
       worker.stop();
     this.explorerNotifications.clear();
@@ -563,6 +577,8 @@ export class EventWebSocketServer {
     domains: Set<number>,
     eventType?: EventType,
   ): Promise<ConfirmationStream> {
+    // Deliver older queued heads before this stream takes its initial snapshot.
+    await this.confirmationUpdates.flush();
     const stream = new ConfirmationStream(confirmations, domains, {
       active: () =>
         this.clients.has(socket) || this.explorerClients.has(socket),
@@ -713,7 +729,7 @@ export class EventWebSocketServer {
     }
     if (this.clients.get(socket) !== client) return;
     for (const request of eventStreams) {
-      const subscription = new AgentSubscription(
+      const subscription: AgentSubscription = new AgentSubscription(
         request,
         this.store,
         this.limits.maxCatchUpMs,
@@ -820,6 +836,11 @@ export class EventWebSocketServer {
     }
   }
 
+  private notifyConfirmationStreams(head: HeadNotification): void {
+    for (const streams of this.confirmationStreams.values())
+      for (const stream of streams) stream.notify(head);
+  }
+
   private async connectListener(): Promise<void> {
     try {
       this.stopListening = await this.db.listen(
@@ -855,9 +876,20 @@ export class EventWebSocketServer {
             headHeight: head.headHeight.toString(),
           });
         }
-        this.store.invalidateMessages();
-        for (const streams of this.confirmationStreams.values())
-          for (const stream of streams) stream.notify(head);
+        if (
+          head.previousIndexedHeight !== undefined &&
+          head.indexedHeight !== undefined &&
+          head.indexedHeight < head.previousIndexedHeight
+        ) {
+          // A rollback must invalidate in-flight readers immediately; never
+          // coalesce it away with a subsequent forward observation.
+          this.pendingHeads.delete(head.domain);
+          this.store.invalidateMessages();
+          this.notifyConfirmationStreams(head);
+        } else {
+          this.pendingHeads.set(head.domain, head);
+          this.confirmationUpdates.schedule();
+        }
         if (
           head.previousConfirmedHeight === undefined ||
           head.confirmedHeight <= head.previousConfirmedHeight
@@ -1247,6 +1279,7 @@ export class EventWebSocketServer {
 
   private closeClients(reason: string, code = 1013): void {
     this.confirmationStreams.clear();
+    this.pendingHeads.clear();
     this.store.invalidateMessages();
     this.closeAgentClients(reason, code);
     this.closeExplorerClients(reason, code);
@@ -1382,6 +1415,8 @@ export class EventWebSocketServer {
       this.releaseExplorerClient(explorerClient.ip);
     }
     this.explorerClients.delete(socket);
+    if (!this.clients.size && !this.explorerClients.size)
+      this.pendingHeads.clear();
   }
 
   private clearExplorerQueue(client: ExplorerClient): void {
