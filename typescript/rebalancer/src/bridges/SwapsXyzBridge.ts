@@ -3,7 +3,10 @@ import {
   type ChainMetadata,
   submitEvmLikeTransaction,
 } from '@hyperlane-xyz/sdk';
-import { TronWallet } from '@hyperlane-xyz/tron-sdk/runtime';
+import {
+  TronJsonRpcProvider,
+  TronWallet,
+} from '@hyperlane-xyz/tron-sdk/runtime';
 import {
   ACCOUNT_SIZE,
   AccountLayout,
@@ -654,7 +657,10 @@ export class SwapsXyzBridge implements IExternalBridge {
       rpcUrl,
       `SwapsXyzBridge: no RPC URL configured for chainId ${chainId}`,
     );
-    const provider = this.evmProviderFactory(rpcUrl);
+    const provider =
+      metadata.protocol === ProtocolType.Tron
+        ? new TronJsonRpcProvider(rpcUrl)
+        : this.evmProviderFactory(rpcUrl);
     const tokenAddress =
       metadata.protocol === ProtocolType.Tron
         ? this.tronAddressToEvm(token)
@@ -1253,8 +1259,9 @@ export class SwapsXyzBridge implements IExternalBridge {
       );
       const transferAmount = BigInt(tx.value);
       assert(
-        transferAmount === freshFromAmount,
-        `SwapsXyzBridge.execute Tron transfer amount ${transferAmount} does not match fresh input ${freshFromAmount}`,
+        transferAmount >= BigInt(response.amountIn.amount) &&
+          transferAmount <= freshFromAmount,
+        `SwapsXyzBridge.execute Tron transfer amount ${transferAmount} is outside fresh input bounds`,
       );
       return;
     }
@@ -1265,6 +1272,10 @@ export class SwapsXyzBridge implements IExternalBridge {
     );
     const nativeValue = BigInt(tx.value);
     const nativePrincipal = isNativeSource ? freshFromAmount : 0n;
+    assert(
+      nativeValue >= (isNativeSource ? BigInt(response.amountIn.amount) : 0n),
+      'SwapsXyzBridge.execute Tron transaction value is below the native token input',
+    );
     const nativeFee =
       nativeValue > nativePrincipal ? nativeValue - nativePrincipal : 0n;
     const maxNativeFee =
