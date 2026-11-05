@@ -433,6 +433,48 @@ describe('SwapsXyzBridge.quote', () => {
     ).to.include('exact input');
   });
 
+  it('rejects exact-output quotes below the request despite an acceptable price ratio', async () => {
+    const client = createClient();
+    sinon.stub(client, 'getAction').resolves(
+      actionResponse({
+        amountIn: { amount: '100' },
+        amountOut: { amount: '100' },
+        amountOutMin: { amount: '100' },
+      }),
+    );
+    const error = await captureError(
+      createBridge(client, { maxQuoteLossBps: 50 }).quote(
+        quoteParams({ fromAmount: undefined, toAmount: 1000n, slippage: 0 }),
+      ),
+    );
+    expect(error.message).to.include(
+      'expected output is below the requested amount',
+    );
+  });
+
+  it('accepts exact-output slippage below the target but rejects a lower refreshed expectation', async () => {
+    const client = createClient();
+    const response = actionResponse({
+      amountIn: { amount: '1000' },
+      amountOut: { amount: '1000' },
+      amountOutMin: { amount: '995' },
+    });
+    const getAction = sinon.stub(client, 'getAction').resolves(response);
+    const bridge = createBridge(client, { maxQuoteLossBps: 50 });
+    const quote = await bridge.quote(
+      quoteParams({ fromAmount: undefined, toAmount: 1000n, slippage: 0.005 }),
+    );
+    expect(quote.toAmount).to.equal(1000n);
+    expect(quote.toAmountMin).to.equal(995n);
+    await bridge.prepare(quote);
+
+    getAction.resolves({ ...response, amountOut: { amount: '999' } });
+    const error = await captureError(bridge.prepare(quote));
+    expect(error.message).to.include(
+      'expected output is below the requested amount',
+    );
+  });
+
   it('accepts quote loss at the configured bps boundary', async () => {
     const client = createClient();
     sinon.stub(client, 'getAction').resolves(actionResponse());
@@ -1249,7 +1291,7 @@ describe('SwapsXyzBridge.execute', () => {
       .stub(harness.provider, 'call')
       .resolves(utils.defaultAbiCoder.encode(['uint8'], [6]));
     const exactOutQuote = bridgeQuote(
-      quoteParams({ fromAmount: undefined, toAmount: 995_000n }),
+      quoteParams({ fromAmount: undefined, toAmount: 994_999n }),
     );
 
     const error = await captureError(
