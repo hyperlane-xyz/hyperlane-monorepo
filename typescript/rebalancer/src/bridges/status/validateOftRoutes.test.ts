@@ -4,6 +4,7 @@ import Sinon from 'sinon';
 
 import { TokenBridgeOft__factory } from '@hyperlane-xyz/core';
 import {
+  EvmMovableCollateralAdapter,
   MultiProtocolProvider,
   Token,
   TokenStandard,
@@ -124,7 +125,12 @@ function fixture() {
       },
     },
   };
-  return { config, tokens, multiProvider };
+  const originAdapter = Sinon.createStubInstance(EvmMovableCollateralAdapter);
+  originAdapter.getAllowedDestination.callsFake(async (destination) =>
+    destination === 2 ? OFTS.arbitrum : OFTS.tron,
+  );
+  Sinon.stub(tokens.ethereum, 'getHypAdapter').returns(originAdapter);
+  return { config, tokens, multiProvider, originAdapter };
 }
 
 async function rejection(operation: Promise<unknown>): Promise<unknown> {
@@ -198,7 +204,9 @@ describe('resolved OFT route validation', () => {
 
   it('accepts a chain default with correct destination overrides', async () => {
     const { config, tokens, multiProvider } = fixture();
-    await validateOftRoutes([config], tokens, multiProvider);
+    expect(await validateOftRoutes([config], tokens, multiProvider)).to.equal(
+      undefined,
+    );
   });
 
   it('rejects an inherited destination endpoint on the wrong pair', async () => {
@@ -227,6 +235,41 @@ describe('resolved OFT route validation', () => {
   it('does not require disabled pairs to have an executable OFT mapping', async () => {
     const { config, tokens, multiProvider } = fixture();
     config.chains.ethereum.override = { tron: { enabled: false } };
-    await validateOftRoutes([config], tokens, multiProvider);
+    expect(await validateOftRoutes([config], tokens, multiProvider)).to.equal(
+      undefined,
+    );
+  });
+  it('accepts an explicit recipient assertion matching the monitored and allowed destination', async () => {
+    const { config, tokens, multiProvider } = fixture();
+    config.chains.ethereum.statusAdapter = {
+      ...status(OFTS.arbitrum, 30110),
+      destinationRecipient: OFTS.arbitrum,
+    };
+    expect(await validateOftRoutes([config], tokens, multiProvider)).to.equal(
+      undefined,
+    );
+  });
+
+  it('rejects an explicit recipient outside the monitored collateral address', async () => {
+    const { config, tokens, multiProvider } = fixture();
+    config.chains.ethereum.statusAdapter = {
+      ...status(OFTS.arbitrum, 30110),
+      destinationRecipient: OFTS.tron,
+    };
+    expect(
+      String(
+        await rejection(validateOftRoutes([config], tokens, multiProvider)),
+      ),
+    ).to.include('does not match monitored collateral');
+  });
+
+  it('rejects an on-chain recipient that would not replenish the monitored destination', async () => {
+    const { config, tokens, multiProvider, originAdapter } = fixture();
+    originAdapter.getAllowedDestination.resolves(OFTS.ethereum);
+    expect(
+      String(
+        await rejection(validateOftRoutes([config], tokens, multiProvider)),
+      ),
+    ).to.include('does not match allowed destination');
   });
 });
