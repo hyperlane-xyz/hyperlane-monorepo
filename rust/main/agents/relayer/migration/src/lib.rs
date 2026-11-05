@@ -3,6 +3,7 @@ pub use sea_orm_migration::prelude::*;
 
 mod m20261104_000001_create_message_activity;
 mod m20261105_000002_activity_retention_index;
+mod m20261105_000003_notify_message_activity;
 
 pub struct Migrator;
 
@@ -12,6 +13,7 @@ impl MigratorTrait for Migrator {
         vec![
             Box::new(m20261104_000001_create_message_activity::Migration),
             Box::new(m20261105_000002_activity_retention_index::Migration),
+            Box::new(m20261105_000003_notify_message_activity::Migration),
         ]
     }
 }

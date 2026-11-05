@@ -51,6 +51,11 @@ or `failed`. Delivery tasks only increment counters on a full queue; background
 write warnings are limited to one per 30 seconds and retries use 5–10 second jitter.
 Diagnostics remain best effort: queued events are not flushed during shutdown.
 
+Committed inserts publish the affected message ID (64 lowercase hex characters)
+on PostgreSQL channel `message_activity_insert`. PostgreSQL coalesces identical
+notifications within a transaction. Notifications are wakeups, not durable history;
+readers refresh watched messages after reconnecting.
+
 Transaction hashes/outcomes currently cover the classic submitter only. Lander
 submission does not yet provide its dispatcher transaction outcome to this reporter;
 its history still includes retries, payload errors and observed delivery completion.

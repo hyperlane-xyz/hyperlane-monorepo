@@ -170,6 +170,10 @@ async fn postgres() -> eyre::Result<()> {
             "SELECT indexdef FROM pg_indexes WHERE indexname = 'message_activity_received_at_idx'"))
             .await?.ok_or_else(|| eyre::eyre!("missing retention index"))?;
         assert!(index.try_get::<String>("", "indexdef")?.contains("USING brin (received_at)"));
+        let trigger = db.query_one(Statement::from_string(DbBackend::Postgres,
+            "SELECT count(*) AS count FROM pg_trigger WHERE tgname = 'notify_message_activity_insert' AND NOT tgisinternal"))
+            .await?.ok_or_else(|| eyre::eyre!("missing notification trigger"))?;
+        assert_eq!(trigger.try_get::<i64>("", "count")?, 1);
         db.execute_unprepared("UPDATE public.message_activity SET received_at = now() - interval '91 days' WHERE activity->>'type' = 'checkpoint'").await?;
         let deleted = db.execute_unprepared(include_str!("prune.sql")).await?;
         assert_eq!(deleted.rows_affected(), 1);
