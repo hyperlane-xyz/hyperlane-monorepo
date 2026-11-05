@@ -4,6 +4,7 @@ import { pino } from 'pino';
 import Sinon from 'sinon';
 
 import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
@@ -766,9 +767,11 @@ describe('ActionTracker', () => {
             confirmations: 1,
           });
           core.multiProvider.getProtocol = Sinon.stub().returns(protocol);
-          core.multiProvider.getEthersV5Provider = Sinon.stub().returns({
-            getTransactionReceipt: receipt,
-          });
+          const provider = Sinon.createStubInstance(TronJsonRpcProvider);
+          provider.getTransactionReceipt.callsFake(receipt);
+          provider.getFinalizedBlockNumber.resolves(1);
+          core.multiProvider.getEthersV5Provider =
+            Sinon.stub().returns(provider);
           core.multiProvider.getChainMetadata = Sinon.stub().returns({
             blocks: { reorgPeriod: 2 },
           });
@@ -794,6 +797,113 @@ describe('ActionTracker', () => {
         });
       }
     }
+
+    for (const blocks of [
+      { confirmations: 5, reorgPeriod: 2 },
+      { confirmations: 2, reorgPeriod: 5 },
+      { confirmations: 2 },
+      undefined,
+    ]) {
+      it(`requires the full finality policy ${JSON.stringify(blocks)}`, async () => {
+        const { action } = await reserveSource(
+          'inventory_movement',
+          'source-hash',
+        );
+        const minimum = blocks?.reorgPeriod === undefined ? 32 : 5;
+        const receipt = Sinon.stub().resolves({
+          status: 0,
+          blockNumber: 1,
+          confirmations: minimum - 1,
+        });
+        core.multiProvider.getProtocol = Sinon.stub().returns(
+          ProtocolType.Ethereum,
+        );
+        core.multiProvider.getEthersV5Provider = Sinon.stub().returns({
+          getTransactionReceipt: receipt,
+        });
+        core.multiProvider.getChainMetadata = Sinon.stub().returns({ blocks });
+        await tracker.syncRebalanceActions();
+        expect((await tracker.getRebalanceAction(action.id))?.status).to.equal(
+          'in_progress',
+        );
+        receipt.resolves({ status: 0, blockNumber: 1, confirmations: minimum });
+        await tracker.syncRebalanceActions();
+        expect((await tracker.getRebalanceAction(action.id))?.status).to.equal(
+          'failed',
+        );
+      });
+    }
+
+    it('requires confirmations even after inclusion in a named finality block', async () => {
+      const { action } = await reserveSource(
+        'inventory_deposit',
+        'source-hash',
+      );
+      const receipt = Sinon.stub().resolves({
+        status: 0,
+        blockNumber: 2,
+        confirmations: 2,
+      });
+      core.multiProvider.getProtocol = Sinon.stub().returns(
+        ProtocolType.Ethereum,
+      );
+      core.multiProvider.getEthersV5Provider = Sinon.stub().returns({
+        getTransactionReceipt: receipt,
+        getBlock: Sinon.stub().resolves({ number: 2 }),
+      });
+      core.multiProvider.getChainMetadata = Sinon.stub().returns({
+        blocks: {
+          confirmations: 3,
+          reorgPeriod: EthJsonRpcBlockParameterTag.Finalized,
+        },
+      });
+      await tracker.syncRebalanceActions();
+      expect((await tracker.getRebalanceAction(action.id))?.status).to.equal(
+        'in_progress',
+      );
+      receipt.resolves({ status: 0, blockNumber: 2, confirmations: 3 });
+      await tracker.syncRebalanceActions();
+      expect((await tracker.getRebalanceAction(action.id))?.status).to.equal(
+        'failed',
+      );
+    });
+
+    it('requires the Tron receipt to be solidified as well as confirmed', async () => {
+      const { action } = await reserveSource(
+        'inventory_movement',
+        'source-hash',
+      );
+      const provider = Sinon.createStubInstance(TronJsonRpcProvider);
+      provider.getTransactionReceipt.callsFake(
+        Sinon.stub().resolves({
+          status: 0,
+          blockNumber: 2,
+          confirmations: 50,
+        }),
+      );
+      provider.getFinalizedBlockNumber.resolves(1);
+      core.multiProvider.getProtocol = Sinon.stub().returns(ProtocolType.Tron);
+      core.multiProvider.getEthersV5Provider = Sinon.stub().returns(provider);
+      core.multiProvider.getChainMetadata = Sinon.stub().returns({
+        blocks: { reorgPeriod: 2 },
+      });
+      await tracker.syncRebalanceActions();
+      expect((await tracker.getRebalanceAction(action.id))?.status).to.equal(
+        'in_progress',
+      );
+      provider.getFinalizedBlockNumber.rejects(
+        new Error('solid node unavailable'),
+      );
+      await tracker.syncRebalanceActions();
+      expect((await tracker.getRebalanceAction(action.id))?.status).to.equal(
+        'in_progress',
+      );
+      provider.getFinalizedBlockNumber.resolves(2);
+      await tracker.syncRebalanceActions();
+      expect((await tracker.getRebalanceAction(action.id))?.status).to.equal(
+        'failed',
+      );
+    });
 
     it('requires a source revert to be included in the configured finality tag', async () => {
       const { action } = await reserveSource(
