@@ -135,6 +135,75 @@ export const ExternalBridgesConfigSchema = z.object({
   lifi: LiFiBridgeConfigSchema.optional(),
 });
 
+export const PendingTransferMiddlewareType = {
+  RelayerDenylist: 'relayerDenylist',
+  BlacklistIsm: 'blacklistIsm',
+} as const;
+
+export type PendingTransferMiddlewareType =
+  (typeof PendingTransferMiddlewareType)[keyof typeof PendingTransferMiddlewareType];
+
+const DEFAULT_RELAYER_DENYLIST_REFRESH_INTERVAL_IN_SECONDS = 60;
+const DEFAULT_BLACKLIST_ISM_REFRESH_INTERVAL_IN_SECONDS = 600;
+
+const RELAYER_DENYLIST_URL_PROTOCOLS = ['https:', 'http:', 'file:'];
+
+const RelayerDenylistMiddlewareConfigSchema = z
+  .object({
+    type: z.literal(PendingTransferMiddlewareType.RelayerDenylist),
+    url: z
+      .string()
+      .refine(
+        (url) =>
+          URL.canParse(url) &&
+          RELAYER_DENYLIST_URL_PROTOCOLS.includes(new URL(url).protocol),
+        'url must be an https://, http:// or file:// URL',
+      )
+      .refine(
+        (url) =>
+          !URL.canParse(url) ||
+          (new URL(url).username === '' && new URL(url).password === ''),
+        'url must not contain credentials',
+      )
+      .describe(
+        'https://, http:// or file:// URL of the relayer denylist JSON.',
+      ),
+    refreshIntervalSecs: z
+      .number()
+      .int()
+      .positive()
+      .default(DEFAULT_RELAYER_DENYLIST_REFRESH_INTERVAL_IN_SECONDS)
+      .describe('Seconds between denylist re-fetches.'),
+  })
+  .describe(
+    'Ignores messages the relayer runtime denylist blocks. Startup fails if the first load fails.',
+  );
+
+const BlacklistIsmMiddlewareConfigSchema = z
+  .object({
+    type: z.literal(PendingTransferMiddlewareType.BlacklistIsm),
+    refreshIntervalSecs: z
+      .number()
+      .int()
+      .positive()
+      .default(DEFAULT_BLACKLIST_ISM_REFRESH_INTERVAL_IN_SECONDS)
+      .describe(
+        "Minimum seconds between re-reads of a route pair's BlacklistIsm ids.",
+      ),
+  })
+  .describe(
+    'Ignores messages a BlacklistIsm in the destination router ISM rejects. Router ISMs are read once at startup, so restart after changing them; startup fails if no route pair has a BlacklistIsm that can block.',
+  );
+
+const PendingTransferMiddlewareConfigSchema = z.discriminatedUnion('type', [
+  RelayerDenylistMiddlewareConfigSchema,
+  BlacklistIsmMiddlewareConfigSchema,
+]);
+
+export type PendingTransferMiddlewareConfig = z.infer<
+  typeof PendingTransferMiddlewareConfigSchema
+>;
+
 export const RebalancerConfigSchema = z
   .object({
     warpRouteId: z.string(),
@@ -149,6 +218,12 @@ export const RebalancerConfigSchema = z
       )
       .optional(),
     externalBridges: ExternalBridgesConfigSchema.optional(),
+    pendingTransferMiddlewares: z
+      .array(PendingTransferMiddlewareConfigSchema)
+      .optional()
+      .describe(
+        'Ordered middlewares applied to pending user transfers read from the Explorer; item 0 runs first on the raw result. Omit to disable.',
+      ),
     intentTTL: z
       .number()
       .positive()
