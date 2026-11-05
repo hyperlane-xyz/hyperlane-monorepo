@@ -525,4 +525,8 @@ export const blacklistedMessageIds = [
   '0xbbe9be10effe40d844227a8f1f0d2adf77849a9d0aafb367c14beaf33c693ec0',
   '0xffd93fc39175e5f5cfcab4dcfccd68a6dc388e15954f461a66d8700f102c1269',
   '0xf65763e2af5c4efbbf930de09ac4d0100b60d719b8bd4cc50f9d06e1f219fb2a',
+
+  // Aero AllocateGauge base->ethereum, duplicate vote during LeafVoter allocation cooldown [2026-10-28]
+  // recipient reverts CooldownActive() (0xaa9a98df); permanently undeliverable.
+  '0x30cdad077439293f412462ef6895f168a20b9779100262bd226899960720f40d',
 ];
