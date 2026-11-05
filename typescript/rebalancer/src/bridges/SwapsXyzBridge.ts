@@ -434,6 +434,16 @@ export class SwapsXyzBridge implements IExternalBridge {
   }
 
   private validateQuoteParams(params: BridgeQuoteParams): void {
+    for (const [chainId, token] of [
+      [params.fromChain, params.fromToken],
+      [params.toChain, params.toToken],
+    ] as const) {
+      assert(
+        this.chainMetadataByChainId.get(chainId)?.protocol !==
+          ProtocolType.Sealevel || token !== NATIVE_TOKEN_ADDRESS,
+        'swaps.xyz native SOL is not supported; use an SPL token',
+      );
+    }
     if (params.fromAmount !== undefined && params.toAmount !== undefined) {
       throw new Error(
         'Cannot specify both fromAmount and toAmount - provide exactly one',
@@ -818,14 +828,23 @@ export class SwapsXyzBridge implements IExternalBridge {
     const connection = this.solanaConnectionFactory(rpcUrl);
     await options?.onTransferId?.(fresh.txId);
     transaction.sign([keypair]);
+    const signedSignature = bufferToBase58(
+      Buffer.from(transaction.signatures[0]),
+    );
     const signature = await new TransactionSubmission(options).submit(
       () =>
         connection.sendRawTransaction(transaction.serialize(), {
           skipPreflight: false,
           maxRetries: 5,
         }),
-      (submittedSignature) => submittedSignature,
-      bufferToBase58(Buffer.from(transaction.signatures[0])),
+      (submittedSignature) => {
+        assert(
+          submittedSignature === signedSignature,
+          'swaps.xyz RPC returned a different Solana signature',
+        );
+        return signedSignature;
+      },
+      signedSignature,
     );
     void this.registerIfRequired(fresh, signature);
     return {
@@ -1187,7 +1206,7 @@ export class SwapsXyzBridge implements IExternalBridge {
     );
 
     if (quote.requestParams.fromAmount !== undefined) {
-      const expectedDebit = BigInt(response.amountIn.amount);
+      const expectedDebit = quote.requestParams.fromAmount;
       assert(
         sourceDebit === expectedDebit,
         `SwapsXyzBridge.execute Solana source-token debit ${sourceDebit} does not match exact input ${expectedDebit}`,
