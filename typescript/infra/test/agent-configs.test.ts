@@ -1,6 +1,7 @@
 import { rejects } from 'node:assert/strict';
 
 import { expect } from 'chai';
+import sinon from 'sinon';
 
 import { AgentConfig } from '@hyperlane-xyz/sdk';
 import { ProtocolType, addressToBytes32, assert } from '@hyperlane-xyz/utils';
@@ -26,7 +27,7 @@ import {
   ensureAgentChainConfigIncludesAllChainNames,
   type RootAgentConfig,
 } from '../src/config/agent/agent.js';
-import { AgentHelmManager } from '../src/agents/index.js';
+import { AgentHelmManager, RelayerHelmManager } from '../src/agents/index.js';
 import { RelayerConfigHelper } from '../src/config/agent/relayer.js';
 import { ScraperConfigHelper } from '../src/config/agent/scraper.js';
 import { ValidatorConfigHelper } from '../src/config/agent/validator.js';
@@ -99,6 +100,53 @@ function agentConfigHelper(
 }
 
 describe('Agent configs', () => {
+  for (const [environment, configs] of [
+    ['mainnet', mainnet3Agents],
+    ['testnet', testnet4Agents],
+  ] as const) {
+    it(`renders the ${environment} feed for every relayer with only mainnet OFAC addresses left static`, async () => {
+      const ofacAddress = '0x' + 'aa'.repeat(20);
+      const fetchStub = sinon
+        .stub(globalThis, 'fetch')
+        .callsFake(async () => new Response(JSON.stringify([ofacAddress])));
+      const signersStub = sinon
+        .stub(RelayerConfigHelper.prototype, 'signers')
+        .resolves({});
+      try {
+        for (const context of [
+          Contexts.Hyperlane,
+          Contexts.ReleaseCandidate,
+          Contexts.FastPath,
+        ]) {
+          const config = configs[context];
+          expect(config.relayer).not.to.have.property('blacklist');
+          const values = await new RelayerHelmManager(config).helmValues();
+          const relayer = values.hyperlane.relayer;
+          assert(relayer, 'Missing relayer Helm values');
+          assert(relayer.envConfig, 'Missing relayer environment config');
+          assert(relayer.configMapConfig, 'Missing relayer configmap');
+          expect(relayer.envConfig.runtimeDenylistUrl).to.equal(
+            `https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/relayer/${environment}-denylist.json`,
+          );
+          expect(relayer.envConfig.runtimeDenylistPollIntervalSecs).to.equal(
+            60,
+          );
+          expect(relayer.configMapConfig.addressBlacklist).to.equal(
+            environment === 'mainnet' ? ofacAddress.toLowerCase() : '',
+          );
+          expect(relayer.configMapConfig).not.to.have.property('blacklist');
+          expect(relayer.envConfig).not.to.have.property('blacklist');
+        }
+        expect(fetchStub.callCount).to.equal(
+          environment === 'mainnet' ? 18 : 0,
+        );
+      } finally {
+        signersStub.restore();
+        fetchStub.restore();
+      }
+    });
+  }
+
   it('validates local runtime denylist files before rendering relayer config', async () => {
     class TestRelayerConfigHelper extends RelayerConfigHelper {
       async getSanctionedAddresses(): Promise<string[]> {

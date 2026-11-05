@@ -73,6 +73,62 @@ fn parses_message_and_address_rules() {
 }
 
 #[test]
+fn opt_in_body_matching_preserves_nested_ica_payout_coverage_and_removal() {
+    use ethers::abi::{encode, Token};
+
+    use crate::msg::blacklist::AddressBlacklist;
+
+    let listed = evm(EVM_ADDRESS);
+    let alice = evm("0x1111111111111111111111111111111111111111");
+    let mut transfer = hex::decode("a9059cbb").expect("selector");
+    transfer.extend_from_slice(listed.as_bytes());
+    transfer.extend_from_slice(H256::from_low_u64_be(1_000_000).as_bytes());
+    let calls = Token::Array(vec![Token::Tuple(vec![
+        Token::FixedBytes(
+            evm("0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1")
+                .as_bytes()
+                .to_vec(),
+        ),
+        Token::Uint(0u64.into()),
+        Token::Bytes(transfer),
+    ])]);
+    // ICA CALLS | owner | ISM | salt | ABI calls.
+    let mut body = vec![0];
+    body.extend_from_slice(alice.as_bytes());
+    body.extend_from_slice(H256::zero().as_bytes());
+    body.extend_from_slice(H256::zero().as_bytes());
+    body.extend_from_slice(&encode(&[calls]));
+    let mut msg = HyperlaneMessage {
+        origin: 1,
+        destination: 42161,
+        sender: evm("0xD61F078592CeD81449a7405d837Ff1B963b830EA"),
+        recipient: evm("0xa0F62E4a4597471AA6FaC829aCA3c468EA751C3C"),
+        body,
+        ..Default::default()
+    };
+    assert_eq!(msg.body.len(), 417);
+    assert_eq!(
+        msg.body
+            .windows(20)
+            .position(|bytes| bytes == &listed.as_bytes()[12..]),
+        Some(337)
+    );
+    let old = AddressBlacklist::new(vec![listed.as_bytes()[12..].to_vec()]);
+    assert!(old.find_blacklisted_address(&msg).is_some());
+
+    let address_only = json!([address_rule(EVM_ADDRESS)]);
+    let denylist = denylist_with(address_only.clone());
+    assert!(denylist.deny_reason_for_message(&msg).is_none());
+    let body_rule = json!({ "reason": "exploit", "addedBy": "paul", "address": EVM_ADDRESS, "matchBody": true });
+    denylist.set_rules_for_test(json!([body_rule]));
+    assert!(denylist.deny_reason_for_message(&msg).is_some());
+    msg.origin = 2;
+    assert!(denylist.deny_reason_for_message(&msg).is_some());
+    denylist.set_rules_for_test(json!([]));
+    assert!(denylist.deny_reason_for_message(&msg).is_none());
+}
+
+#[test]
 fn match_accepts_case_insensitive_keys() {
     let msg = message(H256::random(), H256::random(), vec![]);
     for key in ["messageId", "messageid", "MESSAGEID", "MeSsAgEiD"] {
@@ -80,6 +136,60 @@ fn match_accepts_case_insensitive_keys() {
             { "reason": "r", "addedBy": "a", "match": { key: format!("{:?}", msg.id()) } }
         ]));
         assert!(denylist.deny_reason_for_message(&msg).is_some(), "{key}");
+    }
+}
+
+#[test]
+fn body_matching_is_byte_aligned_opt_in_and_expires_with_its_address_rule() {
+    let listed = evm(EVM_ADDRESS);
+    let mut body = vec![0xab; 337];
+    body.extend_from_slice(&listed.as_bytes()[12..]);
+    let mut msg = message(H256::random(), H256::random(), body);
+    for match_body in [false, true] {
+        let denylist = denylist_with(json!([{
+            "reason": "r", "addedBy": "a", "address": EVM_ADDRESS, "matchBody": match_body
+        }]));
+        assert_eq!(denylist.deny_reason_for_message(&msg).is_some(), match_body);
+    }
+    let denylist = denylist_with(json!([{
+        "reason": "r", "addedBy": "a", "address": EVM_ADDRESS, "matchBody": true
+    }]));
+    msg.body = hex::decode(format!("0{}0", hex::encode(&listed.as_bytes()[12..])))
+        .expect("nibble-shifted hex");
+    assert!(denylist.deny_reason_for_message(&msg).is_none());
+
+    msg.body = listed.as_bytes()[12..].to_vec();
+    let expires_at = Utc::now() + chrono::Duration::hours(1);
+    denylist.set_rules_for_test(json!([{
+        "reason": "r", "addedBy": "a", "address": EVM_ADDRESS, "matchBody": true,
+        "expiresAt": expires_at.to_rfc3339()
+    }]));
+    assert!(denylist.deny_reason_for_message(&msg).is_some());
+    let expired_rules = denylist
+        .rules
+        .read()
+        .without_expired(expires_at)
+        .expect("expired rule");
+    denylist.replace(expired_rules, false);
+    assert!(denylist.deny_reason_for_message(&msg).is_none());
+    assert_eq!(denylist.summary().address_rules, 0);
+}
+
+#[test]
+fn body_matching_keeps_all_twenty_bytes_at_any_offset() {
+    for address in [EVM_ADDRESS, "0x00000000000000000000000235aE95896583818d"] {
+        let denylist = denylist_with(json!([{
+            "reason": "r", "addedBy": "a", "address": address, "matchBody": true
+        }]));
+        let bytes = hex::decode(&address[2..]).expect("EVM bytes");
+        for offset in [0, 1, 31, 32, 337, 512] {
+            let mut body = vec![0xab; offset];
+            body.extend_from_slice(&bytes);
+            let msg = message(H256::random(), H256::random(), body);
+            assert!(denylist.deny_reason_for_message(&msg).is_some());
+        }
+        let short = message(H256::random(), H256::random(), bytes[1..].to_vec());
+        assert!(denylist.deny_reason_for_message(&short).is_none());
     }
 }
 
@@ -165,6 +275,12 @@ fn rejects_invalid_rules() {
         json!({ "reason": "r", "addedBy": "a" }),
         json!({ "reason": "r", "addedBy": "a", "address": EVM_ADDRESS, "match": { "originDomain": 1 } }),
         json!({ "reason": "r", "addedBy": "a", "address": EVM_ADDRESS, "unknown": 1 }),
+        json!({ "reason": "r", "addedBy": "a", "match": { "originDomain": 1 }, "matchBody": false }),
+        json!({ "reason": "r", "addedBy": "a", "address": SOLANA_ADDRESS, "matchBody": true }),
+        json!({ "reason": "r", "addedBy": "a", "address": TRON_ADDRESS, "matchBody": true }),
+        json!({ "reason": "r", "addedBy": "a", "address": format!("{:?}", evm(EVM_ADDRESS)), "matchBody": true }),
+        json!({ "reason": "r", "addedBy": "a", "address": EVM_ADDRESS, "matchBody": "true" }),
+        json!({ "reason": "r", "addedBy": "a", "address": EVM_ADDRESS, "matchBody": null }),
         json!({ "reason": "r", "addedBy": "a", "address": EVM_ADDRESS, "expiresAt": "tomorrow" }),
     ];
     for case in cases {
@@ -294,8 +410,12 @@ async fn refresh_from_file_keeps_previous_rules_on_bad_file() {
     let blocked = message(H256::random(), evm(EVM_ADDRESS), vec![]);
     assert!(denylist.deny_reason_for_message(&blocked).is_some());
 
-    let cache_path = tmp.path().with_extension("cache.json");
-    let cached = tokio::fs::read(&cache_path).await.expect("cached rules");
+    let cache_path = &denylist
+        .source
+        .as_ref()
+        .expect("configured source")
+        .cache_path;
+    let cached = tokio::fs::read(cache_path).await.expect("cached rules");
     write(
         &mut tmp,
         &file(json!([
@@ -306,7 +426,7 @@ async fn refresh_from_file_keeps_previous_rules_on_bad_file() {
     assert_eq!(denylist.version(), 1);
     assert!(denylist.deny_reason_for_message(&blocked).is_some());
     assert_eq!(
-        tokio::fs::read(&cache_path).await.expect("cached rules"),
+        tokio::fs::read(cache_path).await.expect("cached rules"),
         cached
     );
 
@@ -326,22 +446,33 @@ async fn startup_falls_back_to_cached_file_when_fetch_fails() {
     std::fs::write(
         &source,
         file(json!([
-            address_rule(EVM_ADDRESS),
+            { "reason": "r", "addedBy": "a", "address": EVM_ADDRESS, "matchBody": true },
             { "reason": "r", "addedBy": "a", "match": { "MESSAGEID": format!("{:?}", msg.id()) } }
         ])),
     )
     .expect("write");
 
     let first = denylist_at(Url::from_file_path(&source).expect("url"), cache.clone());
-    first.refresh().await.expect("refresh");
-    assert!(cache.exists());
+    first.initial_load().await.expect("initial policy");
+    assert!(first
+        .source
+        .as_ref()
+        .expect("configured source")
+        .cache_path
+        .exists());
 
     std::fs::remove_file(&source).expect("remove");
     let restarted = denylist_at(Url::from_file_path(&source).expect("url"), cache);
-    restarted.initial_load().await;
+    restarted.initial_load().await.expect("cached policy");
     assert_eq!(restarted.summary().address_rules, 1);
     assert_eq!(restarted.summary().message_rules, 1);
     assert!(restarted.deny_reason_for_message(&msg).is_some());
+    let body_only = message(
+        H256::random(),
+        H256::random(),
+        evm(EVM_ADDRESS).as_bytes()[12..].to_vec(),
+    );
+    assert!(restarted.deny_reason_for_message(&body_only).is_some());
 }
 
 #[test]
@@ -374,19 +505,81 @@ async fn prune_expired_applies_without_a_fetch() {
 }
 
 #[tokio::test]
-async fn startup_without_fetch_or_cache_has_no_rules() {
+async fn startup_without_fetch_or_valid_cache_fails() {
     let dir = tempfile::tempdir().expect("tempdir");
     let missing = Url::from_file_path(dir.path().join("missing.json")).expect("url");
-    let denylist = denylist_at(missing, dir.path().join("cache.json"));
-    denylist.initial_load().await;
-    assert_eq!(
-        denylist.summary(),
-        RuntimeDenylistSummary {
-            version: 0,
-            message_rules: 0,
-            address_rules: 0,
+    let cache = dir.path().join("cache.json");
+    for invalid_cache in [false, true] {
+        let denylist = denylist_at(missing.clone(), cache.clone());
+        if invalid_cache {
+            std::fs::write(
+                &denylist
+                    .source
+                    .as_ref()
+                    .expect("configured source")
+                    .cache_path,
+                b"not json",
+            )
+            .expect("write invalid cache");
         }
+        let error = denylist
+            .initial_load()
+            .await
+            .expect_err("must fail startup");
+        assert!(format!("{error:#}").contains("refusing to start without a policy"));
+        assert_eq!(denylist.version(), 0);
+    }
+}
+
+#[tokio::test]
+async fn startup_rejects_cache_from_a_different_feed() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let first_source = dir.path().join("mainnet.json");
+    let other_source = dir.path().join("testnet.json");
+    let cache = dir.path().join("cache.json");
+    std::fs::write(&first_source, file(json!([address_rule(EVM_ADDRESS)]))).expect("write feed");
+    let first = denylist_at(
+        Url::from_file_path(&first_source).expect("url"),
+        cache.clone(),
     );
+    first.initial_load().await.expect("initial policy");
+
+    let other = denylist_at(Url::from_file_path(&other_source).expect("url"), cache);
+    assert_ne!(
+        first.source.as_ref().expect("first source").cache_path,
+        other.source.as_ref().expect("other source").cache_path,
+    );
+    let error = other
+        .initial_load()
+        .await
+        .expect_err("another feed's cache must not authorize startup");
+    assert!(format!("{error:#}").contains("refusing to start without a policy"));
+    assert_eq!(other.summary().address_rules, 0);
+    assert_eq!(other.version(), 0);
+}
+
+#[tokio::test]
+async fn startup_rejects_legacy_unbound_cache() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let missing = Url::from_file_path(dir.path().join("missing.json")).expect("url");
+    let cache = dir.path().join("cache.json");
+    // Older files carry no evidence of which URL wrote the rules.
+    std::fs::write(&cache, file(json!([address_rule(EVM_ADDRESS)]))).expect("write legacy cache");
+    let denylist = denylist_at(missing, cache);
+    let error = denylist
+        .initial_load()
+        .await
+        .expect_err("unbound cache must not authorize startup");
+    assert!(format!("{error:#}").contains("refusing to start without a policy"));
+    assert_eq!(denylist.version(), 0);
+}
+
+#[tokio::test]
+async fn startup_without_runtime_source_does_not_require_a_policy() {
+    RuntimeDenylist::default()
+        .initial_load()
+        .await
+        .expect("runtime denylist disabled");
 }
 
 #[tokio::test]
