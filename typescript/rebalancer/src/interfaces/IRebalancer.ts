@@ -58,7 +58,7 @@ export type PreparedTransaction = {
   >;
   route: MovableCollateralRoute & { intentId: string };
   originTokenAmount: PreparedOriginTokenAmount;
-  /** Collateral-denominated bridge fee excess pulled from the rebalancer. */
+  /** Exact collateral fee cap; zero still requires revoking any existing ERC20 allowance. */
   collateralFeeApproval?: {
     token: Address;
     spender: Address;
