@@ -32,9 +32,10 @@ export const MAX_EXPLORER_QUERY_LIMIT = 25_600;
  * middlewares kept.
  *
  * Ignored messages count against the Explorer limit, so a query re-asks the
- * inner client with a larger limit, at least doubling it each time, until it
- * keeps the requested number of transfers or the Explorer has no more. A query
- * that would need more than `MAX_EXPLORER_QUERY_LIMIT` rows throws. Only messages within the returned
+ * inner client with a larger limit, at least doubling it each time and capped
+ * at `MAX_EXPLORER_QUERY_LIMIT`, until it keeps the requested number of
+ * transfers or the Explorer has no more. If a full page at the cap still keeps
+ * too few transfers, the query throws. Only messages within the returned
  * page are evaluated: a tracked transfer that falls outside it is not
  * re-checked and stays reserved, as without middlewares.
  */
@@ -99,13 +100,15 @@ export abstract class PendingTransferMiddleware implements IExplorerClient {
       const exhausted = messages.length < limit;
       if (kept >= requested || exhausted) break;
 
-      const nextLimit = Math.max(limit * 2, requested + ignoredCount);
-      if (nextLimit > MAX_EXPLORER_QUERY_LIMIT) {
+      if (limit === MAX_EXPLORER_QUERY_LIMIT) {
         throw new Error(
           `${PENDING_TRANSFER_MIDDLEWARE_QUERY_LIMIT_MESSAGE} (middleware ${this.name}, requested ${requested}, kept ${kept} of ${limit} rows, limit ${MAX_EXPLORER_QUERY_LIMIT})`,
         );
       }
-      limit = nextLimit;
+      limit = Math.min(
+        MAX_EXPLORER_QUERY_LIMIT,
+        Math.max(limit * 2, requested + ignoredCount),
+      );
     }
 
     const ignored = new Map<string, string>();

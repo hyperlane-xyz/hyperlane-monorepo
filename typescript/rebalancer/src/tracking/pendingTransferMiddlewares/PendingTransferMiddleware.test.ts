@@ -33,7 +33,7 @@ chai.use(chaiAsPromised);
 class PagedExplorerClient implements IExplorerClient {
   readonly limits: number[] = [];
 
-  constructor(private readonly newestFirst: ExplorerMessage[]) {}
+  constructor(public newestFirst: ExplorerMessage[]) {}
 
   async getInflightUserTransfers(
     params: UserTransferQueryParams,
@@ -286,5 +286,51 @@ describe('PendingTransferMiddleware Explorer paging', () => {
     expect(inner.limits).to.deep.equal([
       100, 200, 400, 800, 1_600, 3_200, 6_400, 12_800, 25_600,
     ]);
+  });
+
+  describe('after a query that ignored 13,000 transfers', () => {
+    let inner: PagedExplorerClient;
+    let middleware: StaticMiddleware;
+
+    beforeEach(async () => {
+      const ignored = ignoredIds(13_000);
+      inner = new PagedExplorerClient([
+        ...ignored.map(buildMessage),
+        buildMessage(ID_A),
+      ]);
+      middleware = new StaticMiddleware(inner, 'paging', ignored);
+      await middleware.getInflightUserTransfers(PARAMS, logger);
+      inner.limits.length = 0;
+    });
+
+    it('raises the limit to the row cap rather than throwing', async () => {
+      const ignored = ignoredIds(13_050);
+      const realTransfers = Array.from({ length: 100 }, (_, index) =>
+        messageId(1_000_000 + index),
+      );
+      inner.newestFirst = [
+        ...ignored.map(buildMessage),
+        ...realTransfers.map(buildMessage),
+      ];
+      middleware.ignoredIds = ignored;
+
+      const result = await middleware.getInflightUserTransfers(PARAMS, logger);
+
+      expect(result.map((msg) => msg.msg_id)).to.deep.equal(realTransfers);
+      expect(inner.limits).to.deep.equal([13_100, 25_600]);
+    });
+
+    it('throws only after a full page at the row cap', async () => {
+      const ignored = ignoredIds(MAX_EXPLORER_QUERY_LIMIT);
+      inner.newestFirst = [...ignored.map(buildMessage), buildMessage(ID_A)];
+      middleware.ignoredIds = ignored;
+
+      const result = middleware.getInflightUserTransfers(PARAMS, logger);
+
+      await expect(result).to.be.rejectedWith(
+        `${PENDING_TRANSFER_MIDDLEWARE_QUERY_LIMIT_MESSAGE} (middleware paging, requested 100, kept 0 of 25600 rows, limit 25600)`,
+      );
+      expect(inner.limits).to.deep.equal([13_100, 25_600]);
+    });
   });
 });
