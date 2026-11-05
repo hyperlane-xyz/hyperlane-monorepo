@@ -29,6 +29,8 @@ import {
   readRebalancerConfig,
 } from './config.js';
 
+const WARP_ROUTE_ID_REGEX = /^warpRouteId:\s*(.+)$/m;
+
 export function buildRebalancerHelmValues(
   { config, deployment, runtimeConfig }: RebalancerDeploymentConfig,
   options: {
