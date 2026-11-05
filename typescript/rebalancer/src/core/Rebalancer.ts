@@ -335,13 +335,14 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       return null;
     }
 
-    const collateralFeeApproval =
-      await this.getCollateralFeeApprovalRequirement(
-        originHypAdapter,
-        originToken.addressOrDenom,
-        quotes,
-        localAmount,
-      );
+    const collateralFeeApproval = originToken.isHypNative()
+      ? undefined
+      : await this.getCollateralFeeApprovalRequirement(
+          originHypAdapter,
+          originToken.addressOrDenom,
+          quotes,
+          localAmount,
+        );
 
     // 3. Populate transaction
     let populatedTx: PopulatedTransaction;
@@ -380,10 +381,6 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     quotes: InterchainGasQuote[],
     localAmount: bigint,
   ): Promise<PreparedTransaction['collateralFeeApproval']> {
-    if (quotes.every((quote) => !quote.igpQuote.addressOrDenom)) {
-      return undefined;
-    }
-
     const collateralToken = await originHypAdapter.getWrappedTokenAddress();
     const quotedCollateral = quotes.reduce(
       (total, quote) =>
@@ -394,12 +391,11 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       0n,
     );
 
-    if (quotedCollateral <= localAmount) return undefined;
-
     return {
       token: collateralToken,
       spender: router,
-      amount: quotedCollateral - localAmount,
+      amount:
+        quotedCollateral > localAmount ? quotedCollateral - localAmount : 0n,
     };
   }
 
@@ -547,27 +543,39 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           const approval = transaction.collateralFeeApproval;
           if (approval) {
             try {
-              await approveErc20IfNeeded(
-                this.multiProvider.getSigner(origin),
-                approval.token,
-                approval.spender,
-                approval.amount,
-                this.logger,
-                {
-                  ...this.approvalOptions,
-                  mode: Erc20ApprovalMode.Exact,
-                  // Supplying an observer enables signing before broadcast so lost responses retain a hash.
-                  onApproval: async (pending) => {
-                    if (pending)
-                      this.pendingOrigins.set(origin, {
-                        approval,
-                        awaitingReceipt: true,
-                        txHash: pending.txHash,
-                      });
-                    else this.pendingOrigins.delete(origin);
-                  },
+              const approvalOptions: Erc20ApprovalOptions = {
+                ...this.approvalOptions,
+                mode: Erc20ApprovalMode.Exact,
+                // Supplying an observer enables signing before broadcast so lost responses retain a hash.
+                onApproval: async (pending) => {
+                  if (pending)
+                    this.pendingOrigins.set(origin, {
+                      approval,
+                      awaitingReceipt: true,
+                      txHash: pending.txHash,
+                    });
+                  else this.pendingOrigins.delete(origin);
                 },
-              );
+              };
+              const signer = this.multiProvider.getSigner(origin);
+              if (approval.amount === 0n) {
+                await revokeErc20ApprovalIfNeeded(
+                  signer,
+                  approval.token,
+                  approval.spender,
+                  this.logger,
+                  approvalOptions,
+                );
+              } else {
+                await approveErc20IfNeeded(
+                  signer,
+                  approval.token,
+                  approval.spender,
+                  approval.amount,
+                  this.logger,
+                  approvalOptions,
+                );
+              }
             } catch (error) {
               if (
                 error instanceof Erc20ApprovalError &&
