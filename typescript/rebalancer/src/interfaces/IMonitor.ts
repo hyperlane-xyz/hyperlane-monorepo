@@ -33,6 +33,7 @@ export type MonitorEvent = {
     bridgedSupply?: bigint;
   }[];
   confirmedBlockTags: ConfirmedBlockTags;
+  /** Absent when inventory reads are unavailable; callers must skip all inventory execution. */
   inventoryBalances?: ChainMap<bigint>;
 };
 

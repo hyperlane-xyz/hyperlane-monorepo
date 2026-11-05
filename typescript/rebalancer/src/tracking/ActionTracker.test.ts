@@ -729,6 +729,256 @@ describe('ActionTracker', () => {
     });
   });
 
+  describe('finalized source failure reconciliation', () => {
+    async function reserveSource(
+      type: RebalanceAction['type'] = 'inventory_movement',
+      txHash?: string,
+    ) {
+      const intent = await tracker.createRebalanceIntent({
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        executionMethod:
+          type === 'rebalance_message' ? 'movable_collateral' : 'inventory',
+      });
+      const action = await tracker.createRebalanceAction({
+        intentId: intent.id,
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        type,
+        txHash,
+      });
+      return { intent, action };
+    }
+
+    for (const protocol of [ProtocolType.Ethereum, ProtocolType.Tron]) {
+      for (const type of [
+        'rebalance_message',
+        'inventory_movement',
+        'inventory_deposit',
+      ] as const) {
+        it(`releases a finalized ${protocol} source revert for ${type} without waiting for TTL`, async () => {
+          const { intent, action } = await reserveSource(type, 'source-hash');
+          const receipt = Sinon.stub().resolves({
+            status: 0,
+            blockNumber: 1,
+            confirmations: 1,
+          });
+          core.multiProvider.getProtocol = Sinon.stub().returns(protocol);
+          core.multiProvider.getEthersV5Provider = Sinon.stub().returns({
+            getTransactionReceipt: receipt,
+          });
+          core.multiProvider.getChainMetadata = Sinon.stub().returns({
+            blocks: { reorgPeriod: 2 },
+          });
+          await tracker.syncRebalanceActions();
+          expect(
+            (await tracker.getRebalanceAction(action.id))?.status,
+          ).to.equal('in_progress');
+          receipt.resolves({ status: 0, blockNumber: 1, confirmations: 2 });
+          await tracker.syncRebalanceActions();
+          expect(
+            (await tracker.getRebalanceAction(action.id))?.status,
+          ).to.equal('failed');
+          expect(
+            (await tracker.getRebalanceIntent(intent.id))?.status,
+          ).to.equal(type === 'rebalance_message' ? 'failed' : 'in_progress');
+          if (type !== 'rebalance_message') {
+            const [partial] =
+              await tracker.getPartiallyFulfilledInventoryIntents();
+            expect(partial.remaining).to.equal(100n);
+            expect(partial.hasInflightDeposit).to.equal(false);
+            expect(partial.hasInflightMovement).to.equal(false);
+          }
+        });
+      }
+    }
+
+    it('requires a source revert to be included in the configured finality tag', async () => {
+      const { action } = await reserveSource(
+        'inventory_deposit',
+        'source-hash',
+      );
+      core.multiProvider.getProtocol = Sinon.stub().returns(
+        ProtocolType.Ethereum,
+      );
+      const block = Sinon.stub().resolves({ number: 1 });
+      core.multiProvider.getEthersV5Provider = Sinon.stub().returns({
+        getTransactionReceipt: Sinon.stub().resolves({
+          status: 0,
+          blockNumber: 2,
+          confirmations: 50,
+        }),
+        getBlock: block,
+      });
+      core.multiProvider.getChainMetadata = Sinon.stub().returns({
+        blocks: { reorgPeriod: EthJsonRpcBlockParameterTag.Finalized },
+      });
+      await tracker.syncRebalanceActions();
+      expect((await tracker.getRebalanceAction(action.id))?.status).to.equal(
+        'in_progress',
+      );
+      block.resolves({ number: 2 });
+      await tracker.syncRebalanceActions();
+      expect((await tracker.getRebalanceAction(action.id))?.status).to.equal(
+        'failed',
+      );
+      expect(block.firstCall.args[0]).to.equal(
+        EthJsonRpcBlockParameterTag.Finalized,
+      );
+    });
+
+    it('retains successful, absent, nonfinal and unreadable source receipts', async () => {
+      const { action } = await reserveSource(
+        'inventory_movement',
+        'source-hash',
+      );
+      const receipt = Sinon.stub();
+      core.multiProvider.getProtocol = Sinon.stub().returns(
+        ProtocolType.Ethereum,
+      );
+      core.multiProvider.getEthersV5Provider = Sinon.stub().returns({
+        getTransactionReceipt: receipt,
+      });
+      core.multiProvider.getChainMetadata = Sinon.stub().returns({
+        blocks: { reorgPeriod: 2 },
+      });
+      for (const value of [
+        null,
+        { status: 1, confirmations: 5 },
+        { status: 0, confirmations: 0 },
+        { status: 0 },
+      ]) {
+        receipt.resolves(value);
+        await tracker.syncRebalanceActions();
+        expect((await tracker.getRebalanceAction(action.id))?.status).to.equal(
+          'in_progress',
+        );
+      }
+      receipt.rejects(new Error('RPC timeout'));
+      await tracker.syncRebalanceActions();
+      expect((await tracker.getRebalanceAction(action.id))?.status).to.equal(
+        'in_progress',
+      );
+    });
+
+    it('releases Solana execution errors only after finalization, with historical lookup', async () => {
+      const { action } = await reserveSource(
+        'inventory_deposit',
+        'source-signature',
+      );
+      const status = Sinon.stub().resolves({
+        value: [
+          {
+            confirmationStatus: 'confirmed',
+            err: { InstructionError: [0, 'failure'] },
+          },
+        ],
+      });
+      core.multiProvider.getProtocol = Sinon.stub().returns(
+        ProtocolType.Sealevel,
+      );
+      core.multiProvider.getSolanaWeb3Provider = Sinon.stub().returns({
+        getSignatureStatuses: status,
+      });
+      await tracker.syncRebalanceActions();
+      expect((await tracker.getRebalanceAction(action.id))?.status).to.equal(
+        'in_progress',
+      );
+      status.resolves({
+        value: [
+          {
+            confirmationStatus: 'finalized',
+            err: { InstructionError: [0, 'failure'] },
+          },
+        ],
+      });
+      await tracker.syncRebalanceActions();
+      expect((await tracker.getRebalanceAction(action.id))?.status).to.equal(
+        'failed',
+      );
+      expect(status.firstCall.args).to.deep.equal([
+        ['source-signature'],
+        { searchTransactionHistory: true },
+      ]);
+    });
+
+    it('keeps absent and successful Solana signatures reserved instead of treating expiry as failure', async () => {
+      const { action } = await reserveSource(
+        'inventory_deposit',
+        'source-signature',
+      );
+      const status = Sinon.stub();
+      core.multiProvider.getProtocol = Sinon.stub().returns(
+        ProtocolType.Sealevel,
+      );
+      core.multiProvider.getSolanaWeb3Provider = Sinon.stub().returns({
+        getSignatureStatuses: status,
+      });
+      for (const value of [
+        null,
+        { confirmationStatus: 'finalized', err: null },
+      ]) {
+        status.resolves({ value: [value] });
+        await tracker.syncRebalanceActions();
+        expect((await tracker.getRebalanceAction(action.id))?.status).to.equal(
+          'in_progress',
+        );
+      }
+    });
+
+    it('keeps a hashless unknown action reserved after the intent TTL', async () => {
+      const { intent, action } = await reserveSource();
+      await tracker.updateRebalanceActionExecution(action.id, {
+        submissionState: 'unknown',
+      });
+      await rebalanceIntentStore.update(intent.id, {
+        createdAt: Date.now() - config.intentTTL - 1,
+      });
+      await tracker.syncRebalanceActions();
+      await tracker.syncRebalanceIntents();
+      expect((await tracker.getRebalanceAction(action.id))?.status).to.equal(
+        'in_progress',
+      );
+      expect((await tracker.getRebalanceIntent(intent.id))?.status).to.equal(
+        'in_progress',
+      );
+    });
+
+    it('logs blocked age and identities without releasing uncertain work', async () => {
+      const { action } = await reserveSource(
+        'inventory_movement',
+        'source-hash',
+      );
+      await rebalanceActionStore.update(action.id, {
+        createdAt: Date.now() - config.intentTTL - 1000,
+        lastBridgeStatus: 'failed',
+      });
+      const logger = pino({ level: 'silent' });
+      const warn = Sinon.stub(logger, 'warn');
+      const diagnosticTracker = new ActionTracker(
+        transferStore,
+        rebalanceIntentStore,
+        rebalanceActionStore,
+        explorerClient,
+        core,
+        config,
+        logger,
+      );
+      await diagnosticTracker.logStoreContents();
+      expect(warn.calledOnce).to.equal(true);
+      expect(warn.firstCall.args[0]).to.include({
+        actionId: action.id,
+        txHash: 'source-hash',
+        lastBridgeStatus: 'failed',
+      });
+      expect((await tracker.getRebalanceAction(action.id))?.status).to.equal(
+        'in_progress',
+      );
+    });
+  });
+
   describe('pending approval reconciliation', () => {
     async function reserveApproval(
       txHash: string | undefined = 'approval-hash',

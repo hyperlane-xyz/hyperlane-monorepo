@@ -185,6 +185,7 @@ function createMonitorEvent(overrides?: any) {
       ethereum: 100,
       arbitrum: 200,
     },
+    inventoryBalances: { ethereum: 5000n, arbitrum: 5000n },
     ...overrides,
   };
 }
@@ -678,6 +679,81 @@ describe('RebalancerOrchestrator', () => {
   });
 
   describe('fresh balances after settlement', () => {
+    it('defers the current snapshot after source failure reconciliation and retries on the next cycle', async () => {
+      const inventory = createMockInventoryRebalancer();
+      const actionTracker = createMockActionTracker();
+      const inProgress = Sinon.stub().resolves([]);
+      inProgress.onFirstCall().resolves([{ id: 'reverted-source' }]);
+      actionTracker.getInProgressActions = inProgress;
+      const orchestrator = new RebalancerOrchestrator({
+        strategy: createMockStrategy(),
+        actionTracker,
+        inflightContextAdapter: createMockInflightContextAdapter(),
+        rebalancerConfig: createMockRebalancerConfig(),
+        logger: testLogger,
+        rebalancers: [inventory],
+      });
+      await orchestrator.executeCycle(createMonitorEvent());
+      expect(inventory.rebalance.called).to.equal(false);
+      await orchestrator.executeCycle(createMonitorEvent());
+      expect(inventory.rebalance.calledOnceWithExactly([])).to.equal(true);
+    });
+
+    for (const proposeInventory of [false, true]) {
+      it(`skips ${proposeInventory ? 'proposed' : 'continuing'} inventory work without a current snapshot even after caching balances`, async () => {
+        const inventory = createMockInventoryRebalancer();
+        const mcr = createMockRebalancer();
+        const strategy = createMockStrategy();
+        const orchestrator = new RebalancerOrchestrator({
+          strategy,
+          actionTracker: createMockActionTracker(),
+          inflightContextAdapter: createMockInflightContextAdapter(),
+          rebalancerConfig: createMockRebalancerConfig(),
+          logger: testLogger,
+          rebalancers: [inventory, mcr],
+        });
+        await orchestrator.executeCycle(createMonitorEvent());
+        expect(inventory.rebalance.calledOnce).to.equal(true);
+        inventory.rebalance.resetHistory();
+        inventory.setInventoryBalances.resetHistory();
+        if (proposeInventory)
+          strategy.getRebalancingRoutes.returns([
+            {
+              origin: 'ethereum',
+              destination: 'arbitrum',
+              amount: 100n,
+              executionType: 'inventory',
+              externalBridge: 'lifi',
+            },
+            {
+              origin: 'ethereum',
+              destination: 'arbitrum',
+              amount: 100n,
+              executionType: 'movableCollateral',
+              bridge: TEST_ADDRESSES.bridge,
+            },
+          ]);
+        await orchestrator.executeCycle(
+          createMonitorEvent({ inventoryBalances: undefined }),
+        );
+        expect(inventory.rebalance.called).to.equal(false);
+        expect(inventory.setInventoryBalances.called).to.equal(false);
+        if (proposeInventory) expect(mcr.rebalance.calledOnce).to.equal(true);
+        await orchestrator.executeCycle(
+          createMonitorEvent({
+            inventoryBalances: { ethereum: 0n, arbitrum: 0n },
+          }),
+        );
+        expect(inventory.rebalance.calledOnce).to.equal(true);
+        expect(
+          inventory.setInventoryBalances.calledOnceWithExactly({
+            ethereum: 0n,
+            arbitrum: 0n,
+          }),
+        ).to.equal(true);
+      });
+    }
+
     it('does not execute inventory work using a snapshot sampled before bridge completion', async () => {
       const strategy = createMockStrategy();
       strategy.getRebalancingRoutes.returns([]);

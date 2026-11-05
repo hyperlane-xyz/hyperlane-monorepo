@@ -14,7 +14,11 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { type MonitorEvent, MonitorEventType, MonitorPollingError } from '../interfaces/IMonitor.js';
+import {
+  type MonitorEvent,
+  MonitorEventType,
+  MonitorPollingError,
+} from '../interfaces/IMonitor.js';
 
 import { Monitor } from './Monitor.js';
 
@@ -223,7 +227,7 @@ describe('Monitor concurrency', () => {
     ]);
   });
 
-  it('drains supply and inventory reads after an inventory failure without emitting balances', async () => {
+  it('drains failed inventory reads before emitting the successful collateral snapshot', async () => {
     const { monitor, adapters } = setup(2, true);
     const supply = sinon.promise<bigint>();
     const inventory = sinon.promise<bigint>();
@@ -250,7 +254,8 @@ describe('Monitor concurrency', () => {
     expect(errors.firstCall.args[0].message).to.contain(
       'inventory unavailable',
     );
-    expect(handler.notCalled).to.equal(true);
+    expect(handler.calledOnce).to.equal(true);
+    expect(handler.firstCall.args[0].inventoryBalances).to.equal(undefined);
   });
 
   it('retries a failed confirmed block lookup without emitting latest-state supply', async () => {
@@ -358,7 +363,7 @@ describe('Monitor concurrency', () => {
     monitor.on(MonitorEventType.TokenInfo, (received) => {
       handler(received);
       event = received;
-      void monitor.stop();
+      if (received.inventoryBalances) void monitor.stop();
     });
 
     await monitor.start();
@@ -366,7 +371,8 @@ describe('Monitor concurrency', () => {
     expect(errors.firstCall.args[0].message).to.contain(
       'inventory unavailable',
     );
-    expect(handler.calledOnce).to.equal(true);
+    expect(handler.calledTwice).to.equal(true);
+    expect(handler.firstCall.args[0].inventoryBalances).to.equal(undefined);
     sinon.assert.callOrder(errors, handler);
     expect(adapters[0].getBalance.calledTwice).to.equal(true);
     expect(event?.inventoryBalances).to.deep.equal({ chain0: 10n });
@@ -408,13 +414,23 @@ describe('Monitor concurrency', () => {
 });
 
 describe('Monitor inventory reads', () => {
-  for (const failure of ['RPC timeout', 'missing token', 'missing signer']) {
+  for (const failure of [
+    'RPC timeout',
+    'missing token',
+    'missing signer',
+    'collateral RPC timeout',
+  ]) {
     it(`emits a polling error without a false zero balance on ${failure}`, async () => {
       const token = {
         chainName: 'solanamainnet',
         protocol: ProtocolType.Sealevel,
         isHypToken: () => true,
-        getHypAdapter: () => ({ getBridgedSupply: async () => 100n }),
+        getHypAdapter: () => ({
+          getBridgedSupply: async () => {
+            if (failure === 'collateral RPC timeout') throw new Error(failure);
+            return 100n;
+          },
+        }),
         getAdapter: () => ({
           getBalance: async () => {
             throw new Error('RPC timeout');
@@ -440,14 +456,17 @@ describe('Monitor inventory reads', () => {
         errors.push(error);
         void monitor.stop();
       });
-      monitor.on(MonitorEventType.TokenInfo, () => {
+      monitor.on(MonitorEventType.TokenInfo, (event) => {
+        expect(event.inventoryBalances).to.equal(undefined);
         balancesEmitted++;
         void monitor.stop();
       });
       await monitor.start();
       expect(errors).to.have.length(1);
       expect(errors[0]).to.be.instanceOf(MonitorPollingError);
-      expect(balancesEmitted).to.equal(0);
+      expect(balancesEmitted).to.equal(
+        failure === 'collateral RPC timeout' ? 0 : 1,
+      );
     });
   }
 
