@@ -483,7 +483,77 @@ describe('deBridge utilities', function () {
 });
 
 describe('DeBridgeBridge.quote', function () {
+  beforeEach(() => {
+    sinon
+      .stub(ethers.providers.StaticJsonRpcProvider.prototype, 'call')
+      .callsFake((tx) => chainRead(tx));
+    sinon
+      .stub(TronJsonRpcProvider.prototype, 'call')
+      .callsFake((tx) => chainRead(tx));
+  });
   afterEach(() => sinon.restore());
+
+  it('rejects quote decimals that disagree with chain data', async () => {
+    const response = makeQuoteResponse();
+    response.estimation.srcChainTokenIn.decimals++;
+    sinon.stub(globalThis, 'fetch').resolves(jsonResponse(response));
+    const error = await getRejection(
+      new DeBridgeBridge(BRIDGE_CONFIG, logger).quote(BSC_TO_TRON_PARAMS),
+    );
+    expect(error.message).to.include('decimals do not match chain data');
+  });
+
+  it('keeps the request deadline active while consuming the body', async () => {
+    const clock = sinon.useFakeTimers();
+    let aborted = 0;
+    const fetch = sinon.stub(globalThis, 'fetch').callsFake(
+      async (_url, init) =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              init?.signal?.addEventListener('abort', () => {
+                aborted++;
+                controller.error(new Error('body timed out'));
+              });
+            },
+          }),
+        ),
+    );
+    const result = getRejection(
+      new DeBridgeBridge(BRIDGE_CONFIG, logger).quote(BSC_TO_TRON_PARAMS),
+    );
+    await clock.runAllAsync();
+    expect((await result).message).to.include('body timed out');
+    expect(fetch.callCount).to.equal(3);
+    expect(aborted).to.equal(3);
+  });
+
+  it('does not retry permanent HTTP errors', async () => {
+    const fetch = sinon
+      .stub(globalThis, 'fetch')
+      .resolves(jsonResponse({ error: 'invalid request' }, 400));
+    const error = await getRejection(
+      new DeBridgeBridge(BRIDGE_CONFIG, logger).quote(BSC_TO_TRON_PARAMS),
+    );
+    expect(error.message).to.include('HTTP 400');
+    expect(fetch.calledOnce).to.equal(true);
+  });
+
+  it('advertises native EVM assets and rejects native SOL before fetching', async () => {
+    const fetch = sinon.stub(globalThis, 'fetch');
+    const bridge = new DeBridgeBridge(BRIDGE_CONFIG, logger);
+    expect(bridge.getNativeTokenAddress()).to.equal(
+      ethers.constants.AddressZero,
+    );
+    const error = await getRejection(
+      bridge.quote({
+        ...makeSolanaParams(Keypair.generate()),
+        fromToken: bridge.getNativeTokenAddress(),
+      }),
+    );
+    expect(error.message).to.include('native SOL is not supported');
+    expect(fetch.called).to.equal(false);
+  });
 
   it('normalizes decimals for its fee guard and URL-encodes the request', async () => {
     let calledUrl = '';
@@ -609,7 +679,7 @@ async function chainRead(
   return ethers.utils.defaultAbiCoder.encode(['uint256'], [result]);
 }
 
-function stubMint(): void {
+function stubMint(): sinon.SinonStub {
   const data = Buffer.alloc(MintLayout.span);
   MintLayout.encode(
     {
@@ -623,7 +693,7 @@ function stubMint(): void {
     },
     data,
   );
-  sinon.stub(Connection.prototype, 'getAccountInfo').resolves({
+  return sinon.stub(Connection.prototype, 'getAccountInfo').resolves({
     executable: false,
     owner: TOKEN_PROGRAM_ID,
     lamports: 1_000_000,
@@ -1055,6 +1125,46 @@ describe('DeBridgeBridge.execute', function () {
     expect(error.message).to.include('signer does not match');
   });
 
+  it('preserves the signed Solana identity if the RPC returns another signature', async () => {
+    const signer = Keypair.generate();
+    const response = makeSolanaQuoteResponse();
+    sinon.stub(globalThis, 'fetch').resolves(
+      jsonResponse({
+        ...response,
+        orderId: ORDER_ID,
+        fixFee: '0',
+        tx: { data: makeSerializedSolanaTransaction(signer) },
+      }),
+    );
+    sinon.stub(Connection.prototype, 'getLatestBlockhash').resolves({
+      blockhash: '11111111111111111111111111111111',
+      lastValidBlockHeight: 123,
+    });
+    const send = sinon
+      .stub(Connection.prototype, 'sendTransaction')
+      .resolves('wrong-signature');
+    const onSubmitted = sinon.spy();
+    const error = await getRejection(
+      new DeBridgeBridge(BRIDGE_CONFIG, logger).execute(
+        makeBridgeQuote(makeSolanaParams(signer), response),
+        { [ProtocolType.Sealevel]: bs58.encode(signer.secretKey) },
+        { onSubmitted },
+      ),
+    );
+    assert(
+      error instanceof TransactionSubmissionError,
+      'Expected submission error',
+    );
+    const transaction = send.firstCall.args[0];
+    assert(
+      transaction instanceof VersionedTransaction,
+      'Expected versioned transaction',
+    );
+    expect(error.submissionState).to.equal('unknown');
+    expect(error.txHash).to.equal(bs58.encode(transaction.signatures[0]));
+    expect(onSubmitted.called).to.equal(false);
+  });
+
   it('returns the Solana broadcast identity without waiting for confirmation', async () => {
     const signer = Keypair.generate();
     const params = makeSolanaParams(signer);
@@ -1073,7 +1183,13 @@ describe('DeBridgeBridge.execute', function () {
     });
     const sendStub = sinon
       .stub(Connection.prototype, 'sendTransaction')
-      .resolves('solana-signature');
+      .callsFake(async (transaction) => {
+        assert(
+          transaction instanceof VersionedTransaction,
+          'Expected versioned transaction',
+        );
+        return bs58.encode(transaction.signatures[0]);
+      });
     const confirmStub = sinon
       .stub(Connection.prototype, 'confirmTransaction')
       .rejects(new Error('receipt provider timeout'));
@@ -1086,7 +1202,7 @@ describe('DeBridgeBridge.execute', function () {
     expect(sendStub.calledOnce).to.equal(true);
     expect(confirmStub.called).to.equal(false);
     expect(result).to.deep.equal({
-      txHash: 'solana-signature',
+      txHash: await sendStub.firstCall.returnValue,
       fromChain: 1399811149,
       toChain: 56,
       transferId: ORDER_ID,
@@ -1094,11 +1210,61 @@ describe('DeBridgeBridge.execute', function () {
   });
 });
 
+async function preparedStatusBridge(
+  params = BSC_TO_TRON_PARAMS,
+  orderId = ORDER_ID,
+): Promise<DeBridgeBridge> {
+  const response = makeCreateTxResponse();
+  response.orderId = orderId;
+  response.estimation.dstChainTokenOut.chainId = hyperlaneChainIdToDebridge(
+    params.toChain,
+  );
+  response.estimation.dstChainTokenOut.address = params.toToken;
+  const fetch = sinon
+    .stub(globalThis, 'fetch')
+    .resolves(jsonResponse(response));
+  const call = sinon
+    .stub(ethers.providers.StaticJsonRpcProvider.prototype, 'call')
+    .callsFake((tx) => chainRead(tx));
+  const tronCall = sinon
+    .stub(TronJsonRpcProvider.prototype, 'call')
+    .callsFake((tx) => chainRead(tx));
+  const mint = stubMint();
+  const bridge = new DeBridgeBridge(
+    {
+      ...BRIDGE_CONFIG,
+      chainMetadata: {
+        ...BRIDGE_CONFIG.chainMetadata,
+        tron: {
+          name: 'tron',
+          chainId: 728126428,
+          domainId: 728126428,
+          protocol: ProtocolType.Tron,
+          rpcUrls: [{ http: 'https://tron-rpc.example.com' }],
+          nativeToken: { name: 'TRX', symbol: 'TRX', decimals: 6 },
+        },
+      },
+    },
+    logger,
+  );
+  try {
+    await bridge.prepare(makeBridgeQuote(params, response));
+  } finally {
+    fetch.restore();
+    call.restore();
+    tronCall.restore();
+    mint.restore();
+  }
+  return bridge;
+}
+
 describe('DeBridgeBridge.getStatus', function () {
   let sourceReceipt: ethers.providers.TransactionReceipt;
   let destinationReceipt: ethers.providers.TransactionReceipt;
   let receiptStub: sinon.SinonStub;
+  let bridge: DeBridgeBridge;
   beforeEach(async () => {
+    bridge = await preparedStatusBridge();
     const order = settlementOrder();
     sourceReceipt = await makeTransactionResponse(
       { to: DLN_SOURCE, data: '0x', value: ethers.constants.Zero },
@@ -1174,7 +1340,90 @@ describe('DeBridgeBridge.getStatus', function () {
   });
   afterEach(() => sinon.restore());
 
-  it('uses the persisted order ID and maps completion metadata', async () => {
+  it('keeps fulfillment pending without the prepared destination expectation', async () => {
+    sinon.stub(globalThis, 'fetch').resolves(
+      jsonResponse({
+        orderId: ORDER_ID,
+        status: 'Fulfilled',
+        fulfilledDstEventMetadata: {
+          transactionHash: { stringValue: DESTINATION_TX_HASH },
+        },
+      }),
+    );
+    const untracked = new DeBridgeBridge(BRIDGE_CONFIG, logger);
+    expect(
+      (await untracked.getStatus(SOURCE_TX_HASH, 56, 728126428, ORDER_ID))
+        .status,
+    ).to.equal('pending');
+  });
+
+  for (const change of [
+    'recipient',
+    'token',
+    'amount',
+    'chain',
+    'net source amount',
+  ] as const) {
+    it(`binds a self-consistent order to the destination intent: ${change}`, async () => {
+      const order = settlementOrder();
+      if (change === 'recipient') order.receiverDst = DLN_SOURCE.toLowerCase();
+      if (change === 'token') order.takeTokenAddress = BSC_USDT.toLowerCase();
+      if (change === 'amount') order.takeAmount--;
+      if (change === 'chain') order.takeChainId = 1n;
+      if (change === 'net source amount') order.giveAmount -= 1_000n;
+      const id = dlnOrderId(order);
+      bridge = await preparedStatusBridge(BSC_TO_TRON_PARAMS, id);
+      Object.assign(
+        sourceReceipt.logs[0],
+        DLN_EVENTS.encodeEventLog(DLN_EVENTS.getEvent('CreatedOrder'), [
+          order,
+          id,
+          '0x',
+          FIX_FEE,
+          SOURCE_AMOUNT - order.giveAmount,
+          0,
+          '0x',
+        ]),
+      );
+      Object.assign(
+        destinationReceipt.logs[0],
+        DLN_EVENTS.encodeEventLog(DLN_EVENTS.getEvent('FulfilledOrder'), [
+          order,
+          id,
+          SIGNER_ADDRESS,
+          SIGNER_ADDRESS,
+        ]),
+      );
+      destinationReceipt.logs[1].address = order.takeTokenAddress;
+      destinationReceipt.logs[1].topics[2] = ethers.utils.hexZeroPad(
+        order.receiverDst,
+        32,
+      );
+      destinationReceipt.logs[1].data = ethers.utils.defaultAbiCoder.encode(
+        ['uint256'],
+        [order.takeAmount],
+      );
+      sinon.stub(globalThis, 'fetch').resolves(
+        jsonResponse({
+          orderId: id,
+          status: 'Fulfilled',
+          fulfilledDstEventMetadata: {
+            transactionHash: { stringValue: DESTINATION_TX_HASH },
+          },
+        }),
+      );
+      const status = bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, id);
+      if (change === 'net source amount') {
+        expect((await status).status).to.equal('complete');
+      } else {
+        expect((await getRejection(status)).message).to.include(
+          'DLN settlement',
+        );
+      }
+    });
+  }
+
+  it('uses the prepared order ID and maps completion metadata', async () => {
     let calledUrl = '';
     sinon.stub(globalThis, 'fetch').callsFake(async (input) => {
       calledUrl = String(input);
@@ -1188,7 +1437,7 @@ describe('DeBridgeBridge.getStatus', function () {
       });
     });
 
-    const result = await new DeBridgeBridge(BRIDGE_CONFIG, logger).getStatus(
+    const result = await bridge.getStatus(
       SOURCE_TX_HASH,
       56,
       728126428,
@@ -1248,12 +1497,7 @@ describe('DeBridgeBridge.getStatus', function () {
       }
       expect(
         await getRejection(
-          new DeBridgeBridge(BRIDGE_CONFIG, logger).getStatus(
-            SOURCE_TX_HASH,
-            56,
-            728126428,
-            ORDER_ID,
-          ),
+          bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, ORDER_ID),
         ),
       ).to.be.instanceOf(Error);
     });
@@ -1273,12 +1517,7 @@ describe('DeBridgeBridge.getStatus', function () {
     expect(
       (
         await getRejection(
-          new DeBridgeBridge(BRIDGE_CONFIG, logger).getStatus(
-            SOURCE_TX_HASH,
-            56,
-            728126428,
-            ORDER_ID,
-          ),
+          bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, ORDER_ID),
         )
       ).message,
     ).to.include('less than the committed amount');
@@ -1312,6 +1551,10 @@ describe('DeBridgeBridge.getStatus', function () {
       ]),
     );
     destinationReceipt.logs.length = 1;
+    bridge = await preparedStatusBridge(
+      { ...BSC_TO_TRON_PARAMS, toToken: ethers.constants.AddressZero },
+      id,
+    );
     sinon.stub(globalThis, 'fetch').callsFake(async () =>
       jsonResponse({
         orderId: id,
@@ -1324,7 +1567,6 @@ describe('DeBridgeBridge.getStatus', function () {
     const call = sinon
       .stub(TronJsonRpcProvider.prototype, 'call')
       .resolves(ethers.utils.defaultAbiCoder.encode(['uint256'], [0]));
-    const bridge = new DeBridgeBridge(BRIDGE_CONFIG, logger);
     expect(
       (await bridge.getStatus(SOURCE_TX_HASH, 56, 728126428, id)).status,
     ).to.equal('complete');
@@ -1348,7 +1590,6 @@ describe('DeBridgeBridge.getStatus', function () {
         },
       }),
     );
-    const bridge = new DeBridgeBridge(BRIDGE_CONFIG, logger);
     for (const receipt of [sourceReceipt, destinationReceipt]) {
       receipt.confirmations = 0;
       expect(
@@ -1383,6 +1624,15 @@ describe('DeBridgeBridge.getStatus', function () {
       orderAuthorityAddressDst: ethers.utils.hexlify(recipient.toBytes()),
     };
     const id = dlnOrderId(order);
+    bridge = await preparedStatusBridge(
+      {
+        ...BSC_TO_TRON_PARAMS,
+        toChain: 1399811149,
+        toToken: SOLANA_USDT,
+        toAddress: recipient.toBase58(),
+      },
+      id,
+    );
     Object.assign(
       sourceReceipt.logs[0],
       DLN_EVENTS.encodeEventLog(DLN_EVENTS.getEvent('CreatedOrder'), [
@@ -1454,7 +1704,6 @@ describe('DeBridgeBridge.getStatus', function () {
         },
       }),
     );
-    const bridge = new DeBridgeBridge(BRIDGE_CONFIG, logger);
     expect(
       (await bridge.getStatus(SOURCE_TX_HASH, 56, 1399811149, id)).status,
     ).to.equal('complete');
@@ -1477,12 +1726,7 @@ describe('DeBridgeBridge.getStatus', function () {
       'ClaimedOrderCancel',
     ]) {
       fetchStub.resolves(jsonResponse({ orderId: ORDER_ID, status }));
-      const result = await new DeBridgeBridge(BRIDGE_CONFIG, logger).getStatus(
-        'tx',
-        56,
-        728126428,
-        ORDER_ID,
-      );
+      const result = await bridge.getStatus('tx', 56, 728126428, ORDER_ID);
       expect(result).to.deep.equal({ status: 'failed', error: status });
       fetchStub.resetBehavior();
     }
@@ -1492,12 +1736,7 @@ describe('DeBridgeBridge.getStatus', function () {
     const fetchStub = sinon.stub(globalThis, 'fetch');
     for (const status of ['Fulfilled', 'SentUnlock', 'ClaimedUnlock']) {
       fetchStub.resolves(jsonResponse({ orderId: ORDER_ID, status }));
-      const result = await new DeBridgeBridge(BRIDGE_CONFIG, logger).getStatus(
-        'tx',
-        56,
-        728126428,
-        ORDER_ID,
-      );
+      const result = await bridge.getStatus('tx', 56, 728126428, ORDER_ID);
       expect(result).to.deep.equal({
         status: 'pending',
         substatus: 'Missing destination transaction',
@@ -1514,7 +1753,6 @@ describe('DeBridgeBridge.getStatus', function () {
     fetchStub
       .onSecondCall()
       .resolves(jsonResponse({ orderId: ORDER_ID, status: 'None' }));
-    const bridge = new DeBridgeBridge(BRIDGE_CONFIG, logger);
 
     expect(await bridge.getStatus('tx', 56, 728126428, ORDER_ID)).to.deep.equal(
       { status: 'pending', substatus: 'Created' },
@@ -1525,7 +1763,6 @@ describe('DeBridgeBridge.getStatus', function () {
   });
 
   it('rejects missing IDs, mismatched IDs, and unknown statuses', async () => {
-    const bridge = new DeBridgeBridge(BRIDGE_CONFIG, logger);
     const missingIdError = await getRejection(
       bridge.getStatus('tx', 56, 728126428),
     );
