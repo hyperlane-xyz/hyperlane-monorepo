@@ -6,7 +6,10 @@ mod source;
 mod store;
 mod websocket;
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{atomic::AtomicU64, Arc},
+    time::Duration,
+};
 
 use eyre::{ensure, Result};
 use hyperlane_base::{
@@ -121,10 +124,7 @@ pub async fn spawn(
     let period = conf.reorg_period.clone();
     ensure!(conf.index.chunk_size > 0, "index.chunk must be positive");
     let chunk_size = u64::from(conf.index.chunk_size);
-    let poll_interval = conf
-        .index
-        .configured_interval
-        .unwrap_or(Duration::from_secs(10));
+    let poll_interval = conf.index.idle_sleep_duration;
     let receipt_poll_interval = conf.index.idle_sleep_duration;
     prepare(
         source.as_ref(),
@@ -144,6 +144,7 @@ pub async fn spawn(
         chunk_size,
         poll_interval,
         wakeup: Notify::new(),
+        wanted: AtomicU64::new(0),
         heads: Mutex::new(head_rx),
         polled_head: polled_head_tx,
         critical_failure_grace: CRITICAL_FAILURE_GRACE,
@@ -157,6 +158,7 @@ pub async fn spawn(
                 websocket_url,
                 filter,
                 &worker.wakeup,
+                &worker.wanted,
                 &head_tx,
                 polled_head_rx,
                 worker.domain.id(),

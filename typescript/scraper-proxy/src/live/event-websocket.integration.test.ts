@@ -3880,3 +3880,67 @@ function captureMessages(socket: WebSocket): Record<string, unknown>[] {
   socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
   return messages;
 }
+
+void it('coalesces forward heads for custom streams and never delays rollbacks', async (context) => {
+  const targets: string[] = [];
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      if (sql.includes('SELECT domain, head_height'))
+        return queryRows<T>([
+          {
+            domain: 1,
+            head_height: '9',
+            indexed_height: '9',
+            confirmed_height: '5',
+          },
+        ]);
+      if (sql.includes('confirmation_events')) {
+        targets.push(String(values[3]));
+        return [];
+      }
+      throw new Error(`Unexpected head batching query: ${sql}`);
+    },
+  );
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  const advance = (height: number, previous: number) =>
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        domain: 1,
+        headHeight: String(height),
+        indexedHeight: String(height),
+        previousIndexedHeight: String(previous),
+        confirmedHeight: '5',
+        previousConfirmedHeight: '5',
+      }),
+    );
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        type: 'subscribe',
+        streams: [{ eventType: 'dispatch', confirmations: 0, domains: [1] }],
+      }),
+    );
+    await waitFor(messages, 'subscribed');
+    for (let height = 10; height <= 20; height++) advance(height, height - 1);
+    assert.deepEqual(targets, []);
+    await waitUntil(() => targets.length > 0);
+    assert.deepEqual(targets, ['20']);
+    advance(21, 20); // Queued forward head must not survive a rollback.
+    advance(8, 21);
+    await waitFor(messages, 'rollback');
+    advance(10, 8);
+    await waitUntil(() => targets.length === 2);
+    assert.deepEqual(targets, ['20', '10']);
+  } finally {
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});

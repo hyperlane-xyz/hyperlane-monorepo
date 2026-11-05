@@ -23,6 +23,7 @@ serde.workspace = true
 serde_json.workspace = true
 time.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
+tokio-tungstenite.workspace = true
 tracing.workspace = true
 url = { workspace = true, features = ["serde"] }
 
@@ -32,7 +33,6 @@ hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 migration = { path = "migration" }
 
 [dev-dependencies]
-tokio-tungstenite.workspace = true
 hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 reqwest.workspace = true
 testcontainers.workspace = true

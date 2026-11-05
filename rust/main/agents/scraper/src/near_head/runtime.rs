@@ -1,19 +1,27 @@
 //! One state writer per chain. RPC work remains asynchronous, but observation,
 //! publication and ingestion never contend for the same `scraper_head` row.
-use std::{sync::Arc, time::Duration};
+use std::{
+    collections::VecDeque,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
+use futures::FutureExt;
 use hyperlane_base::{ChainMetrics, ContractSyncMetrics};
 use hyperlane_core::{HyperlaneDomain, ReorgPeriod};
 use tokio::{
     sync::{mpsc, watch, Mutex, Notify},
-    time::{interval, sleep, Instant, Interval, MissedTickBehavior},
+    time::{interval, sleep, sleep_until, Instant, Interval, MissedTickBehavior},
 };
 use tracing::{debug, warn};
 
 use super::{
     pipeline::{confirm_leased_through, confirmation_lease, ingest_cached, observe, CountCache},
     source::{Header, Source},
-    store::Store,
+    store::{State, Store},
 };
 
 pub(super) struct Worker {
@@ -24,6 +32,7 @@ pub(super) struct Worker {
     pub chunk_size: u64,
     pub poll_interval: Duration,
     pub wakeup: Notify,
+    pub wanted: AtomicU64,
     pub heads: Mutex<mpsc::Receiver<Header>>,
     pub polled_head: watch::Sender<u64>,
     pub critical_failure_grace: Duration,
@@ -64,7 +73,7 @@ impl FailureStreak {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum Wakeup {
     Index,
-    Head(Header),
+    Head(Vec<Header>),
 }
 
 /// A completed cycle: whether to run again at once, and whether ingestion failed
@@ -73,6 +82,44 @@ pub(super) enum Wakeup {
 pub(super) struct CycleOutcome {
     pub more: bool,
     pub ingestion_failed: bool,
+}
+
+const MIN_WAKE_INTERVAL: Duration = Duration::from_secs(1);
+const MIN_HEAD_INTERVAL: Duration = Duration::from_millis(200);
+const RECENT_HEADERS: usize = 256;
+// At 250ms/block this allows 16s of HTTP/WS skew without trusting an unbounded lead.
+const MAX_HEADER_LEAD: u64 = 64;
+
+fn remember_headers(recent: &mut VecDeque<Header>, headers: &[Header]) {
+    for header in headers {
+        if recent.back() == Some(header) {
+            continue;
+        }
+        if recent.back().is_some_and(|tip| {
+            tip.height.checked_add(1) != Some(header.height) || header.parent != tip.hash
+        }) {
+            recent.clear();
+        }
+        recent.push_back(header.clone());
+        if recent.len() > RECENT_HEADERS {
+            recent.pop_front();
+        }
+    }
+}
+
+fn linked_tip(recent: &VecDeque<Header>, state: &State) -> Option<Header> {
+    let anchored = recent.iter().any(|header| {
+        (header.height == state.indexed && header.hash == state.hash)
+            || (state.indexed.checked_add(1) == Some(header.height) && header.parent == state.hash)
+    });
+    anchored
+        .then(|| {
+            recent
+                .back()
+                .filter(|tip| tip.height > state.indexed)
+                .cloned()
+        })
+        .flatten()
 }
 
 impl Worker {
@@ -84,10 +131,7 @@ impl Worker {
             .wrapping_mul(0x9E37_79B9_7F4A_7C15)
             .checked_rem(stagger_period)
             .unwrap_or_default();
-        tokio::select! {
-            _ = sleep(Duration::from_millis(stagger)) => {},
-            _ = self.wakeup.notified() => {},
-        }
+        sleep(Duration::from_millis(stagger)).await;
         self.run_cycles().await
     }
 
@@ -102,15 +146,41 @@ impl Worker {
         polling.set_missed_tick_behavior(MissedTickBehavior::Skip);
         let mut heads = self.heads.lock().await;
         let mut tip = None;
+        let mut recent = VecDeque::with_capacity(RECENT_HEADERS);
         let mut wakeup = Wakeup::Index;
+        let mut next_index = Instant::now();
+        let mut next_head = Instant::now();
         loop {
             let result = match &wakeup {
                 Wakeup::Index => {
-                    // Indexing may rewind; re-anchor the next header to its result.
+                    next_index = Instant::now()
+                        .checked_add(MIN_WAKE_INTERVAL)
+                        .expect("One-second wake deadline fits monotonic clock");
+                    let result = async {
+                        let outcome = self.cycle(&mut count_cache).await?;
+                        let state =
+                            self.store.state().await?.ok_or_else(|| {
+                                eyre::eyre!("Missing initialized near-head state")
+                            })?;
+                        Ok::<_, eyre::Report>((outcome, state))
+                    }
+                    .await;
+                    // Re-anchor retained WS ancestry to the actual HTTP-indexed hash,
+                    // including after a rewind. Never retain a tip solely by height.
                     tip = None;
-                    self.cycle(&mut count_cache).await
+                    result.map(|(outcome, state)| {
+                        tip = linked_tip(&recent, &state);
+                        outcome
+                    })
                 }
-                Wakeup::Head(header) => self.header_cycle(header, &mut tip, &count_cache).await,
+                Wakeup::Head(headers) => {
+                    remember_headers(&mut recent, headers);
+                    let result = self.header_cycle(headers, &mut tip, &count_cache).await;
+                    next_head = Instant::now()
+                        .checked_add(MIN_HEAD_INTERVAL)
+                        .expect("Header deadline fits monotonic clock");
+                    result
+                }
             };
             let failed = result
                 .as_ref()
@@ -119,7 +189,13 @@ impl Worker {
             self.chain_metrics
                 .set_critical_error(self.domain.name(), critical);
             match result {
-                Ok(CycleOutcome { more: true, .. }) => continue,
+                Ok(CycleOutcome { more: true, .. }) => {
+                    if let Wakeup::Head(batch) = &mut wakeup {
+                        // Ancestry was checked once; drain publication pages at its tip.
+                        batch.drain(..batch.len().saturating_sub(1));
+                    }
+                    continue;
+                }
                 Ok(CycleOutcome { more: false, .. }) => {}
                 Err(error) => warn!(
                     domain = self.store.domain,
@@ -129,7 +205,18 @@ impl Worker {
             }
             let retry_delay = failed
                 .then(|| failures.retry_delay(self.poll_interval, self.critical_failure_grace));
-            wakeup = wait_for_work(&self.wakeup, &mut heads, &mut polling, retry_delay).await;
+            // A WS log may arrive before the HTTP provider exposes its block.
+            let catching_up = self.wanted.load(Ordering::Relaxed) != 0;
+            wakeup = wait_for_work(
+                &self.wakeup,
+                &mut heads,
+                &mut polling,
+                retry_delay,
+                next_index,
+                next_head,
+                catching_up,
+            )
+            .await;
         }
     }
 
@@ -358,7 +445,7 @@ impl Worker {
     /// Advance only along streamed ancestry rooted at the indexed hash. No RPCs.
     async fn header_cycle(
         &self,
-        header: &Header,
+        headers: &[Header],
         tip: &mut Option<Header>,
         cache: &CountCache,
     ) -> eyre::Result<CycleOutcome> {
@@ -371,27 +458,54 @@ impl Worker {
             .state()
             .await?
             .ok_or_else(|| eyre::eyre!("Missing head state"))?;
-        if state.halted || header.height <= state.indexed {
+        if state.halted {
             return Ok(idle);
         }
-        let (height, hash) = tip
-            .as_ref()
-            .map_or((state.indexed, state.hash), |tip| (tip.height, tip.hash));
-        let duplicate = tip.as_ref() == Some(header);
-        if !duplicate && (height.checked_add(1) != Some(header.height) || header.parent != hash) {
-            // A gap, overflow or fork needs the next ordinary poll/log wake-up.
-            // Never fetch missing headers just to accelerate confirmations.
-            *tip = None;
+        let http_limit = self.polled_head.borrow().saturating_add(MAX_HEADER_LEAD);
+        if headers
+            .last()
+            .is_some_and(|header| header.height > http_limit)
+        {
             debug!(
                 domain = self.store.domain,
-                height = header.height,
-                "Header ancestry unavailable; waiting for polling"
+                http_limit, "Streamed head exceeds HTTP lead limit; waiting for polling"
             );
             return Ok(idle);
         }
+        let mut latest = tip.clone();
+        for header in headers
+            .iter()
+            .filter(|header| header.height > state.indexed)
+        {
+            let (height, hash) = latest
+                .as_ref()
+                .map_or((state.indexed, state.hash), |tip| (tip.height, tip.hash));
+            if latest.as_ref() != Some(header)
+                && (height.checked_add(1) != Some(header.height) || header.parent != hash)
+            {
+                // Validate every parent before coalescing; never bridge gaps/forks.
+                *tip = None;
+                debug!(
+                    domain = self.store.domain,
+                    height = header.height,
+                    "Header ancestry unavailable; waiting for polling"
+                );
+                return Ok(idle);
+            }
+            latest = Some(header.clone());
+        }
+        let Some(header) = latest else {
+            return Ok(idle);
+        };
+        if header.height <= state.indexed {
+            return Ok(idle);
+        }
         let lease = confirmation_lease(self.poll_interval);
-        self.store.claim(lease).await?;
-        self.store.advance_head(&state, header.height).await?;
+        if tip.as_ref() != Some(&header) || state.head < header.height {
+            self.store
+                .advance_head(&state, header.height, lease)
+                .await?;
+        }
         state.head = state.head.max(header.height);
         *tip = Some(header.clone());
         let through = match &self.period {
@@ -447,6 +561,12 @@ impl Worker {
             .state()
             .await?
             .ok_or_else(|| eyre::eyre!("Missing head state"))?;
+        // Clear only hints whose blocks are durably indexed; preserve newer logs.
+        let _ = self
+            .wanted
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |wanted| {
+                (wanted <= state.indexed).then_some(0)
+            });
         self.sync_metrics
             .indexed_height
             .with_label_values(&["near_head", self.domain.name()])
@@ -473,6 +593,9 @@ async fn wait_for_work(
     heads: &mut mpsc::Receiver<Header>,
     polling: &mut Interval,
     retry_delay: Option<Duration>,
+    next_index: Instant,
+    next_head: Instant,
+    catching_up: bool,
 ) -> Wakeup {
     if let Some(delay) = retry_delay {
         sleep(delay).await;
@@ -482,8 +605,24 @@ async fn wait_for_work(
             // Header traffic must not starve scheduled or event-triggered indexing.
             biased;
             _ = polling.tick() => Wakeup::Index,
-            _ = wakeup.notified() => Wakeup::Index,
-            Some(header) = heads.recv() => Wakeup::Head(header),
+            _ = async {
+                sleep_until(next_index).await;
+                if catching_up {
+                    let _ = wakeup.notified().now_or_never();
+                } else {
+                    wakeup.notified().await;
+                }
+            } => Wakeup::Index,
+            Some(header) = async {
+                sleep_until(next_head).await;
+                heads.recv().await
+            } => {
+                let mut batch = vec![header];
+                while let Ok(header) = heads.try_recv() {
+                    batch.push(header);
+                }
+                Wakeup::Head(batch)
+            },
         }
     }
 }

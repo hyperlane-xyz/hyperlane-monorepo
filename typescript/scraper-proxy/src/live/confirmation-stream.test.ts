@@ -437,7 +437,7 @@ for (const confirmations of [0, 1, 10, 15]) {
     const f = await fixture(
       async function* (_domain, after, through) {
         if (after[0] < 100n && through >= 100n)
-          yield { position: [100n, 0n, 1n], message: { id: 'event-at-100' } };
+          yield { position: [100n, 0, 1n], message: { id: 'event-at-100' } };
       },
       undefined,
       undefined,

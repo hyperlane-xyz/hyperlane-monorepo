@@ -253,6 +253,7 @@ async fn worker(db: DatabaseConnection, source: Arc<Chain>) -> Result<Arc<Worker
         chunk_size: 20_000,
         poll_interval: Duration::from_millis(20),
         wakeup: Notify::new(),
+        wanted: AtomicU64::new(0),
         heads: tokio::sync::Mutex::new(mpsc::channel(256).1),
         polled_head: watch::channel(0).0,
         critical_failure_grace: Duration::from_millis(60),
@@ -1018,6 +1019,24 @@ async fn reproof_replays_an_incomplete_suffix_without_a_new_block() -> Result<()
     Ok(())
 }
 
+async fn wait_without_spacing(
+    wakeup: &Notify,
+    heads: &mut mpsc::Receiver<Header>,
+    polling: &mut Interval,
+    retry_delay: Option<Duration>,
+) -> Wakeup {
+    wait_for_work(
+        wakeup,
+        heads,
+        polling,
+        retry_delay,
+        Instant::now(),
+        Instant::now(),
+        false,
+    )
+    .await
+}
+
 #[tokio::test(start_paused = true)]
 async fn wakeup_adds_fetches_without_postponing_scheduled_polls() {
     let wakeup = Notify::new();
@@ -1028,7 +1047,7 @@ async fn wakeup_adds_fetches_without_postponing_scheduled_polls() {
     polling.set_missed_tick_behavior(MissedTickBehavior::Skip);
     for seconds in [3, 8] {
         let (reason, ()) = tokio::join!(
-            wait_for_work(&wakeup, &mut heads, &mut polling, None),
+            wait_without_spacing(&wakeup, &mut heads, &mut polling, None),
             async {
                 tokio::time::sleep_until(start + Duration::from_secs(seconds)).await;
                 if seconds == 3 {
@@ -1041,25 +1060,25 @@ async fn wakeup_adds_fetches_without_postponing_scheduled_polls() {
         assert_eq!(
             reason,
             if seconds == 3 {
-                Wakeup::Head(streamed_header(1))
+                Wakeup::Head(vec![streamed_header(1)])
             } else {
                 Wakeup::Index
             }
         );
         assert_eq!(start.elapsed(), Duration::from_secs(seconds));
     }
-    wait_for_work(&wakeup, &mut heads, &mut polling, None).await;
+    wait_without_spacing(&wakeup, &mut heads, &mut polling, None).await;
     assert_eq!(start.elapsed(), period); // Poll at t=10, not t=18.
 
     // Several events during a cycle leave exactly one pending wake-up.
     for _ in 0..10 {
         wakeup.notify_one();
     }
-    wait_for_work(&wakeup, &mut heads, &mut polling, None).await;
+    wait_without_spacing(&wakeup, &mut heads, &mut polling, None).await;
     assert_eq!(start.elapsed(), period);
     // Fetch duration also does not postpone the next scheduled poll.
     sleep(Duration::from_secs(2)).await;
-    wait_for_work(&wakeup, &mut heads, &mut polling, None).await;
+    wait_without_spacing(&wakeup, &mut heads, &mut polling, None).await;
     assert_eq!(start.elapsed(), Duration::from_secs(20));
 }
 
@@ -1073,7 +1092,7 @@ async fn wakeup_preserves_rpc_failure_backoff() {
     let start = Instant::now();
     let mut polling = interval_at(start, delay); // A due poll cannot bypass backoff either.
     assert_eq!(
-        wait_for_work(&wakeup, &mut heads, &mut polling, Some(delay)).await,
+        wait_without_spacing(&wakeup, &mut heads, &mut polling, Some(delay)).await,
         Wakeup::Index
     );
     assert_eq!(start.elapsed(), delay);
@@ -1088,9 +1107,9 @@ async fn slow_fetch_skips_missed_polls_without_resetting_cadence() {
     let mut polling = interval_at(start + period, period);
     polling.set_missed_tick_behavior(MissedTickBehavior::Skip);
     sleep(Duration::from_secs(35)).await;
-    wait_for_work(&wakeup, &mut heads, &mut polling, None).await;
+    wait_without_spacing(&wakeup, &mut heads, &mut polling, None).await;
     assert_eq!(start.elapsed(), Duration::from_secs(35));
-    wait_for_work(&wakeup, &mut heads, &mut polling, None).await;
+    wait_without_spacing(&wakeup, &mut heads, &mut polling, None).await;
     assert_eq!(start.elapsed(), Duration::from_secs(40));
 }
 
@@ -1125,7 +1144,7 @@ async fn headers_mature_events_without_any_source_calls() -> Result<()> {
     for height in [2, 3] {
         assert!(
             !worker
-                .header_cycle(&streamed_header(height), &mut tip, &cache)
+                .header_cycle(&[streamed_header(height)], &mut tip, &cache)
                 .await?
                 .more
         );
@@ -1137,7 +1156,7 @@ async fn headers_mature_events_without_any_source_calls() -> Result<()> {
     }
     // A duplicate doesn't republish or query RPCs.
     worker
-        .header_cycle(&streamed_header(3), &mut tip, &cache)
+        .header_cycle(&[streamed_header(3)], &mut tip, &cache)
         .await?;
     assert_eq!(chain.event_reads.load(Ordering::SeqCst), 1);
     assert_eq!(*worker.polled_head.borrow(), 1);
@@ -1163,7 +1182,7 @@ async fn headers_do_not_reprove_an_unproven_suffix() -> Result<()> {
     assert!(worker.cycle(&mut cache).await?.ingestion_failed);
     chain.forbid_calls.store(true, Ordering::SeqCst);
     worker
-        .header_cycle(&streamed_header(2), &mut None, &cache)
+        .header_cycle(&[streamed_header(2)], &mut None, &cache)
         .await?;
     assert_eq!(worker.store.state().await?.unwrap().confirmed, 0);
     chain.forbid_calls.store(false, Ordering::SeqCst);
@@ -1190,16 +1209,16 @@ async fn header_gaps_forks_and_unhealthy_state_wait_for_polling() -> Result<()> 
     let mut fork = streamed_header(2);
     fork.parent = H256::repeat_byte(99);
     for header in [streamed_header(3), fork] {
-        worker.header_cycle(&header, &mut None, &cache).await?;
+        worker.header_cycle(&[header], &mut None, &cache).await?;
         assert_eq!(worker.store.state().await?.unwrap().head, 1);
     }
     worker
-        .header_cycle(&streamed_header(2), &mut None, &cache)
+        .header_cycle(&[streamed_header(2)], &mut None, &cache)
         .await?;
     assert_eq!(worker.store.state().await?.unwrap().head, 2);
     worker.store.pause(false).await?;
     assert!(worker
-        .header_cycle(&streamed_header(2), &mut None, &cache)
+        .header_cycle(&[streamed_header(2)], &mut None, &cache)
         .await
         .is_err());
     // The normal poll recovers; the following header re-anchors to indexed.
@@ -1208,7 +1227,7 @@ async fn header_gaps_forks_and_unhealthy_state_wait_for_polling() -> Result<()> 
     worker.cycle(&mut cache).await?;
     chain.forbid_calls.store(true, Ordering::SeqCst);
     worker
-        .header_cycle(&streamed_header(4), &mut None, &cache)
+        .header_cycle(&[streamed_header(4)], &mut None, &cache)
         .await?;
     assert_eq!(worker.store.state().await?.unwrap().head, 4);
     Ok(())
@@ -1239,26 +1258,293 @@ async fn headers_drain_bounded_confirmation_pages_from_sparse_checkpoints() -> R
     let mut tip = None;
     // Establish ancestry while retaining all events as provisional.
     worker
-        .header_cycle(&streamed_header(101), &mut tip, &CountCache::default())
+        .header_cycle(&[streamed_header(101)], &mut tip, &CountCache::default())
         .await?;
     assert!(
         worker
-            .header_cycle(&streamed_header(102), &mut tip, &cache)
+            .header_cycle(&[streamed_header(102)], &mut tip, &cache)
             .await?
             .more
     );
     assert_eq!(worker.store.state().await?.unwrap().confirmed, 1);
     assert!(
         !worker
-            .header_cycle(&streamed_header(102), &mut tip, &cache)
+            .header_cycle(&[streamed_header(102)], &mut tip, &cache)
             .await?
             .more
     );
     assert_eq!(worker.store.state().await?.unwrap().confirmed, 2);
     // No checkpoint in the empty gap: all eligible events were already published.
     worker
-        .header_cycle(&streamed_header(103), &mut tip, &cache)
+        .header_cycle(&[streamed_header(103)], &mut tip, &cache)
         .await?;
     assert_eq!(worker.store.state().await?.unwrap().confirmed, 2);
+    Ok(())
+}
+
+#[tokio::test(start_paused = true)]
+async fn wakes_are_spaced_and_headers_are_coalesced_without_delaying_polls() {
+    let wakeup = Notify::new();
+    let (head_tx, mut heads) = mpsc::channel(256);
+    let start = Instant::now();
+    let mut polling = interval_at(start + Duration::from_secs(5), Duration::from_secs(5));
+    wakeup.notify_one();
+    for height in 1..=3 {
+        head_tx.try_send(streamed_header(height)).unwrap();
+    }
+    assert_eq!(
+        wait_for_work(
+            &wakeup,
+            &mut heads,
+            &mut polling,
+            None,
+            start + MIN_WAKE_INTERVAL,
+            start + MIN_HEAD_INTERVAL,
+            false
+        )
+        .await,
+        Wakeup::Head((1..=3).map(streamed_header).collect())
+    );
+    assert_eq!(start.elapsed(), MIN_HEAD_INTERVAL);
+    assert_eq!(
+        wait_for_work(
+            &wakeup,
+            &mut heads,
+            &mut polling,
+            None,
+            start + MIN_WAKE_INTERVAL,
+            Instant::now(),
+            false
+        )
+        .await,
+        Wakeup::Index
+    );
+    assert_eq!(start.elapsed(), MIN_WAKE_INTERVAL);
+    // Retained height hints retry even after the Notify permit has been consumed.
+    wait_for_work(
+        &wakeup,
+        &mut heads,
+        &mut polling,
+        None,
+        start + MIN_WAKE_INTERVAL * 2,
+        Instant::now(),
+        true,
+    )
+    .await;
+    assert_eq!(start.elapsed(), MIN_WAKE_INTERVAL * 2);
+    // A scheduled poll keeps its original deadline even with a later wake floor.
+    wait_for_work(
+        &wakeup,
+        &mut heads,
+        &mut polling,
+        None,
+        start + Duration::from_secs(6),
+        Instant::now(),
+        true,
+    )
+    .await;
+    assert_eq!(start.elapsed(), Duration::from_secs(5));
+}
+
+#[tokio::test]
+async fn header_batch_checks_every_link_and_renews_only_an_expiring_lease() -> Result<()> {
+    use sea_orm::ConnectionTrait;
+
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(1, false));
+    let worker = worker(db, chain.clone()).await?;
+    let mut cache = CountCache::default();
+    worker.cycle(&mut cache).await?;
+    chain.forbid_calls.store(true, Ordering::SeqCst);
+    worker
+        .store
+        .db
+        .execute_unprepared(
+            "CREATE TABLE header_writes (lease timestamptz);
+         CREATE FUNCTION record_header_write() RETURNS trigger LANGUAGE plpgsql AS $$
+         BEGIN INSERT INTO header_writes VALUES (NEW.writer_lease_until); RETURN NEW; END $$;
+         CREATE TRIGGER record_header_write AFTER UPDATE OF head_height ON scraper_head
+         FOR EACH ROW EXECUTE FUNCTION record_header_write();
+         INSERT INTO header_writes SELECT writer_lease_until FROM scraper_head;",
+        )
+        .await?;
+    let mut tip = None;
+    worker
+        .header_cycle(
+            &(2..=5).map(streamed_header).collect::<Vec<_>>(),
+            &mut tip,
+            &cache,
+        )
+        .await?;
+    assert_eq!(worker.store.state().await?.unwrap().head, 5);
+    worker
+        .store
+        .db
+        .execute_unprepared(
+            "DO $$ BEGIN
+         ASSERT (SELECT count(*) FROM header_writes)=2, 'one write per batch';
+         ASSERT (SELECT count(DISTINCT lease) FROM header_writes)=1, 'lease renewed too early';
+         END $$;",
+        )
+        .await?;
+    let mut fork = streamed_header(7);
+    fork.parent = H256::repeat_byte(99);
+    worker
+        .header_cycle(
+            &[streamed_header(6), fork, streamed_header(8)],
+            &mut tip,
+            &cache,
+        )
+        .await?;
+    assert!(tip.is_none());
+    assert_eq!(worker.store.state().await?.unwrap().head, 5);
+    worker
+        .store
+        .db
+        .execute_unprepared(
+            "UPDATE scraper_head SET writer_lease_until=clock_timestamp()+interval '1 second';",
+        )
+        .await?;
+    worker
+        .header_cycle(&[streamed_header(2)], &mut tip, &cache)
+        .await?;
+    worker.store.db.execute_unprepared(
+        "DO $$ BEGIN
+         ASSERT (SELECT writer_lease_until>clock_timestamp()+interval '30 seconds' FROM scraper_head), 'lease not renewed';
+         END $$;"
+    ).await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn run_cycles_retries_a_log_ahead_of_http_then_stops_at_indexed_height() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(1, false));
+    let worker = Arc::new(Worker {
+        poll_interval: Duration::from_secs(5),
+        ..Arc::into_inner(worker(db, chain.clone()).await?).expect("sole worker")
+    });
+    let started = Instant::now();
+    let task = tokio::spawn({
+        let worker = worker.clone();
+        async move { worker.run_cycles().await }
+    });
+    wait_for(&worker, |state| state.indexed == 1).await?;
+    let initial = chain.observations.load(Ordering::SeqCst);
+    worker.wanted.store(2, Ordering::Relaxed);
+    for _ in 0..10 {
+        worker.wakeup.notify_one();
+    }
+    sleep(Duration::from_millis(200)).await;
+    assert_eq!(chain.observations.load(Ordering::SeqCst), initial);
+    // First wake still observes the lagging HTTP head. A second retry must run
+    // without a new log or the five-second scheduled poll.
+    wait_for(&worker, |_| {
+        chain.observations.load(Ordering::SeqCst) > initial
+    })
+    .await?;
+    assert_eq!(worker.wanted.load(Ordering::Relaxed), 2);
+    chain.head.store(2, Ordering::SeqCst);
+    wait_for(&worker, |state| {
+        state.indexed == 2 && worker.wanted.load(Ordering::Relaxed) == 0
+    })
+    .await?;
+    let caught_up = chain.observations.load(Ordering::SeqCst);
+    sleep(MIN_WAKE_INTERVAL + Duration::from_millis(100)).await;
+    assert_eq!(chain.observations.load(Ordering::SeqCst), caught_up);
+    wait_for(&worker, |_| {
+        chain.observations.load(Ordering::SeqCst) > caught_up
+    })
+    .await?;
+    assert!(
+        started.elapsed() < Duration::from_secs(6),
+        "wake cycles postponed the five-second poll"
+    );
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
+    Ok(())
+}
+
+#[test]
+fn recent_headers_reanchor_only_to_matching_http_ancestry_and_stay_bounded() {
+    let mut recent = VecDeque::new();
+    remember_headers(
+        &mut recent,
+        &(1..=3).map(streamed_header).collect::<Vec<_>>(),
+    );
+    let mut state = State {
+        indexed: 1,
+        hash: streamed_header(1).hash,
+        confirmed: 0,
+        head: 1,
+        halted: false,
+    };
+    assert_eq!(linked_tip(&recent, &state), Some(streamed_header(3)));
+    state.hash = H256::repeat_byte(99);
+    assert_eq!(linked_tip(&recent, &state), None);
+    // A different fork replaces the retained chain; it cannot retain the old tip.
+    let mut fork = streamed_header(4);
+    fork.parent = H256::repeat_byte(99);
+    remember_headers(&mut recent, &[fork]);
+    assert_eq!(linked_tip(&recent, &state), None);
+    remember_headers(
+        &mut recent,
+        &(1..=300).map(streamed_header).collect::<Vec<_>>(),
+    );
+    assert_eq!(recent.len(), RECENT_HEADERS);
+    state.hash = streamed_header(1).hash;
+    assert_eq!(linked_tip(&recent, &state), None);
+}
+
+#[tokio::test]
+async fn http_cycles_reanchor_streamed_confirmations_while_ws_stays_ahead() -> Result<()> {
+    let postgres = Postgres::default().with_tag("16-alpine").start().await?;
+    let db = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+        postgres.get_host_port_ipv4(5432).await?
+    ))
+    .await?;
+    let chain = Arc::new(Chain::new(1, false));
+    chain.events.lock().expect("events").push(gas_event(1, 0));
+    let worker = Worker {
+        period: ReorgPeriod::from_blocks(2),
+        ..Arc::into_inner(worker(db, chain.clone()).await?).expect("sole worker")
+    };
+    let mut cache = CountCache::default();
+    worker.cycle(&mut cache).await?;
+    let mut recent = VecDeque::new();
+    remember_headers(&mut recent, &[streamed_header(2)]);
+    worker
+        .header_cycle(&[streamed_header(2)], &mut None, &cache)
+        .await?;
+    // HTTP still observes block 1, while retained WS ancestry already proves 2.
+    worker.cycle(&mut cache).await?;
+    let state = worker.store.state().await?.expect("state");
+    let mut tip = linked_tip(&recent, &state);
+    assert_eq!(tip, Some(streamed_header(2)));
+    chain.forbid_calls.store(true, Ordering::SeqCst);
+    worker
+        .header_cycle(&[streamed_header(3)], &mut tip, &cache)
+        .await?;
+    assert_eq!(worker.store.state().await?.expect("state").confirmed, 1);
+    // A linked but excessively advanced stream cannot extend confirmation depth.
+    worker
+        .header_cycle(
+            &(4..=66).map(streamed_header).collect::<Vec<_>>(),
+            &mut tip,
+            &cache,
+        )
+        .await?;
+    assert_eq!(worker.store.state().await?.expect("state").head, 3);
     Ok(())
 }

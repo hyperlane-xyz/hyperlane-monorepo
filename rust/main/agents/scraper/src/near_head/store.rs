@@ -81,10 +81,10 @@ impl Store {
     }
 
     /// A linked WebSocket header changes eligibility, never indexed history.
-    pub async fn advance_head(&self, expected: &State, height: u64) -> Result<()> {
+    pub async fn advance_head(&self, expected: &State, height: u64, lease: Duration) -> Result<()> {
         let result = self.db.execute(sql(
-            "UPDATE scraper_head SET head_height=greatest(head_height,$2),updated_at=clock_timestamp() WHERE domain=$1 AND indexed_height=$3 AND indexed_hash=$4 AND writer_id=$5 AND healthy AND NOT halted",
-            vec![self.domain(), number(height)?, number(expected.indexed)?, bytes(expected.hash), writer_id().into()],
+            "UPDATE scraper_head SET head_height=greatest(head_height,$2),updated_at=clock_timestamp(),writer_lease_until=CASE WHEN writer_lease_until>clock_timestamp()+make_interval(secs=>$6/2) THEN writer_lease_until ELSE clock_timestamp()+make_interval(secs=>$6) END WHERE domain=$1 AND indexed_height=$3 AND indexed_hash=$4 AND writer_id=$5 AND healthy AND NOT halted",
+            vec![self.domain(), number(height)?, number(expected.indexed)?, bytes(expected.hash), writer_id().into(), lease.as_secs_f64().into()],
         )).await?;
         ensure!(
             result.rows_affected() == 1,

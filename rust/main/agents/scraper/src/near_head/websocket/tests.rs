@@ -53,6 +53,18 @@ async fn subscription_wakes_on_connect_logs_and_removals_then_reports_disconnect
                 .into(),
             ))
             .await?;
+        socket
+            .send(Message::Text(
+                json!({
+                    "jsonrpc": "2.0", "method": "eth_subscription",
+                    "params": { "subscription": "0x1", "result": Log {
+                        block_number: Some(40.into()), ..Default::default()
+                    }}
+                })
+                .to_string()
+                .into(),
+            ))
+            .await?;
         acknowledge_heads(&mut socket).await?;
         while let Some(removed) = receive.recv().await {
             let (subscription, result) = match removed {
@@ -60,6 +72,7 @@ async fn subscription_wakes_on_connect_logs_and_removals_then_reports_disconnect
                     "0x1",
                     serde_json::to_value(Log {
                         removed: Some(removed),
+                        block_number: Some(43.into()),
                         ..Default::default()
                     })?,
                 ),
@@ -88,17 +101,19 @@ async fn subscription_wakes_on_connect_logs_and_removals_then_reports_disconnect
         Ok::<_, eyre::Report>(())
     };
     let wakeup = Notify::new();
+    let wanted = AtomicU64::new(0);
     let (_polled_tx, mut polled_rx) = watch::channel(0);
     let (head_tx, mut head_rx) = mpsc::channel(256);
     let client = async {
         assert!(
-            subscribe(&url, &filter, &wakeup, &head_tx, &mut polled_rx, 1)
+            subscribe(&url, &filter, &wakeup, &wanted, &head_tx, &mut polled_rx, 1)
                 .await
                 .is_err()
         );
     };
     let consumer = async {
         wakeup.notified().await; // Subscription acknowledgement wakes catch-up.
+        assert_eq!(wanted.load(Ordering::Relaxed), 40);
         send.send(None).await?;
         let header = head_rx.recv().await.expect("streamed header");
         assert_eq!(header.height, 42);
@@ -110,6 +125,7 @@ async fn subscription_wakes_on_connect_logs_and_removals_then_reports_disconnect
         for removed in [false, true] {
             send.send(Some(removed)).await?;
             wakeup.notified().await;
+            assert_eq!(wanted.load(Ordering::Relaxed), 43);
         }
         drop(send);
         Ok::<_, eyre::Report>(())
@@ -128,6 +144,7 @@ async fn reconnect_wakes_catchup_after_disconnect() -> Result<()> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let url = Url::parse(&format!("ws://{}", listener.local_addr()?))?;
     let wakeup = Notify::new();
+    let wanted = AtomicU64::new(0);
     let (_polled_tx, polled_rx) = watch::channel(0);
     let (head_tx, _head_rx) = mpsc::channel(256);
     let (close_tx, mut close_rx) = mpsc::channel(1);
@@ -168,7 +185,7 @@ async fn reconnect_wakes_catchup_after_disconnect() -> Result<()> {
     };
     timeout(Duration::from_secs(15), async {
         tokio::select! {
-            _ = run(Some(url.into()), Filter::new(), &wakeup, &head_tx, polled_rx, 1) => {
+            _ = run(Some(url.into()), Filter::new(), &wakeup, &wanted, &head_tx, polled_rx, 1) => {
                 Err(eyre!("WebSocket monitor exited"))
             }
             result = async {
@@ -211,6 +228,7 @@ async fn stalled_subscription_times_out_only_after_poll_progress_without_probe_r
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let url = Url::parse(&format!("ws://{}", listener.local_addr()?))?;
     let wakeup = Notify::new();
+    let wanted = AtomicU64::new(0);
     let (head_tx, mut head_rx) = mpsc::channel(1);
     let (deliver_tx, mut deliver_rx) = mpsc::channel::<u64>(1);
     let (polled_tx, mut polled_rx) = watch::channel(100);
@@ -254,16 +272,25 @@ async fn stalled_subscription_times_out_only_after_poll_progress_without_probe_r
                 message = socket.next() => match message {
                     Some(Ok(Message::Text(request))) => panic!("Unexpected probe RPC: {request}"),
                     Some(Ok(Message::Close(_))) | None => return Ok(()),
-                    Some(Err(error)) => return Err(error.into()),
+                    // The timeout now drops its owned transport immediately.
+                    Some(Err(_)) => return Ok(()),
                     _ => {},
                 }
             }
         }
     };
     let client = async {
-        let error = subscribe(&url, &Filter::new(), &wakeup, &head_tx, &mut polled_rx, 1)
-            .await
-            .expect_err("stalled subscription must end");
+        let error = subscribe(
+            &url,
+            &Filter::new(),
+            &wakeup,
+            &wanted,
+            &head_tx,
+            &mut polled_rx,
+            1,
+        )
+        .await
+        .expect_err("stalled subscription must end");
         assert_eq!(
             error.to_string(),
             "Head subscription stalled behind polling"
@@ -305,5 +332,66 @@ async fn stalled_subscription_times_out_only_after_poll_progress_without_probe_r
         result
     })
     .await??;
+    Ok(())
+}
+
+#[tokio::test]
+async fn subscription_timeouts_close_the_socket_including_a_pending_second_request() -> Result<()> {
+    for pending in [1, 2] {
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let url = Url::parse(&format!("ws://{}", listener.local_addr()?))?;
+        let wakeup = Notify::new();
+        let wanted = AtomicU64::new(0);
+        let (_polled_tx, mut polled_rx) = watch::channel(0);
+        let (head_tx, _head_rx) = mpsc::channel(1);
+        let server = async {
+            let (tcp, _) = listener.accept().await?;
+            let mut socket = accept_async(tcp).await?;
+            for id in 1..=pending {
+                let request: Value = serde_json::from_str(
+                    socket
+                        .next()
+                        .await
+                        .ok_or_else(|| eyre!("Missing request"))??
+                        .to_text()?,
+                )?;
+                assert_eq!(request["id"], id);
+                if id < pending {
+                    socket
+                        .send(Message::Text(
+                            json!({
+                                "jsonrpc": "2.0", "id": id, "result": "0x1"
+                            })
+                            .to_string()
+                            .into(),
+                        ))
+                        .await?;
+                }
+            }
+            tokio::time::pause();
+            // No reply: timeout must drop the transport, not leave a detached task.
+            assert!(matches!(
+                socket.next().await,
+                None | Some(Err(_)) | Some(Ok(Message::Close(_)))
+            ));
+            Ok::<_, eyre::Report>(())
+        };
+        let client = async {
+            let result = subscribe(
+                &url,
+                &Filter::new(),
+                &wakeup,
+                &wanted,
+                &head_tx,
+                &mut polled_rx,
+                1,
+            )
+            .await;
+            tokio::time::resume();
+            assert!(result.is_err());
+        };
+        let (result, ()) = tokio::join!(server, client);
+        result?;
+    }
     Ok(())
 }
