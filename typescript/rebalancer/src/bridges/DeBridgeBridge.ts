@@ -39,6 +39,7 @@ import {
   DLN_EVM_SOURCE,
   DLN_TRON_SOURCE,
   DLN_SOLANA_SOURCE,
+  deBridgeAddressBytes,
 } from './deBridgeValidation.js';
 import {
   type DlnOrder,
@@ -87,10 +88,19 @@ export interface DeBridgeBridgeConfig {
   maxSolanaNativeSpendLamports?: bigint;
 }
 
+interface ExpectedSettlement {
+  fromChain: number;
+  toChain: number;
+  token: string;
+  recipient: string;
+  minimumAmount: bigint;
+}
+
 export class DeBridgeBridge implements IExternalBridge {
   readonly externalBridgeId = DEBRIDGE_TOOL;
   readonly logger: Logger;
 
+  private readonly expectedSettlements = new Map<string, ExpectedSettlement>();
   private readonly apiUrl: string;
   private readonly statusApiUrl: string;
   private readonly chainMetadataByChainId: Map<number, ChainMetadata>;
@@ -143,6 +153,10 @@ export class DeBridgeBridge implements IExternalBridge {
     }
   }
 
+  getNativeTokenAddress(): string {
+    return ethers.constants.AddressZero;
+  }
+
   async quote(params: BridgeQuoteParams): Promise<BridgeQuote> {
     this.validateQuoteParams(params);
 
@@ -181,10 +195,10 @@ export class DeBridgeBridge implements IExternalBridge {
       'Requesting deBridge quote',
     );
 
-    const response = await this.fetchWithRetry(url);
-    const body: unknown = await response.json();
+    const body = await this.fetchWithRetry(url);
     const data = parseDeBridgeQuoteResponse(body);
     this.validateEstimation(data, params);
+    await this.validateTokenDecimals(data, params);
     this.assertFeeWithinLimit(data, params.fromChain, params.toChain);
 
     const fromAmount = BigInt(data.estimation.srcChainTokenIn.amount);
@@ -329,8 +343,7 @@ export class DeBridgeBridge implements IExternalBridge {
     );
 
     const preparedAt = Date.now();
-    const response = await this.fetchWithRetry(createTxUrl);
-    const body: unknown = await response.json();
+    const body = await this.fetchWithRetry(createTxUrl);
     const createTx = parseDeBridgeCreateTxResponse(body);
     this.validateEstimation(createTx, params, {
       exactFromAmount: quote.fromAmount,
@@ -343,6 +356,25 @@ export class DeBridgeBridge implements IExternalBridge {
       Date.now() - preparedAt < MAX_TRANSACTION_AGE_MS,
       'deBridge transaction expired during preparation',
     );
+    const expected = {
+      fromChain: params.fromChain,
+      toChain: params.toChain,
+      token: deBridgeAddressBytes(params.toToken, params.toChain),
+      recipient: deBridgeAddressBytes(params.toAddress, params.toChain),
+      minimumAmount: quote.toAmountMin,
+    };
+    const orderId = createTx.orderId.toLowerCase();
+    const previous = this.expectedSettlements.get(orderId);
+    assert(
+      !previous ||
+        (previous.fromChain === expected.fromChain &&
+          previous.toChain === expected.toChain &&
+          previous.token === expected.token &&
+          previous.recipient === expected.recipient &&
+          previous.minimumAmount === expected.minimumAmount),
+      'deBridge reused an order ID for a different destination intent',
+    );
+    this.expectedSettlements.set(orderId, expected);
     return { response: createTx, preparedAt };
   }
 
@@ -383,12 +415,26 @@ export class DeBridgeBridge implements IExternalBridge {
     ).decimals();
   }
 
+  private async validateTokenDecimals(
+    response: DeBridgeQuoteResponse,
+    params: BridgeQuoteParams,
+  ): Promise<void> {
+    const [sourceDecimals, destinationDecimals] = await Promise.all([
+      this.tokenDecimals(params.fromChain, params.fromToken),
+      this.tokenDecimals(params.toChain, params.toToken),
+    ]);
+    assert(
+      response.estimation.srcChainTokenIn.decimals === sourceDecimals &&
+        response.estimation.dstChainTokenOut.decimals === destinationDecimals,
+      'deBridge token decimals do not match chain data',
+    );
+  }
+
   private async validatePreparedTransaction(
     quote: BridgeQuote,
     response: DeBridgeCreateTxResponse,
   ): Promise<void> {
-    const { fromChain, toChain, fromToken, toToken, fromAddress } =
-      quote.requestParams;
+    const { fromChain, toChain, fromToken, fromAddress } = quote.requestParams;
     const protocol = this.getProtocol(hyperlaneChainIdToDebridge(fromChain));
     if (protocol === ProtocolType.Sealevel) {
       await this.validateSolanaTransaction(quote, response);
@@ -421,15 +467,7 @@ export class DeBridgeBridge implements IExternalBridge {
         `deBridge incidental native value ${incidentalNativeValue} exceeds cap ${nativeValueCap}`,
       );
     }
-    const [sourceDecimals, destinationDecimals] = await Promise.all([
-      this.tokenDecimals(fromChain, fromToken),
-      this.tokenDecimals(toChain, toToken),
-    ]);
-    assert(
-      response.estimation.srcChainTokenIn.decimals === sourceDecimals &&
-        response.estimation.dstChainTokenOut.decimals === destinationDecimals,
-      'deBridge token decimals do not match chain data',
-    );
+    await this.validateTokenDecimals(response, quote.requestParams);
     this.assertFeeWithinLimit(response, fromChain, toChain);
     this.logger.debug(
       { fromChain, toChain, sender: fromAddress },
@@ -486,8 +524,7 @@ export class DeBridgeBridge implements IExternalBridge {
       { txHash, orderId: transferId },
       'Checking deBridge order',
     );
-    const response = await this.fetchWithRetry(url);
-    const body: unknown = await response.json();
+    const body = await this.fetchWithRetry(url);
     const data = parseDeBridgeOrderStatusResponse(body);
     assert(
       data.orderId.toLowerCase() === transferId.toLowerCase(),
@@ -569,6 +606,12 @@ export class DeBridgeBridge implements IExternalBridge {
     toChain: number,
     orderId: string,
   ): Promise<bigint | undefined> {
+    const expected = this.expectedSettlements.get(orderId.toLowerCase());
+    if (!expected) return undefined;
+    assert(
+      expected.fromChain === fromChain && expected.toChain === toChain,
+      'DLN settlement does not match the requested route',
+    );
     const sourceProtocol = this.getProtocol(
       hyperlaneChainIdToDebridge(fromChain),
     );
@@ -600,7 +643,12 @@ export class DeBridgeBridge implements IExternalBridge {
         order.takeChainId === BigInt(hyperlaneChainIdToDebridge(toChain)),
       'DLN settlement route mismatch',
     );
-    assert(order.takeAmount > 0n, 'DLN settlement amount must be positive');
+    assert(
+      order.takeTokenAddress.toLowerCase() === expected.token.toLowerCase() &&
+        order.receiverDst.toLowerCase() === expected.recipient.toLowerCase() &&
+        order.takeAmount >= expected.minimumAmount,
+      'DLN settlement does not match the accepted destination',
+    );
     const destinationProtocol = this.getProtocol(
       hyperlaneChainIdToDebridge(toChain),
     );
@@ -813,10 +861,19 @@ export class DeBridgeBridge implements IExternalBridge {
     );
 
     await options?.onTransferId?.(createTx.orderId);
+    const signedSignature = bufferToBase58(
+      Buffer.from(transaction.signatures[0]),
+    );
     const signature = await new TransactionSubmission(options).submit(
       () => connection.sendTransaction(transaction),
-      (signature) => signature,
-      bufferToBase58(Buffer.from(transaction.signatures[0])),
+      (signature) => {
+        assert(
+          signature === signedSignature,
+          'deBridge RPC returned a different Solana signature',
+        );
+        return signedSignature;
+      },
+      signedSignature,
     );
 
     return {
@@ -867,6 +924,16 @@ export class DeBridgeBridge implements IExternalBridge {
   }
 
   private validateQuoteParams(params: BridgeQuoteParams): void {
+    for (const [chainId, token] of [
+      [params.fromChain, params.fromToken],
+      [params.toChain, params.toToken],
+    ] as const) {
+      assert(
+        !isDebridgeSolanaChain(hyperlaneChainIdToDebridge(chainId)) ||
+          token !== ethers.constants.AddressZero,
+        'deBridge native SOL is not supported; use an SPL token',
+      );
+    }
     assert(
       params.fromChain !== params.toChain,
       'Source and destination must differ',
@@ -1039,7 +1106,7 @@ export class DeBridgeBridge implements IExternalBridge {
     return url.toString();
   }
 
-  private async fetchWithRetry(url: string): Promise<Response> {
+  private async fetchWithRetry(url: string): Promise<unknown> {
     let lastError: Error | undefined;
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -1064,7 +1131,8 @@ export class DeBridgeBridge implements IExternalBridge {
           const body = await response.text();
           throw new Error(`deBridge HTTP ${response.status}: ${body}`);
         }
-        if (response.ok) return response;
+        if (response.ok) return await response.json();
+        await response.body?.cancel();
         lastError = new Error(`deBridge HTTP ${response.status}`);
       } catch (error) {
         if (
