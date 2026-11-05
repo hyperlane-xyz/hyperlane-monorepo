@@ -9,6 +9,7 @@ import {
 
 // Deployment settings belong to infra, not the runtime rebalancer schema.
 const DeploymentMetadataSchema = z.strictObject({
+  monitorOnly: z.boolean().optional(),
   imageTag: z.string().min(1).optional(),
   imageDigest: z
     .string()

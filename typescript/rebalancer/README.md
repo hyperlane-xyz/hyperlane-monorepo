@@ -94,6 +94,8 @@ await service.executeManual({
 
 The rebalancer uses a YAML configuration file with a `warpRouteId` and `strategy` field.
 
+See [route controls](docs/route-controls.md) for disabled pairs and persistent monitor-only deployments.
+
 Source actions are recorded in memory before broadcast. This prevents an
 uncertain send from being retried while the process remains running. A restart
 clears this state; no action or intent state is written to disk.

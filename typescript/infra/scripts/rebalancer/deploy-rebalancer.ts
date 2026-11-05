@@ -22,15 +22,12 @@ import { validateRegistryCommit } from '../../src/utils/git.js';
 import { HelmCommand } from '../../src/utils/helm.js';
 import { getInfraPath } from '../../src/utils/utils.js';
 import {
-  assertCorrectKubeContext,
-  filterOrphanedWarpRouteIds,
   getArgs,
   withMetrics,
   withRegistryCommit,
   withWarpRouteId,
   withYes,
-} from '../agent-utils.js';
-import { getEnvironmentConfig } from '../core-utils.js';
+} from '../cli-args.js';
 
 function getRebalancerConfigPathPrefix(environment: DeployEnvironment) {
   return `config/environments/${environment}/rebalancer`;
@@ -66,6 +63,8 @@ async function main() {
     setRootLogger(pino({ level: 'info' }, process.stderr));
     assert(warpRouteId, '--render requires --warp-route-id');
   } else {
+    const { assertCorrectKubeContext } = await import('../agent-utils.js');
+    const { getEnvironmentConfig } = await import('../core-utils.js');
     await assertCorrectKubeContext(getEnvironmentConfig(environment));
   }
 
@@ -107,7 +106,9 @@ async function main() {
   // Explicit routes are validated against the selected registry revision in preflight.
   const { validIds: validWarpRouteIds, orphanedIds } = warpRouteId
     ? { validIds: warpRouteIds, orphanedIds: [] }
-    : filterOrphanedWarpRouteIds(warpRouteIds);
+    : (await import('../agent-utils.js')).filterOrphanedWarpRouteIds(
+        warpRouteIds,
+      );
 
   if (orphanedIds.length > 0) {
     rootLogger.warn(
@@ -160,6 +161,16 @@ async function main() {
         });
       }
     }
+
+    rootLogger.info(
+      {
+        warpRouteId,
+        configuredRegistryCommit: deployment.registryCommit,
+        overrideRegistryCommit: registryCommitArg,
+        effectiveRegistryCommit: registryCommit,
+      },
+      'Selected rebalancer registry revision',
+    );
 
     if (!render && !validatedCommits.has(registryCommit)) {
       await validateRegistryCommit(registryCommit);
