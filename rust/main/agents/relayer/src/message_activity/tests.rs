@@ -107,7 +107,6 @@ async fn postgres() -> eyre::Result<()> {
 
     let url = Secret::new(std::env::var("ACTIVITY_TEST_DATABASE_URL")?);
     let db = connect(&url).await?;
-    Migrator::up(&db, Some(1)).await?;
     Migrator::up(&db, None).await?;
     // Re-running the deployment command must preserve the existing schema.
     Migrator::up(&db, None).await?;

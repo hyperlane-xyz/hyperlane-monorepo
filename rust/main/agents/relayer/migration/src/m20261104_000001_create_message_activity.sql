@@ -11,3 +11,19 @@ CREATE TABLE public.message_activity (
     activity jsonb NOT NULL CHECK (jsonb_typeof(activity) = 'object')
 );
 CREATE INDEX message_activity_message_id_id_idx ON public.message_activity (message_id, id DESC);
+CREATE INDEX message_activity_received_at_idx ON public.message_activity USING BRIN (received_at);
+
+CREATE FUNCTION public.notify_message_activity_insert()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    PERFORM pg_notify('message_activity_insert', encode(NEW.message_id, 'hex'));
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER notify_message_activity_insert
+AFTER INSERT ON public.message_activity
+FOR EACH ROW
+EXECUTE FUNCTION public.notify_message_activity_insert();

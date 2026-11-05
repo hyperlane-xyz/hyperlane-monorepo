@@ -16,7 +16,12 @@ impl MigrationTrait for Migration {
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
             .get_connection()
-            .execute_unprepared("DROP TABLE public.message_activity")
+            .execute_unprepared(
+                r#"
+                DROP TABLE public.message_activity;
+                DROP FUNCTION public.notify_message_activity_insert();
+                "#,
+            )
             .await?;
         Ok(())
     }
