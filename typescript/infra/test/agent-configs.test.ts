@@ -136,7 +136,7 @@ describe('Agent configs', () => {
           );
           expect(relayer.messageActivityDatabaseUrlSecret).to.equal(
             environment === 'mainnet'
-              ? 'hyperlane-mainnet-relayer-postgres-url'
+              ? 'hyperlane-mainnet-relayer-postgres-writer-url'
               : undefined,
           );
           expect(relayer.envConfig).not.to.have.property(

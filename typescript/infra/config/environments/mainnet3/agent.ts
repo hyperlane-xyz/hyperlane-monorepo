@@ -398,7 +398,7 @@ const contextBase = {
 } as const;
 
 const messageActivityDatabaseUrlSecret =
-  'hyperlane-mainnet-relayer-postgres-url';
+  'hyperlane-mainnet-relayer-postgres-writer-url';
 
 const scraperWebsocketUrl =
   'ws://scraper-proxy.mainnet3.svc.cluster.local:8383/agents';
