@@ -4,6 +4,7 @@ import { execFileSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import Sinon from 'sinon';
 import { parse, parseAllDocuments, stringify } from 'yaml';
 
@@ -230,6 +231,111 @@ describe('Rebalancer Helm deployment', () => {
         warpRouteId: 'OTHER/route',
       }),
     ).to.throw('warp route ID mismatch');
+  });
+
+  it('preserves configured monitor-only mode through ordinary redeployment', () => {
+    const loaded = config({ deployment: { monitorOnly: true } });
+    const values = buildRebalancerHelmValues(loaded, options);
+    expect(values.hyperlane.monitorOnly).to.equal(true);
+    expect(parse(values.hyperlane.rebalancerConfig)).not.to.have.property(
+      'deployment',
+    );
+    const container = renderRebalancerValues(values).find(
+      (d) => d.kind === 'StatefulSet',
+    ).spec.template.spec.containers[0];
+    expect(container.env).to.deep.include({
+      name: 'MONITOR_ONLY',
+      value: 'true',
+    });
+    expect(
+      buildRebalancerHelmValues(
+        config({ deployment: { monitorOnly: false } }),
+        { ...options, monitorOnly: true },
+      ).hyperlane.monitorOnly,
+    ).to.equal(true);
+  });
+
+  it('rejects a mismatched route before registry or monitor operations', async () => {
+    config({ warpRouteId: 'OTHER/route' });
+    const registry = Sinon.stub(GithubRegistry.prototype, 'getWarpRoute');
+    const monitor = Sinon.stub(HelmManager, 'doesHelmReleaseExist');
+    const manager = new RebalancerHelmManager(
+      options.warpRouteId,
+      options.environment,
+      options.registryCommit,
+      '',
+      '',
+      true,
+    );
+    await rejects(async () => {
+      await manager.runPreflightChecks(
+        path.relative(getInfraPath(), path.join(directory, 'config.yaml')),
+      );
+      await manager.prepareForDeployment();
+    }, /warp route ID mismatch/);
+    expect(registry.called).to.equal(false);
+    expect(monitor.called).to.equal(false);
+  });
+
+  it('renders through the CLI with an empty unrelated local registry', function () {
+    this.timeout(30_000);
+    const route = `${path.basename(directory)}/cli`;
+    const routeDirectory = path.join(
+      getInfraPath(),
+      'config/environments/test/rebalancer',
+      path.basename(directory),
+    );
+    fs.mkdirSync(routeDirectory, { recursive: true });
+    const localRegistry = path.join(directory, 'registry');
+    fs.mkdirSync(localRegistry);
+    const preload = path.join(directory, 'registry.mjs');
+    fs.writeFileSync(
+      preload,
+      `import { GithubRegistry } from ${JSON.stringify(pathToFileURL(path.join(getInfraPath(), 'node_modules/@hyperlane-xyz/registry/dist/index.js')).href)};\nGithubRegistry.prototype.getWarpRoute = async () => (${JSON.stringify({ tokens: [{ chainName: 'ethereum', standard: TokenStandard.EvmHypCollateral, decimals: 6, symbol: 'TEST', name: 'Test', addressOrDenom: ADDRESS }] })});\n`,
+    );
+    config({
+      warpRouteId: route,
+      deployment: { monitorOnly: true, registryCommit: options.registryCommit },
+    });
+    fs.copyFileSync(
+      path.join(directory, 'config.yaml'),
+      path.join(routeDirectory, 'cli-config.yaml'),
+    );
+    try {
+      const rendered = execFileSync(
+        process.execPath,
+        [
+          '--import',
+          'tsx',
+          '--import',
+          preload,
+          path.join(getInfraPath(), 'scripts/rebalancer/deploy-rebalancer.ts'),
+          '--environment',
+          'test',
+          '--warpRouteId',
+          route,
+          '--render',
+        ],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, REGISTRY_URI: localRegistry },
+          timeout: 25_000,
+        },
+      );
+      const documents = parseAllDocuments(rendered).map((doc) => doc.toJSON());
+      const container = documents.find((d) => d.kind === 'StatefulSet').spec
+        .template.spec.containers[0];
+      expect(container.env).to.deep.include({
+        name: 'MONITOR_ONLY',
+        value: 'true',
+      });
+      expect(container.env).to.deep.include({
+        name: 'REGISTRY_URI',
+        value: `https://github.com/hyperlane-xyz/hyperlane-registry/tree/${options.registryCommit}`,
+      });
+    } finally {
+      fs.rmSync(routeDirectory, { recursive: true, force: true });
+    }
   });
 
   it('preflights and renders without monitor removal, upgrade or cluster queries', async () => {

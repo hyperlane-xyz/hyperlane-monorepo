@@ -19,6 +19,8 @@ import {
 } from '../utils/bridgeUtils.js';
 import { normalizeConfiguredAmount } from '../utils/balanceUtils.js';
 
+import { allocateRoutes } from './allocateRoutes.js';
+
 export type Delta = { chain: ChainName; amount: bigint };
 
 /**
@@ -176,50 +178,19 @@ export abstract class BaseStrategy implements IStrategy {
     surpluses.sort((a, b) => (a.amount > b.amount ? -1 : 1));
     deficits.sort((a, b) => (a.amount > b.amount ? -1 : 1));
 
-    const routes: StrategyRoute[] = [];
-
-    // Transfer from surplus to deficit until all deficits are balanced.
-    while (deficits.length > 0 && surpluses.length > 0) {
-      const surplus = surpluses[0];
-      const deficit = deficits[0];
-
-      // Transfers the whole surplus or just the amount to balance the deficit
-      const transferAmount =
-        surplus.amount > deficit.amount ? deficit.amount : surplus.amount;
-
-      // Skip zero-amount routes (can occur after scaling when surpluses < deficits)
-      if (transferAmount > 0n) {
-        // Get bridge config for this route (with destination-specific overrides)
-        const bridgeConfig = this.getBridgeConfigForRoute(
-          surplus.chain,
-          deficit.chain,
-        );
-
-        // Create appropriate route type based on execution type
-        routes.push(
-          createStrategyRoute(
-            bridgeConfig,
-            surplus.chain,
-            deficit.chain,
-            transferAmount,
-          ),
-        );
-      }
-
-      // Decreases the amounts for the following iterations
-      deficit.amount -= transferAmount;
-      surplus.amount -= transferAmount;
-
-      // Removes the deficit if it is fully balanced (including scaled-to-zero)
-      if (deficit.amount <= 0n) {
-        deficits.shift();
-      }
-
-      // Removes the surplus if it has been drained
-      if (surplus.amount <= 0n) {
-        surpluses.shift();
-      }
-    }
+    const routes = allocateRoutes(
+      surpluses,
+      deficits,
+      (origin, destination) =>
+        this.getBridgeConfigForRoute(origin, destination).enabled !== false,
+    ).map(({ origin, destination, amount }) =>
+      createStrategyRoute(
+        this.getBridgeConfigForRoute(origin, destination),
+        origin,
+        destination,
+        amount,
+      ),
+    );
 
     this.logger.debug(
       {
