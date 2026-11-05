@@ -5,7 +5,7 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, MultisigIsm, RawHyperlaneMessage, H256,
 };
-use hyperlane_sealevel_multisig_ism_message_id::instruction::ValidatorsAndThreshold;
+use hyperlane_sealevel_interface::multisig_ism_message_id::instruction::ValidatorsAndThreshold;
 use serializable_account_meta::SimulationReturnData;
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},

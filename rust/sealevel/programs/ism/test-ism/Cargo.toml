@@ -29,5 +29,9 @@ hyperlane-sealevel-mailbox = { path = "../../mailbox", features = [
 serializable-account-meta = { path = "../../../libraries/serializable-account-meta" }
 hyperlane-test-transaction-utils = { path = "../../../libraries/test-transaction-utils", optional = true }
 
+[dev-dependencies]
+solana-program-test.workspace = true
+solana-sdk.workspace = true
+
 [lib]
 crate-type = ["cdylib", "lib"]

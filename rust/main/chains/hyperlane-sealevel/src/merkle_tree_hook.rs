@@ -9,7 +9,7 @@ use hyperlane_core::{
     HyperlaneMessage, IncrementalMerkleAtBlock, Indexed, Indexer, LogMeta, MerkleTreeHook,
     MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer,
 };
-use hyperlane_sealevel_mailbox::accounts::OutboxAccount;
+use hyperlane_sealevel_interface::mailbox::accounts::OutboxAccount;
 
 use crate::{SealevelMailbox, SealevelMailboxIndexer};
 

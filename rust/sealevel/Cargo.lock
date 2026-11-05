@@ -3422,18 +3422,8 @@ dependencies = [
  "ethers",
  "hex",
  "hyperlane-core",
- "hyperlane-sealevel-composite-ism",
- "hyperlane-sealevel-connection-client",
- "hyperlane-sealevel-hello-world",
- "hyperlane-sealevel-igp",
  "hyperlane-sealevel-interchain-security-module-interface",
- "hyperlane-sealevel-mailbox",
- "hyperlane-sealevel-multisig-ism-message-id",
- "hyperlane-sealevel-token",
- "hyperlane-sealevel-token-collateral",
- "hyperlane-sealevel-token-lib",
- "hyperlane-sealevel-token-native",
- "hyperlane-sealevel-validator-announce",
+ "hyperlane-sealevel-interface",
  "itertools 0.14.0",
  "pretty_env_logger",
  "serde",
@@ -3450,6 +3440,8 @@ dependencies = [
  "solana-sdk",
  "solana-system-interface 2.0.0",
  "solana-transaction-status",
+ "spl-associated-token-account",
+ "spl-token-2022",
 ]
 
 [[package]]
@@ -3593,6 +3585,58 @@ dependencies = [
  "solana-program 3.0.0",
  "spl-discriminator 0.5.1",
  "spl-type-length-value 0.6.0",
+]
+
+[[package]]
+name = "hyperlane-sealevel-interface"
+version = "0.1.0"
+dependencies = [
+ "access-control",
+ "account-utils",
+ "borsh 1.6.0",
+ "hyperlane-core",
+ "hyperlane-sealevel-interchain-security-module-interface",
+ "hyperlane-sealevel-interface-goldens",
+ "hyperlane-sealevel-message-recipient-interface",
+ "multisig-ism",
+ "num-derive",
+ "num-traits",
+ "quote-verifier",
+ "serde",
+ "serializable-account-meta",
+ "solana-program 3.0.0",
+ "solana-sdk-ids 3.1.0",
+ "solana-system-interface 2.0.0",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "hyperlane-sealevel-interface-goldens"
+version = "0.1.0"
+dependencies = [
+ "account-utils",
+ "borsh 1.6.0",
+ "hex",
+ "hyperlane-core",
+ "hyperlane-sealevel-composite-ism",
+ "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-fee",
+ "hyperlane-sealevel-hello-world",
+ "hyperlane-sealevel-igp",
+ "hyperlane-sealevel-interchain-security-module-interface",
+ "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-message-recipient-interface",
+ "hyperlane-sealevel-multisig-ism-message-id",
+ "hyperlane-sealevel-token",
+ "hyperlane-sealevel-token-collateral",
+ "hyperlane-sealevel-token-cross-collateral",
+ "hyperlane-sealevel-token-lib",
+ "hyperlane-sealevel-token-native",
+ "hyperlane-sealevel-validator-announce",
+ "multisig-ism",
+ "quote-verifier",
+ "serializable-account-meta",
+ "solana-program 3.0.0",
 ]
 
 [[package]]
