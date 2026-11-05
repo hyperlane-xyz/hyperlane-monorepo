@@ -1,15 +1,21 @@
 import { expect } from 'chai';
 import { execFileSync } from 'child_process';
+import fs from 'fs';
 import path from 'path';
+import Sinon from 'sinon';
 import { parse, parseAllDocuments, stringify } from 'yaml';
+
+import { GithubRegistry } from '@hyperlane-xyz/registry';
+import { WarpCoreConfigSchema } from '@hyperlane-xyz/sdk';
 
 import { DockerImageRepos } from '../config/docker.js';
 import { readRebalancerConfig } from '../src/rebalancer/config.js';
-import { buildRebalancerHelmValues } from '../src/rebalancer/helm.js';
+import { RebalancerHelmManager } from '../src/rebalancer/helm.js';
 import { getInfraPath } from '../src/utils/utils.js';
 
 describe('ETH Viction production manifest', () => {
-  it('renders swaps.xyz routing including Robinhood', () => {
+  afterEach(() => Sinon.restore());
+  it('renders swaps.xyz routing including Robinhood', async () => {
     const loaded = readRebalancerConfig(
       path.join(
         getInfraPath(),
@@ -20,21 +26,40 @@ describe('ETH Viction production manifest', () => {
     expect(registryCommit).to.equal('a24bd88a0ce60fb862a5bd5a6ba63fb7a60d79bc');
     if (!registryCommit) throw new Error('Missing ETH/viction registry pin');
 
-    const values = buildRebalancerHelmValues(loaded, {
-      warpRouteId: 'ETH/viction',
-      environment: 'mainnet3',
+    expect(loaded.deployment.monitorOnly).to.equal(true);
+    const warpCore = WarpCoreConfigSchema.parse(
+      parse(
+        fs.readFileSync(
+          path.join(
+            getInfraPath(),
+            'test/fixtures/rebalancer/ETH-viction-warp-core.yaml',
+          ),
+          'utf8',
+        ),
+      ),
+    );
+    const getWarpRoute = Sinon.stub(
+      GithubRegistry.prototype,
+      'getWarpRoute',
+    ).resolves(warpCore);
+    const manager = new RebalancerHelmManager(
+      'ETH/viction',
+      'mainnet3',
       registryCommit,
-      chains: [
-        'arbitrum',
-        'base',
-        'ethereum',
-        'optimism',
-        'robinhood',
-        'viction',
-      ],
-      withMetrics: true,
-      monitorOnly: true,
-    });
+      '',
+      '',
+      true,
+      false,
+    );
+    await manager.runPreflightChecks(
+      'config/environments/mainnet3/rebalancer/ETH/viction-config.yaml',
+    );
+    const values = await manager.helmValues();
+    expect(getWarpRoute.calledOnceWithExactly('ETH/viction')).to.equal(true);
+    expect(getWarpRoute.firstCall.thisValue.branch).to.equal(registryCommit);
+    expect(values.hyperlane.chains).to.deep.equal(
+      warpCore.tokens.map((token) => token.chainName),
+    );
     const rendered = execFileSync(
       'helm',
       [
@@ -53,6 +78,11 @@ describe('ETH Viction production manifest', () => {
     const secret = documents.find(
       (document) => document.kind === 'ExternalSecret',
     );
+    for (const token of warpCore.tokens) {
+      expect(secret.spec.target.template.data).to.have.property(
+        `RPC_URL_${token.chainName.toUpperCase()}`,
+      );
+    }
     expect(
       secret.spec.data.find(
         (item: { secretKey: string }) => item.secretKey === 'swapsxyz_api_key',
