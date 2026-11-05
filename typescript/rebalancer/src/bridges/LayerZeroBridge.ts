@@ -10,7 +10,14 @@ import {
   type WarpCoreConfig,
   submitEvmLikeTransaction,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, addressToBytesTron, assert } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  TransactionSubmission,
+  convertToProtocolAddress,
+  addressToBytes32,
+  assert,
+  eqAddress,
+} from '@hyperlane-xyz/utils';
 import {
   TronJsonRpcProvider,
   TronWallet,
@@ -25,42 +32,29 @@ import type {
   IExternalBridge,
 } from '../interfaces/IExternalBridge.js';
 import { approveErc20IfNeeded } from './erc20Approve.js';
+import {
+  OftSettlementVerifier,
+  normalizeTxHash,
+} from './OftSettlementVerifier.js';
 
 const LAYERZERO_TOOL = 'layerzero';
-const LAYERZERO_SCAN_API_URL = 'https://scan.layerzero-api.com/v1/messages/tx/';
 const MAX_QUOTE_ATTEMPTS = 8;
 const BASIS_POINTS_DENOMINATOR = 10_000n;
 const DEFAULT_MAX_FEE_BPS = 50;
 const DEFAULT_MAX_EVM_NATIVE_VALUE_WEI = 10_000_000_000_000_000n;
 const DEFAULT_MAX_TRON_NATIVE_VALUE_SUN = 20_000_000n;
 
-const ScanStatusSchema = z.union([
-  z.string(),
-  z.object({ name: z.string() }).passthrough(),
-]);
-const ScanMessageSchema = z
-  .object({
-    pathway: z
-      .object({ srcEid: z.number(), dstEid: z.number() })
-      .passthrough()
-      .optional(),
-    status: ScanStatusSchema,
-    destination: z
-      .object({
-        status: z.string().optional(),
-        tx: z.object({ txHash: z.string() }).passthrough().optional(),
-      })
-      .passthrough()
-      .optional(),
-    dstTxHash: z.string().optional(),
-  })
-  .passthrough();
-const ScanResponseSchema = z
-  .object({
-    data: z.array(ScanMessageSchema).optional(),
-    messages: z.array(ScanMessageSchema).optional(),
-  })
-  .passthrough();
+const TransferIdentitySchema = z.object({
+  warpRouteId: z.string(),
+  fromChain: z.number(),
+  toChain: z.number(),
+  sourceEid: z.number().int().positive(),
+  destinationEid: z.number().int().positive(),
+  sourceOft: z.string(),
+  destinationOft: z.string(),
+  destinationRecipient: z.string(),
+  minimumDestinationAmount: z.string().regex(/^\d+$/),
+});
 
 type RouteToken = WarpCoreConfig['tokens'][number];
 
@@ -97,6 +91,7 @@ interface OftQuote {
 }
 
 export interface TokenBridgeOftContract {
+  oft(): Promise<string>;
   token(): Promise<string>;
   quoteTransferRemote(
     destination: number,
@@ -135,13 +130,14 @@ export class LayerZeroBridge implements IExternalBridge {
   private readonly maxFeeBps: number;
   private readonly maxEvmNativeValueWei: bigint;
   private readonly maxTronNativeValueSun: bigint;
-  private readonly expectedReceivedByTxHash = new Map<string, bigint>();
+  private readonly settlement: OftSettlementVerifier;
 
   constructor(
     private readonly config: LayerZeroBridgeConfig,
     logger: Logger,
   ) {
     this.logger = logger;
+    this.settlement = new OftSettlementVerifier({ logger });
     assert(
       config.warpRoutes.length > 0,
       'At least one OFT warp route is required',
@@ -210,7 +206,17 @@ export class LayerZeroBridge implements IExternalBridge {
     return this.toBridgeQuote(params, quoted);
   }
 
-  async execute(
+  execute(
+    quote: BridgeQuote<LayerZeroQuoteRoute>,
+    privateKeys: Partial<Record<ProtocolType, string>>,
+    options?: BridgeExecutionOptions,
+  ): Promise<BridgeTransferResult> {
+    return new TransactionSubmission(options).run(() =>
+      this.executeTransfer(quote, privateKeys, options),
+    );
+  }
+
+  private async executeTransfer(
     quote: BridgeQuote<LayerZeroQuoteRoute>,
     privateKeys: Partial<Record<ProtocolType, string>>,
     options?: BridgeExecutionOptions,
@@ -228,7 +234,7 @@ export class LayerZeroBridge implements IExternalBridge {
     const wallet = this.wallet(protocol, privateKey, route.sourceMetadata);
     const sender = await wallet.getAddress();
     assert(
-      sender.toLowerCase() === params.fromAddress.toLowerCase(),
+      eqAddress(evmAddress(sender), evmAddress(params.fromAddress)),
       `${protocol} private key does not match inventory signer`,
     );
 
@@ -245,6 +251,40 @@ export class LayerZeroBridge implements IExternalBridge {
       refreshed.nativeFee <= quote.route.nativeFee,
       'OFT native fee increased after the accepted quote',
     );
+
+    // Persist the expected beneficiary and amount before any source submission.
+    // An ambiguous broadcast must remain verifiable without execute() returning.
+    const sourceContract = this.contract(
+      route.source.addressOrDenom,
+      this.provider(route.sourceMetadata),
+    );
+    const destinationContract = this.contract(
+      route.destination.addressOrDenom,
+      this.provider(route.destinationMetadata),
+    );
+    const [sourceOft, destinationOft, sourceEid, destinationEid] =
+      await Promise.all([
+        sourceContract.oft(),
+        destinationContract.oft(),
+        destinationContract.hyperlaneDomainToLzEid(
+          Number(route.sourceMetadata.domainId),
+        ),
+        sourceContract.hyperlaneDomainToLzEid(
+          Number(route.destinationMetadata.domainId),
+        ),
+      ]);
+    const transferId = JSON.stringify({
+      warpRouteId: route.warpRouteId,
+      fromChain: params.fromChain,
+      toChain: params.toChain,
+      sourceEid,
+      destinationEid,
+      sourceOft: evmAddress(sourceOft),
+      destinationOft: evmAddress(destinationOft),
+      destinationRecipient: evmAddress(params.toAddress ?? params.fromAddress),
+      minimumDestinationAmount: quote.toAmountMin.toString(),
+    });
+    await options?.onTransferId?.(transferId);
 
     await approveErc20IfNeeded(
       wallet,
@@ -263,18 +303,13 @@ export class LayerZeroBridge implements IExternalBridge {
       { value: refreshed.nativeFee },
     );
     await wallet.estimateGas(request);
-    await options?.onTransferId?.(route.warpRouteId);
     const response = await submitEvmLikeTransaction(wallet, request, options);
-    this.expectedReceivedByTxHash.set(
-      this.normalizeHash(response.hash),
-      refreshed.amount,
-    );
 
     return {
       txHash: response.hash,
       fromChain: params.fromChain,
       toChain: params.toChain,
-      transferId: route.warpRouteId,
+      transferId,
     };
   }
 
@@ -284,62 +319,83 @@ export class LayerZeroBridge implements IExternalBridge {
     toChain: number,
     transferId?: string,
   ): Promise<BridgeTransferStatus> {
-    const route = this.resolveRoute(fromChain, toChain, transferId);
-    const response = await fetch(
-      `${LAYERZERO_SCAN_API_URL}${this.normalizeHash(txHash)}`,
-      { signal: AbortSignal.timeout(30_000) },
-    );
-    if (response.status === 404) return { status: 'not_found' };
-    assert(response.ok, `LayerZero Scan returned HTTP ${response.status}`);
-    const body = ScanResponseSchema.parse(await response.json());
-    const messages = body.data ?? body.messages ?? [];
-
-    const [sourceEid, destinationEid] = await Promise.all([
-      this.contract(
-        route.destination.addressOrDenom,
-        this.provider(route.destinationMetadata),
-      ).hyperlaneDomainToLzEid(Number(route.sourceMetadata.domainId)),
-      this.contract(
-        route.source.addressOrDenom,
-        this.provider(route.sourceMetadata),
-      ).hyperlaneDomainToLzEid(Number(route.destinationMetadata.domainId)),
-    ]);
-    const message = messages.find(
-      (candidate) =>
-        candidate.pathway?.srcEid === sourceEid &&
-        candidate.pathway.dstEid === destinationEid,
-    );
-    if (!message) return { status: 'not_found' };
-
-    const status =
-      typeof message.status === 'string' ? message.status : message.status.name;
-    if (
-      [
-        'APPLICATION_BURNED',
-        'APPLICATION_SKIPPED',
-        'UNRESOLVABLE_COMMAND',
-        'MALFORMED_COMMAND',
-      ].includes(status)
-    ) {
-      return { status: 'failed', error: status };
+    // Old/missing identities cannot establish the accepted recipient. Never
+    // turn an unbound API result into permission to spend inventory again.
+    if (!transferId)
+      return { status: 'pending', substatus: 'IDENTITY_MISSING' };
+    try {
+      const identity = TransferIdentitySchema.parse(JSON.parse(transferId));
+      assert(
+        identity.fromChain === fromChain && identity.toChain === toChain,
+        'LayerZero settlement chain mismatch',
+      );
+      const route = this.resolveRoute(fromChain, toChain, identity.warpRouteId);
+      const sourceProvider = this.provider(route.sourceMetadata);
+      const sourceReceipt = await sourceProvider.getTransactionReceipt(
+        normalizeTxHash(txHash),
+      );
+      if (!sourceReceipt || sourceReceipt.status !== 1) {
+        return { status: 'pending', substatus: 'SOURCE_RECEIPT_UNVERIFIED' };
+      }
+      const blocks = route.sourceMetadata.blocks;
+      if (sourceReceipt.confirmations < (blocks?.confirmations ?? 1)) {
+        return { status: 'pending', substatus: 'SOURCE_NOT_FINAL' };
+      }
+      const reorgPeriod = blocks?.reorgPeriod ?? 32;
+      if (typeof reorgPeriod === 'number') {
+        if (sourceReceipt.confirmations <= reorgPeriod) {
+          return { status: 'pending', substatus: 'SOURCE_NOT_FINAL' };
+        }
+      } else {
+        const finalized = await sourceProvider.getBlock(reorgPeriod);
+        if (!finalized || sourceReceipt.blockNumber > finalized.number) {
+          return { status: 'pending', substatus: 'SOURCE_NOT_FINAL' };
+        }
+      }
+      const ref = await this.settlement.initFromReceipt({
+        ...identity,
+        destination: route.destinationMetadata.name,
+        destinationDomain: Number(route.destinationMetadata.domainId),
+        bridge: evmAddress(route.source.addressOrDenom),
+        sourceTokenDecimals: route.source.decimals,
+        destinationTokenDecimals: route.destination.decimals,
+        minimumDestinationAmount: BigInt(identity.minimumDestinationAmount),
+        receipt: sourceReceipt,
+      });
+      const provider = this.provider(route.destinationMetadata);
+      const destinationBlocks = route.destinationMetadata.blocks;
+      const destinationReorgPeriod = destinationBlocks?.reorgPeriod ?? 32;
+      const blockTag =
+        typeof destinationReorgPeriod === 'number'
+          ? Math.max(
+              0,
+              (await provider.getBlockNumber()) - destinationReorgPeriod,
+            )
+          : (await provider.getBlock(destinationReorgPeriod))?.number;
+      if (blockTag === undefined)
+        return { status: 'pending', substatus: 'DESTINATION_NOT_FINAL' };
+      const status = await this.settlement.pollStatus(ref, {
+        provider,
+        blocks: destinationBlocks,
+        blockTag,
+      });
+      if (status.status === 'complete') {
+        const amount = status.ref.data.amountReceivedLD;
+        assert(typeof amount === 'string', 'Verified OFT amount missing');
+        return {
+          status: 'complete',
+          receivingTxHash: status.receivingTxHash,
+          receivedAmount: BigInt(amount),
+        };
+      }
+      return { status: 'pending', substatus: status.substatus };
+    } catch (error) {
+      this.logger.warn(
+        { txHash, fromChain, toChain, error },
+        'LayerZero settlement remains unverified',
+      );
+      return { status: 'pending', substatus: 'SETTLEMENT_UNVERIFIED' };
     }
-    if (status !== 'DELIVERED' || message.destination?.status !== 'SUCCEEDED') {
-      return {
-        status: 'pending',
-        substatus: `${status}:${message.destination?.status ?? 'UNKNOWN'}`,
-      };
-    }
-    const receivingTxHash = message.destination.tx?.txHash ?? message.dstTxHash;
-    if (!receivingTxHash) {
-      return { status: 'pending', substatus: 'DESTINATION_TX_HASH_UNKNOWN' };
-    }
-
-    return {
-      status: 'complete',
-      receivingTxHash,
-      receivedAmount:
-        this.expectedReceivedByTxHash.get(this.normalizeHash(txHash)) ?? 0n,
-    };
   }
 
   private async quoteDestinationAmount(
@@ -369,18 +425,20 @@ export class LayerZeroBridge implements IExternalBridge {
       ),
     ]);
     assert(
-      sourceToken.toLowerCase() === params.fromToken.toLowerCase(),
+      eqAddress(evmAddress(sourceToken), evmAddress(params.fromToken)),
       `OFT source token mismatch: ${sourceToken}`,
     );
     assert(
-      destinationToken.toLowerCase() === params.toToken.toLowerCase(),
+      eqAddress(evmAddress(destinationToken), evmAddress(params.toToken)),
       `OFT destination token mismatch: ${destinationToken}`,
     );
     const nativeQuotes = quotes.filter(
       (quote) => quote.token === ethers.constants.AddressZero,
     );
     const tokenQuotes = quotes.filter(
-      (quote) => quote.token.toLowerCase() === sourceToken.toLowerCase(),
+      (quote) =>
+        quote.token !== ethers.constants.AddressZero &&
+        eqAddress(evmAddress(quote.token), evmAddress(sourceToken)),
     );
     assert(
       nativeQuotes.length === 1 && tokenQuotes.length === 1,
@@ -554,15 +612,10 @@ export class LayerZeroBridge implements IExternalBridge {
   }
 
   private recipientBytes32(address: string): string {
-    const bytes = address.startsWith('T')
-      ? ethers.utils.hexlify(addressToBytesTron(address))
-      : ethers.utils.getAddress(address);
-    return ethers.utils.hexZeroPad(bytes, 32);
+    return addressToBytes32(address);
   }
+}
 
-  private normalizeHash(hash: string): string {
-    return hash.startsWith('0x')
-      ? hash.toLowerCase()
-      : `0x${hash.toLowerCase()}`;
-  }
+function evmAddress(address: string): string {
+  return convertToProtocolAddress(address, ProtocolType.Ethereum);
 }

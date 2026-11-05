@@ -1,13 +1,19 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 import { pino } from 'pino';
+import Sinon from 'sinon';
 
 import {
   TokenStandard,
   TokenType,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  TransactionSubmissionError,
+  assert,
+  bytesToAddressTron,
+} from '@hyperlane-xyz/utils';
 
 import type { BridgeQuoteParams } from '../interfaces/IExternalBridge.js';
 import {
@@ -90,6 +96,7 @@ function makeContract(address: string): TokenBridgeOftContract {
   const sourceToken = TOKENS[address.toLowerCase()];
   assert(sourceToken, `Unknown test adapter ${address}`);
   return {
+    oft: async () => address,
     token: async () => sourceToken,
     quoteTransferRemote: async (_destination, _recipient, amount) => [
       {
@@ -184,6 +191,7 @@ async function getRejection(promise: Promise<unknown>): Promise<Error> {
 }
 
 describe('LayerZeroBridge', () => {
+  afterEach(() => Sinon.restore());
   it('prefers USDT/oft for Ethereum and Arbitrum', async () => {
     const quote = await makeBridge().quote(params());
     expect(quote.fromAmount).to.equal(1_000_000n);
@@ -229,5 +237,258 @@ describe('LayerZeroBridge', () => {
       }),
     );
     expect(error.message).to.include('does not match inventory signer');
+    assert(
+      error instanceof TransactionSubmissionError,
+      'Expected classified preparation error',
+    );
+    expect(error.submissionState).to.equal('not_submitted');
+  });
+});
+
+const ORIGIN_HASH = `0x${'aa'.repeat(32)}`;
+const DESTINATION_HASH = `0x${'bb'.repeat(32)}`;
+const GUID = `0x${'cc'.repeat(32)}`;
+const SENT = new ethers.utils.Interface([
+  'event OFTSent(bytes32 indexed guid,uint32 dstEid,address indexed fromAddress,uint256 amountSentLD,uint256 amountReceivedLD)',
+]);
+const RECEIVED = new ethers.utils.Interface([
+  'event OFTReceived(bytes32 indexed guid,uint32 srcEid,address indexed toAddress,uint256 amountReceivedLD)',
+]);
+
+function receiptWithEvent(
+  eventInterface: ethers.utils.Interface,
+  eventName: string,
+  args: unknown[],
+  address: string,
+  transactionHash: string,
+): ethers.providers.TransactionReceipt {
+  const log = eventInterface.encodeEventLog(
+    eventInterface.getEvent(eventName),
+    args,
+  );
+  return {
+    transactionHash,
+    to: address,
+    from: SIGNER,
+    contractAddress: '',
+    transactionIndex: 0,
+    gasUsed: ethers.BigNumber.from(1),
+    logsBloom: '',
+    blockHash: ORIGIN_HASH,
+    blockNumber: 100,
+    confirmations: 100,
+    cumulativeGasUsed: ethers.BigNumber.from(1),
+    effectiveGasPrice: ethers.BigNumber.from(1),
+    byzantium: true,
+    type: 2,
+    status: 1,
+    logs: [
+      {
+        ...log,
+        address,
+        blockNumber: 100,
+        blockHash: ORIGIN_HASH,
+        transactionHash,
+        transactionIndex: 0,
+        logIndex: 0,
+        removed: false,
+      },
+    ],
+  };
+}
+
+async function captureTransferIdentity(
+  bridge: LayerZeroBridge,
+  request: BridgeQuoteParams,
+  privateKey: string,
+): Promise<string> {
+  let identity: string | undefined;
+  const quote = await bridge.quote(request);
+  const error = await getRejection(
+    bridge.execute(
+      quote,
+      {
+        [request.fromChain === 728126428
+          ? ProtocolType.Tron
+          : ProtocolType.Ethereum]: privateKey,
+      },
+      {
+        onTransferId: (value) => {
+          identity = value;
+          throw new Error('Stopped before approval');
+        },
+      },
+    ),
+  );
+  expect(error.message).to.equal('Stopped before approval');
+  assert(
+    error instanceof TransactionSubmissionError,
+    'Preparation must classify the failure',
+  );
+  expect(error.submissionState).to.equal('not_submitted');
+  assert(identity, 'Expected transfer identity before submission');
+  return identity;
+}
+
+function scanMessage() {
+  return {
+    guid: GUID,
+    pathway: {
+      srcEid: 30001,
+      dstEid: 72161,
+      sender: { address: ETH_ADAPTER },
+      receiver: { address: ARB_ADAPTER },
+    },
+    source: { tx: { txHash: ORIGIN_HASH } },
+    status: 'DELIVERED',
+    destination: { status: 'SUCCEEDED', tx: { txHash: DESTINATION_HASH } },
+  };
+}
+
+describe('LayerZeroBridge settlement', () => {
+  afterEach(() => Sinon.restore());
+
+  it('records exact identity before submission and returns the on-chain received amount', async () => {
+    const wallet = ethers.Wallet.createRandom();
+    const bridge = makeBridge();
+    const identity = await captureTransferIdentity(
+      bridge,
+      params({ fromAddress: wallet.address }),
+      wallet.privateKey,
+    );
+    const source = receiptWithEvent(
+      SENT,
+      'OFTSent',
+      [GUID, 72161, ETH_ADAPTER, 1_000_000, 996_000],
+      ETH_ADAPTER,
+      ORIGIN_HASH,
+    );
+    const destination = receiptWithEvent(
+      RECEIVED,
+      'OFTReceived',
+      [GUID, 30001, SIGNER, 996_000],
+      ARB_ADAPTER,
+      DESTINATION_HASH,
+    );
+    Sinon.stub(
+      ethers.providers.StaticJsonRpcProvider.prototype,
+      'getTransactionReceipt',
+    ).callsFake(async (hash) =>
+      (await hash) === ORIGIN_HASH ? source : destination,
+    );
+    Sinon.stub(
+      ethers.providers.StaticJsonRpcProvider.prototype,
+      'getBlockNumber',
+    ).resolves(1000);
+    const fetch = Sinon.stub(globalThis, 'fetch').resolves(
+      new Response(JSON.stringify({ data: [scanMessage()] })),
+    );
+    expect(
+      await bridge.getStatus(ORIGIN_HASH, 1, 42161, identity),
+    ).to.deep.equal({
+      status: 'complete',
+      receivingTxHash: DESTINATION_HASH,
+      receivedAmount: 996_000n,
+    });
+    expect(String(fetch.firstCall.args[0])).to.include(`/guid/${GUID}`);
+  });
+
+  it('does not complete an API-delivered movement to the wrong recipient', async () => {
+    const wallet = ethers.Wallet.createRandom();
+    const bridge = makeBridge();
+    const identity = await captureTransferIdentity(
+      bridge,
+      params({ fromAddress: wallet.address }),
+      wallet.privateKey,
+    );
+    const source = receiptWithEvent(
+      SENT,
+      'OFTSent',
+      [GUID, 72161, ETH_ADAPTER, 1_000_000, 995_000],
+      ETH_ADAPTER,
+      ORIGIN_HASH,
+    );
+    const wrongDestination = receiptWithEvent(
+      RECEIVED,
+      'OFTReceived',
+      [GUID, 30001, ARB_ADAPTER, 995_000],
+      ARB_ADAPTER,
+      DESTINATION_HASH,
+    );
+    Sinon.stub(
+      ethers.providers.StaticJsonRpcProvider.prototype,
+      'getTransactionReceipt',
+    ).callsFake(async (hash) =>
+      (await hash) === ORIGIN_HASH ? source : wrongDestination,
+    );
+    Sinon.stub(
+      ethers.providers.StaticJsonRpcProvider.prototype,
+      'getBlockNumber',
+    ).resolves(1000);
+    Sinon.stub(globalThis, 'fetch').resolves(
+      new Response(JSON.stringify({ data: [scanMessage()] })),
+    );
+    expect(
+      (await bridge.getStatus(ORIGIN_HASH, 1, 42161, identity)).status,
+    ).to.equal('pending');
+  });
+
+  it('holds terminal API failures and missing transfer identity pending', async () => {
+    const wallet = ethers.Wallet.createRandom();
+    const bridge = makeBridge();
+    const identity = await captureTransferIdentity(
+      bridge,
+      params({ fromAddress: wallet.address }),
+      wallet.privateKey,
+    );
+    const source = receiptWithEvent(
+      SENT,
+      'OFTSent',
+      [GUID, 72161, ETH_ADAPTER, 1_000_000, 995_000],
+      ETH_ADAPTER,
+      ORIGIN_HASH,
+    );
+    Sinon.stub(
+      ethers.providers.StaticJsonRpcProvider.prototype,
+      'getTransactionReceipt',
+    ).resolves(source);
+    Sinon.stub(
+      ethers.providers.StaticJsonRpcProvider.prototype,
+      'getBlockNumber',
+    ).resolves(1000);
+    Sinon.stub(globalThis, 'fetch').resolves(
+      new Response(
+        JSON.stringify({
+          data: [{ ...scanMessage(), status: 'APPLICATION_BURNED' }],
+        }),
+      ),
+    );
+    expect(
+      (await bridge.getStatus(ORIGIN_HASH, 1, 42161, identity)).status,
+    ).to.equal('pending');
+    expect((await bridge.getStatus(ORIGIN_HASH, 1, 42161)).status).to.equal(
+      'pending',
+    );
+  });
+
+  it('normalizes Tron base58 tokens and signer before preparation', async () => {
+    const wallet = ethers.Wallet.createRandom();
+    const base58 = (address: string) =>
+      bytesToAddressTron(Buffer.from(address.slice(2), 'hex'));
+    const identity = await captureTransferIdentity(
+      makeBridge(),
+      params({
+        fromChain: 728126428,
+        toChain: 1,
+        fromToken: base58(TRON_USDT),
+        toToken: ETH_USDT,
+        fromAddress: base58(wallet.address),
+        toAddress: SIGNER,
+      }),
+      wallet.privateKey,
+    );
+    expect(JSON.parse(identity).destinationRecipient.toLowerCase()).to.equal(
+      SIGNER.toLowerCase(),
+    );
   });
 });
