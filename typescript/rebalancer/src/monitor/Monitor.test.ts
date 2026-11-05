@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { BigNumber, providers } from 'ethers';
+import { providers } from 'ethers';
 import { pino } from 'pino';
 import sinon from 'sinon';
 
@@ -13,6 +13,7 @@ import {
   WarpCore,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 
 import {
   type MonitorEvent,
@@ -100,8 +101,9 @@ function setupTron(reorgPeriod: number | string) {
     },
   };
   const multiProvider = new MultiProtocolProvider(metadata);
-  const block = sinon.createStubInstance(providers.JsonRpcProvider);
+  const block = sinon.createStubInstance(TronJsonRpcProvider);
   block.send.resolves('0x64');
+  block.getFinalizedBlockNumber.resolves(100);
   sinon.stub(multiProvider, 'getEthersV5Provider').returns(block);
   const adapter = sinon.createStubInstance(EvmHypSyntheticAdapter);
   adapter.getBridgedSupply.resolves(5n);
@@ -289,20 +291,7 @@ describe('Monitor concurrency', () => {
 
   it('resolves Tron named finality once for the balance snapshot', async () => {
     const { monitor, adapter, block, token } = setupTron('finalized');
-    block.getBlock.resolves({
-      number: 96,
-      hash: '',
-      parentHash: '',
-      timestamp: 1,
-      nonce: '',
-      difficulty: 1,
-      gasLimit: BigNumber.from(1),
-      gasUsed: BigNumber.from(1),
-      miner: '',
-      extraData: '',
-      transactions: [],
-      _difficulty: BigNumber.from(1),
-    });
+    block.getFinalizedBlockNumber.resolves(96);
     const errors = sinon.stub();
     let event: MonitorEvent | undefined;
     monitor.on(MonitorEventType.Error, (error) => {
@@ -317,7 +306,8 @@ describe('Monitor concurrency', () => {
     await monitor.start();
     expect(errors.notCalled).to.equal(true);
     expect(block.send.notCalled).to.equal(true);
-    expect(block.getBlock.calledOnceWithExactly('finalized')).to.equal(true);
+    expect(block.getFinalizedBlockNumber.calledOnce).to.equal(true);
+    expect(block.getBlock.called).to.equal(false);
     expect(adapter.getBridgedSupply.calledOnce).to.equal(true);
     expect(adapter.getBridgedSupply.firstCall.args).to.deep.equal([
       { blockTag: 96 },
