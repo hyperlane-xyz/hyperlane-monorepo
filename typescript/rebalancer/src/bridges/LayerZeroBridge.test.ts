@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
@@ -199,6 +200,18 @@ describe('LayerZeroBridge', () => {
     expect(quote.feeCosts).to.equal(5_000n);
     expect(quote.route.warpRouteId).to.equal('USDT/oft');
     expect(quote.route.sourceAdapter).to.equal(ETH_ADAPTER);
+  });
+
+  it('rejects mixed local decimals before requesting an OFT quote', async () => {
+    const destination = CURRENT_ROUTE.tokens[1];
+    const originalDecimals = destination.decimals;
+    destination.decimals = 18;
+    try {
+      const error = await getRejection(makeBridge().quote(params()));
+      expect(error.message).to.include('requires equal local token decimals');
+    } finally {
+      destination.decimals = originalDecimals;
+    }
   });
 
   it('uses USDT/oft-legacy for Tron paths', async () => {
@@ -469,6 +482,80 @@ describe('LayerZeroBridge settlement', () => {
     expect((await bridge.getStatus(ORIGIN_HASH, 1, 42161)).status).to.equal(
       'pending',
     );
+  });
+
+  it('requires a solid source receipt before completing a Tron inventory movement', async () => {
+    const wallet = ethers.Wallet.createRandom();
+    const bridge = makeBridge();
+    const identity = await captureTransferIdentity(
+      bridge,
+      params({
+        fromChain: 728126428,
+        fromToken: TRON_USDT,
+        fromAddress: wallet.address,
+      }),
+      wallet.privateKey,
+    );
+    const source = receiptWithEvent(
+      SENT,
+      'OFTSent',
+      [GUID, 72161, TRON_ADAPTER, 1_000_000, 996_000],
+      TRON_ADAPTER,
+      ORIGIN_HASH,
+    );
+    const destination = receiptWithEvent(
+      RECEIVED,
+      'OFTReceived',
+      [GUID, 728156428, SIGNER, 996_000],
+      LEGACY_ARB_ADAPTER,
+      DESTINATION_HASH,
+    );
+    Sinon.stub(
+      ethers.providers.StaticJsonRpcProvider.prototype,
+      'getTransactionReceipt',
+    ).callsFake(async (hash) =>
+      (await hash) === ORIGIN_HASH ? source : destination,
+    );
+    Sinon.stub(
+      ethers.providers.StaticJsonRpcProvider.prototype,
+      'getBlockNumber',
+    ).resolves(1000);
+    Sinon.stub(TronJsonRpcProvider.prototype, 'getTransactionReceipt').resolves(
+      source,
+    );
+    const solid = Sinon.stub(
+      TronJsonRpcProvider.prototype,
+      'getFinalizedBlockNumber',
+    ).resolves(99);
+    Sinon.stub(globalThis, 'fetch').callsFake(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: [
+              {
+                ...scanMessage(),
+                pathway: {
+                  srcEid: 728156428,
+                  dstEid: 72161,
+                  sender: { address: TRON_ADAPTER },
+                  receiver: { address: LEGACY_ARB_ADAPTER },
+                },
+              },
+            ],
+          }),
+        ),
+    );
+    expect(
+      (await bridge.getStatus(ORIGIN_HASH, 728126428, 42161, identity)).status,
+    ).to.equal('pending');
+    solid.rejects(new Error('solid head unavailable'));
+    expect(
+      (await bridge.getStatus(ORIGIN_HASH, 728126428, 42161, identity)).status,
+    ).to.equal('pending');
+    solid.resolves(100);
+    expect(
+      (await bridge.getStatus(ORIGIN_HASH, 728126428, 42161, identity)).status,
+    ).to.equal('complete');
   });
 
   it('normalizes Tron base58 tokens and signer before preparation', async () => {
