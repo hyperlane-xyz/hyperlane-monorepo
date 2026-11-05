@@ -71,7 +71,9 @@ describe('SVM submission tracking', () => {
           await signer.sendAndConfirmTransaction(
             { type: ProviderType.SolanaWeb3, transaction: tx },
             {
-              enableBlockhashResubmit: false,
+              enableBlockhashResubmit: lostBroadcastResponse
+                ? false
+                : undefined,
               onSubmissionAttempt: (hash) => {
                 attemptedHash = hash;
               },
@@ -94,6 +96,88 @@ describe('SVM submission tracking', () => {
         }
         expect(send.callCount).to.equal(1);
         expect(height.callCount).to.equal(0);
+      },
+    );
+  }
+
+  for (const explicitResubmit of [false, true]) {
+    it(
+      explicitResubmit
+        ? 'rejects explicit re-signing with observers before signing or broadcasting'
+        : 'checks a landed original signature without re-signing after expiry by default',
+      async () => {
+        const key = Keypair.generate();
+        const connection = new Connection('https://solana.example.invalid');
+        const provider = new MultiProtocolProvider({
+          solanamainnet: {
+            name: 'solanamainnet',
+            protocol: ProtocolType.Sealevel,
+            chainId: 1399811149,
+            domainId: 1399811149,
+            rpcUrls: [{ http: 'https://solana.example.invalid' }],
+          },
+        });
+        provider.setProvider('solanamainnet', {
+          type: ProviderType.SolanaWeb3,
+          provider: connection,
+        });
+        const blockhash = sinon
+          .stub(connection, 'getLatestBlockhash')
+          .resolves({
+            blockhash: Keypair.generate().publicKey.toBase58(),
+            lastValidBlockHeight: 1,
+          });
+        const send = sinon
+          .stub(connection, 'sendRawTransaction')
+          .resolves('original-signature');
+        const height = sinon.stub(connection, 'getBlockHeight').resolves(10000);
+        const status = sinon.stub(connection, 'getSignatureStatus').resolves({
+          context: { slot: 1 },
+          value: {
+            slot: 1,
+            confirmations: null,
+            confirmationStatus: 'finalized',
+            err: null,
+          },
+        });
+        const signer = new SvmMultiProtocolSignerAdapter(
+          'solanamainnet',
+          new KeypairSvmTransactionSigner(key.secretKey),
+          provider,
+          {
+            enableBlockhashResubmit: true,
+            maxConfirmationAttempts: 1,
+            pollingDelayMs: 1,
+          },
+        );
+        const tx = new Transaction().add(
+          SystemProgram.transfer({
+            fromPubkey: key.publicKey,
+            toPubkey: Keypair.generate().publicKey,
+            lamports: 1,
+          }),
+        );
+        const result: unknown = await signer
+          .sendAndConfirmTransaction(
+            { type: ProviderType.SolanaWeb3, transaction: tx },
+            {
+              onSubmitted: () => {},
+              enableBlockhashResubmit: explicitResubmit ? true : undefined,
+            },
+          )
+          .catch((error: unknown) => error);
+        if (explicitResubmit) {
+          expect(result).to.be.instanceOf(TransactionSubmissionError);
+          if (!(result instanceof TransactionSubmissionError)) throw result;
+          expect(result.submissionState).to.equal('not_submitted');
+          expect(blockhash.called).to.equal(false);
+          expect(send.called).to.equal(false);
+        } else {
+          expect(result).to.equal('original-signature');
+          expect(send.callCount).to.equal(1);
+          expect(status.firstCall.args[0]).to.equal('original-signature');
+        }
+        expect(height.called).to.equal(false);
       },
     );
   }

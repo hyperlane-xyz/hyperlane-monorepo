@@ -21,7 +21,6 @@ import {
 } from '@hyperlane-xyz/utils';
 import type { Logger } from 'pino';
 import { type Chain, createWalletClient, http } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
 import { arbitrum, base, mainnet, optimism } from 'viem/chains';
 
 import type {
@@ -236,7 +235,7 @@ export class LiFiBridge implements IExternalBridge {
     const providers: Parameters<typeof lifiConfig.setProviders>[0] = [];
     switch (protocol) {
       case ProtocolType.Ethereum: {
-        const account = privateKeyToAccount(ensure0x(key) as `0x${string}`);
+        const account = submission.evmAccount(ensure0x(key));
         const chain = getViemChain(fromChain, fromRpcUrl);
         const walletClient = createWalletClient({
           account,
@@ -579,10 +578,7 @@ export class LiFiBridge implements IExternalBridge {
         release();
       }
 
-      const txHash = submission.txHash;
-      if (!txHash) {
-        throw new Error('No transaction hash found in executed route');
-      }
+      const txHash = submission.requireSourceHash();
 
       this.logger.info(
         { txHash, quoteId: quote.id },

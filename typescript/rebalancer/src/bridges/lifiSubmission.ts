@@ -1,7 +1,8 @@
 import { KeypairWalletAdapter, type RouteExtended } from '@lifi/sdk';
 import bs58 from 'bs58';
 import { ethers } from 'ethers';
-import { custom, type Transport } from 'viem';
+import { custom, isHex, type Transport } from 'viem';
+import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 
 import {
   TransactionSubmissionError,
@@ -27,6 +28,31 @@ export class LiFiSubmission {
   txHash?: string;
 
   constructor(private readonly options: BridgeExecutionOptions = {}) {}
+
+  /** Only transactions broadcast through our observed transport may authorize a transfer. */
+  evmAccount(key: string): PrivateKeyAccount {
+    assert(isHex(key) && key.length === 66, 'Invalid LiFi EVM private key');
+    const rejectAuthorization = async (): Promise<never> => {
+      throw new Error('LiFi off-chain transfer authorization is unsupported');
+    };
+    return {
+      ...privateKeyToAccount(key),
+      signMessage: rejectAuthorization,
+      signTypedData: rejectAuthorization,
+      signAuthorization: rejectAuthorization,
+    };
+  }
+
+  /** A completed SDK call without an observed identity cannot prove that nothing was sent. */
+  requireSourceHash(): string {
+    if (!this.txHash) {
+      this.state = 'unknown';
+      throw new Error(
+        'No observed source transaction hash in executed LiFi route',
+      );
+    }
+    return this.txHash;
+  }
 
   async run<T>(operation: () => Promise<T>): Promise<T> {
     try {
@@ -84,6 +110,14 @@ export class LiFiSubmission {
         {
           request: async (request) => {
             if (request.method !== 'eth_sendRawTransaction') {
+              assert(
+                !request.method.startsWith('eth_send') &&
+                  !request.method.startsWith('eth_sign') &&
+                  !request.method.startsWith('wallet_send') &&
+                  !request.method.startsWith('wallet_sign') &&
+                  request.method !== 'personal_sign',
+                `LiFi unobserved authorization method is unsupported: ${request.method}`,
+              );
               return base.request(request);
             }
             if (

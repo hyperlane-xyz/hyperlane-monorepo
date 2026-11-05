@@ -205,7 +205,12 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
     options?: SendTransactionOptions,
   ): Promise<string> {
     const submission = new TransactionSubmission(options);
+    const observed = !!(options?.onSubmissionAttempt || options?.onSubmitted);
     const execute = async () => {
+      assert(
+        !observed || options?.enableBlockhashResubmit !== true,
+        'Observed Solana submissions cannot re-sign with a new blockhash',
+      );
       // Get initial blockhash
       const { blockhash, lastValidBlockHeight } =
         await this.svmProvider.getLatestBlockhash(this.config.commitment);
@@ -255,7 +260,7 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
         signedTx,
         lastValidBlockHeight,
         extraSigners,
-        options?.enableBlockhashResubmit,
+        observed ? false : options?.enableBlockhashResubmit,
       );
 
       return result;
