@@ -5,7 +5,7 @@ use std::{sync::Arc, time::Duration};
 use hyperlane_base::{ChainMetrics, ContractSyncMetrics};
 use hyperlane_core::{HyperlaneDomain, ReorgPeriod};
 use tokio::{
-    sync::{mpsc, Mutex, Notify},
+    sync::{mpsc, watch, Mutex, Notify},
     time::{interval, sleep, Instant, Interval, MissedTickBehavior},
 };
 use tracing::{debug, warn};
@@ -25,6 +25,7 @@ pub(super) struct Worker {
     pub poll_interval: Duration,
     pub wakeup: Notify,
     pub heads: Mutex<mpsc::Receiver<Header>>,
+    pub polled_head: watch::Sender<u64>,
     pub critical_failure_grace: Duration,
     pub chain_metrics: ChainMetrics,
     pub sync_metrics: Arc<ContractSyncMetrics>,
@@ -144,6 +145,8 @@ impl Worker {
                 return Err(error);
             }
         };
+        // Reuse this observation to detect stalled WebSocket delivery; no probe RPC.
+        self.polled_head.send_replace(observed.head);
         // Ingest before publication so newly indexed events do not wait for the
         // next poll. Keep the result so existing work can still publish when
         // the log query fails.

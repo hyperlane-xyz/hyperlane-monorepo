@@ -254,6 +254,7 @@ async fn worker(db: DatabaseConnection, source: Arc<Chain>) -> Result<Arc<Worker
         poll_interval: Duration::from_millis(20),
         wakeup: Notify::new(),
         heads: tokio::sync::Mutex::new(mpsc::channel(256).1),
+        polled_head: watch::channel(0).0,
         critical_failure_grace: Duration::from_millis(60),
         chain_metrics: ChainMetrics::new(&metrics)?,
         sync_metrics: Arc::new(ContractSyncMetrics::new(&metrics)),
@@ -1118,6 +1119,7 @@ async fn headers_mature_events_without_any_source_calls() -> Result<()> {
     };
     let mut cache = CountCache::default();
     worker.cycle(&mut cache).await?;
+    assert_eq!(*worker.polled_head.borrow(), 1);
     chain.forbid_calls.store(true, Ordering::SeqCst);
     let mut tip = None;
     for height in [2, 3] {
@@ -1138,6 +1140,7 @@ async fn headers_mature_events_without_any_source_calls() -> Result<()> {
         .header_cycle(&streamed_header(3), &mut tip, &cache)
         .await?;
     assert_eq!(chain.event_reads.load(Ordering::SeqCst), 1);
+    assert_eq!(*worker.polled_head.borrow(), 1);
     Ok(())
 }
 

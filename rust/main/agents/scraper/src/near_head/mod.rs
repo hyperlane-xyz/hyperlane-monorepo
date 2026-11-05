@@ -16,7 +16,7 @@ use hyperlane_base::{
 use hyperlane_core::{ContractLocator, HyperlaneDomainProtocol, ReorgPeriod};
 use redact::Secret;
 use tokio::{
-    sync::{mpsc, Mutex, Notify},
+    sync::{mpsc, watch, Mutex, Notify},
     task::JoinHandle,
 };
 use url::Url;
@@ -135,6 +135,7 @@ pub async fn spawn(
     )
     .await?;
     let (head_tx, head_rx) = mpsc::channel(256);
+    let (polled_head_tx, polled_head_rx) = watch::channel(0);
     let worker = runtime::Worker {
         source,
         store,
@@ -144,6 +145,7 @@ pub async fn spawn(
         poll_interval,
         wakeup: Notify::new(),
         heads: Mutex::new(head_rx),
+        polled_head: polled_head_tx,
         critical_failure_grace: CRITICAL_FAILURE_GRACE,
         chain_metrics,
         sync_metrics,
@@ -156,6 +158,7 @@ pub async fn spawn(
                 filter,
                 &worker.wakeup,
                 &head_tx,
+                polled_head_rx,
                 worker.domain.id(),
             ),
             enrichment::run(&enrichment_store, receipt_poll_interval, &receipt_age)

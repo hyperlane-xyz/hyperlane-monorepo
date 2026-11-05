@@ -93,8 +93,11 @@ history using stored checkpoints and existing completeness proofs. This path mak
 no RPC requests. Parent hashes must link back to the indexed hash; gaps, forks, or
 a full 256-header buffer wait for ordinary polling/log wake-ups to reconcile.
 The fixed polling schedule and RPC-error backoff remain unchanged. Both
-subscriptions reconnect together. Safe/finalized tags still require polling;
-latest headers accelerate numeric confirmation periods only.
+subscriptions reconnect together. If HTTP polling observes a newer head and the
+subscription makes no header progress for 30 seconds, the connection is restarted.
+This uses existing poll results without probe RPCs; a chain with no new blocks does
+not trigger reconnects. Safe/finalized tags still require polling; latest headers
+accelerate numeric confirmation periods only.
 
 PostgreSQL head notifications already wake the proxy's custom confirmation streams.
 Each subscriber's frontier is `min(indexed height, head height - confirmations)`;
