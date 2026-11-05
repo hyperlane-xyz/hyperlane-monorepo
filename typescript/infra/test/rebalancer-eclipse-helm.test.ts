@@ -1,15 +1,21 @@
 import { expect } from 'chai';
 import { execFileSync } from 'child_process';
+import fs from 'fs';
 import path from 'path';
+import Sinon from 'sinon';
 import { parse, parseAllDocuments, stringify } from 'yaml';
+
+import { GithubRegistry } from '@hyperlane-xyz/registry';
+import { WarpCoreConfigSchema } from '@hyperlane-xyz/sdk';
 
 import { DockerImageRepos } from '../config/docker.js';
 import { readRebalancerConfig } from '../src/rebalancer/config.js';
-import { buildRebalancerHelmValues } from '../src/rebalancer/helm.js';
+import { RebalancerHelmManager } from '../src/rebalancer/helm.js';
 import { getInfraPath } from '../src/utils/utils.js';
 
 describe('USDT Eclipse production manifest', () => {
-  it('renders its actual config with all three signers and its dedicated provider key', () => {
+  afterEach(() => Sinon.restore());
+  it('renders its actual config with all three signers and its dedicated provider key', async () => {
     const loaded = readRebalancerConfig(
       path.join(
         getInfraPath(),
@@ -19,22 +25,42 @@ describe('USDT Eclipse production manifest', () => {
     const registryCommit = loaded.deployment.registryCommit;
     expect(registryCommit).to.equal('182e1be0c2df41b6e423b4934390daff1b6a72f9');
     if (!registryCommit) throw new Error('Missing Eclipse registry pin');
-    const chains = [
-      'arbitrum',
-      'bsc',
-      'ethereum',
-      'solanamainnet',
-      'tron',
-      'eclipsemainnet',
-    ];
-    const values = buildRebalancerHelmValues(loaded, {
-      warpRouteId: 'USDT/eclipsemainnet',
-      environment: 'mainnet3',
+    expect(loaded.deployment.monitorOnly).to.equal(true);
+    const warpCore = WarpCoreConfigSchema.parse(
+      parse(
+        fs.readFileSync(
+          path.join(
+            getInfraPath(),
+            'test/fixtures/rebalancer/USDT-eclipsemainnet-warp-core.yaml',
+          ),
+          'utf8',
+        ),
+      ),
+    );
+    const getWarpRoute = Sinon.stub(
+      GithubRegistry.prototype,
+      'getWarpRoute',
+    ).resolves(warpCore);
+    const manager = new RebalancerHelmManager(
+      'USDT/eclipsemainnet',
+      'mainnet3',
       registryCommit,
-      chains,
-      withMetrics: true,
-      monitorOnly: true,
-    });
+      '',
+      '',
+      true,
+      false,
+    );
+    await manager.runPreflightChecks(
+      'config/environments/mainnet3/rebalancer/USDT/eclipsemainnet-config.yaml',
+    );
+    const values = await manager.helmValues();
+    expect(getWarpRoute.calledOnceWithExactly('USDT/eclipsemainnet')).to.equal(
+      true,
+    );
+    expect(getWarpRoute.firstCall.thisValue.branch).to.equal(registryCommit);
+    expect(values.hyperlane.chains).to.deep.equal(
+      warpCore.tokens.map((token) => token.chainName),
+    );
     const rendered = execFileSync(
       'helm',
       [
@@ -51,6 +77,12 @@ describe('USDT Eclipse production manifest', () => {
       return doc.toJSON();
     });
     const secret = documents.find((d) => d.kind === 'ExternalSecret');
+    for (const token of warpCore.tokens) {
+      expect(secret.spec.target.template.data).to.have.property(
+        `RPC_URL_${token.chainName.toUpperCase()}`,
+      );
+    }
+    expect(values.hyperlane.chains).to.include('plasma');
     const keys = secret.spec.target.template.data;
     for (const protocol of ['ETHEREUM', 'SEALEVEL', 'TRON'])
       expect(keys).to.have.property(`HYP_INVENTORY_KEY_${protocol}`);
@@ -137,7 +169,7 @@ describe('USDT Eclipse production manifest', () => {
     ]) {
       const route = runtime.strategy.chains[origin].override[destination];
       expect(route.executionType).to.equal('movableCollateral');
-      expect(route.statusAdapter.destinationRecipient).to.equal('*');
+      expect(route.statusAdapter).not.to.have.property('destinationRecipient');
     }
   });
 });
