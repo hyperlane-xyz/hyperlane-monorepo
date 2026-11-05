@@ -2,6 +2,7 @@ import type { Logger } from 'pino';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { MultiProtocolCore } from '@hyperlane-xyz/sdk';
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 import type { Address, Domain } from '@hyperlane-xyz/utils';
 import {
   ProtocolType,
@@ -908,11 +909,23 @@ export class ActionTracker implements IActionTracker {
     if (!receipt || (receipt.status !== 0 && receipt.status !== 1))
       return SourceTransactionOutcome.Pending;
     const blocks = mp.getChainMetadata(origin).blocks;
-    const finality = blocks?.reorgPeriod ?? blocks?.confirmations ?? 1;
-    if (typeof finality === 'number') {
-      if (!(receipt.confirmations >= Math.max(finality, 1)))
+    // Match the monitor's conservative default when no reorg policy is configured.
+    const finality = blocks?.reorgPeriod ?? 32;
+    const minimumConfirmations = Math.max(
+      blocks?.confirmations ?? 1,
+      typeof finality === 'number' ? finality : 1,
+      1,
+    );
+    if (!(receipt.confirmations >= minimumConfirmations))
+      return SourceTransactionOutcome.Pending;
+    if (protocol === ProtocolType.Tron) {
+      assert(
+        provider instanceof TronJsonRpcProvider,
+        'Tron reconciliation requires a finalized-block provider',
+      );
+      if (receipt.blockNumber > (await provider.getFinalizedBlockNumber()))
         return SourceTransactionOutcome.Pending;
-    } else {
+    } else if (typeof finality === 'string') {
       const confirmedBlock = await provider.getBlock(finality);
       if (!confirmedBlock || receipt.blockNumber > confirmedBlock.number)
         return SourceTransactionOutcome.Pending;

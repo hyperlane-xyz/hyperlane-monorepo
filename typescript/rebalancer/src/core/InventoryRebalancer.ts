@@ -29,7 +29,6 @@ import {
 
 import type { ExternalBridgeType } from '../config/types.js';
 import { Erc20ApprovalError } from '../bridges/erc20Approve.js';
-import { trackActionSubmission } from '../tracking/submission.js';
 import type {
   ExternalBridgeRegistry,
   IExternalBridge,
