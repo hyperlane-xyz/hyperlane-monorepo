@@ -102,7 +102,7 @@ export interface MultiProviderOptions {
 }
 
 export interface SendTransactionOptions extends TransactionSubmissionOptions {
-  /** Re-signing with a new blockhash is unsafe while an earlier send is ambiguous. */
+  /** Disabled for observed submissions; explicitly enabling it with observers is rejected. */
   enableBlockhashResubmit?: boolean;
   /**
    * Number of confirmations to wait for, or a block tag like "finalized" or "safe".

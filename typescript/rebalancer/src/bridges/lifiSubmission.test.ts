@@ -28,6 +28,81 @@ const signed = (overrides: ethers.providers.TransactionRequest = {}) =>
   });
 
 describe('LiFi submission boundaries', () => {
+  it('rejects relayed typed data and message authorizations before exposing a signature', async () => {
+    const submission = new LiFiSubmission();
+    const account = submission.evmAccount(wallet.privateKey);
+    // The SDK may introduce typed data when it refreshes an initially ordinary quote.
+    for (const authorize of [
+      () =>
+        account.signTypedData({
+          domain: { chainId: 1 },
+          types: { Transfer: [{ name: 'amount', type: 'uint256' }] },
+          primaryType: 'Transfer',
+          message: { amount: 1n },
+        }),
+      () => account.signMessage({ message: 'authorize transfer' }),
+      () =>
+        account.signAuthorization({ address: spender, chainId: 1, nonce: 0 }),
+    ]) {
+      const error: unknown = await submission
+        .run<unknown>(authorize)
+        .catch((error: unknown) => error);
+      assert(
+        error instanceof TransactionSubmissionError,
+        'Expected submission error',
+      );
+      expect(error.submissionState).to.equal('not_submitted');
+      expect(error.message).to.contain('off-chain transfer authorization');
+    }
+    expect(submission.txHash).to.equal(undefined);
+  });
+
+  it('rejects alternate wallet sends before forwarding them to the transport', async () => {
+    const submission = new LiFiSubmission();
+    let forwarded = 0;
+    const transport = submission.evmTransport(
+      custom({
+        request: async () => {
+          forwarded++;
+        },
+      }),
+      1,
+      token,
+      spender,
+      100n,
+    )({});
+    for (const method of [
+      'wallet_sendCalls',
+      'eth_sendTransaction',
+      'eth_sendUserOperation',
+      'eth_signTypedData_v4',
+      'personal_sign',
+    ]) {
+      const error: unknown = await submission
+        .run(() => transport.request({ method, params: [] }))
+        .catch((error: unknown) => error);
+      assert(
+        error instanceof TransactionSubmissionError,
+        'Expected submission error',
+      );
+      expect(error.submissionState).to.equal('not_submitted');
+    }
+    expect(forwarded).to.equal(0);
+  });
+
+  it('reserves a completed SDK route without an observed source hash', async () => {
+    const submission = new LiFiSubmission();
+    const error: unknown = await submission
+      .run(async () => submission.requireSourceHash())
+      .catch((error: unknown) => error);
+    assert(
+      error instanceof TransactionSubmissionError,
+      'Expected submission error',
+    );
+    expect(error.submissionState).to.equal('unknown');
+    expect(error.txHash).to.equal(undefined);
+  });
+
   it('sequences reset, exact approval and source only after matching approval completion', async () => {
     const submission = new LiFiSubmission();
     let sends = 0;
