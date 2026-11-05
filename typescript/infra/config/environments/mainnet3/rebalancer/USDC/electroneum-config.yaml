@@ -9,7 +9,7 @@ strategy:
         tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
       bridgeMinAcceptedAmount: 1000
-      bridge: '0x0E8Bc62865F539889fe7d8537F2ed6db5aa0F677'
+      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
 
     base:
       weighted:
@@ -17,7 +17,7 @@ strategy:
         tolerance: 5
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 1000
-      bridge: '0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975'
+      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
 
     ethereum:
       weighted:
@@ -25,4 +25,4 @@ strategy:
         tolerance: 7
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 1000
-      bridge: '0xedCBAa585FD0F80f20073F9958246476466205b8'
+      bridge: '0x8c8D831E1e879604b4B304a2c951B8AEe3aB3a23'

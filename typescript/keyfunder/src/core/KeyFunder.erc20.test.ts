@@ -71,6 +71,7 @@ describe('KeyFunder ERC20 gas tokens', () => {
     signer.getAddress.resolves(funder);
     signer.getBalance.rejects(new Error('Must read token balance'));
     const multiProvider = sinon.createStubInstance(MultiProvider);
+    multiProvider.getChainMetadata.returns({});
     multiProvider.getProvider.returns(provider);
     multiProvider.getSigner.returns(signer);
     multiProvider.getSignerAddress.resolves(funder);
