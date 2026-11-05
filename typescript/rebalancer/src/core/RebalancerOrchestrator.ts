@@ -251,7 +251,13 @@ export class RebalancerOrchestrator {
     rebalancer: IRebalancer,
     event: MonitorEvent,
   ): Promise<ExecutionResult[]> {
-    if (rebalancer.rebalancerType === 'inventory' && event.inventoryBalances) {
+    if (rebalancer.rebalancerType === 'inventory') {
+      if (!event.inventoryBalances) {
+        this.logger.warn(
+          'Inventory execution skipped because this cycle has no inventory balance snapshot',
+        );
+        return [];
+      }
       (rebalancer as InventoryRebalancer).setInventoryBalances(
         event.inventoryBalances,
       );

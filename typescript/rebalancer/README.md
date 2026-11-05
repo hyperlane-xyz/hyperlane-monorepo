@@ -98,6 +98,10 @@ Source actions are recorded in memory before broadcast. This prevents an
 uncertain send from being retried while the process remains running. A restart
 clears this state; no action or intent state is written to disk.
 
+Finalized source execution failures can be retried automatically. Unknown outcomes
+remain reserved; follow the [reserved-action recovery runbook](docs/recover-reserved-actions.md)
+before retrying or restarting an affected instance.
+
 ### Basic Example (Single Strategy)
 
 ```yaml
