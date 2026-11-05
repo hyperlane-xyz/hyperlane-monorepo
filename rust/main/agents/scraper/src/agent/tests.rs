@@ -106,6 +106,7 @@ fn generate_test_scraper_settings() -> ScraperSettings {
         db_acquire_timeout: Duration::from_secs(15),
         chains_to_scrape: vec![],
         ccr_routers: HashMap::new(),
+        websocket_urls: HashMap::new().into(),
     }
 }
 

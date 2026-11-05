@@ -451,6 +451,8 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
     const values = await super.helmValues();
     values.hyperlane.scraper = {
       enabled: true,
+      websocketConfigSecret:
+        this.config.rawConfig.scraper?.websocketConfigSecret,
       config: await this.config.buildConfig(),
       resources: this.kubernetesResources(),
     };

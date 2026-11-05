@@ -38,6 +38,10 @@ Start reading at `main.rs` → `agent.rs` → `near_head::spawn`. The worker's
 Events are first stored near head, then published through confirmed views after
 `reorgPeriod` and completeness checks. Reorgs can rewind the provisional suffix;
 conflicts with confirmed history halt the chain. Receipt enrichment runs independently.
+Core indexing polls every 10 seconds by default (`index.interval` overrides it).
+Optional `websocketUrls` by EVM chain name wake indexing on core events while HTTP
+polling remains the fallback; see [configuration](../../../../docs/scraper/near-head.md#optional-evm-websocket-wake-ups).
+
 Dispatch reconciliation discovers confirmed rows every 5 seconds and periodically
 sweeps older rows to recover from commit-order races and delayed message bodies.
 

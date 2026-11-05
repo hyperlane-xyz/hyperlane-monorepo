@@ -25,6 +25,7 @@ use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, H160};
 use redact::Secret;
 use serde::Deserialize;
 use serde_json::Value;
+use url::Url;
 
 /// Settings for `Scraper`
 #[derive(Debug, AsRef, AsMut, Deref, DerefMut)]
@@ -35,6 +36,8 @@ pub struct ScraperSettings {
     #[deref_mut]
     pub base: Settings,
 
+    /// Optional EVM log subscription endpoints, keyed by chain name.
+    pub websocket_urls: Secret<HashMap<String, Url>>,
     pub db: Secret<String>,
     pub db_max_connections: u32,
     pub db_acquire_timeout: Duration,
@@ -112,6 +115,30 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
             Default::default()
         };
 
+        let websocket_urls = p
+            .chain(&mut err)
+            .get_opt_key("websocketUrls")
+            .parse_value::<HashMap<String, Url>>("parsing websocketUrls")
+            .end()
+            .unwrap_or_default();
+        for (chain, url) in &websocket_urls {
+            if !matches!(url.scheme(), "ws" | "wss") {
+                err.push(
+                    cwp.add("websocket_urls"),
+                    eyre::eyre!("WebSocket URL for {chain} must use ws:// or wss://"),
+                );
+            }
+            if !chains_to_scrape.iter().any(|domain| {
+                domain.name() == chain
+                    && domain.domain_protocol() == hyperlane_core::HyperlaneDomainProtocol::Ethereum
+            }) {
+                err.push(
+                    cwp.add("websocket_urls"),
+                    eyre::eyre!("WebSocket chain {chain} must be an EVM chain in chainsToScrape"),
+                );
+            }
+        }
+
         // Parse optional ccrRouters: { "domainId": { "routerAddr": "tokenAddr" } }
         let raw_ccr_routers = p
             .chain(&mut err)
@@ -164,6 +191,58 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
             db_acquire_timeout,
             chains_to_scrape,
             ccr_routers,
+            websocket_urls: Secret::new(websocket_urls),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn parse(websocket_urls: Value) -> ConfigResult<ScraperSettings> {
+        let raw = json!({
+            "db": "postgresql://localhost/scraper",
+            "chainstoscrape": "base",
+            "websocketurls": websocket_urls,
+            "chains": {"base": {
+                "name": "base", "domainid": 8453, "chainid": 8453,
+                "protocol": "ethereum",
+                "rpcurls": [{"http": "https://base.example"}],
+                "mailbox": "0x0000000000000000000000000000000000000001",
+                "interchaingaspaymaster": "0x0000000000000000000000000000000000000002",
+                "validatorannounce": "0x0000000000000000000000000000000000000003",
+                "merkletreehook": "0x0000000000000000000000000000000000000004"
+            }}
+        });
+        ScraperSettings::from_config_filtered(
+            RawScraperSettings(raw.into()),
+            &ConfigPath::default(),
+            (),
+            "scraper",
+        )
+    }
+
+    #[test]
+    fn websocket_urls_accept_optional_evm_endpoints() {
+        assert!(parse(json!({}))
+            .expect("valid polling-only config")
+            .websocket_urls
+            .expose_secret()
+            .is_empty());
+        let settings = parse(json!({"base": "wss://base.example/v2/test-key"}))
+            .expect("valid WebSocket config");
+        assert_eq!(
+            settings.websocket_urls.expose_secret()["base"].scheme(),
+            "wss"
+        );
+        assert!(!format!("{settings:?}").contains("test-key"));
+    }
+
+    #[test]
+    fn websocket_urls_reject_wrong_scheme_and_unconfigured_chain() {
+        assert!(parse(json!({"base": "https://base.example"})).is_err());
+        assert!(parse(json!({"unknown": "wss://base.example"})).is_err());
     }
 }

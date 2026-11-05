@@ -948,6 +948,7 @@ const hyperlane: RootAgentConfig = {
     chainResourceOverrides: validatorChainResourceOverrides,
   },
   scraper: {
+    websocketConfigSecret: 'hyperlane-mainnet3-scraper3-websocket-config',
     scraperOnlyChains,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,

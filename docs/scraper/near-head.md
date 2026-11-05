@@ -40,6 +40,57 @@ automatically initialized domain is still empty after RPC preflight. Restarts
 load the saved boundary and resume indexed progress; they do not select a new
 boundary from stored maxima. Contract changes are rejected.
 
+## Optional EVM WebSocket wake-ups
+
+Production uses one GCP Secret Manager secret per scraper deployment. Mainnet3:
+
+- Project: `abacus-labs-dev`
+- Secret: `hyperlane-mainnet3-scraper3-websocket-config`
+- Value: the complete JSON below (only include EVM chains in `chainsToScrape`).
+
+```json
+{
+  "websocketUrls": {
+    "base": "wss://base-mainnet.g.alchemy.com/v2/YOUR_KEY",
+    "arbitrum": "wss://arb-mainnet.g.alchemy.com/v2/YOUR_KEY"
+  }
+}
+```
+
+`websocketConfigSecret` in the infrastructure scraper config references that secret.
+External Secrets copies it into a Kubernetes Secret; the scraper mounts it read-only
+at `/scraper-websocket/websocket-config.json` and loads it through `CONFIG_FILES`.
+The scraper never queries Secret Manager. The map keys select the subscriptions;
+there is no separate enabled-chain list. URLs never enter Helm values or ConfigMaps.
+
+Create the secret before deploying this configuration: a missing configured secret
+prevents the pod from starting. Use `{"websocketUrls": {}}` for polling only, or omit
+`websocketConfigSecret` to deploy without a WebSocket secret. External Secrets refreshes
+hourly; restart the scraper after a secret update has synced because configuration
+is read only at startup. Existing chain confirmation settings still apply.
+
+For local use, load the same JSON via `CONFIG_FILES`, or set an individual URL with
+`HYP_WEBSOCKETURLS_BASE=wss://base-mainnet.g.alchemy.com/v2/YOUR_KEY`.
+
+Each configured EVM chain uses one `logs` subscription for `Dispatch`, `ProcessId`,
+`InsertedIntoTree`, and `GasPayment` at its configured Mailbox, MerkleTreeHook, and
+InterchainGasPaymaster addresses. Notifications (including removed logs) wake the
+existing HTTP indexing worker; payloads never bypass range validation or advance
+progress. Bursts coalesce into one pending wake-up. RPC-error waits remain intact.
+
+The scraper polls on a fixed 10-second schedule by default, including when the
+socket is down or the HTTP provider has not yet caught up to a notification.
+WebSocket wake-ups trigger additional fetches without resetting that schedule.
+Each chain runs one fetch cycle at a time; slow cycles skip missed timer ticks
+instead of queuing a burst of polls. RPC failures retain their retry delay.
+`index.interval` overrides the default polling period. Connections retry every
+10 seconds; a successful subscription also wakes catch-up. No URL means polling only. Subscription tasks stop with their
+chain worker. Other agents' default polling intervals are unchanged.
+
+Log notifications do not accelerate confirmation through subsequent empty blocks;
+confirmation still runs on the polling timer or the next event. Dispatch reconciliation
+and receipt enrichment retain their separate five-second defaults.
+
 ## Behavior
 
 - EVM uses one combined RPC log query for all four event types. Other protocols
@@ -82,7 +133,7 @@ boundary from stored maxima. Contract changes are rejected.
   Generic adapters preserve provider transaction and log positions. The
   provisional database key includes both positions and the event identity so
   protocols without a globally unique log index remain collision-safe.
-- Polling uses `index.interval`, defaulting to 5 seconds on every protocol.
+- Polling uses `index.interval`, defaulting to 10 seconds on every protocol for the scraper.
   An unchanged EVM head costs one RPC call and no log query. Generic adapters
   read chain metrics and then the latest block header, so an unchanged non-EVM
   head normally costs two provider calls. Catch-up ranges run

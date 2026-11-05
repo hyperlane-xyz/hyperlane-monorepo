@@ -4,7 +4,10 @@ use std::{sync::Arc, time::Duration};
 
 use hyperlane_base::{ChainMetrics, ContractSyncMetrics};
 use hyperlane_core::{HyperlaneDomain, ReorgPeriod};
-use tokio::time::{sleep, Instant};
+use tokio::{
+    sync::Notify,
+    time::{interval, sleep, Instant, Interval, MissedTickBehavior},
+};
 use tracing::{debug, warn};
 
 use super::{
@@ -20,6 +23,7 @@ pub(super) struct Worker {
     pub period: ReorgPeriod,
     pub chunk_size: u64,
     pub poll_interval: Duration,
+    pub wakeup: Notify,
     pub critical_failure_grace: Duration,
     pub chain_metrics: ChainMetrics,
     pub sync_metrics: Arc<ContractSyncMetrics>,
@@ -71,13 +75,22 @@ impl Worker {
             .wrapping_mul(0x9E37_79B9_7F4A_7C15)
             .checked_rem(stagger_period)
             .unwrap_or_default();
-        sleep(Duration::from_millis(stagger)).await;
+        tokio::select! {
+            _ = sleep(Duration::from_millis(stagger)) => {},
+            _ = self.wakeup.notified() => {},
+        }
         self.run_cycles().await
     }
 
     async fn run_cycles(&self) {
         let mut count_cache = CountCache::default();
         let mut failures = FailureStreak::default();
+        let mut polling = interval(self.poll_interval);
+        // The first cycle below already runs immediately.
+        polling.reset();
+        // Event wake-ups and fetch duration must not reset the polling cadence.
+        // A slow cycle needs one catch-up poll, not a burst of missed ticks.
+        polling.set_missed_tick_behavior(MissedTickBehavior::Skip);
         loop {
             let result = self.cycle(&mut count_cache).await;
             let failed = result
@@ -95,7 +108,9 @@ impl Worker {
                     "Near-head indexing paused; retrying"
                 ),
             }
-            sleep(failures.retry_delay(self.poll_interval, self.critical_failure_grace)).await;
+            let retry_delay = failed
+                .then(|| failures.retry_delay(self.poll_interval, self.critical_failure_grace));
+            wait_for_work(&self.wakeup, &mut polling, retry_delay).await;
         }
     }
 
@@ -347,6 +362,18 @@ impl Worker {
             more: more_ingestion,
             ingestion_failed: false,
         })
+    }
+}
+
+// Only interrupt healthy idle waits: incoming logs must not bypass RPC-error backoff.
+async fn wait_for_work(wakeup: &Notify, polling: &mut Interval, retry_delay: Option<Duration>) {
+    if let Some(delay) = retry_delay {
+        sleep(delay).await;
+    } else {
+        tokio::select! {
+            _ = polling.tick() => {},
+            _ = wakeup.notified() => {},
+        }
     }
 }
 

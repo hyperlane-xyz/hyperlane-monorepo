@@ -19,6 +19,9 @@ spec:
         checksum/configmap: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/external-secret: {{ include (print $.Template.BasePath "/external-secret.yaml") . | sha256sum }}
         checksum/scraper-external-secret: {{ include (print $.Template.BasePath "/scraper-external-secret.yaml") . | sha256sum }}
+        {{- if .Values.hyperlane.scraper.websocketConfigSecret }}
+        checksum/websocket-config-secret: {{ .Values.hyperlane.scraper.websocketConfigSecret | sha256sum }}
+        {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -57,12 +60,28 @@ spec:
         - secretRef:
             name: {{ include "agent-common.fullname" . }}-scraper3-secret
         env:
+        {{- if .Values.hyperlane.scraper.websocketConfigSecret }}
+        - name: CONFIG_FILES
+          value: /scraper-websocket/websocket-config.json
+        {{- end }}
         {{- include "agent-common.config-env-vars" (dict "config" .Values.hyperlane.scraper.config) | nindent 8 }}
+        {{- if .Values.hyperlane.scraper.websocketConfigSecret }}
+        volumeMounts:
+        - name: websocket-config
+          mountPath: /scraper-websocket
+          readOnly: true
+        {{- end }}
         resources:
           {{- toYaml .Values.hyperlane.scraper.resources | nindent 10 }}
         ports:
         - name: metrics
           containerPort: {{ .Values.hyperlane.metrics.port }}
+      {{- if .Values.hyperlane.scraper.websocketConfigSecret }}
+      volumes:
+      - name: websocket-config
+        secret:
+          secretName: {{ include "agent-common.fullname" . }}-scraper3-websocket
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

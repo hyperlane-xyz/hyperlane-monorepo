@@ -14,6 +14,8 @@ import { AgentConfigHelper, RootAgentConfig } from './agent.js';
 
 export interface BaseScraperConfig {
   scraperOnlyChains?: ChainMap<boolean>;
+  /** Secret Manager JSON config loaded through CONFIG_FILES; URLs stay out of Helm values. */
+  websocketConfigSecret?: string;
 }
 
 // Ignore db which is added by helm
@@ -21,6 +23,7 @@ export type ScraperConfig = Omit<ScraperAgentConfig, keyof AgentConfig | 'db'>;
 
 export interface HelmScraperValues extends HelmStatefulSetValues {
   config?: ScraperConfig;
+  websocketConfigSecret?: string;
 }
 
 /**

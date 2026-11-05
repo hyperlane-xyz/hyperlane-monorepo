@@ -10180,6 +10180,7 @@ dependencies = [
  "testcontainers-modules",
  "time",
  "tokio",
+ "tokio-tungstenite 0.30.0",
  "tracing",
  "tracing-test",
  "url",

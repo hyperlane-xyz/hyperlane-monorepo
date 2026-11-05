@@ -12,6 +12,7 @@ use migration::MigratorTrait;
 use sea_orm::{Database, DatabaseConnection};
 use testcontainers::{runners::AsyncRunner, ImageExt};
 use testcontainers_modules::postgres::Postgres;
+use tokio::time::interval_at;
 
 use super::*;
 use crate::near_head::{
@@ -211,6 +212,7 @@ async fn worker(db: DatabaseConnection, source: Arc<Chain>) -> Result<Arc<Worker
         period: ReorgPeriod::Tag("finalized".into()),
         chunk_size: 20_000,
         poll_interval: Duration::from_millis(20),
+        wakeup: Notify::new(),
         critical_failure_grace: Duration::from_millis(60),
         chain_metrics: ChainMetrics::new(&metrics)?,
         sync_metrics: Arc::new(ContractSyncMetrics::new(&metrics)),
@@ -972,4 +974,58 @@ async fn reproof_replays_an_incomplete_suffix_without_a_new_block() -> Result<()
     assert_eq!((state.indexed, state.confirmed), (2, 2));
     assert_eq!(worker.store.sequence_counts().await?[0], 1);
     Ok(())
+}
+
+#[tokio::test(start_paused = true)]
+async fn wakeup_adds_fetches_without_postponing_scheduled_polls() {
+    let wakeup = Notify::new();
+    let period = Duration::from_secs(10);
+    let start = Instant::now();
+    let mut polling = interval_at(start + period, period);
+    polling.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    for seconds in [3, 8] {
+        tokio::join!(wait_for_work(&wakeup, &mut polling, None), async {
+            tokio::time::sleep_until(start + Duration::from_secs(seconds)).await;
+            wakeup.notify_one();
+        });
+        assert_eq!(start.elapsed(), Duration::from_secs(seconds));
+    }
+    wait_for_work(&wakeup, &mut polling, None).await;
+    assert_eq!(start.elapsed(), period); // Poll at t=10, not t=18.
+
+    // Several events during a cycle leave exactly one pending wake-up.
+    for _ in 0..10 {
+        wakeup.notify_one();
+    }
+    wait_for_work(&wakeup, &mut polling, None).await;
+    assert_eq!(start.elapsed(), period);
+    // Fetch duration also does not postpone the next scheduled poll.
+    sleep(Duration::from_secs(2)).await;
+    wait_for_work(&wakeup, &mut polling, None).await;
+    assert_eq!(start.elapsed(), Duration::from_secs(20));
+}
+
+#[tokio::test(start_paused = true)]
+async fn wakeup_preserves_rpc_failure_backoff() {
+    let wakeup = Notify::new();
+    wakeup.notify_one();
+    let delay = Duration::from_secs(10);
+    let start = Instant::now();
+    let mut polling = interval_at(start, delay); // A due poll cannot bypass backoff either.
+    wait_for_work(&wakeup, &mut polling, Some(delay)).await;
+    assert_eq!(start.elapsed(), delay);
+}
+
+#[tokio::test(start_paused = true)]
+async fn slow_fetch_skips_missed_polls_without_resetting_cadence() {
+    let wakeup = Notify::new();
+    let period = Duration::from_secs(10);
+    let start = Instant::now();
+    let mut polling = interval_at(start + period, period);
+    polling.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    sleep(Duration::from_secs(35)).await;
+    wait_for_work(&wakeup, &mut polling, None).await;
+    assert_eq!(start.elapsed(), Duration::from_secs(35));
+    wait_for_work(&wakeup, &mut polling, None).await;
+    assert_eq!(start.elapsed(), Duration::from_secs(40));
 }

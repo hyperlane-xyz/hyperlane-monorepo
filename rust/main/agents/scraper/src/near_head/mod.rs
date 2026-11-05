@@ -4,6 +4,7 @@ mod pipeline;
 mod runtime;
 mod source;
 mod store;
+mod websocket;
 
 use std::{sync::Arc, time::Duration};
 
@@ -13,7 +14,9 @@ use hyperlane_base::{
     ChainMetrics, ContractSyncMetrics, CoreMetrics,
 };
 use hyperlane_core::{ContractLocator, HyperlaneDomainProtocol, ReorgPeriod};
-use tokio::task::JoinHandle;
+use redact::Secret;
+use tokio::{sync::Notify, task::JoinHandle};
+use url::Url;
 
 use crate::store::HyperlaneDbStore;
 use pipeline::tag_selector;
@@ -47,6 +50,7 @@ pub async fn confirmed_height(db: &crate::db::ScraperDb, domain: u32) -> Result<
 /// Start the chain’s indexing and independent receipt-enrichment workers.
 pub async fn spawn(
     conf: &ChainConf,
+    websocket_url: Option<Secret<Url>>,
     enrichment_store: HyperlaneDbStore,
     metrics: Arc<CoreMetrics>,
     chain_metrics: ChainMetrics,
@@ -58,6 +62,12 @@ pub async fn spawn(
         hook: conf.addresses.merkle_tree_hook,
         paymaster: conf.addresses.interchain_gas_paymaster,
     };
+    let evm_contracts = EvmContracts {
+        mailbox: conf.addresses.mailbox.into(),
+        hook: conf.addresses.merkle_tree_hook.into(),
+        paymaster: conf.addresses.interchain_gas_paymaster.into(),
+    };
+    let filter = evm_contracts.event_filter();
     let source: Box<dyn Source> =
         if let ChainConnectionConf::Ethereum(connection) = &conf.connection {
             conf.build_ethereum(
@@ -68,11 +78,7 @@ pub async fn spawn(
                 },
                 &metrics,
                 SourceBuilder {
-                    contracts: EvmContracts {
-                        mailbox: conf.addresses.mailbox.into(),
-                        hook: conf.addresses.merkle_tree_hook.into(),
-                        paymaster: conf.addresses.interchain_gas_paymaster.into(),
-                    },
+                    contracts: evm_contracts,
                     domain: conf.domain.id(),
                 },
             )
@@ -112,7 +118,11 @@ pub async fn spawn(
     let period = conf.reorg_period.clone();
     ensure!(conf.index.chunk_size > 0, "index.chunk must be positive");
     let chunk_size = u64::from(conf.index.chunk_size);
-    let poll_interval = conf.index.idle_sleep_duration;
+    let poll_interval = conf
+        .index
+        .configured_interval
+        .unwrap_or(Duration::from_secs(10));
+    let receipt_poll_interval = conf.index.idle_sleep_duration;
     prepare(
         source.as_ref(),
         &store,
@@ -128,6 +138,7 @@ pub async fn spawn(
         period,
         chunk_size,
         poll_interval,
+        wakeup: Notify::new(),
         critical_failure_grace: CRITICAL_FAILURE_GRACE,
         chain_metrics,
         sync_metrics,
@@ -135,7 +146,8 @@ pub async fn spawn(
     Ok(tokio::spawn(async move {
         tokio::join!(
             worker.run(),
-            enrichment::run(&enrichment_store, poll_interval, &receipt_age)
+            websocket::run(websocket_url, filter, &worker.wakeup, worker.domain.id()),
+            enrichment::run(&enrichment_store, receipt_poll_interval, &receipt_age)
         );
     }))
 }

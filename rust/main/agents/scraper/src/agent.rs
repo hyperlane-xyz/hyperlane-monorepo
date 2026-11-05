@@ -251,6 +251,12 @@ impl Scraper {
         tasks.push(
             crate::near_head::spawn(
                 chain_setup,
+                self.settings
+                    .websocket_urls
+                    .expose_secret()
+                    .get(domain.name())
+                    .cloned()
+                    .map(Into::into),
                 store.clone(),
                 self.core_metrics.clone(),
                 self.chain_metrics.clone(),
