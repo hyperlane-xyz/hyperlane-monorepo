@@ -13,7 +13,10 @@ import {
   ExternalBridgeType,
   TokenBridgeStatusAdapterType,
 } from '../config/types.js';
-import type { ITokenBridgeStatusAdapter } from '../interfaces/ITokenBridgeStatusAdapter.js';
+import type {
+  ITokenBridgeStatusAdapter,
+  MCRStatusPollContext,
+} from '../interfaces/ITokenBridgeStatusAdapter.js';
 import {
   ExplorerClient,
   type ExplorerMessage,
@@ -72,6 +75,7 @@ describe('ActionTracker', () => {
       adapter: adapterStub,
       multiProvider: {
         getChainName: multiProviderGetChainName,
+        getChainMetadata: () => ({ protocol: ProtocolType.Sealevel }),
       },
     } as any;
 
@@ -751,7 +755,8 @@ describe('ActionTracker', () => {
         (await rebalanceActionStore.get(action.id))?.externalExecutionRef,
       ).to.deep.equal(originalRef);
 
-      await tracker.syncRebalanceActions();
+      await tracker.syncRebalanceActions({ chain2: 36 });
+      expect(pollStatus.firstCall.args[1].blockTag).to.equal(36);
 
       const updatedAction = await rebalanceActionStore.get(action.id);
       expect(updatedAction?.status).to.equal('complete');
@@ -762,6 +767,56 @@ describe('ActionTracker', () => {
       );
       expect(pollStatus.calledOnceWith(originalRef)).to.be.true;
       expect(mailboxStub.isDelivered.called).to.be.false;
+    });
+
+    it('retains LZ credit across unchanged snapshots until the destination receipt is included', async () => {
+      const ref = { provider: 'lz_scan', kind: 'lz_scan', data: {} };
+      const statusAdapter: ITokenBridgeStatusAdapter = {
+        kind: 'lz_scan',
+        logger: testLogger,
+        initFromReceipt: async () => ref,
+        pollStatus: async (_ref, context: MCRStatusPollContext) =>
+          typeof context.blockTag === 'number' && context.blockTag >= 37
+            ? { status: 'complete', receivingTxHash: '0xdestination' }
+            : { status: 'pending' },
+      };
+      tracker = new ActionTracker(
+        transferStore,
+        rebalanceIntentStore,
+        rebalanceActionStore,
+        explorerClient,
+        core,
+        config,
+        testLogger,
+        new Map([[statusAdapter.kind, statusAdapter]]),
+      );
+      const intent = await tracker.createRebalanceIntent({
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+      });
+      const action = await tracker.createRebalanceAction({
+        intentId: intent.id,
+        type: 'rebalance_message',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        txHash: '0xorigin',
+        externalExecutionRef: ref,
+      });
+      for (let cycle = 0; cycle < 2; cycle++) {
+        await tracker.syncRebalanceActions({ chain2: 36 });
+        expect((await rebalanceActionStore.get(action.id))?.status).to.equal(
+          'in_progress',
+        );
+        expect((await rebalanceIntentStore.get(intent.id))?.status).to.equal(
+          'in_progress',
+        );
+      }
+      await tracker.syncRebalanceActions({ chain2: 37 });
+      expect((await rebalanceActionStore.get(action.id))?.status).to.equal(
+        'complete',
+      );
     });
 
     it('keeps a source-committed LZ failure suppressed for the process lifetime', async () => {
@@ -2516,14 +2571,14 @@ describe('ActionTracker', () => {
       mailboxStub.isDelivered.resolves(true);
 
       const confirmedBlockTags = {
-        chain2: EthJsonRpcBlockParameterTag.Finalized,
+        chain2: 12345,
       };
       await tracker.syncTransfers(confirmedBlockTags);
 
       expect(mailboxStub.isDelivered.calledOnce).to.be.true;
       const call = mailboxStub.isDelivered.firstCall;
       expect(call.args[0]).to.equal('0xmsg1');
-      expect(call.args[1]).to.equal(EthJsonRpcBlockParameterTag.Finalized);
+      expect(call.args[1]).to.equal(12345);
     });
 
     it('should pass blockTag when checking delivery in syncRebalanceActions', async () => {

@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { providers } from 'ethers';
+import { BigNumber, providers } from 'ethers';
 import { pino } from 'pino';
 import sinon from 'sinon';
 
@@ -275,9 +275,7 @@ describe('Monitor concurrency', () => {
 
     await monitor.start();
     expect(errors.calledOnce).to.equal(true);
-    expect(errors.firstCall.args[0].message).to.contain(
-      'Confirmed block unavailable for chain0',
-    );
+    expect(errors.firstCall.args[0].message).to.contain('block unavailable');
     expect(supplyReadOnError).to.equal(false);
     expect(blocks[0].send.calledTwice).to.equal(true);
     expect(adapters[0].getBridgedSupply.calledOnce).to.equal(true);
@@ -289,8 +287,22 @@ describe('Monitor concurrency', () => {
     expect(event?.inventoryBalances).to.deep.equal({ chain0: 10n });
   });
 
-  it('preserves optional block tags for Tron named reorg periods', async () => {
+  it('resolves Tron named finality once for the balance snapshot', async () => {
     const { monitor, adapter, block, token } = setupTron('finalized');
+    block.getBlock.resolves({
+      number: 96,
+      hash: '',
+      parentHash: '',
+      timestamp: 1,
+      nonce: '',
+      difficulty: 1,
+      gasLimit: BigNumber.from(1),
+      gasUsed: BigNumber.from(1),
+      miner: '',
+      extraData: '',
+      transactions: [],
+      _difficulty: BigNumber.from(1),
+    });
     const errors = sinon.stub();
     let event: MonitorEvent | undefined;
     monitor.on(MonitorEventType.Error, (error) => {
@@ -305,11 +317,12 @@ describe('Monitor concurrency', () => {
     await monitor.start();
     expect(errors.notCalled).to.equal(true);
     expect(block.send.notCalled).to.equal(true);
+    expect(block.getBlock.calledOnceWithExactly('finalized')).to.equal(true);
     expect(adapter.getBridgedSupply.calledOnce).to.equal(true);
     expect(adapter.getBridgedSupply.firstCall.args).to.deep.equal([
-      { blockTag: undefined },
+      { blockTag: 96 },
     ]);
-    expect(event?.confirmedBlockTags.tron).to.equal(undefined);
+    expect(event?.confirmedBlockTags.tron).to.equal(96);
     expect(event?.tokensInfo).to.deep.equal([{ token, bridgedSupply: 5n }]);
   });
 

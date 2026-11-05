@@ -23,6 +23,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { createStatusAdapters } from '../bridges/status/index.js';
+import { validateOftRoutes } from '../bridges/status/validateOftRoutes.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
@@ -174,6 +175,12 @@ export class RebalancerContextFactory {
     );
     const tokensByChainName = Object.fromEntries(
       warpCore.tokens.map((t) => [t.chainName, t]),
+    );
+
+    await validateOftRoutes(
+      config.strategyConfig,
+      tokensByChainName,
+      extendedMultiProtocolProvider,
     );
 
     logger.debug(

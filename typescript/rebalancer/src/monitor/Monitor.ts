@@ -11,6 +11,7 @@ import {
   ProtocolType,
   assert,
   concurrentMap,
+  isEVMLike,
   fromWei,
   sleep,
 } from '@hyperlane-xyz/utils';
@@ -257,7 +258,7 @@ export class Monitor implements IMonitor {
     }
 
     assert(
-      token.protocol !== ProtocolType.Ethereum || blockTag !== undefined,
+      !isEVMLike(token.protocol) || blockTag !== undefined,
       `Confirmed block unavailable for ${token.chainName}`,
     );
     const adapter = token.getHypAdapter(this.warpCore.multiProvider);
