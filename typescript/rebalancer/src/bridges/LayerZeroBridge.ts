@@ -111,6 +111,7 @@ export interface TokenBridgeOftContract {
 
 export interface LayerZeroBridgeConfig {
   chainMetadata: ChainMap<ChainMetadata>;
+  /** Inventory OFT quoting supports routes with equal source/destination local decimals. */
   warpRoutes: ConfiguredWarpRoute[];
   maxFeeBps?: number;
   maxEvmNativeValueWei?: bigint;
@@ -337,6 +338,13 @@ export class LayerZeroBridge implements IExternalBridge {
       if (!sourceReceipt || sourceReceipt.status !== 1) {
         return { status: 'pending', substatus: 'SOURCE_RECEIPT_UNVERIFIED' };
       }
+      if (
+        sourceProvider instanceof TronJsonRpcProvider &&
+        sourceReceipt.blockNumber >
+          (await sourceProvider.getFinalizedBlockNumber())
+      ) {
+        return { status: 'pending', substatus: 'SOURCE_NOT_FINAL' };
+      }
       const blocks = route.sourceMetadata.blocks;
       if (sourceReceipt.confirmations < (blocks?.confirmations ?? 1)) {
         return { status: 'pending', substatus: 'SOURCE_NOT_FINAL' };
@@ -346,7 +354,7 @@ export class LayerZeroBridge implements IExternalBridge {
         if (sourceReceipt.confirmations <= reorgPeriod) {
           return { status: 'pending', substatus: 'SOURCE_NOT_FINAL' };
         }
-      } else {
+      } else if (!(sourceProvider instanceof TronJsonRpcProvider)) {
         const finalized = await sourceProvider.getBlock(reorgPeriod);
         if (!finalized || sourceReceipt.blockNumber > finalized.number) {
           return { status: 'pending', substatus: 'SOURCE_NOT_FINAL' };
@@ -371,7 +379,9 @@ export class LayerZeroBridge implements IExternalBridge {
               0,
               (await provider.getBlockNumber()) - destinationReorgPeriod,
             )
-          : (await provider.getBlock(destinationReorgPeriod))?.number;
+          : provider instanceof TronJsonRpcProvider
+            ? await provider.getFinalizedBlockNumber()
+            : (await provider.getBlock(destinationReorgPeriod))?.number;
       if (blockTag === undefined)
         return { status: 'pending', substatus: 'DESTINATION_NOT_FINAL' };
       const status = await this.settlement.pollStatus(ref, {
@@ -520,6 +530,10 @@ export class LayerZeroBridge implements IExternalBridge {
         source.tokenType === 'collateralOft' &&
           destination.tokenType === 'collateralOft',
         `Warp route ${route.id} is not an OFT adapter route`,
+      );
+      assert(
+        source.decimals === destination.decimals,
+        `OFT inventory route ${route.id} requires equal local token decimals`,
       );
       return {
         warpRouteId: route.id,

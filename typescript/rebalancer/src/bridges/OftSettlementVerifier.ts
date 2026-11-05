@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { assert, eqAddress, isAddressEvm } from '@hyperlane-xyz/utils';
 
 import type { ChainMetadata } from '@hyperlane-xyz/sdk';
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 
 export interface OftSourceContext {
   origin?: string;
@@ -454,6 +455,11 @@ export class OftSettlementVerifier {
         normalizeTxHash(receivingTxHash),
       );
       if (!receipt || receipt.status !== 1) return false;
+      if (
+        provider instanceof TronJsonRpcProvider &&
+        receipt.blockNumber > (await provider.getFinalizedBlockNumber())
+      )
+        return false;
 
       const blocks = ctx.blocks;
       const minimumConfirmations = blocks?.confirmations ?? 1;
@@ -473,7 +479,7 @@ export class OftSettlementVerifier {
           : ctx.blockTag === undefined && typeof reorgPeriod === 'string'
             ? reorgPeriod
             : undefined;
-      if (finalityTag) {
+      if (finalityTag && !(provider instanceof TronJsonRpcProvider)) {
         const confirmedBlock = await provider.getBlock(finalityTag);
         if (!confirmedBlock || receipt.blockNumber > confirmedBlock.number) {
           return false;

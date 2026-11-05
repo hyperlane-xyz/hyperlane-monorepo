@@ -4,6 +4,7 @@ import { pino } from 'pino';
 import Sinon from 'sinon';
 
 import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 
 import {
   OftSettlementVerifier,
@@ -347,6 +348,40 @@ describe('OftSettlementVerifier', () => {
         'Matching OFTSent event not found',
       );
     }
+  });
+
+  it('requires Tron solidity in addition to the snapshot and confirmation bounds', async () => {
+    const provider = Sinon.createStubInstance(TronJsonRpcProvider);
+    provider.getTransactionReceipt.resolves(
+      createDestinationReceipt({ confirmations: 33 }),
+    );
+    provider.getFinalizedBlockNumber.resolves(99);
+    stubResponse({ data: [createMessage()] });
+    const ctx: OftDestinationContext = {
+      provider,
+      blockTag: 100,
+      blocks: { confirmations: 1, reorgPeriod: 32 },
+    };
+    const verifier = createAdapter();
+    expect((await verifier.pollStatus(createRef(), ctx)).status).to.equal(
+      'pending',
+    );
+    provider.getFinalizedBlockNumber.rejects(
+      new Error('solid head unavailable'),
+    );
+    expect((await verifier.pollStatus(createRef(), ctx)).status).to.equal(
+      'pending',
+    );
+    provider.getFinalizedBlockNumber.resolves(100);
+    expect((await verifier.pollStatus(createRef(), ctx)).status).to.equal(
+      'complete',
+    );
+    provider.getTransactionReceipt.resolves(
+      createDestinationReceipt({ confirmations: 31 }),
+    );
+    expect((await verifier.pollStatus(createRef(), ctx)).status).to.equal(
+      'pending',
+    );
   });
 
   it('normalizes the received amount across local token decimals', async () => {
