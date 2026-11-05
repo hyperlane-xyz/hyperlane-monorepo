@@ -756,6 +756,12 @@ export class SwapsXyzBridge implements IExternalBridge {
         'swaps.xyz exact input does not match the requested amount',
       );
     }
+    if (params.toAmount !== undefined) {
+      assert(
+        expectedOutput >= params.toAmount,
+        'swaps.xyz expected output is below the requested amount',
+      );
+    }
     const slippageFloor =
       (expectedOutput *
         (BPS_DENOMINATOR - BigInt(this.getSlippageBps(params.slippage)))) /
