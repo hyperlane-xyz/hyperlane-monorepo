@@ -15,6 +15,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { contractDouble } from '../test/contractDouble.js';
 import { networkError } from '../test/errors.js';
 import { randomAddress } from '../test/testUtils.js';
+import { WormholeConsistencyType } from '../wormhole/consistency.js';
 
 import { EvmIsmModule } from './EvmIsmModule.js';
 import { EvmIsmReader } from './EvmIsmReader.js';
@@ -198,6 +199,31 @@ describe('EvmIsmModule blacklist enumeration probe', () => {
   // deriving it, so a pinned target converges to no transactions when the
   // deployment already matches.
   describe('pinned addresses', () => {
+    it('preserves a top-level Wormhole address for attachment', async () => {
+      const currentAddress = randomAddress();
+      const targetAddress = randomAddress();
+      const owner = randomAddress();
+
+      sandbox
+        .stub(EvmIsmReader.prototype, 'deriveIsmConfig')
+        .withArgs(targetAddress)
+        .resolves({
+          address: targetAddress,
+          type: IsmType.WORMHOLE_VAA,
+          owner,
+          core: randomAddress(),
+          wormholeChainId: 2,
+          consistencyLevel: { type: WormholeConsistencyType.Finalized },
+          urls: ['https://vaa.example/v1'],
+        });
+
+      const module = moduleFor(currentAddress, targetAddress);
+      const txs = await module.update(targetAddress);
+
+      expect(txs).to.deep.equal([]);
+      expect(module.serialize().deployedIsm).to.equal(targetAddress);
+    });
+
     it('applies no transactions for a pinned address', async () => {
       stubReader({
         type: IsmType.BLACKLIST,

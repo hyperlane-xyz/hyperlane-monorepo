@@ -18,6 +18,11 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { TokenStandard } from './TokenStandard.js';
 import { TokenType } from './config.js';
+import { WormholeConsistencyType } from '../wormhole/consistency.js';
+import {
+  type DerivedWormholeHookIsmConfig,
+  type WormholeMeshConfig,
+} from '../wormhole/types.js';
 import {
   type DerivedWarpRouteDeployConfig,
   HypTokenConfigSchema,
@@ -28,6 +33,7 @@ import {
   altVmScaleMismatch,
   applyAcceptedInactiveOwnerStatus,
   buildAltVmWarpRouteDiff,
+  buildWormholeRemoteRouterDiff,
   buildWarpRouteDiff,
   checkWarpRouteDeployConfig,
   derivedWarpConfigToCheckConfig,
@@ -1279,5 +1285,131 @@ describe('applyAcceptedInactiveOwnerStatus', () => {
     });
 
     expect(expanded[CHAIN].ownerStatus?.[OWNER_A]).to.equal(OwnerStatus.Active);
+  });
+});
+
+describe('buildWormholeRemoteRouterDiff', () => {
+  const CHAIN_A = test1.name;
+  const CHAIN_B = test2.name;
+  const ROUTER_A = '0x1111111111111111111111111111111111111111';
+  const ROUTER_B = '0x2222222222222222222222222222222222222222';
+  const CORE_A = '0x3333333333333333333333333333333333333333';
+  const CORE_B = '0x4444444444444444444444444444444444444444';
+  const URLS = ['https://vaa.example/v1'];
+
+  function mesh(): WormholeMeshConfig {
+    return {
+      [CHAIN_A]: {
+        owner: OWNER,
+        mailbox: MAILBOX,
+        core: CORE_A,
+        wormholeChainId: 2,
+        consistencyLevel: { type: WormholeConsistencyType.Finalized },
+        urls: URLS,
+        remoteRouters: {
+          [CHAIN_B]: {
+            router: ROUTER_B,
+            wormholeChainId: 30,
+            expectedConsistencyLevel: 202,
+            expectedCustomBaseConsistencyLevel: 0,
+            expectedAdditionalBlocks: 0,
+          },
+        },
+      },
+      [CHAIN_B]: {
+        owner: OWNER,
+        mailbox: MAILBOX,
+        core: CORE_B,
+        wormholeChainId: 30,
+        consistencyLevel: { type: WormholeConsistencyType.Finalized },
+        urls: URLS,
+        remoteRouters: {
+          [CHAIN_A]: {
+            router: ROUTER_A,
+            wormholeChainId: 2,
+            expectedConsistencyLevel: 202,
+            expectedCustomBaseConsistencyLevel: 0,
+            expectedAdditionalBlocks: 0,
+          },
+        },
+      },
+    };
+  }
+
+  function derived(
+    config: WormholeMeshConfig,
+  ): Record<string, DerivedWormholeHookIsmConfig> {
+    return Object.fromEntries(
+      Object.entries(config).map(([chain, chainConfig]) => [
+        chain,
+        {
+          ...chainConfig,
+          address: chain === CHAIN_A ? ROUTER_A : ROUTER_B,
+        },
+      ]),
+    );
+  }
+
+  it('accepts an exact remote-router trust mesh', () => {
+    const expected = mesh();
+    expect(
+      buildWormholeRemoteRouterDiff(derived(expected), expected),
+    ).to.deep.equal({});
+  });
+
+  it('reports remote router, Wormhole ID, and consistency drift', () => {
+    const expected = mesh();
+    const actual = derived(mesh());
+    actual[CHAIN_A].remoteRouters[CHAIN_B] = {
+      router: ROUTER_A,
+      wormholeChainId: 31,
+      expectedConsistencyLevel: 203,
+      expectedCustomBaseConsistencyLevel: 201,
+      expectedAdditionalBlocks: 4,
+    };
+
+    const diff = buildWormholeRemoteRouterDiff(actual, expected);
+    expect(diff[CHAIN_A]).to.have.nested.property(
+      `wormholeRemoteRouters.${CHAIN_B}.router.actual`,
+      ROUTER_A.toLowerCase(),
+    );
+    expect(diff[CHAIN_A]).to.have.nested.property(
+      `wormholeRemoteRouters.${CHAIN_B}.wormholeChainId.actual`,
+      31,
+    );
+    expect(diff[CHAIN_A]).to.have.nested.property(
+      `wormholeRemoteRouters.${CHAIN_B}.expectedConsistencyLevel.actual`,
+      203,
+    );
+    expect(diff[CHAIN_A]).to.have.nested.property(
+      `wormholeRemoteRouters.${CHAIN_B}.expectedCustomBaseConsistencyLevel.actual`,
+      201,
+    );
+    expect(diff[CHAIN_A]).to.have.nested.property(
+      `wormholeRemoteRouters.${CHAIN_B}.expectedAdditionalBlocks.actual`,
+      4,
+    );
+  });
+
+  it('reports unexpected enrolled domains', () => {
+    const expected = mesh();
+    const actual = derived(mesh());
+    actual[CHAIN_A].remoteRouters['999999'] = {
+      router: ROUTER_A,
+      wormholeChainId: 77,
+      expectedConsistencyLevel: 202,
+      expectedCustomBaseConsistencyLevel: 0,
+      expectedAdditionalBlocks: 0,
+    };
+
+    expect(buildWormholeRemoteRouterDiff(actual, expected)[CHAIN_A])
+      .to.have.nested.property('wormholeRemoteRouters.999999.actual')
+      .that.deep.equals({
+        router: ROUTER_A.toLowerCase(),
+        wormholeChainId: 77,
+        expectedConsistencyLevel: 202,
+        expectedCustomBaseConsistencyLevel: 0,
+        expectedAdditionalBlocks: 0,
+      });
   });
 });

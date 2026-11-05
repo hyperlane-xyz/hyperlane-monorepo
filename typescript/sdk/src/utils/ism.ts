@@ -112,6 +112,7 @@ function ismTreeSome(
     case IsmType.INTERCHAIN_ACCOUNT_ROUTING:
     case IsmType.ARB_L2_TO_L1:
     case IsmType.OFFCHAIN_LOOKUP:
+    case IsmType.WORMHOLE_VAA:
     case IsmType.UNKNOWN:
       return false;
     default: {

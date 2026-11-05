@@ -41,6 +41,7 @@ import { deriveDelayedFlowRemoteIsms } from '../ism/delayedFlow.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
+import { EvmWormholeHookIsmReader } from '../wormhole/EvmWormholeHookIsmReader.js';
 import {
   fetchPackageVersion,
   isMissingSelectorCallException,
@@ -70,6 +71,7 @@ import {
   ProtocolFeeHookConfig,
   RateLimitedHookConfig,
   RoutingHookConfig,
+  WormholeHookConfig,
 } from './types.js';
 
 function isUnsupportedIgpDomainError(
@@ -125,6 +127,10 @@ export interface HookReader {
   ): void;
 }
 
+export interface EvmHookReaderOptions {
+  expandWormhole?: boolean;
+}
+
 export class EvmHookReader extends HyperlaneReader implements HookReader {
   protected readonly logger = rootLogger.child({ module: 'EvmHookReader' });
   /**
@@ -133,6 +139,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
    * the specific hook methods.
    */
   private _cache: Map<Address, any> = new Map();
+  protected readonly expandWormhole: boolean;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -141,8 +148,10 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       chain,
     ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
     protected readonly messageContext?: DispatchedMessage,
+    options: EvmHookReaderOptions = {},
   ) {
     super(multiProvider, chain);
+    this.expandWormhole = options.expandWormhole ?? false;
   }
 
   async deriveHookConfigFromAddress(
@@ -224,6 +233,10 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           break;
         case OnchainHookType.CCTP:
           derivedHookConfig = { type: HookType.CCTP, address };
+          this._cache.set(address, derivedHookConfig);
+          break;
+        case OnchainHookType.WORMHOLE:
+          derivedHookConfig = await this.deriveWormholeHookConfig(address);
           this._cache.set(address, derivedHookConfig);
           break;
         case OnchainHookType.RATE_LIMITED: {
@@ -326,21 +339,45 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
   }
 
   // Returns original HookConfig for non-redeployable standalone types (CCTP,
-  // PREDICATE) so that normalizeConfig — which strips 'address' from all
-  // objects — does not discard the address. Hybrid hook/ISMs deliberately keep
-  // their derived config: warp read/apply needs the typed node on both the hook
-  // and ISM surfaces to identify the shared instance. EvmWarpModule resolves
-  // that node back to its address before handing the tree to EvmHookModule.
+  // PREDICATE, and Wormhole) so that normalizeConfig — which strips 'address'
+  // from all objects — does not discard the address. Flow-control hybrid
+  // hook/ISMs deliberately keep their derived config: warp read/apply needs
+  // the typed node on both surfaces to identify the shared instance.
   private preserveUnredeployable(
     original: HookConfig,
     derived: DerivedHookConfig,
   ): HookConfig {
-    const nonRedeployable: HookType[] = [HookType.CCTP, HookType.PREDICATE];
+    if (this.expandWormhole && derived.type === HookType.WORMHOLE_VAA) {
+      return derived;
+    }
+    const nonRedeployable: HookType[] = [
+      HookType.CCTP,
+      HookType.PREDICATE,
+      HookType.WORMHOLE_VAA,
+    ];
     if (!nonRedeployable.includes(derived.type)) {
       return derived;
     }
     if (typeof original === 'string') return original;
-    return derived.address;
+    return 'address' in derived && typeof derived.address === 'string'
+      ? derived.address
+      : original;
+  }
+
+  private async deriveWormholeHookConfig(
+    address: Address,
+  ): Promise<WithAddress<WormholeHookConfig>> {
+    const derived = await new EvmWormholeHookIsmReader(
+      this.multiProvider,
+      this.chain,
+    ).deriveWormholeConfig(address);
+
+    const diagnosticConfig = {
+      address,
+      type: HookType.WORMHOLE_VAA,
+      remoteRouters: derived.remoteRouters,
+    };
+    return diagnosticConfig;
   }
 
   async deriveMailboxDefaultHookConfig(
