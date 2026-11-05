@@ -346,6 +346,7 @@ pub struct CheckpointSummary {
     collected: usize,
     attempts: u64,
     latest_indices: BTreeMap<H160, Option<u32>>,
+    discovery_unavailable: BTreeMap<H256, CheckpointUnavailableReason>,
     unavailable: BTreeMap<H256, CheckpointUnavailableReason>,
 }
 
@@ -391,9 +392,14 @@ impl CheckpointObserver for ActivityCheckpointObserver {
                 summary.unavailable.remove(&validator);
             }
             CheckpointObservation::Unavailable {
-                validator, reason, ..
+                validator,
+                index,
+                reason,
             } => {
-                summary.unavailable.insert(validator, reason);
+                match index {
+                    Some(_) => summary.unavailable.insert(validator, reason),
+                    None => summary.discovery_unavailable.insert(validator, reason),
+                };
             }
         }
     }
@@ -404,6 +410,7 @@ impl ActivityCheckpointObserver {
         let summary = std::mem::take(&mut *self.summary.lock());
         if summary.attempts == 0
             && summary.latest_indices.is_empty()
+            && summary.discovery_unavailable.is_empty()
             && summary.unavailable.is_empty()
         {
             return;

@@ -325,12 +325,59 @@ fn checkpoint_summary_reports_discovery_failures_without_a_fetch() {
         1
     );
     assert_eq!(
-        json["activity"]["summary"]["unavailable"]
+        json["activity"]["summary"]["discovery_unavailable"]
             .as_object()
             .expect("summary map")
             .len(),
         1
     );
+    assert!(json["activity"]["summary"]["unavailable"]
+        .as_object()
+        .expect("summary map")
+        .is_empty());
+}
+
+#[test]
+fn checkpoint_summary_separates_discovery_failures_in_both_completion_orders() {
+    for discovery_finishes_first in [true, false] {
+        let (reporter, mut receiver) = reporter(1);
+        let observer = reporter.checkpoint_observer(&HyperlaneMessage::default(), None, 2);
+        let discovery_failure = || CheckpointObservation::Unavailable {
+            validator: H256::repeat_byte(1),
+            index: None,
+            reason: CheckpointUnavailableReason::FetchError,
+        };
+        if discovery_finishes_first {
+            observer.observe(discovery_failure());
+        }
+        observer.observe(CheckpointObservation::Fetching { index: 12 });
+        observer.observe(CheckpointObservation::Signature {
+            validator: H256::repeat_byte(1),
+            index: 12,
+            root: H256::repeat_byte(2),
+            collected: 1,
+        });
+        if !discovery_finishes_first {
+            observer.observe(discovery_failure());
+        }
+
+        observer.report();
+        let json = serde_json::to_value(receiver.try_recv().expect("checkpoint event"))
+            .expect("serialize event");
+        let summary = &json["activity"]["summary"];
+        assert_eq!(summary["collected"], 1);
+        assert!(summary["unavailable"]
+            .as_object()
+            .expect("summary map")
+            .is_empty());
+        assert_eq!(
+            summary["discovery_unavailable"]
+                .as_object()
+                .expect("summary map")
+                .len(),
+            1
+        );
+    }
 }
 
 #[tokio::test]
