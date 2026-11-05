@@ -11,7 +11,10 @@
     "./tests/**/LookupMetrics.test.ts",
     "./tests/**/Shutdown.test.ts",
     "./tests/**/Database.test.ts",
-    "./tests/**/CcsAuth.test.ts"
+    "./tests/**/CcsAuth.test.ts",
+    "./tests/**/WormholeVaaService.test.ts",
+    "./tests/**/WormholeVaaFetcher.test.ts",
+    "./tests/**/wormholeVaaMatcher.test.ts"
   ],
   "exit": true
 }
