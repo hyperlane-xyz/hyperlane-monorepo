@@ -245,12 +245,19 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
           ? signedTx.signatures[0]
           : signedTx.signature;
       assert(rawSignature, 'Signed Solana transaction has no payer signature');
+      const signedSignature = bufferToBase58(Buffer.from(rawSignature));
       const signature =
         options?.onSubmissionAttempt || options?.onSubmitted
           ? await submission.submit(
               () => this.sendRawTransaction(signedTx),
-              (hash) => hash,
-              bufferToBase58(Buffer.from(rawSignature)),
+              (hash) => {
+                assert(
+                  hash === signedSignature,
+                  'Solana RPC returned a different transaction signature',
+                );
+                return signedSignature;
+              },
+              signedSignature,
             )
           : await this.sendRawTransaction(signedTx);
 

@@ -3,10 +3,15 @@ import {
   Keypair,
   SystemProgram,
   Transaction,
+  VersionedTransaction,
   Connection,
 } from '@solana/web3.js';
 import sinon from 'sinon';
-import { ProtocolType, TransactionSubmissionError } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  TransactionSubmissionError,
+  bufferToBase58,
+} from '@hyperlane-xyz/utils';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ProviderType } from '../../providers/ProviderType.js';
 
@@ -14,6 +19,16 @@ import {
   KeypairSvmTransactionSigner,
   SvmMultiProtocolSignerAdapter,
 } from './solana-web3js.js';
+
+function serializedSignature(
+  bytes: Parameters<Connection['sendRawTransaction']>[0],
+): string {
+  return bufferToBase58(
+    Buffer.from(
+      VersionedTransaction.deserialize(Uint8Array.from(bytes)).signatures[0],
+    ),
+  );
+}
 
 describe('SVM submission tracking', () => {
   afterEach(() => sinon.restore());
@@ -46,7 +61,7 @@ describe('SVM submission tracking', () => {
         const send = sinon.stub(connection, 'sendRawTransaction');
         if (lostBroadcastResponse)
           send.rejects(new Error('broadcast response lost'));
-        else send.resolves('acknowledged-signature');
+        else send.callsFake(async (bytes) => serializedSignature(bytes));
         const height = sinon.stub(connection, 'getBlockHeight').resolves(10000);
         sinon
           .stub(connection, 'getSignatureStatus')
@@ -100,6 +115,82 @@ describe('SVM submission tracking', () => {
     );
   }
 
+  for (const observed of [true, false]) {
+    it(
+      observed
+        ? 'retains the local identity on a mismatching RPC signature'
+        : 'preserves unobserved submission compatibility',
+      async () => {
+        const key = Keypair.generate();
+        const connection = new Connection('https://solana.example.invalid');
+        const provider = new MultiProtocolProvider({
+          solanamainnet: {
+            name: 'solanamainnet',
+            protocol: ProtocolType.Sealevel,
+            chainId: 1399811149,
+            domainId: 1399811149,
+            rpcUrls: [{ http: 'https://solana.example.invalid' }],
+          },
+        });
+        provider.setProvider('solanamainnet', {
+          type: ProviderType.SolanaWeb3,
+          provider: connection,
+        });
+        sinon.stub(connection, 'getLatestBlockhash').resolves({
+          blockhash: Keypair.generate().publicKey.toBase58(),
+          lastValidBlockHeight: 1,
+        });
+        const send = sinon
+          .stub(connection, 'sendRawTransaction')
+          .resolves('different-signature');
+        sinon.stub(connection, 'getBlockHeight').resolves(0);
+        const status = sinon.stub(connection, 'getSignatureStatus').resolves({
+          context: { slot: 1 },
+          value: {
+            slot: 1,
+            confirmations: null,
+            confirmationStatus: 'finalized',
+            err: null,
+          },
+        });
+        const signer = new SvmMultiProtocolSignerAdapter(
+          'solanamainnet',
+          new KeypairSvmTransactionSigner(key.secretKey),
+          provider,
+          { maxConfirmationAttempts: 1, pollingDelayMs: 1 },
+        );
+        const tx = new Transaction().add(
+          SystemProgram.transfer({
+            fromPubkey: key.publicKey,
+            toPubkey: Keypair.generate().publicKey,
+            lamports: 1,
+          }),
+        );
+        const onSubmitted = sinon.spy();
+        const result: unknown = await signer
+          .sendAndConfirmTransaction(
+            { type: ProviderType.SolanaWeb3, transaction: tx },
+            observed ? { onSubmitted } : undefined,
+          )
+          .catch((error: unknown) => error);
+        if (observed) {
+          expect(result).to.be.instanceOf(TransactionSubmissionError);
+          if (!(result instanceof TransactionSubmissionError)) throw result;
+          expect(result.submissionState).to.equal('unknown');
+          expect(result.txHash).to.equal(
+            serializedSignature(send.firstCall.args[0]),
+          );
+          expect(onSubmitted.called).to.equal(false);
+          expect(status.called).to.equal(false);
+        } else {
+          expect(result).to.equal('different-signature');
+          expect(status.firstCall.args[0]).to.equal('different-signature');
+        }
+        expect(send.calledOnce).to.equal(true);
+      },
+    );
+  }
+
   for (const explicitResubmit of [false, true]) {
     it(
       explicitResubmit
@@ -129,7 +220,7 @@ describe('SVM submission tracking', () => {
           });
         const send = sinon
           .stub(connection, 'sendRawTransaction')
-          .resolves('original-signature');
+          .callsFake(async (bytes) => serializedSignature(bytes));
         const height = sinon.stub(connection, 'getBlockHeight').resolves(10000);
         const status = sinon.stub(connection, 'getSignatureStatus').resolves({
           context: { slot: 1 },
@@ -173,9 +264,11 @@ describe('SVM submission tracking', () => {
           expect(blockhash.called).to.equal(false);
           expect(send.called).to.equal(false);
         } else {
-          expect(result).to.equal('original-signature');
+          expect(result).to.equal(await send.firstCall.returnValue);
           expect(send.callCount).to.equal(1);
-          expect(status.firstCall.args[0]).to.equal('original-signature');
+          expect(status.firstCall.args[0]).to.equal(
+            await send.firstCall.returnValue,
+          );
         }
         expect(height.called).to.equal(false);
       },
