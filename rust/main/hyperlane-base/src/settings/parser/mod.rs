@@ -851,6 +851,7 @@ mod test {
         })
     }
 
+    /// Parse a real chain config so interval cases cover both configured and effective waits.
     fn parse_index_interval(interval: Option<serde_json::Value>) -> ConfigResult<ChainConf> {
         let mut value = sealevel_ccs_config();
         if let Some(interval) = interval {
@@ -863,9 +864,9 @@ mod test {
         )
     }
 
-    // `index.interval` stays in seconds but accepts fractions, as a JSON number or an env-style
-    // string; whole seconds must stay exact across the full u64 range (an f64 detour would round
-    // large values or overflow `Duration`).
+    /// `index.interval` stays in seconds but accepts fractions, as a JSON number or an env-style
+    /// string; whole seconds must stay exact across the full u64 range (an f64 detour would round
+    /// large values or overflow `Duration`).
     #[test]
     fn index_interval_accepts_fractional_and_exact_integer_seconds() {
         use serde_json::json;
@@ -899,8 +900,8 @@ mod test {
         assert_eq!(config.index.configured_interval, None);
     }
 
-    // Each of these would otherwise become a zero/negative wait (busy loop), a panic in
-    // `Duration` construction, or a silently different value.
+    /// Each of these would otherwise become a zero/negative wait (busy loop), a panic in
+    /// `Duration` construction, or a silently different value.
     #[test]
     fn index_interval_rejects_nonpositive_malformed_and_unrepresentable_values() {
         use serde_json::json;

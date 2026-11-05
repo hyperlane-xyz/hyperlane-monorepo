@@ -164,7 +164,20 @@ describe('fractional interval seconds', () => {
     merkleTreeHook: '0x0000000000000000000000000000000000000004',
   };
   const validatorInterval = ValidatorAgentConfigSchema.shape.interval;
-  const valid = [0.1, 0.25, 1, 1.5, 7];
+  // Rust rejects intervals rounded to zero nanoseconds and overflows at 2^64 seconds;
+  // 2^64 - 2048 is the largest representable double below that upper bound.
+  const valid = [
+    0.1,
+    0.25,
+    1,
+    1.5,
+    7,
+    5e-10,
+    6e-10,
+    0.999e-9,
+    1e-9,
+    2 ** 64 - 2048,
+  ];
   const invalid: unknown[] = [
     0,
     -0.1,
@@ -175,6 +188,11 @@ describe('fractional interval seconds', () => {
     'abc',
     true,
     null,
+    1e-12,
+    4e-10,
+    5e-10 * (1 - Number.EPSILON),
+    2 ** 64,
+    Number.MAX_VALUE,
   ];
 
   it('accepts positive finite seconds, including fractions, at both fields', () => {

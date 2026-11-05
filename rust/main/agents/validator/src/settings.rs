@@ -87,6 +87,7 @@ struct RawValidatorSettings(Secret<Value>);
 impl_loadable_from_settings!(Validator, RawValidatorSettings -> ValidatorSettings);
 
 impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
+    /// Parse validator settings, preserving explicit interval, chain interval, then default precedence.
     fn from_config_filtered(
         raw: RawValidatorSettings,
         cwp: &ConfigPath,
@@ -969,6 +970,7 @@ mod test {
         assert!(!settings.allow_public_rpcs);
     }
 
+    /// Parse real validator settings so interval cases exercise startup validation and precedence.
     fn parse_with_intervals(
         top_level: Option<Value>,
         chain_index: Option<Value>,
@@ -989,8 +991,8 @@ mod test {
         )
     }
 
-    // Top-level `interval` wins over the origin chain's `index.interval`, which wins over the 2s
-    // default; both are seconds and accept fractions as numbers or strings.
+    /// Top-level `interval` wins over the origin chain's `index.interval`, which wins over the 2s
+    /// default; both are seconds and accept fractions as numbers or strings.
     #[test]
     fn interval_precedence_accepts_fractional_seconds() {
         use serde_json::json;
@@ -1014,8 +1016,8 @@ mod test {
         }
     }
 
-    // Invalid values are rejected wherever they appear, even when the other key is valid, so a
-    // typo never silently falls back to another interval or rounds to a zero wait.
+    /// Invalid values are rejected wherever they appear, even when the other key is valid, so a
+    /// typo never silently falls back to another interval or rounds to a zero wait.
     #[test]
     fn interval_rejects_nonpositive_malformed_and_unrepresentable_values() {
         use serde_json::json;

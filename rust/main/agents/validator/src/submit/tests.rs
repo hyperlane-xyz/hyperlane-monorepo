@@ -153,8 +153,8 @@ async fn checkpoint_check_retains_interval_fallback() {
     task.await.expect("checkpoint wait task");
 }
 
-// Characterize the submitter's existing sub-second wait with and without a wake source;
-// configuration parsing is covered separately in the settings tests.
+/// Characterize the submitter's existing sub-second wait with and without a wake source;
+/// configuration parsing is covered separately in the settings tests.
 #[tokio::test(start_paused = true)]
 async fn checkpoint_check_honours_sub_second_interval() {
     for checkpoint_wake in [None, Some(Arc::new(Notify::new()))] {

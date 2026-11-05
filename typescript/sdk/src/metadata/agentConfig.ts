@@ -360,10 +360,12 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
           .describe(
             'The indexing method to use for this chain; will attempt to choose a suitable default if not specified.',
           ),
+        // Rust rounds to nanoseconds and stores seconds in u64; reject zero-rounded values and overflow.
         interval: z
           .number()
           .finite()
-          .positive()
+          .min(5e-10)
+          .lt(2 ** 64)
           .optional()
           .describe(
             'How long to wait between polls when idle/caught up, in fractional seconds (e.g. 0.1 for 100 ms). Defaults to 5s.',
@@ -888,10 +890,12 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
       })
       .describe('A checkpoint syncer that uses Google Cloud Storage'),
   ]),
+  // Match the agent Duration range, including its nanosecond rounding threshold.
   interval: z
     .number()
     .finite()
-    .positive()
+    .min(5e-10)
+    .lt(2 ** 64)
     .optional()
     .describe(
       'How long to wait between checking for new checkpoints in fractional seconds (e.g. 0.1 for 100 ms). Defaults to 2s, falling back to the origin chain’s index.interval if set and this is unset.',
