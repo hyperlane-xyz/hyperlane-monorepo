@@ -45,7 +45,13 @@ export interface ActionTrackerConfig {
   bridges: Address[]; // Bridge contract addresses for rebalance action queries
   rebalancerAddress: Address;
   inventorySignerAddresses?: Address[]; // Optional - for excluding inventory signers from user transfers query
-  intentTTL: number; // Max age in ms before in-progress intent is expired
+  intentTTL: number; // Expiry for uncommitted intents; alert threshold for reserved source work.
+}
+
+enum SourceTransactionOutcome {
+  Pending = 'pending',
+  Succeeded = 'succeeded',
+  Failed = 'failed',
 }
 
 /**
@@ -338,6 +344,8 @@ export class ActionTracker implements IActionTracker {
         await this.reconcilePendingApproval(action);
         continue;
       }
+      if (!action.messageId && (await this.reconcileFailedSource(action)))
+        continue;
       // Skip actions without messageId (e.g., inventory_movement)
       if (!action.messageId) {
         continue;
@@ -854,44 +862,101 @@ export class ActionTracker implements IActionTracker {
     const txHash = action.pendingApproval?.txHash;
     if (!txHash) return; // A lost broadcast response without an identity requires operator reconciliation.
     try {
-      const mp = this.core.multiProvider;
-      const protocol = mp.getProtocol(action.origin);
-      if (protocol === ProtocolType.Sealevel) {
-        const {
-          value: [status],
-        } = await mp
-          .getSolanaWeb3Provider(action.origin)
-          .getSignatureStatuses([txHash], { searchTransactionHistory: true });
-        if (status?.confirmationStatus !== 'finalized') return;
-      } else {
-        assert(
-          protocol === ProtocolType.Ethereum || protocol === ProtocolType.Tron,
-          'Unsupported approval protocol',
-        );
-        const provider = mp.getEthersV5Provider(action.origin);
-        const receipt = await provider.getTransactionReceipt(txHash);
-        if (!receipt || (receipt.status !== 0 && receipt.status !== 1)) return;
-        const blocks = mp.getChainMetadata(action.origin).blocks;
-        const finality = blocks?.reorgPeriod ?? blocks?.confirmations ?? 1;
-        if (typeof finality === 'number') {
-          if (receipt.confirmations < Math.max(finality, 1)) return;
-        } else {
-          const confirmedBlock = await provider.getBlock(finality);
-          if (!confirmedBlock || receipt.blockNumber > confirmedBlock.number)
-            return;
-        }
-      }
+      if (
+        (await this.getSourceTransactionOutcome(action.origin, txHash)) ===
+        SourceTransactionOutcome.Pending
+      )
+        return;
       // The approval is settled, and the primary transaction was never submitted.
       // A retry reads current allowance and sets its exact cap before sending.
       await this.rebalanceActionStore.update(action.id, {
         pendingApproval: undefined,
       });
-      await this.failRebalanceAction(action.id);
+      await this.failReconciledAction(action);
     } catch (error) {
       this.logger.warn(
         { actionId: action.id, approvalTxHash: txHash, error },
         'Approval reconciliation failed; source work remains reserved',
       );
+    }
+  }
+
+  private async getSourceTransactionOutcome(
+    origin: Domain,
+    txHash: string,
+  ): Promise<SourceTransactionOutcome> {
+    const mp = this.core.multiProvider;
+    const protocol = mp.getProtocol(origin);
+    if (protocol === ProtocolType.Sealevel) {
+      const {
+        value: [status],
+      } = await mp
+        .getSolanaWeb3Provider(origin)
+        .getSignatureStatuses([txHash], { searchTransactionHistory: true });
+      if (status?.confirmationStatus !== 'finalized')
+        return SourceTransactionOutcome.Pending;
+      return status.err != null
+        ? SourceTransactionOutcome.Failed
+        : SourceTransactionOutcome.Succeeded;
+    }
+    assert(
+      protocol === ProtocolType.Ethereum || protocol === ProtocolType.Tron,
+      'Unsupported source reconciliation protocol',
+    );
+    const provider = mp.getEthersV5Provider(origin);
+    const receipt = await provider.getTransactionReceipt(txHash);
+    if (!receipt || (receipt.status !== 0 && receipt.status !== 1))
+      return SourceTransactionOutcome.Pending;
+    const blocks = mp.getChainMetadata(origin).blocks;
+    const finality = blocks?.reorgPeriod ?? blocks?.confirmations ?? 1;
+    if (typeof finality === 'number') {
+      if (!(receipt.confirmations >= Math.max(finality, 1)))
+        return SourceTransactionOutcome.Pending;
+    } else {
+      const confirmedBlock = await provider.getBlock(finality);
+      if (!confirmedBlock || receipt.blockNumber > confirmedBlock.number)
+        return SourceTransactionOutcome.Pending;
+    }
+    return receipt.status === 0
+      ? SourceTransactionOutcome.Failed
+      : SourceTransactionOutcome.Succeeded;
+  }
+
+  private async reconcileFailedSource(
+    action: RebalanceAction,
+  ): Promise<boolean> {
+    if (!action.txHash) return false;
+    try {
+      if (
+        (await this.getSourceTransactionOutcome(
+          action.origin,
+          action.txHash,
+        )) !== SourceTransactionOutcome.Failed
+      )
+        return false;
+      await this.failReconciledAction(action);
+      this.logger.info(
+        { actionId: action.id, txHash: action.txHash },
+        'Finalized source failure released the action',
+      );
+      return true;
+    } catch (error) {
+      this.logger.warn(
+        { actionId: action.id, txHash: action.txHash, error },
+        'Source reconciliation failed; action remains reserved',
+      );
+      return false;
+    }
+  }
+
+  private async failReconciledAction(action: RebalanceAction): Promise<void> {
+    await this.failRebalanceAction(action.id);
+    // Inventory keeps its partial intent so already delivered amounts are not repeated.
+    if (action.type === 'rebalance_message') {
+      const actions = await this.getActionsForIntent(action.intentId);
+      if (actions.every((candidate) => candidate.status === 'failed')) {
+        await this.failRebalanceIntent(action.intentId);
+      }
     }
   }
 
@@ -956,6 +1021,25 @@ export class ActionTracker implements IActionTracker {
 
     // Log each action separately
     for (const a of inProgressActions) {
+      const ageMs = Date.now() - a.createdAt;
+      if (ageMs > this.config.intentTTL) {
+        this.logger.warn(
+          {
+            actionId: a.id,
+            intentId: a.intentId,
+            origin: a.origin,
+            destination: a.destination,
+            ageMs,
+            txHash: a.txHash,
+            pendingApproval: a.pendingApproval,
+            submissionState: a.submissionState,
+            externalBridgeId: a.externalBridgeId,
+            externalBridgeTransferId: a.externalBridgeTransferId,
+            lastBridgeStatus: a.lastBridgeStatus,
+          },
+          'Action blocked beyond intentTTL; reconcile before retry or restart',
+        );
+      }
       this.logger.info(
         {
           type: 'action',

@@ -145,16 +145,28 @@ export class Monitor implements IMonitor {
         try {
           this.logger.debug('Polling cycle started');
 
-          // Drain both groups on error before a retry can start another cycle.
+          // Drain both groups before retrying or publishing the successful collateral snapshot.
           const [tokenRead, inventoryRead] = await Promise.allSettled([
             this.fetchTokenInfo(),
             this.fetchInventoryBalances(),
           ]);
           if (tokenRead.status === 'rejected') throw tokenRead.reason;
-          if (inventoryRead.status === 'rejected') throw inventoryRead.reason;
           const event = tokenRead.value;
-          const inventoryBalances = inventoryRead.value;
-          if (Object.keys(inventoryBalances).length > 0) {
+          let inventoryBalances: ChainMap<bigint> | undefined;
+          if (inventoryRead.status === 'fulfilled') {
+            inventoryBalances = inventoryRead.value;
+          } else {
+            const error: unknown = inventoryRead.reason;
+            const cause =
+              error instanceof Error ? error : new Error(String(error));
+            this.errorHandler?.(
+              new MonitorPollingError(
+                `Inventory balances unavailable: ${cause.message}; inventory execution skipped for this cycle`,
+                cause,
+              ),
+            );
+          }
+          if (inventoryBalances && Object.keys(inventoryBalances).length > 0) {
             event.inventoryBalances = inventoryBalances;
             const tokensByChain = new Map(
               this.warpCore.tokens.map((token) => [token.chainName, token]),
