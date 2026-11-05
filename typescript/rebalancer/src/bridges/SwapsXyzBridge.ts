@@ -5,6 +5,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
+  TransactionSubmission,
   assert,
   ensure0x,
   isEVMLike,
@@ -168,7 +169,9 @@ export class SwapsXyzBridge implements IExternalBridge {
     options?: BridgeExecutionOptions,
   ): Promise<BridgeTransferResult> {
     const execution = this._executeLock.then(() =>
-      this.executeUnlocked(quote, privateKeys, options),
+      new TransactionSubmission(options).run(() =>
+        this.executeUnlocked(quote, privateKeys, options),
+      ),
     );
     this._executeLock = execution.then(
       () => undefined,
@@ -229,7 +232,13 @@ export class SwapsXyzBridge implements IExternalBridge {
         ? statusError
         : new Error('Failed to get swaps.xyz status');
     }
-    return this.toBridgeTransferStatus(response, txHash, fromChain, toChain);
+    return this.toBridgeTransferStatus(
+      response,
+      txHash,
+      fromChain,
+      toChain,
+      transferId,
+    );
   }
 
   private toBridgeTransferStatus(
@@ -237,7 +246,29 @@ export class SwapsXyzBridge implements IExternalBridge {
     txHash: string,
     fromChain: number,
     toChain: number,
+    transferId?: string,
   ): BridgeTransferStatus {
+    const protocol = this.chainMetadataByChainId.get(fromChain)?.protocol;
+    const normalizeHash = (hash: string) =>
+      protocol !== undefined && isEVMLike(protocol)
+        ? hash.replace(/^0x/i, '').toLowerCase()
+        : hash;
+    if (
+      (transferId !== undefined && response.txId !== transferId) ||
+      (response.srcTxHash != null &&
+        normalizeHash(response.srcTxHash) !== normalizeHash(txHash))
+    ) {
+      this.logger.warn(
+        {
+          txHash,
+          transferId,
+          responseTransferId: response.txId,
+          responseSourceHash: response.srcTxHash,
+        },
+        'swaps.xyz status transfer identity mismatch',
+      );
+      return { status: 'not_found' };
+    }
     // The API's chainId param is advisory: a hash registered on a different
     // chain is still returned. Such an entry is not our transfer.
     if (response.srcChainId !== null && response.srcChainId !== fromChain) {
@@ -259,7 +290,12 @@ export class SwapsXyzBridge implements IExternalBridge {
     switch (rawStatus.toLowerCase()) {
       case 'success':
       case 'completed':
-        if (response.srcChainId === null || response.dstChainId === null) {
+        if (
+          response.srcChainId === null ||
+          response.dstChainId === null ||
+          (transferId === undefined && !response.srcTxHash) ||
+          !response.dstTxHash
+        ) {
           this.logger.warn(
             {
               txHash,
@@ -272,7 +308,7 @@ export class SwapsXyzBridge implements IExternalBridge {
         }
         return {
           status: 'complete',
-          receivingTxHash: response.dstTxHash ?? '',
+          receivingTxHash: response.dstTxHash,
           receivedAmount: BigInt(
             response.actionResponse?.amountOut.amount ?? '0',
           ),
@@ -336,9 +372,13 @@ export class SwapsXyzBridge implements IExternalBridge {
   }
 
   private getSlippageBps(slippage?: number): number {
-    return Math.round(
-      (slippage ?? this.config.defaultSlippage ?? DEFAULT_SLIPPAGE) * 10_000,
+    const fraction =
+      slippage ?? this.config.defaultSlippage ?? DEFAULT_SLIPPAGE;
+    assert(
+      Number.isFinite(fraction) && fraction >= 0 && fraction <= 1,
+      'swaps.xyz slippage must be between 0 and 1',
     );
+    return Math.round(fraction * 10_000);
   }
 
   private async quoteExactOutWithForwardFallback(
@@ -420,7 +460,12 @@ export class SwapsXyzBridge implements IExternalBridge {
       `SwapsXyzBridge: no chain metadata configured for chainId ${chainId}`,
     );
     if (token.toLowerCase() === NATIVE_TOKEN_ADDRESS) {
-      return metadata.nativeToken?.decimals ?? 18;
+      const decimals = metadata.nativeToken?.decimals;
+      assert(
+        decimals !== undefined,
+        `Missing native token decimals for ${metadata.name}`,
+      );
+      return decimals;
     }
     assert(
       isEVMLike(metadata.protocol),
@@ -648,17 +693,9 @@ export class SwapsXyzBridge implements IExternalBridge {
     const freshFromAmount = BigInt(
       (response.amountInMax ?? response.amountIn).amount,
     );
-    const maxInputGrowthBps =
-      params.toAmount === undefined
-        ? 0
-        : (this.config.maxQuoteLossBps ?? this.getSlippageBps(params.slippage));
-    const acceptedInputCap = ceilDiv(
-      quote.fromAmount * (BPS_DENOMINATOR + BigInt(maxInputGrowthBps)),
-      BPS_DENOMINATOR,
-    );
     assert(
-      freshFromAmount <= acceptedInputCap,
-      `SwapsXyzBridge.execute fresh input ${freshFromAmount} exceeds accepted input cap ${acceptedInputCap}`,
+      freshFromAmount <= quote.fromAmount,
+      `SwapsXyzBridge.execute fresh input ${freshFromAmount} exceeds accepted input cap ${quote.fromAmount}`,
     );
     const freshToAmountMin = BigInt(response.amountOutMin.amount);
     assert(
@@ -676,6 +713,17 @@ export class SwapsXyzBridge implements IExternalBridge {
     )
       ? freshFromAmount
       : 0n;
+    const minimumNativePrincipal = this.addressesEqual(
+      params.fromToken,
+      NATIVE_TOKEN_ADDRESS,
+      params.fromChain,
+    )
+      ? BigInt(response.amountIn.amount)
+      : 0n;
+    assert(
+      freshValue >= minimumNativePrincipal,
+      'SwapsXyzBridge.execute transaction value is below the native token input',
+    );
     const nativeFee =
       freshValue > nativePrincipal ? freshValue - nativePrincipal : 0n;
     const maxNativeFee =
@@ -692,21 +740,56 @@ export class SwapsXyzBridge implements IExternalBridge {
     fromAmount: bigint,
     toAmount: bigint,
   ): Promise<void> {
+    const amountIn = BigInt(response.amountIn.amount);
+    const maximumInput = BigInt(
+      (response.amountInMax ?? response.amountIn).amount,
+    );
+    const minimumOutput = BigInt(response.amountOutMin.amount);
+    const expectedOutput = BigInt(response.amountOut.amount);
+    assert(
+      amountIn > 0n && maximumInput >= amountIn,
+      'swaps.xyz invalid input amount bounds',
+    );
+    if (params.fromAmount !== undefined) {
+      assert(
+        amountIn === params.fromAmount && maximumInput === params.fromAmount,
+        'swaps.xyz exact input does not match the requested amount',
+      );
+    }
+    const slippageFloor =
+      (expectedOutput *
+        (BPS_DENOMINATOR - BigInt(this.getSlippageBps(params.slippage)))) /
+      BPS_DENOMINATOR;
+    assert(
+      minimumOutput > 0n &&
+        minimumOutput <= expectedOutput &&
+        minimumOutput >= slippageFloor,
+      'swaps.xyz minimum output exceeds the requested slippage',
+    );
     const maxQuoteLossBps = this.config.maxQuoteLossBps;
     if (maxQuoteLossBps === undefined) return;
 
     const [sourceDecimals, destinationDecimals] = await Promise.all([
-      response.amountInMax?.decimals ??
-        response.amountIn.decimals ??
-        this.getTokenDecimals(params.fromChain, params.fromToken),
-      response.amountOutMin.decimals ??
-        response.amountOut.decimals ??
-        this.getTokenDecimals(params.toChain, params.toToken),
+      this.getTokenDecimals(params.fromChain, params.fromToken),
+      this.getTokenDecimals(params.toChain, params.toToken),
     ]);
     assert(
       sourceDecimals <= 255 && destinationDecimals <= 255,
       'swaps.xyz quote token decimals must be at most 255',
     );
+    for (const amount of [response.amountIn, response.amountInMax]) {
+      assert(
+        amount?.decimals === undefined || amount.decimals === sourceDecimals,
+        'swaps.xyz source token decimals do not match chain data',
+      );
+    }
+    for (const amount of [response.amountOut, response.amountOutMin]) {
+      assert(
+        amount.decimals === undefined ||
+          amount.decimals === destinationDecimals,
+        'swaps.xyz destination token decimals do not match chain data',
+      );
+    }
     const commonDecimals = Math.max(sourceDecimals, destinationDecimals);
     const normalizedFromAmount =
       fromAmount * 10n ** BigInt(commonDecimals - sourceDecimals);
