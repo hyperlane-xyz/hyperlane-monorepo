@@ -10,7 +10,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { createStatusAdapters } from '../bridges/status/index.js';
-import { TokenBridgeStatusAdapterType } from '../config/types.js';
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import type { StatusAdaptersByKind } from '../interfaces/ITokenBridgeStatusAdapter.js';
 import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
@@ -364,7 +363,11 @@ export class ActionTracker implements IActionTracker {
         await this.reconcilePendingApproval(action);
         continue;
       }
-      if (!action.messageId && !action.externalExecutionRef && (await this.reconcileFailedSource(action)))
+      if (
+        !action.messageId &&
+        !action.externalExecutionRef &&
+        (await this.reconcileFailedSource(action))
+      )
         continue;
       if (action.externalExecutionRef) {
         const statusAdapter = this.statusAdaptersByKind.get(
@@ -381,14 +384,10 @@ export class ActionTracker implements IActionTracker {
           continue;
         }
 
-        const blockTag =
-          action.externalExecutionRef.kind ===
-          TokenBridgeStatusAdapterType.HyperlaneMessage
-            ? await this.getConfirmedBlockTag(
-                action.destination,
-                confirmedBlockTags,
-              )
-            : undefined;
+        const blockTag = await this.getConfirmedBlockTag(
+          action.destination,
+          confirmedBlockTags,
+        );
 
         try {
           const status = await statusAdapter.pollStatus(

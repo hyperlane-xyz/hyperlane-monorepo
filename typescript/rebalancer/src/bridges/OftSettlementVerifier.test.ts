@@ -724,6 +724,22 @@ describe('OftSettlementVerifier', () => {
     });
   });
 
+  it('does not re-resolve a named finality tag after receiving a numeric snapshot', async () => {
+    stubResponse({ data: [createMessage()] });
+    const context = createPollContext(
+      createDestinationReceipt({ blockNumber: 36 }),
+      { blockTag: 36 },
+    );
+    const getBlock = Sinon.stub().rejects(
+      new Error('Finality advanced after sampling'),
+    );
+    context.provider.getBlock = getBlock;
+    expect(
+      (await createAdapter().pollStatus(createRef(), context)).status,
+    ).to.equal('complete');
+    expect(getBlock.called).to.equal(false);
+  });
+
   it('enforces the metadata finality tag without a caller block tag', async () => {
     stubResponse({ data: [createMessage()] });
 
