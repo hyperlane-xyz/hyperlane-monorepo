@@ -127,6 +127,48 @@ describe('SwapsXyzClient', () => {
     expect(init.signal).to.be.instanceOf(AbortSignal);
   });
 
+  it('bounds success bodies that ignore abort within the request retry budget', async () => {
+    const clock = sinon.useFakeTimers();
+    client = new SwapsXyzClient(
+      { apiKey: 'test-key', requestTimeoutMs: 100 },
+      logger,
+    );
+    fetchStub.callsFake(async () => new Response(new ReadableStream()));
+    const result = captureError(client.getAction(actionRequest()));
+
+    await clock.runAllAsync();
+
+    const error = await result;
+    expect(error).to.be.instanceOf(Error);
+    if (!(error instanceof Error)) throw new Error('Expected timeout error');
+    expect(error.message).to.include('HTTP request timed out after 100ms');
+    expect(fetchStub.callCount).to.equal(3);
+    expect(clock.now).to.equal(3_300);
+  });
+
+  it('preserves a terminal HTTP status when its error body stalls', async () => {
+    const clock = sinon.useFakeTimers();
+    client = new SwapsXyzClient(
+      { apiKey: 'test-key', requestTimeoutMs: 100 },
+      logger,
+    );
+    fetchStub.callsFake(
+      async () => new Response(new ReadableStream(), { status: 401 }),
+    );
+    const result = captureError(client.getAction(actionRequest()));
+
+    await clock.runAllAsync();
+
+    const error = await result;
+    expect(error).to.be.instanceOf(SwapsXyzRequestError);
+    if (!(error instanceof SwapsXyzRequestError)) {
+      throw new Error('Expected HTTP error');
+    }
+    expect(error.status).to.equal(401);
+    expect(fetchStub.callCount).to.equal(1);
+    expect(clock.now).to.equal(100);
+  });
+
   it('builds /getAction query params and skips undefined values', async () => {
     fetchStub.resolves(makeResponse({ body: actionResponseBody() }));
     await client.getAction({
@@ -354,5 +396,16 @@ describe('SwapsXyzClient', () => {
     const [result] = results;
     if (!result) throw new Error('Expected registration result');
     expect(result.success).to.equal(true);
+  });
+
+  it('leaves registration retries to the bridge', async () => {
+    fetchStub.resolves(makeResponse({ status: 503 }));
+
+    const error = await captureError(
+      client.registerTxs([{ txId: 'tx-1', txHash: '0xabc' }]),
+    );
+
+    expect(error).to.be.instanceOf(SwapsXyzRequestError);
+    expect(fetchStub.callCount).to.equal(1);
   });
 });

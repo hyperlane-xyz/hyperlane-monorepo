@@ -1,6 +1,8 @@
 import type { Logger } from 'pino';
 import { z } from 'zod';
 
+import { fetchWithDeadline } from '../utils/fetchWithDeadline.js';
+
 const DEFAULT_API_URL = 'https://api-v2.swaps.xyz/api';
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1_000;
@@ -71,7 +73,9 @@ export function isSwapsXyzNotFoundError(error: unknown): boolean {
   return (
     error instanceof SwapsXyzRequestError &&
     (error.status === 404 ||
-      (error.code !== undefined && NOT_FOUND_ERROR_CODES.has(error.code)))
+      (error.status === 400 &&
+        error.code !== undefined &&
+        NOT_FOUND_ERROR_CODES.has(error.code)))
   );
 }
 
@@ -360,16 +364,15 @@ export class SwapsXyzClient {
   registerTxs(
     entries: SwapsXyzRegisterTxEntry[],
   ): Promise<SwapsXyzRegisterTxResult[]> {
-    return this.withRetry(() =>
-      this.request<SwapsXyzRegisterTxResult[]>(
-        `${this.apiUrl}/registerTxs`,
-        {
-          method: 'POST',
-          body: JSON.stringify(entries),
-          headers: { 'content-type': 'application/json' },
-        },
-        RegisterTxResultsSchema,
-      ),
+    // The bridge owns one retry budget for HTTP and unsuccessful API results.
+    return this.request<SwapsXyzRegisterTxResult[]>(
+      `${this.apiUrl}/registerTxs`,
+      {
+        method: 'POST',
+        body: JSON.stringify(entries),
+        headers: { 'content-type': 'application/json' },
+      },
+      RegisterTxResultsSchema,
     );
   }
 
@@ -378,44 +381,61 @@ export class SwapsXyzClient {
     init: { method: string; body?: string; headers?: Record<string, string> },
     schema: z.ZodType<T>,
   ): Promise<T> {
-    const response = await globalThis.fetch(url, {
-      method: init.method,
-      headers: {
-        'x-api-key': this.apiKey,
-        ...init.headers,
-      },
-      body: init.body,
-      signal: AbortSignal.timeout(this.requestTimeoutMs),
-    });
-    if (!response.ok) {
-      let code: string | undefined;
-      let message = `${init.method} ${url} failed: ${response.status} ${response.statusText}`;
-      try {
-        const body: unknown = await response.json();
-        if (isRecord(body) && isRecord(body.error)) {
-          if (typeof body.error.code === 'string') code = body.error.code;
-          if (typeof body.error.message === 'string') {
-            message = `${message}: ${body.error.message}`;
+    let responseError: SwapsXyzRequestError | undefined;
+    try {
+      return await fetchWithDeadline(
+        url,
+        {
+          method: init.method,
+          headers: {
+            'x-api-key': this.apiKey,
+            ...init.headers,
+          },
+          body: init.body,
+        },
+        this.requestTimeoutMs,
+        async (response) => {
+          if (!response.ok) {
+            let code: string | undefined;
+            let message = `${init.method} ${url} failed: ${response.status} ${response.statusText}`;
+            // Keep the HTTP classification if reading its error body times out.
+            responseError = new SwapsXyzRequestError(
+              message,
+              response.status,
+              response.statusText,
+            );
+            try {
+              const body: unknown = await response.json();
+              if (isRecord(body) && isRecord(body.error)) {
+                if (typeof body.error.code === 'string') code = body.error.code;
+                if (typeof body.error.message === 'string') {
+                  message = `${message}: ${body.error.message}`;
+                }
+              }
+            } catch {
+              // Keep the status-derived error when the response is not JSON.
+            }
+            responseError = new SwapsXyzRequestError(
+              message,
+              response.status,
+              response.statusText,
+              code,
+            );
+            throw responseError;
           }
-        }
-      } catch {
-        // Keep the status-derived error when the response is not JSON.
-      }
-      throw new SwapsXyzRequestError(
-        message,
-        response.status,
-        response.statusText,
-        code,
+          const body: unknown = await response.json();
+          const result = schema.safeParse(body);
+          if (!result.success) {
+            throw new SwapsXyzResponseValidationError(
+              `Invalid swaps.xyz response for ${init.method} ${new URL(url).pathname}: ${result.error.message}`,
+            );
+          }
+          return result.data;
+        },
       );
+    } catch (error) {
+      throw responseError ?? error;
     }
-    const body: unknown = await response.json();
-    const result = schema.safeParse(body);
-    if (!result.success) {
-      throw new SwapsXyzResponseValidationError(
-        `Invalid swaps.xyz response for ${init.method} ${new URL(url).pathname}: ${result.error.message}`,
-      );
-    }
-    return result.data;
   }
 
   private async withRetry<T>(fn: () => Promise<T>): Promise<T> {

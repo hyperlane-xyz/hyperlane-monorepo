@@ -9,7 +9,7 @@ import {
   assert,
   ensure0x,
   isEVMLike,
-  retryAsync,
+  sleep,
 } from '@hyperlane-xyz/utils';
 import { BigNumber, Contract, Wallet, providers, utils } from 'ethers';
 import type { Logger } from 'pino';
@@ -33,6 +33,7 @@ import {
   SwapsXyzRequestError,
   isEvmTx,
   isSwapsXyzNotFoundError,
+  isSwapsXyzTerminalError,
   type SwapsXyzActionRequest,
   type SwapsXyzActionResponse,
   type SwapsXyzStatusResponse,
@@ -45,6 +46,7 @@ const REVERSE_QUOTE_HEADROOM_BPS = 30n;
 const BPS_DENOMINATOR = 10_000n;
 const ERC20_DECIMALS_ABI = ['function decimals() view returns (uint8)'];
 const REGISTER_TX_RETRY_DELAY_MS = 2_000;
+const MAX_REGISTRATION_ATTEMPTS = 3;
 const MAX_TRANSACTION_AGE_MS = 30_000;
 const MAX_PREPARATION_ATTEMPTS = 3;
 const DEFAULT_MAX_EVM_NATIVE_FEE_WEI = 10_000_000_000_000_000n;
@@ -203,8 +205,8 @@ export class SwapsXyzBridge implements IExternalBridge {
     // outages without re-broadcasting the source transaction.
     if (
       transferId !== undefined &&
-      (response === undefined ||
-        response.status.toLowerCase() === 'not yet created') &&
+      (response?.status.toLowerCase() === 'not yet created' ||
+        isSwapsXyzNotFoundError(statusError)) &&
       (await this.registerTransaction(transferId, txHash))
     ) {
       try {
@@ -837,27 +839,29 @@ export class SwapsXyzBridge implements IExternalBridge {
     txId: string,
     txHash: string,
   ): Promise<boolean> {
-    try {
-      await retryAsync(
-        async () => {
-          const results = await this.client.registerTxs([{ txId, txHash }]);
-          const failed = results.find((result) => !result.success);
-          if (failed) {
-            throw new Error(
-              `swaps.xyz registerTxs failed: ${failed.error ?? 'unknown error'}`,
-            );
-          }
-        },
-        3,
-        this.registerTxRetryDelayMs,
-      );
-      return true;
-    } catch (error) {
-      this.logger.error(
-        { txId, txHash, error },
-        'Failed to register swaps.xyz transaction',
-      );
-      return false;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const results = await this.client.registerTxs([{ txId, txHash }]);
+        const failed = results.find((result) => !result.success);
+        if (failed) {
+          throw new Error(
+            `swaps.xyz registerTxs failed: ${failed.error ?? 'unknown error'}`,
+          );
+        }
+        return true;
+      } catch (error) {
+        if (
+          isSwapsXyzTerminalError(error) ||
+          attempt >= MAX_REGISTRATION_ATTEMPTS - 1
+        ) {
+          this.logger.error(
+            { txId, txHash, error },
+            'Failed to register swaps.xyz transaction',
+          );
+          return false;
+        }
+        await sleep(this.registerTxRetryDelayMs * 2 ** attempt);
+      }
     }
   }
 }
