@@ -153,6 +153,35 @@ async fn checkpoint_check_retains_interval_fallback() {
     task.await.expect("checkpoint wait task");
 }
 
+/// Characterize the submitter's existing sub-second wait with and without a wake source;
+/// configuration parsing is covered separately in the settings tests.
+#[tokio::test(start_paused = true)]
+async fn checkpoint_check_honours_sub_second_interval() {
+    for checkpoint_wake in [None, Some(Arc::new(Notify::new()))] {
+        let submitter = dummy_submitter(Duration::from_millis(100))
+            .with_checkpoint_wake(checkpoint_wake.clone());
+        let task = tokio::spawn(async move { submitter.wait_for_checkpoint_check().await });
+
+        tokio::task::yield_now().await;
+        tokio::time::advance(Duration::from_millis(99)).await;
+        tokio::task::yield_now().await;
+        assert!(
+            !task.is_finished(),
+            "finished before 100ms (wake source: {})",
+            checkpoint_wake.is_some()
+        );
+
+        tokio::time::advance(Duration::from_millis(1)).await;
+        tokio::task::yield_now().await;
+        assert!(
+            task.is_finished(),
+            "not finished at 100ms (wake source: {})",
+            checkpoint_wake.is_some()
+        );
+        task.await.expect("checkpoint wait task");
+    }
+}
+
 #[test]
 #[should_panic(expected = "maxSignConcurrency must be greater than zero")]
 fn validator_submitter_rejects_zero_sign_concurrency() {

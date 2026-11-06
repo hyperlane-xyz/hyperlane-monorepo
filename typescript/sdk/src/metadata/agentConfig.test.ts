@@ -152,6 +152,88 @@ describe('AgentChainMetadataSchema index.from', () => {
   });
 });
 
+describe('fractional interval seconds', () => {
+  const chain = {
+    name: 'legacy',
+    domainId: 1000,
+    chainId: 1000,
+    protocol: ProtocolType.Ethereum,
+    rpcUrls: [{ http: 'http://localhost:8545' }],
+    mailbox: '0x0000000000000000000000000000000000000001',
+    interchainGasPaymaster: '0x0000000000000000000000000000000000000002',
+    validatorAnnounce: '0x0000000000000000000000000000000000000003',
+    merkleTreeHook: '0x0000000000000000000000000000000000000004',
+  };
+  const validatorInterval = ValidatorAgentConfigSchema.shape.interval;
+  // Rust rejects intervals rounded to zero nanoseconds and overflows at 2^64 seconds;
+  // 2^64 - 2048 is the largest representable double below that upper bound.
+  const valid = [
+    0.1,
+    0.25,
+    1,
+    1.5,
+    7,
+    5e-10,
+    6e-10,
+    0.999e-9,
+    1e-9,
+    2 ** 64 - 2048,
+  ];
+  const invalid: unknown[] = [
+    0,
+    -0.1,
+    -1,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+    'abc',
+    true,
+    null,
+    1e-12,
+    4e-10,
+    5e-10 * (1 - Number.EPSILON),
+    2 ** 64,
+    Number.MAX_VALUE,
+  ];
+
+  it('accepts positive finite seconds, including fractions, at both fields', () => {
+    for (const interval of valid) {
+      const result = AgentChainMetadataSchema.safeParse({
+        ...chain,
+        index: { interval },
+      });
+      expect(result.success, `index.interval ${interval}`).to.be.true;
+      if (result.success) {
+        expect(result.data.index?.interval).to.equal(interval);
+      }
+      const top = validatorInterval.safeParse(interval);
+      expect(top.success, `interval ${interval}`).to.be.true;
+      if (top.success) expect(top.data).to.equal(interval);
+    }
+  });
+
+  it('allows both fields to be absent', () => {
+    expect(AgentChainMetadataSchema.safeParse(chain).success).to.be.true;
+    expect(AgentChainMetadataSchema.safeParse({ ...chain, index: {} }).success)
+      .to.be.true;
+    expect(validatorInterval.safeParse(undefined).success).to.be.true;
+  });
+
+  it('rejects zero, negative, non-finite and non-numeric values at both fields', () => {
+    for (const interval of invalid) {
+      expect(
+        AgentChainMetadataSchema.safeParse({ ...chain, index: { interval } })
+          .success,
+        `index.interval ${String(interval)}`,
+      ).to.be.false;
+      expect(
+        validatorInterval.safeParse(interval).success,
+        `interval ${String(interval)}`,
+      ).to.be.false;
+    }
+  });
+});
+
 describe('RelayerAgentConfigSchema feeToken gate', () => {
   const FEE_TOKEN = '0x0000000000000000000000000000000000000005';
 

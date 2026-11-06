@@ -250,7 +250,7 @@ pub struct IndexSettings {
     /// The indexing mode.
     pub mode: IndexMode,
     /// How long a cursor sleeps when it's caught up and has nothing new to
-    /// index. Defaults to 5s, overridable via `index.interval` (seconds) in
+    /// index. Defaults to 5s, overridable via `index.interval` (fractional seconds) in
     /// the chain config.
     pub idle_sleep_duration: Duration,
     /// The raw `index.interval` as explicitly configured, if any. `None` means the chain didn't

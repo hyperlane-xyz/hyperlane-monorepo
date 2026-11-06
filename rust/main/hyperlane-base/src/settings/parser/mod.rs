@@ -244,22 +244,14 @@ fn parse_chain(
                 })
                 .unwrap_or_default()
         });
-    // Defaults to 5s; overridable via `index.interval` (seconds).
-    let interval_secs = chain
+    // Defaults to 5s; `index.interval` accepts fractional seconds for fast chains.
+    let configured_interval = chain
         .chain(&mut err)
         .get_opt_key("index")
         .get_opt_key("interval")
-        .parse_u64()
+        .parse_duration_seconds()
         .end();
-    if interval_secs == Some(0) {
-        err.push(
-            chain.cwp.clone(),
-            eyre!("`index.interval` must be greater than zero, or omitted for the 5s default"),
-        );
-    }
-    let idle_sleep_duration = interval_secs
-        .map(Duration::from_secs)
-        .unwrap_or(Duration::from_secs(5));
+    let idle_sleep_duration = configured_interval.unwrap_or(Duration::from_secs(5));
 
     let mailbox = chain
         .chain(&mut err)
@@ -428,7 +420,7 @@ fn parse_chain(
             chunk_size,
             mode,
             idle_sleep_duration,
-            configured_interval: interval_secs.map(Duration::from_secs),
+            configured_interval,
         },
         confirmations,
         chain_id,
@@ -857,6 +849,90 @@ mod test {
             "merkletreehook": "0x0000000000000000000000000000000000000004",
             "urreveal": { "ccsurl": "https://ccs.example/callCommitments", "programid": "11111111111111111111111111111111" },
         })
+    }
+
+    /// Parse a real chain config so interval cases cover both configured and effective waits.
+    fn parse_index_interval(interval: Option<serde_json::Value>) -> ConfigResult<ChainConf> {
+        let mut value = sealevel_ccs_config();
+        if let Some(interval) = interval {
+            value["index"] = serde_json::json!({ "interval": interval });
+        }
+        parse_chain(
+            ValueParser::new(Default::default(), &value),
+            "solanamainnet",
+            "fallback",
+        )
+    }
+
+    /// `index.interval` stays in seconds but accepts fractions, as a JSON number or an env-style
+    /// string; whole seconds must stay exact across the full u64 range (an f64 detour would round
+    /// large values or overflow `Duration`).
+    #[test]
+    fn index_interval_accepts_fractional_and_exact_integer_seconds() {
+        use serde_json::json;
+        let max = Duration::from_secs(u64::MAX);
+        for (interval, expected) in [
+            (json!(0.1), Duration::from_millis(100)),
+            (json!("0.1"), Duration::from_millis(100)),
+            (json!(0.25), Duration::from_millis(250)),
+            (json!("1.5"), Duration::from_millis(1500)),
+            (json!(1), Duration::from_secs(1)),
+            (json!("7"), Duration::from_secs(7)),
+            (
+                json!(9_007_199_254_740_993u64),
+                Duration::from_secs(9_007_199_254_740_993),
+            ),
+            (json!(u64::MAX), max),
+            (json!(u64::MAX.to_string()), max),
+        ] {
+            let config = parse_index_interval(Some(interval.clone()))
+                .unwrap_or_else(|err| panic!("{interval} must parse: {err}"));
+            assert_eq!(config.index.idle_sleep_duration, expected, "{interval}");
+            assert_eq!(
+                config.index.configured_interval,
+                Some(expected),
+                "{interval}"
+            );
+        }
+
+        let config = parse_index_interval(None).expect("absent interval");
+        assert_eq!(config.index.idle_sleep_duration, Duration::from_secs(5));
+        assert_eq!(config.index.configured_interval, None);
+    }
+
+    /// Each of these would otherwise become a zero/negative wait (busy loop), a panic in
+    /// `Duration` construction, or a silently different value.
+    #[test]
+    fn index_interval_rejects_nonpositive_malformed_and_unrepresentable_values() {
+        use serde_json::json;
+        for interval in [
+            json!(0),
+            json!("0"),
+            json!(0.0),
+            json!("0.0"),
+            json!(-0.0),
+            json!(-1),
+            json!(-0.1),
+            json!("-0.1"),
+            json!(1e-10),
+            json!("1e-10"),
+            json!(1e20),
+            json!("1e20"),
+            json!("1e400"),
+            json!("NaN"),
+            json!("inf"),
+            json!("-inf"),
+            json!(""),
+            json!("0.1s"),
+            json!("abc"),
+            json!(true),
+            json!({}),
+        ] {
+            let error = parse_index_interval(Some(interval.clone()))
+                .expect_err(&format!("{interval} must be rejected"))
+                .to_string();
+            assert!(error.contains("interval"), "{interval}: {error}");
+        }
     }
 
     #[test]
