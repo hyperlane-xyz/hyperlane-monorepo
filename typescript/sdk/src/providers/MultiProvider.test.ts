@@ -7,12 +7,14 @@ import {
 } from 'zksync-ethers';
 
 import {
+  LayerZeroV2HookIsm__factory,
   Mailbox__factory,
   ProxyAdmin__factory,
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
 import type { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import {
+  LayerZeroV2HookIsm__factory as TronLayerZeroV2HookIsm__factory,
   Mailbox__factory as TronMailbox__factory,
   ProxyAdmin__factory as TronProxyAdmin__factory,
   TronContractFactory,
@@ -49,6 +51,15 @@ describe('MultiProvider Tron factory resolution', () => {
     expect(resolved.constructor.name).to.equal(TronContractFactory.name);
     expect(resolved.bytecode).to.equal(
       new TronTestRecipient__factory().bytecode,
+    );
+  });
+
+  it('resolves the LayerZero hook/ISM to its tron factory', async () => {
+    const resolved = await mp.resolveTronFactory(
+      new LayerZeroV2HookIsm__factory(),
+    );
+    expect(resolved.bytecode).to.equal(
+      new TronLayerZeroV2HookIsm__factory().bytecode,
     );
   });
 

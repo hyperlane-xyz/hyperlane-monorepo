@@ -18,6 +18,7 @@ import {
   HookConfig,
   HookType,
   IgpVersion,
+  LayerZeroV2HookConfig,
   NetFlowRateLimitedHookConfig,
   WormholeHookConfig,
 } from './types.js';
@@ -116,7 +117,8 @@ export type HybridHookNodeConfig =
  */
 export type CombinedHookIsmHookConfig =
   | HybridHookNodeConfig
-  | WormholeHookConfig;
+  | WormholeHookConfig
+  | LayerZeroV2HookConfig;
 
 export function isHybridHookNode(
   hook: HookConfig | undefined,
@@ -134,7 +136,9 @@ export function isCombinedHookIsmHookNode(
 ): hook is CombinedHookIsmHookConfig {
   return (
     isHybridHookNode(hook) ||
-    (!!hook && typeof hook === 'object' && hook.type === HookType.WORMHOLE)
+    (!!hook &&
+      typeof hook === 'object' &&
+      (hook.type === HookType.WORMHOLE || hook.type === HookType.LAYER_ZERO_V2))
   );
 }
 

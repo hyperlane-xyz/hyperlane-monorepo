@@ -42,7 +42,12 @@ import {
   TrustedRelayerIsm,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
-import { WithAddress, addressToBytes32, assert } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  WithAddress,
+  addressToBytes32,
+  assert,
+} from '@hyperlane-xyz/utils';
 
 import { TestChainName, test2 } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -57,8 +62,10 @@ import { EvmIsmReader, EvmIsmReaderOptions } from './EvmIsmReader.js';
 import {
   BlacklistIsmConfig,
   DelayedFlowRouterHookIsmConfig,
+  DerivedIsmConfig,
   InterchainAccountRouterIsm,
   IsmType,
+  LayerZeroV2IsmConfig,
   MailboxDefaultIsmConfig,
   ModuleType,
   MultisigIsmConfig,
@@ -165,7 +172,7 @@ describe('EvmIsmReader', () => {
     sandbox.restore();
   });
 
-  it('propagates transient Wormhole hookType probe failures', async () => {
+  it('propagates transient hookType probe failures', async () => {
     const mockAddress = randomAddress();
     const transientError = networkError();
     sandbox.stub(IInterchainSecurityModule__factory, 'connect').returns(
@@ -210,26 +217,63 @@ describe('EvmIsmReader', () => {
     expect(config.modules).to.deep.equal([wormholeConfig]);
   });
 
-  describe('Wormhole module nested in an aggregation', () => {
-    interface NestedWormholeCase {
+  describe('combined hook/ISM module nested in an aggregation', () => {
+    interface NestedCombinedCase {
       name: string;
       options?: EvmIsmReaderOptions;
-      expandsWormhole: boolean;
+      derived: (address: Address) => DerivedIsmConfig;
+      expands: boolean;
     }
 
-    const cases: NestedWormholeCase[] = [
+    const derivedWormhole = (
+      address: Address,
+    ): WithAddress<WormholeIsmConfig> => ({
+      address,
+      type: IsmType.WORMHOLE,
+      owner: randomAddress(),
+      core: randomAddress(),
+      wormholeChainId: 2,
+      consistencyLevel: { type: WormholeConsistencyType.Finalized },
+      urls: ['https://vaa.example/v1'],
+    });
+    const derivedLayerZero = (
+      address: Address,
+    ): WithAddress<LayerZeroV2IsmConfig> => ({
+      address,
+      type: IsmType.LAYER_ZERO_V2,
+      owner: randomAddress(),
+      endpoint: randomAddress(),
+      layerZeroDomainId: 30_101,
+      pathways: {},
+      urls: ['https://packets.example/layerzero'],
+    });
+
+    const cases: NestedCombinedCase[] = [
       {
-        name: 'preserves the address for deployment readers',
-        expandsWormhole: false,
+        name: 'preserves the Wormhole address for deployment readers',
+        derived: derivedWormhole,
+        expands: false,
       },
       {
-        name: 'expands the config when requested for diagnostics',
+        name: 'expands the Wormhole config when requested for diagnostics',
         options: { expandNonDeployableHookIsms: true },
-        expandsWormhole: true,
+        derived: derivedWormhole,
+        expands: true,
+      },
+      {
+        name: 'preserves the LayerZero address for deployment readers',
+        derived: derivedLayerZero,
+        expands: false,
+      },
+      {
+        name: 'expands the LayerZero config when requested for diagnostics',
+        options: { expandNonDeployableHookIsms: true },
+        derived: derivedLayerZero,
+        expands: true,
       },
     ];
 
-    for (const { name, options, expandsWormhole } of cases) {
+    for (const { name, options, derived, expands } of cases) {
       it(name, async () => {
         const reader = new EvmIsmReader(
           multiProvider,
@@ -239,33 +283,23 @@ describe('EvmIsmReader', () => {
           options,
         );
         const aggregationAddress = randomAddress();
-        const wormholeAddress = randomAddress();
-        const derivedWormhole: WithAddress<WormholeIsmConfig> = {
-          address: wormholeAddress,
-          type: IsmType.WORMHOLE,
-          owner: randomAddress(),
-          core: randomAddress(),
-          wormholeChainId: 2,
-          consistencyLevel: { type: WormholeConsistencyType.Finalized },
-          urls: ['https://vaa.example/v1'],
-        };
+        const moduleAddress = randomAddress();
+        const derivedModule = derived(moduleAddress);
         sandbox.stub(StaticAggregationIsm__factory, 'connect').returns(
           contractDouble<StaticAggregationIsm>({
             moduleType: sandbox.stub().resolves(ModuleType.AGGREGATION),
-            modulesAndThreshold: sandbox
-              .stub()
-              .resolves([[wormholeAddress], 1]),
+            modulesAndThreshold: sandbox.stub().resolves([[moduleAddress], 1]),
           }),
         );
         sandbox
           .stub(reader, 'deriveIsmConfigFromAddress')
-          .withArgs(wormholeAddress)
-          .resolves(derivedWormhole);
+          .withArgs(moduleAddress)
+          .resolves(derivedModule);
 
         const config = await reader.deriveAggregationConfig(aggregationAddress);
 
         expect(config.modules).to.deep.equal([
-          expandsWormhole ? derivedWormhole : wormholeAddress,
+          expands ? derivedModule : moduleAddress,
         ]);
       });
     }

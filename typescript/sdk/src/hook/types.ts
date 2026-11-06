@@ -48,6 +48,7 @@ export enum OnchainHookType {
   TIMELOCK_ROUTING,
   PREDICATE_ROUTER_WRAPPER,
   WORMHOLE,
+  LAYER_ZERO,
 }
 
 export const HookType = {
@@ -100,6 +101,12 @@ export const HookType = {
    * deployed by `EvmWormholeHookIsmModule`, never by the generic hook deployer.
    */
   WORMHOLE: 'wormholeHook',
+  /**
+   * Combined LayerZero V2 hook/ISM router, CCIP-read packet delivery.
+   * Deployed by `EvmLayerZeroV2HookIsmModule`, never by the generic hook
+   * deployer.
+   */
+  LAYER_ZERO_V2: 'layerZeroV2Hook',
   UNKNOWN: 'unknownHook',
   PREDICATE: 'predicateHook',
 } as const;
@@ -115,6 +122,7 @@ export type DeployableHookType = Exclude<
   | typeof HookType.NET_FLOW_RATE_LIMITED
   | typeof HookType.DELAYED_FLOW_ROUTER
   | typeof HookType.WORMHOLE
+  | typeof HookType.LAYER_ZERO_V2
 >;
 
 export const HookTypeToContractNameMap: Record<DeployableHookType, string> = {
@@ -201,6 +209,7 @@ export type HookConfig =
   | NetFlowRateLimitedHookConfig
   | DelayedFlowRouterHookConfig
   | WormholeHookConfig
+  | LayerZeroV2HookConfig
   | UnknownHookConfig
   | PredicateHookConfig;
 
@@ -387,6 +396,11 @@ export const WormholeHookSchema = z.object({
 });
 export type WormholeHookConfig = z.infer<typeof WormholeHookSchema>;
 
+export const LayerZeroV2HookSchema = z.object({
+  type: z.literal(HookType.LAYER_ZERO_V2),
+});
+export type LayerZeroV2HookConfig = z.infer<typeof LayerZeroV2HookSchema>;
+
 export const UnknownHookSchema = z.looseObject({
   type: z.literal(HookType.UNKNOWN),
 });
@@ -525,6 +539,7 @@ export const HookConfigSchema: z.ZodType<HookConfig, unknown> = z.union([
   NetFlowRateLimitedHookConfigSchema,
   DelayedFlowRouterHookConfigSchema,
   WormholeHookSchema,
+  LayerZeroV2HookSchema,
   UnknownHookSchema,
   PredicateHookSchema,
 ]);

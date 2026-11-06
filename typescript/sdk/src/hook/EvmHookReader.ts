@@ -62,6 +62,7 @@ import {
   IgpVersion,
   IgpHookConfig,
   MailboxDefaultHookConfig,
+  LayerZeroV2HookConfig,
   MerkleTreeHookConfig,
   NetFlowRateLimitedHookConfig,
   OFFCHAIN_QUOTED_IGP_VERSION,
@@ -241,6 +242,10 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           derivedHookConfig = await this.deriveWormholeHookConfig(address);
           this._cache.set(address, derivedHookConfig);
           break;
+        case OnchainHookType.LAYER_ZERO:
+          derivedHookConfig = this.deriveLayerZeroV2HookConfig(address);
+          this._cache.set(address, derivedHookConfig);
+          break;
         case OnchainHookType.RATE_LIMITED: {
           // NetFlowRateLimitedHookIsm (a hook/ISM hybrid) also reports
           // hookType() == RATE_LIMITED and exposes maxCapacity()/DURATION()/
@@ -273,6 +278,12 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     }
 
     return derivedHookConfig;
+  }
+
+  deriveLayerZeroV2HookConfig(
+    address: Address,
+  ): WithAddress<LayerZeroV2HookConfig> {
+    return { address, type: HookType.LAYER_ZERO_V2 };
   }
 
   /**
@@ -360,6 +371,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       HookType.CCTP,
       HookType.PREDICATE,
       HookType.WORMHOLE,
+      HookType.LAYER_ZERO_V2,
     ];
     if (!nonRedeployable.includes(derived.type)) {
       return derived;
