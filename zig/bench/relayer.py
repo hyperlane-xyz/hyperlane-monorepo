@@ -758,6 +758,85 @@ def allocation_proof(messages, links, receipts, mailboxes, require_exact):
     return {"parity": parity, "rows": rows}
 
 
+def setup_batch_contracts(max_batch_size, chains, domains):
+    if max_batch_size == 1:
+        return None
+    deployed = {}
+    for namespace, chain, chain_name in chains:
+        address = relayer_process.deploy_multicall3(chain)
+        code = chain.rpc("eth_getCode", [address, "latest"])
+        if not isinstance(code, str) or code in {"0x", "0x0"}:
+            raise RuntimeError("batch benchmark requires deployed Multicall3 code")
+        domains[chain_name]["batchContractAddress"] = address
+        deployed[namespace] = {"address": address.lower(), "code_keccak256": evm.run(["cast", "keccak", code])}
+    if len({(entry["address"], entry["code_keccak256"]) for entry in deployed.values()}) != 1:
+        raise RuntimeError("batch destinations must use identical Multicall3 code and address")
+    return deployed
+
+
+def batch_membership_proof(messages, receipts, chains, mailboxes, contracts, max_batch_size):
+    """Post-measurement evidence; no inference from a batch-size setting."""
+    topic = evm.run(["cast", "keccak", "ProcessId(bytes32)"]).lower()
+    expected = {message["id"].lower(): message for message in messages}
+    if len(expected) != len(messages):
+        raise RuntimeError("duplicate batch corpus message ID")
+    seen = set()
+    transaction_keys = set()
+    histogram = collections.Counter()
+    groups = []
+    for receipt in receipts:
+        namespace = receipt["chain_namespace"]
+        key = (namespace, receipt["transactionHash"].lower())
+        if key in transaction_keys:
+            raise RuntimeError("duplicate canonical batch receipt")
+        transaction_keys.add(key)
+        mailbox = receipt["_mailbox"].lower()
+        members = []
+        for event in receipt.get("logs", []):
+            topics = event.get("topics", [])
+            if len(topics) >= 2 and topics[0].lower() == topic and event.get("address", "").lower() == mailbox:
+                identity = topics[1].lower()
+                if identity not in expected or mailboxes[expected[identity]["destination"]].lower() != mailbox or identity in seen:
+                    raise RuntimeError("foreign or duplicate batch ProcessId member")
+                seen.add(identity)
+                members.append(identity)
+        if not members:
+            raise RuntimeError("broadcast receipt has no expected ProcessId members")
+        relayer_process.verify_process_events(receipt, mailbox, members)
+        if len(members) > max_batch_size:
+            raise RuntimeError("actual batch exceeds configured maximum")
+        histogram[len(members)] += 1
+        if len(members) == 1:
+            continue
+        chain = chains[namespace]
+        transaction = chain.rpc("eth_getTransactionByHash", [receipt["transactionHash"]])
+        if not transaction or transaction["hash"].lower() != key[1] or transaction.get("from", "").lower() != evm.TEST_SIGNER.lower() or transaction.get("to", "").lower() != contracts[namespace]["address"]:
+            raise RuntimeError("batch transaction signer, target or identity mismatch")
+        canonical, header = relayer_process.canonical_receipt(chain, transaction)
+        if any(canonical.get(field) != receipt.get(field) for field in ("transactionHash", "blockHash", "blockNumber", "status", "logs", "gasUsed", "effectiveGasPrice")):
+            raise RuntimeError("batch receipt changed during canonical verification")
+        calls = relayer_process.decode_aggregate3(transaction["input"])
+        if len(calls) != len(members):
+            raise RuntimeError("aggregate3 calls differ from receipt members")
+        by_wire = {expected[identity]["wire"].lower(): identity for identity in members}
+        ordered = []
+        for call in calls:
+            if call["to"].lower() != mailbox or call["calldata"][:4].hex() != "7c39d130":
+                raise RuntimeError("aggregate3 contains a foreign mailbox or selector")
+            identity = by_wire.get(relayer_process.process_wire(call["calldata"]).hex())
+            if identity is None or identity in ordered:
+                raise RuntimeError("aggregate3 contains foreign or duplicate message wire")
+            ordered.append(identity)
+        if set(ordered) != set(members):
+            raise RuntimeError("aggregate3 membership differs from ProcessId receipt")
+        groups.append({"chain_namespace": namespace, "transaction": transaction, "canonical_receipt": canonical, "canonical_header": header, "ordered_message_ids": ordered, "calls": len(calls)})
+    if seen != set(expected):
+        raise RuntimeError("batch receipt coverage is incomplete")
+    if not groups:
+        raise RuntimeError("batch benchmark produced only singleton transactions")
+    return {"verified": True, "maximum_configured": max_batch_size, "group_size_histogram": dict(sorted(histogram.items())), "batched_message_count": sum(group["calls"] for group in groups), "singleton_message_count": histogram[1], "groups": groups}
+
+
 def run_attempt(name, sample, args, binaries, output):
     raw_dir = output / "raw" / f"sample-{sample}-{name}"
     raw_dir.mkdir(parents=True, exist_ok=True)
@@ -837,6 +916,7 @@ def run_attempt(name, sample, args, binaries, output):
                     "maxBatchSize": args.max_batch_size,
                     "signer": {"type": "hexKey", "key": PUBLIC_KEY},
                 }
+            batch_contracts = setup_batch_contracts(args.max_batch_size, [("anvil-1", chain, "test2"), ("anvil-2", chain_alt, "test3")], domains)
             gas_oracle = deploy("StorageGasOracle")
             for destination in [DESTINATION, DESTINATION_ALT]:
                 chain.send(evm.calldata("setRemoteGasData((uint32,uint128,uint128))", f"({destination},10000000000,1)"), gas_oracle)
@@ -1078,6 +1158,7 @@ def run_attempt(name, sample, args, binaries, output):
                         raise RuntimeError("batch expenditure exceeds actual receipt sums")
                 canonical_receipts = [{"hash": receipt["transactionHash"], "nonce": receipt_nonce(chain if receipt["chain_namespace"] == "anvil-1" else chain_alt, receipt), "chain_namespace": receipt["chain_namespace"], "gas_used": receipt["gasUsed"], "effective_gas_price": receipt["effectiveGasPrice"]} for receipt in receipts]
                 allocation = allocation_proof(messages, first_probe["sealed_payload_links"], receipts, {DESTINATION: domains["test2"]["mailbox"], DESTINATION_ALT: domains["test3"]["mailbox"]}, require_exact=name == "zig")
+                batch_membership = batch_membership_proof(messages, receipts, {"anvil-1": chain, "anvil-2": chain_alt}, {DESTINATION: domains["test2"]["mailbox"], DESTINATION_ALT: domains["test3"]["mailbox"]}, batch_contracts, args.max_batch_size) if args.max_batch_size > 1 else None
                 unique_nonces = {(receipt["chain_namespace"], receipt["nonce"]) for receipt in canonical_receipts}
                 if args.max_batch_size == 1 and len(unique_nonces) != len(messages):
                     raise RuntimeError("single-submission unique nonce count mismatch")
@@ -1136,6 +1217,8 @@ def run_attempt(name, sample, args, binaries, output):
                         "accounting_parity": allocation["parity"] and not source_accounting_gap,
                         "known_source_accounting_gap": source_accounting_gap,
                         "sealed_allocation": allocation,
+                        "batch_contracts": batch_contracts,
+                        "batch_membership": batch_membership,
                         "physical_broadcast_attempts": len(signed),
                         "unique_transaction_count": len(unique_raw),
                         "duplicate_raw_attempts": len(signed) - len(unique_raw),
@@ -1369,7 +1452,7 @@ def main():
         }
     manifest["comparison_caveat"] = "No broad outperform claim: fsync, telemetry, runtime, batch shape and host contention remain explicit; final claim requires Root-authorized quiet paired samples"
     manifest["finished_at_utc"] = utc_now()
-    manifest["passed"] = args.mode == "paired" and manifest["native_functional_prerequisites"]["verified"] and args.samples >= 5 and args.quiet_host and all(len([row for row in manifest["raw_samples"] if row["implementation"] == name]) == args.samples for name in ["rust", "zig"]) and all(not row["stall"].get("acceptance_gaps") for row in manifest["raw_samples"])
+    manifest["passed"] = args.mode == "paired" and manifest["native_functional_prerequisites"]["verified"] and args.samples >= 5 and args.quiet_host and all(len([row for row in manifest["raw_samples"] if row["implementation"] == name]) == args.samples for name in ["rust", "zig"]) and all(not row["stall"].get("acceptance_gaps") for row in manifest["raw_samples"]) and (args.max_batch_size == 1 or all(row["proof"]["batch_membership"]["verified"] is True for row in manifest["raw_samples"]))
     manifest["stage"] = "paired actual runs complete" if manifest["passed"] else "actual smoke complete; not a final paired benchmark"
     persist()
     print(json.dumps({"passed": manifest["passed"], "stage": manifest["stage"], "samples": len(manifest["raw_samples"])}))

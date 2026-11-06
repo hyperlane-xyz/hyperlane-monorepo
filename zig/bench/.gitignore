@@ -128,3 +128,4 @@ __pycache__/
 # Exact final inventory raw mirror is sealed losslessly in its manifest archive.
 /results/source-inventory-final-20261106.json
 /results/source-inventory-admission-final-20261106.json
+/results/source-inventory-lifetime-final-20261106.json
