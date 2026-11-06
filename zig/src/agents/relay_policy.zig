@@ -95,15 +95,23 @@ pub const Policy = struct {
         self.allocator.free(self.contexts);
         self.* = undefined;
     }
-    pub fn check(self: *Policy, message: protocol.Message) !Decision {
-        if (self.gateway) |gateway| return gateway.check(message);
+    /// Canonical loader admission uses these source-configured lists before
+    /// creating pending work or asking the destination whether it is delivered.
+    /// No wallet, origin lookup, gas policy or chain RPC belongs at this gate.
+    pub fn checkStatic(self: *Policy, message: protocol.Message) !?Denial {
+        if (self.gateway) |gateway| return gateway.checkStatic(message);
         var whitelist = self.whitelist.snapshot();
         defer whitelist.deinit();
-        if (!try whitelist.matcher.messageMatches(message, true)) return .{ .allocator = self.allocator, .denial = .not_whitelisted };
+        if (!try whitelist.matcher.messageMatches(message, true)) return .not_whitelisted;
         var blacklist_ = self.blacklist.snapshot();
         defer blacklist_.deinit();
-        if (try blacklist_.matcher.messageMatches(message, false)) return .{ .allocator = self.allocator, .denial = .message_blacklisted };
-        if (self.addresses.find(&message.sender, &message.recipient, message.body) != null) return .{ .allocator = self.allocator, .denial = .address_blacklisted };
+        if (try blacklist_.matcher.messageMatches(message, false)) return .message_blacklisted;
+        if (self.addresses.find(&message.sender, &message.recipient, message.body) != null) return .address_blacklisted;
+        return null;
+    }
+    pub fn check(self: *Policy, message: protocol.Message) !Decision {
+        if (self.gateway) |gateway| return gateway.check(message);
+        if (try self.checkStatic(message)) |denial| return .{ .allocator = self.allocator, .denial = denial };
         if (self.runtime) |runtime| if (try runtime.denyReasonForMessage(message)) |reason|
             return .{ .allocator = runtime.allocator, .denial = .runtime_denylisted, .reason = reason };
         return .{ .allocator = self.allocator };

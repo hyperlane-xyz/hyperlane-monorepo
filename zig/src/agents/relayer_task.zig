@@ -86,11 +86,17 @@ const Active = struct {
     message: native.OwnedMessage,
     next_ms: u64 = 0,
     retained_bytes: usize,
+    /// Existing durable effects may settle without admitting an excluded
+    /// canonical message into processed/confirmed operation bookkeeping.
+    recovery_only: bool = false,
     sender_state: SenderState = .{},
     evm_driver: ?evm_driver.Driver = null,
     native_submit_queued: ?bool = null,
     native_needs_preparation: ?bool = null,
     native_prepare_admitted: bool = false,
+    /// Current prepare/submit pop passed the local live deny checks. Retain
+    /// across cooperative IO, but not across a new retry or queue stage.
+    native_pop_checked: bool = false,
     native_submit_inflight: bool = false,
     metric_app_context: ?[]u8 = null,
     first_seen_unix_seconds: u64 = 0,
@@ -502,6 +508,7 @@ pub const Lane = struct {
         if (self.owner.metric_tracker == null) return;
         if (journal.record.observation_epoch != self.native_group_epoch or journal.record.observation_epoch == null or !self.groupEvent(journal.id, 2)) return;
         for (journal.record.members, frame.actors[0..frame.count]) |member, actor| {
+            if (!actor.options.acknowledge_canonical) continue;
             if (actor.value.stage == .delivered) continue;
             var active = false;
             for (self.active.items) |item| if (std.mem.eql(u8, &item.message.value.id(), &actor.options.id)) {
@@ -522,6 +529,10 @@ pub const Lane = struct {
                 };
                 defer if (message) |*value| value.deinit();
                 if (message) |value| {
+                    if (!(self.canonicalAdmissionAllowed(index, value.value) catch |err| {
+                        self.telemetryFailure(err);
+                        break;
+                    })) break;
                     const context = self.origins[index].policy.?.appContext(value.value) catch |err| {
                         self.telemetryFailure(err);
                         break;
@@ -567,6 +578,10 @@ pub const Lane = struct {
                 };
                 defer if (message) |*value| value.deinit();
                 if (message) |value| {
+                    if (!(self.canonicalAdmissionAllowed(index, value.value) catch |err| {
+                        self.telemetryFailure(err);
+                        break;
+                    })) break;
                     const context = self.origins[index].policy.?.appContext(value.value) catch |err| {
                         self.telemetryFailure(err);
                         break;
@@ -644,7 +659,10 @@ pub const Lane = struct {
         return self.cycleInner(times, cancel) catch |err| {
             if (err != error.PendingReadIo and err != error.PendingIo) {
                 self.native_batch_admission = null;
-                for (self.active.items) |item| item.native_prepare_admitted = false;
+                for (self.active.items) |item| {
+                    item.native_prepare_admitted = false;
+                    item.native_pop_checked = false;
+                }
             }
             if (classify(err) == .halt_all) self.owner.requestStop();
             return err;
@@ -809,6 +827,21 @@ pub const Lane = struct {
         const state = try self.groupSenderState(message.id()) orelse return false;
         return try self.originSenderGate(state, origin_index, message, clock, true) == .allow;
     }
+    /// This sweep is intentionally local and last: earlier gas/delivery gates
+    /// may await RPC while the shared message denylist is refreshed.
+    fn groupLocalAdmissionAllowed(self: *Lane, actors: []const *destination.operation.Operation) !bool {
+        for (actors) |actor| {
+            var index: ?usize = null;
+            for (self.owner.origins.slots, 0..) |slot, candidate| if (slot.chain.domain == actor.options.origin) {
+                index = candidate;
+                break;
+            };
+            var message = (try actor.store.messageById(actor.options.id)) orelse return error.StaleCanonicalMessage;
+            defer message.deinit();
+            if (!try self.canonicalAdmissionAllowed(index orelse return error.MissingNativeGroupOrigin, message.value)) return false;
+        }
+        return true;
+    }
     fn openGroup(self: *Lane, journal: *const native_group.Journal, now: operation.Times, cancel: *const std.atomic.Value(bool)) !GroupFrame {
         var frame = try GroupFrame.init(self.owner.allocator, journal.record.members.len);
         errdefer frame.deinit();
@@ -831,7 +864,9 @@ pub const Lane = struct {
             if (message.value.nonce != member.nonce or message.value.origin != member.origin or message.value.destination != self.chain.domain) return error.InvalidNativeGroup;
             const factory = self.native_destination.?;
             if (!std.mem.eql(u8, &context, &try factory.contextFor(try factory.authorityFor(member.origin, id, 1, .process)))) return error.OperationContextChanged;
-            const actor = try destination.operation.Operation.open(self.owner.allocator, origin.store, .{ .id = id, .context = context, .nonce = member.nonce, .origin = member.origin, .destination = self.chain.domain, .policy = .{ .max_retries = self.owner.settings.role.relayer.max_message_retries } }, now);
+            try self.control.ensurePolicy(self, index);
+            self.origins[index].policy.?.gateway = &self.owner.control_hub.gateway_policy;
+            const actor = try destination.operation.Operation.open(self.owner.allocator, origin.store, .{ .id = id, .context = context, .nonce = member.nonce, .origin = member.origin, .destination = self.chain.domain, .policy = .{ .max_retries = self.owner.settings.role.relayer.max_message_retries }, .acknowledge_canonical = try self.canonicalAdmissionAllowed(index, message.value) }, now);
             frame.messages[frame.count] = message;
             frame.actors[frame.count] = actor;
             frame.origins[frame.count] = index;
@@ -1120,6 +1155,10 @@ pub const Lane = struct {
                 try self.abandonGroup(journal, frame, try self.groupTime(now));
                 return work +| 1;
             };
+            if (!try self.groupLocalAdmissionAllowed(frame.actors[0..frame.count])) {
+                try self.abandonGroup(journal, frame, try self.groupTime(now));
+                return work +| 1;
+            }
             var persistence: native_group.Persistence = .{ .journal = journal, .actors = frame.actors[0..frame.count], .now = now, .observation_clock = self.owner.options.observation_clock, .cancel = cancel, .halt = &self.owner.effects_halted, .deadline_ns = (try self.groupClock(now, cancel)).deadline_ns };
             var signed = try factory.sign(&prepared[0], null, persistence.interface(), try self.groupClock(try self.groupTime(now), cancel));
             signed.deinit();
@@ -1236,13 +1275,14 @@ pub const Lane = struct {
         for (self.active.items) |item| {
             const origin = self.owner.origins.slots[item.origin_index].handle() orelse continue;
             const message = item.message.value;
-            const actor = try destination.operation.Operation.open(self.owner.allocator, origin.store, .{ .id = message.id(), .context = try factory.contextFor(try factory.authorityFor(message.origin, message.id(), 1, .process)), .nonce = message.nonce, .origin = message.origin, .destination = message.destination, .policy = .{ .max_retries = self.owner.settings.role.relayer.max_message_retries } }, now);
+            const actor = try destination.operation.Operation.open(self.owner.allocator, origin.store, .{ .id = message.id(), .context = try factory.contextFor(try factory.authorityFor(message.origin, message.id(), 1, .process)), .nonce = message.nonce, .origin = message.origin, .destination = message.destination, .policy = .{ .max_retries = self.owner.settings.role.relayer.max_message_retries }, .acknowledge_canonical = !item.recovery_only }, now);
             var retained = false;
             defer if (!retained) actor.deinit();
             const link = try origin.store.typed.get(self.owner.allocator, destination.operation.group_link_prefix, &actor.options.id);
             defer if (link) |bytes| self.owner.allocator.free(bytes);
             if (link != null) continue;
             if (actor.signed != null and !actor.value.confirmation_started) return work; // Legacy singleton must drain first.
+            if (item.recovery_only) continue;
             if (count == actors.len or actor.value.stage != .ready or actor.intent == null or !native_driver.queuedForSubmission(actor) or actor.value.next_attempt_ms > now.monotonic_ms) continue;
             actors[count] = actor;
             count += 1;
@@ -1300,6 +1340,7 @@ pub const Lane = struct {
             };
             if (!try self.groupMemberAllowed(actor, index orelse return error.MissingNativeGroupOrigin, message.value, try self.groupTime(now), cancel)) return work;
         }
+        if (!try self.groupLocalAdmissionAllowed(actors[0..count])) return work;
         const journal_outcome = native_group.Journal.create(self.owner.allocator, store, actors[0..count], replacement, try self.groupTime(now));
         if (journal_outcome) |_| {} else |err| {
             if (err == error.NativeGroupNonceAlreadyReserved) return work;
@@ -1325,6 +1366,44 @@ pub const Lane = struct {
     pub fn observeGasEnforcer(self: *Lane, index: usize, elapsed_ns: u64) void {
         self.owner.origins.slots[index].observeGasEnforcer(elapsed_ns);
     }
+    fn canonicalAdmissionAllowed(self: *Lane, index: usize, message: protocol.Message) !bool {
+        var decision = try self.origins[index].policy.?.check(message);
+        defer decision.deinit();
+        if (decision.denial != null) return false;
+        // Source loader applies cached origin signer rules here, without
+        // performing the first origin RPC lookup before pending admission.
+        if (self.owner.denylist.hasAddressRules()) {
+            if (self.owner.signers.cache.cached(message.id())) |cached| {
+                var snapshot = cached;
+                defer snapshot.deinit();
+                var sender_decision = try self.origins[index].policy.?.checkOriginSigners(snapshot.signers());
+                defer sender_decision.deinit();
+                if (sender_decision.denial != null) return false;
+            }
+        }
+        return true;
+    }
+    fn ownsRecovery(self: *Lane, index: usize, message: protocol.Message, times: supervisor.Times) !bool {
+        const origin = self.owner.origins.slots[index].handle() orelse return error.OriginNotReady;
+        if (self.chain.protocol == .ethereum) {
+            var link = (try payload_links.load(self.owner.allocator, origin.store, message.id(), evmContext(self.context orelse return error.DestinationNotInitialized, origin.chain))) orelse return false;
+            defer link.deinit();
+            const inherited = try payload_links.inheritedUuids(self.owner.allocator, origin.store, message.id());
+            defer self.owner.allocator.free(inherited);
+            if (inherited.len != 1 or !std.mem.eql(u8, &inherited[0], &link.record().payload.uuid)) return error.PayloadRelationChanged;
+            return true;
+        }
+        const factory = self.native_destination orelse return error.DestinationNotInitialized;
+        return destination.operation.Operation.hasSignedRecovery(self.owner.allocator, origin.store, .{
+            .id = message.id(),
+            .context = try factory.contextFor(try factory.authorityFor(message.origin, message.id(), 1, .process)),
+            .nonce = message.nonce,
+            .origin = message.origin,
+            .destination = message.destination,
+            .acknowledge_canonical = false,
+            .group_store = .{ .database = origin.store.typed.database, .domain_name = self.chain.name },
+        }, .{ .unix_ms = times.unix_ms, .monotonic_ms = times.monotonic_ms });
+    }
     pub fn load(self: *Lane, times: supervisor.Times) !u64 {
         const reserved_slots = self.control.reservedSlots();
         const reserved_bytes = self.control.reservedBytes();
@@ -1348,7 +1427,15 @@ pub const Lane = struct {
             var committed = false;
             defer if (!retained) candidate.message.deinit();
             errdefer if (!committed) lane.loader.?.release(candidate.message.value.id(), true) catch {};
-            const app_context = try lane.policy.?.appContext(candidate.message.value);
+            const recovery_only = !try self.canonicalAdmissionAllowed(index, candidate.message.value);
+            if (recovery_only and !try self.ownsRecovery(index, candidate.message.value, times)) {
+                // Preserve canonical/index/retry rows. The cursor already
+                // advanced; periodic/rule-change rescan reconsiders this ID.
+                try lane.loader.?.release(candidate.message.value.id(), false);
+                committed = true;
+                continue;
+            }
+            const app_context = if (recovery_only) null else try lane.policy.?.appContext(candidate.message.value);
             var retained_bytes = try std.math.add(usize, candidate.message.bytes.len, @sizeOf(Active));
             if (retained_bytes > self.owner.options.max_active_bytes - self.active_bytes - reserved_bytes) {
                 try lane.loader.?.release(candidate.message.value.id(), true);
@@ -1373,8 +1460,9 @@ pub const Lane = struct {
                 .lane = self,
                 .message = candidate.message,
                 .retained_bytes = retained_bytes,
+                .recovery_only = recovery_only,
                 .metric_app_context = retained_context.text,
-                .metric_active = retained_context.enabled,
+                .metric_active = !recovery_only and retained_context.enabled,
                 .first_seen_unix_seconds = times.unix_ms / 1000,
                 .metric_status = loaded_status,
                 .restored_submitted = loaded_status == .Confirm and loaded_status.Confirm == .SubmittedBySelf,
@@ -1412,6 +1500,11 @@ pub const Lane = struct {
         var queued: usize = 0;
         for (self.active.items) |item| {
             if (cancel.load(.acquire)) return error.RequestCancelled;
+            if (item.recovery_only) {
+                item.native_submit_queued = false;
+                item.native_needs_preparation = false;
+                continue;
+            }
             if (item.native_submit_queued == null or item.native_needs_preparation == null) {
                 const origin = self.owner.origins.slots[item.origin_index].handle() orelse return error.OriginNotReady;
                 const factory = self.native_destination orelse return error.NativeDestinationNotInitialized;
@@ -1422,6 +1515,7 @@ pub const Lane = struct {
                     .origin = item.message.value.origin,
                     .destination = item.message.value.destination,
                     .policy = .{ .max_retries = self.owner.settings.role.relayer.max_message_retries },
+                    .acknowledge_canonical = !item.recovery_only,
                 }, .{ .unix_ms = times.unix_ms, .monotonic_ms = times.monotonic_ms });
                 defer actor.deinit();
                 if (self.chain.protocol == .starknet) {
@@ -1440,6 +1534,7 @@ pub const Lane = struct {
         errdefer |err| {
             if (err != error.PendingReadIo and err != error.PendingIo) {
                 item.native_prepare_admitted = false;
+                item.native_pop_checked = false;
                 item.native_submit_inflight = false;
                 item.native_submit_queued = null;
                 item.native_needs_preparation = null;
@@ -1448,6 +1543,12 @@ pub const Lane = struct {
         if (cancel.load(.acquire)) return error.RequestCancelled;
         const origin = self.owner.origins.slots[item.origin_index].handle() orelse return false;
         const message = item.message.value;
+        if (item.recovery_only) {
+            // Reopen through normal admission after a rule change. Once an
+            // old effect is safely retired, exclusion must not grant another
+            // preparation attempt or an external-delivery-only exemption.
+            if (try self.canonicalAdmissionAllowed(item.origin_index, message) or !try self.ownsRecovery(item.origin_index, message, times)) return true;
+        }
         item.now_monotonic_ms = times.monotonic_ms;
         item.now_unix_seconds = times.unix_ms / 1000;
         try self.initializeActiveMetrics(item);
@@ -1474,6 +1575,7 @@ pub const Lane = struct {
                 .nonce = message.nonce,
                 .destination = message.destination,
                 .policy = .{ .max_retries = self.owner.settings.role.relayer.max_message_retries },
+                .acknowledge_canonical = !item.recovery_only,
             }, now);
             defer state.deinit();
             self.syncActiveMetrics(item, state.current_status);
@@ -1496,10 +1598,10 @@ pub const Lane = struct {
                 .default_ism_cache = &self.owner.evm_default_ism_cache,
                 .cache_context = .{ .domain_name = self.chain.name, .context_hash = self.context.? },
                 .ism_cache_configs = self.owner.settings.role.relayer.ism_cache_configs,
-            }, now, .{ .origin_sender = .{ .context = &sender, .fetch_fn = Sender.evmFetch }, .private_estimator = if (self.protected_network != null) .{ .context = self, .estimate_fn = privateEstimate } else null, .executor = &self.owner.metadata_executor.executor, .batch_resolver = .{ .context = self, .estimate_fn = batchEstimate }, .cost_receipt_reader = .{ .context = self, .read_fn = finalizedCostReceipt }, .ccip_handler = if (ccip_build) |value| value.binding.handler() else null, .pending_delay = if (ccip_build) |*value| .{ .context = value, .delay_ms_fn = CcipBuild.delay } else null, .cancel = cancel, .observation = if (self.validator_observation) |*value| value.observation() else null, .observation_clock = self.owner.options.observation_clock });
+            }, now, .{ .local_admission = .{ .context = &sender, .allowed_fn = Sender.localAdmission }, .origin_sender = .{ .context = &sender, .fetch_fn = Sender.evmFetch }, .private_estimator = if (self.protected_network != null) .{ .context = self, .estimate_fn = privateEstimate } else null, .executor = &self.owner.metadata_executor.executor, .batch_resolver = .{ .context = self, .estimate_fn = batchEstimate }, .cost_receipt_reader = .{ .context = self, .read_fn = finalizedCostReceipt }, .ccip_handler = if (ccip_build) |value| value.binding.handler() else null, .pending_delay = if (ccip_build) |*value| .{ .context = value, .delay_ms_fn = CcipBuild.delay } else null, .cancel = cancel, .observation = if (self.validator_observation) |*value| value.observation() else null, .observation_clock = self.owner.options.observation_clock });
             if (!was_confirming and state.value.confirmation_started and state.current_status == .Confirm and state.current_status.Confirm == .SubmittedBySelf) self.recordPhase(item, .submitted);
             const report = try outcome;
-            if (report.state == .delivered and try origin.store.markProcessedIfCanonical(message)) self.recordProcessed(item);
+            if (!item.recovery_only and report.state == .delivered and try origin.store.markProcessedIfCanonical(message)) self.recordProcessed(item);
             switch (report.state) {
                 .prepared => self.recordPhase(item, .prepared),
                 .retried => self.recordPhase(item, .failed),
@@ -1522,6 +1624,7 @@ pub const Lane = struct {
             .origin = message.origin,
             .destination = message.destination,
             .policy = .{ .max_retries = self.owner.settings.role.relayer.max_message_retries },
+            .acknowledge_canonical = !item.recovery_only,
         }, now);
         defer actor.deinit();
         if (item.restored_submitted) {
@@ -1533,6 +1636,11 @@ pub const Lane = struct {
             item.native_needs_preparation = native_driver.needsPreparation(actor);
         }
         self.syncActiveMetrics(item, actor.current_status);
+        if (actor.signed == null and now.monotonic_ms < actor.value.next_attempt_ms) {
+            item.native_prepare_admitted = false;
+            item.next_ms = actor.value.next_attempt_ms;
+            return false;
+        }
         const prepare_allowed = item.native_prepare_admitted or if (self.native_batch_admission != null and native_driver.preparationLimit(self.chain) != null) false else try self.nativePreparationAllowed(times, cancel);
         if (native_driver.needsPreparation(actor) and prepare_allowed) item.native_prepare_admitted = true;
         if (!prepare_allowed and native_driver.needsPreparation(actor)) {
@@ -1540,6 +1648,13 @@ pub const Lane = struct {
             if (cancel.load(.acquire)) return error.RequestCancelled;
             item.next_ms = times.monotonic_ms +| 150;
             return false;
+        }
+        if (actor.signed == null and !actor.value.confirmation_started and !item.native_pop_checked) {
+            // Source evicts a denied operation when the prepare/submit queue
+            // actually pops, after its preparation-pressure wait. Loader
+            // admission can precede a rule refresh or retry deadline.
+            if (!try self.canonicalAdmissionAllowed(item.origin_index, message)) return true;
+            item.native_pop_checked = true;
         }
         var maximum = self.owner.settings.role.relayer.transaction_gas_limit;
         for (self.owner.settings.role.relayer.skip_transaction_gas_limit_for) |domain| if (domain == message.destination) {
@@ -1572,9 +1687,13 @@ pub const Lane = struct {
         }, now);
         if (!was_confirming and actor.value.confirmation_started and actor.current_status == .Confirm and actor.current_status.Confirm == .SubmittedBySelf) self.recordSubmitted(item, actor.value.generation, now);
         const report = try outcome;
+        switch (report.state) {
+            .prepared, .retried, .retired, .denied, .not_contract => item.native_pop_checked = false,
+            else => {},
+        }
         item.native_prepare_admitted = false;
         if (!native_driver.queuedForSubmission(actor)) item.native_submit_inflight = false;
-        if (report.state == .delivered and try origin.store.markProcessedIfCanonical(message)) self.recordProcessed(item);
+        if (!item.recovery_only and report.state == .delivered and try origin.store.markProcessedIfCanonical(message)) self.recordProcessed(item);
         switch (report.state) {
             .prepared => self.recordPhase(item, .prepared),
             .retried => self.recordPhase(item, .failed),
@@ -2036,6 +2155,10 @@ const Sender = struct {
     lane: *Lane,
     item: *Active,
     clock: destination.Clock,
+    fn localAdmission(context: *anyopaque, message: protocol.Message) !bool {
+        const self: *Sender = @ptrCast(@alignCast(context));
+        return self.lane.canonicalAdmissionAllowed(self.item.origin_index, message);
+    }
     fn snapshot(self: *Sender, a: A, message: protocol.Message, cached_only: bool) !?origin_signers.Cache.Snapshot {
         if (!self.lane.owner.denylist.hasAddressRules()) return null;
         if (cached_only) return self.lane.owner.signers.cache.cached(message.id());
@@ -2256,6 +2379,9 @@ test "Root production metadata observer preserves success under registry pressur
 }
 
 pub const NativeTests = if (@import("builtin").is_test) struct {
+    pub fn evmOperationContext(destination_context: [32]u8, origin: *const settings.Chain) [32]u8 {
+        return evmContext(destination_context, origin);
+    }
     pub fn originSenderGate(lane: *Lane, state: *SenderState, origin_index: usize, message: protocol.Message, clock: destination.Clock, cached_only: bool) !native_driver.GateResult {
         return lane.originSenderGate(state, origin_index, message, clock, cached_only);
     }

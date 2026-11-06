@@ -2,6 +2,9 @@ comptime {
     _ = @import("db/bzip2_glue.zig");
 }
 test {
+    _ = @import("canonical_admission_native_test.zig");
+    _ = @import("agents/destination/signed_recovery_readonly_native_test.zig");
+    _ = @import("evm_preseal_admission_tests.zig");
     _ = @import("agents/destination/group_guard_native_test.zig");
     _ = @import("starknet_group_control_native_test.zig");
     _ = @import("native_sender_recovery_test.zig");

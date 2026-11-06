@@ -124,3 +124,7 @@ __pycache__/
 /results/global-source-final-20261106T0853-safe/all-manifest.json
 /results/global-source-final-20261106T0853-safe/default.log
 /results/global-source-final-20261106T0853-safe/native-db.log
+
+# Exact final inventory raw mirror is sealed losslessly in its manifest archive.
+/results/source-inventory-final-20261106.json
+/results/source-inventory-admission-final-20261106.json

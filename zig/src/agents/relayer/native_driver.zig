@@ -42,7 +42,7 @@ pub const Driver = struct {
         const authority = try factory.authorityFor(message.origin, message.id(), actor.value.generation, .process);
         if (!std.mem.eql(u8, &actor.options.context, &try factory.contextFor(authority))) return error.OperationContextChanged;
         if (actor.value.stage == .delivered) {
-            try factory.onDelivered(actor.store, message, clock);
+            if (actor.options.acknowledge_canonical) try factory.onDelivered(actor.store, message, clock);
             return .{ .state = .delivered };
         }
         const current = try self.observationTime(now);
@@ -63,7 +63,7 @@ pub const Driver = struct {
             const observed_at = try self.observationTime(current);
             try beginConfirmation(factory, actor, message, clock, observed_at);
             if (!actor.value.confirmationReady(observed_at.monotonic_ms)) return .{ .state = .reconciled };
-            try factory.onDelivered(actor.store, message, clock);
+            if (actor.options.acknowledge_canonical) try factory.onDelivered(actor.store, message, clock);
             try actor.alreadyDelivered(true, observed_at);
             return .{ .state = .delivered };
         }
@@ -196,7 +196,7 @@ pub const Driver = struct {
         }
         if (delivered) {
             if (!actor.value.confirmationReady(observed_at.monotonic_ms)) return .{ .state = .reconciled, .expenditure = expenditure, .failure = receipt_error };
-            try factory.onDelivered(actor.store, message, clock);
+            if (actor.options.acknowledge_canonical) try factory.onDelivered(actor.store, message, clock);
             try actor.alreadyDelivered(true, observed_at);
             return .{ .state = .delivered, .expenditure = expenditure, .failure = receipt_error };
         }
@@ -314,9 +314,14 @@ fn ensurePreparing(actor: *Actor, now: Times) !void {
 /// an operation whose hook has not completed. Factory enqueue is idempotent.
 fn beginConfirmation(factory: anytype, actor: *Actor, message: protocol.Message, clock: Clock, now: Times) !void {
     try checkClock(clock);
-    try factory.onDelivered(actor.store, message, clock);
+    if (actor.options.acknowledge_canonical) try factory.onDelivered(actor.store, message, clock);
     try actor.beginConfirmation(now);
 }
+pub const NativeTests = if (@import("builtin").is_test) struct {
+    pub fn confirmExisting(factory: anytype, actor: *Actor, message: protocol.Message, clock: Clock, now: Times) !void {
+        return beginConfirmation(factory, actor, message, clock, now);
+    }
+} else struct {};
 fn checkClock(clock: Clock) !void {
     _ = try common.milliseconds(clock.deadline_ns);
     if (clock.halt) |flag| if (flag.load(.acquire)) return error.CheckpointEffectsHalted;

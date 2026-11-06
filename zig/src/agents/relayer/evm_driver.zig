@@ -29,6 +29,12 @@ pub const Config = struct {
 };
 
 pub const Callbacks = struct {
+    /// Last new-payload handoff gate. This callback may inspect only current
+    /// local message policy and cached signers, never perform origin RPC.
+    local_admission: ?struct {
+        context: *anyopaque,
+        allowed_fn: *const fn (*anyopaque, protocol.Message) anyerror!bool,
+    } = null,
     origin_sender: ?evm_prepare.OriginSender = null,
     private_estimator: ?evm_prepare.PrivateEstimator = null,
     executor: ?*metadata_parallel.Executor = null,
@@ -280,6 +286,21 @@ pub const Driver = struct {
         switch (outcome.value) {
             .ready => |ready| {
                 try self.updateRetryState(ready.retry_state, null);
+                // Source Lander rechecks current deny rules after payload RPC
+                // and immediately before handoff. A rule can change during
+                // metadata/gas estimation; no new link/UUID may escape it.
+                var decision = try policy.check(message);
+                defer decision.deinit();
+                var denial = decision.denial;
+                if (denial == null) {
+                    if (callbacks.local_admission) |gate| {
+                        if (!try gate.allowed_fn(gate.context, message)) denial = .runtime_denylisted;
+                    }
+                }
+                if (denial) |reason| {
+                    _ = try actor.apply(.deny, try observationTime(callbacks, now), null);
+                    return .{ .state = .denied, .denial = reason };
+                }
                 const record: payload_links.Record = .{
                     .context = actor.options.context,
                     .message_id = message.id(),

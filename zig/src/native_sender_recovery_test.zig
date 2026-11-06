@@ -50,7 +50,7 @@ const CountSigner = struct {
         return self.actual.sign(digest);
     }
 };
-const Fixture = struct {
+pub const Fixture = struct {
     directory: std.testing.TmpDir,
     path: []u8,
     arena: std.heap.ArenaAllocator,
@@ -87,7 +87,7 @@ const Fixture = struct {
     receipt_reads: usize = 0,
     last_broadcast: ?[]u8 = null,
     history: History = .{},
-    fn clock(self: *Fixture) !destination.Clock {
+    pub fn clock(self: *Fixture) !destination.Clock {
         return .{ .unix_ms = self.now.unix_ms, .deadline_ns = (try @import("agents/scraper/receipts_evm.zig").nowNs()) + 30 * std.time.ns_per_s, .cancel = &self.cancel, .halt = &self.owner.effects_halted };
     }
     fn readTime(ctx: *anyopaque) !Times {
@@ -113,7 +113,7 @@ const Fixture = struct {
         self.owner.signers = self.sender_owner;
         try std.testing.expectEqual(@as(usize, 0), self.sender_owner.cache.stats().entries);
     }
-    fn init() !*Fixture {
+    pub fn init() !*Fixture {
         const self = try a.create(Fixture);
         errdefer a.destroy(self);
         self.* = undefined;
@@ -192,7 +192,7 @@ const Fixture = struct {
         try self.actor.prepared(&prepared, true, true, self.now);
         return self;
     }
-    fn reopen(self: *Fixture) !void {
+    pub fn reopen(self: *Fixture) !void {
         self.actor.deinit();
         self.sender_owner.deinit();
         self.origin.history.deinit();
@@ -208,7 +208,7 @@ const Fixture = struct {
         try self.attachSenders();
         self.actor = try destination.operation.Operation.open(a, &self.origin.store, self.actor_options, self.now);
     }
-    fn deinit(self: *Fixture) void {
+    pub fn deinit(self: *Fixture) void {
         self.actor.deinit();
         self.sender_owner.deinit();
         self.origin_lanes[0].policy.?.deinit();

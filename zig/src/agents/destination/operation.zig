@@ -15,7 +15,21 @@ const prefix = "zig_native_destination_operation_v1/";
 const history_prefix = "zig_native_destination_operation_history_v1/";
 const expenditure_prefix = "zig_native_destination_expenditure_v1/";
 pub const Times = compatibility.Times;
-pub const Options = struct { id: Hash, context: Hash, nonce: u32, origin: u32, destination: u32, kind: types.Kind = .process, target: ?Hash = null, policy: pure.Policy = .{} };
+pub const Options = struct {
+    id: Hash,
+    context: Hash,
+    nonce: u32,
+    origin: u32,
+    destination: u32,
+    kind: types.Kind = .process,
+    target: ?Hash = null,
+    policy: pure.Policy = .{},
+    /// Process-local authority: recovering old signed effects does not admit a
+    /// currently excluded canonical message into pending-operation bookkeeping.
+    acknowledge_canonical: bool = true,
+    /// Destination namespace, needed only by the read-only ownership probe.
+    group_store: ?db.rocks.Typed = null,
+};
 pub const Effect = union(enum) { none, prepare: u64, build: u64, reconcile: types.Identity, broadcast: types.Identity };
 const Record = struct {
     version: u8 = 1,
@@ -57,6 +71,61 @@ pub const Operation = struct {
     callback_times: Times = .{ .unix_ms = 0, .monotonic_ms = 0 },
     pub const max_record_bytes = 64 * 1024 * 1024;
     pub fn open(a: A, origin: *store.Store, options: Options, now: Times) !*Operation {
+        return openInner(a, origin, options, now, true);
+    }
+    /// Validate the same bounded durable record as open(), without normalizing
+    /// Manual retry or writing any row on success, failure or allocation error.
+    pub fn hasSignedRecovery(a: A, origin: *store.Store, options: Options, now: Times) !bool {
+        origin.mutex.lock();
+        defer origin.mutex.unlock();
+        const self = try openInner(a, origin, options, now, false);
+        defer self.deinit();
+        if (self.signed != null and self.intent == null) return error.MissingNativePreparedIntent;
+        const link = try origin.typed.get(a, group_link_prefix, &options.id);
+        defer if (link) |bytes| a.free(bytes);
+        if (link) |bytes| {
+            if (bytes.len != 32) return error.InvalidNativeGroup;
+            const group_store = options.group_store orelse return error.MissingNativeGroupStore;
+            var journal = (try @import("../relayer/native_group.zig").Journal.load(a, group_store, bytes[0..32].*)) orelse return error.MissingNativeGroup;
+            defer journal.deinit();
+            const reserved = try group_store.get(a, group_nonce_prefix, &try journal.nonce());
+            defer if (reserved) |value| a.free(value);
+            if (reserved == null or !std.mem.eql(u8, reserved.?, &journal.id)) return error.NativeGroupNonceOwnerChanged;
+            if (journal.record.phase != .included) {
+                const current = try group_store.get(a, group_current_prefix, "");
+                defer if (current) |value| a.free(value);
+                if (current == null or !std.mem.eql(u8, current.?, &journal.id)) return error.NativeGroupNonceOwnerChanged;
+            }
+            var found = false;
+            for (journal.record.members) |member| {
+                if (!std.mem.eql(u8, &try hex.fixedHex(32, member.id), &options.id)) continue;
+                if (found or member.origin != options.origin or member.nonce != options.nonce or !std.mem.eql(u8, &try hex.fixedHex(32, member.context), &options.context) or !std.mem.eql(u8, member.intent, self.intent orelse return error.NativeGroupIntentChanged)) return error.NativeGroupAuthorityChanged;
+                found = true;
+            }
+            if (!found or journal.record.phase == .retired) return error.NativeGroupMemberNotOwned;
+            if (journal.record.phase == .prepared) {
+                if (self.signed != null) return error.NativeSignedTransactionConflict;
+                return false;
+            }
+            const signed = self.signed orelse return error.NativeGroupMemberNotReady;
+            var shared = try journal.signedValue(a);
+            defer shared.deinit();
+            if (!types.Identity.eql(signed.identity, shared.identity) or !std.mem.eql(u8, signed.bytes, shared.bytes)) return error.NativeSignedTransactionConflict;
+        } else if (self.signed != null) {
+            var restored_intent = try types.Prepared.restore(a, self.intent.?);
+            defer restored_intent.deinit();
+            if (restored_intent.authority.protocol == .starknet and restored_intent.body == .object and restored_intent.body.object.contains("batch_version")) {
+                // Completed group GC removes links only after its independent
+                // canonical receipt/nonce fence. Excluded canonical messages
+                // can still await acknowledgment; this grants no new recovery
+                // authority and leaves their settled signed bytes untouched.
+                if (self.value.stage == .delivered) return false;
+                return error.NativeGroupMemberNotOwned;
+            }
+        }
+        return self.signed != null;
+    }
+    fn openInner(a: A, origin: *store.Store, options: Options, now: Times, normalize_manual: bool) !*Operation {
         if (options.kind == .announcement and options.target == null) return error.AnnouncementTargetRequired;
         if (options.kind == .reveal and options.target == null) return error.RevealTargetRequired;
         const self = try a.create(Operation);
@@ -118,7 +187,7 @@ pub const Operation = struct {
         self.status_row = if (options.kind == .process) try origin.status(options.id) else null;
         if (self.status_row) |status| self.current_status = status;
         self.parked = !self.value.confirmation_started and self.value.retries >= options.policy.max_retries;
-        if (self.status_row != null and self.status_row.? == .Retry and self.status_row.?.Retry == .Manual and self.value.stage != .delivered) {
+        if (normalize_manual and self.status_row != null and self.status_row.? == .Retry and self.status_row.?.Retry == .Manual and self.value.stage != .delivered) {
             var next = self.value;
             next.retries = 0;
             next.next_attempt_ms = 0;
@@ -573,7 +642,7 @@ pub const Operation = struct {
             try batch.put(db.keys.Table.pending_message_retry_state.prefix(), &self.options.id, retry_bytes);
             try batch.put(db.keys.Table.pending_message_retry_count.prefix(), &self.options.id, &count);
         }
-        if ((next.stage == .delivered or self.terminal_drop) and self.options.kind == .process) {
+        if (self.options.acknowledge_canonical and (next.stage == .delivered or self.terminal_drop) and self.options.kind == .process) {
             var nonce: [4]u8 = undefined;
             std.mem.writeInt(u32, &nonce, self.options.nonce, .big);
             var canonical = try self.store.messageByNonce(self.options.nonce);

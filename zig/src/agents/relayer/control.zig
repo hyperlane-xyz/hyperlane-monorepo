@@ -485,6 +485,7 @@ fn retry(self: *Control, lane: anytype, request: *const RetryRequest, times: sup
         if (@hasField(@TypeOf(item.*), "native_submit_queued")) item.native_submit_queued = null;
         if (@hasField(@TypeOf(item.*), "native_needs_preparation")) item.native_needs_preparation = null;
         if (@hasField(@TypeOf(item.*), "native_prepare_admitted")) item.native_prepare_admitted = false;
+        if (@hasField(@TypeOf(item.*), "native_pop_checked")) item.native_pop_checked = false;
         if (@hasField(@TypeOf(item.*), "native_submit_inflight")) item.native_submit_inflight = false;
     }
     return result;
@@ -517,6 +518,7 @@ fn reprocess(self: *Control, lane: anytype, message: protocol.Message, times: su
             if (@hasField(@TypeOf(item.*), "native_submit_queued")) item.native_submit_queued = null;
             if (@hasField(@TypeOf(item.*), "native_needs_preparation")) item.native_needs_preparation = null;
             if (@hasField(@TypeOf(item.*), "native_prepare_admitted")) item.native_prepare_admitted = false;
+            if (@hasField(@TypeOf(item.*), "native_pop_checked")) item.native_pop_checked = false;
             if (@hasField(@TypeOf(item.*), "native_submit_inflight")) item.native_submit_inflight = false;
         }
     }

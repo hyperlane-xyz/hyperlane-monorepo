@@ -16,13 +16,13 @@ const agents_origin = @import("../origin.zig");
 const matching = @import("../../ops/matching.zig");
 
 const A = std.mem.Allocator;
-const allow_gas: relay_policy.Config = .{ .gas_payment_enforcement = &.{.{ .matching_list = &.{}, .policy = .none }} };
+pub const allow_gas: relay_policy.Config = .{ .gas_payment_enforcement = &.{.{ .matching_list = &.{}, .policy = .none }} };
 const zero_word = "\"0x" ++ "00000000000000000000000000000000" ++ "00000000000000000000000000000000" ++ "\"";
 const one_word = "\"0x" ++ "00000000000000000000000000000000" ++ "00000000000000000000000000000001" ++ "\"";
 const ism_word = "\"0x" ++ "00000000000000000000000000000000" ++ "00000000000000000000000000000033" ++ "\"";
 const null_ism_word = "\"0x" ++ "00000000000000000000000000000000" ++ "00000000000000000000000000000006" ++ "\"";
 
-const Step = struct {
+pub const Step = struct {
     method: []const u8,
     selector: ?[4]u8 = null,
     result: ?[]const u8 = null,
@@ -68,7 +68,7 @@ const MockRpc = struct {
         self.requests.deinit(self.allocator);
     }
 
-    fn exchange(self: *MockRpc) evm.provider.Exchange {
+    pub fn exchange(self: *MockRpc) evm.provider.Exchange {
         return .{ .context = self, .fetch_fn = fetch };
     }
 
@@ -105,7 +105,7 @@ const MockRpc = struct {
         return .{ .bytes = bytes, .len = bytes.len };
     }
 
-    fn expectDone(self: *const MockRpc) !void {
+    pub fn expectDone(self: *const MockRpc) !void {
         try std.testing.expectEqual(self.steps.len, self.index);
     }
 };
@@ -238,13 +238,13 @@ const StaticReceiptReader = struct {
     }
 };
 
-const Fixture = struct {
+pub const Fixture = struct {
     allocator: A,
     temporary: std.testing.TmpDir,
     path: []u8,
     message: protocol.Message,
 
-    fn init(allocator: A) !Fixture {
+    pub fn init(allocator: A) !Fixture {
         var temporary = std.testing.tmpDir(.{});
         errdefer temporary.cleanup();
         const parent = try temporary.dir.realpathAlloc(allocator, ".");
@@ -264,13 +264,13 @@ const Fixture = struct {
         };
     }
 
-    fn deinit(self: *Fixture) void {
+    pub fn deinit(self: *Fixture) void {
         self.allocator.free(self.path);
         self.temporary.cleanup();
     }
 };
 
-const Runtime = struct {
+pub const Runtime = struct {
     allocator: A,
     fixture: *Fixture,
     rpc: MockRpc,
@@ -287,7 +287,7 @@ const Runtime = struct {
     value: driver.Driver,
     reorg: settings.Reorg,
 
-    fn init(allocator: A, fixture: *Fixture, steps: []const Step, policy_config: relay_policy.Config, reorg: settings.Reorg) !*Runtime {
+    pub fn init(allocator: A, fixture: *Fixture, steps: []const Step, policy_config: relay_policy.Config, reorg: settings.Reorg) !*Runtime {
         return initAt(allocator, fixture, steps, policy_config, reorg, .{ .confirm_delay_ms = 0 }, now());
     }
 
@@ -333,7 +333,7 @@ const Runtime = struct {
         return self;
     }
 
-    fn deinit(self: *Runtime) void {
+    pub fn deinit(self: *Runtime) void {
         self.value.deinit();
         self.actor.deinit();
         self.destination.deinit();
@@ -345,7 +345,7 @@ const Runtime = struct {
         self.allocator.destroy(self);
     }
 
-    fn config(self: *Runtime) driver.Config {
+    pub fn config(self: *Runtime) driver.Config {
         var mailbox: [32]u8 = @splat(0);
         mailbox[19] = 0x42;
         return .{ .source = .{
@@ -504,7 +504,7 @@ fn now() operation.Times {
     return .{ .unix_ms = 1_000, .monotonic_ms = 0 };
 }
 
-fn readySteps() [9]Step {
+pub fn readySteps() [9]Step {
     return .{
         .{ .method = "eth_chainId", .result = "\"0x7a69\"" },
         .{ .method = "eth_call", .result = zero_word },

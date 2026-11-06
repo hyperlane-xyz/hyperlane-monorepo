@@ -16,7 +16,16 @@ pub const ObservationClock = struct {
     }
 };
 pub const Deadline = struct { unix_ms: u64, delay_ms: u64 };
-pub const Options = struct { id: Hash, context: Hash, nonce: u32, destination: u32, policy: lifecycle.Policy = .{} };
+pub const Options = struct {
+    id: Hash,
+    context: Hash,
+    nonce: u32,
+    destination: u32,
+    policy: lifecycle.Policy = .{},
+    /// Existing sealed effects may settle while current canonical admission is
+    /// denied. This capability is never serialized into the operation record.
+    acknowledge_canonical: bool = true,
+};
 const Record = struct { version: u8 = 1, context: Hash, nonce: u32, destination: u32, operation: lifecycle.Operation, deadline: ?Deadline, transaction_bytes: ?[]const u8 };
 pub const Imported = struct { retry_count: u32, next_attempt_ms: u64, status: db.json.Status, parked: bool, normalized_manual: bool };
 
@@ -243,7 +252,7 @@ pub const Operation = struct {
         try batch.put(db.keys.Table.pending_message_retry_count.prefix(), &self.options.id, &count);
         try batch.put(db.keys.Table.pending_message_retry_state.prefix(), &self.options.id, retry_bytes);
         try batch.put(db.keys.Table.status_by_message_id.prefix(), &self.options.id, status_bytes);
-        if (value.stage == .delivered) {
+        if (self.options.acknowledge_canonical and value.stage == .delivered) {
             var nonce: [4]u8 = undefined;
             std.mem.writeInt(u32, &nonce, self.options.nonce, .big);
             const pending = try db.keys.pendingDestination(self.allocator, self.options.destination);
