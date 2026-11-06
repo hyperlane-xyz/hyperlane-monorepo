@@ -202,7 +202,11 @@ enum cursor_ordering {
 scalar DiagnosticsJSON
 
 extend type query_root {
-  message_activity(message_id: String!, before_id: String, limit: Int! = 100): MessageActivityPage!
+  message_activity(
+    message_id: String!
+    before_id: String
+    limit: Int! = 100
+  ): MessageActivityPage!
   message_diagnostics(message_id: String!): MessageDiagnostics!
 }
 
@@ -259,6 +263,7 @@ type RelayerProgress {
   relayer: String!
   phase: RelayerPhase!
   observed_at: String!
+  tree_root: String
   failure: RelayFailure
   retry: RelayRetry
   modules: [IsmProgress!]!
@@ -277,6 +282,9 @@ type RelayRetry {
 }
 
 type IsmProgress {
+  node_id: String
+  children: [IsmChild!]
+  selected_children: [String!]
   ism: String!
   observed_at: String!
   module_type: String
@@ -291,8 +299,13 @@ type IsmProgress {
   offchain_read: OffchainReadProgress
 }
 
+type IsmChild {
+  node_id: String!
+  ism: String!
+}
+
 type SignatureProgress {
-  collection_id: String!
+  collection_id: String
   index: bigint
   root: String
   collected: Int
@@ -308,7 +321,7 @@ type UnavailableSignature {
 
 type OffchainReadProgress {
   state: String!
-  attempt: bigint!
+  attempt: bigint
   endpoint: Int
   http_status: Int
 }

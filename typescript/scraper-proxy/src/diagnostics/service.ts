@@ -13,9 +13,14 @@ export const MESSAGE_ACTIVITY_CHANNEL = 'message_activity_insert';
 const LISTENER_HEALTH_MS = 30_000;
 const MAX_HISTORY_LIMIT = 500;
 const logger = rootLogger.child({ module: 'Diagnostics' });
-const columns = `id::text, '0x' || encode(message_id, 'hex') AS message_id,
-  '0x' || encode(relayer, 'hex') AS relayer, origin, destination,
-  observed_at::text, received_at::text, version, activity`;
+function activityColumns(alias = ''): string {
+  const prefix = alias ? `${alias}.` : '';
+  return `${prefix}id::text, '0x' || encode(${prefix}message_id, 'hex') AS message_id,
+    '0x' || encode(${prefix}relayer, 'hex') AS relayer, ${prefix}origin, ${prefix}destination,
+    ${prefix}observed_at::text, ${prefix}received_at::text, ${prefix}version, ${prefix}activity`;
+}
+const columns = activityColumns();
+const currentColumns = activityColumns('current_activity');
 
 export class DiagnosticsService {
   constructor(
@@ -61,27 +66,30 @@ export class DiagnosticsService {
     const rows = await this.read(
       `SELECT activity.* FROM unnest($1::text[]) AS requested(message_hex)
        CROSS JOIN LATERAL (
-         (SELECT DISTINCT ON (relayer, activity->>'type') ${columns}
-          FROM public.message_activity AS current_activity
-          WHERE message_id = decode(requested.message_hex, 'hex')
-            AND activity->>'type' IN ('snapshot', 'snapshot_update')
-            AND id >= (
-              SELECT max(anchor.id) FROM public.message_activity AS anchor
-              WHERE anchor.message_id = current_activity.message_id
-                AND anchor.relayer = current_activity.relayer
-                AND anchor.activity->>'type' = 'snapshot'
-            )
-          ORDER BY relayer, activity->>'type', id DESC)
-         UNION
-         (SELECT ${columns} FROM public.message_activity
-          WHERE message_id = decode(requested.message_hex, 'hex')
+         WITH anchors AS MATERIALIZED (
+           SELECT relayer, max(id) AS anchor_id FROM public.message_activity
+           WHERE message_id = decode(requested.message_hex, 'hex')
+             AND activity->>'type' = 'snapshot'
+           GROUP BY relayer
+         )
+         SELECT ${currentColumns} FROM public.message_activity AS current_activity
+         JOIN anchors ON current_activity.id = anchors.anchor_id
+         UNION ALL
+         SELECT updates.* FROM anchors CROSS JOIN LATERAL (
+           SELECT ${currentColumns} FROM public.message_activity AS current_activity
+           WHERE current_activity.message_id = decode(requested.message_hex, 'hex')
+             AND current_activity.relayer = anchors.relayer
+             AND current_activity.id > anchors.anchor_id
+             AND current_activity.activity->>'type' = 'snapshot_update'
+           ORDER BY current_activity.id DESC LIMIT 1
+         ) updates
+         UNION ALL
+         (SELECT ${currentColumns} FROM public.message_activity AS current_activity
+          WHERE current_activity.message_id = decode(requested.message_hex, 'hex')
             AND NOT EXISTS (
-              SELECT 1 FROM public.message_activity AS snapshot
-              WHERE snapshot.message_id = message_activity.message_id
-                AND snapshot.relayer = message_activity.relayer
-                AND snapshot.activity->>'type' = 'snapshot'
+              SELECT 1 FROM anchors WHERE anchors.relayer = current_activity.relayer
             )
-          ORDER BY message_activity.id DESC LIMIT $2)
+          ORDER BY current_activity.id DESC LIMIT $2)
        ) activity ORDER BY activity.message_id, activity.id::bigint DESC`,
       [normalized.map((id) => id.slice(2)), SNAPSHOT_LIMIT + 1],
     );

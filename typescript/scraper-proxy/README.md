@@ -273,6 +273,12 @@ nested activity types, not separate top-level WebSocket frame types. Replace the
 previous state for that message; do not append the entire frame as new history.
 GraphQL remains the source for older activity pages.
 
+The `relayers` projection in both GraphQL and WebSocket responses understands
+full snapshots and cumulative updates, including node replacements and removals.
+Snapshot nodes use `node_id` identity, so repeated ISM addresses remain distinct.
+Collection IDs and offchain attempt counters are nullable when omitted by the
+snapshot producer; legacy events retain their original values.
+
 PostgreSQL notifications are wakeups, not the data payload. Notifications are
 coalesced, and the proxy reloads only affected watched IDs. New subscriptions are
 read once; there is no periodic polling. After a listener reconnect, the proxy

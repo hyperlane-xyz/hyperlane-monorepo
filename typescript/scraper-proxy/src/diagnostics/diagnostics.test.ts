@@ -583,14 +583,175 @@ void it('streams the latest full snapshot and newest cumulative update', async (
     2,
   );
   const service = new DiagnosticsService({
-    query: async (sql) => {
-      assert.match(sql, /'snapshot_update'/);
-      assert.match(sql, /SELECT max\(anchor.id\)/);
-      assert.match(sql, /DISTINCT ON \(relayer, activity->>'type'\)/);
-      return [update, snapshot];
-    },
+    query: async () => [update, snapshot],
   });
   const [result] = await service.snapshots([id]);
   assert.deepEqual(result?.activities, [snapshot, update]);
   assert.equal(result?.partial, false);
+  assert.equal(result?.relayers[0]?.phase, Phase.AwaitingSignatures);
+});
+
+void it('applies cumulative node updates to their anchor rather than previous updates', () => {
+  const root = { node_id: 'root', ism, children: [] };
+  const other = { node_id: 'other', ism: 'other-ism', children: [] };
+  const anchor = row({
+    type: 'snapshot',
+    state: {
+      phase: 'preparing',
+      tree_root: 'root',
+      modules: [root, other],
+    },
+  });
+  const changed = row(
+    {
+      type: 'snapshot_update',
+      state: {
+        phase: 'awaiting_signatures',
+        tree_root: 'root',
+        modules: [{ ...root, verified: 1 }],
+        removed_modules: ['other'],
+        retry: {
+          reason: 'AwaitingValidatorSignatures',
+          count: 1,
+          next_attempt_at_millis: 123,
+        },
+      },
+    },
+    2,
+  );
+  const [first] = reduceStatus([anchor, changed]);
+  assert.equal(first?.phase, Phase.AwaitingSignatures);
+  assert.equal(first?.modules.length, 1);
+  assert.equal(first?.modules[0]?.verified, 1);
+  assert.equal(first?.retry?.count, 1);
+  // No changed nodes means the latest state equals the anchor, not update 2.
+  const restored = row(
+    {
+      type: 'snapshot_update',
+      state: {
+        phase: 'delivered',
+        tree_root: 'root',
+        modules: [],
+        removed_modules: [],
+        retry: null,
+      },
+    },
+    3,
+  );
+  const [last] = reduceStatus([anchor, changed, restored]);
+  assert.equal(last?.phase, Phase.Delivered);
+  assert.equal(last?.modules.length, 2);
+  assert.equal(last?.modules[0]?.verified, undefined);
+  assert.equal(last?.retry, null);
+  assert.equal(reduceStatus([changed])[0]?.phase, Phase.Unknown);
+});
+
+void it('keeps snapshot anchors and same-address nodes isolated by reporter and node ID', () => {
+  const node = { node_id: 'root/0', ism, children: [] };
+  const [first, second] = reduceStatus([
+    row({
+      type: 'snapshot',
+      state: {
+        phase: 'preparing',
+        tree_root: 'root',
+        modules: [node, { ...node, node_id: 'root/1' }],
+      },
+    }),
+    row(
+      {
+        type: 'snapshot',
+        state: { phase: 'delivered', tree_root: null, modules: [] },
+      },
+      2,
+      'relayer-b',
+    ),
+    row(
+      {
+        type: 'snapshot_update',
+        state: {
+          phase: 'retrying',
+          tree_root: 'root',
+          modules: [{ ...node, verified: 1 }],
+          removed_modules: ['root/1'],
+        },
+      },
+      3,
+    ),
+  ]);
+  assert.equal(first?.phase, Phase.Retrying);
+  assert.equal(first?.modules.length, 1);
+  assert.equal(first?.modules[0]?.node_id, 'root/0');
+  assert.equal(second?.phase, Phase.Delivered);
+  assert.deepEqual(second?.modules, []);
+});
+
+void it('serves producer snapshots through GraphQL and WebSocket without inventing omitted counters', async () => {
+  const { createScraperProxyApp } = await import('../module.js');
+  const events = [
+    row({
+      type: 'snapshot',
+      state: {
+        phase: 'awaiting_signatures',
+        tree_root: 'root',
+        modules: [
+          {
+            node_id: 'root',
+            ism,
+            children: [],
+            selected_children: [],
+            signatures: {
+              index: 3,
+              root: 'checkpoint-root',
+              collected: 1,
+              threshold: 2,
+              unavailable: [],
+            },
+            offchain_read: { state: 'pending', endpoint: 0, http_status: 202 },
+          },
+        ],
+      },
+    }),
+  ];
+  const service = new DiagnosticsService({ query: async () => events });
+  const app = await createScraperProxyApp(
+    { query: async () => [] },
+    { diagnostics: service },
+  );
+  const stream = new DiagnosticsStream(service);
+  const frames: Record<string, unknown>[] = [];
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/graphql',
+      payload: {
+        query: `{
+      message_diagnostics(message_id: "${id}") { relayers {
+        phase tree_root modules { node_id ism children { node_id ism } selected_children
+          signatures { collection_id collected threshold }
+          offchain_read { state attempt }
+        }
+      }}
+    }`,
+      },
+    });
+    assert.equal(response.json().errors, undefined, response.body);
+    const [progress] = response.json().data.message_diagnostics.relayers;
+    assert.equal(progress.phase, Phase.AwaitingSignatures);
+    assert.equal(progress.tree_root, 'root');
+    assert.equal(progress.modules[0].signatures.collection_id, null);
+    assert.equal(progress.modules[0].signatures.collected, 1);
+    assert.equal(progress.modules[0].offchain_read.attempt, null);
+    stream.subscribe('127.0.0.1', [id], (frame, complete) => {
+      frames.push(frame);
+      complete(true);
+      return true;
+    });
+    await stream.flush();
+    assert.deepEqual(frames, [
+      { type: 'diagnostics', data: (await service.snapshots([id]))[0] },
+    ]);
+  } finally {
+    await stream.stop();
+    await app.close();
+  }
 });
