@@ -257,7 +257,7 @@ def run_case(binary, oracle, contracts, filtered, temporary):
                 assert destination_rpc.methods["eth_sendRawTransaction"] > 0, dict(destination_rpc.methods)
                 if filtered:
                     assert not delivered(chain, domains["test2"]["mailbox"], messages[1]["id"])
-                early_included = relayer_process.early_included_guard(admin_port, "test1", 0 if filtered else len(messages) - 1, initial=True)
+                early_included = relayer_process.early_included_guard(admin_port, "test1", 0 if filtered else len(messages) - 1, included, initial=True)
                 settlement = relayer_process.wait_for_retirement(admin_port, running, included, historical_confirmed_offset=0, historical_offset_reason="all current-process canonical and admitted public IDs tracked")
                 metrics_status, metrics_body, _ = request(f"http://127.0.0.1:{admin_port}/metrics")
                 assert metrics_status == 200 and admin_port != public_port

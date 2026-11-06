@@ -805,8 +805,8 @@ def run_acceptance(binary, validator_binary, oracle, reference, contracts, tempo
                 latest_b = produce("test3", "post-restart-live-b1")
                 observe(latest_b, restarted, "post-restart live second-origin delivery")
                 early_included = {
-                    "test1": relayer_process.early_included_guard(metrics_port, "test1", hidden["nonce"], aggregate=False),
-                    "test3": relayer_process.early_included_guard(metrics_port, "test3", latest_b["nonce"], aggregate=False),
+                    "test1": relayer_process.early_included_guard(metrics_port, "test1", hidden["nonce"], [hidden], aggregate=False),
+                    "test3": relayer_process.early_included_guard(metrics_port, "test3", latest_b["nonce"], [latest_b], aggregate=False),
                 }
                 historical_confirmed_offset = sum(not row.get("processed", False) for row in first_a["messages"][:-1]) + sum(not row.get("processed", False) for row in first_b["messages"])
                 settlement = relayer_process.wait_for_retirement(metrics_port, restarted, [hidden, latest_b], historical_confirmed_offset=historical_confirmed_offset, historical_offset_reason="pending older canonical IDs in first stopped Rust readback; completed IDs skipped on replay")

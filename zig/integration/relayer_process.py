@@ -5,7 +5,7 @@ Correctness + durable recovery, not a throughput benchmark or production rollout
 Rust HyperlaneRocksDB/FullPayload reads independently decode the stopped database.
 """
 from __future__ import annotations
-import argparse,collections,contextlib,hashlib,http.server,json,os,pathlib,shutil,signal,socket,subprocess,sys,tempfile,threading,time,urllib.error,urllib.request
+import argparse,collections,contextlib,hashlib,http.server,json,math,os,pathlib,re,shutil,signal,socket,subprocess,sys,tempfile,threading,time,urllib.error,urllib.request
 import evm
 ROOT=evm.ROOT
 ORIGIN,DESTINATION=9913371,9913372
@@ -99,6 +99,50 @@ def metric_value(body,name,labels):
  for line in body.splitlines():
   if line.startswith(prefix):return float(line[len(prefix):])
  raise AssertionError(f'missing actual metric sample {name}{{{labels}}}')
+def metric_observation(body, name, labels):
+    """Absent child series is evidence of absence, never an invented zero."""
+    def parse_labels(text):
+        result = {}
+        offset = 0
+        while offset < len(text):
+            match = re.match(r'([a-zA-Z_][a-zA-Z_0-9]*)=("(?:[^"\\]|\\.)*")', text[offset:])
+            assert match is not None, 'malformed metric labels'
+            key, encoded = match.groups()
+            assert key not in result, 'duplicate metric label'
+            result[key] = json.loads(encoded)
+            offset += match.end()
+            if offset < len(text):
+                assert text[offset] == ',', 'malformed metric separator'
+                offset += 1
+                assert offset < len(text), 'trailing metric separator'
+        return result
+    expected = parse_labels(labels)
+    value = None
+    family_present = False
+    seen = set()
+    for line in body.decode().splitlines():
+        if not line.startswith(name + '{'):
+            continue
+        family_present = True
+        match = re.fullmatch(re.escape(name) + r'\{(.*)\} ([^ ]+)', line)
+        assert match is not None, 'malformed metric sample'
+        actual = parse_labels(match[1])
+        assert actual.keys() == expected.keys(), 'wrong metric label schema'
+        for key in ('agent', 'hyperlane_baselib_version'):
+            if key in expected:
+                assert actual[key] == expected[key], 'wrong metric agent/version'
+        identity = tuple(sorted(actual.items()))
+        assert identity not in seen, 'duplicate metric sample'
+        seen.add(identity)
+        try:
+            number = float(match[2])
+        except ValueError as error:
+            raise AssertionError('malformed metric value') from error
+        assert math.isfinite(number) and number >= 0 and number.is_integer(), 'invalid integer metric value'
+        if actual == expected:
+            value = int(number)
+    return {'value': value, 'present': value is not None, 'family_present': family_present}
+
 def telemetry(metrics_port):
  url=f'http://127.0.0.1:{metrics_port}/metrics'
  with urllib.request.urlopen(url,timeout=3)as response:body=response.read();status=response.status
@@ -170,35 +214,57 @@ def retirement_poll(operations,confirmed,messages,now_monotonic_seconds,historic
  assert isinstance(operations,list)and historical_confirmed_offset>=0
  eligible=sum(now_monotonic_seconds>=message['included_monotonic']+SOURCE_CONFIRM_SECONDS for message in messages)
  allowed=historical_confirmed_offset+eligible
- if confirmed>allowed:raise AssertionError(f'partial early retirement: confirmed={confirmed},historical_offset={historical_confirmed_offset},eligible_after600={eligible},now_monotonic={now_monotonic_seconds}')
+ if confirmed is not None:assert type(confirmed)in(int,float)and math.isfinite(confirmed)and confirmed>=0 and int(confirmed)==confirmed,'invalid confirmed counter'
+ if confirmed is not None and confirmed>allowed:raise AssertionError(f'partial early retirement: confirmed={confirmed},historical_offset={historical_confirmed_offset},eligible_after600={eligible},now_monotonic={now_monotonic_seconds}')
  active_ids={operation['id'].lower()for operation in operations}
+ assert len(active_ids)==len(operations),'duplicate active operation ID'
  for message in messages:
   if now_monotonic_seconds<message['included_monotonic']+SOURCE_CONFIRM_SECONDS and message['id'].lower()not in active_ids:raise AssertionError(f'tracked operation disappeared before its own600s bound: {message["id"]}')
- return not operations and confirmed==historical_confirmed_offset+len(messages)and retirement_lower_bound(messages,now_monotonic_seconds)
+ return not operations and confirmed is not None and confirmed==historical_confirmed_offset+len(messages)and retirement_lower_bound(messages,now_monotonic_seconds)
 def wait_for_retirement(metrics_port,process,messages,destination_domain=DESTINATION,historical_confirmed_offset=0,historical_offset_reason='no older operations in this process'):
- first_completion=None;first_counter=None
- def settled():
-  nonlocal first_completion,first_counter
-  try:
-   with urllib.request.urlopen(f'http://127.0.0.1:{metrics_port}/list_operations?destination_domain={destination_domain}',timeout=3)as response:operations=json.loads(response.read())
-   with urllib.request.urlopen(f'http://127.0.0.1:{metrics_port}/metrics',timeout=3)as response:body=response.read()
-  except (OSError,ValueError):return False
-  base='agent="relayer",hyperlane_baselib_version="3.0.0"'
-  try:confirmed=metric_value(body,'hyperlane_operations_processed_count',f'app_context="Unknown",phase="confirmed",chain="test2",{base}')
-  except AssertionError:confirmed=0
-  if first_counter is None:first_counter=confirmed
-  if not operations and confirmed==historical_confirmed_offset+len(messages)and first_completion is None:first_completion={'monotonic':time.monotonic(),'unix':time.time(),'confirmed':confirmed}
-  return retirement_poll(operations,confirmed,messages,time.monotonic(),historical_confirmed_offset)
- began=time.monotonic();seconds=max(1,retirement_deadline(messages)-began)
- wait(settled,process,seconds,'live completion polling with production600s lower bound')
- assert retirement_lower_bound(messages,time.monotonic()),'retirement observed before first actual proxy inclusion plus600'
- with urllib.request.urlopen(f'http://127.0.0.1:{metrics_port}/metrics',timeout=3)as response:body=response.read()
- base='agent="relayer",hyperlane_baselib_version="3.0.0"'
- confirmed=metric_value(body,'hyperlane_operations_processed_count',f'app_context="Unknown",phase="confirmed",chain="test2",{base}')
- confirm_queue=metric_value(body,'hyperlane_submitter_queue_length',f'remote="test2",queue_name="confirm_queue",operation_status="Confirm(Submitted by this relayer)",app_context="Unknown",{base}')
- assert confirmed==historical_confirmed_offset+len(messages)and confirm_queue==0,(confirmed,confirm_queue,historical_confirmed_offset,len(messages))
- observed=time.time();required=max(message['included_unix_seconds']for message in messages)+SOURCE_CONFIRM_SECONDS
- return {'production_confirm_seconds':SOURCE_CONFIRM_SECONDS,'bounded_grace_seconds':SOURCE_FINALITY_GRACE_SECONDS,'wait_seconds':time.monotonic()-began,'deadline_from_latest_actual_inclusion':retirement_deadline(messages),'latest_included_unix_seconds':max(message['included_unix_seconds']for message in messages),'required_earliest_retirement_unix_seconds':required,'actual_retirement_unix_seconds':observed,'retirement_after_required_seconds':observed-required,'first_live_completion':first_completion,'historical_confirmed_offset':historical_confirmed_offset,'historical_offset_is_upper_bound_not_injected_counter':True,'first_actual_confirmed_counter':first_counter,'historical_offset_reason':historical_offset_reason,'expected_tracked_messages':len(messages),'first_proxy_inclusions':[{'id_chunks':chunks(message['id']),'transaction_hash_chunks':chunks(message['included_transaction_hash']),'first_positive_receipt_or_delivered_unix_seconds':message['included_unix_seconds'],'first_positive_receipt_or_delivered_monotonic_seconds':message['included_monotonic']}for message in messages],'operations_confirmed':confirmed,'confirm_queue':confirm_queue}
+    first_completion = None
+    first_counter = None
+    first_observation = None
+    absent_samples = 0
+    polls = 0
+    def settled():
+        nonlocal first_completion, first_counter, first_observation, absent_samples, polls
+        try:
+            with urllib.request.urlopen(f'http://127.0.0.1:{metrics_port}/list_operations?destination_domain={destination_domain}',timeout=3) as response:
+                operations = json.loads(response.read())
+            with urllib.request.urlopen(f'http://127.0.0.1:{metrics_port}/metrics',timeout=3) as response:
+                body = response.read()
+        except (OSError,ValueError):
+            return False
+        base = 'agent="relayer",hyperlane_baselib_version="3.0.0"'
+        observation = metric_observation(body, 'hyperlane_operations_processed_count', f'app_context="Unknown",phase="confirmed",chain="test2",{base}')
+        confirmed = observation['value']
+        now = time.monotonic()
+        polls += 1
+        if first_observation is None:
+            first_observation = dict(observation, monotonic=now)
+        if confirmed is None:
+            absent_samples += 1
+        elif first_counter is None:
+            first_counter = confirmed
+        # ID disappearance/individual600s eligibility checks run even without a
+        # materialized confirmed counter. Missing telemetry cannot complete.
+        complete = retirement_poll(operations, confirmed, messages, now, historical_confirmed_offset)
+        if complete and first_completion is None:
+            first_completion = {'monotonic': now, 'unix': time.time(), 'confirmed': confirmed}
+        return complete
+    began = time.monotonic()
+    wait(settled,process,max(1,retirement_deadline(messages)-began),'live completion polling with production600s lower bound')
+    assert retirement_lower_bound(messages,time.monotonic()), 'retirement observed before first actual proxy inclusion plus600'
+    with urllib.request.urlopen(f'http://127.0.0.1:{metrics_port}/metrics',timeout=3) as response:
+        body = response.read()
+    base = 'agent="relayer",hyperlane_baselib_version="3.0.0"'
+    confirmed = metric_value(body,'hyperlane_operations_processed_count',f'app_context="Unknown",phase="confirmed",chain="test2",{base}')
+    confirm_queue = metric_value(body,'hyperlane_submitter_queue_length',f'remote="test2",queue_name="confirm_queue",operation_status="Confirm(Submitted by this relayer)",app_context="Unknown",{base}')
+    assert confirmed > 0 and confirmed == historical_confirmed_offset+len(messages) and confirm_queue == 0, (confirmed,confirm_queue,historical_confirmed_offset,len(messages))
+    observed = time.time()
+    required = max(message['included_unix_seconds'] for message in messages)+SOURCE_CONFIRM_SECONDS
+    return {'production_confirm_seconds':SOURCE_CONFIRM_SECONDS,'bounded_grace_seconds':SOURCE_FINALITY_GRACE_SECONDS,'wait_seconds':time.monotonic()-began,'deadline_from_latest_actual_inclusion':retirement_deadline(messages),'latest_included_unix_seconds':max(message['included_unix_seconds'] for message in messages),'required_earliest_retirement_unix_seconds':required,'actual_retirement_unix_seconds':observed,'retirement_after_required_seconds':observed-required,'first_live_completion':first_completion,'historical_confirmed_offset':historical_confirmed_offset,'historical_offset_is_upper_bound_not_injected_counter':True,'first_actual_confirmed_counter':first_counter,'first_confirmed_counter_observation':first_observation,'confirmed_counter_absent_samples':absent_samples,'polls':polls,'historical_offset_reason':historical_offset_reason,'expected_tracked_messages':len(messages),'first_proxy_inclusions':[{'id_chunks':chunks(message['id']),'transaction_hash_chunks':chunks(message['included_transaction_hash']),'first_positive_receipt_or_delivered_unix_seconds':message['included_unix_seconds'],'first_positive_receipt_or_delivered_monotonic_seconds':message['included_monotonic']} for message in messages],'operations_confirmed':confirmed,'confirm_queue':confirm_queue}
 def wait_role_ready(metrics_port,process,data_type='dispatched_messages',chain='test1'):
  launched=getattr(process,'ziggy_launch_unix_seconds',None);assert launched is not None,'missing actual process launch time'
  evidence={'data_type':data_type,'chain':chain,'launch_unix_seconds':launched,'liveness':None}
@@ -214,18 +280,87 @@ def wait_role_ready(metrics_port,process,data_type='dispatched_messages',chain='
   except (OSError,ValueError,AssertionError):return False
  wait(ready,process,30,f'fresh current-process {data_type} source cycle readiness')
  return evidence
-def early_included_guard(metrics_port,origin,latest_nonce,initial=False,aggregate=True):
- with urllib.request.urlopen(f'http://127.0.0.1:{metrics_port}/metrics',timeout=3)as response:body=response.read()
- base='agent="relayer",hyperlane_baselib_version="3.0.0"'
- processed=metric_value(body,'hyperlane_messages_processed_count',f'origin="{origin}",remote="test2",{base}')
- last=metric_value(body,'hyperlane_last_known_message_nonce',f'phase="message_processed",origin="{origin}",{base}')
- confirmed=metric_value(body,'hyperlane_operations_processed_count',f'app_context="Unknown",phase="confirmed",chain="test2",{base}')
- submissions=metric_value(body,'hyperlane_lander_transaction_submissions','destination="test2"')
- confirm_queue=metric_value(body,'hyperlane_submitter_queue_length',f'remote="test2",queue_name="confirm_queue",operation_status="Confirm(Submitted by this relayer)",app_context="Unknown",{base}')
- if initial:assert processed==0 and confirmed==0,(processed,confirmed)
- assert submissions>0 and confirm_queue>0,(submissions,confirm_queue)
- assert processed<=latest_nonce and (processed==0 or last<latest_nonce) and (not aggregate or confirmed<=latest_nonce),(processed,last,confirmed,latest_nonce)
- return {'messages_processed':processed,'last_processed_nonce':last,'operations_confirmed':confirmed,'self_submitted':submissions,'confirm_queue':confirm_queue,'latest_included_nonce':latest_nonce,'aggregate_checked':aggregate,'early_not_retired':True}
+def early_included_snapshot(body, operations, origin, latest_nonce, messages, now, initial=False, aggregate=True):
+    assert isinstance(operations, list) and messages, 'missing per-ID early witness'
+    by_id = {}
+    for row in operations:
+        assert isinstance(row, dict), 'corrupt admin row'
+        identity = row.get('id')
+        assert isinstance(identity, str) and re.fullmatch(r'0x[0-9a-fA-F]{64}', identity), 'malformed admin ID'
+        identity = identity.lower()
+        assert identity not in by_id, 'duplicate admin ID'
+        by_id[identity] = row
+    known = set()
+    witnesses = []
+    ready = True
+    for message in messages:
+        identity = message['id'].lower()
+        assert re.fullmatch(r'0x[0-9a-f]{64}', identity) and identity not in known, 'duplicate/invalid tracked ID'
+        known.add(identity)
+        included = message['included_monotonic']
+        assert math.isfinite(included) and math.isfinite(now) and 0 <= now-included < SOURCE_CONFIRM_SECONDS, 'early witness outside actual per-ID600s hold'
+        assert identity in by_id, 'tracked operation disappeared before its own600s bound'
+        try:
+            wire = bytes.fromhex(message['wire'])
+        except ValueError as error:
+            raise AssertionError('invalid known message wire') from error
+        assert len(wire) >= 77, 'truncated known message wire'
+        expected = {'version':wire[0], 'nonce':int.from_bytes(wire[1:5],'big'), 'origin':int.from_bytes(wire[5:9],'big'), 'sender':'0x'+wire[9:41].hex(), 'destination':int.from_bytes(wire[41:45],'big'), 'recipient':'0x'+wire[45:77].hex(), 'body':list(wire[77:])}
+        assert expected['origin'] == {'test1':ORIGIN, 'test3':9913373}[origin] and expected['destination'] == DESTINATION, 'known message domain mismatch'
+        operation = by_id[identity].get('operation')
+        assert isinstance(operation, dict) and operation.get('type') == 'PendingMessage', 'corrupt admin operation type'
+        actual = operation.get('message')
+        assert isinstance(actual, dict) and actual.keys() == expected.keys(), 'corrupt admin message schema'
+        for key in ('version','nonce','origin','destination'):
+            assert type(actual[key]) is int, 'corrupt admin numeric field'
+        assert isinstance(actual['body'], list) and all(type(value) is int and 0 <= value <= 255 for value in actual['body']), 'corrupt admin message body'
+        assert actual == expected, 'admin message does not match exact known wire/domain/nonce'
+        status = operation.get('status')
+        if status == {'Confirm':'SubmittedBySelf'}:
+            assert operation.get('submitted') is True, 'Confirm operation not submitted'
+        else:
+            # Inclusion can precede the next bounded actor poll. Permit only
+            # known pre-confirm states while waiting; never excuse a missing ID.
+            assert status in ('FirstPrepareAttempt','ReadyToSubmit') and operation.get('submitted') is False, 'corrupt/unexpected admin status'
+            ready = False
+        witnesses.append({'id_chunks':chunks(identity), 'message':expected, 'status':status, 'submitted':operation['submitted'], 'first_actual_inclusion_monotonic':included, 'observed_monotonic':now, 'age_seconds':now-included, 'active':True})
+    base = 'agent="relayer",hyperlane_baselib_version="3.0.0"'
+    samples = {
+        'messages_processed':metric_observation(body,'hyperlane_messages_processed_count',f'origin="{origin}",remote="test2",{base}'),
+        'last_processed_nonce':metric_observation(body,'hyperlane_last_known_message_nonce',f'phase="message_processed",origin="{origin}",{base}'),
+        'operations_confirmed':metric_observation(body,'hyperlane_operations_processed_count',f'app_context="Unknown",phase="confirmed",chain="test2",{base}'),
+    }
+    processed, last, confirmed = (samples[key]['value'] for key in ('messages_processed','last_processed_nonce','operations_confirmed'))
+    if initial:
+        assert processed in (None,0) and confirmed in (None,0) and last in (None,0), 'positive early completion metric'
+    if processed is not None:
+        assert processed <= latest_nonce and (processed == 0 or (last is not None and last < latest_nonce)), 'processed metric exceeds early bound'
+    if last is not None and last > 0:
+        assert last < latest_nonce, 'last nonce reaches fresh early message'
+    if aggregate and confirmed is not None:
+        assert confirmed <= latest_nonce, 'confirmed metric exceeds early bound'
+    mandatory = {
+        'self_submitted':metric_observation(body,'hyperlane_lander_transaction_submissions','destination="test2"'),
+        'confirm_queue':metric_observation(body,'hyperlane_submitter_queue_length',f'remote="test2",queue_name="confirm_queue",operation_status="Confirm(Submitted by this relayer)",app_context="Unknown",{base}'),
+        'submitted_phase':metric_observation(body,'hyperlane_operations_processed_count',f'app_context="Unknown",phase="submitted",chain="test2",{base}'),
+    }
+    submissions, confirm_queue = mandatory['self_submitted']['value'], mandatory['confirm_queue']['value']
+    if ready:
+        assert all(sample['present'] and sample['value'] > 0 for sample in mandatory.values()), 'missing positive Confirm/submission metrics'
+    return {'messages_processed':processed,'last_processed_nonce':last,'operations_confirmed':confirmed,'metric_observations':samples,'mandatory_metric_observations':mandatory,'nonce_observed_without_processed':last is not None and processed is None,'self_submitted':submissions,'confirm_queue':confirm_queue,'latest_included_nonce':latest_nonce,'aggregate_checked':aggregate,'per_id_active_confirm_witnesses':witnesses,'ready':ready,'early_not_retired':ready,'metrics_sha256_chunks':chunks(hashlib.sha256(body).hexdigest())}
+
+def early_included_guard(metrics_port,origin,latest_nonce,messages,initial=False,aggregate=True):
+    deadline = time.monotonic()+5
+    while True:
+        with urllib.request.urlopen(f'http://127.0.0.1:{metrics_port}/list_operations?destination_domain={DESTINATION}',timeout=3) as response:
+            operations = json.loads(response.read())
+        with urllib.request.urlopen(f'http://127.0.0.1:{metrics_port}/metrics',timeout=3) as response:
+            body = response.read()
+        result = early_included_snapshot(body,operations,origin,latest_nonce,messages,time.monotonic(),initial,aggregate)
+        if result['ready']:
+            return result
+        assert time.monotonic() < deadline, 'bounded wait for active Confirm witnesses expired'
+        time.sleep(.05)
 def deploy_multicall3(chain):
  source=(ROOT/'rust/main/utils/run-locally/src/ethereum/multicall.rs').read_text();marker='SIGNED_DEPLOY_MULTICALL_TX: &str = "';start=source.index(marker)+len(marker);deployment=source[start:source.index('";',start)]
  if chain.rpc('eth_getCode',[MULTICALL3,'latest'])=='0x':
@@ -368,7 +503,7 @@ def main():
     def delivered(identity):return int(chain.rpc('eth_call',[{'to':domains['test2']['mailbox'],'data':evm.calldata('delivered(bytes32)',identity)},'latest']),16)==1
     with (temporary/'relayer-first.log').open('w')as log:
      running=launch(binary,relayer_config,log);agents.append(running);started=time.monotonic();observe_inclusions(delivered,messages,running,'all3 ISM deliveries',destination_rpc,chain,domains['test2']['mailbox']);delivery_ms=(time.monotonic()-started)*1000
-     early_included=early_included_guard(value['metricsPort'],'test1',len(messages)-1,initial=True)
+     early_included=early_included_guard(value['metricsPort'],'test1',len(messages)-1,messages,initial=True)
      settlement=wait_for_retirement(value['metricsPort'],running,messages);metrics=telemetry(value['metricsPort']);first_stop=stop(running)
     assert first_stop['exit']==0,first_stop
     first_probe=rust_probe(oracle,database,3)
@@ -397,7 +532,7 @@ def main():
     batch_config=temporary/'batch-config';batch_config.mkdir();batch_database=temporary/'batch-db';batch_value=json.loads(json.dumps(value));batch_value['db']=str(batch_database);batch_value['metricsPort']=port();batch_value['whitelist']=[{'messageId':[message['id']for message in batch_messages]}];batch_value['chains']['test2']['maxBatchSize']=4;batch_value['chains']['test2']['batchContractAddress']=multicall;(batch_config/'public.json').write_text(json.dumps(batch_value));raw_before_batch=len(destination_rpc.raw_transactions)
     with (temporary/'relayer-batch.log').open('w')as log:
      running=launch(binary,batch_config,log);agents.append(running);batch_messages=messages[batch_start:];observe_inclusions(delivered,batch_messages,running,'four ready messages in maxBatchSize4 role run',destination_rpc,chain,domains['test2']['mailbox'])
-     batch_early=early_included_guard(batch_value['metricsPort'],'test1',len(messages)-1)
+     batch_early=early_included_guard(batch_value['metricsPort'],'test1',len(messages)-1,batch_messages)
      batch_settlement=wait_for_retirement(batch_value['metricsPort'],running,batch_messages,historical_offset_reason='exact four target IDs admitted by whitelist; older canonical nonces indexed but denied');batch_stop=stop(running)
     assert batch_stop['exit']==0,batch_stop
     batch_probe=rust_probe(oracle,batch_database,len(messages));assert all(row['present']and row['processed']and row['payment']and row['payloads']for row in batch_probe['messages'][batch_start:]),batch_probe
@@ -422,7 +557,7 @@ def main():
      if not captured:continue
      before_recovery_nonce=int(chain.rpc('eth_getTransactionCount',[evm.TEST_SIGNER,'latest']),16)
      with (temporary/'relayer-crash-recovery.log').open('w')as log:
-      recovering=launch(binary,crash_config,log);agents.append(recovering);wait(lambda:delivered(crash_message['id']),recovering,90,'sealed payload replay delivery');observe_inclusions(delivered,[crash_message],recovering,'latest recovered inclusion',destination_rpc,chain,domains['test2']['mailbox']);recovery_early=early_included_guard(crash_value['metricsPort'],'test1',len(messages)-1);recovery_settlement=wait_for_retirement(crash_value['metricsPort'],recovering,[crash_message],historical_offset_reason='exact fresh crash target admitted by whitelist; older canonical nonces indexed but denied');recovery_stop=stop(recovering)
+      recovering=launch(binary,crash_config,log);agents.append(recovering);wait(lambda:delivered(crash_message['id']),recovering,90,'sealed payload replay delivery');observe_inclusions(delivered,[crash_message],recovering,'latest recovered inclusion',destination_rpc,chain,domains['test2']['mailbox']);recovery_early=early_included_guard(crash_value['metricsPort'],'test1',len(messages)-1,[crash_message]);recovery_settlement=wait_for_retirement(crash_value['metricsPort'],recovering,[crash_message],historical_offset_reason='exact fresh crash target admitted by whitelist; older canonical nonces indexed but denied');recovery_stop=stop(recovering)
      after_recovery_nonce=int(chain.rpc('eth_getTransactionCount',[evm.TEST_SIGNER,'latest']),16);assert after_recovery_nonce==before_recovery_nonce+1,(before_recovery_nonce,after_recovery_nonce)
      recovered=rust_probe(oracle,crash_database,len(messages));assert recovered['messages'][-1]['processed'],recovered
      recovery_receipt_proof=verify_sealed_singleton(chain,destination_rpc,domains['test2']['mailbox'],messages[-1],recovered,'canonical')
