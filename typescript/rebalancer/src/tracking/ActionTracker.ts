@@ -32,6 +32,7 @@ import type {
 
 export interface ActionTrackerConfig {
   routersByDomain: Record<number, string>; // Domain ID → router address (source of truth for routers and domains)
+  isIgnoredTransfer?: (messageId: string) => boolean; // True when a pending-transfer middleware ignored the message on the latest Explorer query
   bridges: Address[]; // Bridge contract addresses for rebalance action queries
   rebalancerAddress: Address;
   inventorySignerAddresses?: Address[]; // Optional - for excluding inventory signers from user transfers query
@@ -126,6 +127,7 @@ export class ActionTracker implements IActionTracker {
 
     let newTransfers = 0;
     let completedTransfers = 0;
+    let ignoredTransfers = 0;
 
     for (const msg of inflightMessages) {
       const transfer = await this.transferStore.get(msg.msg_id);
@@ -182,6 +184,23 @@ export class ActionTracker implements IActionTracker {
 
     const existingTransfers = await this.getInProgressTransfers();
     for (const transfer of existingTransfers) {
+      if (this.config.isIgnoredTransfer?.(transfer.messageId)) {
+        await this.transferStore.delete(transfer.id);
+        ignoredTransfers++;
+
+        this.logger.info(
+          {
+            id: transfer.id,
+            origin: transfer.origin,
+            destination: transfer.destination,
+            amount: transfer.amount.toString(),
+          },
+          'Dropped tracked transfer ignored by pending transfer middleware',
+        );
+
+        continue;
+      }
+
       const blockTag = await this.getConfirmedBlockTag(
         transfer.destination,
         confirmedBlockTags,
@@ -204,6 +223,7 @@ export class ActionTracker implements IActionTracker {
       {
         newTransfers,
         completed: completedTransfers,
+        ignored: ignoredTransfers,
         inProgress: inProgressCount,
       },
       'Transfers synced',

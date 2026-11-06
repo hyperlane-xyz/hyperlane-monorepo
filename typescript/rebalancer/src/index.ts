@@ -24,6 +24,7 @@ export {
   DEFAULT_INTENT_TTL_S,
   getStrategyChainConfig,
   getStrategyChainNames,
+  PendingTransferMiddlewareType,
   RebalancerBaseChainConfigSchema,
   RebalancerConfigSchema,
   RebalancerMinAmountConfigSchema,
@@ -35,6 +36,7 @@ export {
 } from './config/types.js';
 export type {
   MinAmountStrategyConfig,
+  PendingTransferMiddlewareConfig,
   RebalancerConfig as RebalancerConfigType,
   RebalancerConfigFileInput,
   RebalancerMinAmountChainConfig,
