@@ -34,6 +34,7 @@ import { ANVIL_KEY, REGISTRY_PATH } from '../consts.js';
 
 export const WH_CHAIN_ID_2 = 4001;
 export const WH_CHAIN_ID_3 = 4002;
+export const WH_CHAIN_ID_4 = 4003;
 export const CORE_MESSAGE_FEE = 0n;
 
 export interface WormholeChainFixture {
