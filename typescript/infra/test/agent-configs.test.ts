@@ -286,6 +286,8 @@ describe('Agent configs', () => {
 
     expect(enabledProxies).to.have.length(1);
     expect(enabledProxies[0].scraperProxy).to.deep.equal({
+      diagnosticsDatabaseSecret:
+        'hyperlane-testnet4-relayer-postgres-reader-url',
       docker: {
         repo: DockerImageRepos.NODE_SERVICES,
         tag: testnetDockerTags.scraperProxy,
