@@ -23,7 +23,8 @@ use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
     FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
     MessageSubmissionData, Metadata, PendingOperation, PendingOperationResult,
-    PendingOperationStatus, ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
+    PendingOperationStatus, ReprepareReason, SubmissionStage, TryBatchAs, TxCostEstimate,
+    TxOutcome, H256, U256,
 };
 use hyperlane_metric::rpc_operation::{with_rpc_operation, RpcOperation};
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
@@ -192,6 +193,10 @@ pub struct PendingMessage {
     #[serde(skip_serializing)]
     first_seen: SystemTime,
     #[serde(skip_serializing)]
+    first_seen_reported: bool,
+    #[serde(skip_serializing)]
+    submission_stage: Mutex<Option<SubmissionStage>>,
+    #[serde(skip_serializing)]
     pending_tracked: bool,
     #[serde(skip_serializing)]
     max_retries: u32,
@@ -244,6 +249,21 @@ pub struct PendingMessage {
 }
 
 impl PendingMessage {
+    fn report_first_seen(&mut self) {
+        if self.first_seen_reported {
+            return;
+        }
+        let at_millis = self
+            .first_seen
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX))
+            .unwrap_or_default();
+        self.ctx
+            .metadata_builder
+            .report_activity(&self.message, Activity::FirstSeen { at_millis });
+        self.first_seen_reported = true;
+    }
+
     fn report_progress(&self, stage: Stage, outcome: Outcome) {
         self.ctx
             .metadata_builder
@@ -279,6 +299,8 @@ impl PendingMessage {
             status,
             app_context,
             first_seen,
+            first_seen_reported: false,
+            submission_stage: Mutex::new(None),
             pending_tracked,
             max_retries,
             submitted: false,
@@ -482,6 +504,7 @@ impl PendingOperation for PendingMessage {
             return PendingOperationResult::NotReady;
         }
 
+        self.report_first_seen();
         self.report_progress(Stage::Prepare, Outcome::Started);
         // If the message has already been processed, e.g. due to another relayer having
         // already processed, then mark it as already-processed, and move on to
@@ -812,6 +835,7 @@ impl PendingOperation for PendingMessage {
             }
         }
 
+        self.on_submission_stage(SubmissionStage::Submitting);
         self.report_progress(Stage::Submit, Outcome::Started);
         // We use the estimated gas limit from the prior call to
         // `process_estimate_costs` to avoid a second gas estimation.
@@ -972,6 +996,17 @@ impl PendingOperation for PendingMessage {
             .on_submitted_success(&self.message);
     }
 
+    fn on_submission_stage(&self, stage: SubmissionStage) {
+        let mut current = self.submission_stage.lock();
+        if current.as_ref() == Some(&stage) {
+            return;
+        }
+        self.ctx
+            .metadata_builder
+            .report_activity(&self.message, Activity::Submission { stage });
+        *current = Some(stage);
+    }
+
     fn get_metric(&self) -> Option<Arc<IntGauge>> {
         self.metric.clone()
     }
@@ -1056,13 +1091,8 @@ impl PendingMessage {
             }
         }
         if Self::should_skip(num_retries, max_retries) && !manual_retry {
-            ctx.metadata_builder.report_activity(
-                &message,
-                Activity::RetryLimitReached {
-                    retries: num_retries,
-                    limit: max_retries,
-                },
-            );
+            // Loading an already-exhausted message is not a new retry-limit
+            // transition. Repeated admission scans must not replay diagnostics.
             return None;
         }
         let reprepare_reason = match &message_status {
@@ -1420,6 +1450,7 @@ impl PendingMessage {
         delay: Duration,
         reason: ReprepareReason,
     ) -> PendingOperationResult {
+        *self.submission_stage.lock() = None;
         self.submitted = false;
         self.last_attempted_at = Instant::now();
         self.next_attempt_after = self.last_attempted_at.checked_add(delay);
@@ -1432,6 +1463,7 @@ impl PendingMessage {
         err: Option<E>,
         reason: ReprepareReason,
     ) -> PendingOperationResult {
+        *self.submission_stage.lock() = None;
         self.inc_attempts(Some(&reason));
         self.submitted = false;
         if let Some(e) = err {
@@ -1444,6 +1476,7 @@ impl PendingMessage {
 
     fn on_metadata_wait(&mut self, observation: MetadataWaitObservation) -> PendingOperationResult {
         let reason = ReprepareReason::AwaitingValidatorSignatures;
+        *self.submission_stage.lock() = None;
         self.inc_attempts(Some(&reason));
         self.submitted = false;
         if observation.first_observation {

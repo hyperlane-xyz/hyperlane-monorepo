@@ -220,9 +220,10 @@ impl AggregationIsmMetadataBuilder {
         message: &HyperlaneMessage,
         ism_address: H256,
         sub: &IsmWithMetadataAndType,
+        index: usize,
     ) -> ChainResult<Option<U256>> {
         let report = |outcome| {
-            self.base_builder().report_activity(
+            self.base.child(index, ism_address).report_activity(
                 message,
                 Activity::IsmVerification {
                     ism: ism_address,
@@ -249,7 +250,7 @@ impl AggregationIsmMetadataBuilder {
         ism_count: usize,
     ) -> Result<Metadata, MetadataBuildError> {
         let sub_module_and_meta = message_builder::build_message_metadata(
-            self.base.clone(),
+            self.base.child(ism_index, ism_address),
             ism_address,
             message,
             params.clone(),
@@ -259,7 +260,7 @@ impl AggregationIsmMetadataBuilder {
 
         // Return an error if delivering with this metadata fails.
         if self
-            .verify_submodule(message, ism_address, &sub_module_and_meta)
+            .verify_submodule(message, ism_address, &sub_module_and_meta, ism_index)
             .await
             .map_err(|err| MetadataBuildError::FastPathError(err.to_string()))?
             .is_none()
@@ -268,6 +269,12 @@ impl AggregationIsmMetadataBuilder {
                 "Fast path metadata failed dry run (returned None)".to_string(),
             ));
         }
+        self.report_activity(
+            message,
+            Activity::AggregationSelection {
+                indices: vec![ism_index],
+            },
+        );
         let sub_module_metadata = SubModuleMetadata::new(ism_index, sub_module_and_meta.metadata);
         let metadata = Metadata::new(Self::format_metadata(&mut [sub_module_metadata], ism_count));
         Ok(metadata)
@@ -292,7 +299,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
 
         let (ism_addresses, threshold) = self.call_modules_and_threshold(ism, message).await?;
 
-        self.base_builder().report_activity(
+        self.report_activity(
             message,
             Activity::Aggregation {
                 ism: ism_address,
@@ -307,7 +314,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             .await
         {
             Ok(Some(metadata)) => {
-                self.base_builder().report_activity(
+                self.report_activity(
                     message,
                     Activity::AggregationProgress {
                         ism: ism_address,
@@ -346,7 +353,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             .iter()
             .enumerate()
             .map(|(index, sub_ism_address)| {
-                let base = self.base.clone();
+                let base = self.base.child(index, *sub_ism_address);
                 let params = params.clone();
                 let addr = *sub_ism_address;
                 async move {
@@ -362,7 +369,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                         }
                         Err(_) => ModuleBuildOutcome::Failed,
                         Ok(sub) => {
-                            match self.verify_submodule(message, addr, &sub).await {
+                            match self.verify_submodule(message, addr, &sub, index).await {
                                 Ok(Some(gas)) => ModuleBuildOutcome::Verified(
                                     SubModuleMetadata::new(index, sub.metadata),
                                     gas,
@@ -414,7 +421,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             }
         }
 
-        self.base_builder().report_activity(
+        self.report_activity(
             message,
             Activity::AggregationProgress {
                 ism: ism_address,
@@ -439,6 +446,12 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         metas_and_gas.sort_by(|(m1, _), (m2, _)| m1.index.cmp(&m2.index));
         let mut valid_metas: Vec<SubModuleMetadata> =
             metas_and_gas.into_iter().map(|(m, _)| m).collect();
+        self.report_activity(
+            message,
+            Activity::AggregationSelection {
+                indices: valid_metas.iter().map(|meta| meta.index).collect(),
+            },
+        );
         let metadata = Metadata::new(Self::format_metadata(&mut valid_metas, ism_addresses.len()));
         Ok(metadata)
     }

@@ -1,6 +1,28 @@
 use super::*;
 
-fn reporter(capacity: usize) -> (MessageActivityReporter, mpsc::Receiver<Event>) {
+use hyperlane_base::{
+    cache::OptionalCache,
+    db::test_utils,
+    db::{HyperlaneDb, HyperlaneRocksDB},
+};
+use hyperlane_core::{
+    test_utils::dummy_domain, PendingOperation, PendingOperationResult, PendingOperationStatus,
+    ReprepareReason, SubmissionStage,
+};
+
+use crate::{
+    db_loader::DbLoaderExt,
+    msg::{
+        blacklist::AddressBlacklist,
+        db_loader::{tests::dummy_message_loader_metrics, MessageDbLoader},
+        pending_message::PendingMessage,
+        runtime_denylist::RuntimeDenylist,
+    },
+    settings::matching_list::MatchingList,
+    test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder},
+};
+
+fn reporter(capacity: usize) -> (MessageActivityReporter, mpsc::Receiver<ObservationEvent>) {
     let (sender, receiver) = mpsc::channel(capacity);
     (
         MessageActivityReporter {
@@ -13,6 +35,174 @@ fn reporter(capacity: usize) -> (MessageActivityReporter, mpsc::Receiver<Event>)
         },
         receiver,
     )
+}
+
+#[tokio::test]
+async fn admission_scans_do_not_replay_diagnostics() {
+    use hyperlane_base::broadcast::IndexingNotification;
+    use std::collections::HashMap;
+
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let messages: Vec<_> = (0..4)
+            .map(|nonce| HyperlaneMessage {
+                nonce,
+                origin: origin.id(),
+                destination: destination.id(),
+                sender: H256::from_low_u64_be(u64::from(nonce)),
+                ..Default::default()
+            })
+            .collect();
+        for message in &messages {
+            db.store_message(message, Default::default()).unwrap();
+        }
+        db.store_pending_message_retry_count_by_message_id(&messages[3].id(), &2)
+            .unwrap();
+
+        // Fresh loaders model restarts; notifications force repeated admission checks.
+        for _ in 0..2 {
+            let (reporter, mut activities) = reporter(64);
+            let cache = OptionalCache::new(None);
+            let builder = dummy_metadata_builder(&origin, &destination, &db, cache.clone())
+                .with_activity_reporter(Some(reporter));
+            let context = Arc::new(dummy_message_context(Arc::new(builder), &db, cache));
+            let (sender, mut operations) = mpsc::channel(1);
+            let mut loader = MessageDbLoader::new(
+                db.clone(),
+                Arc::default(),
+                Arc::new(MatchingList::with_message_id(messages[0].id())),
+                Arc::new(AddressBlacklist::new(vec![messages[1]
+                    .sender
+                    .as_bytes()
+                    .to_vec()])),
+                dummy_message_loader_metrics(),
+                HashMap::from([(destination.id(), sender)]),
+                HashMap::from([(destination.id(), context)]),
+                Arc::new(vec![]),
+                2,
+            )
+            .unwrap();
+            loader.set_runtime_denylist(Arc::new(RuntimeDenylist::from_rules_for_test(
+                serde_json::json!([{
+                    "reason": "historical exclusion",
+                    "addedBy": "test",
+                    "match": { "messageId": format!("{:?}", messages[2].id()) }
+                }]),
+            )));
+            let (notifications, receiver) = mpsc::channel(1);
+            loader.set_index_notifications(Some(receiver));
+            for nonce in (0..4).cycle().take(16) {
+                notifications
+                    .send(IndexingNotification {
+                        tx_id: H512::zero(),
+                        sequences: vec![Some(nonce)],
+                    })
+                    .await
+                    .unwrap();
+                loader.tick().await.unwrap();
+            }
+            assert!(
+                operations.try_recv().is_err(),
+                "excluded history stays unqueued"
+            );
+            assert!(
+                activities.try_recv().is_err(),
+                "scans must not emit activity rows"
+            );
+        }
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn live_denylist_and_retry_limit_transitions_still_emit_diagnostics() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let cache = OptionalCache::new(None);
+        let (reporter, mut activities) = reporter(16);
+        let builder = dummy_metadata_builder(&origin, &destination, &db, cache.clone())
+            .with_activity_reporter(Some(reporter));
+        let context = Arc::new(dummy_message_context(Arc::new(builder), &db, cache));
+        let mut pending = PendingMessage::new(
+            HyperlaneMessage {
+                origin: origin.id(),
+                destination: destination.id(),
+                ..Default::default()
+            },
+            context,
+            PendingOperationStatus::FirstPrepareAttempt,
+            None,
+            1,
+        )
+        .with_fail_fast();
+        pending.on_runtime_denylist_drop();
+        assert!(matches!(
+            activities.try_recv().unwrap().activity,
+            Activity::Filtered {
+                reason: FilterReason::RuntimeDenylisted
+            }
+        ));
+
+        assert!(matches!(
+            pending.on_reprepare(None, ReprepareReason::CouldNotFetchMetadata),
+            PendingOperationResult::Drop
+        ));
+        let mut limits = 0;
+        let mut drops = 0;
+        while let Ok(event) = activities.try_recv() {
+            match event.activity {
+                Activity::RetryLimitReached {
+                    retries: 1,
+                    limit: 1,
+                } => limits += 1,
+                Activity::Dropped => drops += 1,
+                _ => {}
+            }
+        }
+        assert_eq!(limits, 1);
+        assert_eq!(drops, 1);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn repeated_submission_stage_is_suppressed_before_enqueue() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        let cache = OptionalCache::new(None);
+        let (reporter, mut activities) = reporter(4);
+        let builder = dummy_metadata_builder(&origin, &destination, &db, cache.clone())
+            .with_activity_reporter(Some(reporter));
+        let context = Arc::new(dummy_message_context(Arc::new(builder), &db, cache));
+        let pending = PendingMessage::new(
+            HyperlaneMessage {
+                origin: origin.id(),
+                destination: destination.id(),
+                ..Default::default()
+            },
+            context,
+            PendingOperationStatus::ReadyToSubmit,
+            None,
+            1,
+        );
+
+        pending.on_submission_stage(SubmissionStage::PendingInclusion);
+        pending.on_submission_stage(SubmissionStage::PendingInclusion);
+        assert!(matches!(
+            activities.try_recv().expect("new stage").activity,
+            Activity::Submission {
+                stage: SubmissionStage::PendingInclusion
+            }
+        ));
+        assert!(activities.try_recv().is_err());
+    })
+    .await;
 }
 
 #[test]
@@ -126,20 +316,18 @@ async fn postgres() -> eyre::Result<()> {
         "#)).await?;
         let (mut reporter, mut receiver) = reporter(2);
         let message = HyperlaneMessage { origin: u32::MAX, destination: 1, ..Default::default() };
-        let observer = reporter.checkpoint_observer(&message, Some(H256::repeat_byte(7)), 2);
-        observer.observe(CheckpointObservation::Fetching { index: 12 });
-        observer.observe(CheckpointObservation::Signature {
-            validator: H256::repeat_byte(1), index: 12, root: H256::repeat_byte(2), collected: 1,
-        });
-        observer.report();
+        reporter.report(&message, Activity::Delivered);
         let batch = vec![receiver.try_recv()?];
-        insert_events(&db, &batch).await?;
+        let stored = state::ActivityState::new(None).project(&batch).await?;
+        insert_events(&db, &stored).await?;
         assert!(db.execute_unprepared("DELETE FROM public.message_activity").await.is_err());
         assert!(db.execute_unprepared("UPDATE public.message_activity SET relayer = 'spoof'").await.is_err());
         // Shared credentials allow different configured EVM identities.
         reporter.relayer = H160::repeat_byte(0x22);
         reporter.report(&message, Activity::Delivered);
-        insert_events(&db, &[receiver.try_recv()?]).await?;
+        let batch = vec![receiver.try_recv()?];
+        let stored = state::ActivityState::new(None).project(&batch).await?;
+        insert_events(&db, &stored).await?;
         // The shared writer still cannot choose server receipt timestamps.
         assert!(db.execute_unprepared("INSERT INTO public.message_activity (received_at) VALUES (now())").await.is_err());
         db.execute_unprepared("RESET SESSION AUTHORIZATION").await?;
@@ -151,34 +339,28 @@ async fn postgres() -> eyre::Result<()> {
         assert_eq!(row.try_get::<String>("", "relayer")?, hex::encode(H160::repeat_byte(0x11)));
         assert_eq!(row.try_get::<i64>("", "origin")?, i64::from(u32::MAX));
         assert_eq!(row.try_get::<String>("", "message_id")?, hex::encode(message.id()));
-        let checkpoint = db.query_one(Statement::from_string(DbBackend::Postgres,
-            "SELECT activity FROM public.message_activity WHERE activity->>'type' = 'checkpoint'"))
-            .await?.ok_or_else(|| eyre::eyre!("missing checkpoint"))?;
-        let activity: serde_json::Value = checkpoint.try_get("", "activity")?;
-        assert_eq!(activity["summary"]["collected"], 1);
-        assert_eq!(activity["summary"]["index"], 12);
+        let snapshot = db.query_one(Statement::from_string(DbBackend::Postgres,
+            "SELECT activity FROM public.message_activity LIMIT 1"))
+            .await?.ok_or_else(|| eyre::eyre!("missing snapshot"))?;
+        let activity: serde_json::Value = snapshot.try_get("", "activity")?;
+        assert_eq!(activity["type"], "snapshot");
+        assert_eq!(activity["state"]["phase"], "delivered");
         // Exercise the background writer and its success counter, not only INSERT.
         let (writer_reporter, writer_receiver) = self::reporter(1);
         let metrics = writer_reporter.metrics.clone();
         writer_reporter.report(&message, Activity::Delivered);
         drop(writer_reporter);
-        tokio::time::timeout(Duration::from_secs(5), write_events(url.clone(), writer_receiver, metrics.clone())).await?;
+        tokio::time::timeout(Duration::from_secs(5), write_events(url.clone(), writer_receiver, metrics.clone(), None)).await?;
         assert_eq!(metrics.written.get(), 1);
         assert_eq!(metrics.failed.get(), 0);
         let index = db.query_one(Statement::from_string(DbBackend::Postgres,
             "SELECT indexdef FROM pg_indexes WHERE indexname = 'message_activity_received_at_idx'"))
-            .await?.ok_or_else(|| eyre::eyre!("missing retention index"))?;
+            .await?.ok_or_else(|| eyre::eyre!("missing received-at index"))?;
         assert!(index.try_get::<String>("", "indexdef")?.contains("USING brin (received_at)"));
         let trigger = db.query_one(Statement::from_string(DbBackend::Postgres,
             "SELECT count(*) AS count FROM pg_trigger WHERE tgname = 'notify_message_activity_insert' AND NOT tgisinternal"))
             .await?.ok_or_else(|| eyre::eyre!("missing notification trigger"))?;
         assert_eq!(trigger.try_get::<i64>("", "count")?, 1);
-        db.execute_unprepared("UPDATE public.message_activity SET received_at = now() - interval '91 days' WHERE activity->>'type' = 'checkpoint'").await?;
-        let deleted = db.execute_unprepared(include_str!("prune.sql")).await?;
-        assert_eq!(deleted.rows_affected(), 1);
-        let remaining = db.query_one(Statement::from_string(DbBackend::Postgres, "SELECT count(*) AS count FROM public.message_activity"))
-            .await?.ok_or_else(|| eyre::eyre!("missing retained events"))?;
-        assert_eq!(remaining.try_get::<i64>("", "count")?, 2);
         Ok(())
     }.await;
     db.execute_unprepared("RESET SESSION AUTHORIZATION").await?;
@@ -437,6 +619,7 @@ async fn failed_writer_counts_loss_and_keeps_queue_nonblocking() {
         Secret::new("invalid-diagnostics-url".to_owned()),
         receiver,
         metrics.clone(),
+        None,
     ));
     reporter.report(&message, Activity::Delivered);
     tokio::time::timeout(Duration::from_secs(1), async {

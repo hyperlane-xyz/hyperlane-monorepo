@@ -564,3 +564,33 @@ void it('still reads per-signature checkpoint events from older relayers', () =>
   ])[0];
   assert.equal(state?.modules[0]?.signatures?.collected, 1);
 });
+
+void it('streams the latest full snapshot and newest cumulative update', async () => {
+  const snapshot = row({
+    type: 'snapshot',
+    state: { phase: 'awaiting_signatures', tree_root: ism, modules: [] },
+  });
+  const update = row(
+    {
+      type: 'snapshot_update',
+      state: {
+        phase: 'awaiting_signatures',
+        tree_root: ism,
+        modules: [],
+        removed_modules: [],
+      },
+    },
+    2,
+  );
+  const service = new DiagnosticsService({
+    query: async (sql) => {
+      assert.match(sql, /'snapshot_update'/);
+      assert.match(sql, /SELECT max\(anchor.id\)/);
+      assert.match(sql, /DISTINCT ON \(relayer, activity->>'type'\)/);
+      return [update, snapshot];
+    },
+  });
+  const [result] = await service.snapshots([id]);
+  assert.deepEqual(result?.activities, [snapshot, update]);
+  assert.equal(result?.partial, false);
+});

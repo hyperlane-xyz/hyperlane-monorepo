@@ -399,6 +399,8 @@ const contextBase = {
 
 const messageActivityDatabaseUrlSecret =
   'hyperlane-mainnet-relayer-postgres-writer-url';
+const diagnosticsDatabaseSecret =
+  'hyperlane-mainnet-relayer-postgres-reader-url';
 
 const scraperWebsocketUrl =
   'ws://scraper-proxy.mainnet3.svc.cluster.local:8383/agents';
@@ -921,7 +923,7 @@ const hyperlane: RootAgentConfig = {
     resources: scraperResources,
   },
   scraperProxy: {
-    diagnosticsDatabaseSecret: 'hyperlane-mainnet-relayer-postgres-reader-url',
+    diagnosticsDatabaseSecret,
     docker: {
       repo: DockerImageRepos.NODE_SERVICES,
       tag: mainnetDockerTags.scraperProxy,

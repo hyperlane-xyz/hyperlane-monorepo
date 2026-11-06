@@ -9,6 +9,8 @@ use eyre::Result;
 use hyperlane_core::{HyperlaneMessage, Metadata, H256};
 use hyperlane_sealevel::{CompositeIsmMetadataSpec, SealevelCompositeIsm};
 
+use crate::message_activity::Activity;
+
 use super::multisig::{build_from_known_validators, MessageIdMultisigMetadataBuilder};
 use crate::msg::metadata::{
     base::{MessageMetadataBuildParams, MetadataBuildError},
@@ -64,12 +66,40 @@ pub(crate) fn build_metadata_from_spec<'a>(
     builder: &'a MessageMetadataBuilder,
     relayer_pubkey: Option<H256>,
 ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, MetadataBuildError>> + Send + 'a>> {
-    Box::pin(build_metadata_from_spec_inner(
-        spec,
-        message,
-        builder,
-        relayer_pubkey,
-    ))
+    Box::pin(async move {
+        let (kind, children, threshold) = match spec {
+            CompositeIsmMetadataSpec::Null => ("Null", 0, None),
+            CompositeIsmMetadataSpec::TrustedRelayer { .. } => ("TrustedRelayer", 0, None),
+            CompositeIsmMetadataSpec::CannotVerify => ("CannotVerify", 0, None),
+            CompositeIsmMetadataSpec::MultisigMessageId { threshold, .. } => {
+                ("MessageIdMultisig", 0, Some(*threshold))
+            }
+            CompositeIsmMetadataSpec::Aggregation {
+                sub_specs,
+                threshold,
+            } => ("Aggregation", sub_specs.len(), Some(*threshold)),
+        };
+        builder.report_activity(
+            message,
+            Activity::InlineModule {
+                kind,
+                children,
+                threshold,
+            },
+        );
+        let result = build_metadata_from_spec_inner(spec, message, builder, relayer_pubkey).await;
+        builder.report_activity(
+            message,
+            Activity::Metadata {
+                ism: builder.root_ism,
+                error: result
+                    .as_ref()
+                    .err()
+                    .map(crate::message_activity::metadata_error),
+            },
+        );
+        result
+    })
 }
 
 async fn build_metadata_from_spec_inner(
@@ -120,14 +150,20 @@ async fn build_metadata_from_spec_inner(
             // aggregation verifier to call verify() on every sub-ISM, breaking m-of-n
             // threshold semantics (e.g. a paused Pausable ISM would fail even when
             // another sub-ISM already meets threshold).
-            let sub_results_raw: Vec<(bool, Result<Vec<u8>, MetadataBuildError>)> =
-                join_all(sub_specs.iter().map(|sub_spec| async move {
-                    let is_null = matches!(sub_spec, CompositeIsmMetadataSpec::Null);
-                    let result =
-                        build_metadata_from_spec(sub_spec, message, builder, relayer_pubkey).await;
-                    (is_null, result)
-                }))
-                .await;
+            let sub_results_raw: Vec<(bool, Result<Vec<u8>, MetadataBuildError>)> = join_all(
+                sub_specs
+                    .iter()
+                    .enumerate()
+                    .map(|(index, sub_spec)| async move {
+                        let child = builder.child(index, builder.root_ism);
+                        let is_null = matches!(sub_spec, CompositeIsmMetadataSpec::Null);
+                        let result =
+                            build_metadata_from_spec(sub_spec, message, &child, relayer_pubkey)
+                                .await;
+                        (is_null, result)
+                    }),
+            )
+            .await;
 
             // Refused (e.g. reorg) is a hard stop — never satisfy threshold with a
             // different branch when a validator has flagged a reorg.
@@ -188,6 +224,17 @@ async fn build_metadata_from_spec_inner(
                     }
                 }
             }
+
+            builder.report_activity(
+                message,
+                Activity::AggregationSelection {
+                    indices: final_results
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(index, value)| value.as_ref().map(|_| index))
+                        .collect(),
+                },
+            );
 
             // Pack into aggregation format:
             //   [start_0(4b)][end_0(4b)] ... [start_n(4b)][end_n(4b)] [data_0] [data_1] ...

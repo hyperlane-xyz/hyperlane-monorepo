@@ -402,7 +402,7 @@ struct ReadActivity<'a> {
 
 impl ReadActivity<'_> {
     fn report(&self, state: OffchainReadState, http_status: Option<u16>) {
-        self.builder.base_builder().report_activity(
+        self.builder.report_activity(
             self.message,
             Activity::OffchainRead {
                 ism: self.ism,
@@ -1174,6 +1174,7 @@ mod test {
         use crate::test_utils::mock_base_builder::MockBaseMetadataBuilder;
         let base = Arc::new(MockBaseMetadataBuilder::default());
         let builder = CcipReadIsmMetadataBuilder::new(MessageMetadataBuilder {
+            node_id: "test-root".to_owned(),
             base: base.clone(),
             app_context: None,
             root_ism: H256::repeat_byte(1),

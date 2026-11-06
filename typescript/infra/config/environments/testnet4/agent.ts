@@ -110,6 +110,12 @@ const contextBase = {
   },
 } as const;
 
+// Diagnostics share the mainnet database; origin/destination domains identify chains.
+const messageActivityDatabaseUrlSecret =
+  'hyperlane-testnet4-relayer-postgres-writer-url';
+const diagnosticsDatabaseSecret =
+  'hyperlane-testnet4-relayer-postgres-reader-url';
+
 const scraperWebsocketUrl =
   'ws://scraper-proxy.testnet4.svc.cluster.local:8383/agents';
 
@@ -198,6 +204,7 @@ const hyperlane: RootAgentConfig = {
   context: Contexts.Hyperlane,
   rolesWithKeys: ALL_KEY_ROLES,
   relayer: {
+    messageActivityDatabaseUrlSecret,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     websocketUrl: scraperWebsocketUrl,
@@ -243,6 +250,7 @@ const hyperlane: RootAgentConfig = {
     resources: scraperResources,
   },
   scraperProxy: {
+    diagnosticsDatabaseSecret,
     docker: {
       repo: DockerImageRepos.NODE_SERVICES,
       tag: testnetDockerTags.scraperProxy,
@@ -264,6 +272,7 @@ const releaseCandidate: RootAgentConfig = {
   contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
+    messageActivityDatabaseUrlSecret,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     index: { from: RELEASE_CANDIDATE_INDEX_FROM },
@@ -311,6 +320,7 @@ const fastPath: RootAgentConfig = {
   },
   rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
+    messageActivityDatabaseUrlSecret,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     // Use RPC indexing until the scraper proxy supports fastpath streaming.
