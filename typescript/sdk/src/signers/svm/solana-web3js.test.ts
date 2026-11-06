@@ -115,6 +115,78 @@ describe('SVM submission tracking', () => {
     );
   }
 
+  for (const adapterResubmit of [false, true]) {
+    it(`honors an unobserved per-call resubmit override of ${!adapterResubmit}`, async () => {
+      const key = Keypair.generate();
+      const connection = new Connection('https://solana.example.invalid');
+      const provider = new MultiProtocolProvider({
+        solanamainnet: {
+          name: 'solanamainnet',
+          protocol: ProtocolType.Sealevel,
+          chainId: 1399811149,
+          domainId: 1399811149,
+          rpcUrls: [{ http: 'https://solana.example.invalid' }],
+        },
+      });
+      provider.setProvider('solanamainnet', {
+        type: ProviderType.SolanaWeb3,
+        provider: connection,
+      });
+      const blockhash = sinon.stub(connection, 'getLatestBlockhash');
+      blockhash.onFirstCall().resolves({
+        blockhash: Keypair.generate().publicKey.toBase58(),
+        lastValidBlockHeight: 1,
+      });
+      blockhash.onSecondCall().resolves({
+        blockhash: Keypair.generate().publicKey.toBase58(),
+        lastValidBlockHeight: 100,
+      });
+      const send = sinon
+        .stub(connection, 'sendRawTransaction')
+        .callsFake(async (bytes) => serializedSignature(bytes));
+      const height = sinon.stub(connection, 'getBlockHeight').resolves(2);
+      const status = sinon.stub(connection, 'getSignatureStatus').resolves({
+        context: { slot: 1 },
+        value: {
+          slot: 1,
+          confirmations: null,
+          confirmationStatus: 'finalized',
+          err: null,
+        },
+      });
+      const signer = new SvmMultiProtocolSignerAdapter(
+        'solanamainnet',
+        new KeypairSvmTransactionSigner(key.secretKey),
+        provider,
+        {
+          enableBlockhashResubmit: adapterResubmit,
+          maxConfirmationAttempts: 3,
+          pollingDelayMs: 1,
+        },
+      );
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: key.publicKey,
+          toPubkey: Keypair.generate().publicKey,
+          lamports: 1,
+        }),
+      );
+      const result = await signer.sendAndConfirmTransaction(
+        { type: ProviderType.SolanaWeb3, transaction },
+        { enableBlockhashResubmit: !adapterResubmit },
+      );
+
+      expect(send.callCount).to.equal(adapterResubmit ? 1 : 2);
+      expect(blockhash.callCount).to.equal(adapterResubmit ? 1 : 2);
+      expect(height.callCount).to.equal(adapterResubmit ? 0 : 2);
+      expect(result).to.equal(await send.lastCall.returnValue);
+      expect(status.firstCall.args[0]).to.equal(result);
+      if (!adapterResubmit) {
+        expect(await send.firstCall.returnValue).not.to.equal(result);
+      }
+    });
+  }
+
   for (const observed of [true, false]) {
     it(
       observed
