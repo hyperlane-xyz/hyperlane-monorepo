@@ -39,7 +39,7 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>, MetadataBuildError> {
         let report = |outcome| {
-            self.base_builder().report_activity(
+            self.report_activity(
                 message,
                 Activity::Progress {
                     stage: Stage::MerkleLeaf,
@@ -69,7 +69,7 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         };
 
         report(Outcome::Succeeded);
-        self.base_builder().report_activity(
+        self.report_activity(
             message,
             Activity::MerkleLeaf {
                 index: leaf_index,

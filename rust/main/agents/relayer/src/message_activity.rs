@@ -28,6 +28,8 @@ use hyperlane_core::{
 
 use crate::msg::metadata::MetadataBuildError;
 
+mod state;
+
 const QUEUE_CAPACITY: usize = 1024;
 const BATCH_SIZE: usize = 100;
 const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -38,6 +40,10 @@ const WARNING_INTERVAL: Duration = Duration::from_secs(30);
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Activity {
+    /// Complete current message and ISM-tree state.
+    Snapshot {
+        state: serde_json::Value,
+    },
     Status {
         status: PendingOperationStatus,
     },
@@ -75,6 +81,11 @@ pub enum Activity {
         index: u32,
         highest_known: Option<u32>,
     },
+    InlineModule {
+        kind: &'static str,
+        children: usize,
+        threshold: Option<u8>,
+    },
     MetadataModule {
         ism: H256,
         module_type: ModuleType,
@@ -92,6 +103,9 @@ pub enum Activity {
         modules: Vec<H256>,
         threshold: u8,
     },
+    AggregationSelection {
+        indices: Vec<usize>,
+    },
     AggregationProgress {
         ism: H256,
         verified: usize,
@@ -104,7 +118,8 @@ pub enum Activity {
     },
     ValidatorStorage {
         validator: H256,
-        state: ValidatorStorageState,
+        states: Vec<ValidatorStorageState>,
+        usable: bool,
     },
     OffchainRead {
         ism: H256,
@@ -149,7 +164,7 @@ pub enum Stage {
     MerkleProof,
 }
 
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ValidatorStorageState {
     NotAnnounced,
@@ -252,6 +267,8 @@ struct Event {
     origin: u32,
     destination: u32,
     activity: Activity,
+    #[serde(skip)]
+    node_id: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -288,10 +305,11 @@ impl MessageActivityReporter {
         url: Secret<String>,
         relayer: H160,
         core_metrics: &CoreMetrics,
+        database: hyperlane_base::db::DB,
     ) -> eyre::Result<Self> {
         let metrics = ActivityMetrics::new(core_metrics)?;
         let (sender, receiver) = mpsc::channel(QUEUE_CAPACITY);
-        tokio::spawn(write_events(url, receiver, metrics.clone()));
+        tokio::spawn(write_events(url, receiver, metrics.clone(), Some(database)));
         Ok(Self {
             sender,
             relayer,
@@ -304,6 +322,27 @@ impl MessageActivityReporter {
     }
 
     fn report_id(&self, message_id: H256, origin: u32, destination: u32, activity: Activity) {
+        self.report_scoped(message_id, origin, destination, activity, None);
+    }
+
+    pub fn report_node(&self, message: &HyperlaneMessage, node_id: &str, activity: Activity) {
+        self.report_scoped(
+            message.id(),
+            message.origin,
+            message.destination,
+            activity,
+            Some(node_id.to_owned()),
+        );
+    }
+
+    fn report_scoped(
+        &self,
+        message_id: H256,
+        origin: u32,
+        destination: u32,
+        activity: Activity,
+        node_id: Option<String>,
+    ) {
         let event = Event {
             relayer: self.relayer,
             observed_at: Utc::now().timestamp_millis(),
@@ -311,6 +350,7 @@ impl MessageActivityReporter {
             origin,
             destination,
             activity,
+            node_id,
         };
         if self.sender.try_send(event).is_err() {
             // Never log synchronously on the delivery path, including during an outage.
@@ -324,6 +364,16 @@ impl MessageActivityReporter {
         ism: Option<H256>,
         threshold: u8,
     ) -> Arc<ActivityCheckpointObserver> {
+        self.checkpoint_observer_for_node(message, ism, threshold, None)
+    }
+
+    pub fn checkpoint_observer_for_node(
+        &self,
+        message: &HyperlaneMessage,
+        ism: Option<H256>,
+        threshold: u8,
+        node_id: Option<&str>,
+    ) -> Arc<ActivityCheckpointObserver> {
         Arc::new(ActivityCheckpointObserver {
             reporter: self.clone(),
             message_id: message.id(),
@@ -331,6 +381,7 @@ impl MessageActivityReporter {
             destination: message.destination,
             collection_id: Uuid::new_v4().to_string(),
             ism,
+            node_id: node_id.map(str::to_owned),
             threshold,
             summary: Mutex::default(),
         })
@@ -360,6 +411,7 @@ pub struct ActivityCheckpointObserver {
     ism: Option<H256>,
     threshold: u8,
     summary: Mutex<CheckpointSummary>,
+    node_id: Option<String>,
 }
 
 impl CheckpointObserver for ActivityCheckpointObserver {
@@ -415,7 +467,7 @@ impl ActivityCheckpointObserver {
         {
             return;
         }
-        self.reporter.report_id(
+        self.reporter.report_scoped(
             self.message_id,
             self.origin,
             self.destination,
@@ -425,6 +477,7 @@ impl ActivityCheckpointObserver {
                 threshold: self.threshold,
                 summary,
             },
+            self.node_id.clone(),
         );
     }
 }
@@ -444,17 +497,36 @@ async fn write_events(
     url: Secret<String>,
     mut receiver: mpsc::Receiver<Event>,
     metrics: ActivityMetrics,
+    database: Option<hyperlane_base::db::DB>,
 ) {
+    let states = state::ActivityState::new(database);
     let mut database = None;
     let mut last_warning: Option<Instant> = None;
     let mut batch = Vec::with_capacity(BATCH_SIZE);
     while receiver.recv_many(&mut batch, BATCH_SIZE).await != 0 {
+        let updates = match states.project(&batch).await {
+            Ok(updates) => updates,
+            Err(_) => {
+                metrics.failed.inc_by(batch.len() as u64);
+                states.failed(&batch).await;
+                if last_warning.is_none_or(|last| last.elapsed() >= WARNING_INTERVAL) {
+                    warn!("Could not persist relayer diagnostics snapshot");
+                    last_warning = Some(Instant::now());
+                }
+                batch.clear();
+                continue;
+            }
+        };
+        if updates.is_empty() {
+            batch.clear();
+            continue;
+        }
         let result = tokio::time::timeout(WRITE_TIMEOUT, async {
             let db = match &database {
                 Some(db) => db,
                 None => database.insert(connect(&url).await?),
             };
-            insert_events(db, &batch).await
+            insert_events(db, &updates).await
         })
         .await;
         if !matches!(result, Ok(Ok(()))) {
@@ -464,7 +536,8 @@ async fn write_events(
             } else {
                 "database error"
             };
-            metrics.failed.inc_by(batch.len() as u64);
+            metrics.failed.inc_by(updates.len() as u64);
+            states.failed(&batch).await;
             if last_warning.is_none_or(|last| last.elapsed() >= WARNING_INTERVAL) {
                 warn!(
                     failure,
@@ -479,7 +552,10 @@ async fn write_events(
             let backoff = Duration::from_millis(rand::thread_rng().gen_range(5_000..10_000));
             tokio::time::sleep(backoff).await;
         } else {
-            metrics.written.inc_by(batch.len() as u64);
+            metrics.written.inc_by(updates.len() as u64);
+            if states.committed(&updates).await.is_err() {
+                warn!("Could not remove completed local diagnostics snapshot");
+            }
         }
         batch.clear();
     }

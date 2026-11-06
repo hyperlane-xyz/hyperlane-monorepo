@@ -41,10 +41,8 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>, MetadataBuildError> {
-        let report = |stage, outcome| {
-            self.base_builder()
-                .report_activity(message, Activity::Progress { stage, outcome })
-        };
+        let report =
+            |stage, outcome| self.report_activity(message, Activity::Progress { stage, outcome });
         let highest_leaf_index =
             unwrap_or_none_result!(self.base_builder().highest_known_leaf_index().await, {
                 report(Stage::MerkleLeaf, Outcome::Unavailable);
@@ -66,7 +64,7 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
                 );
             }
         );
-        self.base_builder().report_activity(
+        self.report_activity(
             message,
             Activity::MerkleLeaf {
                 index: leaf_index,

@@ -1,6 +1,10 @@
 use super::*;
 
-use hyperlane_base::{cache::OptionalCache, db::test_utils, db::HyperlaneRocksDB};
+use hyperlane_base::{
+    cache::OptionalCache,
+    db::test_utils,
+    db::{HyperlaneDb, HyperlaneRocksDB},
+};
 use hyperlane_core::{
     test_utils::dummy_domain, PendingOperation, PendingOperationResult, PendingOperationStatus,
     ReprepareReason,
@@ -312,23 +316,17 @@ async fn postgres() -> eyre::Result<()> {
         let metrics = writer_reporter.metrics.clone();
         writer_reporter.report(&message, Activity::Delivered);
         drop(writer_reporter);
-        tokio::time::timeout(Duration::from_secs(5), write_events(url.clone(), writer_receiver, metrics.clone())).await?;
+        tokio::time::timeout(Duration::from_secs(5), write_events(url.clone(), writer_receiver, metrics.clone(), None)).await?;
         assert_eq!(metrics.written.get(), 1);
         assert_eq!(metrics.failed.get(), 0);
         let index = db.query_one(Statement::from_string(DbBackend::Postgres,
             "SELECT indexdef FROM pg_indexes WHERE indexname = 'message_activity_received_at_idx'"))
-            .await?.ok_or_else(|| eyre::eyre!("missing retention index"))?;
+            .await?.ok_or_else(|| eyre::eyre!("missing received-at index"))?;
         assert!(index.try_get::<String>("", "indexdef")?.contains("USING brin (received_at)"));
         let trigger = db.query_one(Statement::from_string(DbBackend::Postgres,
             "SELECT count(*) AS count FROM pg_trigger WHERE tgname = 'notify_message_activity_insert' AND NOT tgisinternal"))
             .await?.ok_or_else(|| eyre::eyre!("missing notification trigger"))?;
         assert_eq!(trigger.try_get::<i64>("", "count")?, 1);
-        db.execute_unprepared("UPDATE public.message_activity SET received_at = now() - interval '91 days' WHERE activity->>'type' = 'checkpoint'").await?;
-        let deleted = db.execute_unprepared(include_str!("prune.sql")).await?;
-        assert_eq!(deleted.rows_affected(), 1);
-        let remaining = db.query_one(Statement::from_string(DbBackend::Postgres, "SELECT count(*) AS count FROM public.message_activity"))
-            .await?.ok_or_else(|| eyre::eyre!("missing retained events"))?;
-        assert_eq!(remaining.try_get::<i64>("", "count")?, 2);
         Ok(())
     }.await;
     db.execute_unprepared("RESET SESSION AUTHORIZATION").await?;
@@ -587,6 +585,7 @@ async fn failed_writer_counts_loss_and_keeps_queue_nonblocking() {
         Secret::new("invalid-diagnostics-url".to_owned()),
         receiver,
         metrics.clone(),
+        None,
     ));
     reporter.report(&message, Activity::Delivered);
     tokio::time::timeout(Duration::from_secs(1), async {

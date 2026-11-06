@@ -415,6 +415,7 @@ impl BaseAgent for Relayer {
                         url,
                         relayer,
                         &core_metrics,
+                        db.clone(),
                     )?)
                 }
                 None => {

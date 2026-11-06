@@ -188,17 +188,21 @@ sanitized, versioned event payload. No secrets, signatures, or extra RPC calls a
 introduced by the proxy. Errors use `DIAGNOSTICS_UNAVAILABLE` when disabled/down.
 
 Progress uses explicit GraphQL object types and the shared TypeScript contract in
-`src/diagnostics/types.ts`. WebSocket snapshots carry the same fields and
-`version: 1`; raw JSON is confined to activity history. Phases and verification
+`src/diagnostics/types.ts`. WebSocket snapshots carry the same `version: 1`
+envelope, including the raw activity payloads. Phases and verification
 outcomes are enums. Missing/null progress fields mean unobserved, not zero or
 success. Unknown verification outcomes map to `unknown`. Retry reasons are stable
 string codes; tagged reasons become e.g. `ApplicationReport.ZeroAmount`, with
 unrecognized structures reported as `unknown` and preserved in raw history.
 
-`message_diagnostics` reduces the most recent 100 activities (oldest first) into
-per-relayer observations: phase, retry reason/deadline, failures, and per-ISM
-thresholds, verified module counts, signature collection and offchain reads.
-`partial: true` means older context was omitted; history remains pageable.
+New relayers emit one self-contained `snapshot` activity containing the current
+message phase and complete ISM tree. `message_diagnostics` returns the latest
+snapshot per relayer in `activities`; `message_activity` pages older snapshots.
+During a rolling deployment, relayers without snapshots retain the existing
+100-event reduction and `partial` behavior.
+
+The compatibility reducer exposes phase, retry reason/deadline, failures, and
+per-ISM thresholds, verified module counts, signature collection and offchain reads.
 Signature counts are **required threshold**, not validator-set size. Counts from
 different relayers, collection attempts, checkpoint indices or roots are never
 added together. Unobserved counts stay absent, not zero. Nested ISMs retain their

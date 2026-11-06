@@ -81,24 +81,8 @@ The startup log records the chosen identity domain/address. Identity uses the
 lowest initialized destination signer, so it may change if that destination fails
 startup; this is not a stable deployment identifier.
 
-## Retention
-
-Current expected traffic is approximately **100k messages per month**, not per day.
-Rows per message vary with retries and ISM composition; monitor actual database size.
-Keep diagnostics for 90 days. The initial migration creates a small BRIN index on
-`received_at` for cleanup.
-
-Before enabling shared storage, configure one daily maintenance job (e.g. 03:00 UTC)
-to run the following with maintenance credentials supplied through `DATABASE_URL`:
-
-```sh
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f rust/main/agents/relayer/src/message_activity/prune.sql
-```
-
-The job needs `DELETE` on `public.message_activity`; do not grant this to relayers.
-This repository provides the cleanup SQL; the scheduler must be installed separately.
-Deleting old history also removes diagnostics for long-stuck messages older than the
-retention window. PostgreSQL autovacuum reclaims space for subsequent inserts.
+Rows are retained indefinitely. This repository does not provide or configure an
+activity cleanup job.
 
 ## Migrations
 

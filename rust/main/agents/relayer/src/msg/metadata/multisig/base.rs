@@ -230,7 +230,7 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
     message: &HyperlaneMessage,
 ) -> Result<Metadata, MetadataBuildError> {
     if validators.len() <= MAX_VALIDATOR_SET_SIZE {
-        ism_builder.as_ref().base_builder().report_activity(
+        ism_builder.as_ref().report_activity(
             message,
             crate::message_activity::Activity::ValidatorSet {
                 ism: (!ism_address.is_zero()).then_some(ism_address),
@@ -285,10 +285,11 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
         .base_builder()
         .activity_reporter()
         .map(|reporter| {
-            reporter.checkpoint_observer(
+            reporter.checkpoint_observer_for_node(
                 message,
                 (!ism_address.is_zero()).then_some(ism_address),
                 threshold,
+                Some(&ism_builder.as_ref().node_id),
             )
         });
     let checkpoint_syncer = if let Some(observer) = &observer {

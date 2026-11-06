@@ -61,9 +61,21 @@ export class DiagnosticsService {
     const rows = await this.read(
       `SELECT activity.* FROM unnest($1::text[]) AS requested(message_hex)
        CROSS JOIN LATERAL (
-         SELECT ${columns} FROM public.message_activity
-         WHERE message_id = decode(requested.message_hex, 'hex')
-         ORDER BY message_activity.id DESC LIMIT $2
+         (SELECT DISTINCT ON (relayer) ${columns}
+          FROM public.message_activity
+          WHERE message_id = decode(requested.message_hex, 'hex')
+            AND activity->>'type' = 'snapshot'
+          ORDER BY relayer, message_activity.id DESC)
+         UNION
+         (SELECT ${columns} FROM public.message_activity
+          WHERE message_id = decode(requested.message_hex, 'hex')
+            AND NOT EXISTS (
+              SELECT 1 FROM public.message_activity AS snapshot
+              WHERE snapshot.message_id = message_activity.message_id
+                AND snapshot.relayer = message_activity.relayer
+                AND snapshot.activity->>'type' = 'snapshot'
+            )
+          ORDER BY message_activity.id DESC LIMIT $2)
        ) activity ORDER BY activity.message_id, activity.id::bigint DESC`,
       [normalized.map((id) => id.slice(2)), SNAPSHOT_LIMIT + 1],
     );
