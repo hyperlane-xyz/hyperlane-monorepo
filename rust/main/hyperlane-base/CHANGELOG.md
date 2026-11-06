@@ -1,3 +1,9 @@
+## [3.1.0] - 2026-11-06
+
+* fix(diagnostics): preserve snapshot progress and retry recovery (#9984)
+* fix: enforce priority fee caps across EVM chains (#9938)
+* perf: remove hot-path serialization with bounded concurrency (#9958)
+
 ## [3.0.0] - 2026-10-23
 
 * chore: remove unused Fuel integration (#9723)

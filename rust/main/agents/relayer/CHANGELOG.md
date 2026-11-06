@@ -1,3 +1,14 @@
+## [3.1.0] - 2026-11-06
+
+* feat(infra): enable runtime denylists for mainnet and testnet (#9957)
+* feat(relayer): match runtime denylist address rules on origin tx signers (#9952)
+* feat(relayer): persist message diagnostics in PostgreSQL (#9969)
+* feat(relayer): runtime denylist polled from a URL (#9945)
+* feat(relayer): stream deduplicated ISM diagnostics snapshots (#9981)
+* fix(diagnostics): preserve snapshot progress and retry recovery (#9984)
+* fix(relayer): harden static blacklists (#9946)
+* perf: narrow reads and overlap independent RPC calls (#9959)
+
 ## [3.0.0] - 2026-10-23
 
 * chore(infra): deploy relayer WebSocket indexing (#9580)
