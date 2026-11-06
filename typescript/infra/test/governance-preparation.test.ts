@@ -1,25 +1,36 @@
+import { rejects } from 'node:assert/strict';
+
 import { expect } from 'chai';
 import { BigNumber } from 'ethers';
+import sinon from 'sinon';
+
+import { Mailbox__factory } from '@hyperlane-xyz/core';
 
 import {
   CoreConfig,
+  CoreViolationType,
   HyperlaneCore,
   HyperlaneCoreChecker,
   HyperlaneIsmFactory,
   InterchainAccount,
+  IsmType,
+  MailboxViolation,
+  MailboxViolationType,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor.js';
+import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor.js';
 import { HyperlaneHaasGovernor } from '../src/govern/HyperlaneHaasGovernor.js';
 import { HyperlaneICAChecker } from '../src/govern/HyperlaneICAChecker.js';
-import { SubmissionType } from '../src/govern/types.js';
+import { AnnotatedCallData, SubmissionType } from '../src/govern/types.js';
 
 class PreparationGovernor extends HyperlaneAppGovernor<
   HyperlaneCore,
   CoreConfig
 > {
   submitted = false;
+  failInference = false;
 
   constructor() {
     const mp = MultiProvider.createTestMultiProvider();
@@ -48,9 +59,12 @@ class PreparationGovernor extends HyperlaneAppGovernor<
     });
   }
 
-  protected override async inferCallSubmissionTypes() {
-    for (const call of this.calls.test1)
-      call.submissionType = SubmissionType.SAFE;
+  protected override async inferCallSubmissionType(
+    chain: string,
+    call: AnnotatedCallData,
+  ) {
+    if (this.failInference) throw new Error('Submission inference failed');
+    return { chain, call, type: SubmissionType.SAFE };
   }
 
   protected override async sendCalls() {
@@ -59,6 +73,67 @@ class PreparationGovernor extends HyperlaneAppGovernor<
 }
 
 describe('governance call preparation', () => {
+  afterEach(() => sinon.restore());
+
+  it('rejects a failed submission inference instead of returning a partial plan', async () => {
+    const governor = new PreparationGovernor();
+    governor.failInference = true;
+    await rejects(
+      governor.prepareGovernanceCalls(),
+      /Submission inference failed/,
+    );
+    expect(governor.submitted).to.equal(false);
+  });
+
+  it('rejects unprovisioned core and HAAS ISMs before invoking the deployer', async () => {
+    const mp = MultiProvider.createTestMultiProvider();
+    const factory = new HyperlaneIsmFactory({}, mp);
+    const deploy = sinon
+      .stub(factory, 'deploy')
+      .rejects(new Error('Deployment attempted'));
+    const checker = new HyperlaneCoreChecker(
+      mp,
+      new HyperlaneCore({}, mp),
+      {},
+      factory,
+      {},
+    );
+    const violation: MailboxViolation = {
+      chain: 'test1',
+      type: CoreViolationType.Mailbox,
+      subType: MailboxViolationType.DefaultIsm,
+      contract: Mailbox__factory.connect(
+        '0x0000000000000000000000000000000000000001',
+        mp.getProvider('test1'),
+      ),
+      actual: '0x0000000000000000000000000000000000000002',
+      expected: { type: IsmType.TEST_ISM },
+    };
+    checker.addViolation(violation);
+    const coreGovernor = new HyperlaneCoreGovernor(checker);
+    const ica = new InterchainAccount({}, mp);
+    const haasGovernor = new HyperlaneHaasGovernor(
+      ica,
+      new HyperlaneICAChecker(mp, ica, {}),
+      checker,
+    );
+    await rejects(
+      coreGovernor.prepareGovernanceCalls(),
+      /ISM deployment required/,
+    );
+    await rejects(
+      haasGovernor.prepareGovernanceCalls(),
+      /ISM deployment required/,
+    );
+    expect(deploy.called).to.equal(false);
+    // The explicitly authorized governance path retains provisioning support.
+    await rejects(
+      coreGovernor.prepareGovernanceCalls({ allowDeployments: true }),
+      /Deployment attempted/,
+    );
+    expect(deploy.calledOnce).to.equal(true);
+  });
+
   it('scopes both core and ICA violations before preparing a HAAS plan', () => {
     const mp = MultiProvider.createTestMultiProvider();
     const coreChecker = new HyperlaneCoreChecker(

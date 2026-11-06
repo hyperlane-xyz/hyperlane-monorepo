@@ -8,10 +8,12 @@ import {
   ChainName,
   ChainTechnicalStack,
   CheckerViolation,
+  CoreViolationType,
   GetCallRemoteSettings,
   HyperlaneApp,
   HyperlaneAppChecker,
   InterchainAccount,
+  MailboxViolationType,
   OwnableConfig,
   OwnerViolation,
   ProxyAdminViolation,
@@ -41,7 +43,11 @@ import {
   SignerMultiSend,
 } from './multisend.js';
 import { GOVERNOR_MAX_BATCH_SIZE } from './constants.js';
-import type { AnnotatedCallData, InferredCall } from './types.js';
+import type {
+  AnnotatedCallData,
+  GovernancePreparationOptions,
+  InferredCall,
+} from './types.js';
 import { SubmissionType } from './types.js';
 
 export abstract class HyperlaneAppGovernor<
@@ -91,9 +97,27 @@ export abstract class HyperlaneAppGovernor<
     );
   }
 
-  async prepareGovernanceCalls(): Promise<ChainMap<AnnotatedCallData[]>> {
+  async prepareGovernanceCalls({
+    allowDeployments = false,
+  }: GovernancePreparationOptions = {}): Promise<
+    ChainMap<AnnotatedCallData[]>
+  > {
     // Rebuilding a plan must not duplicate calls from an earlier preparation.
     this.calls = objMap(this.checker.app.contractsMap, () => []);
+    if (!allowDeployments) {
+      for (const violation of this.getCheckerViolations()) {
+        if (
+          violation.type === CoreViolationType.Mailbox &&
+          'subType' in violation &&
+          violation.subType === MailboxViolationType.DefaultIsm &&
+          typeof violation.expected !== 'string'
+        ) {
+          throw new Error(
+            `ISM deployment required on ${violation.chain}; deploy the configured ISM before preparing review-only governance calls`,
+          );
+        }
+      }
+    }
     await this.mapViolationsToCalls();
     await this.inferCallSubmissionTypes();
     return this.calls;
@@ -102,7 +126,7 @@ export abstract class HyperlaneAppGovernor<
   async govern(confirm = true, chain?: ChainName) {
     if (this.checker.violations.length === 0) return;
     // 1. Produce calls from checker violations.
-    await this.prepareGovernanceCalls();
+    await this.prepareGovernanceCalls({ allowDeployments: true });
 
     // 3. Prompt the user to confirm that the count, description,
     // and submission methods look correct before submitting.
@@ -355,7 +379,7 @@ export abstract class HyperlaneAppGovernor<
               `Error inferring call submission types for chain ${chain}: ${error}`,
             ),
           );
-          results[chain] = [];
+          throw error;
         }
       }),
     );

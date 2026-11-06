@@ -11,8 +11,9 @@ export enum IcaRouterVersion {
 export function selectIcaRouterAddresses(
   addresses: ChainMap<Record<string, Address>>,
   version: IcaRouterVersion,
+  requestedChains: string[] = [],
 ): ChainMap<Record<string, Address>> {
-  return Object.fromEntries(
+  const selected = Object.fromEntries(
     Object.entries(addresses).flatMap(([chain, contracts]) => {
       const router =
         version === IcaRouterVersion.V3
@@ -23,4 +24,11 @@ export function selectIcaRouterAddresses(
         : [];
     }),
   );
+  const missing = requestedChains.filter((chain) => !selected[chain]);
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing ${version} ICA routers for requested chains: ${missing.join(', ')}`,
+    );
+  }
+  return selected;
 }

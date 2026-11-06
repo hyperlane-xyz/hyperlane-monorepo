@@ -1,4 +1,15 @@
+import assert, { rejects } from 'node:assert/strict';
+
 import { expect } from 'chai';
+import sinon from 'sinon';
+
+import { MultiProvider } from '@hyperlane-xyz/sdk';
+
+import { Contexts } from '../config/contexts.js';
+import { environment } from '../config/environments/mainnet3/index.js';
+import { getRegistry } from '../config/registry.js';
+import { Modules } from '../scripts/agent-utils.js';
+import { getGovernor } from '../scripts/check/check-utils.js';
 
 import {
   IcaRouterVersion,
@@ -6,6 +17,7 @@ import {
 } from '../scripts/check/ica-router-version.js';
 
 describe('ICA router generation selection', () => {
+  afterEach(() => sinon.restore());
   const addresses = {
     ethereum: {
       interchainAccountRouter: 'ethereum-v2',
@@ -40,5 +52,67 @@ describe('ICA router generation selection', () => {
     const governance = selectIcaRouterAddresses(addresses, IcaRouterVersion.V2);
     expect(governance).not.to.have.property('v3Only');
     expect(governance.legacy.interchainAccountRouter).to.equal('legacy-v2');
+  });
+
+  it('rejects a requested chain whose selected generation is absent', () => {
+    expect(() =>
+      selectIcaRouterAddresses(addresses, IcaRouterVersion.V3, ['legacy']),
+    ).to.throw('Missing v3 ICA routers for requested chains: legacy');
+  });
+
+  it('validates the fork target when no chains are specified', async () => {
+    const registry = getRegistry();
+    const base = registry.getChainAddresses('base');
+    assert(base?.interchainAccountRouter);
+    const v2Only = { ...base };
+    delete v2Only.interchainAccountRouterV3;
+    sinon.stub(registry, 'getAddresses').returns({ base: v2Only });
+    const mp = new MultiProvider(registry.getMetadata());
+    const getProvider = sinon.spy(mp, 'getProvider');
+    await rejects(
+      getGovernor(
+        Modules.INTERCHAIN_ACCOUNTS,
+        Contexts.Hyperlane,
+        'mainnet3',
+        false,
+        undefined,
+        'base',
+        false,
+        mp,
+        IcaRouterVersion.V3,
+      ),
+      /Missing v3 ICA routers for requested chains: base/,
+    );
+    expect(getProvider.called).to.equal(false);
+  });
+
+  it('constructs ICA and HAAS checkers with only v3 deployments and no v2 controller', async () => {
+    const registry = getRegistry();
+    // Build the environment config from the complete registry before limiting
+    // the address fixture to the one selected-generation deployment.
+    void environment.core;
+    const base = registry.getChainAddresses('base');
+    assert(base?.interchainAccountRouterV3);
+    const v3Only = { ...base };
+    delete v3Only.interchainAccountRouter;
+    sinon.stub(registry, 'getAddresses').returns({ base: v3Only });
+    for (const module of [Modules.INTERCHAIN_ACCOUNTS, Modules.HAAS]) {
+      const governor = await getGovernor(
+        module,
+        Contexts.Hyperlane,
+        'mainnet3',
+        false,
+        ['base'],
+        undefined,
+        false,
+        new MultiProvider(registry.getMetadata()),
+        IcaRouterVersion.V3,
+      );
+      expect(governor.interchainAccount).to.equal(undefined);
+      const calls = await governor.prepareGovernanceCalls();
+      expect(
+        Object.values(calls).every((chainCalls) => chainCalls.length === 0),
+      ).to.equal(true);
+    }
   });
 });

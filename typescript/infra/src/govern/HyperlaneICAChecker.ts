@@ -63,8 +63,9 @@ export class HyperlaneICAChecker extends InterchainAccountChecker {
     // the "core" ICA controller chains.
     else {
       // have to manually filter out the origin chain itself
+      const supportedChains = new Set(this.app.chains());
       const remotes = Array.from(FULLY_CONNECTED_ICA_CHAINS).filter(
-        (c) => c !== chain && c !== 'eden',
+        (c) => c !== chain && c !== 'eden' && supportedChains.has(c),
       );
       return super.checkEnrolledRouters(chain, remotes);
     }

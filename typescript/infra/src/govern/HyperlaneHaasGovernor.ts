@@ -11,6 +11,7 @@ import {
   ViolationType,
 } from '@hyperlane-xyz/sdk';
 import {
+  assert,
   formatStandardHookMetadata,
   hasValidRefundAddress,
   isEVMLike,
@@ -25,7 +26,7 @@ import { HyperlaneAppGovernor } from './HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from './HyperlaneCoreGovernor.js';
 import { HyperlaneICAChecker } from './HyperlaneICAChecker.js';
 import { ProxiedRouterGovernor } from './ProxiedRouterGovernor.js';
-import { AnnotatedCallData } from './types.js';
+import { AnnotatedCallData, GovernancePreparationOptions } from './types.js';
 
 export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
   HyperlaneCore,
@@ -36,7 +37,7 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
   protected readonly coreGovernor: HyperlaneCoreGovernor;
 
   constructor(
-    ica: InterchainAccount,
+    ica: InterchainAccount | undefined,
     private readonly icaChecker: HyperlaneICAChecker,
     private readonly coreChecker: HyperlaneCoreChecker,
   ) {
@@ -168,8 +169,10 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
     );
   }
 
-  override async prepareGovernanceCalls() {
-    await super.prepareGovernanceCalls();
+  override async prepareGovernanceCalls(
+    options: GovernancePreparationOptions = {},
+  ) {
+    await super.prepareGovernanceCalls(options);
     await this.batchIcaCalls();
     return this.calls;
   }
@@ -180,7 +183,7 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
     if (totalViolations === 0) return;
 
     // 1. Map violations to calls
-    await this.prepareGovernanceCalls();
+    await this.prepareGovernanceCalls({ allowDeployments: true });
 
     // 3. Prompt the user to confirm that the count, description,
     // and submission methods look correct before submitting.
@@ -192,7 +195,13 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
 
   async batchIcaCalls() {
     if (!this.interchainAccount) {
-      throw new Error('InterchainAccount is not available');
+      assert(
+        !Object.values(this.calls).some((calls) =>
+          calls.some((call) => call.callRemoteArgs),
+        ),
+        'Cannot batch ICA calls without v2 governance routers',
+      );
+      return;
     }
 
     for (const [chain, calls] of Object.entries(this.calls)) {
