@@ -727,4 +727,40 @@ describe('OftSettlementVerifier', () => {
     expect(fetchStub.calledOnce).to.equal(true);
     expect(status.status).to.equal('pending');
   });
+
+  it('bounds stalled Scan response bodies that ignore abort and remains pending', async () => {
+    const clock = Sinon.useFakeTimers();
+    const fetchStub = Sinon.stub(globalThis, 'fetch').callsFake(
+      async () => new Response(new ReadableStream()),
+    );
+    const result = createAdapter({
+      requestTimeoutMs: 100,
+      maxRetries: 3,
+      retryDelayMs: 10,
+    }).pollStatus(createRef(), createPollContext());
+
+    await clock.runAllAsync();
+
+    expect((await result).status).to.equal('pending');
+    expect(fetchStub.callCount).to.equal(3);
+    expect(clock.now).to.equal(330);
+    for (const call of fetchStub.getCalls()) {
+      expect(call.args[1]?.signal?.aborted).to.equal(true);
+    }
+  });
+
+  it('returns a missing message without waiting for its response body', async () => {
+    const fetchStub = Sinon.stub(globalThis, 'fetch').resolves(
+      new Response(new ReadableStream(), { status: 404 }),
+    );
+
+    const status = await createAdapter().pollStatus(
+      createRef(),
+      createPollContext(),
+    );
+
+    expect(status.status).to.equal('pending');
+    expect(fetchStub.calledOnce).to.equal(true);
+    expect(fetchStub.firstCall.args[1]?.signal?.aborted).to.equal(true);
+  });
 });

@@ -7,6 +7,8 @@ import { assert, eqAddress, isAddressEvm } from '@hyperlane-xyz/utils';
 import type { ChainMetadata } from '@hyperlane-xyz/sdk';
 import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 
+import { fetchWithDeadline } from '../utils/fetchWithDeadline.js';
+
 export interface OftSourceContext {
   origin?: string;
   originDomain?: number;
@@ -342,30 +344,23 @@ export class OftSettlementVerifier {
           setTimeout(resolve, this.retryDelayMs * Math.pow(2, attempt - 1)),
         );
       }
-      const controller = new AbortController();
-      const timeout = setTimeout(
-        () => controller.abort(),
-        this.requestTimeoutMs,
-      );
       try {
-        const response = await fetch(
+        return await fetchWithDeadline(
           `${this.apiUrl}/messages/guid/${encodeURIComponent(guid)}`,
-          {
-            headers: { Accept: 'application/json' },
-            signal: controller.signal,
+          { headers: { Accept: 'application/json' } },
+          this.requestTimeoutMs,
+          async (response) => {
+            if (response.status === 404) return { data: [] };
+            if (!response.ok) {
+              throw new Error(
+                `LayerZero Scan API error: ${response.status} ${response.statusText}`,
+              );
+            }
+            return LayerZeroResponseSchema.parse(await response.json());
           },
         );
-        if (response.status === 404) return { data: [] };
-        if (!response.ok) {
-          throw new Error(
-            `LayerZero Scan API error: ${response.status} ${response.statusText}`,
-          );
-        }
-        return LayerZeroResponseSchema.parse(await response.json());
       } catch (error) {
         lastError = error;
-      } finally {
-        clearTimeout(timeout);
       }
     }
     throw lastError;
