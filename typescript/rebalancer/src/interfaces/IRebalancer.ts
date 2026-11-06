@@ -3,6 +3,7 @@ import {
   type IToken,
   type TokenAmount,
 } from '@hyperlane-xyz/sdk';
+import type { Address } from '@hyperlane-xyz/utils';
 
 import {
   type InventoryRoute,
@@ -57,4 +58,10 @@ export type PreparedTransaction = {
   >;
   route: MovableCollateralRoute & { intentId: string };
   originTokenAmount: PreparedOriginTokenAmount;
+  /** Exact collateral fee cap; zero still requires revoking any existing ERC20 allowance. */
+  collateralFeeApproval?: {
+    token: Address;
+    spender: Address;
+    amount: bigint;
+  };
 };
