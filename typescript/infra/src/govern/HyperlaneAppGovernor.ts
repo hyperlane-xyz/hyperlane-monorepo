@@ -77,13 +77,32 @@ export abstract class HyperlaneAppGovernor<
     return this.checker.violations;
   }
 
+  selectViolations(
+    select: (violation: CheckerViolation) => CheckerViolation | undefined,
+  ) {
+    const selected = this.checker.violations.flatMap((violation) => {
+      const result = select(violation);
+      return result ? [result] : [];
+    });
+    this.checker.violations.splice(
+      0,
+      this.checker.violations.length,
+      ...selected,
+    );
+  }
+
+  async prepareGovernanceCalls(): Promise<ChainMap<AnnotatedCallData[]>> {
+    // Rebuilding a plan must not duplicate calls from an earlier preparation.
+    this.calls = objMap(this.checker.app.contractsMap, () => []);
+    await this.mapViolationsToCalls();
+    await this.inferCallSubmissionTypes();
+    return this.calls;
+  }
+
   async govern(confirm = true, chain?: ChainName) {
     if (this.checker.violations.length === 0) return;
     // 1. Produce calls from checker violations.
-    await this.mapViolationsToCalls();
-
-    // 2. For each call, infer how it should be submitted on-chain.
-    await this.inferCallSubmissionTypes();
+    await this.prepareGovernanceCalls();
 
     // 3. Prompt the user to confirm that the count, description,
     // and submission methods look correct before submitting.

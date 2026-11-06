@@ -16,6 +16,7 @@ const FULLY_CONNECTED_ICA_CHAINS = new Set([
   'arbitrum',
   'arc',
   'bsc',
+  'elysium',
   'polygon',
   'subtensor',
   MAINNET,

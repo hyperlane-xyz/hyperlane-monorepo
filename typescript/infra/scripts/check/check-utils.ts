@@ -16,7 +16,7 @@ import {
   IsmType,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { objFilter, rootLogger } from '@hyperlane-xyz/utils';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
@@ -45,6 +45,11 @@ import {
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 import { withRegistryUris } from '../github-utils.js';
 
+import {
+  IcaRouterVersion,
+  selectIcaRouterAddresses,
+} from './ica-router-version.js';
+
 export function getCheckBaseArgs() {
   return withAsDeployer(
     withGovern(withChains(withFork(withContext(getRootArgs())))),
@@ -56,7 +61,24 @@ export function getCheckWarpDeployArgs() {
 }
 
 export function getCheckDeployArgs() {
-  return withRegistryUris(withModule(getCheckBaseArgs()));
+  return withRegistryUris(withModule(getCheckBaseArgs()))
+    .option('icaRouterVersion', {
+      choices: Object.values(IcaRouterVersion),
+      default: IcaRouterVersion.V2,
+      description:
+        'ICA router generation to check; governance ICAs always use v2 routers',
+    })
+    .option('transactionsFile', {
+      type: 'string',
+      description:
+        'Write prepared governance calls for review without submitting them',
+    })
+    .check(({ govern, transactionsFile }) => {
+      if (govern && transactionsFile) {
+        throw new Error('Use either --govern or --transactionsFile, not both');
+      }
+      return true;
+    });
 }
 
 const ICA_ENABLED_MODULES = [Modules.INTERCHAIN_ACCOUNTS, Modules.HAAS];
@@ -141,6 +163,7 @@ export async function getGovernor(
   fork?: string,
   govern?: boolean,
   multiProvider: MultiProvider | undefined = undefined,
+  icaRouterVersion: IcaRouterVersion = IcaRouterVersion.V2,
 ) {
   const envConfig = getEnvironmentConfig(environment);
   // If the multiProvider is not passed in, get it from the environment
@@ -182,17 +205,41 @@ export async function getGovernor(
 
   const routerConfig = core.getRouterConfig(envConfig.owners);
 
-  const icaChainAddresses = objFilter(
+  const icaChainAddresses = selectIcaRouterAddresses(
     chainAddresses,
-    (chain, _): _ is Record<string, string> =>
-      !!chainAddresses[chain]?.interchainAccountRouter,
+    icaRouterVersion,
+  );
+
+  const governanceIcaAddresses = selectIcaRouterAddresses(
+    chainAddresses,
+    IcaRouterVersion.V2,
   );
 
   const ica =
     ICA_ENABLED_MODULES.includes(module) &&
+    Object.keys(governanceIcaAddresses).length > 0
+      ? InterchainAccount.fromAddressesMap(
+          governanceIcaAddresses,
+          multiProvider,
+        )
+      : undefined;
+
+  const checkingIca =
+    ICA_ENABLED_MODULES.includes(module) &&
     Object.keys(icaChainAddresses).length > 0
       ? InterchainAccount.fromAddressesMap(icaChainAddresses, multiProvider)
       : undefined;
+
+  if (ICA_ENABLED_MODULES.includes(module) && chains?.length) {
+    const missing = chains.filter(
+      (chain) => !chainsToSkip.includes(chain) && !icaChainAddresses[chain],
+    );
+    if (missing.length > 0) {
+      throw new Error(
+        `Missing ${icaRouterVersion} ICA routers for requested chains: ${missing.join(', ')}`,
+      );
+    }
+  }
 
   if (module === Modules.CORE) {
     chainsToSkip.forEach((chain) => delete envConfig.core[chain]);
@@ -233,12 +280,16 @@ export async function getGovernor(
       return acc;
     }, {});
 
-    if (!ica) {
+    if (!ica || !checkingIca) {
       throw new Error('ICA app not initialized');
     }
 
-    const icaChecker = new HyperlaneICAChecker(multiProvider, ica, icaConfig);
-    governor = new ProxiedRouterGovernor(icaChecker);
+    const icaChecker = new HyperlaneICAChecker(
+      multiProvider,
+      checkingIca,
+      icaConfig,
+    );
+    governor = new ProxiedRouterGovernor(icaChecker, ica);
   } else if (module === Modules.HAAS) {
     chainsToSkip.forEach((chain) => delete routerConfig[chain]);
 
@@ -264,11 +315,15 @@ export async function getGovernor(
       return acc;
     }, {});
 
-    if (!ica) {
+    if (!ica || !checkingIca) {
       throw new Error('ICA app not initialized');
     }
 
-    const icaChecker = new HyperlaneICAChecker(multiProvider, ica, icaConfig);
+    const icaChecker = new HyperlaneICAChecker(
+      multiProvider,
+      checkingIca,
+      icaConfig,
+    );
     chainsToSkip.forEach((chain) => delete envConfig.core[chain]);
     const coreChecker = new HyperlaneCoreChecker(
       multiProvider,
