@@ -6,17 +6,20 @@ import {
   ERC20__factory,
   MailboxClient__factory,
   StaticAggregationHook__factory,
+  StaticAggregationIsm__factory,
   WormholeVaaHookIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
   EvmWormholeHookIsmReader,
   type HookConfig,
   HookType,
+  type IsmConfig,
   IsmType,
   TokenType,
   type WarpRouteDeployConfigMailboxRequired,
   WormholeConsistencyLevel,
   WormholeConsistencyType,
+  type WormholeIsmConfig,
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, assert, type Address } from '@hyperlane-xyz/utils';
 
@@ -107,6 +110,7 @@ describe('hyperlane warp deploy/apply with Wormhole hook/ISM', function () {
   function configFor(
     symbol: string,
     urls: string[] = ['https://vaa.example/v1'],
+    wrapIsm: (ism: WormholeIsmConfig) => IsmConfig = (ism) => ism,
   ): WarpRouteDeployConfigMailboxRequired {
     const configs: WarpRouteDeployConfigMailboxRequired = {};
     for (const [index, chain] of chains.entries()) {
@@ -117,7 +121,7 @@ describe('hyperlane warp deploy/apply with Wormhole hook/ISM', function () {
           { type: HookType.WORMHOLE },
         ],
       };
-      const interchainSecurityModule = {
+      const interchainSecurityModule: WormholeIsmConfig = {
         type: IsmType.WORMHOLE,
         owner: ANVIL_DEPLOYER_ADDRESS,
         core: mocks[chain].core.address,
@@ -133,7 +137,7 @@ describe('hyperlane warp deploy/apply with Wormhole hook/ISM', function () {
         symbol,
         decimals: 18,
         hook,
-        interchainSecurityModule,
+        interchainSecurityModule: wrapIsm(interchainSecurityModule),
       };
     }
     return configs;
@@ -459,6 +463,57 @@ describe('hyperlane warp deploy/apply with Wormhole hook/ISM', function () {
       }
       const replacedCheck = await hyperlaneWarpCheck(routeId);
       expect(replacedCheck.exitCode).to.equal(0);
+    });
+
+    it('deploys and checks a Wormhole ISM nested in an aggregation ISM', async () => {
+      const nestedSymbol = `${symbol}N`;
+      const nestedConfigPath = `${TEMP_PATH}/wormhole-vaa-nested-warp.yaml`;
+      const nestedRouteId = getWarpRouteId(nestedSymbol, chains);
+      const nestedWarpCorePath = getCombinedWarpRoutePath(nestedSymbol, chains);
+      writeYamlOrJson(
+        nestedConfigPath,
+        configFor(nestedSymbol, undefined, (ism) => ({
+          type: IsmType.AGGREGATION,
+          threshold: 1,
+          modules: [ism],
+        })),
+      );
+
+      const deployResult = await hyperlaneWarpDeploy(
+        nestedConfigPath,
+        nestedRouteId,
+      );
+      expect(deployResult.exitCode).to.equal(0);
+
+      const multiProvider = await getMultiProvider();
+      for (const chain of chains) {
+        const client = MailboxClient__factory.connect(
+          getDeployedWarpAddress(chain, nestedWarpCorePath),
+          multiProvider.getProvider(chain),
+        );
+        const [hook, ism] = await Promise.all([
+          client.hook(),
+          client.interchainSecurityModule(),
+        ]);
+        const [modules] = await StaticAggregationIsm__factory.connect(
+          ism,
+          multiProvider.getProvider(chain),
+        ).modulesAndThreshold('0x');
+        const childHooks = await StaticAggregationHook__factory.connect(
+          hook,
+          multiProvider.getProvider(chain),
+        ).hooks('0x');
+        expect(modules).to.have.length(1);
+        expect(childHooks).to.include(modules[0]);
+      }
+
+      const check = await hyperlaneWarpCheck(nestedRouteId);
+      expect(check.exitCode, check.stdout).to.equal(0);
+      const apply = await hyperlaneWarpApply(nestedRouteId);
+      expect(apply.exitCode).to.equal(0);
+      expect(apply.stdout).to.include(
+        'Warp config is the same as target. No updates needed.',
+      );
     });
 
     it('delivers a warp transfer over Wormhole through the lookup service', async () => {
