@@ -1,5 +1,43 @@
 # @hyperlane-xyz/sdk
 
+## 45.2.0
+
+### Minor Changes
+
+- fe5dfda: Added the initial 1-of-1 Abacus Works Elysium validator set for deployment testing.
+
+### Patch Changes
+
+- f265d2f: Token fee support was disabled for ERC4626, fiat token, xERC20, and xERC20 lockbox routers. Configured token fees caused quotes and outbound transfers to revert until the fee recipient was removed. The SDK rejected unsupported token fee deployments and fee hooks on incompatible router types, including when fee hook update transactions were built directly, rejected adding token fees to xERC20 and xERC20 lockbox routers without an existing fee regardless of the requested contract version, allowed existing fees on those routers to be updated or removed, and required fee removal before upgrading them.
+- 8b65668: Updated the default Elysium validator set to require signatures from both Abacus Works and Luganodes.
+- aa84958: Removed batch barriers from bounded async maps, parallelized independent gas simulation and fee reads, and bounded concurrent rebalancer monitor reads to reduce polling latency. Failed maps stopped scheduling new work and drained active calls before rejecting, preserving backpressure across retries.
+
+  Failed inventory or confirmed-block supply reads prevented the monitor from emitting a partial polling cycle, avoiding fabricated zero balances or latest-state supplies in confirmed-block events.
+
+  Failed numeric Tron block lookups also prevented latest-state supply from being emitted, while intentional optional named tags remained supported.
+
+- c520224: Invariant regular expressions were reused across calls, redundant URL parsing was removed from RPC-header and explorer helpers, and independent token reads were overlapped with bounded concurrency and failure draining. URL normalization, validation, and dependent read ordering were preserved.
+- 1baa78e: Added an optional PostgreSQL URL to enable shared relayer diagnostics storage.
+- 9ef15ff: Added scraper WebSocket wake-ups configured through a single Secret Manager JSON map, retaining five-second HTTP polling for recovery, batching proxy head updates, and keeping endpoint credentials out of Helm values.
+- Updated dependencies [048d1f3]
+- Updated dependencies [f265d2f]
+- Updated dependencies [aa84958]
+- Updated dependencies [e48ffe7]
+- Updated dependencies [4623acb]
+- Updated dependencies [c520224]
+- Updated dependencies [8868234]
+- Updated dependencies [02c6ef4]
+- Updated dependencies [2bc0b3e]
+  - @hyperlane-xyz/core@12.3.0
+  - @hyperlane-xyz/utils@45.2.0
+  - @hyperlane-xyz/aleo-sdk@45.2.0
+  - @hyperlane-xyz/cosmos-sdk@45.2.0
+  - @hyperlane-xyz/radix-sdk@45.2.0
+  - @hyperlane-xyz/tron-sdk@26.0.3
+  - @hyperlane-xyz/deploy-sdk@11.0.3
+  - @hyperlane-xyz/provider-sdk@11.0.3
+  - @hyperlane-xyz/starknet-core@45.2.0
+
 ## 45.1.0
 
 ### Minor Changes
