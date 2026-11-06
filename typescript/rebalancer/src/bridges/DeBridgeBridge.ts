@@ -48,6 +48,7 @@ import {
   solanaCreatedOrder,
 } from './deBridgeSettlement.js';
 import { parseSolanaPrivateKey } from '../utils/solanaKeyParser.js';
+import { fetchWithDeadline } from '../utils/fetchWithDeadline.js';
 import { approveErc20IfNeeded } from './erc20Approve.js';
 import {
   DEBRIDGE_API_BASE,
@@ -1116,34 +1117,37 @@ export class DeBridgeBridge implements IExternalBridge {
         );
       }
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(
-        () => controller.abort(),
-        REQUEST_TIMEOUT_MS,
-      );
+      let terminalError: Error | undefined;
       try {
-        const response = await fetch(url, { signal: controller.signal });
-        if (
-          response.status >= 400 &&
-          response.status < 500 &&
-          response.status !== 429
-        ) {
-          const body = await response.text();
-          throw new Error(`deBridge HTTP ${response.status}: ${body}`);
-        }
-        if (response.ok) return await response.json();
-        await response.body?.cancel();
-        lastError = new Error(`deBridge HTTP ${response.status}`);
+        return await fetchWithDeadline(
+          url,
+          {},
+          REQUEST_TIMEOUT_MS,
+          async (response) => {
+            if (
+              response.status >= 400 &&
+              response.status < 500 &&
+              response.status !== 429
+            ) {
+              // Preserve the permanent status even if its error body stalls.
+              terminalError = new Error(
+                `deBridge HTTP ${response.status}: ${response.statusText}`,
+              );
+              const body = await response.text();
+              terminalError = new Error(
+                `deBridge HTTP ${response.status}: ${body}`,
+              );
+              throw terminalError;
+            }
+            if (!response.ok) {
+              throw new Error(`deBridge HTTP ${response.status}`);
+            }
+            return response.json();
+          },
+        );
       } catch (error) {
-        if (
-          error instanceof Error &&
-          /^deBridge HTTP 4\d\d:/.test(error.message)
-        ) {
-          throw error;
-        }
+        if (terminalError) throw terminalError;
         lastError = error instanceof Error ? error : new Error(String(error));
-      } finally {
-        clearTimeout(timeoutId);
       }
     }
 
