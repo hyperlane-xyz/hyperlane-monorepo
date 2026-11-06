@@ -1,8 +1,8 @@
+import { open } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import type { Logger } from 'pino';
 
 import { assert } from '@hyperlane-xyz/utils';
-import { readFileAtPath } from '@hyperlane-xyz/utils/fs';
 
 import { PendingTransferMiddlewareType } from '../../config/types.js';
 import type {
@@ -22,6 +22,9 @@ import {
 import { normalizeMessageId } from './types.js';
 
 const FETCH_TIMEOUT_MS = 10_000;
+
+/** The relayer's limit on a denylist file, in bytes. */
+export const MAX_DENYLIST_FILE_BYTES = 4 * 1024 * 1024;
 
 export const RELAYER_DENYLIST_REFRESH_FAILED_MESSAGE =
   'Relayer denylist refresh failed, keeping last good rules';
@@ -59,36 +62,108 @@ function scrubUrl(message: string, url: URL): string {
   return scrubbed;
 }
 
-export async function fetchDenylistFile(url: URL): Promise<string> {
+function fileTooLarge(bytes: number): Error {
+  return new Error(
+    `Denylist file is at least ${bytes} bytes; the limit is ${MAX_DENYLIST_FILE_BYTES}`,
+  );
+}
+
+/**
+ * Decodes like the relayer's serde_json parser: invalid UTF-8 is an invalid
+ * file, and a leading BOM is kept so `JSON.parse` rejects it.
+ */
+function decodeUtf8(bytes: Uint8Array): string {
   try {
-    let text: string;
-    switch (url.protocol) {
-      case 'file:':
-        text = readFileAtPath(fileURLToPath(url));
-        break;
-      case 'http:':
-      case 'https:': {
-        const response = await fetch(url, {
-          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP status ${response.status}`);
-        }
+    return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(
+      bytes,
+    );
+  } catch (error: unknown) {
+    if (!(error instanceof TypeError)) throw error;
+    throw new DenylistLoadError(
+      DenylistLoadFailure.InvalidFile,
+      'Invalid denylist JSON: not valid UTF-8',
+    );
+  }
+}
 
-        text = await response.text();
-        break;
-      }
-      default:
-        throw new Error(`Unsupported denylist URL protocol ${url.protocol}`);
+/** Reads at most one byte past the relayer's limit, rejecting a larger file. */
+async function readFileCapped(path: string): Promise<Uint8Array> {
+  const file = await open(path);
+  try {
+    const buffer = Buffer.alloc(MAX_DENYLIST_FILE_BYTES + 1);
+    let bytes = 0;
+    while (bytes < buffer.length) {
+      const { bytesRead } = await file.read(
+        buffer,
+        bytes,
+        buffer.length - bytes,
+      );
+      if (bytesRead === 0) break;
+      bytes += bytesRead;
     }
+    if (bytes > MAX_DENYLIST_FILE_BYTES) throw fileTooLarge(bytes);
 
-    return text;
+    return buffer.subarray(0, bytes);
+  } finally {
+    await file.close();
+  }
+}
+
+/** Reads at most the relayer's limit, rejecting a larger body before buffering it. */
+async function readBodyCapped(response: Response): Promise<Uint8Array> {
+  const length = Number(response.headers.get('content-length'));
+  if (length > MAX_DENYLIST_FILE_BYTES) throw fileTooLarge(length);
+
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  const reader = response.body?.getReader();
+  while (reader) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    bytes += value.byteLength;
+    if (bytes > MAX_DENYLIST_FILE_BYTES) {
+      await reader.cancel();
+      throw fileTooLarge(bytes);
+    }
+    chunks.push(value);
+  }
+
+  return Buffer.concat(chunks);
+}
+
+async function readDenylistBytes(url: URL): Promise<Uint8Array> {
+  switch (url.protocol) {
+    case 'file:':
+      return readFileCapped(fileURLToPath(url));
+    case 'http:':
+    case 'https:': {
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP status ${response.status}`);
+      }
+
+      return readBodyCapped(response);
+    }
+    default:
+      throw new Error(`Unsupported denylist URL protocol ${url.protocol}`);
+  }
+}
+
+export async function fetchDenylistFile(url: URL): Promise<string> {
+  let bytes: Uint8Array;
+  try {
+    bytes = await readDenylistBytes(url);
   } catch (error: unknown) {
     throw new DenylistLoadError(
       DenylistLoadFailure.FetchFailed,
       scrubUrl(error instanceof Error ? error.message : String(error), url),
     );
   }
+
+  return decodeUtf8(bytes);
 }
 
 async function loadRules(

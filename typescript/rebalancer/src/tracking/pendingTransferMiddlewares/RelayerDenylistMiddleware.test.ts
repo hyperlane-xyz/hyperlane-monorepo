@@ -1,11 +1,19 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdtempSync,
+  renameSync,
+  rmSync,
+  truncateSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { type Logger, pino } from 'pino';
 import Sinon from 'sinon';
+
+import { assert } from '@hyperlane-xyz/utils';
 
 import type {
   ExplorerMessage,
@@ -15,6 +23,7 @@ import type {
 
 import { PENDING_TRANSFER_MIDDLEWARE_FAILED_MESSAGE } from './PendingTransferMiddleware.js';
 import {
+  MAX_DENYLIST_FILE_BYTES,
   RELAYER_DENYLIST_CHECK_FAILED_MESSAGE,
   RELAYER_DENYLIST_REFRESH_FAILED_MESSAGE,
   RelayerDenylistMiddleware,
@@ -76,6 +85,18 @@ function denylistFor(messageIds: string[]): string {
       match: { messageId },
     })),
   });
+}
+
+/** A valid denylist of exactly `bytes` ASCII bytes. */
+function denylistOfSize(bytes: number): string {
+  const withReason = (reason: string) =>
+    JSON.stringify({
+      rules: [{ reason, addedBy: 'tester', match: { messageId: MESSAGE_ID } }],
+    });
+  const text = withReason('x'.repeat(bytes - withReason('').length));
+
+  expect(text).to.have.length(bytes);
+  return text;
 }
 
 describe('RelayerDenylistMiddleware', () => {
@@ -214,6 +235,11 @@ describe('RelayerDenylistMiddleware', () => {
       response: async () => new Response(INVALID_REGEX_FILE),
       failure: DenylistLoadFailure.InvalidFile,
     },
+    {
+      name: 'the file starts with a BOM',
+      response: async () => new Response(`\ufeff${denylistFor([MESSAGE_ID])}`),
+      failure: DenylistLoadFailure.InvalidFile,
+    },
   ];
   for (const c of startupFailures) {
     it(`fails to start with a redacted URL when ${c.name}`, async () => {
@@ -272,6 +298,12 @@ describe('RelayerDenylistMiddleware', () => {
       name: 'a bodyRegex that does not compile',
       breakDenylist: () => writeDenylist(INVALID_REGEX_FILE),
       failure: DenylistLoadFailure.InvalidFile,
+    },
+    {
+      name: 'a file over the size limit',
+      breakDenylist: () =>
+        writeDenylist(denylistOfSize(MAX_DENYLIST_FILE_BYTES + 1)),
+      failure: DenylistLoadFailure.FetchFailed,
     },
   ];
   for (const c of refreshFailures) {
@@ -378,6 +410,153 @@ describe('RelayerDenylistMiddleware', () => {
       rmSync(dir, { recursive: true, force: true });
       fetchStub?.restore();
       fetchStub = undefined;
+    });
+
+    async function loadError(
+      result: Promise<string>,
+    ): Promise<DenylistLoadError> {
+      const error = await result.then(
+        () => expect.fail('Expected fetchDenylistFile to throw'),
+        (err: unknown) => err,
+      );
+      assert(
+        error instanceof DenylistLoadError,
+        'Expected a DenylistLoadError',
+      );
+      return error;
+    }
+
+    interface SourceCase {
+      name: string;
+      load: (bytes: Uint8Array<ArrayBuffer>) => Promise<string>;
+    }
+    const sources: SourceCase[] = [
+      {
+        name: 'file',
+        load: (bytes) => {
+          const path = join(dir, 'denylist.json');
+          writeFileSync(path, bytes);
+          return fetchDenylistFile(pathToFileURL(path));
+        },
+      },
+      {
+        name: 'http body',
+        load: (bytes) => {
+          fetchStub = Sinon.stub(globalThis, 'fetch').resolves(
+            new Response(bytes),
+          );
+          return fetchDenylistFile(
+            new URL('https://example.com/denylist.json'),
+          );
+        },
+      },
+    ];
+    for (const c of sources) {
+      it(`reads a ${c.name} at the size limit`, async () => {
+        const denylist = denylistOfSize(MAX_DENYLIST_FILE_BYTES);
+
+        const text = await c.load(Buffer.from(denylist));
+
+        expect(text).to.equal(denylist);
+      });
+
+      it(`rejects a ${c.name} over the size limit`, async () => {
+        const denylist = denylistOfSize(MAX_DENYLIST_FILE_BYTES + 1);
+
+        const error = await loadError(c.load(Buffer.from(denylist)));
+
+        expect(error.failure).to.equal(DenylistLoadFailure.FetchFailed);
+        expect(error.message).to.equal(
+          'Denylist file is at least 4194305 bytes; the limit is 4194304',
+        );
+      });
+
+      it(`rejects a ${c.name} that is not UTF-8`, async () => {
+        const error = await loadError(c.load(new Uint8Array([0xff])));
+
+        expect(error.failure).to.equal(DenylistLoadFailure.InvalidFile);
+        expect(error.message).to.equal(
+          'Invalid denylist JSON: not valid UTF-8',
+        );
+      });
+
+      it(`keeps a leading BOM in a ${c.name}`, async () => {
+        const text = await c.load(Buffer.from(`\ufeff${denylistFor([])}`));
+
+        expect(text).to.equal(`\ufeff${denylistFor([])}`);
+      });
+    }
+
+    it('reads a body whose Content-Length is the limit', async () => {
+      const denylist = denylistOfSize(MAX_DENYLIST_FILE_BYTES);
+      fetchStub = Sinon.stub(globalThis, 'fetch').resolves(
+        new Response(Buffer.from(denylist), {
+          headers: { 'content-length': '4194304' },
+        }),
+      );
+
+      const text = await fetchDenylistFile(
+        new URL('https://example.com/denylist.json'),
+      );
+
+      expect(text).to.equal(denylist);
+    });
+
+    it('reads one byte past the limit of a larger file', async () => {
+      const path = join(dir, 'denylist.json');
+      writeFileSync(path, '');
+      truncateSync(path, 64 * 1024 * 1024);
+
+      const error = await loadError(fetchDenylistFile(pathToFileURL(path)));
+
+      expect(error.failure).to.equal(DenylistLoadFailure.FetchFailed);
+      expect(error.message).to.equal(
+        'Denylist file is at least 4194305 bytes; the limit is 4194304',
+      );
+    });
+
+    it('rejects a Content-Length over the limit before reading the body', async () => {
+      fetchStub = Sinon.stub(globalThis, 'fetch').resolves(
+        new Response(denylistFor([MESSAGE_ID]), {
+          headers: { 'content-length': '4194305' },
+        }),
+      );
+
+      const error = await loadError(
+        fetchDenylistFile(new URL('https://example.com/denylist.json')),
+      );
+
+      expect(error.failure).to.equal(DenylistLoadFailure.FetchFailed);
+      expect(error.message).to.equal(
+        'Denylist file is at least 4194305 bytes; the limit is 4194304',
+      );
+    });
+
+    it('stops reading a streamed body once it passes the limit', async () => {
+      const MiB = 1024 * 1024;
+      const chunkSizes = [MiB, MiB, MiB, MiB, 1, MiB];
+      let cancelled = false;
+      const body = new ReadableStream<Uint8Array>({
+        pull: (controller) => {
+          const size = chunkSizes.shift();
+          if (size === undefined) controller.close();
+          else controller.enqueue(new Uint8Array(size).fill(0x20));
+        },
+        cancel: () => {
+          cancelled = true;
+        },
+      });
+      fetchStub = Sinon.stub(globalThis, 'fetch').resolves(new Response(body));
+
+      const error = await loadError(
+        fetchDenylistFile(new URL('https://example.com/denylist.json')),
+      );
+
+      expect(error.failure).to.equal(DenylistLoadFailure.FetchFailed);
+      expect(error.message).to.equal(
+        'Denylist file is at least 4194305 bytes; the limit is 4194304',
+      );
+      expect(cancelled).to.be.true;
     });
 
     it('reads file:// URLs', async () => {
