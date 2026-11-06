@@ -11,7 +11,12 @@ import {
   DEFAULT_INTENT_TTL_MS,
   DEFAULT_MOVEMENT_STALENESS_MS,
   ExternalBridgeType,
+  TokenBridgeStatusAdapterType,
 } from '../config/types.js';
+import type {
+  ITokenBridgeStatusAdapter,
+  MCRStatusPollContext,
+} from '../interfaces/ITokenBridgeStatusAdapter.js';
 import {
   ExplorerClient,
   type ExplorerMessage,
@@ -70,6 +75,7 @@ describe('ActionTracker', () => {
       adapter: adapterStub,
       multiProvider: {
         getChainName: multiProviderGetChainName,
+        getChainMetadata: () => ({ protocol: ProtocolType.Sealevel }),
       },
     } as any;
 
@@ -627,6 +633,39 @@ describe('ActionTracker', () => {
       );
     });
 
+    it('should preserve an expired intent after its inventory movement completes', async () => {
+      const oldTimestamp = Date.now() - DEFAULT_INTENT_TTL_MS - 1;
+      await rebalanceIntentStore.save({
+        id: 'intent-completed-movement',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        executionMethod: 'inventory',
+        createdAt: oldTimestamp,
+        updatedAt: oldTimestamp,
+      });
+      await rebalanceActionStore.save({
+        id: 'completed-movement',
+        status: 'complete',
+        type: 'inventory_movement',
+        intentId: 'intent-completed-movement',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: oldTimestamp,
+        updatedAt: oldTimestamp,
+      });
+
+      await tracker.syncRebalanceIntents();
+
+      expect(
+        (await rebalanceIntentStore.get('intent-completed-movement'))?.status,
+      ).to.equal('in_progress');
+      expect(await rebalanceActionStore.get('completed-movement')).to.not.be
+        .undefined;
+    });
+
     it('should fail expired intents that never started execution', async () => {
       await rebalanceIntentStore.save({
         id: 'intent-1',
@@ -665,6 +704,175 @@ describe('ActionTracker', () => {
   });
 
   describe('syncRebalanceActions', () => {
+    it('records an LZ ref and completes its parent intent after delivery', async () => {
+      const originalRef = {
+        provider: TokenBridgeStatusAdapterType.LayerZeroScan,
+        kind: TokenBridgeStatusAdapterType.LayerZeroScan,
+        data: { originTxHash: '0xorigin' },
+      };
+      const refreshedRef = {
+        ...originalRef,
+        data: { ...originalRef.data, lastObservedStatus: 'DELIVERED' },
+      };
+      const pollStatus = Sinon.stub().resolves({
+        status: 'complete',
+        receivingTxHash: '0xdestination',
+        ref: refreshedRef,
+      });
+      const statusAdapter: ITokenBridgeStatusAdapter = {
+        kind: TokenBridgeStatusAdapterType.LayerZeroScan,
+        logger: testLogger,
+        initFromReceipt: Sinon.stub(),
+        pollStatus,
+      };
+      tracker = new ActionTracker(
+        transferStore,
+        rebalanceIntentStore,
+        rebalanceActionStore,
+        explorerClient,
+        core,
+        config,
+        testLogger,
+        new Map([[statusAdapter.kind, statusAdapter]]),
+      );
+
+      const intent = await tracker.createRebalanceIntent({
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+      });
+      const action = await tracker.createRebalanceAction({
+        intentId: intent.id,
+        type: 'rebalance_message',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        txHash: '0xorigin',
+        externalExecutionRef: originalRef,
+      });
+
+      expect(
+        (await rebalanceActionStore.get(action.id))?.externalExecutionRef,
+      ).to.deep.equal(originalRef);
+
+      await tracker.syncRebalanceActions({ chain2: 36 });
+      expect(pollStatus.firstCall.args[1].blockTag).to.equal(36);
+
+      const updatedAction = await rebalanceActionStore.get(action.id);
+      expect(updatedAction?.status).to.equal('complete');
+      expect(updatedAction?.externalExecutionRef).to.deep.equal(refreshedRef);
+      expect(updatedAction?.destinationTxHash).to.equal('0xdestination');
+      expect((await rebalanceIntentStore.get(intent.id))?.status).to.equal(
+        'complete',
+      );
+      expect(pollStatus.calledOnceWith(originalRef)).to.be.true;
+      expect(mailboxStub.isDelivered.called).to.be.false;
+    });
+
+    it('retains LZ credit across unchanged snapshots until the destination receipt is included', async () => {
+      const ref = { provider: 'lz_scan', kind: 'lz_scan', data: {} };
+      const statusAdapter: ITokenBridgeStatusAdapter = {
+        kind: 'lz_scan',
+        logger: testLogger,
+        initFromReceipt: async () => ref,
+        pollStatus: async (_ref, context: MCRStatusPollContext) =>
+          typeof context.blockTag === 'number' && context.blockTag >= 37
+            ? { status: 'complete', receivingTxHash: '0xdestination' }
+            : { status: 'pending' },
+      };
+      tracker = new ActionTracker(
+        transferStore,
+        rebalanceIntentStore,
+        rebalanceActionStore,
+        explorerClient,
+        core,
+        config,
+        testLogger,
+        new Map([[statusAdapter.kind, statusAdapter]]),
+      );
+      const intent = await tracker.createRebalanceIntent({
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+      });
+      const action = await tracker.createRebalanceAction({
+        intentId: intent.id,
+        type: 'rebalance_message',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        txHash: '0xorigin',
+        externalExecutionRef: ref,
+      });
+      for (let cycle = 0; cycle < 2; cycle++) {
+        await tracker.syncRebalanceActions({ chain2: 36 });
+        expect((await rebalanceActionStore.get(action.id))?.status).to.equal(
+          'in_progress',
+        );
+        expect((await rebalanceIntentStore.get(intent.id))?.status).to.equal(
+          'in_progress',
+        );
+      }
+      await tracker.syncRebalanceActions({ chain2: 37 });
+      expect((await rebalanceActionStore.get(action.id))?.status).to.equal(
+        'complete',
+      );
+    });
+
+    it('keeps a source-committed LZ failure suppressed for the process lifetime', async () => {
+      const ref = {
+        provider: TokenBridgeStatusAdapterType.LayerZeroScan,
+        kind: TokenBridgeStatusAdapterType.LayerZeroScan,
+        data: { originTxHash: '0xorigin' },
+      };
+      const statusAdapter: ITokenBridgeStatusAdapter = {
+        kind: TokenBridgeStatusAdapterType.LayerZeroScan,
+        logger: testLogger,
+        initFromReceipt: Sinon.stub(),
+        pollStatus: Sinon.stub().resolves({
+          status: 'failed',
+          error: 'lz_blocked',
+          ref,
+        }),
+      };
+      tracker = new ActionTracker(
+        transferStore,
+        rebalanceIntentStore,
+        rebalanceActionStore,
+        explorerClient,
+        core,
+        config,
+        testLogger,
+        new Map([[statusAdapter.kind, statusAdapter]]),
+      );
+
+      const intent = await tracker.createRebalanceIntent({
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+      });
+      const action = await tracker.createRebalanceAction({
+        intentId: intent.id,
+        type: 'rebalance_message',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        externalExecutionRef: ref,
+      });
+
+      await tracker.syncRebalanceActions();
+
+      expect((await rebalanceActionStore.get(action.id))?.status).to.equal(
+        'in_progress',
+      );
+      expect((await rebalanceIntentStore.get(intent.id))?.status).to.equal(
+        'in_progress',
+      );
+      expect(
+        (await rebalanceActionStore.get(action.id))?.lastBridgeStatus,
+      ).to.equal('failed');
+    });
+
     it('should mark actions as complete when delivered and update parent intent', async () => {
       const intent: RebalanceIntent = {
         id: 'intent-1',
@@ -2363,14 +2571,14 @@ describe('ActionTracker', () => {
       mailboxStub.isDelivered.resolves(true);
 
       const confirmedBlockTags = {
-        chain2: EthJsonRpcBlockParameterTag.Finalized,
+        chain2: 12345,
       };
       await tracker.syncTransfers(confirmedBlockTags);
 
       expect(mailboxStub.isDelivered.calledOnce).to.be.true;
       const call = mailboxStub.isDelivered.firstCall;
       expect(call.args[0]).to.equal('0xmsg1');
-      expect(call.args[1]).to.equal(EthJsonRpcBlockParameterTag.Finalized);
+      expect(call.args[1]).to.equal(12345);
     });
 
     it('should pass blockTag when checking delivery in syncRebalanceActions', async () => {

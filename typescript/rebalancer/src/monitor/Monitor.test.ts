@@ -13,6 +13,7 @@ import {
   WarpCore,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 
 import {
   type MonitorEvent,
@@ -100,8 +101,9 @@ function setupTron(reorgPeriod: number | string) {
     },
   };
   const multiProvider = new MultiProtocolProvider(metadata);
-  const block = sinon.createStubInstance(providers.JsonRpcProvider);
+  const block = sinon.createStubInstance(TronJsonRpcProvider);
   block.send.resolves('0x64');
+  block.getFinalizedBlockNumber.resolves(100);
   sinon.stub(multiProvider, 'getEthersV5Provider').returns(block);
   const adapter = sinon.createStubInstance(EvmHypSyntheticAdapter);
   adapter.getBridgedSupply.resolves(5n);
@@ -275,9 +277,7 @@ describe('Monitor concurrency', () => {
 
     await monitor.start();
     expect(errors.calledOnce).to.equal(true);
-    expect(errors.firstCall.args[0].message).to.contain(
-      'Confirmed block unavailable for chain0',
-    );
+    expect(errors.firstCall.args[0].message).to.contain('block unavailable');
     expect(supplyReadOnError).to.equal(false);
     expect(blocks[0].send.calledTwice).to.equal(true);
     expect(adapters[0].getBridgedSupply.calledOnce).to.equal(true);
@@ -289,8 +289,9 @@ describe('Monitor concurrency', () => {
     expect(event?.inventoryBalances).to.deep.equal({ chain0: 10n });
   });
 
-  it('preserves optional block tags for Tron named reorg periods', async () => {
+  it('resolves Tron named finality once for the balance snapshot', async () => {
     const { monitor, adapter, block, token } = setupTron('finalized');
+    block.getFinalizedBlockNumber.resolves(96);
     const errors = sinon.stub();
     let event: MonitorEvent | undefined;
     monitor.on(MonitorEventType.Error, (error) => {
@@ -305,11 +306,13 @@ describe('Monitor concurrency', () => {
     await monitor.start();
     expect(errors.notCalled).to.equal(true);
     expect(block.send.notCalled).to.equal(true);
+    expect(block.getFinalizedBlockNumber.calledOnce).to.equal(true);
+    expect(block.getBlock.called).to.equal(false);
     expect(adapter.getBridgedSupply.calledOnce).to.equal(true);
     expect(adapter.getBridgedSupply.firstCall.args).to.deep.equal([
-      { blockTag: undefined },
+      { blockTag: 96 },
     ]);
-    expect(event?.confirmedBlockTags.tron).to.equal(undefined);
+    expect(event?.confirmedBlockTags.tron).to.equal(96);
     expect(event?.tokensInfo).to.deep.equal([{ token, bridgedSupply: 5n }]);
   });
 

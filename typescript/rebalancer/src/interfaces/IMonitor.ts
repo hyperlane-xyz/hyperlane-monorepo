@@ -1,8 +1,4 @@
-import {
-  type ChainMap,
-  EthJsonRpcBlockParameterTag,
-  type Token,
-} from '@hyperlane-xyz/sdk';
+import { type ChainMap, type Token } from '@hyperlane-xyz/sdk';
 
 import { WrappedError } from '../utils/errors.js';
 
@@ -20,10 +16,7 @@ export enum MonitorEventType {
   Start = 'Start',
 }
 
-export type ConfirmedBlockTag =
-  | number
-  | EthJsonRpcBlockParameterTag
-  | undefined;
+export type ConfirmedBlockTag = number | undefined;
 
 export type ConfirmedBlockTags = ChainMap<ConfirmedBlockTag>;
 
