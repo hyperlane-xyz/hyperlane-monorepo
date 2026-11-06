@@ -234,6 +234,72 @@ describe('EvmHookReader', () => {
     });
   });
 
+  describe('nested LayerZero hooks', () => {
+    const layerZeroAddress = randomAddress();
+    const derivedLayerZeroHook = {
+      address: layerZeroAddress,
+      type: HookType.LAYER_ZERO_V2,
+    } as const;
+
+    it('preserves the address for deployment readers', async () => {
+      sandbox
+        .stub(evmHookReader, 'deriveHookConfigFromAddress')
+        .resolves(derivedLayerZeroHook);
+
+      const config = await evmHookReader.deriveHookConfig({
+        type: HookType.AGGREGATION,
+        hooks: [layerZeroAddress],
+      });
+
+      assert(
+        config.type === HookType.AGGREGATION,
+        'Expected aggregation hook config',
+      );
+      expect(config.hooks).to.deep.equal([layerZeroAddress]);
+    });
+
+    it('preserves an undeployed LayerZero config object', async () => {
+      const layerZeroConfig = {
+        type: HookType.LAYER_ZERO_V2,
+      } as const;
+
+      const config = await evmHookReader.deriveHookConfig({
+        type: HookType.AGGREGATION,
+        hooks: [layerZeroConfig],
+      });
+
+      assert(
+        config.type === HookType.AGGREGATION,
+        'Expected aggregation hook config',
+      );
+      expect(config.hooks).to.deep.equal([layerZeroConfig]);
+    });
+
+    it('expands the config when requested for diagnostics', async () => {
+      const diagnosticReader = new EvmHookReader(
+        multiProvider,
+        TestChainName.test1,
+        undefined,
+        undefined,
+        { expandNonDeployableHookIsms: true },
+      );
+      sandbox
+        .stub(diagnosticReader, 'deriveHookConfigFromAddress')
+        .resolves(derivedLayerZeroHook);
+
+      const config = await diagnosticReader.deriveHookConfig({
+        type: HookType.AGGREGATION,
+        hooks: [layerZeroAddress],
+      });
+
+      assert(
+        config.type === HookType.AGGREGATION,
+        'Expected aggregation hook config',
+      );
+      expect(config.hooks).to.deep.equal([derivedLayerZeroHook]);
+    });
+  });
+
   it('includes remote-router trust configuration in Wormhole diagnostics', async () => {
     const router = randomAddress();
     const remoteRouter = randomAddress();
