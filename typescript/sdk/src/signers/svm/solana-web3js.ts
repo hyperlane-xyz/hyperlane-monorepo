@@ -353,10 +353,6 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
     lastValidBlockHeight: number,
     extraSigners?: Keypair[],
   ): Promise<{ signature: string; lastValidBlockHeight: number } | null> {
-    if (!this.config.enableBlockhashResubmit) {
-      return null;
-    }
-
     const currentBlockHeight = await this.svmProvider.getBlockHeight();
     if (currentBlockHeight <= lastValidBlockHeight) {
       return null; // Blockhash still valid
