@@ -18,7 +18,17 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { TokenStandard } from './TokenStandard.js';
 import { TokenType } from './config.js';
-import { WormholeConsistencyType } from '../wormhole/consistency.js';
+import { HookType } from '../hook/types.js';
+import {
+  type DerivedIsmConfig,
+  IsmType,
+  type WormholeIsmConfig,
+} from '../ism/types.js';
+import { EvmWormholeHookIsmModule } from '../wormhole/EvmWormholeHookIsmModule.js';
+import {
+  WormholeConsistencyLevel,
+  WormholeConsistencyType,
+} from '../wormhole/consistency.js';
 import {
   type DerivedWormholeHookIsmConfig,
   type WormholeMeshConfig,
@@ -36,6 +46,7 @@ import {
   buildWormholeRemoteRouterDiff,
   buildWarpRouteDiff,
   checkWarpRouteDeployConfig,
+  deriveWormholeRemoteRouterDiff,
   derivedWarpConfigToCheckConfig,
   expandedDeployConfigToAltVmCheckConfig,
   getScaleViolations,
@@ -1076,6 +1087,59 @@ describe('buildWarpRouteDiff', () => {
     expect(diff).to.deep.equal({});
   });
 
+  it('accepts a derived Wormhole ISM nested in an aggregation', () => {
+    const wormholeIsm: WormholeIsmConfig = {
+      type: IsmType.WORMHOLE_VAA,
+      owner: OWNER,
+      core: TOKEN_A,
+      wormholeChainId: 2,
+      consistencyLevel: { type: WormholeConsistencyType.Finalized },
+      urls: ['https://vaa.example/v1'],
+    };
+    const derivedTestIsm: DerivedIsmConfig = {
+      address: MAILBOX,
+      type: IsmType.TEST_ISM,
+    };
+    const derivedWormholeIsm = {
+      address: TOKEN_A,
+      type: IsmType.WORMHOLE_VAA,
+      owner: OWNER,
+      core: TOKEN_A,
+      wormholeChainId: 2,
+      consistencyLevel: { type: WormholeConsistencyType.Finalized },
+      urls: ['https://vaa.example/v1'],
+      remoteRouters: {
+        [test2.name]: {
+          router: REAL_HOOK,
+          wormholeChainId: 30,
+          expectedConsistencyLevel: WormholeConsistencyLevel.Finalized,
+          expectedCustomBaseConsistencyLevel: 0,
+          expectedAdditionalBlocks: 0,
+        },
+      },
+    };
+    const expected = expectedConfig();
+    expected[CHAIN].interchainSecurityModule = {
+      type: IsmType.AGGREGATION,
+      threshold: 1,
+      modules: [{ type: IsmType.TEST_ISM }, wormholeIsm],
+    };
+    const actual = onChainConfig(zeroAddress);
+    actual[CHAIN].interchainSecurityModule = {
+      address: REAL_HOOK,
+      type: IsmType.AGGREGATION,
+      threshold: 1,
+      modules: [derivedTestIsm, derivedWormholeIsm],
+    };
+
+    const diff = buildWarpRouteDiff({
+      onChainWarpConfig: actual,
+      warpRouteConfig: expected,
+    });
+
+    expect(diff).to.deep.equal({});
+  });
+
   it('still flags a genuinely configured (non-zero) on-chain hook when the deploy config omits it', () => {
     const diff = buildWarpRouteDiff({
       onChainWarpConfig: onChainConfig(REAL_HOOK),
@@ -1418,5 +1482,221 @@ describe('buildWormholeRemoteRouterDiff', () => {
         expectedCustomBaseConsistencyLevel: 0,
         expectedAdditionalBlocks: 0,
       });
+  });
+});
+
+describe('deriveWormholeRemoteRouterDiff', () => {
+  const CHAINS = [test1.name, test2.name, test3.name];
+  const ROUTERS: Record<string, string> = {
+    [test1.name]: '0x1111111111111111111111111111111111111111',
+    [test2.name]: '0x2222222222222222222222222222222222222222',
+    [test3.name]: '0x3333333333333333333333333333333333333333',
+  };
+  const WORMHOLE_CHAIN_IDS: Record<string, number> = {
+    [test1.name]: 2,
+    [test2.name]: 30,
+    [test3.name]: 23,
+  };
+  const CORE = '0x4444444444444444444444444444444444444444';
+  const OTHER = '0x5555555555555555555555555555555555555555';
+  const URLS = ['https://vaa.example/v1'];
+
+  interface Surfaces {
+    hook: string;
+    ism?: string;
+  }
+
+  function deployConfig(
+    chains: string[],
+  ): WarpRouteDeployConfigMailboxRequired {
+    return Object.fromEntries(
+      chains.map((chain) => [
+        chain,
+        {
+          type: TokenType.synthetic,
+          mailbox: MAILBOX,
+          owner: OWNER,
+          hook: { type: HookType.WORMHOLE_VAA },
+          interchainSecurityModule: {
+            type: IsmType.WORMHOLE_VAA,
+            owner: OWNER,
+            core: CORE,
+            wormholeChainId: WORMHOLE_CHAIN_IDS[chain],
+            consistencyLevel: { type: WormholeConsistencyType.Finalized },
+            urls: URLS,
+          },
+        },
+      ]),
+    );
+  }
+
+  function onChainConfig(
+    surfaces: Record<string, Surfaces>,
+  ): DerivedWarpRouteDeployConfig {
+    return Object.fromEntries(
+      Object.entries(surfaces).map(([chain, { hook, ism }]) => [
+        chain,
+        {
+          type: TokenType.synthetic,
+          mailbox: MAILBOX,
+          owner: OWNER,
+          destinationGas: {},
+          remoteRouters: {},
+          hook: { address: hook, type: HookType.WORMHOLE_VAA },
+          interchainSecurityModule: ism
+            ? {
+                address: ism,
+                type: IsmType.WORMHOLE_VAA,
+                owner: OWNER,
+                core: CORE,
+                wormholeChainId: WORMHOLE_CHAIN_IDS[chain],
+                consistencyLevel: { type: WormholeConsistencyType.Finalized },
+                urls: URLS,
+              }
+            : { address: OTHER, type: IsmType.TEST_ISM },
+        },
+      ]),
+    );
+  }
+
+  function derivedRouter(
+    chain: string,
+    chains: string[],
+  ): DerivedWormholeHookIsmConfig {
+    return {
+      address: ROUTERS[chain],
+      owner: OWNER,
+      mailbox: MAILBOX,
+      core: CORE,
+      wormholeChainId: WORMHOLE_CHAIN_IDS[chain],
+      consistencyLevel: { type: WormholeConsistencyType.Finalized },
+      urls: URLS,
+      remoteRouters: Object.fromEntries(
+        chains
+          .filter((remote) => remote !== chain)
+          .map((remote) => [
+            remote,
+            {
+              router: ROUTERS[remote],
+              wormholeChainId: WORMHOLE_CHAIN_IDS[remote],
+              expectedConsistencyLevel: WormholeConsistencyLevel.Finalized,
+              expectedCustomBaseConsistencyLevel: 0,
+              expectedAdditionalBlocks: 0,
+            },
+          ]),
+      ),
+    };
+  }
+
+  let readMesh: sinon.SinonStub;
+  let routers: Record<string, DerivedWormholeHookIsmConfig>;
+
+  function deployRouters(chains: string[]): void {
+    routers = Object.fromEntries(
+      chains.map((chain) => [chain, derivedRouter(chain, chains)]),
+    );
+  }
+
+  beforeEach(() => {
+    readMesh = sinon
+      .stub(EvmWormholeHookIsmModule, 'readMesh')
+      .callsFake(async (_multiProvider, addresses) =>
+        Object.fromEntries(
+          Object.keys(addresses).map((chain) => [chain, routers[chain]]),
+        ),
+      );
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('reports a chain whose hook and ISM are different instances', async () => {
+    const chains = [test1.name, test2.name];
+    deployRouters(chains);
+
+    const diff = await deriveWormholeRemoteRouterDiff({
+      multiProvider: MultiProvider.createTestMultiProvider(),
+      onChainWarpConfig: onChainConfig({
+        [test1.name]: { hook: ROUTERS[test1.name], ism: ROUTERS[test1.name] },
+        [test2.name]: { hook: OTHER, ism: ROUTERS[test2.name] },
+      }),
+      warpDeployConfig: deployConfig(chains),
+    });
+
+    expect(diff).to.deep.equal({
+      [test2.name]: {
+        combinedHookIsm: {
+          [IsmType.WORMHOLE_VAA]: {
+            hook: { expected: ROUTERS[test2.name], actual: OTHER },
+          },
+        },
+      },
+    });
+    expect(readMesh.firstCall.args[1]).to.deep.equal({
+      [test1.name]: ROUTERS[test1.name],
+    });
+  });
+
+  it('reports a chain with no combined ISM', async () => {
+    const chains = [test1.name, test2.name];
+    deployRouters(chains);
+
+    const diff = await deriveWormholeRemoteRouterDiff({
+      multiProvider: MultiProvider.createTestMultiProvider(),
+      onChainWarpConfig: onChainConfig({
+        [test1.name]: { hook: ROUTERS[test1.name], ism: ROUTERS[test1.name] },
+        [test2.name]: { hook: ROUTERS[test2.name] },
+      }),
+      warpDeployConfig: deployConfig(chains),
+    });
+
+    expect(diff).to.deep.equal({
+      [test2.name]: {
+        combinedHookIsm: {
+          [IsmType.WORMHOLE_VAA]: {
+            interchainSecurityModule: {
+              expected: 'one instance',
+              actual: 'missing',
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it('still reports enrollment drift on a resolved chain when another chain is split', async () => {
+    deployRouters(CHAINS);
+    routers[test1.name].remoteRouters[test2.name].wormholeChainId = 31;
+
+    const diff = await deriveWormholeRemoteRouterDiff({
+      multiProvider: MultiProvider.createTestMultiProvider(),
+      onChainWarpConfig: onChainConfig({
+        [test1.name]: { hook: ROUTERS[test1.name], ism: ROUTERS[test1.name] },
+        [test2.name]: { hook: ROUTERS[test2.name], ism: ROUTERS[test2.name] },
+        [test3.name]: { hook: OTHER, ism: ROUTERS[test3.name] },
+      }),
+      warpDeployConfig: deployConfig(CHAINS),
+    });
+
+    expect(diff[test3.name]).to.deep.equal({
+      combinedHookIsm: {
+        [IsmType.WORMHOLE_VAA]: {
+          hook: { expected: ROUTERS[test3.name], actual: OTHER },
+        },
+      },
+    });
+    expect(diff[test1.name]).to.deep.equal({
+      wormholeRemoteRouters: {
+        [test2.name]: {
+          router: ROUTERS[test2.name],
+          wormholeChainId: { actual: 31, expected: 30 },
+          expectedConsistencyLevel: WormholeConsistencyLevel.Finalized,
+          expectedCustomBaseConsistencyLevel: 0,
+          expectedAdditionalBlocks: 0,
+        },
+      },
+    });
+    expect(diff).to.not.have.property(test2.name);
   });
 });

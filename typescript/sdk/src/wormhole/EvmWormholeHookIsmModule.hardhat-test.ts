@@ -9,9 +9,22 @@ import {
 } from '@hyperlane-xyz/core';
 
 import { test4 } from '../consts/testChains.js';
+import { serializeContracts } from '../contracts/contracts.js';
+import { HyperlaneAddresses } from '../contracts/types.js';
+import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
+import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { HookType } from '../hook/types.js';
-import { IsmType } from '../ism/types.js';
+import { IsmConfig, IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { randomAddress } from '../test/testUtils.js';
+import { EvmWarpModule } from '../token/EvmWarpModule.js';
+import { TokenType } from '../token/config.js';
+import {
+  DerivedTokenRouterConfig,
+  HypTokenRouterConfig,
+  derivedIsmAddress,
+} from '../token/types.js';
 
 import { EvmWormholeHookIsmModule } from './EvmWormholeHookIsmModule.js';
 import {
@@ -25,9 +38,11 @@ import {
   WormholeConsistencyLevel,
   type WormholeConsistencyLevelConfig,
 } from './consistency.js';
-import { assert } from '@hyperlane-xyz/utils';
+import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 const { expect } = chai;
+
+const VAA_URL = 'https://example.com/{data}';
 
 describe('EvmWormholeHookIsmModule', () => {
   const chains = ['wormholea', 'wormholeb'];
@@ -97,7 +112,7 @@ describe('EvmWormholeHookIsmModule', () => {
               core: cores[chain],
               wormholeChainId: wormholeChainIds[chain],
               consistencyLevel,
-              urls: ['https://example.com/{data}'],
+              urls: [VAA_URL],
             },
           },
         ];
@@ -230,6 +245,67 @@ describe('EvmWormholeHookIsmModule', () => {
     }
   });
 
+  it('redeploys only the chain whose immutable changes and re-enrolls it', async () => {
+    const [changed, kept] = chains;
+    const input = routeConfig();
+    const addresses = await EvmWormholeHookIsmModule.deployMesh(
+      multiProvider,
+      buildWormholeMeshConfig(input, pairWormholeConfigs(input)),
+    );
+    const changedIsm = input[changed].interchainSecurityModule;
+    assert(
+      changedIsm &&
+        typeof changedIsm !== 'string' &&
+        changedIsm.type === IsmType.WORMHOLE_VAA,
+      `Missing Wormhole ISM on ${changed}`,
+    );
+    changedIsm.consistencyLevel = { type: WormholeConsistencyType.Instant };
+
+    const result = await EvmWormholeHookIsmModule.reconcileMesh(
+      multiProvider,
+      buildWormholeMeshConfig(input, pairWormholeConfigs(input)),
+      addresses,
+    );
+
+    expect(result.addresses[changed]).to.not.equal(addresses[changed]);
+    expect(result.addresses[kept]).to.equal(addresses[kept]);
+    expect(result.transactions[changed]).to.equal(undefined);
+    expect(result.transactions[kept]).to.have.length(1);
+    const [enrollment] = result.transactions[kept];
+    expect(enrollment.to).to.equal(addresses[kept]);
+    assert(enrollment.data, `Missing enrollment calldata on ${kept}`);
+    const [routes] =
+      WormholeVaaHookIsm__factory.createInterface().decodeFunctionData(
+        'enrollRemoteRouters((uint32,bytes32,uint16,uint8,uint8,uint16)[])',
+        enrollment.data,
+      );
+    expect(routes).to.have.length(1);
+    expect(routes[0].domainId).to.equal(10_001);
+    expect(routes[0].domainIsm).to.equal(
+      addressToBytes32(result.addresses[changed]),
+    );
+    expect(routes[0].wormholeChainId).to.equal(4_001);
+    expect(routes[0].expectedConsistencyLevel).to.equal(200);
+    expect(routes[0].expectedCustomBaseConsistencyLevel).to.equal(0);
+    expect(routes[0].expectedAdditionalBlocks).to.equal(0);
+
+    await multiProvider.sendTransaction(kept, enrollment);
+    const keptRouter = WormholeVaaHookIsm__factory.connect(
+      addresses[kept],
+      multiProvider.getProvider(kept),
+    );
+    expect(await keptRouter.routers(10_001)).to.equal(
+      addressToBytes32(result.addresses[changed]),
+    );
+    const changedRouter = WormholeVaaHookIsm__factory.connect(
+      result.addresses[changed],
+      multiProvider.getProvider(changed),
+    );
+    expect(await changedRouter.routers(10_002)).to.equal(
+      addressToBytes32(addresses[kept]),
+    );
+  });
+
   it('redeploys when an immutable changes', async () => {
     const input = routeConfig();
     const mesh = buildWormholeMeshConfig(input, pairWormholeConfigs(input));
@@ -255,5 +331,149 @@ describe('EvmWormholeHookIsmModule', () => {
       expect(result.addresses[chain]).to.not.equal(addresses[chain]);
     }
     expect(Object.values(result.transactions).flat()).to.deep.equal([]);
+  });
+
+  describe('nested in a warp route aggregation ISM', () => {
+    const [chain, remote] = chains;
+    let factoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
+    let routers: Record<string, string>;
+    let warp: EvmWarpModule;
+
+    function aggregationIsm(sibling: IsmConfig): IsmConfig {
+      return {
+        type: IsmType.AGGREGATION,
+        threshold: 1,
+        modules: [sibling, routers[chain]],
+      };
+    }
+
+    function warpConfig(
+      interchainSecurityModule?: IsmConfig,
+    ): HypTokenRouterConfig {
+      return {
+        type: TokenType.synthetic,
+        name: 'Wormhole nested',
+        symbol: 'WHN',
+        decimals: 18,
+        mailbox: mailboxes[chain],
+        owner: signerAddress,
+        interchainSecurityModule,
+      };
+    }
+
+    async function sendTxs(txs: AnnotatedEV5Transaction[]): Promise<void> {
+      for (const tx of txs) {
+        await multiProvider.sendTransaction(chain, tx);
+      }
+    }
+
+    function nestedWormholeIsm(config: DerivedTokenRouterConfig) {
+      const ism = config.interchainSecurityModule;
+      assert(
+        typeof ism === 'object' && ism.type === IsmType.AGGREGATION,
+        `Expected an aggregation ISM on ${chain}`,
+      );
+      const wormhole = ism.modules.find(
+        (module) =>
+          typeof module === 'object' && module.type === IsmType.WORMHOLE_VAA,
+      );
+      assert(
+        typeof wormhole === 'object' && wormhole.type === IsmType.WORMHOLE_VAA,
+        `Expected a typed ${IsmType.WORMHOLE_VAA} module on ${chain}`,
+      );
+      return wormhole;
+    }
+
+    before(async () => {
+      const factories = await new HyperlaneProxyFactoryDeployer(
+        multiProvider,
+      ).deploy({ [chain]: {} });
+      factoryAddresses = serializeContracts(factories[chain]);
+      const input = routeConfig();
+      routers = await EvmWormholeHookIsmModule.deployMesh(
+        multiProvider,
+        buildWormholeMeshConfig(input, pairWormholeConfigs(input)),
+      );
+    });
+
+    beforeEach(async () => {
+      warp = await EvmWarpModule.create({
+        chain,
+        config: warpConfig(),
+        multiProvider,
+        proxyFactoryFactories: factoryAddresses,
+      });
+      await sendTxs(
+        await warp.update(
+          warpConfig(aggregationIsm({ type: IsmType.TEST_ISM })),
+        ),
+      );
+    });
+
+    it('reads the nested Wormhole ISM back as a typed config', async () => {
+      const wormhole = nestedWormholeIsm(await warp.read());
+
+      expect(wormhole).to.have.property('address', routers[chain]);
+      expect(wormhole.core.toLowerCase()).to.equal(cores[chain].toLowerCase());
+      expect(wormhole.wormholeChainId).to.equal(wormholeChainIds[chain]);
+      expect(wormhole.consistencyLevel).to.deep.equal({
+        type: WormholeConsistencyType.Finalized,
+      });
+      expect(wormhole.urls).to.deep.equal([VAA_URL]);
+      expect(wormhole)
+        .to.have.nested.property(`remoteRouters.${remote}.router`)
+        .that.satisfies(
+          (router: string) =>
+            router.toLowerCase() === routers[remote].toLowerCase(),
+        );
+    });
+
+    it('converges on the deployed config without transactions', async () => {
+      const actual = await warp.read();
+
+      expect(
+        await warp.update(
+          warpConfig(aggregationIsm({ type: IsmType.TEST_ISM })),
+        ),
+      ).to.deep.equal([]);
+      expect(
+        await warp.update(warpConfig(derivedIsmAddress(actual))),
+      ).to.deep.equal([]);
+    });
+
+    it('keeps the Wormhole router when a sibling ISM changes', async () => {
+      const before = derivedIsmAddress(await warp.read());
+      const relayer = randomAddress();
+      const target = warpConfig(
+        aggregationIsm({ type: IsmType.TRUSTED_RELAYER, relayer }),
+      );
+
+      await sendTxs(await warp.update(target));
+
+      const actual = await warp.read();
+      expect(derivedIsmAddress(actual)).to.not.equal(before);
+      expect(nestedWormholeIsm(actual)).to.have.property(
+        'address',
+        routers[chain],
+      );
+      const ism = actual.interchainSecurityModule;
+      assert(
+        typeof ism === 'object' && ism.type === IsmType.AGGREGATION,
+        `Expected an aggregation ISM on ${chain}`,
+      );
+      const trustedRelayer = ism.modules.find(
+        (module) =>
+          typeof module === 'object' && module.type === IsmType.TRUSTED_RELAYER,
+      );
+      assert(
+        typeof trustedRelayer === 'object' &&
+          trustedRelayer.type === IsmType.TRUSTED_RELAYER,
+        `Expected a ${IsmType.TRUSTED_RELAYER} module on ${chain}`,
+      );
+      expect(trustedRelayer.relayer.toLowerCase()).to.equal(
+        relayer.toLowerCase(),
+      );
+      expect(await warp.update(target)).to.deep.equal([]);
+    });
   });
 });

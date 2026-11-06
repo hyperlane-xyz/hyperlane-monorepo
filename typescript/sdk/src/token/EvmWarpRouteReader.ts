@@ -201,9 +201,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, chain);
-    // Warp reads should expose the combined Wormhole hook's diagnostic config
-    // instead of reducing nested Wormhole hooks to opaque addresses. Generic
-    // deployment readers retain the address-preserving default.
+    // Warp reads should expose the combined Wormhole hook/ISM's diagnostic
+    // config instead of reducing nested Wormhole hooks and ISMs to opaque
+    // addresses. Generic deployment readers retain the address-preserving
+    // default.
     this.evmHookReader = new EvmHookReader(
       multiProvider,
       chain,
@@ -211,7 +212,13 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       undefined,
       { expandWormhole: true },
     );
-    this.evmIsmReader = new EvmIsmReader(multiProvider, chain, concurrency);
+    this.evmIsmReader = new EvmIsmReader(
+      multiProvider,
+      chain,
+      concurrency,
+      undefined,
+      { expandWormhole: true },
+    );
     this.evmTokenFeeReader = new EvmTokenFeeReader(multiProvider, chain);
 
     this.deriveTokenConfigMap = {

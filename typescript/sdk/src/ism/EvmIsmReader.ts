@@ -102,6 +102,10 @@ const NON_REDEPLOYABLE_ISM_TYPES = new Set<IsmType>([
   IsmType.WORMHOLE_VAA,
 ]);
 
+export interface EvmIsmReaderOptions {
+  expandWormhole?: boolean;
+}
+
 export class EvmIsmReader extends HyperlaneReader implements IsmReader {
   protected readonly logger = rootLogger.child({ module: 'EvmIsmReader' });
   protected isZkSyncChain: boolean;
@@ -114,6 +118,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       chain,
     ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
     protected readonly messageContext?: DispatchedMessage,
+    protected readonly options: EvmIsmReaderOptions = {},
   ) {
     super(multiProvider, chain);
 
@@ -296,6 +301,9 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     original: IsmConfig,
     derived: DerivedIsmConfig,
   ): IsmConfig {
+    if (this.options.expandWormhole && derived.type === IsmType.WORMHOLE_VAA) {
+      return derived;
+    }
     if (!NON_REDEPLOYABLE_ISM_TYPES.has(derived.type)) return derived;
     if (typeof original === 'string') return original;
     return 'address' in derived && typeof derived.address === 'string'

@@ -35,6 +35,8 @@ import {
   PausableIsm__factory,
   RateLimitedIsm,
   RateLimitedIsm__factory,
+  StaticAggregationIsm,
+  StaticAggregationIsm__factory,
   TestIsm,
   TestIsm__factory,
   TrustedRelayerIsm,
@@ -51,7 +53,7 @@ import { missingSelectorError, networkError } from '../test/errors.js';
 import { randomAddress } from '../test/testUtils.js';
 import { WormholeConsistencyType } from '../wormhole/consistency.js';
 
-import { EvmIsmReader } from './EvmIsmReader.js';
+import { EvmIsmReader, EvmIsmReaderOptions } from './EvmIsmReader.js';
 import {
   BlacklistIsmConfig,
   DelayedFlowRouterHookIsmConfig,
@@ -206,6 +208,67 @@ describe('EvmIsmReader', () => {
       'Expected aggregation ISM config',
     );
     expect(config.modules).to.deep.equal([wormholeConfig]);
+  });
+
+  describe('Wormhole module nested in an aggregation', () => {
+    interface NestedWormholeCase {
+      name: string;
+      options?: EvmIsmReaderOptions;
+      expandsWormhole: boolean;
+    }
+
+    const cases: NestedWormholeCase[] = [
+      {
+        name: 'preserves the address for deployment readers',
+        expandsWormhole: false,
+      },
+      {
+        name: 'expands the config when requested for diagnostics',
+        options: { expandWormhole: true },
+        expandsWormhole: true,
+      },
+    ];
+
+    for (const { name, options, expandsWormhole } of cases) {
+      it(name, async () => {
+        const reader = new EvmIsmReader(
+          multiProvider,
+          TestChainName.test1,
+          undefined,
+          undefined,
+          options,
+        );
+        const aggregationAddress = randomAddress();
+        const wormholeAddress = randomAddress();
+        const derivedWormhole: WithAddress<WormholeIsmConfig> = {
+          address: wormholeAddress,
+          type: IsmType.WORMHOLE_VAA,
+          owner: randomAddress(),
+          core: randomAddress(),
+          wormholeChainId: 2,
+          consistencyLevel: { type: WormholeConsistencyType.Finalized },
+          urls: ['https://vaa.example/v1'],
+        };
+        sandbox.stub(StaticAggregationIsm__factory, 'connect').returns(
+          contractDouble<StaticAggregationIsm>({
+            moduleType: sandbox.stub().resolves(ModuleType.AGGREGATION),
+            modulesAndThreshold: sandbox
+              .stub()
+              .resolves([[wormholeAddress], 1]),
+          }),
+        );
+        sandbox
+          .stub(reader, 'deriveIsmConfigFromAddress')
+          .withArgs(wormholeAddress)
+          .resolves(derivedWormhole);
+
+        const config = await reader.deriveAggregationConfig(aggregationAddress);
+
+        expect(config.modules).to.deep.equal([
+          expandsWormhole ? derivedWormhole : wormholeAddress,
+        ]);
+      });
+    }
   });
 
   it('should derive multisig config correctly', async () => {
