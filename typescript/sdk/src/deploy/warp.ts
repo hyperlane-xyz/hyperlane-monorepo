@@ -58,7 +58,10 @@ import { tokenFeeInputToFeeConfig } from '../fee/feeConfigMapping.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { HookConfig } from '../hook/types.js';
 import {
+  collectHookTreeNodes,
   hookTreeContainsRateLimited,
+  isCombinedHookIsmHookNode,
+  isHybridHookNode,
   mapHybridHookNodes,
 } from '../hook/utils.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
@@ -99,13 +102,15 @@ import { throwIfNotMissingSelector } from '../utils/contract.js';
 import {
   canonicalizeRemoteIsms,
   collectHybridIsmNodes,
+  collectIsmTreeNodes,
   extractIsmAndHookFactoryAddresses,
+  isCombinedHookIsmNode,
+  isHybridIsmNode,
   ismTreeContainsRateLimited,
   mapHybridIsmNodes,
   resolveDelayedFlowRemoteIsms,
   setRateLimitedIsmRecipient,
 } from '../utils/ism.js';
-import { findWormholeHooks, findWormholeIsms } from '../wormhole/config.js';
 
 import { HyperlaneProxyFactoryDeployer } from './HyperlaneProxyFactoryDeployer.js';
 import {
@@ -2019,10 +2024,17 @@ export async function enrollCrossChainRouters(
 
           const actualConfig = await evmWarpModule.read();
           const targetOwner = resolvedConfigMap[currentChain].owner;
-          const hasWormholeHook =
-            findWormholeHooks(actualConfig.hook).length > 0;
-          const hasWormholeIsm =
-            findWormholeIsms(actualConfig.interchainSecurityModule).length > 0;
+          // Combined hook/ISMs other than flow-control hybrids are configured
+          // and handed over by their own mesh deployment, so describe the
+          // router's hook and ISM by address and leave them untouched here.
+          const hasMeshHook = collectHookTreeNodes(
+            actualConfig.hook,
+            isCombinedHookIsmHookNode,
+          ).some((node) => !isHybridHookNode(node));
+          const hasMeshIsm = collectIsmTreeNodes(
+            actualConfig.interchainSecurityModule,
+            isCombinedHookIsmNode,
+          ).some((node) => !isHybridIsmNode(node));
           const expectedConfig: HypTokenRouterConfig = {
             ...actualConfig,
             owner: targetOwner,
@@ -2030,7 +2042,7 @@ export async function enrollCrossChainRouters(
             // the deployer until this final pass. Describe their common target
             // owner on both config surfaces so EvmWarpModule can transfer them
             // together after enrollment.
-            interchainSecurityModule: hasWormholeIsm
+            interchainSecurityModule: hasMeshIsm
               ? derivedIsmAddress(actualConfig)
               : typeof actualConfig.interchainSecurityModule === 'object' &&
                   actualConfig.interchainSecurityModule
@@ -2039,7 +2051,7 @@ export async function enrollCrossChainRouters(
                     (node) => ({ ...node, owner: targetOwner }),
                   )
                 : actualConfig.interchainSecurityModule,
-            hook: hasWormholeHook
+            hook: hasMeshHook
               ? derivedHookAddress(actualConfig)
               : typeof actualConfig.hook === 'object' && actualConfig.hook
                 ? mapHybridHookNodes(actualConfig.hook, (node) => ({

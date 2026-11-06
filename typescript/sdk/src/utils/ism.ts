@@ -261,7 +261,7 @@ export function collectHybridIsmNodes(ism: IsmConfig): HybridHookIsmConfig[] {
   return collectHybridIsmNodesFromUnknown(ism);
 }
 
-function isHybridIsmNode(node: unknown): node is HybridHookIsmConfig {
+export function isHybridIsmNode(node: unknown): node is HybridHookIsmConfig {
   if (typeof node !== 'object' || node === null || !('type' in node)) {
     return false;
   }
